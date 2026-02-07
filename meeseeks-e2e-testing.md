@@ -15,7 +15,7 @@ Two agent configurations are available for testing:
 
 | Config     | Agent Name        | Provider | Terminal | Observation              |
 |------------|-------------------|----------|----------|--------------------------|
-| **Gemini** | `meeseeks`        | gemini   | ghostty  | Watch Ghostty window     |
+| **Gemini** | `meeseeks-gemini` | gemini   | ghostty  | Watch Ghostty window     |
 | **Claude** | `meeseeks-claude` | claude   | tmux     | `tmux attach -t gobby-*` |
 
 ### Gemini Configuration (meeseeks)

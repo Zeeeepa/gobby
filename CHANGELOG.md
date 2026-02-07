@@ -5,6 +5,175 @@ All notable changes to Gobby are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.13] - 2026-02-06
+
+### Major Features
+
+#### Web UI
+- Scaffold web chat UI with React + Vite (#6776)
+- Add MCP tool support to web chat + reorganize frontend (#6781)
+- Add terminal panel with xterm.js (#6782)
+- Add syntax highlighting for code blocks (#6783)
+- Persist chat history to localStorage (#6784)
+- Add settings panel with font size slider (#6779, #6780)
+- Add chat interrupt and send-while-streaming (#7081)
+- Add Escape key to stop streaming in chat input (#7113)
+- Auto-start web UI with daemon (#7075)
+- Fix SPA catch-all to exclude bare path segments (#7127)
+
+#### Pipeline System
+- Create PipelineExecutor with exec, prompt, and invoke step types (#6742, #6743, #6744, #6745)
+- Add approval gate handling with approve/reject methods (#6746, #6747)
+- Add pipeline CLI commands: list, show, run, status, approve, reject, history (#6754-#6758)
+- Add pipeline MCP tools: run_pipeline, approve/reject, get_status (#6749-#6752)
+- Add pipeline HTTP API endpoints (#6760-#6763)
+- Add condition evaluation and template rendering (#6748, #6796)
+- Create Lobster format importer with CLI import command (#6768-#6773)
+- Support run_pipeline in workflow on_enter/on_exit and lifecycle triggers (#6766, #6767)
+- Add WebSocket streaming for pipeline execution (#6798)
+- Register gobby-pipelines MCP server in daemon (#6797)
+- Add dynamic tool generation for expose_as_tool pipelines (#6716)
+- Replace eval() with SafeExpressionEvaluator in pipeline conditions (#6795)
+
+#### Async WorkflowLoader
+- Make WorkflowLoader async with aiofiles (#7196)
+- Add mtime-based cache invalidation to WorkflowLoader (#7122)
+
+#### Shell Action for Workflows
+- Add shell/run action to workflow system (#7020)
+- Rename bash action to shell for cross-platform accuracy (#7041)
+- Enrich shell action render context with session & project (#7166)
+
+#### Inject Context Action
+- Add multi-source inject_context action: skills, task_context, memories (#6642-#6645)
+- Support array syntax for multi-source injection (#6646)
+
+#### Handoff Improvements
+- Feed structured HandoffContext into LLM summary path (#7171)
+- Add get_git_diff_summary for actual code change context (#7170)
+- Remove SummaryFileGenerator and add write_file support to generate_handoff (#7184)
+- Enhance compact handoff with detailed activity and fixed paths (#6787)
+
+#### Prompt Loader
+- Migrate prompts from config.yaml to file-based PromptLoader (#6972)
+
+### Improvements
+
+- Make meeseeks-box.yaml isolation-aware (clone, worktree, current) (#7183)
+- Make Codex installer project-aware (#7182)
+- Make validation max_retries configurable via config.yaml (#7180)
+- Add bundled fallbacks, dev-mode symlinks, and resource export/import CLI (#7179)
+- Pass model parameter through agent spawn chain (#7051)
+- Add --model flag to Codex and Gemini in build_cli_command (#7163, #7067)
+- Strip parent terminal env vars from spawned agent processes (#7050)
+- Add orchestrator workflow enforcement to spawn_agent (#7041)
+- Add project context to workflow engine for dynamic commit tags (#7045)
+- Handle server_name='gobby' in tool proxy with auto-resolution (#7155)
+- Deterministic auto-execution for step workflow on_enter actions (#7144)
+- Increase turn limit to 100 and output token budget to 8000 (#7173)
+- Update wait_for_task default timeout to 600s, poll_interval to 30s (#6917)
+- Add WezTerm env vars to spawner cleanup list (#7064, #7139)
+- Strengthen hook errors to be more directive and prevent LLM from stopping (#7119, #7125)
+- Block AskUserQuestion when stop hook gives actionable directive (#7118)
+- Add named-agent shorthand pattern to agents skill (#7124)
+- Add TemplateRenderer protocol for template_engine type safety (#7157)
+- Agent definition terminal supersedes caller/workflow terminal (#7065)
+- Unify kill_agent for self and child termination (#6979-#6982)
+- Add port validator to UIConfig (#7135)
+- Verify UI server process is alive before writing PID file (#7128)
+- Agent-driven proactive memory capture (#6661)
+- Improve memory extraction prompt to reduce low-quality captures (#6655)
+- Clean up dead memory code and enhance proactive memory (#7186)
+- Add out_of_repo reason for closing tasks without commits (#6634)
+- Block close_task skip_validation when commit is attached (#7062)
+- Wipe closed metadata when task is reopened via update_task (#7053)
+- Block update_task from closing/claiming tasks (#6825)
+- Add activation gate step to work-task-gemini workflow (#6804)
+- Skip memory/tool reset on Gemini auto-compress (#6730)
+- Dev-mode symlinks for hook dispatcher files (#7190)
+- Restore gobby agent context variables in hook dispatchers (#7188)
+- Add skill hub registry integration (#6631)
+- Add LLM-synthesized descriptions for GitHub collection skills (#6663)
+- Remove hook-based skill injection in favor of inject_context (#6649)
+
+### Bug Fixes
+
+- Fix CVE-2026-0994 protobuf vulnerability (#7048)
+- Fix lifecycle evaluator state race condition with atomic merge_variables (#7162)
+- Fix _render_arguments to recursively render dict items in lists (#7160)
+- Fix _handle_self_mode to allow lifecycle workflow coexistence (#7129)
+- Block stop deterministically after tool block (#7131)
+- Fix stop hook enforcement fail-open bugs (#7176)
+- Fix lifecycle workflow appearing as step workflow in display (#7151)
+- Fix streaming caret appearing on extra line break (#7120)
+- Fix schema-check error to suggest correct server from unlocked_tools (#7117)
+- Await cancelled chat task in disconnect cleanup (#7116)
+- Fix file handle leak in spawn_ui_server (#7115)
+- Guard deep attribute chain in _compose_session_response (#7083)
+- Fix workflow lifecycle and task status handling (#7054, #7056, #7058, #7059)
+- Fix kill_agent hook failure by adding get_tool_schema step (#7061)
+- Fix out_of_repo bypassing session edit check in close_task (#7057)
+- Fix spawn_agent orchestrator check reading from wrong source (#7049)
+- Fix premature stop enforcement in workflow engine (#7043)
+- Fix mode resolution for default workflow in spawn_agent (#7042)
+- Fix on_mcp_success handlers not being processed (#6970)
+- Fix workflow engine to deliver on_enter messages during step transitions (#6963)
+- Fix Gemini adapter to extract inner MCP server/tool from gobby proxy calls (#6966)
+- Fix clone isolation to auto-detect parent's current branch (#6959)
+- Fix workflow evaluator to expose variables at top level (#6952)
+- Fix workflow auto-transitions not firing after variable detection (#6951, #6936)
+- Fix extra_read_paths PosixPath bug in spawn_agent (#6950)
+- Fix meeseeks-box mcp_result_is_null transition bug (#6939)
+- Fix session summary template rendering - use Jinja2 instead of str.format (#6947)
+- Fix close_terminal not closing Gemini sessions (#6940)
+- Fix sandbox to allow git operations in worktrees (#6935)
+- Fix spawn_agent mode=self to set session_task variable (#6932, #6931, #6928)
+- Fix assigned_task_id not persisting after workflow activation (#6808, #6810)
+- Fix git_branch not passed to session when spawning workers in worktrees (#6820)
+- Fix task ID comparison bugs - refs vs UUIDs (#6792)
+- Fix workflow condition evaluation for YAML booleans (#6659)
+- Fix PreToolUseInput validation error for before_tool_selection events (#6660)
+- Fix memory deduplication bypass by removing project_id from ID generation (#6638)
+- Fix memory backup export limit bug (#6635)
+- Fix unlocked_tools not persisting when step workflow is active (#6829)
+- Fix 7 issues: UI PID persistence, workflow YAML, CancelledError, tests (#7203)
+- Fix async blocking, error handling, type hints across 7 files (#7202)
+- Fix 10 test failures from async WorkflowLoader conversion (#7200)
+- Fix 17 mypy type errors across 12 files (#7199)
+- Fix 6 pre-existing test failures (#7197)
+- Fix 12 issues across multiple files (#7177)
+- Fix 6 of 8 remaining issues across multiple files (#7178)
+
+### Security
+
+- Fix CVE-2026-0994 protobuf vulnerability (#7048)
+- Validate term_program before pgrep subprocess calls (#7154)
+- Validate terminal context values before subprocess calls (#7153)
+- Replace eval() with SafeExpressionEvaluator in pipeline conditions (#6795)
+- Fix 2 bandit findings (B101, B110) (#7201)
+- Add port validator to UIConfig (#7135)
+
+### Documentation
+
+- Add strangler-fig-decomposition plan for 5 oversized files (#7077)
+- Update gobby-agents skill with current tools and patterns (#7046)
+- Add pipeline guides and Lobster migration guide (#6772, #6773)
+- Document name/variable precedence and add conflict warning (#7161)
+- Update meeseeks agents and E2E testing docs (#6914-#6925)
+
+### Internal
+
+- Convert all hook dispatchers from blocking I/O to async (#7185, #7132, #7133)
+- Code quality fixes across 14+ files (#7207)
+- Add type hints, structured logging, and fix sync wrappers (#7206)
+- Refactor session workflow conditional for readability (#7208)
+- Multiple extraction/decomposition refactors (#7142, #7143, #7152)
+- Shared mock_daemon_config fixture (#7139)
+- Remove dead TodoWrite references from summary pipeline (#7168)
+- Narrow except clauses in workflow parsing (#7148, #7149)
+- Replace confusing self-assignment no-ops with pass (#7137, #7082)
+- Clean up stale nosec bandit comments (#7073)
+
 ## [0.2.12] - 2025-02-05
 
 ### Major Features
