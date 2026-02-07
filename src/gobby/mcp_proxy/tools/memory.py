@@ -19,14 +19,13 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING, Any
 
-logger = logging.getLogger(__name__)
-
 from gobby.mcp_proxy.tools.internal import InternalToolRegistry
 from gobby.memory.manager import MemoryManager
 
 if TYPE_CHECKING:
     from gobby.llm.service import LLMService
-from gobby.llm.service import LLMService
+
+logger = logging.getLogger(__name__)
 
 
 # Helper to get current project context
