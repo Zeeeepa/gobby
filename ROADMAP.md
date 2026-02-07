@@ -62,6 +62,34 @@ Legend:
 - ✅ Workflow engine (phases, tool restrictions, exit conditions)
 - ✅ Autonomous orchestration: inter-agent messaging, review gates, conductor daemon
 
+### Pipeline system
+
+- ✅ PipelineExecutor with exec, prompt, invoke_pipeline step types
+- ✅ Approval gates (approve/reject via CLI, MCP, HTTP API)
+- ✅ Lobster format import and migration guide
+- ✅ WebSocket streaming for pipeline execution
+- ✅ Safe expression evaluator for conditions
+- ✅ Pipeline CLI, MCP tools, and HTTP API endpoints
+
+### Workflow enhancements (0.2.13)
+
+- ✅ Async WorkflowLoader with aiofiles and mtime-based cache invalidation
+- ✅ Shell/run action for workflows (cross-platform)
+- ✅ Inject context action (multi-source: skills, task_context, memories)
+- ✅ File-based PromptLoader (migrated from config.yaml)
+- ✅ Structured HandoffContext with git diff summary
+- ✅ Async hook dispatchers
+- ✅ Proactive memory capture
+
+### Web UI
+
+- ✅ Chat interface with React + Vite and MCP tool support
+- ✅ Terminal panel with xterm.js
+- ✅ Syntax highlighting, streaming, chat history persistence
+- ✅ Auto-start with daemon
+- 🗺️ Task graph visualization
+- 🗺️ Hook inspector
+
 ### Worktrees
 
 - ✅ Worktree creation + agent spawning primitives
@@ -110,6 +138,7 @@ Legend:
 
 - ✅ Consolidate `start_agent`, `spawn_agent_in_worktree`, `spawn_agent_in_clone` into unified `spawn_agent` API
 - ✅ Add `isolation` parameter: `current`, `worktree`, `clone`
+- ✅ Model passthrough and terminal override
 - 🚧 Auto-generate branch names from task titles
 
 ### Code decomposition (strangler fig)
@@ -120,80 +149,103 @@ Legend:
 - ✅ Break up `adapters/codex.py` into `codex_impl/` package (types/client/adapter)
 - 🚧 Break up `mcp_proxy/tools/worktrees.py` into granular toolsets
 
-### API versioning
-
-- 🚧 Add `/api/v1.0` prefix to all API endpoints
-- 🚧 Update clients and tests
-
-### Migration flattening
-
-- ✅ Flatten migrations into baseline schema (BASELINE_SCHEMA_V2)
-- 🚧 Delete `migrations_legacy.py`
-
 ---
 
 ## Next (make it undeniable)
 
 Goal: a developer installs Gobby and immediately understands the value in minutes.
 
-### 1) Security posture for tool access (must-have for “1000 MCP servers”)
+### 1) Security posture for tool access (must-have for "1000 MCP servers")
 
 - 🗺️ MCP server allow/deny lists
 - 🗺️ Quarantine unknown servers until approved
 - 🗺️ Per-tool risk levels + confirmation gates (filesystem write, shell, network, etc.)
 - 🗺️ Audit log for tool calls (who/what/when/args summary)
 
-### 2) Observability (debugging + trust)
+### 2) Observability + OpenTelemetry
 
 - 🗺️ Tool call tracing (latency, success/error, payload size)
-- 🗺️ Session timeline view (event stream: hooks fired, tools invoked, compactions, files changed - distinct from session transcripts which capture raw conversation)
+- 🗺️ Session timeline view (event stream: hooks fired, tools invoked, compactions, files changed)
+- 🗺️ Replace custom logging/metrics with OpenTelemetry
+- 🗺️ OTLP export + console fallback for local dev
 - 🗺️ Exportable run reports (for PR descriptions / team sharing)
 
-### 3) Flagship demos (distribution)
+### 3) Production-ready workflows
 
-- 🗺️ “MCP at scale without token tax” demo (progressive discovery)
-- 🗺️ “Spec → tasks → TDD red/green/blue → validated PR” demo
-- 🗺️ “Hooks enforce discipline” demo pack (format/lint/test gates)
+- 🗺️ Automated code review pipelines
+- 🗺️ Retry logic and error recovery
+- 🗺️ Parallel worker execution
+
+### 4) SWE-bench evaluation
+
+- 🗺️ Evaluation infrastructure for SWE-bench Lite/Verified/Live
+- 🗺️ Track scores over time, A/B test Gobby features
+
+### 5) Flagship demos (distribution)
+
+- 🗺️ "MCP at scale without token tax" demo (progressive discovery)
+- 🗺️ "Spec → tasks → TDD red/green/blue → validated PR" demo
+- 🗺️ "Hooks enforce discipline" demo pack (format/lint/test gates)
 
 ---
 
-## Near term (make it visible: UI + autonomy foundations)
+## Near term (make it visible: autonomy + production readiness)
 
-Goal: reduce cognitive load; make the daemon’s behavior legible.
+Goal: reduce cognitive load; make the daemon's behavior legible.
 
-### 1) Minimal Web UI (read-only first)
+### 1) Additional CLI support
 
-- 🗺️ Sessions list + handoff summaries
-- 🗺️ Task graph view (deps, blocked/ready, validation status)
-- 🗺️ MCP servers + tools browser (search → schema → call)
-- 🗺️ Workflow run status + logs
-- 🗺️ Hook inspector (what ran, what changed, what was blocked)
-
-### 2) Additional CLI support
-
-- 🗺️ GitHub Copilot CLI
-- 🗺️ Cursor IDE / Cursor CLI
+- ✅ Cursor (0.2.10)
+- ✅ Windsurf (0.2.10)
+- ✅ Copilot (0.2.10)
 - 🗺️ Aider
 - 🗺️ Continue
 - 🗺️ Amazon Q Developer CLI
-- 🗺️ Other emerging coding agent CLIs
 
-### 3) Worktree production readiness
+### 2) Worktree production readiness
 
 - 🗺️ Cleanup/GC, conflict strategy, concurrency rules
 - 🗺️ Run workflows per worktree; merge automation hooks
 
-### 4) OpenTelemetry (optional enhancement)
-
-- 🗺️ Replace custom logging/metrics with OpenTelemetry
-- 🗺️ OTLP export + console fallback for local dev
-- 🗺️ Tracing infrastructure ready for future fleet observability
-
-### 5) SWE-bench evaluation
+### 3) SWE-bench evaluation
 
 - 🗺️ Evaluation infrastructure for SWE-bench Lite/Verified/Live
 - 🗺️ Track scores over time, A/B test Gobby features
 - 🗺️ Leaderboard submission when ready to show off
+
+### 4) Remote access
+
+- 🗺️ Authentication for daemon HTTP/WebSocket endpoints
+- 🗺️ Tailscale integration for secure remote access
+- 🗺️ SSH tunneling support
+
+### 5) Memory v4
+
+- 🗺️ Extraction improvements
+- 🗺️ Embedding-based deduplication
+
+### 6) Plugin ecosystem v2
+
+- 🗺️ Dedicated MCP server for plugin management
+- 🗺️ Plugin registry conventions + compatibility checks
+
+### 7) Project management v2
+
+- 🗺️ Rename, delete, update, repair CLI commands
+
+### 8) Code decomposition round 2
+
+- 🗺️ `websocket.py`, `claude.py`, `skills.py`, `sessions.py`, `hook_manager.py`
+
+### 9) Multi-agent orchestration improvements
+
+- 🗺️ P2P mailboxes for agent communication
+- 🗺️ Agent checkpointing and resume
+- 🗺️ Coordinator role for task distribution
+
+### 10) Personal workspace
+
+- 🗺️ Project-optional tasks (personal backlog without a project)
 
 ---
 

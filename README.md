@@ -134,6 +134,27 @@ gobby skills install github:user/repo/skills/my-skill
 gobby skills search "testing coverage"
 ```
 
+### 🌐 Web UI
+
+Gobby ships a built-in web interface that auto-starts with the daemon:
+
+- Chat interface with MCP tool support
+- Terminal panel with xterm.js
+- Syntax highlighting and streaming
+- Settings panel with font size control
+
+Access at `http://localhost:60887` when the daemon is running.
+
+### 🚀 Pipelines
+
+Deterministic, repeatable automation with approval gates:
+
+- Step types: `exec`, `prompt`, `invoke_pipeline`
+- Approval gates for human-in-the-loop workflows
+- Condition evaluation with safe expression engine
+- Import from Lobster format
+- CLI, MCP, and HTTP API access
+
 ## Installation
 
 ### Try it instantly
@@ -282,6 +303,7 @@ All CLIs can also connect via MCP for tool access (see configuration examples ab
 | Session handoffs | ✅ | ❌ | ❌ | ❌ |
 | YAML workflows | ✅ | ❌ | ❌ | ✅ |
 | Worktree orchestration | ✅ | ❌ | ❌ | ❌ |
+| Pipeline automation | ✅ | ❌ | ❌ | ❌ |
 | Zero external deps | ✅ | ❌ | ✅ | ❌ |
 | Local-first | ✅ | ✅ | ✅ | ✅ |
 
@@ -305,9 +327,11 @@ FastAPI   FastMCP
 │  HookManager        │
 │  SessionManager     │
 │  WorkflowEngine     │
+│  PipelineExecutor   │
 │  MCPClientProxy     │
 │  TaskStore          │
 │  MemoryStore        │
+│  WebUI              │
 └─────────────────────┘
         │
         ▼
@@ -345,6 +369,9 @@ Gobby exposes tools via MCP that your AI coding assistant can use:
 **Artifacts** (`gobby-artifacts`)
 `save_artifact`, `get_artifact`, `list_artifacts` — capture and retrieve session artifacts
 
+**Pipelines** (`gobby-pipelines`)
+`list_pipelines`, `run_pipeline`, `approve_pipeline`, `reject_pipeline`, `get_pipeline_status`
+
 **MCP Proxy**
 `list_mcp_servers`, `add_mcp_server`, `import_mcp_server`, `list_tools`, `get_tool_schema`, `call_tool`, `recommend_tools`, `search_tools`
 
@@ -359,11 +386,11 @@ Gobby exposes tools via MCP that your AI coding assistant can use:
 
 See [ROADMAP.md](ROADMAP.md) for the full plan, but highlights:
 
-**Shipped:** Task system v2 (commit linking, validation gates, Claude Code interop), TDD expansion v2 (red/green/blue generation), workflow engine (state machines, tool restrictions, exit conditions), MCP proxy with progressive discovery, session tracking and handoffs, memory v3 (backend abstraction), hooks integration for all CLIs, unified agent spawning, worktree and clone orchestration, skills system, artifacts capture
+**Shipped:** Task system v2, TDD expansion, workflow engine, MCP proxy with progressive discovery, session handoffs, memory v3, hooks for all CLIs, unified agent spawning, worktree and clone orchestration, skills system, artifacts, web UI, pipeline system, shell actions, async workflow loader, inject_context, prompt loader, proactive memory
 
 **Beta:** Autonomous orchestration (conductor daemon, inter-agent messaging, token budget tracking, review gates)
 
-**Next:** Security posture for MCP (allow/deny lists, audit logging), Observability (tool call tracing, session timelines), Web UI (read-only dashboard)
+**Next:** Security posture for MCP (allow/deny lists, audit logging), observability with OpenTelemetry, SWE-bench evaluation, production-ready workflows, remote access
 
 **Vision:** Always local first, but Pro cloud features to keep the lights on: Fleet management, Plugin ecosystem, Team workflows, Enterprise hardening
 
