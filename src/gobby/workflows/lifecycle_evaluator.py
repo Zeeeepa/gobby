@@ -20,6 +20,16 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
+
+def _compute_variable_diff(
+    before: dict[str, Any] | None, after: dict[str, Any]
+) -> dict[str, Any]:
+    """Compute which variables changed between before and after snapshots."""
+    if before is None:
+        return dict(after)
+    return {k: v for k, v in after.items() if k not in before or before[k] != v}
+
+
 # Maximum iterations to prevent infinite loops in trigger evaluation
 MAX_TRIGGER_ITERATIONS = 10
 
@@ -143,6 +153,9 @@ async def evaluate_workflow_triggers(
         files_modified_this_task=0,
     )
 
+    # Snapshot variables before evaluation so we can diff later
+    vars_snapshot = dict(state.variables) if not state_was_created else None
+
     # Merge context_data (workflow defaults) into state variables
     # Persisted state values take precedence over workflow defaults
     if context_data:
@@ -256,10 +269,11 @@ async def evaluate_workflow_triggers(
             if not is_step_workflow:
                 state_manager.save_state(state)
         else:
-            # We fetched an existing state (possibly a step workflow) and updated
-            # its variables. Safe to save since we're just persisting variable
-            # changes (like unlocked_tools), not changing workflow_name or step.
-            state_manager.save_state(state)
+            # Existing state: only merge changed variables atomically
+            # to avoid clobbering concurrent evaluations' changes.
+            changed_vars = _compute_variable_diff(vars_snapshot, state.variables)
+            if changed_vars:
+                state_manager.merge_variables(session_id, changed_vars)
 
     final_context = "\n\n".join(injected_context) if injected_context else None
     logger.debug(
@@ -621,10 +635,16 @@ async def evaluate_all_lifecycle_workflows(
                     workflow_name="__lifecycle__",
                     step="",
                 )
-            detect_task_claim_fn(event, state)
-            detect_plan_mode_fn(event, state)
-            # Safe to save - we're updating variables on existing state, not changing workflow_name
-            state_manager.save_state(state)
+                detect_task_claim_fn(event, state)
+                detect_plan_mode_fn(event, state)
+                state_manager.save_state(state)  # new state
+            else:
+                vars_before = dict(state.variables)
+                detect_task_claim_fn(event, state)
+                detect_plan_mode_fn(event, state)
+                changed = _compute_variable_diff(vars_before, state.variables)
+                if changed:
+                    state_manager.merge_variables(session_id, changed)
 
     # Detect plan mode from system reminders for BEFORE_AGENT events
     # This catches plan mode when user enters via UI (not via EnterPlanMode tool)
@@ -638,9 +658,14 @@ async def evaluate_all_lifecycle_workflows(
                     workflow_name="__lifecycle__",
                     step="",
                 )
-            detect_plan_mode_from_context_fn(event, state)
-            # Safe to save - we're updating variables on existing state, not changing workflow_name
-            state_manager.save_state(state)
+                detect_plan_mode_from_context_fn(event, state)
+                state_manager.save_state(state)  # new state
+            else:
+                vars_before = dict(state.variables)
+                detect_plan_mode_from_context_fn(event, state)
+                changed = _compute_variable_diff(vars_before, state.variables)
+                if changed:
+                    state_manager.merge_variables(session_id, changed)
 
     # Check for premature stop in active step workflows on STOP events
     if event.event_type == HookEventType.STOP:

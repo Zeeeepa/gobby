@@ -190,6 +190,13 @@ def _evaluate_block_condition(
         "int": int,
     }
 
+    logger.debug(
+        f"block_condition eval: condition='{condition}', "
+        f"stop_attempts={variables.get('stop_attempts', 0)}, "
+        f"task_claimed={variables.get('task_claimed')}, "
+        f"plan_mode={variables.get('plan_mode')}"
+    )
+
     try:
         evaluator = SafeExpressionEvaluator(context, allowed_funcs)
         return evaluator.evaluate(condition)

@@ -109,6 +109,14 @@ class DatabaseProtocol(Protocol):
         """Context manager for database transactions."""
         ...
 
+    def transaction_immediate(self) -> AbstractContextManager[sqlite3.Connection]:
+        """Context manager for IMMEDIATE transactions (write-intent).
+
+        Acquires write lock at BEGIN, preventing concurrent read-modify-write races.
+        Use for atomic read-then-update patterns where deferred locking is insufficient.
+        """
+        ...
+
     def close(self) -> None:
         """Close database connection."""
         ...
@@ -300,6 +308,22 @@ class LocalDatabase:
         """
         conn = self.connection
         conn.execute("BEGIN")
+        try:
+            yield conn
+            conn.execute("COMMIT")
+        except Exception:
+            conn.execute("ROLLBACK")
+            raise
+
+    @contextmanager
+    def transaction_immediate(self) -> Iterator[sqlite3.Connection]:
+        """Context manager for IMMEDIATE transactions (write-intent).
+
+        Acquires write lock at BEGIN, preventing concurrent read-modify-write races.
+        Use for atomic read-then-update patterns where deferred locking is insufficient.
+        """
+        conn = self.connection
+        conn.execute("BEGIN IMMEDIATE")
         try:
             yield conn
             conn.execute("COMMIT")

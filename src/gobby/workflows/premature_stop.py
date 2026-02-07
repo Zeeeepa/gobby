@@ -107,9 +107,9 @@ async def check_premature_stop(
     stop_count = state.variables.get("_premature_stop_count", 0) + 1
     max_attempts = state.variables.get("premature_stop_max_attempts", 3)
 
-    # Update and persist the counter
+    # Update and persist the counter atomically
     state.variables["_premature_stop_count"] = stop_count
-    state_manager.save_state(state)
+    state_manager.merge_variables(state.session_id, {"_premature_stop_count": stop_count})
 
     if max_attempts > 0 and stop_count >= max_attempts:
         logger.warning(

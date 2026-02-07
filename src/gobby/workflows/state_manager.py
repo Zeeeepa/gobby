@@ -1,6 +1,7 @@
 import json
 import logging
 from datetime import UTC, datetime
+from typing import Any
 
 from gobby.storage.database import DatabaseProtocol
 
@@ -99,6 +100,28 @@ class WorkflowStateManager:
                 datetime.now(UTC).isoformat(),
             ),
         )
+
+    def merge_variables(self, session_id: str, updates: dict[str, Any]) -> None:
+        """Atomically merge variable updates into existing state.
+
+        Uses BEGIN IMMEDIATE to serialize the read-modify-write,
+        preventing concurrent evaluations from clobbering each other.
+        """
+        if not updates:
+            return
+        with self.db.transaction_immediate() as conn:
+            row = conn.execute(
+                "SELECT variables FROM workflow_states WHERE session_id = ?",
+                (session_id,),
+            ).fetchone()
+            if not row:
+                return
+            current = json.loads(row["variables"]) if row["variables"] else {}
+            current.update(updates)
+            conn.execute(
+                "UPDATE workflow_states SET variables = ?, updated_at = ? WHERE session_id = ?",
+                (json.dumps(current), datetime.now(UTC).isoformat(), session_id),
+            )
 
     def delete_state(self, session_id: str) -> None:
         """
