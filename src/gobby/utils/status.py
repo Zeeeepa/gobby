@@ -230,6 +230,8 @@ def format_status_message(
                 lines.append("  Mode: dev | Stopped")
         elif ui_mode == "production":
             lines.append(f"  Mode: production | Serving at {ui_url}")
+        else:
+            lines.append(f"  Mode: {ui_mode!r} | Unknown status")
         lines.append("")
 
     # MCP Proxy section (only show if we have data)

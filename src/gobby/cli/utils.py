@@ -569,7 +569,8 @@ def spawn_ui_server(host: str, port: int, web_dir: Path, log_file: Path) -> int 
     try:
         log_file.parent.mkdir(parents=True, exist_ok=True)
 
-        with open(log_file, "a") as log_f:
+        log_f = open(log_file, "a")  # noqa: SIM115
+        try:
             process = subprocess.Popen(  # nosec B603 B607
                 cmd,
                 cwd=web_dir,
@@ -579,6 +580,12 @@ def spawn_ui_server(host: str, port: int, web_dir: Path, log_file: Path) -> int 
                 start_new_session=True,
                 env=os.environ.copy(),
             )
+        except Exception:
+            log_f.close()
+            raise
+
+        # Popen duplicates the fd internally; parent can close its handle
+        log_f.close()
 
         # Give the process a moment to start, then verify it's still alive
         time.sleep(1.0)

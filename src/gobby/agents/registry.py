@@ -722,8 +722,9 @@ class RunningAgentRegistry:
 
         # Wait for termination with optional SIGKILL escalation
         if signal_name == "TERM" and timeout > 0:
-            deadline = asyncio.get_event_loop().time() + timeout
-            while asyncio.get_event_loop().time() < deadline:
+            loop = asyncio.get_running_loop()
+            deadline = loop.time() + timeout
+            while loop.time() < deadline:
                 try:
                     os.kill(target_pid, 0)
                     await asyncio.sleep(0.1)

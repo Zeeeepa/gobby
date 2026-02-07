@@ -11,6 +11,8 @@ import logging
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Literal
 
+import aiofiles
+
 from gobby.sessions.analyzer import HandoffContext, TranscriptAnalyzer
 from gobby.workflows.git_utils import (
     get_file_changes,
@@ -239,12 +241,14 @@ async def synthesize_title(
             turns = []
             path = Path(transcript_path)
             if path.exists():
-                with open(path, encoding="utf-8") as f:
-                    for i, line in enumerate(f):
+                async with aiofiles.open(path, encoding="utf-8") as f:
+                    i = 0
+                    async for line in f:
                         if i >= 20:
                             break
                         if line.strip():
                             turns.append(json.loads(line))
+                            i += 1
 
             if not turns:
                 return {"error": "Empty transcript"}
@@ -332,8 +336,8 @@ async def generate_summary(
             return {"error": "Transcript not found"}
 
         turns = []
-        with open(transcript_file) as f:
-            for line in f:
+        async with aiofiles.open(transcript_file, encoding="utf-8") as f:
+            async for line in f:
                 if line.strip():
                     turns.append(json.loads(line))
 

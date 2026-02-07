@@ -147,6 +147,19 @@ async def handle_save_workflow_state(
     return await asyncio.to_thread(save_workflow_state, context.db, context.state)
 
 
+def _resolve_variable_name(kwargs: dict[str, Any], caller: str = "unknown") -> str | None:
+    """Resolve variable name from 'name' or 'variable' kwargs with conflict warning."""
+    name_val = kwargs.get("name")
+    variable_val = kwargs.get("variable")
+    if name_val and variable_val and name_val != variable_val:
+        logger.warning(
+            "%s: both 'name' (%s) and 'variable' (%s) provided with different values; "
+            "using 'name' for backwards compatibility",
+            caller, name_val, variable_val,
+        )
+    return name_val or variable_val
+
+
 async def handle_set_variable(context: "ActionContext", **kwargs: Any) -> dict[str, Any] | None:
     """ActionHandler wrapper for set_variable.
 
@@ -171,24 +184,14 @@ async def handle_set_variable(context: "ActionContext", **kwargs: Any) -> dict[s
         else:
             logger.warning("handle_set_variable: template_engine is None, skipping template render")
 
-    name_val = kwargs.get("name")
-    variable_val = kwargs.get("variable")
-    if name_val and variable_val and name_val != variable_val:
-        logger.warning(
-            "handle_set_variable: both 'name' (%s) and 'variable' (%s) provided with different values; "
-            "using 'name' for backwards compatibility",
-            name_val,
-            variable_val,
-        )
-
-    return set_variable(context.state, name_val or variable_val, value)
+    return set_variable(context.state, _resolve_variable_name(kwargs, "handle_set_variable"), value)
 
 
 async def handle_increment_variable(
     context: "ActionContext", **kwargs: Any
 ) -> dict[str, Any] | None:
     """ActionHandler wrapper for increment_variable."""
-    return increment_variable(context.state, kwargs.get("name") or kwargs.get("variable"), kwargs.get("amount", 1))
+    return increment_variable(context.state, _resolve_variable_name(kwargs, "handle_increment_variable"), kwargs.get("amount", 1))
 
 
 async def handle_mark_loop_complete(

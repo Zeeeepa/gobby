@@ -125,9 +125,9 @@ async def handle_call_mcp_tool(context: "ActionContext", **kwargs: Any) -> dict[
     tool_name = kwargs.get("tool_name") or ""
 
     if template_engine:
-        if isinstance(server_name, str) and "{{" in server_name:
+        if "{{" in server_name:
             server_name = template_engine.render(server_name, template_context)
-        if isinstance(tool_name, str) and "{{" in tool_name:
+        if "{{" in tool_name:
             tool_name = template_engine.render(tool_name, template_context)
 
     # Render template strings in arguments
