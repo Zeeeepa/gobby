@@ -115,7 +115,8 @@ def export_cmd(type_: str, name: str | None, to_path: str | None, global_: bool)
             if dry_run:
                 click.echo(f"  {rel}")
             else:
-                assert target_dir is not None
+                if target_dir is None:
+                    raise click.ClickException("Target directory could not be resolved")
                 copied = _copy_resource(f, target_dir, source_dir)
                 click.echo(f"  {copied} -> {target_dir / copied}")
             total += 1
@@ -131,12 +132,18 @@ def export_cmd(type_: str, name: str | None, to_path: str | None, global_: bool)
 @click.command("import")
 @click.argument("type_", metavar="TYPE", type=click.Choice(list(RESOURCE_TYPES) + ["all"]))
 @click.argument("name", required=False, default=None)
-@click.option("--from", "from_path", type=click.Path(exists=True), help="File or directory to import.")
 @click.option(
-    "--from-project", "from_project", type=click.Path(exists=True),
+    "--from", "from_path", type=click.Path(exists=True), help="File or directory to import."
+)
+@click.option(
+    "--from-project",
+    "from_project",
+    type=click.Path(exists=True),
     help="Import from another project's .gobby/ directory.",
 )
-def import_cmd(type_: str, name: str | None, from_path: str | None, from_project: str | None) -> None:
+def import_cmd(
+    type_: str, name: str | None, from_path: str | None, from_project: str | None
+) -> None:
     """Import resources into the current project.
 
     TYPE is one of: workflow, agent, prompt, all.

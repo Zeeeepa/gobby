@@ -16,7 +16,10 @@ via the downstream proxy pattern (call_tool).
 
 from __future__ import annotations
 
+import logging
 from typing import TYPE_CHECKING, Any
+
+logger = logging.getLogger(__name__)
 
 from gobby.mcp_proxy.tools.internal import InternalToolRegistry
 from gobby.memory.manager import MemoryManager
@@ -96,14 +99,16 @@ def create_memory_registry(
                 )
                 for m in similar:
                     if m.id != memory.id:
-                        similar_existing.append({
-                            "id": m.id,
-                            "content": m.content,
-                            "similarity": getattr(m, "similarity", None),
-                        })
+                        similar_existing.append(
+                            {
+                                "id": m.id,
+                                "content": m.content,
+                                "similarity": getattr(m, "similarity", None),
+                            }
+                        )
                 similar_existing = similar_existing[:3]
             except Exception:
-                pass  # Don't fail creation if similarity search fails
+                logger.debug("Similarity search failed during memory creation", exc_info=True)
 
             return {
                 "success": True,
