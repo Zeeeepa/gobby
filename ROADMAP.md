@@ -280,4 +280,3 @@ Goal: make Gobby the obvious substrate for serious local agentic coding.
 - Hiding behavior behind “magic prompts”
 
 Gobby wins by being the **boring, reliable system layer** under your AI tools.
-
