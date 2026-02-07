@@ -84,13 +84,9 @@ async def _handle_self_mode(
     existing_state = effective_state_manager.get_state(parent_session_id)
     if existing_state and existing_state.workflow_name not in ("__lifecycle__", "__ended__"):
         # Check if existing workflow is a lifecycle type (they coexist with step workflows)
-        existing_def = (
-            await workflow_loader.load_workflow(
-                existing_state.workflow_name,
-                Path(project_path) if project_path else None,
-            )
-            if workflow_loader
-            else None
+        existing_def = await workflow_loader.load_workflow(
+            existing_state.workflow_name,
+            Path(project_path) if project_path else None,
         )
         if not existing_def or existing_def.type != "lifecycle":
             return {
