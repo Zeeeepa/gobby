@@ -5,7 +5,7 @@ All notable changes to Gobby are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [0.2.13] - 2026-02-06
+## [0.2.13] - 2026-02-07
 
 ### Major Features
 
@@ -59,6 +59,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Improvements
 
+- Add pre-existing error triage enforcement to session lifecycle (#7235)
+- Add CodeRabbit review report to pre-push-test.sh (#7231)
+- Rename agents CLI `start` command to `spawn` (#7217)
+- Add resolution_id to merge logger (#7215)
 - Make meeseeks-box.yaml isolation-aware (clone, worktree, current) (#7183)
 - Make Codex installer project-aware (#7182)
 - Make validation max_retries configurable via config.yaml (#7180)
@@ -98,6 +102,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Bug Fixes
 
+- Fix pre-existing test failures and lint warnings (#7233)
+- Fix stale skill cache: sync_bundled_skills now updates changed skills (#7227)
+- Fix agent name resolution and remove hardcoded meeseeks refs (#7225)
+- Fix mypy type errors in loader.py and lifecycle_evaluator.py (#7224)
+- Fix log errors in block_tools templates, artifact IDs, deprecated args, metrics (#7214)
+- Fix multi-file issues: concurrency, async safety, type annotations (#7229)
+- Fix ruff E402 and bandit B101 errors (#7213)
 - Fix CVE-2026-0994 protobuf vulnerability (#7048)
 - Fix lifecycle evaluator state race condition with atomic merge_variables (#7162)
 - Fix _render_arguments to recursively render dict items in lists (#7160)
@@ -155,6 +166,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Documentation
 
+- Fix inconsistent agent name in meeseeks-e2e-testing.md (#7228)
 - Add strangler-fig-decomposition plan for 5 oversized files (#7077)
 - Update gobby-agents skill with current tools and patterns (#7046)
 - Add pipeline guides and Lobster migration guide (#6772, #6773)
@@ -163,6 +175,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Internal
 
+- Fix CodeRabbit review suggestions across 7 batches (#7232)
+- Set CodeRabbit review profile to assertive (#7230)
+- Remove redundant workflow_loader guard in _handle_self_mode (#7226)
+- Fix 41 code quality nitpicks across source, tests, and config (#7220)
+- Remove deprecated parameters, legacy shims, and stale references (#7219)
+- Fix stale use_semantic assertion in memory recall test (#7218)
+- Fix 8 code quality issues across configs, workflows, and tests (#7216)
 - Convert all hook dispatchers from blocking I/O to async (#7185, #7132, #7133)
 - Code quality fixes across 14+ files (#7207)
 - Add type hints, structured logging, and fix sync wrappers (#7206)
