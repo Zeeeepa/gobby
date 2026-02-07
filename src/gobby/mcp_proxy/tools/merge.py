@@ -266,7 +266,7 @@ def create_merge_registry(
             return {"success": False, "error": "No resolution method specified"}
 
         except Exception as e:
-            logger.exception("Error resolving conflict")
+            logger.exception("Error resolving conflict %s", conflict_id)
             return {"success": False, "error": str(e)}
 
     @registry.tool(

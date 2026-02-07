@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import logging
 from datetime import UTC, datetime, timedelta
 from typing import TYPE_CHECKING, Any
@@ -111,7 +112,8 @@ def register_cleanup(
                 logger.warning("Git manager not available, skipping worktree deletion")
             else:
                 try:
-                    delete_result = git_manager.delete_worktree(
+                    delete_result = await asyncio.to_thread(
+                        git_manager.delete_worktree,
                         worktree_path=worktree.worktree_path,
                         force=force,
                         delete_branch=False,  # Keep branch for history
@@ -299,7 +301,8 @@ def register_cleanup(
                         )
                         continue
 
-                    merge_result = _merge_branch_to_base(
+                    merge_result = await asyncio.to_thread(
+                        _merge_branch_to_base,
                         git_manager=git_manager,
                         branch_name=branch,
                         base_branch=worktree.base_branch,
@@ -343,7 +346,8 @@ def register_cleanup(
                         )
                         continue
 
-                    delete_result = git_manager.delete_worktree(
+                    delete_result = await asyncio.to_thread(
+                        git_manager.delete_worktree,
                         worktree_path=worktree_path,
                         force=force,
                         delete_branch=delete_branches,
@@ -516,7 +520,8 @@ def register_cleanup(
                     worktree_storage.mark_stale(wt.id)
 
                 # Delete the git worktree
-                delete_result = git_manager.delete_worktree(
+                delete_result = await asyncio.to_thread(
+                    git_manager.delete_worktree,
                     worktree_path=wt.worktree_path,
                     force=force,
                     delete_branch=False,  # Keep branches for stale cleanup
@@ -640,7 +645,7 @@ def register_cleanup(
 def _merge_branch_to_base(
     git_manager: WorktreeGitManager,
     branch_name: str,
-    base_branch: str = "main",
+    base_branch: str,
 ) -> dict[str, Any]:
     """
     Merge a branch back to its base branch.

@@ -93,7 +93,7 @@ steps:
       - to: complete
         when: "task_tree_complete(variables.session_task)"
       - to: wait_for_workers
-        when: "not variables.get('current_task_id')"
+        when: "variables.get('_suggest_error') or not variables.get('current_task_id')"
       - to: spawn_worker
         when: "variables.get('current_task_id')"
 
@@ -103,7 +103,9 @@ steps:
       - action: inject_message
         content: |
           ORCHESTRATOR: No ready tasks found.
-
+          {% if variables._suggest_error %}
+          suggest_next_task error: {{ variables._suggest_error }}
+          {% endif %}
           All tasks are either in progress or blocked. Waiting for workers to complete.
 
           Poll for messages from child agents:

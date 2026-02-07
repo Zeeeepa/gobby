@@ -246,12 +246,9 @@ class WorktreeGitManager:
         try:
             # Get branch name before removal (for optional branch deletion)
             if delete_branch and not branch_name:
-                try:
-                    status = self.get_worktree_status(worktree_path)
-                    if status:
-                        branch_name = status.branch
-                except (subprocess.SubprocessError, OSError):
-                    pass  # nosec B110
+                status = self.get_worktree_status(worktree_path)
+                if status:
+                    branch_name = status.branch
 
             # Remove worktree
             args = ["worktree", "remove"]

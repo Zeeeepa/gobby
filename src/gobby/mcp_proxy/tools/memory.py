@@ -107,8 +107,15 @@ def create_memory_registry(
                             }
                         )
                 similar_existing = similar_existing[:3]
-            except Exception:
-                logger.debug("Similarity search failed during memory creation", exc_info=True)
+            except Exception as e:
+                logger.debug(
+                    "Similarity search failed during memory creation "
+                    "(project_id=%s, memory_id=%s): %s",
+                    project_id,
+                    memory.id,
+                    e,
+                    exc_info=True,
+                )
 
             return {
                 "success": True,

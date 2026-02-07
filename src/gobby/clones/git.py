@@ -140,7 +140,8 @@ class CloneGitManager:
             if result.returncode == 0:
                 return result.stdout.strip()
             return None
-        except Exception:
+        except (subprocess.SubprocessError, OSError) as e:
+            logger.error(f"Failed to get remote URL for '{remote}': {e}", exc_info=True)
             return None
 
     def shallow_clone(

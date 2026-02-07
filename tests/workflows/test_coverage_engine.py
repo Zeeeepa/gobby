@@ -1,4 +1,5 @@
 from datetime import UTC, datetime, timedelta
+from typing import Any
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
@@ -35,9 +36,6 @@ def mock_components():
     action_executor.mcp_manager = MagicMock()
     action_executor.memory_manager = MagicMock()
     action_executor.memory_sync_manager = MagicMock()
-
-    action_executor.memory_manager = MagicMock()
-    action_executor.memory_sync_manager = MagicMock()
     action_executor.session_task_manager = MagicMock()
     action_executor.task_sync_manager = MagicMock()
     action_executor.pipeline_executor = MagicMock()
@@ -51,7 +49,12 @@ def engine(mock_components):
     return WorkflowEngine(*mock_components)
 
 
-def create_event(event_type=HookEventType.BEFORE_AGENT, session_id="s1", data=None, metadata=None):
+def create_event(
+    event_type: HookEventType = HookEventType.BEFORE_AGENT,
+    session_id: str = "s1",
+    data: dict[str, Any] | None = None,
+    metadata: dict[str, Any] | None = None,
+) -> HookEvent:
     if data is None:
         data = {}
     if metadata is None:
@@ -480,8 +483,7 @@ async def test_lifecycle_action_exception(engine, mock_components):
     assert resp.decision == "allow"
 
 
-@pytest.mark.asyncio
-async def test_audit_logging_exceptions(engine, mock_components):
+def test_audit_logging_exceptions(engine, mock_components):
     _, _, _, _, audit_manager = mock_components
     audit_manager.log_tool_call.side_effect = Exception("DB error")
     audit_manager.log_rule_eval.side_effect = Exception("DB error")
