@@ -1,12 +1,14 @@
 """Tests for workflow detection helper functions."""
 
 from datetime import UTC, datetime
+from unittest.mock import MagicMock, patch
 
 import pytest
 
 from gobby.hooks.events import HookEvent, HookEventType, SessionSource
 from gobby.workflows.definitions import WorkflowState
 from gobby.workflows.detection_helpers import (
+    detect_mcp_call,
     detect_plan_mode,
     detect_plan_mode_from_context,
     detect_task_claim,
@@ -31,8 +33,6 @@ def workflow_state():
 @pytest.fixture
 def mock_task_manager():
     """Mock LocalTaskManager."""
-    from unittest.mock import MagicMock
-
     mock = MagicMock()
     # Mock get_task to return a task with a UUID
     mock_task = MagicMock()
@@ -305,6 +305,45 @@ class TestDetectTaskClaimCloseTaskBehavior:
         assert workflow_state.variables.get("task_claimed") is True
         assert workflow_state.variables.get("claimed_task_id") == "task-123"
 
+    def test_close_task_with_empty_output(self, workflow_state, make_after_tool_event) -> None:
+        """close_task with no tool output should NOT clear task_claimed (might be Claude Code)."""
+        workflow_state.variables["task_claimed"] = True
+        workflow_state.variables["claimed_task_id"] = "task-123"
+
+        event = make_after_tool_event(
+            "mcp__gobby__call_tool",
+            tool_input={
+                "server_name": "gobby-tasks",
+                "tool_name": "close_task",
+                "arguments": {"task_id": "task-123"},
+            },
+            tool_output={},  # No output
+        )
+
+        detect_task_claim(event, workflow_state)
+
+        # Should remain unchanged (MCP proxy handles Claude Code clear)
+        assert workflow_state.variables.get("task_claimed") is True
+
+    def test_close_task_with_top_level_error(self, workflow_state, make_after_tool_event) -> None:
+        """close_task with top-level error should NOT clear task_claimed."""
+        workflow_state.variables["task_claimed"] = True
+        workflow_state.variables["claimed_task_id"] = "task-123"
+
+        event = make_after_tool_event(
+            "mcp__gobby__call_tool",
+            tool_input={
+                "server_name": "gobby-tasks",
+                "tool_name": "close_task",
+                "arguments": {"task_id": "task-123"},
+            },
+            tool_output={"status": "error", "error": "Something went wrong"},
+        )
+
+        detect_task_claim(event, workflow_state)
+
+        assert workflow_state.variables.get("task_claimed") is True
+
 
 # =============================================================================
 # Tests for detect_task_claim - claim operations
@@ -332,7 +371,6 @@ class TestDetectTaskClaimClaimOperations:
 
         assert workflow_state.variables.get("task_claimed") is True
         # Should store the UUID from the mock task, not the raw ID if it was looked up
-        # But wait, logic: if task_manager is passed, it looks up UUID.
         # If raw ID passed in arguments is 'task-123', mock returns 'task-uuid-123'.
         assert workflow_state.variables.get("claimed_task_id") == "task-uuid-123"
 
@@ -357,6 +395,24 @@ class TestDetectTaskClaimClaimOperations:
 
         assert workflow_state.variables.get("task_claimed") is True
         assert workflow_state.variables.get("claimed_task_id") == "new-task-uuid"
+
+    def test_create_task_handles_missing_id(
+        self, workflow_state, make_after_tool_event, mock_task_manager
+    ) -> None:
+        """create_task with missing ID in response (e.g. error) should not set claimed."""
+        event = make_after_tool_event(
+            "mcp__gobby__call_tool",
+            tool_input={
+                "server_name": "gobby-tasks",
+                "tool_name": "create_task",
+                "arguments": {"title": "New task"},
+            },
+            tool_output={"success": True, "result": {"status": "error"}},  # No ID
+        )
+
+        detect_task_claim(event, workflow_state, task_manager=mock_task_manager)
+
+        assert "task_claimed" not in workflow_state.variables
 
     def test_sets_task_claimed_on_update_to_in_progress(
         self, workflow_state, make_after_tool_event, mock_task_manager
@@ -445,6 +501,177 @@ class TestDetectTaskClaimClaimOperations:
         detect_task_claim(event, workflow_state)
 
         assert "task_claimed" not in workflow_state.variables
+
+    def test_task_resolution_without_manager_warns(
+        self, workflow_state, make_after_tool_event
+    ) -> None:
+        """When task_manager is None, logs warning but doesn't crash."""
+        event = make_after_tool_event(
+            "mcp__gobby__call_tool",
+            tool_input={
+                "server_name": "gobby-tasks",
+                "tool_name": "claim_task",
+                "arguments": {"task_id": "task-123"},
+            },
+            tool_output={"success": True, "result": {"id": "task-123", "status": "in_progress"}},
+        )
+
+        detect_task_claim(event, workflow_state, task_manager=None)
+
+        # Should NOT claim task because UUID couldn't be resolved
+        assert "task_claimed" not in workflow_state.variables
+        assert "claimed_task_id" not in workflow_state.variables
+
+    def test_task_resolution_failure_is_handled(
+        self, workflow_state, make_after_tool_event, mock_task_manager
+    ) -> None:
+        """Exceptions during task resolution are handled gracefully."""
+        # Mock lookup to raise exception
+        mock_task_manager.get_task.side_effect = Exception("DB Error")
+
+        event = make_after_tool_event(
+            "mcp__gobby__call_tool",
+            tool_input={
+                "server_name": "gobby-tasks",
+                "tool_name": "claim_task",
+                "arguments": {"task_id": "task-123"},
+            },
+            tool_output={"success": True, "result": {"id": "task-123", "status": "in_progress"}},
+        )
+
+        detect_task_claim(event, workflow_state, task_manager=mock_task_manager)
+
+        # Should not claim task
+        assert "task_claimed" not in workflow_state.variables
+
+    def test_task_not_found(self, workflow_state, make_after_tool_event, mock_task_manager) -> None:
+        """If task is not found by manager, does not claim."""
+        mock_task_manager.get_task.return_value = None
+
+        event = make_after_tool_event(
+            "mcp__gobby__call_tool",
+            tool_input={
+                "server_name": "gobby-tasks",
+                "tool_name": "claim_task",
+                "arguments": {"task_id": "task-123"},
+            },
+            tool_output={"success": True, "result": {"id": "task-123", "status": "in_progress"}},
+        )
+
+        detect_task_claim(event, workflow_state, task_manager=mock_task_manager)
+
+        assert "task_claimed" not in workflow_state.variables
+
+    def test_auto_link_failure_handled(
+        self, workflow_state, make_after_tool_event, mock_task_manager
+    ) -> None:
+        """If linking session fails, still claims task (errors logged not raised)."""
+        mock_session_manager = MagicMock()
+        mock_session_manager.link_task.side_effect = Exception("Link error")
+
+        event = make_after_tool_event(
+            "mcp__gobby__call_tool",
+            tool_input={
+                "server_name": "gobby-tasks",
+                "tool_name": "claim_task",
+                "arguments": {"task_id": "task-123"},
+            },
+            tool_output={"success": True, "result": {"id": "task-123", "status": "in_progress"}},
+        )
+
+        detect_task_claim(
+            event,
+            workflow_state,
+            task_manager=mock_task_manager,
+            session_task_manager=mock_session_manager,
+        )
+
+        # Task claim should still succeed even if linking failed
+        assert workflow_state.variables.get("task_claimed") is True
+
+
+# =============================================================================
+# Tests for detect_mcp_call
+# =============================================================================
+
+
+class TestDetectMcpCall:
+    """Tests for detect_mcp_call function."""
+
+    def test_tracks_successful_mcp_call(self, workflow_state, make_after_tool_event) -> None:
+        """Tracks successful MCP call in state variables."""
+        event = make_after_tool_event(
+            "mcp__gobby__call_tool",
+            tool_input={"server_name": "demo-server", "tool_name": "demo-tool"},
+            tool_output={"result": "success"},
+        )
+
+        detect_mcp_call(event, workflow_state)
+
+        # Check mcp_calls tracking
+        mcp_calls = workflow_state.variables.get("mcp_calls", {})
+        assert "demo-server" in mcp_calls
+        assert "demo-tool" in mcp_calls["demo-server"]
+
+        # Check mcp_results tracking
+        mcp_results = workflow_state.variables.get("mcp_results", {})
+        assert "demo-server" in mcp_results
+        assert mcp_results["demo-server"]["demo-tool"] == "success"
+
+    def test_tracks_multiple_tools(self, workflow_state, make_after_tool_event) -> None:
+        """Tracks multiple unique tools for same server."""
+        event1 = make_after_tool_event(
+            "mcp__gobby__call_tool",
+            tool_input={"server_name": "demo-server", "tool_name": "tool-1"},
+            tool_output={"result": "1"},
+        )
+        event2 = make_after_tool_event(
+            "mcp__gobby__call_tool",
+            tool_input={"server_name": "demo-server", "tool_name": "tool-2"},
+            tool_output={"result": "2"},
+        )
+
+        detect_mcp_call(event1, workflow_state)
+        detect_mcp_call(event2, workflow_state)
+
+        calls = workflow_state.variables["mcp_calls"]["demo-server"]
+        assert "tool-1" in calls
+        assert "tool-2" in calls
+
+    def test_ignores_error_responses(self, workflow_state, make_after_tool_event) -> None:
+        """Does NOT track MCP calls that returned an error."""
+        event = make_after_tool_event(
+            "mcp__gobby__call_tool",
+            tool_input={"server_name": "demo-server", "tool_name": "error-tool"},
+            tool_output={"error": "failed"},
+        )
+
+        detect_mcp_call(event, workflow_state)
+
+        assert "mcp_calls" not in workflow_state.variables
+
+    def test_ignores_nested_error_result(self, workflow_state, make_after_tool_event) -> None:
+        """Does NOT track MCP calls where result itself indicates error."""
+        event = make_after_tool_event(
+            "mcp__gobby__call_tool",
+            tool_input={"server_name": "demo-server", "tool_name": "error-tool"},
+            tool_output={"result": {"error": "nested failure"}},
+        )
+
+        detect_mcp_call(event, workflow_state)
+
+        assert "mcp_calls" not in workflow_state.variables
+
+    def test_ignores_missing_server_or_tool(self, workflow_state, make_after_tool_event) -> None:
+        """Ignores calls missing server or tool name."""
+        event = make_after_tool_event(
+            "mcp__gobby__call_tool",
+            tool_input={"server_name": "", "tool_name": "tool"},  # Missing server
+            tool_output={"result": "ok"},
+        )
+
+        detect_mcp_call(event, workflow_state)
+        assert "mcp_calls" not in workflow_state.variables
 
 
 # =============================================================================
