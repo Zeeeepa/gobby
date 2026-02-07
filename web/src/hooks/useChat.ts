@@ -257,6 +257,7 @@ export function useChat() {
   const stopStreaming = useCallback(() => {
     if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) return
     wsRef.current.send(JSON.stringify({ type: 'stop_chat' }))
+    setIsStreaming(false) // Optimistic update
   }, [])
 
   // Send a message (allowed even while streaming — cancels the active stream)

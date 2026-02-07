@@ -66,7 +66,7 @@ class CloneGitManager:
     repository copies suitable for isolated or cross-machine development.
     """
 
-    def __init__(self, repo_path: str | Path):
+    def __init__(self, repo_path: str | Path) -> None:
         """
         Initialize with base repository path.
 

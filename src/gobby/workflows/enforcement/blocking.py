@@ -61,13 +61,22 @@ def is_tool_unlocked(
     Returns:
         True if the server:tool combo was previously unlocked via get_tool_schema
     """
-    server = tool_input.get("server_name", "")
-    tool = tool_input.get("tool_name", "")
+    # Support 'server' alias for 'server_name' and 'tool' alias for 'tool_name'
+    server = tool_input.get("server_name") or tool_input.get("server") or ""
+    tool = tool_input.get("tool_name") or tool_input.get("tool") or ""
+
     if not server or not tool:
+        # Don't log here as it might be called speculatively
         return False
+
     key = f"{server}:{tool}"
     unlocked = variables.get("unlocked_tools", [])
-    return key in unlocked
+
+    is_unlocked = key in unlocked
+    if not is_unlocked:
+        logger.debug(f"is_tool_unlocked check failed for {key}. Unlocked tools: {unlocked}")
+
+    return is_unlocked
 
 
 def track_schema_lookup(
@@ -88,9 +97,14 @@ def track_schema_lookup(
     if not workflow_state:
         return None
 
-    server = tool_input.get("server_name", "")
-    tool = tool_input.get("tool_name", "")
+    # Support 'server' alias for 'server_name' and 'tool' alias for 'tool_name'
+    server = tool_input.get("server_name") or tool_input.get("server") or ""
+    tool = tool_input.get("tool_name") or tool_input.get("tool") or ""
+
     if not server or not tool:
+        logger.debug(
+            f"track_schema_lookup: Missing server/tool in input: keys={list(tool_input.keys())}"
+        )
         return None
 
     key = f"{server}:{tool}"
@@ -98,9 +112,10 @@ def track_schema_lookup(
 
     if key not in unlocked:
         unlocked.append(key)
-        logger.debug(f"Unlocked tool schema: {key}")
+        logger.info(f"Unlocked tool schema: {key}")
         return {"unlocked": key, "total_unlocked": len(unlocked)}
 
+    logger.debug(f"Tool schema already unlocked: {key}")
     return {"already_unlocked": key}
 
 
@@ -383,10 +398,13 @@ async def block_tools(
                             break
 
                 engine = TemplateEngine()
-                reason = engine.render(reason, {
-                    "tool_input": tool_input,
-                    "suggested_server": suggested_server,
-                })
+                reason = engine.render(
+                    reason,
+                    {
+                        "tool_input": tool_input,
+                        "suggested_server": suggested_server,
+                    },
+                )
             except Exception as e:
                 logger.warning(f"Failed to render reason template: {e}")
                 # Keep original reason on failure

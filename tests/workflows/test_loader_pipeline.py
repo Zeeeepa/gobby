@@ -263,6 +263,12 @@ steps:
 
         # Modify the file
         pipeline_path.write_text(pipeline_yaml.replace("cached", "modified"))
+        # Ensure mtime is updated (handles filesystems with 1-second resolution)
+        import os
+        import time
+
+        future_time = time.time() + 1
+        os.utime(pipeline_path, (future_time, future_time))
 
         # Second load should detect staleness and return fresh version
         result2 = loader.load_pipeline("cached-pipeline")

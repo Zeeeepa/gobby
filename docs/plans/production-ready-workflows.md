@@ -7,11 +7,11 @@ This plan documents enhancements to make the meeseeks agent workflows production
 ## Current State
 
 The meeseeks system consists of:
-- **meeseeks-box** (orchestrator): Runs in Claude Code, finds tasks, spawns workers, reviews, merges
+- **meeseeks:box** (orchestrator): Runs in Claude Code, finds tasks, spawns workers, reviews, merges
 - **meeseeks:worker** (worker): Runs in isolated clones, claims task, implements, commits, reports, terminates
 
 ### E2E Test Results (2026-02-05)
-- **meeseeks (Gemini/Ghostty)**: Pass
+- **meeseeks-gemini (Gemini/Ghostty)**: Pass
 - **meeseeks-claude (Claude/tmux)**: Pass (after spawn executor fix)
 
 ### Identified Gaps

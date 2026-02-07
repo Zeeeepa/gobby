@@ -1293,7 +1293,7 @@ steps:
         assert wf1.version == "1.0.0"
 
         # Modify file on disk (ensure mtime changes)
-        time.sleep(0.05)  # Small sleep to ensure mtime differs
+        time.sleep(0.1)  # Small sleep to ensure mtime differs
         yaml_path.write_text(yaml_v2)
 
         # Second load should detect stale cache and reload
@@ -1438,7 +1438,7 @@ type: lifecycle
         assert len(discovered1) == 1
 
         # Add a new file (changes directory mtime)
-        time.sleep(0.05)
+        time.sleep(0.1)
         yaml_new = """
 name: new_workflow
 version: "1.0.0"
