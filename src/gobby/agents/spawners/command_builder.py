@@ -83,6 +83,8 @@ def build_cli_command(
 
     elif cli == "codex":
         # Codex CLI flags
+        if model:
+            command.extend(["--model", model])
         if auto_approve:
             # --full-auto: low-friction sandboxed automatic execution
             command.append("--full-auto")

@@ -5,6 +5,7 @@ Extracted from engine.py to reduce complexity.
 Handles discovery and evaluation of lifecycle workflows and their triggers.
 """
 
+import copy
 import logging
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Any, Literal
@@ -154,7 +155,8 @@ async def evaluate_workflow_triggers(
     )
 
     # Snapshot variables before evaluation so we can diff later
-    vars_snapshot = dict(state.variables) if not state_was_created else None
+    # Use deepcopy to catch in-place mutations (e.g., list.append in track_schema_lookup)
+    vars_snapshot = copy.deepcopy(state.variables) if not state_was_created else None
 
     # Merge context_data (workflow defaults) into state variables
     # Persisted state values take precedence over workflow defaults
