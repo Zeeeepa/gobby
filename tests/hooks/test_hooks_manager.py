@@ -106,7 +106,6 @@ class TestHookManagerInit:
         assert manager._daemon_client is not None
         assert manager._transcript_processor is not None
         assert manager._session_manager is not None
-        assert manager._summary_file_generator is not None
         assert manager._database is not None
 
     def test_init_passes_skill_manager_to_action_executor(

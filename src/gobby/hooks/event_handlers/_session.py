@@ -266,20 +266,6 @@ class SessionEventHandlerMixin(EventHandlersBase):
             except Exception as e:
                 self.logger.warning(f"Failed to complete agent run: {e}")
 
-        # Generate independent session summary file
-        if self._summary_file_generator:
-            try:
-                summary_input = {
-                    "session_id": external_id,
-                    "transcript_path": event.data.get("transcript_path"),
-                }
-                self._summary_file_generator.generate_session_summary(
-                    session_id=session_id or external_id,
-                    input_data=summary_input,
-                )
-            except Exception as e:
-                self.logger.error(f"Failed to generate failover summary: {e}")
-
         # Unregister from message processor
         if self._message_processor and (session_id or external_id):
             try:

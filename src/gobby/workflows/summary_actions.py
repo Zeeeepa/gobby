@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import json
 import logging
+import time
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Literal
 
@@ -194,6 +195,48 @@ def _format_structured_context(ctx: HandoffContext) -> str:
     return "\n\n".join(sections) if sections else ""
 
 
+async def _write_summary_file(
+    session_id: str,
+    content: str,
+    output_path: str | None = None,
+    session_manager: Any = None,
+) -> str | None:
+    """Write summary to file in session_summaries directory.
+
+    Args:
+        session_id: Internal session ID
+        content: Summary markdown content
+        output_path: Override directory for summary files
+        session_manager: Session manager to look up external_id
+
+    Returns:
+        Path to written file, or None on failure
+    """
+    try:
+        summary_dir = Path(output_path or "~/.gobby/session_summaries").expanduser()
+        summary_dir.mkdir(parents=True, exist_ok=True)
+
+        # Use external_id in filename for failback reader compatibility
+        external_id = None
+        if session_manager:
+            session = session_manager.get(session_id)
+            if session:
+                external_id = getattr(session, "external_id", None)
+
+        file_id = external_id or session_id
+        timestamp = int(time.time())
+        summary_file = summary_dir / f"session_{timestamp}_{file_id}.md"
+
+        async with aiofiles.open(summary_file, "w", encoding="utf-8") as f:
+            await f.write(content)
+
+        logger.info(f"Session summary written to: {summary_file}")
+        return str(summary_file)
+    except Exception as e:
+        logger.error(f"Failed to write summary file: {e}", exc_info=True)
+        return None
+
+
 async def synthesize_title(
     session_manager: Any,
     session_id: str,
@@ -285,6 +328,8 @@ async def generate_summary(
     template: str | None = None,
     previous_summary: str | None = None,
     mode: Literal["clear", "compact"] = "clear",
+    write_file: bool = False,
+    output_path: str | None = None,
 ) -> dict[str, Any] | None:
     """Generate a session summary using LLM and store it in the session record.
 
@@ -399,8 +444,21 @@ async def generate_summary(
     # 4. Save to session
     session_manager.update_summary(session_id, summary_markdown=summary_content)
 
+    # 5. Write to file if requested
+    summary_file_path = None
+    if write_file:
+        summary_file_path = await _write_summary_file(
+            session_id=session_id,
+            content=summary_content,
+            output_path=output_path,
+            session_manager=session_manager,
+        )
+
     logger.info(f"Generated summary for session {session_id} (mode={mode})")
-    return {"summary_generated": True, "summary_length": len(summary_content)}
+    result: dict[str, Any] = {"summary_generated": True, "summary_length": len(summary_content)}
+    if summary_file_path:
+        result["summary_file"] = summary_file_path
+    return result
 
 
 async def generate_handoff(
@@ -411,6 +469,8 @@ async def generate_handoff(
     template: str | None = None,
     previous_summary: str | None = None,
     mode: Literal["clear", "compact"] = "clear",
+    write_file: bool = False,
+    output_path: str | None = None,
 ) -> dict[str, Any] | None:
     """Generate a handoff record by summarizing the session.
 
@@ -440,6 +500,8 @@ async def generate_handoff(
         template=template,
         previous_summary=previous_summary,
         mode=mode,
+        write_file=write_file,
+        output_path=output_path,
     )
 
     if summary_result and "error" in summary_result:
@@ -486,6 +548,8 @@ async def handle_generate_summary(context: ActionContext, **kwargs: Any) -> dict
         template=kwargs.get("template"),
         mode=kwargs.get("mode", "clear"),
         previous_summary=kwargs.get("previous_summary"),
+        write_file=kwargs.get("write_file", False),
+        output_path=kwargs.get("output_path"),
     )
 
 
@@ -541,4 +605,6 @@ async def handle_generate_handoff(context: ActionContext, **kwargs: Any) -> dict
         template=template,
         previous_summary=previous_summary,
         mode=mode,
+        write_file=kwargs.get("write_file", False),
+        output_path=kwargs.get("output_path"),
     )

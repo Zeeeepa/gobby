@@ -57,7 +57,6 @@ def mock_dependencies() -> dict[str, Any]:
         "workflow_handler": workflow_handler,
         "session_storage": MagicMock(),
         "message_processor": MagicMock(),
-        "summary_file_generator": MagicMock(),
         "task_manager": MagicMock(),
         "session_coordinator": MagicMock(),
         "logger": logging.getLogger("test"),
@@ -858,38 +857,6 @@ class TestSessionEndHandling:
         handlers = EventHandlers(**mock_dependencies)
         event = make_event(
             HookEventType.SESSION_END,
-            metadata={"_platform_session_id": "sess-123"},
-        )
-
-        response = handlers.handle_session_end(event)
-
-        # Should still allow despite error
-        assert response.decision == "allow"
-
-    def test_session_end_summary_generation(self, mock_dependencies: dict) -> None:
-        """Test summary file generation on session end."""
-        handlers = EventHandlers(**mock_dependencies)
-        event = make_event(
-            HookEventType.SESSION_END,
-            session_id="ext-123",
-            metadata={"_platform_session_id": "sess-123"},
-            data={"transcript_path": "/path/to/transcript.jsonl"},
-        )
-
-        handlers.handle_session_end(event)
-
-        mock_dependencies["summary_file_generator"].generate_session_summary.assert_called_once()
-
-    def test_session_end_summary_generation_error(self, mock_dependencies: dict) -> None:
-        """Test error in summary generation is handled."""
-        mock_dependencies[
-            "summary_file_generator"
-        ].generate_session_summary.side_effect = Exception("Summary error")
-
-        handlers = EventHandlers(**mock_dependencies)
-        event = make_event(
-            HookEventType.SESSION_END,
-            session_id="ext-123",
             metadata={"_platform_session_id": "sess-123"},
         )
 

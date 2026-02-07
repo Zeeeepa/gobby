@@ -46,7 +46,6 @@ from gobby.hooks.skill_manager import HookSkillManager
 from gobby.hooks.webhooks import WebhookDispatcher
 from gobby.memory.manager import MemoryManager
 from gobby.sessions.manager import SessionManager
-from gobby.sessions.summary import SummaryFileGenerator
 from gobby.sessions.transcripts.claude import ClaudeTranscriptParser
 from gobby.storage.agents import LocalAgentRunManager
 from gobby.storage.database import LocalDatabase
@@ -328,14 +327,6 @@ class HookManager:
             enabled=workflow_enabled,
         )
 
-        # Initialize Failover Summary Generator
-        self._summary_file_generator = SummaryFileGenerator(
-            transcript_processor=self._transcript_processor,
-            logger_instance=self.logger,
-            llm_service=self._llm_service,
-            config=self._config,
-        )
-
         # Initialize Webhook Dispatcher (Sprint 8: Webhooks)
         webhooks_config = None
         if self._config and hasattr(self._config, "hook_extensions"):
@@ -402,7 +393,6 @@ class HookManager:
             session_storage=self._session_storage,
             session_task_manager=self._session_task_manager,
             message_processor=self._message_processor,
-            summary_file_generator=self._summary_file_generator,
             task_manager=self._task_manager,
             session_coordinator=self._session_coordinator,
             message_manager=self._message_manager,

@@ -13,7 +13,6 @@ if TYPE_CHECKING:
     from gobby.hooks.session_coordinator import SessionCoordinator
     from gobby.hooks.skill_manager import HookSkillManager
     from gobby.sessions.manager import SessionManager
-    from gobby.sessions.summary import SummaryFileGenerator
     from gobby.storage.session_messages import LocalSessionMessageManager
     from gobby.storage.session_tasks import SessionTaskManager
     from gobby.storage.sessions import LocalSessionManager
@@ -30,7 +29,6 @@ class EventHandlersBase:
     _session_storage: LocalSessionManager | None
     _session_task_manager: SessionTaskManager | None
     _message_processor: Any | None
-    _summary_file_generator: SummaryFileGenerator | None
     _task_manager: LocalTaskManager | None
     _session_coordinator: SessionCoordinator | None
     _message_manager: LocalSessionMessageManager | None

@@ -27,7 +27,6 @@ if TYPE_CHECKING:
     from gobby.hooks.session_coordinator import SessionCoordinator
     from gobby.hooks.skill_manager import HookSkillManager
     from gobby.sessions.manager import SessionManager
-    from gobby.sessions.summary import SummaryFileGenerator
     from gobby.storage.session_messages import LocalSessionMessageManager
     from gobby.storage.session_tasks import SessionTaskManager
     from gobby.storage.sessions import LocalSessionManager
@@ -57,7 +56,6 @@ class EventHandlers(
         session_storage: LocalSessionManager | None = None,
         session_task_manager: SessionTaskManager | None = None,
         message_processor: Any | None = None,
-        summary_file_generator: SummaryFileGenerator | None = None,
         task_manager: LocalTaskManager | None = None,
         session_coordinator: SessionCoordinator | None = None,
         message_manager: LocalSessionMessageManager | None = None,
@@ -78,7 +76,6 @@ class EventHandlers(
             session_storage: LocalSessionManager for session storage
             session_task_manager: SessionTaskManager for session-task links
             message_processor: SessionMessageProcessor for message handling
-            summary_file_generator: SummaryFileGenerator for summaries
             task_manager: LocalTaskManager for task operations
             session_coordinator: SessionCoordinator for session tracking
             message_manager: LocalSessionMessageManager for messages
@@ -95,7 +92,6 @@ class EventHandlers(
         self._session_storage = session_storage
         self._session_task_manager = session_task_manager
         self._message_processor = message_processor
-        self._summary_file_generator = summary_file_generator
         self._task_manager = task_manager
         self._session_coordinator = session_coordinator
         self._message_manager = message_manager

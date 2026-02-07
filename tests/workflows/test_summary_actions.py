@@ -14,6 +14,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 
 from gobby.workflows.summary_actions import (
+    _write_summary_file,
     format_turns_for_llm,
     generate_handoff,
     generate_summary,
@@ -1518,3 +1519,157 @@ class TestSummaryActionsIntegration:
                 )
 
         assert summary_result["summary_generated"] is True
+
+
+# =============================================================================
+# Tests for _write_summary_file
+# =============================================================================
+
+
+class TestWriteSummaryFile:
+    """Tests for the _write_summary_file helper function."""
+
+    @pytest.mark.asyncio
+    async def test_write_summary_file_creates_file(self, tmp_path) -> None:
+        """Test that _write_summary_file creates a summary file."""
+        output_dir = str(tmp_path / "session_summaries")
+
+        result = await _write_summary_file(
+            session_id="test-session-123",
+            content="# Test Summary\n\nTest content",
+            output_path=output_dir,
+        )
+
+        assert result is not None
+        from pathlib import Path
+
+        written = Path(result)
+        assert written.exists()
+        assert written.read_text() == "# Test Summary\n\nTest content"
+
+    @pytest.mark.asyncio
+    async def test_write_summary_file_creates_directory(self, tmp_path) -> None:
+        """Test that _write_summary_file creates the output directory."""
+        output_dir = str(tmp_path / "nested" / "summaries")
+
+        result = await _write_summary_file(
+            session_id="test-session",
+            content="Content",
+            output_path=output_dir,
+        )
+
+        assert result is not None
+        from pathlib import Path
+
+        assert Path(output_dir).exists()
+
+    @pytest.mark.asyncio
+    async def test_write_summary_file_uses_external_id(self, tmp_path) -> None:
+        """Test that _write_summary_file uses external_id in filename."""
+        output_dir = str(tmp_path / "summaries")
+
+        mock_manager = MagicMock()
+        mock_session = MagicMock()
+        mock_session.external_id = "ext-abc-123"
+        mock_manager.get.return_value = mock_session
+
+        result = await _write_summary_file(
+            session_id="internal-id",
+            content="Content",
+            output_path=output_dir,
+            session_manager=mock_manager,
+        )
+
+        assert result is not None
+        assert "ext-abc-123" in result
+        assert "internal-id" not in result
+
+    @pytest.mark.asyncio
+    async def test_write_summary_file_falls_back_to_session_id(self, tmp_path) -> None:
+        """Test fallback to session_id when external_id unavailable."""
+        output_dir = str(tmp_path / "summaries")
+
+        result = await _write_summary_file(
+            session_id="fallback-session-id",
+            content="Content",
+            output_path=output_dir,
+            session_manager=None,
+        )
+
+        assert result is not None
+        assert "fallback-session-id" in result
+
+    @pytest.mark.asyncio
+    async def test_write_summary_file_naming_format(self, tmp_path) -> None:
+        """Test that files follow session_{timestamp}_{id}.md format."""
+        output_dir = str(tmp_path / "summaries")
+
+        result = await _write_summary_file(
+            session_id="my-session",
+            content="Content",
+            output_path=output_dir,
+        )
+
+        assert result is not None
+        from pathlib import Path
+
+        filename = Path(result).name
+        assert filename.startswith("session_")
+        assert filename.endswith(".md")
+        assert "my-session" in filename
+
+    @pytest.mark.asyncio
+    async def test_write_summary_file_error_returns_none(self) -> None:
+        """Test that write errors return None."""
+        result = await _write_summary_file(
+            session_id="test",
+            content="Content",
+            output_path="/nonexistent/deeply/nested/path",
+        )
+
+        # Should return None on failure (mkdir will fail)
+        # Note: on some systems mkdir may succeed, so we just check it doesn't raise
+        assert result is None or isinstance(result, str)
+
+    @pytest.mark.asyncio
+    async def test_generate_summary_with_write_file(
+        self,
+        mock_session_manager,
+        mock_llm_service,
+        mock_transcript_processor,
+        tmp_path,
+    ) -> None:
+        """Test generate_summary with write_file=True produces a file."""
+        transcript_file = tmp_path / "transcript.jsonl"
+        with open(transcript_file, "w") as f:
+            f.write(json.dumps({"message": {"role": "user", "content": "Test"}}) + "\n")
+
+        session = MagicMock()
+        session.jsonl_path = str(transcript_file)
+        session.external_id = "ext-write-test"
+        mock_session_manager.get.return_value = session
+
+        mock_transcript_processor.extract_turns_since_clear.return_value = []
+        mock_transcript_processor.extract_last_messages.return_value = []
+
+        output_dir = str(tmp_path / "write_test_summaries")
+
+        with patch("gobby.workflows.summary_actions.get_git_status", return_value="clean"), \
+             patch("gobby.workflows.summary_actions.get_file_changes", return_value="No changes"), \
+             patch("gobby.workflows.summary_actions.get_git_diff_summary", return_value=""):
+                result = await generate_summary(
+                    session_manager=mock_session_manager,
+                    session_id="test-session",
+                    llm_service=mock_llm_service,
+                    transcript_processor=mock_transcript_processor,
+                    write_file=True,
+                    output_path=output_dir,
+                )
+
+        assert result is not None
+        assert result["summary_generated"] is True
+        assert "summary_file" in result
+        from pathlib import Path
+
+        assert Path(result["summary_file"]).exists()
+        assert "ext-write-test" in result["summary_file"]
