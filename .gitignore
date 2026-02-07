@@ -230,6 +230,11 @@ bmad-custom-src/
 .DS_Store
 .scripts/
 .gobby/config.yaml
+.gobby/agents/
+.gobby/workflows/
+.gobby/plugins/
+.gobby/prompts/
+.gobby/docs/
 reports/
 bandit_report.json
 ./*.txt
