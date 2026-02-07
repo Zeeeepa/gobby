@@ -2,7 +2,7 @@
 Agent management CLI commands.
 
 Commands for managing subagent runs:
-- start: Start a new agent
+- spawn: Spawn a new agent
 - list: List agent runs for a session
 - show: Show details for an agent run
 - status: Check status of a running agent
@@ -79,7 +79,7 @@ def agents() -> None:
     pass
 
 
-@agents.command("start")
+@agents.command("spawn")
 @click.argument("prompt")
 @click.option("--session", "-s", "parent_session_id", required=True, help="Parent session ID")
 @click.option("--workflow", "-w", help="Workflow name to execute")
@@ -123,15 +123,15 @@ def spawn_agent_cmd(
     session_context: str,
     json_format: bool,
 ) -> None:
-    """Start a new agent with the given prompt.
+    """Spawn a new agent with the given prompt.
 
     Examples:
 
-        gobby agents start "Implement feature X" --session sess-abc123
+        gobby agents spawn "Implement feature X" --session sess-abc123
 
-        gobby agents start "Fix the bug" -s sess-abc123 --mode terminal
+        gobby agents spawn "Fix the bug" -s sess-abc123 --mode terminal
 
-        gobby agents start "Run tests" -s sess-abc123 --mode headless
+        gobby agents spawn "Run tests" -s sess-abc123 --mode headless
     """
     daemon_url = get_daemon_url()
 

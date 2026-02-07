@@ -177,7 +177,7 @@ class TestAgentsGroup:
 
         # Click groups may exit with 0 or 2 depending on configuration
         # Should show available subcommands or missing command message
-        assert "start" in result.output or "Usage" in result.output
+        assert "spawn" in result.output or "Usage" in result.output
 
 
 # ==============================================================================
@@ -185,24 +185,24 @@ class TestAgentsGroup:
 # ==============================================================================
 
 
-class TestAgentsStartCommand:
-    """Tests for gobby agents start command."""
+class TestAgentsSpawnCommand:
+    """Tests for gobby agents spawn command."""
 
-    def test_start_help(self, runner: CliRunner) -> None:
-        """Test start --help displays help text."""
-        result = runner.invoke(cli, ["agents", "start", "--help"])
+    def test_spawn_help(self, runner: CliRunner) -> None:
+        """Test spawn --help displays help text."""
+        result = runner.invoke(cli, ["agents", "spawn", "--help"])
 
         assert result.exit_code == 0
-        assert "Start a new agent" in result.output
+        assert "Spawn a new agent" in result.output
         assert "--session" in result.output
         assert "--workflow" in result.output
         assert "--mode" in result.output
         assert "--terminal" in result.output
         assert "--provider" in result.output
 
-    def test_start_requires_session(self, runner: CliRunner) -> None:
-        """Test start requires --session option."""
-        result = runner.invoke(cli, ["agents", "start", "Test prompt"])
+    def test_spawn_requires_session(self, runner: CliRunner) -> None:
+        """Test spawn requires --session option."""
+        result = runner.invoke(cli, ["agents", "spawn", "Test prompt"])
 
         assert result.exit_code == 2
         assert "Missing option" in result.output or "required" in result.output.lower()
@@ -210,14 +210,14 @@ class TestAgentsStartCommand:
     @patch("gobby.cli.agents.resolve_session_id")
     @patch("gobby.cli.agents.httpx.post")
     @patch("gobby.cli.agents.get_daemon_url")
-    def test_start_success(
+    def test_spawn_success(
         self,
         mock_get_url: MagicMock,
         mock_post: MagicMock,
         mock_resolve_session: MagicMock,
         runner: CliRunner,
     ) -> None:
-        """Test successful agent start."""
+        """Test successful agent spawn."""
         mock_get_url.return_value = "http://localhost:60887"
         mock_resolve_session.return_value = "sess-parent123"
         mock_response = MagicMock()
@@ -232,7 +232,7 @@ class TestAgentsStartCommand:
 
         result = runner.invoke(
             cli,
-            ["agents", "start", "Test prompt", "--session", "sess-parent123"],
+            ["agents", "spawn", "Test prompt", "--session", "sess-parent123"],
         )
 
         assert result.exit_code == 0
@@ -243,14 +243,14 @@ class TestAgentsStartCommand:
     @patch("gobby.cli.agents.resolve_session_id")
     @patch("gobby.cli.agents.httpx.post")
     @patch("gobby.cli.agents.get_daemon_url")
-    def test_start_with_all_options(
+    def test_spawn_with_all_options(
         self,
         mock_get_url: MagicMock,
         mock_post: MagicMock,
         mock_resolve_session: MagicMock,
         runner: CliRunner,
     ) -> None:
-        """Test start with all optional parameters."""
+        """Test spawn with all optional parameters."""
         mock_get_url.return_value = "http://localhost:60887"
         mock_resolve_session.return_value = "sess-parent123"
         mock_response = MagicMock()
@@ -268,7 +268,7 @@ class TestAgentsStartCommand:
             cli,
             [
                 "agents",
-                "start",
+                "spawn",
                 "Implement feature X",
                 "--session",
                 "sess-parent123",
@@ -314,14 +314,14 @@ class TestAgentsStartCommand:
     @patch("gobby.cli.agents.resolve_session_id")
     @patch("gobby.cli.agents.httpx.post")
     @patch("gobby.cli.agents.get_daemon_url")
-    def test_start_json_output(
+    def test_spawn_json_output(
         self,
         mock_get_url: MagicMock,
         mock_post: MagicMock,
         mock_resolve_session: MagicMock,
         runner: CliRunner,
     ) -> None:
-        """Test start with JSON output format."""
+        """Test spawn with JSON output format."""
         mock_get_url.return_value = "http://localhost:60887"
         mock_resolve_session.return_value = "sess-parent"
         mock_response = MagicMock()
@@ -338,7 +338,7 @@ class TestAgentsStartCommand:
             cli,
             [
                 "agents",
-                "start",
+                "spawn",
                 "Test prompt",
                 "--session",
                 "sess-parent",
@@ -354,14 +354,14 @@ class TestAgentsStartCommand:
     @patch("gobby.cli.agents.resolve_session_id")
     @patch("gobby.cli.agents.httpx.post")
     @patch("gobby.cli.agents.get_daemon_url")
-    def test_start_daemon_connection_error(
+    def test_spawn_daemon_connection_error(
         self,
         mock_get_url: MagicMock,
         mock_post: MagicMock,
         mock_resolve_session: MagicMock,
         runner: CliRunner,
     ) -> None:
-        """Test start when daemon is not running."""
+        """Test spawn when daemon is not running."""
         import httpx
 
         mock_get_url.return_value = "http://localhost:60887"
@@ -370,7 +370,7 @@ class TestAgentsStartCommand:
 
         result = runner.invoke(
             cli,
-            ["agents", "start", "Test prompt", "--session", "sess-parent"],
+            ["agents", "spawn", "Test prompt", "--session", "sess-parent"],
         )
 
         assert result.exit_code == 0  # CLI exits cleanly with error message
@@ -380,14 +380,14 @@ class TestAgentsStartCommand:
     @patch("gobby.cli.agents.resolve_session_id")
     @patch("gobby.cli.agents.httpx.post")
     @patch("gobby.cli.agents.get_daemon_url")
-    def test_start_daemon_http_error(
+    def test_spawn_daemon_http_error(
         self,
         mock_get_url: MagicMock,
         mock_post: MagicMock,
         mock_resolve_session: MagicMock,
         runner: CliRunner,
     ) -> None:
-        """Test start when daemon returns HTTP error."""
+        """Test spawn when daemon returns HTTP error."""
         import httpx
 
         mock_get_url.return_value = "http://localhost:60887"
@@ -402,7 +402,7 @@ class TestAgentsStartCommand:
 
         result = runner.invoke(
             cli,
-            ["agents", "start", "Test prompt", "--session", "sess-parent"],
+            ["agents", "spawn", "Test prompt", "--session", "sess-parent"],
         )
 
         assert result.exit_code == 0
@@ -411,14 +411,14 @@ class TestAgentsStartCommand:
     @patch("gobby.cli.agents.resolve_session_id")
     @patch("gobby.cli.agents.httpx.post")
     @patch("gobby.cli.agents.get_daemon_url")
-    def test_start_failure_response(
+    def test_spawn_failure_response(
         self,
         mock_get_url: MagicMock,
         mock_post: MagicMock,
         mock_resolve_session: MagicMock,
         runner: CliRunner,
     ) -> None:
-        """Test start with failure response from daemon."""
+        """Test spawn with failure response from daemon."""
         mock_get_url.return_value = "http://localhost:60887"
         mock_resolve_session.return_value = "sess-nonexistent"
         mock_response = MagicMock()
@@ -431,7 +431,7 @@ class TestAgentsStartCommand:
 
         result = runner.invoke(
             cli,
-            ["agents", "start", "Test prompt", "--session", "sess-nonexistent"],
+            ["agents", "spawn", "Test prompt", "--session", "sess-nonexistent"],
         )
 
         assert result.exit_code == 0
@@ -441,14 +441,14 @@ class TestAgentsStartCommand:
     @patch("gobby.cli.agents.resolve_session_id")
     @patch("gobby.cli.agents.httpx.post")
     @patch("gobby.cli.agents.get_daemon_url")
-    def test_start_in_process_mode_with_output(
+    def test_spawn_in_process_mode_with_output(
         self,
         mock_get_url: MagicMock,
         mock_post: MagicMock,
         mock_resolve_session: MagicMock,
         runner: CliRunner,
     ) -> None:
-        """Test start in in_process mode shows output."""
+        """Test spawn in in_process mode shows output."""
         mock_get_url.return_value = "http://localhost:60887"
         mock_resolve_session.return_value = "sess-parent"
         mock_response = MagicMock()
@@ -466,7 +466,7 @@ class TestAgentsStartCommand:
             cli,
             [
                 "agents",
-                "start",
+                "spawn",
                 "Implement feature",
                 "--session",
                 "sess-parent",
@@ -497,7 +497,7 @@ class TestAgentsStartCommand:
 
         result = runner.invoke(
             cli,
-            ["agents", "start", "Test prompt", "--session", "sess-parent"],
+            ["agents", "spawn", "Test prompt", "--session", "sess-parent"],
         )
 
         assert result.exit_code == 0
@@ -509,7 +509,7 @@ class TestAgentsStartCommand:
             cli,
             [
                 "agents",
-                "start",
+                "spawn",
                 "Test",
                 "--session",
                 "sess",
@@ -527,7 +527,7 @@ class TestAgentsStartCommand:
             cli,
             [
                 "agents",
-                "start",
+                "spawn",
                 "Test",
                 "--session",
                 "sess",

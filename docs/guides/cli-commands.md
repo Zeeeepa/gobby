@@ -515,12 +515,12 @@ gobby sessions delete SESSION_ID
 
 ## Agent Management
 
-### `gobby agents start`
+### `gobby agents spawn`
 
-Start a new agent with the given prompt.
+Spawn a new agent with the given prompt.
 
 ```bash
-gobby agents start "PROMPT" --session SESSION_ID [OPTIONS]
+gobby agents spawn "PROMPT" --session SESSION_ID [OPTIONS]
 ```
 
 | Option | Description |

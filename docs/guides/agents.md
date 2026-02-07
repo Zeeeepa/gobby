@@ -5,8 +5,8 @@ Gobby enables spawning subagents to work on tasks in parallel, with full session
 ## Quick Start
 
 ```bash
-# Start an agent
-gobby agents start "Implement the login feature" --session SESSION_ID --task #123
+# Spawn an agent
+gobby agents spawn "Implement the login feature" --session SESSION_ID --task #123
 
 # List running agents
 gobby agents list --status running
@@ -209,12 +209,12 @@ Agents can spawn in various terminals:
 
 ## CLI Commands
 
-### `gobby agents start`
+### `gobby agents spawn`
 
-Start a new agent with the given prompt.
+Spawn a new agent with the given prompt.
 
 ```bash
-gobby agents start "PROMPT" --session SESSION_ID [OPTIONS]
+gobby agents spawn "PROMPT" --session SESSION_ID [OPTIONS]
 ```
 
 | Option | Description |

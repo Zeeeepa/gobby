@@ -87,6 +87,6 @@ Documentation guides for using Gobby's features.
 
 - **Create a task**: `gobby tasks create "Title"` or `create_task` MCP tool
 - **List ready work**: `gobby tasks ready` or `list_ready_tasks` MCP tool
-- **Start an agent**: `gobby agents start "Prompt"` or `spawn_agent` MCP tool
+- **Spawn an agent**: `gobby agents spawn "Prompt"` or `spawn_agent` MCP tool
 - **Create memory**: `gobby memory create "Content"` or `create_memory` MCP tool
 - **Session handoff**: `gobby sessions create-handoff` or `create_handoff` MCP tool
