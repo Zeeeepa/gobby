@@ -214,7 +214,7 @@ Goal: reduce cognitive load; make the daemon's behavior legible.
 - 🗺️ Tailscale integration for secure remote access
 - 🗺️ SSH tunneling support
 
-### 5) Memory v4
+### 4) Memory v4
 
 - 🗺️ Extraction improvements
 - 🗺️ Embedding-based deduplication

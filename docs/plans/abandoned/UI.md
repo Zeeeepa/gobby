@@ -555,7 +555,6 @@ All CRUD operations go through internal MCP servers. Total: **106+ tools**
 | `gobby-sessions` | 6 | get, list, get_messages, search, get_handoff_context |
 | `gobby-artifacts` | 4 | search, list, get, get_timeline |
 | `gobby-metrics` | 4 | get_tool_metrics, get_top_tools, get_failing_tools |
-| `gobby-metrics` | 4 | get_tool_metrics, get_top_tools, get_failing_tools |
 | `gobby-hub` | 4 | Cross-project queries (list_all_projects, cross_project_tasks) |
 
 ### Example: Creating a task via MCP
