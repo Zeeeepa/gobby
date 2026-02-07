@@ -97,21 +97,13 @@ class TestFormatHandoffMarkdown:
         assert "gt-abc123" in result
         assert "Status: in_progress" in result
 
-    def test_with_todo_state(self) -> None:
-        """Test formatting with todo items."""
-        ctx = HandoffContext(
-            todo_state=[
-                {"content": "First task", "status": "completed"},
-                {"content": "Second task", "status": "in_progress"},
-                {"content": "Third task", "status": "pending"},
-            ]
-        )
+    def test_with_git_status_only(self) -> None:
+        """Test formatting with git status."""
+        ctx = HandoffContext(git_status="M src/app.py")
         result = _format_handoff_markdown(ctx)
 
-        assert "### In-Progress Work" in result
-        assert "[x] First task" in result
-        assert "[>] Second task" in result
-        assert "[ ] Third task" in result
+        assert "### Uncommitted Changes" in result
+        assert "M src/app.py" in result
 
     def test_with_git_commits(self) -> None:
         """Test formatting with git commits."""
@@ -188,7 +180,6 @@ class TestFormatHandoffMarkdown:
         """Test formatting with all fields populated."""
         ctx = HandoffContext(
             active_gobby_task={"id": "gt-123", "title": "Test", "status": "active"},
-            todo_state=[{"content": "Task 1", "status": "pending"}],
             git_commits=[{"hash": "abc1234", "message": "commit"}],
             git_status="M file.py",
             files_modified=["file.py"],
@@ -199,7 +190,6 @@ class TestFormatHandoffMarkdown:
 
         assert "## Continuation Context" in result
         assert "### Active Task" in result
-        assert "### In-Progress Work" in result
         assert "### Commits This Session" in result
         assert "### Uncommitted Changes" in result
         assert "### Files Being Modified" in result
@@ -1468,15 +1458,10 @@ class TestEdgeCases:
 
         assert "### Commits This Session" in result
 
-    def test_handoff_markdown_todo_missing_status(self) -> None:
-        """Test handoff markdown with todo items missing status."""
-        ctx = HandoffContext(
-            todo_state=[
-                {"content": "Task without status"},
-                {"status": "completed"},  # Missing content
-            ]
-        )
+    def test_handoff_markdown_empty_context(self) -> None:
+        """Test handoff markdown with empty context returns header only."""
+        ctx = HandoffContext()
         result = _format_handoff_markdown(ctx)
 
-        assert "### In-Progress Work" in result
-        assert "[ ] Task without status" in result  # Default to pending
+        # Empty context should still have the header
+        assert "## Continuation Context" in result

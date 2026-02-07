@@ -618,10 +618,6 @@ async def test_extract_handoff_context(
         mock_instance = MockAnalyzer.return_value
         mock_ctx = MagicMock()
         mock_ctx.active_gobby_task = {"id": "t1", "title": "My Task", "status": "open"}
-        mock_ctx.todo_state = [
-            {"content": "Todo 1", "status": "pending"},
-            {"content": "Todo 2", "status": "completed"},
-        ]
         # These will be overwritten by real commits if not mocked in executor
         # So we patch the executor's method
         mock_ctx.git_commits = []
@@ -644,8 +640,6 @@ async def test_extract_handoff_context(
         updated = session_manager.get(session.id)
         assert updated.compact_markdown is not None
         assert "Active Task" in updated.compact_markdown
-        # Now these assertions should pass
-        assert "Todo 1" in updated.compact_markdown
         assert "abc1234" in updated.compact_markdown
         assert "file.py" in updated.compact_markdown
 

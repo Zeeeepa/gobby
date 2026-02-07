@@ -1272,13 +1272,11 @@ class TestFormatHandoffAsMarkdown:
 
         active_gobby_task: dict | None = None
         active_worktree: dict | None = None
-        todo_state: list = field(default_factory=list)
         git_commits: list = field(default_factory=list)
         git_status: str = ""
         files_modified: list = field(default_factory=list)
         initial_goal: str = ""
         recent_activity: list = field(default_factory=list)
-        active_skills: list = field(default_factory=list)
 
     def test_empty_context_returns_empty_string(self) -> None:
         """Should return empty string when all context fields are empty."""
@@ -1340,21 +1338,11 @@ class TestFormatHandoffAsMarkdown:
         assert "### Worktree Context" in result
         assert "**Task**" not in result
 
-    def test_formats_todo_state(self) -> None:
-        """Should format todo state with correct markers."""
-        ctx = self.MockHandoffContext(
-            todo_state=[
-                {"content": "First task", "status": "completed"},
-                {"content": "Second task", "status": "in_progress"},
-                {"content": "Third task", "status": "pending"},
-            ]
-        )
+    def test_formats_empty_context(self) -> None:
+        """Should return empty string when all context fields are empty."""
+        ctx = self.MockHandoffContext()
         result = format_handoff_as_markdown(ctx)
-
-        assert "### In-Progress Work" in result
-        assert "- [x] First task" in result
-        assert "- [>] Second task" in result
-        assert "- [ ] Third task" in result
+        assert result == ""
 
     def test_formats_git_commits(self) -> None:
         """Should format git commits section."""
@@ -1528,13 +1516,13 @@ class TestFormatHandoffAsMarkdown:
 
     def test_active_skills_section_removed(self) -> None:
         """Active skills section was removed - redundant with _build_skill_injection_context()."""
-        # Even with active_skills set, the section should not appear
         # Skills are now only injected via _build_skill_injection_context() on session start
-        ctx = self.MockHandoffContext(active_skills=["gobby-tasks", "gobby-sessions"])
+        ctx = self.MockHandoffContext(
+            git_commits=[{"hash": "abc1234", "message": "test"}]
+        )
         result = format_handoff_as_markdown(ctx)
 
         assert "### Active Skills" not in result
-        # The skills should not appear in the output at all
         assert "Skills available:" not in result
 
 
