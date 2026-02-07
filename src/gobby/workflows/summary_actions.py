@@ -11,7 +11,13 @@ import logging
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Literal
 
-from gobby.workflows.git_utils import get_file_changes, get_git_diff_summary, get_git_status
+from gobby.sessions.analyzer import HandoffContext, TranscriptAnalyzer
+from gobby.workflows.git_utils import (
+    get_file_changes,
+    get_git_diff_summary,
+    get_git_status,
+    get_recent_git_commits,
+)
 
 if TYPE_CHECKING:
     from gobby.workflows.actions import ActionContext
@@ -142,6 +148,48 @@ def _format_claude_turn(turn: dict[str, Any]) -> tuple[str, str]:
         content = " ".join(text_parts)
 
     return role, str(content)
+
+
+def _format_structured_context(ctx: HandoffContext) -> str:
+    """Format HandoffContext fields as concise text for LLM consumption.
+
+    Args:
+        ctx: Structured context extracted from transcript analysis
+
+    Returns:
+        Formatted text block with anchoring data (files, commits, decisions)
+    """
+    sections: list[str] = []
+
+    if ctx.active_gobby_task:
+        task = ctx.active_gobby_task
+        sections.append(
+            f"Active Task: {task.get('title', 'Untitled')} "
+            f"(#{task.get('id', '?')}, status: {task.get('status', 'unknown')})"
+        )
+
+    if ctx.initial_goal:
+        sections.append(f"Original Goal: {ctx.initial_goal[:500]}")
+
+    if ctx.files_modified:
+        sections.append("Files Modified:\n" + "\n".join(f"  - {f}" for f in ctx.files_modified))
+
+    if ctx.git_commits:
+        commit_lines = [
+            f"  - {c.get('hash', '')[:7]} {c.get('message', '')}"
+            for c in ctx.git_commits[:10]
+        ]
+        sections.append("Recent Commits:\n" + "\n".join(commit_lines))
+
+    if ctx.recent_activity:
+        sections.append("Recent Activity:\n" + "\n".join(f"  - {a}" for a in ctx.recent_activity[-10:]))
+
+    if ctx.key_decisions:
+        sections.append(
+            "Key Decisions:\n" + "\n".join(f"  - {d}" for d in ctx.key_decisions)
+        )
+
+    return "\n\n".join(sections) if sections else ""
 
 
 async def synthesize_title(
@@ -310,6 +358,16 @@ async def generate_summary(
     file_changes = get_file_changes()
     git_diff_summary = get_git_diff_summary()
 
+    # Extract structured context from transcript analysis
+    analyzer = TranscriptAnalyzer()
+    handoff_ctx = analyzer.extract_handoff_context(turns, max_turns=150)
+    real_commits = get_recent_git_commits()
+    if real_commits:
+        handoff_ctx.git_commits = real_commits
+    if not handoff_ctx.git_status:
+        handoff_ctx.git_status = git_status
+    structured_context = _format_structured_context(handoff_ctx)
+
     # 3. Call LLM
     try:
         llm_context = {
@@ -320,6 +378,7 @@ async def generate_summary(
             "git_status": git_status,
             "file_changes": file_changes,
             "git_diff_summary": git_diff_summary,
+            "structured_context": structured_context,
             "todo_list": "",
             "previous_summary": previous_summary or "",
             "mode": mode,

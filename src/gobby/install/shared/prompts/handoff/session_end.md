@@ -5,10 +5,21 @@ required_variables:
   - last_messages
   - git_status
   - file_changes
+optional_variables:
+  - structured_context
+  - git_diff_summary
 ---
-Analyze this Claude Code session transcript and create a comprehensive session summary.
+You are generating a session summary for a future AI agent to resume work. Be precise.
+Reference specific file names, function names, error messages, and commit SHAs.
+Do NOT use vague phrases like "various improvements", "several fixes", "continued work on".
+If no information is available for a section, say "None" rather than guessing.
 
-## Transcript (last 50 turns):
+## Structured Session Data (extracted from tool calls):
+{{ structured_context }}
+
+Use this data to anchor your summary with specific file names, commit SHAs, and task IDs.
+
+## Transcript (last 100 turns):
 {{ transcript_summary }}
 
 ## Last Messages:
@@ -20,34 +31,27 @@ Analyze this Claude Code session transcript and create a comprehensive session s
 ## Files Changed:
 {{ file_changes }}
 
+## Actual Code Changes:
+{{ git_diff_summary }}
+
 Create a markdown summary with the following sections (do NOT include a top-level '# Session Summary' header):
 
-## Overview
-[1-2 paragraph summary of what was accomplished in this session]
+## What Was Accomplished
+[Bullet points referencing specific files, functions, and commits. Each bullet should name the file and describe the specific change.]
 
-## Key Decisions
-[List of important technical or architectural decisions made, with bullet points]
+## Key Technical Decisions
+[Decisions and WHY they were made. Reference specific alternatives considered. Use key_decisions from structured data above.]
 
-## Important Lessons Learned
-[Technical insights, gotchas, or patterns discovered, with bullet points]
+## Problems Encountered
+[Errors, failed approaches, exact error messages. Write "None" if none.]
 
-## Substantive Interrupts
-[Times when the user changed direction significantly - NOT simple "continue" or "resume" prompts]
-
-## Research & Epiphanies
-[Key discoveries from research or debugging that should be remembered, with bullet points]
+## Current State
+[What is working, what is broken, uncommitted changes, failing tests.]
 
 ## Files Changed
-{{ file_changes }}
-[Add specific details about WHY each file was changed and WHAT the changes accomplish.]
-
-## Git Status
-```
-{{ git_status }}
-```
+[For each file: explain the specific change using diff content. Do not just list file names.]
 
 ## Next Steps
-[Concrete, numbered suggestions for what to do when resuming work. Be specific and actionable.]
+[Numbered list. Each item must be actionable without additional context -- include file names, function names, and what specifically to do.]
 
-Focus on actionable insights and context that would be valuable when resuming work later.
 Use only ASCII-safe characters - avoid Unicode em-dashes, smart quotes, or special characters.

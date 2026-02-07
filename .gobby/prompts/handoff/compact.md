@@ -7,8 +7,17 @@ required_variables:
   - file_changes
 optional_variables:
   - previous_summary
+  - structured_context
+  - git_diff_summary
 ---
 You are creating a session continuation summary after a compaction event.
+Compact summaries are for in-session continuity. Be MORE detailed than session-end summaries.
+Preserve exact error messages verbatim, not paraphrases.
+
+## Structured Session Data (extracted from tool calls):
+{{ structured_context }}
+
+Use this data to anchor your summary with specific file names, commit SHAs, and task IDs.
 
 ## Context from Earlier in This Session (if any):
 {{ previous_summary }}
@@ -29,30 +38,34 @@ If no previous context, this is the first segment - summarize the full session.
 ## Files Changed:
 {{ file_changes }}
 
+## Actual Code Changes:
+{{ git_diff_summary }}
+
 ---
 
 Create a continuation summary optimized for resuming work after compaction.
 Use these sections:
 
 ### Current Focus
-[What is being actively worked on RIGHT NOW - be specific and detailed.
-This is the most important section.]
+[Exactly what was being worked on when compaction hit: file, function, specific change.
+This is the most important section. Be as specific as possible.]
 
-### This Segment's Progress
-[Bullet points of what was accomplished in this segment]
+### What Was Just Done
+[Bullet points of this segment's actions only, not historical.
+Reference specific files, functions, commit SHAs.]
 
-### Session History
-[1-2 sentences summarizing the overall session journey. Include if there was
-previous context, otherwise skip this section.]
+### Session History (compressed)
+[1-2 sentences if previous_summary exists. Skip if no previous context.]
 
 ### Technical State
-- Key files modified: [list files]
-- Git status: [uncommitted changes summary]
-- Any blockers or pending items
+- Files with uncommitted changes: [list with status]
+- Recent commits: [list with SHAs and messages]
+- Errors or blockers: [exact error messages if any, "None" if none]
 
-### Next Steps
-[Numbered list of concrete actions to take when resuming]
+### Immediate Next Action
+[Single most important thing to do next. Must be specific enough to act on immediately
+without additional context -- include file name, function name, and what to do.]
 
-IMPORTANT: Prioritize recency. "Current Focus" and "This Segment's Progress"
+IMPORTANT: Prioritize recency. "Current Focus" and "What Was Just Done"
 should be detailed and specific. Historical context should be compressed.
 Use only ASCII-safe characters.
