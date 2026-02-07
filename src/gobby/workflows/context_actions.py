@@ -272,7 +272,7 @@ def inject_context(
                 project_id=project_id,
                 limit=limit,
                 min_importance=min_importance,
-                use_semantic=True,
+                search_mode="auto",
             )
 
             if memories:

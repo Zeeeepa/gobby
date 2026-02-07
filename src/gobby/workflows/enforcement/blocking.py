@@ -232,6 +232,7 @@ async def block_tools(
     project_path: str | None = None,
     task_manager: LocalTaskManager | None = None,
     source: str | None = None,
+    project_name: str | None = None,
     **kwargs: Any,
 ) -> dict[str, Any] | None:
     """
@@ -403,6 +404,7 @@ async def block_tools(
                     {
                         "tool_input": tool_input,
                         "suggested_server": suggested_server,
+                        "project": {"name": project_name or ""},
                     },
                 )
             except Exception as e:

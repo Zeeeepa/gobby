@@ -223,6 +223,22 @@ class MetricsCollector:
             "Daemon CPU usage percentage",
         )
 
+        # MCP tool listing metrics
+        self.register_histogram(
+            "list_mcp_tools",
+            "Time to list MCP tools",
+        )
+
+        # Shutdown metrics
+        self.register_counter(
+            "shutdown_succeeded_total",
+            "Successful daemon shutdowns",
+        )
+        self.register_counter(
+            "shutdown_failed_total",
+            "Failed daemon shutdowns",
+        )
+
         # Hook execution metrics
         self.register_counter(
             "hooks_total",

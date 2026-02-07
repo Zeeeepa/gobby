@@ -110,7 +110,7 @@ class LocalArtifactManager:
             The created Artifact
         """
         now = datetime.now(UTC).isoformat()
-        artifact_id = generate_prefixed_id("art", content[:50] + session_id)
+        artifact_id = generate_prefixed_id("art")
 
         metadata_json = json.dumps(metadata) if metadata else None
 

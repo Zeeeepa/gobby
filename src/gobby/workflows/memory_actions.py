@@ -195,7 +195,7 @@ async def memory_recall_relevant(
             project_id=project_id,
             limit=limit,
             min_importance=min_importance,
-            use_semantic=True,
+            search_mode="auto",
         )
 
         if not memories:

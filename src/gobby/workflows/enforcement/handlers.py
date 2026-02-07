@@ -170,12 +170,15 @@ async def handle_block_tools(
         if current_session:
             source = current_session.source
 
-    # Fallback to session's project path
-    if not project_path and current_session and context.db:
+    # Look up project for path fallback and template rendering
+    project_name = None
+    if current_session and current_session.project_id and context.db:
         project_mgr = LocalProjectManager(context.db)
         project = project_mgr.get(current_session.project_id)
-        if project and project.repo_path:
-            project_path = project.repo_path
+        if project:
+            project_name = project.name
+            if not project_path and project.repo_path:
+                project_path = project.repo_path
 
     return await block_tools(
         rules=kwargs.get("rules"),
@@ -184,6 +187,7 @@ async def handle_block_tools(
         project_path=project_path,
         task_manager=task_manager,
         source=source,
+        project_name=project_name,
     )
 
 
