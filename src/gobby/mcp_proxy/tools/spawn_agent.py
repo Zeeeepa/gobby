@@ -108,7 +108,7 @@ async def _handle_self_mode(
     # Import and call the existing activate_workflow function
     from gobby.mcp_proxy.tools.workflows._lifecycle import activate_workflow
 
-    result = activate_workflow(
+    result = await activate_workflow(
         loader=workflow_loader,
         state_manager=effective_state_manager,
         session_manager=session_manager,

@@ -43,7 +43,7 @@ async def handle_shell_run(context: ActionContext, **kwargs: Any) -> dict[str, A
 
     # Prepare template context
     variables = context.state.variables if context.state else {}
-    render_context = {
+    render_context: dict[str, Any] = {
         "variables": variables,
         "session_id": context.session_id,
     }

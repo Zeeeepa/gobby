@@ -625,7 +625,6 @@ def create_handoff(
     if full_markdown:
         click.echo(f"  Full length: {len(full_markdown)} chars")
     click.echo(f"  Active task: {'Yes' if handoff_ctx.active_gobby_task else 'No'}")
-    click.echo(f"  Todo items: {len(handoff_ctx.todo_state)}")
     click.echo(f"  Files modified: {len(handoff_ctx.files_modified)}")
     click.echo(f"  Git commits: {len(handoff_ctx.git_commits)}")
     click.echo(f"  Initial goal: {'Yes' if handoff_ctx.initial_goal else 'No'}")

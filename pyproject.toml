@@ -157,6 +157,10 @@ ignore_missing_imports = true
 exclude = ["build"]
 
 [[tool.mypy.overrides]]
+module = "aiofiles.*"
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
 module = "tests.*"
 disallow_untyped_defs = false
 

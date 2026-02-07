@@ -737,6 +737,7 @@ class WebSocketServer:
                     "mcp__gobby__*",
                 ]
 
+                assert self.llm_service is not None
                 async for event in self.llm_service.stream_chat_with_tools(
                     messages, allowed_tools, model=model
                 ):
@@ -795,6 +796,7 @@ class WebSocketServer:
                         )
             else:
                 # Stream without tools (original behavior)
+                assert self.llm_service is not None
                 async for chunk in self.llm_service.stream_chat(messages):
                     full_response += chunk
                     await websocket.send(
