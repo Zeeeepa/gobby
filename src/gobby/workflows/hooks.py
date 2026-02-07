@@ -217,6 +217,8 @@ class WorkflowHookHandler:
 
         try:
             if self._loop and self._loop.is_running():
+                if threading.current_thread() is threading.main_thread():
+                    return {"success": False, "error": "Event loop conflict"}
                 future = asyncio.run_coroutine_threadsafe(
                     self.engine.activate_workflow(
                         workflow_name=workflow_name,

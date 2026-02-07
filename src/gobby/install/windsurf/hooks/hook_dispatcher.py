@@ -29,6 +29,15 @@ DEFAULT_CONFIG_PATH = "~/.gobby/config.yaml"
 
 
 _cached_daemon_url: str | None = None
+_daemon_url_lock: asyncio.Lock | None = None
+
+
+def _get_daemon_url_lock() -> asyncio.Lock:
+    """Get or create the daemon URL lock (lazy init for event loop safety)."""
+    global _daemon_url_lock
+    if _daemon_url_lock is None:
+        _daemon_url_lock = asyncio.Lock()
+    return _daemon_url_lock
 
 
 async def get_daemon_url() -> str:
@@ -37,23 +46,29 @@ async def get_daemon_url() -> str:
     if _cached_daemon_url is not None:
         return _cached_daemon_url
 
-    config_path = Path(DEFAULT_CONFIG_PATH).expanduser()
+    lock = _get_daemon_url_lock()
+    async with lock:
+        # Double-check after acquiring lock
+        if _cached_daemon_url is not None:
+            return _cached_daemon_url
 
-    if config_path.exists():
-        try:
-            import yaml
+        config_path = Path(DEFAULT_CONFIG_PATH).expanduser()
 
-            async with aiofiles.open(config_path, encoding="utf-8") as f:
-                content = await f.read()
-            config = yaml.safe_load(content) or {}
-            port = config.get("daemon_port", DEFAULT_DAEMON_PORT)
-        except Exception:
+        if config_path.exists():
+            try:
+                import yaml
+
+                async with aiofiles.open(config_path, encoding="utf-8") as f:
+                    content = await f.read()
+                config = yaml.safe_load(content) or {}
+                port = config.get("daemon_port", DEFAULT_DAEMON_PORT)
+            except Exception:
+                port = DEFAULT_DAEMON_PORT
+        else:
             port = DEFAULT_DAEMON_PORT
-    else:
-        port = DEFAULT_DAEMON_PORT
 
-    _cached_daemon_url = f"http://localhost:{port}"
-    return _cached_daemon_url
+        _cached_daemon_url = f"http://localhost:{port}"
+        return _cached_daemon_url
 
 
 def get_terminal_context() -> dict[str, str | int | None]:

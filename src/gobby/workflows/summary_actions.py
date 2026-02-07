@@ -212,12 +212,13 @@ async def _write_summary_file(
     Returns:
         Path to written file, or None on failure
     """
+    external_id: str | None = None
+    summary_dir: Path | None = None
     try:
         summary_dir = Path(output_path or "~/.gobby/session_summaries").expanduser()
         summary_dir.mkdir(parents=True, exist_ok=True)
 
         # Use external_id in filename for failback reader compatibility
-        external_id = None
         if session_manager:
             session = session_manager.get(session_id)
             if session:
@@ -247,7 +248,7 @@ async def _write_summary_file(
             extra={
                 "session_id": session_id,
                 "external_id": external_id,
-                "output_dir": str(summary_dir),
+                "output_dir": str(summary_dir) if summary_dir is not None else None,
             },
         )
         return None

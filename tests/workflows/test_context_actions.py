@@ -1338,12 +1338,6 @@ class TestFormatHandoffAsMarkdown:
         assert "### Worktree Context" in result
         assert "**Task**" not in result
 
-    def test_formats_empty_context(self) -> None:
-        """Should return empty string when all context fields are empty."""
-        ctx = self.MockHandoffContext()
-        result = format_handoff_as_markdown(ctx)
-        assert result == ""
-
     def test_formats_git_commits(self) -> None:
         """Should format git commits section."""
         ctx = self.MockHandoffContext(

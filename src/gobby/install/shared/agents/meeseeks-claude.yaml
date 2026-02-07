@@ -54,10 +54,6 @@ workflows:
             arguments:
               task_id: "{{ variables.assigned_task_id }}"
             output_as: _task_details
-          # Mark as claimed
-          - action: set_variable
-            name: task_claimed
-            value: true
           # Inject task details for LLM context in the next step
           - action: inject_message
             content: |
@@ -85,6 +81,14 @@ workflows:
           - spawn_agent
           - activate_workflow
           - mcp__gobby__list_tools
+
+        # Set task_claimed only on successful claim (not unconditionally)
+        on_mcp_success:
+          - server: gobby-tasks
+            tool: claim_task
+            action: set_variable
+            variable: task_claimed
+            value: true
 
         # STRICT: Only allow claim_task and get_task - nothing else
         allowed_mcp_tools:

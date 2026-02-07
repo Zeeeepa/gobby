@@ -180,6 +180,7 @@ Goal: a developer installs Gobby and immediately understands the value in minute
 
 - 🗺️ Evaluation infrastructure for SWE-bench Lite/Verified/Live
 - 🗺️ Track scores over time, A/B test Gobby features
+- 🗺️ Leaderboard submission when ready to show off
 
 ### 5) Flagship demos (distribution)
 
@@ -207,13 +208,7 @@ Goal: reduce cognitive load; make the daemon's behavior legible.
 - 🗺️ Cleanup/GC, conflict strategy, concurrency rules
 - 🗺️ Run workflows per worktree; merge automation hooks
 
-### 3) SWE-bench evaluation
-
-- 🗺️ Evaluation infrastructure for SWE-bench Lite/Verified/Live
-- 🗺️ Track scores over time, A/B test Gobby features
-- 🗺️ Leaderboard submission when ready to show off
-
-### 4) Remote access
+### 3) Remote access
 
 - 🗺️ Authentication for daemon HTTP/WebSocket endpoints
 - 🗺️ Tailscale integration for secure remote access
