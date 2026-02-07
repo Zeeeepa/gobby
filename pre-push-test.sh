@@ -75,6 +75,16 @@ else
 fi
 echo ""
 
+# CodeRabbit - AI code review report (informational, not a gate)
+echo ">>> Running coderabbit review..."
+if command -v coderabbit &> /dev/null; then
+    coderabbit review --prompt-only --type all > "$REPORTS_DIR/coderabbit-$TIMESTAMP.md" 2>&1
+    echo "✓ CodeRabbit report saved to $REPORTS_DIR/coderabbit-$TIMESTAMP.md"
+else
+    echo "⊘ CodeRabbit not installed, skipping"
+fi
+echo ""
+
 # Summary
 echo "=== Summary ==="
 echo "Reports saved to: $REPORTS_DIR/*-$TIMESTAMP.txt"
