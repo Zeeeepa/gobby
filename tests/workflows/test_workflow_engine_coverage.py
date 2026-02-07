@@ -78,6 +78,9 @@ def mock_action_executor():
     executor.memory_sync_manager = Mock()
     executor.task_sync_manager = Mock()
     executor.session_task_manager = Mock()
+    executor.skill_manager = Mock()
+    executor.pipeline_executor = Mock()
+    executor.workflow_loader = Mock()
     return executor
 
 
@@ -291,3 +294,23 @@ async def test_evaluate_lifecycle_workflows_blocked(
     response = await engine.evaluate_all_lifecycle_workflows(event)
     assert response.decision == "block"
     assert response.reason == "blocked by policy"
+
+
+@pytest.mark.asyncio
+async def test_execute_actions_passes_skill_manager(engine, mock_action_executor):
+    """Verify _execute_actions wires skill_manager from ActionExecutor to ActionContext."""
+    from gobby.workflows.actions import ActionContext
+
+    state = MagicMock()
+    state.session_id = "sess-abc"
+    actions = [{"action": "inject_context", "source": "skills"}]
+
+    mock_action_executor.execute.return_value = None
+
+    await engine._execute_actions(actions, state)
+
+    # The ActionContext passed to execute should have skill_manager set
+    call_args = mock_action_executor.execute.call_args
+    context_arg = call_args[0][1]  # second positional arg is context
+    assert isinstance(context_arg, ActionContext)
+    assert context_arg.skill_manager is mock_action_executor.skill_manager

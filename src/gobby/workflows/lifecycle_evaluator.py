@@ -209,6 +209,7 @@ async def evaluate_workflow_triggers(
         memory_sync_manager=action_executor.memory_sync_manager,
         task_sync_manager=action_executor.task_sync_manager,
         session_task_manager=action_executor.session_task_manager,
+        skill_manager=action_executor.skill_manager,
         event_data=event.data,  # Pass hook event data (prompt_text, etc.)
     )
 
@@ -411,6 +412,7 @@ async def evaluate_lifecycle_triggers(
         memory_sync_manager=action_executor.memory_sync_manager,
         task_sync_manager=action_executor.task_sync_manager,
         session_task_manager=action_executor.session_task_manager,
+        skill_manager=action_executor.skill_manager,
         event_data=event.data,  # Pass hook event data (prompt_text, etc.)
     )
 

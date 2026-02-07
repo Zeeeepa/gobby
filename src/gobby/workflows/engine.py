@@ -477,6 +477,7 @@ class WorkflowEngine:
             session_task_manager=self.action_executor.session_task_manager,
             pipeline_executor=self.action_executor.pipeline_executor,
             workflow_loader=self.action_executor.workflow_loader,
+            skill_manager=self.action_executor.skill_manager,
         )
 
         injected_messages: list[str] = []
