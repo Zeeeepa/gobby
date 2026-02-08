@@ -344,9 +344,9 @@ steps:
 
     transitions:
       - to: wait_for_worker
-        when: "variables.get('_respawn_result')"
+        when: "variables.get('current_worker_id')"
       - to: find_work
-        when: "not variables.get('_respawn_result')"
+        when: "not variables.get('current_worker_id')"
 
   - name: merge
     description: "Merge approved branch into target (unified across isolation modes)"
@@ -382,7 +382,8 @@ steps:
           git merge {{ variables.current_branch }}
           git push
 
-          After successful merge and push, transition to cleanup.
+          After successful merge and push, set _merge_result to signal completion:
+          set_workflow_variable("_merge_result", {"success": true})
 
       # Current mode: just push (changes are already in working tree)
       - action: inject_message
@@ -397,7 +398,8 @@ steps:
           If push fails due to upstream changes:
           git pull --rebase && git push
 
-          After successful push, transition to cleanup.
+          After successful push, set _merge_result to signal completion:
+          set_workflow_variable("_merge_result", {"success": true})
 
     allowed_tools:
       - Bash
@@ -409,12 +411,10 @@ steps:
       - mcp__gobby__search_tools
 
     transitions:
-      # Clone mode: auto-transition after call_mcp_tool completes
+      # All modes: transition after merge completes (_merge_result set by
+      # call_mcp_tool for clone mode, or by LLM via set_variable for worktree/current)
       - to: cleanup
-        when: "variables.get('isolation_mode') == 'clone'"
-      # Worktree/current mode: LLM drives merge, transition when done
-      - to: cleanup
-        when: "variables.get('isolation_mode') in ('worktree', 'current')"
+        when: "variables.get('_merge_result')"
 
   - name: cleanup
     description: "Clean up isolation environment and reset state (unified across modes)"

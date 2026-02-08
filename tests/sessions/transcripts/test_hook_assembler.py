@@ -1,8 +1,10 @@
 """Tests for HookTranscriptAssembler."""
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime, timezone
 
 import pytest
+
+pytestmark = pytest.mark.unit
 
 from gobby.hooks.events import HookEvent, HookEventType, SessionSource
 from gobby.sessions.transcripts.hook_assembler import HookTranscriptAssembler
@@ -22,7 +24,7 @@ def _make_event(
         event_type=event_type,
         session_id="ext-123",
         source=source,
-        timestamp=datetime(2026, 2, 7, 12, 0, 0, tzinfo=timezone.utc),
+        timestamp=datetime(2026, 2, 7, 12, 0, 0, tzinfo=UTC),
         data=data,
     )
 

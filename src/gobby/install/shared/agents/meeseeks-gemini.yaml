@@ -37,6 +37,7 @@ workflows:
     mode: self  # Activate workflow in calling session instead of spawning
 
   # Automated orchestrator (runs in daemon background)
+  # Disabled: pending pipeline stabilization
   # box-pipeline:
   #  file: meeseeks-box-pipeline.yaml
 

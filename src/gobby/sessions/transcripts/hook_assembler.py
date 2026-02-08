@@ -11,7 +11,7 @@ from __future__ import annotations
 
 import logging
 from collections.abc import Callable
-from datetime import datetime
+from datetime import UTC, datetime
 from typing import Any
 
 from gobby.hooks.events import HookEvent, HookEventType
@@ -171,6 +171,8 @@ class HookTranscriptAssembler:
         tool_result: dict[str, Any] | None = None,
     ) -> ParsedMessage:
         """Build a ParsedMessage with auto-incrementing index."""
+        if timestamp.tzinfo is None:
+            timestamp = timestamp.replace(tzinfo=UTC)
         return ParsedMessage(
             index=self._next_index(session_id),
             role=role,

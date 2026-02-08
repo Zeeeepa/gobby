@@ -1853,7 +1853,7 @@ class TestTranscriptPathDerivation:
         )
         assert result is None
 
-    def test_find_gemini_transcript_by_prefix(self, event_handlers: EventHandlers, tmp_path) -> None:
+    def test_find_gemini_transcript_by_prefix(self, event_handlers: EventHandlers, tmp_path, monkeypatch) -> None:
         """Should find Gemini session file by session_id prefix."""
         import hashlib
 
@@ -1866,21 +1866,16 @@ class TestTranscriptPathDerivation:
         session_file = chats_dir / "session-2024-01-01T10-00-abcd1234.json"
         session_file.touch()
 
-        # Monkey-patch Path.home to use tmp_path
         import gobby.hooks.event_handlers._session as session_mod
-        original_home = session_mod.Path.home
+        monkeypatch.setattr(session_mod.Path, "home", staticmethod(lambda: tmp_path))
 
-        try:
-            session_mod.Path.home = staticmethod(lambda: tmp_path)
-            result = event_handlers._find_gemini_transcript(
-                {"cwd": cwd, "session_id": "abcd1234-full-uuid"}, "ext-123"
-            )
-            assert result is not None
-            assert "abcd1234" in result
-        finally:
-            session_mod.Path.home = original_home
+        result = event_handlers._find_gemini_transcript(
+            {"cwd": cwd, "session_id": "abcd1234-full-uuid"}, "ext-123"
+        )
+        assert result is not None
+        assert "abcd1234" in result
 
-    def test_find_gemini_transcript_fallback_most_recent(self, event_handlers: EventHandlers, tmp_path) -> None:
+    def test_find_gemini_transcript_fallback_most_recent(self, event_handlers: EventHandlers, tmp_path, monkeypatch) -> None:
         """Should fall back to most recent session file when prefix doesn't match."""
         import hashlib
 
@@ -1894,17 +1889,13 @@ class TestTranscriptPathDerivation:
         session_file.touch()
 
         import gobby.hooks.event_handlers._session as session_mod
-        original_home = session_mod.Path.home
+        monkeypatch.setattr(session_mod.Path, "home", staticmethod(lambda: tmp_path))
 
-        try:
-            session_mod.Path.home = staticmethod(lambda: tmp_path)
-            result = event_handlers._find_gemini_transcript(
-                {"cwd": cwd, "session_id": "nomatch-uuid"}, "ext-123"
-            )
-            assert result is not None
-            assert "xxxxxxxx" in result
-        finally:
-            session_mod.Path.home = original_home
+        result = event_handlers._find_gemini_transcript(
+            {"cwd": cwd, "session_id": "nomatch-uuid"}, "ext-123"
+        )
+        assert result is not None
+        assert "xxxxxxxx" in result
 
     def test_find_cursor_transcript_from_terminal_context(self, event_handlers: EventHandlers) -> None:
         """Should find Cursor capture path from terminal_context."""
@@ -1915,10 +1906,11 @@ class TestTranscriptPathDerivation:
         assert result == "/tmp/gobby-cursor-abc.ndjson"
 
     def test_find_cursor_transcript_from_standard_location(self, event_handlers: EventHandlers) -> None:
-        """Should find Cursor capture file in /tmp/ by session_id."""
+        """Should find Cursor capture file in temp dir by session_id."""
         import os
+        import tempfile
 
-        capture_path = "/tmp/gobby-cursor-test-session-id-xyz.ndjson"
+        capture_path = f"{tempfile.gettempdir()}/gobby-cursor-test-session-id-xyz.ndjson"
         try:
             # Create the file so it exists
             with open(capture_path, "w") as f:

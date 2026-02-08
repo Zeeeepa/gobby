@@ -98,8 +98,8 @@ get_skill(name="tasks")
 ```
 
 **Skill name resolution:**
-- Try exact match first: `get_skill(name="tasks")`
-- If not found with gobby- prefix skills, try with prefix: `get_skill(name="gobby-tasks")`
+- First try exact match: `get_skill(name="tasks")`
+- If no result, retry with `gobby-` prefix: `get_skill(name="gobby-tasks")`
 - This allows both `/gobby tasks` and `/gobby gobby-tasks` to work
 
 ## Quick-Create Skills

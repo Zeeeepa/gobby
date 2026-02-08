@@ -15,6 +15,8 @@ from gobby.sessions.transcripts.base import ParsedMessage, TokenUsage
 
 logger = logging.getLogger(__name__)
 
+TOOL_OUTPUT_MAX_LENGTH = 500
+
 
 class CursorTranscriptParser:
     """
@@ -37,7 +39,7 @@ class CursorTranscriptParser:
         self, turns: list[dict[str, Any]], num_pairs: int = 2
     ) -> list[dict[str, Any]]:
         """Extract last N user<>agent message pairs."""
-        messages: list[dict[str, str]] = []
+        messages: list[dict[str, Any]] = []
         for turn in reversed(turns):
             event_type = turn.get("type")
             if event_type == "user":
@@ -80,7 +82,7 @@ class CursorTranscriptParser:
         try:
             data = json.loads(line)
         except json.JSONDecodeError:
-            self.logger.warning(f"Invalid JSON at line {index}")
+            self.logger.warning("Invalid JSON at line %s", index)
             return None
 
         if not isinstance(data, dict):
@@ -142,7 +144,7 @@ class CursorTranscriptParser:
                 return ParsedMessage(
                     index=index,
                     role="tool",
-                    content=str(tool_result.get("output", ""))[:500] if tool_result else "",
+                    content=str(tool_result.get("output", ""))[:TOOL_OUTPUT_MAX_LENGTH] if tool_result else "",
                     content_type="tool_result",
                     tool_name=tool_name,
                     tool_input=None,
@@ -171,7 +173,7 @@ class CursorTranscriptParser:
                 text_parts.append(block)
             elif isinstance(block, dict) and block.get("type") == "text":
                 text_parts.append(block.get("text", ""))
-        return " ".join(text_parts)
+        return "\n".join(text_parts)
 
     def _extract_tool_call(self, tool_call: dict[str, Any]) -> tuple[str, dict[str, Any] | None]:
         """Extract tool name and input from Cursor's nested tool_call structure.
@@ -224,7 +226,11 @@ class CursorTranscriptParser:
         )
 
     def parse_lines(self, lines: list[str], start_index: int = 0) -> list[ParsedMessage]:
-        """Parse a list of NDJSON lines."""
+        """Parse a list of NDJSON lines.
+
+        Note: current_index tracks the parsed message count (incremented only
+        for successfully parsed messages), not raw line numbers.
+        """
         parsed_messages = []
         current_index = start_index
 

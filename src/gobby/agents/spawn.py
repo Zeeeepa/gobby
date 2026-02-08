@@ -12,6 +12,7 @@ Implementation is split across submodules:
 from __future__ import annotations
 
 import logging
+import shlex
 import tempfile
 from dataclasses import dataclass
 from pathlib import Path
@@ -312,8 +313,8 @@ class TerminalSpawner:
             env["GOBBY_CURSOR_CAPTURE_PATH"] = capture_path
             # Wrap command to pipe stdout through tee for transcript capture
             # The --output stream-json flag is already added by build_cli_command
-            cmd_str = " ".join(command)
-            command = ["bash", "-c", f"{cmd_str} 2>&1 | tee {capture_path}"]
+            cmd_str = shlex.join(command)
+            command = ["bash", "-c", f"{cmd_str} | tee {shlex.quote(capture_path)}"]
 
         # Set title (avoid colons/parentheses which Ghostty interprets as config syntax)
         title = f"gobby-{cli}-d{agent_depth}"
