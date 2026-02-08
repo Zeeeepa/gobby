@@ -62,7 +62,9 @@ def create_lifecycle_registry(ctx: RegistryContext) -> InternalToolRegistry:
             task_id: Task reference (#N, path, or UUID)
             reason: Reason for closing. Use "duplicate", "already_implemented", "wont_fix",
                 or "obsolete" to auto-skip commit check (these imply no work was done).
-            changes_summary: Summary of changes (enables LLM validation for leaf tasks)
+            changes_summary: Summary of changes made. Required for all close reasons.
+                For completed tasks: describe what was changed and why.
+                For no-work closes (duplicate, wont_fix, obsolete): explain why no changes were needed.
             skip_validation: Skip all validation checks
             session_id: Session ID where task is being closed (auto-links to session)
             override_justification: Why agent bypassed validation (stored for audit).
@@ -308,8 +310,7 @@ def create_lifecycle_registry(ctx: RegistryContext) -> InternalToolRegistry:
                 },
                 "changes_summary": {
                     "type": "string",
-                    "description": "Summary of changes made. If provided for leaf tasks, triggers LLM validation before close.",
-                    "default": None,
+                    "description": "Required: summary of what was changed and why. For tasks closed without changes (duplicate, wont_fix, etc.), describe why no changes were needed.",
                 },
                 "skip_validation": {
                     "type": "boolean",
@@ -339,7 +340,7 @@ def create_lifecycle_registry(ctx: RegistryContext) -> InternalToolRegistry:
                     "default": None,
                 },
             },
-            "required": ["task_id"],
+            "required": ["task_id", "changes_summary"],
         },
         func=close_task,
     )

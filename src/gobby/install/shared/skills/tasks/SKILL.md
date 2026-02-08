@@ -104,7 +104,7 @@ Example: `/gobby tasks list in_progress` → `list_tasks(status="in_progress")`
 Call `close_task` with:
 - `task_id`: (required) Task reference
 - `reason`: "completed" (default), "duplicate", "already_implemented", "wont_fix", "obsolete", "out_of_repo"
-- `changes_summary`: Summary of changes (triggers validation)
+- `changes_summary`: (required) Summary of what was changed and why. For no-work closes, explain why no changes were needed.
 - `commit_sha`: Git commit SHA to link
 - `skip_validation`: Skip LLM validation (requires justification)
 - `override_justification`: Why skipping validation

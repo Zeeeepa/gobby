@@ -1832,6 +1832,14 @@ class TestToolSchemas:
         for prop in expected_props:
             assert prop in props, f"Missing property: {prop}"
 
+    def test_close_task_schema_requires_changes_summary(self, task_registry) -> None:
+        """Test close_task schema requires changes_summary."""
+        schema = task_registry.get_schema("close_task")
+
+        assert schema is not None
+        required = schema["inputSchema"]["required"]
+        assert "changes_summary" in required, "changes_summary must be in required list"
+
     def test_list_tasks_schema_has_filters(self, task_registry) -> None:
         """Test list_tasks schema includes filter options."""
         schema = task_registry.get_schema("list_tasks")
