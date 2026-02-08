@@ -96,8 +96,8 @@ call_tool("gobby-tasks", "claim_task", {
     "session_id": "<your_session_id>"
 })
 
-# After work: commit with [gobby#task-id] prefix, then close
-# Example: git commit -m "[gobby#6961] Fix authentication bug"
+# After work: commit with [gobby-#task-id] prefix, then close
+# Example: git commit -m "[gobby-#6961] Fix authentication bug"
 call_tool("gobby-tasks", "close_task", {
     "task_id": "...",
     "commit_sha": "..."

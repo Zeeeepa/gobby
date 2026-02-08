@@ -21,10 +21,10 @@ Prefer staging specific files over `git add -A`.
 ### Step 2: Commit with Task ID
 
 ```bash
-git commit -m "[task-id] type: description"
+git commit -m "[project-#N] type: description"
 ```
 
-Include the task ID in brackets at the start of the message.
+Use the `project-#N` format (e.g., `[gobby-#123]`) — the hyphen before `#` is required.
 
 ### Step 3: Close the Task
 
@@ -38,7 +38,7 @@ call_tool("gobby-tasks", "close_task", {
 ## Commit Message Format
 
 ```
-[<task-id>] <type>: <description>
+[<project>-#<N>] <type>: <description>
 
 <optional body>
 ```
@@ -57,10 +57,10 @@ call_tool("gobby-tasks", "close_task", {
 ### Examples
 
 ```
-[abc123] feat: add user authentication
-[xyz789] fix: resolve password reset bug
-[def456] refactor: extract auth logic to service
-[ghi012] test: add unit tests for auth module
+[gobby-#123] feat: add user authentication
+[gobby-#789] fix: resolve password reset bug
+[gobby-#456] refactor: extract auth logic to service
+[gobby-#12] test: add unit tests for auth module
 ```
 
 ## Closing Without Commits
@@ -86,12 +86,12 @@ call_tool("gobby-tasks", "close_task", {"task_id": "abc"})
 ### Right: Commit First, Then Close
 
 ```bash
-git commit -m "[abc] feat: implement feature"
+git commit -m "[gobby-#42] feat: implement feature"
 ```
 
 ```python
 call_tool("gobby-tasks", "close_task", {
-    "task_id": "abc",
+    "task_id": "#42",
     "commit_sha": "a1b2c3d"
 })
 ```
