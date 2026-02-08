@@ -40,6 +40,9 @@ def mock_action_executor():
     executor.memory_sync_manager = MagicMock()
     executor.session_task_manager = MagicMock()
     executor.task_sync_manager = MagicMock()
+    executor.skill_manager = MagicMock()
+    executor.pipeline_executor = MagicMock()
+    executor.workflow_loader = MagicMock()
     return executor
 
 
