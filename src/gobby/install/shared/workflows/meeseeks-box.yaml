@@ -128,7 +128,7 @@ steps:
         when: "variables.get('current_task_id')"
 
   - name: wait_for_workers
-    description: "No ready tasks - wait for in-progress workers"
+    description: "No ready tasks - block until an in-progress task completes"
     on_enter:
       - action: inject_message
         content: |
@@ -138,35 +138,40 @@ steps:
           {% endif %}
           All tasks are either in progress or blocked. Waiting for workers to complete.
 
-          Poll for messages from child agents:
+          Call wait_for_task to block until a task completes:
 
           mcp__gobby__call_tool(
-            server_name="gobby-agents",
-            tool_name="poll_messages",
-            arguments={"session_id": "<your_session_id>"}
+            server_name="gobby-tasks",
+            tool_name="wait_for_task",
+            arguments={
+              "task_id": "{{ variables.session_task }}",
+              "timeout": {{ variables.worker_timeout }}
+            }
           )
 
-          Then check for newly available tasks.
+          Do NOT use poll_messages. Do NOT stop. Call wait_for_task NOW.
 
     allowed_tools:
       - mcp__gobby__call_tool
-      - mcp__gobby__list_tools
       - mcp__gobby__get_tool_schema
-      - mcp__gobby__list_mcp_servers
-      - mcp__gobby__search_tools
-      - Read
 
     blocked_tools:
       - Edit
       - Write
       - NotebookEdit
       - Bash
+      - Read
+      - Glob
+      - Grep
+      - mcp__gobby__list_tools
+      - mcp__gobby__list_mcp_servers
+      - mcp__gobby__search_tools
 
     transitions:
       - to: complete
         when: "task_tree_complete(variables.session_task)"
       - to: find_work
-        when: "mcp_called('gobby-agents', 'poll_messages')"
+        when: "mcp_called('gobby-tasks', 'wait_for_task')"
 
   - name: spawn_worker
     description: "Spawn worker in isolated environment"
