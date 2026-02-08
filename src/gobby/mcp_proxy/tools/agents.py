@@ -439,6 +439,90 @@ def create_agents_registry(
             "by_parent_count": len(by_parent),
         }
 
+    @registry.tool(
+        name="evaluate_spawn",
+        description="Dry-run evaluation of spawn_agent — checks agent, workflow, isolation, and runtime without executing.",
+    )
+    async def evaluate_spawn_tool(
+        agent: str = "generic",
+        workflow: str | None = None,
+        task_id: str | None = None,
+        isolation: str | None = None,
+        mode: str | None = None,
+        terminal: str = "auto",
+        provider: str | None = None,
+        branch_name: str | None = None,
+        base_branch: str | None = None,
+        parent_session_id: str | None = None,
+        project_path: str | None = None,
+    ) -> dict[str, Any]:
+        """
+        Dry-run evaluation of spawn_agent.
+
+        Simulates the spawn process and reports what would happen,
+        including any misconfigurations, without actually spawning.
+
+        Args:
+            agent: Agent name (default: "generic").
+            workflow: Optional workflow name override.
+            task_id: Optional task ID for branch naming.
+            isolation: Optional isolation mode (current, worktree, clone).
+            mode: Optional execution mode (terminal, embedded, headless, self).
+            terminal: Terminal type (default: auto).
+            provider: Optional provider override.
+            branch_name: Optional explicit branch name.
+            base_branch: Optional base branch for isolation.
+            parent_session_id: Optional parent session for depth checks.
+            project_path: Optional project path.
+
+        Returns:
+            Dict with evaluation results including can_spawn, items, and workflow_evaluation.
+        """
+        from gobby.agents.dry_run import evaluate_spawn
+
+        # Resolve parent session if provided
+        resolved_parent = None
+        if parent_session_id:
+            try:
+                resolved_parent = _resolve_session_id(parent_session_id)
+            except ValueError:
+                resolved_parent = parent_session_id
+
+        # Get project path from context if not provided
+        if not project_path:
+            project_ctx = get_project_context()
+            if project_ctx:
+                project_path = project_ctx.get("project_path")
+
+        # Get MCP manager from runner if available
+        mcp_mgr = getattr(runner, "_mcp_manager", None)
+
+        eval_result = await evaluate_spawn(
+            agent=agent,
+            workflow=workflow,
+            task_id=task_id,
+            isolation=isolation,
+            mode=mode,
+            terminal=terminal,
+            provider=provider,
+            branch_name=branch_name,
+            base_branch=base_branch,
+            parent_session_id=resolved_parent,
+            project_path=project_path,
+            agent_loader=agent_loader,
+            workflow_loader=workflow_loader,
+            runner=runner,
+            state_manager=workflow_state_manager,
+            session_manager=session_manager,
+            git_manager=git_manager,
+            worktree_storage=worktree_storage,
+            clone_storage=clone_storage,
+            clone_manager=clone_manager,
+            task_manager=task_manager,
+            mcp_manager=mcp_mgr,
+        )
+        return eval_result.to_dict()
+
     # Register spawn_agent tool from spawn_agent module
     from gobby.mcp_proxy.tools.spawn_agent import create_spawn_agent_registry
 

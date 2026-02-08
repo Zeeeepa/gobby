@@ -11,6 +11,7 @@ Commands for managing subagent runs:
 """
 
 import json
+from typing import Any
 
 import click
 import httpx
@@ -437,6 +438,126 @@ def kill_agent(run_ref: str, force: bool, stop: bool, yes: bool) -> None:
             click.echo("  (workflow ended)")
     else:
         click.echo(f"Failed: {result.get('error')}", err=True)
+
+
+@agents.command("check")
+@click.argument("agent_name", default="generic")
+@click.option("--workflow", "-w", help="Workflow name to evaluate")
+@click.option("--task", "-t", "task_id", help="Task ID for branch naming")
+@click.option("--session", "-s", "session_id", help="Parent session ID for depth/mode checks")
+@click.option("--isolation", "-i", help="Isolation mode override (current, worktree, clone)")
+@click.option("--provider", "-p", help="Provider override")
+@click.option("--json", "json_format", is_flag=True, help="Output as JSON")
+def check_agent(
+    agent_name: str,
+    workflow: str | None,
+    task_id: str | None,
+    session_id: str | None,
+    isolation: str | None,
+    provider: str | None,
+    json_format: bool,
+) -> None:
+    """Dry-run evaluation of spawn_agent — checks without executing.
+
+    Validates agent definition, workflow resolution, isolation config,
+    and runtime environment to identify issues before spawning.
+
+    \b
+    Examples:
+        gobby agents check meeseeks-gemini
+        gobby agents check meeseeks-gemini --workflow worker
+        gobby agents check meeseeks-gemini --workflow worker --session #1071
+        gobby agents check meeseeks-gemini --json
+    """
+    from gobby.utils.daemon_client import DaemonClient
+
+    arguments: dict[str, Any] = {"agent": agent_name}
+    if workflow:
+        arguments["workflow"] = workflow
+    if task_id:
+        arguments["task_id"] = task_id
+    if session_id:
+        arguments["parent_session_id"] = session_id
+    if isolation:
+        arguments["isolation"] = isolation
+    if provider:
+        arguments["provider"] = provider
+
+    client = DaemonClient()
+    try:
+        result = client.call_mcp_tool(
+            server_name="gobby-agents",
+            tool_name="evaluate_spawn",
+            arguments=arguments,
+            timeout=15.0,
+        )
+    except Exception as e:
+        click.echo(f"Error: {e}", err=True)
+        click.echo("Is the Gobby daemon running? Start with: gobby start", err=True)
+        return
+
+    if json_format:
+        click.echo(json.dumps(result, indent=2, default=str))
+        return
+
+    # Formatted output
+    can_spawn = result.get("can_spawn", False)
+    items = result.get("items", [])
+
+    if can_spawn:
+        click.secho("CAN SPAWN", fg="green", bold=True)
+    else:
+        click.secho("CANNOT SPAWN", fg="red", bold=True)
+
+    click.echo()
+
+    # Agent info
+    if result.get("agent_found"):
+        click.echo(f"  Agent: {result.get('agent_name')}")
+        click.echo(f"  Provider: {result.get('effective_provider')}")
+        click.echo(f"  Mode: {result.get('effective_mode')}")
+        click.echo(f"  Isolation: {result.get('effective_isolation')}")
+        if result.get("effective_workflow"):
+            click.echo(f"  Workflow: {result.get('effective_workflow')}")
+        if result.get("branch_name"):
+            click.echo(f"  Branch: {result.get('branch_name')}")
+        click.echo()
+
+    # Items by layer
+    layers_seen: set[str] = set()
+    for item in items:
+        layer = item.get("layer", "unknown")
+        level = item.get("level", "info")
+        code = item.get("code", "")
+        message = item.get("message", "")
+
+        if layer not in layers_seen:
+            layers_seen.add(layer)
+            click.secho(f"  [{layer}]", bold=True)
+
+        if level == "error":
+            click.secho(f"    ERROR {code}: {message}", fg="red")
+        elif level == "warning":
+            click.secho(f"    WARN  {code}: {message}", fg="yellow")
+        else:
+            click.echo(f"    info  {code}: {message}")
+
+    # Workflow evaluation summary
+    wf_eval = result.get("workflow_evaluation")
+    if wf_eval and wf_eval.get("step_trace"):
+        click.echo()
+        click.secho("  [workflow step trace]", bold=True)
+        for step in wf_eval["step_trace"]:
+            click.echo(f"    {step['name']}", nl=False)
+            if step.get("description"):
+                click.echo(f" — {step['description']}", nl=False)
+            click.echo()
+            if step.get("transitions"):
+                for t in step["transitions"]:
+                    click.echo(f"      -> {t['to']} when: {t['when']}")
+
+        if wf_eval.get("lifecycle_path"):
+            click.echo(f"\n  Path: {' -> '.join(wf_eval['lifecycle_path'])}")
 
 
 @agents.command("stats")

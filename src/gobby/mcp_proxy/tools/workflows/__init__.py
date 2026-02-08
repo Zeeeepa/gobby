@@ -229,6 +229,44 @@ def create_workflows_registry(
         return get_variable(_state_manager, _session_manager, name, session_id)
 
     @registry.tool(
+        name="evaluate_workflow",
+        description="Validate a workflow definition — structural and semantic checks without executing.",
+    )
+    async def _evaluate_workflow(
+        name: str,
+        project_path: str | None = None,
+    ) -> dict[str, Any]:
+        """
+        Validate a workflow definition for structural and semantic issues.
+
+        Checks for unreachable steps, dead-end steps, undefined transition targets,
+        undefined variable references, MCP tool conflicts, and unknown MCP servers/tools.
+
+        Args:
+            name: Workflow name to evaluate.
+            project_path: Optional project path for resolution.
+
+        Returns:
+            Dict with valid bool, items list, step_trace, and lifecycle_path.
+        """
+        from gobby.workflows.dry_run import evaluate_workflow
+
+        # Try to get MCP manager for semantic checks
+        mcp_mgr = None
+
+        resolved_path = project_path
+        if not resolved_path:
+            resolved_path = get_workflow_project_path()
+
+        eval_result = await evaluate_workflow(
+            name,
+            _loader,
+            resolved_path,
+            mcp_mgr,
+        )
+        return eval_result.to_dict()
+
+    @registry.tool(
         name="import_workflow",
         description="Import a workflow from a file path into the project or global directory.",
     )

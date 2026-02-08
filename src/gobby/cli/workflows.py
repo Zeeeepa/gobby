@@ -125,6 +125,91 @@ def list_workflows(
             click.echo(f"    {wf['description'][:80]}")
 
 
+@workflows.command("check")
+@click.argument("name")
+@click.option("--json", "json_format", is_flag=True, help="Output as JSON")
+@click.pass_context
+def check_workflow(ctx: click.Context, name: str, json_format: bool) -> None:
+    """Validate a workflow definition — structural and semantic checks.
+
+    Checks for unreachable steps, dead-end steps, undefined transition targets,
+    undefined variable references, MCP tool conflicts, and more.
+
+    \b
+    Examples:
+        gobby workflows check meeseeks-box
+        gobby workflows check worker-inline --json
+    """
+    from gobby.utils.daemon_client import DaemonClient
+
+    client = DaemonClient()
+    try:
+        result = client.call_mcp_tool(
+            server_name="gobby-workflows",
+            tool_name="evaluate_workflow",
+            arguments={"name": name},
+            timeout=15.0,
+        )
+    except Exception as e:
+        click.echo(f"Error: {e}", err=True)
+        click.echo("Is the Gobby daemon running? Start with: gobby start", err=True)
+        raise SystemExit(1) from None
+
+    if json_format:
+        click.echo(json.dumps(result, indent=2, default=str))
+        return
+
+    # Formatted output
+    valid = result.get("valid", False)
+    items = result.get("items", [])
+
+    if valid:
+        click.secho("VALID", fg="green", bold=True)
+    else:
+        click.secho("INVALID", fg="red", bold=True)
+
+    click.echo(f"  Workflow: {result.get('workflow_name')}")
+    click.echo(f"  Type: {result.get('workflow_type', 'unknown')}")
+    if result.get("variables_declared"):
+        click.echo(f"  Variables: {', '.join(result['variables_declared'])}")
+    click.echo()
+
+    # Items
+    for item in items:
+        level = item.get("level", "info")
+        code = item.get("code", "")
+        message = item.get("message", "")
+
+        if level == "error":
+            click.secho(f"  ERROR {code}: {message}", fg="red")
+        elif level == "warning":
+            click.secho(f"  WARN  {code}: {message}", fg="yellow")
+        else:
+            click.echo(f"  info  {code}: {message}")
+
+    # Step trace
+    step_trace = result.get("step_trace", [])
+    if step_trace:
+        click.echo()
+        click.secho("  Steps:", bold=True)
+        for step in step_trace:
+            click.echo(f"    {step['name']}", nl=False)
+            if step.get("description"):
+                click.echo(f" — {step['description']}", nl=False)
+            click.echo()
+            if step.get("on_enter_actions"):
+                for action in step["on_enter_actions"]:
+                    click.echo(f"      on_enter: {action}")
+            if step.get("transitions"):
+                for t in step["transitions"]:
+                    click.echo(f"      -> {t['to']} when: {t['when']}")
+
+    # Lifecycle path
+    lifecycle_path = result.get("lifecycle_path", [])
+    if lifecycle_path:
+        click.echo(f"\n  Path: {' -> '.join(lifecycle_path)}")
+
+
 @workflows.command("show")
 @click.argument("name")
 @click.option("--json", "json_format", is_flag=True, help="Output as JSON")
