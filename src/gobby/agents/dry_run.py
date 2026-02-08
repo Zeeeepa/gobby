@@ -392,7 +392,7 @@ async def evaluate_spawn(
                         )
                     )
             except Exception:
-                pass  # Non-critical check
+                logger.debug("Failed to check existing worktree for branch '%s'", computed_branch, exc_info=True)
 
     elif eff_isolation == "clone":
         if clone_manager is None or clone_storage is None:
@@ -440,7 +440,7 @@ async def evaluate_spawn(
                         )
                     )
             except Exception:
-                pass  # Non-critical check
+                logger.debug("Failed to check existing clone for branch '%s'", computed_branch, exc_info=True)
 
     # ---- Layer 5: Runtime Environment ----
     if parent_session_id and runner is not None:
@@ -513,7 +513,7 @@ async def evaluate_spawn(
                     )
                 )
         except Exception:
-            pass  # Non-critical
+            logger.debug("Failed to check terminal availability", exc_info=True)
 
     # ---- Layer 6: Workflow Evaluation (delegates to evaluate_workflow) ----
     if effective_workflow and workflow_loader is not None:
