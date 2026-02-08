@@ -30,6 +30,11 @@ variables:
   # Reset on compact/clear since context is lost
   unlocked_tools: []
 
+  # Progressive disclosure gates - track which discovery steps have occurred
+  # Reset on compact/clear since context is lost
+  servers_listed: false
+  listed_servers: []
+
   # Pre-existing error triage - require agents to create tasks for
   # pre-existing issues (test failures, lint errors, etc.) before stopping
   pre_existing_errors_triaged: false
@@ -84,6 +89,18 @@ triggers:
     - action: set_variable
       when: "event.data.get('source') in ['clear', 'compact'] or (event.data.get('source') == 'resume' and variables.get('pending_context_reset'))"
       name: unlocked_tools
+      value: []
+
+    # Reset servers_listed on context loss
+    - action: set_variable
+      when: "event.data.get('source') in ['clear', 'compact'] or (event.data.get('source') == 'resume' and variables.get('pending_context_reset'))"
+      name: servers_listed
+      value: false
+
+    # Reset listed_servers on context loss
+    - action: set_variable
+      when: "event.data.get('source') in ['clear', 'compact'] or (event.data.get('source') == 'resume' and variables.get('pending_context_reset'))"
+      name: listed_servers
       value: []
 
     # Reset memory injection tracking on context loss
@@ -218,6 +235,18 @@ triggers:
             - create_task(title, description, session_id, claim=True) - Create and auto-claim new task.
             - claim_task(task_id, session_id) - Claim existing unclaimed task.
 
+        # Block list_tools without prior list_mcp_servers
+        - tools: ["mcp__gobby__list_tools"]
+          when: "variables.get('enforce_tool_schema_check') and not variables.get('servers_listed')"
+          reason: |
+            Call list_mcp_servers() first to discover available servers, then retry list_tools.
+
+        # Block get_tool_schema without prior list_tools for that server
+        - tools: ["mcp__gobby__get_tool_schema"]
+          when: "variables.get('enforce_tool_schema_check') and not is_server_listed(tool_input)"
+          reason: |
+            Call list_tools(server="{{ tool_input.get('server_name', '') }}") first, then retry get_tool_schema.
+
         # Block call_tool if schema wasn't fetched first (progressive disclosure)
         # Skip for discovery tools (list_tools, get_tool_schema, etc.)
         # Uses 'tools' (not mcp_tools) since we're intercepting the actual tool name
@@ -274,6 +303,9 @@ triggers:
 
     # Track successful get_tool_schema calls to unlock tools for call_tool
     - action: track_schema_lookup
+
+    # Track list_mcp_servers and list_tools for progressive disclosure gates
+    - action: track_discovery_step
 
   on_session_end:
     # Session summary generation - always runs on session end

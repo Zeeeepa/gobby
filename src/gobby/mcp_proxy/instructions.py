@@ -17,33 +17,15 @@ def build_gobby_instructions() -> str:
     return """<gobby_system>
 
 <tool_discovery>
-NEVER assume tool schemas. Use progressive disclosure:
-1. `list_mcp_servers()` — Discover server names
-2. `list_tools(server="...")` — Lightweight metadata (~100 tokens/tool)
-3. `get_tool_schema(server, tool)` — Full schema when needed
-4. `call_tool(server, tool, args)` — Execute
+Progressive disclosure is ENFORCED — each step gates the next:
+1. `list_mcp_servers()` — Must call first (once per session)
+2. `list_tools(server="...")` — Unlocked after step 1; call per server
+3. `get_tool_schema(server, tool)` — Unlocked after step 2 for that server
+4. `call_tool(server, tool, args)` — Unlocked after step 3 for that tool
 
-Server names are internal sub-servers (see table below).
+NOTE: Server names are internal sub-servers like `gobby-tasks`, `gobby-memory`, etc.
 The name `"gobby"` is the MCP proxy namespace, not a server name.
 </tool_discovery>
-
-<servers>
-| Server | Purpose |
-|--------|---------|
-| `gobby-tasks` | Task management |
-| `gobby-sessions` | Session handoff |
-| `gobby-memory` | Persistent memory |
-| `gobby-workflows` | Workflow control |
-| `gobby-agents` | Agent spawning |
-| `gobby-worktrees` | Git worktrees |
-| `gobby-clones` | Repository clones |
-| `gobby-merge` | Merge resolution |
-| `gobby-hub` | Hub / cross-project |
-| `gobby-skills` | Skill management |
-| `gobby-metrics` | Usage metrics |
-| `gobby-artifacts` | Artifact storage |
-| `gobby-pipelines` | Pipeline execution |
-</servers>
 
 <skills>
 Discover skills with progressive disclosure too:

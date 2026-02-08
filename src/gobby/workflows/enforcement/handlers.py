@@ -9,7 +9,11 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING, Any
 
-from gobby.workflows.enforcement.blocking import block_tools, track_schema_lookup
+from gobby.workflows.enforcement.blocking import (
+    block_tools,
+    track_discovery_step,
+    track_schema_lookup,
+)
 from gobby.workflows.enforcement.commit_policy import (
     capture_baseline_dirty_files,
     require_commit_before_stop,
@@ -35,6 +39,7 @@ __all__ = [
     "handle_require_commit_before_stop",
     "handle_require_task_complete",
     "handle_require_task_review_or_close_before_stop",
+    "handle_track_discovery_step",
     "handle_track_schema_lookup",
     "handle_validate_session_task_scope",
 ]
@@ -313,6 +318,33 @@ async def handle_track_schema_lookup(
     tool_input = context.event_data.get("tool_input", {}) or {}
 
     return track_schema_lookup(
+        tool_input=tool_input,
+        workflow_state=context.state,
+    )
+
+
+async def handle_track_discovery_step(
+    context: Any,
+    task_manager: LocalTaskManager | None = None,
+    **kwargs: Any,
+) -> dict[str, Any] | None:
+    """ActionHandler wrapper for track_discovery_step.
+
+    Tracks successful list_mcp_servers and list_tools calls to enforce
+    progressive disclosure gates.
+    Should be triggered on on_after_tool for all tool calls.
+    """
+    if not context.event_data:
+        return None
+
+    tool_name = context.event_data.get("tool_name", "")
+    if context.event_data.get("is_failure"):
+        return None
+
+    tool_input = context.event_data.get("tool_input", {}) or {}
+
+    return track_discovery_step(
+        tool_name=tool_name,
         tool_input=tool_input,
         workflow_state=context.state,
     )

@@ -119,6 +119,61 @@ def track_schema_lookup(
     return {"already_unlocked": key}
 
 
+def is_server_listed(
+    tool_input: dict[str, Any],
+    variables: dict[str, Any],
+) -> bool:
+    """Check if list_tools has been called for this server.
+
+    Args:
+        tool_input: The tool input containing server_name or server
+        variables: Workflow state variables containing listed_servers list
+
+    Returns:
+        True if the server was previously listed via list_tools
+    """
+    server = tool_input.get("server_name") or tool_input.get("server") or ""
+    if not server:
+        return False
+    return server in variables.get("listed_servers", [])
+
+
+def track_discovery_step(
+    tool_name: str,
+    tool_input: dict[str, Any],
+    workflow_state: WorkflowState | None,
+) -> dict[str, Any] | None:
+    """Track list_mcp_servers and list_tools completion for progressive disclosure.
+
+    Called from on_after_tool to record which discovery steps have occurred.
+
+    Args:
+        tool_name: The tool that was called
+        tool_input: The tool's input arguments
+        workflow_state: Workflow state to update
+
+    Returns:
+        Dict with tracking result or None
+    """
+    if not workflow_state:
+        return None
+
+    if tool_name in ("list_mcp_servers", "mcp__gobby__list_mcp_servers"):
+        workflow_state.variables["servers_listed"] = True
+        return {"tracked": "servers_listed"}
+
+    if tool_name in ("list_tools", "mcp__gobby__list_tools"):
+        server = tool_input.get("server") or tool_input.get("server_name") or ""
+        if server:
+            listed = workflow_state.variables.setdefault("listed_servers", [])
+            if server not in listed:
+                listed.append(server)
+                return {"tracked": f"listed_server:{server}"}
+            return {"already_listed": server}
+
+    return None
+
+
 def _is_plan_file(file_path: str, source: str | None = None) -> bool:
     """Check if file path is a Claude Code plan file (platform-agnostic).
 
@@ -200,6 +255,7 @@ def _evaluate_block_condition(
         "is_plan_file": _is_plan_file,
         "is_discovery_tool": is_discovery_tool,
         "is_tool_unlocked": lambda ti: is_tool_unlocked(ti, variables),
+        "is_server_listed": lambda ti: is_server_listed(ti, variables),
         "bool": bool,
         "str": str,
         "int": int,

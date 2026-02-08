@@ -7,7 +7,9 @@ certain tools, and enforce task completion before allowing agent to stop.
 from gobby.workflows.enforcement.blocking import (
     block_tools,
     is_discovery_tool,
+    is_server_listed,
     is_tool_unlocked,
+    track_discovery_step,
     track_schema_lookup,
 )
 from gobby.workflows.enforcement.commit_policy import (
@@ -23,6 +25,7 @@ from gobby.workflows.enforcement.handlers import (
     handle_require_commit_before_stop,
     handle_require_task_complete,
     handle_require_task_review_or_close_before_stop,
+    handle_track_discovery_step,
     handle_track_schema_lookup,
     handle_validate_session_task_scope,
 )
@@ -36,7 +39,9 @@ __all__ = [
     # Blocking
     "block_tools",
     "is_discovery_tool",
+    "is_server_listed",
     "is_tool_unlocked",
+    "track_discovery_step",
     "track_schema_lookup",
     # Commit policy
     "capture_baseline_dirty_files",
@@ -54,6 +59,7 @@ __all__ = [
     "handle_require_commit_before_stop",
     "handle_require_task_complete",
     "handle_require_task_review_or_close_before_stop",
+    "handle_track_discovery_step",
     "handle_track_schema_lookup",
     "handle_validate_session_task_scope",
 ]
