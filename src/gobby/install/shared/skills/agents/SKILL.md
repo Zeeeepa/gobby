@@ -53,7 +53,7 @@ Use this for ad-hoc spawns WITHOUT a named agent definition.
 Call `spawn_agent` with:
 - `prompt`: (required) Task description for the agent
 - `agent`: Named agent definition (e.g., "meeseeks-gemini", "meeseeks-claude")
-- `workflow`: Workflow to activate (e.g., "worker", "box")
+- `workflow`: Workflow to activate. Note: some workflows are marked `internal` and can only be spawned by the orchestrator (e.g., "worker" in meeseeks agents)
 - `task_id`: Task ID to associate with the agent
 - `isolation`: Isolation mode - "current" (default), "worktree", or "clone"
 - `branch_name`: Custom branch name for worktree/clone
@@ -79,8 +79,8 @@ Example: `/gobby agents spawn Implement the login feature`
 Example: `/gobby agents spawn --isolation worktree Fix auth bug`
 → `spawn_agent(prompt="Fix auth bug", isolation="worktree")`
 
-Example: `/gobby agents spawn --agent meeseeks-gemini --workflow worker Fix the tests`
-→ `spawn_agent(prompt="Fix the tests", agent="meeseeks-gemini", workflow="worker")`
+Example: `/gobby agents spawn --agent meeseeks-gemini Fix the tests`
+→ `spawn_agent(prompt="Fix the tests", agent="meeseeks-gemini")`
 
 ### `/gobby agents result <run-id>` - Get agent result
 Call `get_agent_result` with:
@@ -191,7 +191,7 @@ Example: `spawn_agent(agent="meeseeks-gemini", task_id="#123", parent_session_id
 
 **Workflows:**
 - `box` - Interactive orchestrator (runs in your session via `mode: self`)
-- `worker` - Task executor (runs in isolated clone/worktree)
+- `worker` - Task executor (runs in isolated clone/worktree) — **internal**, only spawnable by the box orchestrator
 
 **Orchestrator flow (meeseeks-box):**
 1. `find_work` - Call `suggest_next_task()` to get ready subtasks; falls back to `session_task` directly for leaf tasks (no children) or parents with all children done
@@ -228,6 +228,7 @@ After executing the appropriate MCP tool, present the results clearly:
 - Each workflow step restricts available tools
 - Parent session context is injected automatically
 - Workers cannot push - orchestrator handles merge/push
+- Internal workflows (e.g., `worker`) cannot be spawned directly — the orchestrator must be active first
 - Use `can_spawn_agent` to check before spawning
 
 ## Error Handling
