@@ -27,7 +27,7 @@ PARSER_REGISTRY: dict[str, type[TranscriptParser]] = {
     "antigravity": GeminiTranscriptParser,
     "codex": CodexTranscriptParser,
     "cursor": CursorTranscriptParser,
-    # windsurf and copilot: no transcript file support yet (hook-based, future work)
+    # windsurf and copilot: hook-based transcript assembly (see hook_assembler.py)
 }
 
 

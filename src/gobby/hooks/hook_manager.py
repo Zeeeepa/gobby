@@ -38,7 +38,7 @@ from gobby.autonomous.progress_tracker import ProgressTracker
 from gobby.autonomous.stop_registry import StopRegistry
 from gobby.autonomous.stuck_detector import StuckDetector
 from gobby.hooks.event_handlers import EventHandlers
-from gobby.hooks.events import HookEvent, HookEventType, HookResponse
+from gobby.hooks.events import HookEvent, HookEventType, HookResponse, SessionSource
 from gobby.hooks.health_monitor import HealthMonitor
 from gobby.hooks.plugins import PluginLoader, run_plugin_handlers
 from gobby.hooks.session_coordinator import SessionCoordinator
@@ -47,6 +47,7 @@ from gobby.hooks.webhooks import WebhookDispatcher
 from gobby.memory.manager import MemoryManager
 from gobby.sessions.manager import SessionManager
 from gobby.sessions.transcripts.claude import ClaudeTranscriptParser
+from gobby.sessions.transcripts.hook_assembler import HookTranscriptAssembler
 from gobby.storage.agents import LocalAgentRunManager
 from gobby.storage.database import LocalDatabase
 from gobby.storage.memories import LocalMemoryManager
@@ -381,6 +382,9 @@ class HookManager:
             health_check_interval=health_check_interval,
             logger=self.logger,
         )
+
+        # Hook-based transcript assembler (Windsurf, Copilot)
+        self._hook_assembler = HookTranscriptAssembler()
 
         # Track sessions that have received full metadata injection
         # Key: "{platform_session_id}:{source}" - cleared on daemon restart
@@ -746,6 +750,23 @@ class HookManager:
                     # Continue - post-handlers are observe-only
             # -----------------------------------------------------
 
+            # --- Hook-based transcript capture (Windsurf, Copilot) ---
+            # These CLIs don't write local transcript files, so we
+            # assemble transcripts from hook events as they flow through.
+            if (
+                event.source in (SessionSource.WINDSURF, SessionSource.COPILOT)
+                and platform_session_id
+            ):
+                try:
+                    hook_messages = self._hook_assembler.process_event(
+                        platform_session_id, event
+                    )
+                    if hook_messages:
+                        self._store_hook_messages(platform_session_id, hook_messages)
+                except Exception as e:
+                    self.logger.warning(f"Hook transcript capture failed: {e}")
+            # ---------------------------------------------------------
+
             return cast(HookResponse, response)
         except Exception as e:
             self.logger.error(f"Event handler {event.event_type} failed: {e}", exc_info=True)
@@ -862,6 +883,32 @@ class HookManager:
                     asyncio.run_coroutine_threadsafe(dispatch_all(), self._loop)
                 except Exception as e:
                     self.logger.warning(f"Failed to schedule async webhook: {e}")
+
+    def _store_hook_messages(
+        self, session_id: str, messages: list[Any]
+    ) -> None:
+        """Store hook-assembled transcript messages asynchronously.
+
+        Args:
+            session_id: Platform session ID.
+            messages: ParsedMessage objects from HookTranscriptAssembler.
+        """
+        coro = self._message_manager.store_messages(session_id, messages)
+        try:
+            loop = asyncio.get_running_loop()
+            loop.create_task(coro)
+        except RuntimeError:
+            if self._loop:
+                try:
+                    asyncio.run_coroutine_threadsafe(coro, self._loop)
+                except Exception as e:
+                    self.logger.warning(f"Failed to schedule hook message storage: {e}")
+            else:
+                # No event loop available — run synchronously as last resort
+                try:
+                    asyncio.run(coro)
+                except Exception as e:
+                    self.logger.warning(f"Sync hook message storage failed: {e}")
 
     def shutdown(self) -> None:
         """
