@@ -1541,3 +1541,529 @@ class TestCodexAdapterEventMapping:
         assert "turn/started" in CodexAdapter.SESSION_TRACKING_EVENTS
         assert "turn/completed" in CodexAdapter.SESSION_TRACKING_EVENTS
         assert "item/completed" in CodexAdapter.SESSION_TRACKING_EVENTS
+
+
+# =============================================================================
+# Phase 1: Approval Response Loop Tests
+#
+# Tests for bidirectional hook support via the Codex app-server protocol.
+# Codex sends approval requests as JSON-RPC requests (with both id and method),
+# which must be detected, routed to a handler, and responded to.
+# =============================================================================
+
+
+class TestCodexClientApprovalHandlerRegistration:
+    """Tests for approval handler registration on CodexAppServerClient."""
+
+    def test_no_approval_handler_by_default(self) -> None:
+        """No approval handler registered by default."""
+        client = CodexAppServerClient()
+        assert client._approval_handler is None
+
+    def test_register_approval_handler(self) -> None:
+        """Register an approval handler."""
+        client = CodexAppServerClient()
+
+        async def handler(method: str, params: dict) -> dict:
+            return {"decision": "accept"}
+
+        client.register_approval_handler(handler)
+        assert client._approval_handler is handler
+
+    def test_register_replaces_previous_handler(self) -> None:
+        """Registering a new handler replaces the previous one."""
+        client = CodexAppServerClient()
+
+        async def handler1(method: str, params: dict) -> dict:
+            return {"decision": "accept"}
+
+        async def handler2(method: str, params: dict) -> dict:
+            return {"decision": "decline"}
+
+        client.register_approval_handler(handler1)
+        client.register_approval_handler(handler2)
+        assert client._approval_handler is handler2
+
+    def test_register_none_clears_handler(self) -> None:
+        """Registering None clears the handler."""
+        client = CodexAppServerClient()
+
+        async def handler(method: str, params: dict) -> dict:
+            return {"decision": "accept"}
+
+        client.register_approval_handler(handler)
+        client.register_approval_handler(None)
+        assert client._approval_handler is None
+
+
+class TestCodexClientApprovalRequestDetection:
+    """Tests for approval request detection in reader loop.
+
+    Codex sends approval requests as JSON-RPC requests (both id AND method).
+    The reader loop must detect these as incoming requests (not responses to
+    our outgoing requests) and route them to the registered approval handler.
+    """
+
+    @pytest.mark.asyncio
+    async def test_detects_command_execution_approval(self) -> None:
+        """Reader detects commandExecution approval and calls handler."""
+        client = CodexAppServerClient()
+        received: dict = {}
+
+        async def handler(method: str, params: dict) -> dict:
+            received["method"] = method
+            received["params"] = params
+            return {"decision": "accept"}
+
+        client.register_approval_handler(handler)
+
+        approval_msg = {
+            "jsonrpc": "2.0",
+            "id": 42,
+            "method": "item/commandExecution/requestApproval",
+            "params": {
+                "threadId": "thr-test",
+                "itemId": "item-1",
+                "parsedCmd": "ls -la",
+                "reason": "tool use",
+            },
+        }
+
+        mock_process = MagicMock()
+        lines = [json.dumps(approval_msg) + "\n"]
+        read_idx = 0
+
+        def mock_readline():
+            nonlocal read_idx
+            if read_idx < len(lines):
+                line = lines[read_idx]
+                read_idx += 1
+                return line
+            return ""
+
+        mock_process.stdout.readline = mock_readline
+        mock_process.poll.return_value = 0
+        mock_process.stdin.write = MagicMock()
+        mock_process.stdin.flush = MagicMock()
+
+        client._process = mock_process
+        client._state = CodexConnectionState.CONNECTED
+
+        reader_task = asyncio.create_task(client._read_loop())
+        await asyncio.wait_for(reader_task, timeout=2.0)
+
+        assert received["method"] == "item/commandExecution/requestApproval"
+        assert received["params"]["threadId"] == "thr-test"
+        assert received["params"]["parsedCmd"] == "ls -la"
+
+    @pytest.mark.asyncio
+    async def test_detects_file_change_approval(self) -> None:
+        """Reader detects fileChange approval request."""
+        client = CodexAppServerClient()
+        received: dict = {}
+
+        async def handler(method: str, params: dict) -> dict:
+            received["method"] = method
+            received["params"] = params
+            return {"decision": "accept"}
+
+        client.register_approval_handler(handler)
+
+        approval_msg = {
+            "jsonrpc": "2.0",
+            "id": 99,
+            "method": "item/fileChange/requestApproval",
+            "params": {
+                "threadId": "thr-file",
+                "changes": [{"path": "/test.txt", "content": "hello"}],
+            },
+        }
+
+        mock_process = MagicMock()
+        lines = [json.dumps(approval_msg) + "\n"]
+        read_idx = 0
+
+        def mock_readline():
+            nonlocal read_idx
+            if read_idx < len(lines):
+                line = lines[read_idx]
+                read_idx += 1
+                return line
+            return ""
+
+        mock_process.stdout.readline = mock_readline
+        mock_process.poll.return_value = 0
+        mock_process.stdin.write = MagicMock()
+        mock_process.stdin.flush = MagicMock()
+
+        client._process = mock_process
+        client._state = CodexConnectionState.CONNECTED
+
+        reader_task = asyncio.create_task(client._read_loop())
+        await asyncio.wait_for(reader_task, timeout=2.0)
+
+        assert received["method"] == "item/fileChange/requestApproval"
+        assert received["params"]["changes"][0]["path"] == "/test.txt"
+
+    @pytest.mark.asyncio
+    async def test_distinguishes_approval_from_response(self) -> None:
+        """Incoming requests (id+method) don't interfere with pending response futures."""
+        client = CodexAppServerClient()
+        handler_called = False
+
+        async def handler(method: str, params: dict) -> dict:
+            nonlocal handler_called
+            handler_called = True
+            return {"decision": "accept"}
+
+        client.register_approval_handler(handler)
+
+        # Our outgoing request has id=1
+        loop = asyncio.get_event_loop()
+        pending_future = loop.create_future()
+        client._pending_requests[1] = pending_future
+
+        # Two messages: response to our request (id=1) + approval request (id=42)
+        response_msg = {"jsonrpc": "2.0", "id": 1, "result": {"key": "value"}}
+        approval_msg = {
+            "jsonrpc": "2.0",
+            "id": 42,
+            "method": "item/commandExecution/requestApproval",
+            "params": {"threadId": "thr-1", "parsedCmd": "echo hi"},
+        }
+
+        mock_process = MagicMock()
+        lines = [json.dumps(response_msg) + "\n", json.dumps(approval_msg) + "\n"]
+        read_idx = 0
+
+        def mock_readline():
+            nonlocal read_idx
+            if read_idx < len(lines):
+                line = lines[read_idx]
+                read_idx += 1
+                return line
+            return ""
+
+        mock_process.stdout.readline = mock_readline
+        mock_process.poll.return_value = 0
+        mock_process.stdin.write = MagicMock()
+        mock_process.stdin.flush = MagicMock()
+
+        client._process = mock_process
+        client._state = CodexConnectionState.CONNECTED
+
+        reader_task = asyncio.create_task(client._read_loop())
+        await asyncio.wait_for(reader_task, timeout=2.0)
+
+        # Response resolved our pending future
+        assert pending_future.done()
+        assert pending_future.result() == {"key": "value"}
+
+        # Approval handler was called separately
+        assert handler_called
+
+    @pytest.mark.asyncio
+    async def test_no_handler_silently_ignores_approval(self) -> None:
+        """Without approval handler, incoming requests are silently ignored."""
+        client = CodexAppServerClient()
+
+        approval_msg = {
+            "jsonrpc": "2.0",
+            "id": 42,
+            "method": "item/commandExecution/requestApproval",
+            "params": {"threadId": "thr-1"},
+        }
+
+        mock_process = MagicMock()
+        lines = [json.dumps(approval_msg) + "\n"]
+        read_idx = 0
+
+        def mock_readline():
+            nonlocal read_idx
+            if read_idx < len(lines):
+                line = lines[read_idx]
+                read_idx += 1
+                return line
+            return ""
+
+        mock_process.stdout.readline = mock_readline
+        mock_process.poll.return_value = 0
+        mock_process.stdin.write = MagicMock()
+        mock_process.stdin.flush = MagicMock()
+
+        client._process = mock_process
+        client._state = CodexConnectionState.CONNECTED
+
+        reader_task = asyncio.create_task(client._read_loop())
+        await asyncio.wait_for(reader_task, timeout=2.0)
+
+        # No response sent back
+        mock_process.stdin.write.assert_not_called()
+
+
+class TestCodexClientApprovalResponseRouting:
+    """Tests for approval response routing back to Codex.
+
+    After the approval handler returns a decision, the client must send
+    a JSON-RPC response back to Codex with the matching request id.
+    """
+
+    @pytest.mark.asyncio
+    async def test_sends_accept_response(self) -> None:
+        """Accept decision sends JSON-RPC response with accept."""
+        client = CodexAppServerClient()
+        written_lines: list[str] = []
+
+        async def handler(method: str, params: dict) -> dict:
+            return {"decision": "accept"}
+
+        client.register_approval_handler(handler)
+
+        approval_msg = {
+            "jsonrpc": "2.0",
+            "id": 42,
+            "method": "item/commandExecution/requestApproval",
+            "params": {"threadId": "thr-1", "parsedCmd": "echo test"},
+        }
+
+        mock_process = MagicMock()
+        lines = [json.dumps(approval_msg) + "\n"]
+        read_idx = 0
+
+        def mock_readline():
+            nonlocal read_idx
+            if read_idx < len(lines):
+                line = lines[read_idx]
+                read_idx += 1
+                return line
+            return ""
+
+        mock_process.stdout.readline = mock_readline
+        mock_process.poll.return_value = 0
+        mock_process.stdin.write = lambda x: written_lines.append(x)
+        mock_process.stdin.flush = MagicMock()
+
+        client._process = mock_process
+        client._state = CodexConnectionState.CONNECTED
+
+        reader_task = asyncio.create_task(client._read_loop())
+        await asyncio.wait_for(reader_task, timeout=2.0)
+
+        assert len(written_lines) >= 1
+        response = json.loads(written_lines[0].strip())
+        assert response["jsonrpc"] == "2.0"
+        assert response["id"] == 42
+        assert response["result"]["decision"] == "accept"
+
+    @pytest.mark.asyncio
+    async def test_sends_decline_response(self) -> None:
+        """Decline decision sends JSON-RPC response with decline."""
+        client = CodexAppServerClient()
+        written_lines: list[str] = []
+
+        async def handler(method: str, params: dict) -> dict:
+            return {"decision": "decline"}
+
+        client.register_approval_handler(handler)
+
+        approval_msg = {
+            "jsonrpc": "2.0",
+            "id": 55,
+            "method": "item/commandExecution/requestApproval",
+            "params": {"threadId": "thr-1", "parsedCmd": "rm -rf /"},
+        }
+
+        mock_process = MagicMock()
+        lines = [json.dumps(approval_msg) + "\n"]
+        read_idx = 0
+
+        def mock_readline():
+            nonlocal read_idx
+            if read_idx < len(lines):
+                line = lines[read_idx]
+                read_idx += 1
+                return line
+            return ""
+
+        mock_process.stdout.readline = mock_readline
+        mock_process.poll.return_value = 0
+        mock_process.stdin.write = lambda x: written_lines.append(x)
+        mock_process.stdin.flush = MagicMock()
+
+        client._process = mock_process
+        client._state = CodexConnectionState.CONNECTED
+
+        reader_task = asyncio.create_task(client._read_loop())
+        await asyncio.wait_for(reader_task, timeout=2.0)
+
+        response = json.loads(written_lines[0].strip())
+        assert response["id"] == 55
+        assert response["result"]["decision"] == "decline"
+
+    @pytest.mark.asyncio
+    async def test_handler_error_sends_error_response(self) -> None:
+        """Handler exception sends JSON-RPC error response."""
+        client = CodexAppServerClient()
+        written_lines: list[str] = []
+
+        async def handler(method: str, params: dict) -> dict:
+            raise RuntimeError("Hook processing failed")
+
+        client.register_approval_handler(handler)
+
+        approval_msg = {
+            "jsonrpc": "2.0",
+            "id": 10,
+            "method": "item/commandExecution/requestApproval",
+            "params": {"threadId": "thr-1"},
+        }
+
+        mock_process = MagicMock()
+        lines = [json.dumps(approval_msg) + "\n"]
+        read_idx = 0
+
+        def mock_readline():
+            nonlocal read_idx
+            if read_idx < len(lines):
+                line = lines[read_idx]
+                read_idx += 1
+                return line
+            return ""
+
+        mock_process.stdout.readline = mock_readline
+        mock_process.poll.return_value = 0
+        mock_process.stdin.write = lambda x: written_lines.append(x)
+        mock_process.stdin.flush = MagicMock()
+
+        client._process = mock_process
+        client._state = CodexConnectionState.CONNECTED
+
+        reader_task = asyncio.create_task(client._read_loop())
+        await asyncio.wait_for(reader_task, timeout=2.0)
+
+        assert len(written_lines) >= 1
+        response = json.loads(written_lines[0].strip())
+        assert response["id"] == 10
+        assert "error" in response
+        assert response["error"]["code"] == -32603  # Internal error
+        assert "Hook processing failed" in response["error"]["message"]
+
+    @pytest.mark.asyncio
+    async def test_response_preserves_request_id(self) -> None:
+        """Response id matches the incoming request id."""
+        client = CodexAppServerClient()
+        written_lines: list[str] = []
+
+        async def handler(method: str, params: dict) -> dict:
+            return {"decision": "accept"}
+
+        client.register_approval_handler(handler)
+
+        approval_msg = {
+            "jsonrpc": "2.0",
+            "id": 99999,
+            "method": "item/fileChange/requestApproval",
+            "params": {"threadId": "thr-1", "changes": []},
+        }
+
+        mock_process = MagicMock()
+        lines = [json.dumps(approval_msg) + "\n"]
+        read_idx = 0
+
+        def mock_readline():
+            nonlocal read_idx
+            if read_idx < len(lines):
+                line = lines[read_idx]
+                read_idx += 1
+                return line
+            return ""
+
+        mock_process.stdout.readline = mock_readline
+        mock_process.poll.return_value = 0
+        mock_process.stdin.write = lambda x: written_lines.append(x)
+        mock_process.stdin.flush = MagicMock()
+
+        client._process = mock_process
+        client._state = CodexConnectionState.CONNECTED
+
+        reader_task = asyncio.create_task(client._read_loop())
+        await asyncio.wait_for(reader_task, timeout=2.0)
+
+        response = json.loads(written_lines[0].strip())
+        assert response["id"] == 99999
+
+
+class TestCodexAdapterApprovalHandling:
+    """Tests for CodexAdapter.handle_approval_request with HookManager."""
+
+    @pytest.mark.asyncio
+    async def test_handle_approval_calls_hook_manager(self) -> None:
+        """handle_approval_request translates and processes through HookManager."""
+        mock_hm = MagicMock()
+        mock_hm.handle.return_value = HookResponse(decision="allow")
+        adapter = CodexAdapter(hook_manager=mock_hm)
+
+        result = await adapter.handle_approval_request(
+            "item/commandExecution/requestApproval",
+            {"threadId": "thr-cmd", "itemId": "item-1", "parsedCmd": "echo hello"},
+        )
+
+        mock_hm.handle.assert_called_once()
+        hook_event = mock_hm.handle.call_args[0][0]
+        assert hook_event.event_type == HookEventType.BEFORE_TOOL
+        assert hook_event.data["tool_name"] == "Bash"
+        assert result == {"decision": "accept"}
+
+    @pytest.mark.asyncio
+    async def test_handle_approval_deny_maps_to_decline(self) -> None:
+        """Denied hook response translates to decline."""
+        mock_hm = MagicMock()
+        mock_hm.handle.return_value = HookResponse(decision="deny")
+        adapter = CodexAdapter(hook_manager=mock_hm)
+
+        result = await adapter.handle_approval_request(
+            "item/commandExecution/requestApproval",
+            {"threadId": "thr-1", "parsedCmd": "rm -rf /"},
+        )
+
+        assert result == {"decision": "decline"}
+
+    @pytest.mark.asyncio
+    async def test_handle_approval_without_hook_manager(self) -> None:
+        """Without hook manager, defaults to accept."""
+        adapter = CodexAdapter()
+
+        result = await adapter.handle_approval_request(
+            "item/commandExecution/requestApproval",
+            {"threadId": "thr-1", "parsedCmd": "ls"},
+        )
+
+        assert result == {"decision": "accept"}
+
+    @pytest.mark.asyncio
+    async def test_handle_approval_unknown_method(self) -> None:
+        """Unknown approval method defaults to accept."""
+        mock_hm = MagicMock()
+        adapter = CodexAdapter(hook_manager=mock_hm)
+
+        result = await adapter.handle_approval_request(
+            "unknown/requestApproval",
+            {"threadId": "thr-1"},
+        )
+
+        assert result == {"decision": "accept"}
+        mock_hm.handle.assert_not_called()
+
+
+class TestCodexAdapterApprovalAttach:
+    """Tests for approval handler registration during adapter attach."""
+
+    def test_attach_registers_approval_handler(self) -> None:
+        """Attaching adapter to client registers approval handler."""
+        mock_hm = MagicMock()
+        adapter = CodexAdapter(hook_manager=mock_hm)
+        mock_client = MagicMock()
+
+        adapter.attach_to_client(mock_client)
+
+        mock_client.register_approval_handler.assert_called_once()
