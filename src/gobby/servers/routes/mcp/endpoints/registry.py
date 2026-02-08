@@ -9,7 +9,7 @@ import logging
 import time
 from typing import TYPE_CHECKING, Any
 
-from fastapi import Depends, HTTPException, Request
+from fastapi import Depends, Request
 
 from gobby.servers.routes.dependencies import get_server
 from gobby.utils.metrics import get_metrics_collector
@@ -85,12 +85,11 @@ async def embed_mcp_tools(
             "response_time_ms": (time.perf_counter() - start_time) * 1000,
         }
 
-    except HTTPException:
-        raise
     except Exception as e:
         _metrics.inc_counter("http_requests_errors_total")
         logger.error(f"Embed tools error: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail={"success": False, "error": str(e)}) from e
+        response_time_ms = (time.perf_counter() - start_time) * 1000
+        return {"success": False, "error": str(e), "response_time_ms": response_time_ms}
 
 
 async def get_mcp_status(
@@ -141,6 +140,7 @@ async def get_mcp_status(
         response_time_ms = (time.perf_counter() - start_time) * 1000
 
         return {
+            "success": True,
             "total_servers": total_servers,
             "connected_servers": connected_servers,
             "cached_tools": cached_tools,
@@ -151,7 +151,8 @@ async def get_mcp_status(
     except Exception as e:
         _metrics.inc_counter("http_requests_errors_total")
         logger.error(f"Get MCP status error: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail={"success": False, "error": str(e)}) from e
+        response_time_ms = (time.perf_counter() - start_time) * 1000
+        return {"success": False, "error": str(e), "response_time_ms": response_time_ms}
 
 
 async def refresh_mcp_tools(
@@ -363,12 +364,11 @@ async def refresh_mcp_tools(
             "response_time_ms": response_time_ms,
         }
 
-    except HTTPException:
-        raise
     except Exception as e:
         _metrics.inc_counter("http_requests_errors_total")
         logger.error(f"Refresh tools error: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail={"success": False, "error": str(e)}) from e
+        response_time_ms = (time.perf_counter() - start_time) * 1000
+        return {"success": False, "error": str(e), "response_time_ms": response_time_ms}
 
 
 __all__ = [

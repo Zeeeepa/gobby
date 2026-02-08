@@ -11,7 +11,7 @@ import logging
 import time
 from typing import TYPE_CHECKING, Any
 
-from fastapi import Depends, HTTPException, Request
+from fastapi import Depends, Request
 
 from gobby.servers.routes.dependencies import get_metrics_manager, get_server
 from gobby.utils.metrics import get_metrics_collector
@@ -150,6 +150,7 @@ async def list_all_mcp_tools(
         response_time_ms = (time.perf_counter() - start_time) * 1000
 
         return {
+            "success": True,
             "tools": tools_by_server,
             "response_time_ms": response_time_ms,
         }
@@ -157,7 +158,8 @@ async def list_all_mcp_tools(
     except Exception as e:
         _metrics.inc_counter("http_requests_errors_total")
         logger.error(f"List MCP tools error: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail={"success": False, "error": str(e)}) from e
+        response_time_ms = (time.perf_counter() - start_time) * 1000
+        return {"success": False, "error": str(e), "response_time_ms": response_time_ms}
 
 
 async def recommend_mcp_tools(
@@ -187,10 +189,8 @@ async def recommend_mcp_tools(
         try:
             body = await request.json()
         except json.JSONDecodeError as err:
-            raise HTTPException(
-                status_code=400,
-                detail={"success": False, "error": "Malformed JSON", "message": str(err)},
-            ) from err
+            response_time_ms = (time.perf_counter() - start_time) * 1000
+            return {"success": False, "error": "Malformed JSON", "message": str(err), "response_time_ms": response_time_ms}
 
         task_description = body.get("task_description")
         agent_id = body.get("agent_id")
@@ -200,10 +200,8 @@ async def recommend_mcp_tools(
         cwd = body.get("cwd")
 
         if not task_description:
-            raise HTTPException(
-                status_code=400,
-                detail={"success": False, "error": "Required field: task_description"},
-            )
+            response_time_ms = (time.perf_counter() - start_time) * 1000
+            return {"success": False, "error": "Required field: task_description", "response_time_ms": response_time_ms}
 
         # For semantic/hybrid modes, resolve project_id from cwd
         project_id = None
@@ -212,15 +210,12 @@ async def recommend_mcp_tools(
                 project_id = server._resolve_project_id(None, cwd)
             except ValueError as e:
                 response_time_ms = (time.perf_counter() - start_time) * 1000
-                raise HTTPException(
-                    status_code=400,
-                    detail={
-                        "success": False,
-                        "error": str(e),
-                        "task": task_description,
-                        "response_time_ms": response_time_ms,
-                    },
-                ) from e
+                return {
+                    "success": False,
+                    "error": str(e),
+                    "task": task_description,
+                    "response_time_ms": response_time_ms,
+                }
 
         # Use tools handler if available
         if server._tools_handler:
@@ -244,12 +239,11 @@ async def recommend_mcp_tools(
             "response_time_ms": (time.perf_counter() - start_time) * 1000,
         }
 
-    except HTTPException:
-        raise
     except Exception as e:
         _metrics.inc_counter("http_requests_errors_total")
         logger.error(f"Recommend tools error: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail={"success": False, "error": str(e)}) from e
+        response_time_ms = (time.perf_counter() - start_time) * 1000
+        return {"success": False, "error": str(e), "response_time_ms": response_time_ms}
 
 
 async def search_mcp_tools(
@@ -278,10 +272,8 @@ async def search_mcp_tools(
         try:
             body = await request.json()
         except json.JSONDecodeError as err:
-            raise HTTPException(
-                status_code=400,
-                detail={"success": False, "error": "Malformed JSON", "message": str(err)},
-            ) from err
+            response_time_ms = (time.perf_counter() - start_time) * 1000
+            return {"success": False, "error": "Malformed JSON", "message": str(err), "response_time_ms": response_time_ms}
 
         query = body.get("query")
         top_k = body.get("top_k", 10)
@@ -290,25 +282,20 @@ async def search_mcp_tools(
         cwd = body.get("cwd")
 
         if not query:
-            raise HTTPException(
-                status_code=400,
-                detail={"success": False, "error": "Required field: query"},
-            )
+            response_time_ms = (time.perf_counter() - start_time) * 1000
+            return {"success": False, "error": "Required field: query", "response_time_ms": response_time_ms}
 
         # Resolve project_id from cwd
         try:
             project_id = server._resolve_project_id(None, cwd)
         except ValueError as e:
             response_time_ms = (time.perf_counter() - start_time) * 1000
-            raise HTTPException(
-                status_code=400,
-                detail={
-                    "success": False,
-                    "error": str(e),
-                    "query": query,
-                    "response_time_ms": response_time_ms,
-                },
-            ) from e
+            return {
+                "success": False,
+                "error": str(e),
+                "query": query,
+                "response_time_ms": response_time_ms,
+            }
 
         # Use semantic search directly if available
         if server._tools_handler and server._tools_handler._semantic_search:
@@ -372,15 +359,12 @@ async def search_mcp_tools(
             except Exception as e:
                 logger.error(f"Semantic search failed: {e}")
                 response_time_ms = (time.perf_counter() - start_time) * 1000
-                raise HTTPException(
-                    status_code=500,
-                    detail={
-                        "success": False,
-                        "error": str(e),
-                        "query": query,
-                        "response_time_ms": response_time_ms,
-                    },
-                ) from e
+                return {
+                    "success": False,
+                    "error": str(e),
+                    "query": query,
+                    "response_time_ms": response_time_ms,
+                }
 
         # Fallback: no semantic search
         return {
@@ -390,12 +374,11 @@ async def search_mcp_tools(
             "response_time_ms": (time.perf_counter() - start_time) * 1000,
         }
 
-    except HTTPException:
-        raise
     except Exception as e:
         _metrics.inc_counter("http_requests_errors_total")
         logger.error(f"Search tools error: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail={"success": False, "error": str(e)}) from e
+        response_time_ms = (time.perf_counter() - start_time) * 1000
+        return {"success": False, "error": str(e), "response_time_ms": response_time_ms}
 
 
 __all__ = [

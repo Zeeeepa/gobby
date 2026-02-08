@@ -9,7 +9,7 @@ import logging
 import time
 from typing import TYPE_CHECKING, Any
 
-from fastapi import Depends, HTTPException, Request
+from fastapi import Depends, Request
 
 from gobby.servers.routes.dependencies import get_internal_manager, get_mcp_manager, get_server
 from gobby.utils.metrics import get_metrics_collector
@@ -75,6 +75,7 @@ async def list_mcp_servers(
         response_time_ms = (time.perf_counter() - start_time) * 1000
 
         return {
+            "success": True,
             "servers": server_list,
             "total_count": len(server_list),
             "connected_count": len([s for s in server_list if s.get("connected")]),
@@ -84,7 +85,8 @@ async def list_mcp_servers(
     except Exception as e:
         _metrics.inc_counter("http_requests_errors_total")
         logger.error(f"List MCP servers error: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail={"success": False, "error": str(e)}) from e
+        response_time_ms = (time.perf_counter() - start_time) * 1000
+        return {"success": False, "error": str(e), "response_time_ms": response_time_ms}
 
 
 async def add_mcp_server(
@@ -105,6 +107,7 @@ async def add_mcp_server(
     Returns:
         Success status
     """
+    start_time = time.perf_counter()
     _metrics.inc_counter("http_requests_total")
 
     try:
@@ -113,10 +116,8 @@ async def add_mcp_server(
         transport = body.get("transport")
 
         if not name or not transport:
-            raise HTTPException(
-                status_code=400,
-                detail={"success": False, "error": "Required fields: name, transport"},
-            )
+            response_time_ms = (time.perf_counter() - start_time) * 1000
+            return {"success": False, "error": "Required fields: name, transport", "response_time_ms": response_time_ms}
 
         # Import here to avoid circular imports
         from gobby.mcp_proxy.models import MCPServerConfig
@@ -124,13 +125,8 @@ async def add_mcp_server(
 
         project_ctx = get_project_context()
         if not project_ctx or not project_ctx.get("id"):
-            raise HTTPException(
-                status_code=400,
-                detail={
-                    "success": False,
-                    "error": "No current project found. Run 'gobby init'.",
-                },
-            )
+            response_time_ms = (time.perf_counter() - start_time) * 1000
+            return {"success": False, "error": "No current project found. Run 'gobby init'.", "response_time_ms": response_time_ms}
         project_id = project_ctx["id"]
 
         config = MCPServerConfig(
@@ -146,26 +142,26 @@ async def add_mcp_server(
         )
 
         if server.mcp_manager is None:
-            raise HTTPException(
-                status_code=503,
-                detail={"success": False, "error": "MCP manager not available"},
-            )
+            response_time_ms = (time.perf_counter() - start_time) * 1000
+            return {"success": False, "error": "MCP manager not available", "response_time_ms": response_time_ms}
 
         await server.mcp_manager.add_server(config)
 
+        response_time_ms = (time.perf_counter() - start_time) * 1000
         return {
             "success": True,
             "message": f"Added MCP server: {name}",
+            "response_time_ms": response_time_ms,
         }
 
     except ValueError as e:
-        raise HTTPException(status_code=400, detail={"success": False, "error": str(e)}) from e
-    except HTTPException:
-        raise
+        response_time_ms = (time.perf_counter() - start_time) * 1000
+        return {"success": False, "error": str(e), "response_time_ms": response_time_ms}
     except Exception as e:
         _metrics.inc_counter("http_requests_errors_total")
         logger.error(f"Add MCP server error: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail={"success": False, "error": str(e)}) from e
+        response_time_ms = (time.perf_counter() - start_time) * 1000
+        return {"success": False, "error": str(e), "response_time_ms": response_time_ms}
 
 
 async def import_mcp_server(
@@ -186,6 +182,7 @@ async def import_mcp_server(
     Returns:
         Import result with imported/skipped/failed lists
     """
+    start_time = time.perf_counter()
     _metrics.inc_counter("http_requests_total")
 
     try:
@@ -196,33 +193,29 @@ async def import_mcp_server(
         servers = body.get("servers")
 
         if not from_project and not github_url and not query:
-            raise HTTPException(
-                status_code=400,
-                detail={
-                    "success": False,
-                    "error": "Specify at least one: from_project, github_url, or query",
-                },
-            )
+            response_time_ms = (time.perf_counter() - start_time) * 1000
+            return {
+                "success": False,
+                "error": "Specify at least one: from_project, github_url, or query",
+                "response_time_ms": response_time_ms,
+            }
 
         # Get current project ID from context
         from gobby.utils.project_context import get_project_context
 
         project_ctx = get_project_context()
         if not project_ctx or not project_ctx.get("id"):
-            raise HTTPException(
-                status_code=400,
-                detail={
-                    "success": False,
-                    "error": "No current project. Run 'gobby init' first.",
-                },
-            )
+            response_time_ms = (time.perf_counter() - start_time) * 1000
+            return {
+                "success": False,
+                "error": "No current project. Run 'gobby init' first.",
+                "response_time_ms": response_time_ms,
+            }
         current_project_id = project_ctx["id"]
 
         if not server.config:
-            raise HTTPException(
-                status_code=500,
-                detail={"success": False, "error": "Daemon configuration not available"},
-            )
+            response_time_ms = (time.perf_counter() - start_time) * 1000
+            return {"success": False, "error": "Daemon configuration not available", "response_time_ms": response_time_ms}
 
         # Create importer
         from gobby.mcp_proxy.importer import MCPServerImporter
@@ -249,14 +242,16 @@ async def import_mcp_server(
             # query must be truthy due to earlier validation
             result = await importer.import_from_query(query)
 
+        response_time_ms = (time.perf_counter() - start_time) * 1000
+        if isinstance(result, dict):
+            result["response_time_ms"] = response_time_ms
         return result
 
-    except HTTPException:
-        raise
     except Exception as e:
         _metrics.inc_counter("http_requests_errors_total")
         logger.error(f"Import MCP server error: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail={"success": False, "error": str(e)}) from e
+        response_time_ms = (time.perf_counter() - start_time) * 1000
+        return {"success": False, "error": str(e), "response_time_ms": response_time_ms}
 
 
 async def remove_mcp_server(
@@ -272,28 +267,31 @@ async def remove_mcp_server(
     Returns:
         Success status
     """
+    start_time = time.perf_counter()
     _metrics.inc_counter("http_requests_total")
 
     try:
         if server.mcp_manager is None:
-            raise HTTPException(
-                status_code=503,
-                detail={"success": False, "error": "MCP manager not available"},
-            )
+            response_time_ms = (time.perf_counter() - start_time) * 1000
+            return {"success": False, "error": "MCP manager not available", "response_time_ms": response_time_ms}
 
         await server.mcp_manager.remove_server(name)
 
+        response_time_ms = (time.perf_counter() - start_time) * 1000
         return {
             "success": True,
             "message": f"Removed MCP server: {name}",
+            "response_time_ms": response_time_ms,
         }
 
     except ValueError as e:
-        raise HTTPException(status_code=404, detail={"success": False, "error": str(e)}) from e
+        response_time_ms = (time.perf_counter() - start_time) * 1000
+        return {"success": False, "error": str(e), "response_time_ms": response_time_ms}
     except Exception as e:
         _metrics.inc_counter("http_requests_errors_total")
         logger.error(f"Remove MCP server error: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail={"success": False, "error": str(e)}) from e
+        response_time_ms = (time.perf_counter() - start_time) * 1000
+        return {"success": False, "error": str(e), "response_time_ms": response_time_ms}
 
 
 __all__ = [

@@ -277,8 +277,10 @@ class TestListMCPTools:
     def test_list_tools_no_mcp_manager(self, client: TestClient) -> None:
         """Test listing tools when MCP manager is not available."""
         response = client.get("/mcp/test-server/tools")
-        assert response.status_code == 503
-        assert "MCP manager not available" in response.json()["detail"]["error"]
+        assert response.status_code == 200
+        data = response.json()
+        assert data["success"] is False
+        assert "MCP manager not available" in data["error"]
 
     def test_list_tools_internal_server_success(self, session_storage: LocalSessionManager) -> None:
         """Test listing tools from internal server."""
@@ -295,7 +297,7 @@ class TestListMCPTools:
 
         assert response.status_code == 200
         data = response.json()
-        assert data["status"] == "success"
+        assert data["success"] is True
         assert data["tool_count"] == 2
         assert len(data["tools"]) == 2
         assert "response_time_ms" in data
@@ -314,9 +316,11 @@ class TestListMCPTools:
             # No internal manager, should fall through to MCP manager check
             response = client.get("/mcp/gobby-nonexistent/tools")
 
-        # Returns 503 because mcp_manager is None
-        assert response.status_code == 503
-        assert "MCP manager not available" in response.json()["detail"]["error"]
+        # Returns 200 with success=False because mcp_manager is None
+        assert response.status_code == 200
+        data = response.json()
+        assert data["success"] is False
+        assert "MCP manager not available" in data["error"]
 
     def test_list_tools_external_server_not_configured(
         self, session_storage: LocalSessionManager
@@ -332,8 +336,10 @@ class TestListMCPTools:
         with TestClient(server.app) as client:
             response = client.get("/mcp/unknown-server/tools")
 
-        assert response.status_code == 404
-        assert "Unknown MCP server" in response.json()["detail"]["error"]
+        assert response.status_code == 200
+        data = response.json()
+        assert data["success"] is False
+        assert "Unknown MCP server" in data["error"]
 
     def test_list_tools_external_server_success(self, session_storage: LocalSessionManager) -> None:
         """Test listing tools from external server."""
@@ -356,7 +362,7 @@ class TestListMCPTools:
 
         assert response.status_code == 200
         data = response.json()
-        assert data["status"] == "success"
+        assert data["success"] is True
         assert data["tool_count"] == 1
         assert data["tools"][0]["name"] == "external-tool"
 
@@ -378,8 +384,10 @@ class TestListMCPTools:
         with TestClient(server.app) as client:
             response = client.get("/mcp/failing-server/tools")
 
-        assert response.status_code == 503
-        assert "connection failed" in response.json()["detail"]["error"]
+        assert response.status_code == 200
+        data = response.json()
+        assert data["success"] is False
+        assert "connection failed" in data["error"]
 
     def test_list_tools_external_server_list_tools_failure(
         self, session_storage: LocalSessionManager
@@ -404,8 +412,10 @@ class TestListMCPTools:
         with TestClient(server.app) as client:
             response = client.get("/mcp/error-server/tools")
 
-        assert response.status_code == 500
-        assert "Failed to list tools" in response.json()["detail"]["error"]
+        assert response.status_code == 200
+        data = response.json()
+        assert data["success"] is False
+        assert "Failed to list tools" in data["error"]
 
     def test_list_tools_with_input_schema_dict(self, session_storage: LocalSessionManager) -> None:
         """Test listing tools with inputSchema as dict."""
@@ -601,7 +611,9 @@ class TestListMCPServers:
         with TestClient(server.app) as client:
             response = client.get("/mcp/servers")
 
-        assert response.status_code == 500
+        assert response.status_code == 200
+        data = response.json()
+        assert data["success"] is False
 
 
 # ============================================================================
@@ -744,8 +756,10 @@ class TestGetToolSchema:
     def test_get_schema_missing_fields(self, client: TestClient) -> None:
         """Test getting schema with missing required fields."""
         response = client.post("/mcp/tools/schema", json={"server_name": "test"})
-        assert response.status_code == 400
-        assert "server_name, tool_name" in response.json()["detail"]["error"]
+        assert response.status_code == 200
+        data = response.json()
+        assert data["success"] is False
+        assert "server_name, tool_name" in data["error"]
 
     def test_get_schema_internal_server_success(self, session_storage: LocalSessionManager) -> None:
         """Test getting schema from internal server."""
@@ -791,8 +805,10 @@ class TestGetToolSchema:
                 json={"server_name": "gobby-tasks", "tool_name": "nonexistent"},
             )
 
-        assert response.status_code == 404
-        assert "not found" in response.json()["detail"]["error"]
+        assert response.status_code == 200
+        data = response.json()
+        assert data["success"] is False
+        assert "not found" in data["error"]
 
     def test_get_schema_external_server_no_manager(self, client: TestClient) -> None:
         """Test getting schema when MCP manager not available."""
@@ -800,8 +816,10 @@ class TestGetToolSchema:
             "/mcp/tools/schema",
             json={"server_name": "external-server", "tool_name": "tool"},
         )
-        assert response.status_code == 503
-        assert "MCP manager not available" in response.json()["detail"]["error"]
+        assert response.status_code == 200
+        data = response.json()
+        assert data["success"] is False
+        assert "MCP manager not available" in data["error"]
 
     def test_get_schema_external_server_success(self, session_storage: LocalSessionManager) -> None:
         """Test getting schema from external server."""
@@ -849,7 +867,9 @@ class TestGetToolSchema:
                 json={"server_name": "external-server", "tool_name": "missing"},
             )
 
-        assert response.status_code == 404
+        assert response.status_code == 200
+        data = response.json()
+        assert data["success"] is False
 
 
 # ============================================================================
@@ -997,8 +1017,10 @@ class TestAddMCPServer:
     def test_add_server_missing_fields(self, client: TestClient) -> None:
         """Test adding server with missing required fields."""
         response = client.post("/mcp/servers", json={"name": "test-server"})
-        assert response.status_code == 400
-        assert "transport" in response.json()["detail"]["error"]
+        assert response.status_code == 200
+        data = response.json()
+        assert data["success"] is False
+        assert "transport" in data["error"]
 
     def test_add_server_no_project_context(self, session_storage: LocalSessionManager) -> None:
         """Test adding server without project context."""
@@ -1022,8 +1044,10 @@ class TestAddMCPServer:
                 },
             )
 
-        assert response.status_code == 400
-        assert "No current project" in response.json()["detail"]["error"]
+        assert response.status_code == 200
+        data = response.json()
+        assert data["success"] is False
+        assert "No current project" in data["error"]
 
     def test_add_server_no_mcp_manager(self, session_storage: LocalSessionManager) -> None:
         """Test adding server when MCP manager not available."""
@@ -1049,8 +1073,10 @@ class TestAddMCPServer:
                 },
             )
 
-        assert response.status_code == 503
-        assert "MCP manager not available" in response.json()["detail"]["error"]
+        assert response.status_code == 200
+        data = response.json()
+        assert data["success"] is False
+        assert "MCP manager not available" in data["error"]
 
     def test_add_server_success(self, session_storage: LocalSessionManager) -> None:
         """Test adding server successfully."""
@@ -1145,7 +1171,9 @@ class TestAddMCPServer:
                 },
             )
 
-        assert response.status_code == 400
+        assert response.status_code == 200
+        data = response.json()
+        assert data["success"] is False
 
 
 # ============================================================================
@@ -1159,9 +1187,10 @@ class TestRemoveMCPServer:
     def test_remove_server_no_manager(self, client: TestClient) -> None:
         """Test removing server when MCP manager not available."""
         response = client.delete("/mcp/servers/test-server")
-        # The HTTPException is caught and re-raised as 500 in the except block
-        assert response.status_code == 500
-        assert "MCP manager not available" in response.json()["detail"]["error"]
+        assert response.status_code == 200
+        data = response.json()
+        assert data["success"] is False
+        assert "MCP manager not available" in data["error"]
 
     def test_remove_server_success(self, session_storage: LocalSessionManager) -> None:
         """Test removing server successfully."""
@@ -1196,7 +1225,9 @@ class TestRemoveMCPServer:
         with TestClient(server.app) as client:
             response = client.delete("/mcp/servers/nonexistent")
 
-        assert response.status_code == 404
+        assert response.status_code == 200
+        data = response.json()
+        assert data["success"] is False
 
 
 # ============================================================================
@@ -1210,8 +1241,10 @@ class TestImportMCPServer:
     def test_import_server_missing_source(self, client: TestClient) -> None:
         """Test importing server without specifying source."""
         response = client.post("/mcp/servers/import", json={})
-        assert response.status_code == 400
-        assert "at least one" in response.json()["detail"]["error"]
+        assert response.status_code == 200
+        data = response.json()
+        assert data["success"] is False
+        assert "at least one" in data["error"]
 
     def test_import_server_no_project_context(self, session_storage: LocalSessionManager) -> None:
         """Test importing server without project context."""
@@ -1230,8 +1263,10 @@ class TestImportMCPServer:
                 json={"from_project": "other-project"},
             )
 
-        assert response.status_code == 400
-        assert "No current project" in response.json()["detail"]["error"]
+        assert response.status_code == 200
+        data = response.json()
+        assert data["success"] is False
+        assert "No current project" in data["error"]
 
     # Note: Server import tests with complex config are tested via integration tests
     # as they require proper lifespan initialization with config
@@ -1248,8 +1283,10 @@ class TestRecommendMCPTools:
     def test_recommend_tools_missing_task(self, client: TestClient) -> None:
         """Test recommending tools without task description."""
         response = client.post("/mcp/tools/recommend", json={})
-        assert response.status_code == 400
-        assert "task_description" in response.json()["detail"]["error"]
+        assert response.status_code == 200
+        data = response.json()
+        assert data["success"] is False
+        assert "task_description" in data["error"]
 
     def test_recommend_tools_no_handler(self, session_storage: LocalSessionManager) -> None:
         """Test recommending tools when handler not available."""
@@ -1327,10 +1364,10 @@ class TestRecommendMCPTools:
                 },
             )
 
-        assert response.status_code == 400
+        assert response.status_code == 200
         data = response.json()
-        assert data["detail"]["success"] is False
-        assert "No project found" in data["detail"]["error"]
+        assert data["success"] is False
+        assert "No project found" in data["error"]
 
 
 # ============================================================================
@@ -1344,8 +1381,10 @@ class TestSearchMCPTools:
     def test_search_tools_missing_query(self, client: TestClient) -> None:
         """Test searching tools without query."""
         response = client.post("/mcp/tools/search", json={})
-        assert response.status_code == 400
-        assert "query" in response.json()["detail"]["error"]
+        assert response.status_code == 200
+        data = response.json()
+        assert data["success"] is False
+        assert "query" in data["error"]
 
     def test_search_tools_project_resolution_failure(
         self, session_storage: LocalSessionManager
@@ -1370,10 +1409,10 @@ class TestSearchMCPTools:
                 json={"query": "create file"},
             )
 
-        assert response.status_code == 400
+        assert response.status_code == 200
         data = response.json()
-        assert data["detail"]["success"] is False
-        assert "No project" in data["detail"]["error"]
+        assert data["success"] is False
+        assert "No project" in data["error"]
 
     def test_search_tools_no_semantic_search(self, session_storage: LocalSessionManager) -> None:
         """Test searching tools when semantic search not configured."""
