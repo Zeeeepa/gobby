@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import logging
+import tempfile
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
@@ -89,7 +90,7 @@ class SessionEventHandlerMixin(EventHandlersBase):
 
         # Check for capture file in standard location
         session_id = input_data.get("session_id") or external_id or ""
-        capture_path = f"/tmp/gobby-cursor-{session_id}.ndjson"
+        capture_path = f"{tempfile.gettempdir()}/gobby-cursor-{session_id}.ndjson"
         if Path(capture_path).exists():
             self.logger.debug(f"Found Cursor capture file: {capture_path}")
             return capture_path

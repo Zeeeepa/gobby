@@ -12,6 +12,7 @@ Implementation is split across submodules:
 from __future__ import annotations
 
 import logging
+import tempfile
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -307,7 +308,7 @@ class TerminalSpawner:
 
         # For Cursor, set up NDJSON capture via tee
         if cli == "cursor":
-            capture_path = f"/tmp/gobby-cursor-{session_id}.ndjson"
+            capture_path = f"{tempfile.gettempdir()}/gobby-cursor-{session_id}.ndjson"
             env["GOBBY_CURSOR_CAPTURE_PATH"] = capture_path
             # Wrap command to pipe stdout through tee for transcript capture
             # The --output stream-json flag is already added by build_cli_command
