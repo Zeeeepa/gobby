@@ -135,7 +135,7 @@ class SessionMessageProcessor:
             try:
                 await self._process_session(session_id, transcript_path)
             except Exception as e:
-                logger.error(f"Failed to process session {session_id}: {e}")
+                logger.error(f"Failed to process session {session_id}: {e}", exc_info=True)
 
     async def _process_session(self, session_id: str, transcript_path: str) -> None:
         """

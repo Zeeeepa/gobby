@@ -960,6 +960,23 @@ class TestGeminiTranscriptParser:
         assert msg is not None
         assert msg.content == ""
 
+    def test_gemini_content_list_with_non_dict_function_call(self, parser) -> None:
+        """Test parse_line handles functionCall that is not a dict (e.g. list)."""
+        line = json.dumps({
+            "type": "message",
+            "role": "model",
+            "content": [
+                {"text": "some text"},
+                {"functionCall": [{"name": "tool", "args": {}}]},
+            ],
+        })
+        msg = parser.parse_line(line, 0)
+        assert msg is not None
+        assert msg.content == "some text"
+        # functionCall was a list, not dict — should be skipped safely
+        assert msg.content_type == "text"
+        assert msg.tool_name is None
+
     def test_gemini_parse_session_json_basic(self, parser) -> None:
         """Test parse_session_json with basic user/gemini messages."""
         data = {

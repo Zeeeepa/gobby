@@ -201,7 +201,7 @@ class GeminiTranscriptParser:
                     if "text" in part:
                         text_parts.append(str(part["text"]))
                     # Check for tool calls embedded in content
-                    if "functionCall" in part:
+                    if "functionCall" in part and isinstance(part["functionCall"], dict):
                         content_type = "tool_use"
                         tool_name = part["functionCall"].get("name")
                         tool_input = part["functionCall"].get("args")
