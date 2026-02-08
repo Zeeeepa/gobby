@@ -346,14 +346,14 @@ def create_lifecycle_registry(ctx: RegistryContext) -> InternalToolRegistry:
     )
 
     def reopen_task(task_id: str, reason: str | None = None) -> dict[str, Any]:
-        """Reopen a closed or review task.
+        """Reopen a task to open status.
+
+        Works on any non-open status. Clears assignee, closed fields,
+        and resets validation_fail_count.
 
         Args:
             task_id: Task reference (#N, path, or UUID)
             reason: Optional reason for reopening
-
-        Returns:
-            Reopened task or error. Resets accepted_by_user to false.
         """
         try:
             resolved_id = resolve_task_id_for_mcp(ctx.task_manager, task_id)
@@ -383,7 +383,7 @@ def create_lifecycle_registry(ctx: RegistryContext) -> InternalToolRegistry:
 
     registry.register(
         name="reopen_task",
-        description="Reopen a closed task. Clears closed_at, closed_reason, and closed_in_session_id. Optionally appends a reopen reason to the description.",
+        description="Reopen a task to open status. Works on any non-open status. Clears assignee, closed fields, and resets validation. Optionally appends a reopen reason to the description.",
         input_schema={
             "type": "object",
             "properties": {

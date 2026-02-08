@@ -395,14 +395,17 @@ class LocalTaskManager:
         task_id: str,
         reason: str | None = None,
     ) -> Task:
-        """Reopen a closed or review task.
+        """Reopen a task to open status.
+
+        Works on any non-open status. Clears assignee, closed fields,
+        and resets validation_fail_count.
 
         Args:
             task_id: The task ID to reopen
             reason: Optional reason for reopening
 
         Raises:
-            ValueError: If task not found or not closed/review
+            ValueError: If task not found or already open
         """
         _reopen_task(self.db, task_id=task_id, reason=reason)
         self._notify_listeners()

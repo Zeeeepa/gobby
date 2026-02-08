@@ -106,7 +106,10 @@ def reopen_task(
     task_id: str,
     reason: str | None = None,
 ) -> None:
-    """Reopen a closed or review task.
+    """Reopen a task to open status.
+
+    Works on any non-open status (in_progress, closed, needs_review, escalated, etc.).
+    Clears closed fields, assignee, and resets validation_fail_count.
 
     Args:
         db: Database protocol instance
@@ -114,11 +117,11 @@ def reopen_task(
         reason: Optional reason for reopening
 
     Raises:
-        ValueError: If task not found or not closed/review
+        ValueError: If task not found or already open
     """
     task = get_task(db, task_id)
-    if task.status not in ("closed", "needs_review"):
-        raise ValueError(f"Task {task_id} is not closed or in needs_review (status: {task.status})")
+    if task.status == "open":
+        raise ValueError(f"Task {task_id} is already open")
 
     now = datetime.now(UTC).isoformat()
 
@@ -132,11 +135,13 @@ def reopen_task(
         conn.execute(
             """UPDATE tasks SET
                 status = 'open',
+                assignee = NULL,
                 closed_reason = NULL,
                 closed_at = NULL,
                 closed_in_session_id = NULL,
                 closed_commit_sha = NULL,
                 accepted_by_user = 0,
+                validation_fail_count = 0,
                 description = ?,
                 updated_at = ?
             WHERE id = ?""",

@@ -901,14 +901,14 @@ class TestReopenTaskCommand:
         runner: CliRunner,
         mock_task: MagicMock,
     ) -> None:
-        """Test reopening a non-closed task fails."""
+        """Test reopening an already open task fails."""
         mock_task.status = "open"
         mock_resolve.return_value = mock_task
         mock_get_manager.return_value = MagicMock()
 
         result = runner.invoke(cli, ["tasks", "reopen", "gt-abc123"])
 
-        assert "not closed" in result.output
+        assert "already open" in result.output
 
 
 class TestDeleteTaskCommand:

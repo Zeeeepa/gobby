@@ -532,12 +532,12 @@ def close_task_cmd(
 @click.argument("task_id", metavar="TASK")
 @click.option("--reason", "-r", default=None, help="Reason for reopening")
 def reopen_task_cmd(task_id: str, reason: str | None) -> None:
-    """Reopen a closed or review task.
+    """Reopen a task to open status.
 
     TASK can be: #N (e.g., #1, #47), path (e.g., 1.2.3), or UUID.
 
-    Sets status back to 'open', clears closed_at/closed_reason, and resets
-    accepted_by_user to false.
+    Works on any non-open status. Sets status back to 'open', clears
+    assignee, closed fields, and resets validation_fail_count.
     """
     manager = get_task_manager()
     resolved = resolve_task_id(manager, task_id)
@@ -547,9 +547,9 @@ def reopen_task_cmd(task_id: str, reason: str | None) -> None:
     # Use standardized ref for errors
     resolved_ref = f"#{resolved.seq_num}" if resolved.seq_num else resolved.id[:8]
 
-    if resolved.status not in ("closed", "needs_review"):
+    if resolved.status == "open":
         click.echo(
-            f"Task {resolved_ref} is not closed or in needs_review (status: {resolved.status})",
+            f"Task {resolved_ref} is already open",
             err=True,
         )
         return

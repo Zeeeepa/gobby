@@ -612,20 +612,22 @@ class TestLocalTaskManager:
         assert "Original description" in reopened.description
         assert "[Reopened: Bug found]" in reopened.description
 
-    def test_reopen_task_not_closed_raises(self, task_manager, project_id) -> None:
-        """Test reopening a non-closed task raises error."""
+    def test_reopen_task_already_open_raises(self, task_manager, project_id) -> None:
+        """Test reopening an already open task raises error."""
         task = task_manager.create_task(project_id, "Open Task")
 
-        with pytest.raises(ValueError, match="is not closed"):
+        with pytest.raises(ValueError, match="is already open"):
             task_manager.reopen_task(task.id)
 
-    def test_reopen_task_in_progress_raises(self, task_manager, project_id) -> None:
-        """Test reopening an in_progress task raises error."""
+    def test_reopen_task_from_in_progress(self, task_manager, project_id) -> None:
+        """Test reopening an in_progress task succeeds."""
         task = task_manager.create_task(project_id, "In Progress")
         task_manager.update_task(task.id, status="in_progress")
 
-        with pytest.raises(ValueError, match="is not closed"):
-            task_manager.reopen_task(task.id)
+        reopened = task_manager.reopen_task(task.id)
+
+        assert reopened.status == "open"
+        assert reopened.assignee is None
 
     # =========================================================================
     # Close Task Additional Tests
