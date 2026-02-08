@@ -37,8 +37,8 @@ workflows:
     mode: self  # Activate workflow in calling session instead of spawning
 
   # Automated orchestrator (runs in daemon background)
-  box-pipeline:
-    file: meeseeks-box-pipeline.yaml
+  # box-pipeline:
+  #  file: meeseeks-box-pipeline.yaml
 
   # Worker: claims and executes a single task (runs in Gemini)
   worker:
@@ -91,33 +91,10 @@ workflows:
           - mcp__gobby__list_tools
           - mcp__gobby__list_mcp_servers
 
-        blocked_tools:
-          - Edit
-          - Write
-          - Bash
-          - NotebookEdit
-          - Read
-          - Glob
-          - Grep
-          - Task
-          - spawn_agent
-          - activate_workflow
-
-        # STRICT: Only allow claim_task and get_task - nothing else
+        # Only allow claim_task and get_task — unlisted MCP tools implicitly blocked
         allowed_mcp_tools:
           - gobby-tasks:claim_task
           - gobby-tasks:get_task
-
-        # Block everything else including task discovery
-        blocked_mcp_tools:
-          - gobby-tasks:get_session_tasks
-          - gobby-tasks:list_tasks
-          - gobby-tasks:suggest_next_task
-          - gobby-tasks:create_task
-          - gobby-workflows:*
-          - gobby-agents:*
-          - gobby-clones:*
-          - gobby-sessions:*
 
         transitions:
           - to: work
@@ -167,9 +144,6 @@ workflows:
           - gobby-tasks:claim_task
           - gobby-tasks:create_task
           - gobby-workflows:end_workflow
-          # Block irrelevant MCP servers - worker only needs task/agent/workflow/worktree tools
-          - context7:*
-          - memory:*
 
         # Block git push - parent orchestrator handles merging
         blocked_commands:
@@ -212,15 +186,6 @@ workflows:
           - mcp__gobby__get_tool_schema
           - Read
 
-        blocked_tools:
-          - Edit
-          - Write
-          - Bash
-          - NotebookEdit
-          - activate_workflow
-
-        # Block claiming/creating additional tasks - one task per worker
-        # Block manual workflow end - only kill_agent can end worker
         blocked_mcp_tools:
           - gobby-tasks:claim_task
           - gobby-tasks:create_task
@@ -269,26 +234,7 @@ workflows:
           - mcp__gobby__call_tool
           - mcp__gobby__get_tool_schema
 
-        blocked_tools:
-          - Edit
-          - Write
-          - NotebookEdit
-          - Bash
-          - Read
-          - Glob
-          - Grep
-          - Task
-          - spawn_agent
-          - activate_workflow
-
-        # Block all MCP tools except kill_agent
-        # Explicitly block end_workflow - kill_agent is the only exit
-        blocked_mcp_tools:
-          - gobby-tasks:*
-          - gobby-worktrees:*
-          - gobby-workflows:end_workflow
-          - gobby-workflows:activate_workflow
-
+        # Only allow kill_agent — unlisted MCP tools implicitly blocked
         allowed_mcp_tools:
           - gobby-agents:kill_agent
           - gobby-agents:get_tool_schema
