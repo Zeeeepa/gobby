@@ -354,7 +354,7 @@ async def main() -> int:
             if result.get("continue") is False or result.get("decision") == "block":
                 # Output just the reason, not the full JSON
                 reason = result.get("stopReason") or result.get("reason") or "Blocked by hook"
-                print(f"\n{reason}", file=sys.stderr)
+                print(f"\n{reason.rstrip()}", file=sys.stderr)
                 return 2
 
             # Only print output if there's something meaningful to show
