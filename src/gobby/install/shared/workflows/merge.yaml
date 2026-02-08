@@ -1,20 +1,26 @@
-name: worktree-merge
+name: merge
 description: |
-  Merge approved branch and cleanup worktree.
+  Merge approved branch and cleanup isolation environment.
 
-  This workflow handles the final stage of the task lifecycle:
+  Supports both clone and worktree isolation modes:
+  - clone:    Merge via gobby-clones MCP tool, cleanup via delete_clone
+  - worktree: Merge via git squash-merge, cleanup via delete_worktree
+
+  Steps:
   1. Merge the feature branch into target (usually dev)
-  2. Delete the worktree
-  3. Optionally delete the feature branch
+  2. Clean up the isolation environment
+  3. Optionally delete the feature branch (worktree mode)
 
 version: "1.0"
 type: step
 
 variables:
-  worktree_id: null
+  isolation_mode: "worktree"       # "clone" or "worktree"
+  clone_id: null                   # Clone ID (when isolation_mode=clone)
+  worktree_id: null                # Worktree ID (when isolation_mode=worktree)
   branch_name: null
   target_branch: dev
-  merge_strategy: squash  # merge, squash, or rebase
+  merge_strategy: squash           # merge, squash, or rebase
   delete_branch: true
   merge_complete: false
   cleanup_complete: false
@@ -23,7 +29,24 @@ steps:
   - name: merge
     description: "Merge branch into target"
     on_enter:
+      # Clone mode: merge via gobby-clones MCP tool
+      - action: call_mcp_tool
+        when: "variables.get('isolation_mode') == 'clone'"
+        server_name: gobby-clones
+        tool_name: merge_clone_to_target
+        arguments:
+          clone_id: "{{ variables.clone_id }}"
+          target_branch: "{{ variables.target_branch }}"
+        output_as: _merge_result
+
+      - action: set_variable
+        when: "variables.get('isolation_mode') == 'clone'"
+        name: merge_complete
+        value: true
+
+      # Worktree mode: instruct LLM to do git merge
       - action: inject_message
+        when: "variables.get('isolation_mode') == 'worktree'"
         content: |
           MERGE: Starting merge.
 
@@ -57,19 +80,30 @@ steps:
       - mcp__gobby__list_tools
       - mcp__gobby__get_tool_schema
 
-    blocked_tools:
-      - Edit
-      - Write
-      - NotebookEdit
-
     transitions:
       - to: cleanup
         when: "variables.get('merge_complete', False)"
 
   - name: cleanup
-    description: "Delete the worktree and branch"
+    description: "Delete isolation environment and branch"
     on_enter:
+      # Clone mode: delete the clone
+      - action: call_mcp_tool
+        when: "variables.get('isolation_mode') == 'clone'"
+        server_name: gobby-clones
+        tool_name: delete_clone
+        arguments:
+          clone_id: "{{ variables.clone_id }}"
+        output_as: _cleanup_result
+
+      - action: set_variable
+        when: "variables.get('isolation_mode') == 'clone'"
+        name: cleanup_complete
+        value: true
+
+      # Worktree mode: instruct LLM to cleanup
       - action: inject_message
+        when: "variables.get('isolation_mode') == 'worktree'"
         content: |
           MERGE: Cleaning up.
 
@@ -99,12 +133,6 @@ steps:
       - mcp__gobby__list_tools
       - mcp__gobby__get_tool_schema
 
-    blocked_tools:
-      - Edit
-      - Write
-      - NotebookEdit
-      - Read
-
     transitions:
       - to: complete
         when: "variables.get('cleanup_complete', False)"
@@ -117,6 +145,7 @@ steps:
           MERGE: Complete!
 
           Branch {{ variables.branch_name }} has been merged into {{ variables.target_branch }}.
-          Worktree {{ variables.worktree_id }} has been removed.
+          {% if variables.isolation_mode == 'clone' %}Clone {{ variables.clone_id }} has been removed.{% endif %}
+          {% if variables.isolation_mode == 'worktree' %}Worktree {{ variables.worktree_id }} has been removed.{% endif %}
 
 exit_condition: "current_step == 'complete'"

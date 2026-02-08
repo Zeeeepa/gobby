@@ -4,30 +4,29 @@ description: |
 
   This step workflow runs in Claude Code and:
   1. Finds ready tasks using suggest_next_task() (with leaf task fallback)
-  2. Spawns workers in isolated environments (clone, worktree, or current)
+  2. Spawns a worker in an isolated environment (clone, worktree, or current)
   3. Waits for task completion using wait_for_task()
-  4. Reviews code changes (with approval gate)
-  5. Merges approved branches via mode-appropriate tools, cleans up
-  6. Loops until all session_tasks are complete
+  4. Reviews code changes (with approval gate + respawn loop)
+  5. Merges approved branch via mode-appropriate method
+  6. Cleans up isolation environment, loops until all tasks complete
 
   Leaf task handling: When session_task is a leaf task (no children),
   suggest_next_task returns nothing. The workflow detects this and assigns
-  the session_task directly to a worker instead of falling into wait_for_workers.
+  the session_task directly to a worker instead of falling into idle wait.
 
   Isolation modes:
   - clone:    Worker runs in a full git clone (default). Merge via gobby-clones.
   - worktree: Worker runs in a git worktree. Merge via git squash-merge + push.
   - current:  Worker runs in the current working tree. No merge/cleanup needed.
 
-  Deterministic steps (find_work, spawn_worker, cleanup) auto-execute
-  their MCP calls server-side via call_mcp_tool in on_enter. The LLM only drives
-  steps that require judgment or long-running waits.
+  Sequential flow: one worker at a time. Each task goes through the full
+  find → spawn → wait → review → merge → cleanup cycle before the next.
 
   Usage:
     1. Create/claim a parent task via gobby-tasks
     2. Activate this workflow with session_task set to the task ID(s)
     3. Optionally set isolation_mode variable ("clone", "worktree", or "current")
-    4. Workflow spawns workers per isolation mode for each ready subtask
+    4. Workflow spawns one worker per ready subtask sequentially
     5. Reviews changes, merges approved work, loops
     6. Exits when task tree is complete
 
@@ -46,8 +45,8 @@ variables:
   worker_provider: "gemini"
   worker_terminal: "tmux"
   worker_timeout: 600
-  max_inactive_waits: 3
-  inactive_wait_count: 0
+  max_wait_retries: 3             # Max timeout retries in wait_for_worker
+  wait_retry_count: 0             # Current timeout retry count
   max_review_attempts: 3
   review_attempt: 0
   review_approved: false
@@ -58,9 +57,9 @@ steps:
   - name: find_work
     description: "Find next ready task using suggest_next_task() with leaf task fallback"
     on_enter:
-      # Reset inactive wait counter on re-entry
+      # Reset wait retry counter on re-entry
       - action: set_variable
-        name: inactive_wait_count
+        name: wait_retry_count
         value: 0
       # Clear stale results from previous iteration
       - action: set_variable
@@ -119,75 +118,14 @@ steps:
       - Glob
       - Grep
 
-    blocked_tools:
-      - Edit
-      - Write
-      - NotebookEdit
-
     transitions:
       - to: complete
         when: "task_tree_complete(variables.session_task)"
-      - to: wait_for_workers
-        when: "variables.get('_suggest_error') or not variables.get('current_task_id')"
       - to: spawn_worker
         when: "variables.get('current_task_id')"
-
-  - name: wait_for_workers
-    description: "No ready tasks - block until an in-progress task completes"
-    on_enter:
-      # Increment wait cycle counter
-      - action: set_variable
-        name: inactive_wait_count
-        value: "{{ (variables.get('inactive_wait_count', 0) | int) + 1 }}"
-      - action: inject_message
-        content: |
-          ORCHESTRATOR: No ready tasks found (wait cycle {{ variables.inactive_wait_count }}/{{ variables.max_inactive_waits }}).
-          {% if variables._suggest_error %}
-          suggest_next_task error: {{ variables._suggest_error }}
-          {% endif %}
-          All tasks are either in progress or blocked. Waiting for workers to complete.
-
-          Call wait_for_task to block until a task completes:
-
-          mcp__gobby__call_tool(
-            server_name="gobby-tasks",
-            tool_name="wait_for_task",
-            arguments={
-              "task_id": "{{ variables.session_task }}",
-              "timeout": {{ variables.worker_timeout }}
-            }
-          )
-
-          Do NOT use poll_messages. Do NOT stop. Call wait_for_task NOW.
-
-    allowed_tools:
-      - mcp__gobby__call_tool
-      - mcp__gobby__get_tool_schema
-      - mcp__gobby__list_tools
-      - mcp__gobby__list_mcp_servers
-      - mcp__gobby__search_tools
-
-    blocked_tools:
-      - Edit
-      - Write
-      - NotebookEdit
-      - Bash
-      - Read
-      - Glob
-      - Grep
-
-    transitions:
-      - to: complete
-        when: "task_tree_complete(variables.session_task)"
-      # Task reached closed/needs_review — go find next work
-      - to: find_work
-        when: "mcp_result_has('gobby-tasks', 'wait_for_task', 'completed', true)"
-      # Timed out but under max retries — loop back and wait again
-      - to: wait_for_workers
-        when: "mcp_result_has('gobby-tasks', 'wait_for_task', 'timed_out', true) and variables.get('inactive_wait_count', 0) < variables.get('max_inactive_waits', 3)"
-      # Timed out and max retries exceeded — fail out
-      - to: complete
-        when: "mcp_result_has('gobby-tasks', 'wait_for_task', 'timed_out', true)"
+      # No ready tasks and tree not complete — wait for in-progress tasks
+      - to: wait_for_worker
+        when: "not variables.get('current_task_id')"
 
   - name: spawn_worker
     description: "Spawn worker in isolated environment"
@@ -235,12 +173,6 @@ steps:
       - mcp__gobby__search_tools
       - Read
 
-    blocked_tools:
-      - Edit
-      - Write
-      - NotebookEdit
-      - Bash
-
     transitions:
       - to: wait_for_worker
         when: "variables.get('current_worker_id')"
@@ -248,7 +180,7 @@ steps:
         when: "not variables.get('current_worker_id')"
 
   - name: wait_for_worker
-    description: "Wait for task completion"
+    description: "Wait for task completion or timeout"
     on_enter:
       - action: inject_message
         content: |
@@ -257,6 +189,7 @@ steps:
           Task: {{ variables.current_task_id }}
           Worker: {{ variables.current_worker_id }}
           Timeout: {{ variables.worker_timeout }} seconds
+          Wait attempt: {{ variables.wait_retry_count + 1 }} / {{ variables.max_wait_retries }}
 
           Wait for the task to be closed:
 
@@ -272,64 +205,33 @@ steps:
           The wait returns:
           - completed: true if task reached closed/review status
           - timed_out: true if timeout reached
-          - wait_time: how long we waited
 
     allowed_tools:
       - mcp__gobby__call_tool
-      - mcp__gobby__list_tools
       - mcp__gobby__get_tool_schema
+      - mcp__gobby__list_tools
       - mcp__gobby__list_mcp_servers
       - mcp__gobby__search_tools
-      - Read
-
-    blocked_tools:
-      - Edit
-      - Write
-      - NotebookEdit
-      - Bash
 
     transitions:
-      - to: handle_timeout
-        when: "mcp_result_has('gobby-tasks', 'wait_for_task', 'timed_out', true)"
+      - to: complete
+        when: "task_tree_complete(variables.session_task)"
+      # Task completed — proceed to code review
       - to: code_review
-        when: "mcp_called('gobby-tasks', 'wait_for_task')"
+        when: "mcp_result_has('gobby-tasks', 'wait_for_task', 'completed', true)"
+      # Timed out but under max retries — increment counter and self-loop
+      - to: wait_for_worker
+        when: "mcp_result_has('gobby-tasks', 'wait_for_task', 'timed_out', true) and variables.get('wait_retry_count', 0) < variables.get('max_wait_retries', 3)"
+      # Timed out and max retries exceeded — skip to cleanup
+      - to: cleanup
+        when: "mcp_result_has('gobby-tasks', 'wait_for_task', 'timed_out', true)"
 
-  - name: handle_timeout
-    description: "Handle worker timeout"
-    on_enter:
-      - action: inject_message
-        content: |
-          ORCHESTRATOR: Worker timed out.
-
-          The worker did not complete within the timeout period.
-
-          Poll for any messages from the child:
-
-          mcp__gobby__call_tool(
-            server_name="gobby-agents",
-            tool_name="poll_messages",
-            arguments={"session_id": "<your_session_id>"}
-          )
-
-          Check task status and decide whether to retry or escalate.
-
-    allowed_tools:
-      - mcp__gobby__call_tool
-      - mcp__gobby__list_tools
-      - mcp__gobby__get_tool_schema
-      - mcp__gobby__list_mcp_servers
-      - mcp__gobby__search_tools
-      - Read
-
-    blocked_tools:
-      - Edit
-      - Write
-      - NotebookEdit
-      - Bash
-
-    transitions:
-      - to: find_work
-        when: "mcp_called('gobby-agents', 'poll_messages')"
+    on_transition:
+      # Increment retry counter on self-loop timeout
+      - to: wait_for_worker
+        action: set_variable
+        name: wait_retry_count
+        value: "{{ (variables.get('wait_retry_count', 0) | int) + 1 }}"
 
   - name: code_review
     description: "Review worker's code changes"
@@ -367,31 +269,19 @@ steps:
       - mcp__gobby__call_tool
       - mcp__gobby__list_tools
       - mcp__gobby__get_tool_schema
-
-    blocked_tools:
-      - Edit
-      - Write
-      - NotebookEdit
-      - spawn_agent
+      - mcp__gobby__list_mcp_servers
+      - mcp__gobby__search_tools
 
     transitions:
-      # Approved — route to appropriate merge step by isolation mode
-      - to: merge_clone
-        when: "variables.get('review_approved', False) and variables.get('isolation_mode') == 'clone'"
-      - to: merge_worktree
-        when: "variables.get('review_approved', False) and variables.get('isolation_mode') == 'worktree'"
-      - to: push_changes
-        when: "variables.get('review_approved', False) and variables.get('isolation_mode') == 'current'"
-      # Deficiencies — can retry
+      # Approved — proceed to unified merge
+      - to: merge
+        when: "variables.get('review_approved', False)"
+      # Deficiencies found but retries remain — respawn for fixes
       - to: respawn_for_fixes
         when: "len(variables.get('review_deficiencies', [])) > 0 and variables.get('review_attempt', 0) < variables.get('max_review_attempts', 3)"
-      # Max retries exceeded — cleanup per isolation mode
-      - to: cleanup_clone
-        when: "len(variables.get('review_deficiencies', [])) > 0 and variables.get('review_attempt', 0) >= variables.get('max_review_attempts', 3) and variables.get('isolation_mode') == 'clone'"
-      - to: cleanup_worktree
-        when: "len(variables.get('review_deficiencies', [])) > 0 and variables.get('review_attempt', 0) >= variables.get('max_review_attempts', 3) and variables.get('isolation_mode') == 'worktree'"
-      - to: reset_state
-        when: "len(variables.get('review_deficiencies', [])) > 0 and variables.get('review_attempt', 0) >= variables.get('max_review_attempts', 3) and variables.get('isolation_mode') == 'current'"
+      # Deficiencies found and max retries exceeded — skip merge, cleanup
+      - to: cleanup
+        when: "len(variables.get('review_deficiencies', [])) > 0 and variables.get('review_attempt', 0) >= variables.get('max_review_attempts', 3)"
 
   - name: respawn_for_fixes
     description: "Respawn worker to fix deficiencies"
@@ -440,13 +330,9 @@ steps:
       - mcp__gobby__call_tool
       - mcp__gobby__list_tools
       - mcp__gobby__get_tool_schema
+      - mcp__gobby__list_mcp_servers
+      - mcp__gobby__search_tools
       - Read
-
-    blocked_tools:
-      - Edit
-      - Write
-      - NotebookEdit
-      - Bash
 
     transitions:
       - to: wait_for_worker
@@ -454,110 +340,78 @@ steps:
       - to: find_work
         when: "not variables.get('_respawn_result')"
 
-  - name: merge_clone
-    description: "Merge approved clone branch into target"
+  - name: merge
+    description: "Merge approved branch into target (unified across isolation modes)"
     on_enter:
       - action: set_variable
         name: _merge_result
         value: null
+
+      # Clone mode: merge via gobby-clones MCP tool
       - action: call_mcp_tool
+        when: "variables.get('isolation_mode') == 'clone'"
         server_name: gobby-clones
         tool_name: merge_clone_to_target
         arguments:
           clone_id: "{{ variables.current_clone_id }}"
           target_branch: "{{ variables.merge_target_branch }}"
         output_as: _merge_result
+
+      # Worktree mode: instruct LLM to do git squash-merge
       - action: inject_message
+        when: "variables.get('isolation_mode') == 'worktree'"
         content: |
-          ORCHESTRATOR: Merge result for clone {{ variables.current_clone_id }}.
-
-          Check _merge_result for conflicts. If successful, proceed to cleanup.
-
-    allowed_tools:
-      - Bash
-      - mcp__gobby__call_tool
-      - mcp__gobby__list_tools
-      - mcp__gobby__get_tool_schema
-      - Read
-
-    blocked_tools:
-      - Edit
-      - Write
-      - NotebookEdit
-
-    transitions:
-      - to: cleanup_clone
-        when: "true"
-
-  - name: merge_worktree
-    description: "Merge approved worktree branch into dev"
-    on_enter:
-      - action: inject_message
-        content: |
-          ORCHESTRATOR: Merging approved changes.
+          ORCHESTRATOR: Merge worktree branch.
 
           Branch: {{ variables.current_branch }}
+          Target: {{ variables.merge_target_branch }}
           Worktree: {{ variables.current_worktree_id }}
 
-          Merge the branch into dev:
+          Execute the squash merge:
 
-          1. Switch to main repo: cd /path/to/repo
-          2. Squash merge: git merge --squash {{ variables.current_branch }}
-          3. Commit: git commit -m "[{{ project.name }}-{{ variables.current_task_id }}] Merge from worktree"
-          4. Or use worktree merge tool if available
+          git checkout {{ variables.merge_target_branch }}
+          git merge --squash {{ variables.current_branch }}
+          git commit -m "[{{ project.name }}-{{ variables.current_task_id }}] Merge from worktree"
+          git push
 
-    allowed_tools:
-      - Bash
-      - mcp__gobby__call_tool
-      - mcp__gobby__list_tools
-      - mcp__gobby__get_tool_schema
-      - Read
+          After successful merge and push, transition to cleanup.
 
-    blocked_tools:
-      - Edit
-      - Write
-      - NotebookEdit
-
-    transitions:
-      - to: push_changes
-        when: "true"
-
-  - name: push_changes
-    description: "Push merged changes to remote"
-    on_enter:
+      # Current mode: just push (changes are already in working tree)
       - action: inject_message
+        when: "variables.get('isolation_mode') == 'current'"
         content: |
-          ORCHESTRATOR: Pushing merged changes.
+          ORCHESTRATOR: Push changes.
 
-          Push the merged changes to the remote:
+          Changes are already in the current working tree.
 
           git push
 
-          If push fails due to upstream changes, pull and retry:
+          If push fails due to upstream changes:
           git pull --rebase && git push
+
+          After successful push, transition to cleanup.
 
     allowed_tools:
       - Bash
+      - Read
       - mcp__gobby__call_tool
       - mcp__gobby__list_tools
       - mcp__gobby__get_tool_schema
-      - Read
-
-    blocked_tools:
-      - Edit
-      - Write
-      - NotebookEdit
+      - mcp__gobby__list_mcp_servers
+      - mcp__gobby__search_tools
 
     transitions:
-      # Route to correct cleanup by isolation mode
-      - to: cleanup_worktree
-        when: "variables.get('isolation_mode') == 'worktree'"
-      - to: reset_state
-        when: "variables.get('isolation_mode') == 'current'"
+      # Clone mode: auto-transition after call_mcp_tool completes
+      - to: cleanup
+        when: "variables.get('isolation_mode') == 'clone'"
+      # Worktree/current mode: LLM drives merge, transition when done
+      - to: cleanup
+        when: "variables.get('isolation_mode') in ('worktree', 'current')"
 
-  - name: cleanup_clone
-    description: "Delete clone and reset state"
+  - name: cleanup
+    description: "Clean up isolation environment and reset state (unified across modes)"
     on_enter:
+      # Reset review state
       - action: set_variable
         name: review_attempt
         value: 0
@@ -571,66 +425,37 @@ steps:
       - action: set_variable
         name: _cleanup_result
         value: null
-      # Auto-execute delete_clone
+
+      # Clone mode: delete the clone
       - action: call_mcp_tool
+        when: "variables.get('isolation_mode') == 'clone'"
         server_name: gobby-clones
         tool_name: delete_clone
         arguments:
           clone_id: "{{ variables.current_clone_id }}"
         output_as: _cleanup_result
+
+      # Worktree mode: delete the worktree
+      - action: call_mcp_tool
+        when: "variables.get('isolation_mode') == 'worktree'"
+        server_name: gobby-worktrees
+        tool_name: delete_worktree
+        arguments:
+          worktree_id: "{{ variables.current_worktree_id }}"
+        output_as: _cleanup_result
+
+      # Current mode: no cleanup needed
+      - action: set_variable
+        when: "variables.get('isolation_mode') == 'current'"
+        name: _cleanup_result
+        value: "noop"
+
       # Clear worker variables
       - action: set_variable
         name: current_worker_id
         value: null
       - action: set_variable
         name: current_clone_id
-        value: null
-      - action: set_variable
-        name: current_branch
-        value: null
-
-    allowed_tools:
-      - Bash
-      - mcp__gobby__call_tool
-      - mcp__gobby__list_tools
-      - mcp__gobby__get_tool_schema
-      - Read
-
-    blocked_tools:
-      - Edit
-      - Write
-      - NotebookEdit
-
-    transitions:
-      - to: find_work
-        when: "true"
-
-  - name: cleanup_worktree
-    description: "Delete worktree and reset state"
-    on_enter:
-      - action: set_variable
-        name: review_attempt
-        value: 0
-      - action: set_variable
-        name: review_approved
-        value: false
-      - action: set_variable
-        name: review_deficiencies
-        value: []
-      # Clear stale result
-      - action: set_variable
-        name: _cleanup_result
-        value: null
-      # Auto-execute delete_worktree
-      - action: call_mcp_tool
-        server_name: gobby-worktrees
-        tool_name: delete_worktree
-        arguments:
-          worktree_id: "{{ variables.current_worktree_id }}"
-        output_as: _cleanup_result
-      # Clear worker variables
-      - action: set_variable
-        name: current_worker_id
         value: null
       - action: set_variable
         name: current_worktree_id
@@ -641,39 +466,12 @@ steps:
 
     allowed_tools:
       - Bash
+      - Read
       - mcp__gobby__call_tool
       - mcp__gobby__list_tools
       - mcp__gobby__get_tool_schema
-      - Read
-
-    blocked_tools:
-      - Edit
-      - Write
-      - NotebookEdit
-
-    transitions:
-      - to: find_work
-        when: "true"
-
-  - name: reset_state
-    description: "Reset worker state (no isolation cleanup needed)"
-    on_enter:
-      - action: set_variable
-        name: review_attempt
-        value: 0
-      - action: set_variable
-        name: review_approved
-        value: false
-      - action: set_variable
-        name: review_deficiencies
-        value: []
-      # Clear worker variables
-      - action: set_variable
-        name: current_worker_id
-        value: null
-      - action: set_variable
-        name: current_branch
-        value: null
+      - mcp__gobby__list_mcp_servers
+      - mcp__gobby__search_tools
 
     transitions:
       - to: find_work
