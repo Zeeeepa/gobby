@@ -131,7 +131,12 @@ def create_hooks_router(server: "HTTPServer") -> APIRouter:
             elif source == "gemini":
                 adapter = GeminiAdapter(hook_manager=hook_manager)
             elif source == "codex":
-                adapter = CodexNotifyAdapter(hook_manager=hook_manager)
+                # Use bidirectional adapter when app-server is connected
+                codex_adapter = getattr(request.app.state, "codex_adapter", None)
+                if codex_adapter is not None:
+                    adapter = codex_adapter
+                else:
+                    adapter = CodexNotifyAdapter(hook_manager=hook_manager)
             else:
                 raise HTTPException(
                     status_code=400,
