@@ -5,7 +5,7 @@ import pytest
 
 from gobby.hooks.events import HookEvent, HookEventType, SessionSource
 from gobby.workflows.definitions import WorkflowDefinition, WorkflowState, WorkflowStep
-from gobby.workflows.engine import WorkflowEngine
+from gobby.workflows.engine import TransitionResult, WorkflowEngine
 from gobby.workflows.loader import WorkflowLoader
 from gobby.workflows.state_manager import WorkflowStateManager
 
@@ -1017,11 +1017,12 @@ class TestDetectTaskClaim:
         # Mock the execute to return inject_message
         mock_action_executor.execute.return_value = {"inject_message": "Hello"}
 
-        messages = await workflow_engine.transition_to(state, "step2", workflow)
+        result = await workflow_engine.transition_to(state, "step2", workflow)
 
         assert state.step == "step2"
         assert state.context_injected is True
-        assert messages == ["Hello"]
+        assert result.injected_messages == ["Hello"]
+        assert result.system_messages == []  # No status_message on mock step
         # save_state should have been called multiple times (once for state update, once for context_injected)
         assert mock_state_manager.save_state.call_count >= 2
 
@@ -1054,11 +1055,12 @@ class TestDetectTaskClaim:
         # Mock execute returns a result without inject_message
         mock_action_executor.execute.return_value = {"variable_set": "x", "value": 1}
 
-        messages = await workflow_engine.transition_to(state, "step2", workflow)
+        result = await workflow_engine.transition_to(state, "step2", workflow)
 
         assert state.step == "step2"
         assert state.context_injected is False  # No messages, so stays False
-        assert messages == []
+        assert result.injected_messages == []
+        assert result.system_messages == []
 
     async def test_auto_transition_chain_follows_transitions(
         self, workflow_engine, mock_state_manager, mock_loader, mock_action_executor
@@ -1101,18 +1103,18 @@ class TestDetectTaskClaim:
             metadata={"_platform_session_id": "sess1"},
         )
 
-        messages = await workflow_engine._auto_transition_chain(
+        result = await workflow_engine._auto_transition_chain(
             state,
             workflow,
             {},
             {},
             event,
-            ["Initial message"],
+            TransitionResult(injected_messages=["Initial message"]),
         )
 
         assert state.step == "step_b"
-        assert "Initial message" in messages
-        assert "In step B" in messages
+        assert "Initial message" in result.injected_messages
+        assert "In step B" in result.injected_messages
 
     async def test_auto_transition_chain_respects_max_depth(
         self, workflow_engine, mock_state_manager, mock_loader, mock_action_executor
@@ -1155,7 +1157,7 @@ class TestDetectTaskClaim:
             {},
             {},
             event,
-            [],
+            TransitionResult(),
             max_depth=3,
         )
 
@@ -1193,18 +1195,18 @@ class TestDetectTaskClaim:
             metadata={"_platform_session_id": "sess1"},
         )
 
-        messages = await workflow_engine._auto_transition_chain(
+        result = await workflow_engine._auto_transition_chain(
             state,
             workflow,
             {},
             {},
             event,
-            ["initial"],
+            TransitionResult(injected_messages=["initial"]),
         )
 
         # No transition matched, state unchanged
         assert state.step == "wait_step"
-        assert messages == ["initial"]
+        assert result.injected_messages == ["initial"]
 
     async def test_error_status_does_not_set_task_claimed(
         self, workflow_engine, mock_state_manager, mock_loader
@@ -1289,12 +1291,12 @@ class TestConditionalActions:
 
         mock_action_executor.execute.return_value = {"inject_message": "Always runs"}
 
-        messages = await workflow_engine.transition_to(state, "step2", workflow)
+        result = await workflow_engine.transition_to(state, "step2", workflow)
 
         assert state.step == "step2"
         # Only the unconditional action should have executed
         assert mock_action_executor.execute.call_count == 1
-        assert messages == ["Always runs"]
+        assert result.injected_messages == ["Always runs"]
 
     async def test_action_runs_when_condition_true(
         self, workflow_engine, mock_state_manager, mock_loader, mock_action_executor
@@ -1330,12 +1332,12 @@ class TestConditionalActions:
             {"inject_message": "Conditional"},
         ]
 
-        messages = await workflow_engine.transition_to(state, "step2", workflow)
+        result = await workflow_engine.transition_to(state, "step2", workflow)
 
         assert state.step == "step2"
         # Both actions should have executed
         assert mock_action_executor.execute.call_count == 2
-        assert messages == ["Conditional"]
+        assert result.injected_messages == ["Conditional"]
 
     async def test_action_without_when_always_runs(
         self, workflow_engine, mock_state_manager, mock_loader, mock_action_executor
@@ -1371,7 +1373,245 @@ class TestConditionalActions:
             {"inject_message": "Hello"},
         ]
 
-        messages = await workflow_engine.transition_to(state, "step2", workflow)
+        result = await workflow_engine.transition_to(state, "step2", workflow)
 
         assert mock_action_executor.execute.call_count == 2
-        assert messages == ["Hello"]
+        assert result.injected_messages == ["Hello"]
+
+
+@pytest.mark.asyncio
+class TestStatusMessage:
+    """Tests for status_message rendering on workflow step transitions."""
+
+    async def test_status_message_rendered_on_transition(
+        self, workflow_engine, mock_state_manager, mock_action_executor
+    ) -> None:
+        """status_message is rendered and returned in TransitionResult.system_messages."""
+        state = WorkflowState(
+            session_id="sess1",
+            workflow_name="default",
+            step="step1",
+            step_entered_at=datetime.now(UTC),
+            variables={"task_id": "#42"},
+        )
+
+        step1 = MagicMock(spec=WorkflowStep)
+        step1.on_exit = []
+
+        step2 = MagicMock(spec=WorkflowStep)
+        step2.on_enter = []
+        step2.status_message = "Working on task {{ variables.task_id }}"
+
+        workflow = MagicMock(spec=WorkflowDefinition)
+        workflow.type = "step"
+
+        def get_step(name: str) -> WorkflowStep | None:
+            return {"step1": step1, "step2": step2}.get(name)
+
+        workflow.get_step.side_effect = get_step
+
+        # Template engine renders the template
+        mock_action_executor.template_engine.render.return_value = "Working on task #42"
+
+        result = await workflow_engine.transition_to(state, "step2", workflow)
+
+        assert result.system_messages == ["Working on task #42"]
+        mock_action_executor.template_engine.render.assert_called_once_with(
+            "Working on task {{ variables.task_id }}",
+            {"variables": state.variables, "state": state, "session_id": "sess1"},
+        )
+
+    async def test_no_status_message_when_not_defined(
+        self, workflow_engine, mock_state_manager, mock_action_executor
+    ) -> None:
+        """Steps without status_message produce empty system_messages."""
+        state = WorkflowState(
+            session_id="sess1",
+            workflow_name="default",
+            step="step1",
+            step_entered_at=datetime.now(UTC),
+            variables={},
+        )
+
+        step1 = MagicMock(spec=WorkflowStep)
+        step1.on_exit = []
+
+        step2 = MagicMock(spec=WorkflowStep)
+        step2.on_enter = []
+        step2.status_message = None
+
+        workflow = MagicMock(spec=WorkflowDefinition)
+        workflow.type = "step"
+
+        def get_step(name: str) -> WorkflowStep | None:
+            return {"step1": step1, "step2": step2}.get(name)
+
+        workflow.get_step.side_effect = get_step
+
+        result = await workflow_engine.transition_to(state, "step2", workflow)
+
+        assert result.system_messages == []
+
+    async def test_status_message_survives_render_error(
+        self, workflow_engine, mock_state_manager, mock_action_executor
+    ) -> None:
+        """Template render failure logs warning and returns empty system_messages."""
+        state = WorkflowState(
+            session_id="sess1",
+            workflow_name="default",
+            step="step1",
+            step_entered_at=datetime.now(UTC),
+            variables={},
+        )
+
+        step1 = MagicMock(spec=WorkflowStep)
+        step1.on_exit = []
+
+        step2 = MagicMock(spec=WorkflowStep)
+        step2.on_enter = []
+        step2.status_message = "{{ bad_template }}"
+        step2.name = "step2"
+
+        workflow = MagicMock(spec=WorkflowDefinition)
+        workflow.type = "step"
+
+        def get_step(name: str) -> WorkflowStep | None:
+            return {"step1": step1, "step2": step2}.get(name)
+
+        workflow.get_step.side_effect = get_step
+
+        mock_action_executor.template_engine.render.side_effect = Exception("Template error")
+
+        result = await workflow_engine.transition_to(state, "step2", workflow)
+
+        # Transition still succeeds, just no system_message
+        assert state.step == "step2"
+        assert result.system_messages == []
+
+    async def test_auto_chain_accumulates_system_messages(
+        self, workflow_engine, mock_state_manager, mock_action_executor
+    ) -> None:
+        """Auto-transition chain accumulates system_messages from multiple steps."""
+        state = WorkflowState(
+            session_id="sess1",
+            workflow_name="default",
+            step="step_a",
+            step_entered_at=datetime.now(UTC),
+            variables={"ready": True},
+        )
+
+        step_a = MagicMock(spec=WorkflowStep)
+        step_a.on_enter = []
+        step_a.on_exit = []
+        step_a.status_message = None
+        step_a.transitions = [MagicMock(when="ready", to="step_b", on_transition=None)]
+
+        step_b = MagicMock(spec=WorkflowStep)
+        step_b.on_enter = []
+        step_b.on_exit = []
+        step_b.status_message = "Entered step B"
+        step_b.transitions = [MagicMock(when="ready", to="step_c", on_transition=None)]
+
+        step_c = MagicMock(spec=WorkflowStep)
+        step_c.on_enter = []
+        step_c.on_exit = []
+        step_c.status_message = "Entered step C"
+        step_c.transitions = []  # Terminal step
+
+        workflow = MagicMock(spec=WorkflowDefinition)
+        workflow.type = "step"
+        workflow.name = "test"
+
+        def get_step(name: str) -> WorkflowStep | None:
+            return {"step_a": step_a, "step_b": step_b, "step_c": step_c}.get(name)
+
+        workflow.get_step.side_effect = get_step
+
+        mock_action_executor.execute.return_value = None
+        mock_action_executor.template_engine.render.side_effect = lambda tmpl, ctx: tmpl
+
+        event = HookEvent(
+            event_type=HookEventType.BEFORE_TOOL,
+            session_id="sess1",
+            source=SessionSource.CLAUDE,
+            timestamp=datetime.now(UTC),
+            data={},
+            metadata={"_platform_session_id": "sess1"},
+        )
+
+        result = await workflow_engine._auto_transition_chain(
+            state,
+            workflow,
+            {},
+            {},
+            event,
+            TransitionResult(system_messages=["Entered step A"]),
+        )
+
+        assert state.step == "step_c"
+        assert result.system_messages == ["Entered step A", "Entered step B", "Entered step C"]
+
+    async def test_handle_event_sets_system_message_on_transition(
+        self, workflow_engine, mock_state_manager, mock_loader, mock_action_executor
+    ) -> None:
+        """handle_event returns HookResponse with system_message from status_message."""
+        state = WorkflowState(
+            session_id="sess1",
+            workflow_name="default",
+            step="step1",
+            step_entered_at=datetime.now(UTC),
+            step_action_count=1,
+            total_action_count=1,
+            variables={"go": True},
+        )
+        mock_state_manager.get_state.return_value = state
+
+        step1 = MagicMock(spec=WorkflowStep)
+        step1.on_enter = []
+        step1.on_exit = []
+        step1.blocked_tools = []
+        step1.allowed_tools = "all"
+        step1.allowed_mcp_tools = "all"
+        step1.blocked_mcp_tools = []
+        step1.rules = []
+        step1.exit_conditions = []
+        step1.status_message = None
+        step1.transitions = [MagicMock(when="go", to="step2", on_transition=None)]
+
+        step1.on_mcp_success = []
+        step1.on_mcp_error = []
+
+        step2 = MagicMock(spec=WorkflowStep)
+        step2.on_enter = [{"action": "inject_message", "content": "In step 2"}]
+        step2.on_exit = []
+        step2.status_message = "Now in step 2"
+        step2.transitions = []
+
+        workflow = MagicMock(spec=WorkflowDefinition)
+        workflow.type = "step"
+        workflow.name = "default"
+
+        def get_step(name: str) -> WorkflowStep | None:
+            return {"step1": step1, "step2": step2}.get(name)
+
+        workflow.get_step.side_effect = get_step
+        mock_loader.load_workflow.return_value = workflow
+
+        mock_action_executor.execute.return_value = {"inject_message": "In step 2"}
+        mock_action_executor.template_engine.render.return_value = "Now in step 2"
+        mock_action_executor.session_manager = MagicMock()
+
+        event = HookEvent(
+            event_type=HookEventType.AFTER_TOOL,
+            session_id="sess1",
+            source=SessionSource.CLAUDE,
+            timestamp=datetime.now(UTC),
+            data={"tool_name": "Read", "tool_input": {}, "tool_output": {}},
+            metadata={"_platform_session_id": "sess1"},
+        )
+
+        response = await workflow_engine.handle_event(event)
+
+        assert response.decision == "modify"
+        assert response.system_message == "Now in step 2"
+        assert "In step 2" in response.context

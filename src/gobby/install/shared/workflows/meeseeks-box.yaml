@@ -56,6 +56,7 @@ variables:
 steps:
   - name: find_work
     description: "Find next ready task using suggest_next_task() with leaf task fallback"
+    status_message: "Finding next ready task for {{ variables.session_task }}..."
     on_enter:
       # Reset wait retry counter on re-entry
       - action: set_variable
@@ -129,6 +130,10 @@ steps:
 
   - name: spawn_worker
     description: "Spawn worker in isolated environment"
+    status_message: >-
+      Spawning {{ variables.agent_name }} worker
+      for task {{ variables.current_task_id }}
+      ({{ variables.isolation_mode }} isolation)
     on_enter:
       # Clear stale result
       - action: set_variable
@@ -181,6 +186,10 @@ steps:
 
   - name: wait_for_worker
     description: "Wait for task completion or timeout"
+    status_message: >-
+      Waiting for task {{ variables.current_task_id }}
+      (worker: {{ variables.current_worker_id }},
+      timeout: {{ variables.worker_timeout }}s)
     on_enter:
       - action: inject_message
         content: |
@@ -232,6 +241,7 @@ steps:
 
   - name: code_review
     description: "Review worker's code changes"
+    status_message: "Reviewing changes on branch {{ variables.current_branch }} for task {{ variables.current_task_id }}"
     on_enter:
       - action: inject_message
         content: |
@@ -282,6 +292,7 @@ steps:
 
   - name: respawn_for_fixes
     description: "Respawn worker to fix deficiencies"
+    status_message: "Respawning worker for task {{ variables.current_task_id }} (attempt {{ variables.review_attempt + 1 }}/{{ variables.max_review_attempts }})"
     on_enter:
       - action: set_variable
         name: review_attempt
@@ -339,6 +350,7 @@ steps:
 
   - name: merge
     description: "Merge approved branch into target (unified across isolation modes)"
+    status_message: "Merging branch {{ variables.current_branch }} into {{ variables.merge_target_branch }}"
     on_enter:
       - action: set_variable
         name: _merge_result
@@ -406,6 +418,7 @@ steps:
 
   - name: cleanup
     description: "Clean up isolation environment and reset state (unified across modes)"
+    status_message: "Cleaning up {{ variables.isolation_mode }} environment"
     on_enter:
       # Reset review state
       - action: set_variable
@@ -475,6 +488,7 @@ steps:
 
   - name: complete
     description: "All tasks done"
+    status_message: "All tasks complete for {{ variables.session_task }}"
     on_enter:
       - action: inject_message
         content: |

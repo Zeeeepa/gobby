@@ -1,4 +1,5 @@
 import logging
+from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
@@ -84,6 +85,23 @@ EXEMPT_TOOLS = frozenset(
 )
 
 
+@dataclass
+class TransitionResult:
+    """Result of a workflow step transition.
+
+    Carries both LLM-facing context (injected_messages) and user-visible
+    output (system_messages) through transition chains.
+    """
+
+    injected_messages: list[str] = field(default_factory=list)
+    system_messages: list[str] = field(default_factory=list)
+
+    def extend(self, other: "TransitionResult") -> None:
+        """Accumulate messages from another transition result."""
+        self.injected_messages.extend(other.injected_messages)
+        self.system_messages.extend(other.system_messages)
+
+
 class WorkflowEngine:
     """
     Core engine for executing step-based workflows.
@@ -161,11 +179,12 @@ class WorkflowEngine:
                         and isinstance(workflow, WorkflowDefinition)
                         and workflow.get_step("reflect")
                     ):
-                        injected = await self.transition_to(state, "reflect", workflow)
+                        result = await self.transition_to(state, "reflect", workflow)
                         context = "[System Alert] Step duration limit exceeded. Transitioning to 'reflect' step."
-                        if injected:
-                            context = context + "\n\n" + "\n\n".join(injected)
-                        return HookResponse(decision="modify", context=context)
+                        if result.injected_messages:
+                            context = context + "\n\n" + "\n\n".join(result.injected_messages)
+                        system_message = "\n".join(result.system_messages) if result.system_messages else None
+                        return HookResponse(decision="modify", context=context, system_message=system_message)
 
         # 3. Load definition
         # Skip if this is a lifecycle-only state or ended workflow (used for task_claimed tracking)
@@ -208,7 +227,9 @@ class WorkflowEngine:
 
         # Inject on_enter context for initial step when not yet injected
         # This handles the case where activate_workflow creates state but doesn't execute on_enter
-        if not state.context_injected and current_step.on_enter:
+        if not state.context_injected and (
+            current_step.on_enter or getattr(current_step, "status_message", None)
+        ):
             logger.info(
                 f"Injecting initial on_enter context for step '{state.step}' "
                 f"in session {session_id}"
@@ -217,21 +238,32 @@ class WorkflowEngine:
             state.context_injected = True
             self.state_manager.save_state(state)
 
+            # Render initial step's status_message (after on_enter so variables are populated)
+            initial_system: list[str] = []
+            status_msg = self._render_status_message(current_step, state)
+            if status_msg:
+                initial_system.append(status_msg)
+
             # Auto-transition chain: if on_enter set variables that satisfy transitions,
             # follow them immediately without waiting for the next hook event.
             # This chains deterministic steps (e.g., find_work → spawn_worker → wait_for_worker).
-            injected_messages = await self._auto_transition_chain(
+            initial_result = TransitionResult(
+                injected_messages=injected_messages,
+                system_messages=initial_system,
+            )
+            result = await self._auto_transition_chain(
                 state,
                 workflow,
                 session_info,
                 project_info,
                 event,
-                injected_messages,
+                initial_result,
             )
 
-            if injected_messages:
-                context = "\n\n".join(injected_messages)
-                return HookResponse(decision="modify", context=context)
+            if result.injected_messages or result.system_messages:
+                context = "\n\n".join(result.injected_messages) if result.injected_messages else None
+                system_message = "\n".join(result.system_messages) if result.system_messages else None
+                return HookResponse(decision="modify", context=context, system_message=system_message)
 
         # Handle approval flow on user prompt submit
         if event.event_type == HookEventType.BEFORE_AGENT:
@@ -370,18 +402,18 @@ class WorkflowEngine:
         for transition in current_step.transitions:
             if self.evaluator.evaluate(transition.when, eval_context):
                 # Transition!
-                injected_messages = await self.transition_to(
+                transition_result = await self.transition_to(
                     state, transition.to, workflow, transition=transition
                 )
 
                 # Auto-transition chain after the transition's on_enter
-                injected_messages = await self._auto_transition_chain(
+                result = await self._auto_transition_chain(
                     state,
                     workflow,
                     session_info,
                     project_info,
                     event,
-                    injected_messages,
+                    transition_result,
                 )
 
                 # Save state after transition
@@ -389,12 +421,13 @@ class WorkflowEngine:
                     self.state_manager.save_state(state)
 
                 # Build context with on_enter messages if any were injected
-                if injected_messages:
-                    context = "\n\n".join(injected_messages)
+                if result.injected_messages:
+                    context = "\n\n".join(result.injected_messages)
                 else:
                     context = f"Transitioning to step: {transition.to}"
 
-                return HookResponse(decision="modify", context=context)
+                system_message = "\n".join(result.system_messages) if result.system_messages else None
+                return HookResponse(decision="modify", context=context, system_message=system_message)
 
         # Check exit conditions
         logger.debug("Checking exit conditions")
@@ -415,7 +448,7 @@ class WorkflowEngine:
         new_step_name: str,
         workflow: WorkflowDefinition,
         transition: WorkflowTransition | None = None,
-    ) -> list[str]:
+    ) -> TransitionResult:
         """
         Execute transition logic.
 
@@ -426,14 +459,14 @@ class WorkflowEngine:
             transition: Optional transition object containing on_transition actions
 
         Returns:
-            List of injected messages from on_enter actions (to include in HookResponse)
+            TransitionResult with injected messages (LLM context) and system messages (user-visible)
         """
         old_step = workflow.get_step(state.step)
         new_step = workflow.get_step(new_step_name)
 
         if not new_step:
             logger.error(f"Cannot transition to unknown step '{new_step_name}'")
-            return []
+            return TransitionResult()
 
         logger.info(
             f"Transitioning session {state.session_id} from '{state.step}' to '{new_step_name}'"
@@ -465,7 +498,13 @@ class WorkflowEngine:
             state.context_injected = True
             self.state_manager.save_state(state)
 
-        return injected_messages
+        # Render status_message for user visibility (after on_enter so variables are populated)
+        system_messages: list[str] = []
+        status_msg = self._render_status_message(new_step, state)
+        if status_msg:
+            system_messages.append(status_msg)
+
+        return TransitionResult(injected_messages=injected_messages, system_messages=system_messages)
 
     async def _execute_actions(
         self, actions: list[dict[str, Any]], state: WorkflowState
@@ -526,6 +565,33 @@ class WorkflowEngine:
                     logger.info(f"Context injected: {msg[:50]}...")
 
         return injected_messages
+
+    def _render_status_message(self, step: Any, state: WorkflowState) -> str | None:
+        """Render a step's status_message template if defined.
+
+        Called after on_enter actions so that variables set during on_enter
+        are available for template rendering. Returns the rendered string
+        for inclusion as a user-visible system_message on HookResponse.
+        """
+        status_message = getattr(step, "status_message", None)
+        if not isinstance(status_message, str):
+            return None
+
+        template_engine = getattr(self.action_executor, "template_engine", None)
+        if not template_engine:
+            return None
+
+        template_context: dict[str, Any] = {
+            "variables": state.variables,
+            "state": state,
+            "session_id": state.session_id,
+        }
+        try:
+            rendered = template_engine.render(status_message, template_context)
+            return rendered if isinstance(rendered, str) else None
+        except Exception as e:
+            logger.warning(f"Failed to render status_message for step '{step.name}': {e}")
+            return None
 
     def _resolve_session_and_project(
         self, event: HookEvent
@@ -604,9 +670,9 @@ class WorkflowEngine:
         session_info: dict[str, Any],
         project_info: dict[str, Any],
         event: HookEvent,
-        injected_messages: list[str],
+        initial_result: TransitionResult,
         max_depth: int = 10,
-    ) -> list[str]:
+    ) -> TransitionResult:
         """Follow automatic transitions after on_enter actions.
 
         If on_enter actions set variables that satisfy a transition condition,
@@ -619,13 +685,16 @@ class WorkflowEngine:
             session_info: Session info for eval context
             project_info: Project info for eval context
             event: Original hook event
-            injected_messages: Messages accumulated so far
+            initial_result: Messages accumulated so far from the triggering transition
             max_depth: Safety limit to prevent infinite loops
 
         Returns:
-            Accumulated injected messages from all chained on_enter actions
+            Accumulated TransitionResult from all chained transitions
         """
-        all_messages = list(injected_messages)
+        result = TransitionResult(
+            injected_messages=list(initial_result.injected_messages),
+            system_messages=list(initial_result.system_messages),
+        )
 
         for _ in range(max_depth):
             # Rebuild eval context with updated variables after on_enter actions
@@ -643,10 +712,10 @@ class WorkflowEngine:
                         f"Auto-transition: {state.step} → {transition.to} "
                         f"(condition: {transition.when})"
                     )
-                    new_messages = await self.transition_to(
+                    transition_result = await self.transition_to(
                         state, transition.to, workflow, transition=transition
                     )
-                    all_messages.extend(new_messages)
+                    result.extend(transition_result)
                     transitioned = True
                     break  # Only follow first matching transition
 
@@ -659,7 +728,7 @@ class WorkflowEngine:
                 f"for workflow '{workflow.name}' at step '{state.step}'"
             )
 
-        return all_messages
+        return result
 
     def _handle_approval_response(
         self,
