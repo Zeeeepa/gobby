@@ -17,7 +17,7 @@ provider: claude
 isolation: clone
 # base_branch: auto-detected from caller's current branch
 # Default workflow when spawn_agent(meeseeks) called without workflow param
-default_workflow: meeseeks-box
+default_workflow: box
 timeout: 600.0
 max_turns: 200
 sandbox:
