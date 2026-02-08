@@ -46,7 +46,7 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
-class DotDict(dict):
+class DotDict(dict[str, Any]):
     """Dict subclass that supports both dot-notation and .get() access.
 
     SimpleNamespace supports dot-notation but not .get(), which breaks
