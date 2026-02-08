@@ -2420,3 +2420,364 @@ class TestCodexAdapterContextFormat:
 
         assert result["decision"] == "decline"
         assert "context" in result
+
+
+# =============================================================================
+# Phase 3: Workflow Enforcement Tests
+#
+# Tests for block_tools, task enforcement, and tool name normalization
+# working correctly with Codex events. The workflow enforcement engine
+# uses event_data["tool_name"] which must be normalized from Codex-native
+# names (commandExecution, fileChange) to CC-style names (Bash, Write).
+# =============================================================================
+
+
+class TestCodexToolNameNormalization:
+    """Tests for Codex tool name normalization via TOOL_MAP.
+
+    The adapter normalizes Codex tool names to Claude Code conventions
+    so block_tools rules work consistently across CLIs.
+    """
+
+    def test_command_execution_maps_to_bash(self) -> None:
+        """commandExecution normalizes to Bash."""
+        adapter = CodexAdapter()
+        assert adapter.normalize_tool_name("commandExecution") == "Bash"
+
+    def test_read_file_variants_map_to_read(self) -> None:
+        """read_file and ReadFile normalize to Read."""
+        adapter = CodexAdapter()
+        assert adapter.normalize_tool_name("read_file") == "Read"
+        assert adapter.normalize_tool_name("ReadFile") == "Read"
+
+    def test_write_file_variants_map_to_write(self) -> None:
+        """write_file and WriteFile normalize to Write."""
+        adapter = CodexAdapter()
+        assert adapter.normalize_tool_name("write_file") == "Write"
+        assert adapter.normalize_tool_name("WriteFile") == "Write"
+
+    def test_edit_file_variants_map_to_edit(self) -> None:
+        """edit_file and EditFile normalize to Edit."""
+        adapter = CodexAdapter()
+        assert adapter.normalize_tool_name("edit_file") == "Edit"
+        assert adapter.normalize_tool_name("EditFile") == "Edit"
+
+    def test_shell_variants_map_to_bash(self) -> None:
+        """Shell command variants normalize to Bash."""
+        adapter = CodexAdapter()
+        assert adapter.normalize_tool_name("run_shell_command") == "Bash"
+        assert adapter.normalize_tool_name("RunShellCommand") == "Bash"
+
+    def test_search_tools_normalize(self) -> None:
+        """Search tools normalize to Glob/Grep."""
+        adapter = CodexAdapter()
+        assert adapter.normalize_tool_name("glob") == "Glob"
+        assert adapter.normalize_tool_name("grep") == "Grep"
+        assert adapter.normalize_tool_name("GlobTool") == "Glob"
+        assert adapter.normalize_tool_name("GrepTool") == "Grep"
+
+    def test_unknown_tool_passes_through(self) -> None:
+        """Unknown tool names pass through unchanged."""
+        adapter = CodexAdapter()
+        assert adapter.normalize_tool_name("customTool") == "customTool"
+        assert adapter.normalize_tool_name("myPlugin") == "myPlugin"
+
+    def test_approval_event_uses_normalized_names(self) -> None:
+        """Approval events produce normalized tool names in HookEvent."""
+        adapter = CodexAdapter()
+
+        # commandExecution should produce "Bash"
+        event = adapter._translate_approval_event(
+            "item/commandExecution/requestApproval",
+            {"threadId": "thr-1", "itemId": "item-1", "parsedCmd": "ls"},
+        )
+        assert event is not None
+        assert event.data["tool_name"] == "Bash"
+
+        # fileChange should produce "Write"
+        event = adapter._translate_approval_event(
+            "item/fileChange/requestApproval",
+            {"threadId": "thr-1", "itemId": "item-2", "changes": []},
+        )
+        assert event is not None
+        assert event.data["tool_name"] == "Write"
+
+
+class TestCodexBlockToolsEnforcement:
+    """Tests for block_tools enforcement with Codex event data.
+
+    The block_tools function evaluates rules against event_data["tool_name"].
+    Since Codex normalizes tool names to CC-style, the same block_tools
+    rules that work for Claude should work for Codex.
+    """
+
+    @pytest.mark.asyncio
+    async def test_block_bash_tool_from_codex_event(self) -> None:
+        """block_tools blocks Bash tool from Codex approval event."""
+        from gobby.workflows.enforcement.blocking import block_tools
+
+        # Simulate event_data from a Codex BEFORE_TOOL hook
+        event_data = {
+            "tool_name": "Bash",  # Normalized from commandExecution
+            "tool_input": "rm -rf /tmp",
+            "item_id": "item-1",
+        }
+
+        rules = [
+            {
+                "tools": ["Bash"],
+                "reason": "Shell commands are blocked in this workflow step.",
+            }
+        ]
+
+        result = await block_tools(rules=rules, event_data=event_data)
+
+        assert result is not None
+        assert result["decision"] == "block"
+        assert "Shell commands are blocked" in result["reason"]
+
+    @pytest.mark.asyncio
+    async def test_block_write_tool_from_codex_event(self) -> None:
+        """block_tools blocks Write tool from Codex file change event."""
+        from gobby.workflows.enforcement.blocking import block_tools
+
+        event_data = {
+            "tool_name": "Write",  # Normalized from fileChange
+            "tool_input": [{"path": "/test.py", "content": "pass"}],
+        }
+
+        rules = [
+            {
+                "tools": ["Edit", "Write", "NotebookEdit"],
+                "reason": "Claim a task before editing files.",
+            }
+        ]
+
+        result = await block_tools(rules=rules, event_data=event_data)
+
+        assert result is not None
+        assert result["decision"] == "block"
+
+    @pytest.mark.asyncio
+    async def test_allow_non_blocked_tool(self) -> None:
+        """block_tools allows tools not in the block list."""
+        from gobby.workflows.enforcement.blocking import block_tools
+
+        event_data = {
+            "tool_name": "Read",
+            "tool_input": {"file_path": "/test.py"},
+        }
+
+        rules = [
+            {
+                "tools": ["Edit", "Write"],
+                "reason": "Only read operations allowed.",
+            }
+        ]
+
+        result = await block_tools(rules=rules, event_data=event_data)
+
+        assert result is None  # None means allowed
+
+    @pytest.mark.asyncio
+    async def test_block_tools_with_condition(self) -> None:
+        """block_tools evaluates conditions against workflow state."""
+        from gobby.workflows.definitions import WorkflowState
+        from gobby.workflows.enforcement.blocking import block_tools
+
+        state = WorkflowState(
+            session_id="sess-test",
+            workflow_name="test-workflow",
+            step="implement",
+            variables={"task_claimed": False},
+        )
+
+        event_data = {
+            "tool_name": "Edit",
+            "tool_input": {"file_path": "/src/main.py"},
+        }
+
+        rules = [
+            {
+                "tools": ["Edit", "Write"],
+                "when": "not task_claimed",
+                "reason": "Claim a task first.",
+            }
+        ]
+
+        result = await block_tools(
+            rules=rules, event_data=event_data, workflow_state=state
+        )
+
+        assert result is not None
+        assert result["decision"] == "block"
+
+    @pytest.mark.asyncio
+    async def test_block_tools_condition_not_met_allows(self) -> None:
+        """block_tools allows when condition is not met."""
+        from gobby.workflows.definitions import WorkflowState
+        from gobby.workflows.enforcement.blocking import block_tools
+
+        state = WorkflowState(
+            session_id="sess-test",
+            workflow_name="test-workflow",
+            step="implement",
+            variables={"task_claimed": True},
+        )
+
+        event_data = {
+            "tool_name": "Edit",
+            "tool_input": {"file_path": "/src/main.py"},
+        }
+
+        rules = [
+            {
+                "tools": ["Edit", "Write"],
+                "when": "not task_claimed",
+                "reason": "Claim a task first.",
+            }
+        ]
+
+        result = await block_tools(
+            rules=rules, event_data=event_data, workflow_state=state
+        )
+
+        assert result is None  # Allowed because task_claimed=True
+
+
+class TestCodexApprovalDeclineFormat:
+    """Tests for approval decline response format from Codex adapter.
+
+    When a tool is blocked, the adapter must translate the HookResponse
+    with decision="deny" into Codex's {"decision": "decline"} format.
+    This ensures the Codex agent receives a proper denial via JSON-RPC.
+    """
+
+    @pytest.mark.asyncio
+    async def test_blocked_tool_produces_decline(self) -> None:
+        """HookManager deny → adapter decline for Codex."""
+        mock_hm = MagicMock()
+        mock_hm.handle.return_value = HookResponse(
+            decision="deny",
+            reason="Bash is blocked in this workflow step.",
+        )
+        adapter = CodexAdapter(hook_manager=mock_hm)
+
+        result = await adapter.handle_approval_request(
+            "item/commandExecution/requestApproval",
+            {"threadId": "thr-blocked", "parsedCmd": "rm -rf /"},
+        )
+
+        assert result == {"decision": "decline"}
+
+    @pytest.mark.asyncio
+    async def test_allowed_tool_produces_accept(self) -> None:
+        """HookManager allow → adapter accept for Codex."""
+        mock_hm = MagicMock()
+        mock_hm.handle.return_value = HookResponse(decision="allow")
+        adapter = CodexAdapter(hook_manager=mock_hm)
+
+        result = await adapter.handle_approval_request(
+            "item/commandExecution/requestApproval",
+            {"threadId": "thr-ok", "parsedCmd": "echo hello"},
+        )
+
+        assert result == {"decision": "accept"}
+
+    @pytest.mark.asyncio
+    async def test_hook_error_defaults_to_accept(self) -> None:
+        """Hook processing error defaults to accept (fail-open)."""
+        mock_hm = MagicMock()
+        mock_hm.handle.side_effect = RuntimeError("Handler crashed")
+        adapter = CodexAdapter(hook_manager=mock_hm)
+
+        result = await adapter.handle_approval_request(
+            "item/commandExecution/requestApproval",
+            {"threadId": "thr-err", "parsedCmd": "ls"},
+        )
+
+        assert result == {"decision": "accept"}
+
+    def test_translate_block_to_decline(self) -> None:
+        """translate_from_hook_response maps 'block' decision correctly."""
+        adapter = CodexAdapter()
+
+        # 'deny' maps to 'decline'
+        response = HookResponse(decision="deny")
+        result = adapter.translate_from_hook_response(response)
+        assert result["decision"] == "decline"
+
+    def test_translate_allow_to_accept(self) -> None:
+        """translate_from_hook_response maps 'allow' to 'accept'."""
+        adapter = CodexAdapter()
+
+        response = HookResponse(decision="allow")
+        result = adapter.translate_from_hook_response(response)
+        assert result["decision"] == "accept"
+
+
+class TestCodexWorkflowEnforcementIntegration:
+    """Integration tests verifying end-to-end workflow enforcement for Codex.
+
+    These tests verify that the full chain works:
+    1. Codex sends approval request
+    2. Adapter translates to HookEvent with normalized tool name
+    3. HookManager evaluates workflow rules (block_tools)
+    4. Adapter translates HookResponse back to Codex format
+    """
+
+    @pytest.mark.asyncio
+    async def test_full_chain_blocked_command(self) -> None:
+        """Full chain: Codex approval → HookEvent → deny → decline."""
+        mock_hm = MagicMock()
+        mock_hm.handle.return_value = HookResponse(
+            decision="deny",
+            reason="Tool blocked by workflow",
+        )
+        adapter = CodexAdapter(hook_manager=mock_hm)
+
+        # Simulate Codex sending commandExecution approval
+        result = await adapter.handle_approval_request(
+            "item/commandExecution/requestApproval",
+            {
+                "threadId": "thr-chain",
+                "itemId": "item-chain",
+                "turnId": "turn-1",
+                "parsedCmd": "pip install malware",
+                "reason": "tool use",
+                "risk": "high",
+            },
+        )
+
+        # Verify HookEvent was created correctly
+        hook_event = mock_hm.handle.call_args[0][0]
+        assert hook_event.event_type == HookEventType.BEFORE_TOOL
+        assert hook_event.data["tool_name"] == "Bash"
+        assert hook_event.data["tool_input"] == "pip install malware"
+        assert hook_event.source == SessionSource.CODEX
+
+        # Verify decline response
+        assert result == {"decision": "decline"}
+
+    @pytest.mark.asyncio
+    async def test_full_chain_allowed_file_change(self) -> None:
+        """Full chain: Codex file change → HookEvent → allow → accept."""
+        mock_hm = MagicMock()
+        mock_hm.handle.return_value = HookResponse(decision="allow")
+        adapter = CodexAdapter(hook_manager=mock_hm)
+
+        changes = [{"path": "/src/app.py", "content": "print('hello')"}]
+        result = await adapter.handle_approval_request(
+            "item/fileChange/requestApproval",
+            {
+                "threadId": "thr-file",
+                "itemId": "item-file",
+                "changes": changes,
+            },
+        )
+
+        hook_event = mock_hm.handle.call_args[0][0]
+        assert hook_event.data["tool_name"] == "Write"
+        assert hook_event.data["tool_input"] == changes
+
+        assert result == {"decision": "accept"}
