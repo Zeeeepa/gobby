@@ -417,23 +417,99 @@ class CodexAdapter(BaseAdapter):
     def translate_from_hook_response(
         self, response: HookResponse, hook_type: str | None = None
     ) -> dict[str, Any]:
-        """Convert HookResponse to Codex approval response format.
+        """Convert HookResponse to Codex response format with context injection.
 
-        Codex expects approval responses as:
-        {
-            "decision": "accept" | "decline"
-        }
+        Unlike Claude/Gemini which use hookSpecificOutput.additionalContext,
+        Codex injects context via the `instructions` field at turn start.
+        This method builds a `context` string from HookResponse metadata
+        for the caller to pass to start_turn(context_prefix=...).
 
         Args:
             response: Unified HookResponse.
             hook_type: Original Codex method (unused, kept for interface).
 
         Returns:
-            Dict with decision field.
+            Dict with decision and optional context field.
         """
-        return {
+        result: dict[str, Any] = {
             "decision": "accept" if response.decision != "deny" else "decline",
         }
+
+        # Build context parts from workflow context and session metadata
+        context_parts: list[str] = []
+
+        # Add workflow-injected context (from inject_context action)
+        if response.context:
+            context_parts.append(response.context)
+
+        # Add session metadata context
+        if response.metadata:
+            session_id = response.metadata.get("session_id")
+            session_ref = response.metadata.get("session_ref")
+            external_id = response.metadata.get("external_id")
+            is_first_hook = response.metadata.get("_first_hook_for_session", False)
+
+            if session_id:
+                if is_first_hook:
+                    # First hook: inject full metadata
+                    context_lines = []
+                    if session_ref:
+                        context_lines.append(
+                            f"Gobby Session ID: {session_ref} (or {session_id})"
+                        )
+                    else:
+                        context_lines.append(f"Gobby Session ID: {session_id}")
+                    if external_id:
+                        context_lines.append(
+                            f"CLI-Specific Session ID (external_id): {external_id}"
+                        )
+                    if response.metadata.get("parent_session_id"):
+                        context_lines.append(
+                            f"parent_session_id: {response.metadata['parent_session_id']}"
+                        )
+                    if response.metadata.get("machine_id"):
+                        context_lines.append(
+                            f"machine_id: {response.metadata['machine_id']}"
+                        )
+                    if response.metadata.get("project_id"):
+                        context_lines.append(
+                            f"project_id: {response.metadata['project_id']}"
+                        )
+                    # Add terminal context (non-null values only)
+                    if response.metadata.get("terminal_term_program"):
+                        context_lines.append(
+                            f"terminal: {response.metadata['terminal_term_program']}"
+                        )
+                    if response.metadata.get("terminal_tty"):
+                        context_lines.append(f"tty: {response.metadata['terminal_tty']}")
+                    if response.metadata.get("terminal_parent_pid"):
+                        context_lines.append(
+                            f"parent_pid: {response.metadata['terminal_parent_pid']}"
+                        )
+                    for key in [
+                        "terminal_iterm_session_id",
+                        "terminal_term_session_id",
+                        "terminal_kitty_window_id",
+                        "terminal_tmux_pane",
+                        "terminal_vscode_terminal_id",
+                        "terminal_alacritty_socket",
+                    ]:
+                        if response.metadata.get(key):
+                            friendly_name = key.replace("terminal_", "").replace("_", " ")
+                            context_lines.append(
+                                f"{friendly_name}: {response.metadata[key]}"
+                            )
+                    context_parts.append("\n".join(context_lines))
+                else:
+                    # Subsequent hooks: inject minimal session ref only
+                    if session_ref:
+                        context_parts.append(f"Gobby Session ID: {session_ref}")
+
+        # Add context to result if we have any
+        if context_parts:
+            result["context"] = "\n\n".join(context_parts)
+
+        return result
 
     def _parse_timestamp(self, unix_ts: int | float | None) -> datetime:
         """Parse Unix timestamp to datetime.
