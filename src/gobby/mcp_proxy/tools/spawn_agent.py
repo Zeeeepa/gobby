@@ -714,9 +714,7 @@ def create_spawn_agent_registry(
                             if parent_state:
                                 parent_workflow = parent_state.workflow_name
                         except Exception as e:
-                            logger.warning(
-                                f"Could not get parent session workflow state: {e}"
-                            )
+                            logger.warning(f"Could not get parent session workflow state: {e}")
                             return {
                                 "success": False,
                                 "error": (

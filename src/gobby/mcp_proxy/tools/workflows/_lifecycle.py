@@ -28,6 +28,7 @@ async def activate_workflow(
     initial_step: str | None = None,
     variables: dict[str, Any] | None = None,
     project_path: str | None = None,
+    resume: bool = False,
 ) -> dict[str, Any]:
     """
     Activate a step-based workflow for the current session.
@@ -42,6 +43,7 @@ async def activate_workflow(
         initial_step: Optional starting step (defaults to first step)
         variables: Optional initial variables to set (merged with workflow defaults)
         project_path: Project directory path. Auto-discovered from cwd if not provided.
+        resume: If True, resume existing workflow if active (idempotent). Defaults to False.
 
     Returns:
         Success status, workflow info, and current step.
@@ -91,6 +93,7 @@ async def activate_workflow(
     # - Existing is __lifecycle__ placeholder
     # - Existing is __ended__ (step workflow was ended, variables preserved)
     # - Existing is a lifecycle-type workflow (they run concurrently with step workflows)
+    # - resume=True and existing matches requested workflow
     existing = state_manager.get_state(resolved_session_id)
     if existing and existing.workflow_name not in ("__lifecycle__", "__ended__"):
         # Check if existing workflow is a lifecycle type
@@ -99,6 +102,24 @@ async def activate_workflow(
         # If definition not found or it's a step workflow, block activation
         if not existing_def or existing_def.type != "lifecycle":
             # It's a step workflow (or unknown) - can only have one active
+
+            # Check for resume
+            if resume and existing.workflow_name == name:
+                # Merge variables if provided
+                if variables:
+                    existing.variables.update(variables)
+                    state_manager.save_state(existing)
+
+                return {
+                    "success": True,
+                    "session_id": resolved_session_id,
+                    "workflow": existing.workflow_name,
+                    "step": existing.step,
+                    "steps": [s.name for s in definition.steps],
+                    "variables": existing.variables,
+                    "resumed": True,
+                }
+
             return {
                 "success": False,
                 "error": f"Session already has step workflow '{existing.workflow_name}' active. Use end_workflow first.",

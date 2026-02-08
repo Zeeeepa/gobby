@@ -125,6 +125,7 @@ def create_workflows_registry(
         initial_step: str | None = None,
         variables: dict[str, Any] | None = None,
         project_path: str | None = None,
+        resume: bool = False,
     ) -> dict[str, Any]:
         if _state_manager is None or _session_manager is None or _db is None:
             return {"error": "Workflow tools require database connection"}
@@ -138,6 +139,7 @@ def create_workflows_registry(
             initial_step,
             variables,
             project_path,
+            resume,
         )
 
     @registry.tool(
