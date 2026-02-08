@@ -5,6 +5,77 @@ All notable changes to Gobby are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.14] - 2026-02-08
+
+### Features
+
+#### Meeseeks-Box Workflow Redesign
+- Redesign meeseeks-box workflow: unify merge/cleanup, remove wait_for_workers (#7269)
+- Replace squash merge with regular merge to preserve worker commits (#7275)
+- Restore merge_strategy variable with default 'merge' (#7276)
+
+#### Workflow Engine Enhancements
+- Add `when` conditional support to `on_enter` actions (#7261)
+- Add `status_message` to WorkflowStep for user-visible transition output (#7284)
+- Route workflow `call_mcp_tool` through ToolProxyService (#7279)
+- Add `resume=True` to `activate_workflow` for step workflows (#6908)
+- Add `internal` flag to WorkflowSpec for spawn_agent enforcement (#6908)
+
+#### Agent/Workflow Dry-Run Evaluator
+- Add dry-run evaluator for agents and workflows (#7280)
+
+#### Transcript Capture for Non-Claude CLIs
+- Add hook-based transcript assembly for Windsurf & Copilot (#7251)
+- Fix session transcript capture for non-Claude CLIs (#7248)
+
+#### Progressive Disclosure Enforcement
+- Enforce progressive disclosure flow for MCP tool discovery (#7255)
+- Merge discovering-tools skill into MCP instructions (#7254)
+
+### Improvements
+
+- Require `changes_summary` on `close_task` for better change tracking (#7258)
+- Allow `reopen_task` to work on any non-open status (#7260)
+- Fix always-apply skill injection to include full content (#7245)
+- Standardize MCP endpoint response format to 200 + success envelope (#7259)
+- Return proper HTTP error codes (400/404/503) from MCP error responses (#7293)
+- Add evaluate subcommands to agents and workflows skills (#7282)
+- Generalize agent docs to reference any supported coding CLI (#7263, #7264, #7265)
+
+### Bug Fixes
+
+- Fix meeseeks-box workflow engine bugs (#7240, #7241, #7242)
+- Fix Gemini transcript parser crashes with 'list' object has no attribute 'get' (#7285)
+- Fix on_transition placement and remove misplaced workflow refs (#7270)
+- Fix default_workflow key mismatch in meeseeks agent YAMLs (#7277)
+- Fix trailing newline in hook_dispatcher block reason output (#7257)
+- Fix wait_for_workers to use blocking wait_for_task (#7266, #7268)
+- Fix caplog propagation in state_actions warning test (#7237)
+- Address 15 CodeRabbit review issues across 9 files (#7288)
+- Resolve 5 mypy errors across engine.py, _session.py, and others (#7289, #7290, #7291, #7292)
+
+### Security
+
+- Replace hardcoded `/tmp` paths with `tempfile.gettempdir()` (#7287)
+
+### Documentation
+
+- Fix commit prefix format in GEMINI.md and committing-changes skill (#7286)
+- Update CONTRIBUTING.md to match current project state (#7278)
+- Document `when` conditional actions and leaf task handling (#7262)
+- Update agents skill to document internal workflow enforcement (#7281)
+
+### Internal
+
+- Delete claiming-tasks skill and merge into MCP instructions (#7252, #7253)
+- Add missing progressive disclosure tools to all allowed_tools lists (#7273)
+- Remove redundant blocked_tools/blocked_mcp_tools from worker workflows (#7271)
+- Move spawn_agent/activate_workflow to blocked_mcp_tools (#7272)
+- Remove invalid gobby-agents:get_tool_schema from shutdown allowed_mcp_tools (#7274)
+- Unblock progressive disclosure tools in wait_for_workers step (#7267)
+- Add missing mock attributes to test_engine_extended fixture (#7256)
+- Session-lifecycle cleanup and test_viz.py (#7239)
+
 ## [0.2.13] - 2026-02-07
 
 ### Major Features
