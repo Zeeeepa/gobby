@@ -47,6 +47,7 @@ variables:
   worker_terminal: "tmux"
   worker_timeout: 600
   max_inactive_waits: 3
+  inactive_wait_count: 0
   max_review_attempts: 3
   review_attempt: 0
   review_approved: false
@@ -57,6 +58,10 @@ steps:
   - name: find_work
     description: "Find next ready task using suggest_next_task() with leaf task fallback"
     on_enter:
+      # Reset inactive wait counter on re-entry
+      - action: set_variable
+        name: inactive_wait_count
+        value: 0
       # Clear stale results from previous iteration
       - action: set_variable
         name: _suggest_result
@@ -130,9 +135,13 @@ steps:
   - name: wait_for_workers
     description: "No ready tasks - block until an in-progress task completes"
     on_enter:
+      # Increment wait cycle counter
+      - action: set_variable
+        name: inactive_wait_count
+        value: "{{ (variables.get('inactive_wait_count', 0) | int) + 1 }}"
       - action: inject_message
         content: |
-          ORCHESTRATOR: No ready tasks found.
+          ORCHESTRATOR: No ready tasks found (wait cycle {{ variables.inactive_wait_count }}/{{ variables.max_inactive_waits }}).
           {% if variables._suggest_error %}
           suggest_next_task error: {{ variables._suggest_error }}
           {% endif %}
@@ -170,8 +179,15 @@ steps:
     transitions:
       - to: complete
         when: "task_tree_complete(variables.session_task)"
+      # Task reached closed/needs_review — go find next work
       - to: find_work
-        when: "mcp_called('gobby-tasks', 'wait_for_task')"
+        when: "mcp_result_has('gobby-tasks', 'wait_for_task', 'completed', true)"
+      # Timed out but under max retries — loop back and wait again
+      - to: wait_for_workers
+        when: "mcp_result_has('gobby-tasks', 'wait_for_task', 'timed_out', true) and variables.get('inactive_wait_count', 0) < variables.get('max_inactive_waits', 3)"
+      # Timed out and max retries exceeded — fail out
+      - to: complete
+        when: "mcp_result_has('gobby-tasks', 'wait_for_task', 'timed_out', true)"
 
   - name: spawn_worker
     description: "Spawn worker in isolated environment"
