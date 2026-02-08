@@ -2067,3 +2067,356 @@ class TestCodexAdapterApprovalAttach:
         adapter.attach_to_client(mock_client)
 
         mock_client.register_approval_handler.assert_called_once()
+
+
+# =============================================================================
+# Phase 2: Context Injection Tests
+#
+# Tests for injecting session metadata and workflow context into Codex turns.
+# Codex uses turn-start injection: context is prepended to the `instructions`
+# field when starting a turn, unlike Claude/Gemini which use per-hook
+# additionalContext.
+# =============================================================================
+
+
+class TestCodexClientContextPrefixParameter:
+    """Tests for context_prefix parameter in start_turn().
+
+    The client should accept a context_prefix string and prepend it to
+    the instructions field in the turn/start JSON-RPC request.
+    """
+
+    @pytest.mark.asyncio
+    async def test_start_turn_without_context_prefix(self) -> None:
+        """start_turn without context_prefix sends no instructions field."""
+        client = CodexAppServerClient()
+
+        mock_result = {"turn": {"id": "turn-1", "status": "inProgress", "items": []}}
+
+        with patch.object(
+            client, "_send_request", new_callable=AsyncMock, return_value=mock_result
+        ) as mock_send:
+            await client.start_turn("thr-1", "Help me refactor")
+
+            params = mock_send.call_args[0][1]
+            # No instructions field when no context_prefix
+            assert "instructions" not in params
+
+    @pytest.mark.asyncio
+    async def test_start_turn_with_context_prefix(self) -> None:
+        """start_turn with context_prefix adds instructions field."""
+        client = CodexAppServerClient()
+
+        mock_result = {"turn": {"id": "turn-2", "status": "inProgress", "items": []}}
+
+        with patch.object(
+            client, "_send_request", new_callable=AsyncMock, return_value=mock_result
+        ) as mock_send:
+            await client.start_turn(
+                "thr-1",
+                "Help me refactor",
+                context_prefix="Gobby Session ID: #42",
+            )
+
+            params = mock_send.call_args[0][1]
+            assert "instructions" in params
+            assert "Gobby Session ID: #42" in params["instructions"]
+
+    @pytest.mark.asyncio
+    async def test_start_turn_context_prefix_none_omits_instructions(self) -> None:
+        """start_turn with context_prefix=None sends no instructions field."""
+        client = CodexAppServerClient()
+
+        mock_result = {"turn": {"id": "turn-3", "status": "inProgress", "items": []}}
+
+        with patch.object(
+            client, "_send_request", new_callable=AsyncMock, return_value=mock_result
+        ) as mock_send:
+            await client.start_turn(
+                "thr-1",
+                "Help me refactor",
+                context_prefix=None,
+            )
+
+            params = mock_send.call_args[0][1]
+            assert "instructions" not in params
+
+    @pytest.mark.asyncio
+    async def test_start_turn_context_prefix_empty_string_omits_instructions(self) -> None:
+        """start_turn with empty context_prefix sends no instructions field."""
+        client = CodexAppServerClient()
+
+        mock_result = {"turn": {"id": "turn-4", "status": "inProgress", "items": []}}
+
+        with patch.object(
+            client, "_send_request", new_callable=AsyncMock, return_value=mock_result
+        ) as mock_send:
+            await client.start_turn(
+                "thr-1",
+                "Help me refactor",
+                context_prefix="",
+            )
+
+            params = mock_send.call_args[0][1]
+            assert "instructions" not in params
+
+
+class TestCodexAdapterContextStringBuilding:
+    """Tests for context string building in CodexAdapter.
+
+    The adapter should build context strings from HookResponse metadata,
+    similar to Claude/Gemini adapters, for injection into Codex turns.
+    translate_from_hook_response() should include context for BEFORE_AGENT hooks.
+    """
+
+    def test_translate_response_includes_context(self) -> None:
+        """translate_from_hook_response includes context from HookResponse."""
+        adapter = CodexAdapter()
+
+        response = HookResponse(
+            decision="allow",
+            context="Workflow step: implement-code",
+        )
+        result = adapter.translate_from_hook_response(response)
+
+        assert "context" in result
+        assert "Workflow step: implement-code" in result["context"]
+
+    def test_translate_response_includes_session_metadata(self) -> None:
+        """translate_from_hook_response includes session metadata for first hook."""
+        adapter = CodexAdapter()
+
+        response = HookResponse(
+            decision="allow",
+            metadata={
+                "session_id": "plat-uuid-123",
+                "session_ref": "#42",
+                "external_id": "thr-codex-abc",
+                "_first_hook_for_session": True,
+            },
+        )
+        result = adapter.translate_from_hook_response(response)
+
+        assert "context" in result
+        context = result["context"]
+        assert "Gobby Session ID:" in context
+        assert "#42" in context
+
+    def test_translate_response_minimal_metadata_subsequent_hooks(self) -> None:
+        """Subsequent hooks only inject minimal session ref."""
+        adapter = CodexAdapter()
+
+        response = HookResponse(
+            decision="allow",
+            metadata={
+                "session_id": "plat-uuid-123",
+                "session_ref": "#42",
+                "_first_hook_for_session": False,
+            },
+        )
+        result = adapter.translate_from_hook_response(response)
+
+        assert "context" in result
+        context = result["context"]
+        assert "Gobby Session ID: #42" in context
+        # Should NOT contain full metadata
+        assert "external_id" not in context.lower()
+
+    def test_translate_response_no_context_when_no_metadata(self) -> None:
+        """No context field when no metadata or context."""
+        adapter = CodexAdapter()
+
+        response = HookResponse(decision="allow")
+        result = adapter.translate_from_hook_response(response)
+
+        # Should only have decision field
+        assert result == {"decision": "accept"}
+
+    def test_translate_response_first_hook_full_metadata(self) -> None:
+        """First hook includes full session metadata (project, machine, etc.)."""
+        adapter = CodexAdapter()
+
+        response = HookResponse(
+            decision="allow",
+            metadata={
+                "session_id": "plat-uuid-456",
+                "session_ref": "#99",
+                "external_id": "thr-codex-xyz",
+                "machine_id": "machine-abc",
+                "project_id": "proj-def",
+                "_first_hook_for_session": True,
+            },
+        )
+        result = adapter.translate_from_hook_response(response)
+
+        context = result["context"]
+        assert "#99" in context
+        assert "plat-uuid-456" in context
+        assert "thr-codex-xyz" in context
+        assert "machine-abc" in context
+        assert "proj-def" in context
+
+    def test_translate_response_combines_context_and_metadata(self) -> None:
+        """Both workflow context and session metadata are combined."""
+        adapter = CodexAdapter()
+
+        response = HookResponse(
+            decision="allow",
+            context="Active workflow: auto-task",
+            metadata={
+                "session_id": "plat-uuid-789",
+                "session_ref": "#100",
+                "_first_hook_for_session": True,
+            },
+        )
+        result = adapter.translate_from_hook_response(response)
+
+        context = result["context"]
+        assert "Active workflow: auto-task" in context
+        assert "Gobby Session ID:" in context
+        assert "#100" in context
+
+
+class TestCodexAdapterContextOneTimeInjection:
+    """Tests for one-time context injection behavior.
+
+    Context metadata should only be injected fully on the first hook
+    per session. Subsequent hooks should only include minimal session ref.
+    This matches the behavior in Claude/Gemini adapters.
+    """
+
+    def test_first_hook_flag_controls_metadata_depth(self) -> None:
+        """_first_hook_for_session=True triggers full metadata injection."""
+        adapter = CodexAdapter()
+
+        # First hook - full metadata
+        first_response = HookResponse(
+            decision="allow",
+            metadata={
+                "session_id": "plat-1",
+                "session_ref": "#50",
+                "external_id": "thr-ext-1",
+                "machine_id": "m-1",
+                "_first_hook_for_session": True,
+            },
+        )
+        first_result = adapter.translate_from_hook_response(first_response)
+
+        # Subsequent hook - minimal metadata
+        subsequent_response = HookResponse(
+            decision="allow",
+            metadata={
+                "session_id": "plat-1",
+                "session_ref": "#50",
+                "external_id": "thr-ext-1",
+                "machine_id": "m-1",
+                "_first_hook_for_session": False,
+            },
+        )
+        subsequent_result = adapter.translate_from_hook_response(subsequent_response)
+
+        # First should be fuller than subsequent
+        first_context = first_result.get("context", "")
+        subsequent_context = subsequent_result.get("context", "")
+
+        assert len(first_context) > len(subsequent_context)
+        # First has external_id
+        assert "thr-ext-1" in first_context
+        # Subsequent does not
+        assert "thr-ext-1" not in subsequent_context
+
+    def test_no_session_id_means_no_context_injection(self) -> None:
+        """Without session_id in metadata, no context is injected."""
+        adapter = CodexAdapter()
+
+        response = HookResponse(
+            decision="allow",
+            metadata={
+                "_first_hook_for_session": True,
+                # No session_id
+            },
+        )
+        result = adapter.translate_from_hook_response(response)
+
+        # No context injected without session_id
+        assert result == {"decision": "accept"}
+
+
+class TestCodexAdapterContextFormat:
+    """Tests for context format consistency with Claude/Gemini adapters.
+
+    The Codex adapter should produce context strings that follow the same
+    patterns as Claude and Gemini adapters for consistency across CLIs.
+    """
+
+    def test_session_ref_format(self) -> None:
+        """Session ref uses '#N' format in context."""
+        adapter = CodexAdapter()
+
+        response = HookResponse(
+            decision="allow",
+            metadata={
+                "session_id": "uuid-123",
+                "session_ref": "#77",
+                "_first_hook_for_session": True,
+            },
+        )
+        result = adapter.translate_from_hook_response(response)
+
+        context = result["context"]
+        # Should contain "Gobby Session ID: #77" similar to Claude/Gemini
+        assert "Gobby Session ID: #77" in context
+
+    def test_session_ref_with_full_id(self) -> None:
+        """First hook shows both session ref and full UUID."""
+        adapter = CodexAdapter()
+
+        response = HookResponse(
+            decision="allow",
+            metadata={
+                "session_id": "uuid-full-456",
+                "session_ref": "#88",
+                "_first_hook_for_session": True,
+            },
+        )
+        result = adapter.translate_from_hook_response(response)
+
+        context = result["context"]
+        # Should include both ref and full ID like Claude adapter
+        assert "#88" in context
+        assert "uuid-full-456" in context
+
+    def test_external_id_labeled(self) -> None:
+        """External ID is labeled as CLI-specific session ID."""
+        adapter = CodexAdapter()
+
+        response = HookResponse(
+            decision="allow",
+            metadata={
+                "session_id": "plat-id",
+                "session_ref": "#10",
+                "external_id": "thr-codex-external",
+                "_first_hook_for_session": True,
+            },
+        )
+        result = adapter.translate_from_hook_response(response)
+
+        context = result["context"]
+        assert "thr-codex-external" in context
+
+    def test_decision_still_present_with_context(self) -> None:
+        """Decision field is always present alongside context."""
+        adapter = CodexAdapter()
+
+        response = HookResponse(
+            decision="deny",
+            metadata={
+                "session_id": "plat-deny",
+                "session_ref": "#5",
+                "_first_hook_for_session": True,
+            },
+        )
+        result = adapter.translate_from_hook_response(response)
+
+        assert result["decision"] == "decline"
+        assert "context" in result
