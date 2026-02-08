@@ -239,7 +239,6 @@ workflows:
         # Only allow kill_agent — unlisted MCP tools implicitly blocked
         allowed_mcp_tools:
           - gobby-agents:kill_agent
-          - gobby-agents:get_tool_schema
 
         on_premature_stop:
           action: block
