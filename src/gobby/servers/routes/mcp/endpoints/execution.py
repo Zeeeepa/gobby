@@ -188,12 +188,20 @@ async def list_mcp_tools(
 
         if mcp_manager is None:
             response_time_ms = (time.perf_counter() - start_time) * 1000
-            return {"success": False, "error": "MCP manager not available", "response_time_ms": response_time_ms}
+            return {
+                "success": False,
+                "error": "MCP manager not available",
+                "response_time_ms": response_time_ms,
+            }
 
         # Check if server is configured
         if not mcp_manager.has_server(server_name):
             response_time_ms = (time.perf_counter() - start_time) * 1000
-            return {"success": False, "error": f"Unknown MCP server: '{server_name}'", "response_time_ms": response_time_ms}
+            return {
+                "success": False,
+                "error": f"Unknown MCP server: '{server_name}'",
+                "response_time_ms": response_time_ms,
+            }
 
         # Use ensure_connected for lazy loading - connects on-demand if not connected
         try:
@@ -258,7 +266,11 @@ async def list_mcp_tools(
                 extra={"server": server_name},
             )
             response_time_ms = (time.perf_counter() - start_time) * 1000
-            return {"success": False, "error": f"Failed to list tools: {e}", "response_time_ms": response_time_ms}
+            return {
+                "success": False,
+                "error": f"Failed to list tools: {e}",
+                "response_time_ms": response_time_ms,
+            }
 
     except Exception as e:
         _metrics.inc_counter("http_requests_errors_total")
@@ -293,7 +305,11 @@ async def get_tool_schema(
 
         if not server_name or not tool_name:
             response_time_ms = (time.perf_counter() - start_time) * 1000
-            return {"success": False, "error": "Required fields: server_name, tool_name", "response_time_ms": response_time_ms}
+            return {
+                "success": False,
+                "error": "Required fields: server_name, tool_name",
+                "response_time_ms": response_time_ms,
+            }
 
         # Check internal first
         if server._internal_manager and server._internal_manager.is_internal(server_name):
@@ -322,7 +338,11 @@ async def get_tool_schema(
 
         if server.mcp_manager is None:
             response_time_ms = (time.perf_counter() - start_time) * 1000
-            return {"success": False, "error": "MCP manager not available", "response_time_ms": response_time_ms}
+            return {
+                "success": False,
+                "error": "MCP manager not available",
+                "response_time_ms": response_time_ms,
+            }
 
         # Get from external MCP server
         try:
@@ -349,7 +369,11 @@ async def get_tool_schema(
             # Connection, timeout, or internal errors
             logger.error(f"Failed to get tool schema {server_name}/{tool_name}: {e}", exc_info=True)
             response_time_ms = (time.perf_counter() - start_time) * 1000
-            return {"success": False, "error": f"Failed to get tool schema: {e}", "response_time_ms": response_time_ms}
+            return {
+                "success": False,
+                "error": f"Failed to get tool schema: {e}",
+                "response_time_ms": response_time_ms,
+            }
 
     except Exception as e:
         _metrics.inc_counter("http_requests_errors_total")

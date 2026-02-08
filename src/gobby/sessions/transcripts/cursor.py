@@ -41,14 +41,10 @@ class CursorTranscriptParser:
         for turn in reversed(turns):
             event_type = turn.get("type")
             if event_type == "user":
-                content = self._extract_content_blocks(
-                    turn.get("message", {}).get("content", [])
-                )
+                content = self._extract_content_blocks(turn.get("message", {}).get("content", []))
                 messages.insert(0, {"role": "user", "content": content})
             elif event_type == "assistant":
-                content = self._extract_content_blocks(
-                    turn.get("message", {}).get("content", [])
-                )
+                content = self._extract_content_blocks(turn.get("message", {}).get("content", []))
                 messages.insert(0, {"role": "assistant", "content": content})
             else:
                 continue
@@ -95,9 +91,7 @@ class CursorTranscriptParser:
         timestamp = datetime.now(UTC)
 
         if event_type == "user":
-            content = self._extract_content_blocks(
-                data.get("message", {}).get("content", [])
-            )
+            content = self._extract_content_blocks(data.get("message", {}).get("content", []))
             return ParsedMessage(
                 index=index,
                 role="user",
@@ -111,9 +105,7 @@ class CursorTranscriptParser:
             )
 
         elif event_type == "assistant":
-            content = self._extract_content_blocks(
-                data.get("message", {}).get("content", [])
-            )
+            content = self._extract_content_blocks(data.get("message", {}).get("content", []))
             return ParsedMessage(
                 index=index,
                 role="assistant",
@@ -181,9 +173,7 @@ class CursorTranscriptParser:
                 text_parts.append(block.get("text", ""))
         return " ".join(text_parts)
 
-    def _extract_tool_call(
-        self, tool_call: dict[str, Any]
-    ) -> tuple[str, dict[str, Any] | None]:
+    def _extract_tool_call(self, tool_call: dict[str, Any]) -> tuple[str, dict[str, Any] | None]:
         """Extract tool name and input from Cursor's nested tool_call structure.
 
         Cursor uses readToolCall, writeToolCall, or function as top-level keys.
@@ -201,9 +191,7 @@ class CursorTranscriptParser:
         # Fallback: unknown structure
         return "unknown", tool_call
 
-    def _extract_tool_result(
-        self, tool_call: dict[str, Any]
-    ) -> tuple[str, dict[str, Any] | None]:
+    def _extract_tool_result(self, tool_call: dict[str, Any]) -> tuple[str, dict[str, Any] | None]:
         """Extract tool name and result from a completed tool_call.
 
         The completed event contains the same nested structure but with a result field.

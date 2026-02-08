@@ -65,36 +65,36 @@ class HookTranscriptAssembler:
         )
         if not content:
             return []
-        return [self._make_message(
-            session_id=session_id,
-            role="user",
-            content=content,
-            content_type="text",
-            timestamp=event.timestamp,
-            raw_data=event.data,
-        )]
+        return [
+            self._make_message(
+                session_id=session_id,
+                role="user",
+                content=content,
+                content_type="text",
+                timestamp=event.timestamp,
+                raw_data=event.data,
+            )
+        ]
 
     def _handle_after_agent(self, session_id: str, event: HookEvent) -> list[ParsedMessage]:
         """AFTER_AGENT → assistant text message (Windsurf provides 'response')."""
         content = event.data.get("response") or event.data.get("content") or ""
         if not content:
             return []
-        return [self._make_message(
-            session_id=session_id,
-            role="assistant",
-            content=content,
-            content_type="text",
-            timestamp=event.timestamp,
-            raw_data=event.data,
-        )]
+        return [
+            self._make_message(
+                session_id=session_id,
+                role="assistant",
+                content=content,
+                content_type="text",
+                timestamp=event.timestamp,
+                raw_data=event.data,
+            )
+        ]
 
     def _handle_before_tool(self, session_id: str, event: HookEvent) -> list[ParsedMessage]:
         """BEFORE_TOOL → tool_use message."""
-        tool_name = (
-            event.data.get("tool_name")
-            or event.data.get("toolName")
-            or "unknown"
-        )
+        tool_name = event.data.get("tool_name") or event.data.get("toolName") or "unknown"
         tool_input = (
             event.data.get("tool_input")
             or event.data.get("toolArgs")
@@ -103,24 +103,22 @@ class HookTranscriptAssembler:
         )
         if isinstance(tool_input, str):
             tool_input = {"raw": tool_input}
-        return [self._make_message(
-            session_id=session_id,
-            role="assistant",
-            content=f"Using tool: {tool_name}",
-            content_type="tool_use",
-            timestamp=event.timestamp,
-            raw_data=event.data,
-            tool_name=tool_name,
-            tool_input=tool_input,
-        )]
+        return [
+            self._make_message(
+                session_id=session_id,
+                role="assistant",
+                content=f"Using tool: {tool_name}",
+                content_type="tool_use",
+                timestamp=event.timestamp,
+                raw_data=event.data,
+                tool_name=tool_name,
+                tool_input=tool_input,
+            )
+        ]
 
     def _handle_after_tool(self, session_id: str, event: HookEvent) -> list[ParsedMessage]:
         """AFTER_TOOL → tool_result message."""
-        tool_name = (
-            event.data.get("tool_name")
-            or event.data.get("toolName")
-            or "unknown"
-        )
+        tool_name = event.data.get("tool_name") or event.data.get("toolName") or "unknown"
         # Extract tool output from various possible field names
         tool_output = (
             event.data.get("tool_output")
@@ -142,16 +140,18 @@ class HookTranscriptAssembler:
         if isinstance(tool_output, dict):
             content = tool_output.get("text", "") or tool_output.get("raw", "")
 
-        return [self._make_message(
-            session_id=session_id,
-            role="tool",
-            content=content,
-            content_type="tool_result",
-            timestamp=event.timestamp,
-            raw_data=event.data,
-            tool_name=tool_name,
-            tool_result=tool_output,
-        )]
+        return [
+            self._make_message(
+                session_id=session_id,
+                role="tool",
+                content=content,
+                content_type="tool_result",
+                timestamp=event.timestamp,
+                raw_data=event.data,
+                tool_name=tool_name,
+                tool_result=tool_output,
+            )
+        ]
 
     # ------------------------------------------------------------------
     # Helpers

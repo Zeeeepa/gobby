@@ -37,9 +37,7 @@ class SessionEventHandlerMixin(EventHandlersBase):
             return self._find_cursor_transcript(input_data, external_id)
         return None
 
-    def _find_gemini_transcript(
-        self, input_data: dict[str, Any], external_id: str
-    ) -> str | None:
+    def _find_gemini_transcript(self, input_data: dict[str, Any], external_id: str) -> str | None:
         """Find the Gemini session JSON file.
 
         Gemini stores sessions at:
@@ -75,9 +73,7 @@ class SessionEventHandlerMixin(EventHandlersBase):
         self.logger.debug(f"No Gemini session files in {chats_dir}")
         return None
 
-    def _find_cursor_transcript(
-        self, input_data: dict[str, Any], external_id: str
-    ) -> str | None:
+    def _find_cursor_transcript(self, input_data: dict[str, Any], external_id: str) -> str | None:
         """Find the Cursor NDJSON capture file.
 
         For spawned Cursor agents, Gobby writes stdout to a capture file.

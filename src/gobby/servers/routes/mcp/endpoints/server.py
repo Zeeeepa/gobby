@@ -117,7 +117,11 @@ async def add_mcp_server(
 
         if not name or not transport:
             response_time_ms = (time.perf_counter() - start_time) * 1000
-            return {"success": False, "error": "Required fields: name, transport", "response_time_ms": response_time_ms}
+            return {
+                "success": False,
+                "error": "Required fields: name, transport",
+                "response_time_ms": response_time_ms,
+            }
 
         # Import here to avoid circular imports
         from gobby.mcp_proxy.models import MCPServerConfig
@@ -126,7 +130,11 @@ async def add_mcp_server(
         project_ctx = get_project_context()
         if not project_ctx or not project_ctx.get("id"):
             response_time_ms = (time.perf_counter() - start_time) * 1000
-            return {"success": False, "error": "No current project found. Run 'gobby init'.", "response_time_ms": response_time_ms}
+            return {
+                "success": False,
+                "error": "No current project found. Run 'gobby init'.",
+                "response_time_ms": response_time_ms,
+            }
         project_id = project_ctx["id"]
 
         config = MCPServerConfig(
@@ -143,7 +151,11 @@ async def add_mcp_server(
 
         if server.mcp_manager is None:
             response_time_ms = (time.perf_counter() - start_time) * 1000
-            return {"success": False, "error": "MCP manager not available", "response_time_ms": response_time_ms}
+            return {
+                "success": False,
+                "error": "MCP manager not available",
+                "response_time_ms": response_time_ms,
+            }
 
         await server.mcp_manager.add_server(config)
 
@@ -215,7 +227,11 @@ async def import_mcp_server(
 
         if not server.config:
             response_time_ms = (time.perf_counter() - start_time) * 1000
-            return {"success": False, "error": "Daemon configuration not available", "response_time_ms": response_time_ms}
+            return {
+                "success": False,
+                "error": "Daemon configuration not available",
+                "response_time_ms": response_time_ms,
+            }
 
         # Create importer
         from gobby.mcp_proxy.importer import MCPServerImporter
@@ -273,7 +289,11 @@ async def remove_mcp_server(
     try:
         if server.mcp_manager is None:
             response_time_ms = (time.perf_counter() - start_time) * 1000
-            return {"success": False, "error": "MCP manager not available", "response_time_ms": response_time_ms}
+            return {
+                "success": False,
+                "error": "MCP manager not available",
+                "response_time_ms": response_time_ms,
+            }
 
         await server.mcp_manager.remove_server(name)
 

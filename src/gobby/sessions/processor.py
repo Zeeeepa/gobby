@@ -336,6 +336,4 @@ class SessionMessageProcessor:
         # Track mtime for change detection
         self._last_mtime[session_id] = current_mtime
 
-        logger.debug(
-            f"Processed {len(new_messages)} JSON messages for {session_id}"
-        )
+        logger.debug(f"Processed {len(new_messages)} JSON messages for {session_id}")

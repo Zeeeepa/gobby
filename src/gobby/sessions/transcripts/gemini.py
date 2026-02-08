@@ -302,34 +302,19 @@ class GeminiTranscriptParser:
         timestamp_str = msg.get("timestamp")
 
         try:
-            timestamp = datetime.fromisoformat(
-                timestamp_str.replace("Z", "+00:00")
-            ) if timestamp_str else datetime.now(UTC)
+            timestamp = (
+                datetime.fromisoformat(timestamp_str.replace("Z", "+00:00"))
+                if timestamp_str
+                else datetime.now(UTC)
+            )
         except ValueError:
             timestamp = datetime.now(UTC)
 
         if msg_type == "user":
-            return [ParsedMessage(
-                index=start_index,
-                role="user",
-                content=str(content),
-                content_type="text",
-                tool_name=None,
-                tool_input=None,
-                tool_result=None,
-                timestamp=timestamp,
-                raw_json=msg,
-            )]
-
-        elif msg_type == "gemini":
-            results: list[ParsedMessage] = []
-            idx = start_index
-
-            # Main text response
-            if content:
-                results.append(ParsedMessage(
-                    index=idx,
-                    role="assistant",
+            return [
+                ParsedMessage(
+                    index=start_index,
+                    role="user",
                     content=str(content),
                     content_type="text",
                     tool_name=None,
@@ -337,7 +322,28 @@ class GeminiTranscriptParser:
                     tool_result=None,
                     timestamp=timestamp,
                     raw_json=msg,
-                ))
+                )
+            ]
+
+        elif msg_type == "gemini":
+            results: list[ParsedMessage] = []
+            idx = start_index
+
+            # Main text response
+            if content:
+                results.append(
+                    ParsedMessage(
+                        index=idx,
+                        role="assistant",
+                        content=str(content),
+                        content_type="text",
+                        tool_name=None,
+                        tool_input=None,
+                        tool_result=None,
+                        timestamp=timestamp,
+                        raw_json=msg,
+                    )
+                )
                 idx += 1
 
             # Tool calls embedded in the message
@@ -347,34 +353,38 @@ class GeminiTranscriptParser:
                 tool_args = tc.get("args")
 
                 # Tool use
-                results.append(ParsedMessage(
-                    index=idx,
-                    role="assistant",
-                    content=f"Tool call: {tool_name}",
-                    content_type="tool_use",
-                    tool_name=tool_name,
-                    tool_input=tool_args,
-                    tool_result=None,
-                    timestamp=timestamp,
-                    raw_json=tc,
-                ))
+                results.append(
+                    ParsedMessage(
+                        index=idx,
+                        role="assistant",
+                        content=f"Tool call: {tool_name}",
+                        content_type="tool_use",
+                        tool_name=tool_name,
+                        tool_input=tool_args,
+                        tool_result=None,
+                        timestamp=timestamp,
+                        raw_json=tc,
+                    )
+                )
                 idx += 1
 
                 # Tool result (if present)
                 func_response = tc.get("result", {}).get("functionResponse")
                 if func_response:
                     output = str(func_response)[:500]
-                    results.append(ParsedMessage(
-                        index=idx,
-                        role="tool",
-                        content=output,
-                        content_type="tool_result",
-                        tool_name=tool_name,
-                        tool_input=None,
-                        tool_result={"output": func_response, "status": "success"},
-                        timestamp=timestamp,
-                        raw_json=tc,
-                    ))
+                    results.append(
+                        ParsedMessage(
+                            index=idx,
+                            role="tool",
+                            content=output,
+                            content_type="tool_result",
+                            tool_name=tool_name,
+                            tool_input=None,
+                            tool_result={"output": func_response, "status": "success"},
+                            timestamp=timestamp,
+                            raw_json=tc,
+                        )
+                    )
                     idx += 1
 
             return results if results else None

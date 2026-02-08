@@ -401,9 +401,7 @@ async def require_active_task(
     if error_already_shown:
         return {
             "decision": "block",
-            "reason": (
-                "No task claimed. See previous **Task Required** error for instructions."
-            ),
+            "reason": ("No task claimed. See previous **Task Required** error for instructions."),
             "inject_context": (
                 f"**Task Required**: `{tool_name}` blocked. "
                 f"Create or claim a task before editing files (see previous error for details)."

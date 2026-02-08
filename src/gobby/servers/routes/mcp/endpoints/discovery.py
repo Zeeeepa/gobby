@@ -190,7 +190,12 @@ async def recommend_mcp_tools(
             body = await request.json()
         except json.JSONDecodeError as err:
             response_time_ms = (time.perf_counter() - start_time) * 1000
-            return {"success": False, "error": "Malformed JSON", "message": str(err), "response_time_ms": response_time_ms}
+            return {
+                "success": False,
+                "error": "Malformed JSON",
+                "message": str(err),
+                "response_time_ms": response_time_ms,
+            }
 
         task_description = body.get("task_description")
         agent_id = body.get("agent_id")
@@ -201,7 +206,11 @@ async def recommend_mcp_tools(
 
         if not task_description:
             response_time_ms = (time.perf_counter() - start_time) * 1000
-            return {"success": False, "error": "Required field: task_description", "response_time_ms": response_time_ms}
+            return {
+                "success": False,
+                "error": "Required field: task_description",
+                "response_time_ms": response_time_ms,
+            }
 
         # For semantic/hybrid modes, resolve project_id from cwd
         project_id = None
@@ -273,7 +282,12 @@ async def search_mcp_tools(
             body = await request.json()
         except json.JSONDecodeError as err:
             response_time_ms = (time.perf_counter() - start_time) * 1000
-            return {"success": False, "error": "Malformed JSON", "message": str(err), "response_time_ms": response_time_ms}
+            return {
+                "success": False,
+                "error": "Malformed JSON",
+                "message": str(err),
+                "response_time_ms": response_time_ms,
+            }
 
         query = body.get("query")
         top_k = body.get("top_k", 10)
@@ -283,7 +297,11 @@ async def search_mcp_tools(
 
         if not query:
             response_time_ms = (time.perf_counter() - start_time) * 1000
-            return {"success": False, "error": "Required field: query", "response_time_ms": response_time_ms}
+            return {
+                "success": False,
+                "error": "Required field: query",
+                "response_time_ms": response_time_ms,
+            }
 
         # Resolve project_id from cwd
         try:
