@@ -222,16 +222,13 @@ steps:
       # Timed out but under max retries — increment counter and self-loop
       - to: wait_for_worker
         when: "mcp_result_has('gobby-tasks', 'wait_for_task', 'timed_out', true) and variables.get('wait_retry_count', 0) < variables.get('max_wait_retries', 3)"
+        on_transition:
+          - action: set_variable
+            name: wait_retry_count
+            value: "{{ (variables.get('wait_retry_count', 0) | int) + 1 }}"
       # Timed out and max retries exceeded — skip to cleanup
       - to: cleanup
         when: "mcp_result_has('gobby-tasks', 'wait_for_task', 'timed_out', true)"
-
-    on_transition:
-      # Increment retry counter on self-loop timeout
-      - to: wait_for_worker
-        action: set_variable
-        name: wait_retry_count
-        value: "{{ (variables.get('wait_retry_count', 0) | int) + 1 }}"
 
   - name: code_review
     description: "Review worker's code changes"

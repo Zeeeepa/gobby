@@ -32,14 +32,6 @@ workflows:
     file: meeseeks-box.yaml
     mode: self  # Activate workflow in calling session instead of spawning
 
-  # Code review workflow
-  code-review:
-    file: code-review.yaml
-
-  # Merge workflow (clone + worktree support)
-  merge:
-    file: merge.yaml
-
   # Worker: claims and executes a single task (runs in Claude via tmux)
   worker:
     type: step
