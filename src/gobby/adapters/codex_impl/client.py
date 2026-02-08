@@ -358,6 +358,7 @@ class CodexAppServerClient:
         thread_id: str,
         prompt: str,
         images: list[str] | None = None,
+        context_prefix: str | None = None,
         **config_overrides: Any,
     ) -> CodexTurn:
         """
@@ -367,6 +368,8 @@ class CodexAppServerClient:
             thread_id: Thread ID to add turn to
             prompt: User's input text
             images: Optional list of image paths or URLs
+            context_prefix: Optional context to prepend to instructions field.
+                           Used for injecting session metadata and workflow context.
             **config_overrides: Optional config overrides (cwd, model, etc.)
 
         Returns:
@@ -386,6 +389,11 @@ class CodexAppServerClient:
             "threadId": thread_id,
             "input": inputs,
         }
+
+        # Add context prefix as instructions field
+        if context_prefix:
+            params["instructions"] = context_prefix
+
         params.update(config_overrides)
 
         result = await self._send_request("turn/start", params)
