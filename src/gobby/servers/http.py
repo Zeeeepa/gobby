@@ -359,7 +359,7 @@ class HTTPServer:
                 "llm_service": self.services.llm_service,
                 "config": self.services.config,
                 "broadcaster": self.broadcaster,
-                "mcp_manager": self.services.mcp_manager,
+                "tool_proxy_getter": lambda: self.tool_proxy,
                 "message_processor": self.services.message_processor,
                 "memory_sync_manager": self.services.memory_sync_manager,
                 "task_sync_manager": self.services.task_sync_manager,

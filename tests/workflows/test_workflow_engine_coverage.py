@@ -53,7 +53,7 @@ def mock_action_executor():
     - session_manager: WorkflowEngine accesses .find_by_external_id() in handle_event
       but tests exit early before reaching that code path
     - db, template_engine, llm_service, transcript_processor, config,
-      mcp_manager, memory_manager, memory_sync_manager, task_sync_manager,
+      tool_proxy_getter, memory_manager, memory_sync_manager, task_sync_manager,
       session_task_manager: Only passed through to ActionContext, not
       directly called in these tests
     """
@@ -73,7 +73,7 @@ def mock_action_executor():
     executor.llm_service = Mock()
     executor.transcript_processor = Mock()
     executor.config = Mock()
-    executor.mcp_manager = Mock()
+    executor.tool_proxy_getter = Mock()
     executor.memory_manager = Mock()
     executor.memory_sync_manager = Mock()
     executor.task_sync_manager = Mock()

@@ -1,8 +1,8 @@
 """Comprehensive tests for gobby.workflows.mcp_actions module.
 
 Tests the call_mcp_tool function with various scenarios including:
-- Successful MCP tool calls
-- Error handling (missing parameters, disconnected servers, exceptions)
+- Successful MCP tool calls via ToolProxyService
+- Error handling (missing parameters, unavailable proxy, exceptions)
 - Variable storage in workflow state
 - Edge cases (None values, empty arguments)
 """
@@ -16,21 +16,26 @@ from gobby.workflows.mcp_actions import call_mcp_tool
 pytestmark = pytest.mark.unit
 
 
+def _make_proxy(return_value: object = None, side_effect: Exception | None = None) -> AsyncMock:
+    """Create a mock tool proxy with call_tool configured."""
+    proxy = AsyncMock()
+    proxy.call_tool = AsyncMock(return_value=return_value, side_effect=side_effect)
+    return proxy
+
+
 class TestCallMcpToolBasic:
     """Basic functionality tests for call_mcp_tool."""
 
     @pytest.mark.asyncio
     async def test_successful_tool_call(self):
         """Test a successful MCP tool call returns expected result."""
-        mock_mcp_manager = AsyncMock()
-        mock_mcp_manager.connections = {"test-server": MagicMock()}
-        mock_mcp_manager.call_tool = AsyncMock(return_value={"data": "result"})
+        mock_proxy = _make_proxy(return_value={"data": "result"})
 
         mock_state = MagicMock()
         mock_state.variables = {}
 
         result = await call_mcp_tool(
-            mcp_manager=mock_mcp_manager,
+            tool_proxy_getter=lambda: mock_proxy,
             state=mock_state,
             server_name="test-server",
             tool_name="test-tool",
@@ -39,22 +44,20 @@ class TestCallMcpToolBasic:
 
         assert result["result"] == {"data": "result"}
         assert result["stored_as"] is None
-        mock_mcp_manager.call_tool.assert_called_once_with(
+        mock_proxy.call_tool.assert_called_once_with(
             "test-server", "test-tool", {"key": "value"}
         )
 
     @pytest.mark.asyncio
     async def test_successful_tool_call_with_output_as(self):
         """Test tool call stores result in workflow variable when output_as specified."""
-        mock_mcp_manager = AsyncMock()
-        mock_mcp_manager.connections = {"api-server": MagicMock()}
-        mock_mcp_manager.call_tool = AsyncMock(return_value={"items": [1, 2, 3]})
+        mock_proxy = _make_proxy(return_value={"items": [1, 2, 3]})
 
         mock_state = MagicMock()
         mock_state.variables = {}
 
         result = await call_mcp_tool(
-            mcp_manager=mock_mcp_manager,
+            tool_proxy_getter=lambda: mock_proxy,
             state=mock_state,
             server_name="api-server",
             tool_name="list-items",
@@ -69,15 +72,13 @@ class TestCallMcpToolBasic:
     @pytest.mark.asyncio
     async def test_tool_call_with_empty_arguments(self):
         """Test tool call with None arguments defaults to empty dict."""
-        mock_mcp_manager = AsyncMock()
-        mock_mcp_manager.connections = {"test-server": MagicMock()}
-        mock_mcp_manager.call_tool = AsyncMock(return_value={"status": "ok"})
+        mock_proxy = _make_proxy(return_value={"status": "ok"})
 
         mock_state = MagicMock()
         mock_state.variables = {}
 
         result = await call_mcp_tool(
-            mcp_manager=mock_mcp_manager,
+            tool_proxy_getter=lambda: mock_proxy,
             state=mock_state,
             server_name="test-server",
             tool_name="no-args-tool",
@@ -85,7 +86,7 @@ class TestCallMcpToolBasic:
         )
 
         assert result["result"] == {"status": "ok"}
-        mock_mcp_manager.call_tool.assert_called_once_with("test-server", "no-args-tool", {})
+        mock_proxy.call_tool.assert_called_once_with("test-server", "no-args-tool", {})
 
 
 class TestCallMcpToolMissingParameters:
@@ -94,43 +95,43 @@ class TestCallMcpToolMissingParameters:
     @pytest.mark.asyncio
     async def test_missing_server_name(self):
         """Test error when server_name is None."""
-        mock_mcp_manager = AsyncMock()
+        mock_proxy = _make_proxy()
         mock_state = MagicMock()
 
         result = await call_mcp_tool(
-            mcp_manager=mock_mcp_manager,
+            tool_proxy_getter=lambda: mock_proxy,
             state=mock_state,
             server_name=None,
             tool_name="test-tool",
         )
 
         assert result["error"] == "Missing server_name or tool_name"
-        mock_mcp_manager.call_tool.assert_not_called()
+        mock_proxy.call_tool.assert_not_called()
 
     @pytest.mark.asyncio
     async def test_missing_tool_name(self):
         """Test error when tool_name is None."""
-        mock_mcp_manager = AsyncMock()
+        mock_proxy = _make_proxy()
         mock_state = MagicMock()
 
         result = await call_mcp_tool(
-            mcp_manager=mock_mcp_manager,
+            tool_proxy_getter=lambda: mock_proxy,
             state=mock_state,
             server_name="test-server",
             tool_name=None,
         )
 
         assert result["error"] == "Missing server_name or tool_name"
-        mock_mcp_manager.call_tool.assert_not_called()
+        mock_proxy.call_tool.assert_not_called()
 
     @pytest.mark.asyncio
     async def test_missing_both_server_and_tool_name(self):
         """Test error when both server_name and tool_name are None."""
-        mock_mcp_manager = AsyncMock()
+        mock_proxy = _make_proxy()
         mock_state = MagicMock()
 
         result = await call_mcp_tool(
-            mcp_manager=mock_mcp_manager,
+            tool_proxy_getter=lambda: mock_proxy,
             state=mock_state,
             server_name=None,
             tool_name=None,
@@ -141,11 +142,11 @@ class TestCallMcpToolMissingParameters:
     @pytest.mark.asyncio
     async def test_empty_server_name(self):
         """Test error when server_name is empty string."""
-        mock_mcp_manager = AsyncMock()
+        mock_proxy = _make_proxy()
         mock_state = MagicMock()
 
         result = await call_mcp_tool(
-            mcp_manager=mock_mcp_manager,
+            tool_proxy_getter=lambda: mock_proxy,
             state=mock_state,
             server_name="",
             tool_name="test-tool",
@@ -156,11 +157,11 @@ class TestCallMcpToolMissingParameters:
     @pytest.mark.asyncio
     async def test_empty_tool_name(self):
         """Test error when tool_name is empty string."""
-        mock_mcp_manager = AsyncMock()
+        mock_proxy = _make_proxy()
         mock_state = MagicMock()
 
         result = await call_mcp_tool(
-            mcp_manager=mock_mcp_manager,
+            tool_proxy_getter=lambda: mock_proxy,
             state=mock_state,
             server_name="test-server",
             tool_name="",
@@ -169,61 +170,36 @@ class TestCallMcpToolMissingParameters:
         assert result["error"] == "Missing server_name or tool_name"
 
 
-class TestCallMcpToolMcpManagerUnavailable:
-    """Tests for MCP manager unavailability."""
+class TestCallMcpToolProxyUnavailable:
+    """Tests for tool proxy unavailability."""
 
     @pytest.mark.asyncio
-    async def test_mcp_manager_is_none(self):
-        """Test error when mcp_manager is None."""
+    async def test_tool_proxy_getter_is_none(self):
+        """Test error when tool_proxy_getter is None."""
         mock_state = MagicMock()
 
         result = await call_mcp_tool(
-            mcp_manager=None,
+            tool_proxy_getter=None,
             state=mock_state,
             server_name="test-server",
             tool_name="test-tool",
         )
 
-        assert result["error"] == "MCP manager not available"
-
-
-class TestCallMcpToolServerNotConnected:
-    """Tests for server connection issues."""
+        assert result["error"] == "Tool proxy not available"
 
     @pytest.mark.asyncio
-    async def test_server_not_in_connections(self):
-        """Test error when server is not connected."""
-        mock_mcp_manager = AsyncMock()
-        mock_mcp_manager.connections = {"other-server": MagicMock()}
-
+    async def test_tool_proxy_getter_returns_none(self):
+        """Test error when tool_proxy_getter callable returns None."""
         mock_state = MagicMock()
 
         result = await call_mcp_tool(
-            mcp_manager=mock_mcp_manager,
+            tool_proxy_getter=lambda: None,
             state=mock_state,
-            server_name="missing-server",
+            server_name="test-server",
             tool_name="test-tool",
         )
 
-        assert result["error"] == "Server missing-server not connected"
-        mock_mcp_manager.call_tool.assert_not_called()
-
-    @pytest.mark.asyncio
-    async def test_empty_connections(self):
-        """Test error when connections dict is empty."""
-        mock_mcp_manager = AsyncMock()
-        mock_mcp_manager.connections = {}
-
-        mock_state = MagicMock()
-
-        result = await call_mcp_tool(
-            mcp_manager=mock_mcp_manager,
-            state=mock_state,
-            server_name="any-server",
-            tool_name="test-tool",
-        )
-
-        assert result["error"] == "Server any-server not connected"
+        assert result["error"] == "Tool proxy not available"
 
 
 class TestCallMcpToolExceptionHandling:
@@ -232,15 +208,13 @@ class TestCallMcpToolExceptionHandling:
     @pytest.mark.asyncio
     async def test_call_tool_raises_exception(self):
         """Test error handling when call_tool raises an exception."""
-        mock_mcp_manager = AsyncMock()
-        mock_mcp_manager.connections = {"test-server": MagicMock()}
-        mock_mcp_manager.call_tool = AsyncMock(side_effect=Exception("Network timeout"))
+        mock_proxy = _make_proxy(side_effect=Exception("Network timeout"))
 
         mock_state = MagicMock()
         mock_state.variables = {}
 
         result = await call_mcp_tool(
-            mcp_manager=mock_mcp_manager,
+            tool_proxy_getter=lambda: mock_proxy,
             state=mock_state,
             server_name="test-server",
             tool_name="test-tool",
@@ -251,15 +225,13 @@ class TestCallMcpToolExceptionHandling:
     @pytest.mark.asyncio
     async def test_call_tool_raises_value_error(self):
         """Test error handling when call_tool raises ValueError."""
-        mock_mcp_manager = AsyncMock()
-        mock_mcp_manager.connections = {"test-server": MagicMock()}
-        mock_mcp_manager.call_tool = AsyncMock(side_effect=ValueError("Invalid argument format"))
+        mock_proxy = _make_proxy(side_effect=ValueError("Invalid argument format"))
 
         mock_state = MagicMock()
         mock_state.variables = {}
 
         result = await call_mcp_tool(
-            mcp_manager=mock_mcp_manager,
+            tool_proxy_getter=lambda: mock_proxy,
             state=mock_state,
             server_name="test-server",
             tool_name="test-tool",
@@ -271,17 +243,13 @@ class TestCallMcpToolExceptionHandling:
     @pytest.mark.asyncio
     async def test_call_tool_raises_runtime_error(self):
         """Test error handling when call_tool raises RuntimeError."""
-        mock_mcp_manager = AsyncMock()
-        mock_mcp_manager.connections = {"test-server": MagicMock()}
-        mock_mcp_manager.call_tool = AsyncMock(
-            side_effect=RuntimeError("Server disconnected during call")
-        )
+        mock_proxy = _make_proxy(side_effect=RuntimeError("Server disconnected during call"))
 
         mock_state = MagicMock()
         mock_state.variables = {}
 
         result = await call_mcp_tool(
-            mcp_manager=mock_mcp_manager,
+            tool_proxy_getter=lambda: mock_proxy,
             state=mock_state,
             server_name="test-server",
             tool_name="test-tool",
@@ -296,15 +264,13 @@ class TestCallMcpToolOutputStorage:
     @pytest.mark.asyncio
     async def test_output_as_creates_variables_dict_when_none(self):
         """Test output_as initializes variables dict if None."""
-        mock_mcp_manager = AsyncMock()
-        mock_mcp_manager.connections = {"test-server": MagicMock()}
-        mock_mcp_manager.call_tool = AsyncMock(return_value={"value": 42})
+        mock_proxy = _make_proxy(return_value={"value": 42})
 
         mock_state = MagicMock()
         mock_state.variables = None  # Simulate uninitialized variables
 
         result = await call_mcp_tool(
-            mcp_manager=mock_mcp_manager,
+            tool_proxy_getter=lambda: mock_proxy,
             state=mock_state,
             server_name="test-server",
             tool_name="get-value",
@@ -319,15 +285,13 @@ class TestCallMcpToolOutputStorage:
     @pytest.mark.asyncio
     async def test_output_as_adds_to_existing_variables(self):
         """Test output_as adds to existing variables without overwriting."""
-        mock_mcp_manager = AsyncMock()
-        mock_mcp_manager.connections = {"test-server": MagicMock()}
-        mock_mcp_manager.call_tool = AsyncMock(return_value={"new": "data"})
+        mock_proxy = _make_proxy(return_value={"new": "data"})
 
         mock_state = MagicMock()
         mock_state.variables = {"existing_var": "old_value"}
 
         await call_mcp_tool(
-            mcp_manager=mock_mcp_manager,
+            tool_proxy_getter=lambda: mock_proxy,
             state=mock_state,
             server_name="test-server",
             tool_name="test-tool",
@@ -340,15 +304,13 @@ class TestCallMcpToolOutputStorage:
     @pytest.mark.asyncio
     async def test_output_as_overwrites_existing_variable(self):
         """Test output_as overwrites an existing variable with same name."""
-        mock_mcp_manager = AsyncMock()
-        mock_mcp_manager.connections = {"test-server": MagicMock()}
-        mock_mcp_manager.call_tool = AsyncMock(return_value={"updated": True})
+        mock_proxy = _make_proxy(return_value={"updated": True})
 
         mock_state = MagicMock()
         mock_state.variables = {"target_var": "initial_value"}
 
         await call_mcp_tool(
-            mcp_manager=mock_mcp_manager,
+            tool_proxy_getter=lambda: mock_proxy,
             state=mock_state,
             server_name="test-server",
             tool_name="test-tool",
@@ -360,12 +322,10 @@ class TestCallMcpToolOutputStorage:
     @pytest.mark.asyncio
     async def test_output_as_with_none_state_raises_error(self):
         """Test output_as raises ValueError when state is None."""
-        mock_mcp_manager = AsyncMock()
-        mock_mcp_manager.connections = {"test-server": MagicMock()}
-        mock_mcp_manager.call_tool = AsyncMock(return_value={"data": "value"})
+        mock_proxy = _make_proxy(return_value={"data": "value"})
 
         result = await call_mcp_tool(
-            mcp_manager=mock_mcp_manager,
+            tool_proxy_getter=lambda: mock_proxy,
             state=None,  # State is None but output_as is specified
             server_name="test-server",
             tool_name="test-tool",
@@ -382,9 +342,7 @@ class TestCallMcpToolComplexArguments:
     @pytest.mark.asyncio
     async def test_nested_dict_arguments(self):
         """Test tool call with deeply nested dictionary arguments."""
-        mock_mcp_manager = AsyncMock()
-        mock_mcp_manager.connections = {"test-server": MagicMock()}
-        mock_mcp_manager.call_tool = AsyncMock(return_value={"success": True})
+        mock_proxy = _make_proxy(return_value={"success": True})
 
         mock_state = MagicMock()
         mock_state.variables = {}
@@ -395,7 +353,7 @@ class TestCallMcpToolComplexArguments:
         }
 
         result = await call_mcp_tool(
-            mcp_manager=mock_mcp_manager,
+            tool_proxy_getter=lambda: mock_proxy,
             state=mock_state,
             server_name="test-server",
             tool_name="complex-tool",
@@ -403,22 +361,20 @@ class TestCallMcpToolComplexArguments:
         )
 
         assert result["result"] == {"success": True}
-        mock_mcp_manager.call_tool.assert_called_once_with(
+        mock_proxy.call_tool.assert_called_once_with(
             "test-server", "complex-tool", complex_args
         )
 
     @pytest.mark.asyncio
     async def test_list_arguments(self):
         """Test tool call with list values in arguments."""
-        mock_mcp_manager = AsyncMock()
-        mock_mcp_manager.connections = {"test-server": MagicMock()}
-        mock_mcp_manager.call_tool = AsyncMock(return_value={"processed": 5})
+        mock_proxy = _make_proxy(return_value={"processed": 5})
 
         mock_state = MagicMock()
         mock_state.variables = {}
 
         result = await call_mcp_tool(
-            mcp_manager=mock_mcp_manager,
+            tool_proxy_getter=lambda: mock_proxy,
             state=mock_state,
             server_name="test-server",
             tool_name="batch-process",
@@ -434,15 +390,13 @@ class TestCallMcpToolReturnValues:
     @pytest.mark.asyncio
     async def test_returns_none_from_tool(self):
         """Test handling when tool returns None."""
-        mock_mcp_manager = AsyncMock()
-        mock_mcp_manager.connections = {"test-server": MagicMock()}
-        mock_mcp_manager.call_tool = AsyncMock(return_value=None)
+        mock_proxy = _make_proxy(return_value=None)
 
         mock_state = MagicMock()
         mock_state.variables = {}
 
         result = await call_mcp_tool(
-            mcp_manager=mock_mcp_manager,
+            tool_proxy_getter=lambda: mock_proxy,
             state=mock_state,
             server_name="test-server",
             tool_name="void-tool",
@@ -454,15 +408,13 @@ class TestCallMcpToolReturnValues:
     @pytest.mark.asyncio
     async def test_returns_empty_dict_from_tool(self):
         """Test handling when tool returns empty dict."""
-        mock_mcp_manager = AsyncMock()
-        mock_mcp_manager.connections = {"test-server": MagicMock()}
-        mock_mcp_manager.call_tool = AsyncMock(return_value={})
+        mock_proxy = _make_proxy(return_value={})
 
         mock_state = MagicMock()
         mock_state.variables = {}
 
         result = await call_mcp_tool(
-            mcp_manager=mock_mcp_manager,
+            tool_proxy_getter=lambda: mock_proxy,
             state=mock_state,
             server_name="test-server",
             tool_name="empty-result-tool",
@@ -473,15 +425,13 @@ class TestCallMcpToolReturnValues:
     @pytest.mark.asyncio
     async def test_returns_list_from_tool(self):
         """Test handling when tool returns a list."""
-        mock_mcp_manager = AsyncMock()
-        mock_mcp_manager.connections = {"test-server": MagicMock()}
-        mock_mcp_manager.call_tool = AsyncMock(return_value=["item1", "item2", "item3"])
+        mock_proxy = _make_proxy(return_value=["item1", "item2", "item3"])
 
         mock_state = MagicMock()
         mock_state.variables = {}
 
         result = await call_mcp_tool(
-            mcp_manager=mock_mcp_manager,
+            tool_proxy_getter=lambda: mock_proxy,
             state=mock_state,
             server_name="test-server",
             tool_name="list-tool",
@@ -494,15 +444,13 @@ class TestCallMcpToolReturnValues:
     @pytest.mark.asyncio
     async def test_returns_string_from_tool(self):
         """Test handling when tool returns a string."""
-        mock_mcp_manager = AsyncMock()
-        mock_mcp_manager.connections = {"test-server": MagicMock()}
-        mock_mcp_manager.call_tool = AsyncMock(return_value="string result")
+        mock_proxy = _make_proxy(return_value="string result")
 
         mock_state = MagicMock()
         mock_state.variables = {}
 
         result = await call_mcp_tool(
-            mcp_manager=mock_mcp_manager,
+            tool_proxy_getter=lambda: mock_proxy,
             state=mock_state,
             server_name="test-server",
             tool_name="string-tool",
@@ -513,15 +461,13 @@ class TestCallMcpToolReturnValues:
     @pytest.mark.asyncio
     async def test_returns_integer_from_tool(self):
         """Test handling when tool returns an integer."""
-        mock_mcp_manager = AsyncMock()
-        mock_mcp_manager.connections = {"test-server": MagicMock()}
-        mock_mcp_manager.call_tool = AsyncMock(return_value=42)
+        mock_proxy = _make_proxy(return_value=42)
 
         mock_state = MagicMock()
         mock_state.variables = {}
 
         result = await call_mcp_tool(
-            mcp_manager=mock_mcp_manager,
+            tool_proxy_getter=lambda: mock_proxy,
             state=mock_state,
             server_name="test-server",
             tool_name="int-tool",
@@ -534,15 +480,13 @@ class TestCallMcpToolReturnValues:
     @pytest.mark.asyncio
     async def test_returns_boolean_from_tool(self):
         """Test handling when tool returns a boolean."""
-        mock_mcp_manager = AsyncMock()
-        mock_mcp_manager.connections = {"test-server": MagicMock()}
-        mock_mcp_manager.call_tool = AsyncMock(return_value=True)
+        mock_proxy = _make_proxy(return_value=True)
 
         mock_state = MagicMock()
         mock_state.variables = {}
 
         result = await call_mcp_tool(
-            mcp_manager=mock_mcp_manager,
+            tool_proxy_getter=lambda: mock_proxy,
             state=mock_state,
             server_name="test-server",
             tool_name="bool-tool",
@@ -557,15 +501,13 @@ class TestCallMcpToolEdgeCases:
     @pytest.mark.asyncio
     async def test_server_name_with_special_characters(self):
         """Test server name with hyphens and underscores."""
-        mock_mcp_manager = AsyncMock()
-        mock_mcp_manager.connections = {"my-test_server-v2": MagicMock()}
-        mock_mcp_manager.call_tool = AsyncMock(return_value={"ok": True})
+        mock_proxy = _make_proxy(return_value={"ok": True})
 
         mock_state = MagicMock()
         mock_state.variables = {}
 
         result = await call_mcp_tool(
-            mcp_manager=mock_mcp_manager,
+            tool_proxy_getter=lambda: mock_proxy,
             state=mock_state,
             server_name="my-test_server-v2",
             tool_name="test-tool",
@@ -576,35 +518,31 @@ class TestCallMcpToolEdgeCases:
     @pytest.mark.asyncio
     async def test_tool_name_with_special_characters(self):
         """Test tool name with hyphens, underscores, and dots."""
-        mock_mcp_manager = AsyncMock()
-        mock_mcp_manager.connections = {"test-server": MagicMock()}
-        mock_mcp_manager.call_tool = AsyncMock(return_value={"ok": True})
+        mock_proxy = _make_proxy(return_value={"ok": True})
 
         mock_state = MagicMock()
         mock_state.variables = {}
 
         result = await call_mcp_tool(
-            mcp_manager=mock_mcp_manager,
+            tool_proxy_getter=lambda: mock_proxy,
             state=mock_state,
             server_name="test-server",
             tool_name="my_tool.v2-beta",
         )
 
         assert result["result"] == {"ok": True}
-        mock_mcp_manager.call_tool.assert_called_once_with("test-server", "my_tool.v2-beta", {})
+        mock_proxy.call_tool.assert_called_once_with("test-server", "my_tool.v2-beta", {})
 
     @pytest.mark.asyncio
     async def test_output_as_with_special_characters(self):
         """Test output_as variable name with underscores."""
-        mock_mcp_manager = AsyncMock()
-        mock_mcp_manager.connections = {"test-server": MagicMock()}
-        mock_mcp_manager.call_tool = AsyncMock(return_value={"data": 123})
+        mock_proxy = _make_proxy(return_value={"data": 123})
 
         mock_state = MagicMock()
         mock_state.variables = {}
 
         await call_mcp_tool(
-            mcp_manager=mock_mcp_manager,
+            tool_proxy_getter=lambda: mock_proxy,
             state=mock_state,
             server_name="test-server",
             tool_name="test-tool",
@@ -616,9 +554,7 @@ class TestCallMcpToolEdgeCases:
     @pytest.mark.asyncio
     async def test_arguments_with_none_values(self):
         """Test arguments dict containing None values."""
-        mock_mcp_manager = AsyncMock()
-        mock_mcp_manager.connections = {"test-server": MagicMock()}
-        mock_mcp_manager.call_tool = AsyncMock(return_value={"processed": True})
+        mock_proxy = _make_proxy(return_value={"processed": True})
 
         mock_state = MagicMock()
         mock_state.variables = {}
@@ -630,7 +566,7 @@ class TestCallMcpToolEdgeCases:
         }
 
         result = await call_mcp_tool(
-            mcp_manager=mock_mcp_manager,
+            tool_proxy_getter=lambda: mock_proxy,
             state=mock_state,
             server_name="test-server",
             tool_name="test-tool",
@@ -638,16 +574,14 @@ class TestCallMcpToolEdgeCases:
         )
 
         assert result["result"] == {"processed": True}
-        mock_mcp_manager.call_tool.assert_called_once_with(
+        mock_proxy.call_tool.assert_called_once_with(
             "test-server", "test-tool", args_with_none
         )
 
     @pytest.mark.asyncio
     async def test_arguments_with_empty_string_values(self):
         """Test arguments dict containing empty string values."""
-        mock_mcp_manager = AsyncMock()
-        mock_mcp_manager.connections = {"test-server": MagicMock()}
-        mock_mcp_manager.call_tool = AsyncMock(return_value={"valid": True})
+        mock_proxy = _make_proxy(return_value={"valid": True})
 
         mock_state = MagicMock()
         mock_state.variables = {}
@@ -659,7 +593,7 @@ class TestCallMcpToolEdgeCases:
         }
 
         result = await call_mcp_tool(
-            mcp_manager=mock_mcp_manager,
+            tool_proxy_getter=lambda: mock_proxy,
             state=mock_state,
             server_name="test-server",
             tool_name="test-tool",
@@ -671,18 +605,15 @@ class TestCallMcpToolEdgeCases:
     @pytest.mark.asyncio
     async def test_large_result_stored_in_variable(self):
         """Test storing a large result in workflow variable."""
-        mock_mcp_manager = AsyncMock()
-        mock_mcp_manager.connections = {"test-server": MagicMock()}
-
         # Simulate a large result
         large_result = {"items": [{"id": i, "data": "x" * 1000} for i in range(100)]}
-        mock_mcp_manager.call_tool = AsyncMock(return_value=large_result)
+        mock_proxy = _make_proxy(return_value=large_result)
 
         mock_state = MagicMock()
         mock_state.variables = {}
 
         result = await call_mcp_tool(
-            mcp_manager=mock_mcp_manager,
+            tool_proxy_getter=lambda: mock_proxy,
             state=mock_state,
             server_name="test-server",
             tool_name="bulk-fetch",
@@ -709,9 +640,7 @@ class TestCallMcpToolWithRealWorkflowState:
             step: str
             variables: dict = field(default_factory=dict)
 
-        mock_mcp_manager = AsyncMock()
-        mock_mcp_manager.connections = {"test-server": MagicMock()}
-        mock_mcp_manager.call_tool = AsyncMock(return_value={"status": "complete"})
+        mock_proxy = _make_proxy(return_value={"status": "complete"})
 
         state = MockWorkflowState(
             session_id="test-session",
@@ -721,7 +650,7 @@ class TestCallMcpToolWithRealWorkflowState:
         )
 
         result = await call_mcp_tool(
-            mcp_manager=mock_mcp_manager,
+            tool_proxy_getter=lambda: mock_proxy,
             state=state,
             server_name="test-server",
             tool_name="test-tool",
@@ -739,19 +668,13 @@ class TestCallMcpToolMultipleCalls:
     @pytest.mark.asyncio
     async def test_multiple_calls_accumulate_in_variables(self):
         """Test that multiple calls accumulate results in variables."""
-        mock_mcp_manager = AsyncMock()
-        mock_mcp_manager.connections = {
-            "server1": MagicMock(),
-            "server2": MagicMock(),
-        }
-
         mock_state = MagicMock()
         mock_state.variables = {}
 
         # First call
-        mock_mcp_manager.call_tool = AsyncMock(return_value={"data": "first"})
+        mock_proxy1 = _make_proxy(return_value={"data": "first"})
         await call_mcp_tool(
-            mcp_manager=mock_mcp_manager,
+            tool_proxy_getter=lambda: mock_proxy1,
             state=mock_state,
             server_name="server1",
             tool_name="tool1",
@@ -759,9 +682,9 @@ class TestCallMcpToolMultipleCalls:
         )
 
         # Second call
-        mock_mcp_manager.call_tool = AsyncMock(return_value={"data": "second"})
+        mock_proxy2 = _make_proxy(return_value={"data": "second"})
         await call_mcp_tool(
-            mcp_manager=mock_mcp_manager,
+            tool_proxy_getter=lambda: mock_proxy2,
             state=mock_state,
             server_name="server2",
             tool_name="tool2",
@@ -775,16 +698,13 @@ class TestCallMcpToolMultipleCalls:
     @pytest.mark.asyncio
     async def test_error_does_not_affect_previous_variables(self):
         """Test that an error in a call doesn't affect previously stored variables."""
-        mock_mcp_manager = AsyncMock()
-        mock_mcp_manager.connections = {"test-server": MagicMock()}
-
         mock_state = MagicMock()
         mock_state.variables = {}
 
         # Successful first call
-        mock_mcp_manager.call_tool = AsyncMock(return_value={"success": True})
+        mock_proxy1 = _make_proxy(return_value={"success": True})
         await call_mcp_tool(
-            mcp_manager=mock_mcp_manager,
+            tool_proxy_getter=lambda: mock_proxy1,
             state=mock_state,
             server_name="test-server",
             tool_name="tool1",
@@ -792,9 +712,9 @@ class TestCallMcpToolMultipleCalls:
         )
 
         # Second call fails
-        mock_mcp_manager.call_tool = AsyncMock(side_effect=Exception("Failed"))
+        mock_proxy2 = _make_proxy(side_effect=Exception("Failed"))
         result = await call_mcp_tool(
-            mcp_manager=mock_mcp_manager,
+            tool_proxy_getter=lambda: mock_proxy2,
             state=mock_state,
             server_name="test-server",
             tool_name="tool2",
@@ -897,9 +817,7 @@ class TestHandleCallMcpToolTemplateRendering:
         from gobby.workflows.definitions import WorkflowState
         from gobby.workflows.templates import TemplateEngine
 
-        mock_mcp_manager = AsyncMock()
-        mock_mcp_manager.connections = {"gobby-tasks": MagicMock()}
-        mock_mcp_manager.call_tool = AsyncMock(return_value={"suggestion": {"ref": "#42"}})
+        mock_proxy = _make_proxy(return_value={"suggestion": {"ref": "#42"}})
 
         state = WorkflowState(
             session_id="sess-1",
@@ -914,7 +832,7 @@ class TestHandleCallMcpToolTemplateRendering:
             db=MagicMock(),
             session_manager=MagicMock(),
             template_engine=TemplateEngine(),
-            mcp_manager=mock_mcp_manager,
+            tool_proxy_getter=lambda: mock_proxy,
         )
 
         from gobby.workflows.mcp_actions import handle_call_mcp_tool
@@ -927,7 +845,7 @@ class TestHandleCallMcpToolTemplateRendering:
         )
 
         # Arguments should have been rendered
-        mock_mcp_manager.call_tool.assert_called_once_with(
+        mock_proxy.call_tool.assert_called_once_with(
             "gobby-tasks",
             "suggest_next_task",
             {"session_id": "sess-1", "extra": "resolved_value"},
@@ -942,9 +860,7 @@ class TestHandleCallMcpToolTemplateRendering:
         from gobby.workflows.definitions import WorkflowState
         from gobby.workflows.templates import TemplateEngine
 
-        mock_mcp_manager = AsyncMock()
-        mock_mcp_manager.connections = {"test-server": MagicMock()}
-        mock_mcp_manager.call_tool = AsyncMock(return_value={"data": "ok"})
+        mock_proxy = _make_proxy(return_value={"data": "ok"})
 
         state = WorkflowState(
             session_id="sess-1",
@@ -959,7 +875,7 @@ class TestHandleCallMcpToolTemplateRendering:
             db=MagicMock(),
             session_manager=MagicMock(),
             template_engine=TemplateEngine(),
-            mcp_manager=mock_mcp_manager,
+            tool_proxy_getter=lambda: mock_proxy,
         )
 
         from gobby.workflows.mcp_actions import handle_call_mcp_tool
@@ -981,9 +897,7 @@ class TestHandleCallMcpToolTemplateRendering:
         from gobby.workflows.definitions import WorkflowState
         from gobby.workflows.templates import TemplateEngine
 
-        mock_mcp_manager = AsyncMock()
-        mock_mcp_manager.connections = {"srv": MagicMock()}
-        mock_mcp_manager.call_tool = AsyncMock(return_value={})
+        mock_proxy = _make_proxy(return_value={})
 
         state = WorkflowState(
             session_id="sess-1",
@@ -998,7 +912,7 @@ class TestHandleCallMcpToolTemplateRendering:
             db=MagicMock(),
             session_manager=MagicMock(),
             template_engine=TemplateEngine(),
-            mcp_manager=mock_mcp_manager,
+            tool_proxy_getter=lambda: mock_proxy,
         )
 
         from gobby.workflows.mcp_actions import handle_call_mcp_tool
@@ -1032,7 +946,7 @@ class TestHandleCallMcpToolTemplateRendering:
             db=MagicMock(),
             session_manager=MagicMock(),
             template_engine=TemplateEngine(),
-            mcp_manager=None,  # Will cause "MCP manager not available" error
+            tool_proxy_getter=None,  # Will cause "Tool proxy not available" error
         )
 
         from gobby.workflows.mcp_actions import handle_call_mcp_tool

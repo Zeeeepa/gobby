@@ -25,7 +25,7 @@ def mock_mem_services():
         "llm_service": AsyncMock(),
         "transcript_processor": MagicMock(),
         "config": MagicMock(),
-        "mcp_manager": AsyncMock(),
+        "tool_proxy_getter": AsyncMock(),
         "memory_manager": MagicMock(spec=MemoryManager),
         "memory_sync_manager": AsyncMock(),
     }
@@ -44,7 +44,7 @@ def mem_action_executor(temp_db, session_manager, mock_mem_services):
         llm_service=mock_mem_services["llm_service"],
         transcript_processor=mock_mem_services["transcript_processor"],
         config=mock_mem_services["config"],
-        mcp_manager=mock_mem_services["mcp_manager"],
+        tool_proxy_getter=mock_mem_services["tool_proxy_getter"],
         memory_manager=mock_mem_services["memory_manager"],
         memory_sync_manager=mock_mem_services["memory_sync_manager"],
     )
@@ -68,7 +68,7 @@ def mem_action_context(temp_db, session_manager, mem_workflow_state, mock_mem_se
         session_manager=session_manager,
         template_engine=MagicMock(spec=TemplateEngine),
         llm_service=mock_mem_services["llm_service"],
-        mcp_manager=mock_mem_services["mcp_manager"],
+        tool_proxy_getter=mock_mem_services["tool_proxy_getter"],
         memory_manager=mock_mem_services["memory_manager"],
         memory_sync_manager=mock_mem_services["memory_sync_manager"],
     )

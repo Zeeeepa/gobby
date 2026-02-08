@@ -35,7 +35,7 @@ def mock_action_executor():
     executor.llm_service = MagicMock()
     executor.transcript_processor = MagicMock()
     executor.config = MagicMock()
-    executor.mcp_manager = MagicMock()
+    executor.tool_proxy_getter = MagicMock()
     executor.memory_manager = MagicMock()
     executor.memory_sync_manager = MagicMock()
     executor.session_task_manager = MagicMock()

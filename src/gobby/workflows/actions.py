@@ -99,7 +99,7 @@ class ActionContext:
     llm_service: Any | None = None
     transcript_processor: Any | None = None
     config: Any | None = None
-    mcp_manager: Any | None = None
+    tool_proxy_getter: Any | None = None
     memory_manager: Any | None = None
     memory_sync_manager: Any | None = None
     task_sync_manager: Any | None = None
@@ -127,7 +127,7 @@ class ActionExecutor:
         llm_service: Any | None = None,
         transcript_processor: Any | None = None,
         config: Any | None = None,
-        mcp_manager: Any | None = None,
+        tool_proxy_getter: Any | None = None,
         memory_manager: Any | None = None,
         memory_sync_manager: Any | None = None,
         task_manager: Any | None = None,
@@ -147,7 +147,7 @@ class ActionExecutor:
         self.llm_service = llm_service
         self.transcript_processor = transcript_processor
         self.config = config
-        self.mcp_manager = mcp_manager
+        self.tool_proxy_getter = tool_proxy_getter
         self.memory_manager = memory_manager
         self.memory_sync_manager = memory_sync_manager
         self.task_manager = task_manager

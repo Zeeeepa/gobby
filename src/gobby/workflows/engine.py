@@ -487,7 +487,7 @@ class WorkflowEngine:
             llm_service=self.action_executor.llm_service,
             transcript_processor=self.action_executor.transcript_processor,
             config=self.action_executor.config,
-            mcp_manager=self.action_executor.mcp_manager,
+            tool_proxy_getter=self.action_executor.tool_proxy_getter,
             memory_manager=self.action_executor.memory_manager,
             memory_sync_manager=self.action_executor.memory_sync_manager,
             task_sync_manager=self.action_executor.task_sync_manager,

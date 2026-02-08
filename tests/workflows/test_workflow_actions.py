@@ -18,7 +18,7 @@ def mock_services():
         "llm_service": AsyncMock(),
         "transcript_processor": MagicMock(),
         "config": mock_config,
-        "mcp_manager": AsyncMock(),
+        "tool_proxy_getter": AsyncMock(),
         "memory_manager": MagicMock(),
     }
 
@@ -32,7 +32,7 @@ def action_executor(temp_db, session_manager, mock_services):
         llm_service=mock_services["llm_service"],
         transcript_processor=mock_services["transcript_processor"],
         config=mock_services["config"],
-        mcp_manager=mock_services["mcp_manager"],
+        tool_proxy_getter=mock_services["tool_proxy_getter"],
         memory_manager=mock_services["memory_manager"],
     )
 
@@ -54,7 +54,7 @@ def action_context(temp_db, session_manager, workflow_state, mock_services):
         db=temp_db,
         session_manager=session_manager,
         template_engine=mock_services["template_engine"],
-        mcp_manager=mock_services["mcp_manager"],
+        tool_proxy_getter=mock_services["tool_proxy_getter"],
         memory_manager=mock_services["memory_manager"],
     )
 
@@ -381,9 +381,9 @@ async def test_save_memory(action_executor, action_context, mock_services):
 @pytest.mark.asyncio
 async def test_call_mcp_tool(action_executor, action_context, mock_services):
     # Mock MCP manager
-    mock_services["mcp_manager"].call_tool = AsyncMock(return_value={"result": "tool_output"})
-    mock_services["mcp_manager"].connections = {"test-server": True}  # Fix connection check
-    action_context.mcp_manager = mock_services["mcp_manager"]
+    mock_proxy = AsyncMock()
+    mock_proxy.call_tool = AsyncMock(return_value={"result": "tool_output"})
+    action_context.tool_proxy_getter = lambda: mock_proxy
 
     result = await action_executor.execute(
         "call_mcp_tool",

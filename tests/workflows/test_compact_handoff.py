@@ -91,7 +91,7 @@ def action_executor(temp_db, session_manager):
         llm_service=AsyncMock(),
         transcript_processor=MagicMock(),
         config=mock_config,
-        mcp_manager=AsyncMock(),
+        tool_proxy_getter=AsyncMock(),
     )
 
 
@@ -141,7 +141,7 @@ async def test_extract_handoff_context_saves_to_session(
         db=action_executor.db,
         session_manager=session_manager,
         template_engine=MagicMock(spec=TemplateEngine),
-        mcp_manager=AsyncMock(),
+        tool_proxy_getter=AsyncMock(),
         config=mock_config,
     )
 
@@ -203,7 +203,7 @@ async def test_inject_context_reads_compact_handoff(
         db=action_executor.db,
         session_manager=session_manager,
         template_engine=MagicMock(spec=TemplateEngine),
-        mcp_manager=AsyncMock(),
+        tool_proxy_getter=AsyncMock(),
     )
 
     # Execute inject_context with compact_handoff source
@@ -252,7 +252,7 @@ async def test_full_compact_handoff_flow(
         db=action_executor.db,
         session_manager=session_manager,
         template_engine=MagicMock(spec=TemplateEngine),
-        mcp_manager=AsyncMock(),
+        tool_proxy_getter=AsyncMock(),
         config=mock_config,
     )
 
@@ -279,7 +279,7 @@ async def test_full_compact_handoff_flow(
         db=action_executor.db,
         session_manager=session_manager,
         template_engine=MagicMock(spec=TemplateEngine),
-        mcp_manager=AsyncMock(),
+        tool_proxy_getter=AsyncMock(),
     )
 
     inject_result = await action_executor.execute(
@@ -323,7 +323,7 @@ async def test_extract_handoff_context_disabled(
         db=action_executor.db,
         session_manager=session_manager,
         template_engine=MagicMock(spec=TemplateEngine),
-        mcp_manager=AsyncMock(),
+        tool_proxy_getter=AsyncMock(),
         config=disabled_config,
     )
 
@@ -357,7 +357,7 @@ async def test_inject_context_no_compact_markdown(
         db=action_executor.db,
         session_manager=session_manager,
         template_engine=MagicMock(spec=TemplateEngine),
-        mcp_manager=AsyncMock(),
+        tool_proxy_getter=AsyncMock(),
     )
 
     result = await action_executor.execute("inject_context", context, source="compact_handoff")

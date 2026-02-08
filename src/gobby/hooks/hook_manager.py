@@ -112,7 +112,7 @@ class HookManager:
         log_max_bytes: int = 10 * 1024 * 1024,  # 10MB
         log_backup_count: int = 5,
         broadcaster: Any | None = None,
-        mcp_manager: Any | None = None,
+        tool_proxy_getter: Any | None = None,
         message_processor: Any | None = None,
         memory_sync_manager: Any | None = None,
         task_sync_manager: Any | None = None,
@@ -129,7 +129,7 @@ class HookManager:
             log_max_bytes: Max log file size before rotation
             log_backup_count: Number of backup log files
             broadcaster: Optional HookEventBroadcaster instance
-            mcp_manager: Optional MCPClientManager instance
+            tool_proxy_getter: Callable returning ToolProxyService (lazy getter)
             message_processor: SessionMessageProcessor instance
             memory_sync_manager: Optional MemorySyncManager instance
             task_sync_manager: Optional TaskSyncManager instance
@@ -141,7 +141,7 @@ class HookManager:
         self.log_max_bytes = log_max_bytes
         self.log_backup_count = log_backup_count
         self.broadcaster = broadcaster
-        self.mcp_manager = mcp_manager
+        self.tool_proxy_getter = tool_proxy_getter
         self._message_processor = message_processor
         self.memory_sync_manager = memory_sync_manager
         self.task_sync_manager = task_sync_manager
@@ -290,7 +290,7 @@ class HookManager:
             llm_service=self._llm_service,
             transcript_processor=self._transcript_processor,
             config=self._config,
-            mcp_manager=self.mcp_manager,
+            tool_proxy_getter=self.tool_proxy_getter,
             memory_manager=self._memory_manager,
             memory_sync_manager=self.memory_sync_manager,
             task_manager=self._task_manager,
@@ -758,9 +758,7 @@ class HookManager:
                 and platform_session_id
             ):
                 try:
-                    hook_messages = self._hook_assembler.process_event(
-                        platform_session_id, event
-                    )
+                    hook_messages = self._hook_assembler.process_event(platform_session_id, event)
                     if hook_messages:
                         self._store_hook_messages(platform_session_id, hook_messages)
                 except Exception as e:
@@ -884,9 +882,7 @@ class HookManager:
                 except Exception as e:
                     self.logger.warning(f"Failed to schedule async webhook: {e}")
 
-    def _store_hook_messages(
-        self, session_id: str, messages: list[Any]
-    ) -> None:
+    def _store_hook_messages(self, session_id: str, messages: list[Any]) -> None:
         """Store hook-assembled transcript messages asynchronously.
 
         Args:

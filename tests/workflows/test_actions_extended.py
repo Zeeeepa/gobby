@@ -16,7 +16,7 @@ def mock_services():
         "llm_service": MagicMock(),
         "transcript_processor": MagicMock(),
         "config": MagicMock(),
-        "mcp_manager": AsyncMock(),
+        "tool_proxy_getter": AsyncMock(),
         "session_manager": MagicMock(),
         "db": MagicMock(),
     }
@@ -35,7 +35,7 @@ def action_context(mock_services):
         template_engine=mock_services["template_engine"],
         llm_service=mock_services["llm_service"],
         transcript_processor=mock_services["transcript_processor"],
-        mcp_manager=mock_services["mcp_manager"],
+        tool_proxy_getter=mock_services["tool_proxy_getter"],
     )
 
 
@@ -48,7 +48,7 @@ def action_executor(mock_services):
         llm_service=mock_services["llm_service"],
         transcript_processor=mock_services["transcript_processor"],
         config=mock_services["config"],
-        mcp_manager=mock_services["mcp_manager"],
+        tool_proxy_getter=mock_services["tool_proxy_getter"],
     )
 
 

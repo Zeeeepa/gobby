@@ -62,17 +62,17 @@ def _render_arguments(
 
 
 async def call_mcp_tool(
-    mcp_manager: Any,
+    tool_proxy_getter: Any,
     state: Any,
     server_name: str | None,
     tool_name: str | None,
     arguments: dict[str, Any] | None = None,
     output_as: str | None = None,
 ) -> dict[str, Any]:
-    """Call an MCP tool on a connected server.
+    """Call an MCP tool via ToolProxyService (handles both internal and external servers).
 
     Args:
-        mcp_manager: MCP client manager instance
+        tool_proxy_getter: Callable returning ToolProxyService instance
         state: WorkflowState object for storing results
         server_name: Name of the MCP server
         tool_name: Name of the tool to call
@@ -85,17 +85,18 @@ async def call_mcp_tool(
     if not server_name or not tool_name:
         return {"error": "Missing server_name or tool_name"}
 
-    if not mcp_manager:
-        logger.warning("call_mcp_tool: MCP manager not available")
-        return {"error": "MCP manager not available"}
+    if not tool_proxy_getter:
+        logger.warning("call_mcp_tool: tool_proxy_getter not available")
+        return {"error": "Tool proxy not available"}
 
     try:
-        # Check connection
-        if server_name not in mcp_manager.connections:
-            return {"error": f"Server {server_name} not connected"}
+        tool_proxy = tool_proxy_getter()
+        if not tool_proxy:
+            logger.warning("call_mcp_tool: tool_proxy_getter returned None")
+            return {"error": "Tool proxy not available"}
 
-        # Call tool
-        result = await mcp_manager.call_tool(server_name, tool_name, arguments or {})
+        # Call tool via ToolProxyService (routes to internal or external servers)
+        result = await tool_proxy.call_tool(server_name, tool_name, arguments or {})
 
         # Store result in workflow variable if 'as' specified
         if output_as:
@@ -157,7 +158,7 @@ async def handle_call_mcp_tool(context: "ActionContext", **kwargs: Any) -> dict[
         arguments = _render_arguments(arguments, template_engine, template_context)
 
     result = await call_mcp_tool(
-        mcp_manager=context.mcp_manager,
+        tool_proxy_getter=context.tool_proxy_getter,
         state=context.state,
         server_name=server_name,
         tool_name=tool_name,
