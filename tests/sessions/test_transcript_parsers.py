@@ -1335,7 +1335,7 @@ class TestCursorTranscriptParser:
             "Part 2",
             {"type": "image", "url": "img.png"},  # Non-text block ignored
         ]
-        assert parser._extract_content_blocks(content) == "Part 1 Part 2"
+        assert parser._extract_content_blocks(content) == "Part 1\nPart 2"
 
     def test_tool_call_unknown_structure(self, parser) -> None:
         """Test tool call with unknown structure falls back to 'unknown'."""
