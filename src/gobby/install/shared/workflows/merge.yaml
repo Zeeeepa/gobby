@@ -20,6 +20,7 @@ variables:
   worktree_id: null                # Worktree ID (when isolation_mode=worktree)
   branch_name: null
   target_branch: dev
+  merge_strategy: merge            # merge, squash, or rebase
   delete_branch: true
   merge_complete: false
   cleanup_complete: false
@@ -43,7 +44,7 @@ steps:
         name: merge_complete
         value: true
 
-      # Worktree mode: instruct LLM to do git merge (preserves worker commits)
+      # Worktree mode: instruct LLM to do git merge
       - action: inject_message
         when: "variables.get('isolation_mode') == 'worktree'"
         content: |
@@ -51,11 +52,23 @@ steps:
 
           Branch: {{ variables.branch_name }}
           Target: {{ variables.target_branch }}
+          Strategy: {{ variables.merge_strategy }}
 
-          Execute the merge (preserves worker commit history):
+          Execute the merge:
 
+          {% if variables.merge_strategy == 'squash' %}
+          git checkout {{ variables.target_branch }}
+          git merge --squash {{ variables.branch_name }}
+          git commit -m "Merge {{ variables.branch_name }} (squashed)"
+          {% elif variables.merge_strategy == 'rebase' %}
+          git checkout {{ variables.branch_name }}
+          git rebase {{ variables.target_branch }}
+          git checkout {{ variables.target_branch }}
+          git merge --ff-only {{ variables.branch_name }}
+          {% else %}
           git checkout {{ variables.target_branch }}
           git merge {{ variables.branch_name }}
+          {% endif %}
 
           After successful merge, set merge_complete to true:
           set_workflow_variable("merge_complete", true)
