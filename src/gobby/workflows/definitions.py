@@ -41,7 +41,9 @@ class PrematureStopHandler(BaseModel):
 class WorkflowStep(BaseModel):
     name: str
     description: str | None = None
-    status_message: str | None = None  # Template rendered after on_enter, returned as system_message
+    status_message: str | None = (
+        None  # Template rendered after on_enter, returned as system_message
+    )
 
     on_enter: list[dict[str, Any]] = Field(default_factory=list)
 

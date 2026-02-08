@@ -144,7 +144,9 @@ class CursorTranscriptParser:
                 return ParsedMessage(
                     index=index,
                     role="tool",
-                    content=str(tool_result.get("output", ""))[:TOOL_OUTPUT_MAX_LENGTH] if tool_result else "",
+                    content=str(tool_result.get("output", ""))[:TOOL_OUTPUT_MAX_LENGTH]
+                    if tool_result
+                    else "",
                     content_type="tool_result",
                     tool_name=tool_name,
                     tool_input=None,

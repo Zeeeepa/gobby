@@ -91,7 +91,7 @@ class SessionEventHandlerMixin(EventHandlersBase):
 
         # Check for capture file in standard location
         session_id = input_data.get("session_id") or external_id or ""
-        if not session_id or not re.match(r'^[a-zA-Z0-9._-]+$', session_id):
+        if not session_id or not re.match(r"^[a-zA-Z0-9._-]+$", session_id):
             return None
         capture_path = f"{tempfile.gettempdir()}/gobby-cursor-{session_id}.ndjson"
         if Path(capture_path).exists():

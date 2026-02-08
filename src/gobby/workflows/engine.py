@@ -183,8 +183,12 @@ class WorkflowEngine:
                         context = "[System Alert] Step duration limit exceeded. Transitioning to 'reflect' step."
                         if result.injected_messages:
                             context = context + "\n\n" + "\n\n".join(result.injected_messages)
-                        system_message = "\n".join(result.system_messages) if result.system_messages else None
-                        return HookResponse(decision="modify", context=context, system_message=system_message)
+                        system_message = (
+                            "\n".join(result.system_messages) if result.system_messages else None
+                        )
+                        return HookResponse(
+                            decision="modify", context=context, system_message=system_message
+                        )
 
         # 3. Load definition
         # Skip if this is a lifecycle-only state or ended workflow (used for task_claimed tracking)
@@ -263,8 +267,12 @@ class WorkflowEngine:
             if result.injected_messages or result.system_messages:
                 return HookResponse(
                     decision="modify",
-                    context="\n\n".join(result.injected_messages) if result.injected_messages else None,
-                    system_message="\n".join(result.system_messages) if result.system_messages else None,
+                    context="\n\n".join(result.injected_messages)
+                    if result.injected_messages
+                    else None,
+                    system_message="\n".join(result.system_messages)
+                    if result.system_messages
+                    else None,
                 )
 
         # Handle approval flow on user prompt submit
@@ -428,8 +436,12 @@ class WorkflowEngine:
                 else:
                     context = f"Transitioning to step: {transition.to}"
 
-                system_message = "\n".join(result.system_messages) if result.system_messages else None
-                return HookResponse(decision="modify", context=context, system_message=system_message)
+                system_message = (
+                    "\n".join(result.system_messages) if result.system_messages else None
+                )
+                return HookResponse(
+                    decision="modify", context=context, system_message=system_message
+                )
 
         # Check exit conditions
         logger.debug("Checking exit conditions")
@@ -506,7 +518,9 @@ class WorkflowEngine:
         if status_msg:
             system_messages.append(status_msg)
 
-        return TransitionResult(injected_messages=injected_messages, system_messages=system_messages)
+        return TransitionResult(
+            injected_messages=injected_messages, system_messages=system_messages
+        )
 
     async def _execute_actions(
         self, actions: list[dict[str, Any]], state: WorkflowState
