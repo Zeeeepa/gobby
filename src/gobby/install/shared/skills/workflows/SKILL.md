@@ -76,6 +76,18 @@ Call `list_workflows` to see all available workflows:
 
 Example: `/gobby workflows list` → `list_workflows()`
 
+### `/gobby workflows evaluate <workflow-name>` - Dry-run workflow validation
+Call `evaluate_workflow` to validate a workflow definition without executing. Checks structure, step reachability, transitions, and tool references.
+
+Parameters:
+- `name`: (required) Workflow name to evaluate
+- `project_path`: Optional project path for lookup
+
+Returns a `WorkflowEvaluation` with `valid` (bool), `items` (list of findings), and `step_trace` (reachability analysis).
+
+Example: `/gobby workflows evaluate meeseeks-box`
+→ `evaluate_workflow(name="meeseeks-box")`
+
 ## Response Format
 
 After executing the appropriate MCP tool, present the results clearly:
@@ -120,4 +132,4 @@ Only use manual transitions when automatic conditions aren't met and you have ju
 ## Error Handling
 
 If the subcommand is not recognized, show available subcommands:
-- activate, deactivate, status, list
+- activate, deactivate, status, list, evaluate

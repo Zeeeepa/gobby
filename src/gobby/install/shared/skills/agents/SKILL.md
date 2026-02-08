@@ -141,6 +141,32 @@ Call `running_agent_stats` to get statistics about running agents.
 
 Example: `/gobby agents stats` → `running_agent_stats()`
 
+### `/gobby agents evaluate <agent>` - Dry-run spawn evaluation
+Call `evaluate_spawn` to validate a spawn configuration without executing. Checks agent definition, workflow resolution, isolation config, orchestrator enforcement, and runtime environment.
+
+Parameters:
+- `agent`: Agent name to evaluate
+- `workflow`: Optional workflow override
+- `task_id`: Optional task ID
+- `isolation`: Optional isolation mode
+- `mode`: Optional execution mode
+- `parent_session_id`: Optional parent session for depth/orchestrator checks
+
+Returns a `SpawnEvaluation` with `can_spawn` (bool), `items` (list of findings with level/code/message), and resolved effective values.
+
+Key evaluation codes:
+- `AGENT_NOT_FOUND` — agent definition missing
+- `WORKFLOW_KEY_MISMATCH` — default_workflow not in workflows map
+- `ORCHESTRATOR_MISMATCH` — non-default workflow without orchestrator active
+- `INTERNAL_WORKFLOW_BLOCKED` — internal workflow without orchestrator
+- `SPAWN_DEPTH_EXCEEDED` — max agent depth reached
+
+Example: `/gobby agents evaluate meeseeks-gemini`
+→ `evaluate_spawn(agent="meeseeks-gemini", parent_session_id="<session_id>")`
+
+Example: `/gobby agents evaluate meeseeks-gemini --workflow worker`
+→ `evaluate_spawn(agent="meeseeks-gemini", workflow="worker", parent_session_id="<session_id>")`
+
 ## Messaging Between Agents
 
 ### `/gobby agents send-to-parent <message>` - Send message to parent
@@ -234,5 +260,5 @@ After executing the appropriate MCP tool, present the results clearly:
 ## Error Handling
 
 If the subcommand is not recognized, show available subcommands:
-- spawn, result, stop, kill, list, running, can-spawn, stats
+- spawn, result, stop, kill, list, running, can-spawn, stats, evaluate
 - send-to-parent, send-to-child, poll, broadcast
