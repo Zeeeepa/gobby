@@ -185,11 +185,9 @@ Example: `/gobby agents broadcast Stop working`
 Agent definitions in `.gobby/agents/` provide preconfigured settings:
 
 ### Meeseeks Pattern
-The meeseeks agent supports orchestrator/worker workflows across any supported CLI:
+The meeseeks agent supports orchestrator/worker workflows for any coding CLI. Agent definitions in `.gobby/agents/` configure which CLI, provider, and terminal to use.
 
-- **meeseeks-gemini** (Gemini CLI): `spawn_agent(agent="meeseeks-gemini", task_id="#123", parent_session_id="...")`
-- **meeseeks-claude** (Claude Code): `spawn_agent(agent="meeseeks-claude", task_id="#123", parent_session_id="...")`
-- Custom agents can be defined in `.gobby/agents/` for other CLIs
+Example: `spawn_agent(agent="meeseeks-gemini", task_id="#123", parent_session_id="...")`
 
 **Workflows:**
 - `box` - Interactive orchestrator (runs in your session via `mode: self`)
