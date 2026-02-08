@@ -1006,9 +1006,9 @@ class TestGeminiTranscriptParser:
                         {
                             "name": "read_file",
                             "args": {"path": "test.txt"},
-                            "result": {
-                                "functionResponse": {"content": "file contents here"}
-                            },
+                            "result": [
+                                {"functionResponse": {"content": "file contents here"}}
+                            ],
                         }
                     ],
                 },
@@ -1093,8 +1093,8 @@ class TestGeminiTranscriptParser:
                     "type": "gemini",
                     "content": "OK",
                     "toolCalls": [
-                        {"name": "tool1", "args": {}, "result": {"functionResponse": "r1"}},
-                        {"name": "tool2", "args": {}, "result": {"functionResponse": "r2"}},
+                        {"name": "tool1", "args": {}, "result": [{"functionResponse": "r1"}]},
+                        {"name": "tool2", "args": {}, "result": [{"functionResponse": "r2"}]},
                     ],
                 },
                 {"id": "3", "timestamp": "2024-01-01T10:00:02Z", "type": "user", "content": "Thanks"},
@@ -1106,6 +1106,35 @@ class TestGeminiTranscriptParser:
         assert len(msgs) == 7
         for i, msg in enumerate(msgs):
             assert msg.index == i, f"Expected index {i}, got {msg.index} for {msg.content_type}"
+
+    def test_gemini_parse_session_json_result_as_dict(self, parser) -> None:
+        """Test parse_session_json handles result as dict (backwards compat)."""
+        data = {
+            "sessionId": "abc-123",
+            "messages": [
+                {
+                    "id": "msg-1",
+                    "timestamp": "2024-01-01T10:00:00Z",
+                    "type": "gemini",
+                    "content": "",
+                    "toolCalls": [
+                        {
+                            "name": "read_file",
+                            "args": {"path": "test.txt"},
+                            "result": {
+                                "functionResponse": {"content": "file contents"}
+                            },
+                        }
+                    ],
+                },
+            ],
+        }
+
+        msgs = parser.parse_session_json(data)
+        assert len(msgs) == 2
+        assert msgs[0].content_type == "tool_use"
+        assert msgs[1].content_type == "tool_result"
+        assert msgs[1].tool_name == "read_file"
 
 
 class TestCursorTranscriptParser:

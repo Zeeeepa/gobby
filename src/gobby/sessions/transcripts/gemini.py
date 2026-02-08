@@ -369,7 +369,16 @@ class GeminiTranscriptParser:
                 idx += 1
 
                 # Tool result (if present)
-                func_response = tc.get("result", {}).get("functionResponse")
+                # Gemini stores result as a list: [{"functionResponse": {...}}]
+                # but earlier code assumed a dict: {"functionResponse": {...}}
+                result_value = tc.get("result")
+                func_response = None
+                if isinstance(result_value, list) and result_value:
+                    first = result_value[0]
+                    if isinstance(first, dict):
+                        func_response = first.get("functionResponse")
+                elif isinstance(result_value, dict):
+                    func_response = result_value.get("functionResponse")
                 if func_response:
                     output = str(func_response)[:500]
                     results.append(
