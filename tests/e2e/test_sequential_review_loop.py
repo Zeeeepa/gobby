@@ -136,6 +136,7 @@ class TestSequentialReviewLoopE2E:
             arguments={
                 "task_id": subtask_ids[0],
                 "reason": "obsolete",
+                "changes_summary": "Subtask obsolete - no changes needed",
             },
         )
         result = unwrap_result(raw_result)
@@ -170,6 +171,7 @@ class TestSequentialReviewLoopE2E:
             arguments={
                 "task_id": subtask_ids[1],
                 "reason": "obsolete",
+                "changes_summary": "Subtask obsolete - no changes needed",
             },
         )
         result = unwrap_result(raw_result)
@@ -204,6 +206,7 @@ class TestSequentialReviewLoopE2E:
             arguments={
                 "task_id": epic_id,
                 "reason": "obsolete",
+                "changes_summary": "All subtasks completed - epic closed",
             },
         )
         result = unwrap_result(raw_result)
@@ -339,6 +342,7 @@ class TestSequentialReviewLoopE2E:
             arguments={
                 "task_id": subtask1_id,
                 "reason": "obsolete",
+                "changes_summary": "Subtask completed - no changes needed",
             },
         )
 
@@ -571,6 +575,7 @@ class TestReviewStepE2E:
             arguments={
                 "task_id": task_id,
                 "reason": "obsolete",
+                "changes_summary": "Task obsolete - skipped",
             },
         )
 
@@ -648,6 +653,7 @@ class TestReviewStepE2E:
             arguments={
                 "task_id": task_id,
                 "reason": "already_implemented",
+                "changes_summary": "Already implemented - no changes needed",
             },
         )
         result = unwrap_result(raw_result)

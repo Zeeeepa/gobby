@@ -9,7 +9,7 @@ import logging
 import time
 from typing import TYPE_CHECKING, Any
 
-from fastapi import Depends, Request
+from fastapi import Depends, HTTPException, Request
 
 from gobby.servers.routes.dependencies import get_internal_manager, get_mcp_manager, get_server
 from gobby.utils.metrics import get_metrics_collector
@@ -116,12 +116,10 @@ async def add_mcp_server(
         transport = body.get("transport")
 
         if not name or not transport:
-            response_time_ms = (time.perf_counter() - start_time) * 1000
-            return {
-                "success": False,
-                "error": "Required fields: name, transport",
-                "response_time_ms": response_time_ms,
-            }
+            raise HTTPException(
+                status_code=400,
+                detail={"success": False, "error": "Required fields: name, transport"},
+            )
 
         # Import here to avoid circular imports
         from gobby.mcp_proxy.models import MCPServerConfig
@@ -129,12 +127,10 @@ async def add_mcp_server(
 
         project_ctx = get_project_context()
         if not project_ctx or not project_ctx.get("id"):
-            response_time_ms = (time.perf_counter() - start_time) * 1000
-            return {
-                "success": False,
-                "error": "No current project found. Run 'gobby init'.",
-                "response_time_ms": response_time_ms,
-            }
+            raise HTTPException(
+                status_code=400,
+                detail={"success": False, "error": "No current project found. Run 'gobby init'."},
+            )
         project_id = project_ctx["id"]
 
         config = MCPServerConfig(
@@ -166,6 +162,8 @@ async def add_mcp_server(
             "response_time_ms": response_time_ms,
         }
 
+    except HTTPException:
+        raise
     except ValueError as e:
         response_time_ms = (time.perf_counter() - start_time) * 1000
         return {"success": False, "error": str(e), "response_time_ms": response_time_ms}
@@ -205,12 +203,13 @@ async def import_mcp_server(
         servers = body.get("servers")
 
         if not from_project and not github_url and not query:
-            response_time_ms = (time.perf_counter() - start_time) * 1000
-            return {
-                "success": False,
-                "error": "Specify at least one: from_project, github_url, or query",
-                "response_time_ms": response_time_ms,
-            }
+            raise HTTPException(
+                status_code=400,
+                detail={
+                    "success": False,
+                    "error": "Specify at least one: from_project, github_url, or query",
+                },
+            )
 
         # Get current project ID from context
         from gobby.utils.project_context import get_project_context
@@ -263,6 +262,8 @@ async def import_mcp_server(
             result["response_time_ms"] = response_time_ms
         return result
 
+    except HTTPException:
+        raise
     except Exception as e:
         _metrics.inc_counter("http_requests_errors_total")
         logger.error(f"Import MCP server error: {e}", exc_info=True)
@@ -305,8 +306,10 @@ async def remove_mcp_server(
         }
 
     except ValueError as e:
-        response_time_ms = (time.perf_counter() - start_time) * 1000
-        return {"success": False, "error": str(e), "response_time_ms": response_time_ms}
+        raise HTTPException(
+            status_code=404,
+            detail={"success": False, "error": str(e)},
+        ) from e
     except Exception as e:
         _metrics.inc_counter("http_requests_errors_total")
         logger.error(f"Remove MCP server error: {e}", exc_info=True)

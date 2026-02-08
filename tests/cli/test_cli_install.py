@@ -760,9 +760,14 @@ class TestUninstallCommand:
         mock_load_config: MagicMock,
         runner: CliRunner,
         temp_dir: Path,
+        monkeypatch: pytest.MonkeyPatch,
     ) -> None:
         """Test uninstall when no hooks are found."""
         mock_load_config.return_value = MagicMock()
+
+        fake_home = temp_dir / "home"
+        fake_home.mkdir()
+        monkeypatch.setattr(Path, "home", lambda: fake_home)
 
         with runner.isolated_filesystem(temp_dir=str(temp_dir)):
             result = runner.invoke(cli, ["uninstall", "--yes"])

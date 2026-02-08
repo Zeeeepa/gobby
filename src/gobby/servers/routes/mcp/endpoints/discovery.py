@@ -11,7 +11,7 @@ import logging
 import time
 from typing import TYPE_CHECKING, Any
 
-from fastapi import Depends, Request
+from fastapi import Depends, HTTPException, Request
 
 from gobby.servers.routes.dependencies import get_metrics_manager, get_server
 from gobby.utils.metrics import get_metrics_collector
@@ -205,12 +205,10 @@ async def recommend_mcp_tools(
         cwd = body.get("cwd")
 
         if not task_description:
-            response_time_ms = (time.perf_counter() - start_time) * 1000
-            return {
-                "success": False,
-                "error": "Required field: task_description",
-                "response_time_ms": response_time_ms,
-            }
+            raise HTTPException(
+                status_code=400,
+                detail={"success": False, "error": "Required field: task_description"},
+            )
 
         # For semantic/hybrid modes, resolve project_id from cwd
         project_id = None
@@ -248,6 +246,8 @@ async def recommend_mcp_tools(
             "response_time_ms": (time.perf_counter() - start_time) * 1000,
         }
 
+    except HTTPException:
+        raise
     except Exception as e:
         _metrics.inc_counter("http_requests_errors_total")
         logger.error(f"Recommend tools error: {e}", exc_info=True)
@@ -296,12 +296,10 @@ async def search_mcp_tools(
         cwd = body.get("cwd")
 
         if not query:
-            response_time_ms = (time.perf_counter() - start_time) * 1000
-            return {
-                "success": False,
-                "error": "Required field: query",
-                "response_time_ms": response_time_ms,
-            }
+            raise HTTPException(
+                status_code=400,
+                detail={"success": False, "error": "Required field: query"},
+            )
 
         # Resolve project_id from cwd
         try:
@@ -392,6 +390,8 @@ async def search_mcp_tools(
             "response_time_ms": (time.perf_counter() - start_time) * 1000,
         }
 
+    except HTTPException:
+        raise
     except Exception as e:
         _metrics.inc_counter("http_requests_errors_total")
         logger.error(f"Search tools error: {e}", exc_info=True)
