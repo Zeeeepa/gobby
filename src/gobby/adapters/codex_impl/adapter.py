@@ -203,6 +203,9 @@ class CodexAdapter(BaseAdapter):
         for method in self.SESSION_TRACKING_EVENTS:
             codex_client.add_notification_handler(method, self._handle_notification)
 
+        # Register approval handler for bidirectional tool blocking
+        codex_client.register_approval_handler(self.handle_approval_request)
+
         self._attached = True
         logger.debug("CodexAdapter attached to CodexAppServerClient")
 
@@ -236,6 +239,37 @@ class CodexAdapter(BaseAdapter):
                 logger.debug(f"Processed Codex event: {method} -> {hook_event.event_type}")
         except Exception as e:
             logger.error(f"Error handling Codex notification {method}: {e}")
+
+    async def handle_approval_request(
+        self, method: str, params: dict[str, Any]
+    ) -> dict[str, Any]:
+        """Handle an incoming approval request from Codex.
+
+        Translates the approval request to a HookEvent, processes it through
+        HookManager, and returns the decision in Codex format.
+
+        Args:
+            method: JSON-RPC method (e.g., "item/commandExecution/requestApproval")
+            params: Request parameters from Codex.
+
+        Returns:
+            Decision dict: {"decision": "accept"} or {"decision": "decline"}
+        """
+        hook_event = self._translate_approval_event(method, params)
+        if not hook_event:
+            # Unknown method - default to accept
+            return {"decision": "accept"}
+
+        if not self._hook_manager:
+            # No hook manager - default to accept
+            return {"decision": "accept"}
+
+        try:
+            hook_response = self._hook_manager.handle(hook_event)
+            return self.translate_from_hook_response(hook_response)
+        except Exception as e:
+            logger.error(f"Error processing approval request {method}: {e}")
+            return {"decision": "accept"}
 
     def _translate_approval_event(self, method: str, params: dict[str, Any]) -> HookEvent | None:
         """Translate approval request to HookEvent."""
