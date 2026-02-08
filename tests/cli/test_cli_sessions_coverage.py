@@ -585,11 +585,17 @@ def test_create_handoff_full_success(mock_session_manager, mock_resolve_session)
         patch("gobby.cli.sessions.LocalDatabase"),
         patch("gobby.storage.projects.LocalProjectManager"),
         patch("anyio.run", return_value="Full Summary Content"),
+        patch("gobby.prompts.loader.PromptLoader") as mock_prompt_loader_cls,
     ):
         # Mock file reading
         mock_file = MagicMock()
         mock_file.__enter__.return_value = ['{"role": "user", "content": "hello"}']
         mock_open.return_value = mock_file
+
+        # Mock PromptLoader to return a prompt template
+        mock_prompt_obj = MagicMock()
+        mock_prompt_obj.content = "test prompt"
+        mock_prompt_loader_cls.return_value.load.return_value = mock_prompt_obj
 
         # Mock Config
         mock_config = MagicMock()
