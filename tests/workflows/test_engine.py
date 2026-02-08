@@ -1252,3 +1252,126 @@ class TestDetectTaskClaim:
         await workflow_engine.handle_event(event)
 
         assert state.variables.get("task_claimed") is None
+
+
+@pytest.mark.asyncio
+class TestConditionalActions:
+    """Tests for `when` conditional support on on_enter actions."""
+
+    async def test_action_skipped_when_condition_false(
+        self, workflow_engine, mock_state_manager, mock_loader, mock_action_executor
+    ) -> None:
+        """Actions with a false `when` condition are skipped."""
+        state = WorkflowState(
+            session_id="sess1",
+            workflow_name="default",
+            step="step1",
+            step_entered_at=datetime.now(UTC),
+            variables={"should_run": False},
+        )
+
+        step1 = MagicMock(spec=WorkflowStep)
+        step1.on_exit = []
+
+        step2 = MagicMock(spec=WorkflowStep)
+        step2.on_enter = [
+            {"action": "inject_message", "content": "Always runs"},
+            {"action": "inject_message", "content": "Conditional", "when": "variables.get('should_run')"},
+        ]
+
+        workflow = MagicMock(spec=WorkflowDefinition)
+        workflow.type = "step"
+
+        def get_step(name: str) -> WorkflowStep | None:
+            return {"step1": step1, "step2": step2}.get(name)
+
+        workflow.get_step.side_effect = get_step
+
+        mock_action_executor.execute.return_value = {"inject_message": "Always runs"}
+
+        messages = await workflow_engine.transition_to(state, "step2", workflow)
+
+        assert state.step == "step2"
+        # Only the unconditional action should have executed
+        assert mock_action_executor.execute.call_count == 1
+        assert messages == ["Always runs"]
+
+    async def test_action_runs_when_condition_true(
+        self, workflow_engine, mock_state_manager, mock_loader, mock_action_executor
+    ) -> None:
+        """Actions with a true `when` condition are executed."""
+        state = WorkflowState(
+            session_id="sess1",
+            workflow_name="default",
+            step="step1",
+            step_entered_at=datetime.now(UTC),
+            variables={"should_run": True},
+        )
+
+        step1 = MagicMock(spec=WorkflowStep)
+        step1.on_exit = []
+
+        step2 = MagicMock(spec=WorkflowStep)
+        step2.on_enter = [
+            {"action": "set_variable", "name": "x", "value": 1},
+            {"action": "inject_message", "content": "Conditional", "when": "variables.get('should_run')"},
+        ]
+
+        workflow = MagicMock(spec=WorkflowDefinition)
+        workflow.type = "step"
+
+        def get_step(name: str) -> WorkflowStep | None:
+            return {"step1": step1, "step2": step2}.get(name)
+
+        workflow.get_step.side_effect = get_step
+
+        mock_action_executor.execute.side_effect = [
+            {"variable_set": "x", "value": 1},
+            {"inject_message": "Conditional"},
+        ]
+
+        messages = await workflow_engine.transition_to(state, "step2", workflow)
+
+        assert state.step == "step2"
+        # Both actions should have executed
+        assert mock_action_executor.execute.call_count == 2
+        assert messages == ["Conditional"]
+
+    async def test_action_without_when_always_runs(
+        self, workflow_engine, mock_state_manager, mock_loader, mock_action_executor
+    ) -> None:
+        """Actions without a `when` field always execute (backward compatible)."""
+        state = WorkflowState(
+            session_id="sess1",
+            workflow_name="default",
+            step="step1",
+            step_entered_at=datetime.now(UTC),
+            variables={},
+        )
+
+        step1 = MagicMock(spec=WorkflowStep)
+        step1.on_exit = []
+
+        step2 = MagicMock(spec=WorkflowStep)
+        step2.on_enter = [
+            {"action": "set_variable", "name": "x", "value": 1},
+            {"action": "inject_message", "content": "Hello"},
+        ]
+
+        workflow = MagicMock(spec=WorkflowDefinition)
+        workflow.type = "step"
+
+        def get_step(name: str) -> WorkflowStep | None:
+            return {"step1": step1, "step2": step2}.get(name)
+
+        workflow.get_step.side_effect = get_step
+
+        mock_action_executor.execute.side_effect = [
+            {"variable_set": "x", "value": 1},
+            {"inject_message": "Hello"},
+        ]
+
+        messages = await workflow_engine.transition_to(state, "step2", workflow)
+
+        assert mock_action_executor.execute.call_count == 2
+        assert messages == ["Hello"]

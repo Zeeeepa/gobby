@@ -504,6 +504,14 @@ class WorkflowEngine:
             if not action_type:
                 continue
 
+            # Support conditional actions via `when` field
+            when = action_def.get("when")
+            if when is not None:
+                eval_ctx = {"variables": DotDict(state.variables), **state.variables}
+                if not self.evaluator.evaluate(when, eval_ctx):
+                    logger.debug(f"Skipping action '{action_type}': when condition false: {when}")
+                    continue
+
             result = await self.action_executor.execute(action_type, context, **action_def)
 
             if result:

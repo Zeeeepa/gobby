@@ -3,12 +3,16 @@ description: |
   Interactive orchestrator for Claude Code terminal.
 
   This step workflow runs in Claude Code and:
-  1. Finds ready tasks using suggest_next_task()
+  1. Finds ready tasks using suggest_next_task() (with leaf task fallback)
   2. Spawns workers in isolated environments (clone, worktree, or current)
   3. Waits for task completion using wait_for_task()
   4. Reviews code changes (with approval gate)
   5. Merges approved branches via mode-appropriate tools, cleans up
   6. Loops until all session_tasks are complete
+
+  Leaf task handling: When session_task is a leaf task (no children),
+  suggest_next_task returns nothing. The workflow detects this and assigns
+  the session_task directly to a worker instead of falling into wait_for_workers.
 
   Isolation modes:
   - clone:    Worker runs in a full git clone (default). Merge via gobby-clones.
@@ -51,7 +55,7 @@ variables:
 
 steps:
   - name: find_work
-    description: "Find next ready task using suggest_next_task()"
+    description: "Find next ready task using suggest_next_task() with leaf task fallback"
     on_enter:
       # Clear stale results from previous iteration
       - action: set_variable
@@ -60,7 +64,11 @@ steps:
       - action: set_variable
         name: current_task_id
         value: null
-      # Auto-execute suggest_next_task
+      - action: set_variable
+        name: _session_task_info
+        value: null
+
+      # Step 1: Try suggest_next_task (finds ready subtasks for parent tasks)
       - action: call_mcp_tool
         server_name: gobby-tasks
         tool_name: suggest_next_task
@@ -75,6 +83,26 @@ steps:
       - action: set_variable
         name: current_task_id
         value: "{{ variables._suggest_result.suggestion.ref if variables._suggest_result and variables._suggest_result.suggestion is defined and variables._suggest_result.suggestion.ref is defined else '' }}"
+
+      # Step 2: Fallback — if suggest found nothing but session_task is set,
+      # check if session_task itself is still open and assign it directly.
+      # Handles leaf tasks (no children) and parents whose children are all done.
+      - action: call_mcp_tool
+        when: "not variables.get('current_task_id') and variables.get('session_task')"
+        server_name: gobby-tasks
+        tool_name: get_task
+        arguments:
+          task_id: "{{ variables.session_task }}"
+        output_as: _session_task_info
+
+      - action: set_variable
+        name: current_task_id
+        value: >-
+          {{ variables.session_task
+             if (not variables.get('current_task_id')
+                 and variables.get('_session_task_info')
+                 and variables._session_task_info.get('status') == 'open')
+             else variables.get('current_task_id', '') }}
 
     allowed_tools:
       - mcp__gobby__call_tool
