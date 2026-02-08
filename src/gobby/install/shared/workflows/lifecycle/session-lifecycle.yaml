@@ -1,5 +1,5 @@
 name: session-lifecycle
-description: "Unified session lifecycle: context handoff and memory"
+description: "Unified session lifecycle and behavior enforcement"
 type: lifecycle
 
 settings:

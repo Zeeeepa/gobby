@@ -1,0 +1,488 @@
+Starting CodeRabbit review in plain text mode...
+
+Connecting to review service
+Setting up
+Analyzing
+Reviewing
+
+============================================================================
+File: .gobby/agents
+Line: 1
+Type: potential_issue
+
+Prompt for AI Agent:
+In @.gobby/agents at line 1, The .gobby/agents entry is an absolute symlink to /Users/josh/... which will break on other machines; replace it with a relative symlink that points from .gobby to src/gobby/install/shared/agents (e.g., remove the current .gobby/agents link and recreate it as a relative link targeting ../src/gobby/install/shared/agents) and commit the updated symlink so the repository works across dev/CI/production environments.
+
+
+
+============================================================================
+File: .gobby/plugins
+Line: 1
+Type: nitpick
+
+Prompt for AI Agent:
+In @.gobby/plugins at line 1, The .gobby/plugins entry uses filesystem symlinks which are problematic on Windows; update the project to either document the Windows requirements (enable Developer Mode or run as Administrator) near the .gobby/plugins usage or change the implementation to avoid symlinks—e.g., replace the symlink-based plugin reference with a plugins directory copy or a configuration file listing plugin paths—and adjust any plugin-loading code that reads .gobby/plugins to read the new config or directory instead.
+
+
+
+============================================================================
+File: tests/mcp_proxy/tools/test_session_messages_coverage.py
+Line: 1461 to 1467
+Type: potential_issue
+
+Prompt for AI Agent:
+In @tests/mcp_proxy/tools/test_session_messages_coverage.py around lines 1461 - 1467, The test test_handoff_markdown_empty_context duplicates the earlier test_empty_context in TestFormatHandoffMarkdown by creating an empty HandoffContext, calling _format_handoff_markdown(ctx), and asserting the same header; remove the duplicate test_handoff_markdown_empty_context or replace it with a distinct scenario (e.g., construct HandoffContext with explicit None fields or with one populated field) so it verifies different behavior, ensuring changes are made in the test function named test_handoff_markdown_empty_context and references to HandoffContext and _format_handoff_markdown are adjusted accordingly.
+
+
+
+============================================================================
+File: .gemini/hooks/hook_dispatcher.py
+Line: 1
+Type: potential_issue
+
+Prompt for AI Agent:
+In @.gemini/hooks/hook_dispatcher.py at line 1, The symlink for the hook dispatcher currently points to an absolute developer-local path, which will break for other contributors/CI; update the symlink target referenced by .gemini/hooks/hook_dispatcher.py to use a repository-relative path (for example use ../../../src/gobby/install/gemini/hooks/hook_dispatcher.py) or recreate the symlink from the .gemini/hooks directory with a relative target so the hook_dispatcher.py symlink no longer embeds an absolute local path.
+
+
+
+============================================================================
+File: src/gobby/mcp_proxy/tools/worktrees.py
+Line: 554 to 557
+Type: nitpick
+
+Prompt for AI Agent:
+In @src/gobby/mcp_proxy/tools/worktrees.py around lines 554 - 557, Replace the broad "except Exception" in the error handling around the _resolve_project_context call with specific exceptions (at least ValueError and OSError) that are expected from WorktreeGitManager constructor and Path operations; catch ValueError and OSError (optionally using a tuple in one except clause) and keep the existing logger.debug call (include the same message), so unexpected exceptions still surface while the expected failures are logged as before.
+
+
+
+============================================================================
+File: src/gobby/mcp_proxy/tools/merge.py
+Line: 147 to 149
+Type: potential_issue
+
+Prompt for AI Agent:
+In @src/gobby/mcp_proxy/tools/merge.py around lines 147 - 149, The except block that calls logger.exception("Error starting merge") needs structured context: modify the logger.exception call in the start-merge handler (the except handling Exception as e) to include relevant identifiers available in scope (e.g., conflict_id, resolution_id or merge_id) as named fields so logs can be correlated; use the logger's structured logging form (e.g., logger.exception("Error starting merge", extra={"conflict_id": conflict_id, "resolution_id": resolution_id})) or the logger.exception(msg, exc_info=True, extra=...) pattern and keep returning the same {"success": False, "error": str(e)}. Ensure you reference the same variable names used elsewhere in this module (conflict_id, resolution_id) so the log contains those contextual parameters.
+
+
+
+============================================================================
+File: src/gobby/mcp_proxy/tools/merge.py
+Line: 373 to 375
+Type: potential_issue
+
+Prompt for AI Agent:
+In @src/gobby/mcp_proxy/tools/merge.py around lines 373 - 375, The except block that currently logs logger.exception("Error aborting merge") should include the resolution_id for consistent structured logging (like merge_apply does); update the exception logging in the handler that returns {"success": False, "error": str(e)}—the block with the "Error aborting merge" message—to include resolution_id (either by adding it to the log message or as structured context/extra) so traceability matches merge_apply's logging.
+
+
+
+============================================================================
+File: tests/sessions/test_analyzer.py
+Line: 1262 to 1284
+Type: nitpick
+
+Prompt for AI Agent:
+In @tests/sessions/test_analyzer.py around lines 1262 - 1284, The test test_extract_key_decisions_caps_at_10 currently only checks length; update it to also verify which decisions are retained by calling TranscriptAnalyzer().extract_handoff_context(turns) and asserting ctx.key_decisions equals the expected sequence (e.g., the first 10 chronological decisions or the last 10, depending on intended behavior). Construct the expected list from the generated turns (using the same f"I decided to use approach {i}..." pattern) and compare it to ctx.key_decisions to ensure the correct items are kept by extract_handoff_context.
+
+
+
+============================================================================
+File: src/gobby/sessions/transcripts/gemini.py
+Line: 176 to 178
+Type: nitpick
+
+Prompt for AI Agent:
+In @src/gobby/sessions/transcripts/gemini.py around lines 176 - 178, Unknown Gemini event types are currently dropped silently by the final else branch that returns None; update that branch in the event-handling function (the code block handling event types in src/gobby/sessions/transcripts/gemini.py) to emit a debug-level log containing the unknown event type and the raw payload (e.g., logger.debug("Unknown Gemini event type: %s, payload: %r", event_type, payload)) before returning None, and reuse the existing logger instance (or import/create one consistent with the module, e.g., logger or self.logger) so you get observability without changing the return behavior.
+
+
+
+============================================================================
+File: .gobby/plugins
+Line: 1
+Type: potential_issue
+
+Prompt for AI Agent:
+In @.gobby/plugins at line 1, The .gobby/plugins symlink currently points to an absolute, user-specific path (/Users/josh/...), which will break for others; change the link to a relative path from .gobby/plugins to the shared plugins folder (for example ../../src/gobby/install/shared/plugins or whatever relative traversal reaches src/gobby/install/shared/plugins), remove the existing absolute symlink and recreate it using a relative ln -s target so the repository works across machines and CI.
+
+
+
+============================================================================
+File: src/gobby/install/shared/skills/agents/SKILL.md
+Line: 3
+Type: nitpick
+
+Prompt for AI Agent:
+In @src/gobby/install/shared/skills/agents/SKILL.md at line 3, Split the single run-on description into two clear parts: list trigger phrases (e.g., "/gobby agents", "spawn agent", "start agent", "list agents") as a short "Triggers" or "Invocation" sentence, and provide a concise "Description" or "Purpose" sentence that explains functionality (manage subagent spawning: spawn, cancel, list, check results). Edit the description field in SKILL.md so it reads as two distinct sentences or labeled lines for clarity.
+
+
+
+============================================================================
+File: src/gobby/install/shared/skills/agents/SKILL.md
+Line: 81 to 82
+Type: potential_issue
+
+Prompt for AI Agent:
+In @src/gobby/install/shared/skills/agents/SKILL.md around lines 81 - 82, The example shows a named agent "meeseeks-gemini" being passed with workflow="worker" which conflicts with the guidance that named agents have preconfigured workflows and users should not set workflow/mode/isolation/terminal/provider; either change the example to show an ad-hoc agent spawn (e.g., omit the named agent and use spawn_agent(prompt="Fix the tests", workflow="worker")) or explicitly mark this as an advanced override and add a short sentence explaining that overriding a named agent (spawn_agent(agent="meeseeks-gemini", workflow="worker")) is allowed but discouraged and intended only for advanced users who know they want to replace the agent's default workflow.
+
+
+
+============================================================================
+File: src/gobby/workflows/shell_actions.py
+Line: 62 to 73
+Type: nitpick
+
+Prompt for AI Agent:
+In @src/gobby/workflows/shell_actions.py around lines 62 - 73, Validate session.project_id before attempting to fetch the project: guard the block that constructs LocalProjectManager and calls project_mgr.get(session.project_id) with an explicit check that session.project_id is not None (or falsy) to avoid calling project_mgr.get(None); only call project_mgr.get when session.project_id is present and then set render_context["project"] if a project is returned; keep the existing try/except around LocalProjectManager and project_mgr.get to preserve error logging.
+
+
+
+============================================================================
+File: .gobby/plans/strangler-fig-decomposition.md
+Line: 47 to 48
+Type: potential_issue
+
+Prompt for AI Agent:
+In @.gobby/plans/strangler-fig-decomposition.md around lines 47 - 48, Phase 4A's Step 2 prematurely deletes websocket.py which breaks the established extract→re-export→validate→cleanup pattern; instead keep the original websocket.py as a thin re-export facade that imports and re-exports from the new websocket package (__init__.py) after creating models.py (WebSocketClient, WebSocketConfig) and server.py (WebSocketServer) and after running the validation tests, and defer removing websocket.py until the Phase 4A cleanup task (#7111) so behavior matches other phases.
+
+
+
+============================================================================
+File: .gobby/plans/strangler-fig-decomposition.md
+Line: 63 to 73
+Type: nitpick
+
+Prompt for AI Agent:
+In @.gobby/plans/strangler-fig-decomposition.md around lines 63 - 73, Add Phase-level risk analysis entries for Phase 2, Phase 3, and Phase 4A similar to the Phase 4B section: for Phase 2 (~69 importers) and Phase 3 (~50 patch targets) include "Why high-risk" with scope/impact, and "Precautions" listing incremental extraction, run/update unit & integration tests after each step, capture interface contracts as assertions (e.g., for any affected constructors/handlers), create automated migration tests, coordinate with code owners, and ensure revertible commits; for Phase 4A explicitly call out the non-standard delete-after-conversion step and add extra precautions (staged deletion, rollback checkpoints, and additional integration tests) so reviewers have the same granular guidance provided in the Phase 4B Risk Analysis.
+
+
+
+============================================================================
+File: .gemini/settings.json
+Line: 1 to 141
+Type: potential_issue
+
+Prompt for AI Agent:
+In @.gemini/settings.json around lines 1 - 141, The settings.json uses hardcoded absolute paths (e.g. command values for hooks like "gobby-session-start", "gobby-before-tool", "gobby-notification" pointing at "/opt/homebrew/bin/uv" and "/Users/josh/Projects/gobby/.gemini/hooks/hook_dispatcher.py"); replace them with portable references by either (A) using a repo-relative path to the hook script (e.g. "./.gemini/hooks/hook_dispatcher.py") and invoking "uv" from PATH (or a configurable UV_BIN env var), (B) supporting environment-variable expansion for the UV binary and project root in the "command" strings, or (C) remove this generated file from VCS and ship a template (settings.json.template) that is populated during "gobby install"; update all hook entries (SessionStart, SessionEnd, BeforeAgent, AfterAgent, BeforeTool, AfterTool, BeforeToolSelection, BeforeModel, AfterModel, Notification, PreCompress) and document the chosen approach.
+
+
+
+============================================================================
+File: src/gobby/install/shared/workflows/meeseeks-box-pipeline.yaml
+Line: 26
+Type: potential_issue
+
+Prompt for AI Agent:
+In @src/gobby/install/shared/workflows/meeseeks-box-pipeline.yaml at line 26, The pipeline sets agent_name: null but uses it later in the spawn step (spawn step that passes agent: agent_name), so add validation to fail early if agent_name is not provided: create a new step (modeled after check_iteration_limit) that checks if ${inputs.agent_name} is null/empty and fails with a clear message, or alternatively set agent_name to a sensible default instead of null; reference the input name agent_name and the spawn step that consumes agent_name to locate where to add the check or default.
+
+
+
+============================================================================
+File: tests/workflows/test_engine.py
+Line: 1120 to 1170
+Type: nitpick
+
+Prompt for AI Agent:
+In @tests/workflows/test_engine.py around lines 1120 - 1170, The test contains redundant local imports of HookEvent, HookEventType, and SessionSource inside test_auto_transition_chain_respects_max_depth; remove those three imports from the function and rely on the module-level imports already present (so delete the from ... import HookEvent, HookEventType, SessionSource line), leaving the rest of the test and references to HookEvent/HuokEventType/SessionSource unchanged.
+
+
+
+============================================================================
+File: src/gobby/mcp_proxy/registries.py
+Line: 198 to 204
+Type: nitpick
+
+Prompt for AI Agent:
+In @src/gobby/mcp_proxy/registries.py around lines 198 - 204, The try/except around WorkflowStateManager initialization is too broad; instead catch only expected errors (e.g., database-related exceptions) so we don't swallow unexpected bugs—replace the generic "except Exception" when constructing WorkflowStateManager(db) with specific exception types raised by your DB layer (for example ConnectionError, OperationalError, or your ORM's DatabaseError) and keep the fallback assignment to workflow_state_manager = None and the logger.debug(...) call for diagnostic output; retain the same debug message but include the caught exception variable in that branch.
+
+
+
+============================================================================
+File: tests/workflows/test_engine.py
+Line: 1172 to 1214
+Type: nitpick
+
+Prompt for AI Agent:
+In @tests/workflows/test_engine.py around lines 1172 - 1214, In test_auto_transition_chain_stops_when_no_transition_matches remove the duplicate import lines for HookEvent, HookEventType, and SessionSource so there's only one import statement providing those symbols; update the import block near where HookEvent/HookEventType/SessionSource are used (the event construction) to reference the single consolidated import and leave the rest of the test logic unchanged.
+
+
+
+============================================================================
+File: src/gobby/worktrees/git.py
+Line: 249 to 258
+Type: nitpick
+
+Prompt for AI Agent:
+In @src/gobby/worktrees/git.py around lines 249 - 258, The warning emitted when branch_name is empty conflates two different failure modes—get_worktree_status returning None and get_worktree_status returning a status with status.branch == None (detached HEAD)—so update the logic around get_worktree_status, status and branch_name to log distinct messages: if status is None log that the worktree status could not be resolved; if status exists but status.branch is None log that the worktree is in a detached HEAD state and include status details; keep the same extra metadata (worktree_path, delete_branch=True) and use the existing logger.warning call sites (around get_worktree_status, status, branch_name) so each branch gets a clear, specific warning.
+
+
+
+============================================================================
+File: .gobby/plans/strangler-fig-decomposition.md
+Line: 15 to 23
+Type: nitpick
+
+Prompt for AI Agent:
+In @.gobby/plans/strangler-fig-decomposition.md around lines 15 - 23, Add explicit validation criteria to Phase 1 of the plan: for each extraction task (metadata helpers: _get_nested_value, _set_nested_value, _unset_nested_value, _get_skill_tags, _get_skill_category -> src/gobby/skills/metadata.py; scaffold logic -> src/gobby/skills/scaffold.py; formatting helpers -> src/gobby/skills/formatting.py) include a short checklist: unit tests for the moved functions pass, imports/re-exports in CLI work, no circular imports detected, and manual CLI smoke tests/integration tests confirm identical behavior; update the Phase 1 tasks list to include these validation items so reviewers can verify each extraction step.
+
+
+
+============================================================================
+File: .gemini/skills/gobby/SKILL.md
+Line: 100 to 103
+Type: nitpick
+
+Prompt for AI Agent:
+In @.gemini/skills/gobby/SKILL.md around lines 100 - 103, Reword the awkward fallback sentence under "Skill name resolution" to clearly state the lookup order: try an exact match first (get_skill(name="tasks")), and if that fails try resolving with the "gobby-" prefix (get_skill(name="gobby-tasks")) so both "/gobby tasks" and "/gobby gobby-tasks" work; update the current line that reads "If not found with gobby- prefix skills, try with prefix" to a clearer phrasing such as "If no exact match is found, try the same name prefixed with 'gobby-' (e.g., get_skill(name='gobby-tasks'))."
+
+
+
+============================================================================
+File: .gobby/plans/strangler-fig-decomposition.md
+Line: 10
+Type: nitpick
+
+Prompt for AI Agent:
+In @.gobby/plans/strangler-fig-decomposition.md at line 10, Rewrite the ambiguous constraint sentence about test modifications to a single clear rule: replace the current paragraph referencing "Test modifications", "Patch target updates", Phase 4B Task 1 (#7105), and Phase 5 with a simplified line such as: "Each extraction must update mock/patch paths to reflect new module locations; changes to test logic or assertions are deferred to Phase 5, except Phase 4B Task 1 (#7105) which explicitly allows ~20 patch path updates." Ensure you update the sentence that currently starts with 'All existing tests must pass after each extraction task...' to this simplified wording so the document references the same concepts ("Test modifications", "Patch target updates", "Phase 4B Task 1 (#7105)", "Phase 5") but in a single, unambiguous statement.
+
+
+
+============================================================================
+File: .gemini/skills/gobby/SKILL.md
+Line: 170 to 178
+Type: potential_issue
+
+Prompt for AI Agent:
+In @.gemini/skills/gobby/SKILL.md around lines 170 - 178, The "Session context" note is incomplete and awkward; fix the sentence under Implementation Notes so it reads clearly and adds any missing guidance: rewrite the fragment into a full bullet like "Session context: Skills may require a session_id — provide the session_id from your current session context when calling get_skill(name=...) and ensure it's forwarded in the args passthrough," and optionally add a short note about validating session_id and avoiding leaking sensitive session data; reference the existing items get_skill(name=...), the gobby- prefix fallback, and the args passthrough behavior so the implementer knows where to apply the change.
+
+
+
+============================================================================
+File: src/gobby/workflows/git_utils.py
+Line: 106 to 117
+Type: potential_issue
+
+Prompt for AI Agent:
+In @src/gobby/workflows/git_utils.py around lines 106 - 117, The docstring for get_git_diff_summary is missing documentation for the project_path parameter; update the docstring Args section to include project_path: type (str | None), meaning (optional path to the git project to run diffs in; defaults to current working directory if None), and expected behavior (used to change working directory or passed to git helper functions), and mention what happens when a non-repo path is provided (e.g., raises or returns empty). Keep wording consistent with the existing description of max_chars and ensure the parameter's default is documented.
+
+
+
+============================================================================
+File: web/src/components/ChatInput.tsx
+Line: 62 to 82
+Type: nitpick
+
+Prompt for AI Agent:
+In @web/src/components/ChatInput.tsx around lines 62 - 82, The Stop button in the ChatInput component is rendered when isStreaming is true but onStop may be undefined, so clicking it silently no-ops; update the rendering logic to only render the Stop button when both isStreaming and onStop are truthy (i.e., change the condition around the Stop button to require onStop) or make the onStop prop required for streaming states; locate the Stop button in the ChatInput component (the element using onClick={() => onStop?.()}) and either guard that fragment with a check for onStop or mark onStop as required in the component props and adjust callers accordingly.
+
+
+
+============================================================================
+File: src/gobby/workflows/hooks.py
+Line: 43
+Type: nitpick
+
+Prompt for AI Agent:
+In @src/gobby/workflows/hooks.py at line 43, The log call in hooks.py uses an f-string; change it to structured logging by passing the event type as context instead of formatting into the message—replace the call to logger.warning(f"Workflow evaluation cancelled for {event.event_type}") with a structured logging invocation like logger.warning("Workflow evaluation cancelled", event_type=event.event_type) so the message is constant and event.event_type is provided as a field for downstream log processors.
+
+
+
+============================================================================
+File: src/gobby/agents/definitions.py
+Line: 294 to 312
+Type: nitpick
+
+Prompt for AI Agent:
+In @src/gobby/agents/definitions.py around lines 294 - 312, The current fragile parsing in _find_by_yaml_name should be replaced with proper YAML parsing: open each *.yaml file, read the first document (use yaml.safe_load or yaml.safe_load_all and take the first document), extract the 'name' key from the loaded mapping and compare it to the provided name; handle yaml.YAMLError and OSError by continuing to the next file and return the Path when names match. Ensure you only consider the first YAML document in the file, and perform a safe equality check (no ad-hoc colon-splitting or manual quote stripping) so quoted names and complex YAML values are handled correctly.
+
+
+
+============================================================================
+File: tests/workflows/test_state_actions.py
+Line: 20 to 41
+Type: nitpick
+
+Prompt for AI Agent:
+In @tests/workflows/test_state_actions.py around lines 20 - 41, Add explicit return type hints to the fixtures: change the signature of workflow_state to declare it returns WorkflowState and change the signature of action_context to declare it returns ActionContext (also annotate the workflow_state parameter on action_context as WorkflowState). Update imports if needed so WorkflowState and ActionContext are available for the type annotations.
+
+
+
+============================================================================
+File: src/gobby/workflows/mcp_actions.py
+Line: 133 to 144
+Type: potential_issue
+
+Prompt for AI Agent:
+In @src/gobby/workflows/mcp_actions.py around lines 133 - 144, The current template-detection only inspects top-level argument values (has_templates) and misses nested templates; replace the simple top-level loop with a recursive check that walks nested dicts/lists/tuples and returns True if any string contains "{{". Update the block that sets has_templates (which currently checks server_name, tool_name, and a for-loop over (kwargs.get("arguments") or {}).values()) to call this new recursive helper (e.g., contains_template(value)) so nested templates are detected and the warning is emitted correctly; keep the rest of the warning logic and references to has_templates and _render_arguments intact.
+
+
+
+============================================================================
+File: tests/workflows/test_summary_actions.py
+Line: 1622 to 1635
+Type: nitpick
+
+Prompt for AI Agent:
+In @tests/workflows/test_summary_actions.py around lines 1622 - 1635, The test test_write_summary_file_error_returns_none uses a hardcoded path "/tmp/test_summary" which can fail on non-Unix or restricted environments; change the test to use the pytest tmp_path fixture (e.g., output_dir = tmp_path / "test_summary") and pass output_path=str(output_dir) or output_dir as a Path to the _write_summary_file call so the test uses a temporary, platform-independent directory while preserving the existing monkeypatch of pathlib.Path.mkdir.
+
+
+
+============================================================================
+File: tests/clones/test_git_extended.py
+Line: 62 to 86
+Type: nitpick
+
+Prompt for AI Agent:
+In @tests/clones/test_git_extended.py around lines 62 - 86, The test test_create_shallow_clone_success is fragile because it only checks mock_run.call_count and inspects a single call's args, which can break if subprocess call order changes; update the assertion to inspect mock_run.call_args_list from manager.create_clone and locate the specific call that runs the git checkout with branch creation (e.g., search for a call whose command contains "checkout", "-b" and "feature-branch") and assert that such a call exists (or assert on a specific index if the implementation guarantees order) so the test verifies the intended git checkout -b behavior robustly.
+
+
+
+============================================================================
+File: src/gobby/workflows/git_utils.py
+Line: 176 to 178
+Type: nitpick
+
+Prompt for AI Agent:
+In @src/gobby/workflows/git_utils.py around lines 176 - 178, The current broad except in get_git_diff_summary should be narrowed to specific exceptions: catch subprocess.TimeoutExpired, FileNotFoundError, and OSError (and optionally subprocess.CalledProcessError if the git subprocess may return non-zero) instead of "except Exception"; for each except keep the logger.debug("get_git_diff_summary failed", exc_info=True) and return "" so behavior is unchanged but only the specified exceptions are caught.
+
+
+
+============================================================================
+File: src/gobby/install/cursor/hooks/hook_dispatcher.py
+Line: 31 to 32
+Type: potential_issue
+
+Prompt for AI Agent:
+In @src/gobby/install/cursor/hooks/hook_dispatcher.py around lines 31 - 32, The module currently creates an asyncio.Lock at import time via _daemon_url_lock: asyncio.Lock = asyncio.Lock(), which raises RuntimeError outside an event loop; change _daemon_url_lock to be initialized as None (e.g., _daemon_url_lock: asyncio.Lock | None = None) and lazily create the lock inside the coroutine(s) that use it (the hook dispatcher methods that guard _cached_daemon_url) by checking if _daemon_url_lock is None and then assigning asyncio.Lock() before acquiring it; ensure the lazy init occurs inside an async context so Lock() is created against the running loop and keep the _cached_daemon_url variable as-is.
+
+
+
+============================================================================
+File: src/gobby/workflows/enforcement/blocking.py
+Line: 414 to 416
+Type: nitpick
+
+Prompt for AI Agent:
+In @src/gobby/workflows/enforcement/blocking.py around lines 414 - 416, Add a short inline comment next to the assignment of workflow_state.variables["_tool_block_pending"] = True describing its purpose as a cross-cutting signal and listing its consumers (e.g., the on_stop handler) so future maintainers know this flag is used to deterministically block stops after a tool block; reference the assignment expression and the on_stop handler name in the comment to make the relationship explicit.
+
+
+
+============================================================================
+File: src/gobby/cli/pipelines.py
+Line: 98 to 100
+Type: potential_issue
+
+Prompt for AI Agent:
+In @src/gobby/cli/pipelines.py around lines 98 - 100, The code calls non-existent methods on WorkflowLoader; replace any calls to discover_pipeline_workflows_sync and load_pipeline_sync with the correct synchronous method names discover_pipeline_workflows and load_pipeline respectively so the class methods are invoked correctly (search for usages where discover_pipeline_workflows_sync and load_pipeline_sync are referenced and update them to discover_pipeline_workflows and load_pipeline).
+
+
+
+============================================================================
+File: src/gobby/install/windsurf/hooks/hook_dispatcher.py
+Line: 43 to 71
+Type: nitpick
+
+Prompt for AI Agent:
+In @src/gobby/install/windsurf/hooks/hook_dispatcher.py around lines 43 - 71, In get_daemon_url() the bare except Exception swallows config read/parse errors; update the error handling to log the caught exception (including stack/exception info) before falling back to DEFAULT_DAEMON_PORT so failures are discoverable—use a module logger (e.g., logging.getLogger(__name__)) or the existing project logger, reference the symbols _cached_daemon_url, DEFAULT_CONFIG_PATH, DEFAULT_DAEMON_PORT and the yaml/aiofiles block, and ensure you log the exception object (or use logger.exception) inside the except block.
+
+
+
+============================================================================
+File: tests/clones/test_git_extended.py
+Line: 26 to 44
+Type: nitpick
+
+Prompt for AI Agent:
+In @tests/clones/test_git_extended.py around lines 26 - 44, The fixture function named manager is missing a return type annotation; update its signature to include the return type -> CloneGitManager (e.g., def manager(...) -> CloneGitManager:) so the pytest fixture explicitly indicates it returns a CloneGitManager instance and satisfies the project's type-hinting guidelines.
+
+
+
+============================================================================
+File: src/gobby/servers/websocket.py
+Line: 686 to 691
+Type: nitpick
+
+Prompt for AI Agent:
+In @src/gobby/servers/websocket.py around lines 686 - 691, The new asyncio task created for streaming (created via asyncio.create_task calling self._stream_chat_response) may swallow unexpected exceptions; add a done-callback to log any unhandled exceptions and ignore cancellations. Create a helper (e.g., _log_task_exception) that checks task.cancelled(), calls task.exception() and if present logs via logger.exception("Unhandled chat stream error", exc_info=exc), then attach it with task.add_done_callback(_log_task_exception) right after the task is created and before storing it in self._active_chat_tasks to ensure exceptions from _stream_chat_response are recorded.
+
+
+
+============================================================================
+File: tests/agents/spawners/test_command_builder.py
+Line: 9 to 16
+Type: nitpick
+
+Prompt for AI Agent:
+In @tests/agents/spawners/test_command_builder.py around lines 9 - 16, The test classes are missing pytest markers; add @pytest.mark.unit above each test class definition (TestBuildCliCommand, TestBuildGeminiResume, TestBuildCodexResume) so the tests are categorized correctly; ensure you import pytest if not already and place the decorator immediately above the class declarations that contain tests invoking build_cli_command and related helpers.
+
+
+
+============================================================================
+File: src/gobby/cli/installers/shared.py
+Line: 147 to 163
+Type: nitpick
+
+Prompt for AI Agent:
+In @src/gobby/cli/installers/shared.py around lines 147 - 163, The _copy_workflows, _copy_agents, and _copy_prompts functions duplicate the logic to remove an existing target by checking is_symlink() then unlink() or exists() then rmtree(); extract that logic into a helper (e.g. _safe_remove_target(target: Path)) that calls os.unlink() for symlinks and shutil.rmtree() for existing dirs/files, and replace the repeated blocks in _copy_workflows, _copy_agents, and _copy_prompts with a call to this helper to centralize and clarify the cleanup behavior.
+
+
+
+============================================================================
+File: src/gobby/workflows/loader.py
+Line: 1070 to 1102
+Type: nitpick
+
+Prompt for AI Agent:
+In @src/gobby/workflows/loader.py around lines 1070 - 1102, The class-level ThreadPoolExecutor stored in _sync_executor created by _get_sync_executor and used by _run_sync is never shut down; add a classmethod shutdown_sync_executor that acquires _sync_executor_lock, calls shutdown(wait=False) on _sync_executor if not None, and sets _sync_executor to None so the pool is cleaned up at application shutdown; document that callers should invoke WorkflowLoader.shutdown_sync_executor() during shutdown to avoid interpreter-exit warnings.
+
+
+
+============================================================================
+File: tests/cli/test_export_import.py
+Line: 18 to 40
+Type: nitpick
+
+Prompt for AI Agent:
+In @tests/cli/test_export_import.py around lines 18 - 40, The fixture function project_with_resources lacks a return type annotation; add an explicit return type (e.g., change the signature to def project_with_resources(tmp_path: Path) -> Path:) to document the fixture return value and satisfy the review; no other logic changes are needed.
+
+
+
+============================================================================
+File: tests/cli/test_export_import.py
+Line: 13 to 15
+Type: nitpick
+
+Prompt for AI Agent:
+In @tests/cli/test_export_import.py around lines 13 - 15, The fixture function runner lacks a return type annotation; update its signature to include the proper type hint (def runner() -> CliRunner:) and ensure CliRunner is imported (from click.testing import CliRunner) so the fixture's return type is explicit for linters and type checkers.
+
+
+
+============================================================================
+File: src/gobby/cli/export_import.py
+Line: 14
+Type: nitpick
+
+Prompt for AI Agent:
+In @src/gobby/cli/export_import.py at line 14, The module defines logger = logging.getLogger(__name__) but never uses it; either remove that unused symbol or add meaningful logging calls where relevant (e.g., inside functions or top-level operations in this file) to improve observability; locate the logger variable in export_import.py and either delete the logger assignment or insert appropriate logger.debug/info/error calls at key operations so the symbol is used.
+
+
+
+============================================================================
+File: src/gobby/install/shared/skills/proactive-memory/SKILL.md
+Line: 38 to 42
+Type: potential_issue
+
+Prompt for AI Agent:
+In @src/gobby/install/shared/skills/proactive-memory/SKILL.md around lines 38 - 42, Update the doc to remove references to the non-existent create_memory response field "similar_existing" and the post-creation delete/update workflow; instead state that Gobby uses prevention-based deduplication and will return the existing MemoryRecord when a duplicate is attempted. Replace mentions of create_memory/update_memory/delete_memory with the actual API tool names (remember, recall, forget) and instruct users to call recall (search) before remember (create) to check for existing memories; drop any guidance about reviewing a "similar_existing" list after creation. Ensure the doc uses the exact symbols MemoryRecord, remember, recall, and forget so readers map to the real API.
+
+
+
+============================================================================
+File: src/gobby/workflows/shell_actions.py
+Line: 55 to 60
+Type: potential_issue
+
+Prompt for AI Agent:
+In @src/gobby/workflows/shell_actions.py around lines 55 - 60, The synchronous call to context.session_manager.get(context.session_id) blocks the event loop; change the logic in the session-fetch block (which currently assigns session = None then calls context.session_manager.get) to run the blocking get in a thread executor: obtain the event loop (asyncio.get_event_loop()) and await loop.run_in_executor(None, context.session_manager.get, context.session_id) when context.session_manager and context.session_id are present, then assign the returned session and conditionally set render_context["session"] as before.
+
+
+
+Review completed ✔

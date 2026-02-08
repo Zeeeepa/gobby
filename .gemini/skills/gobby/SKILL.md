@@ -97,10 +97,10 @@ get_skill(name="tasks")
 # Follow skill instructions with args: "list"
 ```
 
-**Skill name resolution order:**
-1. Exact match: `get_skill(name="tasks")` — matches skill with `name: tasks`
-2. Prefixed fallback: `get_skill(name="gobby-tasks")` — tried if exact match fails
-3. This allows both `/gobby tasks` and `/gobby gobby-tasks` to resolve to the same skill
+**Skill name resolution:**
+- Try exact match first: `get_skill(name="tasks")`
+- If not found with gobby- prefix skills, try with prefix: `get_skill(name="gobby-tasks")`
+- This allows both `/gobby tasks` and `/gobby gobby-tasks` to work
 
 ## Quick-Create Skills
 
@@ -175,4 +175,4 @@ Run list_mcp_servers() for full list.
 
 3. **Args passthrough**: Pass remaining args to the loaded skill as context.
 
-4. **Session context**: Skills may need `session_id` — look for `Gobby Session ID:` in your system context and pass it to MCP tool calls that require it.
+4. **Session context**: Skills may need session_id - provide from your session context.
