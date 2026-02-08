@@ -2,6 +2,27 @@
 
 This document provides a comprehensive reference for all available actions in the Gobby Workflow Engine (Sprint 6). Actions are the building blocks of workflows, executed in response to hooks (start, end, tool calls, etc.) or within phases.
 
+## Conditional Execution
+
+All actions support an optional `when` field for conditional execution. When present, the condition is evaluated before the action runs. If the condition is false, the action is skipped entirely.
+
+```yaml
+- action: call_mcp_tool
+  when: "not variables.get('current_task_id') and variables.get('session_task')"
+  server_name: gobby-tasks
+  tool_name: get_task
+  arguments:
+    task_id: "{{ variables.session_task }}"
+  output_as: _task_info
+```
+
+The `when` expression has access to:
+- `variables` — Workflow variables as a `DotDict` (supports both `variables.key` and `variables.get('key')`)
+- All workflow variables flattened to top level (e.g., `session_task` instead of `variables.session_task`)
+- Built-in functions: `len()`, `bool()`, `str()`, `int()`
+
+Actions without a `when` field always execute (backward compatible).
+
 ## State Management
 
 ### `load_workflow_state`

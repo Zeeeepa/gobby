@@ -195,13 +195,15 @@ The meeseeks agent supports orchestrator/worker workflows:
 - `worker` - Task executor (runs in isolated clone/worktree)
 
 **Orchestrator flow (meeseeks-box):**
-1. `find_work` - Call `suggest_next_task()` to get ready tasks
+1. `find_work` - Call `suggest_next_task()` to get ready subtasks; falls back to `session_task` directly for leaf tasks (no children) or parents with all children done
 2. `spawn_worker` - Spawn Gemini/Claude worker in worktree
 3. `wait_for_worker` - Wait for task completion
 4. `code_review` - Review worker's changes
 5. `merge_worktree` - Merge approved changes
 6. `push_changes` - Push to remote
 7. `cleanup_worktree` - Delete worktree, loop back
+
+**Leaf task support:** You can spawn a meeseeks agent with either a parent task (workers handle subtasks) or a single leaf task (assigned directly to a worker).
 
 **Worker flow (meeseeks worker):**
 1. `claim_task` - Claim assigned task

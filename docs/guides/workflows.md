@@ -208,6 +208,7 @@ steps:
 
     on_enter:                  # Actions when entering step
       - action: action_name
+        when: "condition"      # Optional: skip action if false
         ...action_kwargs
 
     allowed_tools:             # "all" OR list of tool names
@@ -427,6 +428,40 @@ When a step-based workflow is active, tools are filtered:
 - `blocked_tools` is always checked first
 
 Blocked tools are **hidden** (not grayed out) from the tool list.
+
+## Conditional Actions
+
+Actions in `on_enter` (and `on_exit`) support an optional `when` field. When present, the condition is evaluated before executing the action. If the condition is false, the action is skipped.
+
+The `when` field uses the same expression syntax as transition conditions, with access to `variables` (via `DotDict` for both dot-notation and `.get()` access) and all flattened workflow variables.
+
+```yaml
+on_enter:
+  # Always runs
+  - action: set_variable
+    name: result
+    value: null
+
+  # Only runs when session_task is set
+  - action: call_mcp_tool
+    when: "variables.get('session_task')"
+    server_name: gobby-tasks
+    tool_name: get_task
+    arguments:
+      task_id: "{{ variables.session_task }}"
+    output_as: result
+
+  # Conditional based on previous action results
+  - action: set_variable
+    when: "not variables.get('current_task_id') and variables.get('result')"
+    name: current_task_id
+    value: "{{ variables.result.id }}"
+```
+
+This is useful for:
+- **Fallback logic**: Try one approach, fall back to another if it returns nothing
+- **Conditional MCP calls**: Skip expensive API calls when prerequisites aren't met
+- **Guard clauses**: Only execute cleanup actions when there's something to clean up
 
 ## Common Patterns
 

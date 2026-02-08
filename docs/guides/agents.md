@@ -474,6 +474,30 @@ call_tool(server_name="gobby-agents", tool_name="spawn_agent", arguments={
 
 The agent will follow the workflow steps (e.g., write tests first, then implement, then refactor).
 
+## Leaf Task Handling
+
+When spawning an agent with a leaf task (no children), the meeseeks-box workflow handles it automatically. The `find_work` step first calls `suggest_next_task()` — if the task is a leaf with no subtasks, this returns nothing. The workflow then falls back to checking `session_task` directly: if it's still open, it assigns the task directly to a worker instead of entering `wait_for_workers`.
+
+This means you can spawn a meeseeks agent with either:
+- **A parent task** — workers are spawned for each ready subtask
+- **A leaf task** — the task itself is assigned directly to a worker
+
+```python
+# Parent task with subtasks
+call_tool(server_name="gobby-agents", tool_name="spawn_agent", arguments={
+    "agent": "meeseeks-gemini",
+    "task_id": "#100",  # Parent with children #101, #102
+    "parent_session_id": "<session_id>"
+})
+
+# Leaf task (no children)
+call_tool(server_name="gobby-agents", tool_name="spawn_agent", arguments={
+    "agent": "meeseeks-gemini",
+    "task_id": "#6908",  # Standalone task
+    "parent_session_id": "<session_id>"
+})
+```
+
 ## Orchestration Pattern
 
 For automated task orchestration, use the conductor or orchestration tools:
