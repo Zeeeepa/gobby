@@ -77,6 +77,9 @@ class CodexAppServerClient:
         # Notification handlers by method
         self._notification_handlers: dict[str, list[NotificationHandler]] = {}
 
+        # Approval handler for incoming requests (bidirectional blocking)
+        self._approval_handler: Any | None = None
+
         # Reader task
         self._reader_task: asyncio.Task[None] | None = None
         self._shutdown_event = asyncio.Event()
@@ -220,6 +223,20 @@ class CodexAppServerClient:
             self._notification_handlers[method] = [
                 h for h in self._notification_handlers[method] if h != handler
             ]
+
+    def register_approval_handler(self, handler: Any | None) -> None:
+        """Register an async handler for incoming approval requests.
+
+        The handler receives JSON-RPC requests from Codex (messages with both
+        id and method) and returns a decision dict.
+
+        Args:
+            handler: Async callback with signature:
+                async def handler(method: str, params: dict) -> dict
+                Returns {"decision": "accept"} or {"decision": "decline"}.
+                Pass None to clear the handler.
+        """
+        self._approval_handler = handler
 
     # ===== Thread Management =====
 
@@ -592,6 +609,43 @@ class CodexAppServerClient:
 
         logger.debug(f"Sent notification: {method}")
 
+    async def _handle_incoming_request(self, message: dict[str, Any]) -> None:
+        """Handle an incoming JSON-RPC request from Codex (e.g., approval requests).
+
+        Routes the request to the registered approval handler and sends back
+        a JSON-RPC response with the handler's decision.
+
+        Args:
+            message: JSON-RPC request with id, method, and params.
+        """
+        request_id = message["id"]
+        method = message["method"]
+        params = message.get("params", {})
+
+        if not self._approval_handler:
+            logger.debug(f"No approval handler for incoming request: {method}")
+            return
+
+        logger.debug(f"Handling incoming request: {method} (id={request_id})")
+
+        try:
+            result = await self._approval_handler(method, params)
+            response = {"jsonrpc": "2.0", "id": request_id, "result": result}
+        except Exception as e:
+            logger.error(f"Approval handler error for {method}: {e}")
+            response = {
+                "jsonrpc": "2.0",
+                "id": request_id,
+                "error": {"code": -32603, "message": str(e)},
+            }
+
+        # Send response back to Codex
+        proc = self._process
+        if proc and proc.stdin:
+            response_line = json.dumps(response) + "\n"
+            proc.stdin.write(response_line)
+            proc.stdin.flush()
+
     async def _read_loop(self) -> None:
         """Background task to read responses and notifications."""
         if not self._process or not self._process.stdout:
@@ -626,13 +680,14 @@ class CodexAppServerClient:
                     logger.warning(f"Invalid JSON from app-server: {e}")
                     continue
 
-                # Handle response (has "id")
+                # Handle response or incoming request (has "id")
                 if "id" in message:
                     request_id = message["id"]
                     with self._pending_requests_lock:
                         future = self._pending_requests.get(request_id)
 
                     if future and not future.done():
+                        # Response to our outgoing request
                         if "error" in message:
                             error = message["error"]
                             future.set_exception(
@@ -642,6 +697,9 @@ class CodexAppServerClient:
                             )
                         else:
                             future.set_result(message.get("result", {}))
+                    elif "method" in message:
+                        # Incoming request from Codex (has id + method, not our response)
+                        await self._handle_incoming_request(message)
 
                 # Handle notification (no "id")
                 elif "method" in message:
