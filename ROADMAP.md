@@ -44,7 +44,7 @@ Legend:
 
 - ✅ Claude Code hook integration
 - ✅ Gemini CLI hook integration
-- ⚠️ Codex CLI: partial (basic notify/handoff); expand once the right extension points are stable
+- 🧪 Codex CLI: approval handler, context injection, app-server mode routing (0.2.13)
 
 ### Tasks + TDD expansion (red/green/blue)
 
@@ -70,6 +70,13 @@ Legend:
 - ✅ WebSocket streaming for pipeline execution
 - ✅ Safe expression evaluator for conditions
 - ✅ Pipeline CLI, MCP tools, and HTTP API endpoints
+
+### Codex adapter enhancements (0.2.13)
+
+- ✅ Approval handler for CodexAppServerClient
+- ✅ App-server mode routing for Codex hooks
+- ✅ Context injection via translate_from_hook_response
+- ✅ context_prefix parameter for start_turn()
 
 ### Workflow enhancements (0.2.13)
 

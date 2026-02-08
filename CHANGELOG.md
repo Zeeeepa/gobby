@@ -5,9 +5,16 @@ All notable changes to Gobby are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [0.2.13] - 2026-02-07
+## [0.2.13] - 2026-02-08
 
 ### Major Features
+
+#### Codex Adapter Enhancements
+- Add approval handler to CodexAppServerClient (#6882)
+- Add handle_approval_request to CodexAdapter (#6883)
+- Add app-server mode routing for Codex hooks (#6885)
+- Add context_prefix parameter to start_turn() (#6887)
+- Extend translate_from_hook_response with context injection for Codex (#6888)
 
 #### Web UI
 - Scaffold web chat UI with React + Vite (#6776)
@@ -132,6 +139,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Bug Fixes
 
+- Fix Cursor parser test to expect newline-joined content blocks (#7296)
 - Fix skill_manager not wired to ActionContext in engine and lifecycle evaluator (#7238)
 - Fix pre-existing test failures and lint warnings (#7233)
 - Fix stale skill cache: sync_bundled_skills now updates changed skills (#7227)
@@ -197,6 +205,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Security
 
+- Fix 3 bandit B110 findings in dry_run.py (#7297)
 - Fix CVE-2026-0994 protobuf vulnerability (#7048)
 - Validate term_program before pgrep subprocess calls (#7154)
 - Validate terminal context values before subprocess calls (#7153)

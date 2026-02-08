@@ -265,7 +265,7 @@ args = ["mcp-server"]
 | :--- | :--- | :--- |
 | **Claude Code** | ✅ Full support | Native adapter, 12 hook types |
 | **Gemini CLI** | ✅ Full support | Native adapter, all hook types |
-| **Codex CLI** | ✅ Full support | Native adapter via app-server |
+| **Codex CLI** | ✅ Full support | Native adapter with approval handling + context injection |
 | **Cursor** | ✅ Full support | Native adapter, 17 hook types |
 | **Windsurf** | ✅ Full support | Native adapter, 11 hook types |
 | **Copilot** | ✅ Full support | Native adapter, 6 hook types |
@@ -386,7 +386,7 @@ Gobby exposes tools via MCP that your AI coding assistant can use:
 
 See [ROADMAP.md](ROADMAP.md) for the full plan, but highlights:
 
-**Shipped:** Task system v2, TDD expansion, workflow engine, MCP proxy with progressive discovery, session handoffs, memory v3, hooks for all CLIs, unified agent spawning, worktree and clone orchestration, skills system, artifacts, web UI, pipeline system, shell actions, async workflow loader, inject_context, prompt loader, proactive memory
+**Shipped:** Task system v2, TDD expansion, workflow engine, MCP proxy with progressive discovery, session handoffs, memory v3, hooks for all CLIs, unified agent spawning, worktree and clone orchestration, skills system, artifacts, web UI, pipeline system, shell actions, async workflow loader, inject_context, prompt loader, proactive memory, Codex adapter enhancements (approval handling, context injection, app-server routing)
 
 **Beta:** Autonomous orchestration (conductor daemon, inter-agent messaging, token budget tracking, review gates)
 
