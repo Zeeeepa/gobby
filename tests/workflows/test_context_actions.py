@@ -1605,7 +1605,7 @@ class TestInjectContextSkillsSource:
 
         # Create mock ParsedSkill objects
         always_apply_skill = MagicMock()
-        always_apply_skill.name = "claiming-tasks"
+        always_apply_skill.name = "proactive-memory"
         always_apply_skill.description = "Quick reference for claiming tasks"
         always_apply_skill.is_always_apply.return_value = True
 
@@ -1650,7 +1650,7 @@ class TestInjectContextSkillsSource:
         assert "inject_context" in result
         content = result["inject_context"]
         # Should contain skill names
-        assert "claiming-tasks" in content
+        assert "proactive-memory" in content
         assert "gobby-tasks" in content
         assert "gobby-sessions" in content
 
@@ -1677,7 +1677,7 @@ class TestInjectContextSkillsSource:
         assert result is not None
         content = result["inject_context"]
         # Should contain always_apply skill
-        assert "claiming-tasks" in content
+        assert "proactive-memory" in content
         # Should NOT contain non-always_apply skills
         assert "gobby-tasks" not in content
         assert "gobby-sessions" not in content

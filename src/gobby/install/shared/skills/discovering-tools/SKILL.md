@@ -2,7 +2,7 @@
 name: discovering-tools
 description: Progressive disclosure pattern for MCP tools and skills. Use when tools aren't found or you need to discover available capabilities.
 category: core
-alwaysApply: false
+alwaysApply: true
 injectionFormat: full
 ---
 
@@ -116,6 +116,12 @@ call_tool("gobby-tasks", "create_task", {"title": "Fix bug", "session_id": "#123
 | `gobby-workflows` | Workflow control |
 | `gobby-agents` | Agent spawning |
 | `gobby-worktrees` | Git worktrees |
+| `gobby-clones` | Repository clones |
+| `gobby-merge` | Merge resolution |
+| `gobby-hub` | Hub / cross-project |
 | `gobby-skills` | Skill management |
+| `gobby-metrics` | Usage metrics |
+| `gobby-artifacts` | Artifact storage |
+| `gobby-pipelines` | Pipeline execution |
 
 Use `list_mcp_servers()` to see all connected servers.

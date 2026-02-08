@@ -103,7 +103,7 @@ call_tool("gobby-tasks", "close_task", {
 })
 ```
 
-**If blocked**: See skill: **claiming-tasks** for help.
+**If blocked**: Create or claim a task before using Edit, Write, or NotebookEdit tools.
 
 ## Session Context
 
@@ -173,7 +173,7 @@ Type hints required. Use `async/await` for I/O. Run `ruff format` and `ruff chec
 
 | Issue | Solution |
 | ------- | ---------- |
-| "Edit/Write blocked" | Create or claim a task first (see **claiming-tasks** skill) |
+| "Edit/Write blocked" | Create or claim a task first |
 | "Task has no commits" | Commit with `[task-id]` in message before closing |
 | "Agent depth exceeded" | Max nesting is 3 - reduce agent spawning depth |
 | Import errors | Run `uv sync` |

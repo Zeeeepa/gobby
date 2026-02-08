@@ -48,15 +48,15 @@ class TestHookSkillManager:
         skill_names = [s.name for s in skills]
         assert len(skill_names) > 0  # At least some skills exist
 
-    def test_discover_core_skills_finds_claiming_tasks_skill(self) -> None:
-        """Test that discover_core_skills finds the claiming-tasks skill."""
+    def test_discover_core_skills_finds_discovering_tools_skill(self) -> None:
+        """Test that discover_core_skills finds the discovering-tools skill."""
         from gobby.hooks.skill_manager import HookSkillManager
 
         manager = HookSkillManager()
         skills = manager.discover_core_skills()
 
         skill_names = [s.name for s in skills]
-        assert "claiming-tasks" in skill_names
+        assert "discovering-tools" in skill_names
 
     def test_discover_core_skills_finds_sessions_skill(self) -> None:
         """Test that discover_core_skills finds the sessions skill."""
@@ -89,10 +89,10 @@ class TestHookSkillManager:
         from gobby.hooks.skill_manager import HookSkillManager
 
         manager = HookSkillManager()
-        skill = manager.get_skill_by_name("claiming-tasks")
+        skill = manager.get_skill_by_name("discovering-tools")
 
         assert skill is not None
-        assert skill.name == "claiming-tasks"
+        assert skill.name == "discovering-tools"
 
     def test_get_skill_by_name_not_found(self) -> None:
         """Test getting a non-existent skill returns None."""

@@ -402,13 +402,11 @@ async def require_active_task(
         return {
             "decision": "block",
             "reason": (
-                "No task claimed. See previous **Task Required** error for instructions.\n"
-                "See skill: **claiming-tasks** for help."
+                "No task claimed. See previous **Task Required** error for instructions."
             ),
             "inject_context": (
                 f"**Task Required**: `{tool_name}` blocked. "
-                f"Create or claim a task before editing files (see previous error for details).\n"
-                f'For detailed guidance: `get_skill(name="claiming-tasks")`'
+                f"Create or claim a task before editing files (see previous error for details)."
                 f"{project_task_hint}"
             ),
         }
@@ -421,8 +419,7 @@ async def require_active_task(
             f"- Create a task: call_tool(server_name='gobby-tasks', tool_name='create_task', arguments={{...}})\n"
             f"- Claim an existing task: call_tool(server_name='gobby-tasks', tool_name='update_task', "
             f"arguments={{'task_id': '...', 'status': 'in_progress'}})"
-            f"{project_task_hint}\n\n"
-            f"See skill: **claiming-tasks** for detailed guidance."
+            f"{project_task_hint}"
         ),
         "inject_context": (
             f"**Task Required**: The `{tool_name}` tool is blocked until you claim a task for this session.\n\n"
@@ -430,8 +427,7 @@ async def require_active_task(
             f'1. **Create a new task**: `create_task(title="...", description="...")`\n'
             f'2. **Claim an existing task**: `update_task(task_id="...", status="in_progress")`\n\n'
             f"Use `list_ready_tasks()` to see available tasks."
-            f"{project_task_hint}\n\n"
-            f'For detailed guidance: `get_skill(name="claiming-tasks")`'
+            f"{project_task_hint}"
         ),
     }
 
