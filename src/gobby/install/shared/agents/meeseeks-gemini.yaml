@@ -42,6 +42,7 @@ workflows:
 
   # Worker: claims and executes a single task (runs in Gemini)
   worker:
+    internal: true
     type: step
     description: "Worker workflow for Gemini agents in worktrees"
     variables:

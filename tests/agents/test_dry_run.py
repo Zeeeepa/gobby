@@ -162,6 +162,63 @@ class TestOrchestratorEnforcement:
         assert len(orch_items) == 1
 
 
+    @pytest.mark.asyncio
+    async def test_internal_workflow_blocked_no_parent(
+        self, mock_agent_loader: MagicMock,
+    ) -> None:
+        """INTERNAL_WORKFLOW_BLOCKED when internal workflow requested without parent session."""
+        agent_def = _make_agent(
+            workflows={
+                "box": WorkflowSpec(file="box.yaml", mode="self"),
+                "worker": WorkflowSpec(file="worker.yaml", internal=True),
+            },
+            default_workflow="box",
+        )
+        mock_agent_loader.load.return_value = agent_def
+
+        result = await evaluate_spawn(
+            agent="meeseeks",
+            workflow="worker",
+            agent_loader=mock_agent_loader,
+        )
+
+        internal_items = [i for i in result.items if i.code == "INTERNAL_WORKFLOW_BLOCKED"]
+        assert len(internal_items) == 1
+        assert "internal" in internal_items[0].message
+        assert "no parent session" in internal_items[0].message
+
+    @pytest.mark.asyncio
+    async def test_internal_workflow_allowed_with_orchestrator(
+        self,
+        mock_agent_loader: MagicMock,
+        mock_state_manager: MagicMock,
+    ) -> None:
+        """Internal workflow passes when parent session has orchestrator active."""
+        agent_def = _make_agent(
+            workflows={
+                "box": WorkflowSpec(file="meeseeks-box.yaml", mode="self"),
+                "worker": WorkflowSpec(file="worker.yaml", internal=True),
+            },
+            default_workflow="box",
+        )
+        mock_agent_loader.load.return_value = agent_def
+
+        parent_state = MagicMock()
+        parent_state.workflow_name = "meeseeks-box"
+        mock_state_manager.get_state.return_value = parent_state
+
+        result = await evaluate_spawn(
+            agent="meeseeks",
+            workflow="worker",
+            parent_session_id="sess-123",
+            agent_loader=mock_agent_loader,
+            state_manager=mock_state_manager,
+        )
+
+        internal_items = [i for i in result.items if i.code == "INTERNAL_WORKFLOW_BLOCKED"]
+        assert len(internal_items) == 0
+
+
 class TestIsolation:
     @pytest.mark.asyncio
     async def test_isolation_deps_missing_worktree(

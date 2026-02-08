@@ -64,6 +64,10 @@ class WorkflowSpec(BaseModel):
     # Allows per-workflow control over how the workflow is executed
     mode: Literal["terminal", "embedded", "headless", "self"] | None = None
 
+    # Internal workflows can only be spawned by sessions running the agent's orchestrator.
+    # Use this for worker workflows that should not be directly invoked by callers.
+    internal: bool = False
+
     def is_file_reference(self) -> bool:
         """Check if this spec is a file reference vs inline definition."""
         return self.file is not None

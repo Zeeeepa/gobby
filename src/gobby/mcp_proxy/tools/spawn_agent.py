@@ -698,6 +698,69 @@ def create_spawn_agent_registry(
                         ),
                     }
 
+        # Check internal workflow enforcement:
+        # Workflows marked `internal: true` can only be spawned by sessions
+        # running the agent's orchestrator workflow.
+        if agent_def and workflow and agent_def.workflows and workflow in agent_def.workflows:
+            wf_spec = agent_def.workflows[workflow]
+            if wf_spec.internal:
+                orchestrator_wf = agent_def.get_orchestrator_workflow()
+                if orchestrator_wf:
+                    # Reuse the same orchestrator parent check pattern
+                    parent_workflow: str | None = None
+                    if state_manager and resolved_parent_session_id:
+                        try:
+                            parent_state = state_manager.get_state(resolved_parent_session_id)
+                            if parent_state:
+                                parent_workflow = parent_state.workflow_name
+                        except Exception as e:
+                            logger.warning(
+                                f"Could not get parent session workflow state: {e}"
+                            )
+                            return {
+                                "success": False,
+                                "error": (
+                                    f"Could not verify parent session workflow state for "
+                                    f"internal workflow enforcement: {e}. "
+                                    f"Ensure the orchestrator workflow is active before "
+                                    f"spawning '{agent}' with workflow='{workflow}'."
+                                ),
+                            }
+
+                    orchestrator_spec = agent_def.get_workflow_spec(orchestrator_wf)
+                    expected_names = {
+                        f"{agent_def.name}:{orchestrator_wf}",
+                        f"{agent}:{orchestrator_wf}",
+                        orchestrator_wf,
+                    }
+                    if orchestrator_spec and orchestrator_spec.file:
+                        expected_names.add(orchestrator_spec.file.removesuffix(".yaml"))
+
+                    if parent_workflow not in expected_names:
+                        return {
+                            "success": False,
+                            "error": (
+                                f"Cannot spawn '{agent}' with workflow='{workflow}' — "
+                                f"it is marked as internal and can only be spawned by "
+                                f"sessions running the '{orchestrator_wf}' orchestrator.\n\n"
+                                f"Either:\n"
+                                f'1. Use spawn_agent(agent="{agent}") without workflow param '
+                                f"(activates orchestrator in your session)\n"
+                                f"2. Or activate the orchestrator first: "
+                                f'activate_workflow(name="{agent_def.get_effective_workflow(orchestrator_wf)}")'
+                            ),
+                        }
+                else:
+                    # Internal workflow but no orchestrator — block unconditionally
+                    return {
+                        "success": False,
+                        "error": (
+                            f"Cannot spawn '{agent}' with workflow='{workflow}' — "
+                            f"it is marked as internal but the agent has no orchestrator "
+                            f"workflow configured."
+                        ),
+                    }
+
         # Determine effective workflow using agent's named workflows map
         # Resolution: explicit param > agent's workflows map > default_workflow
         effective_workflow: str | None = None

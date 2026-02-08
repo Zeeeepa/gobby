@@ -34,6 +34,7 @@ workflows:
 
   # Worker: claims and executes a single task (runs in Claude via tmux)
   worker:
+    internal: true
     type: step
     description: "Worker workflow for Claude agents in tmux/clone"
     variables:

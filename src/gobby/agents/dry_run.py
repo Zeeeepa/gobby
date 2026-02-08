@@ -274,6 +274,76 @@ async def evaluate_spawn(
                 )
             )
 
+    # ---- Layer 3b: Internal Workflow Enforcement ----
+    if (
+        agent_def
+        and workflow
+        and agent_def.workflows
+        and workflow in agent_def.workflows
+        and agent_def.workflows[workflow].internal
+    ):
+        orchestrator_wf = agent_def.get_orchestrator_workflow()
+        if orchestrator_wf:
+            if parent_session_id and state_manager:
+                parent_state = state_manager.get_state(parent_session_id)
+                parent_wf = parent_state.workflow_name if parent_state else None
+
+                orchestrator_spec = agent_def.get_workflow_spec(orchestrator_wf)
+                expected_names = {
+                    f"{agent_def.name}:{orchestrator_wf}",
+                    f"{agent}:{orchestrator_wf}",
+                    orchestrator_wf,
+                }
+                if orchestrator_spec and orchestrator_spec.file:
+                    expected_names.add(orchestrator_spec.file.removesuffix(".yaml"))
+
+                if parent_wf not in expected_names:
+                    result.items.append(
+                        EvaluationItem(
+                            layer="orchestrator",
+                            level="warning",
+                            code="INTERNAL_WORKFLOW_BLOCKED",
+                            message=(
+                                f"Workflow '{workflow}' is marked internal and can only be "
+                                f"spawned by sessions running the '{orchestrator_wf}' orchestrator"
+                            ),
+                            detail={
+                                "requested_workflow": workflow,
+                                "orchestrator": orchestrator_wf,
+                                "parent_workflow": parent_wf,
+                            },
+                        )
+                    )
+            else:
+                result.items.append(
+                    EvaluationItem(
+                        layer="orchestrator",
+                        level="warning",
+                        code="INTERNAL_WORKFLOW_BLOCKED",
+                        message=(
+                            f"Workflow '{workflow}' is marked internal and requires "
+                            f"the '{orchestrator_wf}' orchestrator — no parent session provided"
+                        ),
+                        detail={
+                            "requested_workflow": workflow,
+                            "orchestrator": orchestrator_wf,
+                        },
+                    )
+                )
+        else:
+            result.items.append(
+                EvaluationItem(
+                    layer="orchestrator",
+                    level="warning",
+                    code="INTERNAL_WORKFLOW_BLOCKED",
+                    message=(
+                        f"Workflow '{workflow}' is marked internal but agent has no "
+                        f"orchestrator workflow configured"
+                    ),
+                    detail={"requested_workflow": workflow},
+                )
+            )
+
     # ---- Layer 4: Isolation Resolution ----
     if eff_isolation == "worktree":
         if git_manager is None or worktree_storage is None:
