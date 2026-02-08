@@ -707,7 +707,7 @@ def create_spawn_agent_registry(
                 orchestrator_wf = agent_def.get_orchestrator_workflow()
                 if orchestrator_wf:
                     # Reuse the same orchestrator parent check pattern
-                    parent_workflow: str | None = None
+                    parent_workflow = None
                     if state_manager and resolved_parent_session_id:
                         try:
                             parent_state = state_manager.get_state(resolved_parent_session_id)

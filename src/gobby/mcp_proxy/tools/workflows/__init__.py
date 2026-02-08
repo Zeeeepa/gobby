@@ -256,9 +256,10 @@ def create_workflows_registry(
         # Try to get MCP manager for semantic checks
         mcp_mgr = None
 
-        resolved_path = project_path
+        resolved_path: str | None = project_path
         if not resolved_path:
-            resolved_path = get_workflow_project_path()
+            path = get_workflow_project_path()
+            resolved_path = str(path) if path else None
 
         eval_result = await evaluate_workflow(
             name,

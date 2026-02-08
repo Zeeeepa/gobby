@@ -261,9 +261,11 @@ class WorkflowEngine:
             )
 
             if result.injected_messages or result.system_messages:
-                context = "\n\n".join(result.injected_messages) if result.injected_messages else None
-                system_message = "\n".join(result.system_messages) if result.system_messages else None
-                return HookResponse(decision="modify", context=context, system_message=system_message)
+                return HookResponse(
+                    decision="modify",
+                    context="\n\n".join(result.injected_messages) if result.injected_messages else None,
+                    system_message="\n".join(result.system_messages) if result.system_messages else None,
+                )
 
         # Handle approval flow on user prompt submit
         if event.event_type == HookEventType.BEFORE_AGENT:
