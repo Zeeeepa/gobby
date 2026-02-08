@@ -185,10 +185,11 @@ Example: `/gobby agents broadcast Stop working`
 Agent definitions in `.gobby/agents/` provide preconfigured settings:
 
 ### Meeseeks Pattern
-The meeseeks agent supports orchestrator/worker workflows:
+The meeseeks agent supports orchestrator/worker workflows across any supported CLI:
 
-- **meeseeks-gemini** (Gemini-based): `spawn_agent(agent="meeseeks-gemini", workflow="worker")`
-- **meeseeks-claude** (Claude-based): `spawn_agent(agent="meeseeks-claude", workflow="worker")`
+- **meeseeks-gemini** (Gemini CLI): `spawn_agent(agent="meeseeks-gemini", task_id="#123", parent_session_id="...")`
+- **meeseeks-claude** (Claude Code): `spawn_agent(agent="meeseeks-claude", task_id="#123", parent_session_id="...")`
+- Custom agents can be defined in `.gobby/agents/` for other CLIs
 
 **Workflows:**
 - `box` - Interactive orchestrator (runs in your session via `mode: self`)
@@ -196,7 +197,7 @@ The meeseeks agent supports orchestrator/worker workflows:
 
 **Orchestrator flow (meeseeks-box):**
 1. `find_work` - Call `suggest_next_task()` to get ready subtasks; falls back to `session_task` directly for leaf tasks (no children) or parents with all children done
-2. `spawn_worker` - Spawn Gemini/Claude worker in worktree
+2. `spawn_worker` - Spawn worker agent in isolated environment
 3. `wait_for_worker` - Wait for task completion
 4. `code_review` - Review worker's changes
 5. `merge_worktree` - Merge approved changes
