@@ -354,7 +354,7 @@ steps:
           target_branch: "{{ variables.merge_target_branch }}"
         output_as: _merge_result
 
-      # Worktree mode: instruct LLM to do git squash-merge
+      # Worktree mode: instruct LLM to do git merge (preserves worker commits)
       - action: inject_message
         when: "variables.get('isolation_mode') == 'worktree'"
         content: |
@@ -364,11 +364,10 @@ steps:
           Target: {{ variables.merge_target_branch }}
           Worktree: {{ variables.current_worktree_id }}
 
-          Execute the squash merge:
+          Execute the merge (preserves worker commit history):
 
           git checkout {{ variables.merge_target_branch }}
-          git merge --squash {{ variables.current_branch }}
-          git commit -m "[{{ project.name }}-{{ variables.current_task_id }}] Merge from worktree"
+          git merge {{ variables.current_branch }}
           git push
 
           After successful merge and push, transition to cleanup.
