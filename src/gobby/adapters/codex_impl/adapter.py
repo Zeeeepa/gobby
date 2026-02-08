@@ -240,9 +240,7 @@ class CodexAdapter(BaseAdapter):
         except Exception as e:
             logger.error(f"Error handling Codex notification {method}: {e}")
 
-    async def handle_approval_request(
-        self, method: str, params: dict[str, Any]
-    ) -> dict[str, Any]:
+    async def handle_approval_request(self, method: str, params: dict[str, Any]) -> dict[str, Any]:
         """Handle an incoming approval request from Codex.
 
         Translates the approval request to a HookEvent, processes it through
@@ -454,9 +452,7 @@ class CodexAdapter(BaseAdapter):
                     # First hook: inject full metadata
                     context_lines = []
                     if session_ref:
-                        context_lines.append(
-                            f"Gobby Session ID: {session_ref} (or {session_id})"
-                        )
+                        context_lines.append(f"Gobby Session ID: {session_ref} (or {session_id})")
                     else:
                         context_lines.append(f"Gobby Session ID: {session_id}")
                     if external_id:
@@ -468,13 +464,9 @@ class CodexAdapter(BaseAdapter):
                             f"parent_session_id: {response.metadata['parent_session_id']}"
                         )
                     if response.metadata.get("machine_id"):
-                        context_lines.append(
-                            f"machine_id: {response.metadata['machine_id']}"
-                        )
+                        context_lines.append(f"machine_id: {response.metadata['machine_id']}")
                     if response.metadata.get("project_id"):
-                        context_lines.append(
-                            f"project_id: {response.metadata['project_id']}"
-                        )
+                        context_lines.append(f"project_id: {response.metadata['project_id']}")
                     # Add terminal context (non-null values only)
                     if response.metadata.get("terminal_term_program"):
                         context_lines.append(
@@ -496,9 +488,7 @@ class CodexAdapter(BaseAdapter):
                     ]:
                         if response.metadata.get(key):
                             friendly_name = key.replace("terminal_", "").replace("_", " ")
-                            context_lines.append(
-                                f"{friendly_name}: {response.metadata[key]}"
-                            )
+                            context_lines.append(f"{friendly_name}: {response.metadata[key]}")
                     context_parts.append("\n".join(context_lines))
                 else:
                     # Subsequent hooks: inject minimal session ref only
