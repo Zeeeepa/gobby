@@ -144,7 +144,13 @@ class TestOrchestrateReadyTasks:
                             "gobby.workflows.loader.WorkflowLoader.validate_workflow_for_agent_sync",
                             return_value=(True, None),
                         ),
+                        patch(
+                            "gobby.workflows.state_manager.WorkflowStateManager",
+                        ) as MockWSM,
                     ):
+                        mock_wsm = MockWSM.return_value
+                        mock_wsm.check_and_reserve_slots.return_value = 1
+                        mock_wsm.get_state.return_value = None
                         result = await tool.func(
                             parent_task_id="T1", parent_session_id="parent-session"
                         )
@@ -186,16 +192,20 @@ class TestOrchestrateReadyTasks:
             with patch(
                 "gobby.mcp_proxy.tools.tasks.resolve_task_id_for_mcp", return_value="T-Parent"
             ):
-                with patch(
-                    "gobby.mcp_proxy.tools.orchestration.orchestrate.get_current_project_id",
-                    return_value="test-project",
+                with (
+                    patch(
+                        "gobby.mcp_proxy.tools.orchestration.orchestrate.get_current_project_id",
+                        return_value="test-project",
+                    ),
+                    patch(
+                        "gobby.workflows.state_manager.WorkflowStateManager",
+                    ) as MockWSM,
                 ):
-                    # Mock 2 already running
-                    running_wt1 = MagicMock(agent_session_id="sess-1")
-                    running_wt2 = MagicMock(agent_session_id="sess-2")
-                    mock_worktree_storage.list_worktrees.return_value = [running_wt1, running_wt2]
+                    mock_wsm = MockWSM.return_value
+                    mock_wsm.check_and_reserve_slots.return_value = 1
+                    mock_wsm.get_state.return_value = None
 
-                    # Max concurrent = 3, so only 1 slot left
+                    # Max concurrent = 3, state manager returns 1 slot
                     result = await tool.func(
                         parent_task_id="T-Parent",
                         parent_session_id="parent-session",
