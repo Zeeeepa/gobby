@@ -196,9 +196,6 @@ function SessionGroup({ label, sessions, attachedSession, streamingId, onAttach 
               {session.agent_managed && (
                 <span className="session-badge agent-badge">agent</span>
               )}
-              {isAttached && (
-                <span className="session-badge attached-badge">attached</span>
-              )}
             </div>
             <div className="session-item-actions">
               {session.pane_pid && (
@@ -274,16 +271,31 @@ function TerminalView({ streamingId, sessionName, isInteractive, onSetInteractiv
       cursorStyle: 'bar',
       cursorInactiveStyle: 'none',
       scrollback: 10000,
+      convertEol: true,
+      minimumContrastRatio: 4.5,
     })
 
     const fitAddon = new FitAddon()
     terminal.loadAddon(fitAddon)
 
     terminal.open(containerRef.current)
-    fitAddon.fit()
+    requestAnimationFrame(() => {
+      fitAddon.fit()
+    })
 
     terminalRef.current = terminal
     fitAddonRef.current = fitAddon
+
+    // Shift+Enter handler — send newline even when xterm might not
+    terminal.attachCustomKeyEventHandler((event) => {
+      if (event.shiftKey && event.key === 'Enter' && event.type === 'keydown') {
+        if (isInteractiveRef.current) {
+          sendInput('\n')
+        }
+        return false
+      }
+      return true
+    })
 
     // Send input to backend only when interactive
     const inputDisposable = terminal.onData((data) => {
@@ -292,18 +304,37 @@ function TerminalView({ streamingId, sessionName, isInteractive, onSetInteractiv
       }
     })
 
-    // Send resize to backend
+    // Send resize to backend — only when dimensions actually change
+    let prevCols = 0
+    let prevRows = 0
     const resizeDisposable = terminal.onResize(({ rows, cols }) => {
-      resizeTerminal(rows, cols)
+      if (cols !== prevCols || rows !== prevRows) {
+        prevCols = cols
+        prevRows = rows
+        resizeTerminal(rows, cols)
+      }
     })
 
-    // Observe container resize
+    // Observe container resize — debounced
+    let resizeTimeout: ReturnType<typeof setTimeout>
     const resizeObserver = new ResizeObserver(() => {
-      fitAddon.fit()
+      clearTimeout(resizeTimeout)
+      resizeTimeout = setTimeout(() => {
+        requestAnimationFrame(() => {
+          fitAddon.fit()
+        })
+      }, 100)
     })
     resizeObserver.observe(containerRef.current)
 
-    const handleWindowResize = () => fitAddon.fit()
+    const handleWindowResize = () => {
+      clearTimeout(resizeTimeout)
+      resizeTimeout = setTimeout(() => {
+        requestAnimationFrame(() => {
+          fitAddon.fit()
+        })
+      }, 100)
+    }
     window.addEventListener('resize', handleWindowResize)
 
     // Initial resize notification
@@ -313,6 +344,7 @@ function TerminalView({ streamingId, sessionName, isInteractive, onSetInteractiv
     }
 
     return () => {
+      clearTimeout(resizeTimeout)
       inputDisposable.dispose()
       resizeDisposable.dispose()
       resizeObserver.disconnect()

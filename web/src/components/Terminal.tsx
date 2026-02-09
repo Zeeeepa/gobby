@@ -29,7 +29,7 @@ export function Terminal({ runId, readOnly, onInput, onOutput }: TerminalProps) 
         cursor: '#3b82f6',
         cursorAccent: '#0a0a0a',
         selectionBackground: '#3b82f680',
-        black: '#0a0a0a',
+        black: '#e5e5e5',
         red: '#f87171',
         green: '#4ade80',
         yellow: '#facc15',
@@ -49,6 +49,7 @@ export function Terminal({ runId, readOnly, onInput, onOutput }: TerminalProps) 
       cursorBlink: true,
       scrollback: 10000,
       convertEol: true,
+      minimumContrastRatio: 4.5,
     })
 
     const fitAddon = new FitAddon()
