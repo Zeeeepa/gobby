@@ -22,8 +22,9 @@ from gobby.workflows.definitions import (
     WorkflowDefinition,
     WorkflowState,
     WorkflowStep,
+    WorkflowTransition,
 )
-from gobby.workflows.engine import WorkflowEngine
+from gobby.workflows.engine import TransitionResult, WorkflowEngine
 from gobby.workflows.evaluator import ConditionEvaluator
 from gobby.workflows.loader import WorkflowLoader
 from gobby.workflows.state_manager import WorkflowStateManager
@@ -1098,3 +1099,124 @@ class TestConfigurableStuckTimeout:
 
         assert response.decision == "modify"
         assert "Step duration limit exceeded" in response.context
+
+
+class TestAutoTransitionDepthLimitLogging:
+    """Tests for auto-transition chain depth limit logging (#7388)."""
+
+    @pytest.mark.asyncio
+    async def test_chain_truncation_logs_error_with_session_and_chain(
+        self, workflow_engine, mock_state_manager, mock_loader
+    ) -> None:
+        """Truncated chain logs error with session_id and visited steps."""
+        from unittest.mock import patch as _patch
+
+        # Create a cycle: step_a → step_b → step_c → step_a (infinite loop)
+        step_a = WorkflowStep(
+            name="step_a",
+            transitions=[WorkflowTransition(to="step_b", when="true")],
+        )
+        step_b = WorkflowStep(
+            name="step_b",
+            transitions=[WorkflowTransition(to="step_c", when="true")],
+        )
+        step_c = WorkflowStep(
+            name="step_c",
+            transitions=[WorkflowTransition(to="step_a", when="true")],
+        )
+        workflow = WorkflowDefinition(
+            name="test_cycle_wf",
+            steps=[step_a, step_b, step_c],
+        )
+
+        state = WorkflowState(
+            session_id="sess-depth-test",
+            workflow_name="test_cycle_wf",
+            step="step_a",
+            variables={},
+        )
+
+        event = create_event(session_id="sess-depth-test")
+        initial_result = TransitionResult()
+
+        # Mock transition_to to simulate step changes without full engine
+        async def fake_transition(s, to_step, wf, **kwargs):
+            s.step = to_step
+            return TransitionResult()
+
+        with (
+            _patch.object(workflow_engine, "transition_to", side_effect=fake_transition),
+            _patch("gobby.workflows.engine.logger") as mock_logger,
+        ):
+            await workflow_engine._auto_transition_chain(
+                state=state,
+                workflow=workflow,
+                session_info={},
+                project_info={},
+                event=event,
+                initial_result=initial_result,
+                max_depth=3,
+            )
+
+        # Should log error (not warning)
+        mock_logger.error.assert_called_once()
+        log_msg = mock_logger.error.call_args[0][0]
+
+        # Verify session_id is included
+        assert "sess-depth-test" in log_msg
+        # Verify chain is included (step_a → step_b → step_c → step_a)
+        assert "step_a" in log_msg
+        assert "step_b" in log_msg
+        assert "step_c" in log_msg
+        assert "→" in log_msg
+        # Verify max_depth mentioned
+        assert "max_depth=3" in log_msg
+
+    @pytest.mark.asyncio
+    async def test_no_truncation_when_chain_stops_early(
+        self, workflow_engine, mock_state_manager, mock_loader
+    ) -> None:
+        """No error logged when chain stops before max_depth."""
+        from unittest.mock import patch as _patch
+
+        # step_a → step_b (no further transitions)
+        step_a = WorkflowStep(
+            name="step_a",
+            transitions=[WorkflowTransition(to="step_b", when="true")],
+        )
+        step_b = WorkflowStep(name="step_b")  # No transitions — stops here
+        workflow = WorkflowDefinition(
+            name="test_wf",
+            steps=[step_a, step_b],
+        )
+
+        state = WorkflowState(
+            session_id="sess2",
+            workflow_name="test_wf",
+            step="step_a",
+            variables={},
+        )
+
+        event = create_event(session_id="sess2")
+        initial_result = TransitionResult()
+
+        async def fake_transition(s, to_step, wf, **kwargs):
+            s.step = to_step
+            return TransitionResult()
+
+        with (
+            _patch.object(workflow_engine, "transition_to", side_effect=fake_transition),
+            _patch("gobby.workflows.engine.logger") as mock_logger,
+        ):
+            await workflow_engine._auto_transition_chain(
+                state=state,
+                workflow=workflow,
+                session_info={},
+                project_info={},
+                event=event,
+                initial_result=initial_result,
+                max_depth=10,
+            )
+
+        # No error — chain stopped naturally
+        mock_logger.error.assert_not_called()

@@ -701,6 +701,8 @@ class WorkflowEngine:
             system_messages=list(initial_result.system_messages),
         )
 
+        visited_steps: list[str] = [state.step]
+
         for _ in range(max_depth):
             # Rebuild eval context with updated variables after on_enter actions
             eval_context = self._build_eval_context(event, state, session_info, project_info)
@@ -721,6 +723,7 @@ class WorkflowEngine:
                         state, transition.to, workflow, transition=transition
                     )
                     result.extend(transition_result)
+                    visited_steps.append(transition.to)
                     transitioned = True
                     break  # Only follow first matching transition
 
@@ -728,9 +731,10 @@ class WorkflowEngine:
                 break
         else:
             # Loop exhausted max_depth without a non-transitioning step
-            logger.warning(
+            logger.error(
                 f"Auto-transition chain truncated at max_depth={max_depth} "
-                f"for workflow '{workflow.name}' at step '{state.step}'"
+                f"for workflow '{workflow.name}' session={state.session_id} "
+                f"chain: {' → '.join(visited_steps)}"
             )
 
         return result
