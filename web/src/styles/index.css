@@ -630,6 +630,113 @@ body {
   color: #f87171;
 }
 
+/* AskUserQuestion */
+.ask-user-question {
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border);
+  border-radius: 0.5rem;
+  overflow: hidden;
+}
+
+.ask-user-waiting {
+  border-color: var(--accent);
+}
+
+.ask-user-block {
+  padding: 0.75rem 1rem;
+}
+
+.ask-user-block + .ask-user-block {
+  border-top: 1px solid var(--border);
+}
+
+.ask-user-header-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 0.5rem;
+}
+
+.ask-user-chip {
+  font-size: calc(var(--font-size-base) * 0.7);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  padding: 0.125rem 0.5rem;
+  background: var(--accent);
+  color: white;
+  border-radius: 9999px;
+}
+
+.ask-user-multi-hint {
+  font-size: calc(var(--font-size-base) * 0.75);
+  color: var(--text-muted);
+  font-style: italic;
+}
+
+.ask-user-question-text {
+  font-size: calc(var(--font-size-base) * 0.95);
+  color: var(--text-primary);
+  margin-bottom: 0.75rem;
+  line-height: 1.5;
+}
+
+.ask-user-options {
+  display: flex;
+  flex-direction: column;
+  gap: 0.375rem;
+}
+
+.ask-user-option {
+  padding: 0.5rem 0.75rem;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  border-radius: 0.375rem;
+  transition: border-color 0.15s;
+}
+
+.ask-user-option:hover {
+  border-color: var(--text-muted);
+}
+
+.ask-user-option-other {
+  border-style: dashed;
+}
+
+.ask-user-option-label {
+  font-size: calc(var(--font-size-base) * 0.9);
+  font-weight: 500;
+  color: var(--text-primary);
+}
+
+.ask-user-option-desc {
+  font-size: calc(var(--font-size-base) * 0.8);
+  color: var(--text-muted);
+  margin-top: 0.125rem;
+  line-height: 1.4;
+}
+
+.ask-user-pending {
+  margin-top: 0.75rem;
+  font-size: calc(var(--font-size-base) * 0.8);
+  color: var(--accent);
+  font-style: italic;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.ask-user-pending::before {
+  content: "";
+  display: inline-block;
+  width: 0.625rem;
+  height: 0.625rem;
+  border: 2px solid var(--border);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
 /* Chat input */
 .chat-input-container {
   position: relative;
