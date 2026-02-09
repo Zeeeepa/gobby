@@ -565,35 +565,20 @@ def init(ctx: click.Context) -> None:
     Creates .gobby/skills/ directory and config file for local skill management.
     This is idempotent - running init multiple times is safe.
     """
-    import yaml
+    from gobby.skills.scaffold import init_skills_directory
 
-    skills_dir = Path(".gobby/skills")
+    base_path = Path(".")
+    skills_dir = base_path / ".gobby" / "skills"
     config_file = skills_dir / "config.yaml"
 
-    # Create .gobby directory if needed
-    gobby_dir = Path(".gobby")
-    if not gobby_dir.exists():
-        gobby_dir.mkdir(parents=True)
+    result = init_skills_directory(base_path)
 
-    # Create skills directory
-    if not skills_dir.exists():
-        skills_dir.mkdir(parents=True)
+    if result["dir_created"]:
         click.echo(f"Created {skills_dir}/")
     else:
         click.echo(f"Skills directory already exists: {skills_dir}/")
 
-    # Create config file if it doesn't exist
-    if not config_file.exists():
-        default_config = {
-            "version": "1.0",
-            "skills": {
-                "enabled": True,
-                "auto_discover": True,
-                "search_paths": ["./skills", "./.gobby/skills"],
-            },
-        }
-        with open(config_file, "w", encoding="utf-8") as f:
-            yaml.dump(default_config, f, default_flow_style=False)
+    if result["config_created"]:
         click.echo(f"Created {config_file}")
     else:
         click.echo(f"Config already exists: {config_file}")
@@ -616,68 +601,16 @@ def new(ctx: click.Context, name: str, description: str | None) -> None:
     - assets/ directory for images and files
     - references/ directory for documentation
     """
-    import re
+    from gobby.skills.scaffold import scaffold_skill
 
-    # Validate skill name format: lowercase letters, digits, hyphens only
-    # No leading/trailing hyphens, no spaces, no consecutive hyphens
-    name_pattern = re.compile(r"^[a-z][a-z0-9]*(-[a-z0-9]+)*$")
-    if not name_pattern.match(name):
-        click.echo(
-            f"Error: Invalid skill name '{name}'. "
-            "Name must be lowercase letters, digits, and hyphens only. "
-            "Must start with a letter and cannot have leading/trailing or consecutive hyphens.",
-            err=True,
-        )
+    try:
+        scaffold_skill(name, Path("."), description)
+    except ValueError as e:
+        click.echo(f"Error: {e}", err=True)
         sys.exit(1)
-
-    skill_dir = Path(name)
-
-    # Check if directory already exists
-    if skill_dir.exists():
-        click.echo(f"Directory already exists: {name}", err=True)
+    except FileExistsError as e:
+        click.echo(str(e), err=True)
         sys.exit(1)
-
-    # Create skill directory structure
-    skill_dir.mkdir(parents=True)
-    (skill_dir / "scripts").mkdir()
-    (skill_dir / "assets").mkdir()
-    (skill_dir / "references").mkdir()
-
-    # Default description if not provided
-    if description is None:
-        description = f"Description for {name}"
-
-    # Create SKILL.md with template
-    skill_template = f"""---
-name: {name}
-description: {description}
-version: "1.0.0"
-metadata:
-  skillport:
-    category: general
-    tags: []
-    alwaysApply: false
-  gobby:
-    triggers: []
----
-
-# {name.replace("-", " ").title()}
-
-## Overview
-
-{description}
-
-## Instructions
-
-Add your skill instructions here.
-
-## Examples
-
-Provide usage examples here.
-"""
-
-    with open(skill_dir / "SKILL.md", "w", encoding="utf-8") as f:
-        f.write(skill_template)
 
     click.echo(f"Created skill scaffold: {name}/")
     click.echo(f"  - {name}/SKILL.md")
