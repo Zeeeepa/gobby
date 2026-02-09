@@ -920,3 +920,130 @@ class TestSpawnAgentSandbox:
             # sandbox_config should be None or have enabled=False
             if spawn_request.sandbox_config is not None:
                 assert spawn_request.sandbox_config.enabled is False
+
+
+class TestSpawnAgentPreRegistration:
+    """Tests for agent registry pre-registration before execute_spawn."""
+
+    @pytest.fixture
+    def mock_runner(self):
+        runner = MagicMock()
+        runner.can_spawn.return_value = (True, "Can spawn", 0)
+        runner._child_session_manager = MagicMock()
+        return runner
+
+    @pytest.fixture
+    def mock_agent_def(self):
+        agent_def = MagicMock()
+        agent_def.isolation = None
+        agent_def.provider = "claude"
+        agent_def.mode = "terminal"
+        agent_def.workflow = "generic"
+        agent_def.base_branch = "main"
+        agent_def.branch_prefix = None
+        agent_def.timeout = 120.0
+        agent_def.max_turns = 10
+        agent_def.get_effective_workflow.return_value = None
+        agent_def.workflows = None
+        agent_def.default_workflow = None
+        return agent_def
+
+    @pytest.mark.asyncio
+    async def test_agent_registered_before_spawn(self, mock_runner, mock_agent_def):
+        """Agent is pre-registered in RunningAgentRegistry before execute_spawn."""
+        from gobby.mcp_proxy.tools.spawn_agent import create_spawn_agent_registry
+
+        mock_loader = MagicMock()
+        mock_loader.load.return_value = mock_agent_def
+
+        registry = create_spawn_agent_registry(mock_runner, agent_loader=mock_loader)
+
+        call_order: list[str] = []
+        mock_agent_registry = MagicMock()
+        mock_agent_registry.add.side_effect = lambda agent: call_order.append(
+            f"add:{agent.run_id}"
+        )
+
+        async def fake_execute(req):
+            # At this point, add should have been called already
+            call_order.append("execute_spawn")
+            return MagicMock(
+                success=True,
+                run_id=req.run_id,
+                child_session_id="child-456",
+                status="pending",
+                pid=12345,
+                terminal_type="ghostty",
+                tmux_session_name=None,
+                message="Spawned",
+            )
+
+        with (
+            patch("gobby.mcp_proxy.tools.spawn_agent.get_project_context") as mock_ctx,
+            patch("gobby.mcp_proxy.tools.spawn_agent.execute_spawn", side_effect=fake_execute),
+            patch(
+                "gobby.mcp_proxy.tools.spawn_agent.get_running_agent_registry",
+                return_value=mock_agent_registry,
+            ),
+        ):
+            mock_ctx.return_value = {"id": "proj-123", "project_path": "/path"}
+
+            result = await registry.call(
+                "spawn_agent",
+                {"prompt": "Test", "parent_session_id": "parent-789"},
+            )
+
+            assert result["success"] is True
+            # Pre-registration happened before execute_spawn
+            assert len(call_order) == 3  # add (pre-reg), execute_spawn, add (update)
+            assert call_order[0].startswith("add:")
+            assert call_order[1] == "execute_spawn"
+            assert call_order[2].startswith("add:")
+            # remove was never called (spawn succeeded)
+            mock_agent_registry.remove.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_agent_removed_on_spawn_failure(self, mock_runner, mock_agent_def):
+        """Pre-registered agent is removed from registry when spawn fails."""
+        from gobby.mcp_proxy.tools.spawn_agent import create_spawn_agent_registry
+
+        mock_loader = MagicMock()
+        mock_loader.load.return_value = mock_agent_def
+
+        registry = create_spawn_agent_registry(mock_runner, agent_loader=mock_loader)
+
+        mock_agent_registry = MagicMock()
+        pre_registered_run_id: list[str] = []
+
+        def track_add(agent):
+            pre_registered_run_id.append(agent.run_id)
+
+        mock_agent_registry.add.side_effect = track_add
+
+        with (
+            patch("gobby.mcp_proxy.tools.spawn_agent.get_project_context") as mock_ctx,
+            patch("gobby.mcp_proxy.tools.spawn_agent.execute_spawn") as mock_execute,
+            patch(
+                "gobby.mcp_proxy.tools.spawn_agent.get_running_agent_registry",
+                return_value=mock_agent_registry,
+            ),
+        ):
+            mock_ctx.return_value = {"id": "proj-123", "project_path": "/path"}
+            mock_execute.return_value = MagicMock(
+                success=False,
+                error="Terminal not found",
+                child_session_id=None,
+            )
+
+            result = await registry.call(
+                "spawn_agent",
+                {"prompt": "Test", "parent_session_id": "parent-789"},
+            )
+
+            assert result["success"] is False
+            # Pre-registration happened (1 add call)
+            assert len(pre_registered_run_id) == 1
+            # Agent was removed after failure
+            mock_agent_registry.remove.assert_called_once_with(
+                pre_registered_run_id[0], status="failed"
+            )

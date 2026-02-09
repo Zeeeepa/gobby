@@ -486,12 +486,27 @@ async def spawn_agent_impl(
         sandbox_config=effective_sandbox_config,
     )
 
+    # 11. Pre-register with RunningAgentRegistry before spawn so that
+    # poll_agent_status and kill_agent can find the agent during the
+    # brief window while execute_spawn is running.
+    agent_registry = get_running_agent_registry()
+    agent_registry.add(
+        RunningAgent(
+            run_id=run_id,
+            session_id=session_id,
+            parent_session_id=parent_session_id,
+            mode=effective_mode,
+            provider=effective_provider,
+            workflow_name=effective_workflow,
+            worktree_id=isolation_ctx.worktree_id,
+        )
+    )
+
     spawn_result = await execute_spawn(spawn_request)
 
-    # 11. Register with RunningAgentRegistry for send_to_parent/child messaging
-    # Only register if spawn succeeded and we have a valid child_session_id
+    # 12. Update or remove registry entry based on spawn result
     if spawn_result.success and spawn_result.child_session_id is not None:
-        agent_registry = get_running_agent_registry()
+        # Re-register with full details from spawn result (pid, terminal_type, etc.)
         agent_registry.add(
             RunningAgent(
                 run_id=spawn_result.run_id,
@@ -506,9 +521,11 @@ async def spawn_agent_impl(
                 worktree_id=isolation_ctx.worktree_id,
             )
         )
+    else:
+        # Spawn failed — remove pre-registered entry
+        agent_registry.remove(run_id, status="failed")
 
-    # 12. Return response with isolation metadata
-    # If spawn failed, return error response
+    # 13. Return response with isolation metadata
     if not spawn_result.success:
         return {"success": False, "error": spawn_result.error or "Failed to spawn agent"}
 
