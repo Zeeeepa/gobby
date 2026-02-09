@@ -754,7 +754,10 @@ class TestMCPEndpoints:
     def test_mcp_tools_without_manager(self, client: TestClient) -> None:
         """Test MCP tools listing when manager not available."""
         response = client.get("/mcp/test-server/tools")
-        assert response.status_code == 503
+        assert response.status_code == 200
+        data = response.json()
+        assert data["success"] is False
+        assert "MCP manager not available" in data["error"]
 
     def test_mcp_proxy_without_manager(self, client: TestClient) -> None:
         """Test MCP proxy when manager not available."""

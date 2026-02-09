@@ -277,8 +277,10 @@ class TestListMCPTools:
     def test_list_tools_no_mcp_manager(self, client: TestClient) -> None:
         """Test listing tools when MCP manager is not available."""
         response = client.get("/mcp/test-server/tools")
-        assert response.status_code == 503
-        assert "MCP manager not available" in response.json()["detail"]["error"]
+        assert response.status_code == 200
+        data = response.json()
+        assert data["success"] is False
+        assert "MCP manager not available" in data["error"]
 
     def test_list_tools_internal_server_success(self, session_storage: LocalSessionManager) -> None:
         """Test listing tools from internal server."""
@@ -314,9 +316,11 @@ class TestListMCPTools:
             # No internal manager, should fall through to MCP manager check
             response = client.get("/mcp/gobby-nonexistent/tools")
 
-        # Returns 503 because mcp_manager is None
-        assert response.status_code == 503
-        assert "MCP manager not available" in response.json()["detail"]["error"]
+        # Returns 200 with success=False because mcp_manager is None
+        assert response.status_code == 200
+        data = response.json()
+        assert data["success"] is False
+        assert "MCP manager not available" in data["error"]
 
     def test_list_tools_external_server_not_configured(
         self, session_storage: LocalSessionManager
@@ -1209,7 +1213,10 @@ class TestRemoveMCPServer:
         with TestClient(server.app) as client:
             response = client.delete("/mcp/servers/nonexistent")
 
-        assert response.status_code == 404
+        assert response.status_code == 200
+        data = response.json()
+        assert data["success"] is False
+        assert "Server not found" in data["error"]
 
 
 # ============================================================================

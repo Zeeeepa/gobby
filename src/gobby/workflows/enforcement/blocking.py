@@ -430,7 +430,7 @@ async def block_tools(
         # command_not_pattern: regex that excludes the command if it matches
         # These fields are only evaluated for Bash tool calls (ignored for other tools)
         if rule_matches and tool_name == "Bash":
-            command = tool_input.get("command", "")
+            command = tool_input.get("command", "") if isinstance(tool_input, dict) else str(tool_input)
             cmd_pattern = rule.get("command_pattern")
             cmd_not_pattern = rule.get("command_not_pattern")
 

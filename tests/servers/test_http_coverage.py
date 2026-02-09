@@ -1560,7 +1560,10 @@ class TestInternalRegistries:
         with TestClient(server.app) as client:
             response = client.get("/mcp/gobby-nonexistent/tools")
 
-        assert response.status_code == 404
+        assert response.status_code == 200
+        data = response.json()
+        assert data["success"] is False
+        assert "not found" in data["error"]
 
     def test_call_tool_internal_server(self, session_storage: LocalSessionManager) -> None:
         """Test calling tool on internal server."""
