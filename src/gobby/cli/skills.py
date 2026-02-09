@@ -15,9 +15,23 @@ from typing import Any
 import click
 
 from gobby.config.app import DaemonConfig
+from gobby.skills.metadata import (
+    get_nested_value,
+    get_skill_category,
+    get_skill_tags,
+    set_nested_value,
+    unset_nested_value,
+)
 from gobby.storage.database import LocalDatabase
 from gobby.storage.skills import LocalSkillManager
 from gobby.utils.daemon_client import DaemonClient
+
+# Re-export under private names so existing in-module references keep working
+_get_skill_tags = get_skill_tags
+_get_skill_category = get_skill_category
+_get_nested_value = get_nested_value
+_set_nested_value = set_nested_value
+_unset_nested_value = unset_nested_value
 
 
 def get_skill_storage() -> LocalSkillManager:
@@ -146,23 +160,6 @@ def list_skills(
         click.echo(f"{status} {skill.name}{cat_str} - {desc}")
 
 
-def _get_skill_tags(skill: Any) -> list[str]:
-    """Extract tags from skill metadata."""
-    if skill.metadata and isinstance(skill.metadata, dict):
-        skillport = skill.metadata.get("skillport", {})
-        if isinstance(skillport, dict):
-            tags = skillport.get("tags", [])
-            return list(tags) if isinstance(tags, list) else []
-    return []
-
-
-def _get_skill_category(skill: Any) -> str | None:
-    """Extract category from skill metadata."""
-    if skill.metadata and isinstance(skill.metadata, dict):
-        skillport = skill.metadata.get("skillport", {})
-        if isinstance(skillport, dict):
-            return skillport.get("category")
-    return None
 
 
 def _output_json(skills_list: list[Any]) -> None:
@@ -451,66 +448,6 @@ def meta() -> None:
     pass
 
 
-def _get_nested_value(data: dict[str, Any], key: str) -> Any:
-    """Get a nested value from a dict using dot notation."""
-    keys = key.split(".")
-    current = data
-    for k in keys:
-        if not isinstance(current, dict) or k not in current:
-            return None
-        current = current[k]
-    return current
-
-
-def _set_nested_value(data: dict[str, Any], key: str, value: Any) -> dict[str, Any]:
-    """Set a nested value in a dict using dot notation."""
-    keys = key.split(".")
-    result = data.copy() if data else {}
-    current = result
-
-    # Navigate to parent, creating dicts as needed
-    for k in keys[:-1]:
-        if k not in current or not isinstance(current[k], dict):
-            current[k] = {}
-        else:
-            current[k] = current[k].copy()
-        current = current[k]
-
-    # Set the final key
-    current[keys[-1]] = value
-    return result
-
-
-def _unset_nested_value(data: dict[str, Any], key: str) -> dict[str, Any]:
-    """Remove a nested value from a dict using dot notation."""
-    if not data:
-        return {}
-
-    keys = key.split(".")
-    result = data.copy()
-
-    if len(keys) == 1:
-        # Simple key
-        result.pop(keys[0], None)
-        return result
-
-    # Navigate to parent
-    current = result
-    parents: list[tuple[dict[str, Any], str]] = []
-
-    for k in keys[:-1]:
-        if not isinstance(current, dict) or k not in current:
-            return result  # Key doesn't exist, nothing to do
-        parents.append((current, k))
-        if isinstance(current[k], dict):
-            current[k] = current[k].copy()
-        current = current[k]
-
-    # Remove the final key
-    if isinstance(current, dict) and keys[-1] in current:
-        del current[keys[-1]]
-
-    return result
 
 
 @meta.command("get")
