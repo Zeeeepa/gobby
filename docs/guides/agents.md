@@ -504,18 +504,18 @@ For automated task orchestration, use the conductor or orchestration tools:
 
 ```python
 # Orchestrate ready subtasks under a parent
-call_tool(server_name="gobby-tasks", tool_name="orchestrate_ready_tasks", arguments={
+call_tool(server_name="gobby-orchestration", tool_name="orchestrate_ready_tasks", arguments={
     "parent_task_id": "#100",
     "session_id": "<orchestrator_session_id>"
 })
 
 # Poll agent status
-call_tool(server_name="gobby-tasks", tool_name="poll_agent_status", arguments={
+call_tool(server_name="gobby-orchestration", tool_name="poll_agent_status", arguments={
     "parent_task_id": "#100"
 })
 
 # Process completed agents
-call_tool(server_name="gobby-tasks", tool_name="process_completed_agents", arguments={
+call_tool(server_name="gobby-orchestration", tool_name="process_completed_agents", arguments={
     "parent_task_id": "#100"
 })
 ```

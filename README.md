@@ -348,6 +348,9 @@ Gobby exposes tools via MCP that your AI coding assistant can use:
 **Task Management** (`gobby-tasks`)
 `create_task`, `expand_task`, `validate_task`, `close_task`, `claim_task`, `list_ready_tasks`, `suggest_next_task`, `link_commit`, and more.
 
+**Orchestration** (`gobby-orchestration`)
+`orchestrate_ready_tasks`, `wait_for_task`, `poll_agent_status`, `spawn_review_agent`, `approve_and_cleanup`, and more.
+
 **Session Management** (`gobby-sessions`)
 `get_current_session`, `pickup` (restore context), `get_handoff_context`, `list_sessions`, `send_message`
 
