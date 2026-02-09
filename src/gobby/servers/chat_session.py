@@ -65,17 +65,29 @@ def _find_cli_path() -> str | None:
     return None
 
 
+def _find_project_root() -> Path | None:
+    """Find the gobby project root from source tree.
+
+    In dev mode the daemon runs from the repo, so we can derive the
+    project root from this file's location.
+    """
+    candidate = Path(__file__).parent.parent.parent.parent
+    if (candidate / ".gobby").is_dir():
+        return candidate
+    return None
+
+
 def _find_mcp_config() -> str | None:
     """Find .mcp.json config file for MCP tool access."""
     cwd_config = Path.cwd() / ".mcp.json"
     if cwd_config.exists():
         return str(cwd_config)
 
-    # Try the gobby project root
-    gobby_root = Path(__file__).parent.parent.parent.parent
-    gobby_config = gobby_root / ".mcp.json"
-    if gobby_config.exists():
-        return str(gobby_config)
+    project_root = _find_project_root()
+    if project_root:
+        config = project_root / ".mcp.json"
+        if config.exists():
+            return str(config)
 
     return None
 
@@ -114,6 +126,12 @@ class ChatSession:
         mcp_config = _find_mcp_config()
         self._model = model
 
+        # Use the gobby project root if found (dev mode), otherwise cwd.
+        # TODO: Add project picker to UI for production so the user selects
+        # the project before chatting, and pass that path here instead.
+        project_root = _find_project_root()
+        cwd = str(project_root) if project_root else str(Path.cwd())
+
         options = ClaudeAgentOptions(
             system_prompt=_load_chat_system_prompt(),
             max_turns=None,
@@ -122,7 +140,7 @@ class ChatSession:
             permission_mode="bypassPermissions",
             cli_path=cli_path,
             mcp_servers=mcp_config if mcp_config is not None else {},
-            cwd=str(Path.cwd()),
+            cwd=cwd,
         )
 
         self._client = ClaudeSDKClient(options=options)
