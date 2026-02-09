@@ -4,7 +4,7 @@ Additional tests for WorkflowEngine to increase coverage.
 Covers:
 - Lines 100-103: __lifecycle__ workflow handling (skip step workflow handling)
 - Lines 124-131: Session info lookup via session_manager.find_by_external_id
-- Lines 161-164: Reset premature stop counter on user prompt (BEFORE_AGENT)
+- Lines 161-164: Reset premature stop counter on user prompt (BEFORE_AGENT), NOT on tool calls
 - Lines 898-988: _check_premature_stop method
 - Lines 1079-1090: _log_approval audit logging method
 """
@@ -320,6 +320,47 @@ class TestPrematureStopCounterReset:
         # save_state should NOT be called just for counter reset when it's already 0
         # (it might be called for other reasons, but the counter reset path is skipped)
         assert state.variables.get("_premature_stop_count", 0) == 0
+
+    async def test_premature_stop_counter_not_reset_on_before_tool(
+        self, workflow_engine, mock_state_manager, mock_loader, mock_evaluator
+    ):
+        """Premature stop counter must NOT reset on BEFORE_TOOL events.
+
+        For orchestrator workflows in mode: self, the orchestrator's own MCP
+        tool calls would reset the counter on every call, defeating the
+        failsafe that detects stuck-in-loop agents.
+        """
+        state = WorkflowState(
+            session_id="sess1",
+            workflow_name="test_wf",
+            step="working",
+            step_entered_at=datetime.now(UTC),
+            variables={"_premature_stop_count": 2},
+        )
+        mock_state_manager.get_state.return_value = state
+
+        step = MagicMock(spec=WorkflowStep)
+        step.blocked_tools = []
+        step.allowed_tools = "all"
+        step.rules = []
+        step.transitions = []
+        step.exit_conditions = []
+        step.on_enter = []
+
+        workflow = MagicMock(spec=WorkflowDefinition)
+        workflow.type = "step"
+        workflow.get_step.return_value = step
+        mock_loader.load_workflow.return_value = workflow
+
+        event = create_event(
+            event_type=HookEventType.BEFORE_TOOL,
+            data={"tool_name": "suggest_next_task"},
+        )
+
+        await workflow_engine.handle_event(event)
+
+        # Counter should remain at 2 — tool calls must NOT reset it
+        assert state.variables["_premature_stop_count"] == 2
 
 
 @pytest.mark.asyncio
