@@ -1,0 +1,362 @@
+[
+  {
+    "id": "2e011adc-1613-4833-9426-5b5b6ea1eedb",
+    "title": "Freeform Rectangle Task",
+    "comment": "I don't want this here. The model selector elsewhere should handle it.",
+    "selector": "freeform",
+    "boundingRect": {
+      "x": 1265,
+      "y": 10,
+      "w": 176,
+      "h": 68
+    },
+    "screenshotPath": "./screenshots/moat-1770672594124-j0hkzg7ye.png",
+    "status": "done",
+    "timestamp": 1770672594135,
+    "boundingBox": {
+      "xyxy": {
+        "x1": 1265,
+        "y1": 10,
+        "x2": 1441,
+        "y2": 78
+      },
+      "xywh": {
+        "x": 1265,
+        "y": 10,
+        "width": 176,
+        "height": 68
+      },
+      "normalized": {
+        "x": 0.7784615384615384,
+        "y": 0.008051529790660225,
+        "width": 0.10830769230769231,
+        "height": 0.05475040257648953
+      },
+      "viewport": {
+        "width": 1625,
+        "height": 1242
+      },
+      "type": "freeform"
+    }
+  },
+  {
+    "id": "db697e01-72d1-4443-8d01-cbed79c1734b",
+    "title": "Freeform Rectangle Task",
+    "comment": "Is this the daemon status? If not, we probably need a Daemon Running/Stopped indicator up here as well. Could probably combine into one green/red light w/o text. If both conditions are true, green, otherwise red.",
+    "selector": "freeform",
+    "boundingRect": {
+      "x": 1438,
+      "y": 10,
+      "w": 172,
+      "h": 67
+    },
+    "screenshotPath": "./screenshots/moat-1770672696683-jytfows8u.png",
+    "status": "done",
+    "timestamp": 1770672696698,
+    "boundingBox": {
+      "xyxy": {
+        "x1": 1438,
+        "y1": 10,
+        "x2": 1610,
+        "y2": 77
+      },
+      "xywh": {
+        "x": 1438,
+        "y": 10,
+        "width": 172,
+        "height": 67
+      },
+      "normalized": {
+        "x": 0.8849230769230769,
+        "y": 0.008051529790660225,
+        "width": 0.10584615384615384,
+        "height": 0.05394524959742351
+      },
+      "viewport": {
+        "width": 1625,
+        "height": 1242
+      },
+      "type": "freeform"
+    }
+  },
+  {
+    "id": "b2c57187-51ee-4188-a073-71a045bded50",
+    "title": "Freeform Rectangle Task",
+    "comment": "May need to use playwright to see this for yourself. There's no text displayed in this terminal.",
+    "selector": "freeform",
+    "boundingRect": {
+      "x": 9,
+      "y": 134,
+      "w": 506,
+      "h": 331
+    },
+    "screenshotPath": "./screenshots/moat-1770672789248-2msnyr5so.png",
+    "status": "done",
+    "timestamp": 1770672789263,
+    "boundingBox": {
+      "xyxy": {
+        "x1": 9,
+        "y1": 134,
+        "x2": 515,
+        "y2": 465
+      },
+      "xywh": {
+        "x": 9,
+        "y": 134,
+        "width": 506,
+        "height": 331
+      },
+      "normalized": {
+        "x": 0.005538461538461538,
+        "y": 0.10789049919484701,
+        "width": 0.31138461538461537,
+        "height": 0.2665056360708535
+      },
+      "viewport": {
+        "width": 1625,
+        "height": 1242
+      },
+      "type": "freeform"
+    }
+  },
+  {
+    "id": "aae5439b-751d-4d01-b874-22fe944be75d",
+    "title": "Freeform Rectangle Task",
+    "comment": "This is how it looks after I click Attach. I see the caret but the prompt text is still to dark to display on the dark background.",
+    "selector": "freeform",
+    "boundingRect": {
+      "x": 13,
+      "y": 96,
+      "w": 465,
+      "h": 352
+    },
+    "screenshotPath": "./screenshots/moat-1770672826024-8iofyr8g7.png",
+    "status": "done",
+    "timestamp": 1770672826037,
+    "boundingBox": {
+      "xyxy": {
+        "x1": 13,
+        "y1": 96,
+        "x2": 478,
+        "y2": 448
+      },
+      "xywh": {
+        "x": 13,
+        "y": 96,
+        "width": 465,
+        "height": 352
+      },
+      "normalized": {
+        "x": 0.008,
+        "y": 0.07729468599033816,
+        "width": 0.28615384615384615,
+        "height": 0.2834138486312399
+      },
+      "viewport": {
+        "width": 1625,
+        "height": 1242
+      },
+      "type": "freeform"
+    }
+  },
+  {
+    "id": "b625e80b-03ec-4af7-a303-dcd11a1f875d",
+    "title": "Freeform Rectangle Task",
+    "comment": "If I type anything, then the prompt appears.",
+    "selector": "freeform",
+    "boundingRect": {
+      "x": 5,
+      "y": 11,
+      "w": 367,
+      "h": 327
+    },
+    "screenshotPath": "./screenshots/moat-1770672849190-6k0r678pi.png",
+    "status": "done",
+    "timestamp": 1770672849203,
+    "boundingBox": {
+      "xyxy": {
+        "x1": 5,
+        "y1": 11,
+        "x2": 372,
+        "y2": 338
+      },
+      "xywh": {
+        "x": 5,
+        "y": 11,
+        "width": 367,
+        "height": 327
+      },
+      "normalized": {
+        "x": 0.003076923076923077,
+        "y": 0.008856682769726247,
+        "width": 0.22584615384615384,
+        "height": 0.2632850241545894
+      },
+      "viewport": {
+        "width": 1625,
+        "height": 1242
+      },
+      "type": "freeform"
+    }
+  },
+  {
+    "id": "86284565-5bac-47f6-afc1-4d0a21e470b1",
+    "title": "Freeform Rectangle Task",
+    "comment": "shift+enter doesn't work in this view",
+    "selector": "freeform",
+    "boundingRect": {
+      "x": 16,
+      "y": 27,
+      "w": 534,
+      "h": 929
+    },
+    "screenshotPath": "./screenshots/moat-1770672948433-904h5373a.png",
+    "status": "done",
+    "timestamp": 1770672948453,
+    "boundingBox": {
+      "xyxy": {
+        "x1": 16,
+        "y1": 27,
+        "x2": 550,
+        "y2": 956
+      },
+      "xywh": {
+        "x": 16,
+        "y": 27,
+        "width": 534,
+        "height": 929
+      },
+      "normalized": {
+        "x": 0.009846153846153846,
+        "y": 0.021739130434782608,
+        "width": 0.32861538461538464,
+        "height": 0.7479871175523349
+      },
+      "viewport": {
+        "width": 1625,
+        "height": 1242
+      },
+      "type": "freeform"
+    }
+  },
+  {
+    "id": "7653845d-c71d-4022-8484-792389b86d23",
+    "title": "Freeform Rectangle Task",
+    "comment": "Chat should occupy the entire screen like the Terminals page does.",
+    "selector": "freeform",
+    "boundingRect": {
+      "x": 313,
+      "y": 10,
+      "w": 978,
+      "h": 736
+    },
+    "screenshotPath": "./screenshots/moat-1770672998050-zu4ubmj2y.png",
+    "status": "done",
+    "timestamp": 1770672998060,
+    "boundingBox": {
+      "xyxy": {
+        "x1": 313,
+        "y1": 10,
+        "x2": 1291,
+        "y2": 746
+      },
+      "xywh": {
+        "x": 313,
+        "y": 10,
+        "width": 978,
+        "height": 736
+      },
+      "normalized": {
+        "x": 0.1926153846153846,
+        "y": 0.008051529790660225,
+        "width": 0.6018461538461538,
+        "height": 0.5925925925925926
+      },
+      "viewport": {
+        "width": 1625,
+        "height": 1242
+      },
+      "type": "freeform"
+    }
+  },
+  {
+    "id": "121a8d0d-0992-4f6c-8c6e-7e5afef12620",
+    "title": "Freeform Rectangle Task",
+    "comment": "Big unnecessary Attached button when the page width is squished. I'm not attached to the session either at the moment. Probably safe to remove it.",
+    "selector": "freeform",
+    "boundingRect": {
+      "x": 7,
+      "y": 218,
+      "w": 266,
+      "h": 136
+    },
+    "screenshotPath": "./screenshots/moat-1770673066917-w9loqgxuq.png",
+    "status": "done",
+    "timestamp": 1770673066930,
+    "boundingBox": {
+      "xyxy": {
+        "x1": 7,
+        "y1": 218,
+        "x2": 273,
+        "y2": 354
+      },
+      "xywh": {
+        "x": 7,
+        "y": 218,
+        "width": 266,
+        "height": 136
+      },
+      "normalized": {
+        "x": 0.01129032258064516,
+        "y": 0.17552334943639292,
+        "width": 0.4290322580645161,
+        "height": 0.10950080515297907
+      },
+      "viewport": {
+        "width": 620,
+        "height": 1242
+      },
+      "type": "freeform"
+    }
+  },
+  {
+    "id": "b05c2e3f-4376-42e0-99db-83823bcdac05",
+    "title": "Freeform Rectangle Task",
+    "comment": "terminal stretches but text doesn't readjust",
+    "selector": "freeform",
+    "boundingRect": {
+      "x": 8,
+      "y": 15,
+      "w": 1236,
+      "h": 986
+    },
+    "screenshotPath": "./screenshots/moat-1770673214851-9thtofhvl.png",
+    "status": "done",
+    "timestamp": 1770673214871,
+    "boundingBox": {
+      "xyxy": {
+        "x1": 8,
+        "y1": 15,
+        "x2": 1244,
+        "y2": 1001
+      },
+      "xywh": {
+        "x": 8,
+        "y": 15,
+        "width": 1236,
+        "height": 986
+      },
+      "normalized": {
+        "x": 0.0062063615205585725,
+        "y": 0.012077294685990338,
+        "width": 0.9588828549262994,
+        "height": 0.7938808373590982
+      },
+      "viewport": {
+        "width": 1289,
+        "height": 1242
+      },
+      "type": "freeform"
+    }
+  }
+]
