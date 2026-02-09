@@ -411,6 +411,11 @@ async def spawn_agent_impl(
         isolation_ctx = await handler.prepare_environment(spawn_config)
     except Exception as e:
         logger.error(f"Failed to prepare environment: {e}", exc_info=True)
+        # Clean up any partially created resources (worktree/clone on disk, storage records)
+        try:
+            await handler.cleanup_environment(spawn_config)
+        except Exception as cleanup_err:
+            logger.warning(f"Cleanup after prepare failure also failed: {cleanup_err}")
         return {"success": False, "error": f"Failed to prepare environment: {e}"}
 
     # 7b. Add main repo path to sandbox read AND write paths for worktree isolation

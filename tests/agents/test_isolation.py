@@ -278,6 +278,27 @@ class TestCurrentIsolationHandler:
 
         assert result == original_prompt
 
+    @pytest.mark.asyncio
+    async def test_cleanup_environment_is_noop(self):
+        """Test cleanup_environment does nothing for current handler."""
+        handler = CurrentIsolationHandler()
+        config = SpawnConfig(
+            prompt="Test",
+            task_id=None,
+            task_title=None,
+            task_seq_num=None,
+            branch_name=None,
+            branch_prefix=None,
+            base_branch="main",
+            project_id="proj",
+            project_path="/path",
+            provider="claude",
+            parent_session_id="sess",
+        )
+
+        # Should not raise
+        await handler.cleanup_environment(config)
+
     def test_is_isolation_handler_subclass(self) -> None:
         """Test CurrentIsolationHandler is a subclass of IsolationHandler."""
         assert issubclass(CurrentIsolationHandler, IsolationHandler)
@@ -401,6 +422,154 @@ class TestWorktreeIsolationHandler:
         assert original_prompt in result
         assert "feature-branch" in result
 
+    @pytest.mark.asyncio
+    async def test_cleanup_after_storage_create_failure(self):
+        """Test cleanup removes worktree on disk when storage.create fails."""
+        mock_git_manager = MagicMock()
+        mock_git_manager.repo_path = "/path/to/main/repo"
+        mock_git_manager.create_worktree.return_value = MagicMock(success=True)
+        mock_git_manager.get_current_branch.return_value = "main"
+        mock_git_manager.has_unpushed_commits.return_value = (False, 0)
+
+        mock_worktree_storage = MagicMock()
+        mock_worktree_storage.get_by_branch.return_value = None
+        mock_worktree_storage.create.side_effect = RuntimeError("DB error")
+
+        handler = WorktreeIsolationHandler(
+            git_manager=mock_git_manager,
+            worktree_storage=mock_worktree_storage,
+        )
+
+        config = SpawnConfig(
+            prompt="Test",
+            task_id=None,
+            task_title=None,
+            task_seq_num=None,
+            branch_name="my-branch",
+            branch_prefix=None,
+            base_branch="main",
+            project_id="proj-123",
+            project_path="/path/to/main/repo",
+            provider="claude",
+            parent_session_id="sess-456",
+        )
+
+        with pytest.raises(RuntimeError, match="DB error"):
+            await handler.prepare_environment(config)
+
+        # Handler should have tracked the worktree path but not the storage id
+        assert handler._created_worktree_path is not None
+        assert handler._created_worktree_id is None
+        tracked_path = handler._created_worktree_path
+
+        await handler.cleanup_environment(config)
+
+        # Should have called delete_worktree to clean up disk
+        mock_git_manager.delete_worktree.assert_called_once_with(
+            worktree_path=tracked_path,
+            force=True,
+        )
+        # State should be cleared after cleanup
+        assert handler._created_worktree_path is None
+
+    @pytest.mark.asyncio
+    async def test_cleanup_after_hook_copy_failure(self):
+        """Test cleanup removes worktree and storage record when hook copy fails."""
+        mock_git_manager = MagicMock()
+        mock_git_manager.repo_path = "/path/to/main/repo"
+        mock_git_manager.create_worktree.return_value = MagicMock(success=True)
+        mock_git_manager.get_current_branch.return_value = "main"
+        mock_git_manager.has_unpushed_commits.return_value = (False, 0)
+
+        mock_worktree_storage = MagicMock()
+        mock_worktree_storage.get_by_branch.return_value = None
+        mock_worktree_storage.create.return_value = MagicMock(
+            id="wt-123",
+            worktree_path="/tmp/worktrees/my-branch",
+            branch_name="my-branch",
+        )
+
+        handler = WorktreeIsolationHandler(
+            git_manager=mock_git_manager,
+            worktree_storage=mock_worktree_storage,
+        )
+
+        # Make _copy_cli_hooks raise
+        with patch.object(handler, "_copy_cli_hooks", side_effect=OSError("Permission denied")):
+            config = SpawnConfig(
+                prompt="Test",
+                task_id=None,
+                task_title=None,
+                task_seq_num=None,
+                branch_name="my-branch",
+                branch_prefix=None,
+                base_branch="main",
+                project_id="proj-123",
+                project_path="/path/to/main/repo",
+                provider="claude",
+                parent_session_id="sess-456",
+            )
+
+            with pytest.raises(OSError, match="Permission denied"):
+                await handler.prepare_environment(config)
+
+        # Both path and id should be tracked
+        assert handler._created_worktree_path is not None
+        assert handler._created_worktree_id == "wt-123"
+
+        await handler.cleanup_environment(config)
+
+        mock_git_manager.delete_worktree.assert_called_once()
+        mock_worktree_storage.delete.assert_called_once_with("wt-123")
+
+    @pytest.mark.asyncio
+    async def test_cleanup_noop_on_success(self):
+        """Test cleanup does nothing after successful prepare."""
+        mock_git_manager = MagicMock()
+        mock_git_manager.repo_path = "/path/to/main/repo"
+        mock_git_manager.create_worktree.return_value = MagicMock(success=True)
+        mock_git_manager.get_current_branch.return_value = "main"
+        mock_git_manager.has_unpushed_commits.return_value = (False, 0)
+
+        mock_worktree_storage = MagicMock()
+        mock_worktree_storage.get_by_branch.return_value = None
+        mock_worktree_storage.create.return_value = MagicMock(
+            id="wt-123",
+            worktree_path="/tmp/worktrees/my-branch",
+            branch_name="my-branch",
+        )
+
+        handler = WorktreeIsolationHandler(
+            git_manager=mock_git_manager,
+            worktree_storage=mock_worktree_storage,
+        )
+
+        config = SpawnConfig(
+            prompt="Test",
+            task_id=None,
+            task_title=None,
+            task_seq_num=None,
+            branch_name="my-branch",
+            branch_prefix=None,
+            base_branch="main",
+            project_id="proj-123",
+            project_path="/path/to/main/repo",
+            provider="claude",
+            parent_session_id="sess-456",
+        )
+
+        await handler.prepare_environment(config)
+
+        # After success, partial state should be cleared
+        assert handler._created_worktree_path is None
+        assert handler._created_worktree_id is None
+
+        await handler.cleanup_environment(config)
+
+        # Should NOT call delete since nothing to clean up
+        mock_git_manager.delete_worktree.assert_not_called()
+        mock_worktree_storage.delete.assert_not_called()
+
     def test_is_isolation_handler_subclass(self) -> None:
         """Test WorktreeIsolationHandler is a subclass of IsolationHandler."""
         assert issubclass(WorktreeIsolationHandler, IsolationHandler)
@@ -514,6 +683,140 @@ class TestCloneIsolationHandler:
         assert "CRITICAL: Clone Context" in result
         assert original_prompt in result
         assert "feature-branch" in result
+
+    @pytest.mark.asyncio
+    async def test_cleanup_after_storage_create_failure(self):
+        """Test cleanup removes clone on disk when storage.create fails."""
+        mock_clone_manager = MagicMock()
+        mock_clone_manager.create_clone.return_value = MagicMock(success=True)
+
+        mock_clone_storage = MagicMock()
+        mock_clone_storage.get_by_branch.return_value = None
+        mock_clone_storage.create.side_effect = RuntimeError("DB error")
+
+        handler = CloneIsolationHandler(
+            clone_manager=mock_clone_manager,
+            clone_storage=mock_clone_storage,
+        )
+
+        config = SpawnConfig(
+            prompt="Test",
+            task_id=None,
+            task_title=None,
+            task_seq_num=None,
+            branch_name="my-branch",
+            branch_prefix=None,
+            base_branch="main",
+            project_id="proj-123",
+            project_path="/path/to/main/repo",
+            provider="claude",
+            parent_session_id="sess-456",
+        )
+
+        with pytest.raises(RuntimeError, match="DB error"):
+            await handler.prepare_environment(config)
+
+        # Handler should have tracked the clone path but not the storage id
+        assert handler._created_clone_path is not None
+        assert handler._created_clone_id is None
+        tracked_path = handler._created_clone_path
+
+        await handler.cleanup_environment(config)
+
+        mock_clone_manager.delete_clone.assert_called_once_with(
+            clone_path=tracked_path,
+            force=True,
+        )
+        # State should be cleared after cleanup
+        assert handler._created_clone_path is None
+
+    @pytest.mark.asyncio
+    async def test_cleanup_after_hook_copy_failure(self):
+        """Test cleanup removes clone and storage record when hook copy fails."""
+        mock_clone_manager = MagicMock()
+        mock_clone_manager.create_clone.return_value = MagicMock(success=True)
+
+        mock_clone_storage = MagicMock()
+        mock_clone_storage.get_by_branch.return_value = None
+        mock_clone_storage.create.return_value = MagicMock(
+            id="clone-123",
+            clone_path="/tmp/clones/my-branch",
+            branch_name="my-branch",
+        )
+
+        handler = CloneIsolationHandler(
+            clone_manager=mock_clone_manager,
+            clone_storage=mock_clone_storage,
+        )
+
+        with patch.object(handler, "_copy_cli_hooks", side_effect=OSError("Permission denied")):
+            config = SpawnConfig(
+                prompt="Test",
+                task_id=None,
+                task_title=None,
+                task_seq_num=None,
+                branch_name="my-branch",
+                branch_prefix=None,
+                base_branch="main",
+                project_id="proj-123",
+                project_path="/path/to/main/repo",
+                provider="claude",
+                parent_session_id="sess-456",
+            )
+
+            with pytest.raises(OSError, match="Permission denied"):
+                await handler.prepare_environment(config)
+
+        assert handler._created_clone_path is not None
+        assert handler._created_clone_id == "clone-123"
+
+        await handler.cleanup_environment(config)
+
+        mock_clone_manager.delete_clone.assert_called_once()
+        mock_clone_storage.delete.assert_called_once_with("clone-123")
+
+    @pytest.mark.asyncio
+    async def test_cleanup_noop_on_success(self):
+        """Test cleanup does nothing after successful prepare."""
+        mock_clone_manager = MagicMock()
+        mock_clone_manager.create_clone.return_value = MagicMock(success=True)
+
+        mock_clone_storage = MagicMock()
+        mock_clone_storage.get_by_branch.return_value = None
+        mock_clone_storage.create.return_value = MagicMock(
+            id="clone-123",
+            clone_path="/tmp/clones/my-branch",
+            branch_name="my-branch",
+        )
+
+        handler = CloneIsolationHandler(
+            clone_manager=mock_clone_manager,
+            clone_storage=mock_clone_storage,
+        )
+
+        config = SpawnConfig(
+            prompt="Test",
+            task_id=None,
+            task_title=None,
+            task_seq_num=None,
+            branch_name="my-branch",
+            branch_prefix=None,
+            base_branch="main",
+            project_id="proj-123",
+            project_path="/path/to/main/repo",
+            provider="claude",
+            parent_session_id="sess-456",
+        )
+
+        await handler.prepare_environment(config)
+
+        assert handler._created_clone_path is None
+        assert handler._created_clone_id is None
+
+        await handler.cleanup_environment(config)
+
+        mock_clone_manager.delete_clone.assert_not_called()
+        mock_clone_storage.delete.assert_not_called()
 
     def test_is_isolation_handler_subclass(self) -> None:
         """Test CloneIsolationHandler is a subclass of IsolationHandler."""

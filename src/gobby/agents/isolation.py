@@ -89,6 +89,18 @@ class IsolationHandler(ABC):
         """
 
     @abstractmethod
+    async def cleanup_environment(self, config: SpawnConfig) -> None:
+        """
+        Clean up partially created environment after prepare_environment failure.
+
+        Handlers track what was created during prepare_environment.
+        This method reverses those partial side effects.
+
+        Args:
+            config: The same SpawnConfig passed to prepare_environment
+        """
+
+    @abstractmethod
     def build_context_prompt(self, original_prompt: str, ctx: IsolationContext) -> str:
         """
         Build prompt with isolation context warnings.
@@ -116,6 +128,9 @@ class CurrentIsolationHandler(IsolationHandler):
             cwd=config.project_path,
             isolation_type="current",
         )
+
+    async def cleanup_environment(self, config: SpawnConfig) -> None:
+        """No-op - nothing to clean up for current directory."""
 
     def build_context_prompt(self, original_prompt: str, ctx: IsolationContext) -> str:
         """Return prompt unchanged - no additional context needed."""
@@ -147,6 +162,9 @@ class WorktreeIsolationHandler(IsolationHandler):
         """
         self._git_manager = git_manager
         self._worktree_storage = worktree_storage
+        # Track partial state for cleanup on failure
+        self._created_worktree_path: str | None = None
+        self._created_worktree_id: str | None = None
 
     async def prepare_environment(self, config: SpawnConfig) -> IsolationContext:
         """
@@ -159,6 +177,10 @@ class WorktreeIsolationHandler(IsolationHandler):
         - Create new worktree if needed
         - Return IsolationContext with worktree info
         """
+        # Reset partial state
+        self._created_worktree_path = None
+        self._created_worktree_id = None
+
         branch_name = generate_branch_name(config)
 
         # Check if worktree already exists for this branch
@@ -214,6 +236,9 @@ class WorktreeIsolationHandler(IsolationHandler):
         if not result.success:
             raise RuntimeError(f"Failed to create worktree: {result.error}")
 
+        # Track for cleanup — worktree exists on disk now
+        self._created_worktree_path = worktree_path
+
         # Record in storage
         worktree = self._worktree_storage.create(
             project_id=config.project_id,
@@ -223,12 +248,19 @@ class WorktreeIsolationHandler(IsolationHandler):
             task_id=config.task_id,
         )
 
+        # Track storage record for cleanup
+        self._created_worktree_id = worktree.id
+
         # Copy CLI hooks to worktree so hooks fire correctly
         await self._copy_cli_hooks(
             main_repo_path=self._git_manager.repo_path,
             worktree_path=worktree_path,
             provider=config.provider,
         )
+
+        # Success — clear partial state
+        self._created_worktree_path = None
+        self._created_worktree_id = None
 
         return IsolationContext(
             cwd=worktree.worktree_path,
@@ -237,6 +269,34 @@ class WorktreeIsolationHandler(IsolationHandler):
             isolation_type="worktree",
             extra={"main_repo_path": self._git_manager.repo_path},
         )
+
+    async def cleanup_environment(self, config: SpawnConfig) -> None:
+        """Clean up partially created worktree on prepare failure."""
+        import logging
+
+        logger = logging.getLogger(__name__)
+
+        if self._created_worktree_path:
+            try:
+                self._git_manager.delete_worktree(
+                    worktree_path=self._created_worktree_path,
+                    force=True,
+                )
+                logger.info(f"Cleaned up partial worktree: {self._created_worktree_path}")
+            except Exception as e:
+                logger.warning(f"Failed to clean up worktree {self._created_worktree_path}: {e}")
+
+        if self._created_worktree_id:
+            try:
+                self._worktree_storage.delete(self._created_worktree_id)
+                logger.info(f"Cleaned up worktree storage record: {self._created_worktree_id}")
+            except Exception as e:
+                logger.warning(
+                    f"Failed to clean up worktree record {self._created_worktree_id}: {e}"
+                )
+
+        self._created_worktree_path = None
+        self._created_worktree_id = None
 
     def build_context_prompt(self, original_prompt: str, ctx: IsolationContext) -> str:
         """
@@ -357,6 +417,9 @@ class CloneIsolationHandler(IsolationHandler):
         self._clone_manager = clone_manager
         self._clone_storage = clone_storage
         self._git_manager = git_manager
+        # Track partial state for cleanup on failure
+        self._created_clone_path: str | None = None
+        self._created_clone_id: str | None = None
 
     async def prepare_environment(self, config: SpawnConfig) -> IsolationContext:
         """
@@ -367,6 +430,10 @@ class CloneIsolationHandler(IsolationHandler):
         - Create new shallow clone if needed
         - Return IsolationContext with clone info
         """
+        # Reset partial state
+        self._created_clone_path = None
+        self._created_clone_id = None
+
         branch_name = generate_branch_name(config)
 
         # Check if clone already exists for this branch
@@ -412,6 +479,9 @@ class CloneIsolationHandler(IsolationHandler):
         if not result.success:
             raise RuntimeError(f"Failed to create clone: {result.error}")
 
+        # Track for cleanup — clone exists on disk now
+        self._created_clone_path = clone_path
+
         # Record in storage
         clone = self._clone_storage.create(
             project_id=config.project_id,
@@ -421,12 +491,19 @@ class CloneIsolationHandler(IsolationHandler):
             task_id=config.task_id,
         )
 
+        # Track storage record for cleanup
+        self._created_clone_id = clone.id
+
         # Copy CLI hooks to clone so hooks fire correctly
         await self._copy_cli_hooks(
             source_repo_path=config.project_path,
             clone_path=clone_path,
             provider=config.provider,
         )
+
+        # Success — clear partial state
+        self._created_clone_path = None
+        self._created_clone_id = None
 
         return IsolationContext(
             cwd=clone.clone_path,
@@ -435,6 +512,32 @@ class CloneIsolationHandler(IsolationHandler):
             isolation_type="clone",
             extra={"source_repo": config.project_path},
         )
+
+    async def cleanup_environment(self, config: SpawnConfig) -> None:
+        """Clean up partially created clone on prepare failure."""
+        import logging
+
+        logger = logging.getLogger(__name__)
+
+        if self._created_clone_path:
+            try:
+                self._clone_manager.delete_clone(
+                    clone_path=self._created_clone_path,
+                    force=True,
+                )
+                logger.info(f"Cleaned up partial clone: {self._created_clone_path}")
+            except Exception as e:
+                logger.warning(f"Failed to clean up clone {self._created_clone_path}: {e}")
+
+        if self._created_clone_id:
+            try:
+                self._clone_storage.delete(self._created_clone_id)
+                logger.info(f"Cleaned up clone storage record: {self._created_clone_id}")
+            except Exception as e:
+                logger.warning(f"Failed to clean up clone record {self._created_clone_id}: {e}")
+
+        self._created_clone_path = None
+        self._created_clone_id = None
 
     def build_context_prompt(self, original_prompt: str, ctx: IsolationContext) -> str:
         """
