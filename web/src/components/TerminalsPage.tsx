@@ -230,8 +230,14 @@ function TerminalView({ streamingId, sessionName, isInteractive, onSetInteractiv
   const isInteractiveRef = useRef(isInteractive)
 
   // Keep ref in sync for use inside terminal.onData callback
+  // Also show/hide cursor based on interactive state
   useEffect(() => {
     isInteractiveRef.current = isInteractive
+    if (terminalRef.current) {
+      terminalRef.current.options.cursorBlink = isInteractive
+      terminalRef.current.options.cursorStyle = isInteractive ? 'block' : 'bar'
+      terminalRef.current.options.cursorInactiveStyle = isInteractive ? 'outline' : 'none'
+    }
   }, [isInteractive])
 
   // Initialize terminal
@@ -264,7 +270,9 @@ function TerminalView({ streamingId, sessionName, isInteractive, onSetInteractiv
         brightCyan: '#67e8f9',
         brightWhite: '#ffffff',
       },
-      cursorBlink: true,
+      cursorBlink: false,
+      cursorStyle: 'bar',
+      cursorInactiveStyle: 'none',
       scrollback: 10000,
     })
 

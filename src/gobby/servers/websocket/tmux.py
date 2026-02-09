@@ -7,6 +7,7 @@ pattern.
 
 from __future__ import annotations
 
+import asyncio
 import json
 import logging
 from typing import TYPE_CHECKING, Any
@@ -205,6 +206,21 @@ class TmuxMixin:
                 response["request_id"] = request_id
 
             await websocket.send(json.dumps(response))
+
+            # Hide tmux status bar in web terminal view
+            try:
+                args: list[str] = [config.command]
+                if config.socket_name:
+                    args.extend(["-L", config.socket_name])
+                args.extend(["set-option", "-t", session_name, "status", "off"])
+                proc = await asyncio.create_subprocess_exec(
+                    *args,
+                    stdout=asyncio.subprocess.DEVNULL,
+                    stderr=asyncio.subprocess.DEVNULL,
+                )
+                await asyncio.wait_for(proc.wait(), timeout=5.0)
+            except Exception:
+                pass  # Non-critical — status bar is cosmetic
 
         except Exception as e:
             logger.error(f"Failed to attach tmux session '{session_name}': {e}")

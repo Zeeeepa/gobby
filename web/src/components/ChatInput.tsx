@@ -162,6 +162,40 @@ export function ChatInput({
         />
       )}
 
+      <div className="chat-toolbar">
+        <button
+          className="chat-toolbar-btn"
+          onClick={() => fileInputRef.current?.click()}
+          title="Attach file"
+          disabled={disabled}
+        >
+          <PaperclipIcon />
+        </button>
+        <button
+          className="chat-toolbar-btn"
+          onClick={() => imageInputRef.current?.click()}
+          title="Attach image"
+          disabled={disabled}
+        >
+          <ImageIcon />
+        </button>
+        <input
+          ref={fileInputRef}
+          type="file"
+          multiple
+          style={{ display: 'none' }}
+          onChange={(e) => { handleFilesSelected(e.target.files); e.target.value = '' }}
+        />
+        <input
+          ref={imageInputRef}
+          type="file"
+          accept="image/*"
+          multiple
+          style={{ display: 'none' }}
+          onChange={(e) => { handleFilesSelected(e.target.files); e.target.value = '' }}
+        />
+      </div>
+
       {queuedFiles.length > 0 && (
         <div className="chat-file-previews">
           {queuedFiles.map((qf) => (
@@ -183,39 +217,6 @@ export function ChatInput({
       )}
 
       <div className="chat-input-row">
-        <div className="chat-toolbar">
-          <button
-            className="chat-toolbar-btn"
-            onClick={() => fileInputRef.current?.click()}
-            title="Attach file"
-            disabled={disabled}
-          >
-            <PaperclipIcon />
-          </button>
-          <button
-            className="chat-toolbar-btn"
-            onClick={() => imageInputRef.current?.click()}
-            title="Attach image"
-            disabled={disabled}
-          >
-            <ImageIcon />
-          </button>
-          <input
-            ref={fileInputRef}
-            type="file"
-            multiple
-            style={{ display: 'none' }}
-            onChange={(e) => { handleFilesSelected(e.target.files); e.target.value = '' }}
-          />
-          <input
-            ref={imageInputRef}
-            type="file"
-            accept="image/*"
-            multiple
-            style={{ display: 'none' }}
-            onChange={(e) => { handleFilesSelected(e.target.files); e.target.value = '' }}
-          />
-        </div>
         <textarea
           ref={textareaRef}
           className="chat-input"
