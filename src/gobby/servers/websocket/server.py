@@ -11,10 +11,9 @@ import asyncio
 import json
 import logging
 import os
-from collections.abc import AsyncGenerator, Callable, Coroutine
-from dataclasses import dataclass
+from collections.abc import AsyncIterator, Callable, Coroutine
 from datetime import UTC, datetime
-from typing import Any, Protocol
+from typing import Any
 from uuid import uuid4
 
 from websockets.asyncio.server import serve
@@ -25,36 +24,13 @@ from websockets.http11 import Response
 from gobby.agents.registry import get_running_agent_registry
 from gobby.mcp_proxy.manager import MCPClientManager
 from gobby.servers.chat_session import ChatSession
+from gobby.servers.websocket.models import (
+    CLEANUP_INTERVAL_SECONDS,
+    IDLE_TIMEOUT_SECONDS,
+    WebSocketConfig,
+)
 
 logger = logging.getLogger(__name__)
-
-# Idle session cleanup interval and timeout
-_CLEANUP_INTERVAL_SECONDS = 300  # 5 minutes
-_IDLE_TIMEOUT_SECONDS = 1800  # 30 minutes
-
-
-# Protocol for WebSocket connection to include custom attributes
-class WebSocketClient(Protocol):
-    user_id: str
-    subscriptions: set[str]
-    latency: float
-    remote_address: Any
-
-    async def send(self, message: str) -> None: ...
-    async def close(self, code: int = 1000, reason: str = "") -> None: ...
-    async def wait_closed(self) -> None: ...
-    def __aiter__(self) -> Any: ...
-
-
-@dataclass
-class WebSocketConfig:
-    """Configuration for WebSocket server."""
-
-    host: str = "localhost"
-    port: int = 60888
-    ping_interval: int = 30  # seconds
-    ping_timeout: int = 10  # seconds
-    max_message_size: int = 2 * 1024 * 1024  # 2MB
 
 
 class WebSocketServer:
@@ -710,7 +686,7 @@ class WebSocketServer:
         model: str | None,
     ) -> None:
         """Stream a ChatSession response to the client. Runs as a cancellable task."""
-        from gobby.llm.claude import (
+        from gobby.llm.claude_models import (
             DoneEvent,
             TextChunk,
             ThinkingEvent,
@@ -720,7 +696,7 @@ class WebSocketServer:
 
         assistant_message_id = f"assistant-{uuid4().hex[:12]}"
 
-        gen: AsyncGenerator[Any] | None = None
+        gen: AsyncIterator[Any] | None = None
         try:
             # Get or create ChatSession for this conversation
             session = self._chat_sessions.get(conversation_id)
@@ -886,10 +862,12 @@ class WebSocketServer:
             # Python's GC from finalizing it in a different asyncio task
             # (which causes RuntimeError from anyio cancel scope mismatch).
             if gen is not None:
-                try:
-                    await gen.aclose()
-                except BaseException:
-                    pass
+                _aclose = getattr(gen, "aclose", None)
+                if _aclose is not None:
+                    try:
+                        await _aclose()
+                    except BaseException:
+                        pass
             self._active_chat_tasks.pop(conversation_id, None)
 
     async def broadcast(self, message: dict[str, Any]) -> None:
@@ -1144,12 +1122,12 @@ class WebSocketServer:
         """Periodically disconnect chat sessions that have been idle too long."""
         while True:
             try:
-                await asyncio.sleep(_CLEANUP_INTERVAL_SECONDS)
+                await asyncio.sleep(CLEANUP_INTERVAL_SECONDS)
                 now = datetime.now(UTC)
                 stale_ids = [
                     conv_id
                     for conv_id, session in self._chat_sessions.items()
-                    if (now - session.last_activity).total_seconds() > _IDLE_TIMEOUT_SECONDS
+                    if (now - session.last_activity).total_seconds() > IDLE_TIMEOUT_SECONDS
                 ]
                 for conv_id in stale_ids:
                     session = self._chat_sessions.pop(conv_id)
