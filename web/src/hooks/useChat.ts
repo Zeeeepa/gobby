@@ -12,6 +12,7 @@ interface StoredMessage {
   content: string
   timestamp: string // ISO string
   toolCalls?: ToolCall[]
+  thinkingContent?: string
 }
 
 function loadMessages(): ChatMessage[] {
@@ -79,6 +80,7 @@ interface ChatThinkingMessage {
   type: 'chat_thinking'
   message_id: string
   conversation_id: string
+  content?: string
 }
 
 interface ModelSwitchedMessage {
@@ -319,9 +321,32 @@ export function useChat() {
     })
   }, [])
 
-  // Handle thinking events
-  const handleChatThinking = useCallback((_msg: ChatThinkingMessage) => {
+  // Handle thinking events — create the assistant message bubble during
+  // the thinking phase so the thinking indicator renders correctly and
+  // accumulate thinking text for the collapsible block.
+  const handleChatThinking = useCallback((msg: ChatThinkingMessage) => {
     setIsThinking(true)
+    setMessages((prev) => {
+      const existingIndex = prev.findIndex((m) => m.id === msg.message_id)
+      if (existingIndex >= 0) {
+        // Append thinking content to existing message
+        const updated = [...prev]
+        updated[existingIndex] = {
+          ...updated[existingIndex],
+          thinkingContent: (updated[existingIndex].thinkingContent || '') + (msg.content || ''),
+        }
+        return updated
+      } else {
+        // Create assistant message bubble during thinking phase
+        return [...prev, {
+          id: msg.message_id,
+          role: 'assistant' as const,
+          content: '',
+          timestamp: new Date(),
+          thinkingContent: msg.content || '',
+        }]
+      }
+    })
   }, [])
 
   // Handle model switch notifications

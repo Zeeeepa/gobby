@@ -773,6 +773,7 @@ class WebSocketServer:
                                 "type": "chat_thinking",
                                 "message_id": assistant_message_id,
                                 "conversation_id": conversation_id,
+                                "content": event.content,
                             }
                         )
                     )

@@ -124,6 +124,8 @@ class DoneEvent:
 class ThinkingEvent:
     """Event when the model is using extended thinking."""
 
+    content: str = ""
+
 
 # Union type for all streaming events
 ChatEvent = TextChunk | ToolCallEvent | ToolResultEvent | DoneEvent | ThinkingEvent

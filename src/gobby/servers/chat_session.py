@@ -168,10 +168,15 @@ class ChatSession:
 
             tool_calls_count = 0
             needs_spacing_before_text = False
+            has_text = False
 
             try:
                 async for message in self._client.receive_response():
                     if isinstance(message, ResultMessage):
+                        # Fallback: if no text was streamed (e.g. Opus thinking-only
+                        # response), emit the ResultMessage.result as a TextChunk
+                        if message.result and not has_text:
+                            yield TextChunk(content=message.result)
                         cost_usd = getattr(message, "total_cost_usd", None)
                         duration_ms = getattr(message, "duration_ms", None)
                         yield DoneEvent(
@@ -183,8 +188,9 @@ class ChatSession:
                     elif isinstance(message, AssistantMessage):
                         for block in message.content:
                             if isinstance(block, ThinkingBlock):
-                                yield ThinkingEvent()
+                                yield ThinkingEvent(content=block.thinking)
                             elif isinstance(block, TextBlock):
+                                has_text = True
                                 text = block.text
                                 if needs_spacing_before_text and text:
                                     text = text.lstrip("\n")

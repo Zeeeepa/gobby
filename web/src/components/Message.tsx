@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import { ToolCallDisplay } from './ToolCallDisplay'
@@ -19,6 +20,7 @@ export interface ChatMessage {
   content: string
   timestamp: Date
   toolCalls?: ToolCall[]
+  thinkingContent?: string
 }
 
 interface MessageProps {
@@ -28,6 +30,7 @@ interface MessageProps {
 }
 
 export function Message({ message, isStreaming = false, isThinking = false }: MessageProps) {
+  const [thinkingExpanded, setThinkingExpanded] = useState(false)
   const isCommandResult = message.role === 'system' && message.toolCalls?.length && !message.content
   const isModelSwitch = message.role === 'system' && message.id.startsWith('model-switch-')
 
@@ -45,6 +48,21 @@ export function Message({ message, isStreaming = false, isThinking = false }: Me
         <div className="thinking-indicator">
           <span className="thinking-spinner" />
           <span className="thinking-text">Gobby is thinking...</span>
+        </div>
+      )}
+      {message.thinkingContent && (
+        <div className="thinking-block" onClick={() => setThinkingExpanded(!thinkingExpanded)}>
+          <div className="thinking-block-header">
+            <span className="thinking-block-expand">{thinkingExpanded ? '\u25bc' : '\u25b6'}</span>
+            <span className="thinking-block-label">Thinking</span>
+          </div>
+          {thinkingExpanded && (
+            <div className="thinking-block-content" onClick={(e) => e.stopPropagation()}>
+              <ReactMarkdown remarkPlugins={[remarkGfm]} components={markdownComponents}>
+                {message.thinkingContent}
+              </ReactMarkdown>
+            </div>
+          )}
         </div>
       )}
       {message.toolCalls && message.toolCalls.length > 0 && (
