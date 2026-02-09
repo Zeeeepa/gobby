@@ -494,6 +494,8 @@ async def spawn_agent_impl(
                 parent_session_id=parent_session_id,
                 mode=effective_mode,
                 pid=spawn_result.pid,
+                terminal_type=spawn_result.terminal_type,
+                tmux_session_name=spawn_result.tmux_session_name,
                 provider=effective_provider,
                 workflow_name=effective_workflow,
                 worktree_id=isolation_ctx.worktree_id,

@@ -39,7 +39,6 @@ from gobby.agents.spawners.command_builder import (
 from gobby.agents.spawners.cross_platform import (
     AlacrittySpawner,
     KittySpawner,
-    TmuxSpawner,
 )
 from gobby.agents.spawners.embedded import EmbeddedSpawner
 from gobby.agents.spawners.headless import HeadlessSpawner
@@ -63,6 +62,9 @@ from gobby.agents.spawners.windows import (
     WindowsTerminalSpawner,
     WSLSpawner,
 )
+
+# TmuxSpawner is lazily imported via __getattr__ to avoid circular imports
+# (tmux.spawner imports from spawners.base, which triggers this __init__)
 
 __all__ = [
     # Base types
@@ -101,3 +103,12 @@ __all__ = [
     "create_prompt_file",
     "read_prompt_from_env",
 ]
+
+
+def __getattr__(name: str):  # type: ignore[no-untyped-def]  # noqa: ANN001
+    """Lazy import for TmuxSpawner to avoid circular imports."""
+    if name == "TmuxSpawner":
+        from gobby.agents.tmux.spawner import TmuxSpawner
+
+        return TmuxSpawner
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")

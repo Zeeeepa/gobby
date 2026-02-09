@@ -40,6 +40,7 @@ from gobby.config.sessions import (
 )
 from gobby.config.skills import SkillsConfig
 from gobby.config.tasks import CompactHandoffConfig, GobbyTasksConfig, WorkflowConfig
+from gobby.config.tmux import TmuxConfig
 from gobby.config.watchdog import WatchdogConfig
 
 
@@ -301,6 +302,10 @@ class DaemonConfig(BaseModel):
     ui: UIConfig = Field(
         default_factory=UIConfig,
         description="Web UI configuration",
+    )
+    tmux: TmuxConfig = Field(
+        default_factory=TmuxConfig,
+        description="Tmux agent spawning configuration",
     )
 
     def get_recommend_tools_config(self) -> RecommendToolsConfig:

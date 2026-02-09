@@ -11,7 +11,7 @@ import asyncio
 import json
 import logging
 import os
-from collections.abc import AsyncGenerator, AsyncIterator, Callable, Coroutine
+from collections.abc import AsyncGenerator, Callable, Coroutine
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from typing import Any, Protocol
@@ -564,6 +564,17 @@ class WebSocketServer:
         if not agent:
             # Be silent on missing agent to avoid spamming errors if frontend is out of sync
             # or if agent just died.
+            return
+
+        # Route input to tmux session or PTY
+        if agent.tmux_session_name:
+            try:
+                from gobby.agents.tmux import get_tmux_session_manager
+
+                mgr = get_tmux_session_manager()
+                await mgr.send_keys(agent.tmux_session_name, input_data)
+            except Exception as e:
+                logger.warning(f"Failed to send keys to tmux agent {run_id}: {e}")
             return
 
         if agent.master_fd is None:

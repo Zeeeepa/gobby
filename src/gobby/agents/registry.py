@@ -78,6 +78,9 @@ class RunningAgent:
     terminal_type: str | None = None
     """Terminal type (ghostty, iterm, etc.) for terminal mode."""
 
+    tmux_session_name: str | None = None
+    """Tmux session name (for tmux-spawned agents with output streaming)."""
+
     # State tracking
     provider: str = "claude"
     """LLM provider being used."""
@@ -106,6 +109,7 @@ class RunningAgent:
             "pid": self.pid,
             "master_fd": self.master_fd,
             "terminal_type": self.terminal_type,
+            "tmux_session_name": self.tmux_session_name,
             "provider": self.provider,
             "workflow_name": self.workflow_name,
             "worktree_id": self.worktree_id,

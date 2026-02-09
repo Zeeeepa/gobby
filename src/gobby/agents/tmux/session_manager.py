@@ -1,0 +1,238 @@
+"""Tmux session lifecycle management.
+
+Creates, lists, kills, and queries tmux sessions on an isolated socket
+(``-L gobby``) so Gobby never interferes with the user's personal tmux.
+"""
+
+from __future__ import annotations
+
+import asyncio
+import logging
+import shutil
+import time
+from dataclasses import dataclass, field
+
+from gobby.agents.tmux.config import TmuxConfig
+from gobby.agents.tmux.errors import TmuxNotFoundError, TmuxSessionError
+
+logger = logging.getLogger(__name__)
+
+
+@dataclass
+class TmuxSessionInfo:
+    """Metadata about a running tmux session."""
+
+    name: str
+    created_at: float = field(default_factory=time.time)
+    pane_pid: int | None = None
+    window_name: str | None = None
+
+
+class TmuxSessionManager:
+    """Manages tmux sessions on an isolated Gobby socket.
+
+    All tmux commands use ``-L <socket_name>`` so that Gobby sessions
+    are invisible to ``tmux ls`` in the user's default server.
+    """
+
+    def __init__(self, config: TmuxConfig | None = None) -> None:
+        self._config = config or TmuxConfig()
+
+    @property
+    def config(self) -> TmuxConfig:
+        return self._config
+
+    # ------------------------------------------------------------------
+    # Helpers
+    # ------------------------------------------------------------------
+
+    def _base_args(self) -> list[str]:
+        """Return the common tmux prefix args (binary + socket + config)."""
+        args = [self._config.command, "-L", self._config.socket_name]
+        if self._config.config_file:
+            args.extend(["-f", self._config.config_file])
+        return args
+
+    async def _run(
+        self,
+        *tmux_args: str,
+        timeout: float = 10.0,
+    ) -> tuple[int, str, str]:
+        """Run a tmux subcommand and return (returncode, stdout, stderr)."""
+        cmd = [*self._base_args(), *tmux_args]
+        proc = await asyncio.create_subprocess_exec(
+            *cmd,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
+        )
+        try:
+            stdout_bytes, stderr_bytes = await asyncio.wait_for(
+                proc.communicate(), timeout=timeout
+            )
+        except TimeoutError:
+            proc.kill()
+            await proc.wait()
+            raise
+        return (
+            proc.returncode or 0,
+            (stdout_bytes or b"").decode(),
+            (stderr_bytes or b"").decode(),
+        )
+
+    # ------------------------------------------------------------------
+    # Public API
+    # ------------------------------------------------------------------
+
+    def is_available(self) -> bool:
+        """Check whether the tmux binary is on PATH."""
+        return shutil.which(self._config.command) is not None
+
+    def require_available(self) -> None:
+        """Raise :class:`TmuxNotFoundError` if tmux is missing."""
+        if not self.is_available():
+            raise TmuxNotFoundError(self._config.command)
+
+    async def create_session(
+        self,
+        name: str,
+        command: str | list[str] | None = None,
+        cwd: str | None = None,
+        env: dict[str, str] | None = None,
+    ) -> TmuxSessionInfo:
+        """Create a new detached tmux session.
+
+        Args:
+            name: Session name (will be sanitised).
+            command: Shell command (string) or argv list to run.
+            cwd: Working directory for the initial pane.
+            env: Extra environment variables to set inside the session.
+
+        Returns:
+            :class:`TmuxSessionInfo` for the new session.
+
+        Raises:
+            TmuxSessionError: If session creation fails.
+        """
+        self.require_available()
+
+        # Sanitise name (tmux dislikes dots and colons)
+        safe_name = name.replace(".", "-").replace(":", "-")
+
+        args: list[str] = [
+            "new-session",
+            "-d",
+            "-s", safe_name,
+            "-n", safe_name,
+            "-x", "200",
+            "-y", "50",
+        ]
+
+        if cwd:
+            args.extend(["-c", cwd])
+
+        # Set history limit
+        args.extend([
+            "-e", f"HISTSIZE={self._config.history_limit}",
+        ])
+
+        # Inject env vars via -e (tmux 3.2+)
+        if env:
+            for key, val in env.items():
+                args.extend(["-e", f"{key}={val}"])
+
+        # Append shell command
+        if command:
+            if isinstance(command, list):
+                import shlex
+                args.append(shlex.join(command))
+            else:
+                args.append(command)
+
+        # Chain set-option to disable destroy-unattached atomically
+        args.extend([
+            ";", "set-option", "-t", safe_name,
+            "destroy-unattached", "off",
+        ])
+
+        # Set scrollback history
+        args.extend([
+            ";", "set-option", "-t", safe_name,
+            "history-limit", str(self._config.history_limit),
+        ])
+
+        rc, _stdout, stderr = await self._run(*args)
+        if rc != 0:
+            raise TmuxSessionError(
+                f"Failed to create session (rc={rc}): {stderr.strip()}",
+                session_name=safe_name,
+            )
+
+        # Fetch pane PID
+        pane_pid = await self.get_pane_pid(safe_name)
+
+        logger.info(f"Created tmux session '{safe_name}' (pane_pid={pane_pid})")
+        return TmuxSessionInfo(
+            name=safe_name,
+            pane_pid=pane_pid,
+        )
+
+    async def list_sessions(self) -> list[TmuxSessionInfo]:
+        """List all Gobby tmux sessions on the isolated socket."""
+        rc, stdout, _stderr = await self._run(
+            "list-sessions", "-F", "#{session_name}"
+        )
+        if rc != 0:
+            # No server running is rc=1 with "no server running"
+            return []
+        names = [line.strip() for line in stdout.splitlines() if line.strip()]
+        results: list[TmuxSessionInfo] = []
+        for name in names:
+            pane_pid = await self.get_pane_pid(name)
+            results.append(TmuxSessionInfo(name=name, pane_pid=pane_pid))
+        return results
+
+    async def has_session(self, name: str) -> bool:
+        """Check whether a session with *name* exists."""
+        rc, _stdout, _stderr = await self._run("has-session", "-t", name)
+        return rc == 0
+
+    async def kill_session(self, name: str) -> bool:
+        """Kill a tmux session by name. Returns True if killed."""
+        rc, _stdout, stderr = await self._run("kill-session", "-t", name)
+        if rc != 0:
+            logger.warning(f"Failed to kill tmux session '{name}': {stderr.strip()}")
+            return False
+        logger.info(f"Killed tmux session '{name}'")
+        return True
+
+    async def get_pane_pid(self, session_name: str) -> int | None:
+        """Get the PID of the process running in the first pane."""
+        rc, stdout, _stderr = await self._run(
+            "display-message", "-t", session_name, "-p", "#{pane_pid}"
+        )
+        if rc != 0 or not stdout.strip():
+            return None
+        try:
+            return int(stdout.strip())
+        except ValueError:
+            return None
+
+    async def send_keys(self, session_name: str, keys: str) -> bool:
+        """Send raw keys to a tmux session (for web UI input forwarding).
+
+        Args:
+            session_name: Target session name.
+            keys: Key string to send (uses tmux ``send-keys -l``).
+
+        Returns:
+            True on success.
+        """
+        rc, _stdout, stderr = await self._run(
+            "send-keys", "-t", session_name, "-l", keys
+        )
+        if rc != 0:
+            logger.warning(
+                f"Failed to send keys to tmux session '{session_name}': {stderr.strip()}"
+            )
+            return False
+        return True

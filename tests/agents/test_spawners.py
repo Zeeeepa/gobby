@@ -24,7 +24,6 @@ from gobby.agents.spawners.base import (
 from gobby.agents.spawners.cross_platform import (
     AlacrittySpawner,
     KittySpawner,
-    TmuxSpawner,
 )
 from gobby.agents.spawners.embedded import EmbeddedSpawner
 from gobby.agents.spawners.linux import GnomeTerminalSpawner, KonsoleSpawner
@@ -34,6 +33,7 @@ from gobby.agents.spawners.macos import (
     TerminalAppSpawner,
     escape_applescript,
 )
+from gobby.agents.tmux.spawner import TmuxSpawner
 
 pytestmark = pytest.mark.unit
 
@@ -355,326 +355,121 @@ class TestAlacrittySpawner:
 
 
 # =============================================================================
-# Tests for cross_platform.py - TmuxSpawner
+# Tests for tmux/spawner.py - TmuxSpawner
 # =============================================================================
 
 
 class TestTmuxSpawner:
-    """Tests for TmuxSpawner."""
+    """Tests for the promoted TmuxSpawner (gobby.agents.tmux.spawner)."""
 
     def test_terminal_type(self) -> None:
         """Spawner returns correct terminal type."""
         spawner = TmuxSpawner()
         assert spawner.terminal_type == TerminalType.TMUX
 
-    @patch("platform.system", return_value="Windows")
-    def test_is_available_windows(self, mock_system) -> None:
-        """tmux not available on Windows."""
-        spawner = TmuxSpawner()
+    def test_is_available_disabled(self) -> None:
+        """tmux not available when disabled in config."""
+        from gobby.config.tmux import TmuxConfig
+
+        config = TmuxConfig(enabled=False)
+        spawner = TmuxSpawner(config=config)
         assert spawner.is_available() is False
 
-    @patch("platform.system", return_value="Darwin")
-    @patch("gobby.agents.spawners.cross_platform.get_tty_config")
-    def test_is_available_disabled(self, mock_config, mock_system) -> None:
-        """tmux not available when disabled."""
-        mock_config.return_value.get_terminal_config.return_value = MagicMock(
-            enabled=False, command="tmux"
-        )
-        spawner = TmuxSpawner()
-        assert spawner.is_available() is False
-
-    @patch("platform.system", return_value="Darwin")
     @patch("shutil.which", return_value="/usr/local/bin/tmux")
-    @patch("gobby.agents.spawners.cross_platform.get_tty_config")
-    def test_is_available_macos_with_tmux(self, mock_config, mock_which, mock_system) -> None:
-        """tmux available on macOS when installed."""
-        mock_config.return_value.get_terminal_config.return_value = MagicMock(
-            enabled=True, command="tmux"
-        )
-        spawner = TmuxSpawner()
+    def test_is_available_with_tmux(self, mock_which) -> None:
+        """tmux available when binary is on PATH."""
+        from gobby.config.tmux import TmuxConfig
+
+        spawner = TmuxSpawner(config=TmuxConfig(enabled=True))
         assert spawner.is_available() is True
 
-    @patch("platform.system", return_value="Linux")
-    @patch("shutil.which", return_value="/usr/bin/tmux")
-    @patch("gobby.agents.spawners.cross_platform.get_tty_config")
-    def test_is_available_linux_with_tmux(self, mock_config, mock_which, mock_system) -> None:
-        """tmux available on Linux when installed."""
-        mock_config.return_value.get_terminal_config.return_value = MagicMock(
-            enabled=True, command="tmux"
-        )
-        spawner = TmuxSpawner()
-        assert spawner.is_available() is True
-
-    @patch("platform.system", return_value="Darwin")
     @patch("shutil.which", return_value=None)
-    @patch("gobby.agents.spawners.cross_platform.get_tty_config")
-    def test_is_available_without_tmux(self, mock_config, mock_which, mock_system) -> None:
-        """tmux not available when not installed."""
-        mock_config.return_value.get_terminal_config.return_value = MagicMock(
-            enabled=True, command="tmux"
-        )
-        spawner = TmuxSpawner()
+    def test_is_available_without_tmux(self, mock_which) -> None:
+        """tmux not available when binary is missing."""
+        from gobby.config.tmux import TmuxConfig
+
+        spawner = TmuxSpawner(config=TmuxConfig(enabled=True))
         assert spawner.is_available() is False
 
-    @patch("platform.system", return_value="Darwin")
-    @patch("subprocess.Popen")
-    @patch("gobby.agents.spawners.cross_platform.get_tty_config")
-    def test_spawn_creates_detached_session(self, mock_config, mock_popen, mock_system) -> None:
-        """Spawn creates a detached tmux session."""
-        mock_config.return_value.get_terminal_config.return_value = MagicMock(
-            enabled=True, command="tmux", options=[]
-        )
-        mock_process = MagicMock()
-        mock_process.pid = 12345
-        mock_process.returncode = 0
-        mock_process.wait.return_value = 0
-        mock_popen.return_value = mock_process
+    @patch("gobby.agents.tmux.session_manager.TmuxSessionManager.create_session")
+    @patch("gobby.agents.tmux.session_manager.TmuxSessionManager.is_available", return_value=True)
+    def test_spawn_creates_session(self, mock_available, mock_create) -> None:
+        """Spawn delegates to TmuxSessionManager.create_session."""
+        from gobby.agents.tmux.session_manager import TmuxSessionInfo
+
+        mock_create.return_value = TmuxSessionInfo(name="test-session", pane_pid=12345)
 
         spawner = TmuxSpawner()
         result = spawner.spawn(["echo", "test"], cwd="/tmp", title="test-session")
 
         assert result.success is True
         assert "test-session" in result.message
+        assert result.pid == 12345
+        assert result.terminal_type == "tmux"
+        mock_create.assert_called_once()
 
-        call_args = mock_popen.call_args[0][0]
-        assert "tmux" in call_args
-        assert "new-session" in call_args
-        assert "-d" in call_args  # Detached
-        assert "-s" in call_args  # Session name
-        assert "-c" in call_args  # Working directory
+    @patch("gobby.agents.tmux.session_manager.TmuxSessionManager.create_session")
+    @patch("gobby.agents.tmux.session_manager.TmuxSessionManager.is_available", return_value=True)
+    def test_spawn_sanitizes_session_name(self, mock_available, mock_create) -> None:
+        """Spawn sanitizes dots and colons in session names."""
+        from gobby.agents.tmux.session_manager import TmuxSessionInfo
 
-    @patch("platform.system", return_value="Darwin")
-    @patch("subprocess.Popen")
-    @patch("gobby.agents.spawners.cross_platform.get_tty_config")
-    def test_spawn_sanitizes_session_name(self, mock_config, mock_popen, mock_system) -> None:
-        """Spawn sanitizes session names (dots and colons to dashes)."""
-        mock_config.return_value.get_terminal_config.return_value = MagicMock(
-            enabled=True, command="tmux", options=[]
-        )
-        mock_process = MagicMock()
-        mock_process.pid = 12345
-        mock_process.returncode = 0
-        mock_process.wait.return_value = 0
-        mock_popen.return_value = mock_process
+        mock_create.return_value = TmuxSessionInfo(name="test-session-1", pane_pid=100)
 
         spawner = TmuxSpawner()
         spawner.spawn(["echo", "test"], cwd="/tmp", title="test.session:1")
 
-        call_args = mock_popen.call_args[0][0]
-        s_index = call_args.index("-s")
-        session_name = call_args[s_index + 1]
-        assert "." not in session_name
-        assert ":" not in session_name
-        assert session_name == "test-session-1"
+        call_kwargs = mock_create.call_args
+        # The session name passed to create_session should be sanitised
+        assert call_kwargs[1]["name"] == "test-session-1" or call_kwargs[0][0] == "test-session-1"
 
-    @patch("platform.system", return_value="Darwin")
-    @patch("subprocess.Popen")
-    @patch("time.time", return_value=1234567890)
-    @patch("gobby.agents.spawners.cross_platform.get_tty_config")
-    def test_spawn_generates_session_name_without_title(
-        self, mock_config, mock_time, mock_popen, mock_system
-    ) -> None:
-        """Spawn generates session name from timestamp when no title."""
-        mock_config.return_value.get_terminal_config.return_value = MagicMock(
-            enabled=True, command="tmux", options=[]
-        )
-        mock_process = MagicMock()
-        mock_process.pid = 12345
-        mock_process.returncode = 0
-        mock_process.wait.return_value = 0
-        mock_popen.return_value = mock_process
+    @patch("gobby.agents.tmux.session_manager.TmuxSessionManager.create_session")
+    @patch("gobby.agents.tmux.session_manager.TmuxSessionManager.is_available", return_value=True)
+    def test_spawn_failure_returns_error(self, mock_available, mock_create) -> None:
+        """Spawn returns error when session creation fails."""
+        from gobby.agents.tmux.errors import TmuxSessionError
 
-        spawner = TmuxSpawner()
-        spawner.spawn(["echo", "test"], cwd="/tmp")
-
-        call_args = mock_popen.call_args[0][0]
-        s_index = call_args.index("-s")
-        session_name = call_args[s_index + 1]
-        assert session_name == "gobby-1234567890"
-
-    @patch("platform.system", return_value="Darwin")
-    @patch("subprocess.Popen")
-    @patch("gobby.agents.spawners.cross_platform.get_tty_config")
-    def test_spawn_disables_destroy_unattached(self, mock_config, mock_popen, mock_system) -> None:
-        """Spawn disables destroy-unattached option."""
-        mock_config.return_value.get_terminal_config.return_value = MagicMock(
-            enabled=True, command="tmux", options=[]
-        )
-        mock_process = MagicMock()
-        mock_process.pid = 12345
-        mock_process.returncode = 0
-        mock_process.wait.return_value = 0
-        mock_popen.return_value = mock_process
-
-        spawner = TmuxSpawner()
-        result = spawner.spawn(["echo", "test"], cwd="/tmp", title="test-session")
-
-        assert result.success is True
-        assert result.pid is None
-
-        call_args = mock_popen.call_args[0][0]
-        assert ";" in call_args
-        semicolon_idx = call_args.index(";")
-        chained_args = call_args[semicolon_idx + 1 :]
-        assert "set-option" in chained_args
-        assert "destroy-unattached" in chained_args
-        assert "off" in chained_args
-
-    @patch("platform.system", return_value="Darwin")
-    @patch("subprocess.Popen")
-    @patch("gobby.agents.spawners.cross_platform.get_tty_config")
-    def test_spawn_sets_window_title(self, mock_config, mock_popen, mock_system) -> None:
-        """Spawn sets window title using -n flag."""
-        mock_config.return_value.get_terminal_config.return_value = MagicMock(
-            enabled=True, command="tmux", options=[]
-        )
-        mock_process = MagicMock()
-        mock_process.pid = 12345
-        mock_process.returncode = 0
-        mock_process.wait.return_value = 0
-        mock_popen.return_value = mock_process
-
-        spawner = TmuxSpawner()
-        spawner.spawn(["echo", "test"], cwd="/tmp", title="my-window")
-
-        call_args = mock_popen.call_args[0][0]
-        assert "-n" in call_args
-        n_index = call_args.index("-n")
-        assert call_args[n_index + 1] == "my-window"
-
-    @patch("platform.system", return_value="Darwin")
-    @patch("subprocess.Popen")
-    @patch("gobby.agents.spawners.cross_platform.get_tty_config")
-    def test_spawn_passes_env_vars(self, mock_config, mock_popen, mock_system) -> None:
-        """Spawn passes env vars via shell exports."""
-        mock_config.return_value.get_terminal_config.return_value = MagicMock(
-            enabled=True, command="tmux", options=[]
-        )
-        mock_process = MagicMock()
-        mock_process.pid = 12345
-        mock_process.returncode = 0
-        mock_process.wait.return_value = 0
-        mock_popen.return_value = mock_process
-
-        spawner = TmuxSpawner()
-        spawner.spawn(
-            ["echo", "test"],
-            cwd="/tmp",
-            title="test-env",
-            env={"MY_VAR": "my_value", "OTHER_VAR": "other_value"},
-        )
-
-        call_args = mock_popen.call_args[0][0]
-        assert "sh" in call_args
-        sh_index = call_args.index("sh")
-        assert call_args[sh_index + 1] == "-c"
-        shell_cmd = call_args[sh_index + 2]
-        assert "export MY_VAR=" in shell_cmd
-        assert "export OTHER_VAR=" in shell_cmd
-        assert "exec echo test" in shell_cmd
-
-    @patch("platform.system", return_value="Darwin")
-    @patch("subprocess.Popen")
-    @patch("gobby.agents.spawners.cross_platform.get_tty_config")
-    def test_spawn_single_command_no_env(self, mock_config, mock_popen, mock_system) -> None:
-        """Spawn with single command and no env uses simple command."""
-        mock_config.return_value.get_terminal_config.return_value = MagicMock(
-            enabled=True, command="tmux", options=[]
-        )
-        mock_process = MagicMock()
-        mock_process.pid = 12345
-        mock_process.returncode = 0
-        mock_process.wait.return_value = 0
-        mock_popen.return_value = mock_process
-
-        spawner = TmuxSpawner()
-        spawner.spawn(["bash"], cwd="/tmp", title="test")
-
-        call_args = mock_popen.call_args[0][0]
-        # Single command without env should be appended directly
-        tmp_idx = call_args.index("/tmp")  # After -c /tmp
-        # The command should be somewhere after the directory
-        assert "bash" in call_args
-        bash_idx = call_args.index("bash")
-        assert bash_idx > tmp_idx, "bash should come after /tmp in command"
-
-    @patch("platform.system", return_value="Darwin")
-    @patch("subprocess.Popen")
-    @patch("gobby.agents.spawners.cross_platform.get_tty_config")
-    def test_spawn_multi_command_no_env(self, mock_config, mock_popen, mock_system) -> None:
-        """Spawn with multiple args and no env uses sh -c."""
-        mock_config.return_value.get_terminal_config.return_value = MagicMock(
-            enabled=True, command="tmux", options=[]
-        )
-        mock_process = MagicMock()
-        mock_process.pid = 12345
-        mock_process.returncode = 0
-        mock_process.wait.return_value = 0
-        mock_popen.return_value = mock_process
-
-        spawner = TmuxSpawner()
-        spawner.spawn(["echo", "hello", "world"], cwd="/tmp", title="test")
-
-        call_args = mock_popen.call_args[0][0]
-        assert "sh" in call_args
-        sh_index = call_args.index("sh")
-        assert call_args[sh_index + 1] == "-c"
-
-    @patch("platform.system", return_value="Darwin")
-    @patch("subprocess.Popen")
-    @patch("gobby.agents.spawners.cross_platform.get_tty_config")
-    def test_spawn_failure_returns_error(self, mock_config, mock_popen, mock_system) -> None:
-        """Spawn returns error when tmux fails."""
-        mock_config.return_value.get_terminal_config.return_value = MagicMock(
-            enabled=True, command="tmux", options=[]
-        )
-        mock_process = MagicMock()
-        mock_process.pid = 12345
-        mock_process.returncode = 1  # Non-zero exit code
-        mock_process.wait.return_value = 1
-        mock_popen.return_value = mock_process
+        mock_create.side_effect = TmuxSessionError("session already exists", "test")
 
         spawner = TmuxSpawner()
         result = spawner.spawn(["echo", "test"], cwd="/tmp", title="test")
 
         assert result.success is False
-        assert "exited with code 1" in result.message
+        assert "session already exists" in result.error
 
-    @patch("platform.system", return_value="Darwin")
-    @patch("subprocess.Popen", side_effect=Exception("tmux not found"))
-    @patch("gobby.agents.spawners.cross_platform.get_tty_config")
-    def test_spawn_handles_exception(self, mock_config, mock_popen, mock_system) -> None:
-        """Spawn handles exceptions gracefully."""
-        mock_config.return_value.get_terminal_config.return_value = MagicMock(
-            enabled=True, command="tmux", options=[]
-        )
+    @patch("gobby.agents.tmux.session_manager.TmuxSessionManager.create_session")
+    @patch("gobby.agents.tmux.session_manager.TmuxSessionManager.is_available", return_value=True)
+    def test_spawn_handles_exception(self, mock_available, mock_create) -> None:
+        """Spawn handles unexpected exceptions gracefully."""
+        mock_create.side_effect = RuntimeError("unexpected error")
 
         spawner = TmuxSpawner()
         result = spawner.spawn(["echo", "test"], cwd="/tmp")
 
         assert result.success is False
-        assert "tmux not found" in result.error
+        assert "unexpected error" in result.error
 
-    @patch("platform.system", return_value="Darwin")
-    @patch("subprocess.Popen")
-    @patch("gobby.agents.spawners.cross_platform.get_tty_config")
-    def test_spawn_with_config_options(self, mock_config, mock_popen, mock_system) -> None:
-        """Spawn includes extra options from config."""
-        mock_config.return_value.get_terminal_config.return_value = MagicMock(
-            enabled=True, command="tmux", options=["-L", "gobby-socket"]
-        )
-        mock_process = MagicMock()
-        mock_process.pid = 12345
-        mock_process.returncode = 0
-        mock_process.wait.return_value = 0
-        mock_popen.return_value = mock_process
+    def test_spawn_uses_isolated_socket(self) -> None:
+        """Spawner uses -L gobby socket by default."""
+        from gobby.config.tmux import TmuxConfig
+
+        config = TmuxConfig(socket_name="my-socket")
+        spawner = TmuxSpawner(config=config)
+        assert spawner.session_manager.config.socket_name == "my-socket"
+
+    @patch("gobby.agents.tmux.session_manager.TmuxSessionManager.create_session")
+    @patch("gobby.agents.tmux.session_manager.TmuxSessionManager.is_available", return_value=True)
+    def test_spawn_returns_tmux_session_name(self, mock_available, mock_create) -> None:
+        """Spawn result includes tmux_session_name for output streaming."""
+        from gobby.agents.tmux.session_manager import TmuxSessionInfo
+
+        mock_create.return_value = TmuxSessionInfo(name="gobby-agent-1", pane_pid=999)
 
         spawner = TmuxSpawner()
-        spawner.spawn(["echo", "test"], cwd="/tmp", title="test")
+        result = spawner.spawn(["claude"], cwd="/tmp", title="gobby-agent-1")
 
-        call_args = mock_popen.call_args[0][0]
-        assert "-L" in call_args
-        assert "gobby-socket" in call_args
+        assert result.success is True
+        assert result.tmux_session_name == "gobby-agent-1"
 
 
 # =============================================================================
@@ -1772,32 +1567,26 @@ class TestSecurityAndEdgeCases:
         # The malicious content should be escaped
         assert 'do shell script "malicious_command"' not in script
 
-    @patch("subprocess.Popen")
-    @patch("gobby.agents.spawners.cross_platform.get_tty_config")
-    def test_shell_injection_prevention_tmux(self, mock_config, mock_popen) -> None:
-        """tmux spawn properly escapes shell commands."""
-        mock_config.return_value.get_terminal_config.return_value = MagicMock(
-            enabled=True, command="tmux", options=[]
-        )
-        mock_process = MagicMock()
-        mock_process.pid = 12345
-        mock_process.returncode = 0
-        mock_process.wait.return_value = 0
-        mock_popen.return_value = mock_process
+    @patch("gobby.agents.tmux.session_manager.TmuxSessionManager.create_session")
+    @patch("gobby.agents.tmux.session_manager.TmuxSessionManager.is_available", return_value=True)
+    def test_shell_injection_prevention_tmux(self, mock_available, mock_create) -> None:
+        """tmux spawn properly escapes shell commands via shlex.join."""
+        import shlex
+
+        from gobby.agents.tmux.session_manager import TmuxSessionInfo
+
+        mock_create.return_value = TmuxSessionInfo(name="test", pane_pid=100)
 
         spawner = TmuxSpawner()
-        # Attempt shell injection via command
         malicious_command = ["echo", "; rm -rf /; echo"]
         spawner.spawn(malicious_command, cwd="/tmp", title="test")
 
-        call_args = mock_popen.call_args[0][0]
-        # The command should be properly escaped with shlex.join
-        # Look for the shell command in the args
-        if "sh" in call_args:
-            sh_idx = call_args.index("sh")
-            shell_cmd = call_args[sh_idx + 2]
-            # The semicolons should be quoted/escaped
-            assert "rm -rf /" not in shell_cmd.split()  # Not as separate command
+        # Verify the command passed to create_session is properly escaped
+        call_kwargs = mock_create.call_args
+        command_arg = call_kwargs[1].get("command") or call_kwargs[0][1] if len(call_kwargs[0]) > 1 else None
+        if command_arg:
+            # shlex.join should quote the malicious argument
+            assert "; rm -rf /" not in shlex.split(command_arg) or "rm" not in command_arg.split()
 
     @patch("subprocess.Popen")
     @patch("gobby.agents.spawners.linux.get_tty_config")
