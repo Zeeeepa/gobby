@@ -26,13 +26,6 @@ from gobby.storage.database import LocalDatabase
 from gobby.storage.skills import LocalSkillManager
 from gobby.utils.daemon_client import DaemonClient
 
-# Re-export under private names so existing in-module references keep working
-_get_skill_tags = get_skill_tags
-_get_skill_category = get_skill_category
-_get_nested_value = get_nested_value
-_set_nested_value = set_nested_value
-_unset_nested_value = unset_nested_value
-
 
 def get_skill_storage() -> LocalSkillManager:
     """Get skill storage manager."""
@@ -134,7 +127,7 @@ def list_skills(
         if tags_list:
             filtered_skills = []
             for skill in skills_list:
-                skill_tags = _get_skill_tags(skill)
+                skill_tags = get_skill_tags(skill)
                 if any(tag in skill_tags for tag in tags_list):
                     filtered_skills.append(skill)
             # Apply limit after tag filtering
@@ -151,7 +144,7 @@ def list_skills(
     for skill in skills_list:
         # Get category from metadata if available
         cat_str = ""
-        skill_category = _get_skill_category(skill)
+        skill_category = get_skill_category(skill)
         if skill_category:
             cat_str = f" [{skill_category}]"
 
@@ -196,8 +189,8 @@ def show(ctx: click.Context, name: str, json_output: bool) -> None:
             "source_path": skill.source_path,
             "compatibility": skill.compatibility if hasattr(skill, "compatibility") else None,
             "content": skill.content,
-            "category": _get_skill_category(skill),
-            "tags": _get_skill_tags(skill),
+            "category": get_skill_category(skill),
+            "tags": get_skill_tags(skill),
         }
         click.echo(json.dumps(output, indent=2))
         return
@@ -466,7 +459,7 @@ def meta_get(ctx: click.Context, name: str, key: str) -> None:
         click.echo("null")
         return
 
-    value = _get_nested_value(skill.metadata, key)
+    value = get_nested_value(skill.metadata, key)
     if value is None:
         click.echo(f"Key not found: {key}")
         sys.exit(1)
@@ -505,7 +498,7 @@ def meta_set(ctx: click.Context, name: str, key: str, value: str) -> None:
     except json.JSONDecodeError:
         parsed_value = value
 
-    new_metadata = _set_nested_value(skill.metadata or {}, key, parsed_value)
+    new_metadata = set_nested_value(skill.metadata or {}, key, parsed_value)
     try:
         storage.update_skill(skill.id, metadata=new_metadata)
     except Exception as e:
@@ -539,7 +532,7 @@ def meta_unset(ctx: click.Context, name: str, key: str) -> None:
         click.echo(f"Key not found: {key}")
         return
 
-    new_metadata = _unset_nested_value(skill.metadata, key)
+    new_metadata = unset_nested_value(skill.metadata, key)
     try:
         storage.update_skill(skill.id, metadata=new_metadata)
     except Exception as e:
