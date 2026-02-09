@@ -73,7 +73,7 @@ def mock_claude_sdk(mock_query_func):
     """
     with (
         # Mock CLI detection
-        patch("gobby.llm.claude.shutil.which", return_value="/usr/bin/claude"),
+        patch("gobby.llm.claude_cli.shutil.which", return_value="/usr/bin/claude"),
         patch("os.path.exists", return_value=True),
         patch("os.access", return_value=True),
         # Mock SDK functions and classes where they're imported/used
@@ -156,7 +156,7 @@ class TestGenerateWithMcpToolsNoCli:
     @pytest.mark.asyncio
     async def test_returns_error_when_cli_not_found(self, claude_config: DaemonConfig):
         """Test that method returns error when Claude CLI is not found."""
-        with patch("gobby.llm.claude.shutil.which", return_value=None):
+        with patch("gobby.llm.claude_cli.shutil.which", return_value=None):
             from gobby.llm.claude import ClaudeLLMProvider
 
             provider = ClaudeLLMProvider(claude_config)
@@ -516,7 +516,7 @@ class TestClaudeLLMProviderInit:
 
     def test_provider_name(self, claude_config: DaemonConfig) -> None:
         """Test provider_name property returns 'claude'."""
-        with patch("gobby.llm.claude.shutil.which", return_value="/usr/bin/claude"):
+        with patch("gobby.llm.claude_cli.shutil.which", return_value="/usr/bin/claude"):
             with patch("os.path.exists", return_value=True):
                 with patch("os.access", return_value=True):
                     from gobby.llm.claude import ClaudeLLMProvider
@@ -526,7 +526,7 @@ class TestClaudeLLMProviderInit:
 
     def test_cli_path_not_found(self, claude_config: DaemonConfig) -> None:
         """Test initialization when CLI is not in PATH."""
-        with patch("gobby.llm.claude.shutil.which", return_value=None):
+        with patch("gobby.llm.claude_cli.shutil.which", return_value=None):
             from gobby.llm.claude import ClaudeLLMProvider
 
             provider = ClaudeLLMProvider(claude_config)
@@ -534,7 +534,7 @@ class TestClaudeLLMProviderInit:
 
     def test_cli_path_exists_but_not_executable(self, claude_config: DaemonConfig) -> None:
         """Test initialization when CLI exists but is not executable."""
-        with patch("gobby.llm.claude.shutil.which", return_value="/usr/bin/claude"):
+        with patch("gobby.llm.claude_cli.shutil.which", return_value="/usr/bin/claude"):
             with patch("os.path.exists", return_value=True):
                 with patch("os.access", return_value=False):  # Not executable
                     from gobby.llm.claude import ClaudeLLMProvider
@@ -544,7 +544,7 @@ class TestClaudeLLMProviderInit:
 
     def test_cli_path_which_returns_nonexistent(self, claude_config: DaemonConfig) -> None:
         """Test initialization when shutil.which returns path that doesn't exist."""
-        with patch("gobby.llm.claude.shutil.which", return_value="/usr/bin/claude"):
+        with patch("gobby.llm.claude_cli.shutil.which", return_value="/usr/bin/claude"):
             with patch("os.path.exists", return_value=False):  # Path doesn't exist
                 from gobby.llm.claude import ClaudeLLMProvider
 
@@ -557,7 +557,7 @@ class TestVerifyCliPath:
 
     def test_verify_cli_path_cached_path_valid(self, claude_config: DaemonConfig) -> None:
         """Test _verify_cli_path returns cached path when it's valid."""
-        with patch("gobby.llm.claude.shutil.which", return_value="/usr/bin/claude"):
+        with patch("gobby.llm.claude_cli.shutil.which", return_value="/usr/bin/claude"):
             with patch("os.path.exists", return_value=True):
                 with patch("os.access", return_value=True):
                     from gobby.llm.claude import ClaudeLLMProvider
@@ -579,12 +579,12 @@ class TestVerifyCliPath:
                 return False  # Cached path no longer exists
             return True  # New path exists
 
-        with patch("gobby.llm.claude.shutil.which") as mock_which:
+        with patch("gobby.llm.claude_cli.shutil.which") as mock_which:
             # First call during init, second call during retry
             mock_which.side_effect = ["/usr/bin/claude", "/new/path/claude"]
             with patch("os.path.exists", side_effect=mock_exists):
                 with patch("os.access", return_value=True):
-                    with patch("gobby.llm.claude.time.sleep"):
+                    with patch("gobby.llm.claude_cli.time.sleep"):
                         from gobby.llm.claude import ClaudeLLMProvider
 
                         provider = ClaudeLLMProvider(claude_config)
@@ -601,7 +601,7 @@ class TestVerifyCliPath:
 
     def test_verify_cli_path_retry_exhausted(self, claude_config: DaemonConfig) -> None:
         """Test _verify_cli_path returns None after retries exhausted."""
-        with patch("gobby.llm.claude.shutil.which") as mock_which:
+        with patch("gobby.llm.claude_cli.shutil.which") as mock_which:
             mock_which.side_effect = [
                 "/usr/bin/claude",  # Initial
                 None,  # Retry 1
@@ -610,7 +610,7 @@ class TestVerifyCliPath:
             ]
             with patch("os.path.exists", return_value=False):
                 with patch("os.access", return_value=True):
-                    with patch("gobby.llm.claude.time.sleep"):
+                    with patch("gobby.llm.claude_cli.time.sleep"):
                         from gobby.llm.claude import ClaudeLLMProvider
 
                         provider = ClaudeLLMProvider(claude_config)
@@ -627,7 +627,7 @@ class TestGenerateSummary:
     @pytest.mark.asyncio
     async def test_generate_summary_no_cli(self, claude_config: DaemonConfig):
         """Test generate_summary returns fallback when CLI not found."""
-        with patch("gobby.llm.claude.shutil.which", return_value=None):
+        with patch("gobby.llm.claude_cli.shutil.which", return_value=None):
             from gobby.llm.claude import ClaudeLLMProvider
 
             provider = ClaudeLLMProvider(claude_config)
@@ -641,7 +641,7 @@ class TestGenerateSummary:
     @pytest.mark.asyncio
     async def test_generate_summary_no_prompt_template(self, claude_config: DaemonConfig):
         """Test generate_summary raises error when no prompt template provided."""
-        with patch("gobby.llm.claude.shutil.which", return_value="/usr/bin/claude"):
+        with patch("gobby.llm.claude_cli.shutil.which", return_value="/usr/bin/claude"):
             with patch("os.path.exists", return_value=True):
                 with patch("os.access", return_value=True):
                     from gobby.llm.claude import ClaudeLLMProvider
@@ -703,7 +703,7 @@ class TestSynthesizeTitle:
     @pytest.mark.asyncio
     async def test_synthesize_title_no_cli(self, claude_config: DaemonConfig):
         """Test synthesize_title returns None when CLI not found."""
-        with patch("gobby.llm.claude.shutil.which", return_value=None):
+        with patch("gobby.llm.claude_cli.shutil.which", return_value=None):
             from gobby.llm.claude import ClaudeLLMProvider
 
             provider = ClaudeLLMProvider(claude_config)
@@ -717,7 +717,7 @@ class TestSynthesizeTitle:
     @pytest.mark.asyncio
     async def test_synthesize_title_no_prompt_template(self, claude_config: DaemonConfig):
         """Test synthesize_title raises error when no prompt template provided."""
-        with patch("gobby.llm.claude.shutil.which", return_value="/usr/bin/claude"):
+        with patch("gobby.llm.claude_cli.shutil.which", return_value="/usr/bin/claude"):
             with patch("os.path.exists", return_value=True):
                 with patch("os.access", return_value=True):
                     from gobby.llm.claude import ClaudeLLMProvider
@@ -800,7 +800,7 @@ class TestGenerateText:
     @pytest.mark.asyncio
     async def test_generate_text_no_cli(self, claude_config: DaemonConfig):
         """Test generate_text returns fallback when CLI not found."""
-        with patch("gobby.llm.claude.shutil.which", return_value=None):
+        with patch("gobby.llm.claude_cli.shutil.which", return_value=None):
             from gobby.llm.claude import ClaudeLLMProvider
 
             provider = ClaudeLLMProvider(claude_config)

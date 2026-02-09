@@ -9,9 +9,6 @@ Supports two authentication modes:
 import asyncio
 import json
 import logging
-import os
-import shutil
-import time
 from collections.abc import AsyncIterator
 from typing import Any, Literal, cast
 
@@ -102,69 +99,17 @@ class ClaudeLLMProvider(LLMProvider):
             self._setup_litellm()
 
     def _find_cli_path(self) -> str | None:
-        """
-        Find Claude CLI path.
+        """Find Claude CLI path. Delegates to claude_cli.find_cli_path()."""
+        from gobby.llm.claude_cli import find_cli_path
 
-        DO NOT resolve symlinks - npm manages the symlink atomically during upgrades.
-        Resolving causes race conditions when Claude Code is being reinstalled.
-        """
-        cli_path = shutil.which("claude")
-
-        if cli_path:
-            # Validate CLI exists and is executable
-            if not os.path.exists(cli_path):
-                self.logger.warning(f"Claude CLI not found: {cli_path}")
-                return None
-            elif not os.access(cli_path, os.X_OK):
-                self.logger.warning(f"Claude CLI not executable: {cli_path}")
-                return None
-            else:
-                self.logger.debug(f"Claude CLI found: {cli_path}")
-                return cli_path
-        else:
-            self.logger.warning("Claude CLI not found in PATH - LLM features disabled")
-            return None
+        return find_cli_path()
 
     def _verify_cli_path(self) -> str | None:
-        """
-        Verify CLI path is still valid and retry if needed.
+        """Verify CLI path is still valid. Delegates to claude_cli.verify_cli_path()."""
+        from gobby.llm.claude_cli import verify_cli_path
 
-        Handles race condition when npm install updates Claude Code during hook execution.
-        Uses exponential backoff retry to wait for npm install to complete.
-
-        Returns:
-            Valid CLI path if found, None otherwise
-        """
-        cli_path = self._claude_cli_path
-
-        # Validate cached path still exists
-        # Retry with backoff if missing (may be in the middle of npm install)
-        if cli_path and not os.path.exists(cli_path):
-            self.logger.warning(
-                f"Cached CLI path no longer exists (may have been reinstalled): {cli_path}"
-            )
-            # Try to find CLI again with retry logic for npm install race condition
-            max_retries = 3
-            retry_delays = [0.5, 1.0, 2.0]  # Exponential backoff
-
-            for attempt, delay in enumerate(retry_delays, 1):
-                cli_path = shutil.which("claude")
-                if cli_path and os.path.exists(cli_path):
-                    self.logger.debug(
-                        f"Found Claude CLI at new location after {attempt} attempt(s): {cli_path}"
-                    )
-                    self._claude_cli_path = cli_path
-                    break
-
-                if attempt < max_retries:
-                    self.logger.debug(
-                        f"Claude CLI not found, waiting {delay}s before retry {attempt + 1}/{max_retries}"
-                    )
-                    time.sleep(delay)
-                else:
-                    self.logger.warning(f"Claude CLI not found in PATH after {max_retries} retries")
-                    cli_path = None
-
+        cli_path = verify_cli_path(self._claude_cli_path)
+        self._claude_cli_path = cli_path
         return cli_path
 
     def _setup_litellm(self) -> None:
