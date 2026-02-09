@@ -68,10 +68,9 @@ export default function App() {
           <h1>Gobby</h1>
         </div>
         <div className="header-actions">
-          <span
-            className={`status-dot ${isConnected ? 'connected' : 'disconnected'}`}
-            title={isConnected ? 'Daemon connected' : 'Daemon disconnected'}
-          />
+          <span className={`status ${isConnected ? 'connected' : 'disconnected'}`}>
+            {isConnected ? 'Connected' : 'Disconnected'}
+          </span>
           {messages.length > 0 && activeTab === 'chat' && (
             <button
               className="settings-button"

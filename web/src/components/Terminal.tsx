@@ -195,15 +195,16 @@ export function TerminalPanel({
   const selectedAgentInfo = agents.find(a => a.run_id === selectedAgent)
   const isReadOnly = selectedAgentInfo?.mode === 'tmux'
 
+  const hasAgents = agents.length > 0
+  const canOpen = isOpen && hasAgents
+
   return (
-    <div className={`terminal-panel ${isOpen ? 'open' : 'collapsed'}`}>
-      <div className="terminal-header" onClick={onToggle}>
+    <div className={`terminal-panel ${canOpen ? 'open' : 'collapsed'} ${!hasAgents ? 'disabled' : ''}`}>
+      <div className="terminal-header" onClick={hasAgents ? onToggle : undefined}>
         <span className="terminal-title">
           <TerminalIcon />
-          Terminal
-          {agents.length > 0 && (
-            <span className="agent-count">{agents.length}</span>
-          )}
+          Active Agents
+          <span className="agent-count">{agents.length}</span>
           {isOpen && isReadOnly && (
             <span className="read-only-badge">Read-only</span>
           )}
@@ -221,7 +222,7 @@ export function TerminalPanel({
           </button>
         </div>
       </div>
-      {isOpen && (
+      {canOpen && (
         <Terminal
           runId={selectedAgent}
           readOnly={isReadOnly}

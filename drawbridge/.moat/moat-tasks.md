@@ -1,6 +1,6 @@
 # Moat Tasks
 
-**Total**: 9 | **To Do**: 0 | **Doing**: 0 | **Done**: 9
+**Total**: 14 | **To Do**: 2 | **Doing**: 0 | **Done**: 12
 
 ## Tasks
 
@@ -13,8 +13,13 @@
 7. [x] Freeform Rectangle Task – "Chat should occupy the entire screen like the Terminals p..." `freeform`
 8. [x] Freeform Rectangle Task – "Big unnecessary Attached button when the page width is sq..." `freeform`
 9. [x] Freeform Rectangle Task – "terminal stretches but text doesn't readjust" `freeform`
+10. [x] Freeform Rectangle Task – "Need more padding around terminal panel. Need to change t..." `freeform`
+11. [x] Freeform Rectangle Task – "Need to 1.5x the size of the icons above the text input, ..." `freeform`
+12. [x] Freeform Rectangle Task – "instead of a dot, change this back to Connected (green) o..." `freeform`
+13. [ ] Freeform Rectangle Task – "Need to build out the file browser." `freeform`
+14. [ ] Freeform Rectangle Task – "Instead of a top list of tabs, put a three line button to..." `freeform`
 
 ---
 
-_Generated: 2/9/2026, 5:02:49 PM_
+_Generated: 2/9/2026, 5:22:55 PM_
 _Source: moat-tasks-detail.json_
