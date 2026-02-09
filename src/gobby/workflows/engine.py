@@ -491,6 +491,11 @@ class WorkflowEngine:
         state.step_entered_at = datetime.now(UTC)
         state.step_action_count = 0
         state.context_injected = False  # Reset for new step context
+        # Clear per-step MCP tracking so stale results from the previous step
+        # don't trigger transitions in the new step (e.g., auto_transition_chain
+        # looping back through a step that checks mcp_result_has).
+        state.variables.pop("mcp_results", None)
+        state.variables.pop("mcp_calls", None)
 
         self.state_manager.save_state(state)
 

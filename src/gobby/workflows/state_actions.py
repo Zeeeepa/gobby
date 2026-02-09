@@ -147,6 +147,28 @@ async def handle_save_workflow_state(
     return await asyncio.to_thread(save_workflow_state, context.db, context.state)
 
 
+def _coerce_rendered_value(value: str) -> Any:
+    """Coerce a template-rendered string back to a native Python type.
+
+    Jinja2 render() always returns str, but workflow variables need int/float/bool/None
+    to work correctly in transition conditions (e.g., ``wait_retry_count < 3``).
+    """
+    stripped = value.strip()
+    if stripped.lower() in ("true", "false"):
+        return stripped.lower() == "true"
+    if stripped.lower() in ("null", "none", ""):
+        return None
+    try:
+        return int(stripped)
+    except ValueError:
+        pass
+    try:
+        return float(stripped)
+    except ValueError:
+        pass
+    return value
+
+
 def _resolve_variable_name(kwargs: dict[str, Any], caller: str = "unknown") -> str | None:
     """Resolve variable name from 'name' or 'variable' kwargs with conflict warning."""
     name_val = kwargs.get("name")
@@ -183,6 +205,9 @@ async def handle_set_variable(context: "ActionContext", **kwargs: Any) -> dict[s
         }
         if context.template_engine:
             value = context.template_engine.render(value, template_context)
+            # Jinja2 render() always returns str. Coerce back to native types
+            # so workflow variables preserve int/float/bool/None semantics.
+            value = _coerce_rendered_value(value)
         else:
             logger.warning("handle_set_variable: template_engine is None, skipping template render")
 
