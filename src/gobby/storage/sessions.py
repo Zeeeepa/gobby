@@ -160,69 +160,16 @@ class LocalSessionManager:
         return Session.from_row(row) if row else None
 
     def resolve_session_reference(self, ref: str, project_id: str | None = None) -> str:
+        """Resolve a session reference to a UUID.
+
+        Delegates to standalone resolve_session_reference() function.
+        See session_resolution.py for full documentation.
         """
-        Resolve a session reference to a UUID.
+        from gobby.storage.session_resolution import (
+            resolve_session_reference as _resolve,
+        )
 
-        Supports:
-        - #N: Project-scoped Sequence Number (e.g., #1) - requires project_id
-        - N: Integer string treated as #N (e.g., "1")
-        - UUID: Full UUID
-        - Prefix: UUID prefix (must be unambiguous)
-
-        Args:
-            ref: Session reference string
-            project_id: Project ID for project-scoped #N lookup.
-                If not provided, falls back to global lookup for backwards compat.
-
-        Returns:
-            Resolved Session UUID
-
-        Raises:
-            ValueError: If not found or ambiguous
-        """
-        if not ref:
-            raise ValueError("Empty session reference")
-
-        # #N or N format: seq_num lookup
-        seq_num_ref = ref
-        if ref.startswith("#"):
-            seq_num_ref = ref[1:]
-
-        if seq_num_ref.isdigit():
-            seq_num = int(seq_num_ref)
-            if project_id:
-                # Project-scoped lookup
-                row = self.db.fetchone(
-                    "SELECT id FROM sessions WHERE project_id = ? AND seq_num = ?",
-                    (project_id, seq_num),
-                )
-            else:
-                # Fallback to global lookup for backwards compat
-                row = self.db.fetchone("SELECT id FROM sessions WHERE seq_num = ?", (seq_num,))
-            if not row:
-                raise ValueError(f"Session #{seq_num} not found")
-            return str(row["id"])
-
-        # Full UUID check
-        try:
-            uuid_obj = uuid.UUID(ref)
-            # Verify the session exists in the database
-            row = self.db.fetchone("SELECT id FROM sessions WHERE id = ?", (str(uuid_obj),))
-            if not row:
-                raise ValueError(f"Session '{ref}' not found")
-            return str(uuid_obj)
-        except ValueError:
-            pass  # Not a valid UUID, try prefix
-
-        # Prefix matching
-        rows = self.db.fetchall("SELECT id FROM sessions WHERE id LIKE ? LIMIT 5", (f"{ref}%",))
-        if not rows:
-            raise ValueError(f"Session '{ref}' not found")
-        if len(rows) > 1:
-            matches = [str(r["id"]) for r in rows]
-            raise ValueError(f"Ambiguous session '{ref}' matches: {', '.join(matches[:3])}...")
-
-        return str(rows[0]["id"])
+        return _resolve(self.db, ref, project_id)
 
     def find_by_external_id(
         self,
