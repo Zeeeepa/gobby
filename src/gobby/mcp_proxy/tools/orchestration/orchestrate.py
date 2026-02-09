@@ -611,20 +611,17 @@ def register_orchestrator(
                     }
                 )
 
-        # Store spawned agents in workflow state for tracking
+        # Atomically append spawned agents to workflow state
         if spawned and parent_session_id:
             try:
                 state_manager = WorkflowStateManager(task_manager.db)
-                state = state_manager.get_state(parent_session_id)
-                if state:
-                    current_spawned = state.variables.get("spawned_agents", [])
-                    # Append new agents to existing list
-                    current_spawned.extend(spawned)
-                    state.variables["spawned_agents"] = current_spawned
-                    state_manager.save_state(state)
-                    logger.info(
-                        f"Updated spawned_agents in workflow state: {len(current_spawned)} total"
-                    )
+                state_manager.update_orchestration_lists(
+                    parent_session_id,
+                    append_to_spawned=spawned,
+                )
+                logger.info(
+                    f"Appended {len(spawned)} agents to spawned_agents in workflow state"
+                )
             except Exception as e:
                 logger.warning(f"Failed to update workflow state: {e}")
 

@@ -303,37 +303,26 @@ def register_monitor(
                         }
                     )
 
-        # Update workflow state
-        # Compare by session IDs to detect real changes in agent membership
-        # (dict comparison would fail due to added fields like running_since)
+        # Atomically update orchestration lists to prevent TOCTOU races
+        # with concurrent orchestrate_ready_tasks calls
         still_running_ids = {a.get("session_id") for a in still_running}
         spawned_ids = {a.get("session_id") for a in spawned_agents}
         agents_changed = still_running_ids != spawned_ids
 
         if newly_completed or newly_failed or agents_changed:
             try:
-                # Re-fetch state to ensure we have the latest
-                state = state_manager.get_state(parent_session_id)
-                if state:
-                    # Update completed_agents list
+                success = state_manager.update_orchestration_lists(
+                    parent_session_id,
+                    replace_spawned=still_running,
+                    append_to_completed=newly_completed or None,
+                    append_to_failed=newly_failed or None,
+                )
+                if success:
+                    # Update local vars for the response
                     if newly_completed:
-                        existing_completed = state.variables.get("completed_agents", [])
-                        existing_completed.extend(newly_completed)
-                        state.variables["completed_agents"] = existing_completed
-                        completed_agents = existing_completed
-
-                    # Update failed_agents list
+                        completed_agents = completed_agents + newly_completed
                     if newly_failed:
-                        existing_failed = state.variables.get("failed_agents", [])
-                        existing_failed.extend(newly_failed)
-                        state.variables["failed_agents"] = existing_failed
-                        failed_agents = existing_failed
-
-                    # Update spawned_agents to only include still running
-                    state.variables["spawned_agents"] = still_running
-
-                    state_manager.save_state(state)
-
+                        failed_agents = failed_agents + newly_failed
             except Exception as e:
                 logger.warning(f"Failed to update workflow state during poll: {e}")
 

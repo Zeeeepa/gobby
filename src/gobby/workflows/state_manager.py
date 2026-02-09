@@ -130,6 +130,80 @@ class WorkflowStateManager:
             )
             return True
 
+    def update_orchestration_lists(
+        self,
+        session_id: str,
+        *,
+        remove_from_spawned: set[str] | None = None,
+        append_to_spawned: list[dict[str, Any]] | None = None,
+        append_to_completed: list[dict[str, Any]] | None = None,
+        append_to_failed: list[dict[str, Any]] | None = None,
+        replace_spawned: list[dict[str, Any]] | None = None,
+    ) -> bool:
+        """Atomically update orchestration tracking lists.
+
+        Uses BEGIN IMMEDIATE to serialize the read-modify-write,
+        preventing concurrent poll_agent_status and orchestrate_ready_tasks
+        from clobbering each other's list updates.
+
+        Args:
+            session_id: The orchestrator session whose state to update.
+            remove_from_spawned: Session IDs to remove from spawned_agents.
+            append_to_spawned: New agent dicts to append to spawned_agents.
+            append_to_completed: Agent dicts to append to completed_agents.
+            append_to_failed: Agent dicts to append to failed_agents.
+            replace_spawned: If set, replaces spawned_agents entirely
+                (takes precedence over remove_from_spawned).
+
+        Returns:
+            True if the update succeeded, False if session not found.
+        """
+        with self.db.transaction_immediate() as conn:
+            row = conn.execute(
+                "SELECT variables FROM workflow_states WHERE session_id = ?",
+                (session_id,),
+            ).fetchone()
+            if not row:
+                logger.warning(
+                    "update_orchestration_lists: no workflow state for session %s",
+                    session_id,
+                )
+                return False
+
+            variables = json.loads(row["variables"]) if row["variables"] else {}
+
+            # Update spawned_agents
+            if replace_spawned is not None:
+                variables["spawned_agents"] = replace_spawned
+            elif remove_from_spawned:
+                current = variables.get("spawned_agents", [])
+                variables["spawned_agents"] = [
+                    a for a in current if a.get("session_id") not in remove_from_spawned
+                ]
+
+            if append_to_spawned:
+                current = variables.get("spawned_agents", [])
+                current.extend(append_to_spawned)
+                variables["spawned_agents"] = current
+
+            # Update completed_agents
+            if append_to_completed:
+                current = variables.get("completed_agents", [])
+                current.extend(append_to_completed)
+                variables["completed_agents"] = current
+
+            # Update failed_agents
+            if append_to_failed:
+                current = variables.get("failed_agents", [])
+                current.extend(append_to_failed)
+                variables["failed_agents"] = current
+
+            conn.execute(
+                "UPDATE workflow_states SET variables = ?, updated_at = ? WHERE session_id = ?",
+                (json.dumps(variables), datetime.now(UTC).isoformat(), session_id),
+            )
+            return True
+
     def delete_state(self, session_id: str) -> None:
         """
         Clear step workflow state while preserving lifecycle variables.
