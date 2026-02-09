@@ -65,15 +65,15 @@ def test_handler_blocks_event(workflow_handler, mock_engine) -> None:
 def test_hook_manager_integration():
     # We need to mock dependencies of HookManager to avoid IO
     with (
-        patch("gobby.hooks.hook_manager.LocalDatabase"),
-        patch("gobby.hooks.hook_manager.LocalSessionManager"),
-        patch("gobby.hooks.hook_manager.SessionManager") as MockSessionManagerClass,
-        patch("gobby.hooks.hook_manager.SessionTaskManager"),
-        patch("gobby.hooks.hook_manager.DaemonClient") as MockDaemonClientClass,
-        patch("gobby.hooks.hook_manager.WorkflowLoader"),
-        patch("gobby.hooks.hook_manager.WorkflowStateManager"),
+        patch("gobby.hooks.factory.LocalDatabase"),
+        patch("gobby.hooks.factory.LocalSessionManager"),
+        patch("gobby.hooks.factory.SessionManager") as MockSessionManagerClass,
+        patch("gobby.hooks.factory.SessionTaskManager"),
+        patch("gobby.hooks.factory.DaemonClient") as MockDaemonClientClass,
+        patch("gobby.hooks.factory.WorkflowLoader"),
+        patch("gobby.hooks.factory.WorkflowStateManager"),
         patch("gobby.workflows.engine.WorkflowEngine"),
-        patch("gobby.hooks.hook_manager.WorkflowHookHandler") as MockHandlerClass,
+        patch("gobby.hooks.factory.WorkflowHookHandler") as MockHandlerClass,
     ):
         # Setup mocks
         mock_handler_instance = MockHandlerClass.return_value
@@ -117,15 +117,15 @@ def test_hook_manager_integration():
 @pytest.mark.skip(reason="Flaky - race condition in health monitor mock setup")
 def test_hook_manager_blocks_on_workflow():
     with (
-        patch("gobby.hooks.hook_manager.LocalDatabase"),
-        patch("gobby.hooks.hook_manager.LocalSessionManager"),
-        patch("gobby.hooks.hook_manager.SessionManager") as MockSessionManagerClass,
-        patch("gobby.hooks.hook_manager.SessionTaskManager"),
-        patch("gobby.hooks.hook_manager.DaemonClient") as MockDaemonClientClass,
-        patch("gobby.hooks.hook_manager.WorkflowLoader"),
-        patch("gobby.hooks.hook_manager.WorkflowStateManager"),
+        patch("gobby.hooks.factory.LocalDatabase"),
+        patch("gobby.hooks.factory.LocalSessionManager"),
+        patch("gobby.hooks.factory.SessionManager") as MockSessionManagerClass,
+        patch("gobby.hooks.factory.SessionTaskManager"),
+        patch("gobby.hooks.factory.DaemonClient") as MockDaemonClientClass,
+        patch("gobby.hooks.factory.WorkflowLoader"),
+        patch("gobby.hooks.factory.WorkflowStateManager"),
         patch("gobby.workflows.engine.WorkflowEngine"),
-        patch("gobby.hooks.hook_manager.WorkflowHookHandler") as MockHandlerClass,
+        patch("gobby.hooks.factory.WorkflowHookHandler") as MockHandlerClass,
     ):
         mock_handler_instance = MockHandlerClass.return_value
         mock_handler_instance.handle.return_value = HookResponse(

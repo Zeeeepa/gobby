@@ -47,7 +47,7 @@ def mock_hook_manager(temp_dir: Path):
         ),
     )
 
-    with patch("gobby.hooks.hook_manager.DaemonClient") as MockDaemonClient:
+    with patch("gobby.hooks.factory.DaemonClient") as MockDaemonClient:
         mock_daemon_client = MagicMock()
         mock_daemon_client.check_status.return_value = (True, "Daemon ready", "ready", None)
         MockDaemonClient.return_value = mock_daemon_client
