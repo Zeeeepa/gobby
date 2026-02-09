@@ -1275,7 +1275,7 @@ class TestSessionEdgeCases:
             (session.id,),
         )
 
-        with patch("gobby.storage.sessions.logger") as mock_logger:
+        with patch("gobby.storage.session_lifecycle.logger") as mock_logger:
             count = session_manager.expire_stale_sessions(timeout_hours=24)
             assert count == 1
             mock_logger.info.assert_called_once()
@@ -1301,7 +1301,7 @@ class TestSessionEdgeCases:
             (session.id,),
         )
 
-        with patch("gobby.storage.sessions.logger") as mock_logger:
+        with patch("gobby.storage.session_lifecycle.logger") as mock_logger:
             count = session_manager.pause_inactive_active_sessions(timeout_minutes=30)
             assert count == 1
             mock_logger.info.assert_called_once()
