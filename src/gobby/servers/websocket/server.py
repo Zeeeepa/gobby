@@ -16,12 +16,11 @@ from typing import Any
 from uuid import uuid4
 
 from websockets.asyncio.server import serve
-from websockets.datastructures import Headers
 from websockets.exceptions import ConnectionClosed, ConnectionClosedError
-from websockets.http11 import Response
 
 from gobby.mcp_proxy.manager import MCPClientManager
 from gobby.servers.chat_session import ChatSession
+from gobby.servers.websocket.auth import AuthMixin
 from gobby.servers.websocket.broadcast import BroadcastMixin
 from gobby.servers.websocket.chat import ChatMixin
 from gobby.servers.websocket.handlers import HandlerMixin
@@ -30,7 +29,7 @@ from gobby.servers.websocket.models import WebSocketConfig
 logger = logging.getLogger(__name__)
 
 
-class WebSocketServer(ChatMixin, HandlerMixin, BroadcastMixin):
+class WebSocketServer(ChatMixin, HandlerMixin, AuthMixin, BroadcastMixin):
     """
     WebSocket server for real-time communication.
 
@@ -95,59 +94,6 @@ class WebSocketServer(ChatMixin, HandlerMixin, BroadcastMixin):
     async def __aexit__(self, exc_type: Any, exc_val: Any, exc_tb: Any) -> None:
         """Async context manager exit."""
         await self.stop()
-
-    async def _authenticate(self, websocket: Any, request: Any) -> Response | None:
-        """
-        Authenticate WebSocket connection via Bearer token.
-
-        In local-first mode (no auth_callback), all connections are accepted
-        with a generated local user ID.
-
-        Args:
-            websocket: WebSocket connection
-            request: HTTP request with headers
-
-        Returns:
-            None to accept connection, Response to reject
-        """
-        # Local-first mode: accept all connections
-        if self.auth_callback is None:
-            websocket.user_id = f"local-{uuid4().hex[:8]}"
-            return None
-
-        # Auth callback provided - require Bearer token
-        auth_header = request.headers.get("Authorization")
-
-        if not auth_header:
-            logger.warning(
-                f"Connection rejected: Missing Authorization header from {websocket.remote_address}"
-            )
-            return Response(401, "Unauthorized: Missing Authorization header\n", Headers())
-
-        if not auth_header.startswith("Bearer "):
-            logger.warning(
-                f"Connection rejected: Invalid Authorization format from {websocket.remote_address}"
-            )
-            return Response(401, "Unauthorized: Expected Bearer token\n", Headers())
-
-        token = auth_header.removeprefix("Bearer ")
-
-        try:
-            user_id = await self.auth_callback(token)
-
-            if not user_id:
-                logger.warning(
-                    f"Connection rejected: Invalid token from {websocket.remote_address}"
-                )
-                return Response(403, "Forbidden: Invalid token\n", Headers())
-
-            # Store user_id on websocket for handler
-            websocket.user_id = user_id
-            return None
-
-        except Exception as e:
-            logger.error(f"Authentication error from {websocket.remote_address}: {e}")
-            return Response(500, "Internal server error\n", Headers())
 
     async def _handle_connection(self, websocket: Any) -> None:
         """
