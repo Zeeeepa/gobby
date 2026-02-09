@@ -26,15 +26,12 @@ from claude_agent_sdk import (
 
 from gobby.config.app import DaemonConfig
 from gobby.llm.base import LLMProvider
-from gobby.llm.claude_models import (  # noqa: F401 - re-exported
+from gobby.llm.claude_models import (
     ChatEvent,
     DoneEvent,
     MCPToolResult,
     TextChunk,
-    ThinkingEvent,
     ToolCall,
-    ToolCallEvent,
-    ToolResultEvent,
 )
 
 # Type alias for auth mode

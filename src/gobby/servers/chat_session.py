@@ -27,7 +27,7 @@ from claude_agent_sdk import (
     UserMessage,
 )
 
-from gobby.llm.claude import (
+from gobby.llm.claude_models import (
     ChatEvent,
     DoneEvent,
     TextChunk,

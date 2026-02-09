@@ -94,7 +94,7 @@ class TestToolCallDataclass:
 
     def test_tool_call_creation(self) -> None:
         """Test ToolCall can be created with required fields."""
-        from gobby.llm.claude import ToolCall
+        from gobby.llm.claude_models import ToolCall
 
         call = ToolCall(
             tool_name="mcp__gobby-tasks__create_task",
@@ -109,7 +109,7 @@ class TestToolCallDataclass:
 
     def test_tool_call_with_result(self) -> None:
         """Test ToolCall with result."""
-        from gobby.llm.claude import ToolCall
+        from gobby.llm.claude_models import ToolCall
 
         call = ToolCall(
             tool_name="mcp__gobby-tasks__create_task",
@@ -126,7 +126,7 @@ class TestMCPToolResultDataclass:
 
     def test_mcp_tool_result_creation(self) -> None:
         """Test MCPToolResult can be created with required fields."""
-        from gobby.llm.claude import MCPToolResult
+        from gobby.llm.claude_models import MCPToolResult
 
         result = MCPToolResult(text="Task created successfully")
 
@@ -135,7 +135,7 @@ class TestMCPToolResultDataclass:
 
     def test_mcp_tool_result_with_calls(self) -> None:
         """Test MCPToolResult with tool calls."""
-        from gobby.llm.claude import MCPToolResult, ToolCall
+        from gobby.llm.claude_models import MCPToolResult, ToolCall
 
         calls = [
             ToolCall(
