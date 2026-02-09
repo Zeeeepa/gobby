@@ -75,20 +75,25 @@ class GobbyDaemonTools:
 
         server_list = []
         for name, info in servers_info.items():
-            server_list.append(
-                {
-                    "name": name,
-                    "state": info["state"],
-                    "connected": info["state"] == "connected",
-                    # Additional fields can be fetched from config if we had access
-                }
-            )
+            state = info["state"]
+            connected = state == "connected"
+            available = state in ("connected", "pending", "configured")
+            entry: dict[str, Any] = {
+                "name": name,
+                "state": state,
+                "connected": connected,
+                "available": available,
+            }
+            if state in ("pending", "configured"):
+                entry["note"] = "Connects automatically on first use"
+            server_list.append(entry)
 
         return {
             "success": True,
             "servers": server_list,
             "total_count": len(server_list),
             "connected_count": len([s for s in server_list if s["connected"]]),
+            "available_count": len([s for s in server_list if s["available"]]),
         }
 
     # --- Tool Proxying ---

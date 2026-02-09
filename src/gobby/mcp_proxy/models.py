@@ -10,6 +10,7 @@ from enum import Enum
 class ConnectionState(str, Enum):
     """MCP connection state."""
 
+    PENDING = "pending"  # Configured, lazy-loaded, never connected yet
     DISCONNECTED = "disconnected"
     CONNECTING = "connecting"
     CONNECTED = "connected"

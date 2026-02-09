@@ -300,9 +300,14 @@ class MCPClientManager:
         # Initialize health tracking for all configs
         for config in self.server_configs:
             if config.name not in self.health:
+                # Lazy servers that won't be preconnected start as PENDING
+                if self.lazy_connect and config.name not in self.preconnect_servers:
+                    initial_state = ConnectionState.PENDING
+                else:
+                    initial_state = ConnectionState.DISCONNECTED
                 self.health[config.name] = MCPConnectionHealth(
                     name=config.name,
-                    state=ConnectionState.DISCONNECTED,
+                    state=initial_state,
                 )
 
         # Start health check task if not running
@@ -783,8 +788,9 @@ class MCPClientManager:
         """Register a new server configuration."""
         self._configs[config.name] = config
         if config.name not in self.health:
+            initial_state = ConnectionState.PENDING if self.lazy_connect else ConnectionState.DISCONNECTED
             self.health[config.name] = MCPConnectionHealth(
-                name=config.name, state=ConnectionState.DISCONNECTED
+                name=config.name, state=initial_state
             )
 
     def remove_server_config(self, name: str) -> None:
