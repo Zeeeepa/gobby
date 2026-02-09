@@ -9,6 +9,9 @@ Handles background jobs for:
 import asyncio
 import logging
 import os
+import tempfile
+import time
+from pathlib import Path
 from typing import Any
 
 from gobby.config.sessions import SessionLifecycleConfig
@@ -125,7 +128,35 @@ class SessionLifecycleManager:
             timeout_hours=self.config.stale_session_timeout_hours
         )
 
+        # Clean up stale prompt files
+        self._cleanup_prompt_files()
+
         return paused + expired
+
+    def _cleanup_prompt_files(self, max_age_seconds: int = 3600) -> int:
+        """Delete prompt files older than max_age_seconds.
+
+        Prompt files are read immediately by spawned agents, so any file
+        older than 1 hour is safe to remove. Age-based cleanup also catches
+        orphaned files from crashed sessions.
+        """
+        prompt_dir = Path(tempfile.gettempdir()) / "gobby-prompts"
+        if not prompt_dir.is_dir():
+            return 0
+
+        now = time.time()
+        removed = 0
+        for path in prompt_dir.iterdir():
+            try:
+                if now - path.stat().st_mtime > max_age_seconds:
+                    path.unlink()
+                    removed += 1
+            except OSError:
+                pass
+
+        if removed > 0:
+            logger.info(f"Cleaned up {removed} stale prompt file(s)")
+        return removed
 
     async def _process_pending_transcripts(self) -> int:
         """Process transcripts for expired sessions."""

@@ -1,4 +1,8 @@
 import asyncio
+import os
+import tempfile
+import time
+from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -309,3 +313,98 @@ class TestBackgroundLoops:
             await manager._expire_loop()
             # Should just return cleanly
             assert True
+
+
+class TestPromptFileCleanup:
+    """Tests for _cleanup_prompt_files (#7389)."""
+
+    @pytest.fixture
+    def mock_db(self):
+        return MagicMock()
+
+    @pytest.fixture
+    def mock_config(self):
+        config = MagicMock(spec=SessionLifecycleConfig)
+        config.expire_check_interval_minutes = 1
+        config.transcript_processing_interval_minutes = 1
+        config.active_session_pause_minutes = 30
+        config.stale_session_timeout_hours = 24
+        config.transcript_processing_batch_size = 10
+        return config
+
+    @pytest.fixture
+    def manager(self, mock_db, mock_config):
+        with patch("gobby.sessions.lifecycle.LocalSessionManager"):
+            with patch("gobby.sessions.lifecycle.LocalSessionMessageManager"):
+                return SessionLifecycleManager(mock_db, mock_config)
+
+    def test_removes_old_prompt_files(self, tmp_path, manager):
+        """Old prompt files are deleted."""
+        prompt_dir = tmp_path / "gobby-prompts"
+        prompt_dir.mkdir()
+
+        # Create a file and backdate its mtime by 2 hours
+        old_file = prompt_dir / "prompt-old-session.txt"
+        old_file.write_text("old prompt")
+        old_mtime = time.time() - 7200
+        os.utime(old_file, (old_mtime, old_mtime))
+
+        with patch("tempfile.gettempdir", return_value=str(tmp_path)):
+            removed = manager._cleanup_prompt_files(max_age_seconds=3600)
+
+        assert removed == 1
+        assert not old_file.exists()
+
+    def test_keeps_recent_prompt_files(self, tmp_path, manager):
+        """Recent prompt files are kept."""
+        prompt_dir = tmp_path / "gobby-prompts"
+        prompt_dir.mkdir()
+
+        recent_file = prompt_dir / "prompt-recent-session.txt"
+        recent_file.write_text("recent prompt")
+        # File just created — mtime is now
+
+        with patch("tempfile.gettempdir", return_value=str(tmp_path)):
+            removed = manager._cleanup_prompt_files(max_age_seconds=3600)
+
+        assert removed == 0
+        assert recent_file.exists()
+
+    def test_mixed_old_and_recent(self, tmp_path, manager):
+        """Only old files are removed, recent ones kept."""
+        prompt_dir = tmp_path / "gobby-prompts"
+        prompt_dir.mkdir()
+
+        old_file = prompt_dir / "prompt-old.txt"
+        old_file.write_text("old")
+        old_mtime = time.time() - 7200
+        os.utime(old_file, (old_mtime, old_mtime))
+
+        recent_file = prompt_dir / "prompt-recent.txt"
+        recent_file.write_text("recent")
+
+        with patch("tempfile.gettempdir", return_value=str(tmp_path)):
+            removed = manager._cleanup_prompt_files(max_age_seconds=3600)
+
+        assert removed == 1
+        assert not old_file.exists()
+        assert recent_file.exists()
+
+    def test_no_prompt_dir(self, tmp_path, manager):
+        """Returns 0 when prompt directory doesn't exist."""
+        with patch("tempfile.gettempdir", return_value=str(tmp_path)):
+            removed = manager._cleanup_prompt_files()
+
+        assert removed == 0
+
+    @pytest.mark.asyncio
+    async def test_expire_calls_cleanup(self, manager):
+        """_expire_stale_sessions calls _cleanup_prompt_files."""
+        manager.session_manager = MagicMock()
+        manager.session_manager.pause_inactive_active_sessions.return_value = 0
+        manager.session_manager.expire_stale_sessions.return_value = 0
+
+        with patch.object(manager, "_cleanup_prompt_files") as mock_cleanup:
+            await manager._expire_stale_sessions()
+
+        mock_cleanup.assert_called_once()
