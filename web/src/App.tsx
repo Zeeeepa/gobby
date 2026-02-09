@@ -86,7 +86,6 @@ export default function App() {
       <TerminalPanel
         isOpen={terminalOpen}
         onToggle={() => setTerminalOpen(!terminalOpen)}
-        runId={selectedAgent}
         agents={agents}
         selectedAgent={selectedAgent}
         onSelectAgent={setSelectedAgent}
