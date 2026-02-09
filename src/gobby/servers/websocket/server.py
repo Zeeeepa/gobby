@@ -206,6 +206,9 @@ class WebSocketServer(TmuxMixin, ChatMixin, HandlerMixin, AuthMixin, BroadcastMi
         elif msg_type == "stop_chat":
             await self._handle_stop_chat(websocket, data)
 
+        elif msg_type == "ask_user_response":
+            await self._handle_ask_user_response(websocket, data)
+
         elif msg_type == "tmux_list_sessions":
             await self._handle_tmux_list_sessions(websocket, data)
 

@@ -104,7 +104,8 @@ class ChatMixin:
             "content": "user message",
             "message_id": "client-generated-id",
             "conversation_id": "optional-stable-id",
-            "model": "optional-model-override"
+            "model": "optional-model-override",
+            "request_id": "client-uuid-for-stream-correlation"
         }
 
         Response format (streamed):
@@ -112,6 +113,7 @@ class ChatMixin:
             "type": "chat_stream",
             "message_id": "assistant-uuid",
             "conversation_id": "stable-id",
+            "request_id": "echoed-client-uuid",
             "content": "chunk of text",
             "done": false
         }
@@ -137,6 +139,7 @@ class ChatMixin:
         content = data.get("content")
         conversation_id = data.get("conversation_id") or str(uuid4())
         model = data.get("model")
+        request_id = data.get("request_id", "")
 
         if not content or not isinstance(content, str):
             await self._send_error(websocket, "Missing or invalid 'content' field")
@@ -152,7 +155,7 @@ class ChatMixin:
 
         # Run streaming as a cancellable task
         task = asyncio.create_task(
-            self._stream_chat_response(websocket, conversation_id, content, model)
+            self._stream_chat_response(websocket, conversation_id, content, model, request_id)
         )
         task.add_done_callback(self._on_chat_task_done)
         self._active_chat_tasks[conversation_id] = task
@@ -171,6 +174,7 @@ class ChatMixin:
         conversation_id: str,
         content: str,
         model: str | None,
+        request_id: str = "",
     ) -> None:
         """Stream a ChatSession response to the client. Runs as a cancellable task."""
         from gobby.llm.claude_models import (
@@ -182,6 +186,12 @@ class ChatMixin:
         )
 
         assistant_message_id = f"assistant-{uuid4().hex[:12]}"
+
+        def _base_msg(**fields: Any) -> dict[str, Any]:
+            """Build a response dict, always including request_id for stream correlation."""
+            msg: dict[str, Any] = fields
+            msg["request_id"] = request_id
+            return msg
 
         gen: AsyncIterator[Any] | None = None
         try:
@@ -195,12 +205,12 @@ class ChatMixin:
                     logger.error(f"Failed to start chat session: {e}")
                     await websocket.send(
                         json.dumps(
-                            {
-                                "type": "chat_error",
-                                "message_id": assistant_message_id,
-                                "conversation_id": conversation_id,
-                                "error": f"Failed to start chat session: {e}",
-                            }
+                            _base_msg(
+                                type="chat_error",
+                                message_id=assistant_message_id,
+                                conversation_id=conversation_id,
+                                error=f"Failed to start chat session: {e}",
+                            )
                         )
                     )
                     return
@@ -224,12 +234,12 @@ class ChatMixin:
                     logger.warning(f"Failed to switch model to {model}: {e}")
                     await websocket.send(
                         json.dumps(
-                            {
-                                "type": "chat_error",
-                                "message_id": assistant_message_id,
-                                "conversation_id": conversation_id,
-                                "error": f"Failed to switch model: {e}",
-                            }
+                            _base_msg(
+                                type="chat_error",
+                                message_id=assistant_message_id,
+                                conversation_id=conversation_id,
+                                error=f"Failed to switch model: {e}",
+                            )
                         )
                     )
 
@@ -243,66 +253,66 @@ class ChatMixin:
                 if isinstance(event, ThinkingEvent):
                     await websocket.send(
                         json.dumps(
-                            {
-                                "type": "chat_thinking",
-                                "message_id": assistant_message_id,
-                                "conversation_id": conversation_id,
-                                "content": event.content,
-                            }
+                            _base_msg(
+                                type="chat_thinking",
+                                message_id=assistant_message_id,
+                                conversation_id=conversation_id,
+                                content=event.content,
+                            )
                         )
                     )
                 elif isinstance(event, TextChunk):
                     await websocket.send(
                         json.dumps(
-                            {
-                                "type": "chat_stream",
-                                "message_id": assistant_message_id,
-                                "conversation_id": conversation_id,
-                                "content": event.content,
-                                "done": False,
-                            }
+                            _base_msg(
+                                type="chat_stream",
+                                message_id=assistant_message_id,
+                                conversation_id=conversation_id,
+                                content=event.content,
+                                done=False,
+                            )
                         )
                     )
                 elif isinstance(event, ToolCallEvent):
                     await websocket.send(
                         json.dumps(
-                            {
-                                "type": "tool_status",
-                                "message_id": assistant_message_id,
-                                "conversation_id": conversation_id,
-                                "tool_call_id": event.tool_call_id,
-                                "status": "calling",
-                                "tool_name": event.tool_name,
-                                "server_name": event.server_name,
-                                "arguments": event.arguments,
-                            }
+                            _base_msg(
+                                type="tool_status",
+                                message_id=assistant_message_id,
+                                conversation_id=conversation_id,
+                                tool_call_id=event.tool_call_id,
+                                status="calling",
+                                tool_name=event.tool_name,
+                                server_name=event.server_name,
+                                arguments=event.arguments,
+                            )
                         )
                     )
                 elif isinstance(event, ToolResultEvent):
                     await websocket.send(
                         json.dumps(
-                            {
-                                "type": "tool_status",
-                                "message_id": assistant_message_id,
-                                "conversation_id": conversation_id,
-                                "tool_call_id": event.tool_call_id,
-                                "status": "completed" if event.success else "error",
-                                "result": event.result,
-                                "error": event.error,
-                            }
+                            _base_msg(
+                                type="tool_status",
+                                message_id=assistant_message_id,
+                                conversation_id=conversation_id,
+                                tool_call_id=event.tool_call_id,
+                                status="completed" if event.success else "error",
+                                result=event.result,
+                                error=event.error,
+                            )
                         )
                     )
                 elif isinstance(event, DoneEvent):
                     await websocket.send(
                         json.dumps(
-                            {
-                                "type": "chat_stream",
-                                "message_id": assistant_message_id,
-                                "conversation_id": conversation_id,
-                                "content": "",
-                                "done": True,
-                                "tool_calls_count": event.tool_calls_count,
-                            }
+                            _base_msg(
+                                type="chat_stream",
+                                message_id=assistant_message_id,
+                                conversation_id=conversation_id,
+                                content="",
+                                done=True,
+                                tool_calls_count=event.tool_calls_count,
+                            )
                         )
                     )
 
@@ -311,14 +321,14 @@ class ChatMixin:
             try:
                 await websocket.send(
                     json.dumps(
-                        {
-                            "type": "chat_stream",
-                            "message_id": assistant_message_id,
-                            "conversation_id": conversation_id,
-                            "content": "",
-                            "done": True,
-                            "interrupted": True,
-                        }
+                        _base_msg(
+                            type="chat_stream",
+                            message_id=assistant_message_id,
+                            conversation_id=conversation_id,
+                            content="",
+                            done=True,
+                            interrupted=True,
+                        )
                     )
                 )
             except (ConnectionClosed, ConnectionClosedError):
@@ -333,12 +343,12 @@ class ChatMixin:
             try:
                 await websocket.send(
                     json.dumps(
-                        {
-                            "type": "chat_error",
-                            "message_id": assistant_message_id,
-                            "conversation_id": conversation_id,
-                            "error": "An internal error occurred",
-                        }
+                        _base_msg(
+                            type="chat_error",
+                            message_id=assistant_message_id,
+                            conversation_id=conversation_id,
+                            error="An internal error occurred",
+                        )
                     )
                 )
             except (ConnectionClosed, ConnectionClosedError):
@@ -356,6 +366,26 @@ class ChatMixin:
                     except BaseException:
                         pass
             self._active_chat_tasks.pop(conversation_id, None)
+
+    async def _handle_ask_user_response(self, websocket: Any, data: dict[str, Any]) -> None:
+        """Handle ask_user_response message from the web UI.
+
+        Looks up the ChatSession by conversation_id and forwards the user's
+        answers to unblock the pending AskUserQuestion callback.
+        """
+        conversation_id = data.get("conversation_id")
+        answers = data.get("answers", {})
+
+        session = self._chat_sessions.get(conversation_id) if conversation_id else None
+        if session is None:
+            logger.warning(f"ask_user_response for unknown conversation: {conversation_id}")
+            return
+
+        if not session.has_pending_question:
+            logger.warning(f"ask_user_response but no pending question for {conversation_id}")
+            return
+
+        session.provide_answer(answers)
 
     async def _cleanup_idle_sessions(self) -> None:
         """Periodically disconnect chat sessions that have been idle too long."""
