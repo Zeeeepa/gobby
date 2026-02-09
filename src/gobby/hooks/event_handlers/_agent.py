@@ -85,7 +85,8 @@ class AgentEventHandlerMixin(EventHandlersBase):
             return self._generate_help_content()
 
         # /gobby:skillname → resolve and inject
-        assert self._skill_manager is not None
+        if self._skill_manager is None:
+            raise RuntimeError("skill_manager not initialized")
         skill = self._skill_manager.resolve_skill_name(skill_name)
 
         if not skill:
@@ -111,7 +112,8 @@ class AgentEventHandlerMixin(EventHandlersBase):
         if prompt.startswith("/"):
             return None
 
-        assert self._skill_manager is not None
+        if self._skill_manager is None:
+            raise RuntimeError("skill_manager not initialized")
         matches = self._skill_manager.match_triggers(prompt, threshold=0.7)
 
         if not matches:
@@ -125,7 +127,8 @@ class AgentEventHandlerMixin(EventHandlersBase):
 
     def _generate_help_content(self) -> str:
         """Generate help content listing all available skills."""
-        assert self._skill_manager is not None
+        if self._skill_manager is None:
+            raise RuntimeError("skill_manager not initialized")
         skills = self._skill_manager.discover_core_skills()
 
         lines = [
@@ -156,7 +159,8 @@ class AgentEventHandlerMixin(EventHandlersBase):
 
     def _skill_not_found_context(self, name: str) -> str:
         """Generate context for an unrecognized skill name."""
-        assert self._skill_manager is not None
+        if self._skill_manager is None:
+            raise RuntimeError("skill_manager not initialized")
         skills = self._skill_manager.discover_core_skills()
 
         # Find close matches (name contains or starts with input)

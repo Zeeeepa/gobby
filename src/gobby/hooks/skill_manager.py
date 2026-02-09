@@ -147,7 +147,8 @@ class HookSkillManager:
         if self._trigger_index is None:
             self._build_trigger_index()
 
-        assert self._trigger_index is not None
+        if self._trigger_index is None:
+            raise RuntimeError("trigger_index not built")
 
         prompt_words = set(prompt.lower().split())
         results: list[tuple[ParsedSkill, float]] = []
