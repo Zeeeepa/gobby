@@ -731,6 +731,33 @@ class WebSocketServer:
                     )
                     return
                 self._chat_sessions[conversation_id] = session
+            elif model and session.model and model != session.model:
+                # Mid-conversation model switch
+                old_model = session.model
+                try:
+                    await session.switch_model(model)
+                    await websocket.send(
+                        json.dumps(
+                            {
+                                "type": "model_switched",
+                                "conversation_id": conversation_id,
+                                "old_model": old_model,
+                                "new_model": model,
+                            }
+                        )
+                    )
+                except Exception as e:
+                    logger.warning(f"Failed to switch model to {model}: {e}")
+                    await websocket.send(
+                        json.dumps(
+                            {
+                                "type": "chat_error",
+                                "message_id": assistant_message_id,
+                                "conversation_id": conversation_id,
+                                "error": f"Failed to switch model: {e}",
+                            }
+                        )
+                    )
 
             # Stream events from ChatSession.
             # Hold a reference to the generator so we can explicitly aclose()

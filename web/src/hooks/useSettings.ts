@@ -7,8 +7,7 @@ export interface Settings {
 }
 
 export interface ModelInfo {
-  providers: Record<string, { models: string[]; auth_mode: string }>
-  default_provider: string | null
+  models: string[]
   default_model: string | null
 }
 
@@ -35,7 +34,7 @@ export function useSettings() {
   const [modelInfo, setModelInfo] = useState<ModelInfo | null>(null)
   const [modelsLoading, setModelsLoading] = useState(true)
 
-  // Fetch available models on mount
+  // Fetch available Claude models on mount
   useEffect(() => {
     const fetchModels = async () => {
       try {
@@ -45,10 +44,12 @@ export function useSettings() {
           ? ''  // Relative path for HTTPS (Tailscale Serve)
           : `http://${window.location.hostname}:60887`
 
-        const response = await fetch(`${baseUrl}/admin/models`)
+        const response = await fetch(`${baseUrl}/admin/models?provider=claude`)
         if (response.ok) {
           const data = await response.json()
-          setModelInfo(data)
+          // Flatten: { models: { claude: [...] }, default_model } -> { models: [...], default_model }
+          const claudeModels: string[] = data.models?.claude || []
+          setModelInfo({ models: claudeModels, default_model: data.default_model })
 
           // Set defaults if not already set
           setSettings(prev => {
@@ -56,7 +57,7 @@ export function useSettings() {
               return {
                 ...prev,
                 model: data.default_model,
-                provider: data.default_provider,
+                provider: 'claude',
               }
             }
             return prev
@@ -93,16 +94,15 @@ export function useSettings() {
     setSettings((prev) => ({ ...prev, fontSize: size }))
   }, [])
 
-  const updateModel = useCallback((model: string, provider: string) => {
-    setSettings((prev) => ({ ...prev, model, provider }))
+  const updateModel = useCallback((model: string) => {
+    setSettings((prev) => ({ ...prev, model, provider: 'claude' }))
   }, [])
 
   const resetSettings = useCallback(() => {
     setSettings({
       ...DEFAULT_SETTINGS,
-      // Keep model defaults from fetched data
       model: modelInfo?.default_model || null,
-      provider: modelInfo?.default_provider || null,
+      provider: 'claude',
     })
   }, [modelInfo])
 

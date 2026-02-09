@@ -59,15 +59,49 @@ class TestAdminRoutesExtended:
         return TestClient(app)
 
     def test_models_endpoint(self, client, mock_server) -> None:
-        """Test GET /models endpoint."""
-        response = client.get("/admin/models")
+        """Test GET /models endpoint with LiteLLM discovery."""
+        mock_model_cost = {
+            "claude-opus-4-6": {},
+            "claude-sonnet-4-5": {},
+            "claude-haiku-4-5": {},
+            "gpt-5": {},
+            "claude-sonnet-4-5-20250929": {},  # dated variant — should be excluded
+            "anthropic/claude-opus-4-6": {},  # provider-scoped — should be excluded
+        }
+        with patch("gobby.servers.routes.admin.litellm") as mock_litellm:
+            mock_litellm.model_cost = mock_model_cost
+            response = client.get("/admin/models")
+
         assert response.status_code == 200
         data = response.json()
 
-        assert "claude" in data["providers"]
-        assert data["default_provider"] == "claude"
-        assert data["default_model"] == "claude-3-opus"
-        assert data["providers"]["claude"]["models"] == ["claude-3-opus", "claude-3-sonnet"]
+        assert "claude" in data["models"]
+        claude_models = data["models"]["claude"]
+        assert "claude-opus-4-6" in claude_models
+        assert "claude-sonnet-4-5" in claude_models
+        assert "claude-haiku-4-5" in claude_models
+        # Dated variant should be filtered out
+        assert "claude-sonnet-4-5-20250929" not in claude_models
+        assert data["default_model"] is not None
+
+    def test_models_endpoint_provider_filter(self, client, mock_server) -> None:
+        """Test GET /models?provider=claude filters to Claude only."""
+        mock_model_cost = {
+            "claude-opus-4-6": {},
+            "claude-sonnet-4-5": {},
+            "gpt-5": {},
+            "gemini-2-flash": {},
+        }
+        with patch("gobby.servers.routes.admin.litellm") as mock_litellm:
+            mock_litellm.model_cost = mock_model_cost
+            response = client.get("/admin/models?provider=claude")
+
+        assert response.status_code == 200
+        data = response.json()
+
+        assert "claude" in data["models"]
+        assert "gpt" not in data["models"]
+        assert "gemini" not in data["models"]
 
     def test_reload_workflows_endpoint(self, client, mock_server) -> None:
         """Test POST /workflows/reload endpoint."""

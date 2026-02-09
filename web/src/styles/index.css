@@ -172,6 +172,15 @@ body {
   font-size: calc(var(--font-size-base) * 0.875);
 }
 
+.message-model-switch {
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--accent);
+  font-size: calc(var(--font-size-base) * 0.8);
+  font-style: italic;
+  color: var(--text-secondary);
+}
+
 .message-header {
   display: flex;
   align-items: center;

@@ -29,9 +29,10 @@ interface MessageProps {
 
 export function Message({ message, isStreaming = false, isThinking = false }: MessageProps) {
   const isCommandResult = message.role === 'system' && message.toolCalls?.length && !message.content
+  const isModelSwitch = message.role === 'system' && message.id.startsWith('model-switch-')
 
   return (
-    <div className={`message message-${message.role}${isCommandResult ? ' message-command' : ''}`}>
+    <div className={`message message-${message.role}${isCommandResult ? ' message-command' : ''}${isModelSwitch ? ' message-model-switch' : ''}`}>
       <div className="message-header">
         <span className="message-role">
           {message.role === 'user' ? 'You' : message.role === 'assistant' ? 'Gobby' : 'System'}

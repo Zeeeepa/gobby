@@ -81,6 +81,13 @@ interface ChatThinkingMessage {
   conversation_id: string
 }
 
+interface ModelSwitchedMessage {
+  type: 'model_switched'
+  conversation_id: string
+  old_model: string
+  new_model: string
+}
+
 interface ToolResultMessage {
   type: 'tool_result'
   request_id: string
@@ -132,6 +139,7 @@ export function useChat() {
   const handleChatErrorRef = useRef<(error: ChatError) => void>(() => {})
   const handleToolStatusRef = useRef<(status: ToolStatusMessage) => void>(() => {})
   const handleChatThinkingRef = useRef<(msg: ChatThinkingMessage) => void>(() => {})
+  const handleModelSwitchedRef = useRef<(msg: ModelSwitchedMessage) => void>(() => {})
   const handleToolResultRef = useRef<(msg: ToolResultMessage) => void>(() => {})
   const handleErrorRef = useRef<(msg: ErrorMessage) => void>(() => {})
 
@@ -191,6 +199,8 @@ export function useChat() {
           handleToolStatusRef.current(data as unknown as ToolStatusMessage)
         } else if (data.type === 'chat_thinking') {
           handleChatThinkingRef.current(data as unknown as ChatThinkingMessage)
+        } else if (data.type === 'model_switched') {
+          handleModelSwitchedRef.current(data as unknown as ModelSwitchedMessage)
         } else if (data.type === 'tool_result') {
           handleToolResultRef.current(data as unknown as ToolResultMessage)
         } else if (data.type === 'error' && (data as unknown as ErrorMessage).request_id) {
@@ -314,6 +324,19 @@ export function useChat() {
     setIsThinking(true)
   }, [])
 
+  // Handle model switch notifications
+  const handleModelSwitched = useCallback((msg: ModelSwitchedMessage) => {
+    setMessages((prev) => [
+      ...prev,
+      {
+        id: `model-switch-${Date.now()}`,
+        role: 'system' as const,
+        content: `Model switched from ${msg.old_model} to ${msg.new_model}`,
+        timestamp: new Date(),
+      },
+    ])
+  }, [])
+
   // Handle tool_result for slash commands
   const handleToolResult = useCallback((msg: ToolResultMessage) => {
     const pending = pendingCommandsRef.current.get(msg.request_id)
@@ -359,9 +382,10 @@ export function useChat() {
     handleChatErrorRef.current = handleChatError
     handleToolStatusRef.current = handleToolStatus
     handleChatThinkingRef.current = handleChatThinking
+    handleModelSwitchedRef.current = handleModelSwitched
     handleToolResultRef.current = handleToolResult
     handleErrorRef.current = handleError
-  }, [handleChatStream, handleChatError, handleToolStatus, handleChatThinking, handleToolResult, handleError])
+  }, [handleChatStream, handleChatError, handleToolStatus, handleChatThinking, handleModelSwitched, handleToolResult, handleError])
 
   // Persist messages to localStorage
   useEffect(() => {

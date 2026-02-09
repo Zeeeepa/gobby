@@ -76,18 +76,10 @@ search:
   embedding_weight: 0.6
   notify_on_fallback: true
 llm_providers:
+  default_model: claude-opus-4-6
   claude:
-    models: claude-haiku-4-5,claude-sonnet-4-5,claude-opus-4-5
+    models: claude-opus-4-6,claude-sonnet-4-5,claude-haiku-4-5
     auth_mode: subscription
-  codex:
-    models: gpt-4o-mini,gpt-5-mini,gpt-5,gpt-5-high
-    auth_mode: subscription
-  gemini:
-    models: gemini-3
-    auth_mode: subscription
-  litellm:
-    models: gpt-4o-mini,gpt-5-mini
-    auth_mode: api_key
   # API keys - set via environment variables or uncomment and fill in below
   # api_keys:
   #   OPENAI_API_KEY: "<YOUR_OPENAI_API_KEY>"

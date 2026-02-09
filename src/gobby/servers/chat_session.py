@@ -255,6 +255,18 @@ class ChatSession:
                 logger.debug(f"ChatSession {self.conversation_id} stopped")
 
     @property
+    def model(self) -> str | None:
+        """The current model for this session."""
+        return self._model
+
+    async def switch_model(self, new_model: str) -> None:
+        """Switch to a different Claude model mid-conversation."""
+        if not self._client or not self._connected:
+            raise RuntimeError("ChatSession not connected")
+        await self._client.set_model(new_model)
+        self._model = new_model
+
+    @property
     def is_connected(self) -> bool:
         """Whether the session is currently connected."""
         return self._connected
