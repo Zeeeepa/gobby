@@ -62,6 +62,14 @@ function CodeBlock({ children, className, ...props }: CodeProps) {
         style={customTheme}
         language={language || "text"}
         PreTag="div"
+        showLineNumbers
+        lineNumberStyle={{
+          minWidth: "2.5em",
+          paddingRight: "1em",
+          textAlign: "right",
+          userSelect: "none",
+          color: "#555",
+        }}
         customStyle={{
           margin: language ? "0" : "0.75rem 0",
           borderRadius: language ? "0 0 0.5rem 0.5rem" : "0.5rem",
