@@ -18,8 +18,6 @@ from .audit_helpers import (
 from .definitions import WorkflowDefinition, WorkflowState, WorkflowTransition
 from .detection_helpers import (
     detect_mcp_call,
-    detect_plan_mode,
-    detect_plan_mode_from_context,
     detect_task_claim,
     process_mcp_handlers,
 )
@@ -129,7 +127,7 @@ class WorkflowEngine:
     }
 
     # Variables to inherit from parent session
-    VARS_TO_INHERIT = ["plan_mode"]
+    VARS_TO_INHERIT: list[str] = []
 
     async def handle_event(self, event: HookEvent) -> HookResponse:
         """
@@ -385,9 +383,6 @@ class WorkflowEngine:
 
             # Detect gobby-tasks calls for session-scoped task claiming
             self._detect_task_claim(event, state)
-
-            # Detect Claude Code plan mode entry/exit
-            self._detect_plan_mode(event, state)
 
             # Track all MCP proxy calls for workflow conditions
             # Also process on_mcp_success/on_mcp_error handlers from step definition
@@ -768,8 +763,6 @@ class WorkflowEngine:
             action_executor=self.action_executor,
             evaluator=self.evaluator,
             detect_task_claim_fn=self._detect_task_claim,
-            detect_plan_mode_fn=self._detect_plan_mode,
-            detect_plan_mode_from_context_fn=self._detect_plan_mode_from_context,
             check_premature_stop_fn=self._check_premature_stop,
             context_data=context_data,
         )
@@ -871,14 +864,6 @@ class WorkflowEngine:
         session_task_manager = getattr(self.action_executor, "session_task_manager", None)
         task_manager = getattr(self.action_executor, "task_manager", None)
         detect_task_claim(event, state, session_task_manager, task_manager)
-
-    def _detect_plan_mode(self, event: HookEvent, state: WorkflowState) -> None:
-        """Detect Claude Code plan mode entry/exit and set workflow variable."""
-        detect_plan_mode(event, state)
-
-    def _detect_plan_mode_from_context(self, event: HookEvent, state: WorkflowState) -> None:
-        """Detect plan mode from system reminders in user prompt."""
-        detect_plan_mode_from_context(event, state)
 
     def _detect_mcp_call(
         self, event: HookEvent, state: WorkflowState, current_step: Any | None = None

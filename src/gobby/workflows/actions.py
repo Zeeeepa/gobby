@@ -25,6 +25,9 @@ from gobby.workflows.context_actions import (
     handle_inject_message,
 )
 from gobby.workflows.definitions import WorkflowState
+from gobby.workflows.detection_helpers import (
+    handle_detect_plan_mode_from_context,
+)
 from gobby.workflows.enforcement import (
     handle_block_stop,
     handle_block_tools,
@@ -207,6 +210,9 @@ class ActionExecutor:
         self.register("inject_context", handle_inject_context)
         self.register("inject_message", handle_inject_message)
         self.register("extract_handoff_context", handle_extract_handoff_context)
+
+        # --- Detection actions ---
+        self.register("detect_plan_mode_from_context", handle_detect_plan_mode_from_context)
 
         # --- Artifact actions ---
         self.register("capture_artifact", handle_capture_artifact)

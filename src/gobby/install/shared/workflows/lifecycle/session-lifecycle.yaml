@@ -212,6 +212,9 @@ triggers:
       name: pre_existing_errors_triaged
       value: false
 
+    # Detect plan mode from system reminders (Claude Code UI-based plan mode)
+    - action: detect_plan_mode_from_context
+
     # Title synthesis on first prompt
     - action: synthesize_title
       when: "session.title == None"
@@ -310,6 +313,16 @@ triggers:
             Rewrite your command with `uv` and retry.
 
   on_after_tool:
+    # Detect Claude Code plan mode entry/exit
+    - action: set_variable
+      name: plan_mode
+      value: true
+      when: "event.data.get('tool_name') == 'EnterPlanMode'"
+    - action: set_variable
+      name: plan_mode
+      value: false
+      when: "event.data.get('tool_name') == 'ExitPlanMode'"
+
     # Reset stop attempts counter on successful tool use
     - action: set_variable
       name: stop_attempts

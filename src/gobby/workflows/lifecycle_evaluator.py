@@ -33,7 +33,7 @@ def _compute_variable_diff(before: dict[str, Any] | None, after: dict[str, Any])
 MAX_TRIGGER_ITERATIONS = 10
 
 # Variables to inherit from parent session
-VARS_TO_INHERIT = ["plan_mode"]
+VARS_TO_INHERIT: list[str] = []
 
 # Maps canonical trigger names to their legacy aliases for backward compatibility
 TRIGGER_ALIASES: dict[str, list[str]] = {
@@ -516,10 +516,8 @@ async def evaluate_all_lifecycle_workflows(
     action_executor: "ActionExecutor",
     evaluator: "ConditionEvaluator",
     detect_task_claim_fn: Any,
-    detect_plan_mode_fn: Any,
     check_premature_stop_fn: Any,
     context_data: dict[str, Any] | None = None,
-    detect_plan_mode_from_context_fn: Any | None = None,
 ) -> HookResponse:
     """
     Discover and evaluate all lifecycle workflows for the given event.
@@ -534,10 +532,8 @@ async def evaluate_all_lifecycle_workflows(
         action_executor: Action executor for running actions
         evaluator: Condition evaluator
         detect_task_claim_fn: Function to detect task claims
-        detect_plan_mode_fn: Function to detect plan mode (from tool calls)
         check_premature_stop_fn: Async function to check premature stop
         context_data: Optional context data passed between actions
-        detect_plan_mode_from_context_fn: Function to detect plan mode from system reminders
 
     Returns:
         Merged HookResponse with combined context and first non-allow decision.
@@ -672,20 +668,7 @@ async def evaluate_all_lifecycle_workflows(
                 session_id,
                 event,
                 state_manager,
-                [detect_task_claim_fn, detect_plan_mode_fn],
-                _persist_state_changes,
-            )
-
-    # Detect plan mode from system reminders for BEFORE_AGENT events
-    # This catches plan mode when user enters via UI (not via EnterPlanMode tool)
-    if event.event_type == HookEventType.BEFORE_AGENT and detect_plan_mode_from_context_fn:
-        session_id = event.metadata.get("_platform_session_id")
-        if session_id:
-            _detect_and_persist(
-                session_id,
-                event,
-                state_manager,
-                [detect_plan_mode_from_context_fn],
+                [detect_task_claim_fn],
                 _persist_state_changes,
             )
 

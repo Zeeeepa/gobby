@@ -159,33 +159,7 @@ def detect_task_claim(
                 logger.warning(f"Failed to auto-link task {task_id}: {e}")
 
 
-def detect_plan_mode(event: "HookEvent", state: "WorkflowState") -> None:
-    """Detect Claude Code plan mode entry/exit and set workflow variable.
-
-    Sets `plan_mode: true` when EnterPlanMode tool is called, allowing
-    file modifications without an active task (planning writes to plan files).
-
-    Clears `plan_mode: false` when ExitPlanMode tool is called, re-enabling
-    task enforcement for actual implementation work.
-
-    Args:
-        event: The AFTER_TOOL hook event
-        state: Current workflow state (modified in place)
-    """
-    if not event.data:
-        return
-
-    tool_name = event.data.get("tool_name", "")
-
-    if tool_name == "EnterPlanMode":
-        state.variables["plan_mode"] = True
-        logger.info(f"Session {state.session_id}: plan_mode=True (entered plan mode)")
-    elif tool_name == "ExitPlanMode":
-        state.variables["plan_mode"] = False
-        logger.info(f"Session {state.session_id}: plan_mode=False (exited plan mode)")
-
-
-def detect_plan_mode_from_context(event: "HookEvent", state: "WorkflowState") -> None:
+def detect_plan_mode_from_context(prompt: str, state: "WorkflowState") -> None:
     """Detect plan mode from system reminders injected by Claude Code.
 
     Claude Code injects system reminders like "Plan mode is active" when the user
@@ -195,17 +169,12 @@ def detect_plan_mode_from_context(event: "HookEvent", state: "WorkflowState") ->
     IMPORTANT: Only matches indicators within <system-reminder> tags to avoid
     false positives from handoff context or user messages that mention plan mode.
 
-    This complements detect_plan_mode() which only catches programmatic tool calls.
-
     Args:
-        event: The BEFORE_AGENT hook event (contains user prompt with system reminders)
+        prompt: The user prompt text (may contain system reminders)
         state: Current workflow state (modified in place)
     """
-    if not event.data:
+    if not prompt:
         return
-
-    # Check for plan mode system reminder in the prompt
-    prompt = event.data.get("prompt", "") or ""
 
     # Extract only content within <system-reminder> tags to avoid false positives
     # from handoff context or user messages mentioning plan mode
@@ -247,6 +216,24 @@ def detect_plan_mode_from_context(event: "HookEvent", state: "WorkflowState") ->
                     f"(detected from system reminder: '{indicator}')"
                 )
             return
+
+
+async def handle_detect_plan_mode_from_context(
+    context: Any, **kwargs: Any
+) -> dict[str, Any] | None:
+    """Action handler for detect_plan_mode_from_context.
+
+    Reads the prompt from context.event_data and delegates to
+    detect_plan_mode_from_context for system-reminder-based plan mode detection.
+
+    This allows plan mode detection to be triggered from YAML workflow actions
+    instead of being hardcoded in the workflow engine.
+    """
+    prompt = ""
+    if context.event_data:
+        prompt = context.event_data.get("prompt", "") or ""
+    detect_plan_mode_from_context(prompt, context.state)
+    return None
 
 
 def detect_mcp_call(event: "HookEvent", state: "WorkflowState") -> None:
