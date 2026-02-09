@@ -159,20 +159,31 @@ def register_orchestrator(
                 "skipped": [],
             }
 
-        # Check how many agents are currently running for this project
-        # Get exact count by not limiting the query - ensures max_concurrent is respected
-        from gobby.storage.worktrees import WorktreeStatus
+        # Atomically check capacity and reserve slots to prevent concurrent
+        # orchestrate_ready_tasks calls from exceeding max_concurrent
+        from gobby.workflows.state_manager import WorkflowStateManager
 
-        active_worktrees = worktree_storage.list_worktrees(
-            project_id=resolved_project_id,
-            status=WorktreeStatus.ACTIVE.value,
-        )
+        state_manager = WorkflowStateManager(task_manager.db)
+        reserved_slots = 0
 
-        # Count worktrees claimed by active sessions (have agent_session_id)
-        current_running = sum(1 for wt in active_worktrees if wt.agent_session_id)
-        available_slots = max(0, max_concurrent - current_running)
+        if parent_session_id:
+            reserved_slots = state_manager.check_and_reserve_slots(
+                parent_session_id,
+                max_concurrent=max_concurrent,
+                requested=len(ready_tasks),
+            )
+        else:
+            # No parent session — fall back to non-atomic check
+            from gobby.storage.worktrees import WorktreeStatus
 
-        if available_slots == 0:
+            active_worktrees = worktree_storage.list_worktrees(
+                project_id=resolved_project_id,
+                status=WorktreeStatus.ACTIVE.value,
+            )
+            current_running = sum(1 for wt in active_worktrees if wt.agent_session_id)
+            reserved_slots = max(0, min(len(ready_tasks), max_concurrent - current_running))
+
+        if reserved_slots == 0:
             return {
                 "success": True,
                 "message": f"Max concurrent limit reached ({max_concurrent} agents running)",
@@ -180,20 +191,16 @@ def register_orchestrator(
                 "skipped": [
                     {"task_id": t.id, "reason": "max_concurrent limit reached"} for t in ready_tasks
                 ],
-                "current_running": current_running,
             }
 
-        # Limit to available slots
-        tasks_to_spawn = ready_tasks[:available_slots]
-        tasks_skipped = ready_tasks[available_slots:]
+        # Limit to reserved slots
+        tasks_to_spawn = ready_tasks[:reserved_slots]
+        tasks_skipped = ready_tasks[reserved_slots:]
 
         # Resolve effective provider and model for implementation tasks
         # Priority: explicit parameter > workflow variable > default
-        from gobby.workflows.state_manager import WorkflowStateManager
-
         workflow_vars: dict[str, Any] = {}
         if parent_session_id:
-            state_manager = WorkflowStateManager(task_manager.db)
             state = state_manager.get_state(parent_session_id)
             if state:
                 workflow_vars = state.variables
@@ -611,19 +618,23 @@ def register_orchestrator(
                     }
                 )
 
-        # Atomically append spawned agents to workflow state
-        if spawned and parent_session_id:
+        # Atomically append spawned agents and release reserved slots
+        if parent_session_id:
             try:
-                state_manager = WorkflowStateManager(task_manager.db)
                 state_manager.update_orchestration_lists(
                     parent_session_id,
-                    append_to_spawned=spawned,
+                    append_to_spawned=spawned or None,
                 )
-                logger.info(
-                    f"Appended {len(spawned)} agents to spawned_agents in workflow state"
-                )
+                if spawned:
+                    logger.info(
+                        f"Appended {len(spawned)} agents to spawned_agents in workflow state"
+                    )
             except Exception as e:
                 logger.warning(f"Failed to update workflow state: {e}")
+            finally:
+                # Release all reserved slots — spawned agents are now tracked
+                # in spawned_agents list, failed ones weren't added
+                state_manager.release_reserved_slots(parent_session_id, reserved_slots)
 
         return {
             "success": True,
@@ -632,7 +643,6 @@ def register_orchestrator(
             "skipped": skipped,
             "spawned_count": len(spawned),
             "skipped_count": len(skipped),
-            "current_running": current_running + len(spawned),
             "max_concurrent": max_concurrent,
         }
 

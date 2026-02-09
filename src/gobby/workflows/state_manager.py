@@ -204,6 +204,80 @@ class WorkflowStateManager:
             )
             return True
 
+    def check_and_reserve_slots(
+        self,
+        session_id: str,
+        max_concurrent: int,
+        requested: int,
+    ) -> int:
+        """Atomically check capacity and reserve spawn slots.
+
+        Prevents concurrent orchestrate_ready_tasks calls from both seeing
+        capacity and both spawning, exceeding max_concurrent.
+
+        Uses _reserved_slots counter in variables to track pending spawns.
+        Caller MUST call release_reserved_slots after spawning completes
+        (whether success or failure).
+
+        Args:
+            session_id: Orchestrator session ID.
+            max_concurrent: Maximum concurrent agents allowed.
+            requested: Number of slots requested.
+
+        Returns:
+            Number of slots actually reserved (0 if at capacity).
+        """
+        with self.db.transaction_immediate() as conn:
+            row = conn.execute(
+                "SELECT variables FROM workflow_states WHERE session_id = ?",
+                (session_id,),
+            ).fetchone()
+            if not row:
+                return 0
+
+            variables = json.loads(row["variables"]) if row["variables"] else {}
+            spawned_count = len(variables.get("spawned_agents", []))
+            reserved: int = int(variables.get("_reserved_slots", 0))
+            total_active = spawned_count + reserved
+            available = max(0, max_concurrent - total_active)
+            slots: int = min(available, requested)
+
+            if slots > 0:
+                variables["_reserved_slots"] = reserved + slots
+                conn.execute(
+                    "UPDATE workflow_states SET variables = ?, updated_at = ? "
+                    "WHERE session_id = ?",
+                    (json.dumps(variables), datetime.now(UTC).isoformat(), session_id),
+                )
+
+            return slots
+
+    def release_reserved_slots(self, session_id: str, count: int) -> None:
+        """Release reserved spawn slots after spawning completes or fails.
+
+        Args:
+            session_id: Orchestrator session ID.
+            count: Number of slots to release.
+        """
+        if count <= 0:
+            return
+        with self.db.transaction_immediate() as conn:
+            row = conn.execute(
+                "SELECT variables FROM workflow_states WHERE session_id = ?",
+                (session_id,),
+            ).fetchone()
+            if not row:
+                return
+
+            variables = json.loads(row["variables"]) if row["variables"] else {}
+            current_reserved: int = int(variables.get("_reserved_slots", 0))
+            variables["_reserved_slots"] = max(0, current_reserved - count)
+            conn.execute(
+                "UPDATE workflow_states SET variables = ?, updated_at = ? "
+                "WHERE session_id = ?",
+                (json.dumps(variables), datetime.now(UTC).isoformat(), session_id),
+            )
+
     def delete_state(self, session_id: str) -> None:
         """
         Clear step workflow state while preserving lifecycle variables.

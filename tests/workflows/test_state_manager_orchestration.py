@@ -258,3 +258,119 @@ class TestUpdateOrchestrationLists:
         assert state.variables["session_task"] == "#123"
         assert state.variables["custom_var"] == "keep_me"
         assert len(state.variables["spawned_agents"]) == 1
+
+
+class TestCheckAndReserveSlots:
+    """Tests for atomic slot reservation."""
+
+    def test_reserve_slots_basic(self, state_manager, db) -> None:
+        """Reserves requested slots when capacity available."""
+        _insert_state(db, "sess1", {"spawned_agents": [{"session_id": "a1"}]})
+
+        reserved = state_manager.check_and_reserve_slots("sess1", max_concurrent=3, requested=2)
+
+        assert reserved == 2
+        state = state_manager.get_state("sess1")
+        assert state is not None
+        assert state.variables["_reserved_slots"] == 2
+
+    def test_reserve_slots_limited_by_capacity(self, state_manager, db) -> None:
+        """Reserves only available slots when requesting more than capacity."""
+        _insert_state(
+            db, "sess1", {"spawned_agents": [{"session_id": "a1"}, {"session_id": "a2"}]}
+        )
+
+        reserved = state_manager.check_and_reserve_slots("sess1", max_concurrent=3, requested=5)
+
+        assert reserved == 1  # Only 1 slot available (3 - 2 spawned)
+
+    def test_reserve_slots_at_capacity(self, state_manager, db) -> None:
+        """Returns 0 when at capacity."""
+        _insert_state(
+            db,
+            "sess1",
+            {"spawned_agents": [{"session_id": "a1"}, {"session_id": "a2"}]},
+        )
+
+        reserved = state_manager.check_and_reserve_slots("sess1", max_concurrent=2, requested=1)
+
+        assert reserved == 0
+
+    def test_reserve_slots_accounts_for_existing_reservations(self, state_manager, db) -> None:
+        """Existing _reserved_slots count against capacity."""
+        _insert_state(
+            db,
+            "sess1",
+            {"spawned_agents": [{"session_id": "a1"}], "_reserved_slots": 1},
+        )
+
+        # 1 spawned + 1 reserved = 2 active, max 3 = 1 available
+        reserved = state_manager.check_and_reserve_slots("sess1", max_concurrent=3, requested=5)
+
+        assert reserved == 1
+        state = state_manager.get_state("sess1")
+        assert state is not None
+        # Should be 1 (existing) + 1 (new) = 2
+        assert state.variables["_reserved_slots"] == 2
+
+    def test_reserve_slots_session_not_found(self, state_manager, db) -> None:
+        """Returns 0 for nonexistent session."""
+        reserved = state_manager.check_and_reserve_slots("nonexistent", max_concurrent=5, requested=3)
+
+        assert reserved == 0
+
+    def test_release_reserved_slots(self, state_manager, db) -> None:
+        """Releasing slots decrements _reserved_slots."""
+        _insert_state(db, "sess1", {"_reserved_slots": 3})
+
+        state_manager.release_reserved_slots("sess1", 2)
+
+        state = state_manager.get_state("sess1")
+        assert state is not None
+        assert state.variables["_reserved_slots"] == 1
+
+    def test_release_reserved_slots_floors_at_zero(self, state_manager, db) -> None:
+        """Releasing more than reserved floors at 0."""
+        _insert_state(db, "sess1", {"_reserved_slots": 1})
+
+        state_manager.release_reserved_slots("sess1", 5)
+
+        state = state_manager.get_state("sess1")
+        assert state is not None
+        assert state.variables["_reserved_slots"] == 0
+
+    def test_release_reserved_slots_noop_for_zero(self, state_manager, db) -> None:
+        """Releasing 0 slots is a no-op."""
+        _insert_state(db, "sess1", {"_reserved_slots": 2})
+
+        state_manager.release_reserved_slots("sess1", 0)
+
+        state = state_manager.get_state("sess1")
+        assert state is not None
+        assert state.variables["_reserved_slots"] == 2
+
+    def test_reserve_then_release_cycle(self, state_manager, db) -> None:
+        """Full reserve-spawn-release cycle keeps state consistent."""
+        _insert_state(db, "sess1", {"spawned_agents": []})
+
+        # Reserve 2 slots
+        reserved = state_manager.check_and_reserve_slots("sess1", max_concurrent=3, requested=2)
+        assert reserved == 2
+
+        # Spawn 2 agents and update lists
+        state_manager.update_orchestration_lists(
+            "sess1",
+            append_to_spawned=[{"session_id": "a1"}, {"session_id": "a2"}],
+        )
+
+        # Release reservations
+        state_manager.release_reserved_slots("sess1", 2)
+
+        state = state_manager.get_state("sess1")
+        assert state is not None
+        assert len(state.variables["spawned_agents"]) == 2
+        assert state.variables["_reserved_slots"] == 0
+
+        # Next reservation should see 2 active, 1 available
+        reserved = state_manager.check_and_reserve_slots("sess1", max_concurrent=3, requested=5)
+        assert reserved == 1
