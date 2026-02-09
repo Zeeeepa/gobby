@@ -203,7 +203,7 @@ steps:
           Wait for the task to be closed:
 
           mcp__gobby__call_tool(
-            server_name="gobby-tasks",
+            server_name="gobby-orchestration",
             tool_name="wait_for_task",
             arguments={
               "task_id": "{{ variables.current_task_id }}",
@@ -227,17 +227,17 @@ steps:
         when: "task_tree_complete(variables.session_task)"
       # Task completed — proceed to code review
       - to: code_review
-        when: "mcp_result_has('gobby-tasks', 'wait_for_task', 'completed', true)"
+        when: "mcp_result_has('gobby-orchestration', 'wait_for_task', 'completed', true)"
       # Timed out but under max retries — increment counter and self-loop
       - to: wait_for_worker
-        when: "mcp_result_has('gobby-tasks', 'wait_for_task', 'timed_out', true) and variables.get('wait_retry_count', 0) < variables.get('max_wait_retries', 3)"
+        when: "mcp_result_has('gobby-orchestration', 'wait_for_task', 'timed_out', true) and variables.get('wait_retry_count', 0) < variables.get('max_wait_retries', 3)"
         on_transition:
           - action: set_variable
             name: wait_retry_count
             value: "{{ (variables.get('wait_retry_count', 0) | int) + 1 }}"
       # Timed out and max retries exceeded — skip to cleanup
       - to: cleanup
-        when: "mcp_result_has('gobby-tasks', 'wait_for_task', 'timed_out', true)"
+        when: "mcp_result_has('gobby-orchestration', 'wait_for_task', 'timed_out', true)"
 
   - name: code_review
     description: "Review worker's code changes"

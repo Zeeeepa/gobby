@@ -116,8 +116,6 @@ def setup_internal_registries(
                 task_validator=task_validator,
                 config=_config,
                 agent_runner=agent_runner,
-                worktree_storage=worktree_storage,
-                git_manager=git_manager,
                 project_id=project_id,
             )
             manager.add_registry(tasks_registry)
@@ -243,6 +241,21 @@ def setup_internal_registries(
         )
         manager.add_registry(worktrees_registry)
         logger.debug("Worktrees registry initialized")
+
+    # Initialize orchestration registry if task_manager and worktree_storage are available
+    if task_manager is not None and worktree_storage is not None:
+        from gobby.mcp_proxy.tools.task_orchestration import create_orchestration_registry
+
+        orchestration_registry = create_orchestration_registry(
+            task_manager=task_manager,
+            worktree_storage=worktree_storage,
+            git_manager=git_manager,
+            agent_runner=agent_runner,
+            project_id=project_id,
+            config=_config,
+        )
+        manager.add_registry(orchestration_registry)
+        logger.debug("Orchestration registry initialized")
 
     # Initialize clones registry if clone_storage is available
     if clone_storage is not None:
