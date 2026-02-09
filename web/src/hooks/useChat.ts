@@ -53,6 +53,7 @@ interface WebSocketMessage {
 interface ChatStreamChunk {
   type: 'chat_stream'
   message_id: string
+  request_id?: string
   content: string
   done: boolean
   tool_calls_count?: number
@@ -61,12 +62,14 @@ interface ChatStreamChunk {
 interface ChatError {
   type: 'chat_error'
   message_id?: string
+  request_id?: string
   error: string
 }
 
 interface ToolStatusMessage {
   type: 'tool_status'
   message_id: string
+  request_id?: string
   tool_call_id: string
   status: 'calling' | 'completed' | 'error'
   tool_name?: string
@@ -79,6 +82,7 @@ interface ToolStatusMessage {
 interface ChatThinkingMessage {
   type: 'chat_thinking'
   message_id: string
+  request_id?: string
   conversation_id: string
   content?: string
 }
@@ -136,6 +140,14 @@ export function useChat() {
   // Track pending command request IDs for tool_result routing
   const pendingCommandsRef = useRef<Map<string, { server: string; tool: string }>>(new Map())
 
+  // Track the active chat request to filter stale stream chunks from cancelled requests
+  const activeRequestIdRef = useRef<string | null>(null)
+
+  /** Returns true if the chunk belongs to the currently active request. */
+  function isActiveRequest(requestId?: string): boolean {
+    return requestId === activeRequestIdRef.current
+  }
+
   // Refs for handlers to avoid stale closures in WebSocket callbacks
   const handleChatStreamRef = useRef<(chunk: ChatStreamChunk) => void>(() => {})
   const handleChatErrorRef = useRef<(error: ChatError) => void>(() => {})
@@ -177,6 +189,7 @@ export function useChat() {
       setIsConnected(false)
       setIsStreaming(false)
       setIsThinking(false)
+      activeRequestIdRef.current = null // No active request on disconnect
 
       // Reconnect after 2 seconds
       reconnectTimeoutRef.current = window.setTimeout(() => {
@@ -226,6 +239,12 @@ export function useChat() {
 
   // Handle streaming chat chunks
   const handleChatStream = useCallback((chunk: ChatStreamChunk) => {
+    // Drop stale chunks from a cancelled request
+    if (!isActiveRequest(chunk.request_id)) {
+      console.debug('Dropping stale chat_stream chunk, request_id:', chunk.request_id)
+      return
+    }
+
     // First text chunk clears thinking state
     if (chunk.content) {
       setIsThinking(false)
@@ -264,6 +283,12 @@ export function useChat() {
 
   // Handle chat errors
   const handleChatError = useCallback((error: ChatError) => {
+    // Drop stale errors from a cancelled request
+    if (!isActiveRequest(error.request_id)) {
+      console.debug('Dropping stale chat_error, request_id:', error.request_id)
+      return
+    }
+
     setIsStreaming(false)
     setIsThinking(false)
     setMessages((prev) => [
@@ -279,6 +304,12 @@ export function useChat() {
 
   // Handle tool status updates
   const handleToolStatus = useCallback((status: ToolStatusMessage) => {
+    // Drop stale tool status from a cancelled request
+    if (!isActiveRequest(status.request_id)) {
+      console.debug('Dropping stale tool_status, request_id:', status.request_id)
+      return
+    }
+
     // Tool call starting clears thinking state
     if (status.status === 'calling') {
       setIsThinking(false)
@@ -325,6 +356,12 @@ export function useChat() {
   // the thinking phase so the thinking indicator renders correctly and
   // accumulate thinking text for the collapsible block.
   const handleChatThinking = useCallback((msg: ChatThinkingMessage) => {
+    // Drop stale thinking from a cancelled request
+    if (!isActiveRequest(msg.request_id)) {
+      console.debug('Dropping stale chat_thinking, request_id:', msg.request_id)
+      return
+    }
+
     setIsThinking(true)
     setMessages((prev) => {
       const existingIndex = prev.findIndex((m) => m.id === msg.message_id)
@@ -421,6 +458,7 @@ export function useChat() {
   const clearHistory = useCallback(() => {
     setMessages([])
     localStorage.removeItem(STORAGE_KEY)
+    activeRequestIdRef.current = null // Reject any in-flight chunks
     // Start a fresh conversation — new ID so the backend creates a new ChatSession
     conversationIdRef.current = uuid()
     localStorage.removeItem(CONVERSATION_ID_KEY)
@@ -433,6 +471,7 @@ export function useChat() {
       type: 'stop_chat',
       conversation_id: conversationIdRef.current,
     }))
+    activeRequestIdRef.current = null // Reject any further chunks from this request
     setIsStreaming(false) // Optimistic update
     setIsThinking(false)
   }, [])
@@ -445,7 +484,9 @@ export function useChat() {
       return false
     }
 
-    const messageId = `user-${Date.now()}`
+    const messageId = `user-${uuid()}`
+    const requestId = uuid()
+    activeRequestIdRef.current = requestId
 
     // Add user message to state
     setMessages((prev) => [
@@ -467,6 +508,7 @@ export function useChat() {
       content,
       message_id: messageId,
       conversation_id: conversationIdRef.current,
+      request_id: requestId,
     }
 
     // Include model if specified
@@ -512,6 +554,17 @@ export function useChat() {
     }))
   }, [])
 
+  // Respond to an AskUserQuestion pending in the backend
+  const respondToQuestion = useCallback((toolCallId: string, answers: Record<string, string>) => {
+    if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) return
+    wsRef.current.send(JSON.stringify({
+      type: 'ask_user_response',
+      conversation_id: conversationIdRef.current,
+      tool_call_id: toolCallId,
+      answers,
+    }))
+  }, [])
+
   // Connect on mount
   useEffect(() => {
     connect()
@@ -533,5 +586,6 @@ export function useChat() {
     stopStreaming,
     clearHistory,
     executeCommand,
+    respondToQuestion,
   }
 }
