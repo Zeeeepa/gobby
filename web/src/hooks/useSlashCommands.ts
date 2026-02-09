@@ -5,6 +5,8 @@ export interface CommandInfo {
   tool: string
   name: string // display name: "server.tool"
   description: string
+  isLocal?: boolean
+  action?: string
 }
 
 interface ParsedCommand {
@@ -12,6 +14,11 @@ interface ParsedCommand {
   tool: string
   args: Record<string, string>
 }
+
+// Local commands that execute client-side actions (no MCP round-trip)
+const LOCAL_COMMANDS: Array<{ name: string; description: string; action: string }> = [
+  { name: 'settings', description: 'Open settings panel', action: 'open_settings' },
+]
 
 // Built-in aliases: /shortcut -> server.tool
 const ALIASES: Record<string, { server: string; tool: string }> = {
@@ -58,7 +65,19 @@ export function useSlashCommands() {
           }
         }
 
-        // Add alias entries at the top
+        // Add local commands at the top
+        for (const local of LOCAL_COMMANDS) {
+          cmds.unshift({
+            server: '_local',
+            tool: local.action,
+            name: local.name,
+            description: local.description,
+            isLocal: true,
+            action: local.action,
+          })
+        }
+
+        // Add alias entries at the top (after local commands)
         for (const [alias, target] of Object.entries(ALIASES)) {
           const existing = cmds.find(
             (c) => c.server === target.server && c.tool === target.tool
@@ -90,6 +109,12 @@ export function useSlashCommands() {
 
       const parts = trimmed.split(/\s+/)
       const cmdName = parts[0]
+
+      // Check local commands first
+      const localCmd = LOCAL_COMMANDS.find((c) => c.name === cmdName)
+      if (localCmd) {
+        return { server: '_local', tool: localCmd.action, args: {} }
+      }
 
       // Check alias first
       const alias = ALIASES[cmdName]

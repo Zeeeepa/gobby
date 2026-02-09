@@ -207,9 +207,12 @@ class ChatSession:
         """Whether an AskUserQuestion is currently awaiting a response."""
         return self._pending_question is not None
 
-    async def send_message(self, content: str) -> AsyncIterator[ChatEvent]:
+    async def send_message(self, content: str | list[dict[str, Any]]) -> AsyncIterator[ChatEvent]:
         """
         Send a user message and yield streaming events.
+
+        Content can be a plain string or a list of content blocks
+        (e.g. text + images in the standard Claude API format).
 
         Yields ChatEvent instances (TextChunk, ToolCallEvent,
         ToolResultEvent, DoneEvent) matching the existing protocol.
@@ -220,7 +223,15 @@ class ChatSession:
         async with self._lock:
             self.last_activity = datetime.now(UTC)
 
-            await self._client.query(content)
+            if isinstance(content, list):
+                # SDK expects str or AsyncIterable[dict] — wrap content blocks
+                # in an async generator yielding a single user message
+                async def _content_blocks() -> AsyncIterator[dict[str, Any]]:
+                    yield {"role": "user", "content": content}
+
+                await self._client.query(_content_blocks())
+            else:
+                await self._client.query(content)
 
             tool_calls_count = 0
             needs_spacing_before_text = False

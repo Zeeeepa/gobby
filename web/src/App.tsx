@@ -6,7 +6,8 @@ import { useTmuxSessions } from './hooks/useTmuxSessions'
 import { useSlashCommands } from './hooks/useSlashCommands'
 import { ChatMessages } from './components/ChatMessages'
 import { ChatInput } from './components/ChatInput'
-import { Settings, SettingsIcon } from './components/Settings'
+import type { QueuedFile } from './components/ChatInput'
+import { Settings } from './components/Settings'
 import { TerminalPanel } from './components/Terminal'
 import { TabBar } from './components/TabBar'
 import { TerminalsPage } from './components/TerminalsPage'
@@ -22,27 +23,41 @@ export default function App() {
   const [activeTab, setActiveTab] = useState<string>('chat')
 
   // Wrap sendMessage to include the selected model and handle slash commands
-  const handleSendMessage = useCallback((content: string) => {
+  const handleSendMessage = useCallback((content: string, files?: QueuedFile[]) => {
     // Check for slash command first
     const cmd = parseCommand(content)
     if (cmd) {
+      // Intercept local commands
+      if (cmd.server === '_local') {
+        if (cmd.tool === 'open_settings') {
+          setSettingsOpen(true)
+        }
+        return
+      }
       executeCommand(cmd.server, cmd.tool, cmd.args)
       return
     }
-    sendMessage(content, settings.model)
+    sendMessage(content, settings.model, files)
   }, [parseCommand, executeCommand, sendMessage, settings.model])
 
   const handleInputChange = useCallback((value: string) => {
     filterCommands(value)
   }, [filterCommands])
 
-  const handleCommandSelect = useCallback((cmd: { server: string; tool: string }) => {
+  const handleCommandSelect = useCallback((cmd: { server: string; tool: string; isLocal?: boolean; action?: string }) => {
+    if (cmd.server === '_local') {
+      if (cmd.action === 'open_settings' || cmd.tool === 'open_settings') {
+        setSettingsOpen(true)
+      }
+      return
+    }
     executeCommand(cmd.server, cmd.tool)
   }, [executeCommand])
 
   const tabs = [
     { id: 'chat', label: 'Chat' },
-    { id: 'terminals', label: 'Terminals', badge: tmux.sessions.length },
+    { id: 'terminals', label: 'Terminals' },
+    { id: 'files', label: 'Files' },
   ]
 
   return (
@@ -70,13 +85,6 @@ export default function App() {
               <TrashIcon />
             </button>
           )}
-          <button
-            className="settings-button"
-            onClick={() => setSettingsOpen(true)}
-            title="Settings"
-          >
-            <SettingsIcon />
-          </button>
         </div>
       </header>
 
@@ -107,14 +115,13 @@ export default function App() {
             onOutput={onOutput}
           />
         </>
-      ) : (
+      ) : activeTab === 'terminals' ? (
         <TerminalsPage
           sessions={tmux.sessions}
           attachedSession={tmux.attachedSession}
           streamingId={tmux.streamingId}
           isLoading={tmux.isLoading}
           attachSession={tmux.attachSession}
-          detachSession={tmux.detachSession}
           createSession={tmux.createSession}
           killSession={tmux.killSession}
           refreshSessions={tmux.refreshSessions}
@@ -122,7 +129,12 @@ export default function App() {
           resizeTerminal={tmux.resizeTerminal}
           onOutput={tmux.onOutput}
         />
-      )}
+      ) : activeTab === 'files' ? (
+        <div className="files-placeholder">
+          <h3>Files</h3>
+          <p>Coming soon</p>
+        </div>
+      ) : null}
 
       <Settings
         isOpen={settingsOpen}

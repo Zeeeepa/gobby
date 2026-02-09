@@ -10,7 +10,6 @@ interface TerminalsPageProps {
   streamingId: string | null
   isLoading: boolean
   attachSession: (sessionName: string, socket: string) => void
-  detachSession: () => void
   createSession: (name?: string, socket?: string) => void
   killSession: (sessionName: string, socket: string) => void
   refreshSessions: () => void
@@ -25,7 +24,6 @@ export function TerminalsPage({
   streamingId,
   isLoading,
   attachSession,
-  detachSession,
   createSession,
   killSession,
   refreshSessions,
@@ -34,6 +32,27 @@ export function TerminalsPage({
   onOutput,
 }: TerminalsPageProps) {
   const [sidebarOpen, setSidebarOpen] = useState(true)
+  const [isInteractive, setIsInteractive] = useState(false)
+
+  // Reset interactive mode when switching sessions
+  useEffect(() => {
+    setIsInteractive(false)
+  }, [streamingId])
+
+  // Track attached session's socket for kill
+  const attachedSocketRef = useRef<string>('default')
+
+  const handleAttach = useCallback((name: string, socket: string) => {
+    attachSession(name, socket)
+    attachedSocketRef.current = socket
+    setSidebarOpen(false)
+  }, [attachSession])
+
+  const handleKill = useCallback((sessionName: string, socket: string) => {
+    if (!window.confirm(`Kill session "${sessionName}"?`)) return
+    killSession(sessionName, socket)
+    setIsInteractive(false)
+  }, [killSession])
 
   const defaultSessions = sessions.filter(s => s.socket === 'default')
   const gobbySessions = sessions.filter(s => s.socket === 'gobby')
@@ -83,9 +102,7 @@ export function TerminalsPage({
                 sessions={defaultSessions}
                 attachedSession={attachedSession}
                 streamingId={streamingId}
-                onAttach={attachSession}
-                onDetach={detachSession}
-                onKill={killSession}
+                onAttach={handleAttach}
               />
             )}
 
@@ -95,9 +112,7 @@ export function TerminalsPage({
                 sessions={gobbySessions}
                 attachedSession={attachedSession}
                 streamingId={streamingId}
-                onAttach={attachSession}
-                onDetach={detachSession}
-                onKill={killSession}
+                onAttach={handleAttach}
               />
             )}
           </div>
@@ -110,10 +125,16 @@ export function TerminalsPage({
           <TerminalView
             streamingId={streamingId}
             sessionName={attachedSession}
+            isInteractive={isInteractive}
+            onSetInteractive={setIsInteractive}
             sendInput={sendInput}
             resizeTerminal={resizeTerminal}
             onOutput={onOutput}
-            onDetach={detachSession}
+            onKill={() => {
+              if (attachedSession) {
+                handleKill(attachedSession, attachedSocketRef.current)
+              }
+            }}
           />
         ) : (
           <div className="terminals-empty">
@@ -130,7 +151,7 @@ export function TerminalsPage({
         )}
 
         {/* Mobile special-key toolbar */}
-        {streamingId && (
+        {streamingId && isInteractive && (
           <div className="terminals-mobile-toolbar">
             <button onClick={() => sendInput('\x1b')}>Esc</button>
             <button onClick={() => sendInput('\t')}>Tab</button>
@@ -155,11 +176,9 @@ interface SessionGroupProps {
   attachedSession: string | null
   streamingId: string | null
   onAttach: (name: string, socket: string) => void
-  onDetach: () => void
-  onKill: (name: string, socket: string) => void
 }
 
-function SessionGroup({ label, sessions, attachedSession, streamingId, onAttach, onDetach, onKill }: SessionGroupProps) {
+function SessionGroup({ label, sessions, attachedSession, streamingId, onAttach }: SessionGroupProps) {
   return (
     <div className="session-group">
       <div className="session-group-label">{label}</div>
@@ -169,17 +188,9 @@ function SessionGroup({ label, sessions, attachedSession, streamingId, onAttach,
           <div
             key={`${session.socket}-${session.name}`}
             className={`session-item ${isAttached ? 'attached' : ''}`}
+            onClick={() => onAttach(session.name, session.socket)}
           >
-            <div
-              className="session-item-main"
-              onClick={() => {
-                if (isAttached) {
-                  onDetach()
-                } else {
-                  onAttach(session.name, session.socket)
-                }
-              }}
-            >
+            <div className="session-item-main">
               <span className={`session-dot ${session.socket === 'gobby' ? 'agent' : 'user'}`} />
               <span className="session-name">{session.name}</span>
               {session.agent_managed && (
@@ -193,18 +204,6 @@ function SessionGroup({ label, sessions, attachedSession, streamingId, onAttach,
               {session.pane_pid && (
                 <span className="session-pid">PID {session.pane_pid}</span>
               )}
-              {!session.agent_managed && (
-                <button
-                  className="session-kill-btn"
-                  onClick={(e) => {
-                    e.stopPropagation()
-                    onKill(session.name, session.socket)
-                  }}
-                  title="Kill session"
-                >
-                  <XIcon />
-                </button>
-              )}
             </div>
           </div>
         )
@@ -216,16 +215,24 @@ function SessionGroup({ label, sessions, attachedSession, streamingId, onAttach,
 interface TerminalViewProps {
   streamingId: string
   sessionName: string | null
+  isInteractive: boolean
+  onSetInteractive: (interactive: boolean) => void
   sendInput: (data: string) => void
   resizeTerminal: (rows: number, cols: number) => void
   onOutput: (callback: (runId: string, data: string) => void) => void
-  onDetach: () => void
+  onKill: () => void
 }
 
-function TerminalView({ streamingId, sessionName, sendInput, resizeTerminal, onOutput, onDetach }: TerminalViewProps) {
+function TerminalView({ streamingId, sessionName, isInteractive, onSetInteractive, sendInput, resizeTerminal, onOutput, onKill }: TerminalViewProps) {
   const containerRef = useRef<HTMLDivElement>(null)
   const terminalRef = useRef<XTerm | null>(null)
   const fitAddonRef = useRef<FitAddon | null>(null)
+  const isInteractiveRef = useRef(isInteractive)
+
+  // Keep ref in sync for use inside terminal.onData callback
+  useEffect(() => {
+    isInteractiveRef.current = isInteractive
+  }, [isInteractive])
 
   // Initialize terminal
   useEffect(() => {
@@ -240,7 +247,7 @@ function TerminalView({ streamingId, sessionName, sendInput, resizeTerminal, onO
         cursor: '#3b82f6',
         cursorAccent: '#0a0a0a',
         selectionBackground: '#3b82f680',
-        black: '#0a0a0a',
+        black: '#e5e5e5',
         red: '#f87171',
         green: '#4ade80',
         yellow: '#facc15',
@@ -270,9 +277,11 @@ function TerminalView({ streamingId, sessionName, sendInput, resizeTerminal, onO
     terminalRef.current = terminal
     fitAddonRef.current = fitAddon
 
-    // Send input to backend
+    // Send input to backend only when interactive
     const inputDisposable = terminal.onData((data) => {
-      sendInput(data)
+      if (isInteractiveRef.current) {
+        sendInput(data)
+      }
     })
 
     // Send resize to backend
@@ -321,10 +330,24 @@ function TerminalView({ streamingId, sessionName, sendInput, resizeTerminal, onO
         <span className="terminals-terminal-title">
           <TerminalIcon size={14} />
           {sessionName || 'Terminal'}
+          {!isInteractive && (
+            <span className="read-only-badge">read-only</span>
+          )}
         </span>
-        <button className="terminals-detach-btn" onClick={onDetach}>
-          Detach
-        </button>
+        <div className="terminals-header-actions">
+          {isInteractive ? (
+            <button className="terminals-detach-btn" onClick={() => onSetInteractive(false)}>
+              Detach
+            </button>
+          ) : (
+            <button className="terminals-attach-btn" onClick={() => onSetInteractive(true)}>
+              Attach
+            </button>
+          )}
+          <button className="terminals-kill-btn" onClick={onKill} title="Kill session">
+            <TrashIcon />
+          </button>
+        </div>
       </div>
       <div className="terminals-terminal-container">
         <div ref={containerRef} className="terminals-terminal-content" />
@@ -371,11 +394,11 @@ function PlusIcon() {
   )
 }
 
-function XIcon() {
+function TrashIcon() {
   return (
-    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <line x1="18" y1="6" x2="6" y2="18" />
-      <line x1="6" y1="6" x2="18" y2="18" />
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <polyline points="3 6 5 6 21 6" />
+      <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
     </svg>
   )
 }

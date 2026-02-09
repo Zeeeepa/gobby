@@ -136,12 +136,16 @@ class ChatMixin:
             websocket: Client WebSocket connection
             data: Parsed chat message
         """
-        content = data.get("content")
+        content: str | list[dict[str, Any]] = data.get("content", "")
+        content_blocks = data.get("content_blocks")
         conversation_id = data.get("conversation_id") or str(uuid4())
         model = data.get("model")
         request_id = data.get("request_id", "")
 
-        if not content or not isinstance(content, str):
+        # Use content_blocks (multimodal) if provided, otherwise plain text
+        if content_blocks and isinstance(content_blocks, list):
+            content = content_blocks
+        elif not content or not isinstance(content, str):
             await self._send_error(websocket, "Missing or invalid 'content' field")
             return
 
@@ -172,7 +176,7 @@ class ChatMixin:
         self,
         websocket: Any,
         conversation_id: str,
-        content: str,
+        content: str | list[dict[str, Any]],
         model: str | None,
         request_id: str = "",
     ) -> None:

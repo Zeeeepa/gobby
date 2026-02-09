@@ -21,6 +21,7 @@ interface AgentEventMessage {
   mode?: string
   provider?: string
   pid?: number
+  tmux_session_name?: string
 }
 
 export interface RunningAgent {
@@ -108,7 +109,7 @@ export function useTerminal() {
           mode: event.mode || 'embedded',
           provider: event.provider || 'unknown',
           pid: event.pid,
-          tmux_session_name: (event as Record<string, unknown>).tmux_session_name as string | undefined,
+          tmux_session_name: event.tmux_session_name,
         }]
       })
       // Auto-select if no agent selected (only for embedded)

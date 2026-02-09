@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import type { ChatMessage, ToolCall } from '../components/Message'
+import type { QueuedFile } from '../components/ChatInput'
 
 const STORAGE_KEY = 'gobby-chat-history'
 const CONVERSATION_ID_KEY = 'gobby-conversation-id'
@@ -477,8 +478,8 @@ export function useChat() {
   }, [])
 
   // Send a message (allowed even while streaming — cancels the active stream)
-  const sendMessage = useCallback((content: string, model?: string | null): boolean => {
-    console.log('sendMessage called:', content, 'model:', model)
+  const sendMessage = useCallback((content: string, model?: string | null, files?: QueuedFile[]): boolean => {
+    console.log('sendMessage called:', content, 'model:', model, 'files:', files?.length)
     if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) {
       console.error('WebSocket not connected, state:', wsRef.current?.readyState)
       return false
@@ -514,6 +515,32 @@ export function useChat() {
     // Include model if specified
     if (model) {
       payload.model = model
+    }
+
+    // Build content_blocks when files are attached
+    if (files && files.length > 0) {
+      const contentBlocks: Array<Record<string, unknown>> = []
+      for (const qf of files) {
+        if (qf.file.type.startsWith('image/') && qf.base64) {
+          contentBlocks.push({
+            type: 'image',
+            source: {
+              type: 'base64',
+              media_type: qf.file.type,
+              data: qf.base64,
+            },
+          })
+        } else if (qf.base64) {
+          contentBlocks.push({
+            type: 'text',
+            text: `[File: ${qf.file.name}]\n${atob(qf.base64)}`,
+          })
+        }
+      }
+      if (content) {
+        contentBlocks.push({ type: 'text', text: content })
+      }
+      payload.content_blocks = contentBlocks
     }
 
     console.log('Sending WebSocket message:', payload)

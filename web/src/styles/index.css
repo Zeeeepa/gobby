@@ -786,10 +786,109 @@ body {
 .chat-input-container {
   position: relative;
   display: flex;
-  gap: 0.75rem;
-  padding: 1rem 1.5rem;
+  flex-direction: column;
+  padding: 0.5rem 1.5rem 1rem;
   border-top: 1px solid var(--border);
   background: var(--bg-secondary);
+}
+
+.chat-input-row {
+  display: flex;
+  gap: 0.5rem;
+  align-items: flex-end;
+}
+
+/* Chat toolbar (paperclip + image buttons) */
+.chat-toolbar {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  padding-bottom: 0.25rem;
+}
+
+.chat-toolbar-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 2rem;
+  height: 2rem;
+  background: transparent;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  border-radius: 0.375rem;
+  transition: all 0.15s;
+  padding: 0;
+}
+
+.chat-toolbar-btn:hover:not(:disabled) {
+  color: var(--text-primary);
+  background: var(--bg-tertiary);
+}
+
+.chat-toolbar-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+/* File previews */
+.chat-file-previews {
+  display: flex;
+  gap: 0.5rem;
+  padding: 0.5rem 0;
+  overflow-x: auto;
+  max-height: 100px;
+}
+
+.chat-file-preview {
+  position: relative;
+  flex-shrink: 0;
+  border: 1px solid var(--border);
+  border-radius: 0.375rem;
+  overflow: hidden;
+  background: var(--bg-tertiary);
+}
+
+.chat-file-preview-img {
+  width: 64px;
+  height: 64px;
+  object-fit: cover;
+  display: block;
+}
+
+.chat-file-preview-name {
+  display: flex;
+  align-items: center;
+  gap: 0.375rem;
+  padding: 0.375rem 0.5rem;
+  font-size: calc(var(--font-size-base) * 0.75);
+  color: var(--text-secondary);
+  max-width: 140px;
+}
+
+.chat-file-preview-name span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.chat-file-remove-btn {
+  position: absolute;
+  top: 2px;
+  right: 2px;
+  width: 1.25rem;
+  height: 1.25rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.6);
+  color: var(--text-primary);
+  border: none;
+  border-radius: 50%;
+  font-size: 0.875rem;
+  line-height: 1;
+  cursor: pointer;
+  padding: 0;
 }
 
 /* Command palette */
@@ -874,16 +973,24 @@ body {
   cursor: not-allowed;
 }
 
-.send-button {
-  padding: 0.75rem 1.5rem;
-  background: var(--accent);
-  color: white;
-  border: none;
-  border-radius: 0.5rem;
-  font-size: var(--font-size-base);
-  font-weight: 500;
+.send-button,
+.stop-button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.5rem;
+  height: 2.5rem;
+  padding: 0;
+  border-radius: 50%;
+  flex-shrink: 0;
   cursor: pointer;
   transition: background 0.15s;
+  border: none;
+}
+
+.send-button {
+  background: var(--accent);
+  color: white;
 }
 
 .send-button:hover:not(:disabled) {
@@ -896,18 +1003,9 @@ body {
 }
 
 .stop-button {
-  display: flex;
-  align-items: center;
-  gap: 0.375rem;
-  padding: 0.75rem 1.5rem;
   background: #7f1d1d;
   color: #f87171;
   border: 1px solid #dc2626;
-  border-radius: 0.5rem;
-  font-size: var(--font-size-base);
-  font-weight: 500;
-  cursor: pointer;
-  transition: background 0.15s;
 }
 
 .stop-button:hover {
@@ -1618,6 +1716,69 @@ body {
   background: var(--bg-secondary);
   color: var(--text-primary);
   border-color: var(--text-muted);
+}
+
+.terminals-attach-btn {
+  padding: 0.25rem 0.625rem;
+  background: var(--accent);
+  border: 1px solid var(--accent);
+  border-radius: 0.375rem;
+  color: white;
+  font-size: calc(var(--font-size-base) * 0.75);
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.terminals-attach-btn:hover {
+  background: var(--accent-hover);
+  border-color: var(--accent-hover);
+}
+
+.terminals-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.terminals-kill-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.75rem;
+  height: 1.75rem;
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: 0.375rem;
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.terminals-kill-btn:hover {
+  color: #f87171;
+  border-color: #f87171;
+  background: rgba(248, 113, 113, 0.1);
+}
+
+/* Files tab placeholder */
+.files-placeholder {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  color: var(--text-muted);
+}
+
+.files-placeholder h3 {
+  font-size: calc(var(--font-size-base) * 1.125);
+  font-weight: 500;
+  color: var(--text-secondary);
+}
+
+.files-placeholder p {
+  font-size: calc(var(--font-size-base) * 0.875);
 }
 
 .terminals-terminal-container {
