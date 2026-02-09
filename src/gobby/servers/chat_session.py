@@ -14,14 +14,17 @@ from collections.abc import AsyncIterator
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path
+from typing import Any
 
 from claude_agent_sdk import (
     AssistantMessage,
     ClaudeAgentOptions,
     ClaudeSDKClient,
+    PermissionResultAllow,
     ResultMessage,
     TextBlock,
     ThinkingBlock,
+    ToolPermissionContext,
     ToolResultBlock,
     ToolUseBlock,
     UserMessage,
@@ -118,6 +121,9 @@ class ChatSession:
     _connected: bool = field(default=False, repr=False)
     _lock: asyncio.Lock = field(default_factory=asyncio.Lock, repr=False)
     _model: str | None = field(default=None, repr=False)
+    _pending_question: dict[str, Any] | None = field(default=None, repr=False)
+    _pending_answer_event: asyncio.Event | None = field(default=None, repr=False)
+    _pending_answers: dict[str, str] | None = field(default=None, repr=False)
 
     async def start(self, model: str | None = None) -> None:
         """Connect the ClaudeSDKClient with configured options."""
@@ -143,7 +149,7 @@ class ChatSession:
             max_turns=None,
             model=model or "claude-sonnet-4-5",
             allowed_tools=["mcp__gobby__*"],
-            permission_mode="bypassPermissions",
+            can_use_tool=self._can_use_tool,
             cli_path=cli_path,
             mcp_servers=mcp_config if mcp_config is not None else {},
             cwd=cwd,
@@ -154,6 +160,52 @@ class ChatSession:
         self._connected = True
         self.last_activity = datetime.now(UTC)
         logger.debug(f"ChatSession {self.conversation_id} started")
+
+    async def _can_use_tool(
+        self,
+        tool_name: str,
+        input_data: dict[str, Any],
+        context: ToolPermissionContext,
+    ) -> PermissionResultAllow:
+        """Callback for tool permission checks.
+
+        Auto-approves all tools except AskUserQuestion, which blocks
+        until the user provides answers via provide_answer().
+        """
+        if tool_name != "AskUserQuestion":
+            return PermissionResultAllow(updated_input=input_data)
+
+        # Store the pending question and block until answered
+        self._pending_question = input_data
+        self._pending_answers = None
+        self._pending_answer_event = asyncio.Event()
+
+        await self._pending_answer_event.wait()
+
+        result = PermissionResultAllow(
+            updated_input={
+                "questions": input_data.get("questions", []),
+                "answers": self._pending_answers,
+            }
+        )
+
+        # Clear pending state
+        self._pending_question = None
+        self._pending_answer_event = None
+        self._pending_answers = None
+
+        return result
+
+    def provide_answer(self, answers: dict[str, str]) -> None:
+        """Provide answers to a pending AskUserQuestion, unblocking the callback."""
+        self._pending_answers = answers
+        if self._pending_answer_event is not None:
+            self._pending_answer_event.set()
+
+    @property
+    def has_pending_question(self) -> bool:
+        """Whether an AskUserQuestion is currently awaiting a response."""
+        return self._pending_question is not None
 
     async def send_message(self, content: str) -> AsyncIterator[ChatEvent]:
         """
