@@ -3,6 +3,7 @@ import type { ToolCall } from './Message'
 
 interface ToolCallDisplayProps {
   toolCalls: ToolCall[]
+  onRespond?: (toolCallId: string, answers: Record<string, string>) => void
 }
 
 interface AskUserOption {
@@ -21,9 +22,12 @@ function isAskUserQuestion(call: ToolCall): boolean {
   return call.tool_name === 'AskUserQuestion'
 }
 
-function AskUserQuestionDisplay({ call }: { call: ToolCall }) {
+function AskUserQuestionDisplay({ call, onRespond }: { call: ToolCall; onRespond?: (toolCallId: string, answers: Record<string, string>) => void }) {
   const args = call.arguments as { questions?: AskUserQuestionItem[] } | undefined
   const questions = args?.questions
+  const [selectedOptions, setSelectedOptions] = useState<Record<number, string[]>>({})
+  const [otherTexts, setOtherTexts] = useState<Record<number, string>>({})
+  const [submitted, setSubmitted] = useState(false)
 
   if (!questions || !Array.isArray(questions)) {
     return null
@@ -31,8 +35,55 @@ function AskUserQuestionDisplay({ call }: { call: ToolCall }) {
 
   const isWaiting = call.status === 'calling'
 
+  const handleOptionClick = (qi: number, label: string, multiSelect: boolean) => {
+    if (submitted) return
+    setSelectedOptions((prev) => {
+      const current = prev[qi] || []
+      if (label === '__other__') {
+        // Toggle "Other"
+        if (current.includes('__other__')) {
+          return { ...prev, [qi]: current.filter((l) => l !== '__other__') }
+        }
+        if (multiSelect) {
+          return { ...prev, [qi]: [...current, '__other__'] }
+        }
+        return { ...prev, [qi]: ['__other__'] }
+      }
+      if (multiSelect) {
+        // Toggle in multi-select
+        if (current.includes(label)) {
+          return { ...prev, [qi]: current.filter((l) => l !== label) }
+        }
+        return { ...prev, [qi]: [...current.filter((l) => l !== '__other__'), label] }
+      }
+      // Single-select: replace
+      return { ...prev, [qi]: [label] }
+    })
+  }
+
+  const handleOtherTextChange = (qi: number, text: string) => {
+    setOtherTexts((prev) => ({ ...prev, [qi]: text }))
+  }
+
+  const handleSubmit = () => {
+    if (!onRespond || submitted) return
+    const answers: Record<string, string> = {}
+    questions.forEach((q, qi) => {
+      const selected = selectedOptions[qi] || []
+      if (selected.includes('__other__')) {
+        answers[q.question] = otherTexts[qi] || ''
+      } else if (selected.length > 0) {
+        answers[q.question] = selected.join(', ')
+      }
+    })
+    onRespond(call.id, answers)
+    setSubmitted(true)
+  }
+
+  const hasAnySelection = Object.values(selectedOptions).some((s) => s.length > 0)
+
   return (
-    <div className={`ask-user-question${isWaiting ? ' ask-user-waiting' : ''}`}>
+    <div className={`ask-user-question${isWaiting ? ' ask-user-waiting' : ''}${submitted ? ' ask-user-submitted' : ''}`}>
       {questions.map((q, qi) => (
         <div key={qi} className="ask-user-block">
           <div className="ask-user-header-row">
@@ -41,24 +92,54 @@ function AskUserQuestionDisplay({ call }: { call: ToolCall }) {
           </div>
           <div className="ask-user-question-text">{q.question}</div>
           <div className="ask-user-options">
-            {q.options.map((opt, oi) => (
-              <div key={oi} className="ask-user-option">
-                <div className="ask-user-option-label">{opt.label}</div>
-                {opt.description && (
-                  <div className="ask-user-option-desc">{opt.description}</div>
-                )}
-              </div>
-            ))}
-            <div className="ask-user-option ask-user-option-other">
+            {q.options.map((opt, oi) => {
+              const isSelected = (selectedOptions[qi] || []).includes(opt.label)
+              return (
+                <div
+                  key={oi}
+                  className={`ask-user-option${isSelected ? ' ask-user-option-selected' : ''}`}
+                  onClick={() => handleOptionClick(qi, opt.label, q.multiSelect)}
+                >
+                  <div className="ask-user-option-label">{opt.label}</div>
+                  {opt.description && (
+                    <div className="ask-user-option-desc">{opt.description}</div>
+                  )}
+                </div>
+              )
+            })}
+            <div
+              className={`ask-user-option ask-user-option-other${(selectedOptions[qi] || []).includes('__other__') ? ' ask-user-option-selected' : ''}`}
+              onClick={() => handleOptionClick(qi, '__other__', q.multiSelect)}
+            >
               <div className="ask-user-option-label">Other</div>
               <div className="ask-user-option-desc">Provide custom text input</div>
             </div>
+            {(selectedOptions[qi] || []).includes('__other__') && (
+              <input
+                className="ask-user-other-input"
+                type="text"
+                placeholder="Type your answer..."
+                value={otherTexts[qi] || ''}
+                onChange={(e) => handleOtherTextChange(qi, e.target.value)}
+                onClick={(e) => e.stopPropagation()}
+                disabled={submitted}
+              />
+            )}
           </div>
-          {isWaiting && (
-            <div className="ask-user-pending">Waiting for your response...</div>
-          )}
         </div>
       ))}
+      {isWaiting && !submitted && hasAnySelection && (
+        <div className="ask-user-block">
+          <button className="ask-user-submit-btn" onClick={handleSubmit}>
+            Submit
+          </button>
+        </div>
+      )}
+      {isWaiting && !submitted && !hasAnySelection && (
+        <div className="ask-user-block">
+          <div className="ask-user-pending">Select an option to respond...</div>
+        </div>
+      )}
     </div>
   )
 }
@@ -69,13 +150,13 @@ function formatToolName(fullName: string): string {
   return parts[parts.length - 1] || fullName
 }
 
-function ToolCallItem({ call }: { call: ToolCall }) {
+function ToolCallItem({ call, onRespond }: { call: ToolCall; onRespond?: (toolCallId: string, answers: Record<string, string>) => void }) {
   const [isExpanded, setIsExpanded] = useState(false)
   const displayName = formatToolName(call.tool_name)
 
   // Render AskUserQuestion with dedicated UI
   if (isAskUserQuestion(call)) {
-    return <AskUserQuestionDisplay call={call} />
+    return <AskUserQuestionDisplay call={call} onRespond={onRespond} />
   }
 
   const statusIcon = {
@@ -135,13 +216,13 @@ function ToolCallItem({ call }: { call: ToolCall }) {
   )
 }
 
-export function ToolCallDisplay({ toolCalls }: ToolCallDisplayProps) {
+export function ToolCallDisplay({ toolCalls, onRespond }: ToolCallDisplayProps) {
   if (!toolCalls.length) return null
 
   return (
     <div className="tool-calls">
       {toolCalls.map((call) => (
-        <ToolCallItem key={call.id} call={call} />
+        <ToolCallItem key={call.id} call={call} onRespond={onRespond} />
       ))}
     </div>
   )
