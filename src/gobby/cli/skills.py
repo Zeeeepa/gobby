@@ -164,18 +164,9 @@ def list_skills(
 
 def _output_json(skills_list: list[Any]) -> None:
     """Output skills as JSON."""
-    output = []
-    for skill in skills_list:
-        item = {
-            "name": skill.name,
-            "description": skill.description,
-            "enabled": skill.enabled,
-            "version": skill.version,
-            "category": _get_skill_category(skill),
-            "tags": _get_skill_tags(skill),
-        }
-        output.append(item)
-    click.echo(json.dumps(output, indent=2))
+    from gobby.skills.formatting import format_skills_json
+
+    click.echo(format_skills_json(skills_list))
 
 
 @skills.command()
@@ -642,41 +633,12 @@ def doc(ctx: click.Context, output: str | None, output_format: str) -> None:
         click.echo("No skills installed.")
         return
 
+    from gobby.skills.formatting import format_skills_json, format_skills_markdown_table
+
     if output_format == "json":
-        # JSON output
-        output_data = []
-        for skill in skills_list:
-            item = {
-                "name": skill.name,
-                "description": skill.description,
-                "enabled": skill.enabled,
-                "version": skill.version,
-                "category": _get_skill_category(skill),
-                "tags": _get_skill_tags(skill),
-            }
-            output_data.append(item)
-
-        content = json.dumps(output_data, indent=2)
+        content = format_skills_json(skills_list)
     else:
-        # Markdown table output
-        lines = [
-            "# Installed Skills",
-            "",
-            "| Name | Description | Category | Enabled |",
-            "|------|-------------|----------|---------|",
-        ]
-
-        for skill in skills_list:
-            category = (_get_skill_category(skill) or "-").replace("|", "\\|")
-            enabled = "✓" if skill.enabled else "✗"
-            desc_full = skill.description or ""
-            desc = desc_full[:50] + "..." if len(desc_full) > 50 else desc_full
-            # Escape pipe characters for valid markdown table
-            name_safe = skill.name.replace("|", "\\|")
-            desc_safe = desc.replace("|", "\\|")
-            lines.append(f"| {name_safe} | {desc_safe} | {category} | {enabled} |")
-
-        content = "\n".join(lines)
+        content = format_skills_markdown_table(skills_list)
 
     if output:
         with open(output, "w", encoding="utf-8") as f:
