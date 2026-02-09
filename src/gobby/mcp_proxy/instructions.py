@@ -30,8 +30,8 @@ The name `"gobby"` is the MCP proxy namespace, not a server name.
 <skills>
 Discover skills with progressive disclosure too:
 1. `list_skills()` on `gobby-skills` — Names and descriptions
-2. `get_skill(name="...")` — Full skill content
-3. `search_skills(query="...")` — Semantic search by topic
+2. `get_skill(name="...")` — Full skill content (use after list_skills or search_skills)
+3. `search_skills(query="...")` — Semantic search by topic (independent entry point, like list_skills)
 </skills>
 
 <caching>

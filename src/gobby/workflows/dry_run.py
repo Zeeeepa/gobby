@@ -434,7 +434,7 @@ async def _check_semantics(
         tools_by_server = await mcp_manager.list_tools()
         for server_name, tools in tools_by_server.items():
             server_tools[server_name] = {t.get("name", "") for t in tools if isinstance(t, dict)}
-    except Exception as e:
+    except (ConnectionError, TimeoutError, RuntimeError, OSError) as e:
         result.items.append(
             EvaluationItem(
                 layer="semantics",

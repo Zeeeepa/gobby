@@ -170,8 +170,9 @@ def check_workflow(ctx: click.Context, name: str, json_format: bool) -> None:
 
     click.echo(f"  Workflow: {result.get('workflow_name')}")
     click.echo(f"  Type: {result.get('workflow_type', 'unknown')}")
-    if result.get("variables_declared"):
-        click.echo(f"  Variables: {', '.join(result['variables_declared'])}")
+    variables = result.get("variables_declared")
+    if variables:
+        click.echo(f"  Variables: {', '.join(variables)}")
     click.echo()
 
     # Items

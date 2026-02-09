@@ -1763,8 +1763,8 @@ class TestCodexClientApprovalRequestDetection:
         assert handler_called
 
     @pytest.mark.asyncio
-    async def test_no_handler_silently_ignores_approval(self) -> None:
-        """Without approval handler, incoming requests are silently ignored."""
+    async def test_no_handler_sends_error_response(self) -> None:
+        """Without approval handler, incoming requests get a JSON-RPC error."""
         client = CodexAppServerClient()
 
         approval_msg = {
@@ -1797,8 +1797,12 @@ class TestCodexClientApprovalRequestDetection:
         reader_task = asyncio.create_task(client._read_loop())
         await asyncio.wait_for(reader_task, timeout=2.0)
 
-        # No response sent back
-        mock_process.stdin.write.assert_not_called()
+        # Error response sent back with -32601 (method not found)
+        mock_process.stdin.write.assert_called_once()
+        sent = json.loads(mock_process.stdin.write.call_args[0][0])
+        assert sent["jsonrpc"] == "2.0"
+        assert sent["id"] == 42
+        assert sent["error"]["code"] == -32601
 
 
 class TestCodexClientApprovalResponseRouting:

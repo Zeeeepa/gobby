@@ -1905,24 +1905,19 @@ class TestTranscriptPathDerivation:
         )
         assert result == "/tmp/gobby-cursor-abc.ndjson"
 
-    def test_find_cursor_transcript_from_standard_location(self, event_handlers: EventHandlers) -> None:
+    def test_find_cursor_transcript_from_standard_location(self, event_handlers: EventHandlers, tmp_path) -> None:
         """Should find Cursor capture file in temp dir by session_id."""
-        import os
         import tempfile
+        from unittest.mock import patch
 
-        capture_path = f"{tempfile.gettempdir()}/gobby-cursor-test-session-id-xyz.ndjson"
-        try:
-            # Create the file so it exists
-            with open(capture_path, "w") as f:
-                f.write("")
+        capture_file = tmp_path / "gobby-cursor-test-session-id-xyz.ndjson"
+        capture_file.write_text("")
 
+        with patch.object(tempfile, "gettempdir", return_value=str(tmp_path)):
             result = event_handlers._find_cursor_transcript(
                 {"session_id": "test-session-id-xyz"}, "ext-123"
             )
-            assert result == capture_path
-        finally:
-            if os.path.exists(capture_path):
-                os.unlink(capture_path)
+            assert result == str(capture_file)
 
     def test_find_cursor_transcript_not_found(self, event_handlers: EventHandlers) -> None:
         """Should return None when no capture file exists."""

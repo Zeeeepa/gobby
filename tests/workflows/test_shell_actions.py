@@ -17,7 +17,7 @@ def mock_services():
         "llm_service": AsyncMock(),
         "transcript_processor": MagicMock(),
         "config": MagicMock(),
-        "tool_proxy_getter": AsyncMock(),
+        "tool_proxy_getter": MagicMock(),
         "memory_manager": MagicMock(),
     }
 

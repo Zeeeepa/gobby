@@ -901,6 +901,7 @@ class HookManager:
                     self.logger.warning(f"Failed to schedule hook message storage: {e}")
             else:
                 # No event loop available — run synchronously as last resort
+                self.logger.debug("No event loop available, running hook message storage synchronously")
                 try:
                     asyncio.run(coro)
                 except Exception as e:

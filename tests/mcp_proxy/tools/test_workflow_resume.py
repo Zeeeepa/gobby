@@ -113,13 +113,8 @@ class TestActivateWorkflowResume:
         # Variables should be preserved
         assert result["variables"]["existing_var"] == "value"
 
-        # Should NOT have saved a new state (unless variables merged, which we didn't do)
-        # But we might save state if we update variables?
-        # In current plan, we assume no save if no new variables.
-        # Check that we didn't overwrite with initial state
-        # mock_state_manager.save_state.assert_not_called()
-        # Actually, if we merge empty variables, we might still save?
-        # Let's see implementation.
+        # No new variables were provided, so state should not have been saved
+        mock_state_manager.save_state.assert_not_called()
 
     @pytest.mark.asyncio
     async def test_resume_active_workflow_merges_variables(

@@ -268,19 +268,22 @@ class SessionMessageProcessor:
 
         # Read and parse the entire file
         try:
-            with open(transcript_path, encoding="utf-8") as f:
-                data = json.loads(f.read())
+            import aiofiles
+
+            async with aiofiles.open(transcript_path, encoding="utf-8") as f:
+                raw = await f.read()
+            data = json.loads(raw)
         except (json.JSONDecodeError, OSError) as e:
-            logger.error(f"Error reading JSON transcript {transcript_path}: {e}")
+            logger.error("Error reading JSON transcript %s: %s", transcript_path, e)
             return
 
         if not isinstance(data, dict):
-            logger.warning(f"JSON transcript is not an object: {transcript_path}")
+            logger.warning("JSON transcript is not an object: %s", transcript_path)
             return
 
         parser = self._parsers.get(session_id)
         if not parser or not isinstance(parser, GeminiTranscriptParser):
-            logger.warning(f"No GeminiTranscriptParser for JSON session {session_id}")
+            logger.warning("No GeminiTranscriptParser for JSON session %s", session_id)
             return
 
         all_messages = parser.parse_session_json(data)

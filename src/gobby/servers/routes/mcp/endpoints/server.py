@@ -266,7 +266,8 @@ async def import_mcp_server(
         response_time_ms = (time.perf_counter() - start_time) * 1000
         if isinstance(result, dict):
             result["response_time_ms"] = response_time_ms
-        return result
+            return result
+        return {"success": True, "data": result, "response_time_ms": response_time_ms}
 
     except HTTPException:
         raise
@@ -312,10 +313,8 @@ async def remove_mcp_server(
         }
 
     except ValueError as e:
-        raise HTTPException(
-            status_code=404,
-            detail={"success": False, "error": str(e)},
-        ) from e
+        response_time_ms = (time.perf_counter() - start_time) * 1000
+        return {"success": False, "error": str(e), "response_time_ms": response_time_ms}
     except Exception as e:
         _metrics.inc_counter("http_requests_errors_total")
         logger.error(f"Remove MCP server error: {e}", exc_info=True)
