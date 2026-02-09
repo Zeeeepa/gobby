@@ -134,8 +134,12 @@ class ChatSession:
         project_root = _find_project_root()
         cwd = str(project_root) if project_root else str(Path.cwd())
 
+        system_prompt = _load_chat_system_prompt()
+        # Inject working directory so the agent doesn't hallucinate paths
+        system_prompt += f"\n\n## Environment\n- Working directory: {cwd}\n"
+
         options = ClaudeAgentOptions(
-            system_prompt=_load_chat_system_prompt(),
+            system_prompt=system_prompt,
             max_turns=None,
             model=model or "claude-sonnet-4-5",
             allowed_tools=["mcp__gobby__*"],
