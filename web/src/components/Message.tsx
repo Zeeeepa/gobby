@@ -25,12 +25,14 @@ interface MessageProps {
   message: ChatMessage;
   isStreaming?: boolean;
   isThinking?: boolean;
+  onRespondToQuestion?: (toolCallId: string, answers: Record<string, string>) => void;
 }
 
 export function Message({
   message,
   isStreaming = false,
   isThinking = false,
+  onRespondToQuestion,
 }: MessageProps) {
   const [thinkingExpanded, setThinkingExpanded] = useState(false);
   const isCommandResult =
@@ -85,7 +87,7 @@ export function Message({
         </div>
       )}
       {message.toolCalls && message.toolCalls.length > 0 && (
-        <ToolCallDisplay toolCalls={message.toolCalls} />
+        <ToolCallDisplay toolCalls={message.toolCalls} onRespond={onRespondToQuestion} />
       )}
       <div className="message-content">
         <MemoizedMarkdown content={message.content} id={message.id} />

@@ -5,9 +5,10 @@ interface ChatMessagesProps {
   messages: ChatMessage[]
   isStreaming?: boolean
   isThinking?: boolean
+  onRespondToQuestion?: (toolCallId: string, answers: Record<string, string>) => void
 }
 
-export function ChatMessages({ messages, isStreaming = false, isThinking = false }: ChatMessagesProps) {
+export function ChatMessages({ messages, isStreaming = false, isThinking = false, onRespondToQuestion }: ChatMessagesProps) {
   const containerRef = useRef<HTMLDivElement>(null)
 
   // Auto-scroll to bottom on new messages
@@ -32,6 +33,7 @@ export function ChatMessages({ messages, isStreaming = false, isThinking = false
               message={message}
               isStreaming={isStreaming && i === messages.length - 1}
               isThinking={isThinking && i === messages.length - 1}
+              onRespondToQuestion={onRespondToQuestion}
             />
           ))}
           {isThinking && messages.length === 0 && (
