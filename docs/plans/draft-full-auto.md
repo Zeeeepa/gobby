@@ -6,32 +6,26 @@ The orchestrator has been built out as YAML workflows + MCP tools but never run 
 
 ### Architectural note: Separation of concerns
 
-The current tool distribution is messy - and likely why testing has been hard to reason about. Orchestration tools (`wait_for_task`, `orchestrate_ready_tasks`, `poll_agent_status`, etc.) are defined in `orchestration/*.py`, temporarily registered to a `gobby-orchestration` registry, then **merged into `gobby-tasks`** via `tasks/_factory.py:148-157`. The intended separation:
+Tool distribution is clean. Orchestration tools live on `gobby-orchestration` as a standalone server; agent tools live on `gobby-agents`; workflows enforce behavior via the engine.
 
-| Layer | Should manage | Current state |
-|-------|--------------|---------------|
-| **Coordinators** | Agents (orchestrate, wait, monitor) | Mixed into gobby-tasks |
-| **Agents** | Terminals, worktrees, clones, workflow settings, execute workflows | gobby-agents has some, gobby-tasks has some |
-| **Workflows** | Behavior enforcement (step transitions, tool restrictions) | Clean (engine.py + YAML) |
+| Layer | Manages | Server |
+|-------|---------|--------|
+| **Orchestration** | Coordinate agents (orchestrate, wait, monitor) | `gobby-orchestration` |
+| **Agents** | Spawn, terminals, worktrees, clones, workflow settings | `gobby-agents` |
+| **Workflows** | Behavior enforcement (step transitions, tool restrictions) | Engine (engine.py + YAML) |
 
 Related open tasks that affect scope:
-- **#7336** - Simplify agent spawning: standardize on tmux (removes 11 terminal spawners)
-- **#7337** - Web UI tmux session management (blocked by #7336)
 - **#7334** - Skill discovery/injection for interactive vs autonomous agents
 - **#7244** - Bug: task claimed by orchestrator session instead of worker (needs_review)
 
-**Scoping principle**: This plan avoids hardening code that #7336 will gut (terminal-specific spawners, auto-detection logic). Focus on: workflow engine, coordination tools, clone/worktree lifecycle, and the orchestrator YAML.
-
 ### Two orchestration paths
 
-| Path | Workflow | Key Tools (current server) |
-|------|----------|-----------|
-| **Sequential** | `meeseeks-box.yaml` (step workflow, `mode: self`) | `spawn_agent` (gobby-agents), `wait_for_task` (gobby-tasks*), `merge_clone_to_target` (gobby-clones), `delete_clone` (gobby-clones) |
-| **Parallel** | `orchestrate_ready_tasks` MCP tool | `orchestrate_ready_tasks` (gobby-tasks*), `poll_agent_status` (gobby-tasks*), etc. |
+| Path | Workflow | Key Tools (server) |
+|------|----------|--------------------|
+| **Sequential** | `meeseeks-box.yaml` (step workflow, `mode: self`) | `spawn_agent` (gobby-agents), `wait_for_task` (gobby-orchestration), `merge_clone_to_target` (gobby-clones), `delete_clone` (gobby-clones) |
+| **Parallel** | `orchestrate_ready_tasks` MCP tool | `orchestrate_ready_tasks` (gobby-orchestration), `poll_agent_status` (gobby-orchestration), etc. |
 
-\* These are coordination tools merged into gobby-tasks - should move to gobby-coordinator later.
-
-Both use `spawn_agent` for spawning and clone/worktree isolation.
+Both use `spawn_agent` for spawning and clone/worktree isolation. Note: meeseeks workflows are examples used during development; the final production workflow will be built after hardening is complete.
 
 ---
 
@@ -60,37 +54,13 @@ The sequential path is simpler and should work first. These fixes target the too
 
 **File**: `src/gobby/clones/git.py` (find `merge_branch` method)
 
-### 1.2 Validate workflow engine call_mcp_tool + output_as
+### 1.2 ~~Validate workflow engine call_mcp_tool + output_as~~ DONE
 
-**Files**: `src/gobby/workflows/engine.py`, `src/gobby/workflows/actions.py`
+**Status**: Completed (commit `2d8bf683`). Tool calls routed through `ToolProxyService`; `output_as` stores results correctly in workflow variables.
 
-**Problem**: The meeseeks-box workflow relies heavily on `call_mcp_tool` actions with `output_as` to capture results into workflow variables (e.g., `_spawn_result`, `_suggest_result`). Need to verify:
-- `call_mcp_tool` action actually invokes MCP tools through the proxy
-- `output_as` correctly stores the result dict in workflow variables
-- Error responses from MCP tools are captured (not swallowed)
-- Template rendering in `arguments` works for nested values like `"{{ variables.current_task_id }}"`
+### 1.3 ~~Validate workflow engine transition conditions~~ DONE
 
-**What to do**: Write a targeted unit test that:
-1. Sets up a workflow with a `call_mcp_tool` action + `output_as`
-2. Mocks the MCP tool to return a known dict
-3. Verifies the dict lands in `state.variables[output_as_name]`
-4. Tests error case (tool returns error)
-5. Tests template rendering in arguments
-
-### 1.3 Validate workflow engine transition conditions
-
-**Files**: `src/gobby/workflows/engine.py` (condition evaluator)
-
-**Problem**: meeseeks-box uses these conditions that must work correctly:
-- `task_tree_complete(variables.session_task)` - custom function
-- `variables.get('current_task_id')` - truthy check
-- `mcp_result_has('gobby-tasks', 'wait_for_task', 'completed', true)` - result inspection
-- `variables.get('isolation_mode') == 'clone'` - string comparison in `when` clauses
-
-**What to do**: Write targeted unit tests for each condition type. Verify the evaluator handles:
-- Custom functions (`task_tree_complete`, `mcp_result_has`, `mcp_called`)
-- Variable access patterns (`variables.get(...)`, `variables.x`)
-- The `when` clauses on `on_enter` actions (Jinja2 `when` vs Python eval `transitions.when`)
+**Status**: Completed (commit `b706c121`). DotDict fix resolved condition evaluation issues; custom functions and variable access patterns work correctly.
 
 ### 1.4 Fix spawn_agent cleanup on isolation prepare failure
 
@@ -157,7 +127,7 @@ def update_orchestration_lists(
 
 **Fix**: Extract into a single `_spawn_in_mode()` helper. Each mode becomes a 3-line call. Reduces orchestrate.py by ~100 lines and removes bug surface area.
 
-**Note**: #7336 (tmux simplification) will reduce this to just tmux + headless, making the extraction even simpler. If #7336 lands first, this becomes trivial. Either way, the extraction is valid.
+**Note**: The extraction is valid regardless of future spawner simplification.
 
 ---
 
@@ -171,7 +141,7 @@ def update_orchestration_lists(
 
 **Fix**: Register with `status="starting"` before `execute_spawn()`. Update to `status="running"` on success. Remove on failure.
 
-**Note**: spawn_agent.py survives #7336 (it's the orchestration layer above spawners), so this fix won't be thrown away.
+**Note**: spawn_agent.py is the orchestration layer above spawners, so this fix is stable.
 
 ### 3.2 Configurable stuck timeout
 
@@ -243,11 +213,11 @@ Test orchestrate_ready_tasks -> poll_agent_status -> cleanup flow:
 
 Add `dry_run: bool = False` parameter. When true: resolve tasks, check slots, build prompts, return plan without spawning. Useful for validating the orchestrator sees the right tasks before committing.
 
-### 5.2 Add dry_run to meeseeks-box workflow
+**Partial progress**: Dry-run evaluator framework exists (commit `e1220c2d`). Needs integration into `orchestrate_ready_tasks`.
 
-**File**: `src/gobby/install/shared/workflows/meeseeks-box.yaml`
+### 5.2 Add dry_run to workflow
 
-Add a `dry_run` variable (default false). When true, `spawn_worker` step injects a message showing what WOULD be spawned instead of calling `spawn_agent`. Useful for testing the workflow progression without burning LLM credits.
+Add a `dry_run` variable (default false) to the production orchestrator workflow. When true, `spawn_worker` step injects a message showing what WOULD be spawned instead of calling `spawn_agent`. Useful for testing the workflow progression without burning LLM credits. This applies to the final workflow built after hardening, not meeseeks-box specifically.
 
 ---
 
@@ -257,8 +227,8 @@ Add a `dry_run` variable (default false). When true, `spawn_worker` step injects
 Phase 1 (Sequential) - Do first, gets the primary use case working
   1.0 Fix #7244 (orchestrator claims task instead of worker)
   1.1 merge safety
-  1.2 call_mcp_tool validation
-  1.3 transition condition validation
+  1.2 DONE (commit 2d8bf683)
+  1.3 DONE (commit b706c121)
   1.4 spawn cleanup
   1.5 premature stop fix
 
@@ -278,7 +248,7 @@ Phase 3 (Shared) - Can be parallelized with Phase 2
   3.3 auto-transition logging
   3.4 prompt cleanup
 
-Phase 5 (Dry run) - Last, nice to have
+Phase 5 (Dry run) - Last, nice to have (5.1 has partial framework)
 ```
 
 ## Critical Files
@@ -296,9 +266,9 @@ Phase 5 (Dry run) - Last, nice to have
 
 ## Verification
 
-After all phases, manual end-to-end test:
+After all phases, manual end-to-end test using the production orchestrator workflow (meeseeks workflows serve as development examples; verification will use the final workflow):
 1. Create parent task with 3 subtasks via `create_task`
-2. `spawn_agent(agent="meeseeks-claude")` or `spawn_agent(agent="meeseeks-gemini")`
+2. Spawn orchestrator agent with the production workflow
 3. Observe full loop: find -> spawn -> wait -> review -> merge -> cleanup
 4. Verify all subtasks close, clones/worktrees cleaned up, `complete` step reached
 5. Verify main repo on correct branch with merged changes
