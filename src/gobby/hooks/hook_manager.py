@@ -34,38 +34,9 @@ from logging.handlers import RotatingFileHandler
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, cast
 
-from gobby.autonomous.progress_tracker import ProgressTracker
-from gobby.autonomous.stop_registry import StopRegistry
-from gobby.autonomous.stuck_detector import StuckDetector
-from gobby.hooks.event_handlers import EventHandlers
 from gobby.hooks.events import HookEvent, HookEventType, HookResponse, SessionSource
-from gobby.hooks.health_monitor import HealthMonitor
-from gobby.hooks.plugins import PluginLoader, run_plugin_handlers
-from gobby.hooks.session_coordinator import SessionCoordinator
-from gobby.hooks.skill_manager import HookSkillManager
-from gobby.hooks.webhooks import WebhookDispatcher
-from gobby.memory.manager import MemoryManager
-from gobby.sessions.manager import SessionManager
-from gobby.sessions.transcripts.claude import ClaudeTranscriptParser
-from gobby.sessions.transcripts.hook_assembler import HookTranscriptAssembler
-from gobby.storage.agents import LocalAgentRunManager
-from gobby.storage.database import LocalDatabase
-from gobby.storage.memories import LocalMemoryManager
-from gobby.storage.session_messages import LocalSessionMessageManager
-from gobby.storage.session_tasks import SessionTaskManager
-from gobby.storage.sessions import LocalSessionManager
-from gobby.storage.tasks import LocalTaskManager
-from gobby.storage.worktrees import LocalWorktreeManager
-from gobby.utils.daemon_client import DaemonClient
-from gobby.workflows.hooks import WorkflowHookHandler
-from gobby.workflows.loader import WorkflowLoader
-from gobby.workflows.state_manager import WorkflowStateManager
-
-if TYPE_CHECKING:
-    pass
-
-# Backward-compatible alias
-TranscriptProcessor = ClaudeTranscriptParser
+from gobby.hooks.factory import HookManagerFactory
+from gobby.hooks.plugins import run_plugin_handlers
 
 if TYPE_CHECKING:
     from gobby.llm.service import LLMService
