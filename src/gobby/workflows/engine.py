@@ -166,8 +166,9 @@ class WorkflowEngine:
             logger.debug(f"diff type: {type(diff)}, value: {diff}")
             duration = diff.total_seconds()
             logger.debug(f"duration type: {type(duration)}, value: {duration}")
-            # Hardcoded limit for MVP: 30 minutes
-            if duration > 1800:
+            # Configurable via workflow variable; default 30 minutes
+            stuck_timeout = int(state.variables.get("stuck_timeout", 1800))
+            if duration > stuck_timeout:
                 # Force transition to reflect if not already there
                 if state.step != "reflect":
                     project_path = Path(event.cwd) if event.cwd else None

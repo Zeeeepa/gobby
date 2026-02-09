@@ -996,3 +996,105 @@ class TestApprovalPromptReminder:
         assert "Waiting for approval" in response.context
         assert "Ready to deploy?" in response.context
         assert state.approval_pending is True  # Still pending
+
+
+class TestConfigurableStuckTimeout:
+    """Tests for configurable stuck_timeout workflow variable."""
+
+    @pytest.mark.asyncio
+    async def test_default_stuck_timeout_triggers_at_1800s(
+        self, workflow_engine, mock_state_manager, mock_loader
+    ) -> None:
+        """Default stuck timeout triggers at 30 minutes (1800s)."""
+        from datetime import timedelta
+        from unittest.mock import patch as _patch
+
+        state = WorkflowState(
+            session_id="sess1",
+            workflow_name="test_wf",
+            step="working",
+            step_entered_at=datetime.now(UTC) - timedelta(seconds=1801),
+            variables={},  # No stuck_timeout set — uses default 1800
+        )
+        mock_state_manager.get_state.return_value = state
+
+        # Workflow with reflect step so transition happens
+        workflow = WorkflowDefinition(
+            name="test_wf",
+            steps=[WorkflowStep(name="working"), WorkflowStep(name="reflect")],
+        )
+        mock_loader.load_workflow.return_value = workflow
+
+        # Mock transition_to to avoid deep dependency chain
+        mock_result = MagicMock()
+        mock_result.injected_messages = []
+        mock_result.system_messages = []
+        with _patch.object(workflow_engine, "transition_to", return_value=mock_result):
+            event = create_event(event_type=HookEventType.BEFORE_TOOL)
+            response = await workflow_engine.handle_event(event)
+
+        # Should trigger stuck detection → transition to reflect
+        assert response.decision == "modify"
+        assert "Step duration limit exceeded" in response.context
+
+    @pytest.mark.asyncio
+    async def test_custom_stuck_timeout_does_not_trigger_early(
+        self, workflow_engine, mock_state_manager, mock_loader
+    ) -> None:
+        """Custom stuck_timeout=7200 does not trigger at 31 minutes."""
+        from datetime import timedelta
+
+        state = WorkflowState(
+            session_id="sess1",
+            workflow_name="test_wf",
+            step="working",
+            step_entered_at=datetime.now(UTC) - timedelta(seconds=1860),  # 31 min
+            variables={"stuck_timeout": 7200},  # 2 hours
+        )
+        mock_state_manager.get_state.return_value = state
+
+        workflow = WorkflowDefinition(
+            name="test_wf",
+            steps=[WorkflowStep(name="working")],
+        )
+        mock_loader.load_workflow.return_value = workflow
+
+        event = create_event(event_type=HookEventType.BEFORE_TOOL)
+
+        response = await workflow_engine.handle_event(event)
+
+        # Should NOT trigger stuck detection — 31 min < 2 hours
+        assert response.decision == "allow"
+
+    @pytest.mark.asyncio
+    async def test_custom_stuck_timeout_triggers_when_exceeded(
+        self, workflow_engine, mock_state_manager, mock_loader
+    ) -> None:
+        """Custom stuck_timeout=3600 triggers when exceeded."""
+        from datetime import timedelta
+        from unittest.mock import patch as _patch
+
+        state = WorkflowState(
+            session_id="sess1",
+            workflow_name="test_wf",
+            step="working",
+            step_entered_at=datetime.now(UTC) - timedelta(seconds=3601),  # Just over 1 hour
+            variables={"stuck_timeout": 3600},  # 1 hour
+        )
+        mock_state_manager.get_state.return_value = state
+
+        workflow = WorkflowDefinition(
+            name="test_wf",
+            steps=[WorkflowStep(name="working"), WorkflowStep(name="reflect")],
+        )
+        mock_loader.load_workflow.return_value = workflow
+
+        mock_result = MagicMock()
+        mock_result.injected_messages = []
+        mock_result.system_messages = []
+        with _patch.object(workflow_engine, "transition_to", return_value=mock_result):
+            event = create_event(event_type=HookEventType.BEFORE_TOOL)
+            response = await workflow_engine.handle_event(event)
+
+        assert response.decision == "modify"
+        assert "Step duration limit exceeded" in response.context
