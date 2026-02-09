@@ -6,7 +6,8 @@ import pytest
 from gobby.mcp_proxy.tools.internal import InternalToolRegistry
 from gobby.mcp_proxy.tools.sessions import create_session_messages_registry
 from gobby.storage.session_messages import LocalSessionMessageManager
-from gobby.storage.sessions import LocalSessionManager, Session
+from gobby.storage.session_models import Session
+from gobby.storage.sessions import LocalSessionManager
 
 pytestmark = pytest.mark.unit
 

@@ -348,7 +348,7 @@ class TestHookManagerSessionEnd:
         temp_dir: Path,
     ) -> None:
         """Test that session end auto-links commits made during session."""
-        from gobby.storage.sessions import Session
+        from gobby.storage.session_models import Session
         from gobby.tasks.commits import AutoLinkResult
 
         # Create transcript file in temp directory

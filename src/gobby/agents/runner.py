@@ -19,7 +19,7 @@ from gobby.agents.registry import RunningAgent
 from gobby.agents.session import ChildSessionConfig, ChildSessionManager
 from gobby.llm.executor import AgentExecutor, AgentResult, ToolHandler, ToolResult, ToolSchema
 from gobby.storage.agents import AgentRun, LocalAgentRunManager
-from gobby.storage.sessions import Session
+from gobby.storage.session_models import Session
 from gobby.workflows.definitions import WorkflowDefinition, WorkflowState
 from gobby.workflows.loader import WorkflowLoader
 from gobby.workflows.state_manager import WorkflowStateManager

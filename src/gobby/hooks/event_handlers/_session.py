@@ -11,7 +11,7 @@ from gobby.hooks.event_handlers._base import EventHandlersBase
 from gobby.hooks.events import HookEvent, HookResponse
 
 if TYPE_CHECKING:
-    from gobby.storage.sessions import Session
+    from gobby.storage.session_models import Session
     from gobby.workflows.definitions import WorkflowState
 
 _derive_logger = logging.getLogger(__name__)

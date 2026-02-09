@@ -5,7 +5,7 @@ import pytest
 
 from gobby.config.sessions import SessionLifecycleConfig
 from gobby.sessions.lifecycle import SessionLifecycleManager
-from gobby.storage.sessions import Session
+from gobby.storage.session_models import Session
 
 pytestmark = pytest.mark.unit
 

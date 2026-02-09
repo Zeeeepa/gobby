@@ -4,7 +4,8 @@ from unittest.mock import patch
 
 import pytest
 
-from gobby.storage.sessions import LocalSessionManager, Session
+from gobby.storage.session_models import Session
+from gobby.storage.sessions import LocalSessionManager
 
 pytestmark = pytest.mark.unit
 

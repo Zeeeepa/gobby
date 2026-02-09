@@ -6,7 +6,7 @@ from gobby.agents.runner import AgentRunner
 from gobby.mcp_proxy.tools.task_orchestration import (
     create_orchestration_registry,
 )
-from gobby.storage.sessions import Session
+from gobby.storage.session_models import Session
 from gobby.storage.tasks import LocalTaskManager, Task
 from gobby.storage.worktrees import LocalWorktreeManager, Worktree
 from gobby.worktrees.git import GitOperationResult, WorktreeGitManager

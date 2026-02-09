@@ -10,7 +10,7 @@ from datetime import UTC, datetime
 from typing import Any
 
 from gobby.storage.database import DatabaseProtocol
-from gobby.storage.session_models import Session  # noqa: F401 - re-exported
+from gobby.storage.session_models import Session
 
 logger = logging.getLogger(__name__)
 
