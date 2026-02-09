@@ -68,9 +68,7 @@ class TmuxSessionManager:
             stderr=asyncio.subprocess.PIPE,
         )
         try:
-            stdout_bytes, stderr_bytes = await asyncio.wait_for(
-                proc.communicate(), timeout=timeout
-            )
+            stdout_bytes, stderr_bytes = await asyncio.wait_for(proc.communicate(), timeout=timeout)
         except TimeoutError:
             proc.kill()
             await proc.wait()
@@ -123,19 +121,26 @@ class TmuxSessionManager:
         args: list[str] = [
             "new-session",
             "-d",
-            "-s", safe_name,
-            "-n", safe_name,
-            "-x", "200",
-            "-y", "50",
+            "-s",
+            safe_name,
+            "-n",
+            safe_name,
+            "-x",
+            "200",
+            "-y",
+            "50",
         ]
 
         if cwd:
             args.extend(["-c", cwd])
 
         # Set history limit
-        args.extend([
-            "-e", f"HISTSIZE={self._config.history_limit}",
-        ])
+        args.extend(
+            [
+                "-e",
+                f"HISTSIZE={self._config.history_limit}",
+            ]
+        )
 
         # Inject env vars via -e (tmux 3.2+)
         if env:
@@ -146,21 +151,34 @@ class TmuxSessionManager:
         if command:
             if isinstance(command, list):
                 import shlex
+
                 args.append(shlex.join(command))
             else:
                 args.append(command)
 
         # Chain set-option to disable destroy-unattached atomically
-        args.extend([
-            ";", "set-option", "-t", safe_name,
-            "destroy-unattached", "off",
-        ])
+        args.extend(
+            [
+                ";",
+                "set-option",
+                "-t",
+                safe_name,
+                "destroy-unattached",
+                "off",
+            ]
+        )
 
         # Set scrollback history
-        args.extend([
-            ";", "set-option", "-t", safe_name,
-            "history-limit", str(self._config.history_limit),
-        ])
+        args.extend(
+            [
+                ";",
+                "set-option",
+                "-t",
+                safe_name,
+                "history-limit",
+                str(self._config.history_limit),
+            ]
+        )
 
         rc, _stdout, stderr = await self._run(*args)
         if rc != 0:
@@ -180,9 +198,7 @@ class TmuxSessionManager:
 
     async def list_sessions(self) -> list[TmuxSessionInfo]:
         """List all Gobby tmux sessions on the isolated socket."""
-        rc, stdout, _stderr = await self._run(
-            "list-sessions", "-F", "#{session_name}"
-        )
+        rc, stdout, _stderr = await self._run("list-sessions", "-F", "#{session_name}")
         if rc != 0:
             # No server running is rc=1 with "no server running"
             return []
@@ -229,9 +245,7 @@ class TmuxSessionManager:
         Returns:
             True on success.
         """
-        rc, _stdout, stderr = await self._run(
-            "send-keys", "-t", session_name, "-l", keys
-        )
+        rc, _stdout, stderr = await self._run("send-keys", "-t", session_name, "-l", keys)
         if rc != 0:
             logger.warning(
                 f"Failed to send keys to tmux session '{session_name}': {stderr.strip()}"

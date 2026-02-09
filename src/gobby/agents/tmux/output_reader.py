@@ -77,9 +77,7 @@ class TmuxOutputReader:
             await proc.wait()
             return 1
         if proc.returncode != 0 and stderr:
-            logger.debug(
-                f"tmux pipe-pane stderr: {stderr.decode(errors='replace').strip()}"
-            )
+            logger.debug(f"tmux pipe-pane stderr: {stderr.decode(errors='replace').strip()}")
         return proc.returncode or 0
 
     # ------------------------------------------------------------------
@@ -114,9 +112,7 @@ class TmuxOutputReader:
                 return False
 
             # Tell tmux to pipe pane output into the FIFO
-            rc = await self._run(
-                "pipe-pane", "-t", session_name, f"cat >> {fifo_path}"
-            )
+            rc = await self._run("pipe-pane", "-t", session_name, f"cat >> {fifo_path}")
             if rc != 0:
                 logger.error(f"tmux pipe-pane failed for session '{session_name}'")
                 try:

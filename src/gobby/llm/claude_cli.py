@@ -58,9 +58,7 @@ def verify_cli_path(cached_path: str | None) -> str | None:
     # Validate cached path still exists
     # Retry with backoff if missing (may be in the middle of npm install)
     if cli_path and not os.path.exists(cli_path):
-        logger.warning(
-            f"Cached CLI path no longer exists (may have been reinstalled): {cli_path}"
-        )
+        logger.warning(f"Cached CLI path no longer exists (may have been reinstalled): {cli_path}")
         # Try to find CLI again with retry logic for npm install race condition
         max_retries = 3
         retry_delays = [0.5, 1.0, 2.0]  # Exponential backoff

@@ -12,9 +12,7 @@ import uuid
 from gobby.storage.database import DatabaseProtocol
 
 
-def resolve_session_reference(
-    db: DatabaseProtocol, ref: str, project_id: str | None = None
-) -> str:
+def resolve_session_reference(db: DatabaseProtocol, ref: str, project_id: str | None = None) -> str:
     """
     Resolve a session reference to a UUID.
 

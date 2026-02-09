@@ -84,8 +84,7 @@ async def stream_with_mcp_tools(
 
     # Configure Claude Agent SDK with MCP tools
     options = ClaudeAgentOptions(
-        system_prompt=system_prompt
-        or "You are Gobby, a helpful assistant with access to tools.",
+        system_prompt=system_prompt or "You are Gobby, a helpful assistant with access to tools.",
         max_turns=max_turns,
         model=model or "claude-sonnet-4-5",
         allowed_tools=allowed_tools,

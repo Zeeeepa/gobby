@@ -372,7 +372,6 @@ class GobbyRunner:
                 # Start PTY reader for embedded agents
                 agent = registry.get(run_id)
                 if agent and agent.master_fd is not None:
-
                     _agent = agent  # bind for closure type narrowing
 
                     async def start_pty_reader() -> None:

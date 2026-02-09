@@ -140,4 +140,3 @@ class AlacrittySpawner(TerminalSpawnerBase):
                 message=f"Failed to spawn Alacritty: {e}",
                 error=str(e),
             )
-

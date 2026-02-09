@@ -8,8 +8,7 @@ class TmuxNotFoundError(RuntimeError):
 
     def __init__(self, command: str = "tmux") -> None:
         super().__init__(
-            f"tmux binary '{command}' not found. "
-            "Install tmux to use tmux-based agent spawning."
+            f"tmux binary '{command}' not found. Install tmux to use tmux-based agent spawning."
         )
         self.command = command
 

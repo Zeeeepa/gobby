@@ -81,9 +81,7 @@ class SessionLookupService:
     def _resolve_session_id(self, external_id: str, event: HookEvent) -> str | None:
         """Look up or create platform session ID for the given external_id."""
         # Check SessionManager's cache first (keyed by (external_id, source))
-        platform_session_id = self._session_manager.get_session_id(
-            external_id, event.source.value
-        )
+        platform_session_id = self._session_manager.get_session_id(external_id, event.source.value)
 
         # If not in mapping and not session-start, try to query database
         if not platform_session_id and event.event_type != HookEventType.SESSION_START:
@@ -134,9 +132,7 @@ class SessionLookupService:
         """Add active task context to event metadata."""
         try:
             # Get tasks linked with 'worked_on' action which implies active focus
-            session_tasks = self._session_task_manager.get_session_tasks(
-                platform_session_id
-            )
+            session_tasks = self._session_task_manager.get_session_tasks(platform_session_id)
             # Filter for active 'worked_on' tasks - taking the most recent one
             active_tasks = [t for t in session_tasks if t.get("action") == "worked_on"]
             if active_tasks:

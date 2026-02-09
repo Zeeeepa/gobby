@@ -195,9 +195,7 @@ class HookManagerFactory:
         from gobby.workflows.engine import WorkflowEngine
         from gobby.workflows.templates import TemplateEngine
 
-        workflow_loader = WorkflowLoader(
-            workflow_dirs=[Path.home() / ".gobby" / "workflows"]
-        )
+        workflow_loader = WorkflowLoader(workflow_dirs=[Path.home() / ".gobby" / "workflows"])
         workflow_state_manager = WorkflowStateManager(database)
         template_engine = TemplateEngine()
 
@@ -299,9 +297,7 @@ class HookManagerFactory:
                     )
                     # Register plugin actions and conditions with workflow system
                     action_executor.register_plugin_actions(plugin_loader.registry)
-                    workflow_engine.evaluator.register_plugin_conditions(
-                        plugin_loader.registry
-                    )
+                    workflow_engine.evaluator.register_plugin_conditions(plugin_loader.registry)
             except Exception as e:
                 hook_logger.error(f"Failed to load plugins: {e}", exc_info=True)
 

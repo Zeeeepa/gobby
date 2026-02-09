@@ -153,8 +153,6 @@ def list_skills(
         click.echo(f"{status} {skill.name}{cat_str} - {desc}")
 
 
-
-
 def _output_json(skills_list: list[Any]) -> None:
     """Output skills as JSON."""
     from gobby.skills.formatting import format_skills_json
@@ -430,8 +428,6 @@ def validate(ctx: click.Context, path: str, json_output: bool) -> None:
 def meta() -> None:
     """Manage skill metadata fields."""
     pass
-
-
 
 
 @meta.command("get")

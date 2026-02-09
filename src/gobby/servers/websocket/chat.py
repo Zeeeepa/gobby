@@ -42,6 +42,7 @@ class ChatMixin:
     # Provided by HandlerMixin – declared here only for type checking
     # to avoid shadowing the real implementation at runtime (MRO).
     if TYPE_CHECKING:
+
         async def _send_error(
             self,
             websocket: Any,

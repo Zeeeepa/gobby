@@ -38,6 +38,7 @@ class TmuxMixin:
     # These are provided by other mixins (BroadcastMixin, HandlerMixin).
     # Declared as TYPE_CHECKING-only protocol hints to avoid shadowing real methods.
     if TYPE_CHECKING:
+
         async def broadcast_terminal_output(self, run_id: str, data: str) -> None: ...
         async def _send_error(
             self, websocket: Any, message: str, request_id: str | None = None, code: str = "ERROR"
@@ -98,7 +99,10 @@ class TmuxMixin:
         sessions: list[dict[str, Any]] = []
         registry = get_running_agent_registry()
 
-        for socket_name, mgr in [("default", self._tmux_mgr_default), ("gobby", self._tmux_mgr_gobby)]:
+        for socket_name, mgr in [
+            ("default", self._tmux_mgr_default),
+            ("gobby", self._tmux_mgr_gobby),
+        ]:
             try:
                 tmux_sessions = await mgr.list_sessions()
                 for s in tmux_sessions:
@@ -114,18 +118,23 @@ class TmuxMixin:
                     # Check if a bridge is active for this session
                     attached_bridge = None
                     for sid, bridge in self._tmux_bridge.list_bridges().items():
-                        if bridge.session_name == s.name and bridge.socket_name == mgr.config.socket_name:
+                        if (
+                            bridge.session_name == s.name
+                            and bridge.socket_name == mgr.config.socket_name
+                        ):
                             attached_bridge = sid
                             break
 
-                    sessions.append({
-                        "name": s.name,
-                        "socket": socket_name,
-                        "pane_pid": s.pane_pid,
-                        "agent_managed": agent_managed,
-                        "agent_run_id": agent_run_id,
-                        "attached_bridge": attached_bridge,
-                    })
+                    sessions.append(
+                        {
+                            "name": s.name,
+                            "socket": socket_name,
+                            "pane_pid": s.pane_pid,
+                            "agent_managed": agent_managed,
+                            "agent_run_id": agent_run_id,
+                            "attached_bridge": attached_bridge,
+                        }
+                    )
             except Exception as e:
                 logger.warning(f"Failed to list {socket_name} tmux sessions: {e}")
 
@@ -199,9 +208,7 @@ class TmuxMixin:
 
         except Exception as e:
             logger.error(f"Failed to attach tmux session '{session_name}': {e}")
-            await self._send_error(
-                websocket, f"Attach failed: {e}", request_id=request_id
-            )
+            await self._send_error(websocket, f"Attach failed: {e}", request_id=request_id)
 
     async def _handle_tmux_detach(self, websocket: Any, data: dict[str, Any]) -> None:
         """Detach from a tmux session (close PTY bridge)."""
@@ -244,9 +251,7 @@ class TmuxMixin:
         mgr = self._get_tmux_manager(socket)
 
         if not mgr.is_available():
-            await self._send_error(
-                websocket, "tmux is not installed", request_id=request_id
-            )
+            await self._send_error(websocket, "tmux is not installed", request_id=request_id)
             return
 
         try:
@@ -274,9 +279,7 @@ class TmuxMixin:
 
         except Exception as e:
             logger.error(f"Failed to create tmux session: {e}")
-            await self._send_error(
-                websocket, f"Create failed: {e}", request_id=request_id
-            )
+            await self._send_error(websocket, f"Create failed: {e}", request_id=request_id)
 
     async def _handle_tmux_kill_session(self, websocket: Any, data: dict[str, Any]) -> None:
         """Kill a tmux session."""
@@ -331,9 +334,7 @@ class TmuxMixin:
 
         except Exception as e:
             logger.error(f"Failed to kill tmux session '{session_name}': {e}")
-            await self._send_error(
-                websocket, f"Kill failed: {e}", request_id=request_id
-            )
+            await self._send_error(websocket, f"Kill failed: {e}", request_id=request_id)
 
     async def _handle_tmux_resize(self, websocket: Any, data: dict[str, Any]) -> None:
         """Resize PTY for an attached tmux session."""
@@ -350,9 +351,7 @@ class TmuxMixin:
     # Broadcast helpers
     # ------------------------------------------------------------------
 
-    async def _broadcast_tmux_event(
-        self, event: str, session_name: str, socket: str
-    ) -> None:
+    async def _broadcast_tmux_event(self, event: str, session_name: str, socket: str) -> None:
         """Broadcast a tmux session lifecycle event to subscribed clients."""
         if not self.clients:
             return
@@ -361,13 +360,15 @@ class TmuxMixin:
 
         from websockets.exceptions import ConnectionClosed
 
-        message = json.dumps({
-            "type": "tmux_session_event",
-            "event": event,
-            "session_name": session_name,
-            "socket": socket,
-            "timestamp": datetime.now(UTC).isoformat(),
-        })
+        message = json.dumps(
+            {
+                "type": "tmux_session_event",
+                "event": event,
+                "session_name": session_name,
+                "socket": socket,
+                "timestamp": datetime.now(UTC).isoformat(),
+            }
+        )
 
         for ws in list(self.clients.keys()):
             try:
