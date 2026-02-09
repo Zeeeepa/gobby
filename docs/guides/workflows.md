@@ -773,6 +773,30 @@ Matches the `server_name:tool_name` combination for MCP tools after translation:
 | `tools:` | Blocking the MCP wrapper | `[mcp__gobby__call_tool]` |
 | `mcp_tools:` | Blocking specific MCP tool calls | `[gobby-tasks:close_task]` |
 
+#### `command_pattern` / `command_not_pattern` — Bash command matching
+
+For `tools: [Bash]` rules, you can add regex patterns that match the Bash tool's `command` parameter. These fields are **ignored for non-Bash tools**.
+
+- `command_pattern`: A regex that **must match** the command for the rule to apply. If the pattern doesn't match, the rule is skipped.
+- `command_not_pattern`: A regex that **excludes** the command if it matches. If the exclusion pattern matches, the rule is skipped.
+
+Both patterns are evaluated **before** the `when` condition, so expensive condition checks are short-circuited when the command doesn't match.
+
+```yaml
+- action: block_tools
+  rules:
+    # Block naked python/pip commands - require uv
+    - tools: [Bash]
+      command_pattern: "(?:^|[;&|])\\s*(?:sudo\\s+)?(?:python(?:3(?:\\.\\d+)?)?|pip3?)\\b"
+      command_not_pattern: "(?:^|[;&|])\\s*(?:sudo\\s+)?uv\\s+"
+      when: "variables.get('require_uv')"
+      reason: |
+        Use `uv run python3` instead of `python3`.
+        Use `uv pip install` instead of `pip install`.
+```
+
+The `command_pattern` matches `python`, `python3`, `python3.12`, `pip`, `pip3` at the start of a command or after shell operators (`&&`, `||`, `;`, `|`). The `command_not_pattern` excludes commands that already use `uv`.
+
 ### Condition Evaluation Context
 
 The `when` expressions in blocking rules have access to these variables:
@@ -818,6 +842,7 @@ These variables are defined in `session-lifecycle.yaml`:
 | `require_task_before_edit` | `true` | Block Edit/Write without active task |
 | `require_commit_before_close` | `true` | Block close_task without linked commit |
 | `clear_task_on_close` | `true` | Reset task_claimed on successful close |
+| `require_uv` | `true` | Block naked python/pip commands, require uv |
 | `enforce_tool_schema_check` | `true` | Require get_tool_schema before call_tool |
 | `unlocked_tools` | `[]` | Server:tool combos unlocked via get_tool_schema |
 | `task_claimed` | `false` | Set automatically when task is claimed |

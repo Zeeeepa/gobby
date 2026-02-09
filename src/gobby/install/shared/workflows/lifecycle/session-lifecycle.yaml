@@ -22,6 +22,9 @@ variables:
   # Clear task_claimed variable on successful close_task
   clear_task_on_close: true
 
+  # Require uv for python/pip commands - block naked python3/pip via Bash
+  require_uv: true
+
   # Progressive tool discovery - require get_tool_schema before call_tool
   # Set to false to disable this enforcement
   enforce_tool_schema_check: true
@@ -293,6 +296,18 @@ triggers:
             1. Commit your changes: git commit -m "[{{ project.name }}-#N] description"
             2. Close the task: close_task(task_id="#N", commit_sha="<sha>")
             3. Then stop.
+
+        # Block naked python/pip commands - require uv run / uv pip
+        - tools: [Bash]
+          command_pattern: "(?:^|[;&|])\\s*(?:sudo\\s+)?(?:python(?:3(?:\\.\\d+)?)?|pip3?)\\b"
+          command_not_pattern: "(?:^|[;&|])\\s*(?:sudo\\s+)?uv\\s+"
+          when: "variables.get('require_uv')"
+          reason: |
+            Do not run python or pip directly. Use `uv` to ensure the correct virtual environment:
+            - `uv run python3 script.py` instead of `python3 script.py`
+            - `uv run python -m module` instead of `python -m module`
+            - `uv pip install pkg` or `uv add pkg` instead of `pip install pkg`
+            Rewrite your command with `uv` and retry.
 
   on_after_tool:
     # Reset stop attempts counter on successful tool use

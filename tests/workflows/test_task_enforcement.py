@@ -2750,3 +2750,384 @@ class TestBlockToolsSkipValidationWithCommit:
         )
 
         assert result is None
+
+
+class TestBlockToolsCommandPattern:
+    """Tests for command_pattern / command_not_pattern in block_tools."""
+
+    @pytest.fixture
+    def workflow_state(self):
+        """Create a workflow state with empty variables."""
+        return WorkflowState(
+            session_id="test-session",
+            workflow_name="test-workflow",
+            step="test-step",
+            step_entered_at=datetime.now(UTC),
+            variables={},
+        )
+
+    @pytest.mark.asyncio
+    async def test_command_pattern_matches_blocks(self, workflow_state):
+        """Blocks Bash when command_pattern matches the command."""
+        from gobby.workflows.enforcement import block_tools
+
+        rules = [
+            {
+                "tools": ["Bash"],
+                "command_pattern": r"python3?\b",
+                "reason": "Use uv run python3.",
+            }
+        ]
+
+        result = await block_tools(
+            rules=rules,
+            event_data={
+                "tool_name": "Bash",
+                "tool_input": {"command": "python3 script.py"},
+            },
+            workflow_state=workflow_state,
+        )
+
+        assert result is not None
+        assert result["decision"] == "block"
+
+    @pytest.mark.asyncio
+    async def test_command_pattern_no_match_allows(self, workflow_state):
+        """Allows Bash when command_pattern does not match the command."""
+        from gobby.workflows.enforcement import block_tools
+
+        rules = [
+            {
+                "tools": ["Bash"],
+                "command_pattern": r"python3?\b",
+                "reason": "Use uv run python3.",
+            }
+        ]
+
+        result = await block_tools(
+            rules=rules,
+            event_data={
+                "tool_name": "Bash",
+                "tool_input": {"command": "ls -la"},
+            },
+            workflow_state=workflow_state,
+        )
+
+        assert result is None
+
+    @pytest.mark.asyncio
+    async def test_command_not_pattern_excludes(self, workflow_state):
+        """Allows Bash when command_not_pattern matches (exclusion)."""
+        from gobby.workflows.enforcement import block_tools
+
+        rules = [
+            {
+                "tools": ["Bash"],
+                "command_pattern": r"python3?\b",
+                "command_not_pattern": r"uv\s+run",
+                "reason": "Use uv run python3.",
+            }
+        ]
+
+        result = await block_tools(
+            rules=rules,
+            event_data={
+                "tool_name": "Bash",
+                "tool_input": {"command": "uv run python3 script.py"},
+            },
+            workflow_state=workflow_state,
+        )
+
+        assert result is None
+
+    @pytest.mark.asyncio
+    async def test_command_not_pattern_no_exclude_blocks(self, workflow_state):
+        """Blocks Bash when command_not_pattern does not match."""
+        from gobby.workflows.enforcement import block_tools
+
+        rules = [
+            {
+                "tools": ["Bash"],
+                "command_pattern": r"python3?\b",
+                "command_not_pattern": r"uv\s+run",
+                "reason": "Use uv run python3.",
+            }
+        ]
+
+        result = await block_tools(
+            rules=rules,
+            event_data={
+                "tool_name": "Bash",
+                "tool_input": {"command": "python3 script.py"},
+            },
+            workflow_state=workflow_state,
+        )
+
+        assert result is not None
+        assert result["decision"] == "block"
+
+    @pytest.mark.asyncio
+    async def test_no_pattern_fields_normal_matching(self, workflow_state):
+        """Without command_pattern fields, rule uses normal tool matching only."""
+        from gobby.workflows.enforcement import block_tools
+
+        rules = [
+            {
+                "tools": ["Bash"],
+                "reason": "Bash is blocked.",
+            }
+        ]
+
+        result = await block_tools(
+            rules=rules,
+            event_data={
+                "tool_name": "Bash",
+                "tool_input": {"command": "python3 script.py"},
+            },
+            workflow_state=workflow_state,
+        )
+
+        assert result is not None
+        assert result["decision"] == "block"
+
+    @pytest.mark.asyncio
+    async def test_non_bash_tool_ignores_patterns(self, workflow_state):
+        """command_pattern is ignored for non-Bash tools."""
+        from gobby.workflows.enforcement import block_tools
+
+        rules = [
+            {
+                "tools": ["Edit"],
+                "command_pattern": r"python3?\b",
+                "reason": "Should not apply to Edit.",
+            }
+        ]
+
+        result = await block_tools(
+            rules=rules,
+            event_data={
+                "tool_name": "Edit",
+                "tool_input": {"file_path": "python3_file.py"},
+            },
+            workflow_state=workflow_state,
+        )
+
+        # Edit matches the tools list, command_pattern is ignored for non-Bash
+        assert result is not None
+        assert result["decision"] == "block"
+
+
+class TestBlockToolsRequireUv:
+    """End-to-end tests for require_uv enforcement via block_tools."""
+
+    @pytest.fixture
+    def workflow_state(self):
+        """Create a workflow state with require_uv enabled."""
+        return WorkflowState(
+            session_id="test-session",
+            workflow_name="test-workflow",
+            step="test-step",
+            step_entered_at=datetime.now(UTC),
+            variables={"require_uv": True},
+        )
+
+    @pytest.fixture
+    def require_uv_rule(self) -> dict[str, object]:
+        """The require_uv blocking rule from session-lifecycle.yaml."""
+        return {
+            "tools": ["Bash"],
+            "command_pattern": r"(?:^|[;&|])\s*(?:sudo\s+)?(?:python(?:3(?:\.\d+)?)?|pip3?)\b",
+            "command_not_pattern": r"(?:^|[;&|])\s*(?:sudo\s+)?uv\s+",
+            "when": "variables.get('require_uv')",
+            "reason": "Use uv instead of running python/pip directly.",
+        }
+
+    @pytest.mark.asyncio
+    async def test_blocks_naked_python3(self, workflow_state, require_uv_rule):
+        """Blocks python3 without uv."""
+        from gobby.workflows.enforcement import block_tools
+
+        result = await block_tools(
+            rules=[require_uv_rule],
+            event_data={
+                "tool_name": "Bash",
+                "tool_input": {"command": "python3 script.py"},
+            },
+            workflow_state=workflow_state,
+        )
+
+        assert result is not None
+        assert result["decision"] == "block"
+
+    @pytest.mark.asyncio
+    async def test_blocks_naked_pip(self, workflow_state, require_uv_rule):
+        """Blocks pip install without uv."""
+        from gobby.workflows.enforcement import block_tools
+
+        result = await block_tools(
+            rules=[require_uv_rule],
+            event_data={
+                "tool_name": "Bash",
+                "tool_input": {"command": "pip install requests"},
+            },
+            workflow_state=workflow_state,
+        )
+
+        assert result is not None
+        assert result["decision"] == "block"
+
+    @pytest.mark.asyncio
+    async def test_blocks_naked_pip3(self, workflow_state, require_uv_rule):
+        """Blocks pip3 install without uv."""
+        from gobby.workflows.enforcement import block_tools
+
+        result = await block_tools(
+            rules=[require_uv_rule],
+            event_data={
+                "tool_name": "Bash",
+                "tool_input": {"command": "pip3 install requests"},
+            },
+            workflow_state=workflow_state,
+        )
+
+        assert result is not None
+        assert result["decision"] == "block"
+
+    @pytest.mark.asyncio
+    async def test_allows_uv_run_python3(self, workflow_state, require_uv_rule):
+        """Allows uv run python3."""
+        from gobby.workflows.enforcement import block_tools
+
+        result = await block_tools(
+            rules=[require_uv_rule],
+            event_data={
+                "tool_name": "Bash",
+                "tool_input": {"command": "uv run python3 script.py"},
+            },
+            workflow_state=workflow_state,
+        )
+
+        assert result is None
+
+    @pytest.mark.asyncio
+    async def test_allows_uv_pip_install(self, workflow_state, require_uv_rule):
+        """Allows uv pip install."""
+        from gobby.workflows.enforcement import block_tools
+
+        result = await block_tools(
+            rules=[require_uv_rule],
+            event_data={
+                "tool_name": "Bash",
+                "tool_input": {"command": "uv pip install requests"},
+            },
+            workflow_state=workflow_state,
+        )
+
+        assert result is None
+
+    @pytest.mark.asyncio
+    async def test_allows_when_disabled(self, require_uv_rule):
+        """Allows python3 when require_uv is false."""
+        from gobby.workflows.enforcement import block_tools
+
+        ws = WorkflowState(
+            session_id="test-session",
+            workflow_name="test-workflow",
+            step="test-step",
+            step_entered_at=datetime.now(UTC),
+            variables={"require_uv": False},
+        )
+
+        result = await block_tools(
+            rules=[require_uv_rule],
+            event_data={
+                "tool_name": "Bash",
+                "tool_input": {"command": "python3 script.py"},
+            },
+            workflow_state=ws,
+        )
+
+        assert result is None
+
+    @pytest.mark.asyncio
+    async def test_blocks_chained_naked_python(self, workflow_state, require_uv_rule):
+        """Blocks naked python3 in chained commands."""
+        from gobby.workflows.enforcement import block_tools
+
+        result = await block_tools(
+            rules=[require_uv_rule],
+            event_data={
+                "tool_name": "Bash",
+                "tool_input": {"command": "cd /foo && python3 script.py"},
+            },
+            workflow_state=workflow_state,
+        )
+
+        assert result is not None
+        assert result["decision"] == "block"
+
+    @pytest.mark.asyncio
+    async def test_allows_chained_uv_run(self, workflow_state, require_uv_rule):
+        """Allows uv run python3 in chained commands."""
+        from gobby.workflows.enforcement import block_tools
+
+        result = await block_tools(
+            rules=[require_uv_rule],
+            event_data={
+                "tool_name": "Bash",
+                "tool_input": {"command": "cd /foo && uv run python3 script.py"},
+            },
+            workflow_state=workflow_state,
+        )
+
+        assert result is None
+
+    @pytest.mark.asyncio
+    async def test_allows_non_python_commands(self, workflow_state, require_uv_rule):
+        """Allows non-python commands like ls, git, etc."""
+        from gobby.workflows.enforcement import block_tools
+
+        result = await block_tools(
+            rules=[require_uv_rule],
+            event_data={
+                "tool_name": "Bash",
+                "tool_input": {"command": "ls -la"},
+            },
+            workflow_state=workflow_state,
+        )
+
+        assert result is None
+
+    @pytest.mark.asyncio
+    async def test_blocks_python_without_version(self, workflow_state, require_uv_rule):
+        """Blocks bare 'python' command."""
+        from gobby.workflows.enforcement import block_tools
+
+        result = await block_tools(
+            rules=[require_uv_rule],
+            event_data={
+                "tool_name": "Bash",
+                "tool_input": {"command": "python -m pytest"},
+            },
+            workflow_state=workflow_state,
+        )
+
+        assert result is not None
+        assert result["decision"] == "block"
+
+    @pytest.mark.asyncio
+    async def test_blocks_python_with_minor_version(self, workflow_state, require_uv_rule):
+        """Blocks python3.12 command."""
+        from gobby.workflows.enforcement import block_tools
+
+        result = await block_tools(
+            rules=[require_uv_rule],
+            event_data={
+                "tool_name": "Bash",
+                "tool_input": {"command": "python3.12 script.py"},
+            },
+            workflow_state=workflow_state,
+        )
+
+        assert result is not None
+        assert result["decision"] == "block"
