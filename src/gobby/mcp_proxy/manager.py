@@ -788,10 +788,10 @@ class MCPClientManager:
         """Register a new server configuration."""
         self._configs[config.name] = config
         if config.name not in self.health:
-            initial_state = ConnectionState.PENDING if self.lazy_connect else ConnectionState.DISCONNECTED
-            self.health[config.name] = MCPConnectionHealth(
-                name=config.name, state=initial_state
+            initial_state = (
+                ConnectionState.PENDING if self.lazy_connect else ConnectionState.DISCONNECTED
             )
+            self.health[config.name] = MCPConnectionHealth(name=config.name, state=initial_state)
 
     def remove_server_config(self, name: str) -> None:
         """Remove a server configuration.

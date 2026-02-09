@@ -1,44 +1,54 @@
-import { useState } from 'react'
-import ReactMarkdown from 'react-markdown'
-import remarkGfm from 'remark-gfm'
-import { ToolCallDisplay } from './ToolCallDisplay'
-import { markdownComponents } from './CodeBlock'
+import { useState } from "react";
+import { ToolCallDisplay } from "./ToolCallDisplay";
+import { MemoizedMarkdown } from "./MemoizedMarkdown";
 
 export interface ToolCall {
-  id: string
-  tool_name: string
-  server_name: string
-  status: 'calling' | 'completed' | 'error'
-  arguments?: Record<string, unknown>
-  result?: unknown
-  error?: string
+  id: string;
+  tool_name: string;
+  server_name: string;
+  status: "calling" | "completed" | "error";
+  arguments?: Record<string, unknown>;
+  result?: unknown;
+  error?: string;
 }
 
 export interface ChatMessage {
-  id: string
-  role: 'user' | 'assistant' | 'system'
-  content: string
-  timestamp: Date
-  toolCalls?: ToolCall[]
-  thinkingContent?: string
+  id: string;
+  role: "user" | "assistant" | "system";
+  content: string;
+  timestamp: Date;
+  toolCalls?: ToolCall[];
+  thinkingContent?: string;
 }
 
 interface MessageProps {
-  message: ChatMessage
-  isStreaming?: boolean
-  isThinking?: boolean
+  message: ChatMessage;
+  isStreaming?: boolean;
+  isThinking?: boolean;
 }
 
-export function Message({ message, isStreaming = false, isThinking = false }: MessageProps) {
-  const [thinkingExpanded, setThinkingExpanded] = useState(false)
-  const isCommandResult = message.role === 'system' && message.toolCalls?.length && !message.content
-  const isModelSwitch = message.role === 'system' && message.id.startsWith('model-switch-')
+export function Message({
+  message,
+  isStreaming = false,
+  isThinking = false,
+}: MessageProps) {
+  const [thinkingExpanded, setThinkingExpanded] = useState(false);
+  const isCommandResult =
+    message.role === "system" && message.toolCalls?.length && !message.content;
+  const isModelSwitch =
+    message.role === "system" && message.id.startsWith("model-switch-");
 
   return (
-    <div className={`message message-${message.role}${isCommandResult ? ' message-command' : ''}${isModelSwitch ? ' message-model-switch' : ''}`}>
+    <div
+      className={`message message-${message.role}${isCommandResult ? " message-command" : ""}${isModelSwitch ? " message-model-switch" : ""}`}
+    >
       <div className="message-header">
         <span className="message-role">
-          {message.role === 'user' ? 'You' : message.role === 'assistant' ? 'Gobby' : 'System'}
+          {message.role === "user"
+            ? "You"
+            : message.role === "assistant"
+              ? "Gobby"
+              : "System"}
         </span>
         <span className="message-time">
           {message.timestamp.toLocaleTimeString()}
@@ -51,16 +61,25 @@ export function Message({ message, isStreaming = false, isThinking = false }: Me
         </div>
       )}
       {message.thinkingContent && (
-        <div className="thinking-block" onClick={() => setThinkingExpanded(!thinkingExpanded)}>
+        <div
+          className="thinking-block"
+          onClick={() => setThinkingExpanded(!thinkingExpanded)}
+        >
           <div className="thinking-block-header">
-            <span className="thinking-block-expand">{thinkingExpanded ? '\u25bc' : '\u25b6'}</span>
+            <span className="thinking-block-expand">
+              {thinkingExpanded ? "\u25bc" : "\u25b6"}
+            </span>
             <span className="thinking-block-label">Thinking</span>
           </div>
           {thinkingExpanded && (
-            <div className="thinking-block-content" onClick={(e) => e.stopPropagation()}>
-              <ReactMarkdown remarkPlugins={[remarkGfm]} components={markdownComponents}>
-                {message.thinkingContent}
-              </ReactMarkdown>
+            <div
+              className="thinking-block-content"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <MemoizedMarkdown
+                content={message.thinkingContent}
+                id={`${message.id}-thinking`}
+              />
             </div>
           )}
         </div>
@@ -69,11 +88,9 @@ export function Message({ message, isStreaming = false, isThinking = false }: Me
         <ToolCallDisplay toolCalls={message.toolCalls} />
       )}
       <div className="message-content">
-        <ReactMarkdown remarkPlugins={[remarkGfm]} components={markdownComponents}>
-          {message.content}
-        </ReactMarkdown>
+        <MemoizedMarkdown content={message.content} id={message.id} />
         {isStreaming && <span className="cursor" />}
       </div>
     </div>
-  )
+  );
 }

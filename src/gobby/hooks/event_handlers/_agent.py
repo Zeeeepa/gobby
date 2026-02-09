@@ -145,10 +145,12 @@ class AgentEventHandlerMixin(EventHandlersBase):
             desc = skill.description.split(".")[0] if skill.description else ""
             lines.append(f"- `/gobby:{skill.name}` — {desc}")
 
-        lines.extend([
-            "",
-            "Run `list_mcp_servers()` for MCP tool discovery.",
-        ])
+        lines.extend(
+            [
+                "",
+                "Run `list_mcp_servers()` for MCP tool discovery.",
+            ]
+        )
 
         return "\n".join(lines)
 
@@ -160,7 +162,8 @@ class AgentEventHandlerMixin(EventHandlersBase):
         # Find close matches (name contains or starts with input)
         name_lower = name.lower()
         close = [
-            s.name for s in skills
+            s.name
+            for s in skills
             if not s.is_always_apply()
             and (name_lower in s.name.lower() or s.name.lower().startswith(name_lower))
         ]

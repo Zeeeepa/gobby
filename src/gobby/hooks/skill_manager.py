@@ -125,7 +125,9 @@ class HookSkillManager:
 
         return None
 
-    def match_triggers(self, prompt: str, threshold: float = 0.5) -> list[tuple[ParsedSkill, float]]:
+    def match_triggers(
+        self, prompt: str, threshold: float = 0.5
+    ) -> list[tuple[ParsedSkill, float]]:
         """Match a prompt against skill trigger keywords.
 
         Uses word-overlap scoring: count trigger words that appear in prompt,

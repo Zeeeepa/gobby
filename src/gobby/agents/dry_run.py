@@ -392,7 +392,11 @@ async def evaluate_spawn(
                         )
                     )
             except Exception:
-                logger.debug("Failed to check existing worktree for branch '%s'", computed_branch, exc_info=True)
+                logger.debug(
+                    "Failed to check existing worktree for branch '%s'",
+                    computed_branch,
+                    exc_info=True,
+                )
 
     elif eff_isolation == "clone":
         if clone_manager is None or clone_storage is None:
@@ -440,7 +444,9 @@ async def evaluate_spawn(
                         )
                     )
             except Exception:
-                logger.debug("Failed to check existing clone for branch '%s'", computed_branch, exc_info=True)
+                logger.debug(
+                    "Failed to check existing clone for branch '%s'", computed_branch, exc_info=True
+                )
 
     # ---- Layer 5: Runtime Environment ----
     if parent_session_id and runner is not None:
