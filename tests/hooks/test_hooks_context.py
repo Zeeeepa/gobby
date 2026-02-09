@@ -74,6 +74,9 @@ def mock_hook_manager(temp_dir: Path):
         # so tests can set return_value on their methods
         manager._session_manager = MagicMock()
         manager._session_task_manager = MagicMock()
+        # Update session lookup service references to use the mocked instances
+        manager._session_lookup._session_manager = manager._session_manager
+        manager._session_lookup._session_task_manager = manager._session_task_manager
 
         yield manager
 

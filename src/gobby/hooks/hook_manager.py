@@ -184,6 +184,14 @@ class HookManager:
         self._hook_assembler = components.hook_assembler
         self._event_handlers = components.event_handlers
 
+        # Response metadata enrichment service
+        from gobby.hooks.event_enrichment import EventEnricher
+
+        self._enricher = EventEnricher(
+            session_storage=self._session_storage,
+            injected_sessions=self._injected_sessions,
+        )
+
         # Session lookup service (resolves platform session IDs from CLI external IDs)
         from gobby.hooks.session_lookup import SessionLookupService
 
@@ -375,51 +383,8 @@ class HookManager:
         try:
             response = handler(event)
 
-            # Copy session metadata from event to response for adapter injection
-            # The adapter reads response.metadata to inject session info into agent context
-            if event.metadata.get("_platform_session_id"):
-                platform_session_id = event.metadata["_platform_session_id"]
-                response.metadata["session_id"] = platform_session_id
-                # Look up seq_num for session_ref (#N format)
-                if self._session_storage:
-                    session_obj = self._session_storage.get(platform_session_id)
-                    if session_obj and session_obj.seq_num:
-                        response.metadata["session_ref"] = f"#{session_obj.seq_num}"
-
-                # Track first hook per session for token optimization
-                # Adapters use this flag to inject full metadata only on first hook
-                session_key = f"{platform_session_id}:{event.source.value}"
-                is_first = session_key not in self._injected_sessions
-                if is_first:
-                    self._injected_sessions.add(session_key)
-                response.metadata["_first_hook_for_session"] = is_first
-            if event.session_id:  # external_id (e.g., Claude Code's session UUID)
-                response.metadata["external_id"] = event.session_id
-            if event.machine_id:
-                response.metadata["machine_id"] = event.machine_id
-            if event.project_id:
-                response.metadata["project_id"] = event.project_id
-            # Copy terminal context if present
-            for key in [
-                "terminal_term_program",
-                "terminal_tty",
-                "terminal_parent_pid",
-                "terminal_iterm_session_id",
-                "terminal_term_session_id",
-                "terminal_kitty_window_id",
-                "terminal_tmux_pane",
-                "terminal_vscode_terminal_id",
-                "terminal_alacritty_socket",
-            ]:
-                if event.metadata.get(key):
-                    response.metadata[key] = event.metadata[key]
-
-            # Merge workflow context if present
-            if workflow_context:
-                if response.context:
-                    response.context = f"{response.context}\n\n{workflow_context}"
-                else:
-                    response.context = workflow_context
+            # Enrich response with session metadata, terminal context, workflow context
+            self._enricher.enrich(event, response, workflow_context=workflow_context)
 
             # Broadcast event (fire-and-forget)
             if self.broadcaster:
