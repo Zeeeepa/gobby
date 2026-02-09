@@ -10,7 +10,8 @@ Usage:
 """
 
 from gobby.llm.base import AuthMode, LLMProvider
-from gobby.llm.claude import (
+from gobby.llm.claude_executor import ClaudeExecutor
+from gobby.llm.claude_models import (
     ChatEvent,
     DoneEvent,
     MCPToolResult,
@@ -19,7 +20,6 @@ from gobby.llm.claude import (
     ToolCallEvent,
     ToolResultEvent,
 )
-from gobby.llm.claude_executor import ClaudeExecutor
 from gobby.llm.executor import (
     AgentExecutor,
     AgentResult,
