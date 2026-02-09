@@ -120,8 +120,13 @@ class DoneEvent:
     """Duration in milliseconds if available."""
 
 
+@dataclass
+class ThinkingEvent:
+    """Event when the model is using extended thinking."""
+
+
 # Union type for all streaming events
-ChatEvent = TextChunk | ToolCallEvent | ToolResultEvent | DoneEvent
+ChatEvent = TextChunk | ToolCallEvent | ToolResultEvent | DoneEvent | ThinkingEvent
 
 
 logger = logging.getLogger(__name__)

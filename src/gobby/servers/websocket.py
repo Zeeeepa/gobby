@@ -699,7 +699,13 @@ class WebSocketServer:
         model: str | None,
     ) -> None:
         """Stream a ChatSession response to the client. Runs as a cancellable task."""
-        from gobby.llm.claude import DoneEvent, TextChunk, ToolCallEvent, ToolResultEvent
+        from gobby.llm.claude import (
+            DoneEvent,
+            TextChunk,
+            ThinkingEvent,
+            ToolCallEvent,
+            ToolResultEvent,
+        )
 
         assistant_message_id = f"assistant-{uuid4().hex[:12]}"
 
@@ -733,7 +739,17 @@ class WebSocketServer:
             # RuntimeError from anyio cancel scope mismatch).
             gen = session.send_message(content)
             async for event in gen:
-                if isinstance(event, TextChunk):
+                if isinstance(event, ThinkingEvent):
+                    await websocket.send(
+                        json.dumps(
+                            {
+                                "type": "chat_thinking",
+                                "message_id": assistant_message_id,
+                                "conversation_id": conversation_id,
+                            }
+                        )
+                    )
+                elif isinstance(event, TextChunk):
                     await websocket.send(
                         json.dumps(
                             {

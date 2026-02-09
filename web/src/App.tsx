@@ -1,23 +1,39 @@
-import { useState } from 'react'
+import { useState, useCallback } from 'react'
 import { useChat } from './hooks/useChat'
 import { useSettings } from './hooks/useSettings'
 import { useTerminal } from './hooks/useTerminal'
+import { useSlashCommands } from './hooks/useSlashCommands'
 import { ChatMessages } from './components/ChatMessages'
 import { ChatInput } from './components/ChatInput'
 import { Settings, SettingsIcon } from './components/Settings'
 import { TerminalPanel } from './components/Terminal'
 
 export default function App() {
-  const { messages, isConnected, isStreaming, sendMessage, stopStreaming, clearHistory } = useChat()
+  const { messages, isConnected, isStreaming, isThinking, sendMessage, stopStreaming, clearHistory, executeCommand } = useChat()
   const { settings, modelInfo, modelsLoading, updateFontSize, updateModel, resetSettings } = useSettings()
   const { agents, selectedAgent, setSelectedAgent, sendInput, onOutput } = useTerminal()
+  const { filteredCommands, parseCommand, filterCommands } = useSlashCommands()
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [terminalOpen, setTerminalOpen] = useState(false)
 
-  // Wrap sendMessage to include the selected model
-  const handleSendMessage = (content: string) => {
+  // Wrap sendMessage to include the selected model and handle slash commands
+  const handleSendMessage = useCallback((content: string) => {
+    // Check for slash command first
+    const cmd = parseCommand(content)
+    if (cmd) {
+      executeCommand(cmd.server, cmd.tool, cmd.args)
+      return
+    }
     sendMessage(content, settings.model)
-  }
+  }, [parseCommand, executeCommand, sendMessage, settings.model])
+
+  const handleInputChange = useCallback((value: string) => {
+    filterCommands(value)
+  }, [filterCommands])
+
+  const handleCommandSelect = useCallback((cmd: { server: string; tool: string }) => {
+    executeCommand(cmd.server, cmd.tool)
+  }, [executeCommand])
 
   return (
     <div className="app">
@@ -55,8 +71,16 @@ export default function App() {
       </header>
 
       <main className="chat-container">
-        <ChatMessages messages={messages} isStreaming={isStreaming} />
-        <ChatInput onSend={handleSendMessage} onStop={stopStreaming} isStreaming={isStreaming} disabled={!isConnected} />
+        <ChatMessages messages={messages} isStreaming={isStreaming} isThinking={isThinking} />
+        <ChatInput
+          onSend={handleSendMessage}
+          onStop={stopStreaming}
+          isStreaming={isStreaming}
+          disabled={!isConnected}
+          onInputChange={handleInputChange}
+          filteredCommands={filteredCommands}
+          onCommandSelect={handleCommandSelect}
+        />
       </main>
 
       <TerminalPanel

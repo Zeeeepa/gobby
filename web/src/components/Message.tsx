@@ -24,11 +24,14 @@ export interface ChatMessage {
 interface MessageProps {
   message: ChatMessage
   isStreaming?: boolean
+  isThinking?: boolean
 }
 
-export function Message({ message, isStreaming = false }: MessageProps) {
+export function Message({ message, isStreaming = false, isThinking = false }: MessageProps) {
+  const isCommandResult = message.role === 'system' && message.toolCalls?.length && !message.content
+
   return (
-    <div className={`message message-${message.role}`}>
+    <div className={`message message-${message.role}${isCommandResult ? ' message-command' : ''}`}>
       <div className="message-header">
         <span className="message-role">
           {message.role === 'user' ? 'You' : message.role === 'assistant' ? 'Gobby' : 'System'}
@@ -37,6 +40,12 @@ export function Message({ message, isStreaming = false }: MessageProps) {
           {message.timestamp.toLocaleTimeString()}
         </span>
       </div>
+      {isThinking && !message.content && (
+        <div className="thinking-indicator">
+          <span className="thinking-spinner" />
+          <span className="thinking-text">Gobby is thinking...</span>
+        </div>
+      )}
       {message.toolCalls && message.toolCalls.length > 0 && (
         <ToolCallDisplay toolCalls={message.toolCalls} />
       )}

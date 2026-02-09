@@ -75,6 +75,24 @@ interface ToolStatusMessage {
   error?: string
 }
 
+interface ChatThinkingMessage {
+  type: 'chat_thinking'
+  message_id: string
+  conversation_id: string
+}
+
+interface ToolResultMessage {
+  type: 'tool_result'
+  request_id: string
+  result: unknown
+}
+
+interface ErrorMessage {
+  type: 'error'
+  request_id?: string
+  message: string
+}
+
 /** crypto.randomUUID() requires a secure context (HTTPS/localhost). Fall back for HTTP access (e.g. Tailscale IP). */
 function uuid(): string {
   if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
@@ -101,14 +119,21 @@ export function useChat() {
   const [messages, setMessages] = useState<ChatMessage[]>(() => loadMessages())
   const [isConnected, setIsConnected] = useState(false)
   const [isStreaming, setIsStreaming] = useState(false)
+  const [isThinking, setIsThinking] = useState(false)
   const wsRef = useRef<WebSocket | null>(null)
   const reconnectTimeoutRef = useRef<number | null>(null)
   const conversationIdRef = useRef<string>(loadConversationId())
+
+  // Track pending command request IDs for tool_result routing
+  const pendingCommandsRef = useRef<Map<string, { server: string; tool: string }>>(new Map())
 
   // Refs for handlers to avoid stale closures in WebSocket callbacks
   const handleChatStreamRef = useRef<(chunk: ChatStreamChunk) => void>(() => {})
   const handleChatErrorRef = useRef<(error: ChatError) => void>(() => {})
   const handleToolStatusRef = useRef<(status: ToolStatusMessage) => void>(() => {})
+  const handleChatThinkingRef = useRef<(msg: ChatThinkingMessage) => void>(() => {})
+  const handleToolResultRef = useRef<(msg: ToolResultMessage) => void>(() => {})
+  const handleErrorRef = useRef<(msg: ErrorMessage) => void>(() => {})
 
   // Connect to WebSocket
   const connect = useCallback(() => {
@@ -133,7 +158,7 @@ export function useChat() {
       // Subscribe to chat events
       ws.send(JSON.stringify({
         type: 'subscribe',
-        events: ['chat_stream', 'chat_error', 'tool_status'],
+        events: ['chat_stream', 'chat_error', 'tool_status', 'chat_thinking'],
       }))
     }
 
@@ -141,6 +166,7 @@ export function useChat() {
       console.log('WebSocket disconnected')
       setIsConnected(false)
       setIsStreaming(false)
+      setIsThinking(false)
 
       // Reconnect after 2 seconds
       reconnectTimeoutRef.current = window.setTimeout(() => {
@@ -163,6 +189,12 @@ export function useChat() {
           handleChatErrorRef.current(data as unknown as ChatError)
         } else if (data.type === 'tool_status') {
           handleToolStatusRef.current(data as unknown as ToolStatusMessage)
+        } else if (data.type === 'chat_thinking') {
+          handleChatThinkingRef.current(data as unknown as ChatThinkingMessage)
+        } else if (data.type === 'tool_result') {
+          handleToolResultRef.current(data as unknown as ToolResultMessage)
+        } else if (data.type === 'error' && (data as unknown as ErrorMessage).request_id) {
+          handleErrorRef.current(data as unknown as ErrorMessage)
         } else if (data.type === 'connection_established') {
           // If the server still has our conversation alive, keep using it.
           // Otherwise our stored ID is fine — the server will create a new session on first message.
@@ -182,6 +214,11 @@ export function useChat() {
 
   // Handle streaming chat chunks
   const handleChatStream = useCallback((chunk: ChatStreamChunk) => {
+    // First text chunk clears thinking state
+    if (chunk.content) {
+      setIsThinking(false)
+    }
+
     setMessages((prev) => {
       const existingIndex = prev.findIndex((m) => m.id === chunk.message_id)
 
@@ -209,12 +246,14 @@ export function useChat() {
 
     if (chunk.done) {
       setIsStreaming(false)
+      setIsThinking(false)
     }
   }, [])
 
   // Handle chat errors
   const handleChatError = useCallback((error: ChatError) => {
     setIsStreaming(false)
+    setIsThinking(false)
     setMessages((prev) => [
       ...prev,
       {
@@ -228,6 +267,11 @@ export function useChat() {
 
   // Handle tool status updates
   const handleToolStatus = useCallback((status: ToolStatusMessage) => {
+    // Tool call starting clears thinking state
+    if (status.status === 'calling') {
+      setIsThinking(false)
+    }
+
     setMessages((prev) => {
       const idx = prev.findIndex((m) => m.id === status.message_id)
       if (idx < 0) return prev
@@ -265,12 +309,59 @@ export function useChat() {
     })
   }, [])
 
+  // Handle thinking events
+  const handleChatThinking = useCallback((_msg: ChatThinkingMessage) => {
+    setIsThinking(true)
+  }, [])
+
+  // Handle tool_result for slash commands
+  const handleToolResult = useCallback((msg: ToolResultMessage) => {
+    const pending = pendingCommandsRef.current.get(msg.request_id)
+    if (!pending) return
+    pendingCommandsRef.current.delete(msg.request_id)
+
+    const resultStr = typeof msg.result === 'string'
+      ? msg.result
+      : JSON.stringify(msg.result, null, 2)
+
+    setMessages((prev) => [
+      ...prev,
+      {
+        id: `cmd-result-${msg.request_id}`,
+        role: 'system' as const,
+        content: `**/${pending.server}.${pending.tool}**\n\`\`\`json\n${resultStr}\n\`\`\``,
+        timestamp: new Date(),
+      },
+    ])
+  }, [])
+
+  // Handle error responses for slash commands
+  const handleError = useCallback((msg: ErrorMessage) => {
+    if (!msg.request_id) return
+    const pending = pendingCommandsRef.current.get(msg.request_id)
+    if (!pending) return
+    pendingCommandsRef.current.delete(msg.request_id)
+
+    setMessages((prev) => [
+      ...prev,
+      {
+        id: `cmd-error-${msg.request_id}`,
+        role: 'system' as const,
+        content: `Error running /${pending.server}.${pending.tool}: ${msg.message}`,
+        timestamp: new Date(),
+      },
+    ])
+  }, [])
+
   // Keep refs updated to avoid stale closures
   useEffect(() => {
     handleChatStreamRef.current = handleChatStream
     handleChatErrorRef.current = handleChatError
     handleToolStatusRef.current = handleToolStatus
-  }, [handleChatStream, handleChatError, handleToolStatus])
+    handleChatThinkingRef.current = handleChatThinking
+    handleToolResultRef.current = handleToolResult
+    handleErrorRef.current = handleError
+  }, [handleChatStream, handleChatError, handleToolStatus, handleChatThinking, handleToolResult, handleError])
 
   // Persist messages to localStorage
   useEffect(() => {
@@ -294,6 +385,7 @@ export function useChat() {
       conversation_id: conversationIdRef.current,
     }))
     setIsStreaming(false) // Optimistic update
+    setIsThinking(false)
   }, [])
 
   // Send a message (allowed even while streaming — cancels the active stream)
@@ -337,7 +429,38 @@ export function useChat() {
     wsRef.current.send(JSON.stringify(payload))
 
     setIsStreaming(true)
+    setIsThinking(false)
     return true
+  }, [])
+
+  // Execute a slash command directly (no LLM round-trip)
+  const executeCommand = useCallback((server: string, tool: string, args: Record<string, string> = {}) => {
+    if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) return
+
+    const requestId = uuid()
+
+    // Track pending command
+    pendingCommandsRef.current.set(requestId, { server, tool })
+
+    // Add user message showing the command
+    setMessages((prev) => [
+      ...prev,
+      {
+        id: `cmd-${requestId}`,
+        role: 'user' as const,
+        content: `/${server}.${tool}${Object.keys(args).length ? ' ' + Object.entries(args).map(([k, v]) => `${k}=${v}`).join(' ') : ''}`,
+        timestamp: new Date(),
+      },
+    ])
+
+    // Send tool_call via WebSocket
+    wsRef.current.send(JSON.stringify({
+      type: 'tool_call',
+      request_id: requestId,
+      mcp: server,
+      tool,
+      args,
+    }))
   }, [])
 
   // Connect on mount
@@ -356,8 +479,10 @@ export function useChat() {
     messages,
     isConnected,
     isStreaming,
+    isThinking,
     sendMessage,
     stopStreaming,
     clearHistory,
+    executeCommand,
   }
 }

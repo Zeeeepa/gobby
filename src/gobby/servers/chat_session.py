@@ -21,6 +21,7 @@ from claude_agent_sdk import (
     ClaudeSDKClient,
     ResultMessage,
     TextBlock,
+    ThinkingBlock,
     ToolResultBlock,
     ToolUseBlock,
     UserMessage,
@@ -30,6 +31,7 @@ from gobby.llm.claude import (
     ChatEvent,
     DoneEvent,
     TextChunk,
+    ThinkingEvent,
     ToolCallEvent,
     ToolResultEvent,
 )
@@ -180,7 +182,9 @@ class ChatSession:
 
                     elif isinstance(message, AssistantMessage):
                         for block in message.content:
-                            if isinstance(block, TextBlock):
+                            if isinstance(block, ThinkingBlock):
+                                yield ThinkingEvent()
+                            elif isinstance(block, TextBlock):
                                 text = block.text
                                 if needs_spacing_before_text and text:
                                     text = text.lstrip("\n")
