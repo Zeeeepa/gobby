@@ -474,97 +474,53 @@ call_tool(server_name="gobby-agents", tool_name="spawn_agent", arguments={
 
 The agent will follow the workflow steps (e.g., write tests first, then implement, then refactor).
 
-## Orchestration Tools (`gobby-orchestration`)
+## Leaf Task Handling
 
-The `gobby-orchestration` MCP server provides tools for automated task orchestration — spawning agents for ready subtasks, monitoring their progress, and handling completion.
+When spawning an agent with a leaf task (no children), the meeseeks-box workflow handles it automatically. The `find_work` step first calls `suggest_next_task()` — if the task is a leaf with no subtasks, this returns nothing. The workflow then falls back to checking `session_task` directly: if it's still open, it assigns the task directly to a worker instead of entering `wait_for_workers`.
 
-### Spawning agents for ready tasks
-
-`orchestrate_ready_tasks` finds open subtasks under a parent and spawns agents in isolated worktrees:
+This means you can spawn a meeseeks agent with either:
+- **A parent task** — workers are spawned for each ready subtask
+- **A leaf task** — the task itself is assigned directly to a worker
 
 ```python
+# Parent task with subtasks
+call_tool(server_name="gobby-agents", tool_name="spawn_agent", arguments={
+    "agent": "meeseeks-gemini",
+    "task_id": "#100",  # Parent with children #101, #102
+    "parent_session_id": "<session_id>"
+})
+
+# Leaf task (no children)
+call_tool(server_name="gobby-agents", tool_name="spawn_agent", arguments={
+    "agent": "meeseeks-gemini",
+    "task_id": "#6908",  # Standalone task
+    "parent_session_id": "<session_id>"
+})
+```
+
+## Orchestration Pattern
+
+For automated task orchestration, use the conductor or orchestration tools:
+
+```python
+# Orchestrate ready subtasks under a parent
 call_tool(server_name="gobby-orchestration", tool_name="orchestrate_ready_tasks", arguments={
     "parent_task_id": "#100",
     "session_id": "<orchestrator_session_id>"
 })
-```
 
-### Monitoring progress
-
-`get_orchestration_status` returns a summary of subtask states (open, in_progress, needs_review, closed):
-
-```python
-call_tool(server_name="gobby-orchestration", tool_name="get_orchestration_status", arguments={
-    "parent_task_id": "#100",
-    "project_path": "/path/to/project"
-})
-```
-
-`poll_agent_status` checks spawned agents and moves completed ones to the completed list:
-
-```python
+# Poll agent status
 call_tool(server_name="gobby-orchestration", tool_name="poll_agent_status", arguments={
     "parent_task_id": "#100"
 })
-```
 
-### Completion and review
-
-`process_completed_agents` routes finished agents to review or cleanup:
-
-```python
+# Process completed agents
 call_tool(server_name="gobby-orchestration", tool_name="process_completed_agents", arguments={
     "parent_task_id": "#100"
 })
 ```
 
-`approve_and_cleanup` approves a reviewed task and merges/deletes its worktree:
-
-```python
-call_tool(server_name="gobby-orchestration", tool_name="approve_and_cleanup", arguments={
-    "task_id": "#101"
-})
-```
-
-### Waiting for tasks
-
-Block until tasks reach `closed` or `needs_review`:
-
-```python
-# Wait for a single task
-call_tool(server_name="gobby-orchestration", tool_name="wait_for_task", arguments={
-    "task_id": "#101",
-    "timeout_seconds": 300
-})
-
-# Wait for any one of multiple tasks
-call_tool(server_name="gobby-orchestration", tool_name="wait_for_any_task", arguments={
-    "task_ids": ["#101", "#102", "#103"],
-    "timeout_seconds": 300
-})
-
-# Wait for all tasks
-call_tool(server_name="gobby-orchestration", tool_name="wait_for_all_tasks", arguments={
-    "task_ids": ["#101", "#102", "#103"],
-    "timeout_seconds": 600
-})
-```
-
-### Cleanup
-
-```python
-# Clean up worktrees for reviewed agents (merges branches first)
-call_tool(server_name="gobby-orchestration", tool_name="cleanup_reviewed_worktrees", arguments={
-    "parent_task_id": "#100"
-})
-
-# Clean up stale worktrees with no active agent
-call_tool(server_name="gobby-orchestration", tool_name="cleanup_stale_worktrees", arguments={
-    "max_age_hours": 24
-})
-```
-
-See [mcp-tools.md](mcp-tools.md#task-orchestration-gobby-orchestration) for the full tool reference table.
+See [mcp-tools.md](mcp-tools.md#orchestration) for full orchestration tool reference.
 
 ## Best Practices
 
