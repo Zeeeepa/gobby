@@ -12,7 +12,7 @@ import { TabBar } from './components/TabBar'
 import { TerminalsPage } from './components/TerminalsPage'
 
 export default function App() {
-  const { messages, isConnected, isStreaming, isThinking, sendMessage, stopStreaming, clearHistory, executeCommand } = useChat()
+  const { messages, isConnected, isStreaming, isThinking, sendMessage, stopStreaming, clearHistory, executeCommand, respondToQuestion } = useChat()
   const { settings, modelInfo, modelsLoading, updateFontSize, updateModel, resetSettings } = useSettings()
   const { agents, selectedAgent, setSelectedAgent, sendInput, onOutput } = useTerminal()
   const tmux = useTmuxSessions()
@@ -85,7 +85,7 @@ export default function App() {
       {activeTab === 'chat' ? (
         <>
           <main className="chat-container">
-            <ChatMessages messages={messages} isStreaming={isStreaming} isThinking={isThinking} />
+            <ChatMessages messages={messages} isStreaming={isStreaming} isThinking={isThinking} onRespondToQuestion={respondToQuestion} />
             <ChatInput
               onSend={handleSendMessage}
               onStop={stopStreaming}
