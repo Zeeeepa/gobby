@@ -140,12 +140,14 @@ class TestCloneGitManagerMergeBranch:
 
     def test_merge_branch_success(self, manager, mock_run, tmp_path: Path) -> None:
         """Merge branch succeeds when no conflicts."""
-        # Sequence: fetch, checkout, pull, merge
+        # Sequence: rev-parse, fetch, checkout, pull, merge, checkout-restore
         mock_run.side_effect = [
+            MagicMock(returncode=0, stdout="dev\n"),  # rev-parse (save branch)
             MagicMock(returncode=0),  # fetch
-            MagicMock(returncode=0),  # checkout
+            MagicMock(returncode=0),  # checkout target
             MagicMock(returncode=0),  # pull
             MagicMock(returncode=0, stdout="Merged", stderr=""),  # merge
+            MagicMock(returncode=0),  # checkout restore (finally)
         ]
 
         result = manager.merge_branch(
@@ -153,20 +155,22 @@ class TestCloneGitManagerMergeBranch:
         )
 
         assert result.success is True
-        assert mock_run.call_count == 4
+        assert mock_run.call_count == 6
 
     def test_merge_branch_conflict(self, manager, mock_run, tmp_path: Path) -> None:
-        """Merge branch handles conflicts."""
-        # Sequence: fetch, checkout, pull, merge (fail), diff, abort
+        """Merge branch handles conflicts and restores original branch."""
+        # Sequence: rev-parse, fetch, checkout, pull, merge (fail), diff, abort, checkout-restore
         mock_run.side_effect = [
+            MagicMock(returncode=0, stdout="dev\n"),  # rev-parse (save branch)
             MagicMock(returncode=0),  # fetch
-            MagicMock(returncode=0),  # checkout
+            MagicMock(returncode=0),  # checkout target
             MagicMock(returncode=0),  # pull
             MagicMock(
                 returncode=1, stdout="CONFLICT", stderr="Automatic merge failed"
             ),  # merge fail
             MagicMock(returncode=0, stdout="file.txt\n", stderr=""),  # diff U
             MagicMock(returncode=0),  # merge --abort
+            MagicMock(returncode=0),  # checkout restore (finally)
         ]
 
         result = manager.merge_branch(
