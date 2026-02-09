@@ -11,7 +11,7 @@ import asyncio
 import json
 import logging
 import os
-from collections.abc import AsyncIterator, Callable, Coroutine
+from collections.abc import AsyncGenerator, AsyncIterator, Callable, Coroutine
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from typing import Any, Protocol
@@ -709,7 +709,7 @@ class WebSocketServer:
 
         assistant_message_id = f"assistant-{uuid4().hex[:12]}"
 
-        gen: AsyncIterator[Any] | None = None
+        gen: AsyncGenerator[Any] | None = None
         try:
             # Get or create ChatSession for this conversation
             session = self._chat_sessions.get(conversation_id)
