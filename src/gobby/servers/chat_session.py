@@ -233,6 +233,16 @@ class ChatSession:
         if self._client:
             try:
                 await self._client.disconnect()
+            except RuntimeError as e:
+                # The SDK's Query._tg.__aexit__() raises RuntimeError when
+                # stop() is called from a different asyncio task than the one
+                # that called start() (e.g. idle cleanup or shutdown).
+                if "cancel scope" in str(e):
+                    logger.debug(
+                        f"ChatSession {self.conversation_id} cross-task disconnect (expected): {e}"
+                    )
+                else:
+                    logger.warning(f"ChatSession {self.conversation_id} disconnect error: {e}")
             except Exception as e:
                 logger.warning(f"ChatSession {self.conversation_id} disconnect error: {e}")
             finally:

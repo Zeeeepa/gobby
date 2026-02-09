@@ -11,7 +11,7 @@ import asyncio
 import json
 import logging
 import os
-from collections.abc import Callable, Coroutine
+from collections.abc import AsyncIterator, Callable, Coroutine
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from typing import Any, Protocol
@@ -578,7 +578,18 @@ class WebSocketServer:
             logger.warning(f"Failed to write to agent {run_id} PTY: {e}")
 
     async def _cancel_active_chat(self, conversation_id: str) -> None:
-        """Cancel any active chat streaming task for a conversation."""
+        """Cancel any active chat streaming task for a conversation.
+
+        Attempts a graceful interrupt first so the SDK can clean up its
+        internal task group, then force-cancels if the task is still running.
+        """
+        session = self._chat_sessions.get(conversation_id)
+        if session:
+            try:
+                await asyncio.wait_for(session.interrupt(), timeout=0.5)
+            except (TimeoutError, Exception):
+                pass
+
         active_task = self._active_chat_tasks.pop(conversation_id, None)
         if active_task and not active_task.done():
             active_task.cancel()
@@ -600,17 +611,10 @@ class WebSocketServer:
         conversation_id = (data or {}).get("conversation_id")
 
         if conversation_id:
-            # Interrupt specific conversation
-            session = self._chat_sessions.get(conversation_id)
-            if session:
-                await session.interrupt()
             await self._cancel_active_chat(conversation_id)
         else:
             # Legacy: stop all active chats (backwards compatibility)
             for conv_id in list(self._active_chat_tasks.keys()):
-                session = self._chat_sessions.get(conv_id)
-                if session:
-                    await session.interrupt()
                 await self._cancel_active_chat(conv_id)
 
     async def _handle_chat_message(self, websocket: Any, data: dict[str, Any]) -> None:
@@ -699,6 +703,7 @@ class WebSocketServer:
 
         assistant_message_id = f"assistant-{uuid4().hex[:12]}"
 
+        gen: AsyncIterator[Any] | None = None
         try:
             # Get or create ChatSession for this conversation
             session = self._chat_sessions.get(conversation_id)
@@ -721,8 +726,13 @@ class WebSocketServer:
                     return
                 self._chat_sessions[conversation_id] = session
 
-            # Stream events from ChatSession
-            async for event in session.send_message(content):
+            # Stream events from ChatSession.
+            # Hold a reference to the generator so we can explicitly aclose()
+            # it in the finally block — this prevents Python's GC from
+            # finalizing it in a different asyncio task (which triggers
+            # RuntimeError from anyio cancel scope mismatch).
+            gen = session.send_message(content)
+            async for event in gen:
                 if isinstance(event, TextChunk):
                     await websocket.send(
                         json.dumps(
@@ -779,7 +789,7 @@ class WebSocketServer:
                     )
 
         except asyncio.CancelledError:
-            # Stream was interrupted
+            # Stream was interrupted (stop button or new message replacing old)
             try:
                 await websocket.send(
                     json.dumps(
@@ -795,6 +805,10 @@ class WebSocketServer:
                 )
             except (ConnectionClosed, ConnectionClosedError):
                 pass
+
+        except (ConnectionClosed, ConnectionClosedError):
+            # Client disconnected mid-stream — not an error
+            logger.debug(f"Client disconnected during chat stream for {conversation_id}")
 
         except Exception:
             logger.exception(f"Chat error for conversation {conversation_id}")
@@ -813,6 +827,14 @@ class WebSocketServer:
                 pass
 
         finally:
+            # Explicitly close the async generator in THIS task to prevent
+            # Python's GC from finalizing it in a different asyncio task
+            # (which causes RuntimeError from anyio cancel scope mismatch).
+            if gen is not None:
+                try:
+                    await gen.aclose()
+                except BaseException:
+                    pass
             self._active_chat_tasks.pop(conversation_id, None)
 
     async def broadcast(self, message: dict[str, Any]) -> None:
