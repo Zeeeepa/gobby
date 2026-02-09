@@ -320,11 +320,13 @@ def install_shared_skills(target_dir: Path) -> list[str]:
 
 
 def install_router_skills_as_commands(target_commands_dir: Path) -> list[str]:
-    """Install router skills (gobby, g) as flattened Claude commands.
+    """Install router skills as flattened Claude commands.
 
     Claude Code uses .claude/commands/name.md format for slash commands.
     This function copies the gobby router skills from shared/skills/ to
     commands/ as flattened .md files.
+
+    Also cleans up stale command files from removed skills (e.g., g.md).
 
     Args:
         target_commands_dir: Path to commands directory (e.g., .claude/commands)
@@ -336,7 +338,18 @@ def install_router_skills_as_commands(target_commands_dir: Path) -> list[str]:
     installed: list[str] = []
 
     # Router skills to install as commands
-    router_skills = ["gobby", "g"]
+    router_skills = ["gobby"]
+
+    # Clean up stale command files from removed skills
+    stale_commands = ["g.md"]
+    for stale in stale_commands:
+        stale_path = target_commands_dir / stale
+        if stale_path.exists():
+            try:
+                stale_path.unlink()
+                logger.info(f"Removed stale command: {stale}")
+            except OSError as e:
+                logger.warning(f"Failed to remove stale command {stale}: {e}")
 
     target_commands_dir.mkdir(parents=True, exist_ok=True)
 
@@ -359,11 +372,13 @@ def install_router_skills_as_commands(target_commands_dir: Path) -> list[str]:
 
 
 def install_router_skills_as_gemini_skills(target_skills_dir: Path) -> list[str]:
-    """Install router skills (gobby, g) as Gemini skills (directory structure).
+    """Install router skills as Gemini skills (directory structure).
 
     Gemini CLI uses .gemini/skills/name/SKILL.md format for skills.
     This function copies the gobby router skills from shared/skills/ to
     the target skills directory preserving the directory structure.
+
+    Also cleans up stale skill directories from removed skills (e.g., g/).
 
     Args:
         target_skills_dir: Path to skills directory (e.g., .gemini/skills)
@@ -375,7 +390,18 @@ def install_router_skills_as_gemini_skills(target_skills_dir: Path) -> list[str]
     installed: list[str] = []
 
     # Router skills to install
-    router_skills = ["gobby", "g"]
+    router_skills = ["gobby"]
+
+    # Clean up stale skill directories from removed skills
+    stale_skills = ["g"]
+    for stale in stale_skills:
+        stale_path = target_skills_dir / stale
+        if stale_path.exists():
+            try:
+                shutil.rmtree(stale_path)
+                logger.info(f"Removed stale skill directory: {stale}/")
+            except OSError as e:
+                logger.warning(f"Failed to remove stale skill {stale}: {e}")
 
     target_skills_dir.mkdir(parents=True, exist_ok=True)
 

@@ -3,6 +3,7 @@ name: tasks
 description: This skill should be used when the user asks to "/gobby tasks", "task management", "create task", "list tasks", "close task". Manage gobby tasks - create, list, close, expand, validate, dependencies, and orchestration.
 version: "2.0.0"
 category: core
+triggers: create task, list tasks, close task, task management
 ---
 
 # /gobby tasks - Task Management Skill

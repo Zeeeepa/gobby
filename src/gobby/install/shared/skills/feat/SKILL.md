@@ -2,6 +2,7 @@
 name: feat
 description: "Quickly create a feature task. Usage: /feat <title> [description]"
 category: core
+triggers: feature, new feature
 ---
 
 # /feat - Create Feature Task

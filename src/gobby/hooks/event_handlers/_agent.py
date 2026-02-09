@@ -1,7 +1,12 @@
 from __future__ import annotations
 
+import re
+
 from gobby.hooks.event_handlers._base import EventHandlersBase
 from gobby.hooks.events import HookEvent, HookResponse, SessionSource
+
+# Pattern for /gobby or /gobby:skillname with optional args
+_GOBBY_CMD_PATTERN = re.compile(r"^/gobby(?::(\S+))?\s*(.*)?$", re.IGNORECASE | re.DOTALL)
 
 
 class AgentEventHandlerMixin(EventHandlersBase):
@@ -33,6 +38,20 @@ class AgentEventHandlerMixin(EventHandlersBase):
             if prompt_lower in ("/clear", "/exit") and transcript_path:
                 self.logger.debug(f"Detected {prompt_lower} - lifecycle workflows handle handoff")
 
+        # Skill interception — runs before lifecycle workflows
+        if self._skill_manager and prompt.strip():
+            try:
+                skill_context = self._intercept_skill_command(prompt.strip())
+                if skill_context:
+                    context_parts.append(skill_context)
+                else:
+                    # Try trigger-based suggestion for non-command prompts
+                    suggestion = self._suggest_skills(prompt.strip())
+                    if suggestion:
+                        context_parts.append(suggestion)
+            except Exception as e:
+                self.logger.error(f"Failed skill interception: {e}", exc_info=True)
+
         # Execute lifecycle workflow triggers
         if self._workflow_handler:
             try:
@@ -48,6 +67,113 @@ class AgentEventHandlerMixin(EventHandlersBase):
             decision="allow",
             context="\n\n".join(context_parts) if context_parts else None,
         )
+
+    def _intercept_skill_command(self, prompt: str) -> str | None:
+        """Intercept /gobby and /gobby:skillname commands.
+
+        Returns context string to inject, or None if not a /gobby command.
+        """
+        match = _GOBBY_CMD_PATTERN.match(prompt)
+        if not match:
+            return None
+
+        skill_name = match.group(1)  # None for bare /gobby
+        args = (match.group(2) or "").strip()
+
+        # /gobby or /gobby help → generate help
+        if not skill_name or skill_name.lower() == "help" or args.lower() == "help":
+            return self._generate_help_content()
+
+        # /gobby:skillname → resolve and inject
+        assert self._skill_manager is not None
+        skill = self._skill_manager.resolve_skill_name(skill_name)
+
+        if not skill:
+            return self._skill_not_found_context(skill_name)
+
+        # Wrap skill content in context tags
+        parts = [f'<skill-context name="{skill.name}">']
+        parts.append(skill.content)
+        parts.append("</skill-context>")
+
+        if args:
+            parts.append(f"\nUser arguments: {args}")
+
+        return "\n".join(parts)
+
+    def _suggest_skills(self, prompt: str) -> str | None:
+        """Suggest skills based on trigger keyword matching.
+
+        Only runs for non-slash-command prompts. Returns a lightweight hint
+        if a strong match is found (score >= 0.7).
+        """
+        # Skip if it looks like a slash command
+        if prompt.startswith("/"):
+            return None
+
+        assert self._skill_manager is not None
+        matches = self._skill_manager.match_triggers(prompt, threshold=0.7)
+
+        if not matches:
+            return None
+
+        skill, score = matches[0]
+        return (
+            f"Relevant gobby skill: **{skill.name}** — {skill.description}. "
+            f'Load with get_skill(name="{skill.name}") on gobby-skills server.'
+        )
+
+    def _generate_help_content(self) -> str:
+        """Generate help content listing all available skills."""
+        assert self._skill_manager is not None
+        skills = self._skill_manager.discover_core_skills()
+
+        lines = [
+            "# Gobby Skills",
+            "",
+            "Invoke skills directly with `/gobby:skillname` syntax:",
+            "",
+        ]
+
+        # Sort alphabetically, skip always-apply skills (they're auto-injected)
+        user_skills = sorted(
+            [s for s in skills if not s.is_always_apply()],
+            key=lambda s: s.name,
+        )
+
+        for skill in user_skills:
+            desc = skill.description.split(".")[0] if skill.description else ""
+            lines.append(f"- `/gobby:{skill.name}` — {desc}")
+
+        lines.extend([
+            "",
+            "Run `list_mcp_servers()` for MCP tool discovery.",
+        ])
+
+        return "\n".join(lines)
+
+    def _skill_not_found_context(self, name: str) -> str:
+        """Generate context for an unrecognized skill name."""
+        assert self._skill_manager is not None
+        skills = self._skill_manager.discover_core_skills()
+
+        # Find close matches (name contains or starts with input)
+        name_lower = name.lower()
+        close = [
+            s.name for s in skills
+            if not s.is_always_apply()
+            and (name_lower in s.name.lower() or s.name.lower().startswith(name_lower))
+        ]
+
+        lines = [f"Skill '{name}' not found."]
+        if close:
+            lines.append("")
+            lines.append("Did you mean:")
+            for match in sorted(close)[:5]:
+                lines.append(f"  - `/gobby:{match}`")
+
+        lines.extend(["", "Run `/gobby` or `/gobby help` to see all available skills."])
+        return "\n".join(lines)
 
     def handle_after_agent(self, event: HookEvent) -> HookResponse:
         """Handle AFTER_AGENT event."""
