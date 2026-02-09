@@ -306,6 +306,17 @@ class HandlerMixin:
             )
             return
 
+        # Check if this is a tmux PTY bridge streaming_id first
+        if hasattr(self, '_tmux_bridge'):
+            bridge_fd = self._tmux_bridge.get_master_fd(run_id)
+            if bridge_fd is not None:
+                try:
+                    encoded_data = input_data.encode("utf-8")
+                    await asyncio.to_thread(os.write, bridge_fd, encoded_data)
+                except OSError as e:
+                    logger.warning(f"Failed to write to tmux bridge {run_id}: {e}")
+                return
+
         registry = get_running_agent_registry()
         # Look up by run_id
         agent = registry.get(run_id)

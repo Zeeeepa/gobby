@@ -48,7 +48,9 @@ class TmuxSessionManager:
 
     def _base_args(self) -> list[str]:
         """Return the common tmux prefix args (binary + socket + config)."""
-        args = [self._config.command, "-L", self._config.socket_name]
+        args = [self._config.command]
+        if self._config.socket_name:
+            args.extend(["-L", self._config.socket_name])
         if self._config.config_file:
             args.extend(["-f", self._config.config_file])
         return args

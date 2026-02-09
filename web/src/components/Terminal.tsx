@@ -5,11 +5,12 @@ import '@xterm/xterm/css/xterm.css'
 
 interface TerminalProps {
   runId: string | null
+  readOnly?: boolean
   onInput: (runId: string, data: string) => void
   onOutput: (callback: (runId: string, data: string) => void) => void
 }
 
-export function Terminal({ runId, onInput, onOutput }: TerminalProps) {
+export function Terminal({ runId, readOnly, onInput, onOutput }: TerminalProps) {
   const containerRef = useRef<HTMLDivElement>(null)
   const terminalRef = useRef<XTerm | null>(null)
   const fitAddonRef = useRef<FitAddon | null>(null)
@@ -76,9 +77,9 @@ export function Terminal({ runId, onInput, onOutput }: TerminalProps) {
     }
   }, [])
 
-  // Handle input from terminal
+  // Handle input from terminal (disabled in read-only mode)
   useEffect(() => {
-    if (!terminalRef.current) return
+    if (!terminalRef.current || readOnly) return
 
     const terminal = terminalRef.current
     const disposable = terminal.onData((data) => {
@@ -88,7 +89,7 @@ export function Terminal({ runId, onInput, onOutput }: TerminalProps) {
     })
 
     return () => disposable.dispose()
-  }, [onInput])
+  }, [onInput, readOnly])
 
   // Handle output callback
   const handleOutput = useCallback((outputRunId: string, data: string) => {
@@ -129,6 +130,7 @@ interface AgentSelectorProps {
     run_id: string
     provider: string
     pid?: number
+    mode?: string
   }>
   selectedAgent: string | null
   onSelect: (runId: string | null) => void
@@ -138,7 +140,7 @@ export function AgentSelector({ agents, selectedAgent, onSelect }: AgentSelector
   if (agents.length === 0) {
     return (
       <div className="agent-selector">
-        <span className="no-agents">No embedded agents running</span>
+        <span className="no-agents">No agents running</span>
       </div>
     )
   }
@@ -151,11 +153,14 @@ export function AgentSelector({ agents, selectedAgent, onSelect }: AgentSelector
         className="agent-select"
       >
         <option value="">Select agent...</option>
-        {agents.map((agent) => (
-          <option key={agent.run_id} value={agent.run_id}>
-            {agent.provider} (PID: {agent.pid || 'unknown'}) - {agent.run_id.slice(0, 8)}
-          </option>
-        ))}
+        {agents.map((agent) => {
+          const modeLabel = agent.mode === 'tmux' ? ' [tmux]' : ''
+          return (
+            <option key={agent.run_id} value={agent.run_id}>
+              {agent.provider}{modeLabel} (PID: {agent.pid || 'unknown'}) - {agent.run_id.slice(0, 8)}
+            </option>
+          )
+        })}
       </select>
     </div>
   )
@@ -168,6 +173,7 @@ interface TerminalPanelProps {
     run_id: string
     provider: string
     pid?: number
+    mode?: string
   }>
   selectedAgent: string | null
   onSelectAgent: (runId: string | null) => void
@@ -184,6 +190,10 @@ export function TerminalPanel({
   onInput,
   onOutput,
 }: TerminalPanelProps) {
+  // Determine if selected agent is read-only (tmux agents are read-only in chat panel)
+  const selectedAgentInfo = agents.find(a => a.run_id === selectedAgent)
+  const isReadOnly = selectedAgentInfo?.mode === 'tmux'
+
   return (
     <div className={`terminal-panel ${isOpen ? 'open' : 'collapsed'}`}>
       <div className="terminal-header" onClick={onToggle}>
@@ -192,6 +202,9 @@ export function TerminalPanel({
           Terminal
           {agents.length > 0 && (
             <span className="agent-count">{agents.length}</span>
+          )}
+          {isOpen && isReadOnly && (
+            <span className="read-only-badge">Read-only</span>
           )}
         </span>
         <div className="terminal-actions" onClick={(e) => e.stopPropagation()}>
@@ -210,6 +223,7 @@ export function TerminalPanel({
       {isOpen && (
         <Terminal
           runId={selectedAgent}
+          readOnly={isReadOnly}
           onInput={onInput}
           onOutput={onOutput}
         />

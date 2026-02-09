@@ -55,7 +55,9 @@ class TmuxOutputReader:
     # ------------------------------------------------------------------
 
     def _base_args(self) -> list[str]:
-        args = [self._config.command, "-L", self._config.socket_name]
+        args = [self._config.command]
+        if self._config.socket_name:
+            args.extend(["-L", self._config.socket_name])
         if self._config.config_file:
             args.extend(["-f", self._config.config_file])
         return args
@@ -95,7 +97,8 @@ class TmuxOutputReader:
 
             # Create FIFO
             fifo_dir = tempfile.gettempdir()
-            fifo_path = os.path.join(fifo_dir, f"gobby-tmux-{session_name}.pipe")
+            socket_prefix = self._config.socket_name or "default"
+            fifo_path = os.path.join(fifo_dir, f"gobby-tmux-{socket_prefix}-{session_name}.pipe")
 
             # Clean up stale FIFO from previous run
             try:

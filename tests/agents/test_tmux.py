@@ -13,6 +13,7 @@ import pytest
 from gobby.agents.tmux.config import TmuxConfig
 from gobby.agents.tmux.errors import TmuxNotFoundError, TmuxSessionError
 from gobby.agents.tmux.output_reader import TmuxOutputReader
+from gobby.agents.tmux.pty_bridge import TmuxPTYBridge
 from gobby.agents.tmux.session_manager import TmuxSessionInfo, TmuxSessionManager
 from gobby.config.tmux import TmuxConfig as TmuxConfigCanonical
 
@@ -109,6 +110,19 @@ class TestTmuxSessionManager:
         mgr = TmuxSessionManager(config)
         args = mgr._base_args()
         assert args == ["tmux", "-L", "test", "-f", "/tmp/my.conf"]
+
+    def test_base_args_empty_socket_name(self) -> None:
+        """Empty socket_name skips -L flag (uses default tmux server)."""
+        config = TmuxConfig(socket_name="")
+        mgr = TmuxSessionManager(config)
+        args = mgr._base_args()
+        assert args == ["tmux"]
+
+    def test_base_args_empty_socket_with_config(self) -> None:
+        config = TmuxConfig(socket_name="", config_file="/tmp/my.conf")
+        mgr = TmuxSessionManager(config)
+        args = mgr._base_args()
+        assert args == ["tmux", "-f", "/tmp/my.conf"]
 
     @patch("shutil.which", return_value="/usr/bin/tmux")
     def test_is_available_true(self, mock_which) -> None:
@@ -241,6 +255,13 @@ class TestTmuxOutputReader:
         args = reader._base_args()
         assert args == ["tmux", "-L", "test-sock"]
 
+    def test_base_args_empty_socket(self) -> None:
+        """Empty socket_name skips -L flag."""
+        config = TmuxConfig(socket_name="")
+        reader = TmuxOutputReader(config)
+        args = reader._base_args()
+        assert args == ["tmux"]
+
     @pytest.mark.asyncio
     async def test_stop_reader_not_running(self) -> None:
         reader = TmuxOutputReader()
@@ -315,3 +336,68 @@ class TestDaemonConfigTmux:
         config = DaemonConfig(tmux={"enabled": False, "socket_name": "custom"})
         assert config.tmux.enabled is False
         assert config.tmux.socket_name == "custom"
+
+
+# =============================================================================
+# TmuxPTYBridge
+# =============================================================================
+
+
+class TestTmuxPTYBridge:
+    """Tests for TmuxPTYBridge."""
+
+    def test_init(self) -> None:
+        bridge = TmuxPTYBridge()
+        assert bridge._bridges == {}
+        assert bridge.list_bridges() == {}
+
+    def test_get_master_fd_missing(self) -> None:
+        bridge = TmuxPTYBridge()
+        assert bridge.get_master_fd("nonexistent") is None
+
+    def test_get_bridge_missing(self) -> None:
+        bridge = TmuxPTYBridge()
+        assert bridge.get_bridge("nonexistent") is None
+
+    def test_build_attach_cmd_gobby(self) -> None:
+        bridge = TmuxPTYBridge()
+        config = TmuxConfig(socket_name="gobby")
+        cmd = bridge._build_attach_cmd("my-session", config)
+        assert cmd == ["tmux", "-L", "gobby", "attach-session", "-t", "my-session"]
+
+    def test_build_attach_cmd_default_server(self) -> None:
+        bridge = TmuxPTYBridge()
+        config = TmuxConfig(socket_name="")
+        cmd = bridge._build_attach_cmd("my-session", config)
+        assert cmd == ["tmux", "attach-session", "-t", "my-session"]
+
+    @pytest.mark.asyncio
+    async def test_detach_missing_is_noop(self) -> None:
+        bridge = TmuxPTYBridge()
+        await bridge.detach("nonexistent")  # should not raise
+
+    @pytest.mark.asyncio
+    async def test_detach_all_empty(self) -> None:
+        bridge = TmuxPTYBridge()
+        await bridge.detach_all()  # should not raise
+
+    @pytest.mark.asyncio
+    async def test_attach_duplicate_raises(self) -> None:
+        bridge = TmuxPTYBridge()
+        # Manually insert a bridge entry
+        from unittest.mock import MagicMock
+
+        from gobby.agents.tmux.pty_bridge import BridgeInfo
+
+        mock_proc = MagicMock()
+        bridge._bridges["test-id"] = BridgeInfo(
+            master_fd=999, proc=mock_proc, session_name="sess", socket_name="gobby"
+        )
+
+        with pytest.raises(RuntimeError, match="already exists"):
+            await bridge.attach("sess", "test-id")
+
+    @pytest.mark.asyncio
+    async def test_resize_missing_is_noop(self) -> None:
+        bridge = TmuxPTYBridge()
+        await bridge.resize("nonexistent", 50, 200)  # should not raise

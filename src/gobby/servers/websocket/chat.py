@@ -11,7 +11,7 @@ import json
 import logging
 from collections.abc import AsyncIterator
 from datetime import UTC, datetime
-from typing import Any
+from typing import TYPE_CHECKING, Any
 from uuid import uuid4
 
 from websockets.exceptions import ConnectionClosed, ConnectionClosedError
@@ -39,13 +39,16 @@ class ChatMixin:
     _chat_sessions: dict[str, ChatSession]
     _active_chat_tasks: dict[str, asyncio.Task[None]]
 
-    async def _send_error(
-        self,
-        websocket: Any,
-        message: str,
-        request_id: str | None = None,
-        code: str = "ERROR",
-    ) -> None: ...
+    # Provided by HandlerMixin – declared here only for type checking
+    # to avoid shadowing the real implementation at runtime (MRO).
+    if TYPE_CHECKING:
+        async def _send_error(
+            self,
+            websocket: Any,
+            message: str,
+            request_id: str | None = None,
+            code: str = "ERROR",
+        ) -> None: ...
 
     async def _cancel_active_chat(self, conversation_id: str) -> None:
         """Cancel any active chat streaming task for a conversation.

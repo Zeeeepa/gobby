@@ -25,11 +25,12 @@ from gobby.servers.websocket.broadcast import BroadcastMixin
 from gobby.servers.websocket.chat import ChatMixin
 from gobby.servers.websocket.handlers import HandlerMixin
 from gobby.servers.websocket.models import WebSocketConfig
+from gobby.servers.websocket.tmux import TmuxMixin
 
 logger = logging.getLogger(__name__)
 
 
-class WebSocketServer(ChatMixin, HandlerMixin, AuthMixin, BroadcastMixin):
+class WebSocketServer(TmuxMixin, ChatMixin, HandlerMixin, AuthMixin, BroadcastMixin):
     """
     WebSocket server for real-time communication.
 
@@ -80,6 +81,9 @@ class WebSocketServer(ChatMixin, HandlerMixin, AuthMixin, BroadcastMixin):
 
         # Active chat streaming tasks per conversation_id (for cancellation)
         self._active_chat_tasks: dict[str, asyncio.Task[None]] = {}
+
+        # Initialize tmux subsystem
+        self._init_tmux()
 
         # Server instance (set when started)
         self._server: Any = None
@@ -156,6 +160,8 @@ class WebSocketServer(ChatMixin, HandlerMixin, AuthMixin, BroadcastMixin):
             logger.exception(f"Unexpected error for client {client_id}")
 
         finally:
+            # Clean up tmux bridges owned by this client
+            await self._cleanup_tmux_client(websocket)
             # Always cleanup client state (but NOT chat sessions — they persist)
             self.clients.pop(websocket, None)
             logger.debug(f"Client {client_id} cleaned up. Remaining clients: {len(self.clients)}")
@@ -199,6 +205,24 @@ class WebSocketServer(ChatMixin, HandlerMixin, AuthMixin, BroadcastMixin):
 
         elif msg_type == "stop_chat":
             await self._handle_stop_chat(websocket, data)
+
+        elif msg_type == "tmux_list_sessions":
+            await self._handle_tmux_list_sessions(websocket, data)
+
+        elif msg_type == "tmux_attach":
+            await self._handle_tmux_attach(websocket, data)
+
+        elif msg_type == "tmux_detach":
+            await self._handle_tmux_detach(websocket, data)
+
+        elif msg_type == "tmux_create_session":
+            await self._handle_tmux_create_session(websocket, data)
+
+        elif msg_type == "tmux_kill_session":
+            await self._handle_tmux_kill_session(websocket, data)
+
+        elif msg_type == "tmux_resize":
+            await self._handle_tmux_resize(websocket, data)
 
         else:
             logger.warning(f"Unknown message type: {msg_type}")
@@ -250,6 +274,9 @@ class WebSocketServer(ChatMixin, HandlerMixin, AuthMixin, BroadcastMixin):
                 await self._cleanup_task
             except asyncio.CancelledError:
                 pass
+
+        # Stop all tmux bridges
+        await self._cleanup_tmux()
 
         # Stop all chat sessions
         for conv_id, session in list(self._chat_sessions.items()):

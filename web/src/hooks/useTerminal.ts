@@ -30,6 +30,7 @@ export interface RunningAgent {
   mode: string
   provider: string
   pid?: number
+  tmux_session_name?: string
 }
 
 export function useTerminal() {
@@ -94,8 +95,9 @@ export function useTerminal() {
 
   // Handle agent lifecycle events
   const handleAgentEvent = useCallback((event: AgentEventMessage) => {
-    if (event.event === 'agent_started' && event.mode === 'embedded') {
-      // Add new embedded agent
+    const showModes = ['embedded', 'tmux']
+    if (event.event === 'agent_started' && showModes.includes(event.mode || '')) {
+      // Add new agent (embedded or tmux)
       setAgents(prev => {
         const exists = prev.some(a => a.run_id === event.run_id)
         if (exists) return prev
@@ -106,10 +108,13 @@ export function useTerminal() {
           mode: event.mode || 'embedded',
           provider: event.provider || 'unknown',
           pid: event.pid,
+          tmux_session_name: (event as Record<string, unknown>).tmux_session_name as string | undefined,
         }]
       })
-      // Auto-select if no agent selected
-      setSelectedAgent(prev => prev || event.run_id)
+      // Auto-select if no agent selected (only for embedded)
+      if (event.mode === 'embedded') {
+        setSelectedAgent(prev => prev || event.run_id)
+      }
     } else if (['agent_completed', 'agent_failed', 'agent_cancelled', 'agent_timeout'].includes(event.event)) {
       // Remove finished agent
       setAgents(prev => prev.filter(a => a.run_id !== event.run_id))

@@ -2,19 +2,24 @@ import { useState, useCallback } from 'react'
 import { useChat } from './hooks/useChat'
 import { useSettings } from './hooks/useSettings'
 import { useTerminal } from './hooks/useTerminal'
+import { useTmuxSessions } from './hooks/useTmuxSessions'
 import { useSlashCommands } from './hooks/useSlashCommands'
 import { ChatMessages } from './components/ChatMessages'
 import { ChatInput } from './components/ChatInput'
 import { Settings, SettingsIcon } from './components/Settings'
 import { TerminalPanel } from './components/Terminal'
+import { TabBar } from './components/TabBar'
+import { TerminalsPage } from './components/TerminalsPage'
 
 export default function App() {
   const { messages, isConnected, isStreaming, isThinking, sendMessage, stopStreaming, clearHistory, executeCommand } = useChat()
   const { settings, modelInfo, modelsLoading, updateFontSize, updateModel, resetSettings } = useSettings()
   const { agents, selectedAgent, setSelectedAgent, sendInput, onOutput } = useTerminal()
+  const tmux = useTmuxSessions()
   const { filteredCommands, parseCommand, filterCommands } = useSlashCommands()
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [terminalOpen, setTerminalOpen] = useState(false)
+  const [activeTab, setActiveTab] = useState<string>('chat')
 
   // Wrap sendMessage to include the selected model and handle slash commands
   const handleSendMessage = useCallback((content: string) => {
@@ -35,6 +40,11 @@ export default function App() {
     executeCommand(cmd.server, cmd.tool)
   }, [executeCommand])
 
+  const tabs = [
+    { id: 'chat', label: 'Chat' },
+    { id: 'terminals', label: 'Terminals', badge: tmux.sessions.length },
+  ]
+
   return (
     <div className="app">
       <header className="header">
@@ -51,7 +61,7 @@ export default function App() {
           <span className={`status ${isConnected ? 'connected' : 'disconnected'}`}>
             {isConnected ? 'Connected' : 'Disconnected'}
           </span>
-          {messages.length > 0 && (
+          {messages.length > 0 && activeTab === 'chat' && (
             <button
               className="settings-button"
               onClick={clearHistory}
@@ -70,28 +80,49 @@ export default function App() {
         </div>
       </header>
 
-      <main className="chat-container">
-        <ChatMessages messages={messages} isStreaming={isStreaming} isThinking={isThinking} />
-        <ChatInput
-          onSend={handleSendMessage}
-          onStop={stopStreaming}
-          isStreaming={isStreaming}
-          disabled={!isConnected}
-          onInputChange={handleInputChange}
-          filteredCommands={filteredCommands}
-          onCommandSelect={handleCommandSelect}
-        />
-      </main>
+      <TabBar tabs={tabs} activeTab={activeTab} onTabChange={setActiveTab} />
 
-      <TerminalPanel
-        isOpen={terminalOpen}
-        onToggle={() => setTerminalOpen(!terminalOpen)}
-        agents={agents}
-        selectedAgent={selectedAgent}
-        onSelectAgent={setSelectedAgent}
-        onInput={sendInput}
-        onOutput={onOutput}
-      />
+      {activeTab === 'chat' ? (
+        <>
+          <main className="chat-container">
+            <ChatMessages messages={messages} isStreaming={isStreaming} isThinking={isThinking} />
+            <ChatInput
+              onSend={handleSendMessage}
+              onStop={stopStreaming}
+              isStreaming={isStreaming}
+              disabled={!isConnected}
+              onInputChange={handleInputChange}
+              filteredCommands={filteredCommands}
+              onCommandSelect={handleCommandSelect}
+            />
+          </main>
+
+          <TerminalPanel
+            isOpen={terminalOpen}
+            onToggle={() => setTerminalOpen(!terminalOpen)}
+            agents={agents}
+            selectedAgent={selectedAgent}
+            onSelectAgent={setSelectedAgent}
+            onInput={sendInput}
+            onOutput={onOutput}
+          />
+        </>
+      ) : (
+        <TerminalsPage
+          sessions={tmux.sessions}
+          attachedSession={tmux.attachedSession}
+          streamingId={tmux.streamingId}
+          isLoading={tmux.isLoading}
+          attachSession={tmux.attachSession}
+          detachSession={tmux.detachSession}
+          createSession={tmux.createSession}
+          killSession={tmux.killSession}
+          refreshSessions={tmux.refreshSessions}
+          sendInput={tmux.sendInput}
+          resizeTerminal={tmux.resizeTerminal}
+          onOutput={tmux.onOutput}
+        />
+      )}
 
       <Settings
         isOpen={settingsOpen}
