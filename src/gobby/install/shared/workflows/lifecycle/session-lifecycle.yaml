@@ -148,8 +148,10 @@ triggers:
     - action: task_sync_import
 
     # Skill and task context injection - inject always-apply skills for all session starts
+    # Skip on resume - conversation already has this context from original startup
     # Uses array syntax to combine multiple sources
     - action: inject_context
+      when: "event.data.get('source') != 'resume'"
       source: skills
       filter: always_apply
       template: |
@@ -157,6 +159,7 @@ triggers:
 
     # Inject active task context if session has a claimed task
     - action: inject_context
+      when: "event.data.get('source') != 'resume'"
       source: task_context
       template: |
         {{ task_context }}
@@ -175,8 +178,9 @@ triggers:
         If the user's request involves non-trivial changes, use `/plan` or
         suggest entering plan mode before proceeding with edits.
 
-    # Pre-existing error/warning triage policy - inject on all session starts
+    # Pre-existing error/warning triage policy - skip on resume (already in context)
     - action: inject_context
+      when: "event.data.get('source') != 'resume'"
       template: |
         ## Pre-Existing Error/Warning/Failure Policy
 
