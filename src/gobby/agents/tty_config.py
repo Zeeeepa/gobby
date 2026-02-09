@@ -46,7 +46,6 @@ class PlatformPreferences(BaseModel):
             "kitty",
             "alacritty",
             "terminal.app",
-            "tmux",
         ],
         description="Terminal preference order for macOS",
     )
@@ -57,7 +56,6 @@ class PlatformPreferences(BaseModel):
             "gnome-terminal",
             "konsole",
             "alacritty",
-            "tmux",
         ],
         description="Terminal preference order for Linux",
     )
@@ -112,9 +110,6 @@ DEFAULT_TERMINAL_CONFIGS: dict[str, dict[str, Any]] = {
     "wsl": {
         "command": "wsl",
         # Options can specify distribution: ["-d", "Ubuntu"]
-    },
-    "tmux": {
-        "command": "tmux",
     },
 }
 

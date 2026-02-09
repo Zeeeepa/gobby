@@ -111,11 +111,10 @@ class TestPlatformPreferences:
         assert "iterm" in prefs.macos
         assert "kitty" in prefs.macos
         assert "terminal.app" in prefs.macos
-        assert "tmux" in prefs.macos
         # Ghostty should be first
         assert prefs.macos[0] == "ghostty"
-        # tmux should be last (multiplexer fallback)
-        assert prefs.macos[-1] == "tmux"
+        # tmux is handled by dedicated module (config/tmux.py), not tty_config
+        assert "tmux" not in prefs.macos
 
     def test_default_linux_preferences(self) -> None:
         """PlatformPreferences has default Linux terminal order."""
@@ -125,11 +124,10 @@ class TestPlatformPreferences:
         assert "gnome-terminal" in prefs.linux
         assert "konsole" in prefs.linux
         assert "alacritty" in prefs.linux
-        assert "tmux" in prefs.linux
         # Ghostty should be first
         assert prefs.linux[0] == "ghostty"
-        # tmux should be last
-        assert prefs.linux[-1] == "tmux"
+        # tmux is handled by dedicated module (config/tmux.py), not tty_config
+        assert "tmux" not in prefs.linux
 
     def test_default_windows_preferences(self) -> None:
         """PlatformPreferences has default Windows terminal order."""
@@ -227,10 +225,9 @@ class TestDefaultTerminalConfigs:
         config = DEFAULT_TERMINAL_CONFIGS["wsl"]
         assert config["command"] == "wsl"
 
-    def test_tmux_config(self) -> None:
-        """tmux has expected default config."""
-        config = DEFAULT_TERMINAL_CONFIGS["tmux"]
-        assert config["command"] == "tmux"
+    def test_tmux_not_in_default_configs(self) -> None:
+        """tmux is handled by dedicated module, not DEFAULT_TERMINAL_CONFIGS."""
+        assert "tmux" not in DEFAULT_TERMINAL_CONFIGS
 
 
 # =============================================================================
