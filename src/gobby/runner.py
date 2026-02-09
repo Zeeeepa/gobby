@@ -373,8 +373,10 @@ class GobbyRunner:
                 agent = registry.get(run_id)
                 if agent and agent.master_fd is not None:
 
+                    _agent = agent  # bind for closure type narrowing
+
                     async def start_pty_reader() -> None:
-                        await pty_manager.start_reader(agent)
+                        await pty_manager.start_reader(_agent)
 
                     task = asyncio.create_task(start_pty_reader())
                     task.add_done_callback(_log_broadcast_exception)
