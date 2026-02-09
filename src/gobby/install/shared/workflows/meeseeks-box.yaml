@@ -52,6 +52,7 @@ variables:
   review_approved: false
   review_deficiencies: []
   merge_target_branch: "dev"
+  dry_run: false                  # If true, show what would be spawned without spawning
 
 steps:
   - name: find_work
@@ -142,8 +143,32 @@ steps:
       - action: set_variable
         name: current_worker_id
         value: null
-      # Auto-execute spawn_agent
+      # Dry run: show what would be spawned without actually spawning
+      - action: inject_message
+        when: "variables.get('dry_run', False)"
+        content: |
+          DRY RUN: Would spawn worker for task {{ variables.current_task_id }}
+          - Agent: {{ variables.agent_name }}
+          - Provider: {{ variables.worker_provider }}
+          - Terminal: {{ variables.worker_terminal }}
+          - Isolation: {{ variables.isolation_mode }}
+          - Workflow: worker
+
+          No agent was spawned (dry_run=true).
+      - action: set_variable
+        when: "variables.get('dry_run', False)"
+        name: _spawn_result
+        value:
+          dry_run: true
+          would_spawn:
+            task_id: "{{ variables.current_task_id }}"
+            agent: "{{ variables.agent_name }}"
+            provider: "{{ variables.worker_provider }}"
+            isolation: "{{ variables.isolation_mode }}"
+
+      # Auto-execute spawn_agent (skip in dry_run mode)
       - action: call_mcp_tool
+        when: "not variables.get('dry_run', False)"
         server_name: gobby-agents
         tool_name: spawn_agent
         arguments:
@@ -179,6 +204,9 @@ steps:
       - Read
 
     transitions:
+      # Dry run: skip to complete (plan has been shown via inject_message)
+      - to: complete
+        when: "variables.get('dry_run', False)"
       - to: wait_for_worker
         when: "variables.get('current_worker_id')"
       - to: find_work
@@ -304,8 +332,22 @@ steps:
       - action: set_variable
         name: _respawn_result
         value: null
-      # Auto-execute spawn_agent for fix pass
+      # Dry run: show what would be respawned
+      - action: inject_message
+        when: "variables.get('dry_run', False)"
+        content: |
+          DRY RUN: Would respawn worker for fixes on task {{ variables.current_task_id }}
+          - Deficiencies: {{ variables.review_deficiencies }}
+          No agent was spawned (dry_run=true).
+      - action: set_variable
+        when: "variables.get('dry_run', False)"
+        name: _respawn_result
+        value:
+          dry_run: true
+
+      # Auto-execute spawn_agent for fix pass (skip in dry_run mode)
       - action: call_mcp_tool
+        when: "not variables.get('dry_run', False)"
         server_name: gobby-agents
         tool_name: spawn_agent
         arguments:
@@ -343,6 +385,8 @@ steps:
       - Read
 
     transitions:
+      - to: complete
+        when: "variables.get('dry_run', False)"
       - to: wait_for_worker
         when: "variables.get('current_worker_id')"
       - to: find_work

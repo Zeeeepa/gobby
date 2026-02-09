@@ -339,3 +339,25 @@ class TestSequentialOrchestration:
         assert state.step == "wait_for_worker", f"Expected wait_for_worker, got {state.step}"
         # Retry count should be reset by find_work on_enter
         assert state.variables.get("wait_retry_count") == 0
+
+    @pytest.mark.asyncio
+    async def test_dry_run_skips_spawn_to_complete(
+        self, engine, state, tool_proxy
+    ) -> None:
+        """dry_run=true: find_work → spawn_worker → complete (no actual spawn)."""
+        wf_engine, state_manager = engine
+        state_manager.get_state.return_value = state
+
+        # Enable dry_run
+        state.variables["dry_run"] = True
+
+        # Event 1: BEFORE_AGENT triggers find_work on_enter (suggest_next_task)
+        # then transitions: find_work → spawn_worker → complete (dry_run shortcut)
+        response = await wf_engine.handle_event(_event(HookEventType.BEFORE_AGENT))
+
+        assert state.step == "complete", f"Expected complete, got {state.step}"
+        assert state.variables.get("current_task_id") == "#task-1"
+
+        # spawn_agent should NOT have been called (dry_run injects message instead)
+        spawn_calls = tool_proxy._call_counts.get("gobby-agents/spawn_agent", 0)
+        assert spawn_calls == 0, f"Expected 0 spawn_agent calls, got {spawn_calls}"
