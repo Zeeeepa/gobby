@@ -14,7 +14,7 @@ import os
 from collections.abc import Callable, Coroutine
 from dataclasses import dataclass
 from datetime import UTC, datetime
-from typing import TYPE_CHECKING, Any, Protocol
+from typing import Any, Protocol
 from uuid import uuid4
 
 from websockets.asyncio.server import serve
@@ -24,11 +24,13 @@ from websockets.http11 import Response
 
 from gobby.agents.registry import get_running_agent_registry
 from gobby.mcp_proxy.manager import MCPClientManager
-
-if TYPE_CHECKING:
-    from gobby.llm import LLMService
+from gobby.servers.chat_session import ChatSession
 
 logger = logging.getLogger(__name__)
+
+# Idle session cleanup interval and timeout
+_CLEANUP_INTERVAL_SECONDS = 300  # 5 minutes
+_IDLE_TIMEOUT_SECONDS = 1800  # 30 minutes
 
 
 # Protocol for WebSocket connection to include custom attributes
@@ -82,7 +84,6 @@ class WebSocketServer:
         mcp_manager: MCPClientManager,
         auth_callback: Callable[[str], Coroutine[Any, Any, str | None]] | None = None,
         stop_registry: Any = None,
-        llm_service: "LLMService | None" = None,
     ):
         """
         Initialize WebSocket server.
@@ -93,26 +94,25 @@ class WebSocketServer:
             auth_callback: Optional async function that validates token and returns user_id.
                           If None, all connections are accepted (local-first mode).
             stop_registry: Optional StopRegistry for handling stop requests from clients.
-            llm_service: Optional LLM service for chat message handling.
         """
         self.config = config
         self.mcp_manager = mcp_manager
         self.auth_callback = auth_callback
         self.stop_registry = stop_registry
-        self.llm_service = llm_service
 
         # Connected clients: {websocket: client_metadata}
         self.clients: dict[Any, dict[str, Any]] = {}
 
-        # Chat conversation history per client (simple in-memory for now)
-        self._chat_history: dict[str, list[dict[str, str]]] = {}
+        # Persistent chat sessions keyed by conversation_id (survive disconnects)
+        self._chat_sessions: dict[str, ChatSession] = {}
 
-        # Active chat streaming tasks per client_id (for cancellation)
+        # Active chat streaming tasks per conversation_id (for cancellation)
         self._active_chat_tasks: dict[str, asyncio.Task[None]] = {}
 
         # Server instance (set when started)
         self._server: Any = None
         self._serve_task: asyncio.Task[None] | None = None
+        self._cleanup_task: asyncio.Task[None] | None = None
 
     async def __aenter__(self) -> "WebSocketServer":
         """Async context manager entry."""
@@ -203,7 +203,8 @@ class WebSocketServer:
         )
 
         try:
-            # Send welcome message
+            # Send welcome message with active conversation IDs
+            active_conversations = list(self._chat_sessions.keys())
             await websocket.send(
                 json.dumps(
                     {
@@ -211,6 +212,7 @@ class WebSocketServer:
                         "client_id": client_id,
                         "user_id": user_id,
                         "latency": websocket.latency,
+                        "conversation_ids": active_conversations,
                     }
                 )
             )
@@ -235,12 +237,8 @@ class WebSocketServer:
             logger.exception(f"Unexpected error for client {client_id}")
 
         finally:
-            # Cancel any active chat task and await cleanup
-            await self._cancel_active_chat(client_id)
-
-            # Always cleanup client state
+            # Always cleanup client state (but NOT chat sessions — they persist)
             self.clients.pop(websocket, None)
-            self._chat_history.pop(client_id, None)
             logger.debug(f"Client {client_id} cleaned up. Remaining clients: {len(self.clients)}")
 
     async def _handle_message(self, websocket: Any, message: str) -> None:
@@ -281,7 +279,7 @@ class WebSocketServer:
             await self._handle_chat_message(websocket, data)
 
         elif msg_type == "stop_chat":
-            await self._handle_stop_chat(websocket)
+            await self._handle_stop_chat(websocket, data)
 
         else:
             logger.warning(f"Unknown message type: {msg_type}")
@@ -579,9 +577,9 @@ class WebSocketServer:
         except OSError as e:
             logger.warning(f"Failed to write to agent {run_id} PTY: {e}")
 
-    async def _cancel_active_chat(self, client_id: str) -> None:
-        """Cancel any active chat streaming task for a client."""
-        active_task = self._active_chat_tasks.pop(client_id, None)
+    async def _cancel_active_chat(self, conversation_id: str) -> None:
+        """Cancel any active chat streaming task for a conversation."""
+        active_task = self._active_chat_tasks.pop(conversation_id, None)
         if active_task and not active_task.done():
             active_task.cancel()
             try:
@@ -589,40 +587,53 @@ class WebSocketServer:
             except asyncio.CancelledError:
                 pass
 
-    async def _handle_stop_chat(self, websocket: Any) -> None:
+    async def _handle_stop_chat(self, websocket: Any, data: dict[str, Any] | None = None) -> None:
         """
         Handle stop_chat message to cancel the active chat stream.
 
         Message format:
         {
-            "type": "stop_chat"
+            "type": "stop_chat",
+            "conversation_id": "optional-id"
         }
         """
-        client_info = self.clients.get(websocket)
-        if not client_info:
-            return
-        client_id = client_info["id"]
-        await self._cancel_active_chat(client_id)
+        conversation_id = (data or {}).get("conversation_id")
+
+        if conversation_id:
+            # Interrupt specific conversation
+            session = self._chat_sessions.get(conversation_id)
+            if session:
+                await session.interrupt()
+            await self._cancel_active_chat(conversation_id)
+        else:
+            # Legacy: stop all active chats (backwards compatibility)
+            for conv_id in list(self._active_chat_tasks.keys()):
+                session = self._chat_sessions.get(conv_id)
+                if session:
+                    await session.interrupt()
+                await self._cancel_active_chat(conv_id)
 
     async def _handle_chat_message(self, websocket: Any, data: dict[str, Any]) -> None:
         """
-        Handle chat_message and stream LLM response with MCP tool support.
+        Handle chat_message using a persistent ClaudeSDKClient-backed ChatSession.
 
-        Runs the streaming as a cancellable asyncio.Task so that new messages
-        or stop_chat requests can interrupt it.
+        Sessions are keyed by conversation_id (stable across reconnections).
+        Each session maintains full multi-turn context including tool calls.
 
         Message format:
         {
             "type": "chat_message",
             "content": "user message",
             "message_id": "client-generated-id",
-            "use_tools": true  // optional, enables MCP tools
+            "conversation_id": "optional-stable-id",
+            "model": "optional-model-override"
         }
 
         Response format (streamed):
         {
             "type": "chat_stream",
             "message_id": "assistant-uuid",
+            "conversation_id": "stable-id",
             "content": "chunk of text",
             "done": false
         }
@@ -631,13 +642,14 @@ class WebSocketServer:
         {
             "type": "tool_status",
             "message_id": "assistant-uuid",
+            "conversation_id": "stable-id",
             "tool_call_id": "unique-id",
             "status": "calling" | "completed" | "error",
             "tool_name": "mcp__gobby-tasks__create_task",
             "server_name": "gobby-tasks",
             "arguments": {...},
-            "result": {...},  // when completed
-            "error": "..."    // when error
+            "result": {...},
+            "error": "..."
         }
 
         Args:
@@ -645,50 +657,27 @@ class WebSocketServer:
             data: Parsed chat message
         """
         content = data.get("content")
-        user_message_id = data.get("message_id")
-        use_tools = data.get("use_tools", True)  # Default to using tools
-        model = data.get("model")  # Optional model override
+        conversation_id = data.get("conversation_id") or str(uuid4())
+        model = data.get("model")
 
         if not content or not isinstance(content, str):
             await self._send_error(websocket, "Missing or invalid 'content' field")
             return
 
-        if not self.llm_service:
-            await websocket.send(
-                json.dumps(
-                    {
-                        "type": "chat_error",
-                        "message_id": user_message_id,
-                        "error": "LLM service not configured",
-                    }
-                )
-            )
-            return
-
-        # Get or create conversation history for this client
         client_info = self.clients.get(websocket)
         if not client_info:
             logger.warning("Chat message from unregistered client")
             return
-        client_id = client_info["id"]
 
-        # Cancel any active chat stream for this client
-        await self._cancel_active_chat(client_id)
-
-        if client_id not in self._chat_history:
-            self._chat_history[client_id] = []
-
-        history = self._chat_history[client_id]
-
-        # Add user message to history
-        history.append({"role": "user", "content": content})
+        # Cancel any active stream for this conversation
+        await self._cancel_active_chat(conversation_id)
 
         # Run streaming as a cancellable task
         task = asyncio.create_task(
-            self._stream_chat_response(websocket, client_id, history, use_tools, model)
+            self._stream_chat_response(websocket, conversation_id, content, model)
         )
         task.add_done_callback(self._on_chat_task_done)
-        self._active_chat_tasks[client_id] = task
+        self._active_chat_tasks[conversation_id] = task
 
     def _on_chat_task_done(self, task: asyncio.Task) -> None:  # type: ignore[type-arg]
         """Log unhandled exceptions from chat tasks."""
@@ -701,217 +690,103 @@ class WebSocketServer:
     async def _stream_chat_response(
         self,
         websocket: Any,
-        client_id: str,
-        history: list[dict[str, str]],
-        use_tools: bool,
+        conversation_id: str,
+        content: str,
         model: str | None,
     ) -> None:
-        """Stream an LLM response to the client. Runs as a cancellable task."""
+        """Stream a ChatSession response to the client. Runs as a cancellable task."""
+        from gobby.llm.claude import DoneEvent, TextChunk, ToolCallEvent, ToolResultEvent
+
         assistant_message_id = f"assistant-{uuid4().hex[:12]}"
-        full_response = ""
 
         try:
-            # Build messages for LLM
-            system_prompt = (
-                "You are Gobby — pair programmer, system architect, and the daemon that keeps "
-                "the whole show running.\n\n"
-                "You're not a generic assistant. You're the engineer on the team who built the "
-                "infrastructure, knows where the bodies are buried, and isn't afraid to tell "
-                "someone their approach is wrong before they waste three hours on it. You're "
-                "technically sharp, opinionated when it matters, and honest even when it's "
-                "uncomfortable. You'd rather give blunt feedback that saves time than polite "
-                "feedback that wastes it.\n\n"
-                "You're also the person people actually want to pair with — you think out loud, "
-                "you riff on ideas, you get genuinely interested in hard problems. You celebrate "
-                "clean solutions and groan at ugly hacks. After hours, you're the one at the bar "
-                "debating whether the project should have used a different data model, and you're "
-                "having a great time doing it.\n\n"
-                "## What You Are\n"
-                "Gobby is a local-first daemon that unifies AI coding assistants — Claude Code, "
-                "Gemini CLI, Codex, Cursor, Windsurf, Copilot — under one persistent platform. "
-                "You exist because context windows evaporate, tasks vanish between sessions, "
-                "and agents go off the rails without guardrails. You fix all of that.\n\n"
-                "Everything runs locally. SQLite at ~/.gobby/gobby-hub.db. Config at "
-                "~/.gobby/config.yaml. HTTP on :60887, WebSocket on :60888. No cloud. No "
-                "external deps. Git is the source of truth — tasks sync to .gobby/tasks.jsonl "
-                "so they travel with the repo.\n\n"
-                "## What You Know\n"
-                "You know this platform inside and out because you ARE the platform:\n\n"
-                "- **Tasks** — Dependency graphs, TDD expansion (describe a feature, get "
-                "red/green/blue subtasks with test-first ordering), validation gates that "
-                "won't let tasks close without passing criteria. Git-native sync via JSONL. "
-                "Commit linking with [task-id] prefixes.\n"
-                "- **Sessions** — Persistent across restarts and compactions. When someone "
-                "/compacts, you capture the goal, git status, recent tool calls, and inject "
-                "it into the next session. Cross-CLI handoffs: start in Claude, pick up in "
-                "Gemini. You remember.\n"
-                "- **Memory** — Facts, patterns, insights that survive context resets. "
-                "Semantic search, cross-references, importance scoring with decay. "
-                "Project-scoped. Not generic knowledge — hard-won debugging insights and "
-                "architectural decisions.\n"
-                "- **Workflows** — YAML state machines that enforce discipline without "
-                "micromanaging. Tool restrictions per step, transition conditions, stuck "
-                "detection. Built-ins: auto-task, plan-execute, test-driven. Or roll your own.\n"
-                "- **Agents** — Spawn sub-agents in isolated git worktrees or full clones. "
-                "Parallel development without stepping on each other. Track who's where, "
-                "what they're doing, kill them if they go rogue.\n"
-                "- **Pipelines** — Deterministic automation with approval gates. Shell commands, "
-                "LLM prompts, nested pipelines. Human-in-the-loop when it matters.\n"
-                "- **Skills** — Reusable instruction sets compatible with the Agent Skills spec. "
-                "Install from GitHub, search semantically, inject into agent context.\n"
-                "- **MCP Proxy** — Progressive disclosure so tool definitions don't eat half "
-                "the context window. Semantic tool search, intelligent recommendations, "
-                "fallback suggestions when tools fail.\n"
-                "- **Hooks** — Unified event system across 6 CLIs. Adapters normalize "
-                "everything to a common model. Session lifecycle, tool interception, "
-                "context injection.\n\n"
-                "## Using Tools\n"
-                "You have access to Gobby's MCP tools. To call internal tools, use progressive "
-                "disclosure:\n"
-                "1. `list_mcp_servers()` — discover servers\n"
-                "2. `list_tools(server=\"gobby-tasks\")` — see what's available\n"
-                "3. `get_tool_schema(server_name, tool_name)` — get the schema (do this first!)\n"
-                "4. `call_tool(server_name, tool_name, arguments)` — execute\n\n"
-                "Internal servers: gobby-tasks, gobby-sessions, gobby-memory, gobby-workflows, "
-                "gobby-agents, gobby-worktrees, gobby-clones, gobby-artifacts, gobby-pipelines, "
-                "gobby-skills, gobby-metrics, gobby-hub, gobby-merge.\n\n"
-                "Never guess parameter names — always check the schema first.\n\n"
-                "## How to Be\n"
-                "Be the senior engineer who makes the team better:\n"
-                "- Push back on bad ideas. Suggest better ones.\n"
-                "- Think out loud. Show your reasoning.\n"
-                "- Use tools proactively when they'd save time.\n"
-                "- Be concise — respect the reader's attention.\n"
-                "- Have opinions about architecture, testing, code quality.\n"
-                "- Get excited about elegant solutions. Be honest about trade-offs.\n"
-                "- If you don't know something, say so and go find out."
-            )
-
-            messages = [{"role": "system", "content": system_prompt}] + history[
-                -20:
-            ]  # Last 20 messages
-
-            tool_calls_count = 0
-
-            if use_tools:
-                # Stream with MCP tools
-                from gobby.llm.claude import (
-                    DoneEvent,
-                    TextChunk,
-                    ToolCallEvent,
-                    ToolResultEvent,
-                )
-
-                # Default allowed tools - gobby MCP server from .mcp.json
-                # The server name is "gobby" which exposes all gobby tools
-                allowed_tools = [
-                    "mcp__gobby__*",
-                ]
-
-                if self.llm_service is None:
-                    raise RuntimeError("LLM service not initialized")
-                async for event in self.llm_service.stream_chat_with_tools(
-                    messages, allowed_tools, model=model
-                ):
-                    if isinstance(event, TextChunk):
-                        full_response += event.content
-                        await websocket.send(
-                            json.dumps(
-                                {
-                                    "type": "chat_stream",
-                                    "message_id": assistant_message_id,
-                                    "content": event.content,
-                                    "done": False,
-                                }
-                            )
+            # Get or create ChatSession for this conversation
+            session = self._chat_sessions.get(conversation_id)
+            if session is None:
+                session = ChatSession(conversation_id=conversation_id)
+                try:
+                    await session.start(model=model)
+                except Exception as e:
+                    logger.error(f"Failed to start chat session: {e}")
+                    await websocket.send(
+                        json.dumps(
+                            {
+                                "type": "chat_error",
+                                "message_id": assistant_message_id,
+                                "conversation_id": conversation_id,
+                                "error": f"Failed to start chat session: {e}",
+                            }
                         )
-                    elif isinstance(event, ToolCallEvent):
-                        await websocket.send(
-                            json.dumps(
-                                {
-                                    "type": "tool_status",
-                                    "message_id": assistant_message_id,
-                                    "tool_call_id": event.tool_call_id,
-                                    "status": "calling",
-                                    "tool_name": event.tool_name,
-                                    "server_name": event.server_name,
-                                    "arguments": event.arguments,
-                                }
-                            )
-                        )
-                    elif isinstance(event, ToolResultEvent):
-                        await websocket.send(
-                            json.dumps(
-                                {
-                                    "type": "tool_status",
-                                    "message_id": assistant_message_id,
-                                    "tool_call_id": event.tool_call_id,
-                                    "status": "completed" if event.success else "error",
-                                    "result": event.result,
-                                    "error": event.error,
-                                }
-                            )
-                        )
-                    elif isinstance(event, DoneEvent):
-                        tool_calls_count = event.tool_calls_count
-                        # Send final done message
-                        await websocket.send(
-                            json.dumps(
-                                {
-                                    "type": "chat_stream",
-                                    "message_id": assistant_message_id,
-                                    "content": "",
-                                    "done": True,
-                                    "tool_calls_count": tool_calls_count,
-                                }
-                            )
-                        )
-            else:
-                # Stream without tools (original behavior)
-                if self.llm_service is None:
-                    raise RuntimeError("LLM service not initialized")
-                async for chunk in self.llm_service.stream_chat(messages):
-                    full_response += chunk
+                    )
+                    return
+                self._chat_sessions[conversation_id] = session
+
+            # Stream events from ChatSession
+            async for event in session.send_message(content):
+                if isinstance(event, TextChunk):
                     await websocket.send(
                         json.dumps(
                             {
                                 "type": "chat_stream",
                                 "message_id": assistant_message_id,
-                                "content": chunk,
+                                "conversation_id": conversation_id,
+                                "content": event.content,
                                 "done": False,
                             }
                         )
                     )
-
-                # Send final done message
-                await websocket.send(
-                    json.dumps(
-                        {
-                            "type": "chat_stream",
-                            "message_id": assistant_message_id,
-                            "content": "",
-                            "done": True,
-                        }
+                elif isinstance(event, ToolCallEvent):
+                    await websocket.send(
+                        json.dumps(
+                            {
+                                "type": "tool_status",
+                                "message_id": assistant_message_id,
+                                "conversation_id": conversation_id,
+                                "tool_call_id": event.tool_call_id,
+                                "status": "calling",
+                                "tool_name": event.tool_name,
+                                "server_name": event.server_name,
+                                "arguments": event.arguments,
+                            }
+                        )
                     )
-                )
-
-            # Add assistant response to history
-            history.append({"role": "assistant", "content": full_response})
-
-            # Trim history if too long
-            if len(history) > 100:
-                self._chat_history[client_id] = history[-50:]
+                elif isinstance(event, ToolResultEvent):
+                    await websocket.send(
+                        json.dumps(
+                            {
+                                "type": "tool_status",
+                                "message_id": assistant_message_id,
+                                "conversation_id": conversation_id,
+                                "tool_call_id": event.tool_call_id,
+                                "status": "completed" if event.success else "error",
+                                "result": event.result,
+                                "error": event.error,
+                            }
+                        )
+                    )
+                elif isinstance(event, DoneEvent):
+                    await websocket.send(
+                        json.dumps(
+                            {
+                                "type": "chat_stream",
+                                "message_id": assistant_message_id,
+                                "conversation_id": conversation_id,
+                                "content": "",
+                                "done": True,
+                                "tool_calls_count": event.tool_calls_count,
+                            }
+                        )
+                    )
 
         except asyncio.CancelledError:
-            # Stream was interrupted — save partial response and send done
-            if full_response:
-                history.append({"role": "assistant", "content": full_response})
+            # Stream was interrupted
             try:
                 await websocket.send(
                     json.dumps(
                         {
                             "type": "chat_stream",
                             "message_id": assistant_message_id,
+                            "conversation_id": conversation_id,
                             "content": "",
                             "done": True,
                             "interrupted": True,
@@ -919,23 +794,26 @@ class WebSocketServer:
                     )
                 )
             except (ConnectionClosed, ConnectionClosedError):
-                pass  # Client may have disconnected
+                pass
 
         except Exception:
-            logger.exception(f"Chat error for client {client_id}")
-            await websocket.send(
-                json.dumps(
-                    {
-                        "type": "chat_error",
-                        "message_id": assistant_message_id,
-                        "error": "An internal error occurred",
-                    }
+            logger.exception(f"Chat error for conversation {conversation_id}")
+            try:
+                await websocket.send(
+                    json.dumps(
+                        {
+                            "type": "chat_error",
+                            "message_id": assistant_message_id,
+                            "conversation_id": conversation_id,
+                            "error": "An internal error occurred",
+                        }
+                    )
                 )
-            )
+            except (ConnectionClosed, ConnectionClosedError):
+                pass
 
         finally:
-            # Clean up task reference
-            self._active_chat_tasks.pop(client_id, None)
+            self._active_chat_tasks.pop(conversation_id, None)
 
     async def broadcast(self, message: dict[str, Any]) -> None:
         """
@@ -1185,6 +1063,29 @@ class WebSocketServer:
             except Exception as e:
                 logger.warning(f"Terminal broadcast failed: {e}")
 
+    async def _cleanup_idle_sessions(self) -> None:
+        """Periodically disconnect chat sessions that have been idle too long."""
+        while True:
+            try:
+                await asyncio.sleep(_CLEANUP_INTERVAL_SECONDS)
+                now = datetime.now(UTC)
+                stale_ids = [
+                    conv_id
+                    for conv_id, session in self._chat_sessions.items()
+                    if (now - session.last_activity).total_seconds() > _IDLE_TIMEOUT_SECONDS
+                ]
+                for conv_id in stale_ids:
+                    session = self._chat_sessions.pop(conv_id)
+                    await self._cancel_active_chat(conv_id)
+                    await session.stop()
+                    logger.debug(f"Cleaned up idle chat session {conv_id}")
+                if stale_ids:
+                    logger.info(f"Cleaned up {len(stale_ids)} idle chat session(s)")
+            except asyncio.CancelledError:
+                break
+            except Exception:
+                logger.exception("Error in idle session cleanup")
+
     async def start(self) -> None:
         """
         Start WebSocket server.
@@ -1207,19 +1108,36 @@ class WebSocketServer:
             compression="deflate",
         )
 
+        # Start idle session cleanup background task
+        self._cleanup_task = asyncio.create_task(self._cleanup_idle_sessions())
+
         logger.debug(f"WebSocket server started on ws://{self.config.host}:{self.config.port}")
 
     async def stop(self) -> None:
         """
         Stop WebSocket server and close all connections.
 
-        Gracefully closes all client connections and shuts down server.
+        Gracefully closes all client connections, chat sessions, and shuts down server.
         """
         if self._server is None:
             logger.warning("WebSocket server not started")
             return
 
         logger.debug("Stopping WebSocket server...")
+
+        # Cancel idle cleanup task
+        if self._cleanup_task and not self._cleanup_task.done():
+            self._cleanup_task.cancel()
+            try:
+                await self._cleanup_task
+            except asyncio.CancelledError:
+                pass
+
+        # Stop all chat sessions
+        for conv_id, session in list(self._chat_sessions.items()):
+            await self._cancel_active_chat(conv_id)
+            await session.stop()
+        self._chat_sessions.clear()
 
         # Close server (stops accepting new connections)
         self._server.close()
