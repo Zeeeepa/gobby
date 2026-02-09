@@ -51,6 +51,7 @@ def register_orchestrator(
         | None = None,
         coding_model: str | None = None,
         base_branch: str | None = None,
+        dry_run: bool = False,
     ) -> dict[str, Any]:
         """
         Orchestrate spawning agents in worktrees for ready subtasks.
@@ -77,6 +78,8 @@ def register_orchestrator(
             coding_provider: LLM provider for implementation tasks (overrides provider)
             coding_model: Model for implementation tasks (overrides model)
             base_branch: Branch to base worktrees on (auto-detected if not provided)
+            dry_run: If True, resolve tasks, check slots, build prompts, and return
+                the plan without actually spawning agents or creating worktrees.
 
         Returns:
             Dict with:
@@ -225,6 +228,39 @@ def register_orchestrator(
                     "reason": "max_concurrent limit reached",
                 }
             )
+
+        # Dry run: return the plan without spawning
+        if dry_run:
+            planned = [
+                {
+                    "task_id": task.id,
+                    "title": task.title,
+                    "category": task.category,
+                    "prompt": _build_task_prompt(task),
+                    "provider": effective_provider,
+                    "model": effective_model,
+                    "mode": mode,
+                    "workflow": workflow,
+                }
+                for task in tasks_to_spawn
+            ]
+
+            # Release reserved slots since we're not actually spawning
+            if parent_session_id:
+                state_manager.release_reserved_slots(parent_session_id, reserved_slots)
+
+            return {
+                "success": True,
+                "dry_run": True,
+                "parent_task_id": resolved_parent_task_id,
+                "planned": planned,
+                "skipped": skipped,
+                "planned_count": len(planned),
+                "skipped_count": len(skipped),
+                "max_concurrent": max_concurrent,
+                "effective_provider": effective_provider,
+                "effective_model": effective_model,
+            }
 
         # Import worktree tool helpers
         import platform
@@ -642,6 +678,14 @@ def register_orchestrator(
                         "Auto-detected from repository if not provided."
                     ),
                     "default": None,
+                },
+                "dry_run": {
+                    "type": "boolean",
+                    "description": (
+                        "If true, resolve tasks and check capacity but don't spawn. "
+                        "Returns the plan showing what would be spawned."
+                    ),
+                    "default": False,
                 },
             },
             "required": ["parent_task_id", "parent_session_id"],
