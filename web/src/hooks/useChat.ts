@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, useRef } from 'react'
 import type { ChatMessage, ToolCall } from '../components/Message'
 
 const STORAGE_KEY = 'gobby-chat-history'
+const CONVERSATION_ID_KEY = 'gobby-conversation-id'
 const MAX_STORED_MESSAGES = 100
 
 // Serialized message format for localStorage
@@ -74,12 +75,21 @@ interface ToolStatusMessage {
   error?: string
 }
 
+function loadConversationId(): string {
+  return localStorage.getItem(CONVERSATION_ID_KEY) || crypto.randomUUID()
+}
+
+function saveConversationId(id: string): void {
+  localStorage.setItem(CONVERSATION_ID_KEY, id)
+}
+
 export function useChat() {
   const [messages, setMessages] = useState<ChatMessage[]>(() => loadMessages())
   const [isConnected, setIsConnected] = useState(false)
   const [isStreaming, setIsStreaming] = useState(false)
   const wsRef = useRef<WebSocket | null>(null)
   const reconnectTimeoutRef = useRef<number | null>(null)
+  const conversationIdRef = useRef<string>(loadConversationId())
 
   // Refs for handlers to avoid stale closures in WebSocket callbacks
   const handleChatStreamRef = useRef<(chunk: ChatStreamChunk) => void>(() => {})
@@ -140,6 +150,12 @@ export function useChat() {
         } else if (data.type === 'tool_status') {
           handleToolStatusRef.current(data as unknown as ToolStatusMessage)
         } else if (data.type === 'connection_established') {
+          // If the server still has our conversation alive, keep using it.
+          // Otherwise our stored ID is fine — the server will create a new session on first message.
+          const serverConversations = (data.conversation_ids as string[]) || []
+          if (serverConversations.includes(conversationIdRef.current)) {
+            console.log('Reconnected to existing conversation:', conversationIdRef.current)
+          }
           console.log('Connection established:', data)
         } else if (data.type === 'subscribe_success') {
           console.log('Subscribed to events:', data)
@@ -251,12 +267,18 @@ export function useChat() {
   const clearHistory = useCallback(() => {
     setMessages([])
     localStorage.removeItem(STORAGE_KEY)
+    // Start a fresh conversation — new ID so the backend creates a new ChatSession
+    conversationIdRef.current = crypto.randomUUID()
+    localStorage.removeItem(CONVERSATION_ID_KEY)
   }, [])
 
   // Stop the current streaming response
   const stopStreaming = useCallback(() => {
     if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) return
-    wsRef.current.send(JSON.stringify({ type: 'stop_chat' }))
+    wsRef.current.send(JSON.stringify({
+      type: 'stop_chat',
+      conversation_id: conversationIdRef.current,
+    }))
     setIsStreaming(false) // Optimistic update
   }, [])
 
@@ -281,11 +303,15 @@ export function useChat() {
       },
     ])
 
+    // Persist conversation_id on first send
+    saveConversationId(conversationIdRef.current)
+
     // Send to server — backend will cancel any active stream automatically
     const payload: Record<string, unknown> = {
       type: 'chat_message',
       content,
       message_id: messageId,
+      conversation_id: conversationIdRef.current,
     }
 
     // Include model if specified

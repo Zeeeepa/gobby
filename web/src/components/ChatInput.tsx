@@ -55,7 +55,7 @@ export function ChatInput({ onSend, onStop, isStreaming = false, disabled = fals
         value={input}
         onChange={(e) => setInput(e.target.value)}
         onKeyDown={handleKeyDown}
-        placeholder={disabled ? 'Connecting...' : isStreaming ? 'Send a message to interrupt...' : 'Type a message... (Shift+Enter for newline)'}
+        placeholder={disabled ? 'Connecting...' : isStreaming ? 'Interrupt...' : 'Message...'}
         disabled={disabled}
         rows={1}
       />
