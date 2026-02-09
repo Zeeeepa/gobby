@@ -32,7 +32,7 @@ if TYPE_CHECKING:
     from gobby.config.app import DaemonConfig
     from gobby.llm import LLMService
     from gobby.mcp_proxy.manager import MCPClientManager
-    from gobby.servers.websocket import WebSocketServer
+    from gobby.servers.websocket.server import WebSocketServer
     from gobby.utils.tool_metrics import ToolMetricsManager
 
 logger = logging.getLogger(__name__)

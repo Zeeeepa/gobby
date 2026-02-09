@@ -18,7 +18,8 @@ from gobby.llm.resolver import ExecutorRegistry
 from gobby.mcp_proxy.manager import MCPClientManager
 from gobby.memory.manager import MemoryManager
 from gobby.servers.http import HTTPServer
-from gobby.servers.websocket import WebSocketConfig, WebSocketServer
+from gobby.servers.websocket.models import WebSocketConfig
+from gobby.servers.websocket.server import WebSocketServer
 from gobby.sessions.lifecycle import SessionLifecycleManager
 from gobby.sessions.processor import SessionMessageProcessor
 from gobby.storage.clones import LocalCloneManager

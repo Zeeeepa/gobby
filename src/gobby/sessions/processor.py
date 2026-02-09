@@ -16,7 +16,7 @@ import os
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from gobby.servers.websocket import WebSocketServer
+    from gobby.servers.websocket.server import WebSocketServer
     from gobby.storage.sessions import LocalSessionManager
 
 from gobby.sessions.transcripts import get_parser
