@@ -184,6 +184,18 @@ class HookManager:
         self._hook_assembler = components.hook_assembler
         self._event_handlers = components.event_handlers
 
+        # Session lookup service (resolves platform session IDs from CLI external IDs)
+        from gobby.hooks.session_lookup import SessionLookupService
+
+        self._session_lookup = SessionLookupService(
+            session_manager=self._session_manager,
+            session_coordinator=self._session_coordinator,
+            session_task_manager=self._session_task_manager,
+            get_machine_id=self.get_machine_id,
+            resolve_project_id=self._resolve_project_id,
+            logger=self.logger,
+        )
+
         # Start background health check monitoring
         self._start_health_check_monitoring()
 
@@ -305,84 +317,8 @@ class HookManager:
                 reason=f"Daemon {daemon_status}: {error_reason or 'Unknown'}",
             )
 
-        # Look up platform session_id from cli_key (event.session_id is the cli_key)
-        external_id = event.session_id
-        platform_session_id = None
-
-        if external_id:
-            # Check SessionManager's cache first (keyed by (external_id, source))
-            platform_session_id = self._session_manager.get_session_id(
-                external_id, event.source.value
-            )
-
-            # If not in mapping and not session-start, try to query database
-            if not platform_session_id and event.event_type != HookEventType.SESSION_START:
-                with self._session_coordinator.get_lookup_lock():
-                    # Double check in case another thread finished lookup
-                    platform_session_id = self._session_manager.get_session_id(
-                        external_id, event.source.value
-                    )
-
-                    if not platform_session_id:
-                        self.logger.debug(
-                            f"Session not in mapping, querying database for external_id={external_id}"
-                        )
-                        # Resolve context for lookup
-                        machine_id = event.machine_id or self.get_machine_id()
-                        cwd = event.data.get("cwd")
-                        project_id = self._resolve_project_id(event.data.get("project_id"), cwd)
-
-                        # Lookup with full composite key
-                        platform_session_id = self._session_manager.lookup_session_id(
-                            external_id,
-                            source=event.source.value,
-                            machine_id=machine_id,
-                            project_id=project_id,
-                        )
-                        if platform_session_id:
-                            self.logger.debug(
-                                f"Found session_id {platform_session_id} for external_id {external_id}"
-                            )
-                        else:
-                            # Auto-register session if not found
-                            self.logger.debug(
-                                f"Session not found for external_id={external_id}, auto-registering"
-                            )
-                            platform_session_id = self._session_manager.register_session(
-                                external_id=external_id,
-                                machine_id=machine_id,
-                                project_id=project_id,
-                                parent_session_id=None,
-                                jsonl_path=event.data.get("transcript_path"),
-                                source=event.source.value,
-                                project_path=cwd,
-                            )
-
-            # Resolve active task for this session if we have a platform session ID
-            if platform_session_id:
-                try:
-                    # Get tasks linked with 'worked_on' action which implies active focus
-                    session_tasks = self._session_task_manager.get_session_tasks(
-                        platform_session_id
-                    )
-                    # Filter for active 'worked_on' tasks - taking the most recent one
-                    active_tasks = [t for t in session_tasks if t.get("action") == "worked_on"]
-                    if active_tasks:
-                        # Use the most recent task - populate full task context
-                        task = active_tasks[0]["task"]
-                        event.task_id = task.id
-                        event.metadata["_task_context"] = {
-                            "id": task.id,
-                            "title": task.title,
-                            "status": task.status,
-                        }
-                        # Keep legacy field for backwards compatibility
-                        event.metadata["_task_title"] = task.title
-                except Exception as e:
-                    self.logger.warning(f"Failed to resolve active task: {e}")
-
-            # Store platform session_id in event metadata for handlers
-            event.metadata["_platform_session_id"] = platform_session_id
+        # Resolve platform session_id from CLI external_id
+        platform_session_id = self._session_lookup.resolve(event)
 
         # Get handler for this event type
         handler = self._get_event_handler(event.event_type)
