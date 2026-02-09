@@ -48,7 +48,7 @@ class TestCloneToolsAvailability:
         mcp_client: MCPTestClient,
     ) -> None:
         """Verify all clone management tools are available on gobby-clones server."""
-        tools = mcp_client.list_tools(server="gobby-clones")
+        tools = mcp_client.list_tools(server_name="gobby-clones")
         tool_names = [t["name"] for t in tools]
 
         expected_tools = [
@@ -104,7 +104,7 @@ class TestParallelOrchestratorWorkflow:
         mcp_client: MCPTestClient,
     ) -> None:
         """Verify workflow tools needed for parallel orchestration are available."""
-        tools = mcp_client.list_tools(server="gobby-workflows")
+        tools = mcp_client.list_tools(server_name="gobby-workflows")
         tool_names = [t["name"] for t in tools]
 
         expected_tools = [
@@ -123,7 +123,7 @@ class TestParallelOrchestratorWorkflow:
         mcp_client: MCPTestClient,
     ) -> None:
         """Verify orchestration tools needed for parallel processing are available."""
-        tools = mcp_client.list_tools(server="gobby-tasks")
+        tools = mcp_client.list_tools(server_name="gobby-tasks")
         tool_names = [t["name"] for t in tools]
 
         expected_tools = [

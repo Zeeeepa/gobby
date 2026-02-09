@@ -419,7 +419,7 @@ class TestMessagingToolsAvailability:
         mcp_client: MCPTestClient,
     ) -> None:
         """Verify all messaging tools are available on gobby-agents server."""
-        tools = mcp_client.list_tools(server="gobby-agents")
+        tools = mcp_client.list_tools(server_name="gobby-agents")
         tool_names = [t["name"] for t in tools]
 
         expected_tools = [

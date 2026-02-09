@@ -294,7 +294,7 @@ class TestGobbyDaemonToolsListTools:
             }
         )
 
-        result = await tools_handler.list_tools(server="server1")
+        result = await tools_handler.list_tools(server_name="server1")
 
         assert result["status"] == "success"
         assert "tools" in result
@@ -311,7 +311,7 @@ class TestGobbyDaemonToolsListTools:
             }
         )
 
-        await tools_handler.list_tools(server="server1")
+        await tools_handler.list_tools(server_name="server1")
 
         tools_handler.tool_proxy.list_tools.assert_called_once_with("server1", session_id=None)
 
@@ -322,7 +322,7 @@ class TestGobbyDaemonToolsListTools:
             return_value={"status": "success", "tools": [], "tool_count": 0}
         )
 
-        await tools_handler.list_tools(server="server1", session_id="session-123")
+        await tools_handler.list_tools(server_name="server1", session_id="session-123")
 
         tools_handler.tool_proxy.list_tools.assert_called_once_with(
             "server1", session_id="session-123"
@@ -495,7 +495,7 @@ class TestGobbyDaemonToolsSemanticSearch:
         tools_handler._semantic_search = mock_semantic
         tools_handler._mcp_manager.project_id = "test-project"
 
-        await tools_handler.search_tools(query="find", server="specific-server")
+        await tools_handler.search_tools(query="find", server_name="specific-server")
 
         mock_semantic.search_tools.assert_called_once()
         call_kwargs = mock_semantic.search_tools.call_args[1]

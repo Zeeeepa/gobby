@@ -677,7 +677,7 @@ class TestWorkflowToolsAvailability:
         mcp_client: MCPTestClient,
     ) -> None:
         """Verify workflow management tools are available."""
-        tools = mcp_client.list_tools(server="gobby-workflows")
+        tools = mcp_client.list_tools(server_name="gobby-workflows")
         tool_names = [t["name"] for t in tools]
 
         expected_tools = [
@@ -696,7 +696,7 @@ class TestWorkflowToolsAvailability:
         mcp_client: MCPTestClient,
     ) -> None:
         """Verify orchestration tools are available on gobby-tasks."""
-        tools = mcp_client.list_tools(server="gobby-tasks")
+        tools = mcp_client.list_tools(server_name="gobby-tasks")
         tool_names = [t["name"] for t in tools]
 
         expected_tools = [

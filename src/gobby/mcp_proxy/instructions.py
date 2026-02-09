@@ -19,9 +19,9 @@ def build_gobby_instructions() -> str:
 <tool_discovery>
 Progressive disclosure is ENFORCED — each step gates the next:
 1. `list_mcp_servers()` — Must call first (once per session)
-2. `list_tools(server="...")` — Unlocked after step 1; call per server
-3. `get_tool_schema(server, tool)` — Unlocked after step 2 for that server
-4. `call_tool(server, tool, args)` — Unlocked after step 3 for that tool
+2. `list_tools(server_name="...")` — Unlocked after step 1; call per server
+3. `get_tool_schema(server_name, tool_name)` — Unlocked after step 2 for that server
+4. `call_tool(server_name, tool_name, args)` — Unlocked after step 3 for that tool
 
 NOTE: Server names are internal sub-servers like `gobby-tasks`, `gobby-memory`, etc.
 The name `"gobby"` is the MCP proxy namespace, not a server name.
@@ -35,7 +35,7 @@ Discover skills with progressive disclosure too:
 </skills>
 
 <caching>
-Schema fetches are cached per session. Once you call `get_tool_schema(server, tool)`,
+Schema fetches are cached per session. Once you call `get_tool_schema(server_name, tool_name)`,
 you can `call_tool` repeatedly WITHOUT re-fetching. Only fetch on first use.
 </caching>
 

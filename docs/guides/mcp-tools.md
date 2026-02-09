@@ -15,7 +15,7 @@ For token efficiency, use the three-step workflow **on-demand** when you need a 
 
 ```python
 # 1. Discover - lightweight metadata (~100 tokens/tool)
-list_tools(server="gobby-tasks")
+list_tools(server_name="gobby-tasks")
 
 # 2. Inspect - full schema when needed (~500 tokens/tool)
 get_tool_schema(server_name="gobby-tasks", tool_name="create_task")
@@ -101,14 +101,14 @@ call_tool("gobby-tasks", "create_task", {
 })
 ```
 
-#### `list_tools(server?)`
+#### `list_tools(server_name?)`
 
 List tools with lightweight metadata for progressive disclosure.
 
 | Parameter | Type | Required | Description |
 | :--- | :--- | :--- | :--- |
 
-| `server` | string | No | Server name. If omitted, returns all servers. |
+| `server_name` | string | No | Server name. If omitted, returns all servers. |
 
 **Returns:**
 
@@ -222,7 +222,7 @@ Get intelligent tool recommendations for a task.
 | `agent_id` | string | No | Agent profile ID for filtering |
 | `search_mode` | string | No | "llm" (default), "semantic", or "hybrid" |
 
-#### `search_tools(query, top_k?, min_similarity?, server?)`
+#### `search_tools(query, top_k?, min_similarity?, server_name?)`
 
 Search for tools using semantic similarity.
 
@@ -232,7 +232,7 @@ Search for tools using semantic similarity.
 | `query` | string | Yes | Natural language description |
 | `top_k` | integer | No | Max results (default: 10) |
 | `min_similarity` | float | No | Minimum threshold 0-1 |
-| `server` | string | No | Filter by server |
+| `server_name` | string | No | Filter by server |
 
 ### Session Hooks
 

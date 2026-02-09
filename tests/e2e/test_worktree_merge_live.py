@@ -46,7 +46,7 @@ class TestMergeToolsAvailability:
         mcp_client: MCPTestClient,
     ) -> None:
         """Verify all merge management tools are available on gobby-merge server."""
-        tools = mcp_client.list_tools(server="gobby-merge")
+        tools = mcp_client.list_tools(server_name="gobby-merge")
         tool_names = [t["name"] for t in tools]
 
         expected_tools = [
@@ -98,7 +98,7 @@ class TestWorktreeToolsAvailability:
         mcp_client: MCPTestClient,
     ) -> None:
         """Verify worktree management tools are available on gobby-worktrees server."""
-        tools = mcp_client.list_tools(server="gobby-worktrees")
+        tools = mcp_client.list_tools(server_name="gobby-worktrees")
         tool_names = [t["name"] for t in tools]
 
         expected_tools = [
@@ -118,7 +118,7 @@ class TestWorktreeToolsAvailability:
         mcp_client: MCPTestClient,
     ) -> None:
         """Verify clone management tools are available on gobby-clones server."""
-        tools = mcp_client.list_tools(server="gobby-clones")
+        tools = mcp_client.list_tools(server_name="gobby-clones")
         tool_names = [t["name"] for t in tools]
 
         expected_tools = [

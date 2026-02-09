@@ -124,7 +124,7 @@ async def _call_internal_tool(
                 "success": False,
                 "error": f"Tool '{tool_name}' not found on '{server_name}'. "
                 f"Available: {', '.join(available)}. "
-                f"Use list_tools(server='{server_name}') to see all tools, "
+                f"Use list_tools(server_name='{server_name}') to see all tools, "
                 f"or get_tool_schema(server_name='{server_name}', tool_name='...') for full schema.",
             },
         )

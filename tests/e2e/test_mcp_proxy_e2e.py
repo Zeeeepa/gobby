@@ -77,7 +77,7 @@ class TestMCPProxyToolDiscovery:
             pytest.skip("No gobby-* server available")
 
         # Filter tools by that server (using server_filter param)
-        tools = mcp_client.list_tools(server=gobby_server)
+        tools = mcp_client.list_tools(server_name=gobby_server)
 
         # Should have tools from that server
         assert len(tools) > 0, f"Should have tools from {gobby_server}"

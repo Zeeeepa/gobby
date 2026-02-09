@@ -167,20 +167,6 @@ triggers:
       template: |
         {{ task_context }}
 
-    # Plan mode prompt - ONLY on fresh sessions (not handoffs/compacts)
-    - action: inject_context
-      when: "event.data.get('source') == 'startup'"
-      template: |
-        ## Session Start: Plan Mode Recommended
-
-        This is a new session. Before executing any code changes, consider:
-        1. Understanding the user's full request
-        2. Exploring the codebase to gather context
-        3. Creating a plan before implementation
-
-        If the user's request involves non-trivial changes, use `/plan` or
-        suggest entering plan mode before proceeding with edits.
-
     # Pre-existing error/warning triage policy - skip on resume (already in context)
     - action: inject_context
       when: "event.data.get('source') != 'resume'"
@@ -255,7 +241,7 @@ triggers:
         - tools: ["mcp__gobby__get_tool_schema"]
           when: "variables.get('enforce_tool_schema_check') and not is_server_listed(tool_input)"
           reason: |
-            Call list_tools(server="{{ tool_input.get('server_name', '') }}") first, then retry get_tool_schema.
+            Call list_tools(server_name="{{ tool_input.get('server_name', '') }}") first, then retry get_tool_schema.
 
         # Block call_tool if schema wasn't fetched first (progressive disclosure)
         # Skip for discovery tools (list_tools, get_tool_schema, etc.)

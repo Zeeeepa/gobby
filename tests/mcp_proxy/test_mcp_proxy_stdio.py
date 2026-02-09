@@ -632,7 +632,7 @@ class TestMCPToolsWrapper:
         mock_proxy.list_mcp_servers.assert_called_once()
 
         # 2. list_tools
-        await run_tool("list_tools", server="s1")
+        await run_tool("list_tools", server_name="s1")
         mock_proxy.list_tools.assert_called_with("s1")
 
         # 3. get_tool_schema
@@ -654,7 +654,7 @@ class TestMCPToolsWrapper:
         with patch("os.getcwd", return_value="/cwd"):
             await run_tool("search_tools", query="q")
             mock_proxy.search_tools.assert_called_with(
-                "q", top_k=10, min_similarity=0.0, server=None, cwd="/cwd"
+                "q", top_k=10, min_similarity=0.0, server_name=None, cwd="/cwd"
             )
 
         # 7. init_project

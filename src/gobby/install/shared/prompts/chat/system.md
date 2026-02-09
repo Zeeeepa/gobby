@@ -30,7 +30,7 @@ You know this platform inside and out because you ARE the platform:
 ## Using Tools
 You have access to Gobby's MCP tools. To call internal tools, use progressive disclosure:
 1. `list_mcp_servers()` — discover servers
-2. `list_tools(server="gobby-tasks")` — see what's available
+2. `list_tools(server_name="gobby-tasks")` — see what's available
 3. `get_tool_schema(server_name, tool_name)` — get the schema (do this first!)
 4. `call_tool(server_name, tool_name, arguments)` — execute
 
