@@ -16,7 +16,6 @@ Tool distribution is clean. Orchestration tools live on `gobby-orchestration` as
 
 Related open tasks that affect scope:
 - **#7334** - Skill discovery/injection for interactive vs autonomous agents
-- **#7244** - Bug: task claimed by orchestrator session instead of worker (needs_review)
 
 ### Two orchestration paths
 
@@ -33,13 +32,9 @@ Both use `spawn_agent` for spawning and clone/worktree isolation. Note: meeseeks
 
 The sequential path is simpler and should work first. These fixes target the tools that `meeseeks-box.yaml` actually calls.
 
-### 1.0 Fix #7244: Task claimed by orchestrator session instead of worker
+### 1.0 ~~Fix #7244: Task claimed by orchestrator session instead of worker~~ NOT A BUG
 
-**Status**: needs_review (existing bug)
-
-**Problem**: When meeseeks-box spawns a worker, the `claim_task` call in the worker's `on_enter` actions happens in the orchestrator's session context, not the worker's. The task gets assigned to the wrong session.
-
-**Fix**: Investigate and fix the session_id resolution in `call_mcp_tool` actions. The `{{ session_id }}` template variable in the worker workflow should resolve to the worker's session, not the parent's. This may be a workflow activation timing issue.
+**Status**: Investigated — template resolution is correct. `WorkflowState.session_id` (child UUID from `_auto_activate_workflow`) → `ActionContext.session_id` → `{{ session_id }}` resolves to the worker's session. `suggest_next_task` does not auto-claim. `spawn_agent` does not call `claim_task`. Original observation was not reproducible.
 
 ### 1.1 Fix merge_clone_to_target branch safety
 
@@ -225,7 +220,7 @@ Add a `dry_run` variable (default false) to the production orchestrator workflow
 
 ```
 Phase 1 (Sequential) - Do first, gets the primary use case working
-  1.0 Fix #7244 (orchestrator claims task instead of worker)
+  1.0 NOT A BUG (investigated — template resolution correct)
   1.1 merge safety
   1.2 DONE (commit 2d8bf683)
   1.3 DONE (commit b706c121)
