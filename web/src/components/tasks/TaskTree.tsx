@@ -2,6 +2,7 @@ import { useMemo, useRef, useState } from 'react'
 import { Tree, TreeApi, NodeRendererProps } from 'react-arborist'
 import type { GobbyTask } from '../../hooks/useTasks'
 import { StatusDot, PriorityBadge, TypeBadge } from './TaskBadges'
+import { TaskStatusStrip } from './TaskStatusStrip'
 
 // =============================================================================
 // Tree data type
@@ -92,6 +93,7 @@ function makeTaskNode(searchTerm: string) {
         </span>
         <TypeBadge type={task.type} />
         <PriorityBadge priority={task.priority} />
+        <TaskStatusStrip task={task} compact />
       </div>
     )
   }

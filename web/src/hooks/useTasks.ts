@@ -17,6 +17,8 @@ export interface GobbyTask {
   seq_num: number | null
   path_cache: string | null
   requires_user_review: boolean
+  assignee: string | null
+  agent_name: string | null
 }
 
 export interface GobbyTaskDetail extends GobbyTask {

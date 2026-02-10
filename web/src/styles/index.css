@@ -5711,3 +5711,70 @@ body {
   font-family: var(--font-mono);
   font-size: 10px;
 }
+
+/* =============================================================================
+   Task Status Strip (agent activity indicator)
+   ============================================================================= */
+
+.task-status-strip {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 0 0;
+  border-top: 1px solid var(--border);
+  margin-top: 6px;
+  font-size: 10px;
+  color: var(--text-muted);
+  line-height: 1;
+}
+
+.task-status-strip--compact {
+  border-top: none;
+  margin-top: 0;
+  margin-left: auto;
+  padding: 0;
+  gap: 4px;
+}
+
+.task-status-strip--active {
+  color: var(--accent);
+}
+
+.task-status-strip-pulse {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--accent);
+  animation: status-strip-pulse 2s ease-in-out infinite;
+  flex-shrink: 0;
+}
+
+@keyframes status-strip-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.3; }
+}
+
+.task-status-strip-agent {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 500;
+  max-width: 80px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.task-status-strip-step {
+  font-size: 10px;
+}
+
+.task-status-strip--compact .task-status-strip-step {
+  display: none;
+}
+
+.task-status-strip-time {
+  font-size: 10px;
+  opacity: 0.7;
+  margin-left: auto;
+  white-space: nowrap;
+}

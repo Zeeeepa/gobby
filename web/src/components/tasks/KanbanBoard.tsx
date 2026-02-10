@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { draggable, dropTargetForElements, monitorForElements } from '@atlaskit/pragmatic-drag-and-drop/element/adapter'
 import type { GobbyTask } from '../../hooks/useTasks'
 import { StatusDot, PriorityBadge, TypeBadge, BlockedIndicator, PRIORITY_STYLES } from './TaskBadges'
+import { TaskStatusStrip } from './TaskStatusStrip'
 
 // =============================================================================
 // Column definitions: map 8 statuses → 6 columns
@@ -104,6 +105,7 @@ function KanbanCard({ task, onSelect, onUpdateStatus }: KanbanCardProps) {
           </div>
         )}
       </div>
+      <TaskStatusStrip task={task} />
     </button>
   )
 }
