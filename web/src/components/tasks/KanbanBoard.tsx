@@ -5,6 +5,7 @@ import { StatusDot, PriorityBadge, TypeBadge, BlockedIndicator, PRIORITY_STYLES 
 import { TaskStatusStrip } from './TaskStatusStrip'
 import { classifyTaskRisk, RiskBadge } from './RiskBadges'
 import { ActivityPulse } from './ActivityPulse'
+import { AssigneeBadge } from './AssigneePicker'
 
 // =============================================================================
 // Column definitions: map 8 statuses → 6 columns
@@ -225,6 +226,7 @@ function KanbanCard({ task, index, columnKey, onSelect, onUpdateStatus }: Kanban
       <div className="kanban-card-title">{task.title}</div>
       <div className="kanban-card-footer">
         <TypeBadge type={task.type} />
+        <AssigneeBadge assignee={task.assignee} agentName={task.agent_name} />
         <RiskBadge level={riskLevel} compact />
         {onUpdateStatus && !isBlocked && (
           <div className="kanban-card-actions">

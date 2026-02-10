@@ -11,9 +11,10 @@ import { EscalationCard } from './EscalationCard'
 import { TaskResults } from './TaskResults'
 import { CostTracker } from './CostTracker'
 import { TaskMemories } from './TaskMemories'
+import { AssigneePicker } from './AssigneePicker'
 
 interface TaskActions {
-  updateTask: (id: string, params: { status?: string }) => Promise<GobbyTaskDetail | null>
+  updateTask: (id: string, params: { status?: string; assignee?: string }) => Promise<GobbyTaskDetail | null>
   closeTask: (id: string, reason?: string) => Promise<GobbyTaskDetail | null>
   reopenTask: (id: string) => Promise<GobbyTaskDetail | null>
 }
@@ -144,7 +145,17 @@ export function TaskDetail({ taskId, getTask, getDependencies, getSubtasks, acti
 
             {/* Metadata */}
             <div className="task-detail-meta">
-              <MetaRow label="Assignee" value={task.assignee || 'Unassigned'} />
+              <div className="task-detail-meta-row">
+                <span className="task-detail-meta-label">Assignee</span>
+                <AssigneePicker
+                  taskId={task.id}
+                  currentAssignee={task.assignee}
+                  currentAgentName={task.agent_name}
+                  onAssign={(assignee) => {
+                    handleAction(() => actions.updateTask(task.id, { assignee: assignee || '' }))
+                  }}
+                />
+              </div>
               <MetaRow label="Created" value={formatDate(task.created_at)} />
               <MetaRow label="Updated" value={formatDate(task.updated_at)} />
               {task.closed_at && <MetaRow label="Closed" value={formatDate(task.closed_at)} />}
