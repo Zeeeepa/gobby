@@ -13,7 +13,17 @@ export interface GobbySession {
   created_at: string
   updated_at: string
   seq_num: number | null
+  summary_markdown: string | null
+  git_branch: string | null
+  usage_input_tokens: number
+  usage_output_tokens: number
+  usage_total_cost_usd: number
+  had_edits: boolean
+  agent_depth: number
+  parent_session_id: string | null
 }
+
+export const KNOWN_SOURCES = ['claude', 'gemini', 'codex', 'web-chat'] as const
 
 export interface SessionFilters {
   source: string | null

@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useMemo } from 'react'
 import { useChat } from './hooks/useChat'
 import { useSettings } from './hooks/useSettings'
 import { useTerminal } from './hooks/useTerminal'
@@ -6,19 +6,17 @@ import { useTmuxSessions } from './hooks/useTmuxSessions'
 import { useSlashCommands } from './hooks/useSlashCommands'
 import { useFiles } from './hooks/useFiles'
 import { useSessions } from './hooks/useSessions'
-import { ChatMessages } from './components/ChatMessages'
-import { ChatInput } from './components/ChatInput'
 import type { QueuedFile } from './components/ChatInput'
 import { Settings } from './components/Settings'
-import { TerminalPanel } from './components/Terminal'
 import { Sidebar } from './components/Sidebar'
-import { SessionSidebar } from './components/SessionSidebar'
+import { ChatPage } from './components/ChatPage'
+import { SessionsPage } from './components/SessionsPage'
 import { TerminalsPage } from './components/TerminalsPage'
 import { FilesPage } from './components/FilesPage'
 import type { GobbySession } from './hooks/useSessions'
 
 export default function App() {
-  const { messages, conversationId, isConnected, isStreaming, isThinking, sendMessage, stopStreaming, clearHistory, executeCommand, respondToQuestion, switchConversation, startNewChat, resumeSession } = useChat()
+  const { messages, conversationId, isConnected, isStreaming, isThinking, sendMessage, stopStreaming, clearHistory, executeCommand, respondToQuestion, switchConversation, startNewChat } = useChat()
   const { settings, modelInfo, modelsLoading, updateFontSize, updateModel, resetSettings } = useSettings()
   const { agents, selectedAgent, setSelectedAgent, sendInput, onOutput } = useTerminal()
   const tmux = useTmuxSessions()
@@ -26,10 +24,15 @@ export default function App() {
   const { filteredCommands, parseCommand, filterCommands } = useSlashCommands()
   const sessionsHook = useSessions()
   const [settingsOpen, setSettingsOpen] = useState(false)
-  const [terminalOpen, setTerminalOpen] = useState(false)
+  const [terminalOpen, setTerminalOpen] = useState(true)
   const [activeTab, setActiveTab] = useState<string>('chat')
   const [sidebarOpen, setSidebarOpen] = useState(false)
-  const [sessionSidebarOpen, setSessionSidebarOpen] = useState(true)
+
+  // Web-chat sessions only (for ConversationPicker in ChatPage)
+  const webChatSessions = useMemo(
+    () => sessionsHook.filteredSessions.filter((s) => s.source === 'web-chat'),
+    [sessionsHook.filteredSessions]
+  )
 
   // Wrap sendMessage to include the selected model and handle slash commands
   const handleSendMessage = useCallback((content: string, files?: QueuedFile[]) => {
@@ -49,16 +52,19 @@ export default function App() {
     sendMessage(content, settings.model, files)
   }, [parseCommand, executeCommand, sendMessage, settings.model])
 
-  const handleSelectSession = useCallback((session: GobbySession) => {
-    if (session.source === 'web-chat') {
-      switchConversation(session.external_id)
-    } else if (session.source === 'claude') {
-      resumeSession(session.external_id)
-    } else {
-      // Non-resumable CLI session — switch to terminals tab
-      setActiveTab('terminals')
-    }
-  }, [switchConversation, resumeSession])
+  // Chat page: only web-chat sessions are selectable
+  const handleSelectConversation = useCallback((session: GobbySession) => {
+    switchConversation(session.external_id)
+  }, [switchConversation])
+
+  // "Ask Gobby about this session" from Sessions page
+  const handleAskGobby = useCallback((context: string) => {
+    setActiveTab('chat')
+    // Send the context as a new message after switching to chat
+    setTimeout(() => {
+      sendMessage(context, settings.model)
+    }, 100)
+  }, [sendMessage, settings.model])
 
   const handleInputChange = useCallback((value: string) => {
     filterCommands(value)
@@ -76,6 +82,7 @@ export default function App() {
 
   const navItems = [
     { id: 'chat', label: 'Chat', icon: <ChatIcon /> },
+    { id: 'sessions', label: 'Sessions', icon: <SessionsIcon /> },
     { id: 'terminals', label: 'Terminals', icon: <TerminalIcon /> },
     { id: 'files', label: 'Files', icon: <FilesIcon /> },
     { id: 'tasks', label: 'Tasks', icon: <TasksIcon />, separator: true },
@@ -129,45 +136,40 @@ export default function App() {
       />
 
       {activeTab === 'chat' ? (
-        <div className="chat-page">
-          <SessionSidebar
-            sessions={sessionsHook.filteredSessions}
-            projects={sessionsHook.projects}
-            filters={sessionsHook.filters}
-            onFiltersChange={sessionsHook.setFilters}
-            activeSessionId={conversationId}
-            isLoading={sessionsHook.isLoading}
-            onNewChat={startNewChat}
-            onSelectSession={handleSelectSession}
-            onRefresh={sessionsHook.refresh}
-            isOpen={sessionSidebarOpen}
-            onToggle={() => setSessionSidebarOpen(!sessionSidebarOpen)}
-          />
-          <div className="chat-main">
-            <main className="chat-container">
-              <ChatMessages messages={messages} isStreaming={isStreaming} isThinking={isThinking} onRespondToQuestion={respondToQuestion} />
-              <ChatInput
-                onSend={handleSendMessage}
-                onStop={stopStreaming}
-                isStreaming={isStreaming}
-                disabled={!isConnected}
-                onInputChange={handleInputChange}
-                filteredCommands={filteredCommands}
-                onCommandSelect={handleCommandSelect}
-              />
-            </main>
-
-            <TerminalPanel
-              isOpen={terminalOpen}
-              onToggle={() => setTerminalOpen(!terminalOpen)}
-              agents={agents}
-              selectedAgent={selectedAgent}
-              onSelectAgent={setSelectedAgent}
-              onInput={sendInput}
-              onOutput={onOutput}
-            />
-          </div>
-        </div>
+        <ChatPage
+          messages={messages}
+          conversationId={conversationId}
+          isStreaming={isStreaming}
+          isThinking={isThinking}
+          isConnected={isConnected}
+          onSend={handleSendMessage}
+          onStop={stopStreaming}
+          onRespondToQuestion={respondToQuestion}
+          onInputChange={handleInputChange}
+          filteredCommands={filteredCommands}
+          onCommandSelect={handleCommandSelect}
+          webChatSessions={webChatSessions}
+          activeSessionId={conversationId}
+          onNewChat={startNewChat}
+          onSelectSession={handleSelectConversation}
+          terminalOpen={terminalOpen}
+          onTerminalToggle={() => setTerminalOpen(!terminalOpen)}
+          agents={agents}
+          selectedAgent={selectedAgent}
+          onSelectAgent={setSelectedAgent}
+          onTerminalInput={sendInput}
+          onTerminalOutput={onOutput}
+        />
+      ) : activeTab === 'sessions' ? (
+        <SessionsPage
+          sessions={sessionsHook.filteredSessions}
+          projects={sessionsHook.projects}
+          filters={sessionsHook.filters}
+          onFiltersChange={sessionsHook.setFilters}
+          isLoading={sessionsHook.isLoading}
+          onRefresh={sessionsHook.refresh}
+          onAskGobby={handleAskGobby}
+        />
       ) : activeTab === 'terminals' ? (
         <TerminalsPage
           sessions={tmux.sessions}
@@ -252,6 +254,16 @@ function ChatIcon() {
       strokeLinejoin="round"
     >
       <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+    </svg>
+  )
+}
+
+function SessionsIcon() {
+  return (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <rect x="2" y="3" width="20" height="14" rx="2" ry="2" />
+      <line x1="8" y1="21" x2="16" y2="21" />
+      <line x1="12" y1="17" x2="12" y2="21" />
     </svg>
   )
 }

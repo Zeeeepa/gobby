@@ -1,0 +1,102 @@
+import { ConversationPicker } from './ConversationPicker'
+import { ChatMessages } from './ChatMessages'
+import { ChatInput } from './ChatInput'
+import type { QueuedFile } from './ChatInput'
+import { TerminalPanel } from './Terminal'
+import type { ChatMessage } from './Message'
+import type { GobbySession } from '../hooks/useSessions'
+import type { CommandInfo } from '../hooks/useSlashCommands'
+
+interface ChatPageProps {
+  // Chat state
+  messages: ChatMessage[]
+  conversationId: string | null
+  isStreaming: boolean
+  isThinking: boolean
+  isConnected: boolean
+  onSend: (content: string, files?: QueuedFile[]) => void
+  onStop: () => void
+  onRespondToQuestion: (toolCallId: string, answers: Record<string, string>) => void
+  onInputChange: (value: string) => void
+  filteredCommands: CommandInfo[]
+  onCommandSelect: (cmd: CommandInfo) => void
+  // ConversationPicker state
+  webChatSessions: GobbySession[]
+  activeSessionId: string | null
+  onNewChat: () => void
+  onSelectSession: (session: GobbySession) => void
+  // Terminal state
+  terminalOpen: boolean
+  onTerminalToggle: () => void
+  agents: Array<{ run_id: string; provider: string; pid?: number; mode?: string }>
+  selectedAgent: string | null
+  onSelectAgent: (runId: string | null) => void
+  onTerminalInput: (runId: string, data: string) => void
+  onTerminalOutput: (callback: (runId: string, data: string) => void) => void
+  // Prefilled context from "Ask Gobby" in sessions page
+  prefillContext?: string | null
+}
+
+export function ChatPage({
+  messages,
+  isStreaming,
+  isThinking,
+  isConnected,
+  onSend,
+  onStop,
+  onRespondToQuestion,
+  onInputChange,
+  filteredCommands,
+  onCommandSelect,
+  webChatSessions,
+  activeSessionId,
+  onNewChat,
+  onSelectSession,
+  terminalOpen,
+  onTerminalToggle,
+  agents,
+  selectedAgent,
+  onSelectAgent,
+  onTerminalInput,
+  onTerminalOutput,
+}: ChatPageProps) {
+  return (
+    <div className="chat-page">
+      <ConversationPicker
+        sessions={webChatSessions}
+        activeSessionId={activeSessionId}
+        onNewChat={onNewChat}
+        onSelectSession={onSelectSession}
+      />
+      <div className="chat-main">
+        <main className="chat-container">
+          <ChatMessages
+            messages={messages}
+            isStreaming={isStreaming}
+            isThinking={isThinking}
+            onRespondToQuestion={onRespondToQuestion}
+          />
+          <ChatInput
+            onSend={onSend}
+            onStop={onStop}
+            isStreaming={isStreaming}
+            disabled={!isConnected}
+            onInputChange={onInputChange}
+            filteredCommands={filteredCommands}
+            onCommandSelect={onCommandSelect}
+          />
+        </main>
+
+        <TerminalPanel
+          isOpen={terminalOpen}
+          onToggle={onTerminalToggle}
+          agents={agents}
+          selectedAgent={selectedAgent}
+          onSelectAgent={onSelectAgent}
+          onInput={onTerminalInput}
+          onOutput={onTerminalOutput}
+        />
+      </div>
+    </div>
+  )
+}
