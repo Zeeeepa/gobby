@@ -5518,3 +5518,30 @@ body {
 .task-tree-toolbar-check input {
   cursor: pointer;
 }
+
+.task-tree-search {
+  padding: 0.25rem 0.5rem;
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border);
+  border-radius: 0.25rem;
+  color: var(--text-primary);
+  font-size: calc(var(--font-size-base) * 0.75);
+  font-family: inherit;
+  width: 160px;
+}
+
+.task-tree-search:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+.task-tree-search::placeholder {
+  color: var(--text-muted);
+}
+
+.tree-node-highlight {
+  background: rgba(245, 158, 11, 0.3);
+  color: inherit;
+  border-radius: 2px;
+  padding: 0 1px;
+}

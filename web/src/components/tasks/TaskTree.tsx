@@ -45,35 +45,66 @@ function buildTree(tasks: GobbyTask[], hideClosed: boolean): TreeNode[] {
 }
 
 // =============================================================================
+// Highlight matching text
+// =============================================================================
+
+function HighlightText({ text, search }: { text: string; search: string }) {
+  if (!search) return <>{text}</>
+  const idx = text.toLowerCase().indexOf(search.toLowerCase())
+  if (idx === -1) return <>{text}</>
+  return (
+    <>
+      {text.slice(0, idx)}
+      <mark className="tree-node-highlight">{text.slice(idx, idx + search.length)}</mark>
+      {text.slice(idx + search.length)}
+    </>
+  )
+}
+
+// =============================================================================
 // Custom node renderer
 // =============================================================================
 
-function TaskNode({ node, style, dragHandle }: NodeRendererProps<TreeNode>) {
+function makeTaskNode(searchTerm: string) {
+  return function TaskNode({ node, style, dragHandle }: NodeRendererProps<TreeNode>) {
+    const task = node.data.task
+    return (
+      <div
+        ref={dragHandle}
+        style={style}
+        className={`tree-node ${node.isSelected ? 'tree-node--selected' : ''}`}
+        onClick={() => node.activate()}
+      >
+        {node.isInternal ? (
+          <button
+            className="tree-node-toggle"
+            onClick={e => { e.stopPropagation(); node.toggle() }}
+          >
+            {node.isOpen ? '▾' : '▸'}
+          </button>
+        ) : (
+          <span className="tree-node-toggle tree-node-toggle--leaf" />
+        )}
+        <StatusDot status={task.status} />
+        <span className="tree-node-ref">{task.ref}</span>
+        <span className="tree-node-title">
+          <HighlightText text={task.title} search={searchTerm} />
+        </span>
+        <TypeBadge type={task.type} />
+        <PriorityBadge priority={task.priority} />
+      </div>
+    )
+  }
+}
+
+// =============================================================================
+// Search match function: match on title or ref
+// =============================================================================
+
+function searchMatch(node: { data: TreeNode }, term: string): boolean {
   const task = node.data.task
-  return (
-    <div
-      ref={dragHandle}
-      style={style}
-      className={`tree-node ${node.isSelected ? 'tree-node--selected' : ''}`}
-      onClick={() => node.activate()}
-    >
-      {node.isInternal ? (
-        <button
-          className="tree-node-toggle"
-          onClick={e => { e.stopPropagation(); node.toggle() }}
-        >
-          {node.isOpen ? '▾' : '▸'}
-        </button>
-      ) : (
-        <span className="tree-node-toggle tree-node-toggle--leaf" />
-      )}
-      <StatusDot status={task.status} />
-      <span className="tree-node-ref">{task.ref}</span>
-      <span className="tree-node-title">{task.title}</span>
-      <TypeBadge type={task.type} />
-      <PriorityBadge priority={task.priority} />
-    </div>
-  )
+  const lower = term.toLowerCase()
+  return task.title.toLowerCase().includes(lower) || task.ref.toLowerCase().includes(lower)
 }
 
 // =============================================================================
@@ -88,11 +119,20 @@ interface TaskTreeProps {
 export function TaskTree({ tasks, onSelectTask }: TaskTreeProps) {
   const treeRef = useRef<TreeApi<TreeNode> | null>(null)
   const [hideClosed, setHideClosed] = useState(false)
+  const [searchTerm, setSearchTerm] = useState('')
   const treeData = useMemo(() => buildTree(tasks, hideClosed), [tasks, hideClosed])
+  const NodeRenderer = useMemo(() => makeTaskNode(searchTerm), [searchTerm])
 
   return (
     <div className="task-tree-container">
       <div className="task-tree-toolbar">
+        <input
+          type="text"
+          className="task-tree-search"
+          placeholder="Filter tree..."
+          value={searchTerm}
+          onChange={e => setSearchTerm(e.target.value)}
+        />
         <button
           className="task-tree-toolbar-btn"
           onClick={() => treeRef.current?.openAll()}
@@ -124,11 +164,13 @@ export function TaskTree({ tasks, onSelectTask }: TaskTreeProps) {
         indent={24}
         rowHeight={34}
         openByDefault={false}
+        searchTerm={searchTerm}
+        searchMatch={searchMatch}
         onActivate={node => onSelectTask(node.data.id)}
         disableDrag
         disableDrop
       >
-        {TaskNode}
+        {NodeRenderer}
       </Tree>
     </div>
   )
