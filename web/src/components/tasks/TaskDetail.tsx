@@ -14,6 +14,7 @@ import { TaskMemories } from './TaskMemories'
 import { AssigneePicker } from './AssigneePicker'
 import { TaskComments } from './TaskComments'
 import { PermissionOverrides } from './PermissionOverrides'
+import { TaskHandoff } from './TaskHandoff'
 
 interface TaskActions {
   updateTask: (id: string, params: { status?: string; assignee?: string }) => Promise<GobbyTaskDetail | null>
@@ -146,6 +147,19 @@ export function TaskDetail({ taskId, getTask, getDependencies, getSubtasks, acti
                 >
                   {'\u{1F4CB}'} Clone Task
                 </button>
+              </div>
+            )}
+
+            {/* Handoff */}
+            {task.status !== 'closed' && (
+              <div className="task-detail-section">
+                <TaskHandoff
+                  taskId={task.id}
+                  currentAssignee={task.assignee}
+                  onHandoff={async (assignee) => {
+                    await handleAction(() => actions.updateTask(task.id, { assignee }))
+                  }}
+                />
               </div>
             )}
 

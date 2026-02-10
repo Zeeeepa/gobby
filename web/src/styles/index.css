@@ -5122,6 +5122,213 @@ body {
   color: var(--text-primary);
 }
 
+/* Task Handoff */
+
+.task-handoff-buttons {
+  display: flex;
+  gap: 6px;
+}
+
+.task-handoff-trigger {
+  padding: 4px 10px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: none;
+  font-size: calc(var(--font-size-base) * 0.7);
+  font-family: var(--font-sans);
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s, border-color 0.15s;
+}
+
+.task-handoff-trigger--agent {
+  color: var(--accent);
+}
+
+.task-handoff-trigger--agent:hover {
+  background: rgba(59, 130, 246, 0.08);
+  border-color: var(--accent);
+}
+
+.task-handoff-trigger--human {
+  color: #a78bfa;
+}
+
+.task-handoff-trigger--human:hover {
+  background: rgba(167, 139, 250, 0.08);
+  border-color: #a78bfa;
+}
+
+.task-handoff-form {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 10px;
+  background: var(--bg-secondary);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.task-handoff-form-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.task-handoff-form-title {
+  font-size: calc(var(--font-size-base) * 0.8);
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.task-handoff-form-close {
+  border: none;
+  background: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  font-size: calc(var(--font-size-base) * 0.8);
+  padding: 2px 4px;
+}
+
+.task-handoff-form-close:hover {
+  color: var(--text-primary);
+}
+
+.task-handoff-target-toggle {
+  display: flex;
+  gap: 2px;
+  background: var(--bg-primary);
+  border-radius: 6px;
+  padding: 2px;
+}
+
+.task-handoff-target-btn {
+  flex: 1;
+  padding: 4px 8px;
+  border: none;
+  border-radius: 4px;
+  background: none;
+  color: var(--text-muted);
+  font-size: calc(var(--font-size-base) * 0.68);
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+
+.task-handoff-target-btn:hover {
+  color: var(--text-primary);
+}
+
+.task-handoff-target-btn.active {
+  background: var(--bg-secondary);
+  color: var(--text-primary);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
+}
+
+.task-handoff-field {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.task-handoff-label {
+  font-size: calc(var(--font-size-base) * 0.62);
+  font-weight: 600;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.task-handoff-required {
+  color: #ef4444;
+}
+
+.task-handoff-input {
+  padding: 5px 8px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  font-size: calc(var(--font-size-base) * 0.72);
+  font-family: var(--font-mono);
+  outline: none;
+}
+
+.task-handoff-input:focus {
+  border-color: var(--accent);
+}
+
+.task-handoff-input::placeholder {
+  color: var(--text-muted);
+}
+
+.task-handoff-current {
+  font-size: calc(var(--font-size-base) * 0.58);
+  color: var(--text-muted);
+}
+
+.task-handoff-textarea {
+  padding: 5px 8px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  font-size: calc(var(--font-size-base) * 0.7);
+  font-family: var(--font-sans);
+  resize: vertical;
+  outline: none;
+}
+
+.task-handoff-textarea:focus {
+  border-color: var(--accent);
+}
+
+.task-handoff-textarea::placeholder {
+  color: var(--text-muted);
+}
+
+.task-handoff-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 6px;
+  padding-top: 2px;
+}
+
+.task-handoff-cancel {
+  padding: 4px 12px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: none;
+  color: var(--text-muted);
+  font-size: calc(var(--font-size-base) * 0.68);
+  cursor: pointer;
+}
+
+.task-handoff-cancel:hover {
+  color: var(--text-primary);
+  border-color: var(--text-muted);
+}
+
+.task-handoff-submit {
+  padding: 4px 14px;
+  border: none;
+  border-radius: 4px;
+  background: var(--accent);
+  color: #fff;
+  font-size: calc(var(--font-size-base) * 0.68);
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.task-handoff-submit:hover {
+  background: var(--accent-hover);
+}
+
+.task-handoff-submit:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
 /* Parent link */
 .task-detail-parent-link {
   display: inline-block;
