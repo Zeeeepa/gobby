@@ -21,6 +21,7 @@ from gobby.servers.websocket.models import (
     CLEANUP_INTERVAL_SECONDS,
     IDLE_TIMEOUT_SECONDS,
 )
+from gobby.storage.projects import PERSONAL_PROJECT_ID
 from gobby.utils.machine_id import get_machine_id
 
 logger = logging.getLogger(__name__)
@@ -142,6 +143,7 @@ class ChatMixin:
         conversation_id = data.get("conversation_id") or str(uuid4())
         model = data.get("model")
         request_id = data.get("request_id", "")
+        project_id = data.get("project_id")
 
         # Use content_blocks (multimodal) if provided, otherwise plain text
         if content_blocks and isinstance(content_blocks, list):
@@ -160,7 +162,7 @@ class ChatMixin:
 
         # Run streaming as a cancellable task
         task = asyncio.create_task(
-            self._stream_chat_response(websocket, conversation_id, content, model, request_id)
+            self._stream_chat_response(websocket, conversation_id, content, model, request_id, project_id)
         )
         task.add_done_callback(self._on_chat_task_done)
         self._active_chat_tasks[conversation_id] = task
@@ -180,6 +182,7 @@ class ChatMixin:
         content: str | list[dict[str, Any]],
         model: str | None,
         request_id: str = "",
+        project_id: str | None = None,
     ) -> None:
         """Stream a ChatSession response to the client. Runs as a cancellable task."""
         from gobby.llm.claude_models import (
@@ -229,9 +232,10 @@ class ChatMixin:
                             external_id=conversation_id,
                             machine_id=get_machine_id(),
                             source="web-chat",
-                            project_id="",
+                            project_id=project_id or PERSONAL_PROJECT_ID,
                         )
                         session.db_session_id = db_session.id
+                        logger.info(f"Registered web-chat session {db_session.id} (conv={conversation_id[:8]}, project={project_id or PERSONAL_PROJECT_ID})")
                     except Exception as e:
                         logger.warning(f"Failed to register web-chat session in DB: {e}")
 

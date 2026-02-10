@@ -1,7 +1,7 @@
 import { ConversationPicker } from './ConversationPicker'
 import { ChatMessages } from './ChatMessages'
 import { ChatInput } from './ChatInput'
-import type { QueuedFile } from './ChatInput'
+import type { QueuedFile, ProjectOption } from './ChatInput'
 import { TerminalPanel } from './Terminal'
 import type { ChatMessage } from './Message'
 import type { GobbySession } from '../hooks/useSessions'
@@ -33,6 +33,10 @@ interface ChatPageProps {
   onSelectAgent: (runId: string | null) => void
   onTerminalInput: (runId: string, data: string) => void
   onTerminalOutput: (callback: (runId: string, data: string) => void) => void
+  // Project selector
+  projects: ProjectOption[]
+  selectedProjectId: string | null
+  onProjectChange: (projectId: string) => void
   // Prefilled context from "Ask Gobby" in sessions page
   prefillContext?: string | null
 }
@@ -59,6 +63,9 @@ export function ChatPage({
   onSelectAgent,
   onTerminalInput,
   onTerminalOutput,
+  projects,
+  selectedProjectId,
+  onProjectChange,
 }: ChatPageProps) {
   return (
     <div className="chat-page">
@@ -84,6 +91,9 @@ export function ChatPage({
             onInputChange={onInputChange}
             filteredCommands={filteredCommands}
             onCommandSelect={onCommandSelect}
+            projects={projects}
+            selectedProjectId={selectedProjectId}
+            onProjectChange={onProjectChange}
           />
         </main>
 

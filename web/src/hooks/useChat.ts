@@ -546,7 +546,7 @@ export function useChat() {
   }, [])
 
   // Send a message (allowed even while streaming — cancels the active stream)
-  const sendMessage = useCallback((content: string, model?: string | null, files?: QueuedFile[]): boolean => {
+  const sendMessage = useCallback((content: string, model?: string | null, files?: QueuedFile[], projectId?: string | null): boolean => {
     console.log('sendMessage called:', content, 'model:', model, 'files:', files?.length)
     if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) {
       console.error('WebSocket not connected, state:', wsRef.current?.readyState)
@@ -581,6 +581,10 @@ export function useChat() {
       payload.model = model
     }
 
+    if (projectId) {
+      payload.project_id = projectId
+    }
+
     if (files && files.length > 0) {
       const contentBlocks: Array<Record<string, unknown>> = []
       for (const qf of files) {
@@ -610,7 +614,7 @@ export function useChat() {
     wsRef.current.send(JSON.stringify(payload))
 
     setIsStreaming(true)
-    setIsThinking(false)
+    setIsThinking(true)
     return true
   }, [])
 

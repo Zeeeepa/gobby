@@ -811,6 +811,29 @@ body {
   cursor: not-allowed;
 }
 
+.chat-project-select {
+  height: 2rem;
+  padding: 0 0.5rem;
+  background: var(--bg-tertiary);
+  color: var(--text-secondary);
+  border: 1px solid var(--border);
+  border-radius: 0.375rem;
+  font-size: calc(var(--font-size-base) * 0.8125);
+  cursor: pointer;
+  max-width: 12rem;
+  text-overflow: ellipsis;
+}
+
+.chat-project-select:hover {
+  color: var(--text-primary);
+  border-color: var(--accent);
+}
+
+.chat-project-select:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
 /* Textarea + send button row */
 .chat-input-row {
   display: flex;

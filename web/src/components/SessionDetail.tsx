@@ -14,6 +14,59 @@ interface SessionDetailProps {
   onAskGobby: (context: string) => void
 }
 
+interface TranscriptDisplay {
+  role: string
+  content: string
+  isToolResult?: boolean
+}
+
+/** Clean up transcript messages for display: skip empties, label tool results. */
+function formatTranscriptContent(msg: SessionMessage): TranscriptDisplay | null {
+  const content = msg.content?.trim() ?? ''
+
+  // Skip empty assistant messages (tool-use-only turns)
+  if (!content && msg.role === 'assistant') return null
+
+  // Detect tool_result JSON blobs (sent as "user" role in Claude API)
+  if (msg.role === 'user' && content.startsWith('[{') && content.includes('tool_result')) {
+    // Count tool results and extract tool_use_ids
+    try {
+      const results = JSON.parse(content) as Array<{ type?: string; tool_use_id?: string }>
+      const count = results.filter((r) => r.type === 'tool_result').length
+      return {
+        role: 'tool',
+        content: `(${count} tool result${count !== 1 ? 's' : ''})`,
+        isToolResult: true,
+      }
+    } catch {
+      return { role: 'tool', content: '(tool results)', isToolResult: true }
+    }
+  }
+
+  // Detect tool_use blocks in assistant messages
+  if (msg.role === 'assistant' && content.startsWith('[{') && content.includes('tool_use')) {
+    try {
+      const calls = JSON.parse(content) as Array<{ type?: string; name?: string }>
+      const tools = calls.filter((c) => c.type === 'tool_use').map((c) => c.name).filter(Boolean)
+      if (tools.length > 0) {
+        return {
+          role: 'assistant',
+          content: `Used tools: ${tools.join(', ')}`,
+          isToolResult: true,
+        }
+      }
+    } catch {
+      // Fall through to normal rendering
+    }
+  }
+
+  if (!content) return null
+
+  // Truncate very long messages
+  const truncated = content.length > 2000 ? content.slice(0, 2000) + '\n\n...' : content
+  return { role: msg.role, content: truncated }
+}
+
 function formatTokens(n: number): string {
   if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`
   if (n >= 1_000) return `${(n / 1_000).toFixed(1)}K`
@@ -126,19 +179,27 @@ export function SessionDetail({
           <div className="session-detail-loading">Loading messages...</div>
         )}
         <div className="session-detail-messages">
-          {messages.map((msg) => (
-            <div key={msg.id} className={`session-detail-message session-detail-message-${msg.role}`}>
-              <div className="session-detail-message-header">
-                <span className="session-detail-message-role">{msg.role}</span>
-                <span className="session-detail-message-time">
-                  {formatRelativeTime(msg.timestamp)}
-                </span>
+          {messages.map((msg) => {
+            const display = formatTranscriptContent(msg)
+            if (!display) return null
+            return (
+              <div key={msg.id} className={`session-detail-message session-detail-message-${display.role}`}>
+                <div className="session-detail-message-header">
+                  <span className="session-detail-message-role">{display.role}</span>
+                  <span className="session-detail-message-time">
+                    {formatRelativeTime(msg.timestamp)}
+                  </span>
+                </div>
+                <div className="session-detail-message-content message-content">
+                  {display.isToolResult ? (
+                    <span className="text-muted">{display.content}</span>
+                  ) : (
+                    <MemoizedMarkdown content={display.content} id={`transcript-${msg.id}`} />
+                  )}
+                </div>
               </div>
-              <div className="session-detail-message-content">
-                {msg.content ? msg.content.slice(0, 500) + (msg.content.length > 500 ? '...' : '') : '(no content)'}
-              </div>
-            </div>
-          ))}
+            )
+          })}
         </div>
         {hasMore && (
           <button

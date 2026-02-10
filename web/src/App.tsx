@@ -27,6 +27,18 @@ export default function App() {
   const [terminalOpen, setTerminalOpen] = useState(true)
   const [activeTab, setActiveTab] = useState<string>('chat')
   const [sidebarOpen, setSidebarOpen] = useState(false)
+  const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null)
+
+  // Build project options for the selector (exclude system projects)
+  const projectOptions = useMemo(
+    () => sessionsHook.projects
+      .filter((p) => !p.name.startsWith('_'))
+      .map((p) => ({ id: p.id, name: p.name })),
+    [sessionsHook.projects]
+  )
+
+  // Effective project: selected or first available
+  const effectiveProjectId = selectedProjectId ?? projectOptions[0]?.id ?? null
 
   // Web-chat sessions only (for ConversationPicker in ChatPage)
   const webChatSessions = useMemo(
@@ -49,8 +61,8 @@ export default function App() {
       executeCommand(cmd.server, cmd.tool, cmd.args)
       return
     }
-    sendMessage(content, settings.model, files)
-  }, [parseCommand, executeCommand, sendMessage, settings.model])
+    sendMessage(content, settings.model, files, effectiveProjectId)
+  }, [parseCommand, executeCommand, sendMessage, settings.model, effectiveProjectId])
 
   // Chat page: only web-chat sessions are selectable
   const handleSelectConversation = useCallback((session: GobbySession) => {
@@ -159,6 +171,9 @@ export default function App() {
           onSelectAgent={setSelectedAgent}
           onTerminalInput={sendInput}
           onTerminalOutput={onOutput}
+          projects={projectOptions}
+          selectedProjectId={effectiveProjectId}
+          onProjectChange={setSelectedProjectId}
         />
       ) : activeTab === 'sessions' ? (
         <SessionsPage
