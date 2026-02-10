@@ -544,7 +544,7 @@ class TestCreateTaskCommand:
         mock_manager.create_task.assert_called_once()
 
     @patch("gobby.cli.tasks.crud.get_task_manager")
-    @patch("gobby.cli.tasks.crud.get_project_context")
+    @patch("gobby.cli.utils.get_project_context")
     def test_create_task_with_options(
         self,
         mock_project_ctx: MagicMock,
@@ -582,19 +582,33 @@ class TestCreateTaskCommand:
             task_type="bug",
         )
 
-    @patch("gobby.cli.tasks.crud.get_project_context")
-    def test_create_task_no_project(
+    @patch("gobby.cli.tasks.crud.get_task_manager")
+    @patch("gobby.cli.utils.get_project_context")
+    def test_create_task_no_project_uses_personal(
         self,
         mock_project_ctx: MagicMock,
+        mock_get_manager: MagicMock,
         runner: CliRunner,
+        mock_task: MagicMock,
     ) -> None:
-        """Test creating a task with no project context."""
+        """Test creating a task with no project context uses personal workspace."""
+        from gobby.storage.projects import PERSONAL_PROJECT_ID
+
         mock_project_ctx.return_value = None
+        mock_manager = MagicMock()
+        mock_manager.create_task.return_value = mock_task
+        mock_get_manager.return_value = mock_manager
 
         result = runner.invoke(cli, ["tasks", "create", "My new task"])
 
         assert result.exit_code == 0
-        assert "Not in a gobby project" in result.output
+        mock_manager.create_task.assert_called_once_with(
+            project_id=PERSONAL_PROJECT_ID,
+            title="My new task",
+            description=None,
+            priority=2,
+            task_type="task",
+        )
 
 
 class TestShowTaskCommand:

@@ -1499,10 +1499,12 @@ class TestHookManagerResolveProjectId:
         result = manager._resolve_project_id(None, str(temp_dir))
         assert result == "context-project-id"
 
-    def test_resolve_project_id_auto_initializes(
+    def test_resolve_project_id_falls_back_to_personal(
         self, hook_manager_with_mocks: HookManager, temp_dir: Path
     ) -> None:
-        """Test that project is auto-initialized when no project.json exists."""
+        """Test that personal workspace is used when no project.json exists."""
+        from gobby.storage.projects import PERSONAL_PROJECT_ID
+
         manager = hook_manager_with_mocks
 
         # Create a new temp dir without project.json
@@ -1510,15 +1512,9 @@ class TestHookManagerResolveProjectId:
         new_dir.mkdir()
 
         with patch("gobby.utils.project_context.get_project_context", return_value=None):
-            # Mock initialize_project
-            mock_result = MagicMock()
-            mock_result.project_id = "auto-project-id"
-            mock_result.project_name = "auto-project"
+            result = manager._resolve_project_id(None, str(new_dir))
 
-            with patch("gobby.utils.project_init.initialize_project", return_value=mock_result):
-                result = manager._resolve_project_id(None, str(new_dir))
-
-        assert result == "auto-project-id"
+        assert result == PERSONAL_PROJECT_ID
 
 
 class TestHookManagerLogging:
