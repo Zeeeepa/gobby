@@ -11,12 +11,13 @@ import { PriorityBoard } from './tasks/PriorityBoard'
 import { TaskOverview } from './tasks/TaskOverview'
 import { AuditLog } from './tasks/AuditLog'
 import { GanttChart } from './tasks/GanttChart'
+import { DigestView } from './tasks/DigestView'
 
 // =============================================================================
 // Constants
 // =============================================================================
 
-type ViewMode = 'list' | 'tree' | 'kanban' | 'priority' | 'audit' | 'gantt'
+type ViewMode = 'list' | 'tree' | 'kanban' | 'priority' | 'audit' | 'gantt' | 'digest'
 
 const STATUS_OPTIONS = [
   'open', 'in_progress', 'needs_review', 'approved', 'closed', 'failed', 'escalated',
@@ -87,6 +88,17 @@ function GanttIcon() {
       <rect x="3" y="4" width="12" height="4" rx="1" />
       <rect x="7" y="10" width="14" height="4" rx="1" />
       <rect x="5" y="16" width="10" height="4" rx="1" />
+    </svg>
+  )
+}
+
+function DigestIcon() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <rect x="3" y="3" width="18" height="18" rx="2" />
+      <line x1="7" y1="8" x2="17" y2="8" />
+      <line x1="7" y1="12" x2="13" y2="12" />
+      <line x1="7" y1="16" x2="15" y2="16" />
     </svg>
   )
 }
@@ -164,7 +176,7 @@ export function TasksPage() {
         </div>
         <div className="tasks-toolbar-right">
           <div className="tasks-view-toggle">
-            {([['list', ListIcon], ['tree', TreeIcon], ['kanban', KanbanIcon], ['priority', PriorityIcon], ['audit', AuditIcon], ['gantt', GanttIcon]] as const).map(
+            {([['list', ListIcon], ['tree', TreeIcon], ['kanban', KanbanIcon], ['priority', PriorityIcon], ['audit', AuditIcon], ['gantt', GanttIcon], ['digest', DigestIcon]] as const).map(
               ([mode, Icon]) => (
                 <button
                   key={mode}
@@ -284,6 +296,11 @@ export function TasksPage() {
         <div className="tasks-loading">Loading tasks...</div>
       ) : tasks.length === 0 ? (
         <div className="tasks-empty">No tasks found</div>
+      ) : viewMode === 'digest' ? (
+        <DigestView
+          tasks={tasks}
+          onSelectTask={setSelectedTaskId}
+        />
       ) : viewMode === 'gantt' ? (
         <GanttChart
           tasks={tasks}
