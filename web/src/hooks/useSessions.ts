@@ -41,8 +41,7 @@ export interface ProjectInfo {
 const POLL_INTERVAL = 30000
 
 function getBaseUrl(): string {
-  const isSecure = window.location.protocol === 'https:'
-  return isSecure ? '' : `http://${window.location.hostname}:60887`
+  return ''
 }
 
 export function useSessions() {

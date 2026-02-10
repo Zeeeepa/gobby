@@ -17,8 +17,7 @@ type OwnershipMode = 'single' | 'joint'
 // =============================================================================
 
 function getBaseUrl(): string {
-  const isSecure = window.location.protocol === 'https:'
-  return isSecure ? '' : `http://${window.location.hostname}:60887`
+  return ''
 }
 
 function agentIcon(type: KnownAgent['type']): string {

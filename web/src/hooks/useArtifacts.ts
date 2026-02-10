@@ -41,8 +41,7 @@ const DEBOUNCE_MS = 300
 const PAGE_SIZE = 50
 
 function getBaseUrl(): string {
-  const isSecure = window.location.protocol === 'https:'
-  return isSecure ? '' : `http://${window.location.hostname}:60887`
+  return ''
 }
 
 // =============================================================================

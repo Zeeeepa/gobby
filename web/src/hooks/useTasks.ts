@@ -111,15 +111,12 @@ const WS_RECONNECT_MS = 3000
 const REFETCH_DEBOUNCE_MS = 500
 
 function getBaseUrl(): string {
-  const isSecure = window.location.protocol === 'https:'
-  return isSecure ? '' : `http://${window.location.hostname}:60887`
+  return ''
 }
 
 function getWsUrl(): string {
-  const isSecure = window.location.protocol === 'https:'
-  return isSecure
-    ? `wss://${window.location.host}/ws`
-    : `ws://${window.location.hostname}:60888`
+  const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
+  return `${wsProtocol}//${window.location.host}/ws`
 }
 
 // =============================================================================

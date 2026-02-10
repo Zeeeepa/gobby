@@ -8,8 +8,7 @@ interface QuickCaptureTaskProps {
 const TYPE_OPTIONS = ['task', 'bug', 'feature', 'epic', 'chore']
 
 function getBaseUrl(): string {
-  const isSecure = window.location.protocol === 'https:'
-  return isSecure ? '' : `http://${window.location.hostname}:60887`
+  return ''
 }
 
 export function QuickCaptureTask({ isOpen, onClose }: QuickCaptureTaskProps) {

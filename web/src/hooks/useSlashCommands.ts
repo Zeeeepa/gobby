@@ -41,10 +41,7 @@ export function useSlashCommands() {
     const fetchTools = async () => {
       try {
         // Derive HTTP base URL same way as WebSocket
-        const isSecure = window.location.protocol === 'https:'
-        const baseUrl = isSecure
-          ? `${window.location.origin}`
-          : `http://${window.location.hostname}:60887`
+        const baseUrl = ''
 
         const resp = await fetch(`${baseUrl}/mcp/tools`)
         if (!resp.ok) return

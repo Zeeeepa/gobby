@@ -39,10 +39,7 @@ export function useSettings() {
     const fetchModels = async () => {
       try {
         // Use same host logic as WebSocket - HTTPS uses relative path, HTTP uses daemon port
-        const isSecure = window.location.protocol === 'https:'
-        const baseUrl = isSecure
-          ? ''  // Relative path for HTTPS (Tailscale Serve)
-          : `http://${window.location.hostname}:60887`
+        const baseUrl = ''
 
         const response = await fetch(`${baseUrl}/admin/models?provider=claude`)
         if (response.ok) {

@@ -24,8 +24,7 @@ interface ThreadedComment extends Comment {
 // =============================================================================
 
 function getBaseUrl(): string {
-  const isSecure = window.location.protocol === 'https:'
-  return isSecure ? '' : `http://${window.location.hostname}:60887`
+  return ''
 }
 
 function relativeTime(iso: string): string {

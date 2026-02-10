@@ -2,8 +2,7 @@ import { useState, useCallback } from 'react'
 import type { GobbyTaskDetail } from '../../hooks/useTasks'
 
 function getBaseUrl(): string {
-  const isSecure = window.location.protocol === 'https:'
-  return isSecure ? '' : `http://${window.location.hostname}:60887`
+  return ''
 }
 
 // =============================================================================

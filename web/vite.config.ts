@@ -20,6 +20,26 @@ export default defineConfig({
         target: 'http://localhost:60887',
         changeOrigin: true,
       },
+      '/admin': {
+        target: 'http://localhost:60887',
+        changeOrigin: true,
+      },
+      '/tasks': {
+        target: 'http://localhost:60887',
+        changeOrigin: true,
+      },
+      '/sessions': {
+        target: 'http://localhost:60887',
+        changeOrigin: true,
+      },
+      '/artifacts': {
+        target: 'http://localhost:60887',
+        changeOrigin: true,
+      },
+      '/memories': {
+        target: 'http://localhost:60887',
+        changeOrigin: true,
+      },
       // Proxy WebSocket to Gobby WebSocket server
       '/ws': {
         target: 'ws://localhost:60888',
