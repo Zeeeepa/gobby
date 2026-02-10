@@ -176,9 +176,11 @@ def create_files_router(server: "HTTPServer") -> APIRouter:
     @router.get("/projects")
     async def list_projects() -> list[dict[str, Any]]:
         """List all registered projects."""
+        from gobby.storage.projects import PERSONAL_PROJECT_ID
+
         pm = _get_project_manager(server)
         projects = pm.list()
-        return [
+        result = [
             {
                 "id": p.id,
                 "name": p.name,
@@ -187,6 +189,10 @@ def create_files_router(server: "HTTPServer") -> APIRouter:
             for p in projects
             if p.repo_path and Path(p.repo_path).is_dir()
         ]
+        # Include Personal project so it appears in filter dropdowns
+        if not any(p["id"] == PERSONAL_PROJECT_ID for p in result):
+            result.insert(0, {"id": PERSONAL_PROJECT_ID, "name": "Personal", "repo_path": None})
+        return result
 
     @router.get("/tree")
     async def list_directory(
