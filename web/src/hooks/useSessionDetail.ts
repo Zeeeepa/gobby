@@ -5,8 +5,12 @@ export interface SessionMessage {
   id: string
   role: string
   content: string
+  content_type?: string
+  tool_name?: string
+  tool_input?: string
+  tool_result?: string
   timestamp: string
-  tool_calls?: unknown[]
+  message_index?: number
 }
 
 function getBaseUrl(): string {

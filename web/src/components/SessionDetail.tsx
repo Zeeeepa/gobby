@@ -2,7 +2,8 @@ import type { GobbySession } from '../hooks/useSessions'
 import type { SessionMessage } from '../hooks/useSessionDetail'
 import { SourceIcon } from './SourceIcon'
 import { MemoizedMarkdown } from './MemoizedMarkdown'
-import { formatRelativeTime, formatDuration } from '../utils/formatTime'
+import { SessionTranscript } from './SessionTranscript'
+import { formatDuration } from '../utils/formatTime'
 
 interface SessionDetailProps {
   session: GobbySession
@@ -12,59 +13,6 @@ interface SessionDetailProps {
   isLoading: boolean
   onLoadMore: () => void
   onAskGobby: (context: string) => void
-}
-
-interface TranscriptDisplay {
-  role: string
-  content: string
-  isToolResult?: boolean
-}
-
-/** Clean up transcript messages for display: skip empties, label tool results. */
-function formatTranscriptContent(msg: SessionMessage): TranscriptDisplay | null {
-  const content = msg.content?.trim() ?? ''
-
-  // Skip empty assistant messages (tool-use-only turns)
-  if (!content && msg.role === 'assistant') return null
-
-  // Detect tool_result JSON blobs (sent as "user" role in Claude API)
-  if (msg.role === 'user' && content.startsWith('[{') && content.includes('tool_result')) {
-    // Count tool results and extract tool_use_ids
-    try {
-      const results = JSON.parse(content) as Array<{ type?: string; tool_use_id?: string }>
-      const count = results.filter((r) => r.type === 'tool_result').length
-      return {
-        role: 'tool',
-        content: `(${count} tool result${count !== 1 ? 's' : ''})`,
-        isToolResult: true,
-      }
-    } catch {
-      return { role: 'tool', content: '(tool results)', isToolResult: true }
-    }
-  }
-
-  // Detect tool_use blocks in assistant messages
-  if (msg.role === 'assistant' && content.startsWith('[{') && content.includes('tool_use')) {
-    try {
-      const calls = JSON.parse(content) as Array<{ type?: string; name?: string }>
-      const tools = calls.filter((c) => c.type === 'tool_use').map((c) => c.name).filter(Boolean)
-      if (tools.length > 0) {
-        return {
-          role: 'assistant',
-          content: `Used tools: ${tools.join(', ')}`,
-          isToolResult: true,
-        }
-      }
-    } catch {
-      // Fall through to normal rendering
-    }
-  }
-
-  if (!content) return null
-
-  // Truncate very long messages
-  const truncated = content.length > 2000 ? content.slice(0, 2000) + '\n\n...' : content
-  return { role: msg.role, content: truncated }
 }
 
 function formatTokens(n: number): string {
@@ -173,44 +121,13 @@ export function SessionDetail({
       </div>
 
       {/* Transcript */}
-      <div className="session-detail-transcript">
-        <h3>Transcript ({totalMessages} messages)</h3>
-        {isLoading && messages.length === 0 && (
-          <div className="session-detail-loading">Loading messages...</div>
-        )}
-        <div className="session-detail-messages">
-          {messages.map((msg) => {
-            const display = formatTranscriptContent(msg)
-            if (!display) return null
-            return (
-              <div key={msg.id} className={`session-detail-message session-detail-message-${display.role}`}>
-                <div className="session-detail-message-header">
-                  <span className="session-detail-message-role">{display.role}</span>
-                  <span className="session-detail-message-time">
-                    {formatRelativeTime(msg.timestamp)}
-                  </span>
-                </div>
-                <div className="session-detail-message-content message-content">
-                  {display.isToolResult ? (
-                    <span className="text-muted">{display.content}</span>
-                  ) : (
-                    <MemoizedMarkdown content={display.content} id={`transcript-${msg.id}`} />
-                  )}
-                </div>
-              </div>
-            )
-          })}
-        </div>
-        {hasMore && (
-          <button
-            className="session-detail-load-more"
-            onClick={onLoadMore}
-            disabled={isLoading}
-          >
-            {isLoading ? 'Loading...' : `Load more (${totalMessages - messages.length} remaining)`}
-          </button>
-        )}
-      </div>
+      <SessionTranscript
+        messages={messages}
+        totalMessages={totalMessages}
+        hasMore={hasMore}
+        isLoading={isLoading}
+        onLoadMore={onLoadMore}
+      />
     </div>
   )
 }

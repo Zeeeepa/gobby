@@ -1726,6 +1726,187 @@ body {
   cursor: not-allowed;
 }
 
+/* ── Session Transcript ── */
+
+.session-transcript {
+  margin-bottom: 1rem;
+}
+
+.session-transcript h3 {
+  font-size: calc(var(--font-size-base) * 0.85);
+  font-weight: 600;
+  color: var(--text-secondary);
+  margin-bottom: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.session-transcript-messages {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.session-transcript-loading {
+  padding: 1rem;
+  text-align: center;
+  color: var(--text-muted);
+  font-size: calc(var(--font-size-base) * 0.85);
+}
+
+.session-transcript-load-more {
+  display: block;
+  width: 100%;
+  padding: 0.5rem;
+  margin-bottom: 0.75rem;
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: 0.375rem;
+  color: var(--text-secondary);
+  font-size: calc(var(--font-size-base) * 0.8);
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.session-transcript-load-more:hover {
+  background: var(--bg-tertiary);
+  color: var(--text-primary);
+}
+
+.session-transcript-load-more:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* Transcript messages */
+
+.transcript-message {
+  padding: 0.5rem 0.75rem;
+  border-radius: 0.375rem;
+  border: 1px solid var(--border);
+}
+
+.transcript-message-user {
+  background: var(--user-bg);
+}
+
+.transcript-message-assistant {
+  background: var(--assistant-bg);
+}
+
+.transcript-message-tool {
+  background: var(--bg-secondary);
+  border-style: dashed;
+}
+
+.transcript-message-header {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 0.25rem;
+}
+
+.transcript-message-role {
+  font-size: calc(var(--font-size-base) * 0.75);
+  font-weight: 600;
+  text-transform: uppercase;
+}
+
+.transcript-message-role-user {
+  color: #60a5fa;
+}
+
+.transcript-message-role-assistant {
+  color: #a78bfa;
+}
+
+.transcript-message-role-tool {
+  color: #fbbf24;
+}
+
+.transcript-message-time {
+  font-size: calc(var(--font-size-base) * 0.7);
+  color: var(--text-muted);
+}
+
+.transcript-message-content {
+  font-size: calc(var(--font-size-base) * 0.85);
+  color: var(--text-primary);
+  line-height: 1.5;
+}
+
+/* Transcript tool calls */
+
+.transcript-tool-call {
+  margin: 0.25rem 0;
+  border-radius: 0.25rem;
+  background: var(--bg-primary);
+  border: 1px solid var(--border);
+  overflow: hidden;
+}
+
+.transcript-tool-call-header {
+  display: flex;
+  align-items: center;
+  gap: 0.375rem;
+  padding: 0.375rem 0.5rem;
+  font-size: calc(var(--font-size-base) * 0.8);
+}
+
+.transcript-tool-call-icon {
+  color: var(--text-muted);
+  font-size: calc(var(--font-size-base) * 0.85);
+}
+
+.transcript-tool-call-name {
+  font-family: var(--font-mono);
+  font-size: calc(var(--font-size-base) * 0.75);
+  color: var(--text-primary);
+  font-weight: 500;
+}
+
+.transcript-tool-call-expand {
+  margin-left: auto;
+  font-size: calc(var(--font-size-base) * 0.65);
+  color: var(--text-muted);
+}
+
+.transcript-tool-call-details {
+  border-top: 1px solid var(--border);
+  padding: 0.375rem 0.5rem;
+}
+
+.transcript-tool-call-section {
+  margin-bottom: 0.375rem;
+}
+
+.transcript-tool-call-section:last-child {
+  margin-bottom: 0;
+}
+
+.transcript-tool-call-section-label {
+  font-size: calc(var(--font-size-base) * 0.65);
+  font-weight: 600;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  margin-bottom: 0.125rem;
+  letter-spacing: 0.03em;
+}
+
+.transcript-tool-call-json {
+  font-family: var(--font-mono);
+  font-size: calc(var(--font-size-base) * 0.7);
+  color: var(--text-secondary);
+  background: var(--code-bg);
+  padding: 0.375rem 0.5rem;
+  border-radius: 0.25rem;
+  overflow-x: auto;
+  white-space: pre-wrap;
+  word-break: break-word;
+  max-height: 300px;
+  overflow-y: auto;
+}
+
 /* Source icon inline */
 .source-icon {
   flex-shrink: 0;
