@@ -3,6 +3,7 @@ import type { SessionMessage } from '../hooks/useSessionDetail'
 import { SourceIcon } from './SourceIcon'
 import { MemoizedMarkdown } from './MemoizedMarkdown'
 import { SessionTranscript } from './SessionTranscript'
+import { SessionLineage } from './SessionLineage'
 import { formatDuration } from '../utils/formatTime'
 
 interface SessionDetailProps {
@@ -15,6 +16,8 @@ interface SessionDetailProps {
   onAskGobby: (context: string) => void
   onGenerateSummary: () => void
   isGeneratingSummary: boolean
+  allSessions: GobbySession[]
+  onSelectSession: (sessionId: string) => void
 }
 
 function formatTokens(n: number): string {
@@ -49,6 +52,8 @@ export function SessionDetail({
   onAskGobby,
   onGenerateSummary,
   isGeneratingSummary,
+  allSessions,
+  onSelectSession,
 }: SessionDetailProps) {
   const title = session.title || `Session #${session.ref}`
 
@@ -140,6 +145,13 @@ export function SessionDetail({
           <div className="session-detail-no-summary">No summary available yet.</div>
         )}
       </div>
+
+      {/* Lineage */}
+      <SessionLineage
+        session={session}
+        allSessions={allSessions}
+        onSelectSession={onSelectSession}
+      />
 
       {/* Ask Gobby button */}
       <div className="session-detail-actions">

@@ -206,6 +206,8 @@ export function SessionsPage({
             onAskGobby={onAskGobby}
             onGenerateSummary={detail.generateSummary}
             isGeneratingSummary={detail.isGeneratingSummary}
+            allSessions={sessions}
+            onSelectSession={setSelectedSessionId}
           />
         ) : (
           <div className="sessions-empty">
