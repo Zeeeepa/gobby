@@ -1,4 +1,4 @@
-import { useState, useMemo, useCallback } from 'react'
+import { useState, useMemo, useCallback, useRef } from 'react'
 import type { GobbyTask } from '../../hooks/useTasks'
 
 // =============================================================================
@@ -124,14 +124,27 @@ function buildArrows(bars: TaskBar[], tasks: GobbyTask[]): DepArrow[] {
 // GanttChart
 // =============================================================================
 
+interface DragState {
+  taskId: string
+  barIndex: number
+  startMouseX: number
+  originalBarX: number
+  originalBarW: number
+  currentOffsetDays: number
+  snappedDate: Date | null
+}
+
 interface GanttChartProps {
   tasks: GobbyTask[]
   onSelectTask: (id: string) => void
+  onReschedule?: (taskId: string, offsetDays: number) => void
 }
 
-export function GanttChart({ tasks, onSelectTask }: GanttChartProps) {
+export function GanttChart({ tasks, onSelectTask, onReschedule }: GanttChartProps) {
   const [zoom, setZoom] = useState<ZoomLevel>('day')
   const [deps, setDeps] = useState<Map<string, string[]>>(new Map())
+  const [drag, setDrag] = useState<DragState | null>(null)
+  const svgRef = useRef<SVGSVGElement>(null)
 
   // Fetch dependency info
   const fetchDeps = useCallback(async () => {
@@ -209,6 +222,49 @@ export function GanttChart({ tasks, onSelectTask }: GanttChartProps) {
     return HEADER_HEIGHT + row * (ROW_HEIGHT + ROW_GAP)
   }
 
+  // Inverse: X position to date
+  const xToDate = useCallback((x: number): Date => {
+    const timelineWidth = columns.length * colWidth
+    const frac = (x - LABEL_WIDTH) / (timelineWidth || 1)
+    const days = Math.round(frac * totalDays)
+    return addDays(timelineStart, days)
+  }, [columns.length, colWidth, totalDays, timelineStart])
+
+  // Drag handlers
+  const handleDragStart = useCallback((e: React.MouseEvent, bar: TaskBar, barX: number, barW: number) => {
+    if (bar.isMilestone) return
+    e.stopPropagation()
+    e.preventDefault()
+    setDrag({
+      taskId: bar.task.id,
+      barIndex: bar.row,
+      startMouseX: e.clientX,
+      originalBarX: barX,
+      originalBarW: barW,
+      currentOffsetDays: 0,
+      snappedDate: null,
+    })
+  }, [])
+
+  const handleDragMove = useCallback((e: React.MouseEvent) => {
+    if (!drag) return
+    const dx = e.clientX - drag.startMouseX
+    const newX = drag.originalBarX + dx
+    const snapped = xToDate(newX)
+    const origDate = xToDate(drag.originalBarX)
+    const offsetDays = daysBetween(origDate, snapped)
+
+    setDrag(prev => prev ? { ...prev, currentOffsetDays: offsetDays, snappedDate: snapped } : null)
+  }, [drag, xToDate])
+
+  const handleDragEnd = useCallback(() => {
+    if (!drag) return
+    if (drag.currentOffsetDays !== 0 && onReschedule) {
+      onReschedule(drag.taskId, drag.currentOffsetDays)
+    }
+    setDrag(null)
+  }, [drag, onReschedule])
+
   // Suppress unused variable warning
   void deps
 
@@ -230,7 +286,15 @@ export function GanttChart({ tasks, onSelectTask }: GanttChartProps) {
       </div>
 
       <div className="gantt-scroll">
-        <svg width={svgWidth} height={svgHeight} className="gantt-svg">
+        <svg
+          ref={svgRef}
+          width={svgWidth}
+          height={svgHeight}
+          className="gantt-svg"
+          onMouseMove={handleDragMove}
+          onMouseUp={handleDragEnd}
+          onMouseLeave={handleDragEnd}
+        >
           {/* Header background */}
           <rect x={0} y={0} width={svgWidth} height={HEADER_HEIGHT} className="gantt-header-bg" />
 
@@ -299,13 +363,16 @@ export function GanttChart({ tasks, onSelectTask }: GanttChartProps) {
 
           {/* Task bars */}
           {bars.map(bar => {
-            const x = dateToX(bar.startDate)
-            const w = Math.max(dateToX(bar.endDate) - x, 8)
+            const isDragging = drag?.taskId === bar.task.id
+            const dragOffsetPx = isDragging
+              ? dateToX(addDays(bar.startDate, drag!.currentOffsetDays)) - dateToX(bar.startDate)
+              : 0
+            const x = dateToX(bar.startDate) + dragOffsetPx
+            const w = Math.max(dateToX(bar.endDate) - dateToX(bar.startDate), 8)
             const y = rowToY(bar.row)
             const color = STATUS_COLORS[bar.task.status] || '#737373'
 
             if (bar.isMilestone) {
-              // Diamond milestone
               const cx = x + w / 2
               const cy = y + ROW_HEIGHT / 2
               const size = 8
@@ -321,14 +388,25 @@ export function GanttChart({ tasks, onSelectTask }: GanttChartProps) {
             }
 
             return (
-              <g key={`bar-${bar.task.id}`} onClick={() => onSelectTask(bar.task.id)} style={{ cursor: 'pointer' }}>
+              <g
+                key={`bar-${bar.task.id}`}
+                style={{ cursor: isDragging ? 'grabbing' : 'grab' }}
+                onClick={() => { if (!isDragging) onSelectTask(bar.task.id) }}
+                onMouseDown={(e) => handleDragStart(e, bar, dateToX(bar.startDate), w)}
+              >
+                {/* Snap guide line during drag */}
+                {isDragging && (
+                  <line
+                    x1={x} y1={HEADER_HEIGHT} x2={x} y2={svgHeight}
+                    className="gantt-snap-guide"
+                  />
+                )}
                 <rect
                   x={x} y={y + 4} width={w} height={ROW_HEIGHT - 8}
                   rx={3} ry={3}
                   fill={color}
-                  className="gantt-bar"
+                  className={`gantt-bar ${isDragging ? 'gantt-bar--dragging' : ''}`}
                 />
-                {/* Progress fill for closed tasks */}
                 {(bar.task.status === 'closed' || bar.task.status === 'approved') && (
                   <rect
                     x={x} y={y + 4} width={w} height={ROW_HEIGHT - 8}
@@ -337,6 +415,25 @@ export function GanttChart({ tasks, onSelectTask }: GanttChartProps) {
                     opacity={0.3}
                     className="gantt-bar-complete"
                   />
+                )}
+                {/* Date tooltip during drag */}
+                {isDragging && drag!.snappedDate && (
+                  <g>
+                    <rect
+                      x={x} y={y - 20} width={80} height={18}
+                      rx={3} fill="var(--bg-secondary)" stroke="var(--border)"
+                    />
+                    <text
+                      x={x + 40} y={y - 7}
+                      textAnchor="middle"
+                      className="gantt-drag-tooltip-text"
+                    >
+                      {drag!.snappedDate.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
+                      {drag!.currentOffsetDays !== 0 && (
+                        ` (${drag!.currentOffsetDays > 0 ? '+' : ''}${drag!.currentOffsetDays}d)`
+                      )}
+                    </text>
+                  </g>
                 )}
                 <title>{bar.task.ref}: {bar.task.title}</title>
               </g>

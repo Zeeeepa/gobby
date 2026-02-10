@@ -8288,3 +8288,22 @@ body {
   fill: var(--text-muted);
   opacity: 0.5;
 }
+
+.gantt-bar--dragging {
+  opacity: 1;
+  filter: brightness(1.2);
+  stroke: #fff;
+  stroke-width: 1;
+}
+
+.gantt-snap-guide {
+  stroke: rgba(59, 130, 246, 0.4);
+  stroke-width: 1;
+  stroke-dasharray: 4 3;
+}
+
+.gantt-drag-tooltip-text {
+  font-size: 10px;
+  font-family: var(--font-mono);
+  fill: var(--text-primary);
+}

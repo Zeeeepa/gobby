@@ -288,6 +288,12 @@ export function TasksPage() {
         <GanttChart
           tasks={tasks}
           onSelectTask={setSelectedTaskId}
+          onReschedule={(taskId, offsetDays) => {
+            // Persist position change via sequence_order (offset * 1000 for granularity)
+            const task = tasks.find(t => t.id === taskId)
+            const currentOrder = task?.sequence_order ?? 0
+            updateTask(taskId, { sequence_order: currentOrder + offsetDays * 1000 })
+          }}
         />
       ) : viewMode === 'audit' ? (
         <AuditLog
