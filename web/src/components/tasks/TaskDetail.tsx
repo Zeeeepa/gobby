@@ -141,9 +141,6 @@ export function TaskDetail({ taskId, getTask, getDependencies, getSubtasks, acti
                   </div>
                 </div>
               )}
-              {task.validation_status && task.validation_status !== 'pending' && (
-                <MetaRow label="Validation" value={task.validation_status} />
-              )}
             </div>
 
             {/* Dependencies: Blocked By */}
@@ -206,14 +203,9 @@ export function TaskDetail({ taskId, getTask, getDependencies, getSubtasks, acti
               </div>
             )}
 
-            {/* Validation criteria */}
-            {task.validation_criteria && (
-              <div className="task-detail-section">
-                <h4 className="task-detail-section-title">Validation Criteria</h4>
-                <div className="task-detail-description task-detail-criteria">
-                  {task.validation_criteria}
-                </div>
-              </div>
+            {/* Validation */}
+            {(task.validation_criteria || task.validation_status !== 'pending') && (
+              <ValidationSection task={task} />
             )}
 
             {/* Commits */}
@@ -239,6 +231,63 @@ function MetaRow({ label, value, mono }: { label: string; value: string; mono?: 
     <div className="task-detail-meta-row">
       <span className="task-detail-meta-label">{label}</span>
       <span className={`task-detail-meta-value ${mono ? 'mono' : ''}`}>{value}</span>
+    </div>
+  )
+}
+
+// =============================================================================
+// Validation section
+// =============================================================================
+
+const VALIDATION_STATUS_STYLES: Record<string, { color: string; bg: string; label: string }> = {
+  pending: { color: '#737373', bg: 'rgba(115, 115, 115, 0.12)', label: 'Pending' },
+  passed: { color: '#22c55e', bg: 'rgba(34, 197, 94, 0.12)', label: 'Passed' },
+  failed: { color: '#ef4444', bg: 'rgba(239, 68, 68, 0.12)', label: 'Failed' },
+  skipped: { color: '#f59e0b', bg: 'rgba(245, 158, 11, 0.12)', label: 'Skipped' },
+}
+
+function ValidationSection({ task }: { task: GobbyTaskDetail }) {
+  const vstatus = task.validation_status || 'pending'
+  const style = VALIDATION_STATUS_STYLES[vstatus] || VALIDATION_STATUS_STYLES.pending
+
+  return (
+    <div className="task-detail-section">
+      <h4 className="task-detail-section-title">Validation</h4>
+
+      {/* Status indicator */}
+      <div className="task-detail-validation-status">
+        <span
+          className="task-detail-validation-badge"
+          style={{ color: style.color, background: style.bg }}
+        >
+          {style.label}
+        </span>
+        {task.validation_fail_count > 0 && (
+          <span className="task-detail-validation-fails">
+            {task.validation_fail_count} failure{task.validation_fail_count !== 1 ? 's' : ''}
+          </span>
+        )}
+      </div>
+
+      {/* Criteria */}
+      {task.validation_criteria && (
+        <div className="task-detail-validation-criteria">
+          <span className="task-detail-validation-criteria-label">Criteria</span>
+          <div className="task-detail-description task-detail-criteria">
+            {task.validation_criteria}
+          </div>
+        </div>
+      )}
+
+      {/* Feedback */}
+      {task.validation_feedback && (
+        <div className="task-detail-validation-feedback">
+          <span className="task-detail-validation-criteria-label">Feedback</span>
+          <div className="task-detail-description">
+            {task.validation_feedback}
+          </div>
+        </div>
+      )}
     </div>
   )
 }
