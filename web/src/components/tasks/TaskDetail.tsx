@@ -2,9 +2,16 @@ import { useState, useEffect, useCallback } from 'react'
 import type { GobbyTaskDetail } from '../../hooks/useTasks'
 import { StatusBadge, PriorityBadge, TypeBadge } from './TaskBadges'
 
+interface TaskActions {
+  updateTask: (id: string, params: { status?: string }) => Promise<GobbyTaskDetail | null>
+  closeTask: (id: string, reason?: string) => Promise<GobbyTaskDetail | null>
+  reopenTask: (id: string) => Promise<GobbyTaskDetail | null>
+}
+
 interface TaskDetailProps {
   taskId: string | null
   getTask: (id: string) => Promise<GobbyTaskDetail | null>
+  actions: TaskActions
   onClose: () => void
 }
 
@@ -23,9 +30,10 @@ function formatDate(iso: string | null): string {
     + ' ' + d.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' })
 }
 
-export function TaskDetail({ taskId, getTask, onClose }: TaskDetailProps) {
+export function TaskDetail({ taskId, getTask, actions, onClose }: TaskDetailProps) {
   const [task, setTask] = useState<GobbyTaskDetail | null>(null)
   const [isLoading, setIsLoading] = useState(false)
+  const [actionLoading, setActionLoading] = useState(false)
 
   const fetchDetail = useCallback(async (id: string) => {
     setIsLoading(true)
@@ -41,6 +49,13 @@ export function TaskDetail({ taskId, getTask, onClose }: TaskDetailProps) {
       setTask(null)
     }
   }, [taskId, fetchDetail])
+
+  const handleAction = useCallback(async (action: () => Promise<GobbyTaskDetail | null>) => {
+    setActionLoading(true)
+    const updated = await action()
+    if (updated) setTask(updated)
+    setActionLoading(false)
+  }, [])
 
   const isOpen = taskId !== null
 
@@ -70,6 +85,14 @@ export function TaskDetail({ taskId, getTask, onClose }: TaskDetailProps) {
                 <TypeBadge type={task.type} />
               </div>
             </div>
+
+            {/* Actions */}
+            <StatusActions
+              task={task}
+              actions={actions}
+              loading={actionLoading}
+              onAction={handleAction}
+            />
 
             {/* Metadata */}
             <div className="task-detail-meta">
@@ -136,6 +159,90 @@ function MetaRow({ label, value, mono }: { label: string; value: string; mono?: 
     <div className="task-detail-meta-row">
       <span className="task-detail-meta-label">{label}</span>
       <span className={`task-detail-meta-value ${mono ? 'mono' : ''}`}>{value}</span>
+    </div>
+  )
+}
+
+// =============================================================================
+// Status action buttons - contextual by current status
+// =============================================================================
+
+interface StatusAction {
+  label: string
+  variant: 'primary' | 'default' | 'danger'
+  onClick: () => Promise<GobbyTaskDetail | null>
+}
+
+function getActionsForStatus(
+  task: GobbyTaskDetail,
+  actions: TaskActions
+): StatusAction[] {
+  const { status, id } = task
+
+  switch (status) {
+    case 'open':
+      return [
+        { label: 'Start Work', variant: 'primary', onClick: () => actions.updateTask(id, { status: 'in_progress' }) },
+        { label: 'Close', variant: 'danger', onClick: () => actions.closeTask(id) },
+      ]
+    case 'in_progress':
+      return [
+        { label: 'Submit for Review', variant: 'primary', onClick: () => actions.updateTask(id, { status: 'needs_review' }) },
+        { label: 'Close', variant: 'danger', onClick: () => actions.closeTask(id) },
+      ]
+    case 'needs_review':
+      return [
+        { label: 'Approve', variant: 'primary', onClick: () => actions.updateTask(id, { status: 'approved' }) },
+        { label: 'Reopen', variant: 'default', onClick: () => actions.reopenTask(id) },
+      ]
+    case 'approved':
+      return [
+        { label: 'Close', variant: 'primary', onClick: () => actions.closeTask(id) },
+        { label: 'Reopen', variant: 'default', onClick: () => actions.reopenTask(id) },
+      ]
+    case 'closed':
+      return [
+        { label: 'Reopen', variant: 'default', onClick: () => actions.reopenTask(id) },
+      ]
+    case 'failed':
+    case 'escalated':
+      return [
+        { label: 'Reopen', variant: 'primary', onClick: () => actions.reopenTask(id) },
+      ]
+    default:
+      return [
+        { label: 'Close', variant: 'danger', onClick: () => actions.closeTask(id) },
+      ]
+  }
+}
+
+function StatusActions({
+  task,
+  actions,
+  loading,
+  onAction,
+}: {
+  task: GobbyTaskDetail
+  actions: TaskActions
+  loading: boolean
+  onAction: (action: () => Promise<GobbyTaskDetail | null>) => void
+}) {
+  const statusActions = getActionsForStatus(task, actions)
+
+  if (statusActions.length === 0) return null
+
+  return (
+    <div className="task-detail-actions">
+      {statusActions.map(a => (
+        <button
+          key={a.label}
+          className={`task-detail-action-btn task-detail-action-btn--${a.variant}`}
+          onClick={() => onAction(a.onClick)}
+          disabled={loading}
+        >
+          {a.label}
+        </button>
+      ))}
     </div>
   )
 }

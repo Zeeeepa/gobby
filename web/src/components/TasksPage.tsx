@@ -92,7 +92,7 @@ function TaskRow({ task, onSelect }: { task: GobbyTask; onSelect: (id: string) =
 // =============================================================================
 
 export function TasksPage() {
-  const { tasks, total, stats, isLoading, filters, setFilters, refreshTasks, getTask } = useTasks()
+  const { tasks, total, stats, isLoading, filters, setFilters, refreshTasks, getTask, updateTask, closeTask, reopenTask } = useTasks()
   const [viewMode, setViewMode] = useState<ViewMode>('list')
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null)
 
@@ -246,6 +246,7 @@ export function TasksPage() {
       <TaskDetail
         taskId={selectedTaskId}
         getTask={getTask}
+        actions={{ updateTask, closeTask, reopenTask }}
         onClose={() => setSelectedTaskId(null)}
       />
     </main>
