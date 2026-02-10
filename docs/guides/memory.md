@@ -294,6 +294,133 @@ call_tool(server_name="gobby-memory", tool_name="export_memory_graph", arguments
 })
 ```
 
+## Architecture
+
+### Storage Model
+
+SQLite is always the source of truth for memories. All memories are stored locally in `~/.gobby/gobby-hub.db` via the `LocalMemoryManager`. The `StorageAdapter` wraps this with an async `MemoryBackendProtocol` interface for consistent CRUD operations.
+
+### Operating Modes
+
+Gobby's memory system operates in one of two modes:
+
+**Standalone mode** (default):
+- SQLite storage + local search (TF-IDF, embeddings, or hybrid)
+- Search powered by `SearchCoordinator` → `UnifiedSearcher`
+- Zero external dependencies for TF-IDF; embedding modes require an API key (OpenAI, etc.)
+- Works out of the box with no additional setup
+
+**Mem0 mode** (optional, via `gobby install mem0`):
+- SQLite remains the source of truth
+- Mem0 provides enhanced semantic search, graph memory, and its own UI
+- Dual-write: memories stored in SQLite AND indexed in mem0
+- Graceful fallback: if mem0 is unreachable, falls back to standalone search
+- See [Mem0 Integration Guide](mem0-integration.md) for setup details
+
+### Search Pipeline
+
+```
+Query → SearchCoordinator
+         ├─ tfidf/text modes → sync SearchBackend (TF-IDF or substring)
+         ├─ auto/embedding/hybrid → UnifiedSearcher (async)
+         │    ├─ TF-IDF scoring
+         │    ├─ Embedding similarity (cosine)
+         │    └─ Hybrid: weighted combination
+         └─ Fallback → text search (on any error)
+```
+
+## Search Modes
+
+The `search_backend` config controls how memories are recalled. Each mode trades off between accuracy and dependency requirements.
+
+| Mode | Description | Requirements |
+| ---- | ----------- | ------------ |
+| `tfidf` | TF-IDF scoring — fast, local, no API calls | None |
+| `text` | Simple substring matching — fastest, least accurate | None |
+| `embedding` | Semantic search via embeddings — most accurate | Embedding API key |
+| `auto` | Tries embeddings first, falls back to TF-IDF | None (degrades gracefully) |
+| `hybrid` | Weighted combination of TF-IDF + embedding scores | Embedding API key |
+
+### Choosing a Search Mode
+
+- **Starting out?** Use `auto` (the default). It tries embeddings if an API key is available, otherwise falls back to TF-IDF.
+- **No API key / air-gapped?** Use `tfidf` for zero-dependency local search.
+- **Best recall quality?** Use `hybrid` — combines semantic understanding with keyword matching.
+- **Minimal latency?** Use `tfidf` or `text` to avoid embedding API calls.
+
+### Embedding Providers
+
+Embedding generation uses LiteLLM under the hood, supporting multiple providers:
+
+```yaml
+# OpenAI (default)
+memory:
+  search_backend: auto
+  embedding_model: text-embedding-3-small
+
+# OpenAI large model (higher quality, slower)
+memory:
+  search_backend: hybrid
+  embedding_model: text-embedding-3-large
+
+# Local via Ollama (no API key needed)
+memory:
+  search_backend: embedding
+  embedding_model: ollama/nomic-embed-text
+```
+
+### Hybrid Search Weights
+
+In `hybrid` mode (and the hybrid component of `auto`), you can tune the balance between TF-IDF keyword matching and semantic embedding similarity:
+
+```yaml
+memory:
+  search_backend: hybrid
+  embedding_weight: 0.6    # Weight for semantic similarity (0.0-1.0)
+  tfidf_weight: 0.4        # Weight for keyword matching (0.0-1.0)
+```
+
+Higher `embedding_weight` favors conceptual matches ("authentication" finds "login flow"). Higher `tfidf_weight` favors exact keyword overlap.
+
+## Configuration
+
+All memory settings live under `memory:` in `~/.gobby/config.yaml`:
+
+```yaml
+memory:
+  enabled: true                     # Enable memory system
+  backend: local                    # Storage backend: 'local' (SQLite) or 'null' (testing)
+
+  # Search
+  search_backend: auto              # tfidf | text | embedding | auto | hybrid
+  embedding_model: text-embedding-3-small  # LiteLLM model for embeddings
+  embedding_weight: 0.6             # Hybrid: embedding similarity weight
+  tfidf_weight: 0.4                 # Hybrid: keyword matching weight
+
+  # Importance & Decay
+  importance_threshold: 0.7         # Minimum importance for memory injection
+  decay_enabled: true               # Enable importance decay over time
+  decay_rate: 0.05                  # Importance decay rate per month
+  decay_floor: 0.1                  # Never decay below this importance
+
+  # Cross-references
+  auto_crossref: false              # Auto-link similar memories
+  crossref_threshold: 0.3           # Minimum similarity for cross-references
+  crossref_max_links: 5             # Max cross-references per memory
+
+  # Access tracking
+  access_debounce_seconds: 60       # Min seconds between access stat updates
+
+  # Mem0 integration (optional — set via 'gobby install mem0')
+  # mem0_url: http://localhost:8888
+  # mem0_api_key: ${MEM0_API_KEY}   # Supports env var expansion
+
+memory_sync:
+  enabled: true                     # Enable filesystem backup
+  export_debounce: 5.0              # Seconds to wait before export
+  export_path: .gobby/memories.jsonl  # Backup file path
+```
+
 ## Automatic Memory Injection
 
 Gobby automatically injects relevant memories at session start via the `memory-lifecycle.yaml` workflow.
@@ -321,8 +448,6 @@ Gobby automatically injects relevant memories at session start via the `memory-l
 </project-memory>
 ```
 
-  decay_floor: 0.1             # Never decay below this importance
-
 ## Git Synchronization
 
 Memories can be synced to `.gobby/memories.jsonl` for version control and team sharing.
@@ -338,21 +463,10 @@ Configure automatic sync in `~/.gobby/config.yaml`:
 
 ```yaml
 memory_sync:
-  enabled: true           # Enable filesystem sync
-  stealth: false          # If true, store in ~/.gobby (private)
-  export_debounce: 5.0    # Seconds to wait before export
+  enabled: true              # Enable filesystem backup
+  export_debounce: 5.0       # Seconds to wait before export
+  export_path: .gobby/memories.jsonl  # Relative to project root or absolute
 ```
-
-### Stealth Mode
-
-For private memories that shouldn't be committed to git:
-
-```yaml
-memory_sync:
-  stealth: true    # Store in ~/.gobby instead of .gobby
-```
-
-This keeps memories local to your machine while still persisting them across sessions.
 
 ## Cross-CLI Memory Sharing
 
@@ -477,5 +591,6 @@ triggers:
 
 ## Related Documentation
 
-- [MEMORY.md](../plans/MEMORY.md) - Implementation plan and data model
-- [tasks.md](tasks.md) - Task tracking system
+- [Memory V4 Plan](../plans/memory-v4.md) - Embeddings + Mem0 integration plan
+- [Mem0 Integration Guide](mem0-integration.md) - Setting up optional mem0 integration
+- [Task Tracking](tasks.md) - Task tracking system
