@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react'
-import type { GobbyTaskDetail } from '../../hooks/useTasks'
-import { StatusBadge, PriorityBadge, TypeBadge } from './TaskBadges'
+import type { GobbyTask, GobbyTaskDetail, DependencyTree } from '../../hooks/useTasks'
+import { StatusBadge, PriorityBadge, TypeBadge, StatusDot } from './TaskBadges'
 
 interface TaskActions {
   updateTask: (id: string, params: { status?: string }) => Promise<GobbyTaskDetail | null>
@@ -11,7 +11,10 @@ interface TaskActions {
 interface TaskDetailProps {
   taskId: string | null
   getTask: (id: string) => Promise<GobbyTaskDetail | null>
+  getDependencies: (id: string) => Promise<DependencyTree | null>
+  getSubtasks: (id: string) => Promise<GobbyTask[]>
   actions: TaskActions
+  onSelectTask: (id: string) => void
   onClose: () => void
 }
 
@@ -30,23 +33,33 @@ function formatDate(iso: string | null): string {
     + ' ' + d.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' })
 }
 
-export function TaskDetail({ taskId, getTask, actions, onClose }: TaskDetailProps) {
+export function TaskDetail({ taskId, getTask, getDependencies, getSubtasks, actions, onSelectTask, onClose }: TaskDetailProps) {
   const [task, setTask] = useState<GobbyTaskDetail | null>(null)
+  const [deps, setDeps] = useState<DependencyTree | null>(null)
+  const [subtasks, setSubtasks] = useState<GobbyTask[]>([])
   const [isLoading, setIsLoading] = useState(false)
   const [actionLoading, setActionLoading] = useState(false)
 
   const fetchDetail = useCallback(async (id: string) => {
     setIsLoading(true)
-    const result = await getTask(id)
+    const [result, depTree, children] = await Promise.all([
+      getTask(id),
+      getDependencies(id),
+      getSubtasks(id),
+    ])
     setTask(result)
+    setDeps(depTree)
+    setSubtasks(children)
     setIsLoading(false)
-  }, [getTask])
+  }, [getTask, getDependencies, getSubtasks])
 
   useEffect(() => {
     if (taskId) {
       fetchDetail(taskId)
     } else {
       setTask(null)
+      setDeps(null)
+      setSubtasks([])
     }
   }, [taskId, fetchDetail])
 
@@ -59,12 +72,18 @@ export function TaskDetail({ taskId, getTask, actions, onClose }: TaskDetailProp
 
   const isOpen = taskId !== null
 
+  // Collect flat blocker/blocking IDs from tree
+  const blockerIds = deps?.blockers?.map(b => b.id) || []
+  const blockingIds = deps?.blocking?.map(b => b.id) || []
+
+  // Subtask progress
+  const closedCount = subtasks.filter(t => t.status === 'closed' || t.status === 'approved').length
+  const progressPct = subtasks.length > 0 ? Math.round((closedCount / subtasks.length) * 100) : 0
+
   return (
     <>
-      {/* Backdrop */}
       {isOpen && <div className="task-detail-backdrop" onClick={onClose} />}
 
-      {/* Panel */}
       <div className={`task-detail-panel ${isOpen ? 'open' : ''}`}>
         {isLoading ? (
           <div className="task-detail-loading">Loading...</div>
@@ -78,6 +97,15 @@ export function TaskDetail({ taskId, getTask, actions, onClose }: TaskDetailProp
                   <CloseIcon />
                 </button>
               </div>
+              {/* Parent breadcrumb */}
+              {task.parent_task_id && (
+                <button
+                  className="task-detail-parent-link"
+                  onClick={() => onSelectTask(task.parent_task_id!)}
+                >
+                  ← Parent task
+                </button>
+              )}
               <h3 className="task-detail-title">{task.title}</h3>
               <div className="task-detail-badges">
                 <StatusBadge status={task.status} />
@@ -117,6 +145,58 @@ export function TaskDetail({ taskId, getTask, actions, onClose }: TaskDetailProp
                 <MetaRow label="Validation" value={task.validation_status} />
               )}
             </div>
+
+            {/* Dependencies: Blocked By */}
+            {blockerIds.length > 0 && (
+              <div className="task-detail-section">
+                <h4 className="task-detail-section-title">Blocked By</h4>
+                <div className="task-detail-dep-list">
+                  {blockerIds.map(id => (
+                    <button key={id} className="task-detail-dep-item" onClick={() => onSelectTask(id)}>
+                      {id.slice(0, 8)}...
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Dependencies: Blocks */}
+            {blockingIds.length > 0 && (
+              <div className="task-detail-section">
+                <h4 className="task-detail-section-title">Blocks</h4>
+                <div className="task-detail-dep-list">
+                  {blockingIds.map(id => (
+                    <button key={id} className="task-detail-dep-item" onClick={() => onSelectTask(id)}>
+                      {id.slice(0, 8)}...
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Subtasks */}
+            {subtasks.length > 0 && (
+              <div className="task-detail-section">
+                <h4 className="task-detail-section-title">
+                  Subtasks ({closedCount}/{subtasks.length})
+                </h4>
+                <div className="task-detail-progress">
+                  <div className="task-detail-progress-bar">
+                    <div className="task-detail-progress-fill" style={{ width: `${progressPct}%` }} />
+                  </div>
+                  <span className="task-detail-progress-pct">{progressPct}%</span>
+                </div>
+                <div className="task-detail-subtask-list">
+                  {subtasks.map(st => (
+                    <button key={st.id} className="task-detail-subtask-item" onClick={() => onSelectTask(st.id)}>
+                      <StatusDot status={st.status} />
+                      <span className="task-detail-subtask-ref">{st.ref}</span>
+                      <span className="task-detail-subtask-title">{st.title}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
 
             {/* Description */}
             {task.description && (

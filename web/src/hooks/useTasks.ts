@@ -64,6 +64,13 @@ export interface TaskListResponse {
   offset: number
 }
 
+export interface DependencyTree {
+  id: string
+  blockers?: DependencyTree[]
+  blocking?: DependencyTree[]
+  _truncated?: boolean
+}
+
 interface CreateTaskParams {
   title: string
   description?: string
@@ -281,6 +288,39 @@ export function useTasks() {
     [fetchTasks]
   )
 
+  // Get dependency tree for a task
+  const getDependencies = useCallback(async (taskId: string): Promise<DependencyTree | null> => {
+    try {
+      const baseUrl = getBaseUrl()
+      const response = await fetch(
+        `${baseUrl}/tasks/${encodeURIComponent(taskId)}/dependencies?direction=both`
+      )
+      if (response.ok) {
+        return await response.json()
+      }
+    } catch (e) {
+      console.error('Failed to get dependencies:', e)
+    }
+    return null
+  }, [])
+
+  // Get subtasks (children of a task)
+  const getSubtasks = useCallback(async (taskId: string): Promise<GobbyTask[]> => {
+    try {
+      const baseUrl = getBaseUrl()
+      const response = await fetch(
+        `${baseUrl}/tasks?parent_task_id=${encodeURIComponent(taskId)}&limit=100`
+      )
+      if (response.ok) {
+        const data: TaskListResponse = await response.json()
+        return data.tasks || []
+      }
+    } catch (e) {
+      console.error('Failed to get subtasks:', e)
+    }
+    return []
+  }, [])
+
   // Fetch on mount and when filters change
   useEffect(() => {
     setIsLoading(true)
@@ -313,6 +353,8 @@ export function useTasks() {
     closeTask,
     reopenTask,
     deleteTask,
+    getDependencies,
+    getSubtasks,
     refreshTasks,
   }
 }
