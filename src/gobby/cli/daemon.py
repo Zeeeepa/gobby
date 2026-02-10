@@ -127,7 +127,9 @@ def spawn_watchdog(daemon_port: int, verbose: bool, log_file: Path) -> int | Non
     help="Also start mem0 Docker containers",
 )
 @click.pass_context
-def start(ctx: click.Context, verbose: bool, no_watchdog: bool, no_ui: bool, mem0_flag: bool) -> None:
+def start(
+    ctx: click.Context, verbose: bool, no_watchdog: bool, no_ui: bool, mem0_flag: bool
+) -> None:
     """Start the Gobby daemon."""
     # Get config object
     config = ctx.obj["config"]
@@ -363,7 +365,9 @@ def stop(ctx: click.Context, mem0_flag: bool) -> None:
     help="Also restart mem0 Docker containers",
 )
 @click.pass_context
-def restart(ctx: click.Context, verbose: bool, no_watchdog: bool, no_ui: bool, mem0_flag: bool) -> None:
+def restart(
+    ctx: click.Context, verbose: bool, no_watchdog: bool, no_ui: bool, mem0_flag: bool
+) -> None:
     """Restart the Gobby daemon (stop then start)."""
     setup_logging(verbose)
 

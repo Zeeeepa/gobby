@@ -138,9 +138,7 @@ class LocalProjectManager:
         if include_deleted:
             rows = self.db.fetchall("SELECT * FROM projects ORDER BY name")
         else:
-            rows = self.db.fetchall(
-                "SELECT * FROM projects WHERE deleted_at IS NULL ORDER BY name"
-            )
+            rows = self.db.fetchall("SELECT * FROM projects WHERE deleted_at IS NULL ORDER BY name")
         return [Project.from_row(row) for row in rows]
 
     def update(self, project_id: str, **fields: Any) -> Project | None:

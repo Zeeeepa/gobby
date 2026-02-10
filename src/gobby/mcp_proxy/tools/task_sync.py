@@ -79,9 +79,7 @@ def create_sync_registry(
         try:
             from gobby.mcp_proxy.tools.tasks._context import resolve_project_filter_standalone
 
-            project_id = resolve_project_filter_standalone(
-                project, False, task_manager.db
-            )
+            project_id = resolve_project_filter_standalone(project, False, task_manager.db)
         except ValueError as e:
             return {"error": str(e)}
 

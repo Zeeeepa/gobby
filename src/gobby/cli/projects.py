@@ -147,9 +147,7 @@ def delete_project(project_ref: str, confirm: str) -> None:
         raise SystemExit(1)
 
     if confirm != project.name:
-        click.echo(
-            f"Confirmation mismatch: expected '{project.name}', got '{confirm}'", err=True
-        )
+        click.echo(f"Confirmation mismatch: expected '{project.name}', got '{confirm}'", err=True)
         raise SystemExit(1)
 
     if manager.soft_delete(project.id):
@@ -190,7 +188,9 @@ def update_project(
         fields["linear_team_id"] = linear_team_id
 
     if not fields:
-        click.echo("No fields to update. Use --repo-path, --github-url, --github-repo, or --linear-team-id.")
+        click.echo(
+            "No fields to update. Use --repo-path, --github-url, --github-repo, or --linear-team-id."
+        )
         return
 
     updated = manager.update(project.id, **fields)
@@ -249,11 +249,13 @@ def repair_project(fix: bool) -> None:
 
     # Check repo_path
     if db_project.repo_path != str(cwd):
-        issues.append((
-            "repo_path mismatch",
-            f"DB: {db_project.repo_path}",
-            f"Actual: {cwd}",
-        ))
+        issues.append(
+            (
+                "repo_path mismatch",
+                f"DB: {db_project.repo_path}",
+                f"Actual: {cwd}",
+            )
+        )
 
     if not issues:
         click.echo("No issues found. Project configuration is consistent.")

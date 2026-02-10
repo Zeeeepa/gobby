@@ -89,9 +89,7 @@ def _install_local(home: Path, api_key: str | None) -> dict[str, Any]:
     }
 
 
-def _install_remote(
-    home: Path, remote_url: str, api_key: str | None
-) -> dict[str, Any]:
+def _install_remote(home: Path, remote_url: str, api_key: str | None) -> dict[str, Any]:
     """Configure remote mem0 instance (no Docker)."""
     if not _check_remote_health(remote_url):
         return {

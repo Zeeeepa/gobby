@@ -17,7 +17,6 @@ from typing import TYPE_CHECKING
 
 import aiofiles
 
-
 if TYPE_CHECKING:
     from gobby.servers.websocket.server import WebSocketServer
     from gobby.storage.sessions import LocalSessionManager

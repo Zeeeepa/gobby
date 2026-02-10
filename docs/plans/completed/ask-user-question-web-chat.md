@@ -74,7 +74,7 @@ Replace `permission_mode="bypassPermissions"` with a `can_use_tool` callback on 
 
 ### Event Flow
 
-```
+```text
 1. Claude generates AskUserQuestion ToolUseBlock
 2. CLI sends AssistantMessage (frontend sees tool_status "calling")
 3. CLI sends can_use_tool control request to SDK
@@ -91,7 +91,7 @@ Replace `permission_mode="bypassPermissions"` with a `can_use_tool` callback on 
 
 ### Prop Chain
 
-```
+```text
 App.tsx (useChat -> respondToQuestion)
   -> ChatMessages (onRespondToQuestion prop)
     -> Message (onRespondToQuestion prop)
@@ -122,7 +122,7 @@ const respondToQuestion = useCallback((toolCallId: string, answers: Record<strin
 ## Task Mapping
 
 | Phase | Task | Gobby Ref |
-|-------|------|-----------|
+| :--- | :--- | :--- |
 | 1 | ChatSession can_use_tool callback | |
 | 2 | WebSocket ask_user_response handler | |
 | 3.1 | AskUserQuestionDisplay interactive UI | |

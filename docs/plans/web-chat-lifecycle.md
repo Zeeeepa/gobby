@@ -11,7 +11,7 @@ Rather than faking session_start with synthetic events, we create a clean separa
 
 ## Architecture
 
-```
+```text
 SDK Hook Callbacks (ChatSession)
   ├─ UserPromptSubmit → workflow engine → headless-lifecycle on_before_agent
   ├─ PreToolUse       → workflow engine → headless-lifecycle on_before_tool
@@ -32,6 +32,7 @@ Backend (ChatMixin)
 **File: `src/gobby/install/shared/workflows/lifecycle/headless-lifecycle.yaml`**
 
 New lifecycle workflow with same variables and enforcement as `session-lifecycle.yaml`, but:
+
 - No `on_session_start` section
 - `on_before_agent` has a first-run guard (`_session_initialized`) that runs init actions
 - `on_pre_compact` resets progressive disclosure variables directly (not via `pending_context_reset` flag since there's no session_start to consume it)
@@ -331,7 +332,7 @@ Add `/clear` as a recognized slash command in the chat input (alongside any exis
 ## Files to modify
 
 | # | File | Change |
-|---|------|--------|
+| :--- | :--- | :--- |
 | 1 | `src/gobby/install/shared/workflows/lifecycle/headless-lifecycle.yaml` | **New file** — lifecycle workflow for SDK/headless clients |
 | 2 | `src/gobby/servers/websocket/server.py` | Add `workflow_handler` and `session_manager` attributes |
 | 3 | `src/gobby/servers/http.py` | Wire `workflow_handler` + `session_manager` to WebSocket server |

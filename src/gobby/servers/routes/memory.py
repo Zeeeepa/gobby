@@ -27,7 +27,9 @@ class MemoryCreateRequest(BaseModel):
     """Request body for creating a memory."""
 
     content: str = Field(..., description="Memory content text")
-    memory_type: str = Field(default="fact", description="Memory type (fact, preference, pattern, context)")
+    memory_type: str = Field(
+        default="fact", description="Memory type (fact, preference, pattern, context)"
+    )
     importance: float = Field(default=0.5, description="Importance score (0.0-1.0)")
     project_id: str | None = Field(default=None, description="Project ID to associate with")
     source_type: str = Field(default="user", description="Source type (user, session, inferred)")
@@ -130,9 +132,7 @@ def create_memory_router(server: "HTTPServer") -> APIRouter:
         return memory.to_dict()
 
     @router.put("/{memory_id}")
-    async def update_memory(
-        memory_id: str, request_data: MemoryUpdateRequest
-    ) -> Any:
+    async def update_memory(memory_id: str, request_data: MemoryUpdateRequest) -> Any:
         """Update an existing memory."""
         metrics.inc_counter("http_requests_total")
         try:
