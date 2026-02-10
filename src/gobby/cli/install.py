@@ -281,6 +281,15 @@ def install(
     if config_result["created"]:
         click.echo(f"Created daemon config: {config_result['path']}")
 
+    # Initialize database (ensures _personal project exists before daemon start)
+    try:
+        from gobby.cli.utils import init_local_storage
+
+        init_local_storage()
+        click.echo("Database initialized")
+    except Exception as e:
+        click.echo(f"Warning: Database init failed: {e}")
+
     # Install default external MCP servers (GitHub, Linear, context7)
     mcp_result = install_default_mcp_servers()
     if mcp_result["success"]:

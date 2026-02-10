@@ -8,7 +8,6 @@ from typing import Any
 from gobby.mcp_proxy.tools.internal import InternalToolRegistry
 from gobby.mcp_proxy.tools.tasks._context import RegistryContext
 from gobby.mcp_proxy.tools.tasks._resolution import resolve_task_id_for_mcp
-from gobby.utils.project_context import get_project_context
 
 
 def create_search_registry(ctx: RegistryContext) -> InternalToolRegistry:
@@ -35,6 +34,7 @@ def create_search_registry(ctx: RegistryContext) -> InternalToolRegistry:
         limit: int = 20,
         min_score: float = 0.0,
         all_projects: bool = False,
+        project: str | None = None,
     ) -> dict[str, Any]:
         """Search tasks using semantic TF-IDF search.
 
@@ -52,6 +52,7 @@ def create_search_registry(ctx: RegistryContext) -> InternalToolRegistry:
             limit: Maximum number of results (default: 20)
             min_score: Minimum similarity score 0.0-1.0 (default: 0.0)
             all_projects: If true, search all projects instead of current project
+            project: Filter by project name or UUID (optional)
 
         Returns:
             Dict with matching tasks and their similarity scores
@@ -59,12 +60,10 @@ def create_search_registry(ctx: RegistryContext) -> InternalToolRegistry:
         if not query or not query.strip():
             return {"error": "Query is required", "tasks": [], "count": 0}
 
-        # Get current project context unless all_projects
-        project_id = None
-        if not all_projects:
-            project_ctx = get_project_context()
-            if project_ctx and project_ctx.get("id"):
-                project_id = project_ctx["id"]
+        try:
+            project_id = ctx.resolve_project_filter(project, all_projects)
+        except ValueError as e:
+            return {"error": str(e), "tasks": [], "count": 0}
 
         # Handle comma-separated status string
         status_filter: str | list[str] | None = status
@@ -163,13 +162,18 @@ def create_search_registry(ctx: RegistryContext) -> InternalToolRegistry:
                     "description": "If true, search all projects instead of just the current project",
                     "default": False,
                 },
+                "project": {
+                    "type": "string",
+                    "description": "Filter by project name or UUID (e.g., '_personal')",
+                    "default": None,
+                },
             },
             "required": ["query"],
         },
         func=search_tasks,
     )
 
-    def reindex_tasks(all_projects: bool = False) -> dict[str, Any]:
+    def reindex_tasks(all_projects: bool = False, project: str | None = None) -> dict[str, Any]:
         """Force rebuild of the task search index.
 
         Use this to refresh the search index after bulk operations
@@ -177,16 +181,15 @@ def create_search_registry(ctx: RegistryContext) -> InternalToolRegistry:
 
         Args:
             all_projects: If true, reindex all projects instead of current project
+            project: Filter by project name or UUID (optional)
 
         Returns:
             Dict with index statistics
         """
-        # Get current project context unless all_projects
-        project_id = None
-        if not all_projects:
-            project_ctx = get_project_context()
-            if project_ctx and project_ctx.get("id"):
-                project_id = project_ctx["id"]
+        try:
+            project_id = ctx.resolve_project_filter(project, all_projects)
+        except ValueError as e:
+            return {"error": str(e)}
 
         stats = ctx.task_manager.reindex_search(project_id)
 
@@ -205,6 +208,11 @@ def create_search_registry(ctx: RegistryContext) -> InternalToolRegistry:
                     "type": "boolean",
                     "description": "If true, reindex all projects instead of just the current project",
                     "default": False,
+                },
+                "project": {
+                    "type": "string",
+                    "description": "Filter by project name or UUID (e.g., '_personal')",
+                    "default": None,
                 },
             },
         },

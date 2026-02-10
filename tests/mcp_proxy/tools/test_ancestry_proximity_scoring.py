@@ -169,7 +169,7 @@ class TestSuggestNextTaskProximityScoring:
         # Set task_a1 as in_progress
         task_manager.update_task(task_a1.id, status="in_progress")
 
-        with patch("gobby.mcp_proxy.tools.task_readiness.get_project_context") as mock_ctx:
+        with patch("gobby.mcp_proxy.tools.tasks._context.get_project_context") as mock_ctx:
             mock_ctx.return_value = {"id": project_id}
             registry = create_readiness_registry(task_manager)
             result = await registry.call("suggest_next_task", {})
@@ -193,7 +193,7 @@ class TestSuggestNextTaskProximityScoring:
 
         task_manager.update_task(in_progress.id, status="in_progress")
 
-        with patch("gobby.mcp_proxy.tools.task_readiness.get_project_context") as mock_ctx:
+        with patch("gobby.mcp_proxy.tools.tasks._context.get_project_context") as mock_ctx:
             mock_ctx.return_value = {"id": project_id}
             registry = create_readiness_registry(task_manager)
             result = await registry.call("suggest_next_task", {})
@@ -212,7 +212,7 @@ class TestSuggestNextTaskProximityScoring:
             project_id, "Low Priority", task_type="task", parent_task_id=epic.id, priority=3
         )  # Lower priority task for comparison
 
-        with patch("gobby.mcp_proxy.tools.task_readiness.get_project_context") as mock_ctx:
+        with patch("gobby.mcp_proxy.tools.tasks._context.get_project_context") as mock_ctx:
             mock_ctx.return_value = {"id": project_id}
             registry = create_readiness_registry(task_manager)
             result = await registry.call("suggest_next_task", {})
@@ -240,7 +240,7 @@ class TestSuggestNextTaskProximityScoring:
         # Set task_a1 as in_progress
         task_manager.update_task(task_a1.id, status="in_progress")
 
-        with patch("gobby.mcp_proxy.tools.task_readiness.get_project_context") as mock_ctx:
+        with patch("gobby.mcp_proxy.tools.tasks._context.get_project_context") as mock_ctx:
             mock_ctx.return_value = {"id": project_id}
             registry = create_readiness_registry(task_manager)
             result = await registry.call("suggest_next_task", {})
@@ -269,7 +269,7 @@ class TestSuggestNextTaskProximityScoring:
         # Set tree1_task1 as in_progress
         task_manager.update_task(tree1_task1.id, status="in_progress")
 
-        with patch("gobby.mcp_proxy.tools.task_readiness.get_project_context") as mock_ctx:
+        with patch("gobby.mcp_proxy.tools.tasks._context.get_project_context") as mock_ctx:
             mock_ctx.return_value = {"id": project_id}
             registry = create_readiness_registry(task_manager)
             result = await registry.call("suggest_next_task", {})
@@ -295,7 +295,7 @@ class TestSuggestNextTaskProximityScoring:
 
         task_manager.update_task(task1.id, status="in_progress")
 
-        with patch("gobby.mcp_proxy.tools.task_readiness.get_project_context") as mock_ctx:
+        with patch("gobby.mcp_proxy.tools.tasks._context.get_project_context") as mock_ctx:
             mock_ctx.return_value = {"id": project_id}
             registry = create_readiness_registry(task_manager)
             result = await registry.call("suggest_next_task", {})

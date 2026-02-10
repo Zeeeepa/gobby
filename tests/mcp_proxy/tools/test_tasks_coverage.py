@@ -483,8 +483,8 @@ class TestCreateTaskTool:
                 assert call_kwargs["created_in_session_id"] == "sess-123"
 
     @pytest.mark.asyncio
-    async def test_create_task_initializes_project(self, mock_task_manager, mock_sync_manager):
-        """Test create_task initializes project when no context exists."""
+    async def test_create_task_uses_personal_project(self, mock_task_manager, mock_sync_manager):
+        """Test create_task uses personal workspace when no project context exists."""
         registry = create_task_registry(mock_task_manager, mock_sync_manager)
 
         mock_task = MagicMock()
@@ -495,20 +495,16 @@ class TestCreateTaskTool:
         }
         mock_task_manager.get_task.return_value = mock_task
 
-        with (
-            patch("gobby.mcp_proxy.tools.tasks._crud.get_project_context") as mock_ctx,
-            patch("gobby.mcp_proxy.tools.tasks._crud.initialize_project") as mock_init,
-        ):
+        with patch("gobby.mcp_proxy.tools.tasks._crud.get_project_context") as mock_ctx:
             mock_ctx.return_value = None  # No project context
-            mock_init_result = MagicMock()
-            mock_init_result.project_id = "new-proj"
-            mock_init.return_value = mock_init_result
 
             await registry.call("create_task", {"title": "Task", "session_id": "test-session"})
 
-            mock_init.assert_called_once()
+            # When no project context, should fall back to PERSONAL_PROJECT_ID
+            from gobby.storage.projects import PERSONAL_PROJECT_ID
+
             call_kwargs = mock_task_manager.create_task_with_decomposition.call_args.kwargs
-            assert call_kwargs["project_id"] == "new-proj"
+            assert call_kwargs["project_id"] == PERSONAL_PROJECT_ID
 
     @pytest.mark.asyncio
     async def test_create_task_with_show_result_on_create(

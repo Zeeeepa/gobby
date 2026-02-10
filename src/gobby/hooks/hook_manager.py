@@ -649,9 +649,8 @@ class HookManager:
         if project_context and project_context.get("id"):
             return str(project_context["id"])
 
-        # No project.json found - auto-initialize the project
-        from gobby.utils.project_init import initialize_project
+        # No project.json found - use personal workspace
+        from gobby.storage.projects import PERSONAL_PROJECT_ID
 
-        result = initialize_project(cwd=working_dir)
-        self.logger.info(f"Auto-initialized project '{result.project_name}' in {working_dir}")
-        return result.project_id
+        self.logger.info(f"No project context for {working_dir}, using personal workspace")
+        return PERSONAL_PROJECT_ID

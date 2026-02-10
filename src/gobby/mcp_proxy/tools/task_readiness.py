@@ -239,10 +239,17 @@ def create_readiness_registry(
         parent_task_id: str | None = None,
         limit: int = 10,
         all_projects: bool = False,
+        project: str | None = None,
     ) -> dict[str, Any]:
         """List tasks that are open and have no unresolved blocking dependencies."""
-        # Filter by current project unless all_projects is True
-        project_id = None if all_projects else get_current_project_id()
+        try:
+            from gobby.mcp_proxy.tools.tasks._context import resolve_project_filter_standalone
+
+            project_id = resolve_project_filter_standalone(
+                project, all_projects, task_manager.db
+            )
+        except ValueError as e:
+            return {"error": str(e), "tasks": [], "count": 0}
 
         # Resolve parent_task_id if it's a reference format
         if parent_task_id:
@@ -289,6 +296,11 @@ def create_readiness_registry(
                     "description": "If true, list tasks from all projects instead of just the current project",
                     "default": False,
                 },
+                "project": {
+                    "type": "string",
+                    "description": "Filter by project name or UUID (e.g., '_personal')",
+                    "default": None,
+                },
             },
         },
         func=list_ready_tasks,
@@ -300,10 +312,17 @@ def create_readiness_registry(
         parent_task_id: str | None = None,
         limit: int = 20,
         all_projects: bool = False,
+        project: str | None = None,
     ) -> dict[str, Any]:
         """List tasks that are currently blocked, including what blocks them."""
-        # Filter by current project unless all_projects is True
-        project_id = None if all_projects else get_current_project_id()
+        try:
+            from gobby.mcp_proxy.tools.tasks._context import resolve_project_filter_standalone
+
+            project_id = resolve_project_filter_standalone(
+                project, all_projects, task_manager.db
+            )
+        except ValueError as e:
+            return {"error": str(e), "tasks": [], "count": 0}
 
         # Resolve parent_task_id if it's a reference format
         if parent_task_id:
@@ -336,6 +355,11 @@ def create_readiness_registry(
                     "description": "If true, list tasks from all projects instead of just the current project",
                     "default": False,
                 },
+                "project": {
+                    "type": "string",
+                    "description": "Filter by project name or UUID (e.g., '_personal')",
+                    "default": None,
+                },
             },
         },
         func=list_blocked_tasks,
@@ -348,6 +372,7 @@ def create_readiness_registry(
         prefer_subtasks: bool = True,
         parent_task_id: str | None = None,
         session_id: str | None = None,
+        project: str | None = None,
     ) -> dict[str, Any]:
         """
         Suggest the best next task to work on.
@@ -369,12 +394,20 @@ def create_readiness_registry(
                        When provided and parent_task_id is not set, checks workflow state
                        for session_task variable and auto-scopes suggestions to that task's
                        hierarchy. Function signature is optional for TUI/internal callers.
+            project: Filter by project name or UUID (optional).
 
         Returns:
             Suggested task with reasoning
         """
-        # Filter by current project
-        project_id = get_current_project_id()
+        # Filter by project
+        try:
+            from gobby.mcp_proxy.tools.tasks._context import resolve_project_filter_standalone
+
+            project_id = resolve_project_filter_standalone(
+                project, False, task_manager.db
+            )
+        except ValueError as e:
+            return {"error": str(e), "suggestion": None}
 
         # Auto-scope to session_task if session_id is provided and parent_task_id is not set
         if session_id and not parent_task_id:
@@ -550,6 +583,11 @@ def create_readiness_registry(
                 "session_id": {
                     "type": "string",
                     "description": "Your session ID (from system context). When provided, auto-scopes suggestions based on workflow's session_task variable.",
+                },
+                "project": {
+                    "type": "string",
+                    "description": "Filter by project name or UUID (e.g., '_personal')",
+                    "default": None,
                 },
             },
         },

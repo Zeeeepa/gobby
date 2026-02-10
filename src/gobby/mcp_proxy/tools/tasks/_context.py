@@ -20,6 +20,7 @@ if TYPE_CHECKING:
     from gobby.agents.runner import AgentRunner
     from gobby.config.app import DaemonConfig
     from gobby.config.tasks import TaskValidationConfig
+    from gobby.storage.database import DatabaseProtocol
     from gobby.sync.tasks import TaskSyncManager
     from gobby.tasks.validation import TaskValidator
 
@@ -102,6 +103,30 @@ class RegistryContext:
             return None
         return self.workflow_state_manager.get_state(session_id)
 
+    def resolve_project_filter(
+        self, project: str | None = None, all_projects: bool = False
+    ) -> str | None:
+        """Resolve project filter to project_id.
+
+        Args:
+            project: Project name or UUID to filter by
+            all_projects: If True, return None (no filter)
+
+        Returns:
+            project_id string, or None for all projects
+
+        Raises:
+            ValueError: If project name/UUID not found
+        """
+        if project:
+            p = self.project_manager.resolve_ref(project)
+            if not p:
+                raise ValueError(f"Project not found: {project}")
+            return p.id
+        if all_projects:
+            return None
+        return self.get_current_project_id()
+
     def resolve_session_id(self, session_id: str) -> str:
         """Resolve session reference (#N, N, UUID, or prefix) to UUID.
 
@@ -116,3 +141,33 @@ class RegistryContext:
         """
         project_id = self.get_current_project_id()
         return self.session_manager.resolve_session_reference(session_id, project_id)
+
+
+def resolve_project_filter_standalone(
+    project: str | None,
+    all_projects: bool,
+    db: "DatabaseProtocol",
+) -> str | None:
+    """Standalone project filter resolver for tools without RegistryContext.
+
+    Args:
+        project: Project name or UUID to filter by
+        all_projects: If True, return None (no filter)
+        db: Database connection
+
+    Returns:
+        project_id string, or None for all projects
+
+    Raises:
+        ValueError: If project name/UUID not found
+    """
+    if project:
+        pm = LocalProjectManager(db)
+        p = pm.resolve_ref(project)
+        if not p:
+            raise ValueError(f"Project not found: {project}")
+        return p.id
+    if all_projects:
+        return None
+    ctx = get_project_context()
+    return ctx.get("id") if ctx else None
