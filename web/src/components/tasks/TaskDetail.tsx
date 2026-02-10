@@ -5,6 +5,7 @@ import { ReasoningTimeline } from './ReasoningTimeline'
 import { ActionFeed } from './ActionFeed'
 import { SessionViewer } from './SessionViewer'
 import { CapabilityScope } from './CapabilityScope'
+import { RawTraceView } from './RawTraceView'
 
 interface TaskActions {
   updateTask: (id: string, params: { status?: string }) => Promise<GobbyTaskDetail | null>
@@ -177,6 +178,11 @@ export function TaskDetail({ taskId, getTask, getDependencies, getSubtasks, acti
               </div>
             )}
 
+            {/* Raw Trace (Debug) */}
+            {task.created_in_session_id && (
+              <DebugTraceSection sessionId={task.created_in_session_id} />
+            )}
+
             {/* Dependencies: Blocked By */}
             {blockerIds.length > 0 && (
               <div className="task-detail-section">
@@ -322,6 +328,27 @@ function ValidationSection({ task }: { task: GobbyTaskDetail }) {
           </div>
         </div>
       )}
+    </div>
+  )
+}
+
+// =============================================================================
+// Debug trace section (collapsed by default)
+// =============================================================================
+
+function DebugTraceSection({ sessionId }: { sessionId: string }) {
+  const [open, setOpen] = useState(false)
+
+  return (
+    <div className="task-detail-section">
+      <button
+        className="task-detail-debug-toggle"
+        onClick={() => setOpen(!open)}
+      >
+        <span className="task-detail-debug-toggle-icon">{open ? '\u25BE' : '\u25B8'}</span>
+        <span className="task-detail-debug-toggle-label">Debug Trace</span>
+      </button>
+      {open && <RawTraceView sessionId={sessionId} />}
     </div>
   )
 }
