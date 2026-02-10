@@ -756,6 +756,20 @@ def _migrate_add_skill_injection_columns(db: LocalDatabase) -> None:
     logger.info("Added always_apply and injection_format columns to skills table")
 
 
+def _migrate_add_deleted_at_to_projects(db: LocalDatabase) -> None:
+    """Add deleted_at column to projects table (idempotent).
+
+    SQLite doesn't support ADD COLUMN IF NOT EXISTS, so we check
+    the column list first.
+    """
+    columns = db.fetchall("PRAGMA table_info(projects)")
+    if any(col["name"] == "deleted_at" for col in columns):
+        logger.debug("projects.deleted_at column already exists, skipping")
+        return
+    db.execute("ALTER TABLE projects ADD COLUMN deleted_at TEXT")
+    logger.info("Added deleted_at column to projects table")
+
+
 MIGRATIONS: list[tuple[int, str, MigrationAction]] = [
     # Project-scoped session refs: Change seq_num index from global to project-scoped
     (76, "Make sessions.seq_num project-scoped", _migrate_session_seq_num_project_scoped),
@@ -823,7 +837,7 @@ MIGRATIONS: list[tuple[int, str, MigrationAction]] = [
     (
         83,
         "Add deleted_at column to projects",
-        "ALTER TABLE projects ADD COLUMN deleted_at TEXT",
+        _migrate_add_deleted_at_to_projects,
     ),
     # Add _personal system project
     (
