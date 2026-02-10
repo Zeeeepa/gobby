@@ -1,0 +1,55 @@
+"""Tests for cron configuration."""
+
+from __future__ import annotations
+
+import pytest
+
+from gobby.config.cron import CronConfig
+
+
+def test_cron_config_defaults() -> None:
+    """CronConfig creates with sensible defaults."""
+    config = CronConfig()
+    assert config.enabled is True
+    assert config.check_interval_seconds == 30
+    assert config.max_concurrent_jobs == 5
+    assert config.cleanup_after_days == 30
+    assert config.backoff_delays == [30, 60, 300, 900, 3600]
+
+
+def test_cron_config_custom_values() -> None:
+    """Custom values override defaults."""
+    config = CronConfig(
+        enabled=False,
+        check_interval_seconds=60,
+        max_concurrent_jobs=10,
+        cleanup_after_days=7,
+        backoff_delays=[10, 30, 60],
+    )
+    assert config.enabled is False
+    assert config.check_interval_seconds == 60
+    assert config.max_concurrent_jobs == 10
+    assert config.cleanup_after_days == 7
+    assert config.backoff_delays == [10, 30, 60]
+
+
+def test_cron_config_rejects_low_check_interval() -> None:
+    """check_interval_seconds must be >= 10."""
+    with pytest.raises(ValueError, match="at least 10"):
+        CronConfig(check_interval_seconds=5)
+
+
+def test_cron_config_rejects_zero_max_concurrent() -> None:
+    """max_concurrent_jobs must be >= 1."""
+    with pytest.raises(ValueError, match="at least 1"):
+        CronConfig(max_concurrent_jobs=0)
+
+
+def test_daemon_config_has_cron_field() -> None:
+    """DaemonConfig includes cron field with CronConfig defaults."""
+    from gobby.config.app import DaemonConfig
+
+    config = DaemonConfig()
+    assert hasattr(config, "cron")
+    assert isinstance(config.cron, CronConfig)
+    assert config.cron.enabled is True

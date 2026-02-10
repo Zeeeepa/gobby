@@ -638,6 +638,48 @@ CREATE INDEX idx_clones_task ON clones(task_id);
 CREATE INDEX idx_clones_session ON clones(agent_session_id);
 CREATE UNIQUE INDEX idx_clones_path ON clones(clone_path);
 
+CREATE TABLE cron_jobs (
+    id TEXT PRIMARY KEY,
+    project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+    name TEXT NOT NULL,
+    description TEXT,
+    schedule_type TEXT NOT NULL,
+    cron_expr TEXT,
+    interval_seconds INTEGER,
+    run_at TEXT,
+    timezone TEXT DEFAULT 'UTC',
+    action_type TEXT NOT NULL,
+    action_config TEXT NOT NULL,
+    enabled INTEGER DEFAULT 1,
+    next_run_at TEXT,
+    last_run_at TEXT,
+    last_status TEXT,
+    consecutive_failures INTEGER DEFAULT 0,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+);
+CREATE INDEX idx_cron_jobs_project ON cron_jobs(project_id);
+CREATE INDEX idx_cron_jobs_enabled ON cron_jobs(enabled);
+CREATE INDEX idx_cron_jobs_next_run ON cron_jobs(next_run_at);
+CREATE INDEX idx_cron_jobs_due ON cron_jobs(project_id, enabled, next_run_at);
+
+CREATE TABLE cron_runs (
+    id TEXT PRIMARY KEY,
+    cron_job_id TEXT NOT NULL REFERENCES cron_jobs(id) ON DELETE CASCADE,
+    triggered_at TEXT NOT NULL,
+    started_at TEXT,
+    completed_at TEXT,
+    status TEXT DEFAULT 'pending',
+    output TEXT,
+    error TEXT,
+    agent_run_id TEXT,
+    pipeline_execution_id TEXT,
+    created_at TEXT NOT NULL
+);
+CREATE INDEX idx_cron_runs_job ON cron_runs(cron_job_id);
+CREATE INDEX idx_cron_runs_triggered ON cron_runs(triggered_at);
+CREATE INDEX idx_cron_runs_status ON cron_runs(status);
+
 CREATE TABLE pipeline_executions (
     id TEXT PRIMARY KEY,
     pipeline_name TEXT NOT NULL,
@@ -934,6 +976,54 @@ MIGRATIONS: list[tuple[int, str, MigrationAction]] = [
             PRIMARY KEY (artifact_id, tag)
         );
         CREATE INDEX IF NOT EXISTS idx_artifact_tags_tag ON artifact_tags(tag);
+        """,
+    ),
+    # Cron scheduler: Add cron_jobs and cron_runs tables
+    (
+        89,
+        "Add cron scheduler tables",
+        """
+        CREATE TABLE IF NOT EXISTS cron_jobs (
+            id TEXT PRIMARY KEY,
+            project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+            name TEXT NOT NULL,
+            description TEXT,
+            schedule_type TEXT NOT NULL,
+            cron_expr TEXT,
+            interval_seconds INTEGER,
+            run_at TEXT,
+            timezone TEXT DEFAULT 'UTC',
+            action_type TEXT NOT NULL,
+            action_config TEXT NOT NULL,
+            enabled INTEGER DEFAULT 1,
+            next_run_at TEXT,
+            last_run_at TEXT,
+            last_status TEXT,
+            consecutive_failures INTEGER DEFAULT 0,
+            created_at TEXT NOT NULL,
+            updated_at TEXT NOT NULL
+        );
+        CREATE INDEX IF NOT EXISTS idx_cron_jobs_project ON cron_jobs(project_id);
+        CREATE INDEX IF NOT EXISTS idx_cron_jobs_enabled ON cron_jobs(enabled);
+        CREATE INDEX IF NOT EXISTS idx_cron_jobs_next_run ON cron_jobs(next_run_at);
+        CREATE INDEX IF NOT EXISTS idx_cron_jobs_due ON cron_jobs(project_id, enabled, next_run_at);
+
+        CREATE TABLE IF NOT EXISTS cron_runs (
+            id TEXT PRIMARY KEY,
+            cron_job_id TEXT NOT NULL REFERENCES cron_jobs(id) ON DELETE CASCADE,
+            triggered_at TEXT NOT NULL,
+            started_at TEXT,
+            completed_at TEXT,
+            status TEXT DEFAULT 'pending',
+            output TEXT,
+            error TEXT,
+            agent_run_id TEXT,
+            pipeline_execution_id TEXT,
+            created_at TEXT NOT NULL
+        );
+        CREATE INDEX IF NOT EXISTS idx_cron_runs_job ON cron_runs(cron_job_id);
+        CREATE INDEX IF NOT EXISTS idx_cron_runs_triggered ON cron_runs(triggered_at);
+        CREATE INDEX IF NOT EXISTS idx_cron_runs_status ON cron_runs(status);
         """,
     ),
 ]

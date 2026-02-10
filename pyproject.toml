@@ -38,6 +38,8 @@ dependencies = [
     "msgspec>=0.20.0",
     # gitingest>=0.3.1 includes CVE-2024-56074 fix (commit 9996a06, Dec 2024)
     "gitingest>=0.3.1",
+    # croniter for cron expression parsing (scheduler)
+    "croniter>=2.0.0",
     # scikit-learn for TF-IDF memory search
     "scikit-learn>=1.0.0",
     "textual>=7.3.0",

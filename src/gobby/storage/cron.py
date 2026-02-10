@@ -1,0 +1,381 @@
+"""Cron job storage manager.
+
+Provides CRUD operations for cron jobs and their execution runs.
+"""
+
+from __future__ import annotations
+
+import json
+import logging
+from datetime import UTC, datetime, timedelta
+from typing import Any
+from zoneinfo import ZoneInfo
+
+from croniter import croniter
+
+from gobby.storage.cron_models import CronJob, CronRun
+from gobby.storage.database import DatabaseProtocol
+from gobby.utils.id import generate_prefixed_id
+
+logger = logging.getLogger(__name__)
+
+
+def compute_next_run(job: CronJob) -> datetime | None:
+    """Compute the next run time for a cron job.
+
+    Args:
+        job: CronJob instance
+
+    Returns:
+        Next run datetime (UTC) or None if job is disabled or expired one-shot.
+    """
+    if not job.enabled:
+        return None
+
+    tz = ZoneInfo(job.timezone) if job.timezone else ZoneInfo("UTC")
+    now = datetime.now(tz)
+
+    if job.schedule_type == "cron":
+        if not job.cron_expr:
+            return None
+        cron = croniter(job.cron_expr, now)
+        next_dt = cron.get_next(datetime)
+        return next_dt.astimezone(ZoneInfo("UTC"))
+
+    elif job.schedule_type == "interval":
+        if not job.interval_seconds:
+            return None
+        if job.last_run_at:
+            last = datetime.fromisoformat(job.last_run_at)
+            if last.tzinfo is None:
+                last = last.replace(tzinfo=ZoneInfo("UTC"))
+            next_dt = last + timedelta(seconds=job.interval_seconds)
+        else:
+            next_dt = now + timedelta(seconds=job.interval_seconds)
+        return next_dt.astimezone(ZoneInfo("UTC"))
+
+    elif job.schedule_type == "once":
+        if not job.run_at:
+            return None
+        run_at = datetime.fromisoformat(job.run_at)
+        if run_at.tzinfo is None:
+            run_at = run_at.replace(tzinfo=tz)
+        run_at_utc = run_at.astimezone(ZoneInfo("UTC"))
+        # Expired one-shot
+        if run_at_utc <= datetime.now(ZoneInfo("UTC")):
+            return None
+        return run_at_utc
+
+    return None
+
+
+class CronJobStorage:
+    """Manager for cron job storage."""
+
+    def __init__(self, db: DatabaseProtocol):
+        self.db = db
+
+    def create_job(
+        self,
+        project_id: str,
+        name: str,
+        schedule_type: str,
+        action_type: str,
+        action_config: dict[str, Any],
+        description: str | None = None,
+        cron_expr: str | None = None,
+        interval_seconds: int | None = None,
+        run_at: str | None = None,
+        timezone: str = "UTC",
+        enabled: bool = True,
+    ) -> CronJob:
+        """Create a new cron job."""
+        job_id = generate_prefixed_id("cj", length=12)
+        now = datetime.now(UTC).isoformat()
+
+        job = CronJob(
+            id=job_id,
+            project_id=project_id,
+            name=name,
+            schedule_type=schedule_type,
+            action_type=action_type,
+            action_config=action_config,
+            created_at=now,
+            updated_at=now,
+            description=description,
+            cron_expr=cron_expr,
+            interval_seconds=interval_seconds,
+            run_at=run_at,
+            timezone=timezone,
+            enabled=enabled,
+        )
+
+        # Compute initial next_run_at
+        next_run = compute_next_run(job)
+        if next_run:
+            job.next_run_at = next_run.isoformat()
+
+        self.db.execute(
+            """
+            INSERT INTO cron_jobs (
+                id, project_id, name, description, schedule_type,
+                cron_expr, interval_seconds, run_at, timezone,
+                action_type, action_config, enabled, next_run_at,
+                last_run_at, last_status, consecutive_failures,
+                created_at, updated_at
+            )
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                job.id,
+                job.project_id,
+                job.name,
+                job.description,
+                job.schedule_type,
+                job.cron_expr,
+                job.interval_seconds,
+                job.run_at,
+                job.timezone,
+                job.action_type,
+                json.dumps(job.action_config),
+                1 if job.enabled else 0,
+                job.next_run_at,
+                job.last_run_at,
+                job.last_status,
+                job.consecutive_failures,
+                job.created_at,
+                job.updated_at,
+            ),
+        )
+
+        return job
+
+    def get_job(self, job_id: str) -> CronJob | None:
+        """Get a cron job by ID."""
+        row = self.db.fetchone("SELECT * FROM cron_jobs WHERE id = ?", (job_id,))
+        return CronJob.from_row(row) if row else None
+
+    def list_jobs(
+        self,
+        project_id: str | None = None,
+        enabled: bool | None = None,
+        limit: int = 50,
+    ) -> list[CronJob]:
+        """List cron jobs with optional filters."""
+        conditions: list[str] = []
+        params: list[Any] = []
+
+        if project_id:
+            conditions.append("project_id = ?")
+            params.append(project_id)
+        if enabled is not None:
+            conditions.append("enabled = ?")
+            params.append(1 if enabled else 0)
+
+        where_clause = " AND ".join(conditions) if conditions else "1=1"
+        params.append(limit)
+
+        rows = self.db.fetchall(
+            f"""
+            SELECT * FROM cron_jobs
+            WHERE {where_clause}
+            ORDER BY created_at DESC
+            LIMIT ?
+            """,  # nosec B608
+            tuple(params),
+        )
+        return [CronJob.from_row(row) for row in rows]
+
+    _VALID_UPDATE_FIELDS = frozenset(
+        {
+            "name",
+            "description",
+            "schedule_type",
+            "cron_expr",
+            "interval_seconds",
+            "run_at",
+            "timezone",
+            "action_type",
+            "action_config",
+            "enabled",
+            "next_run_at",
+            "last_run_at",
+            "last_status",
+            "consecutive_failures",
+            "updated_at",
+        }
+    )
+
+    def update_job(self, job_id: str, **fields: Any) -> CronJob | None:
+        """Update cron job fields."""
+        if not fields:
+            return self.get_job(job_id)
+
+        invalid_fields = set(fields.keys()) - self._VALID_UPDATE_FIELDS
+        if invalid_fields:
+            raise ValueError(f"Invalid field names: {invalid_fields}")
+
+        fields["updated_at"] = datetime.now(UTC).isoformat()
+
+        # Serialize action_config to JSON if present
+        if "action_config" in fields and isinstance(fields["action_config"], dict):
+            fields["action_config"] = json.dumps(fields["action_config"])
+
+        set_clause = ", ".join(f"{key} = ?" for key in fields.keys())
+        values = list(fields.values()) + [job_id]
+
+        self.db.execute(
+            f"UPDATE cron_jobs SET {set_clause} WHERE id = ?",  # nosec B608
+            tuple(values),
+        )
+
+        return self.get_job(job_id)
+
+    def delete_job(self, job_id: str) -> bool:
+        """Delete a cron job and its runs."""
+        # Delete runs first (foreign key)
+        self.db.execute("DELETE FROM cron_runs WHERE cron_job_id = ?", (job_id,))
+        cursor = self.db.execute("DELETE FROM cron_jobs WHERE id = ?", (job_id,))
+        return cursor.rowcount > 0
+
+    def toggle_job(self, job_id: str) -> CronJob | None:
+        """Toggle a cron job's enabled state."""
+        job = self.get_job(job_id)
+        if not job:
+            return None
+
+        new_enabled = not job.enabled
+        updates: dict[str, Any] = {"enabled": 1 if new_enabled else 0}
+
+        # Recompute next_run when enabling
+        if new_enabled:
+            job.enabled = True
+            next_run = compute_next_run(job)
+            updates["next_run_at"] = next_run.isoformat() if next_run else None
+        else:
+            updates["next_run_at"] = None
+
+        return self.update_job(job_id, **updates)
+
+    def get_due_jobs(self) -> list[CronJob]:
+        """Get enabled jobs whose next_run_at has passed."""
+        now = datetime.now(UTC).isoformat()
+        rows = self.db.fetchall(
+            """
+            SELECT * FROM cron_jobs
+            WHERE enabled = 1 AND next_run_at IS NOT NULL AND next_run_at <= ?
+            ORDER BY next_run_at ASC
+            """,
+            (now,),
+        )
+        return [CronJob.from_row(row) for row in rows]
+
+    # --- CronRun methods ---
+
+    def create_run(self, cron_job_id: str) -> CronRun:
+        """Create a new cron run record."""
+        run_id = generate_prefixed_id("cr", length=12)
+        now = datetime.now(UTC).isoformat()
+
+        run = CronRun(
+            id=run_id,
+            cron_job_id=cron_job_id,
+            triggered_at=now,
+            created_at=now,
+        )
+
+        self.db.execute(
+            """
+            INSERT INTO cron_runs (
+                id, cron_job_id, triggered_at, started_at, completed_at,
+                status, output, error, agent_run_id,
+                pipeline_execution_id, created_at
+            )
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                run.id,
+                run.cron_job_id,
+                run.triggered_at,
+                run.started_at,
+                run.completed_at,
+                run.status,
+                run.output,
+                run.error,
+                run.agent_run_id,
+                run.pipeline_execution_id,
+                run.created_at,
+            ),
+        )
+
+        return run
+
+    def update_run(self, run_id: str, **fields: Any) -> CronRun | None:
+        """Update a cron run's fields."""
+        valid_fields = frozenset(
+            {
+                "started_at",
+                "completed_at",
+                "status",
+                "output",
+                "error",
+                "agent_run_id",
+                "pipeline_execution_id",
+            }
+        )
+
+        invalid = set(fields.keys()) - valid_fields
+        if invalid:
+            raise ValueError(f"Invalid run field names: {invalid}")
+
+        if not fields:
+            return self.get_run(run_id)
+
+        set_clause = ", ".join(f"{key} = ?" for key in fields.keys())
+        values = list(fields.values()) + [run_id]
+
+        self.db.execute(
+            f"UPDATE cron_runs SET {set_clause} WHERE id = ?",  # nosec B608
+            tuple(values),
+        )
+
+        return self.get_run(run_id)
+
+    def get_run(self, run_id: str) -> CronRun | None:
+        """Get a cron run by ID."""
+        row = self.db.fetchone("SELECT * FROM cron_runs WHERE id = ?", (run_id,))
+        return CronRun.from_row(row) if row else None
+
+    def list_runs(
+        self, cron_job_id: str, limit: int = 20
+    ) -> list[CronRun]:
+        """List runs for a cron job, most recent first."""
+        rows = self.db.fetchall(
+            """
+            SELECT * FROM cron_runs
+            WHERE cron_job_id = ?
+            ORDER BY triggered_at DESC
+            LIMIT ?
+            """,
+            (cron_job_id, limit),
+        )
+        return [CronRun.from_row(row) for row in rows]
+
+    def count_running(self) -> int:
+        """Count currently running cron runs."""
+        row = self.db.fetchone(
+            "SELECT COUNT(*) as cnt FROM cron_runs WHERE status = 'running'"
+        )
+        return row["cnt"] if row else 0
+
+    def cleanup_old_runs(self, days: int) -> int:
+        """Delete runs older than the given number of days."""
+        cutoff = (datetime.now(UTC) - timedelta(days=days)).isoformat()
+        cursor = self.db.execute(
+            "DELETE FROM cron_runs WHERE created_at < ?",
+            (cutoff,),
+        )
+        deleted = cursor.rowcount
+        if deleted > 0:
+            logger.info(f"Cleaned up {deleted} cron runs older than {days} days")
+        return deleted

@@ -16,6 +16,7 @@ import yaml
 from pydantic import BaseModel, Field, field_validator
 
 # Internal imports for DaemonConfig fields - NOT re-exported
+from gobby.config.cron import CronConfig
 from gobby.config.extensions import HookExtensionsConfig
 from gobby.config.features import (
     ImportMCPServerConfig,
@@ -306,6 +307,10 @@ class DaemonConfig(BaseModel):
     tmux: TmuxConfig = Field(
         default_factory=TmuxConfig,
         description="Tmux agent spawning configuration",
+    )
+    cron: CronConfig = Field(
+        default_factory=CronConfig,
+        description="Cron scheduler configuration",
     )
 
     def get_recommend_tools_config(self) -> RecommendToolsConfig:
