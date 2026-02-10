@@ -17,6 +17,7 @@ import { MemoryPage } from './components/MemoryPage'
 import { TasksPage } from './components/TasksPage'
 import { ArtifactsPage } from './components/ArtifactsPage'
 import { CronJobsPage } from './components/CronJobsPage'
+import { AgentPortfolioPage } from './components/AgentPortfolioPage'
 import { QuickCaptureTask } from './components/tasks/QuickCaptureTask'
 import type { GobbySession } from './hooks/useSessions'
 
@@ -280,6 +281,8 @@ export default function App() {
         <ArtifactsPage />
       ) : activeTab === 'cron' ? (
         <CronJobsPage />
+      ) : activeTab === 'agents' ? (
+        <AgentPortfolioPage />
       ) : (
         <ComingSoonPage title={navItems.find(i => i.id === activeTab)?.label ?? activeTab} />
       )}
