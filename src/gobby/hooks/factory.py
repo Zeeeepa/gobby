@@ -428,9 +428,14 @@ class HookManagerFactory:
             workflow_timeout = config.workflow.timeout
             workflow_enabled = config.workflow.enabled
 
+        try:
+            _loop = asyncio.get_running_loop()
+        except RuntimeError:
+            _loop = None
+
         w.handler = WorkflowHookHandler(
             engine=w.engine,
-            loop=asyncio.get_running_loop() if asyncio.get_event_loop().is_running() else None,
+            loop=_loop,
             timeout=workflow_timeout,
             enabled=workflow_enabled,
         )

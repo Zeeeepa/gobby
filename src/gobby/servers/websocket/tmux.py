@@ -118,7 +118,7 @@ class TmuxMixin:
 
                     # Check if a bridge is active for this session
                     attached_bridge = None
-                    for sid, bridge in self._tmux_bridge.list_bridges().items():
+                    for sid, bridge in (await self._tmux_bridge.list_bridges()).items():
                         if (
                             bridge.session_name == s.name
                             and bridge.socket_name == mgr.config.socket_name

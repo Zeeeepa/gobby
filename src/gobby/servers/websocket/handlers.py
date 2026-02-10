@@ -308,7 +308,7 @@ class HandlerMixin:
 
         # Check if this is a tmux PTY bridge streaming_id first
         if hasattr(self, "_tmux_bridge"):
-            bridge_fd = self._tmux_bridge.get_master_fd(run_id)
+            bridge_fd = await self._tmux_bridge.get_master_fd(run_id)
             if bridge_fd is not None:
                 try:
                     encoded_data = input_data.encode("utf-8")

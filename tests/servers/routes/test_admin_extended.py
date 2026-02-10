@@ -68,8 +68,9 @@ class TestAdminRoutesExtended:
             "claude-sonnet-4-5-20250929": {},  # dated variant — should be excluded
             "anthropic/claude-opus-4-6": {},  # provider-scoped — should be excluded
         }
-        with patch("gobby.servers.routes.admin.litellm") as mock_litellm:
-            mock_litellm.model_cost = mock_model_cost
+        mock_litellm = MagicMock()
+        mock_litellm.model_cost = mock_model_cost
+        with patch.dict("sys.modules", {"litellm": mock_litellm}):
             response = client.get("/admin/models")
 
         assert response.status_code == 200
@@ -92,8 +93,9 @@ class TestAdminRoutesExtended:
             "gpt-5": {},
             "gemini-2-flash": {},
         }
-        with patch("gobby.servers.routes.admin.litellm") as mock_litellm:
-            mock_litellm.model_cost = mock_model_cost
+        mock_litellm = MagicMock()
+        mock_litellm.model_cost = mock_model_cost
+        with patch.dict("sys.modules", {"litellm": mock_litellm}):
             response = client.get("/admin/models?provider=claude")
 
         assert response.status_code == 200

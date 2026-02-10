@@ -26,10 +26,18 @@ class BroadcastMixin:
 
     def _is_subscribed(self, websocket: Any, message: dict[str, Any]) -> bool:
         """Check if a client is subscribed to receive a message."""
+        # Clients without subscriptions receive nothing
+        subs = getattr(websocket, "subscriptions", None)
+        if subs is None:
+            return False
+
+        # Global wildcard subscription
+        if "*" in subs:
+            return True
+
         msg_type = message.get("type")
 
-        # Always send non-event messages (system messages, errors, etc.)
-        # Defined as messages that aren't one of the high-volume event types
+        # High-volume event types require explicit subscription
         event_types = {
             "hook_event",
             "session_message",
@@ -41,18 +49,8 @@ class BroadcastMixin:
             "tmux_session_event",
         }
 
+        # Non-event messages pass through for any subscribed client
         if msg_type not in event_types:
-            return True
-
-        # For event types, check subscriptions
-        subs = getattr(websocket, "subscriptions", None)
-
-        # If client has no subscriptions initialized, block high-volume events
-        if subs is None:
-            return False
-
-        # Global wildcard subscription
-        if "*" in subs:
             return True
 
         # Check for message type subscription

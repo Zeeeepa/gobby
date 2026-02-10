@@ -151,7 +151,7 @@ class PipelineStep(BaseModel):
     # Execution types (mutually exclusive - exactly one required)
     exec: str | None = None  # Shell command to run
     prompt: str | None = None  # LLM prompt template
-    invoke_pipeline: str | None = None  # Name of pipeline to invoke
+    invoke_pipeline: str | dict[str, Any] | None = None  # Name of pipeline to invoke
     mcp: MCPStepConfig | None = None  # Call MCP tool directly
 
     # Optional fields

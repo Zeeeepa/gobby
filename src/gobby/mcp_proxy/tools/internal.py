@@ -287,6 +287,10 @@ class InternalToolRegistry:
             "inputSchema": tool.input_schema,
         }
 
+    def get_tool(self, name: str) -> InternalTool | None:
+        """Return tool by name, or None if not found."""
+        return self._tools.get(name)
+
     def __len__(self) -> int:
         """Return number of registered tools."""
         return len(self._tools)

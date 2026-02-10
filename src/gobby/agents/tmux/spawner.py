@@ -103,7 +103,7 @@ class TmuxSpawner(TerminalSpawnerBase):
         session_name = title or f"{self._config.session_prefix}-{int(time.time())}"
         # Sanitise (TmuxSessionManager also sanitises, but normalise here
         # so the name we return is consistent).
-        session_name = session_name.replace(".", "-").replace(":", "-")
+        session_name = "".join(c if c.isalnum() or c in "-_" else "-" for c in session_name)
 
         shell_cmd = shlex.join(command) if len(command) > 1 else command[0]
 
