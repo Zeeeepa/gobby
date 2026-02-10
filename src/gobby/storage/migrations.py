@@ -277,11 +277,14 @@ CREATE TABLE session_artifacts (
     source_file TEXT,
     line_start INTEGER,
     line_end INTEGER,
+    title TEXT,
+    task_id TEXT,
     created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 CREATE INDEX idx_session_artifacts_session ON session_artifacts(session_id);
 CREATE INDEX idx_session_artifacts_type ON session_artifacts(artifact_type);
 CREATE INDEX idx_session_artifacts_created ON session_artifacts(created_at);
+CREATE INDEX idx_session_artifacts_task ON session_artifacts(task_id);
 CREATE VIRTUAL TABLE session_artifacts_fts USING fts5(id UNINDEXED, content);
 
 CREATE TABLE session_stop_signals (
@@ -786,6 +789,18 @@ def _migrate_add_deleted_at_to_projects(db: LocalDatabase) -> None:
     logger.info("Added deleted_at column to projects table")
 
 
+def _migrate_add_title_task_id_to_artifacts(db: LocalDatabase) -> None:
+    """Add title and task_id columns to session_artifacts (idempotent)."""
+    # Check existing columns to avoid duplicate column errors
+    columns = {row["name"] for row in db.fetchall("PRAGMA table_info(session_artifacts)")}
+    if "title" not in columns:
+        db.execute("ALTER TABLE session_artifacts ADD COLUMN title TEXT")
+    if "task_id" not in columns:
+        db.execute("ALTER TABLE session_artifacts ADD COLUMN task_id TEXT")
+    db.execute("CREATE INDEX IF NOT EXISTS idx_session_artifacts_task ON session_artifacts(task_id)")
+    logger.info("Added title and task_id columns to session_artifacts")
+
+
 MIGRATIONS: list[tuple[int, str, MigrationAction]] = [
     # Project-scoped session refs: Change seq_num index from global to project-scoped
     (76, "Make sessions.seq_num project-scoped", _migrate_session_seq_num_project_scoped),
@@ -892,6 +907,12 @@ MIGRATIONS: list[tuple[int, str, MigrationAction]] = [
         ALTER TABLE memories ADD COLUMN mem0_id TEXT;
         CREATE INDEX IF NOT EXISTS idx_memories_mem0_id ON memories(mem0_id);
         """,
+    ),
+    # Artifacts V2: Add title and task_id columns to session_artifacts
+    (
+        87,
+        "Add title and task_id to session_artifacts",
+        _migrate_add_title_task_id_to_artifacts,
     ),
 ]
 

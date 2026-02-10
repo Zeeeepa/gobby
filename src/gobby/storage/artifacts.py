@@ -32,6 +32,8 @@ class Artifact:
     source_file: str | None = None
     line_start: int | None = None
     line_end: int | None = None
+    title: str | None = None
+    task_id: str | None = None
 
     @classmethod
     def from_row(cls, row: sqlite3.Row) -> "Artifact":
@@ -49,6 +51,8 @@ class Artifact:
             source_file=row["source_file"],
             line_start=row["line_start"],
             line_end=row["line_end"],
+            title=row["title"] if "title" in row.keys() else None,
+            task_id=row["task_id"] if "task_id" in row.keys() else None,
         )
 
     def to_dict(self) -> dict[str, Any]:
@@ -63,6 +67,8 @@ class Artifact:
             "source_file": self.source_file,
             "line_start": self.line_start,
             "line_end": self.line_end,
+            "title": self.title,
+            "task_id": self.task_id,
         }
 
 
@@ -98,6 +104,8 @@ class LocalArtifactManager:
         source_file: str | None = None,
         line_start: int | None = None,
         line_end: int | None = None,
+        title: str | None = None,
+        task_id: str | None = None,
     ) -> Artifact:
         """Create a new artifact.
 
@@ -109,6 +117,8 @@ class LocalArtifactManager:
             source_file: Optional source file path
             line_start: Optional starting line number
             line_end: Optional ending line number
+            title: Optional human-readable title
+            task_id: Optional task ID to link this artifact to
 
         Returns:
             The created Artifact
@@ -123,8 +133,8 @@ class LocalArtifactManager:
                 """
                 INSERT INTO session_artifacts (
                     id, session_id, artifact_type, content, metadata_json,
-                    source_file, line_start, line_end, created_at
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    source_file, line_start, line_end, title, task_id, created_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     artifact_id,
@@ -135,6 +145,8 @@ class LocalArtifactManager:
                     source_file,
                     line_start,
                     line_end,
+                    title,
+                    task_id,
                     now,
                 ),
             )
