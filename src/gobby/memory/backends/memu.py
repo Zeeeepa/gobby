@@ -15,6 +15,7 @@ Example:
 
 from __future__ import annotations
 
+import os
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Any
 from uuid import uuid4
@@ -79,9 +80,13 @@ class MemUBackend:
         if database_type == "inmemory":
             config["database_config"] = {"type": "inmemory"}
         elif database_type == "sqlite":
+            # Expand ~ in URLs like sqlite:///~/.gobby/memu.db
+            url = database_url or "sqlite:///memu.db"
+            if "~" in url:
+                url = url.replace("~", os.path.expanduser("~"))
             config["database_config"] = {
                 "type": "sqlite",
-                "url": database_url or "sqlite:///memu.db",
+                "url": url,
             }
         elif database_type == "postgres":
             if not database_url:
@@ -94,23 +99,22 @@ class MemUBackend:
                 "url": database_url,
             }
 
-        # LLM configuration (optional - uses OpenAI by default)
-        if llm_api_key or llm_base_url:
-            config["llm_profiles"] = {
-                "default": {
-                    "api_key": llm_api_key,
-                    "base_url": llm_base_url,
-                }
-            }
+        # LLM configuration — memu requires a profile named "embedding" for
+        # generating embeddings during memory creation. Also register as
+        # "default" for other operations. Memu doesn't read OPENAI_API_KEY
+        # from the environment automatically, so we do it here as a fallback.
+        effective_api_key = llm_api_key or embedding_api_key or os.environ.get("OPENAI_API_KEY")
+        effective_base_url = llm_base_url or embedding_base_url
 
-        # Embedding configuration (optional - uses OpenAI by default)
-        if embedding_api_key or embedding_base_url:
-            config["embedding_profiles"] = {
-                "default": {
-                    "api_key": embedding_api_key,
-                    "base_url": embedding_base_url,
-                }
-            }
+        llm_profile: dict[str, Any] = {}
+        if effective_api_key:
+            llm_profile["api_key"] = effective_api_key
+        if effective_base_url:
+            llm_profile["base_url"] = effective_base_url
+        config["llm_profiles"] = {
+            "default": llm_profile,
+            "embedding": llm_profile,
+        }
 
         self._service: MemoryService = MemoryService(**config)
         self._default_user_id = user_id

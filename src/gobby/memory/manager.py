@@ -38,7 +38,34 @@ class MemoryManager:
         # Initialize storage backend based on config
         # Note: SQLiteBackend wraps LocalMemoryManager internally
         backend_type = getattr(config, "backend", "sqlite")
-        self._backend: MemoryBackendProtocol = get_backend(backend_type, database=db)
+        backend_kwargs: dict[str, Any] = {"database": db}
+
+        # Pass backend-specific config fields
+        if backend_type == "memu" and hasattr(config, "memu"):
+            memu_cfg = config.memu
+            backend_kwargs.update({
+                "database_type": memu_cfg.database_type,
+                "database_url": memu_cfg.database_url,
+                "llm_api_key": memu_cfg.llm_api_key,
+                "llm_base_url": memu_cfg.llm_base_url,
+                "user_id": memu_cfg.user_id,
+            })
+        elif backend_type == "mem0" and hasattr(config, "mem0"):
+            mem0_cfg = config.mem0
+            backend_kwargs.update({
+                "api_key": mem0_cfg.api_key,
+                "user_id": mem0_cfg.user_id,
+                "org_id": mem0_cfg.org_id,
+            })
+        elif backend_type == "openmemory" and hasattr(config, "openmemory"):
+            om_cfg = config.openmemory
+            backend_kwargs.update({
+                "base_url": om_cfg.base_url,
+                "api_key": om_cfg.api_key,
+                "user_id": om_cfg.user_id,
+            })
+
+        self._backend: MemoryBackendProtocol = get_backend(backend_type, **backend_kwargs)
 
         # Keep storage reference for backward compatibility with sync methods
         # The SQLiteBackend uses LocalMemoryManager internally
