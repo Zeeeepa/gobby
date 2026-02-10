@@ -13,6 +13,7 @@ import { CostTracker } from './CostTracker'
 import { TaskMemories } from './TaskMemories'
 import { AssigneePicker } from './AssigneePicker'
 import { TaskComments } from './TaskComments'
+import { PermissionOverrides } from './PermissionOverrides'
 
 interface TaskActions {
   updateTask: (id: string, params: { status?: string; assignee?: string }) => Promise<GobbyTaskDetail | null>
@@ -192,6 +193,11 @@ export function TaskDetail({ taskId, getTask, getDependencies, getSubtasks, acti
             {/* Oversight Mode */}
             <div className="task-detail-section">
               <OversightSelector taskId={task.id} />
+            </div>
+
+            {/* Permission Overrides */}
+            <div className="task-detail-section">
+              <PermissionOverrides taskId={task.id} />
             </div>
 
             {/* Reasoning Timeline */}

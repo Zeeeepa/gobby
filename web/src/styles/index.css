@@ -7262,6 +7262,240 @@ body {
 }
 
 /* =============================================================================
+   Permission Overrides
+   ============================================================================= */
+
+.perm-overrides {
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  overflow: hidden;
+}
+
+.perm-overrides-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  padding: 8px 10px;
+  background: var(--bg-secondary);
+  border: none;
+  color: var(--text-primary);
+  font-size: calc(var(--font-size-base) * 0.75);
+  cursor: pointer;
+  text-align: left;
+}
+
+.perm-overrides-header:hover {
+  background: var(--bg-tertiary);
+}
+
+.perm-overrides-toggle-icon {
+  font-size: calc(var(--font-size-base) * 0.6);
+  color: var(--text-muted);
+  width: 10px;
+}
+
+.perm-overrides-label {
+  flex: 1;
+  font-weight: 500;
+}
+
+.perm-overrides-badge {
+  font-size: calc(var(--font-size-base) * 0.6);
+  padding: 1px 6px;
+  border-radius: 8px;
+  background: rgba(115, 115, 115, 0.15);
+  color: var(--text-muted);
+}
+
+.perm-overrides-badge--active {
+  background: rgba(245, 158, 11, 0.15);
+  color: #f59e0b;
+}
+
+.perm-overrides-body {
+  padding: 8px 10px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.perm-overrides-category {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.perm-overrides-category-label {
+  font-size: calc(var(--font-size-base) * 0.6);
+  font-weight: 600;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  padding-bottom: 2px;
+}
+
+.perm-overrides-rule {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 5px 6px;
+  border-radius: 4px;
+  transition: background 0.15s;
+}
+
+.perm-overrides-rule:hover {
+  background: var(--bg-secondary);
+}
+
+.perm-overrides-rule--overridden {
+  background: rgba(245, 158, 11, 0.06);
+}
+
+.perm-overrides-rule--overridden:hover {
+  background: rgba(245, 158, 11, 0.1);
+}
+
+.perm-overrides-rule-info {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1;
+  min-width: 0;
+}
+
+.perm-overrides-rule-icon {
+  font-size: calc(var(--font-size-base) * 0.8);
+  width: 18px;
+  text-align: center;
+  flex-shrink: 0;
+}
+
+.perm-overrides-rule-text {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+}
+
+.perm-overrides-rule-label {
+  font-size: calc(var(--font-size-base) * 0.72);
+  font-weight: 500;
+  color: var(--text-primary);
+}
+
+.perm-overrides-rule-desc {
+  font-size: calc(var(--font-size-base) * 0.6);
+  color: var(--text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Toggle switch */
+
+.perm-toggle {
+  position: relative;
+  flex-shrink: 0;
+  width: 32px;
+  height: 18px;
+  padding: 0;
+  border: none;
+  background: none;
+  cursor: pointer;
+}
+
+.perm-toggle-track {
+  display: block;
+  width: 100%;
+  height: 100%;
+  border-radius: 9px;
+  transition: background 0.2s;
+}
+
+.perm-toggle--on .perm-toggle-track {
+  background: var(--accent);
+}
+
+.perm-toggle--off .perm-toggle-track {
+  background: rgba(115, 115, 115, 0.35);
+}
+
+.perm-toggle-thumb {
+  position: absolute;
+  top: 2px;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: #fff;
+  transition: left 0.2s;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
+}
+
+.perm-toggle--on .perm-toggle-thumb {
+  left: 16px;
+}
+
+.perm-toggle--off .perm-toggle-thumb {
+  left: 2px;
+}
+
+/* File scope */
+
+.perm-overrides-file-scope {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding: 0 6px;
+}
+
+.perm-overrides-file-input {
+  width: 100%;
+  padding: 5px 8px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  font-size: calc(var(--font-size-base) * 0.7);
+  font-family: var(--font-mono);
+  outline: none;
+  box-sizing: border-box;
+}
+
+.perm-overrides-file-input:focus {
+  border-color: var(--accent);
+}
+
+.perm-overrides-file-input::placeholder {
+  color: var(--text-muted);
+}
+
+.perm-overrides-file-hint {
+  font-size: calc(var(--font-size-base) * 0.55);
+  color: var(--text-muted);
+}
+
+/* Reset button */
+
+.perm-overrides-reset {
+  align-self: flex-start;
+  padding: 3px 10px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: none;
+  color: var(--text-muted);
+  font-size: calc(var(--font-size-base) * 0.6);
+  cursor: pointer;
+  transition: color 0.15s, border-color 0.15s;
+}
+
+.perm-overrides-reset:hover {
+  color: var(--text-primary);
+  border-color: var(--text-muted);
+}
+
+/* =============================================================================
    Escalation Card
    ============================================================================= */
 
