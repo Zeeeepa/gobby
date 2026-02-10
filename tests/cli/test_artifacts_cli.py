@@ -1,8 +1,8 @@
-"""Tests for CLI artifact display functions showing title, task ref, and tags."""
+"""Tests for CLI artifact display and export functions."""
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from pathlib import Path
 from typing import Any
 from unittest.mock import MagicMock, patch
 
@@ -13,6 +13,8 @@ from gobby.cli.artifacts import (
     _display_artifact_detail,
     _display_artifact_list,
     _display_timeline_entry,
+    _get_extension,
+    artifacts,
 )
 from gobby.storage.artifacts import Artifact
 
@@ -133,3 +135,81 @@ class TestDisplayTimelineEntry:
         _display_timeline_entry(artifact)
         output = capsys.readouterr().out
         assert "CODE: abc123" in output
+
+
+# =============================================================================
+# Export command
+# =============================================================================
+
+
+class TestGetExtension:
+    def test_python_from_metadata(self) -> None:
+        a = _make_artifact(artifact_type="code", metadata={"language": "python"})
+        assert _get_extension(a) == ".py"
+
+    def test_diff_type(self) -> None:
+        a = _make_artifact(artifact_type="diff")
+        assert _get_extension(a) == ".diff"
+
+    def test_error_type(self) -> None:
+        a = _make_artifact(artifact_type="error")
+        assert _get_extension(a) == ".log"
+
+    def test_plan_type(self) -> None:
+        a = _make_artifact(artifact_type="plan")
+        assert _get_extension(a) == ".md"
+
+    def test_unknown_type_defaults_to_txt(self) -> None:
+        a = _make_artifact(artifact_type="unknown_thing")
+        assert _get_extension(a) == ".txt"
+
+    def test_language_takes_precedence(self) -> None:
+        a = _make_artifact(artifact_type="code", metadata={"language": "rust"})
+        assert _get_extension(a) == ".rs"
+
+
+class TestExportCommand:
+    @patch("gobby.cli.artifacts.get_artifact_manager")
+    def test_export_to_stdout(self, mock_mgr: MagicMock) -> None:
+        mock_mgr.return_value.get_artifact.return_value = _make_artifact(
+            content="def hello(): pass"
+        )
+        runner = CliRunner()
+        result = runner.invoke(artifacts, ["export", "abc123"])
+        assert result.exit_code == 0
+        assert "def hello(): pass" in result.output
+
+    @patch("gobby.cli.artifacts.get_artifact_manager")
+    def test_export_to_file(self, mock_mgr: MagicMock, tmp_path: Path) -> None:
+        mock_mgr.return_value.get_artifact.return_value = _make_artifact(
+            content="x = 1\ny = 2",
+            artifact_type="code",
+            metadata={"language": "python"},
+        )
+        out_file = tmp_path / "output.py"
+        runner = CliRunner()
+        result = runner.invoke(artifacts, ["export", "abc123", "-o", str(out_file)])
+        assert result.exit_code == 0
+        assert out_file.read_text() == "x = 1\ny = 2"
+
+    @patch("gobby.cli.artifacts.get_artifact_manager")
+    def test_export_to_file_derives_extension(self, mock_mgr: MagicMock, tmp_path: Path) -> None:
+        mock_mgr.return_value.get_artifact.return_value = _make_artifact(
+            content="--- a/f.py\n+++ b/f.py",
+            artifact_type="diff",
+        )
+        out_base = tmp_path / "changes"
+        runner = CliRunner()
+        result = runner.invoke(artifacts, ["export", "abc123", "-o", str(out_base)])
+        assert result.exit_code == 0
+        expected_file = tmp_path / "changes.diff"
+        assert expected_file.exists()
+        assert expected_file.read_text() == "--- a/f.py\n+++ b/f.py"
+
+    @patch("gobby.cli.artifacts.get_artifact_manager")
+    def test_export_not_found(self, mock_mgr: MagicMock) -> None:
+        mock_mgr.return_value.get_artifact.return_value = None
+        runner = CliRunner()
+        result = runner.invoke(artifacts, ["export", "nonexistent"])
+        assert result.exit_code == 1
+        assert "not found" in result.output

@@ -175,6 +175,80 @@ def timeline(
             _display_timeline_entry(artifact)
 
 
+# Map artifact types and languages to file extensions
+_TYPE_EXTENSIONS: dict[str, str] = {
+    "code": ".txt",
+    "diff": ".diff",
+    "error": ".log",
+    "file_path": ".txt",
+    "structured_data": ".json",
+    "text": ".txt",
+    "plan": ".md",
+    "command_output": ".log",
+}
+
+_LANG_EXTENSIONS: dict[str, str] = {
+    "python": ".py",
+    "javascript": ".js",
+    "typescript": ".ts",
+    "tsx": ".tsx",
+    "jsx": ".jsx",
+    "rust": ".rs",
+    "go": ".go",
+    "sql": ".sql",
+    "bash": ".sh",
+    "shell": ".sh",
+    "json": ".json",
+    "yaml": ".yaml",
+    "toml": ".toml",
+    "xml": ".xml",
+    "css": ".css",
+    "html": ".html",
+    "markdown": ".md",
+    "ruby": ".rb",
+    "java": ".java",
+    "c": ".c",
+    "cpp": ".cpp",
+}
+
+
+def _get_extension(artifact: Any) -> str:
+    """Derive a file extension from artifact type and metadata language."""
+    if artifact.metadata and "language" in artifact.metadata:
+        lang = artifact.metadata["language"].lower()
+        if lang in _LANG_EXTENSIONS:
+            return _LANG_EXTENSIONS[lang]
+    return _TYPE_EXTENSIONS.get(artifact.artifact_type, ".txt")
+
+
+@artifacts.command("export")
+@click.argument("artifact_id")
+@click.option("--output", "-o", "output_path", help="Write to file (default: stdout)")
+def export_artifact(artifact_id: str, output_path: str | None) -> None:
+    """Export an artifact's content to stdout or a file.
+
+    If --output is given, writes to that path (extension derived from type if not specified).
+    Otherwise, prints content to stdout.
+    """
+    manager = get_artifact_manager()
+    artifact = manager.get_artifact(artifact_id)
+
+    if artifact is None:
+        click.echo(f"Artifact not found: {artifact_id}", err=True)
+        raise SystemExit(1)
+
+    if output_path:
+        # If the output path has no extension, derive one
+        if "." not in output_path.rsplit("/", 1)[-1]:
+            output_path += _get_extension(artifact)
+
+        with open(output_path, "w") as f:
+            f.write(artifact.content)
+        click.echo(f"Exported to {output_path}", err=True)
+    else:
+        click.echo(artifact.content)
+
+
 def _display_artifact_list(artifacts_list: list[Any]) -> None:
     """Display a list of artifacts in table format."""
     # Header
