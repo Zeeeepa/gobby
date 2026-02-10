@@ -10,6 +10,7 @@ from gobby.memory.backends import get_backend
 from gobby.memory.components.ingestion import IngestionService
 from gobby.memory.components.search import SearchService
 from gobby.memory.context import build_memory_context
+from gobby.memory.mem0_client import Mem0Client, Mem0ConnectionError
 from gobby.memory.protocol import MemoryBackendProtocol, MemoryRecord
 from gobby.search.embeddings import generate_embedding, generate_embeddings, is_embedding_available
 from gobby.storage.database import DatabaseProtocol
@@ -84,6 +85,15 @@ class MemoryManager:
 
         # Embedding manager for memory CRUD lifecycle
         self._embedding_mgr = MemoryEmbeddingManager(db)
+
+        # Mem0 dual-mode: initialize client when mem0_url is configured
+        if config.mem0_url:
+            self._mem0_client: Mem0Client | None = Mem0Client(
+                base_url=config.mem0_url,
+                api_key=config.mem0_api_key,
+            )
+        else:
+            self._mem0_client = None
 
     @property
     def llm_service(self) -> LLMService | None:
@@ -309,6 +319,9 @@ class MemoryManager:
         # Generate and store embedding (non-blocking)
         await self._store_embedding_async(memory.id, content, project_id)
 
+        # Mem0 dual-mode: index in Mem0 after local storage
+        await self._index_in_mem0(memory.id, content, project_id)
+
         # Auto cross-reference if enabled
         if getattr(self.config, "auto_crossref", False):
             try:
@@ -497,16 +510,22 @@ class MemoryManager:
         )
 
         if query:
-            memories = self._recall_with_search(
-                query=query,
-                project_id=project_id,
-                limit=limit,
-                min_importance=threshold,
-                search_mode=search_mode,
-                tags_all=tags_all,
-                tags_any=tags_any,
-                tags_none=tags_none,
-            )
+            # Mem0 dual-mode: try Mem0 search first if configured
+            mem0_results = self._search_mem0(query, project_id, limit) if self._mem0_client else None
+
+            if mem0_results is not None:
+                memories = mem0_results
+            else:
+                memories = self._recall_with_search(
+                    query=query,
+                    project_id=project_id,
+                    limit=limit,
+                    min_importance=threshold,
+                    search_mode=search_mode,
+                    tags_all=tags_all,
+                    tags_any=tags_any,
+                    tags_none=tags_none,
+                )
         else:
             # Just get top memories
             memories = self.storage.list_memories(
@@ -616,6 +635,10 @@ class MemoryManager:
 
     def forget(self, memory_id: str) -> bool:
         """Forget a memory."""
+        # Mem0 dual-mode: delete from Mem0 if memory has mem0_id
+        if self._mem0_client:
+            self._delete_from_mem0(memory_id)
+
         result = self.storage.delete_memory(memory_id)
         if result:
             # Mark search index for refit since we removed content
@@ -879,6 +902,162 @@ class MemoryManager:
                 count += 1
 
         return count
+
+    # =========================================================================
+    # Mem0 dual-mode helpers
+    # =========================================================================
+
+    async def _index_in_mem0(
+        self, memory_id: str, content: str, project_id: str | None
+    ) -> None:
+        """Index a memory in Mem0 after local storage. Non-blocking on failure."""
+        if not self._mem0_client:
+            return
+
+        try:
+            result = await self._mem0_client.create(
+                content=content,
+                project_id=project_id,
+                metadata={"gobby_id": memory_id},
+            )
+            # Extract mem0_id from response and store it
+            mem0_id = self._extract_mem0_id(result)
+            if mem0_id:
+                self.db.execute(
+                    "UPDATE memories SET mem0_id = ? WHERE id = ?",
+                    (mem0_id, memory_id),
+                )
+        except Mem0ConnectionError as e:
+            logger.warning(f"Mem0 unreachable during index for {memory_id}: {e}")
+        except Exception as e:
+            logger.warning(f"Failed to index memory {memory_id} in Mem0: {e}")
+
+    @staticmethod
+    def _extract_mem0_id(response: Any) -> str | None:
+        """Extract the mem0 memory ID from a create response."""
+        if isinstance(response, dict):
+            results = response.get("results", [])
+            if results and isinstance(results[0], dict):
+                return results[0].get("id")
+        return None
+
+    def _delete_from_mem0(self, memory_id: str) -> None:
+        """Delete a memory from Mem0 if it has a mem0_id. Non-blocking on failure."""
+        memory = self.get_memory(memory_id)
+        if not memory or not memory.mem0_id:
+            return
+
+        import asyncio
+
+        try:
+            loop = asyncio.get_running_loop()
+        except RuntimeError:
+            loop = None
+
+        try:
+            if loop and loop.is_running():
+                import concurrent.futures
+
+                with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
+                    pool.submit(
+                        asyncio.run,
+                        self._mem0_client.delete(memory.mem0_id),  # type: ignore[union-attr]
+                    ).result()
+            else:
+                asyncio.run(
+                    self._mem0_client.delete(memory.mem0_id)  # type: ignore[union-attr]
+                )
+        except Mem0ConnectionError as e:
+            logger.warning(f"Mem0 unreachable during delete for {memory_id}: {e}")
+        except Exception as e:
+            logger.warning(f"Failed to delete memory {memory_id} from Mem0: {e}")
+
+    def _search_mem0(
+        self, query: str, project_id: str | None, limit: int
+    ) -> list[Memory] | None:
+        """Search Mem0 and return local memories enriched by results.
+
+        Returns None if Mem0 is unavailable (caller should fall back to local search).
+        """
+        assert self._mem0_client is not None
+
+        import asyncio
+
+        try:
+            loop = asyncio.get_running_loop()
+        except RuntimeError:
+            loop = None
+
+        try:
+            if loop and loop.is_running():
+                import concurrent.futures
+
+                with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
+                    result = pool.submit(
+                        asyncio.run,
+                        self._mem0_client.search(
+                            query=query, project_id=project_id, limit=limit
+                        ),
+                    ).result()
+            else:
+                result = asyncio.run(
+                    self._mem0_client.search(
+                        query=query, project_id=project_id, limit=limit
+                    )
+                )
+        except Mem0ConnectionError as e:
+            logger.warning(f"Mem0 unreachable during search, falling back to local: {e}")
+            return None
+        except Exception as e:
+            logger.warning(f"Mem0 search failed, falling back to local: {e}")
+            return None
+
+        # Enrich mem0 results with local memory data
+        memories: list[Memory] = []
+        for item in result.get("results", []):
+            gobby_id = (item.get("metadata") or {}).get("gobby_id")
+            if gobby_id:
+                local = self.get_memory(gobby_id)
+                if local:
+                    memories.append(local)
+
+        return memories
+
+    async def _lazy_sync(self) -> int:
+        """Sync memories that have mem0_id IS NULL to Mem0.
+
+        Returns the number of memories successfully synced.
+        """
+        if not self._mem0_client:
+            return 0
+
+        rows = self.db.fetchall(
+            "SELECT id, content, project_id FROM memories WHERE mem0_id IS NULL"
+        )
+        if not rows:
+            return 0
+
+        synced = 0
+        for row in rows:
+            try:
+                result = await self._mem0_client.create(
+                    content=row["content"],
+                    project_id=row["project_id"],
+                    metadata={"gobby_id": row["id"]},
+                )
+                mem0_id = self._extract_mem0_id(result)
+                if mem0_id:
+                    self.db.execute(
+                        "UPDATE memories SET mem0_id = ? WHERE id = ?",
+                        (mem0_id, row["id"]),
+                    )
+                    synced += 1
+            except Mem0ConnectionError as e:
+                logger.warning(f"Mem0 unreachable during lazy sync for {row['id']}: {e}")
+            except Exception as e:
+                logger.warning(f"Failed to sync memory {row['id']} to Mem0: {e}")
+
+        return synced
 
     def export_markdown(
         self,

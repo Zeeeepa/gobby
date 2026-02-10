@@ -884,6 +884,15 @@ MIGRATIONS: list[tuple[int, str, MigrationAction]] = [
         CREATE INDEX IF NOT EXISTS idx_memory_embeddings_project ON memory_embeddings(project_id);
         """,
     ),
+    # Memory V4: Add mem0_id column for Mem0 dual-mode sync
+    (
+        86,
+        "Add mem0_id to memories",
+        """
+        ALTER TABLE memories ADD COLUMN mem0_id TEXT;
+        CREATE INDEX IF NOT EXISTS idx_memories_mem0_id ON memories(mem0_id);
+        """,
+    ),
 ]
 
 
