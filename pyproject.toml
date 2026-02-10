@@ -42,7 +42,6 @@ dependencies = [
     "scikit-learn>=1.0.0",
     "textual>=7.3.0",
     # mem0ai moved to optional [mem0] extra due to CVE-2026-0994 (protobuf<=6.33.4 vulnerable)
-    "memu-py>=1.4.0",
     # python-multipart 0.0.21 has CVE-2026-24486 - pin to fixed version
     "python-multipart>=0.0.22",
     # protobuf <6.33.5 has CVE-2026-0994 (JSON recursion depth bypass DoS)
