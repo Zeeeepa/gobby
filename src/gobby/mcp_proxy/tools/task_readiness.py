@@ -10,7 +10,6 @@ Extracted from tasks.py using Strangler Fig pattern for code decomposition.
 """
 
 import logging
-from collections.abc import Callable
 from typing import TYPE_CHECKING, Any
 
 from gobby.mcp_proxy.tools.internal import InternalToolRegistry
@@ -194,18 +193,9 @@ def _compute_proximity_boost(
     return 0
 
 
-class ReadinessToolRegistry(InternalToolRegistry):
-    """Registry for readiness tools with test-friendly get_tool method."""
-
-    def get_tool(self, name: str) -> Callable[..., Any] | None:
-        """Get a tool function by name (for testing)."""
-        tool = self._tools.get(name)
-        return tool.func if tool else None
-
-
 def create_readiness_registry(
     task_manager: "LocalTaskManager | None" = None,
-) -> ReadinessToolRegistry:
+) -> InternalToolRegistry:
     """
     Create a registry with task readiness tools.
 
@@ -213,12 +203,12 @@ def create_readiness_registry(
         task_manager: LocalTaskManager instance (required)
 
     Returns:
-        ReadinessToolRegistry with readiness tools registered
+        InternalToolRegistry with readiness tools registered
     """
     # Lazy import to avoid circular dependency
     from gobby.mcp_proxy.tools.tasks import resolve_task_id_for_mcp
 
-    registry = ReadinessToolRegistry(
+    registry = InternalToolRegistry(
         name="gobby-tasks-readiness",
         description="Task readiness management tools",
     )

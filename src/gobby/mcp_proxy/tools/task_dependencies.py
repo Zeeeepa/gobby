@@ -10,7 +10,6 @@ Provides tools for managing task dependencies:
 Extracted from tasks.py using Strangler Fig pattern for code decomposition.
 """
 
-from collections.abc import Callable
 from typing import TYPE_CHECKING, Any, Literal
 
 from gobby.mcp_proxy.tools.internal import InternalToolRegistry
@@ -30,19 +29,10 @@ def get_current_project_id() -> str | None:
     return context.get("id") if context else None
 
 
-class DependencyToolRegistry(InternalToolRegistry):
-    """Registry for dependency tools with test-friendly get_tool method."""
-
-    def get_tool(self, name: str) -> Callable[..., Any] | None:
-        """Get a tool function by name (for testing)."""
-        tool = self._tools.get(name)
-        return tool.func if tool else None
-
-
 def create_dependency_registry(
     task_manager: "LocalTaskManager | None" = None,
     dep_manager: "TaskDependencyManager | None" = None,
-) -> DependencyToolRegistry:
+) -> InternalToolRegistry:
     """
     Create a registry with task dependency tools.
 
@@ -51,12 +41,12 @@ def create_dependency_registry(
         dep_manager: TaskDependencyManager instance
 
     Returns:
-        DependencyToolRegistry with dependency tools registered
+        InternalToolRegistry with dependency tools registered
     """
     # Lazy import to avoid circular dependency
     from gobby.mcp_proxy.tools.tasks import resolve_task_id_for_mcp
 
-    registry = DependencyToolRegistry(
+    registry = InternalToolRegistry(
         name="gobby-tasks-dependencies",
         description="Task dependency management tools",
     )

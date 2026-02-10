@@ -12,28 +12,18 @@ These tools query the hub database directly (not the project db).
 
 from __future__ import annotations
 
-from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
 from gobby.mcp_proxy.tools.internal import InternalToolRegistry
 from gobby.storage.database import LocalDatabase
 
-__all__ = ["create_hub_registry", "HubToolRegistry"]
-
-
-class HubToolRegistry(InternalToolRegistry):
-    """Registry for hub query tools with test-friendly get_tool method."""
-
-    def get_tool(self, name: str) -> Callable[..., Any] | None:
-        """Get a tool function by name (for testing)."""
-        tool = self._tools.get(name)
-        return tool.func if tool else None
+__all__ = ["create_hub_registry"]
 
 
 def create_hub_registry(
     hub_db_path: Path,
-) -> HubToolRegistry:
+) -> InternalToolRegistry:
     """
     Create a hub query tool registry with cross-project tools.
 
@@ -43,7 +33,7 @@ def create_hub_registry(
     Returns:
         InternalToolRegistry with hub query tools registered
     """
-    registry = HubToolRegistry(
+    registry = InternalToolRegistry(
         name="gobby-hub",
         description="Hub (cross-project) queries and system info - get_machine_id, list_all_projects, list_cross_project_tasks, list_cross_project_sessions, hub_stats",
     )

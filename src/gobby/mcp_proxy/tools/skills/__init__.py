@@ -33,14 +33,9 @@ __all__ = ["create_skills_registry", "SkillsToolRegistry"]
 
 
 class SkillsToolRegistry(InternalToolRegistry):
-    """Registry for skill management tools with test-friendly get_tool method."""
+    """Registry for skill management tools with extra search attribute."""
 
     search: SkillSearch  # Assigned dynamically in create_skills_registry
-
-    def get_tool(self, name: str) -> Callable[..., Any] | None:
-        """Get a tool function by name (for testing)."""
-        tool = self._tools.get(name)
-        return tool.func if tool else None
 
 
 def create_skills_registry(
