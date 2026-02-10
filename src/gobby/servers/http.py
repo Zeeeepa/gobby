@@ -590,6 +590,7 @@ class HTTPServer:
         """
         from gobby.servers.routes import (
             create_admin_router,
+            create_artifacts_router,
             create_files_router,
             create_hooks_router,
             create_mcp_router,
@@ -606,6 +607,7 @@ class HTTPServer:
         app.include_router(create_sessions_router(self))
         app.include_router(create_memory_router(self))
         app.include_router(create_tasks_router(self))
+        app.include_router(create_artifacts_router(self))
         app.include_router(create_mcp_router())
         app.include_router(create_hooks_router(self))
         app.include_router(create_plugins_router())
