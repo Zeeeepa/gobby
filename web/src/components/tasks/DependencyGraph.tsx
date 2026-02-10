@@ -1,4 +1,5 @@
 import { useState, useMemo, useCallback, useRef, useEffect } from 'react'
+import dagre from 'dagre'
 import type { GobbyTask } from '../../hooks/useTasks'
 
 // =============================================================================
@@ -31,9 +32,6 @@ interface ViewBox {
 
 const NODE_WIDTH = 160
 const NODE_HEIGHT = 36
-const LAYER_GAP_X = 200
-const NODE_GAP_Y = 52
-const PADDING = 40
 
 const STATUS_COLORS: Record<string, string> = {
   open: '#737373',
@@ -60,84 +58,31 @@ function buildGraph(tasks: GobbyTask[]): { nodes: GraphNode[]; edges: GraphEdge[
     }
   }
 
-  // Compute in-degree for topological layering
-  const inDegree = new Map<string, number>()
-  const children = new Map<string, string[]>()
-  for (const t of tasks) {
-    inDegree.set(t.id, 0)
-    children.set(t.id, [])
-  }
-  for (const e of edges) {
-    inDegree.set(e.to, (inDegree.get(e.to) || 0) + 1)
-    children.get(e.from)?.push(e.to)
-  }
+  // Use dagre for layout
+  const g = new dagre.graphlib.Graph()
+  g.setGraph({ rankdir: 'LR', nodesep: 16, ranksep: 60, marginx: 20, marginy: 20 })
+  g.setDefaultEdgeLabel(() => ({}))
 
-  // Assign layers via BFS (longest path from roots)
-  const layerMap = new Map<string, number>()
-  const queue: string[] = []
-
-  for (const t of tasks) {
-    if ((inDegree.get(t.id) || 0) === 0) {
-      queue.push(t.id)
-      layerMap.set(t.id, 0)
-    }
+  for (const task of tasks) {
+    g.setNode(task.id, { width: NODE_WIDTH, height: NODE_HEIGHT })
+  }
+  for (const edge of edges) {
+    g.setEdge(edge.from, edge.to)
   }
 
-  while (queue.length > 0) {
-    const current = queue.shift()!
-    const currentLayer = layerMap.get(current) || 0
-    for (const child of (children.get(current) || [])) {
-      const existing = layerMap.get(child) || 0
-      const newLayer = currentLayer + 1
-      if (newLayer > existing) {
-        layerMap.set(child, newLayer)
-      }
-      // Only enqueue when all parents processed
-      const remaining = (inDegree.get(child) || 1) - 1
-      inDegree.set(child, remaining)
-      if (remaining <= 0) {
-        queue.push(child)
-      }
-    }
-  }
+  dagre.layout(g)
 
-  // Handle any unvisited nodes (cycles or disconnected)
-  for (const t of tasks) {
-    if (!layerMap.has(t.id)) {
-      layerMap.set(t.id, 0)
-    }
-  }
-
-  // Group nodes by layer and assign order
-  const layers = new Map<number, string[]>()
-  for (const [id, layer] of layerMap) {
-    if (!layers.has(layer)) layers.set(layer, [])
-    layers.get(layer)!.push(id)
-  }
-
-  // Sort within each layer by priority then ref for stability
-  for (const [, ids] of layers) {
-    ids.sort((a, b) => {
-      const ta = taskMap.get(a)!
-      const tb = taskMap.get(b)!
-      if (ta.priority !== tb.priority) return ta.priority - tb.priority
-      return (ta.seq_num || 0) - (tb.seq_num || 0)
-    })
-  }
-
-  // Position nodes
   const nodes: GraphNode[] = []
-  for (const [layer, ids] of layers) {
-    ids.forEach((id, order) => {
-      const task = taskMap.get(id)!
-      nodes.push({
-        id,
-        task,
-        layer,
-        order,
-        x: PADDING + layer * LAYER_GAP_X,
-        y: PADDING + order * NODE_GAP_Y,
-      })
+  for (const task of tasks) {
+    const nodeData = g.node(task.id)
+    if (!nodeData) continue
+    nodes.push({
+      id: task.id,
+      task,
+      layer: 0,
+      order: 0,
+      x: nodeData.x - NODE_WIDTH / 2,
+      y: nodeData.y - NODE_HEIGHT / 2,
     })
   }
 
@@ -193,8 +138,8 @@ export function DependencyGraph({ tasks, onSelectTask }: DependencyGraphProps) {
   // Compute SVG bounds
   const bounds = useMemo(() => {
     if (nodes.length === 0) return { width: 400, height: 300 }
-    const maxX = Math.max(...nodes.map(n => n.x + NODE_WIDTH)) + PADDING
-    const maxY = Math.max(...nodes.map(n => n.y + NODE_HEIGHT)) + PADDING
+    const maxX = Math.max(...nodes.map(n => n.x + NODE_WIDTH)) + 40
+    const maxY = Math.max(...nodes.map(n => n.y + NODE_HEIGHT)) + 40
     return { width: maxX, height: maxY }
   }, [nodes])
 
