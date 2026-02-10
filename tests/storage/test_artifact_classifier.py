@@ -720,3 +720,133 @@ some code here
         result = classify_artifact(content)
 
         assert result.artifact_type == "code"
+
+
+class TestDiffClassification:
+    """Tests for diff artifact type classification."""
+
+    def test_unified_diff_with_at_markers(self) -> None:
+        """Test unified diff content with @@ markers classified as diff."""
+        from gobby.storage.artifact_classifier import classify_artifact
+
+        content = """--- a/src/main.py
++++ b/src/main.py
+@@ -10,6 +10,7 @@
+ def hello():
+-    return "old"
++    return "new"
+"""
+        result = classify_artifact(content)
+        assert result.artifact_type == "diff"
+
+    def test_git_diff_output(self) -> None:
+        """Test git diff output classified as diff."""
+        from gobby.storage.artifact_classifier import classify_artifact
+
+        content = """diff --git a/file.py b/file.py
+index abc1234..def5678 100644
+--- a/file.py
++++ b/file.py
+@@ -1,3 +1,4 @@
++import os
+ import sys
+"""
+        result = classify_artifact(content)
+        assert result.artifact_type == "diff"
+
+    def test_diff_with_only_plus_minus(self) -> None:
+        """Test diff content with --- and +++ markers."""
+        from gobby.storage.artifact_classifier import classify_artifact
+
+        content = """--- old_file.txt
++++ new_file.txt
+@@ -1 +1 @@
+-old line
++new line
+"""
+        result = classify_artifact(content)
+        assert result.artifact_type == "diff"
+
+    def test_existing_classifications_unaffected(self) -> None:
+        """Test that adding diff type doesn't break existing code classification."""
+        from gobby.storage.artifact_classifier import classify_artifact
+
+        # Python code with minus signs should still be code
+        content = """def subtract(a, b):
+    return a - b
+"""
+        result = classify_artifact(content)
+        assert result.artifact_type == "code"
+
+
+class TestPlanClassification:
+    """Tests for plan artifact type classification."""
+
+    def test_plan_with_phases(self) -> None:
+        """Test plan content with Phase headers classified as plan."""
+        from gobby.storage.artifact_classifier import classify_artifact
+
+        content = """# Implementation Plan
+
+## Phase 1: Setup
+1. Create the database schema
+2. Add migration scripts
+
+## Phase 2: Implementation
+1. Build the API endpoints
+2. Add authentication
+"""
+        result = classify_artifact(content)
+        assert result.artifact_type == "plan"
+
+    def test_plan_with_steps(self) -> None:
+        """Test plan content with Step headers classified as plan."""
+        from gobby.storage.artifact_classifier import classify_artifact
+
+        content = """# Deployment Plan
+
+## Step 1: Prepare
+- Back up existing database
+- Notify stakeholders
+
+## Step 2: Deploy
+- Run migrations
+- Restart services
+"""
+        result = classify_artifact(content)
+        assert result.artifact_type == "plan"
+
+    def test_plan_with_numbered_actions(self) -> None:
+        """Test plan with numbered action items."""
+        from gobby.storage.artifact_classifier import classify_artifact
+
+        content = """# Plan
+
+1. Add the new model to the schema
+2. Create API endpoints for CRUD
+3. Implement validation logic
+4. Update the frontend components
+5. Write integration tests
+"""
+        result = classify_artifact(content)
+        assert result.artifact_type == "plan"
+
+    def test_regular_markdown_not_plan(self) -> None:
+        """Test that regular markdown with headers is not classified as plan."""
+        from gobby.storage.artifact_classifier import classify_artifact
+
+        content = """# README
+
+This is a project that does things.
+
+## Installation
+
+Run `pip install gobby`.
+
+## Usage
+
+Import and use the library.
+"""
+        result = classify_artifact(content)
+        # Should be text, not plan (no Phase/Step/Plan headers, no numbered actions)
+        assert result.artifact_type != "plan"
