@@ -30,7 +30,7 @@ def cron_storage(temp_db: LocalDatabase) -> CronJobStorage:
 def mock_executor(cron_storage: CronJobStorage) -> CronExecutor:
     executor = CronExecutor(storage=cron_storage)
 
-    async def _complete_run(job: Any, run: CronRun) -> CronRun:
+    def _complete_run(job: Any, run: CronRun) -> CronRun:
         """Helper to mark a run as completed."""
         now = datetime.now(UTC).isoformat()
         updated = cron_storage.update_run(run.id, status="completed", completed_at=now)
