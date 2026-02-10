@@ -421,6 +421,77 @@ memory_sync:
   export_path: .gobby/memories.jsonl  # Backup file path
 ```
 
+### Environment Variable Expansion
+
+Config values support `${VAR}` syntax for environment variable expansion at load time:
+
+- `${VAR}` — replaced with the value of `VAR`, or left unchanged if unset
+- `${VAR:-default}` — replaced with `VAR`'s value, or `default` if unset/empty
+
+This is useful for API keys:
+
+```yaml
+memory:
+  mem0_api_key: ${MEM0_API_KEY}              # From environment
+  mem0_api_key: ${MEM0_API_KEY:-sk-fallback} # With default fallback
+```
+
+### Example Configurations
+
+**Standalone with TF-IDF only** (zero dependencies):
+
+```yaml
+memory:
+  enabled: true
+  search_backend: tfidf
+```
+
+**Standalone with OpenAI embeddings**:
+
+```yaml
+memory:
+  enabled: true
+  search_backend: auto              # Falls back to TF-IDF if API unavailable
+  embedding_model: text-embedding-3-small
+```
+
+**Standalone with local Ollama** (no API key needed):
+
+```yaml
+memory:
+  enabled: true
+  search_backend: embedding
+  embedding_model: ollama/nomic-embed-text
+```
+
+**Hybrid search** (best quality):
+
+```yaml
+memory:
+  enabled: true
+  search_backend: hybrid
+  embedding_model: text-embedding-3-small
+  embedding_weight: 0.6
+  tfidf_weight: 0.4
+```
+
+**With mem0 (local Docker install)**:
+
+```yaml
+memory:
+  enabled: true
+  mem0_url: http://localhost:8888   # Set by 'gobby install --mem0'
+```
+
+**With mem0 (remote/hosted)**:
+
+```yaml
+memory:
+  enabled: true
+  mem0_url: https://api.mem0.ai
+  mem0_api_key: ${MEM0_API_KEY}
+```
+
 ## Automatic Memory Injection
 
 Gobby automatically injects relevant memories at session start via the `memory-lifecycle.yaml` workflow.
