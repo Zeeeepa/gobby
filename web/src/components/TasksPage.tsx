@@ -6,13 +6,14 @@ import { TaskDetail } from './tasks/TaskDetail'
 import { TaskCreateForm } from './tasks/TaskCreateForm'
 import { KanbanBoard } from './tasks/KanbanBoard'
 import { TaskTree } from './tasks/TaskTree'
+import { PriorityBoard } from './tasks/PriorityBoard'
 import { TaskOverview } from './tasks/TaskOverview'
 
 // =============================================================================
 // Constants
 // =============================================================================
 
-type ViewMode = 'list' | 'tree' | 'kanban'
+type ViewMode = 'list' | 'tree' | 'kanban' | 'priority'
 
 const STATUS_OPTIONS = [
   'open', 'in_progress', 'needs_review', 'approved', 'closed', 'failed', 'escalated',
@@ -54,6 +55,15 @@ function KanbanIcon() {
   return (
     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
       <rect x="3" y="3" width="5" height="18" rx="1" /><rect x="10" y="3" width="5" height="12" rx="1" /><rect x="17" y="3" width="5" height="15" rx="1" />
+    </svg>
+  )
+}
+
+function PriorityIcon() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z" />
+      <line x1="4" y1="22" x2="4" y2="15" />
     </svg>
   )
 }
@@ -114,7 +124,7 @@ export function TasksPage() {
         </div>
         <div className="tasks-toolbar-right">
           <div className="tasks-view-toggle">
-            {([['list', ListIcon], ['tree', TreeIcon], ['kanban', KanbanIcon]] as const).map(
+            {([['list', ListIcon], ['tree', TreeIcon], ['kanban', KanbanIcon], ['priority', PriorityIcon]] as const).map(
               ([mode, Icon]) => (
                 <button
                   key={mode}
@@ -234,6 +244,12 @@ export function TasksPage() {
         <div className="tasks-loading">Loading tasks...</div>
       ) : tasks.length === 0 ? (
         <div className="tasks-empty">No tasks found</div>
+      ) : viewMode === 'priority' ? (
+        <PriorityBoard
+          tasks={tasks}
+          onSelectTask={setSelectedTaskId}
+          onUpdateStatus={(taskId, newStatus) => updateTask(taskId, { status: newStatus })}
+        />
       ) : viewMode === 'kanban' ? (
         <KanbanBoard
           tasks={tasks}
