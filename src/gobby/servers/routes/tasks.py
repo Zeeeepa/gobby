@@ -5,6 +5,7 @@ Provides CRUD, list, lifecycle, and dependency endpoints for the task system.
 """
 
 import logging
+import uuid
 from typing import TYPE_CHECKING, Any, Literal
 
 from fastapi import APIRouter, HTTPException, Query
@@ -81,6 +82,15 @@ class TaskDeEscalateRequest(BaseModel):
 
     decision_context: str = Field(..., description="User's decision or instructions for the agent")
     reset_validation: bool = Field(default=False, description="Also reset validation fail count")
+
+
+class TaskCommentCreateRequest(BaseModel):
+    """Request body for creating a comment."""
+
+    body: str = Field(..., description="Comment body (markdown)")
+    author: str = Field(..., description="Author ID (session or user)")
+    author_type: str = Field(default="session", description="Author type: session, agent, human")
+    parent_comment_id: str | None = Field(default=None, description="Parent comment ID for threading")
 
 
 class DependencyAddRequest(BaseModel):
@@ -332,6 +342,76 @@ def create_tasks_router(server: "HTTPServer") -> APIRouter:
             result = updated.to_dict()
             await _broadcast_task("task_reopened", result)
             return result
+        except (ValueError, TaskNotFoundError) as e:
+            raise HTTPException(status_code=400, detail=str(e)) from e
+
+    # -----------------------------------------------------------------
+    # Comments
+    # -----------------------------------------------------------------
+
+    @router.get("/{task_id}/comments")
+    async def list_comments(task_id: str) -> Any:
+        """List comments for a task, threaded."""
+        metrics.inc_counter("http_requests_total")
+        try:
+            task = server.task_manager.get_task(task_id)
+            resolved_id = task.id
+
+            rows = server.task_manager.db.fetchall(
+                """SELECT id, task_id, parent_comment_id, author, author_type, body,
+                          created_at, updated_at
+                   FROM task_comments
+                   WHERE task_id = ?
+                   ORDER BY created_at ASC""",
+                (resolved_id,),
+            )
+            comments = [dict(row) for row in rows]
+            return {"comments": comments, "count": len(comments)}
+        except (ValueError, TaskNotFoundError) as e:
+            raise HTTPException(status_code=400, detail=str(e)) from e
+
+    @router.post("/{task_id}/comments")
+    async def create_comment(task_id: str, request_data: TaskCommentCreateRequest) -> Any:
+        """Add a comment to a task."""
+        metrics.inc_counter("http_requests_total")
+        try:
+            task = server.task_manager.get_task(task_id)
+            resolved_id = task.id
+
+            comment_id = str(uuid.uuid4())
+            server.task_manager.db.execute(
+                """INSERT INTO task_comments (id, task_id, parent_comment_id, author, author_type, body)
+                   VALUES (?, ?, ?, ?, ?, ?)""",
+                (
+                    comment_id,
+                    resolved_id,
+                    request_data.parent_comment_id,
+                    request_data.author,
+                    request_data.author_type,
+                    request_data.body,
+                ),
+            )
+
+            row = server.task_manager.db.fetchone(
+                "SELECT * FROM task_comments WHERE id = ?", (comment_id,)
+            )
+            result = dict(row) if row else {"id": comment_id}
+            await _broadcast_task("task_comment_added", {**result, "task_ref": task.ref})
+            return result
+        except (ValueError, TaskNotFoundError) as e:
+            raise HTTPException(status_code=400, detail=str(e)) from e
+
+    @router.delete("/{task_id}/comments/{comment_id}")
+    async def delete_comment(task_id: str, comment_id: str) -> Any:
+        """Delete a comment."""
+        metrics.inc_counter("http_requests_total")
+        try:
+            task = server.task_manager.get_task(task_id)
+            server.task_manager.db.execute(
+                "DELETE FROM task_comments WHERE id = ? AND task_id = ?",
+                (comment_id, task.id),
+            )
+            return {"deleted": True}
         except (ValueError, TaskNotFoundError) as e:
             raise HTTPException(status_code=400, detail=str(e)) from e
 

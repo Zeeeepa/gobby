@@ -12,6 +12,7 @@ import { TaskResults } from './TaskResults'
 import { CostTracker } from './CostTracker'
 import { TaskMemories } from './TaskMemories'
 import { AssigneePicker } from './AssigneePicker'
+import { TaskComments } from './TaskComments'
 
 interface TaskActions {
   updateTask: (id: string, params: { status?: string; assignee?: string }) => Promise<GobbyTaskDetail | null>
@@ -290,6 +291,12 @@ export function TaskDetail({ taskId, getTask, getDependencies, getSubtasks, acti
                 <div className="task-detail-description">{task.description}</div>
               </div>
             )}
+
+            {/* Comments */}
+            <div className="task-detail-section">
+              <h4 className="task-detail-section-title">Comments</h4>
+              <TaskComments taskId={task.id} />
+            </div>
 
             {/* Validation */}
             {(task.validation_criteria || task.validation_status !== 'pending') && (

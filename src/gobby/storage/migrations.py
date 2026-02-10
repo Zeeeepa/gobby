@@ -1026,6 +1026,26 @@ MIGRATIONS: list[tuple[int, str, MigrationAction]] = [
         CREATE INDEX IF NOT EXISTS idx_cron_runs_status ON cron_runs(status);
         """,
     ),
+    # Task comments: Add task_comments table for threaded comments
+    (
+        90,
+        "Add task_comments table",
+        """
+        CREATE TABLE IF NOT EXISTS task_comments (
+            id TEXT PRIMARY KEY,
+            task_id TEXT NOT NULL REFERENCES tasks(id) ON DELETE CASCADE,
+            parent_comment_id TEXT REFERENCES task_comments(id) ON DELETE CASCADE,
+            author TEXT NOT NULL,
+            author_type TEXT NOT NULL DEFAULT 'session',
+            body TEXT NOT NULL,
+            created_at TEXT NOT NULL DEFAULT (datetime('now')),
+            updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+        );
+        CREATE INDEX IF NOT EXISTS idx_task_comments_task ON task_comments(task_id);
+        CREATE INDEX IF NOT EXISTS idx_task_comments_parent ON task_comments(parent_comment_id);
+        CREATE INDEX IF NOT EXISTS idx_task_comments_created ON task_comments(task_id, created_at);
+        """,
+    ),
 ]
 
 
