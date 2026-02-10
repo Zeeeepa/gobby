@@ -1,4 +1,4 @@
-import { useState, useCallback, useMemo } from 'react'
+import { useState, useCallback, useMemo, useEffect, useRef } from 'react'
 import { useChat } from './hooks/useChat'
 import { useSettings } from './hooks/useSettings'
 import { useTerminal } from './hooks/useTerminal'
@@ -16,6 +16,7 @@ import { FilesPage } from './components/FilesPage'
 import { MemoryPage } from './components/MemoryPage'
 import { TasksPage } from './components/TasksPage'
 import { ArtifactsPage } from './components/ArtifactsPage'
+import { QuickCaptureTask } from './components/tasks/QuickCaptureTask'
 import type { GobbySession } from './hooks/useSessions'
 
 export default function App() {
@@ -31,6 +32,46 @@ export default function App() {
   const [activeTab, setActiveTab] = useState<string>('chat')
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null)
+  const [quickCaptureOpen, setQuickCaptureOpen] = useState(false)
+
+  // Global keyboard chord: Cmd+K → t opens quick capture task creation
+  const chordPendingRef = useRef(false)
+  const chordTimeoutRef = useRef<number | null>(null)
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Don't trigger when typing in inputs/textareas (unless quick capture is closed)
+      const tag = (e.target as HTMLElement).tagName
+      if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return
+
+      if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
+        e.preventDefault()
+        chordPendingRef.current = true
+        if (chordTimeoutRef.current) window.clearTimeout(chordTimeoutRef.current)
+        chordTimeoutRef.current = window.setTimeout(() => {
+          chordPendingRef.current = false
+        }, 1000)
+        return
+      }
+
+      if (chordPendingRef.current && e.key === 't') {
+        e.preventDefault()
+        chordPendingRef.current = false
+        if (chordTimeoutRef.current) window.clearTimeout(chordTimeoutRef.current)
+        setQuickCaptureOpen(true)
+      } else if (chordPendingRef.current) {
+        // Any other key cancels the chord
+        chordPendingRef.current = false
+        if (chordTimeoutRef.current) window.clearTimeout(chordTimeoutRef.current)
+      }
+    }
+
+    window.addEventListener('keydown', handleKeyDown)
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown)
+      if (chordTimeoutRef.current) window.clearTimeout(chordTimeoutRef.current)
+    }
+  }, [])
 
   // Build project options for the selector (exclude internal system projects)
   const HIDDEN_PROJECTS = new Set(['_orphaned', '_migrated'])
@@ -248,6 +289,11 @@ export default function App() {
         onFontSizeChange={updateFontSize}
         onModelChange={updateModel}
         onReset={resetSettings}
+      />
+
+      <QuickCaptureTask
+        isOpen={quickCaptureOpen}
+        onClose={() => setQuickCaptureOpen(false)}
       />
     </div>
   )

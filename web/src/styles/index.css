@@ -5587,3 +5587,127 @@ body {
   border-radius: 2px;
   padding: 0 1px;
 }
+
+/* =============================================================================
+   Quick Capture Task (Cmd+K → t)
+   ============================================================================= */
+
+.quick-capture-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.5);
+  z-index: 1000;
+}
+
+.quick-capture-modal {
+  position: fixed;
+  top: 20%;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 480px;
+  max-width: 90vw;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.4);
+  z-index: 1001;
+  padding: 16px;
+}
+
+.quick-capture-form {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.quick-capture-input {
+  width: 100%;
+  padding: 10px 12px;
+  background: var(--bg-primary);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--text-primary);
+  font-family: var(--font-sans);
+  font-size: 15px;
+  outline: none;
+  box-sizing: border-box;
+}
+
+.quick-capture-input:focus {
+  border-color: var(--accent);
+}
+
+.quick-capture-input::placeholder {
+  color: var(--text-muted);
+}
+
+.quick-capture-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.quick-capture-types {
+  display: flex;
+  gap: 4px;
+}
+
+.quick-capture-type-btn {
+  padding: 4px 10px;
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--text-secondary);
+  font-size: 12px;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.quick-capture-type-btn:hover {
+  border-color: var(--text-muted);
+  color: var(--text-primary);
+}
+
+.quick-capture-type-btn.active {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+}
+
+.quick-capture-submit {
+  padding: 6px 16px;
+  background: var(--accent);
+  border: none;
+  border-radius: 6px;
+  color: #fff;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: opacity 0.15s;
+}
+
+.quick-capture-submit:hover {
+  opacity: 0.9;
+}
+
+.quick-capture-submit:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.quick-capture-hint {
+  text-align: center;
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+.quick-capture-hint kbd {
+  display: inline-block;
+  padding: 1px 5px;
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  font-family: var(--font-mono);
+  font-size: 10px;
+}
