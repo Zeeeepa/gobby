@@ -10,6 +10,7 @@ import { OversightSelector } from './OversightSelector'
 import { EscalationCard } from './EscalationCard'
 import { TaskResults } from './TaskResults'
 import { CostTracker } from './CostTracker'
+import { TaskMemories } from './TaskMemories'
 
 interface TaskActions {
   updateTask: (id: string, params: { status?: string }) => Promise<GobbyTaskDetail | null>
@@ -278,6 +279,14 @@ export function TaskDetail({ taskId, getTask, getDependencies, getSubtasks, acti
               <div className="task-detail-section">
                 <h4 className="task-detail-section-title">Usage</h4>
                 <CostTracker sessionId={task.created_in_session_id} />
+              </div>
+            )}
+
+            {/* Memories */}
+            {task.created_in_session_id && (
+              <div className="task-detail-section">
+                <h4 className="task-detail-section-title">Memories</h4>
+                <TaskMemories sessionId={task.created_in_session_id} />
               </div>
             )}
           </>

@@ -7607,3 +7607,106 @@ body {
   font-weight: 600;
   color: var(--text-secondary);
 }
+
+/* =============================================================================
+   Task Memories Section
+   ============================================================================= */
+
+.task-memories {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+}
+
+.task-memories-loading,
+.task-memories-empty {
+  font-size: calc(var(--font-size-base) * 0.7);
+  color: var(--text-muted);
+}
+
+.task-memories-count {
+  font-family: var(--font-mono);
+  font-size: calc(var(--font-size-base) * 0.6);
+  color: var(--text-muted);
+}
+
+.task-memories-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  max-height: 20rem;
+  overflow-y: auto;
+}
+
+.task-memory-item {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  padding: 0.4rem 0.5rem;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  cursor: pointer;
+  text-align: left;
+  color: var(--text-primary);
+  font-size: calc(var(--font-size-base) * 0.75);
+  transition: border-color 0.15s;
+  width: 100%;
+}
+
+.task-memory-item:hover {
+  border-color: var(--text-muted);
+}
+
+.task-memory-header {
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+  font-size: calc(var(--font-size-base) * 0.65);
+}
+
+.task-memory-icon {
+  font-size: calc(var(--font-size-base) * 0.75);
+}
+
+.task-memory-type {
+  font-family: var(--font-mono);
+  font-weight: 600;
+  color: var(--text-secondary);
+  text-transform: capitalize;
+}
+
+.task-memory-importance {
+  font-family: var(--font-mono);
+  font-size: calc(var(--font-size-base) * 0.6);
+  margin-left: auto;
+}
+
+.task-memory-date {
+  font-family: var(--font-mono);
+  font-size: calc(var(--font-size-base) * 0.55);
+  color: var(--text-muted);
+}
+
+.task-memory-content {
+  font-size: calc(var(--font-size-base) * 0.7);
+  color: var(--text-secondary);
+  line-height: 1.4;
+}
+
+.task-memory-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 3px;
+  margin-top: 0.1rem;
+}
+
+.task-memory-tag {
+  font-family: var(--font-mono);
+  font-size: calc(var(--font-size-base) * 0.55);
+  color: var(--text-muted);
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  padding: 0 0.25rem;
+}
