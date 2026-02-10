@@ -100,6 +100,15 @@ def create_tasks_router(server: "HTTPServer") -> APIRouter:
             return project_id
         return server._resolve_project_id(project_id=None, cwd=None)
 
+    async def _broadcast_task(event: str, task_dict: dict[str, Any]) -> None:
+        """Broadcast a task event via WebSocket if available."""
+        ws = server.services.websocket_server
+        if ws:
+            try:
+                await ws.broadcast_task_event(event, task_id=task_dict.get("id", ""), task=task_dict)
+            except Exception as e:
+                logger.debug(f"Failed to broadcast task event {event}: {e}")
+
     # -----------------------------------------------------------------
     # List / Stats
     # -----------------------------------------------------------------
@@ -175,7 +184,9 @@ def create_tasks_router(server: "HTTPServer") -> APIRouter:
                 validation_criteria=request_data.validation_criteria,
                 assignee=request_data.assignee,
             )
-            return task.to_dict()
+            result = task.to_dict()
+            await _broadcast_task("task_created", result)
+            return result
         except ValueError as e:
             raise HTTPException(status_code=400, detail=str(e)) from e
         except Exception as e:
@@ -210,7 +221,9 @@ def create_tasks_router(server: "HTTPServer") -> APIRouter:
                 return task.to_dict()
 
             updated = server.task_manager.update_task(resolved_id, **kwargs)
-            return updated.to_dict()
+            result = updated.to_dict()
+            await _broadcast_task("task_updated", result)
+            return result
         except (ValueError, TaskNotFoundError) as e:
             raise HTTPException(status_code=404, detail=str(e)) from e
         except Exception as e:
@@ -228,9 +241,10 @@ def create_tasks_router(server: "HTTPServer") -> APIRouter:
             # Resolve first
             task = server.task_manager.get_task(task_id)
             resolved_id = task.id
-            result = server.task_manager.delete_task(resolved_id, cascade=cascade)
-            if not result:
+            delete_result = server.task_manager.delete_task(resolved_id, cascade=cascade)
+            if not delete_result:
                 raise HTTPException(status_code=404, detail="Task not found")
+            await _broadcast_task("task_deleted", {"id": resolved_id})
             return {"deleted": True, "id": resolved_id}
         except (ValueError, TaskNotFoundError) as e:
             raise HTTPException(status_code=404, detail=str(e)) from e
@@ -260,7 +274,9 @@ def create_tasks_router(server: "HTTPServer") -> APIRouter:
                 closed_in_session_id=body.session_id,
                 closed_commit_sha=body.commit_sha,
             )
-            return closed.to_dict()
+            result = closed.to_dict()
+            await _broadcast_task("task_closed", result)
+            return result
         except (ValueError, TaskNotFoundError) as e:
             raise HTTPException(status_code=400, detail=str(e)) from e
 
@@ -273,7 +289,9 @@ def create_tasks_router(server: "HTTPServer") -> APIRouter:
             resolved_id = task.id
             body = request_data or TaskReopenRequest()
             reopened = server.task_manager.reopen_task(resolved_id, reason=body.reason)
-            return reopened.to_dict()
+            result = reopened.to_dict()
+            await _broadcast_task("task_reopened", result)
+            return result
         except (ValueError, TaskNotFoundError) as e:
             raise HTTPException(status_code=400, detail=str(e)) from e
 

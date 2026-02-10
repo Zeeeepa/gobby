@@ -169,6 +169,22 @@ class BroadcastMixin:
         }
         await self.broadcast(message)
 
+    async def broadcast_task_event(
+        self,
+        event: str,
+        task_id: str,
+        **kwargs: Any,
+    ) -> None:
+        """Broadcast task event (created, updated, closed, reopened)."""
+        message = {
+            "type": "task_event",
+            "event": event,
+            "task_id": task_id,
+            "timestamp": datetime.now(UTC).isoformat(),
+            **kwargs,
+        }
+        await self.broadcast(message)
+
     async def broadcast_pipeline_event(
         self,
         event: str,
