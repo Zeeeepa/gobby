@@ -1,0 +1,55 @@
+# Mem0 services for Gobby memory integration
+# Installed via: gobby install mem0
+# Uses non-standard ports to avoid conflicts with existing services.
+
+services:
+  mem0:
+    image: mem0ai/mem0:latest
+    ports:
+      - "8888:8080"
+    environment:
+      - MEM0_STORE=postgres
+      - MEM0_POSTGRES_URL=postgresql://mem0:mem0@postgres:5432/mem0
+      - MEM0_GRAPH_STORE=neo4j
+      - MEM0_NEO4J_URL=bolt://neo4j:7687
+      - MEM0_NEO4J_USERNAME=neo4j
+      - MEM0_NEO4J_PASSWORD=gobby_mem0
+    depends_on:
+      postgres:
+        condition: service_healthy
+      neo4j:
+        condition: service_started
+    restart: unless-stopped
+
+  postgres:
+    image: pgvector/pgvector:pg16
+    ports:
+      - "8432:5432"
+    environment:
+      - POSTGRES_USER=mem0
+      - POSTGRES_PASSWORD=mem0
+      - POSTGRES_DB=mem0
+    volumes:
+      - mem0_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U mem0"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  neo4j:
+    image: neo4j:5
+    ports:
+      - "8474:7474"
+      - "8687:7687"
+    environment:
+      - NEO4J_AUTH=neo4j/gobby_mem0
+      - NEO4J_PLUGINS=["apoc"]
+    volumes:
+      - mem0_neo4j_data:/data
+    restart: unless-stopped
+
+volumes:
+  mem0_pgdata:
+  mem0_neo4j_data:
