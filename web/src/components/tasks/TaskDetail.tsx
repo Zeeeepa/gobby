@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react'
 import type { GobbyTask, GobbyTaskDetail, DependencyTree } from '../../hooks/useTasks'
 import { StatusBadge, PriorityBadge, TypeBadge, StatusDot } from './TaskBadges'
 import { ReasoningTimeline } from './ReasoningTimeline'
+import { ActionFeed } from './ActionFeed'
 
 interface TaskActions {
   updateTask: (id: string, params: { status?: string }) => Promise<GobbyTaskDetail | null>
@@ -149,6 +150,14 @@ export function TaskDetail({ taskId, getTask, getDependencies, getSubtasks, acti
               <h4 className="task-detail-section-title">Timeline</h4>
               <ReasoningTimeline task={task} />
             </div>
+
+            {/* Action Feed */}
+            {task.created_in_session_id && (
+              <div className="task-detail-section">
+                <h4 className="task-detail-section-title">Actions</h4>
+                <ActionFeed sessionId={task.created_in_session_id} />
+              </div>
+            )}
 
             {/* Dependencies: Blocked By */}
             {blockerIds.length > 0 && (
