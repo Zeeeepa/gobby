@@ -6,6 +6,7 @@ import { TaskDetail } from './tasks/TaskDetail'
 import { TaskCreateForm } from './tasks/TaskCreateForm'
 import { KanbanBoard } from './tasks/KanbanBoard'
 import { TaskTree } from './tasks/TaskTree'
+import { TaskOverview } from './tasks/TaskOverview'
 
 // =============================================================================
 // Constants
@@ -142,6 +143,14 @@ export function TasksPage() {
           </button>
         </div>
       </div>
+
+      {/* Overview cards */}
+      <TaskOverview
+        tasks={tasks}
+        stats={stats}
+        activeFilter={filters.status}
+        onFilterStatus={status => setFilters(f => ({ ...f, status }))}
+      />
 
       {/* Filter bar */}
       <div className="tasks-filter-bar">
