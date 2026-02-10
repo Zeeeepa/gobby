@@ -11,7 +11,6 @@ interface KanbanColumnDef {
   key: string
   label: string
   statuses: string[]
-  /** The status to set when a card is dropped into this column */
   targetStatus: string
 }
 
@@ -24,17 +23,32 @@ const COLUMNS: KanbanColumnDef[] = [
   { key: 'closed',      label: 'Closed',      statuses: ['closed'],              targetStatus: 'closed' },
 ]
 
-// =============================================================================
-// KanbanCard (draggable)
-// =============================================================================
+// Status progression: current → next
+const NEXT_STATUS: Record<string, string> = {
+  open: 'in_progress',
+  in_progress: 'needs_review',
+  needs_review: 'approved',
+  approved: 'closed',
+}
 
 const BLOCKED_STATUSES = new Set(['failed', 'escalated'])
 
-function KanbanCard({ task, onSelect }: { task: GobbyTask; onSelect: (id: string) => void }) {
+// =============================================================================
+// KanbanCard (draggable + hover actions)
+// =============================================================================
+
+interface KanbanCardProps {
+  task: GobbyTask
+  onSelect: (id: string) => void
+  onUpdateStatus?: (taskId: string, newStatus: string) => void
+}
+
+function KanbanCard({ task, onSelect, onUpdateStatus }: KanbanCardProps) {
   const ref = useRef<HTMLButtonElement | null>(null)
   const [isDragging, setIsDragging] = useState(false)
   const priorityColor = (PRIORITY_STYLES[task.priority] || PRIORITY_STYLES[2]).color
   const isBlocked = BLOCKED_STATUSES.has(task.status)
+  const nextStatus = NEXT_STATUS[task.status]
 
   useEffect(() => {
     const el = ref.current
@@ -67,6 +81,28 @@ function KanbanCard({ task, onSelect }: { task: GobbyTask; onSelect: (id: string
       <div className="kanban-card-title">{task.title}</div>
       <div className="kanban-card-footer">
         <TypeBadge type={task.type} />
+        {onUpdateStatus && !isBlocked && (
+          <div className="kanban-card-actions">
+            {nextStatus && (
+              <span
+                className="kanban-card-action"
+                title={`Move to ${nextStatus.replace(/_/g, ' ')}`}
+                onClick={e => { e.stopPropagation(); onUpdateStatus(task.id, nextStatus) }}
+              >
+                →
+              </span>
+            )}
+            {task.status !== 'closed' && (
+              <span
+                className="kanban-card-action kanban-card-action--close"
+                title="Close task"
+                onClick={e => { e.stopPropagation(); onUpdateStatus(task.id, 'closed') }}
+              >
+                ✓
+              </span>
+            )}
+          </div>
+        )}
       </div>
     </button>
   )
@@ -80,10 +116,12 @@ function KanbanColumnComponent({
   col,
   tasks,
   onSelectTask,
+  onUpdateStatus,
 }: {
   col: KanbanColumnDef
   tasks: GobbyTask[]
   onSelectTask: (id: string) => void
+  onUpdateStatus?: (taskId: string, newStatus: string) => void
 }) {
   const ref = useRef<HTMLDivElement | null>(null)
   const [isDraggedOver, setIsDraggedOver] = useState(false)
@@ -113,7 +151,12 @@ function KanbanColumnComponent({
           <div className="kanban-column-empty">No tasks</div>
         ) : (
           tasks.map(task => (
-            <KanbanCard key={task.id} task={task} onSelect={onSelectTask} />
+            <KanbanCard
+              key={task.id}
+              task={task}
+              onSelect={onSelectTask}
+              onUpdateStatus={onUpdateStatus}
+            />
           ))
         )}
       </div>
@@ -175,6 +218,7 @@ export function KanbanBoard({ tasks, onSelectTask, onUpdateStatus }: KanbanBoard
           col={col}
           tasks={grouped.get(col.key) || []}
           onSelectTask={onSelectTask}
+          onUpdateStatus={onUpdateStatus}
         />
       ))}
     </div>

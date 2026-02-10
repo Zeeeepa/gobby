@@ -5403,6 +5403,42 @@ body {
   margin-top: 0.1rem;
 }
 
+/* Hover quick actions */
+.kanban-card-actions {
+  display: none;
+  align-items: center;
+  gap: 0.2rem;
+  margin-left: auto;
+}
+
+.kanban-card:hover .kanban-card-actions {
+  display: flex;
+}
+
+.kanban-card-action {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.2rem;
+  height: 1.2rem;
+  border-radius: 0.2rem;
+  background: var(--bg-tertiary);
+  color: var(--text-muted);
+  font-size: calc(var(--font-size-base) * 0.7);
+  cursor: pointer;
+  transition: background 0.1s, color 0.1s;
+}
+
+.kanban-card-action:hover {
+  background: var(--accent);
+  color: #fff;
+}
+
+.kanban-card-action--close:hover {
+  background: #22c55e;
+  color: #fff;
+}
+
 /* Blocked cards */
 .kanban-card--blocked {
   opacity: 0.6;
