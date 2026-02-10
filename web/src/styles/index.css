@@ -790,8 +790,8 @@ body {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 2.25rem;
-  height: 2.25rem;
+  width: 2.5rem;
+  height: 2.5rem;
   background: transparent;
   border: none;
   color: var(--text-muted);
@@ -965,8 +965,8 @@ body {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 2.25rem;
-  height: 2.25rem;
+  width: 2.75rem;
+  height: 2.75rem;
   padding: 0;
   border-radius: 0.5rem;
   flex-shrink: 0;
@@ -974,7 +974,6 @@ body {
   transition: background 0.15s;
   border: none;
   align-self: flex-end;
-  margin-bottom: 0.25rem;
 }
 
 .send-button {
@@ -1210,7 +1209,7 @@ body {
 }
 
 .terminal-panel.collapsed {
-  height: 2.5rem;
+  height: 2.75rem;
 }
 
 .terminal-panel.disabled {
@@ -1331,7 +1330,7 @@ body {
 
 /* Adjust chat container to account for terminal */
 .app:has(.chat-container) {
-  padding-bottom: 2.5rem;
+  padding-bottom: 2.75rem;
 }
 
 /* ============================================
