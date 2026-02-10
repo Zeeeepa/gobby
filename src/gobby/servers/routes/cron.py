@@ -5,7 +5,7 @@ Provides endpoints for managing cron jobs and viewing run history.
 """
 
 import logging
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, Literal, cast
 
 from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel, Field
@@ -14,6 +14,7 @@ from gobby.utils.metrics import get_metrics_collector
 
 if TYPE_CHECKING:
     from gobby.servers.http import HTTPServer
+    from gobby.storage.cron import CronJobStorage
 
 logger = logging.getLogger(__name__)
 
@@ -61,9 +62,13 @@ def create_cron_router(server: "HTTPServer") -> APIRouter:
     router = APIRouter(prefix="/api/cron", tags=["cron"])
     metrics = get_metrics_collector()
 
-    def _get_storage():
+    def _get_storage() -> "CronJobStorage":
+        from gobby.storage.cron import CronJobStorage
+
         storage = server.services.cron_storage
         if storage is None:
+            raise HTTPException(status_code=503, detail="Cron storage not available")
+        if not isinstance(storage, CronJobStorage):
             raise HTTPException(status_code=503, detail="Cron storage not available")
         return storage
 
@@ -97,8 +102,8 @@ def create_cron_router(server: "HTTPServer") -> APIRouter:
             job = storage.create_job(
                 project_id=request.project_id,
                 name=request.name,
-                schedule_type=request.schedule_type,
-                action_type=request.action_type,
+                schedule_type=cast(Literal["cron", "interval", "once"], request.schedule_type),
+                action_type=cast(Literal["agent_spawn", "pipeline", "shell"], request.action_type),
                 action_config=request.action_config,
                 cron_expr=request.cron_expr,
                 interval_seconds=request.interval_seconds,

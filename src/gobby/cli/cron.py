@@ -3,6 +3,7 @@ CLI commands for managing cron jobs.
 """
 
 import json
+from typing import Any, Literal, cast
 
 import click
 
@@ -11,7 +12,7 @@ from gobby.storage.cron import CronJobStorage
 from gobby.storage.database import LocalDatabase
 
 
-def get_cron_storage() -> CronJobStorage:
+def get_cron_storage() -> tuple[LocalDatabase, CronJobStorage]:
     """Get initialized cron storage."""
     db = LocalDatabase()
     return db, CronJobStorage(db)
@@ -91,7 +92,7 @@ def add_job(
         raise SystemExit(1) from None
 
     # Parse schedule: detect interval vs cron expression
-    schedule_type = "cron"
+    schedule_type: Literal["cron", "interval", "once"] = "cron"
     cron_expr = None
     interval_seconds = None
 
@@ -106,8 +107,8 @@ def add_job(
     job = storage.create_job(
         project_id=project_id,
         name=name,
-        schedule_type=schedule_type,
-        action_type=action_type,
+        schedule_type=cast(Literal["cron", "interval", "once"], schedule_type),
+        action_type=cast(Literal["agent_spawn", "pipeline", "shell"], action_type),
         action_config=config,
         cron_expr=cron_expr,
         interval_seconds=interval_seconds,
@@ -240,7 +241,7 @@ def edit_job(
         click.echo(f"Job not found: {job_id}", err=True)
         raise SystemExit(1)
 
-    kwargs: dict = {}
+    kwargs: dict[str, Any] = {}
     if name is not None:
         kwargs["name"] = name
     if description is not None:

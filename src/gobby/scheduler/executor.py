@@ -113,7 +113,7 @@ class CronExecutor:
         from gobby.workflows.loader import WorkflowLoader
 
         loader = WorkflowLoader()
-        pipeline = loader.load_pipeline(pipeline_name)
+        pipeline = await loader.load_pipeline(pipeline_name)
         if not pipeline:
             raise ValueError(f"Pipeline '{pipeline_name}' not found")
 

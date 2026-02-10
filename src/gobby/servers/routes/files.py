@@ -180,7 +180,7 @@ def create_files_router(server: "HTTPServer") -> APIRouter:
 
         pm = _get_project_manager(server)
         projects = pm.list()
-        result = [
+        result: list[dict[str, Any]] = [
             {
                 "id": p.id,
                 "name": p.name,

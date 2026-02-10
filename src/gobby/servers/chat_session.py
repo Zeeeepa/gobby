@@ -284,7 +284,7 @@ class ChatSession:
                 tool_use_id: str | None,
                 ctx: HookContext,
             ) -> SyncHookJSONOutput:
-                data = {"prompt_text": inp.get("prompt", ""), "source": "claude_sdk_web_chat"}  # type: ignore[union-attr]
+                data = {"prompt_text": inp.get("prompt", ""), "source": "claude_sdk_web_chat"}
                 resp = await cb(data)
                 return _response_to_prompt_output(resp)
 
@@ -299,8 +299,8 @@ class ChatSession:
                 ctx: HookContext,
             ) -> SyncHookJSONOutput:
                 data = {
-                    "tool_name": inp.get("tool_name", ""),  # type: ignore[union-attr]
-                    "tool_input": inp.get("tool_input", {}),  # type: ignore[union-attr]
+                    "tool_name": inp.get("tool_name", ""),
+                    "tool_input": inp.get("tool_input", {}),
                 }
                 resp = await cb_pre(data)
                 return _response_to_pre_tool_output(resp)
@@ -316,9 +316,9 @@ class ChatSession:
                 ctx: HookContext,
             ) -> SyncHookJSONOutput:
                 data = {
-                    "tool_name": inp.get("tool_name", ""),  # type: ignore[union-attr]
-                    "tool_input": inp.get("tool_input", {}),  # type: ignore[union-attr]
-                    "tool_response": inp.get("tool_response"),  # type: ignore[union-attr]
+                    "tool_name": inp.get("tool_name", ""),
+                    "tool_input": inp.get("tool_input", {}),
+                    "tool_response": inp.get("tool_response"),
                 }
                 resp = await cb_post(data)
                 return _response_to_post_tool_output(resp)
@@ -333,7 +333,7 @@ class ChatSession:
                 tool_use_id: str | None,
                 ctx: HookContext,
             ) -> SyncHookJSONOutput:
-                data = {"stop_hook_active": inp.get("stop_hook_active", False)}  # type: ignore[union-attr]
+                data = {"stop_hook_active": inp.get("stop_hook_active", False)}
                 resp = await cb_stop(data)
                 return _response_to_stop_output(resp)
 
@@ -348,7 +348,7 @@ class ChatSession:
                 ctx: HookContext,
             ) -> SyncHookJSONOutput:
                 data = {
-                    "trigger": inp.get("trigger", "auto"),  # type: ignore[union-attr]
+                    "trigger": inp.get("trigger", "auto"),
                 }
                 resp = await cb_compact(data)
                 return _response_to_compact_output(resp)

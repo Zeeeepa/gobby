@@ -8,7 +8,7 @@ from __future__ import annotations
 import json
 import logging
 from datetime import UTC, datetime, timedelta
-from typing import Any
+from typing import Any, Literal, cast
 from zoneinfo import ZoneInfo
 
 from croniter import croniter  # type: ignore[import-untyped]
@@ -39,7 +39,7 @@ def compute_next_run(job: CronJob) -> datetime | None:
         if not job.cron_expr:
             return None
         cron = croniter(job.cron_expr, now)
-        next_dt = cron.get_next(datetime)
+        next_dt = cast(datetime, cron.get_next(datetime))
         return next_dt.astimezone(ZoneInfo("UTC"))
 
     elif job.schedule_type == "interval":
@@ -79,8 +79,8 @@ class CronJobStorage:
         self,
         project_id: str,
         name: str,
-        schedule_type: str,
-        action_type: str,
+        schedule_type: Literal["cron", "interval", "once"],
+        action_type: Literal["agent_spawn", "pipeline", "shell"],
         action_config: dict[str, Any],
         description: str | None = None,
         cron_expr: str | None = None,

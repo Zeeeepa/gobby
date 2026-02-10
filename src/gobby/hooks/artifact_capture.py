@@ -138,7 +138,7 @@ class ArtifactCaptureHook:
             for link in links:
                 task = link["task"]
                 if task.status == "in_progress" and link["action"] == "worked_on":
-                    return task.id
+                    return str(task.id)
         except Exception as e:
             logger.debug(f"Failed to look up active task for session {session_id}: {e}")
 

@@ -12,6 +12,7 @@ from pydantic import BaseModel, Field
 
 if TYPE_CHECKING:
     from gobby.servers.http import HTTPServer
+    from gobby.storage.artifacts import LocalArtifactManager
 
 logger = logging.getLogger(__name__)
 
@@ -26,14 +27,20 @@ def create_artifacts_router(server: "HTTPServer") -> APIRouter:
     """Create artifacts router with endpoints bound to server instance."""
     router = APIRouter(prefix="/artifacts", tags=["artifacts"])
 
-    def _get_manager():
+    def _get_manager() -> "LocalArtifactManager":
         """Lazy-create artifact manager from server's DB."""
-        if not hasattr(server, "_artifact_manager"):
-            from gobby.storage.artifacts import LocalArtifactManager
+        from gobby.storage.artifacts import LocalArtifactManager
 
-            db = server.services.mcp_db_manager.db
-            server._artifact_manager = LocalArtifactManager(db)
-        return server._artifact_manager
+        cached = getattr(server, "_artifact_manager", None)
+        if isinstance(cached, LocalArtifactManager):
+            return cached
+        mcp_mgr = server.services.mcp_db_manager
+        if mcp_mgr is None:
+            raise HTTPException(status_code=503, detail="Database not available")
+        db = mcp_mgr.db
+        manager = LocalArtifactManager(db)
+        server._artifact_manager = manager  # type: ignore[attr-defined]
+        return manager
 
     def _enrich_with_tags(artifact_dicts: list[dict[str, Any]]) -> list[dict[str, Any]]:
         """Add tags to each artifact dict."""
