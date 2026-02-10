@@ -8,6 +8,7 @@ import { CapabilityScope } from './CapabilityScope'
 import { RawTraceView } from './RawTraceView'
 import { OversightSelector } from './OversightSelector'
 import { EscalationCard } from './EscalationCard'
+import { TaskResults } from './TaskResults'
 
 interface TaskActions {
   updateTask: (id: string, params: { status?: string }) => Promise<GobbyTaskDetail | null>
@@ -265,17 +266,11 @@ export function TaskDetail({ taskId, getTask, getDependencies, getSubtasks, acti
               <ValidationSection task={task} />
             )}
 
-            {/* Commits */}
-            {task.commits && task.commits.length > 0 && (
-              <div className="task-detail-section">
-                <h4 className="task-detail-section-title">Commits</h4>
-                <div className="task-detail-commits">
-                  {task.commits.map(sha => (
-                    <span key={sha} className="task-detail-commit">{sha.slice(0, 8)}</span>
-                  ))}
-                </div>
-              </div>
-            )}
+            {/* Results (outcome, commits, PR links) */}
+            <div className="task-detail-section">
+              <h4 className="task-detail-section-title">Results</h4>
+              <TaskResults task={task} />
+            </div>
           </>
         ) : null}
       </div>
