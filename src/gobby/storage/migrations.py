@@ -473,6 +473,22 @@ CREATE INDEX idx_memories_project ON memories(project_id);
 CREATE INDEX idx_memories_type ON memories(memory_type);
 CREATE INDEX idx_memories_importance ON memories(importance DESC);
 
+CREATE TABLE memory_embeddings (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    memory_id TEXT NOT NULL REFERENCES memories(id) ON DELETE CASCADE,
+    project_id TEXT REFERENCES projects(id) ON DELETE CASCADE,
+    embedding BLOB NOT NULL,
+    embedding_model TEXT NOT NULL,
+    embedding_dim INTEGER NOT NULL,
+    text_hash TEXT NOT NULL,
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+    UNIQUE(memory_id)
+);
+CREATE INDEX idx_memory_embeddings_memory ON memory_embeddings(memory_id);
+CREATE INDEX idx_memory_embeddings_hash ON memory_embeddings(text_hash);
+CREATE INDEX idx_memory_embeddings_project ON memory_embeddings(project_id);
+
 CREATE TABLE session_memories (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     session_id TEXT NOT NULL REFERENCES sessions(id) ON DELETE CASCADE,
@@ -845,6 +861,28 @@ MIGRATIONS: list[tuple[int, str, MigrationAction]] = [
         "Add _personal system project",
         """INSERT OR IGNORE INTO projects (id, name, repo_path, created_at, updated_at)
         VALUES ('00000000-0000-0000-0000-000000060887', '_personal', NULL, datetime('now'), datetime('now'))""",
+    ),
+    # Memory V4: Add memory_embeddings table for semantic search
+    (
+        85,
+        "Add memory_embeddings table",
+        """
+        CREATE TABLE IF NOT EXISTS memory_embeddings (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            memory_id TEXT NOT NULL REFERENCES memories(id) ON DELETE CASCADE,
+            project_id TEXT REFERENCES projects(id) ON DELETE CASCADE,
+            embedding BLOB NOT NULL,
+            embedding_model TEXT NOT NULL,
+            embedding_dim INTEGER NOT NULL,
+            text_hash TEXT NOT NULL,
+            created_at TEXT NOT NULL DEFAULT (datetime('now')),
+            updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+            UNIQUE(memory_id)
+        );
+        CREATE INDEX IF NOT EXISTS idx_memory_embeddings_memory ON memory_embeddings(memory_id);
+        CREATE INDEX IF NOT EXISTS idx_memory_embeddings_hash ON memory_embeddings(text_hash);
+        CREATE INDEX IF NOT EXISTS idx_memory_embeddings_project ON memory_embeddings(project_id);
+        """,
     ),
 ]
 
