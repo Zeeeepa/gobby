@@ -5284,3 +5284,120 @@ body {
   flex: 0;
   min-width: 100px;
 }
+
+/* ==========================================================================
+   Kanban Board
+   ========================================================================== */
+
+.kanban-board {
+  display: flex;
+  gap: 0.75rem;
+  flex: 1;
+  overflow-x: auto;
+  overflow-y: hidden;
+  padding-bottom: 0.5rem;
+}
+
+.kanban-column {
+  display: flex;
+  flex-direction: column;
+  min-width: 220px;
+  width: 220px;
+  flex-shrink: 0;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  border-radius: 0.5rem;
+  overflow: hidden;
+}
+
+.kanban-column-header {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.6rem 0.75rem;
+  border-bottom: 1px solid var(--border);
+}
+
+.kanban-column-label {
+  font-size: calc(var(--font-size-base) * 0.8);
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.kanban-column-count {
+  margin-left: auto;
+  font-size: calc(var(--font-size-base) * 0.7);
+  color: var(--text-muted);
+  background: var(--bg-tertiary);
+  padding: 0.05rem 0.35rem;
+  border-radius: 999px;
+  min-width: 1.2rem;
+  text-align: center;
+}
+
+.kanban-column-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 0.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.kanban-column-empty {
+  color: var(--text-muted);
+  font-size: calc(var(--font-size-base) * 0.75);
+  text-align: center;
+  padding: 1rem 0.5rem;
+}
+
+.kanban-card {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  padding: 0.6rem 0.65rem;
+  background: var(--bg-primary);
+  border: 1px solid var(--border);
+  border-radius: 0.375rem;
+  cursor: pointer;
+  transition: border-color 0.15s, background 0.15s;
+  text-align: left;
+  font-family: inherit;
+  color: var(--text-primary);
+  width: 100%;
+}
+
+.kanban-card:hover {
+  border-color: var(--accent);
+  background: var(--bg-tertiary);
+}
+
+.kanban-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.3rem;
+}
+
+.kanban-card-ref {
+  font-family: var(--font-mono);
+  font-size: calc(var(--font-size-base) * 0.7);
+  color: var(--text-muted);
+}
+
+.kanban-card-title {
+  font-size: calc(var(--font-size-base) * 0.8);
+  line-height: 1.35;
+  color: var(--text-primary);
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.kanban-card-footer {
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+  margin-top: 0.1rem;
+}

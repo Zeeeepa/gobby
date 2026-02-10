@@ -4,6 +4,7 @@ import type { GobbyTask } from '../hooks/useTasks'
 import { StatusDot, PriorityBadge, TypeBadge } from './tasks/TaskBadges'
 import { TaskDetail } from './tasks/TaskDetail'
 import { TaskCreateForm } from './tasks/TaskCreateForm'
+import { KanbanBoard } from './tasks/KanbanBoard'
 
 // =============================================================================
 // Constants
@@ -223,6 +224,8 @@ export function TasksPage() {
         <div className="tasks-loading">Loading tasks...</div>
       ) : tasks.length === 0 ? (
         <div className="tasks-empty">No tasks found</div>
+      ) : viewMode === 'kanban' ? (
+        <KanbanBoard tasks={tasks} onSelectTask={setSelectedTaskId} />
       ) : (
         <div className="tasks-table-container">
           <table className="tasks-table">
