@@ -7,6 +7,7 @@ import { SessionViewer } from './SessionViewer'
 import { CapabilityScope } from './CapabilityScope'
 import { RawTraceView } from './RawTraceView'
 import { OversightSelector } from './OversightSelector'
+import { EscalationCard } from './EscalationCard'
 
 interface TaskActions {
   updateTask: (id: string, params: { status?: string }) => Promise<GobbyTaskDetail | null>
@@ -127,6 +128,16 @@ export function TaskDetail({ taskId, getTask, getDependencies, getSubtasks, acti
               loading={actionLoading}
               onAction={handleAction}
             />
+
+            {/* Escalation card (shown prominently when task is escalated) */}
+            {task.status === 'escalated' && (
+              <EscalationCard
+                task={task}
+                onResolve={() => {
+                  handleAction(() => actions.reopenTask(task.id))
+                }}
+              />
+            )}
 
             {/* Metadata */}
             <div className="task-detail-meta">

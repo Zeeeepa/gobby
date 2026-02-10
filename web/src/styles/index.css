@@ -7185,3 +7185,197 @@ body {
   color: var(--text-muted);
   font-style: italic;
 }
+
+/* =============================================================================
+   Escalation Card
+   ============================================================================= */
+
+.escalation-card {
+  background: rgba(234, 179, 8, 0.06);
+  border: 1px solid rgba(234, 179, 8, 0.3);
+  border-radius: 8px;
+  padding: 0.8rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  margin: 0.5rem 0;
+}
+
+.escalation-card-header {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.escalation-card-icon {
+  font-size: calc(var(--font-size-base) * 1.1);
+}
+
+.escalation-card-title {
+  font-weight: 600;
+  font-size: calc(var(--font-size-base) * 0.8);
+  color: #eab308;
+  flex: 1;
+}
+
+.escalation-card-time {
+  font-family: var(--font-mono);
+  font-size: calc(var(--font-size-base) * 0.6);
+  color: var(--text-muted);
+}
+
+.escalation-card-question {
+  font-size: calc(var(--font-size-base) * 0.8);
+  color: var(--text-primary);
+  line-height: 1.5;
+  font-weight: 500;
+}
+
+.escalation-card-context {
+  font-size: calc(var(--font-size-base) * 0.7);
+  color: var(--text-secondary);
+  line-height: 1.4;
+  padding: 0.3rem 0.5rem;
+  background: var(--bg-secondary);
+  border-radius: 4px;
+  border-left: 2px solid var(--border);
+}
+
+.escalation-options {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.escalation-option {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  padding: 0.5rem;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  cursor: pointer;
+  text-align: left;
+  color: var(--text-primary);
+  font-size: calc(var(--font-size-base) * 0.75);
+  transition: border-color 0.15s, background 0.15s;
+}
+
+.escalation-option:hover {
+  border-color: var(--text-muted);
+  background: var(--bg-tertiary);
+}
+
+.escalation-option--selected {
+  border-color: var(--accent);
+  background: rgba(59, 130, 246, 0.08);
+}
+
+.escalation-option-header {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.escalation-option-radio {
+  color: var(--text-muted);
+  font-size: calc(var(--font-size-base) * 0.8);
+}
+
+.escalation-option--selected .escalation-option-radio {
+  color: var(--accent);
+}
+
+.escalation-option-label {
+  font-weight: 600;
+  flex: 1;
+}
+
+.escalation-option-desc {
+  font-size: calc(var(--font-size-base) * 0.7);
+  color: var(--text-secondary);
+  padding-left: 1.4rem;
+}
+
+.escalation-option-tradeoffs {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding-left: 1.4rem;
+  font-size: calc(var(--font-size-base) * 0.65);
+}
+
+.escalation-pro {
+  color: #22c55e;
+}
+
+.escalation-con {
+  color: #ef4444;
+}
+
+.escalation-confidence {
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+  margin-left: auto;
+}
+
+.escalation-confidence-bar {
+  width: 3rem;
+  height: 4px;
+  background: var(--border);
+  border-radius: 2px;
+  overflow: hidden;
+}
+
+.escalation-confidence-fill {
+  height: 100%;
+  border-radius: 2px;
+  transition: width 0.2s;
+}
+
+.escalation-confidence-label {
+  font-family: var(--font-mono);
+  font-size: calc(var(--font-size-base) * 0.55);
+  color: var(--text-muted);
+}
+
+.escalation-custom-toggle {
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+  font-size: calc(var(--font-size-base) * 0.7);
+  cursor: pointer;
+  text-align: left;
+  padding: 0.2rem 0;
+  transition: color 0.15s;
+}
+
+.escalation-custom-toggle:hover,
+.escalation-custom-toggle.active {
+  color: var(--text-secondary);
+}
+
+.escalation-custom-input {
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 0.4rem 0.5rem;
+  font-family: var(--font-sans);
+  font-size: calc(var(--font-size-base) * 0.75);
+  color: var(--text-primary);
+  resize: vertical;
+  outline: none;
+}
+
+.escalation-custom-input:focus {
+  border-color: var(--accent);
+}
+
+.escalation-card-actions {
+  display: flex;
+  justify-content: flex-end;
+  padding-top: 0.2rem;
+}
