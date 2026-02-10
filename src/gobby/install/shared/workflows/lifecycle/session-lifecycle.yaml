@@ -83,8 +83,9 @@ triggers:
     # Memory extraction gate - block stop until agent extracts memories from this turn
     # Respects the 3-attempt escape hatch: if agent tries to stop 3 times, let it through
     # Skip in plan mode (no code work to extract memories from)
+    # Skip if no task was ever claimed this session (Q&A sessions don't need extraction)
     - action: memory_extraction_gate
-      when: "not variables.get('memories_extracted') and not variables.get('plan_mode') and variables.get('stop_attempts', 0) < variables.get('max_stop_attempts', 3)"
+      when: "not variables.get('memories_extracted') and not variables.get('plan_mode') and variables.get('session_had_task') and variables.get('stop_attempts', 0) < variables.get('max_stop_attempts', 3)"
 
   on_session_start:
     # Clear plan_mode on new sessions - don't inherit from parent session

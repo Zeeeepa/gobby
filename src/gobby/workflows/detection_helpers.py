@@ -142,6 +142,7 @@ def detect_task_claim(
     # All conditions met - set task_claimed and claimed_task_id (UUID)
     state.variables["task_claimed"] = True
     state.variables["claimed_task_id"] = task_id
+    state.variables["session_had_task"] = True
     logger.info(
         f"Session {state.session_id}: task_claimed=True, claimed_task_id={task_id} "
         f"(via {inner_tool_name})"
