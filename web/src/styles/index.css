@@ -3892,3 +3892,95 @@ body {
   gap: 0.5rem;
   padding-top: 0.375rem;
 }
+
+/* MemoryStats */
+
+.memory-stats-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  padding: 0.75rem;
+  background: var(--bg-secondary);
+  border-radius: 0.5rem;
+  border: 1px solid var(--border-primary);
+}
+
+.memory-stats-loading,
+.memory-stats-empty {
+  color: var(--text-muted);
+  font-size: calc(var(--font-size-base) * 0.85);
+  text-align: center;
+  padding: 0.5rem 0;
+}
+
+.memory-stats-total {
+  display: flex;
+  align-items: baseline;
+  gap: 0.375rem;
+}
+
+.memory-stats-total-count {
+  font-size: calc(var(--font-size-base) * 1.5);
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.memory-stats-total-label {
+  font-size: calc(var(--font-size-base) * 0.85);
+  color: var(--text-muted);
+}
+
+.memory-stats-importance {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.memory-stats-importance-label {
+  font-size: calc(var(--font-size-base) * 0.8);
+  color: var(--text-muted);
+}
+
+.memory-stats-importance-track {
+  height: 6px;
+  background: var(--bg-tertiary);
+  border-radius: 3px;
+  overflow: hidden;
+}
+
+.memory-stats-importance-fill {
+  height: 100%;
+  background: var(--accent);
+  border-radius: 3px;
+  transition: width 0.3s ease;
+}
+
+.memory-stats-types {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.memory-stats-type-row {
+  display: flex;
+  align-items: center;
+  gap: 0.375rem;
+  font-size: calc(var(--font-size-base) * 0.8);
+}
+
+.memory-stats-type-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.memory-stats-type-name {
+  color: var(--text-primary);
+  flex: 1;
+}
+
+.memory-stats-type-count {
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+}
