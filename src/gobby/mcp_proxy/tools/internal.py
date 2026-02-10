@@ -14,7 +14,7 @@ import logging
 import types
 from collections.abc import Callable
 from dataclasses import dataclass
-from typing import Any, Union, get_args, get_origin
+from typing import Any, Union, get_args, get_origin, get_type_hints
 
 logger = logging.getLogger(__name__)
 
@@ -55,10 +55,12 @@ def _get_json_schema_type(annotation: Any) -> str:
         return "array"
 
     # Handle basic types
-    if annotation is int:
-        return "integer"
     if annotation is bool:
         return "boolean"
+    if annotation is int:
+        return "integer"
+    if annotation is float:
+        return "number"
     if annotation is dict:
         return "object"
     if annotation is list:
@@ -151,6 +153,11 @@ class InternalToolRegistry:
             # But wait, tasks.py usage implies we need schema extraction.
             # Extract schema from function signature using type annotations
             sig = inspect.signature(func)
+            # Resolve stringified annotations from `from __future__ import annotations`
+            try:
+                resolved_hints = get_type_hints(func)
+            except Exception:
+                resolved_hints = {}
             properties = {}
             required = []
 
@@ -158,7 +165,8 @@ class InternalToolRegistry:
                 if param_name == "self":
                     continue
 
-                param_type = _get_json_schema_type(param.annotation)
+                annotation = resolved_hints.get(param_name, param.annotation)
+                param_type = _get_json_schema_type(annotation)
                 properties[param_name] = {"type": param_type}
 
                 if param.default == inspect.Parameter.empty:
