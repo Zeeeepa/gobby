@@ -315,7 +315,7 @@ def create_tasks_router(server: "HTTPServer") -> APIRouter:
                 raise ValueError(f"Task is not escalated (status: {task.status})")
 
             update_kwargs: dict[str, Any] = {
-                "status": "open",
+                "status": "in_progress",
                 "escalated_at": None,
                 "escalation_reason": None,
             }
