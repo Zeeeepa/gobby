@@ -3,6 +3,7 @@ import { draggable, dropTargetForElements, monitorForElements } from '@atlaskit/
 import type { GobbyTask } from '../../hooks/useTasks'
 import { StatusDot, PriorityBadge, TypeBadge, BlockedIndicator, PRIORITY_STYLES } from './TaskBadges'
 import { TaskStatusStrip } from './TaskStatusStrip'
+import { classifyTaskRisk, RiskBadge } from './RiskBadges'
 
 // =============================================================================
 // Column definitions: map 8 statuses → 6 columns
@@ -154,6 +155,7 @@ function KanbanCard({ task, index, columnKey, onSelect, onUpdateStatus }: Kanban
   const priorityColor = (PRIORITY_STYLES[task.priority] || PRIORITY_STYLES[2]).color
   const isBlocked = BLOCKED_STATUSES.has(task.status)
   const nextStatus = NEXT_STATUS[task.status]
+  const riskLevel = classifyTaskRisk(task.title, task.type)
 
   // Draggable
   useEffect(() => {
@@ -221,6 +223,7 @@ function KanbanCard({ task, index, columnKey, onSelect, onUpdateStatus }: Kanban
       <div className="kanban-card-title">{task.title}</div>
       <div className="kanban-card-footer">
         <TypeBadge type={task.type} />
+        <RiskBadge level={riskLevel} compact />
         {onUpdateStatus && !isBlocked && (
           <div className="kanban-card-actions">
             {nextStatus && (

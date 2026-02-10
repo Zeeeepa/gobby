@@ -1,4 +1,6 @@
 import { useState, useEffect, useCallback } from 'react'
+import { classifyRisk, RiskDot } from './RiskBadges'
+import type { RiskLevel } from './RiskBadges'
 
 // =============================================================================
 // Types
@@ -20,6 +22,7 @@ interface ActionEntry {
   resultPreview: string | null
   success: boolean
   timestamp: string
+  riskLevel: RiskLevel
 }
 
 // =============================================================================
@@ -101,6 +104,7 @@ function toActions(messages: SessionMessage[]): ActionEntry[] {
       resultPreview: previewResult(m.tool_result),
       success: !m.tool_result?.includes('"error"'),
       timestamp: m.timestamp,
+      riskLevel: classifyRisk(m.tool_name!, m.tool_input),
     }))
 }
 
@@ -163,6 +167,7 @@ export function ActionFeed({ sessionId }: ActionFeedProps) {
         >
           <span className={`action-feed-dot ${action.success ? 'action-feed-dot--success' : 'action-feed-dot--error'}`} />
           <span className="action-feed-desc">{action.description}</span>
+          <RiskDot level={action.riskLevel} />
           <span className="action-feed-time">{relativeTime(action.timestamp)}</span>
           {expanded.has(i) && action.resultPreview && (
             <div className="action-feed-result">{action.resultPreview}</div>
