@@ -319,7 +319,10 @@ class HookManagerFactory:
         s.agent_run = LocalAgentRunManager(database)
         s.worktree = LocalWorktreeManager(database)
         s.artifact = LocalArtifactManager(database)
-        s.artifact_capture_hook = ArtifactCaptureHook(artifact_manager=s.artifact)
+        s.artifact_capture_hook = ArtifactCaptureHook(
+            artifact_manager=s.artifact,
+            session_task_manager=s.session_task,
+        )
         return s
 
     @staticmethod

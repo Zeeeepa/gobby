@@ -22,6 +22,7 @@ from gobby.storage.artifact_classifier import ArtifactType, classify_artifact
 
 if TYPE_CHECKING:
     from gobby.storage.artifacts import Artifact, LocalArtifactManager
+    from gobby.storage.session_tasks import SessionTaskManager
 
 logger = logging.getLogger(__name__)
 
@@ -50,14 +51,20 @@ class ArtifactCaptureHook:
     Tracks content hashes to prevent storing duplicate artifacts.
     """
 
-    def __init__(self, artifact_manager: LocalArtifactManager):
+    def __init__(
+        self,
+        artifact_manager: LocalArtifactManager,
+        session_task_manager: SessionTaskManager | None = None,
+    ):
         """
         Initialize the artifact capture hook.
 
         Args:
             artifact_manager: LocalArtifactManager instance for storing artifacts
+            session_task_manager: Optional SessionTaskManager for inferring active task
         """
         self._artifact_manager = artifact_manager
+        self._session_task_manager = session_task_manager
         # Use OrderedDict as LRU cache for bounded duplicate tracking
         self._seen_hashes: OrderedDict[str, None] = OrderedDict()
 
@@ -90,6 +97,52 @@ class ArtifactCaptureHook:
         Useful to reset between sessions or when memory needs to be freed.
         """
         self._seen_hashes.clear()
+
+    def _generate_title(self, content: str, artifact_type: str) -> str | None:
+        """Generate a title from artifact content.
+
+        Returns a short descriptive title based on content and type,
+        or None if no meaningful title can be derived.
+        """
+        if not content.strip():
+            return None
+
+        if artifact_type == "file_path":
+            # Use the filename
+            return content.strip().rsplit("/", 1)[-1]
+
+        if artifact_type == "error":
+            # Use the first line (typically the error type/message)
+            first_line = content.strip().split("\n", 1)[0]
+            return first_line[:80] if len(first_line) > 80 else first_line
+
+        # For code, diff, and other types: use first non-empty line
+        for line in content.split("\n"):
+            stripped = line.strip()
+            if stripped:
+                return stripped[:80] if len(stripped) > 80 else stripped
+
+        return None
+
+    def _get_active_task_id(self, session_id: str) -> str | None:
+        """Look up the currently active task for a session.
+
+        Returns the task_id of an in_progress task linked to the session,
+        or None if no active task is found.
+        """
+        if not self._session_task_manager:
+            return None
+
+        try:
+            links = self._session_task_manager.get_session_tasks(session_id)
+            for link in links:
+                task = link["task"]
+                if task.status == "in_progress" and link["action"] == "worked_on":
+                    return task.id
+        except Exception as e:
+            logger.debug(f"Failed to look up active task for session {session_id}: {e}")
+
+        return None
 
     def _extract_code_blocks(self, content: str) -> list[tuple[str, str]]:
         """
@@ -163,6 +216,9 @@ class ArtifactCaptureHook:
 
         artifacts: list[Artifact] = []
 
+        # Infer the active task for this session (cached per call)
+        active_task_id = self._get_active_task_id(session_id)
+
         # Extract and store code blocks
         code_blocks = self._extract_code_blocks(content)
         for language, code in code_blocks:
@@ -177,12 +233,16 @@ class ArtifactCaptureHook:
             if language and "language" not in metadata:
                 metadata["language"] = language
 
+            title = self._generate_title(code, result.artifact_type.value)
+
             try:
                 artifact = self._artifact_manager.create_artifact(
                     session_id=session_id,
                     artifact_type=result.artifact_type.value,
                     content=code,
                     metadata=metadata,
+                    title=title,
+                    task_id=active_task_id,
                 )
                 artifacts.append(artifact)
             except Exception as e:
@@ -199,12 +259,16 @@ class ArtifactCaptureHook:
             if result.artifact_type != ArtifactType.FILE_PATH:
                 continue
 
+            title = self._generate_title(path, ArtifactType.FILE_PATH.value)
+
             try:
                 artifact = self._artifact_manager.create_artifact(
                     session_id=session_id,
                     artifact_type=ArtifactType.FILE_PATH.value,
                     content=path,
                     metadata=result.metadata,
+                    title=title,
+                    task_id=active_task_id,
                 )
                 artifacts.append(artifact)
             except Exception as e:
