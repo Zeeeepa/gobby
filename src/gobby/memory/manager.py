@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import logging
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Any
@@ -10,8 +11,10 @@ from gobby.memory.components.ingestion import IngestionService
 from gobby.memory.components.search import SearchService
 from gobby.memory.context import build_memory_context
 from gobby.memory.protocol import MemoryBackendProtocol, MemoryRecord
+from gobby.search.embeddings import generate_embedding, generate_embeddings, is_embedding_available
 from gobby.storage.database import DatabaseProtocol
 from gobby.storage.memories import LocalMemoryManager, Memory
+from gobby.storage.memory_embeddings import MemoryEmbeddingManager
 
 if TYPE_CHECKING:
     from gobby.llm.service import LLMService
@@ -79,6 +82,9 @@ class MemoryManager:
             llm_service=llm_service,
         )
 
+        # Embedding manager for memory CRUD lifecycle
+        self._embedding_mgr = MemoryEmbeddingManager(db)
+
     @property
     def llm_service(self) -> LLMService | None:
         """Get the LLM service for image description."""
@@ -129,6 +135,115 @@ class MemoryManager:
     def mark_search_refit_needed(self) -> None:
         """Mark that the search backend needs to be refitted."""
         self._search_service.mark_refit_needed()
+
+    def _store_embedding_sync(
+        self, memory_id: str, content: str, project_id: str | None
+    ) -> None:
+        """Generate and store an embedding for a memory (sync, non-blocking).
+
+        Failures are logged but never propagated — CRUD operations must not
+        be blocked by embedding generation errors.
+        """
+        if not is_embedding_available(model=self.config.embedding_model):
+            return
+
+        import asyncio
+
+        try:
+            loop = asyncio.get_running_loop()
+        except RuntimeError:
+            loop = None
+
+        try:
+            if loop and loop.is_running():
+                import concurrent.futures
+
+                with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
+                    embedding = pool.submit(
+                        asyncio.run,
+                        generate_embedding(content, model=self.config.embedding_model),
+                    ).result()
+            else:
+                embedding = asyncio.run(
+                    generate_embedding(content, model=self.config.embedding_model)
+                )
+
+            text_hash = hashlib.sha256(content.encode()).hexdigest()
+            self._embedding_mgr.store_embedding(
+                memory_id=memory_id,
+                project_id=project_id,
+                embedding=embedding,
+                embedding_model=self.config.embedding_model,
+                text_hash=text_hash,
+            )
+        except Exception as e:
+            logger.warning(f"Failed to generate embedding for memory {memory_id}: {e}")
+
+    async def _store_embedding_async(
+        self, memory_id: str, content: str, project_id: str | None
+    ) -> None:
+        """Generate and store an embedding for a memory (async, non-blocking)."""
+        if not is_embedding_available(model=self.config.embedding_model):
+            return
+
+        try:
+            embedding = await generate_embedding(
+                content, model=self.config.embedding_model
+            )
+            text_hash = hashlib.sha256(content.encode()).hexdigest()
+            self._embedding_mgr.store_embedding(
+                memory_id=memory_id,
+                project_id=project_id,
+                embedding=embedding,
+                embedding_model=self.config.embedding_model,
+                text_hash=text_hash,
+            )
+        except Exception as e:
+            logger.warning(f"Failed to generate embedding for memory {memory_id}: {e}")
+
+    async def reindex_embeddings(self) -> dict[str, Any]:
+        """Generate embeddings for all memories in batch.
+
+        Returns:
+            Dict with success status, total_memories, embeddings_generated.
+        """
+        if not is_embedding_available(model=self.config.embedding_model):
+            return {
+                "success": False,
+                "error": "Embedding unavailable — no API key configured",
+            }
+
+        memories = self.storage.list_memories(limit=10000)
+        if not memories:
+            return {"success": True, "total_memories": 0, "embeddings_generated": 0}
+
+        texts = [m.content for m in memories]
+        try:
+            embeddings = await generate_embeddings(
+                texts, model=self.config.embedding_model
+            )
+        except Exception as e:
+            logger.error(f"Batch embedding generation failed: {e}")
+            return {"success": False, "error": str(e)}
+
+        items = []
+        for memory, embedding in zip(memories, embeddings, strict=True):
+            items.append(
+                {
+                    "memory_id": memory.id,
+                    "project_id": memory.project_id,
+                    "embedding": embedding,
+                    "embedding_model": self.config.embedding_model,
+                    "text_hash": hashlib.sha256(memory.content.encode()).hexdigest(),
+                }
+            )
+
+        count = self._embedding_mgr.batch_store_embeddings(items)
+        return {
+            "success": True,
+            "total_memories": len(memories),
+            "embeddings_generated": count,
+        }
 
     def reindex_search(self) -> dict[str, Any]:
         """
@@ -190,6 +305,9 @@ class MemoryManager:
 
         # Mark search index for refit since we added new content
         self.mark_search_refit_needed()
+
+        # Generate and store embedding (non-blocking)
+        await self._store_embedding_async(memory.id, content, project_id)
 
         # Auto cross-reference if enabled
         if getattr(self.config, "auto_crossref", False):
@@ -635,6 +753,7 @@ class MemoryManager:
         # Mark search index for refit if content changed
         if content is not None:
             self.mark_search_refit_needed()
+            self._store_embedding_sync(memory_id, content, result.project_id)
 
         return result
 
@@ -652,9 +771,11 @@ class MemoryManager:
             importance=importance,
             tags=tags,
         )
+        memory = self._record_to_memory(record)
         if content is not None:
             self.mark_search_refit_needed()
-        return self._record_to_memory(record)
+            await self._store_embedding_async(memory_id, content, memory.project_id)
+        return memory
 
     def get_stats(self, project_id: str | None = None) -> dict[str, Any]:
         """
