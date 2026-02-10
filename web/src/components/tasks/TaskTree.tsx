@@ -1,5 +1,5 @@
-import { useMemo } from 'react'
-import { Tree, NodeRendererProps } from 'react-arborist'
+import { useMemo, useRef, useState } from 'react'
+import { Tree, TreeApi, NodeRendererProps } from 'react-arborist'
 import type { GobbyTask } from '../../hooks/useTasks'
 import { StatusDot, PriorityBadge, TypeBadge } from './TaskBadges'
 
@@ -14,20 +14,25 @@ interface TreeNode {
 }
 
 // =============================================================================
+// Closed statuses to filter
+// =============================================================================
+
+const CLOSED_STATUSES = new Set(['closed', 'approved'])
+
+// =============================================================================
 // Build tree from flat task list
 // =============================================================================
 
-function buildTree(tasks: GobbyTask[]): TreeNode[] {
+function buildTree(tasks: GobbyTask[], hideClosed: boolean): TreeNode[] {
+  const filtered = hideClosed ? tasks.filter(t => !CLOSED_STATUSES.has(t.status)) : tasks
   const nodeMap = new Map<string, TreeNode>()
   const roots: TreeNode[] = []
 
-  // Create nodes
-  for (const task of tasks) {
+  for (const task of filtered) {
     nodeMap.set(task.id, { id: task.id, task, children: [] })
   }
 
-  // Wire parent-child relationships
-  for (const task of tasks) {
+  for (const task of filtered) {
     const node = nodeMap.get(task.id)!
     if (task.parent_task_id && nodeMap.has(task.parent_task_id)) {
       nodeMap.get(task.parent_task_id)!.children.push(node)
@@ -81,14 +86,41 @@ interface TaskTreeProps {
 }
 
 export function TaskTree({ tasks, onSelectTask }: TaskTreeProps) {
-  const treeData = useMemo(() => buildTree(tasks), [tasks])
+  const treeRef = useRef<TreeApi<TreeNode> | null>(null)
+  const [hideClosed, setHideClosed] = useState(false)
+  const treeData = useMemo(() => buildTree(tasks, hideClosed), [tasks, hideClosed])
 
   return (
     <div className="task-tree-container">
+      <div className="task-tree-toolbar">
+        <button
+          className="task-tree-toolbar-btn"
+          onClick={() => treeRef.current?.openAll()}
+          title="Expand all"
+        >
+          Expand all
+        </button>
+        <button
+          className="task-tree-toolbar-btn"
+          onClick={() => treeRef.current?.closeAll()}
+          title="Collapse all"
+        >
+          Collapse all
+        </button>
+        <label className="task-tree-toolbar-check">
+          <input
+            type="checkbox"
+            checked={hideClosed}
+            onChange={e => setHideClosed(e.target.checked)}
+          />
+          Hide closed
+        </label>
+      </div>
       <Tree<TreeNode>
+        ref={treeRef}
         data={treeData}
         width="100%"
-        height={600}
+        height={560}
         indent={24}
         rowHeight={34}
         openByDefault={false}
