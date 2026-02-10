@@ -274,7 +274,11 @@ export function TasksPage() {
           onReorder={(taskId, newOrder) => updateTask(taskId, { sequence_order: newOrder })}
         />
       ) : viewMode === 'tree' ? (
-        <TaskTree tasks={tasks} onSelectTask={setSelectedTaskId} />
+        <TaskTree
+          tasks={tasks}
+          onSelectTask={setSelectedTaskId}
+          onReparent={(taskId, newParentId) => updateTask(taskId, { parent_task_id: newParentId || '' })}
+        />
       ) : (
         <div className="tasks-table-container">
           <table className="tasks-table">

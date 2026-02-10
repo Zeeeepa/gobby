@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from 'react'
+import { useMemo, useRef, useState, useCallback } from 'react'
 import { Tree, TreeApi, NodeRendererProps } from 'react-arborist'
 import type { GobbyTask } from '../../hooks/useTasks'
 import { StatusDot, PriorityBadge, TypeBadge } from './TaskBadges'
@@ -116,14 +116,42 @@ function searchMatch(node: { data: TreeNode }, term: string): boolean {
 interface TaskTreeProps {
   tasks: GobbyTask[]
   onSelectTask: (id: string) => void
+  onReparent?: (taskId: string, newParentId: string | null) => void
 }
 
-export function TaskTree({ tasks, onSelectTask }: TaskTreeProps) {
+/** Check if making childId a child of parentId would create a cycle. */
+function wouldCreateCycle(childId: string, parentId: string, tasks: GobbyTask[]): boolean {
+  const taskMap = new Map(tasks.map(t => [t.id, t]))
+  let current = parentId
+  while (current) {
+    if (current === childId) return true
+    const task = taskMap.get(current)
+    if (!task?.parent_task_id) break
+    current = task.parent_task_id
+  }
+  return false
+}
+
+export function TaskTree({ tasks, onSelectTask, onReparent }: TaskTreeProps) {
   const treeRef = useRef<TreeApi<TreeNode> | null>(null)
   const [hideClosed, setHideClosed] = useState(false)
   const [searchTerm, setSearchTerm] = useState('')
   const treeData = useMemo(() => buildTree(tasks, hideClosed), [tasks, hideClosed])
   const NodeRenderer = useMemo(() => makeTaskNode(searchTerm), [searchTerm])
+
+  const handleMove = useCallback(
+    ({ dragIds, parentId }: { dragIds: string[]; parentId: string | null; index: number }) => {
+      if (!onReparent) return
+      for (const dragId of dragIds) {
+        // Prevent cycles
+        if (parentId && wouldCreateCycle(dragId, parentId, tasks)) continue
+        // Don't re-parent to self
+        if (parentId === dragId) continue
+        onReparent(dragId, parentId)
+      }
+    },
+    [onReparent, tasks]
+  )
 
   return (
     <div className="task-tree-container">
@@ -169,8 +197,9 @@ export function TaskTree({ tasks, onSelectTask }: TaskTreeProps) {
         searchTerm={searchTerm}
         searchMatch={searchMatch}
         onActivate={node => onSelectTask(node.data.id)}
-        disableDrag
-        disableDrop
+        onMove={onReparent ? handleMove : undefined}
+        disableDrag={!onReparent}
+        disableDrop={!onReparent}
       >
         {NodeRenderer}
       </Tree>
