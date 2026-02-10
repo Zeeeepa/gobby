@@ -171,7 +171,7 @@ Persistent memory system. See [memory.md](memory.md) for details.
 ```yaml
 memory:
   enabled: true
-  backend: sqlite                # sqlite, mem0, memu, openmemory, null
+  backend: sqlite                # sqlite, mem0, null
 
   # Mem0 Backend (cloud-based semantic memory)
   mem0:
@@ -185,12 +185,6 @@ memory:
     database_url: null
     llm_api_key: null
     llm_base_url: null
-    user_id: null
-
-  # OpenMemory Backend (self-hosted)
-  openmemory:
-    base_url: http://localhost:8080
-    api_key: null
     user_id: null
 
   # Behavior settings
@@ -747,7 +741,7 @@ All values are validated via Pydantic:
 | Count | Positive integer |
 | Search mode | tfidf, embedding, auto, hybrid |
 | Log level | debug, info, warning, error |
-| Memory backend | sqlite, mem0, memu, openmemory, null |
+| Memory backend | sqlite, mem0, null |
 | Auth mode | subscription, api_key, adc |
 
 ---

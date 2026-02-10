@@ -54,16 +54,6 @@ class MemoryManager:
                     "org_id": mem0_cfg.org_id,
                 }
             )
-        elif backend_type == "openmemory" and hasattr(config, "openmemory"):
-            om_cfg = config.openmemory
-            backend_kwargs.update(
-                {
-                    "base_url": om_cfg.base_url,
-                    "api_key": om_cfg.api_key,
-                    "user_id": om_cfg.user_id,
-                }
-            )
-
         self._backend: MemoryBackendProtocol = get_backend(backend_type, **backend_kwargs)
 
         # Keep storage reference for backward compatibility with sync methods
@@ -146,9 +136,7 @@ class MemoryManager:
         """Mark that the search backend needs to be refitted."""
         self._search_service.mark_refit_needed()
 
-    def _store_embedding_sync(
-        self, memory_id: str, content: str, project_id: str | None
-    ) -> None:
+    def _store_embedding_sync(self, memory_id: str, content: str, project_id: str | None) -> None:
         """Generate and store an embedding for a memory (sync, non-blocking).
 
         Failures are logged but never propagated — CRUD operations must not
@@ -197,9 +185,7 @@ class MemoryManager:
             return
 
         try:
-            embedding = await generate_embedding(
-                content, model=self.config.embedding_model
-            )
+            embedding = await generate_embedding(content, model=self.config.embedding_model)
             text_hash = hashlib.sha256(content.encode()).hexdigest()
             self._embedding_mgr.store_embedding(
                 memory_id=memory_id,
@@ -229,9 +215,7 @@ class MemoryManager:
 
         texts = [m.content for m in memories]
         try:
-            embeddings = await generate_embeddings(
-                texts, model=self.config.embedding_model
-            )
+            embeddings = await generate_embeddings(texts, model=self.config.embedding_model)
         except Exception as e:
             logger.error(f"Batch embedding generation failed: {e}")
             return {"success": False, "error": str(e)}
@@ -511,7 +495,9 @@ class MemoryManager:
 
         if query:
             # Mem0 dual-mode: try Mem0 search first if configured
-            mem0_results = self._search_mem0(query, project_id, limit) if self._mem0_client else None
+            mem0_results = (
+                self._search_mem0(query, project_id, limit) if self._mem0_client else None
+            )
 
             if mem0_results is not None:
                 memories = mem0_results
@@ -907,9 +893,7 @@ class MemoryManager:
     # Mem0 dual-mode helpers
     # =========================================================================
 
-    async def _index_in_mem0(
-        self, memory_id: str, content: str, project_id: str | None
-    ) -> None:
+    async def _index_in_mem0(self, memory_id: str, content: str, project_id: str | None) -> None:
         """Index a memory in Mem0 after local storage. Non-blocking on failure."""
         if not self._mem0_client:
             return
@@ -972,9 +956,7 @@ class MemoryManager:
         except Exception as e:
             logger.warning(f"Failed to delete memory {memory_id} from Mem0: {e}")
 
-    def _search_mem0(
-        self, query: str, project_id: str | None, limit: int
-    ) -> list[Memory] | None:
+    def _search_mem0(self, query: str, project_id: str | None, limit: int) -> list[Memory] | None:
         """Search Mem0 and return local memories enriched by results.
 
         Returns None if Mem0 is unavailable (caller should fall back to local search).
@@ -995,15 +977,11 @@ class MemoryManager:
                 with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
                     result = pool.submit(
                         asyncio.run,
-                        self._mem0_client.search(
-                            query=query, project_id=project_id, limit=limit
-                        ),
+                        self._mem0_client.search(query=query, project_id=project_id, limit=limit),
                     ).result()
             else:
                 result = asyncio.run(
-                    self._mem0_client.search(
-                        query=query, project_id=project_id, limit=limit
-                    )
+                    self._mem0_client.search(query=query, project_id=project_id, limit=limit)
                 )
         except Mem0ConnectionError as e:
             logger.warning(f"Mem0 unreachable during search, falling back to local: {e}")

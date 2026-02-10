@@ -37,13 +37,11 @@ def get_backend(backend_type: str, **kwargs: Any) -> MemoryBackendProtocol:
             - "sqlite": SQLite-based persistent storage (requires database kwarg)
             - "null": No-op backend for testing
             - "mem0": Mem0 cloud-based semantic memory (requires api_key kwarg)
-            - "openmemory": Self-hosted OpenMemory REST API (requires base_url kwarg)
 
         **kwargs: Backend-specific configuration:
             - database: DatabaseProtocol instance (required for "sqlite")
             - api_key: API key (required for "mem0")
-            - base_url: Server URL (required for "openmemory")
-            - user_id: Default user ID (optional for "mem0", "openmemory")
+            - user_id: Default user ID (optional for "mem0")
 
     Returns:
         A MemoryBackendProtocol instance
@@ -88,19 +86,7 @@ def get_backend(backend_type: str, **kwargs: Any) -> MemoryBackendProtocol:
             org_id=kwargs.get("org_id"),
         )
 
-    elif backend_type == "openmemory":
-        from gobby.memory.backends.openmemory import OpenMemoryBackend
-
-        base_url: str | None = kwargs.get("base_url")
-        if base_url is None:
-            raise ValueError("OpenMemory backend requires 'base_url' parameter")
-        return OpenMemoryBackend(
-            base_url=base_url,
-            api_key=kwargs.get("api_key"),
-            user_id=kwargs.get("user_id"),
-        )
-
     else:
         raise ValueError(
-            f"Unknown backend type: '{backend_type}'. Supported types: 'sqlite', 'null', 'mem0', 'openmemory'"
+            f"Unknown backend type: '{backend_type}'. Supported types: 'sqlite', 'null', 'mem0'"
         )

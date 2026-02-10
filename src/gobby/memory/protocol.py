@@ -2,7 +2,7 @@
 
 This module defines the abstraction layer that enables pluggable memory backends.
 Users can choose between Gobby's built-in SQLite backend or plug in external
-memory systems like Mem0 or OpenMemory.
+memory systems like Mem0.
 
 Types:
 - MemoryCapability: Enum of capabilities a backend can support
