@@ -7,8 +7,10 @@ Provides status, metrics, config, and shutdown endpoints.
 import asyncio
 import logging
 import os
+import re
 import time
 from typing import TYPE_CHECKING, Any
+
 
 import psutil
 from fastapi import APIRouter
@@ -22,6 +24,47 @@ if TYPE_CHECKING:
     from gobby.servers.http import HTTPServer
 
 logger = logging.getLogger(__name__)
+
+# Known provider prefixes for grouping LiteLLM models
+_PROVIDER_PREFIXES = ("claude", "gpt", "gemini", "o1", "o3", "o4", "mistral", "command")
+
+
+def _discover_models() -> dict[str, list[str]]:
+    """Discover models from LiteLLM's model_cost registry.
+
+    Returns models grouped by provider prefix, excluding dated variants
+    and provider-scoped names (containing / or .).
+    """
+    import litellm
+
+    all_keys = list(litellm.model_cost.keys())
+    # Only bare names (no / or . — those are provider-scoped duplicates)
+    bare = [m for m in all_keys if "/" not in m and "." not in m]
+    # Exclude dated variants (e.g. claude-sonnet-4-5-20250514, ...-20250929-v1:0) and "latest" aliases
+    bare = [m for m in bare if not re.search(r"-\d{8}", m) and "latest" not in m]
+
+    groups: dict[str, list[str]] = {}
+    for m in bare:
+        for prefix in _PROVIDER_PREFIXES:
+            if m.startswith(prefix):
+                groups.setdefault(prefix, []).append(m)
+                break
+
+    return {k: sorted(v) for k, v in groups.items() if v}
+
+
+def _fallback_models_from_config(server: "HTTPServer") -> dict[str, list[str]]:
+    """Fall back to config.yaml model lists when LiteLLM is unavailable."""
+    result: dict[str, list[str]] = {}
+    if server.services.config and server.services.config.llm_providers:
+        llm_config = server.services.config.llm_providers
+        for provider_name in ("claude", "codex", "gemini", "litellm"):
+            provider_config = getattr(llm_config, provider_name, None)
+            if provider_config:
+                models = provider_config.get_models_list()
+                if models:
+                    result[provider_name] = models
+    return result
 
 
 def create_admin_router(server: "HTTPServer") -> APIRouter:
@@ -291,45 +334,44 @@ def create_admin_router(server: "HTTPServer") -> APIRouter:
             raise
 
     @router.get("/models")
-    async def get_models() -> dict[str, Any]:
+    async def get_models(provider: str | None = None) -> dict[str, Any]:
         """
-        Get available LLM providers and their models.
+        Get available LLM models discovered from LiteLLM's model registry.
+
+        Query params:
+            provider: Optional filter (e.g. "claude", "gpt", "gemini")
 
         Returns:
-            Dictionary with providers and their available models
+            Dictionary with models grouped by provider, default_model
         """
         start_time = time.perf_counter()
 
-        providers_data: dict[str, Any] = {}
-        default_provider = None
-        default_model = None
+        # Determine default model from config or fallback
+        default_model = "claude-opus-4-6"
+        if (
+            server.services.config
+            and server.services.config.llm_providers
+            and server.services.config.llm_providers.default_model
+        ):
+            default_model = server.services.config.llm_providers.default_model
 
-        if server.llm_service is not None:
-            enabled = server.llm_service.enabled_providers
-            if enabled:
-                default_provider = "claude" if "claude" in enabled else enabled[0]
+        # Discover models from LiteLLM registry
+        try:
+            models_by_provider = _discover_models()
+        except Exception as e:
+            logger.warning(f"LiteLLM discovery failed, falling back to config: {e}")
+            # Fallback to config-based models
+            models_by_provider = _fallback_models_from_config(server)
 
-            # Get models for each enabled provider from config
-            if server.services.config and server.services.config.llm_providers:
-                llm_config = server.services.config.llm_providers
-
-                for provider_name in enabled:
-                    provider_config = getattr(llm_config, provider_name, None)
-                    if provider_config:
-                        models = provider_config.get_models_list()
-                        providers_data[provider_name] = {
-                            "models": models,
-                            "auth_mode": provider_config.auth_mode,
-                        }
-                        # Set default model from first provider
-                        if default_model is None and models:
-                            default_model = models[0]
+        # Apply provider filter
+        if provider:
+            filtered = {k: v for k, v in models_by_provider.items() if k == provider}
+            models_by_provider = filtered
 
         response_time_ms = (time.perf_counter() - start_time) * 1000
 
         return {
-            "providers": providers_data,
-            "default_provider": default_provider,
+            "models": models_by_provider,
             "default_model": default_model,
             "response_time_ms": response_time_ms,
         }

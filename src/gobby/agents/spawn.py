@@ -151,7 +151,17 @@ class TerminalSpawner:
         ]
 
     def get_preferred_terminal(self) -> TerminalType | None:
-        """Get the preferred available terminal for this platform based on config."""
+        """Get the preferred available terminal for this platform.
+
+        Prefers tmux when available (cross-platform, web-streamable),
+        then falls back to platform-specific terminals from tty_config.
+        """
+        # Prefer tmux — it's cross-platform and supports web UI streaming
+        tmux_spawner = self._spawners.get(TerminalType("tmux"))
+        if tmux_spawner and tmux_spawner.is_available():
+            return tmux_spawner.terminal_type
+
+        # Fall back to platform-specific terminals
         config = get_tty_config()
         preferences = config.get_preferences()
 

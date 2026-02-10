@@ -2,6 +2,7 @@
 name: bug
 description: "Quickly create a bug task. Usage: /bug <title> [description]"
 category: core
+triggers: bug, file bug, report bug
 ---
 
 # /bug - Create Bug Task

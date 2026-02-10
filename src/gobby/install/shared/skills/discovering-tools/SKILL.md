@@ -29,7 +29,7 @@ Returns server names and connection status (~50 tokens total).
 ### Step 2: List Tools (Lightweight)
 
 ```python
-list_tools(server="gobby-tasks")
+list_tools(server_name="gobby-tasks")
 ```
 
 Returns tool names and brief descriptions (~100 tokens per server).

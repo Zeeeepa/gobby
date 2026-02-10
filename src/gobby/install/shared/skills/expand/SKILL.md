@@ -2,17 +2,18 @@
 name: expand
 description: "Use when user asks to '/gobby expand', 'expand task', 'break down task', 'decompose task'. Expand a task into subtasks using codebase analysis and visible LLM reasoning. Survives session compaction."
 category: core
+triggers: expand task, break down, subtask, decompose
 ---
 
-# /g expand - Task Expansion Skill
+# /gobby expand - Task Expansion Skill
 
 Expand a task into atomic subtasks. YOU do the analysis and reasoning (visible in conversation).
 Survives session compaction - spec is saved before execution.
 
 ## Input Formats
 
-- `#N` - Task reference (e.g., `/g expand #42`)
-- `path.md` - Plan file (creates root task first, e.g., `/g expand docs/plan.md`)
+- `#N` - Task reference (e.g., `/gobby expand #42`)
+- `path.md` - Plan file (creates root task first, e.g., `/gobby expand docs/plan.md`)
 
 ## Session Context
 
@@ -325,7 +326,7 @@ and resume from Phase 4 automatically.
 
 ### Basic Expansion
 ```
-User: /g expand #42
+User: /gobby expand #42
 
 Agent: Checking for pending expansion...
 No pending spec found. Starting fresh expansion.
@@ -351,7 +352,7 @@ Phase 5: Task tree created:
 
 ### Resume After Interruption
 ```
-User: /g expand #42
+User: /gobby expand #42
 
 Agent: Checking for pending expansion...
 Found pending spec with 4 subtasks. Resuming from Phase 4.
@@ -366,7 +367,7 @@ Phase 5: Task tree created:
 
 ### From Plan File
 ```
-User: /g expand docs/auth-plan.md
+User: /gobby expand docs/auth-plan.md
 
 Agent: Reading plan file...
 Creating root epic from plan...

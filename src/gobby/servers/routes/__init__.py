@@ -5,6 +5,7 @@ Each module contains an APIRouter with related endpoints.
 """
 
 from gobby.servers.routes.admin import create_admin_router
+from gobby.servers.routes.files import create_files_router
 from gobby.servers.routes.mcp import (
     create_hooks_router,
     create_mcp_router,
@@ -16,6 +17,7 @@ from gobby.servers.routes.sessions import create_sessions_router
 
 __all__ = [
     "create_admin_router",
+    "create_files_router",
     "create_hooks_router",
     "create_mcp_router",
     "create_pipelines_router",

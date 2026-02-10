@@ -53,6 +53,7 @@ async def list_mcp_servers(
                         "name": registry.name,
                         "state": "connected",
                         "connected": True,
+                        "available": True,
                         "transport": "internal",
                     }
                 )
@@ -61,16 +62,20 @@ async def list_mcp_servers(
         if mcp_manager:
             for config in mcp_manager.server_configs:
                 health = mcp_manager.health.get(config.name)
+                state = health.state.value if health else "unknown"
                 is_connected = config.name in mcp_manager.connections
-                server_list.append(
-                    {
-                        "name": config.name,
-                        "state": health.state.value if health else "unknown",
-                        "connected": is_connected,
-                        "transport": config.transport,
-                        "enabled": config.enabled,
-                    }
-                )
+                available = config.enabled and state in ("connected", "pending", "configured")
+                entry: dict[str, Any] = {
+                    "name": config.name,
+                    "state": state,
+                    "connected": is_connected,
+                    "available": available,
+                    "transport": config.transport,
+                    "enabled": config.enabled,
+                }
+                if state in ("pending", "configured"):
+                    entry["note"] = "Connects automatically on first use"
+                server_list.append(entry)
 
         response_time_ms = (time.perf_counter() - start_time) * 1000
 
@@ -79,6 +84,7 @@ async def list_mcp_servers(
             "servers": server_list,
             "total_count": len(server_list),
             "connected_count": len([s for s in server_list if s.get("connected")]),
+            "available_count": len([s for s in server_list if s.get("available")]),
             "response_time_ms": response_time_ms,
         }
 
@@ -260,7 +266,8 @@ async def import_mcp_server(
         response_time_ms = (time.perf_counter() - start_time) * 1000
         if isinstance(result, dict):
             result["response_time_ms"] = response_time_ms
-        return result
+            return result
+        return {"success": True, "data": result, "response_time_ms": response_time_ms}
 
     except HTTPException:
         raise
@@ -306,10 +313,8 @@ async def remove_mcp_server(
         }
 
     except ValueError as e:
-        raise HTTPException(
-            status_code=404,
-            detail={"success": False, "error": str(e)},
-        ) from e
+        response_time_ms = (time.perf_counter() - start_time) * 1000
+        return {"success": False, "error": str(e), "response_time_ms": response_time_ms}
     except Exception as e:
         _metrics.inc_counter("http_requests_errors_total")
         logger.error(f"Remove MCP server error: {e}", exc_info=True)

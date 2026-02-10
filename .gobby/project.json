@@ -6,6 +6,7 @@
     "lint": "uv run ruff check src/",
     "format": "uv run ruff format --check src/",
     "type_check": "uv run mypy src/",
+    "ts_check": "cd web && npx tsc --noEmit",
     "unit_tests": "uv run pytest tests/ -x -q"
   },
   "hooks": {
@@ -15,7 +16,7 @@
       "timeout": 120
     },
     "pre-push": {
-      "run": ["type_check", "unit_tests"],
+      "run": ["type_check", "ts_check", "unit_tests"],
       "fail_fast": false,
       "timeout": 1800
     }

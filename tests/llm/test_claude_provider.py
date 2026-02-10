@@ -70,7 +70,7 @@ def claude_config():
 @contextmanager
 def mock_claude_sdk(mock_query_func):
     with (
-        patch("gobby.llm.claude.shutil.which", return_value="/mock/claude"),
+        patch("gobby.llm.claude_cli.shutil.which", return_value="/mock/claude"),
         patch("os.path.exists", return_value=True),
         patch("os.access", return_value=True),
         patch("gobby.llm.claude.query", mock_query_func),
@@ -105,7 +105,7 @@ async def test_generate_summary_success(claude_config):
 
 @pytest.mark.asyncio
 async def test_generate_summary_no_cli(claude_config):
-    with patch("gobby.llm.claude.shutil.which", return_value=None):
+    with patch("gobby.llm.claude_cli.shutil.which", return_value=None):
         provider = ClaudeLLMProvider(claude_config)
         summary = await provider.generate_summary({}, prompt_template="test")
         assert "unavailable" in summary.lower()
@@ -149,8 +149,8 @@ async def test_verify_cli_path_retry(claude_config):
     # Mock shutil.which to fail twice then succeed
     side_effects = [None, None, "/found/now"]
 
-    with patch("gobby.llm.claude.shutil.which", side_effect=side_effects) as mock_which:
-        with patch("gobby.llm.claude.time.sleep") as mock_sleep:
+    with patch("gobby.llm.claude_cli.shutil.which", side_effect=side_effects) as mock_which:
+        with patch("gobby.llm.claude_cli.time.sleep") as mock_sleep:
             with patch("os.path.exists", return_value=True):
                 provider = ClaudeLLMProvider(claude_config)
                 # Manually trigger verify logic
@@ -247,21 +247,21 @@ def test_auth_mode_default_is_subscription(claude_config):
 
 def test_auth_mode_from_config(api_key_config):
     """Test auth_mode read from config."""
-    with patch("gobby.llm.claude.shutil.which", return_value=None):
+    with patch("gobby.llm.claude_cli.shutil.which", return_value=None):
         provider = ClaudeLLMProvider(api_key_config)
         assert provider.auth_mode == "api_key"
 
 
 def test_auth_mode_override_parameter(claude_config):
     """Test auth_mode can be overridden via parameter."""
-    with patch("gobby.llm.claude.shutil.which", return_value=None):
+    with patch("gobby.llm.claude_cli.shutil.which", return_value=None):
         provider = ClaudeLLMProvider(claude_config, auth_mode="api_key")
         assert provider.auth_mode == "api_key"
 
 
 def test_api_key_mode_no_cli_needed(api_key_config):
     """Test api_key mode does not require Claude CLI."""
-    with patch("gobby.llm.claude.shutil.which", return_value=None):
+    with patch("gobby.llm.claude_cli.shutil.which", return_value=None):
         provider = ClaudeLLMProvider(api_key_config)
         assert provider._claude_cli_path is None
         assert provider.auth_mode == "api_key"
@@ -272,7 +272,7 @@ async def test_generate_text_api_key_mode(api_key_config):
     """Test generate_text uses LiteLLM in api_key mode."""
     mock_litellm = MockLiteLLM("LiteLLM generated text")
 
-    with patch("gobby.llm.claude.shutil.which", return_value=None):
+    with patch("gobby.llm.claude_cli.shutil.which", return_value=None):
         provider = ClaudeLLMProvider(api_key_config)
         provider._litellm = mock_litellm
 
@@ -287,7 +287,7 @@ async def test_generate_summary_api_key_mode(api_key_config):
     """Test generate_summary uses LiteLLM in api_key mode."""
     mock_litellm = MockLiteLLM("Session summary via LiteLLM")
 
-    with patch("gobby.llm.claude.shutil.which", return_value=None):
+    with patch("gobby.llm.claude_cli.shutil.which", return_value=None):
         provider = ClaudeLLMProvider(api_key_config)
         provider._litellm = mock_litellm
 
@@ -304,7 +304,7 @@ async def test_synthesize_title_api_key_mode(api_key_config):
     """Test synthesize_title uses LiteLLM in api_key mode."""
     mock_litellm = MockLiteLLM("Title via LiteLLM")
 
-    with patch("gobby.llm.claude.shutil.which", return_value=None):
+    with patch("gobby.llm.claude_cli.shutil.which", return_value=None):
         provider = ClaudeLLMProvider(api_key_config)
         provider._litellm = mock_litellm
 
@@ -316,7 +316,7 @@ async def test_synthesize_title_api_key_mode(api_key_config):
 @pytest.mark.asyncio
 async def test_generate_with_mcp_tools_api_key_mode_returns_error(api_key_config):
     """Test generate_with_mcp_tools returns error in api_key mode."""
-    with patch("gobby.llm.claude.shutil.which", return_value=None):
+    with patch("gobby.llm.claude_cli.shutil.which", return_value=None):
         provider = ClaudeLLMProvider(api_key_config)
 
         result = await provider.generate_with_mcp_tools(
@@ -352,7 +352,7 @@ async def test_describe_image_api_key_mode(api_key_config, tmp_path):
 
     mock_litellm = MockLiteLLM("Image description from LiteLLM")
 
-    with patch("gobby.llm.claude.shutil.which", return_value=None):
+    with patch("gobby.llm.claude_cli.shutil.which", return_value=None):
         provider = ClaudeLLMProvider(api_key_config)
         provider._litellm = mock_litellm
 

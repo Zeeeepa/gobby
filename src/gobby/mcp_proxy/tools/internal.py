@@ -10,11 +10,12 @@ number of tools exposed on the main MCP server.
 """
 
 import inspect
+import json
 import logging
 import types
 from collections.abc import Callable
 from dataclasses import dataclass
-from typing import Any, Union, get_args, get_origin
+from typing import Any, Union, get_args, get_origin, get_type_hints
 
 logger = logging.getLogger(__name__)
 
@@ -55,10 +56,12 @@ def _get_json_schema_type(annotation: Any) -> str:
         return "array"
 
     # Handle basic types
-    if annotation is int:
-        return "integer"
     if annotation is bool:
         return "boolean"
+    if annotation is int:
+        return "integer"
+    if annotation is float:
+        return "number"
     if annotation is dict:
         return "object"
     if annotation is list:
@@ -151,6 +154,11 @@ class InternalToolRegistry:
             # But wait, tasks.py usage implies we need schema extraction.
             # Extract schema from function signature using type annotations
             sig = inspect.signature(func)
+            # Resolve stringified annotations from `from __future__ import annotations`
+            try:
+                resolved_hints = get_type_hints(func)
+            except Exception:
+                resolved_hints = {}
             properties = {}
             required = []
 
@@ -158,7 +166,8 @@ class InternalToolRegistry:
                 if param_name == "self":
                     continue
 
-                param_type = _get_json_schema_type(param.annotation)
+                annotation = resolved_hints.get(param_name, param.annotation)
+                param_type = _get_json_schema_type(annotation)
                 properties[param_name] = {"type": param_type}
 
                 if param.default == inspect.Parameter.empty:
@@ -175,6 +184,45 @@ class InternalToolRegistry:
             return func
 
         return decorator
+
+    @staticmethod
+    def _coerce_args(args: dict[str, Any], schema: dict[str, Any]) -> dict[str, Any]:
+        """Coerce string arguments to their declared schema types.
+
+        MCP arguments may arrive as strings even when the schema declares
+        integer, number, boolean, or array types. This method converts
+        them based on the tool's input_schema.
+        """
+        properties = schema.get("properties", {})
+        coerced = {}
+        for key, value in args.items():
+            prop = properties.get(key, {})
+            declared_type = prop.get("type")
+
+            if not isinstance(value, str) or declared_type is None or declared_type == "string":
+                coerced[key] = value
+                continue
+
+            try:
+                if declared_type == "integer":
+                    coerced[key] = int(value)
+                elif declared_type == "number":
+                    coerced[key] = float(value)
+                elif declared_type == "boolean":
+                    coerced[key] = value.lower() in ("true", "1", "yes")
+                elif declared_type == "array":
+                    try:
+                        coerced[key] = json.loads(value)
+                    except (json.JSONDecodeError, ValueError):
+                        coerced[key] = [s.strip() for s in value.split(",") if s.strip()]
+                elif declared_type == "object":
+                    coerced[key] = json.loads(value)
+                else:
+                    coerced[key] = value
+            except (ValueError, TypeError):
+                coerced[key] = value
+
+        return coerced
 
     async def call(self, name: str, args: dict[str, Any]) -> Any:
         """
@@ -196,10 +244,13 @@ class InternalToolRegistry:
             available = ", ".join(self._tools.keys())
             raise ValueError(f"Tool '{name}' not found on '{self.name}'. Available: {available}")
 
+        # Coerce string arguments to declared schema types
+        coerced_args = self._coerce_args(args, tool.input_schema)
+
         # Call the function (handle both sync and async)
         if inspect.iscoroutinefunction(tool.func):
-            return await tool.func(**args)
-        return tool.func(**args)
+            return await tool.func(**coerced_args)
+        return tool.func(**coerced_args)
 
     def list_tools(self) -> list[dict[str, str]]:
         """

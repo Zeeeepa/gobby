@@ -44,7 +44,7 @@ class SystemService:
         # In lazy mode, unconfigured servers don't count as unhealthy
         all_healthy = (
             all(
-                server_health.get("state") in ["connected", "healthy", "configured"]
+                server_health.get("state") in ["connected", "healthy", "configured", "pending"]
                 for server_health in health.values()
             )
             if health

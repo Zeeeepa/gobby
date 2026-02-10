@@ -168,10 +168,10 @@ class TestGobbyDaemonToolsListMcpServers:
     @pytest.mark.asyncio
     async def test_list_mcp_servers_with_servers(self, mock_mcp_manager, mock_internal_manager):
         """Test listing with configured servers."""
-        # Setup mock health data
+        # Setup mock health data - server2 is lazy-loaded (pending), not disconnected
         mock_mcp_manager.get_server_health.return_value = {
             "server1": {"state": "connected", "health": "healthy"},
-            "server2": {"state": "disconnected", "health": "unknown"},
+            "server2": {"state": "pending", "health": "unknown"},
         }
         mock_mcp_manager.get_lazy_connection_states.return_value = {}
         mock_mcp_manager.connections = {"server1": MagicMock()}
@@ -188,6 +188,18 @@ class TestGobbyDaemonToolsListMcpServers:
 
         assert result["total_count"] == 2
         assert result["connected_count"] == 1
+        assert result["available_count"] == 2
+
+        # Verify available field on each server
+        server1 = next(s for s in result["servers"] if s["name"] == "server1")
+        assert server1["available"] is True
+        assert server1["connected"] is True
+        assert "note" not in server1
+
+        server2 = next(s for s in result["servers"] if s["name"] == "server2")
+        assert server2["available"] is True
+        assert server2["connected"] is False
+        assert server2["note"] == "Connects automatically on first use"
 
 
 class TestGobbyDaemonToolsCallTool:
@@ -282,7 +294,7 @@ class TestGobbyDaemonToolsListTools:
             }
         )
 
-        result = await tools_handler.list_tools(server="server1")
+        result = await tools_handler.list_tools(server_name="server1")
 
         assert result["status"] == "success"
         assert "tools" in result
@@ -299,7 +311,7 @@ class TestGobbyDaemonToolsListTools:
             }
         )
 
-        await tools_handler.list_tools(server="server1")
+        await tools_handler.list_tools(server_name="server1")
 
         tools_handler.tool_proxy.list_tools.assert_called_once_with("server1", session_id=None)
 
@@ -310,7 +322,7 @@ class TestGobbyDaemonToolsListTools:
             return_value={"status": "success", "tools": [], "tool_count": 0}
         )
 
-        await tools_handler.list_tools(server="server1", session_id="session-123")
+        await tools_handler.list_tools(server_name="server1", session_id="session-123")
 
         tools_handler.tool_proxy.list_tools.assert_called_once_with(
             "server1", session_id="session-123"
@@ -483,7 +495,7 @@ class TestGobbyDaemonToolsSemanticSearch:
         tools_handler._semantic_search = mock_semantic
         tools_handler._mcp_manager.project_id = "test-project"
 
-        await tools_handler.search_tools(query="find", server="specific-server")
+        await tools_handler.search_tools(query="find", server_name="specific-server")
 
         mock_semantic.search_tools.assert_called_once()
         call_kwargs = mock_semantic.search_tools.call_args[1]

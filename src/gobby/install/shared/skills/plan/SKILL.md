@@ -1,14 +1,15 @@
 ---
 name: plan
-description: This skill should be used when the user asks to "/gobby plan", "create plan", "plan feature", "write specification". Guide users through structured specification planning. Does NOT create tasks - use /g expand for that.
+description: This skill should be used when the user asks to "/gobby plan", "create plan", "plan feature", "write specification". Guide users through structured specification planning. Does NOT create tasks - use /gobby:expand for that.
 version: "1.0.0"
 category: core
+triggers: plan, specification, requirements
 ---
 
-# /g plan - Implementation Planning Skill
+# /gobby:plan - Implementation Planning Skill
 
 Guide users through structured requirements gathering and specification writing.
-**This skill creates the plan document only.** Use `/g expand <plan-file>` to create tasks.
+**This skill creates the plan document only.** Use `/gobby:expand <plan-file>` to create tasks.
 
 ## Workflow Overview
 
@@ -16,7 +17,7 @@ Guide users through structured requirements gathering and specification writing.
 2. **Draft Plan** - Write structured plan document
 3. **Plan Verification** - Check for TDD anti-patterns and dependency issues
 4. **User Approval** - Present plan for review
-5. **Hand off to /g expand** - User runs `/g expand` on the plan file
+5. **Hand off to /gobby:expand** - User runs `/gobby:expand` on the plan file
 
 ## Step 0: **REQUIRED** ENTER PLAN MODE
 
@@ -163,7 +164,7 @@ Once approved, tell the user:
 ```
 Plan approved! To create tasks from this plan, run:
 
-/g expand <plan-file-path>
+/gobby:expand <plan-file-path>
 
 This will:
 1. Create a root epic from the plan
@@ -172,13 +173,13 @@ This will:
 4. Wire up dependencies
 ```
 
-**This skill ends here.** Task creation is handled by `/g expand`.
+**This skill ends here.** Task creation is handled by `/gobby:expand`.
 
 ---
 
-## Plan Format Reference (for /g expand)
+## Plan Format Reference (for /gobby:expand)
 
-The following sections describe what `/g expand` expects and how it will process your plan.
+The following sections describe what `/gobby:expand` expects and how it will process your plan.
 
 ## Task Granularity Guidelines
 
@@ -193,7 +194,7 @@ Bad: "Implement enrichment" (too vague)
 
 ## TDD Compatibility (IMPORTANT)
 
-When `/g expand` processes your plan, it applies TDD to each code/config task automatically.
+When `/gobby:expand` processes your plan, it applies TDD to each code/config task automatically.
 
 ### TDD Triplet Pattern
 
@@ -221,7 +222,7 @@ Valid categories (from `src/gobby/storage/tasks.py`):
 - `planning` - Architecture/design tasks (no TDD)
 - `manual` - Manual functional testing (observe output) (no TDD)
 
-### What /g plan Creates vs What /g expand Creates
+### What /gobby:plan Creates vs What /gobby:expand Creates
 
 **Your plan document should contain:**
 - Feature tasks with implied `category: code` or `category: config`
@@ -234,7 +235,7 @@ Valid categories (from `src/gobby/storage/tasks.py`):
 - "Ensure tests pass" tasks
 - Separate test tasks alongside implementation
 
-**When you run `/g expand <plan-file>`:**
+**When you run `/gobby:expand <plan-file>`:**
 
 ```
 Input: .gobby/plans/memory-v3.md
@@ -252,13 +253,13 @@ Output task tree:
     └─ description: TDD: 1) Write tests... 2) Run tests...
 ```
 
-**NOTE**: `/g expand` adds TDD instructions and validation criteria automatically.
+**NOTE**: `/gobby:expand` adds TDD instructions and validation criteria automatically.
 You just need to write a clear plan with well-defined tasks.
 
 ## Example Usage
 
 ```
-User: /g plan
+User: /gobby:plan
 Agent: "What feature would you like to plan?"
 User: "Add dark mode support to the app"
 Agent: [Asks clarifying questions]
@@ -267,9 +268,9 @@ Agent: [Runs verification - checks for TDD anti-patterns]
 Agent: "Here's the plan. Does this look correct?"
 User: "Yes, looks good"
 Agent: "Plan approved! To create tasks, run:
-        /g expand .gobby/plans/dark-mode.md"
+        /gobby:expand .gobby/plans/dark-mode.md"
 
-User: /g expand .gobby/plans/dark-mode.md
+User: /gobby:expand .gobby/plans/dark-mode.md
 Agent: [Creates epic, analyzes codebase, generates subtasks with TDD]
 Agent: "Created 12 tasks under epic #47 with validation criteria."
 ```
@@ -328,11 +329,11 @@ call_tool("gobby-workflows", "activate_workflow", {
 ### Hybrid Approach
 
 The skills and workflow are complementary:
-- **`/g plan`**: Interactive flexibility for requirements and drafting
-- **`/g expand`**: Creates tasks with TDD and validation
+- **`/gobby:plan`**: Interactive flexibility for requirements and drafting
+- **`/gobby:expand`**: Creates tasks with TDD and validation
 - **Workflow**: Deterministic expansion with enforced gates
 
 Recommended pattern:
-1. Use `/g plan` for Steps 1-5 (requirements through approval)
-2. Use `/g expand <plan-file>` to create tasks
+1. Use `/gobby:plan` for Steps 1-5 (requirements through approval)
+2. Use `/gobby:expand <plan-file>` to create tasks
 3. Or activate `plan-expansion` workflow for stricter enforcement

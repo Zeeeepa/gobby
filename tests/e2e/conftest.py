@@ -660,15 +660,15 @@ class MCPTestClient:
         response.raise_for_status()
         return response.json().get("servers", [])
 
-    def list_tools(self, server: str | None = None) -> list[dict[str, Any]]:
+    def list_tools(self, server_name: str | None = None) -> list[dict[str, Any]]:
         """List tools, optionally filtered by server.
 
         Returns a flat list of tools, each with 'server' key added.
         """
         params = {}
-        if server:
+        if server_name:
             # API uses server_filter parameter
-            params["server_filter"] = server
+            params["server_filter"] = server_name
 
         response = self.client.get("/mcp/tools", params=params)
         response.raise_for_status()
@@ -748,15 +748,15 @@ class AsyncMCPTestClient:
         response.raise_for_status()
         return response.json().get("servers", [])
 
-    async def list_tools(self, server: str | None = None) -> list[dict[str, Any]]:
+    async def list_tools(self, server_name: str | None = None) -> list[dict[str, Any]]:
         """List tools, optionally filtered by server.
 
         Returns a flat list of tools, each with 'server' key added.
         """
         params = {}
-        if server:
+        if server_name:
             # API uses server_filter parameter
-            params["server_filter"] = server
+            params["server_filter"] = server_name
 
         response = await self.client.get("/mcp/tools", params=params)
         response.raise_for_status()

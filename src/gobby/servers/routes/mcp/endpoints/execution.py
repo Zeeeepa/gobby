@@ -124,7 +124,7 @@ async def _call_internal_tool(
                 "success": False,
                 "error": f"Tool '{tool_name}' not found on '{server_name}'. "
                 f"Available: {', '.join(available)}. "
-                f"Use list_tools(server='{server_name}') to see all tools, "
+                f"Use list_tools(server_name='{server_name}') to see all tools, "
                 f"or get_tool_schema(server_name='{server_name}', tool_name='...') for full schema.",
             },
         )
@@ -179,16 +179,20 @@ async def list_mcp_tools(
                     "tool_count": len(tools),
                     "response_time_ms": response_time_ms,
                 }
-            raise HTTPException(
-                status_code=404,
-                detail={"success": False, "error": f"Internal server '{server_name}' not found"},
-            )
+            response_time_ms = (time.perf_counter() - start_time) * 1000
+            return {
+                "success": False,
+                "error": f"Internal server '{server_name}' not found",
+                "response_time_ms": response_time_ms,
+            }
 
         if mcp_manager is None:
-            raise HTTPException(
-                status_code=503,
-                detail={"success": False, "error": "MCP manager not available"},
-            )
+            response_time_ms = (time.perf_counter() - start_time) * 1000
+            return {
+                "success": False,
+                "error": "MCP manager not available",
+                "response_time_ms": response_time_ms,
+            }
 
         # Check if server is configured
         if not mcp_manager.has_server(server_name):

@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import json
 import logging
+import re
 from collections.abc import Callable
 from typing import TYPE_CHECKING, Any
 
@@ -423,6 +424,28 @@ async def block_tools(
 
         if not rule_matches:
             continue
+
+        # Command pattern matching for Bash tools
+        # command_pattern: regex that must match the command for the rule to apply
+        # command_not_pattern: regex that excludes the command if it matches
+        # These fields are only evaluated for Bash tool calls (ignored for other tools)
+        if rule_matches and tool_name == "Bash":
+            command = (
+                tool_input.get("command", "") if isinstance(tool_input, dict) else str(tool_input)
+            )
+            cmd_pattern = rule.get("command_pattern")
+            cmd_not_pattern = rule.get("command_not_pattern")
+
+            try:
+                if cmd_pattern:
+                    if not re.search(cmd_pattern, command):
+                        continue  # Pattern didn't match — skip this rule
+                if cmd_not_pattern:
+                    if re.search(cmd_not_pattern, command):
+                        continue  # Exclusion pattern matched — skip this rule
+            except re.error as e:
+                logger.error(f"Invalid regex in blocking rule: {e}")
+                continue  # Skip this rule on regex error
 
         # Check optional condition
         condition = rule.get("when")

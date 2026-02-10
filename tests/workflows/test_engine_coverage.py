@@ -4,7 +4,7 @@ Additional tests for WorkflowEngine to increase coverage.
 Covers:
 - Lines 100-103: __lifecycle__ workflow handling (skip step workflow handling)
 - Lines 124-131: Session info lookup via session_manager.find_by_external_id
-- Lines 161-164: Reset premature stop counter on user prompt (BEFORE_AGENT)
+- Lines 161-164: Reset premature stop counter on user prompt (BEFORE_AGENT), NOT on tool calls
 - Lines 898-988: _check_premature_stop method
 - Lines 1079-1090: _log_approval audit logging method
 """
@@ -22,8 +22,9 @@ from gobby.workflows.definitions import (
     WorkflowDefinition,
     WorkflowState,
     WorkflowStep,
+    WorkflowTransition,
 )
-from gobby.workflows.engine import WorkflowEngine
+from gobby.workflows.engine import TransitionResult, WorkflowEngine
 from gobby.workflows.evaluator import ConditionEvaluator
 from gobby.workflows.loader import WorkflowLoader
 from gobby.workflows.state_manager import WorkflowStateManager
@@ -320,6 +321,47 @@ class TestPrematureStopCounterReset:
         # save_state should NOT be called just for counter reset when it's already 0
         # (it might be called for other reasons, but the counter reset path is skipped)
         assert state.variables.get("_premature_stop_count", 0) == 0
+
+    async def test_premature_stop_counter_not_reset_on_before_tool(
+        self, workflow_engine, mock_state_manager, mock_loader, mock_evaluator
+    ):
+        """Premature stop counter must NOT reset on BEFORE_TOOL events.
+
+        For orchestrator workflows in mode: self, the orchestrator's own MCP
+        tool calls would reset the counter on every call, defeating the
+        failsafe that detects stuck-in-loop agents.
+        """
+        state = WorkflowState(
+            session_id="sess1",
+            workflow_name="test_wf",
+            step="working",
+            step_entered_at=datetime.now(UTC),
+            variables={"_premature_stop_count": 2},
+        )
+        mock_state_manager.get_state.return_value = state
+
+        step = MagicMock(spec=WorkflowStep)
+        step.blocked_tools = []
+        step.allowed_tools = "all"
+        step.rules = []
+        step.transitions = []
+        step.exit_conditions = []
+        step.on_enter = []
+
+        workflow = MagicMock(spec=WorkflowDefinition)
+        workflow.type = "step"
+        workflow.get_step.return_value = step
+        mock_loader.load_workflow.return_value = workflow
+
+        event = create_event(
+            event_type=HookEventType.BEFORE_TOOL,
+            data={"tool_name": "suggest_next_task"},
+        )
+
+        await workflow_engine.handle_event(event)
+
+        # Counter should remain at 2 — tool calls must NOT reset it
+        assert state.variables["_premature_stop_count"] == 2
 
 
 @pytest.mark.asyncio
@@ -955,3 +997,226 @@ class TestApprovalPromptReminder:
         assert "Waiting for approval" in response.context
         assert "Ready to deploy?" in response.context
         assert state.approval_pending is True  # Still pending
+
+
+class TestConfigurableStuckTimeout:
+    """Tests for configurable stuck_timeout workflow variable."""
+
+    @pytest.mark.asyncio
+    async def test_default_stuck_timeout_triggers_at_1800s(
+        self, workflow_engine, mock_state_manager, mock_loader
+    ) -> None:
+        """Default stuck timeout triggers at 30 minutes (1800s)."""
+        from datetime import timedelta
+        from unittest.mock import patch as _patch
+
+        state = WorkflowState(
+            session_id="sess1",
+            workflow_name="test_wf",
+            step="working",
+            step_entered_at=datetime.now(UTC) - timedelta(seconds=1801),
+            variables={},  # No stuck_timeout set — uses default 1800
+        )
+        mock_state_manager.get_state.return_value = state
+
+        # Workflow with reflect step so transition happens
+        workflow = WorkflowDefinition(
+            name="test_wf",
+            steps=[WorkflowStep(name="working"), WorkflowStep(name="reflect")],
+        )
+        mock_loader.load_workflow.return_value = workflow
+
+        # Mock transition_to to avoid deep dependency chain
+        mock_result = MagicMock()
+        mock_result.injected_messages = []
+        mock_result.system_messages = []
+        with _patch.object(workflow_engine, "transition_to", return_value=mock_result):
+            event = create_event(event_type=HookEventType.BEFORE_TOOL)
+            response = await workflow_engine.handle_event(event)
+
+        # Should trigger stuck detection → transition to reflect
+        assert response.decision == "modify"
+        assert "Step duration limit exceeded" in response.context
+
+    @pytest.mark.asyncio
+    async def test_custom_stuck_timeout_does_not_trigger_early(
+        self, workflow_engine, mock_state_manager, mock_loader
+    ) -> None:
+        """Custom stuck_timeout=7200 does not trigger at 31 minutes."""
+        from datetime import timedelta
+
+        state = WorkflowState(
+            session_id="sess1",
+            workflow_name="test_wf",
+            step="working",
+            step_entered_at=datetime.now(UTC) - timedelta(seconds=1860),  # 31 min
+            variables={"stuck_timeout": 7200},  # 2 hours
+        )
+        mock_state_manager.get_state.return_value = state
+
+        workflow = WorkflowDefinition(
+            name="test_wf",
+            steps=[WorkflowStep(name="working")],
+        )
+        mock_loader.load_workflow.return_value = workflow
+
+        event = create_event(event_type=HookEventType.BEFORE_TOOL)
+
+        response = await workflow_engine.handle_event(event)
+
+        # Should NOT trigger stuck detection — 31 min < 2 hours
+        assert response.decision == "allow"
+
+    @pytest.mark.asyncio
+    async def test_custom_stuck_timeout_triggers_when_exceeded(
+        self, workflow_engine, mock_state_manager, mock_loader
+    ) -> None:
+        """Custom stuck_timeout=3600 triggers when exceeded."""
+        from datetime import timedelta
+        from unittest.mock import patch as _patch
+
+        state = WorkflowState(
+            session_id="sess1",
+            workflow_name="test_wf",
+            step="working",
+            step_entered_at=datetime.now(UTC) - timedelta(seconds=3601),  # Just over 1 hour
+            variables={"stuck_timeout": 3600},  # 1 hour
+        )
+        mock_state_manager.get_state.return_value = state
+
+        workflow = WorkflowDefinition(
+            name="test_wf",
+            steps=[WorkflowStep(name="working"), WorkflowStep(name="reflect")],
+        )
+        mock_loader.load_workflow.return_value = workflow
+
+        mock_result = MagicMock()
+        mock_result.injected_messages = []
+        mock_result.system_messages = []
+        with _patch.object(workflow_engine, "transition_to", return_value=mock_result):
+            event = create_event(event_type=HookEventType.BEFORE_TOOL)
+            response = await workflow_engine.handle_event(event)
+
+        assert response.decision == "modify"
+        assert "Step duration limit exceeded" in response.context
+
+
+class TestAutoTransitionDepthLimitLogging:
+    """Tests for auto-transition chain depth limit logging (#7388)."""
+
+    @pytest.mark.asyncio
+    async def test_chain_truncation_logs_error_with_session_and_chain(
+        self, workflow_engine, mock_state_manager, mock_loader
+    ) -> None:
+        """Truncated chain logs error with session_id and visited steps."""
+        from unittest.mock import patch as _patch
+
+        # Create a cycle: step_a → step_b → step_c → step_a (infinite loop)
+        step_a = WorkflowStep(
+            name="step_a",
+            transitions=[WorkflowTransition(to="step_b", when="true")],
+        )
+        step_b = WorkflowStep(
+            name="step_b",
+            transitions=[WorkflowTransition(to="step_c", when="true")],
+        )
+        step_c = WorkflowStep(
+            name="step_c",
+            transitions=[WorkflowTransition(to="step_a", when="true")],
+        )
+        workflow = WorkflowDefinition(
+            name="test_cycle_wf",
+            steps=[step_a, step_b, step_c],
+        )
+
+        state = WorkflowState(
+            session_id="sess-depth-test",
+            workflow_name="test_cycle_wf",
+            step="step_a",
+            variables={},
+        )
+
+        event = create_event(session_id="sess-depth-test")
+        initial_result = TransitionResult()
+
+        # Mock transition_to to simulate step changes without full engine
+        async def fake_transition(s, to_step, wf, **kwargs):
+            s.step = to_step
+            return TransitionResult()
+
+        with (
+            _patch.object(workflow_engine, "transition_to", side_effect=fake_transition),
+            _patch("gobby.workflows.engine.logger") as mock_logger,
+        ):
+            await workflow_engine._auto_transition_chain(
+                state=state,
+                workflow=workflow,
+                session_info={},
+                project_info={},
+                event=event,
+                initial_result=initial_result,
+                max_depth=3,
+            )
+
+        # Should log error (not warning)
+        mock_logger.error.assert_called_once()
+        log_msg = mock_logger.error.call_args[0][0]
+
+        # Verify session_id is included
+        assert "sess-depth-test" in log_msg
+        # Verify chain is included (step_a → step_b → step_c → step_a)
+        assert "step_a" in log_msg
+        assert "step_b" in log_msg
+        assert "step_c" in log_msg
+        assert "→" in log_msg
+        # Verify max_depth mentioned
+        assert "max_depth=3" in log_msg
+
+    @pytest.mark.asyncio
+    async def test_no_truncation_when_chain_stops_early(
+        self, workflow_engine, mock_state_manager, mock_loader
+    ) -> None:
+        """No error logged when chain stops before max_depth."""
+        from unittest.mock import patch as _patch
+
+        # step_a → step_b (no further transitions)
+        step_a = WorkflowStep(
+            name="step_a",
+            transitions=[WorkflowTransition(to="step_b", when="true")],
+        )
+        step_b = WorkflowStep(name="step_b")  # No transitions — stops here
+        workflow = WorkflowDefinition(
+            name="test_wf",
+            steps=[step_a, step_b],
+        )
+
+        state = WorkflowState(
+            session_id="sess2",
+            workflow_name="test_wf",
+            step="step_a",
+            variables={},
+        )
+
+        event = create_event(session_id="sess2")
+        initial_result = TransitionResult()
+
+        async def fake_transition(s, to_step, wf, **kwargs):
+            s.step = to_step
+            return TransitionResult()
+
+        with (
+            _patch.object(workflow_engine, "transition_to", side_effect=fake_transition),
+            _patch("gobby.workflows.engine.logger") as mock_logger,
+        ):
+            await workflow_engine._auto_transition_chain(
+                state=state,
+                workflow=workflow,
+                session_info={},
+                project_info={},
+                event=event,
+                initial_result=initial_result,
+                max_depth=10,
+            )
+
+        # No error — chain stopped naturally
+        mock_logger.error.assert_not_called()

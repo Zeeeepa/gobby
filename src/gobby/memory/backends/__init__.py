@@ -37,17 +37,13 @@ def get_backend(backend_type: str, **kwargs: Any) -> MemoryBackendProtocol:
             - "sqlite": SQLite-based persistent storage (requires database kwarg)
             - "null": No-op backend for testing
             - "mem0": Mem0 cloud-based semantic memory (requires api_key kwarg)
-            - "memu": MemU structured memory (optional: database_type, llm_api_key)
             - "openmemory": Self-hosted OpenMemory REST API (requires base_url kwarg)
 
         **kwargs: Backend-specific configuration:
             - database: DatabaseProtocol instance (required for "sqlite")
             - api_key: API key (required for "mem0")
-            - database_type: "inmemory", "sqlite", or "postgres" (for "memu")
-            - database_url: Connection URL (for "memu" sqlite/postgres)
-            - llm_api_key: LLM API key for embeddings (optional for "memu")
             - base_url: Server URL (required for "openmemory")
-            - user_id: Default user ID (optional for "mem0", "memu", "openmemory")
+            - user_id: Default user ID (optional for "mem0", "openmemory")
 
     Returns:
         A MemoryBackendProtocol instance
@@ -92,17 +88,6 @@ def get_backend(backend_type: str, **kwargs: Any) -> MemoryBackendProtocol:
             org_id=kwargs.get("org_id"),
         )
 
-    elif backend_type == "memu":
-        from gobby.memory.backends.memu import MemUBackend
-
-        return MemUBackend(
-            database_type=kwargs.get("database_type", "inmemory"),
-            database_url=kwargs.get("database_url"),
-            llm_api_key=kwargs.get("llm_api_key") or kwargs.get("api_key"),
-            llm_base_url=kwargs.get("llm_base_url"),
-            user_id=kwargs.get("user_id"),
-        )
-
     elif backend_type == "openmemory":
         from gobby.memory.backends.openmemory import OpenMemoryBackend
 
@@ -117,5 +102,5 @@ def get_backend(backend_type: str, **kwargs: Any) -> MemoryBackendProtocol:
 
     else:
         raise ValueError(
-            f"Unknown backend type: '{backend_type}'. Supported types: 'sqlite', 'null', 'mem0', 'memu', 'openmemory'"
+            f"Unknown backend type: '{backend_type}'. Supported types: 'sqlite', 'null', 'mem0', 'openmemory'"
         )

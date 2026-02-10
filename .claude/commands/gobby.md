@@ -69,7 +69,7 @@ When user provides `/gobby mcp <server> [args]`:
 1. Extract server name (second arg)
 2. Extract remaining args as query
 3. Use `list_mcp_servers()` to verify server exists
-4. Use `list_tools(server)` to find appropriate tool
+4. Use `list_tools(server_name)` to find appropriate tool
 5. Call the tool with the query
 
 Example: `/gobby mcp context7 react hooks`
@@ -77,7 +77,7 @@ Example: `/gobby mcp context7 react hooks`
 # 1. Verify server exists
 list_mcp_servers()
 # 2. Get available tools on that server
-list_tools(server="context7")
+list_tools(server_name="context7")
 # 3. Call appropriate tool (e.g., resolve-library-id, query-docs)
 call_tool(server_name="context7", tool_name="resolve-library-id", arguments={"libraryName": "react", "query": "hooks"})
 ```

@@ -48,7 +48,7 @@ class TestCloneToolsAvailability:
         mcp_client: MCPTestClient,
     ) -> None:
         """Verify all clone management tools are available on gobby-clones server."""
-        tools = mcp_client.list_tools(server="gobby-clones")
+        tools = mcp_client.list_tools(server_name="gobby-clones")
         tool_names = [t["name"] for t in tools]
 
         expected_tools = [
@@ -104,7 +104,7 @@ class TestParallelOrchestratorWorkflow:
         mcp_client: MCPTestClient,
     ) -> None:
         """Verify workflow tools needed for parallel orchestration are available."""
-        tools = mcp_client.list_tools(server="gobby-workflows")
+        tools = mcp_client.list_tools(server_name="gobby-workflows")
         tool_names = [t["name"] for t in tools]
 
         expected_tools = [
@@ -123,19 +123,18 @@ class TestParallelOrchestratorWorkflow:
         mcp_client: MCPTestClient,
     ) -> None:
         """Verify orchestration tools needed for parallel processing are available."""
-        tools = mcp_client.list_tools(server="gobby-tasks")
-        tool_names = [t["name"] for t in tools]
+        # list_ready_tasks and suggest_next_task are on gobby-tasks
+        task_tools = mcp_client.list_tools(server_name="gobby-tasks")
+        task_tool_names = [t["name"] for t in task_tools]
+        for tool in ["list_ready_tasks", "suggest_next_task"]:
+            assert tool in task_tool_names, f"Missing orchestration tool: {tool}"
 
-        expected_tools = [
-            "list_ready_tasks",
-            "orchestrate_ready_tasks",
-            "get_orchestration_status",
-            "poll_agent_status",
-            "suggest_next_task",
-        ]
-
-        for tool in expected_tools:
-            assert tool in tool_names, f"Missing orchestration tool: {tool}"
+        # orchestrate_ready_tasks, get_orchestration_status, poll_agent_status
+        # are on gobby-orchestration
+        orch_tools = mcp_client.list_tools(server_name="gobby-orchestration")
+        orch_tool_names = [t["name"] for t in orch_tools]
+        for tool in ["orchestrate_ready_tasks", "get_orchestration_status", "poll_agent_status"]:
+            assert tool in orch_tool_names, f"Missing orchestration tool: {tool}"
 
 
 class TestEpicWithIndependentSubtasks:
@@ -267,9 +266,9 @@ class TestEpicWithIndependentSubtasks:
                 },
             )
 
-        # Get orchestration status
+        # Get orchestration status (on gobby-orchestration server)
         raw_result = mcp_client.call_tool(
-            server_name="gobby-tasks",
+            server_name="gobby-orchestration",
             tool_name="get_orchestration_status",
             arguments={
                 "parent_task_id": epic_id,

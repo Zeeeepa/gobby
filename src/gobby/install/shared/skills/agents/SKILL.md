@@ -1,7 +1,7 @@
 ---
 name: agents
 description: Manage subagent spawning - spawn, cancel, list, and check results of autonomous agents.
-triggers: /gobby agents, spawn agent, start agent, list agents
+triggers: spawn agent, list agents
 category: core
 ---
 

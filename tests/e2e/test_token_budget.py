@@ -42,7 +42,7 @@ class TestBudgetToolsAvailability:
         mcp_client: MCPTestClient,
     ) -> None:
         """Verify budget management tools are available on gobby-metrics server."""
-        tools = mcp_client.list_tools(server="gobby-metrics")
+        tools = mcp_client.list_tools(server_name="gobby-metrics")
         tool_names = [t["name"] for t in tools]
 
         expected_tools = [
@@ -315,7 +315,7 @@ class TestAgentSpawnThrottling:
         """Verify agent spawning tools are available."""
         # Check gobby-agents tools - spawn_agent is the unified tool that replaces
         # start_agent and spawn_agent_in_clone (use isolation param for clone/worktree)
-        agent_tools = mcp_client.list_tools(server="gobby-agents")
+        agent_tools = mcp_client.list_tools(server_name="gobby-agents")
         agent_tool_names = [t["name"] for t in agent_tools]
         assert "spawn_agent" in agent_tool_names, "Missing spawn_agent tool"
 

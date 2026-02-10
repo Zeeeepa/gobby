@@ -1312,7 +1312,8 @@ class TestMCPClientManagerServerConfig:
 
         manager.add_server_config(config)
 
-        assert manager.health["new-server"].state == ConnectionState.DISCONNECTED
+        # Default lazy_connect=True, so new servers start as PENDING
+        assert manager.health["new-server"].state == ConnectionState.PENDING
 
     def test_remove_server_config_success(self) -> None:
         """Test remove_server_config removes config."""

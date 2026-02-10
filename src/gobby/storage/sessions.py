@@ -6,161 +6,13 @@ import builtins
 import json
 import logging
 import uuid
-from dataclasses import dataclass
 from datetime import UTC, datetime
 from typing import Any
 
 from gobby.storage.database import DatabaseProtocol
+from gobby.storage.session_models import Session
 
 logger = logging.getLogger(__name__)
-
-
-@dataclass
-class Session:
-    """Session data model."""
-
-    id: str
-    external_id: str
-    machine_id: str
-    source: str
-    project_id: str  # Required - sessions must belong to a project
-    title: str | None
-    status: str
-    jsonl_path: str | None
-    summary_path: str | None
-    summary_markdown: str | None
-    compact_markdown: str | None  # Handoff context for compaction
-    git_branch: str | None
-    parent_session_id: str | None
-    created_at: str
-    updated_at: str
-    agent_depth: int = 0  # 0 = human-initiated, 1+ = agent-spawned
-    spawned_by_agent_id: str | None = None  # ID of agent that spawned this session
-    # Terminal pickup metadata fields
-    workflow_name: str | None = None  # Workflow to activate on terminal pickup
-    step_variables: dict[str, Any] | None = None  # Variables for workflow activation
-    agent_run_id: str | None = None  # Link back to agent run record
-    context_injected: bool = False  # Whether context was injected into prompt
-    original_prompt: str | None = None  # Original prompt for terminal mode
-    # Usage tracking fields
-    usage_input_tokens: int = 0
-    usage_output_tokens: int = 0
-    usage_cache_creation_tokens: int = 0
-    usage_cache_read_tokens: int = 0
-    usage_total_cost_usd: float = 0.0
-    model: str | None = None  # LLM model used (e.g., "claude-3-5-sonnet-20241022")
-    # Terminal context (JSON blob with tty, parent_pid, term_session_id, etc.)
-    terminal_context: dict[str, Any] | None = None
-    # Global sequence number
-    seq_num: int | None = None
-    # Edit history tracking
-    had_edits: bool = False
-
-    @classmethod
-    def from_row(cls, row: Any) -> Session:
-        """Create Session from database row."""
-        return cls(
-            id=row["id"],
-            external_id=row["external_id"],
-            machine_id=row["machine_id"],
-            source=row["source"],
-            project_id=row["project_id"],
-            title=row["title"],
-            status=row["status"],
-            jsonl_path=row["jsonl_path"],
-            summary_path=row["summary_path"],
-            summary_markdown=row["summary_markdown"],
-            compact_markdown=row["compact_markdown"],
-            git_branch=row["git_branch"],
-            parent_session_id=row["parent_session_id"],
-            created_at=row["created_at"],
-            updated_at=row["updated_at"],
-            agent_depth=row["agent_depth"] or 0,
-            spawned_by_agent_id=row["spawned_by_agent_id"],
-            workflow_name=row["workflow_name"],
-            step_variables=cls._parse_json_field(row, "step_variables"),
-            agent_run_id=row["agent_run_id"],
-            context_injected=bool(row["context_injected"]),
-            original_prompt=row["original_prompt"],
-            usage_input_tokens=row["usage_input_tokens"] or 0,
-            usage_output_tokens=row["usage_output_tokens"] or 0,
-            usage_cache_creation_tokens=row["usage_cache_creation_tokens"] or 0,
-            usage_cache_read_tokens=row["usage_cache_read_tokens"] or 0,
-            usage_total_cost_usd=row["usage_total_cost_usd"] or 0.0,
-            model=row["model"] if "model" in row.keys() else None,
-            terminal_context=cls._parse_terminal_context(row["terminal_context"]),
-            seq_num=row["seq_num"] if "seq_num" in row.keys() else None,
-            had_edits=bool(row["had_edits"]) if "had_edits" in row.keys() else False,
-        )
-
-    @classmethod
-    def _parse_terminal_context(cls, raw: str | None) -> dict[str, Any] | None:
-        """Parse terminal_context JSON, returning None on malformed data.
-
-        Args:
-            raw: Raw JSON string or None
-
-        Returns:
-            Parsed dict or None if parsing fails or input is None
-        """
-        if not raw:
-            return None
-        try:
-            result: dict[str, Any] = json.loads(raw)
-            return result
-        except json.JSONDecodeError:
-            logger.warning("Failed to parse terminal_context JSON, returning None")
-            return None
-
-    @classmethod
-    def _parse_json_field(cls, row: Any, field_name: str) -> dict[str, Any] | None:
-        """Parse a JSON field from a database row, returning None on missing/malformed data."""
-        if field_name not in row.keys():
-            return None
-        raw = row[field_name]
-        if not raw:
-            return None
-        try:
-            result: dict[str, Any] = json.loads(raw)
-            return result
-        except json.JSONDecodeError:
-            logger.warning(f"Failed to parse {field_name} JSON, returning None")
-            return None
-
-    def to_dict(self) -> dict[str, Any]:
-        """Convert to dictionary."""
-        return {
-            "ref": f"#{self.seq_num}" if self.seq_num else self.id[:8],
-            "external_id": self.external_id,
-            "machine_id": self.machine_id,
-            "source": self.source,
-            "project_id": self.project_id,
-            "title": self.title,
-            "status": self.status,
-            "jsonl_path": self.jsonl_path,
-            "summary_path": self.summary_path,
-            "summary_markdown": self.summary_markdown,
-            "compact_markdown": self.compact_markdown,
-            "git_branch": self.git_branch,
-            "parent_session_id": self.parent_session_id,
-            "agent_depth": self.agent_depth,
-            "spawned_by_agent_id": self.spawned_by_agent_id,
-            "workflow_name": self.workflow_name,
-            "agent_run_id": self.agent_run_id,
-            "context_injected": self.context_injected,
-            "original_prompt": self.original_prompt,
-            "usage_input_tokens": self.usage_input_tokens,
-            "usage_output_tokens": self.usage_output_tokens,
-            "usage_cache_creation_tokens": self.usage_cache_creation_tokens,
-            "usage_cache_read_tokens": self.usage_cache_read_tokens,
-            "usage_total_cost_usd": self.usage_total_cost_usd,
-            "terminal_context": self.terminal_context,
-            "had_edits": self.had_edits,
-            "created_at": self.created_at,
-            "updated_at": self.updated_at,
-            "seq_num": self.seq_num,
-            "id": self.id,  # UUID at end for backwards compat
-        }
 
 
 class LocalSessionManager:
@@ -308,69 +160,16 @@ class LocalSessionManager:
         return Session.from_row(row) if row else None
 
     def resolve_session_reference(self, ref: str, project_id: str | None = None) -> str:
+        """Resolve a session reference to a UUID.
+
+        Delegates to standalone resolve_session_reference() function.
+        See session_resolution.py for full documentation.
         """
-        Resolve a session reference to a UUID.
+        from gobby.storage.session_resolution import (
+            resolve_session_reference as _resolve,
+        )
 
-        Supports:
-        - #N: Project-scoped Sequence Number (e.g., #1) - requires project_id
-        - N: Integer string treated as #N (e.g., "1")
-        - UUID: Full UUID
-        - Prefix: UUID prefix (must be unambiguous)
-
-        Args:
-            ref: Session reference string
-            project_id: Project ID for project-scoped #N lookup.
-                If not provided, falls back to global lookup for backwards compat.
-
-        Returns:
-            Resolved Session UUID
-
-        Raises:
-            ValueError: If not found or ambiguous
-        """
-        if not ref:
-            raise ValueError("Empty session reference")
-
-        # #N or N format: seq_num lookup
-        seq_num_ref = ref
-        if ref.startswith("#"):
-            seq_num_ref = ref[1:]
-
-        if seq_num_ref.isdigit():
-            seq_num = int(seq_num_ref)
-            if project_id:
-                # Project-scoped lookup
-                row = self.db.fetchone(
-                    "SELECT id FROM sessions WHERE project_id = ? AND seq_num = ?",
-                    (project_id, seq_num),
-                )
-            else:
-                # Fallback to global lookup for backwards compat
-                row = self.db.fetchone("SELECT id FROM sessions WHERE seq_num = ?", (seq_num,))
-            if not row:
-                raise ValueError(f"Session #{seq_num} not found")
-            return str(row["id"])
-
-        # Full UUID check
-        try:
-            uuid_obj = uuid.UUID(ref)
-            # Verify the session exists in the database
-            row = self.db.fetchone("SELECT id FROM sessions WHERE id = ?", (str(uuid_obj),))
-            if not row:
-                raise ValueError(f"Session '{ref}' not found")
-            return str(uuid_obj)
-        except ValueError:
-            pass  # Not a valid UUID, try prefix
-
-        # Prefix matching
-        rows = self.db.fetchall("SELECT id FROM sessions WHERE id LIKE ? LIMIT 5", (f"{ref}%",))
-        if not rows:
-            raise ValueError(f"Session '{ref}' not found")
-        if len(rows) > 1:
-            matches = [str(r["id"]) for r in rows]
-            raise ValueError(f"Ambiguous session '{ref}' matches: {', '.join(matches[:3])}...")
-
-        return str(rows[0]["id"])
+        return _resolve(self.db, ref, project_id)
 
     def find_by_external_id(
         self,
@@ -684,57 +483,16 @@ class LocalSessionManager:
         return bool(cursor.rowcount and cursor.rowcount > 0)
 
     def expire_stale_sessions(self, timeout_hours: int = 24) -> int:
-        """
-        Mark sessions as expired if they've been inactive for too long.
+        """Mark sessions as expired if inactive too long. Delegates to session_lifecycle."""
+        from gobby.storage.session_lifecycle import expire_stale_sessions as _expire
 
-        Args:
-            timeout_hours: Hours of inactivity before expiring
-
-        Returns:
-            Number of sessions expired
-        """
-        now = datetime.now(UTC).isoformat()
-        cursor = self.db.execute(
-            """
-            UPDATE sessions
-            SET status = 'expired', updated_at = ?
-            WHERE status IN ('active', 'paused', 'handoff_ready')
-            AND datetime(updated_at) < datetime('now', 'utc', ? || ' hours')
-            """,
-            (now, f"-{timeout_hours}"),
-        )
-        count = cursor.rowcount or 0
-        if count > 0:
-            logger.info(f"Expired {count} stale sessions (>{timeout_hours}h inactive)")
-        return count
+        return _expire(self.db, timeout_hours)
 
     def pause_inactive_active_sessions(self, timeout_minutes: int = 30) -> int:
-        """
-        Mark active sessions as paused if they've been inactive for too long.
+        """Pause active sessions inactive too long. Delegates to session_lifecycle."""
+        from gobby.storage.session_lifecycle import pause_inactive_active_sessions as _pause
 
-        This catches orphaned sessions that never received an AFTER_AGENT hook
-        (e.g., Claude Code crashed mid-response).
-
-        Args:
-            timeout_minutes: Minutes of inactivity before pausing
-
-        Returns:
-            Number of sessions paused
-        """
-        now = datetime.now(UTC).isoformat()
-        cursor = self.db.execute(
-            """
-            UPDATE sessions
-            SET status = 'paused', updated_at = ?
-            WHERE status = 'active'
-            AND datetime(updated_at) < datetime('now', 'utc', ? || ' minutes')
-            """,
-            (now, f"-{timeout_minutes}"),
-        )
-        count = cursor.rowcount or 0
-        if count > 0:
-            logger.info(f"Paused {count} inactive active sessions (>{timeout_minutes}m)")
-        return count
+        return _pause(self.db, timeout_minutes)
 
     def get_pending_transcript_sessions(self, limit: int = 10) -> builtins.list[Session]:
         """

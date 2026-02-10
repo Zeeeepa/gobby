@@ -2,7 +2,7 @@
 
 This module defines the abstraction layer that enables pluggable memory backends.
 Users can choose between Gobby's built-in SQLite backend or plug in external
-memory systems like Mem0, OpenMemory, or MemU.
+memory systems like Mem0 or OpenMemory.
 
 Types:
 - MemoryCapability: Enum of capabilities a backend can support
@@ -447,5 +447,31 @@ class MemoryBackendProtocol(Protocol):
 
         Returns:
             List of MemoryRecords
+        """
+        ...
+
+    async def content_exists(self, content: str, project_id: str | None = None) -> bool:
+        """Check if a memory with identical content already exists.
+
+        Args:
+            content: The content to check for
+            project_id: Optional project filter (may be ignored for global dedup)
+
+        Returns:
+            True if a memory with identical content exists
+        """
+        ...
+
+    async def get_memory_by_content(
+        self, content: str, project_id: str | None = None
+    ) -> MemoryRecord | None:
+        """Get a memory by its exact content.
+
+        Args:
+            content: The exact content to look up
+            project_id: Optional project filter (may be ignored for global dedup)
+
+        Returns:
+            The MemoryRecord if found, None otherwise
         """
         ...

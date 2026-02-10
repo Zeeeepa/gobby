@@ -76,10 +76,10 @@ class DaemonProxy:
         """Get daemon status."""
         return await self._request("GET", "/admin/status")
 
-    async def list_tools(self, server: str | None = None) -> dict[str, Any]:
+    async def list_tools(self, server_name: str | None = None) -> dict[str, Any]:
         """List tools from MCP servers."""
-        if server:
-            return await self._request("GET", f"/mcp/{server}/tools")
+        if server_name:
+            return await self._request("GET", f"/mcp/{server_name}/tools")
         # List all - need to get server list first
         status = await self.get_status()
         if status.get("success") is False:
@@ -185,7 +185,7 @@ class DaemonProxy:
         query: str,
         top_k: int = 10,
         min_similarity: float = 0.0,
-        server: str | None = None,
+        server_name: str | None = None,
         cwd: str | None = None,
     ) -> dict[str, Any]:
         """Search for tools using semantic similarity."""
@@ -196,7 +196,7 @@ class DaemonProxy:
                 "query": query,
                 "top_k": top_k,
                 "min_similarity": min_similarity,
-                "server": server,
+                "server": server_name,
                 "cwd": cwd,
             },
             timeout=60.0,
@@ -302,20 +302,20 @@ def register_proxy_tools(mcp: FastMCP, proxy: DaemonProxy) -> None:
         return await proxy.list_mcp_servers()
 
     @mcp.tool()
-    async def list_tools(server: str) -> dict[str, Any]:
+    async def list_tools(server_name: str) -> dict[str, Any]:
         """
         List tools from MCP servers.
 
         Use this to discover tools available on servers.
 
         Args:
-            server: Server name (e.g., "context7", "supabase").
+            server_name: Server name (e.g., "context7", "supabase").
                    Use list_mcp_servers() first to discover available servers.
 
         Returns:
             Dict with tool listings
         """
-        return await proxy.list_tools(server)
+        return await proxy.list_tools(server_name)
 
     @mcp.tool()
     async def get_tool_schema(server_name: str, tool_name: str) -> dict[str, Any]:
@@ -394,7 +394,7 @@ def register_proxy_tools(mcp: FastMCP, proxy: DaemonProxy) -> None:
         query: str,
         top_k: int = 10,
         min_similarity: float = 0.0,
-        server: str | None = None,
+        server_name: str | None = None,
     ) -> dict[str, Any]:
         """
         Search for tools using semantic similarity.
@@ -406,7 +406,7 @@ def register_proxy_tools(mcp: FastMCP, proxy: DaemonProxy) -> None:
             query: Natural language description of the tool you need
             top_k: Maximum number of results to return (default: 10)
             min_similarity: Minimum similarity threshold 0-1 (default: 0.0)
-            server: Optional server name to filter results
+            server_name: Optional server name to filter results
 
         Returns:
             Dict with matching tools sorted by similarity
@@ -418,7 +418,7 @@ def register_proxy_tools(mcp: FastMCP, proxy: DaemonProxy) -> None:
             query,
             top_k=top_k,
             min_similarity=min_similarity,
-            server=server,
+            server_name=server_name,
             cwd=cwd,
         )
 

@@ -86,7 +86,7 @@ class CursorTranscriptParser:
             return None
 
         if not isinstance(data, dict):
-            self.logger.debug(f"Skipping non-object JSON at line {index}")
+            self.logger.debug("Skipping non-object JSON at line %s", index)
             return None
 
         event_type = data.get("type")

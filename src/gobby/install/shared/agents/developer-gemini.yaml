@@ -1,0 +1,179 @@
+name: developer-gemini
+description: |
+  Gemini-based developer agent with TDD workflow enforcement.
+  Uses red/green/blue phases for test-driven development.
+
+  Usage:
+    spawn_agent(developer-gemini, workflow="developer", task_id="#123")
+
+mode: terminal
+terminal: tmux
+provider: gemini
+model: gemini-2.5-pro
+isolation: clone
+timeout: 600.0
+max_turns: 200
+
+sandbox:
+  enabled: true
+  mode: permissive
+  allow_network: true
+
+workflows:
+  developer:
+    file: developer.yaml
+    internal: true
+
+  worker:
+    internal: true
+    type: step
+    description: "Simple worker without TDD enforcement"
+    variables:
+      assigned_task_id: null
+      task_claimed: false
+      task_closed: false
+      parent_notified: false
+
+    steps:
+      - name: claim_task
+        description: "Claim the assigned task"
+        on_enter:
+          - action: call_mcp_tool
+            server_name: gobby-tasks
+            tool_name: claim_task
+            arguments:
+              task_id: "{{ variables.assigned_task_id }}"
+              session_id: "{{ session_id }}"
+            output_as: _claim_result
+          - action: call_mcp_tool
+            server_name: gobby-tasks
+            tool_name: get_task
+            arguments:
+              task_id: "{{ variables.assigned_task_id }}"
+            output_as: _task_details
+          - action: inject_message
+            content: |
+              WORKER: Starting in isolated clone.
+              Task claimed: {{ variables.assigned_task_id }}
+
+        allowed_tools:
+          - mcp__gobby__call_tool
+          - mcp__gobby__get_tool_schema
+          - mcp__gobby__list_tools
+          - mcp__gobby__list_mcp_servers
+          - mcp__gobby__search_tools
+
+        allowed_mcp_tools:
+          - gobby-tasks:claim_task
+          - gobby-tasks:get_task
+
+        on_mcp_success:
+          - server: gobby-tasks
+            tool: claim_task
+            action: set_variable
+            variable: task_claimed
+            value: true
+
+        transitions:
+          - to: work
+            when: "task_claimed"
+
+      - name: work
+        description: "Full tool access for implementation"
+        on_enter:
+          - action: inject_message
+            content: |
+              WORKER: Implementation phase.
+              Task: {{ variables.assigned_task_id }}
+              Complete the task, run tests, then commit and close.
+
+        allowed_tools: all
+
+        blocked_mcp_tools:
+          - gobby-agents:spawn_agent
+          - gobby-tasks:claim_task
+          - gobby-tasks:create_task
+
+        blocked_commands:
+          - pattern: "git push"
+            reason: "Push is blocked. The parent orchestrator handles merging."
+
+        on_mcp_success:
+          - server: gobby-tasks
+            tool: close_task
+            action: set_variable
+            variable: task_closed
+            value: true
+
+        transitions:
+          - to: report_to_parent
+            when: "task_closed"
+
+      - name: report_to_parent
+        description: "Notify parent of completion"
+        on_enter:
+          - action: inject_message
+            content: |
+              WORKER: Reporting completion to parent.
+              Use send_to_parent tool with your Gobby Session ID.
+
+        allowed_tools:
+          - mcp__gobby__call_tool
+          - mcp__gobby__get_tool_schema
+          - mcp__gobby__list_tools
+          - mcp__gobby__list_mcp_servers
+          - mcp__gobby__search_tools
+          - Read
+
+        on_mcp_success:
+          - server: gobby-agents
+            tool: send_to_parent
+            action: set_variable
+            variable: parent_notified
+            value: true
+
+        on_mcp_error:
+          - server: gobby-agents
+            tool: send_to_parent
+            action: set_variable
+            variable: parent_notified
+            value: true
+
+        transitions:
+          - to: shutdown
+            when: "mcp_called('gobby-agents', 'send_to_parent')"
+
+      - name: shutdown
+        description: "Clean shutdown"
+        on_enter:
+          - action: inject_message
+            content: |
+              WORKER: Call kill_agent to terminate.
+              mcp__gobby__call_tool(server_name="gobby-agents", tool_name="kill_agent", arguments={"session_id": "{{ session_id }}"})
+
+        allowed_tools:
+          - mcp__gobby__call_tool
+          - mcp__gobby__get_tool_schema
+          - mcp__gobby__list_tools
+          - mcp__gobby__list_mcp_servers
+          - mcp__gobby__search_tools
+
+        allowed_mcp_tools:
+          - gobby-agents:kill_agent
+
+        on_premature_stop:
+          action: block
+          message: "BLOCKED: Call kill_agent to exit."
+
+        transitions:
+          - to: complete
+            when: "mcp_called('gobby-agents', 'kill_agent')"
+
+      - name: complete
+        description: "Worker done"
+
+    exit_condition: "current_step == 'complete'"
+
+    on_premature_stop:
+      action: block
+      message: "Cannot stop - task not complete. Complete work, commit, and close the task."

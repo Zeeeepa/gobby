@@ -810,10 +810,12 @@ class TestMCPEndpoints:
         assert "at least one" in response.json()["detail"]["error"]
 
     def test_list_tools_external_server_not_found(self, mcp_client: TestClient) -> None:
-        """Test listing tools for unknown external server."""
+        """Test listing tools for unknown external server returns envelope error."""
         response = mcp_client.get("/mcp/unknown-server/tools")
-        # Should return 503 since MCP manager is None
-        assert response.status_code == 503
+        assert response.status_code == 200
+        data = response.json()
+        assert data["success"] is False
+        assert "error" in data
 
     def test_mcp_tools_list_all(self, mcp_client: TestClient) -> None:
         """Test listing all MCP tools."""
@@ -878,13 +880,16 @@ class TestMCPEndpointsWithManager:
     def test_remove_server_not_found(
         self, mcp_client: TestClient, http_server_with_mcp: HTTPServer
     ) -> None:
-        """Test removing non-existent server returns 404."""
+        """Test removing non-existent server returns envelope error."""
         http_server_with_mcp.mcp_manager.remove_server = AsyncMock(
             side_effect=ValueError("Server not found")
         )
 
         response = mcp_client.delete("/mcp/servers/nonexistent")
-        assert response.status_code == 404
+        assert response.status_code == 200
+        data = response.json()
+        assert data["success"] is False
+        assert "Server not found" in data["error"]
 
     def test_remove_server_success(
         self, mcp_client: TestClient, http_server_with_mcp: HTTPServer
@@ -1555,7 +1560,10 @@ class TestInternalRegistries:
         with TestClient(server.app) as client:
             response = client.get("/mcp/gobby-nonexistent/tools")
 
-        assert response.status_code == 404
+        assert response.status_code == 200
+        data = response.json()
+        assert data["success"] is False
+        assert "not found" in data["error"]
 
     def test_call_tool_internal_server(self, session_storage: LocalSessionManager) -> None:
         """Test calling tool on internal server."""

@@ -9,9 +9,9 @@ from gobby.hooks.events import HookEvent, HookEventType, SessionSource
 from gobby.workflows.definitions import WorkflowState
 from gobby.workflows.detection_helpers import (
     detect_mcp_call,
-    detect_plan_mode,
     detect_plan_mode_from_context,
     detect_task_claim,
+    handle_detect_plan_mode_from_context,
     process_mcp_handlers,
 )
 
@@ -93,149 +93,137 @@ def make_before_agent_event():
 
 
 # =============================================================================
-# Tests for detect_plan_mode (tool-based detection)
-# =============================================================================
-
-
-class TestDetectPlanMode:
-    """Tests for detect_plan_mode function."""
-
-    def test_enters_plan_mode_on_enter_tool(self, workflow_state, make_after_tool_event) -> None:
-        """EnterPlanMode tool sets plan_mode=True."""
-        event = make_after_tool_event("EnterPlanMode")
-
-        detect_plan_mode(event, workflow_state)
-
-        assert workflow_state.variables.get("plan_mode") is True
-
-    def test_exits_plan_mode_on_exit_tool(self, workflow_state, make_after_tool_event) -> None:
-        """ExitPlanMode tool sets plan_mode=False."""
-        workflow_state.variables["plan_mode"] = True
-        event = make_after_tool_event("ExitPlanMode")
-
-        detect_plan_mode(event, workflow_state)
-
-        assert workflow_state.variables.get("plan_mode") is False
-
-    def test_ignores_other_tools(self, workflow_state, make_after_tool_event) -> None:
-        """Other tools do not affect plan_mode."""
-        event = make_after_tool_event("Read")
-
-        detect_plan_mode(event, workflow_state)
-
-        assert "plan_mode" not in workflow_state.variables
-
-    def test_handles_empty_event_data(self, workflow_state) -> None:
-        """Handles event with no data gracefully."""
-        event = HookEvent(
-            event_type=HookEventType.AFTER_TOOL,
-            source=SessionSource.CLAUDE,
-            session_id="test-session-ext",
-            timestamp=datetime.now(UTC),
-            data=None,
-            metadata={},
-        )
-
-        detect_plan_mode(event, workflow_state)
-
-        assert "plan_mode" not in workflow_state.variables
-
-
-# =============================================================================
 # Tests for detect_plan_mode_from_context (system reminder detection)
 # =============================================================================
 
 
 class TestDetectPlanModeFromContext:
-    """Tests for detect_plan_mode_from_context function."""
+    """Tests for detect_plan_mode_from_context function (prompt, state signature)."""
 
-    def test_detects_plan_mode_active_indicator(
-        self, workflow_state, make_before_agent_event
-    ) -> None:
+    def test_detects_plan_mode_active_indicator(self, workflow_state) -> None:
         """Detects 'Plan mode is active' in prompt."""
-        event = make_before_agent_event(
-            "User prompt here\n<system-reminder>Plan mode is active</system-reminder>"
-        )
+        prompt = "User prompt here\n<system-reminder>Plan mode is active</system-reminder>"
 
-        detect_plan_mode_from_context(event, workflow_state)
+        detect_plan_mode_from_context(prompt, workflow_state)
 
         assert workflow_state.variables.get("plan_mode") is True
 
-    def test_detects_plan_mode_still_active(self, workflow_state, make_before_agent_event) -> None:
+    def test_detects_plan_mode_still_active(self, workflow_state) -> None:
         """Detects 'Plan mode still active' in prompt."""
-        event = make_before_agent_event(
-            "<system-reminder>Plan mode still active</system-reminder>\nWhat should I do?"
-        )
+        prompt = "<system-reminder>Plan mode still active</system-reminder>\nWhat should I do?"
 
-        detect_plan_mode_from_context(event, workflow_state)
+        detect_plan_mode_from_context(prompt, workflow_state)
 
         assert workflow_state.variables.get("plan_mode") is True
 
-    def test_detects_you_are_in_plan_mode(self, workflow_state, make_before_agent_event) -> None:
+    def test_detects_you_are_in_plan_mode(self, workflow_state) -> None:
         """Detects 'You are in plan mode' in prompt."""
-        event = make_before_agent_event(
-            "<system-reminder>You are in plan mode</system-reminder>. Please continue planning."
-        )
+        prompt = "<system-reminder>You are in plan mode</system-reminder>. Please continue planning."
 
-        detect_plan_mode_from_context(event, workflow_state)
+        detect_plan_mode_from_context(prompt, workflow_state)
 
         assert workflow_state.variables.get("plan_mode") is True
 
-    def test_detects_exited_plan_mode(self, workflow_state, make_before_agent_event) -> None:
+    def test_detects_exited_plan_mode(self, workflow_state) -> None:
         """Detects 'Exited Plan Mode' in prompt."""
         workflow_state.variables["plan_mode"] = True
-        event = make_before_agent_event(
-            "<system-reminder>Exited Plan Mode</system-reminder>. Now implement the changes."
-        )
+        prompt = "<system-reminder>Exited Plan Mode</system-reminder>. Now implement the changes."
 
-        detect_plan_mode_from_context(event, workflow_state)
+        detect_plan_mode_from_context(prompt, workflow_state)
 
         assert workflow_state.variables.get("plan_mode") is False
 
-    def test_does_not_change_when_already_in_plan_mode(
-        self, workflow_state, make_before_agent_event
-    ) -> None:
+    def test_does_not_change_when_already_in_plan_mode(self, workflow_state) -> None:
         """Does not log again if already in plan mode."""
         workflow_state.variables["plan_mode"] = True
-        event = make_before_agent_event("Plan mode is active")
+        prompt = "Plan mode is active"
 
         # Should not raise or change state
-        detect_plan_mode_from_context(event, workflow_state)
+        detect_plan_mode_from_context(prompt, workflow_state)
 
         assert workflow_state.variables.get("plan_mode") is True
 
-    def test_ignores_prompt_without_indicators(
-        self, workflow_state, make_before_agent_event
-    ) -> None:
+    def test_ignores_prompt_without_indicators(self, workflow_state) -> None:
         """Ignores prompts without plan mode indicators."""
-        event = make_before_agent_event("Please fix the bug in the code.")
+        prompt = "Please fix the bug in the code."
 
-        detect_plan_mode_from_context(event, workflow_state)
-
-        assert "plan_mode" not in workflow_state.variables
-
-    def test_handles_empty_event_data(self, workflow_state) -> None:
-        """Handles event with no data gracefully."""
-        event = HookEvent(
-            event_type=HookEventType.BEFORE_AGENT,
-            source=SessionSource.CLAUDE,
-            session_id="test-session-ext",
-            timestamp=datetime.now(UTC),
-            data=None,
-            metadata={},
-        )
-
-        detect_plan_mode_from_context(event, workflow_state)
+        detect_plan_mode_from_context(prompt, workflow_state)
 
         assert "plan_mode" not in workflow_state.variables
 
-    def test_handles_empty_prompt(self, workflow_state, make_before_agent_event) -> None:
+    def test_handles_empty_prompt(self, workflow_state) -> None:
         """Handles empty prompt gracefully."""
-        event = make_before_agent_event("")
-
-        detect_plan_mode_from_context(event, workflow_state)
+        detect_plan_mode_from_context("", workflow_state)
 
         assert "plan_mode" not in workflow_state.variables
+
+    def test_handles_none_prompt(self, workflow_state) -> None:
+        """Handles None prompt gracefully."""
+        detect_plan_mode_from_context(None, workflow_state)  # type: ignore[arg-type]
+
+        assert "plan_mode" not in workflow_state.variables
+
+
+# =============================================================================
+# Tests for handle_detect_plan_mode_from_context (action handler)
+# =============================================================================
+
+
+class TestHandleDetectPlanModeFromContext:
+    """Tests for the async action handler wrapper."""
+
+    @pytest.mark.asyncio
+    async def test_detects_plan_mode_from_event_data(self, workflow_state) -> None:
+        """Action handler reads prompt from event_data and detects plan mode."""
+        context = MagicMock()
+        context.state = workflow_state
+        context.event_data = {
+            "prompt": "<system-reminder>Plan mode is active</system-reminder>"
+        }
+
+        result = await handle_detect_plan_mode_from_context(context)
+
+        assert result is None
+        assert workflow_state.variables.get("plan_mode") is True
+
+    @pytest.mark.asyncio
+    async def test_handles_missing_event_data(self, workflow_state) -> None:
+        """Action handler handles None event_data gracefully."""
+        context = MagicMock()
+        context.state = workflow_state
+        context.event_data = None
+
+        result = await handle_detect_plan_mode_from_context(context)
+
+        assert result is None
+        assert "plan_mode" not in workflow_state.variables
+
+    @pytest.mark.asyncio
+    async def test_handles_empty_prompt_in_event_data(self, workflow_state) -> None:
+        """Action handler handles empty prompt in event_data."""
+        context = MagicMock()
+        context.state = workflow_state
+        context.event_data = {"prompt": ""}
+
+        result = await handle_detect_plan_mode_from_context(context)
+
+        assert result is None
+        assert "plan_mode" not in workflow_state.variables
+
+    @pytest.mark.asyncio
+    async def test_detects_exit_plan_mode(self, workflow_state) -> None:
+        """Action handler detects plan mode exit from system reminders."""
+        workflow_state.variables["plan_mode"] = True
+        context = MagicMock()
+        context.state = workflow_state
+        context.event_data = {
+            "prompt": "<system-reminder>Exited Plan Mode</system-reminder>"
+        }
+
+        result = await handle_detect_plan_mode_from_context(context)
+
+        assert result is None
+        assert workflow_state.variables.get("plan_mode") is False
 
 
 # =============================================================================

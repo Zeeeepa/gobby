@@ -48,7 +48,7 @@ class TestAutonomousModeToolsAvailability:
         mcp_client: MCPTestClient,
     ) -> None:
         """Verify budget management tools are available on gobby-metrics server."""
-        tools = mcp_client.list_tools(server="gobby-metrics")
+        tools = mcp_client.list_tools(server_name="gobby-metrics")
         tool_names = [t["name"] for t in tools]
 
         expected_tools = [
@@ -64,18 +64,19 @@ class TestAutonomousModeToolsAvailability:
         daemon_instance: DaemonInstance,
         mcp_client: MCPTestClient,
     ) -> None:
-        """Verify orchestration tools are available on gobby-tasks server."""
-        tools = mcp_client.list_tools(server="gobby-tasks")
-        tool_names = [t["name"] for t in tools]
+        """Verify orchestration tools are available on correct servers."""
+        # list_ready_tasks and suggest_next_task are on gobby-tasks
+        task_tools = mcp_client.list_tools(server_name="gobby-tasks")
+        task_tool_names = [t["name"] for t in task_tools]
+        for tool in ["list_ready_tasks", "suggest_next_task"]:
+            assert tool in task_tool_names, f"Missing tool: {tool}"
 
-        expected_tools = [
-            "list_ready_tasks",
-            "suggest_next_task",
-            "get_orchestration_status",
-        ]
-
-        for tool in expected_tools:
-            assert tool in tool_names, f"Missing tool: {tool}"
+        # get_orchestration_status is on gobby-orchestration
+        orch_tools = mcp_client.list_tools(server_name="gobby-orchestration")
+        orch_tool_names = [t["name"] for t in orch_tools]
+        assert "get_orchestration_status" in orch_tool_names, (
+            "Missing tool: get_orchestration_status"
+        )
 
     def test_agent_tools_are_registered(
         self,
@@ -85,7 +86,7 @@ class TestAutonomousModeToolsAvailability:
         """Verify agent spawning tools are available."""
         # Check gobby-agents tools - spawn_agent is the unified tool that replaces
         # start_agent and spawn_agent_in_clone
-        agent_tools = mcp_client.list_tools(server="gobby-agents")
+        agent_tools = mcp_client.list_tools(server_name="gobby-agents")
         agent_tool_names = [t["name"] for t in agent_tools]
         assert "spawn_agent" in agent_tool_names, "Missing spawn_agent tool"
 
@@ -474,9 +475,9 @@ class TestOrchestrationStatusTracking:
                 },
             )
 
-        # Get orchestration status
+        # Get orchestration status (on gobby-orchestration server)
         raw_result = mcp_client.call_tool(
-            server_name="gobby-tasks",
+            server_name="gobby-orchestration",
             tool_name="get_orchestration_status",
             arguments={
                 "parent_task_id": epic_id,

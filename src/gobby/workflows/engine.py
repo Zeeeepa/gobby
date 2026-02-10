@@ -18,8 +18,6 @@ from .audit_helpers import (
 from .definitions import WorkflowDefinition, WorkflowState, WorkflowTransition
 from .detection_helpers import (
     detect_mcp_call,
-    detect_plan_mode,
-    detect_plan_mode_from_context,
     detect_task_claim,
     process_mcp_handlers,
 )
@@ -129,7 +127,7 @@ class WorkflowEngine:
     }
 
     # Variables to inherit from parent session
-    VARS_TO_INHERIT = ["plan_mode"]
+    VARS_TO_INHERIT: list[str] = []
 
     async def handle_event(self, event: HookEvent) -> HookResponse:
         """
@@ -168,8 +166,9 @@ class WorkflowEngine:
             logger.debug(f"diff type: {type(diff)}, value: {diff}")
             duration = diff.total_seconds()
             logger.debug(f"duration type: {type(duration)}, value: {duration}")
-            # Hardcoded limit for MVP: 30 minutes
-            if duration > 1800:
+            # Configurable via workflow variable; default 30 minutes
+            stuck_timeout = int(state.variables.get("stuck_timeout") or 1800)
+            if duration > stuck_timeout:
                 # Force transition to reflect if not already there
                 if state.step != "reflect":
                     project_path = Path(event.cwd) if event.cwd else None
@@ -296,13 +295,6 @@ class WorkflowEngine:
                 self._log_tool_call(session_id, state.step, "unknown", "block", reason)
                 return HookResponse(decision="block", reason=reason)
 
-            # Reset premature stop counter on tool calls
-            # This ensures the failsafe only triggers for repeated stops without work in between
-            if state.variables.get("_premature_stop_count", 0) > 0:
-                state.variables["_premature_stop_count"] = 0
-                self.state_manager.save_state(state)
-                logger.debug(f"Reset premature_stop_count on tool call for session {session_id}")
-
             raw_tool_name = eval_context.get("tool_name")
             tool_name = str(raw_tool_name) if raw_tool_name is not None else ""
 
@@ -385,9 +377,6 @@ class WorkflowEngine:
 
             # Detect gobby-tasks calls for session-scoped task claiming
             self._detect_task_claim(event, state)
-
-            # Detect Claude Code plan mode entry/exit
-            self._detect_plan_mode(event, state)
 
             # Track all MCP proxy calls for workflow conditions
             # Also process on_mcp_success/on_mcp_error handlers from step definition
@@ -489,38 +478,55 @@ class WorkflowEngine:
         # Log the transition
         self._log_transition(state.session_id, state.step, new_step_name)
 
-        # Execute on_exit of old step
-        if old_step:
-            await self._execute_actions(old_step.on_exit, state)
+        try:
+            # Execute on_exit of old step
+            if old_step:
+                await self._execute_actions(old_step.on_exit, state)
 
-        # Execute on_transition actions if defined
-        if transition and isinstance(transition, WorkflowTransition) and transition.on_transition:
-            await self._execute_actions(transition.on_transition, state)
+            # Execute on_transition actions if defined
+            if (
+                transition
+                and isinstance(transition, WorkflowTransition)
+                and transition.on_transition
+            ):
+                await self._execute_actions(transition.on_transition, state)
 
-        # Update state
-        state.step = new_step_name
-        state.step_entered_at = datetime.now(UTC)
-        state.step_action_count = 0
-        state.context_injected = False  # Reset for new step context
+            # Update state
+            state.step = new_step_name
+            state.step_entered_at = datetime.now(UTC)
+            state.step_action_count = 0
+            state.context_injected = False  # Reset for new step context
+            # Clear per-step MCP tracking so stale results from the previous step
+            # don't trigger transitions in the new step (e.g., auto_transition_chain
+            # looping back through a step that checks mcp_result_has).
+            state.variables.pop("mcp_results", None)
+            state.variables.pop("mcp_calls", None)
 
-        self.state_manager.save_state(state)
-
-        # Execute on_enter of new step and capture injected messages
-        injected_messages = await self._execute_actions(new_step.on_enter, state)
-
-        if injected_messages:
-            state.context_injected = True
             self.state_manager.save_state(state)
 
-        # Render status_message for user visibility (after on_enter so variables are populated)
-        system_messages: list[str] = []
-        status_msg = self._render_status_message(new_step, state)
-        if status_msg:
-            system_messages.append(status_msg)
+            # Execute on_enter of new step and capture injected messages
+            injected_messages = await self._execute_actions(new_step.on_enter, state)
 
-        return TransitionResult(
-            injected_messages=injected_messages, system_messages=system_messages
-        )
+            if injected_messages:
+                state.context_injected = True
+                self.state_manager.save_state(state)
+
+            # Render status_message for user visibility (after on_enter so variables are populated)
+            system_messages: list[str] = []
+            status_msg = self._render_status_message(new_step, state)
+            if status_msg:
+                system_messages.append(status_msg)
+
+            return TransitionResult(
+                injected_messages=injected_messages, system_messages=system_messages
+            )
+        except Exception as e:
+            logger.error(
+                f"Transition failed from '{state.step}' to '{new_step_name}': {e}", exc_info=True
+            )
+            # Re-raise to ensure the caller knows the transition failed,
+            # or handle gracefully (but state might be inconsistent if we don't bail)
+            raise
 
     async def _execute_actions(
         self, actions: list[dict[str, Any]], state: WorkflowState
@@ -712,6 +718,8 @@ class WorkflowEngine:
             system_messages=list(initial_result.system_messages),
         )
 
+        visited_steps: list[str] = [state.step]
+
         for _ in range(max_depth):
             # Rebuild eval context with updated variables after on_enter actions
             eval_context = self._build_eval_context(event, state, session_info, project_info)
@@ -732,6 +740,7 @@ class WorkflowEngine:
                         state, transition.to, workflow, transition=transition
                     )
                     result.extend(transition_result)
+                    visited_steps.append(transition.to)
                     transitioned = True
                     break  # Only follow first matching transition
 
@@ -739,9 +748,10 @@ class WorkflowEngine:
                 break
         else:
             # Loop exhausted max_depth without a non-transitioning step
-            logger.warning(
+            logger.error(
                 f"Auto-transition chain truncated at max_depth={max_depth} "
-                f"for workflow '{workflow.name}' at step '{state.step}'"
+                f"for workflow '{workflow.name}' session={state.session_id} "
+                f"chain: {' → '.join(visited_steps)}"
             )
 
         return result
@@ -768,8 +778,6 @@ class WorkflowEngine:
             action_executor=self.action_executor,
             evaluator=self.evaluator,
             detect_task_claim_fn=self._detect_task_claim,
-            detect_plan_mode_fn=self._detect_plan_mode,
-            detect_plan_mode_from_context_fn=self._detect_plan_mode_from_context,
             check_premature_stop_fn=self._check_premature_stop,
             context_data=context_data,
         )
@@ -871,14 +879,6 @@ class WorkflowEngine:
         session_task_manager = getattr(self.action_executor, "session_task_manager", None)
         task_manager = getattr(self.action_executor, "task_manager", None)
         detect_task_claim(event, state, session_task_manager, task_manager)
-
-    def _detect_plan_mode(self, event: HookEvent, state: WorkflowState) -> None:
-        """Detect Claude Code plan mode entry/exit and set workflow variable."""
-        detect_plan_mode(event, state)
-
-    def _detect_plan_mode_from_context(self, event: HookEvent, state: WorkflowState) -> None:
-        """Detect plan mode from system reminders in user prompt."""
-        detect_plan_mode_from_context(event, state)
 
     def _detect_mcp_call(
         self, event: HookEvent, state: WorkflowState, current_step: Any | None = None

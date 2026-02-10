@@ -1,8 +1,9 @@
 ---
 name: tasks
-description: This skill should be used when the user asks to "/gobby tasks", "task management", "create task", "list tasks", "close task". Manage gobby tasks - create, list, close, expand, validate, dependencies, and orchestration.
+description: This skill should be used when the user asks to "/gobby tasks", "task management", "create task", "list tasks", "close task". Manage gobby tasks - create, list, close, expand, validate, and dependencies.
 version: "2.0.0"
 category: core
+triggers: create task, list tasks, close task, task management
 ---
 
 # /gobby tasks - Task Management Skill
@@ -282,14 +283,16 @@ Call `get_task_diff`
 
 ## Orchestration
 
+Orchestration tools have moved to the `gobby-orchestration` server.
+
 ### `/gobby tasks orchestrate <parent-id>` - Spawn agents for ready tasks
-Call `orchestrate_ready_tasks`
+Call `orchestrate_ready_tasks` on `gobby-orchestration`
 
 ### `/gobby tasks orchestration-status <parent-id>` - Get orchestration status
-Call `get_orchestration_status`
+Call `get_orchestration_status` on `gobby-orchestration`
 
 ### `/gobby tasks poll-agents` - Poll agent status
-Call `poll_agent_status`
+Call `poll_agent_status` on `gobby-orchestration`
 
 ## Sync
 
@@ -319,5 +322,5 @@ If the subcommand is not recognized, show available subcommands:
 - validate, validation-status, validation-history, generate-criteria, fix, validate-fix
 - label, unlabel
 - link-commit, unlink-commit, auto-link, diff
-- orchestrate, orchestration-status, poll-agents
+- orchestrate, orchestration-status, poll-agents (via `gobby-orchestration`)
 - sync, sync-status

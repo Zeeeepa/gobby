@@ -220,7 +220,7 @@ async def test_list_tools(daemon_tools, mock_mcp_manager):
     mock_mcp_manager.has_server.return_value = True
 
     # list_tools now requires a server parameter
-    result = await daemon_tools.list_tools(server="downstream")
+    result = await daemon_tools.list_tools(server_name="downstream")
     assert result["success"] is True
     assert "tools" in result
     assert "tool_count" in result

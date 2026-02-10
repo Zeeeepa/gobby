@@ -9,11 +9,7 @@ Supports two authentication modes:
 import asyncio
 import json
 import logging
-import os
-import shutil
-import time
 from collections.abc import AsyncIterator
-from dataclasses import dataclass, field
 from typing import Any, Literal, cast
 
 from claude_agent_sdk import (
@@ -30,98 +26,16 @@ from claude_agent_sdk import (
 
 from gobby.config.app import DaemonConfig
 from gobby.llm.base import LLMProvider
+from gobby.llm.claude_models import (
+    ChatEvent,
+    DoneEvent,
+    MCPToolResult,
+    TextChunk,
+    ToolCall,
+)
 
 # Type alias for auth mode
 AuthMode = Literal["subscription", "api_key"]
-
-
-@dataclass
-class ToolCall:
-    """Represents a tool call made during generation."""
-
-    tool_name: str
-    """Full tool name (e.g., mcp__gobby-tasks__create_task)."""
-
-    server_name: str
-    """Extracted server name from the tool (e.g., gobby-tasks)."""
-
-    arguments: dict[str, Any]
-    """Arguments passed to the tool."""
-
-    result: str | None = None
-    """Result returned by the tool, if available."""
-
-
-@dataclass
-class MCPToolResult:
-    """Result of generate_with_mcp_tools."""
-
-    text: str
-    """Final text output from the generation."""
-
-    tool_calls: list[ToolCall] = field(default_factory=list)
-    """List of tool calls made during generation."""
-
-
-# Streaming event types for stream_with_mcp_tools
-@dataclass
-class TextChunk:
-    """A chunk of text from the streaming response."""
-
-    content: str
-    """The text content."""
-
-
-@dataclass
-class ToolCallEvent:
-    """Event when a tool is being called."""
-
-    tool_call_id: str
-    """Unique ID for this tool call."""
-
-    tool_name: str
-    """Full tool name (e.g., mcp__gobby-tasks__create_task)."""
-
-    server_name: str
-    """Extracted server name (e.g., gobby-tasks)."""
-
-    arguments: dict[str, Any]
-    """Arguments passed to the tool."""
-
-
-@dataclass
-class ToolResultEvent:
-    """Event when a tool call completes."""
-
-    tool_call_id: str
-    """ID matching the original ToolCallEvent."""
-
-    success: bool
-    """Whether the tool call succeeded."""
-
-    result: Any = None
-    """Result data if successful."""
-
-    error: str | None = None
-    """Error message if failed."""
-
-
-@dataclass
-class DoneEvent:
-    """Event when streaming is complete."""
-
-    tool_calls_count: int
-    """Total number of tool calls made."""
-
-    cost_usd: float | None = None
-    """Cost in USD if available."""
-
-    duration_ms: float | None = None
-    """Duration in milliseconds if available."""
-
-
-# Union type for all streaming events
-ChatEvent = TextChunk | ToolCallEvent | ToolResultEvent | DoneEvent
 
 
 logger = logging.getLogger(__name__)
@@ -182,69 +96,17 @@ class ClaudeLLMProvider(LLMProvider):
             self._setup_litellm()
 
     def _find_cli_path(self) -> str | None:
-        """
-        Find Claude CLI path.
+        """Find Claude CLI path. Delegates to claude_cli.find_cli_path()."""
+        from gobby.llm.claude_cli import find_cli_path
 
-        DO NOT resolve symlinks - npm manages the symlink atomically during upgrades.
-        Resolving causes race conditions when Claude Code is being reinstalled.
-        """
-        cli_path = shutil.which("claude")
-
-        if cli_path:
-            # Validate CLI exists and is executable
-            if not os.path.exists(cli_path):
-                self.logger.warning(f"Claude CLI not found: {cli_path}")
-                return None
-            elif not os.access(cli_path, os.X_OK):
-                self.logger.warning(f"Claude CLI not executable: {cli_path}")
-                return None
-            else:
-                self.logger.debug(f"Claude CLI found: {cli_path}")
-                return cli_path
-        else:
-            self.logger.warning("Claude CLI not found in PATH - LLM features disabled")
-            return None
+        return find_cli_path()
 
     def _verify_cli_path(self) -> str | None:
-        """
-        Verify CLI path is still valid and retry if needed.
+        """Verify CLI path is still valid. Delegates to claude_cli.verify_cli_path()."""
+        from gobby.llm.claude_cli import verify_cli_path
 
-        Handles race condition when npm install updates Claude Code during hook execution.
-        Uses exponential backoff retry to wait for npm install to complete.
-
-        Returns:
-            Valid CLI path if found, None otherwise
-        """
-        cli_path = self._claude_cli_path
-
-        # Validate cached path still exists
-        # Retry with backoff if missing (may be in the middle of npm install)
-        if cli_path and not os.path.exists(cli_path):
-            self.logger.warning(
-                f"Cached CLI path no longer exists (may have been reinstalled): {cli_path}"
-            )
-            # Try to find CLI again with retry logic for npm install race condition
-            max_retries = 3
-            retry_delays = [0.5, 1.0, 2.0]  # Exponential backoff
-
-            for attempt, delay in enumerate(retry_delays, 1):
-                cli_path = shutil.which("claude")
-                if cli_path and os.path.exists(cli_path):
-                    self.logger.debug(
-                        f"Found Claude CLI at new location after {attempt} attempt(s): {cli_path}"
-                    )
-                    self._claude_cli_path = cli_path
-                    break
-
-                if attempt < max_retries:
-                    self.logger.debug(
-                        f"Claude CLI not found, waiting {delay}s before retry {attempt + 1}/{max_retries}"
-                    )
-                    time.sleep(delay)
-                else:
-                    self.logger.warning(f"Claude CLI not found in PATH after {max_retries} retries")
-                    cli_path = None
-
+        cli_path = verify_cli_path(self._claude_cli_path)
+        self._claude_cli_path = cli_path
         return cli_path
 
     def _setup_litellm(self) -> None:
@@ -730,13 +592,7 @@ class ClaudeLLMProvider(LLMProvider):
         tool_calls: list[ToolCall] = []
         pending_tool_calls: dict[str, ToolCall] = {}  # Map tool_use_id -> ToolCall
 
-        def _parse_server_name(full_tool_name: str) -> str:
-            """Extract server name from mcp__{server}__{tool} format."""
-            if full_tool_name.startswith("mcp__"):
-                parts = full_tool_name.split("__")
-                if len(parts) >= 2:
-                    return parts[1]
-            return "builtin"
+        from gobby.llm.claude_streaming import parse_server_name as _parse_server_name
 
         # Run async query
         async def _run_query() -> str:
@@ -810,37 +666,11 @@ class ClaudeLLMProvider(LLMProvider):
         model: str | None = None,
         max_turns: int = 10,
     ) -> AsyncIterator[ChatEvent]:
-        """
-        Stream generation with MCP tools, yielding events as they occur.
+        """Stream generation with MCP tools. Delegates to claude_streaming module."""
+        from gobby.llm.claude_streaming import (
+            stream_with_mcp_tools as _stream,
+        )
 
-        This method enables real-time streaming of text and tool call events
-        during multi-turn agent conversations. Unlike generate_with_mcp_tools(),
-        this yields events incrementally rather than waiting for completion.
-
-        Note: This method requires subscription mode (Claude Agent SDK).
-
-        Args:
-            prompt: User prompt to process.
-            allowed_tools: List of allowed MCP tool patterns.
-                Tools should be in format "mcp__{server}__{tool}" or patterns
-                like "mcp__gobby-tasks__*" for all tools from a server.
-            system_prompt: Optional system prompt.
-            model: Optional model override (default: claude-sonnet-4-5).
-            max_turns: Maximum number of agentic turns (default: 10).
-
-        Yields:
-            ChatEvent: One of TextChunk, ToolCallEvent, ToolResultEvent, or DoneEvent.
-
-        Example:
-            >>> async for event in provider.stream_with_mcp_tools(
-            ...     prompt="Create a task called 'Fix bug'",
-            ...     allowed_tools=["mcp__gobby-tasks__*"],
-            ... ):
-            ...     if isinstance(event, TextChunk):
-            ...         print(event.content, end="")
-            ...     elif isinstance(event, ToolCallEvent):
-            ...         print(f"Calling {event.tool_name}...")
-        """
         # MCP tools require subscription mode (Claude Agent SDK)
         if self._auth_mode == "api_key":
             yield TextChunk(
@@ -856,105 +686,15 @@ class ClaudeLLMProvider(LLMProvider):
             yield DoneEvent(tool_calls_count=0)
             return
 
-        # Build mcp_servers config - use .mcp.json if gobby tools requested
-        from pathlib import Path
-
-        mcp_servers_config: dict[str, Any] | str | None = None
-
-        if any("gobby" in t for t in allowed_tools):
-            cwd_config = Path.cwd() / ".mcp.json"
-            if cwd_config.exists():
-                mcp_servers_config = str(cwd_config)
-            else:
-                gobby_root = Path(__file__).parent.parent.parent.parent
-                gobby_config = gobby_root / ".mcp.json"
-                if gobby_config.exists():
-                    mcp_servers_config = str(gobby_config)
-
-        # Configure Claude Agent SDK with MCP tools
-        options = ClaudeAgentOptions(
-            system_prompt=system_prompt
-            or "You are Gobby, a helpful assistant with access to tools.",
-            max_turns=max_turns,
-            model=model or "claude-sonnet-4-5",
-            allowed_tools=allowed_tools,
-            permission_mode="bypassPermissions",
+        async for event in _stream(
             cli_path=cli_path,
-            mcp_servers=mcp_servers_config if mcp_servers_config is not None else {},
-        )
-
-        def _parse_server_name(full_tool_name: str) -> str:
-            """Extract server name from mcp__{server}__{tool} format."""
-            if full_tool_name.startswith("mcp__"):
-                parts = full_tool_name.split("__")
-                if len(parts) >= 2:
-                    return parts[1]
-            return "builtin"
-
-        tool_calls_count = 0
-        pending_tool_calls: dict[str, str] = {}  # Map tool_use_id -> tool_name
-        needs_spacing_before_text = False  # Track if we need spacing before text
-
-        try:
-            async for message in query(prompt=prompt, options=options):
-                if isinstance(message, ResultMessage):
-                    # Final result - extract metadata
-                    cost_usd = getattr(message, "total_cost_usd", None)
-                    duration_ms = getattr(message, "duration_ms", None)
-                    yield DoneEvent(
-                        tool_calls_count=tool_calls_count,
-                        cost_usd=cost_usd,
-                        duration_ms=duration_ms,
-                    )
-
-                elif isinstance(message, AssistantMessage):
-                    for block in message.content:
-                        if isinstance(block, TextBlock):
-                            # Add spacing before text that follows tool calls/results
-                            # This ensures proper paragraph separation in the UI
-                            text = block.text
-                            if needs_spacing_before_text and text:
-                                # Ensure we have a proper paragraph break (double newline)
-                                # even if the text starts with a single newline
-                                text = text.lstrip("\n")
-                                if text:
-                                    text = "\n\n" + text
-                            yield TextChunk(content=text)
-                            needs_spacing_before_text = False
-                        elif isinstance(block, ToolUseBlock):
-                            tool_calls_count += 1
-                            server_name = _parse_server_name(block.name)
-                            pending_tool_calls[block.id] = block.name
-                            yield ToolCallEvent(
-                                tool_call_id=block.id,
-                                tool_name=block.name,
-                                server_name=server_name,
-                                arguments=block.input if isinstance(block.input, dict) else {},
-                            )
-
-                elif isinstance(message, UserMessage):
-                    # UserMessage may contain tool results
-                    if isinstance(message.content, list):
-                        for block in message.content:
-                            if isinstance(block, ToolResultBlock):
-                                # Determine success based on is_error attribute
-                                is_error = getattr(block, "is_error", False)
-                                yield ToolResultEvent(
-                                    tool_call_id=block.tool_use_id,
-                                    success=not is_error,
-                                    result=block.content if not is_error else None,
-                                    error=str(block.content) if is_error else None,
-                                )
-                                needs_spacing_before_text = True
-
-        except ExceptionGroup as eg:
-            errors = [f"{type(exc).__name__}: {exc}" for exc in eg.exceptions]
-            yield TextChunk(content=f"Generation failed: {'; '.join(errors)}")
-            yield DoneEvent(tool_calls_count=tool_calls_count)
-        except Exception as e:
-            self.logger.error(f"Failed to stream with MCP tools: {e}", exc_info=True)
-            yield TextChunk(content=f"Generation failed: {e}")
-            yield DoneEvent(tool_calls_count=tool_calls_count)
+            prompt=prompt,
+            allowed_tools=allowed_tools,
+            system_prompt=system_prompt,
+            model=model,
+            max_turns=max_turns,
+        ):
+            yield event
 
     async def describe_image(
         self,

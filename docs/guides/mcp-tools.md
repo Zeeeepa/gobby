@@ -15,7 +15,7 @@ For token efficiency, use the three-step workflow **on-demand** when you need a 
 
 ```python
 # 1. Discover - lightweight metadata (~100 tokens/tool)
-list_tools(server="gobby-tasks")
+list_tools(server_name="gobby-tasks")
 
 # 2. Inspect - full schema when needed (~500 tokens/tool)
 get_tool_schema(server_name="gobby-tasks", tool_name="create_task")
@@ -101,14 +101,14 @@ call_tool("gobby-tasks", "create_task", {
 })
 ```
 
-#### `list_tools(server?)`
+#### `list_tools(server_name?)`
 
 List tools with lightweight metadata for progressive disclosure.
 
 | Parameter | Type | Required | Description |
 | :--- | :--- | :--- | :--- |
 
-| `server` | string | No | Server name. If omitted, returns all servers. |
+| `server_name` | string | No | Server name. If omitted, returns all servers. |
 
 **Returns:**
 
@@ -222,7 +222,7 @@ Get intelligent tool recommendations for a task.
 | `agent_id` | string | No | Agent profile ID for filtering |
 | `search_mode` | string | No | "llm" (default), "semantic", or "hybrid" |
 
-#### `search_tools(query, top_k?, min_similarity?, server?)`
+#### `search_tools(query, top_k?, min_similarity?, server_name?)`
 
 Search for tools using semantic similarity.
 
@@ -232,7 +232,7 @@ Search for tools using semantic similarity.
 | `query` | string | Yes | Natural language description |
 | `top_k` | integer | No | Max results (default: 10) |
 | `min_similarity` | float | No | Minimum threshold 0-1 |
-| `server` | string | No | Filter by server |
+| `server_name` | string | No | Filter by server |
 
 ### Session Hooks
 
@@ -265,7 +265,8 @@ Internal tools are accessed via `call_tool(server_name="gobby-*", ...)`.
 | Registry | Tools | Purpose |
 | :--- | :--- | :--- |
 
-| `gobby-tasks` | 52 | Task management, dependencies, validation, orchestration |
+| `gobby-tasks` | 42 | Task management, dependencies, validation, sync |
+| `gobby-orchestration` | 11 | Task orchestration, agent spawning, monitoring, waiting |
 | `gobby-sessions` | 11 | Session lifecycle, handoffs, messages |
 | `gobby-memory` | 11 | Persistent memory storage and retrieval |
 | `gobby-workflows` | 12 | Workflow engine, step transitions |
@@ -281,7 +282,7 @@ Internal tools are accessed via `call_tool(server_name="gobby-*", ...)`.
 
 ## Task Management (`gobby-tasks`)
 
-52 tools for persistent task tracking with dependencies, validation, and orchestration.
+42 tools for persistent task tracking with dependencies, validation, and sync.
 
 ### CRUD Operations
 
@@ -378,29 +379,6 @@ Internal tools are accessed via `call_tool(server_name="gobby-*", ...)`.
 | `search_tasks` | TF-IDF semantic search |
 | `reindex_tasks` | Rebuild search index |
 
-### Orchestration
-
-| Tool | Description |
-| :--- | :--- |
-
-| `orchestrate_ready_tasks` | Spawn agents for ready subtasks |
-| `get_orchestration_status` | Get orchestration status for parent |
-| `poll_agent_status` | Poll running agents, update tracking |
-| `spawn_review_agent` | Spawn review agent for completed task |
-| `process_completed_agents` | Route completed agents to review/cleanup |
-| `approve_and_cleanup` | Approve reviewed task, cleanup worktree |
-| `cleanup_reviewed_worktrees` | Clean up worktrees for reviewed agents |
-| `cleanup_stale_worktrees` | Clean up inactive worktrees |
-
-### Waiting
-
-| Tool | Description |
-| :--- | :--- |
-
-| `wait_for_task` | Block until task completes |
-| `wait_for_any_task` | Wait for first of multiple tasks |
-| `wait_for_all_tasks` | Wait for all tasks to complete |
-
 ### Example: Task Workflow
 
 ```python
@@ -428,6 +406,35 @@ call_tool("gobby-tasks", "close_task", {
     "commit_sha": "abc123"
 })
 ```
+
+---
+
+## Task Orchestration (`gobby-orchestration`)
+
+11 tools for automated task orchestration, agent spawning, monitoring, and waiting.
+
+### Orchestration
+
+| Tool | Description |
+| :--- | :--- |
+
+| `orchestrate_ready_tasks` | Spawn agents for ready subtasks |
+| `get_orchestration_status` | Get orchestration status for parent |
+| `poll_agent_status` | Poll running agents, update tracking |
+| `spawn_review_agent` | Spawn review agent for completed task |
+| `process_completed_agents` | Route completed agents to review/cleanup |
+| `approve_and_cleanup` | Approve reviewed task, cleanup worktree |
+| `cleanup_reviewed_worktrees` | Clean up worktrees for reviewed agents |
+| `cleanup_stale_worktrees` | Clean up inactive worktrees |
+
+### Waiting
+
+| Tool | Description |
+| :--- | :--- |
+
+| `wait_for_task` | Block until task completes |
+| `wait_for_any_task` | Wait for first of multiple tasks |
+| `wait_for_all_tasks` | Wait for all tasks to complete |
 
 ---
 
@@ -731,7 +738,7 @@ gobby conductor chat       # Send message to conductor
 gobby conductor restart    # Restart the loop
 ```
 
-The Conductor uses the orchestration tools from `gobby-tasks` internally (`orchestrate_ready_tasks`, `poll_agent_status`, `process_completed_agents`, etc.).
+The Conductor uses the orchestration tools from `gobby-orchestration` internally (`orchestrate_ready_tasks`, `poll_agent_status`, `process_completed_agents`, etc.).
 
 See [cli-commands.md](cli-commands.md#conductor) for full CLI reference.
 

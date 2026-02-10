@@ -75,20 +75,25 @@ class GobbyDaemonTools:
 
         server_list = []
         for name, info in servers_info.items():
-            server_list.append(
-                {
-                    "name": name,
-                    "state": info["state"],
-                    "connected": info["state"] == "connected",
-                    # Additional fields can be fetched from config if we had access
-                }
-            )
+            state = info["state"]
+            connected = state == "connected"
+            available = state in ("connected", "pending", "configured")
+            entry: dict[str, Any] = {
+                "name": name,
+                "state": state,
+                "connected": connected,
+                "available": available,
+            }
+            if state in ("pending", "configured"):
+                entry["note"] = "Connects automatically on first use"
+            server_list.append(entry)
 
         return {
             "success": True,
             "servers": server_list,
             "total_count": len(server_list),
             "connected_count": len([s for s in server_list if s["connected"]]),
+            "available_count": len([s for s in server_list if s["available"]]),
         }
 
     # --- Tool Proxying ---
@@ -143,9 +148,9 @@ class GobbyDaemonTools:
 
         return result
 
-    async def list_tools(self, server: str, session_id: str | None = None) -> dict[str, Any]:
+    async def list_tools(self, server_name: str, session_id: str | None = None) -> dict[str, Any]:
         """List tools for a specific server, optionally filtered by workflow phase restrictions."""
-        return await self.tool_proxy.list_tools(server, session_id=session_id)
+        return await self.tool_proxy.list_tools(server_name, session_id=session_id)
 
     async def get_tool_schema(self, server_name: str, tool_name: str) -> dict[str, Any]:
         """Get tool schema."""
@@ -283,7 +288,7 @@ class GobbyDaemonTools:
         query: str,
         top_k: int = 10,
         min_similarity: float = 0.0,
-        server: str | None = None,
+        server_name: str | None = None,
     ) -> dict[str, Any]:
         """Search for tools using semantic similarity.
 
@@ -291,7 +296,7 @@ class GobbyDaemonTools:
             query: Natural language query describing the tool you need
             top_k: Maximum number of results to return (default: 10)
             min_similarity: Minimum similarity threshold (default: 0.0)
-            server: Optional server name to filter results
+            server_name: Optional server name to filter results
 
         Returns:
             Dict with search results and metadata
@@ -317,7 +322,7 @@ class GobbyDaemonTools:
                 project_id=project_id,
                 top_k=top_k,
                 min_similarity=min_similarity,
-                server_filter=server,
+                server_filter=server_name,
             )
 
             return {

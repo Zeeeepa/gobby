@@ -2,6 +2,7 @@
 name: sessions
 description: This skill should be used when the user asks to "/gobby sessions", "list sessions", "session handoff", "pickup session". Manage agent sessions - list, show details, handoff context, search messages, and resume previous work.
 category: core
+triggers: session, list sessions, handoff, pickup, resume
 ---
 
 # /gobby sessions - Session Management Skill

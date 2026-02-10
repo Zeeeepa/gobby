@@ -631,6 +631,18 @@ class CloneGitManager:
                 error="directory_not_found",
             )
 
+        # Save current branch so we can restore on failure
+        original_branch: str | None = None
+        branch_result = self._run_git(
+            ["rev-parse", "--abbrev-ref", "HEAD"],
+            cwd=cwd,
+            timeout=5,
+        )
+        if branch_result.returncode == 0:
+            original_branch = branch_result.stdout.strip()
+
+        checked_out_target = False
+
         try:
             # Fetch latest
             fetch_result = self._run_git(
@@ -657,6 +669,7 @@ class CloneGitManager:
                     message=f"Failed to checkout {target_branch}: {checkout_result.stderr}",
                     error=checkout_result.stderr,
                 )
+            checked_out_target = True
 
             # Pull latest on target
             pull_result = self._run_git(
@@ -699,6 +712,9 @@ class CloneGitManager:
                         output="\n".join(conflicted_files),
                     )
 
+                # Non-conflict merge failure — abort to clean up
+                self._run_git(["merge", "--abort"], cwd=cwd, timeout=10)
+
                 return GitOperationResult(
                     success=False,
                     message=f"Merge failed: {merge_result.stderr}",
@@ -712,14 +728,26 @@ class CloneGitManager:
             )
 
         except subprocess.TimeoutExpired:
+            # Attempt to abort any in-progress merge
+            self._run_git(["merge", "--abort"], cwd=cwd, timeout=10)
             return GitOperationResult(
                 success=False,
                 message="Merge operation timed out",
                 error="timeout",
             )
         except Exception as e:
+            # Attempt to abort any in-progress merge
+            self._run_git(["merge", "--abort"], cwd=cwd, timeout=10)
             return GitOperationResult(
                 success=False,
                 message=f"Merge error: {e}",
                 error=str(e),
             )
+        finally:
+            # Restore original branch if we checked out the target
+            if checked_out_target and original_branch and original_branch != target_branch:
+                self._run_git(
+                    ["checkout", original_branch],
+                    cwd=cwd,
+                    timeout=30,
+                )

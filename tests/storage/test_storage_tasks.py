@@ -622,7 +622,7 @@ class TestLocalTaskManager:
     def test_reopen_task_from_in_progress(self, task_manager, project_id) -> None:
         """Test reopening an in_progress task succeeds."""
         task = task_manager.create_task(project_id, "In Progress")
-        task_manager.update_task(task.id, status="in_progress")
+        task_manager.update_task(task.id, status="in_progress", assignee="test-agent")
 
         reopened = task_manager.reopen_task(task.id)
 

@@ -45,6 +45,9 @@ class HookSkillManager:
         # Cache of discovered skills
         self._core_skills: list[ParsedSkill] | None = None
 
+        # Cache of trigger index: list of (trigger_words: list[str], skill) tuples
+        self._trigger_index: list[tuple[list[str], ParsedSkill]] | None = None
+
     def discover_core_skills(self) -> list[ParsedSkill]:
         """Discover built-in skills from install/shared/skills/.
 
@@ -87,9 +90,128 @@ class HookSkillManager:
 
         return None
 
+    def resolve_skill_name(self, name: str) -> ParsedSkill | None:
+        """Resolve a skill name using a resolution chain.
+
+        Resolution order:
+        1. Exact match on skill.name
+        2. With gobby- prefix (e.g., "tasks" -> "gobby-tasks")
+        3. Prefix/startswith match — only if unambiguous (exactly 1 match)
+
+        Args:
+            name: The skill name to resolve.
+
+        Returns:
+            ParsedSkill if resolved, None otherwise.
+        """
+        skills = self.discover_core_skills()
+        name_lower = name.lower()
+
+        # 1. Exact match
+        for skill in skills:
+            if skill.name.lower() == name_lower:
+                return skill
+
+        # 2. With gobby- prefix
+        prefixed = f"gobby-{name_lower}"
+        for skill in skills:
+            if skill.name.lower() == prefixed:
+                return skill
+
+        # 3. Prefix/startswith match (only if unambiguous)
+        matches = [s for s in skills if s.name.lower().startswith(name_lower)]
+        if len(matches) == 1:
+            return matches[0]
+
+        return None
+
+    def match_triggers(
+        self, prompt: str, threshold: float = 0.5
+    ) -> list[tuple[ParsedSkill, float]]:
+        """Match a prompt against skill trigger keywords.
+
+        Uses word-overlap scoring: count trigger words that appear in prompt,
+        normalized by trigger length.
+
+        Args:
+            prompt: The user's prompt text.
+            threshold: Minimum score to include (default 0.5).
+
+        Returns:
+            List of (skill, score) tuples above threshold, sorted descending by score.
+        """
+        if not prompt.strip():
+            return []
+
+        # Build trigger index on first call
+        if self._trigger_index is None:
+            self._build_trigger_index()
+
+        if self._trigger_index is None:
+            raise RuntimeError("trigger_index not built")
+
+        import re
+
+        prompt_words = {start.lower() for start in re.findall(r"\w+", prompt.lower())}
+        results: list[tuple[ParsedSkill, float]] = []
+
+        for trigger_words, skill in self._trigger_index:
+            if not trigger_words:
+                continue
+            overlap = sum(1 for w in trigger_words if w in prompt_words)
+            score = overlap / len(trigger_words)
+            if score >= threshold:
+                results.append((skill, score))
+
+        results.sort(key=lambda x: x[1], reverse=True)
+        return results
+
+    def _build_trigger_index(self) -> None:
+        """Build the trigger index from discovered skills."""
+        skills = self.discover_core_skills()
+        self._trigger_index = []
+
+        for skill in skills:
+            triggers: list[str] = []
+
+            # Extract from skill.triggers (top-level frontmatter field)
+            if skill.triggers:
+                triggers.extend(skill.triggers)
+
+            # Also extract from metadata.gobby.triggers (nested format)
+            if skill.metadata and isinstance(skill.metadata, dict):
+                gobby_meta = skill.metadata.get("gobby", {})
+                if isinstance(gobby_meta, dict):
+                    nested_triggers = gobby_meta.get("triggers", [])
+                    if isinstance(nested_triggers, list):
+                        triggers.extend(str(t) for t in nested_triggers)
+                    elif isinstance(nested_triggers, str):
+                        triggers.extend(t.strip() for t in nested_triggers.split(","))
+
+            if not triggers:
+                continue
+
+            # Build word set from all triggers for this skill
+            all_words: list[str] = []
+            import re
+
+            for trigger in triggers:
+                all_words.extend(re.findall(r"\w+", trigger.lower()))
+
+            # Deduplicate while preserving order
+            seen: set[str] = set()
+            unique_words: list[str] = []
+            for w in all_words:
+                if w not in seen:
+                    seen.add(w)
+                    unique_words.append(w)
+
+            self._trigger_index.append((unique_words, skill))
+
     def refresh(self) -> None:
         """Clear the cache and rediscover skills."""
         self._core_skills = None
+        self._trigger_index = None
 
     def recommend_skills(self, category: str | None = None) -> list[str]:
         """Recommend relevant skills based on task category.

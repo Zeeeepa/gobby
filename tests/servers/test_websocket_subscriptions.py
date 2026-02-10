@@ -4,7 +4,7 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from gobby.servers.websocket import WebSocketServer
+from gobby.servers.websocket.server import WebSocketServer
 
 pytestmark = pytest.mark.unit
 

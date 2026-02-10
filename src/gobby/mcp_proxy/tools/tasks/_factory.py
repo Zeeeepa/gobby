@@ -8,8 +8,6 @@ from typing import TYPE_CHECKING
 
 from gobby.mcp_proxy.tools.internal import InternalToolRegistry
 from gobby.mcp_proxy.tools.task_dependencies import create_dependency_registry
-from gobby.mcp_proxy.tools.task_github import create_github_sync_registry
-from gobby.mcp_proxy.tools.task_orchestration import create_orchestration_registry
 from gobby.mcp_proxy.tools.task_readiness import create_readiness_registry
 from gobby.mcp_proxy.tools.task_sync import create_sync_registry
 from gobby.mcp_proxy.tools.task_validation import create_validation_registry
@@ -20,15 +18,12 @@ from gobby.mcp_proxy.tools.tasks._lifecycle import create_lifecycle_registry
 from gobby.mcp_proxy.tools.tasks._search import create_search_registry
 from gobby.mcp_proxy.tools.tasks._session import create_session_registry
 from gobby.storage.tasks import LocalTaskManager
-from gobby.storage.worktrees import LocalWorktreeManager
 from gobby.sync.tasks import TaskSyncManager
 from gobby.tasks.validation import TaskValidator
 
 if TYPE_CHECKING:
     from gobby.agents.runner import AgentRunner
     from gobby.config.app import DaemonConfig
-    from gobby.mcp_proxy.manager import MCPClientManager
-    from gobby.worktrees.git import WorktreeGitManager
 
 
 def create_task_registry(
@@ -37,10 +32,7 @@ def create_task_registry(
     task_validator: TaskValidator | None = None,
     config: "DaemonConfig | None" = None,
     agent_runner: "AgentRunner | None" = None,
-    worktree_storage: "LocalWorktreeManager | None" = None,
-    git_manager: "WorktreeGitManager | None" = None,
     project_id: str | None = None,
-    mcp_manager: "MCPClientManager | None" = None,
 ) -> InternalToolRegistry:
     """
     Create a task tool registry with all task-related tools.
@@ -51,10 +43,7 @@ def create_task_registry(
         task_validator: TaskValidator instance (optional)
         config: DaemonConfig instance (optional)
         agent_runner: AgentRunner instance for external validator agent mode (optional)
-        worktree_storage: LocalWorktreeManager for orchestration (optional)
-        git_manager: WorktreeGitManager for orchestration (optional)
-        project_id: Default project ID for orchestration (optional)
-        mcp_manager: MCPClientManager for GitHub integration (optional)
+        project_id: Default project ID (optional)
 
     Returns:
         InternalToolRegistry with all task tools registered
@@ -141,31 +130,5 @@ def create_task_registry(
     )
     for tool_name, tool in sync_registry._tools.items():
         registry._tools[tool_name] = tool
-
-    # Merge orchestration tools from extracted module (Strangler Fig pattern)
-    # Only if worktree_storage is available (required for orchestration)
-    if worktree_storage is not None:
-        orchestration_registry = create_orchestration_registry(
-            task_manager=task_manager,
-            worktree_storage=worktree_storage,
-            git_manager=git_manager,
-            agent_runner=agent_runner,
-            project_id=project_id,
-            config=config,
-        )
-        for tool_name, tool in orchestration_registry._tools.items():
-            registry._tools[tool_name] = tool
-
-    # Merge GitHub sync tools from extracted module (Strangler Fig pattern)
-    # Only if mcp_manager is available (required for GitHub MCP access)
-    if mcp_manager is not None:
-        github_registry = create_github_sync_registry(
-            task_manager=task_manager,
-            mcp_manager=mcp_manager,
-            project_manager=ctx.project_manager,
-            project_id=project_id,
-        )
-        for tool_name, tool in github_registry._tools.items():
-            registry._tools[tool_name] = tool
 
     return registry

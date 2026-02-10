@@ -56,6 +56,8 @@ class SpawnResult:
     pid: int | None = None
     terminal_type: str | None = None
     error: str | None = None
+    tmux_session_name: str | None = None
+    """Tmux session name (set when terminal_type is tmux)."""
 
 
 @dataclass

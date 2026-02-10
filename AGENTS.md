@@ -71,7 +71,7 @@ src/gobby/
 
 ## MCP Tool Discovery
 
-Gobby uses progressive disclosure for MCP tools. Use `list_mcp_servers()` to discover available servers, then `list_tools(server="...")` for lightweight metadata, and `get_tool_schema(server, tool)` only when you need the full schema.
+Gobby uses progressive disclosure for MCP tools. Use `list_mcp_servers()` to discover available servers, then `list_tools(server_name="...")` for lightweight metadata, and `get_tool_schema(server_name, tool_name)` only when you need the full schema.
 
 **Never load all schemas upfront** - it wastes your context window.
 

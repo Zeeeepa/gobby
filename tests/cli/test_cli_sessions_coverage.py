@@ -4,7 +4,7 @@ import pytest
 from click.testing import CliRunner
 
 from gobby.cli.sessions import _format_turns_for_llm, sessions
-from gobby.storage.sessions import Session
+from gobby.storage.session_models import Session
 
 pytestmark = pytest.mark.unit
 

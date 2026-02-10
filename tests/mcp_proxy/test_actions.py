@@ -598,7 +598,7 @@ class TestListMcpServers:
         health1.state.value = "connected"
 
         health2 = MagicMock()
-        health2.state.value = "disconnected"
+        health2.state.value = "pending"
 
         mock_mcp_manager.server_configs = [config1, config2, config3]
         mock_mcp_manager.connections = {"server1": MagicMock()}
@@ -610,6 +610,7 @@ class TestListMcpServers:
         assert len(result["servers"]) == 3
         assert result["total_count"] == 3
         assert result["connected_count"] == 1
+        assert result["available_count"] == 2  # server1 (connected) + server2 (pending+enabled)
 
         # Check server1 details
         server1 = next(s for s in result["servers"] if s["name"] == "server1")
@@ -617,17 +618,21 @@ class TestListMcpServers:
         assert server1["transport"] == "http"
         assert server1["connected"] is True
         assert server1["state"] == "connected"
+        assert server1["available"] is True
 
-        # Check server2 details (global)
+        # Check server2 details (global, lazy-loaded)
         server2 = next(s for s in result["servers"] if s["name"] == "server2")
         assert server2["project_id"] is None
         assert server2["connected"] is False
-        assert server2["state"] == "disconnected"
+        assert server2["state"] == "pending"
+        assert server2["available"] is True
+        assert server2["note"] == "Connects automatically on first use"
 
-        # Check server3 details (no health info)
+        # Check server3 details (disabled, no health info)
         server3 = next(s for s in result["servers"] if s["name"] == "server3")
         assert server3["enabled"] is False
         assert server3["state"] == "unknown"
+        assert server3["available"] is False
 
     @pytest.mark.asyncio
     async def test_list_servers_with_disconnected_server(self, mock_mcp_manager):

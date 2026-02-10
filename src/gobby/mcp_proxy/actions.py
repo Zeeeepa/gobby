@@ -144,26 +144,32 @@ async def list_mcp_servers(
         servers = []
         for config in mcp_manager.server_configs:
             health = mcp_manager.health.get(config.name)
-            servers.append(
-                {
-                    "name": config.name,
-                    "project_id": config.project_id,
-                    "transport": config.transport,
-                    "enabled": config.enabled,
-                    "url": config.url,
-                    "command": config.command,
-                    "description": config.description,
-                    "connected": config.name in mcp_manager.connections,
-                    "state": health.state.value if health else "unknown",
-                    "tools": config.tools or [],
-                }
-            )
+            state = health.state.value if health else "unknown"
+            connected = config.name in mcp_manager.connections
+            available = config.enabled and state in ("connected", "pending", "configured")
+            entry: dict[str, Any] = {
+                "name": config.name,
+                "project_id": config.project_id,
+                "transport": config.transport,
+                "enabled": config.enabled,
+                "url": config.url,
+                "command": config.command,
+                "description": config.description,
+                "connected": connected,
+                "state": state,
+                "available": available,
+                "tools": config.tools or [],
+            }
+            if state in ("pending", "configured"):
+                entry["note"] = "Connects automatically on first use"
+            servers.append(entry)
 
         return {
             "success": True,
             "servers": servers,
             "total_count": len(servers),
             "connected_count": len(mcp_manager.connections),
+            "available_count": sum(1 for s in servers if s["available"]),
         }
 
     except Exception as e:

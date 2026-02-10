@@ -44,6 +44,16 @@ else
 fi
 echo ""
 
+# TypeScript - frontend type checking
+echo ">>> Running TypeScript check..."
+if (cd web && npx tsc --noEmit) 2>&1 | tee "$REPORTS_DIR/tsc-$TIMESTAMP.txt"; then
+    echo "✓ TypeScript passed"
+else
+    echo "✗ TypeScript failed"
+    FAILED=1
+fi
+echo ""
+
 # Bandit - security linting
 echo ">>> Running bandit..."
 if uv run bandit -r src/ -q 2>&1 | tee "$REPORTS_DIR/bandit-$TIMESTAMP.txt"; then

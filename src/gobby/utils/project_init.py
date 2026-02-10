@@ -192,6 +192,12 @@ def initialize_project(
     if existing:
         # Project exists in DB but no local project.json - write it
         logger.debug(f"Found existing project in database: {name}")
+
+        # Backfill repo_path if missing (e.g. project was created via GitHub)
+        if not existing.repo_path:
+            project_manager.update(existing.id, repo_path=str(cwd))
+            logger.info(f"Updated repo_path for project '{name}' to {cwd}")
+
         _write_project_json(cwd, existing.id, existing.name, existing.created_at, verification)
         return InitResult(
             project_id=existing.id,

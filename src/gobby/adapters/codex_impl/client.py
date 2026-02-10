@@ -632,6 +632,12 @@ class CodexAppServerClient:
 
         if not self._approval_handler:
             logger.debug(f"No approval handler for incoming request: {method}")
+            response = {
+                "jsonrpc": "2.0",
+                "id": request_id,
+                "error": {"code": -32601, "message": f"No handler registered for {method}"},
+            }
+            await self._send_stdin_response(response)
             return
 
         logger.debug(f"Handling incoming request: {method} (id={request_id})")
@@ -647,12 +653,27 @@ class CodexAppServerClient:
                 "error": {"code": -32603, "message": str(e)},
             }
 
-        # Send response back to Codex
+        await self._send_stdin_response(response)
+
+    async def _send_stdin_response(self, response: dict[str, Any]) -> None:
+        """Send a JSON-RPC response to the Codex process via stdin.
+
+        Uses run_in_executor since proc.stdin is a synchronous pipe (subprocess.Popen).
+        """
         proc = self._process
         if proc and proc.stdin:
             response_line = json.dumps(response) + "\n"
-            proc.stdin.write(response_line)
-            proc.stdin.flush()
+
+            def write_response() -> None:
+                if proc and proc.stdin:
+                    try:
+                        proc.stdin.write(response_line)
+                        proc.stdin.flush()
+                    except OSError:
+                        pass
+
+            loop = asyncio.get_running_loop()
+            await loop.run_in_executor(None, write_response)
 
     async def _read_loop(self) -> None:
         """Background task to read responses and notifications."""

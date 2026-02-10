@@ -82,6 +82,7 @@ class SpawnResult:
     process: Any | None = None  # subprocess.Popen for headless
     gemini_session_id: str | None = None  # Gemini external session ID
     codex_session_id: str | None = None  # Codex external session ID
+    tmux_session_name: str | None = None  # Tmux session name for output streaming
 
 
 async def execute_spawn(request: SpawnRequest) -> SpawnResult:
@@ -202,6 +203,7 @@ async def _spawn_claude_terminal(request: SpawnRequest) -> SpawnResult:
         status="pending",
         pid=terminal_result.pid,
         terminal_type=terminal_result.terminal_type,
+        tmux_session_name=terminal_result.tmux_session_name,
         message=f"Claude agent spawned in {terminal_result.terminal_type} with session {gobby_session_id}",
     )
 
@@ -374,6 +376,8 @@ async def _spawn_gemini_terminal(request: SpawnRequest) -> SpawnResult:
         child_session_id=gobby_session_id,
         status="pending",
         pid=terminal_result.pid,
+        terminal_type=terminal_result.terminal_type,
+        tmux_session_name=terminal_result.tmux_session_name,
         message=f"Gemini agent spawned in terminal with session {gobby_session_id}",
     )
 

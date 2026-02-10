@@ -85,6 +85,7 @@ class Task:
         "open",
         "in_progress",
         "needs_review",
+        "approved",
         "closed",
         "failed",
         "escalated",

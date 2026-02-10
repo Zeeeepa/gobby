@@ -296,16 +296,21 @@ class OpenMemoryBackend:
             data = response.json()
             return self._response_to_record(data)
         except httpx.ConnectError as e:
+            logger.error(f"OpenMemory update failed (connection): {e}")
             raise OpenMemoryConnectionError(
                 f"Failed to connect to OpenMemory at {self._base_url}: {e}"
             ) from e
         except httpx.HTTPStatusError as e:
+            logger.error(f"OpenMemory update failed (API): {e}")
             if e.response.status_code == 404:
                 raise ValueError(f"Memory not found: {memory_id}") from e
             raise OpenMemoryAPIError(
                 f"OpenMemory API error: {e.response.text}",
                 status_code=e.response.status_code,
             ) from e
+        except Exception as e:
+            logger.error(f"OpenMemory update failed: {e}", exc_info=True)
+            raise
 
     async def delete(self, memory_id: str) -> bool:
         """Delete a memory from OpenMemory.
@@ -457,6 +462,25 @@ class OpenMemoryBackend:
                 exc_info=True,
             )
             return []
+
+    async def content_exists(self, content: str, project_id: str | None = None) -> bool:
+        """Check if a memory with identical content already exists."""
+        record = await self.get_memory_by_content(content, project_id)
+        return record is not None
+
+    async def get_memory_by_content(
+        self, content: str, project_id: str | None = None
+    ) -> MemoryRecord | None:
+        """Get a memory by its exact content."""
+        normalized = content.strip()
+        try:
+            records = await self.list_memories(project_id=project_id, limit=1000)
+            for record in records:
+                if record.content.strip() == normalized:
+                    return record
+        except Exception:  # nosec B110 — best-effort duplicate check, failure returns None
+            pass
+        return None
 
     async def health_check(self) -> bool:
         """Check if the OpenMemory server is healthy.

@@ -32,7 +32,7 @@ if TYPE_CHECKING:
     from gobby.config.app import DaemonConfig
     from gobby.llm import LLMService
     from gobby.mcp_proxy.manager import MCPClientManager
-    from gobby.servers.websocket import WebSocketServer
+    from gobby.servers.websocket.server import WebSocketServer
     from gobby.utils.tool_metrics import ToolMetricsManager
 
 logger = logging.getLogger(__name__)
@@ -577,6 +577,7 @@ class HTTPServer:
         """
         from gobby.servers.routes import (
             create_admin_router,
+            create_files_router,
             create_hooks_router,
             create_mcp_router,
             create_pipelines_router,
@@ -593,6 +594,7 @@ class HTTPServer:
         app.include_router(create_plugins_router())
         app.include_router(create_webhooks_router())
         app.include_router(create_pipelines_router(self))
+        app.include_router(create_files_router(self))
 
     async def _process_shutdown(self) -> None:
         """

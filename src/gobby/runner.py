@@ -18,7 +18,8 @@ from gobby.llm.resolver import ExecutorRegistry
 from gobby.mcp_proxy.manager import MCPClientManager
 from gobby.memory.manager import MemoryManager
 from gobby.servers.http import HTTPServer
-from gobby.servers.websocket import WebSocketConfig, WebSocketServer
+from gobby.servers.websocket.models import WebSocketConfig
+from gobby.servers.websocket.server import WebSocketServer
 from gobby.sessions.lifecycle import SessionLifecycleManager
 from gobby.sessions.processor import SessionMessageProcessor
 from gobby.storage.clones import LocalCloneManager
@@ -289,6 +290,11 @@ class GobbyRunner:
         # Ensure message_processor property is set (redundant but explicit):
         self.http_server.message_processor = self.message_processor
 
+        # Wire tool_proxy_getter to PipelineExecutor for MCP step support.
+        # Must happen after HTTPServer creation since tool_proxy lives on _tools_handler.
+        if self.pipeline_executor:
+            self.pipeline_executor.tool_proxy_getter = lambda: self.http_server.tool_proxy
+
         # WebSocket Server (Optional)
         self.websocket_server: WebSocketServer | None = None
         if self.config.websocket and getattr(self.config.websocket, "enabled", True):
@@ -301,7 +307,6 @@ class GobbyRunner:
             self.websocket_server = WebSocketServer(
                 config=websocket_config,
                 mcp_manager=self.mcp_proxy,
-                llm_service=self.llm_service,
             )
             # Pass WebSocket server reference to HTTP server for broadcasting
             self.http_server.websocket_server = self.websocket_server
@@ -332,23 +337,26 @@ class GobbyRunner:
         return hub_db
 
     def _setup_agent_event_broadcasting(self) -> None:
-        """Set up WebSocket broadcasting for agent lifecycle events and PTY reading."""
+        """Set up WebSocket broadcasting for agent lifecycle events, PTY reading, and tmux streaming."""
         from gobby.agents.pty_reader import get_pty_reader_manager
         from gobby.agents.registry import get_running_agent_registry
+        from gobby.agents.tmux import get_tmux_output_reader
 
         if not self.websocket_server:
             return
 
         registry = get_running_agent_registry()
         pty_manager = get_pty_reader_manager()
+        tmux_reader = get_tmux_output_reader()
 
-        # Set up PTY output callback to broadcast via WebSocket
+        # Set up output callbacks to broadcast via WebSocket
         async def broadcast_terminal_output(run_id: str, data: str) -> None:
             """Broadcast terminal output via WebSocket."""
             if self.websocket_server:
                 await self.websocket_server.broadcast_terminal_output(run_id, data)
 
         pty_manager.set_output_callback(broadcast_terminal_output)
+        tmux_reader.set_output_callback(broadcast_terminal_output)
 
         def broadcast_agent_event(event_type: str, run_id: str, data: dict[str, Any]) -> None:
             """Broadcast agent events via WebSocket (non-blocking)."""
@@ -369,11 +377,23 @@ class GobbyRunner:
                 # Start PTY reader for embedded agents
                 agent = registry.get(run_id)
                 if agent and agent.master_fd is not None:
+                    _agent = agent  # bind for closure type narrowing
 
                     async def start_pty_reader() -> None:
-                        await pty_manager.start_reader(agent)
+                        await pty_manager.start_reader(_agent)
 
                     task = asyncio.create_task(start_pty_reader())
+                    task.add_done_callback(_log_broadcast_exception)
+
+            # Handle tmux output reader start for tmux terminal agents
+            if event_type == "agent_started":
+                agent = registry.get(run_id)
+                if agent and agent.tmux_session_name:
+
+                    async def start_tmux_reader() -> None:
+                        await tmux_reader.start_reader(run_id, agent.tmux_session_name)  # type: ignore[arg-type]
+
+                    task = asyncio.create_task(start_tmux_reader())
                     task.add_done_callback(_log_broadcast_exception)
 
             elif event_type in (
@@ -388,6 +408,14 @@ class GobbyRunner:
                     await pty_manager.stop_reader(run_id)
 
                 task = asyncio.create_task(stop_pty_reader())
+                task.add_done_callback(_log_broadcast_exception)
+
+                # Stop tmux reader when agent finishes
+
+                async def stop_tmux_reader() -> None:
+                    await tmux_reader.stop_reader(run_id)
+
+                task = asyncio.create_task(stop_tmux_reader())
                 task.add_done_callback(_log_broadcast_exception)
 
             # Create async task to broadcast and attach exception callback

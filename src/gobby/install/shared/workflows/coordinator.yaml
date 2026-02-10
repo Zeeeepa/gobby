@@ -1,0 +1,141 @@
+name: coordinator
+type: pipeline
+version: "1.0"
+description: |
+  Deterministic coordinator loop using MCP tools.
+  Finds work, creates clone, spawns developer/QA/merge agents,
+  loops until no more ready tasks.
+
+inputs:
+  session_task: null
+  developer_agent: "developer-gemini"
+  qa_agent: "qa-claude"
+  developer_provider: "gemini"
+  qa_provider: "claude"
+  merge_target: "dev"
+  wait_timeout: 600
+  max_iterations: 50
+  _current_iteration: 0
+
+steps:
+  - id: check_limit
+    condition: "${{ inputs._current_iteration >= inputs.max_iterations }}"
+    exec: "echo 'ERROR: max iterations' && exit 1"
+
+  - id: find_work
+    mcp:
+      server: gobby-tasks
+      tool: suggest_next_task
+      arguments:
+        parent_task_id: "${{ inputs.session_task }}"
+
+  - id: create_clone
+    condition: "${{ steps.find_work.output.suggestion.ref if steps.find_work.output and steps.find_work.output.suggestion is defined else '' }}"
+    mcp:
+      server: gobby-clones
+      tool: create_clone
+      arguments:
+        branch_name: "task-${{ steps.find_work.output.suggestion.seq_num }}"
+        base_branch: "${{ inputs.merge_target }}"
+        task_id: "${{ steps.find_work.output.suggestion.id }}"
+
+  - id: spawn_developer
+    condition: "${{ steps.create_clone.output.clone_id if steps.create_clone.output is defined else '' }}"
+    mcp:
+      server: gobby-agents
+      tool: spawn_agent
+      arguments:
+        prompt: "Implement task ${{ steps.find_work.output.suggestion.ref }}: ${{ steps.find_work.output.suggestion.title }}"
+        agent: "${{ inputs.developer_agent }}"
+        workflow: developer
+        task_id: "${{ steps.find_work.output.suggestion.id }}"
+        clone_id: "${{ steps.create_clone.output.clone_id }}"
+        provider: "${{ inputs.developer_provider }}"
+        mode: terminal
+
+  - id: wait_developer
+    condition: "${{ steps.spawn_developer.output.run_id if steps.spawn_developer.output is defined else '' }}"
+    mcp:
+      server: gobby-agents
+      tool: wait_for_agent
+      arguments:
+        run_id: "${{ steps.spawn_developer.output.run_id }}"
+        timeout: "${{ inputs.wait_timeout }}"
+
+  - id: spawn_qa
+    condition: "${{ steps.wait_developer.output.completed if steps.wait_developer.output is defined else false }}"
+    mcp:
+      server: gobby-agents
+      tool: spawn_agent
+      arguments:
+        prompt: "Review and fix code for task ${{ steps.find_work.output.suggestion.ref }}"
+        agent: "${{ inputs.qa_agent }}"
+        workflow: qa-reviewer
+        task_id: "${{ steps.find_work.output.suggestion.id }}"
+        clone_id: "${{ steps.create_clone.output.clone_id }}"
+        provider: "${{ inputs.qa_provider }}"
+        mode: terminal
+
+  - id: wait_qa
+    condition: "${{ steps.spawn_qa.output.run_id if steps.spawn_qa.output is defined else '' }}"
+    mcp:
+      server: gobby-agents
+      tool: wait_for_agent
+      arguments:
+        run_id: "${{ steps.spawn_qa.output.run_id }}"
+        timeout: "${{ inputs.wait_timeout }}"
+
+  - id: spawn_merge
+    condition: "${{ steps.wait_qa.output.completed if steps.wait_qa.output is defined else false }}"
+    mcp:
+      server: gobby-agents
+      tool: spawn_agent
+      arguments:
+        prompt: "Merge task ${{ steps.find_work.output.suggestion.ref }} into ${{ inputs.merge_target }}"
+        agent: "${{ inputs.qa_agent }}"
+        workflow: merge
+        clone_id: "${{ steps.create_clone.output.clone_id }}"
+        provider: "${{ inputs.qa_provider }}"
+        mode: terminal
+
+  - id: wait_merge
+    condition: "${{ steps.spawn_merge.output.run_id if steps.spawn_merge.output is defined else '' }}"
+    mcp:
+      server: gobby-agents
+      tool: wait_for_agent
+      arguments:
+        run_id: "${{ steps.spawn_merge.output.run_id }}"
+        timeout: 300
+
+  - id: close_task
+    condition: "${{ steps.wait_merge.output.completed if steps.wait_merge.output is defined else false }}"
+    mcp:
+      server: gobby-tasks
+      tool: close_task
+      arguments:
+        task_id: "${{ steps.find_work.output.suggestion.id }}"
+        changes_summary: "Merged to ${{ inputs.merge_target }}"
+
+  - id: cleanup_clone
+    condition: "${{ steps.create_clone.output.clone_id if steps.create_clone.output is defined else '' }}"
+    mcp:
+      server: gobby-clones
+      tool: delete_clone
+      arguments:
+        clone_id: "${{ steps.create_clone.output.clone_id }}"
+
+  - id: check_more_work
+    mcp:
+      server: gobby-tasks
+      tool: suggest_next_task
+      arguments:
+        parent_task_id: "${{ inputs.session_task }}"
+
+  - id: next_iteration
+    condition: "${{ steps.check_more_work.output.suggestion.ref if steps.check_more_work.output and steps.check_more_work.output.suggestion is defined else '' }}"
+    invoke_pipeline:
+      name: coordinator
+      arguments:
+        _current_iteration: "${{ inputs._current_iteration + 1 }}"
+        session_task: "${{ inputs.session_task }}"
+        merge_target: "${{ inputs.merge_target }}"

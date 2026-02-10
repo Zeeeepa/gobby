@@ -25,6 +25,9 @@ from gobby.workflows.context_actions import (
     handle_inject_message,
 )
 from gobby.workflows.definitions import WorkflowState
+from gobby.workflows.detection_helpers import (
+    handle_detect_plan_mode_from_context,
+)
 from gobby.workflows.enforcement import (
     handle_block_stop,
     handle_block_tools,
@@ -40,7 +43,7 @@ from gobby.workflows.enforcement import (
 from gobby.workflows.llm_actions import handle_call_llm
 from gobby.workflows.mcp_actions import handle_call_mcp_tool
 from gobby.workflows.memory_actions import (
-    handle_memory_extract,
+    handle_memory_extraction_gate,
     handle_memory_recall_relevant,
     handle_memory_save,
     handle_memory_sync_export,
@@ -208,6 +211,9 @@ class ActionExecutor:
         self.register("inject_message", handle_inject_message)
         self.register("extract_handoff_context", handle_extract_handoff_context)
 
+        # --- Detection actions ---
+        self.register("detect_plan_mode_from_context", handle_detect_plan_mode_from_context)
+
         # --- Artifact actions ---
         self.register("capture_artifact", handle_capture_artifact)
         self.register("read_artifact", handle_read_artifact)
@@ -249,7 +255,7 @@ class ActionExecutor:
         self.register("memory_recall_relevant", handle_memory_recall_relevant)
         self.register("memory_sync_import", handle_memory_sync_import)
         self.register("memory_sync_export", handle_memory_sync_export)
-        self.register("memory_extract", handle_memory_extract)
+        self.register("memory_extraction_gate", handle_memory_extraction_gate)
         self.register("reset_memory_injection_tracking", handle_reset_memory_injection_tracking)
 
         # --- Task sync actions ---

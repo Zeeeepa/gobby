@@ -34,38 +34,9 @@ from logging.handlers import RotatingFileHandler
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, cast
 
-from gobby.autonomous.progress_tracker import ProgressTracker
-from gobby.autonomous.stop_registry import StopRegistry
-from gobby.autonomous.stuck_detector import StuckDetector
-from gobby.hooks.event_handlers import EventHandlers
 from gobby.hooks.events import HookEvent, HookEventType, HookResponse, SessionSource
-from gobby.hooks.health_monitor import HealthMonitor
-from gobby.hooks.plugins import PluginLoader, run_plugin_handlers
-from gobby.hooks.session_coordinator import SessionCoordinator
-from gobby.hooks.skill_manager import HookSkillManager
-from gobby.hooks.webhooks import WebhookDispatcher
-from gobby.memory.manager import MemoryManager
-from gobby.sessions.manager import SessionManager
-from gobby.sessions.transcripts.claude import ClaudeTranscriptParser
-from gobby.sessions.transcripts.hook_assembler import HookTranscriptAssembler
-from gobby.storage.agents import LocalAgentRunManager
-from gobby.storage.database import LocalDatabase
-from gobby.storage.memories import LocalMemoryManager
-from gobby.storage.session_messages import LocalSessionMessageManager
-from gobby.storage.session_tasks import SessionTaskManager
-from gobby.storage.sessions import LocalSessionManager
-from gobby.storage.tasks import LocalTaskManager
-from gobby.storage.worktrees import LocalWorktreeManager
-from gobby.utils.daemon_client import DaemonClient
-from gobby.workflows.hooks import WorkflowHookHandler
-from gobby.workflows.loader import WorkflowLoader
-from gobby.workflows.state_manager import WorkflowStateManager
-
-if TYPE_CHECKING:
-    pass
-
-# Backward-compatible alias
-TranscriptProcessor = ClaudeTranscriptParser
+from gobby.hooks.factory import HookManagerFactory
+from gobby.hooks.plugins import run_plugin_handlers
 
 if TYPE_CHECKING:
     from gobby.llm.service import LLMService
@@ -159,251 +130,75 @@ class HookManager:
         # Store LLM service
         self._llm_service = llm_service
 
-        # Load configuration - prefer passed config over loading new one
-        self._config = config
-        if not self._config:
-            try:
-                from gobby.config.app import load_config
-
-                self._config = load_config()
-            except Exception as e:
-                self.logger.error(
-                    f"Failed to load config in HookManager, using defaults: {e}",
-                    exc_info=True,
-                )
-
-        # Extract config values
-        if self._config:
-            health_check_interval = self._config.daemon_health_check_interval
-
-        else:
-            health_check_interval = 10.0
-
-        # Initialize Database - use config's database_path if available
-        if self._config and self._config.database_path:
-            db_path = Path(self._config.database_path).expanduser()
-            self._database = LocalDatabase(db_path)
-        else:
-            self._database = LocalDatabase()
-
-        # Create session-agnostic subsystems (shared across all sessions)
-        self._daemon_client = DaemonClient(
-            host=daemon_host,
-            port=daemon_port,
-            timeout=5.0,
-            logger=self.logger,
-        )
-        self._transcript_processor = TranscriptProcessor(logger_instance=self.logger)
-
-        # Create local storage for sessions
-        self._session_storage = LocalSessionManager(self._database)
-        self._session_task_manager = SessionTaskManager(self._database)
-
-        # Initialize Memory storage
-        self._memory_storage = LocalMemoryManager(self._database)
-        self._message_manager = LocalSessionMessageManager(self._database)
-        self._task_manager = LocalTaskManager(self._database)
-
-        # Initialize Agent Run and Worktree managers (for terminal mode result capture)
-        self._agent_run_manager = LocalAgentRunManager(self._database)
-        self._worktree_manager = LocalWorktreeManager(self._database)
-
-        # Initialize Artifact storage and capture hook
-        from gobby.hooks.artifact_capture import ArtifactCaptureHook
-        from gobby.storage.artifacts import LocalArtifactManager
-
-        self._artifact_manager = LocalArtifactManager(self._database)
-        self._artifact_capture_hook = ArtifactCaptureHook(artifact_manager=self._artifact_manager)
-
-        # Initialize autonomous execution components
-        self._stop_registry = StopRegistry(self._database)
-        self._progress_tracker = ProgressTracker(self._database)
-        self._stuck_detector = StuckDetector(
-            self._database, progress_tracker=self._progress_tracker
-        )
-
-        # Use config or defaults
-        memory_config = (
-            self._config.memory if self._config and hasattr(self._config, "memory") else None
-        )
-
-        if not memory_config:
-            from gobby.config.persistence import MemoryConfig
-
-            memory_config = MemoryConfig()
-
-        self._memory_manager = MemoryManager(self._database, memory_config)
-
-        # Initialize Workflow Engine (Phase 0-2 + 3 Integration)
-        # Import WorkflowEngine here to avoid circular import (hooks -> hook_manager -> engine -> hooks)
-        from gobby.workflows.actions import ActionExecutor
-        from gobby.workflows.engine import WorkflowEngine
-        from gobby.workflows.templates import TemplateEngine
-
-        # Workflow loader handles project-specific paths dynamically via project_path parameter
-        # Global workflows are loaded from ~/.gobby/workflows/
-        # Project-specific workflows are loaded from {project_path}/.gobby/workflows/
-        # Workflows are installed via `gobby install` from install/shared/workflows/
-        self._workflow_loader = WorkflowLoader(workflow_dirs=[Path.home() / ".gobby" / "workflows"])
-        self._workflow_state_manager = WorkflowStateManager(self._database)
-
-        # Initialize Template Engine
-        # We can pass template directory from package templates or user templates
-        # For now, let's include the built-in templates dir if we can find it
-        # Assuming templates are in package 'gobby.templates.workflows'?
-        # Or just use the one we are about to create in project root?
-        # Ideally, we should look for templates in typical locations.
-        # But 'TemplateEngine' constructor takes optional dirs.
-        self._template_engine = TemplateEngine()
-
-        # Skill manager for core skill injection
-        # Initialized before ActionExecutor so it can be passed through
-        self._skill_manager = HookSkillManager()
-
-        # Get websocket_server from broadcaster if available
-        websocket_server = None
-        if self.broadcaster and hasattr(self.broadcaster, "websocket_server"):
-            websocket_server = self.broadcaster.websocket_server
-
-        # Initialize pipeline executor for run_pipeline action support
-        self._pipeline_executor = None
-        try:
-            from gobby.storage.pipelines import LocalPipelineExecutionManager
-            from gobby.workflows.pipeline_executor import PipelineExecutor
-
-            # Resolve project_id dynamically since it's not stored on the instance
-            project_id = self._resolve_project_id(None, None)
-            pipeline_execution_manager = LocalPipelineExecutionManager(self._database, project_id)
-            self._pipeline_executor = PipelineExecutor(
-                db=self._database,
-                execution_manager=pipeline_execution_manager,
-                llm_service=self._llm_service,
-                loader=self._workflow_loader,
-            )
-        except Exception as e:
-            logging.getLogger(__name__).debug(f"Pipeline executor not available: {e}")
-
-        self._action_executor = ActionExecutor(
-            db=self._database,
-            session_manager=self._session_storage,
-            template_engine=self._template_engine,
-            llm_service=self._llm_service,
-            transcript_processor=self._transcript_processor,
-            config=self._config,
-            tool_proxy_getter=self.tool_proxy_getter,
-            memory_manager=self._memory_manager,
-            memory_sync_manager=self.memory_sync_manager,
-            task_manager=self._task_manager,
-            task_sync_manager=self.task_sync_manager,
-            session_task_manager=self._session_task_manager,
-            stop_registry=self._stop_registry,
-            progress_tracker=self._progress_tracker,
-            stuck_detector=self._stuck_detector,
-            websocket_server=websocket_server,
-            skill_manager=self._skill_manager,
-            pipeline_executor=self._pipeline_executor,
-            workflow_loader=self._workflow_loader,
-        )
-        self._workflow_engine = WorkflowEngine(
-            loader=self._workflow_loader,
-            state_manager=self._workflow_state_manager,
-            action_executor=self._action_executor,
-        )
-        # Register task_manager with evaluator for task_tree_complete() condition helper
-        if self._task_manager and self._workflow_engine.evaluator:
-            self._workflow_engine.evaluator.register_task_manager(self._task_manager)
-        # Register stop_registry with evaluator for has_stop_signal() condition helper
-        if self._stop_registry and self._workflow_engine.evaluator:
-            self._workflow_engine.evaluator.register_stop_registry(self._stop_registry)
-        workflow_timeout: float = 0.0  # 0 = no timeout
-        workflow_enabled = True
-        if self._config:
-            workflow_timeout = self._config.workflow.timeout
-            workflow_enabled = self._config.workflow.enabled
-
-        self._workflow_handler = WorkflowHookHandler(
-            engine=self._workflow_engine,
-            loop=self._loop,
-            timeout=workflow_timeout,
-            enabled=workflow_enabled,
-        )
-
-        # Initialize Webhook Dispatcher (Sprint 8: Webhooks)
-        webhooks_config = None
-        if self._config and hasattr(self._config, "hook_extensions"):
-            webhooks_config = self._config.hook_extensions.webhooks
-        if not webhooks_config:
-            from gobby.config.extensions import WebhooksConfig
-
-            webhooks_config = WebhooksConfig()
-        self._webhook_dispatcher = WebhookDispatcher(webhooks_config)
-
-        # Initialize Plugin Loader (Sprint 9: Python Plugins)
-        self._plugin_loader: PluginLoader | None = None
-        plugins_config = None
-        if self._config and hasattr(self._config, "hook_extensions"):
-            plugins_config = self._config.hook_extensions.plugins
-        if plugins_config is not None and plugins_config.enabled:
-            self._plugin_loader = PluginLoader(plugins_config)
-            try:
-                loaded = self._plugin_loader.load_all()
-                if loaded:
-                    self.logger.info(
-                        f"Loaded {len(loaded)} plugin(s): {', '.join(p.name for p in loaded)}"
-                    )
-                    # Register plugin actions and conditions with workflow system
-                    self._action_executor.register_plugin_actions(self._plugin_loader.registry)
-                    self._workflow_engine.evaluator.register_plugin_conditions(
-                        self._plugin_loader.registry
-                    )
-            except Exception as e:
-                self.logger.error(f"Failed to load plugins: {e}", exc_info=True)
-
-        # Session manager handles registration, lookup, and status updates
-        # Note: source is passed explicitly per call (Phase 2C+), not stored in manager
-        self._session_manager = SessionManager(
-            session_storage=self._session_storage,
-            logger_instance=self.logger,
-            config=self._config,
-        )
-
-        # Session coordination (delegated to SessionCoordinator)
-        self._session_coordinator = SessionCoordinator(
-            session_storage=self._session_storage,
-            message_processor=self._message_processor,
-            agent_run_manager=self._agent_run_manager,
-            worktree_manager=self._worktree_manager,
-            logger=self.logger,
-        )
-
-        # Daemon health check monitoring (delegated to HealthMonitor)
-        self._health_monitor = HealthMonitor(
-            daemon_client=self._daemon_client,
-            health_check_interval=health_check_interval,
-            logger=self.logger,
-        )
-
-        # Hook-based transcript assembler (Windsurf, Copilot)
-        self._hook_assembler = HookTranscriptAssembler()
-
         # Track sessions that have received full metadata injection
         # Key: "{platform_session_id}:{source}" - cleared on daemon restart
         self._injected_sessions: set[str] = set()
 
-        # Event handlers (delegated to EventHandlers module)
-        self._event_handlers = EventHandlers(
-            session_manager=self._session_manager,
-            workflow_handler=self._workflow_handler,
+        # Create all subsystems via factory
+        components = HookManagerFactory.create(
+            daemon_host=daemon_host,
+            daemon_port=daemon_port,
+            llm_service=llm_service,
+            config=config,
+            hook_logger=self.logger,
+            loop=self._loop,
+            broadcaster=broadcaster,
+            tool_proxy_getter=tool_proxy_getter,
+            message_processor=message_processor,
+            memory_sync_manager=memory_sync_manager,
+            task_sync_manager=task_sync_manager,
+            get_machine_id=self.get_machine_id,
+            resolve_project_id=self._resolve_project_id,
+        )
+
+        # Unpack all subsystems from factory components
+        self._config = components.config
+        self._database = components.database
+        self._daemon_client = components.daemon_client
+        self._transcript_processor = components.transcript_processor
+        self._session_storage = components.session_storage
+        self._session_task_manager = components.session_task_manager
+        self._memory_storage = components.memory_storage
+        self._message_manager = components.message_manager
+        self._task_manager = components.task_manager
+        self._agent_run_manager = components.agent_run_manager
+        self._worktree_manager = components.worktree_manager
+        self._artifact_manager = components.artifact_manager
+        self._artifact_capture_hook = components.artifact_capture_hook
+        self._stop_registry = components.stop_registry
+        self._progress_tracker = components.progress_tracker
+        self._stuck_detector = components.stuck_detector
+        self._memory_manager = components.memory_manager
+        self._workflow_loader = components.workflow_loader
+        self._workflow_state_manager = components.workflow_state_manager
+        self._skill_manager = components.skill_manager
+        self._pipeline_executor = components.pipeline_executor
+        self._action_executor = components.action_executor
+        self._workflow_engine = components.workflow_engine
+        self._workflow_handler = components.workflow_handler
+        self._webhook_dispatcher = components.webhook_dispatcher
+        self._plugin_loader = components.plugin_loader
+        self._session_manager = components.session_manager
+        self._session_coordinator = components.session_coordinator
+        self._health_monitor = components.health_monitor
+        self._hook_assembler = components.hook_assembler
+        self._event_handlers = components.event_handlers
+
+        # Response metadata enrichment service
+        from gobby.hooks.event_enrichment import EventEnricher
+
+        self._enricher = EventEnricher(
             session_storage=self._session_storage,
-            session_task_manager=self._session_task_manager,
-            message_processor=self._message_processor,
-            task_manager=self._task_manager,
+            injected_sessions=self._injected_sessions,
+        )
+
+        # Session lookup service (resolves platform session IDs from CLI external IDs)
+        from gobby.hooks.session_lookup import SessionLookupService
+
+        self._session_lookup = SessionLookupService(
+            session_manager=self._session_manager,
             session_coordinator=self._session_coordinator,
-            message_manager=self._message_manager,
-            skill_manager=self._skill_manager,
-            skills_config=self._config.skills if self._config else None,
-            artifact_capture_hook=self._artifact_capture_hook,
-            workflow_config=self._config.workflow if self._config else None,
+            session_task_manager=self._session_task_manager,
             get_machine_id=self.get_machine_id,
             resolve_project_id=self._resolve_project_id,
             logger=self.logger,
@@ -530,84 +325,8 @@ class HookManager:
                 reason=f"Daemon {daemon_status}: {error_reason or 'Unknown'}",
             )
 
-        # Look up platform session_id from cli_key (event.session_id is the cli_key)
-        external_id = event.session_id
-        platform_session_id = None
-
-        if external_id:
-            # Check SessionManager's cache first (keyed by (external_id, source))
-            platform_session_id = self._session_manager.get_session_id(
-                external_id, event.source.value
-            )
-
-            # If not in mapping and not session-start, try to query database
-            if not platform_session_id and event.event_type != HookEventType.SESSION_START:
-                with self._session_coordinator.get_lookup_lock():
-                    # Double check in case another thread finished lookup
-                    platform_session_id = self._session_manager.get_session_id(
-                        external_id, event.source.value
-                    )
-
-                    if not platform_session_id:
-                        self.logger.debug(
-                            f"Session not in mapping, querying database for external_id={external_id}"
-                        )
-                        # Resolve context for lookup
-                        machine_id = event.machine_id or self.get_machine_id()
-                        cwd = event.data.get("cwd")
-                        project_id = self._resolve_project_id(event.data.get("project_id"), cwd)
-
-                        # Lookup with full composite key
-                        platform_session_id = self._session_manager.lookup_session_id(
-                            external_id,
-                            source=event.source.value,
-                            machine_id=machine_id,
-                            project_id=project_id,
-                        )
-                        if platform_session_id:
-                            self.logger.debug(
-                                f"Found session_id {platform_session_id} for external_id {external_id}"
-                            )
-                        else:
-                            # Auto-register session if not found
-                            self.logger.debug(
-                                f"Session not found for external_id={external_id}, auto-registering"
-                            )
-                            platform_session_id = self._session_manager.register_session(
-                                external_id=external_id,
-                                machine_id=machine_id,
-                                project_id=project_id,
-                                parent_session_id=None,
-                                jsonl_path=event.data.get("transcript_path"),
-                                source=event.source.value,
-                                project_path=cwd,
-                            )
-
-            # Resolve active task for this session if we have a platform session ID
-            if platform_session_id:
-                try:
-                    # Get tasks linked with 'worked_on' action which implies active focus
-                    session_tasks = self._session_task_manager.get_session_tasks(
-                        platform_session_id
-                    )
-                    # Filter for active 'worked_on' tasks - taking the most recent one
-                    active_tasks = [t for t in session_tasks if t.get("action") == "worked_on"]
-                    if active_tasks:
-                        # Use the most recent task - populate full task context
-                        task = active_tasks[0]["task"]
-                        event.task_id = task.id
-                        event.metadata["_task_context"] = {
-                            "id": task.id,
-                            "title": task.title,
-                            "status": task.status,
-                        }
-                        # Keep legacy field for backwards compatibility
-                        event.metadata["_task_title"] = task.title
-                except Exception as e:
-                    self.logger.warning(f"Failed to resolve active task: {e}")
-
-            # Store platform session_id in event metadata for handlers
-            event.metadata["_platform_session_id"] = platform_session_id
+        # Resolve platform session_id from CLI external_id
+        platform_session_id = self._session_lookup.resolve(event)
 
         # Get handler for this event type
         handler = self._get_event_handler(event.event_type)
@@ -664,51 +383,8 @@ class HookManager:
         try:
             response = handler(event)
 
-            # Copy session metadata from event to response for adapter injection
-            # The adapter reads response.metadata to inject session info into agent context
-            if event.metadata.get("_platform_session_id"):
-                platform_session_id = event.metadata["_platform_session_id"]
-                response.metadata["session_id"] = platform_session_id
-                # Look up seq_num for session_ref (#N format)
-                if self._session_storage:
-                    session_obj = self._session_storage.get(platform_session_id)
-                    if session_obj and session_obj.seq_num:
-                        response.metadata["session_ref"] = f"#{session_obj.seq_num}"
-
-                # Track first hook per session for token optimization
-                # Adapters use this flag to inject full metadata only on first hook
-                session_key = f"{platform_session_id}:{event.source.value}"
-                is_first = session_key not in self._injected_sessions
-                if is_first:
-                    self._injected_sessions.add(session_key)
-                response.metadata["_first_hook_for_session"] = is_first
-            if event.session_id:  # external_id (e.g., Claude Code's session UUID)
-                response.metadata["external_id"] = event.session_id
-            if event.machine_id:
-                response.metadata["machine_id"] = event.machine_id
-            if event.project_id:
-                response.metadata["project_id"] = event.project_id
-            # Copy terminal context if present
-            for key in [
-                "terminal_term_program",
-                "terminal_tty",
-                "terminal_parent_pid",
-                "terminal_iterm_session_id",
-                "terminal_term_session_id",
-                "terminal_kitty_window_id",
-                "terminal_tmux_pane",
-                "terminal_vscode_terminal_id",
-                "terminal_alacritty_socket",
-            ]:
-                if event.metadata.get(key):
-                    response.metadata[key] = event.metadata[key]
-
-            # Merge workflow context if present
-            if workflow_context:
-                if response.context:
-                    response.context = f"{response.context}\n\n{workflow_context}"
-                else:
-                    response.context = workflow_context
+            # Enrich response with session metadata, terminal context, workflow context
+            self._enricher.enrich(event, response, workflow_context=workflow_context)
 
             # Broadcast event (fire-and-forget)
             if self.broadcaster:
@@ -901,6 +577,9 @@ class HookManager:
                     self.logger.warning(f"Failed to schedule hook message storage: {e}")
             else:
                 # No event loop available — run synchronously as last resort
+                self.logger.debug(
+                    "No event loop available, running hook message storage synchronously"
+                )
                 try:
                     asyncio.run(coro)
                 except Exception as e:

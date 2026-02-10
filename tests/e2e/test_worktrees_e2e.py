@@ -760,7 +760,7 @@ class TestWorktreeToolSchema:
         mcp_client: MCPTestClient,
     ) -> None:
         """List tools returns gobby-worktrees tools."""
-        tools = mcp_client.list_tools(server="gobby-worktrees")
+        tools = mcp_client.list_tools(server_name="gobby-worktrees")
 
         assert len(tools) > 0
 

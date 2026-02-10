@@ -241,11 +241,11 @@ CREATE TABLE tools (
 
 ```
 1. List Available Tools (lightweight)
-   └─> list_tools(server="context7")
+   └─> list_tools(server_name="context7")
        └─> Returns: [{name, brief}] from cached config
 
 2. Get Full Schema (on-demand)
-   └─> get_tool_schema(server="context7", tool="get-library-docs")
+   └─> get_tool_schema(server_name="context7", tool_name="get-library-docs")
        └─> Reads from ~/.gobby/tools/ cache
            └─> Returns: {name, description, inputSchema}
 

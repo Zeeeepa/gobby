@@ -2,6 +2,7 @@
 name: merge
 description: Use when user asks to "/gobby merge", "merge branches", "resolve conflicts", "AI merge". AI-powered merge conflict resolution - start merges, resolve conflicts, and apply resolutions.
 category: core
+triggers: merge, merge conflict, resolve conflict
 ---
 
 # /gobby merge - AI-Powered Merge Conflict Resolution

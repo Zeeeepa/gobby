@@ -290,13 +290,25 @@ class Mem0Backend:
         if query.limit:
             search_kwargs["limit"] = query.limit
 
-        # Execute search via Mem0 API (run in thread to avoid blocking event loop)
-        results = await asyncio.to_thread(lambda: self._client.search(**search_kwargs))
+        try:
+            # Execute search via Mem0 API (run in thread to avoid blocking event loop)
+            results = await asyncio.to_thread(lambda: self._client.search(**search_kwargs))
+        except Exception as e:
+            # Log error but return empty list to avoid crashing callers
+            from logging import getLogger
+
+            logger = getLogger(__name__)
+            logger.warning(f"Mem0 search failed: {e}")
+            return []
 
         # Convert results to MemoryRecords
         records = []
         for mem0_memory in results.get("results", []):
-            record = self._mem0_to_record(mem0_memory)
+            try:
+                record = self._mem0_to_record(mem0_memory)
+            except Exception as e:
+                getLogger(__name__).warning(f"Failed to convert mem0 record: {e}")
+                continue
 
             # Apply additional filters not supported by Mem0 API
             if query.min_importance is not None and record.importance < query.min_importance:
@@ -359,6 +371,27 @@ class Mem0Backend:
                 break
 
         return records
+
+    async def content_exists(self, content: str, project_id: str | None = None) -> bool:
+        """Check if a memory with identical content already exists."""
+        record = await self.get_memory_by_content(content, project_id)
+        return record is not None
+
+    async def get_memory_by_content(
+        self, content: str, project_id: str | None = None
+    ) -> MemoryRecord | None:
+        """Get a memory by its exact content."""
+        normalized = content.strip()
+        try:
+            user_id = self._default_user_id or "default"
+            results = await asyncio.to_thread(self._client.get_all, user_id=user_id)
+            for mem0_memory in results.get("results", []):
+                mem_content = mem0_memory.get("memory", "").strip()
+                if mem_content == normalized:
+                    return self._mem0_to_record(mem0_memory)
+        except Exception:  # nosec B110 — best-effort duplicate check, failure returns None
+            pass
+        return None
 
     def close(self) -> None:
         """Clean up resources.

@@ -54,7 +54,7 @@ def hook_manager_with_mocks(temp_dir: Path, mock_daemon_client: MagicMock):
     )
 
     with (
-        patch("gobby.hooks.hook_manager.DaemonClient") as MockDaemonClient,
+        patch("gobby.hooks.factory.DaemonClient") as MockDaemonClient,
         patch("gobby.hooks.webhooks.httpx.AsyncClient") as MockHttpClient,
     ):
         MockDaemonClient.return_value = mock_daemon_client
@@ -348,7 +348,7 @@ class TestHookManagerSessionEnd:
         temp_dir: Path,
     ) -> None:
         """Test that session end auto-links commits made during session."""
-        from gobby.storage.sessions import Session
+        from gobby.storage.session_models import Session
         from gobby.tasks.commits import AutoLinkResult
 
         # Create transcript file in temp directory
@@ -555,7 +555,7 @@ class TestHookManagerConfigLoadError:
     ) -> None:
         """Test that init handles config loading errors gracefully."""
         with (
-            patch("gobby.hooks.hook_manager.DaemonClient") as MockDaemonClient,
+            patch("gobby.hooks.factory.DaemonClient") as MockDaemonClient,
             patch("gobby.config.app.load_config", side_effect=Exception("Config load failed")),
         ):
             MockDaemonClient.return_value = mock_daemon_client
@@ -579,7 +579,7 @@ class TestHookManagerConfigLoadError:
     ) -> None:
         """Test that init uses default health check interval when config is None."""
         with (
-            patch("gobby.hooks.hook_manager.DaemonClient") as MockDaemonClient,
+            patch("gobby.hooks.factory.DaemonClient") as MockDaemonClient,
             patch("gobby.config.app.load_config", side_effect=Exception("Config load failed")),
         ):
             MockDaemonClient.return_value = mock_daemon_client
@@ -1535,7 +1535,7 @@ class TestHookManagerLogging:
         # Verify it doesn't exist
         assert not log_dir.exists()
 
-        with patch("gobby.hooks.hook_manager.DaemonClient") as MockDaemonClient:
+        with patch("gobby.hooks.factory.DaemonClient") as MockDaemonClient:
             MockDaemonClient.return_value = mock_daemon_client
 
             manager = HookManager(
@@ -1562,7 +1562,7 @@ class TestHookManagerLogging:
         handler = logging.StreamHandler()
         logger.addHandler(handler)
 
-        with patch("gobby.hooks.hook_manager.DaemonClient") as MockDaemonClient:
+        with patch("gobby.hooks.factory.DaemonClient") as MockDaemonClient:
             MockDaemonClient.return_value = mock_daemon_client
 
             manager = HookManager(
@@ -1601,8 +1601,8 @@ class TestHookManagerPluginLoading:
         mock_config.skills = None
 
         with (
-            patch("gobby.hooks.hook_manager.DaemonClient") as MockDaemonClient,
-            patch("gobby.hooks.hook_manager.PluginLoader") as MockPluginLoader,
+            patch("gobby.hooks.factory.DaemonClient") as MockDaemonClient,
+            patch("gobby.hooks.factory.PluginLoader") as MockPluginLoader,
         ):
             MockDaemonClient.return_value = mock_daemon_client
 
@@ -1640,8 +1640,8 @@ class TestHookManagerPluginLoading:
         mock_config.skills = None
 
         with (
-            patch("gobby.hooks.hook_manager.DaemonClient") as MockDaemonClient,
-            patch("gobby.hooks.hook_manager.PluginLoader") as MockPluginLoader,
+            patch("gobby.hooks.factory.DaemonClient") as MockDaemonClient,
+            patch("gobby.hooks.factory.PluginLoader") as MockPluginLoader,
         ):
             MockDaemonClient.return_value = mock_daemon_client
 

@@ -22,6 +22,9 @@ variables:
   # Clear task_claimed variable on successful close_task
   clear_task_on_close: true
 
+  # Require uv for python/pip commands - block naked python3/pip via Bash
+  require_uv: true
+
   # Progressive tool discovery - require get_tool_schema before call_tool
   # Set to false to disable this enforcement
   enforce_tool_schema_check: true
@@ -64,7 +67,8 @@ triggers:
       reason: |
         You must triage pre-existing issues before stopping.
         - If you found errors, warnings, or failures unrelated to your changes, create a task for each one.
-        - If you found no pre-existing issues, confirm by calling:
+        - If you found no pre-existing issues, confirm by calling
+          set_variable on gobby-workflows:
           set_variable(name="pre_existing_errors_triaged", value=true, session_id="<session_id>")
 
     # Task closure enforcement - block stop if task is still in_progress
@@ -148,8 +152,10 @@ triggers:
     - action: task_sync_import
 
     # Skill and task context injection - inject always-apply skills for all session starts
+    # Skip on resume - conversation already has this context from original startup
     # Uses array syntax to combine multiple sources
     - action: inject_context
+      when: "event.data.get('source') != 'resume'"
       source: skills
       filter: always_apply
       template: |
@@ -157,26 +163,14 @@ triggers:
 
     # Inject active task context if session has a claimed task
     - action: inject_context
+      when: "event.data.get('source') != 'resume'"
       source: task_context
       template: |
         {{ task_context }}
 
-    # Plan mode prompt - ONLY on fresh sessions (not handoffs/compacts)
+    # Pre-existing error/warning triage policy - skip on resume (already in context)
     - action: inject_context
-      when: "event.data.get('source') == 'startup'"
-      template: |
-        ## Session Start: Plan Mode Recommended
-
-        This is a new session. Before executing any code changes, consider:
-        1. Understanding the user's full request
-        2. Exploring the codebase to gather context
-        3. Creating a plan before implementation
-
-        If the user's request involves non-trivial changes, use `/plan` or
-        suggest entering plan mode before proceeding with edits.
-
-    # Pre-existing error/warning triage policy - inject on all session starts
-    - action: inject_context
+      when: "event.data.get('source') != 'resume'"
       template: |
         ## Pre-Existing Error/Warning/Failure Policy
 
@@ -185,7 +179,8 @@ triggers:
         build failures, deprecation warnings) unrelated to your changes — you
         MUST create a gobby task for each distinct issue before stopping.
 
-        After triaging all issues (or confirming none were found), call:
+        After triaging all issues (or confirming none were found), call
+        set_variable on gobby-workflows:
         set_variable(name="pre_existing_errors_triaged", value=true, session_id="<session_id>")
 
   on_before_agent:
@@ -204,6 +199,9 @@ triggers:
     - action: set_variable
       name: pre_existing_errors_triaged
       value: false
+
+    # Detect plan mode from system reminders (Claude Code UI-based plan mode)
+    - action: detect_plan_mode_from_context
 
     # Title synthesis on first prompt
     - action: synthesize_title
@@ -245,7 +243,7 @@ triggers:
         - tools: ["mcp__gobby__get_tool_schema"]
           when: "variables.get('enforce_tool_schema_check') and not is_server_listed(tool_input)"
           reason: |
-            Call list_tools(server="{{ tool_input.get('server_name', '') }}") first, then retry get_tool_schema.
+            Call list_tools(server_name="{{ tool_input.get('server_name', '') }}") first, then retry get_tool_schema.
 
         # Block call_tool if schema wasn't fetched first (progressive disclosure)
         # Skip for discovery tools (list_tools, get_tool_schema, etc.)
@@ -290,7 +288,29 @@ triggers:
             2. Close the task: close_task(task_id="#N", commit_sha="<sha>")
             3. Then stop.
 
+        # Block naked python/pip commands - require uv run / uv pip
+        - tools: [Bash]
+          command_pattern: "(?:^|[;&|])\\s*(?:sudo\\s+)?(?:python(?:3(?:\\.\\d+)?)?|pip3?)\\b"
+          command_not_pattern: "(?:^|[;&|])\\s*(?:sudo\\s+)?uv\\s+"
+          when: "variables.get('require_uv')"
+          reason: |
+            Do not run python or pip directly. Use `uv` to ensure the correct virtual environment:
+            - `uv run python3 script.py` instead of `python3 script.py`
+            - `uv run python -m module` instead of `python -m module`
+            - `uv pip install pkg` or `uv add pkg` instead of `pip install pkg`
+            Rewrite your command with `uv` and retry.
+
   on_after_tool:
+    # Detect Claude Code plan mode entry/exit
+    - action: set_variable
+      name: plan_mode
+      value: true
+      when: "event.data.get('tool_name') == 'EnterPlanMode'"
+    - action: set_variable
+      name: plan_mode
+      value: false
+      when: "event.data.get('tool_name') == 'ExitPlanMode'"
+
     # Reset stop attempts counter on successful tool use
     - action: set_variable
       name: stop_attempts
@@ -306,6 +326,15 @@ triggers:
 
     # Track list_mcp_servers and list_tools for progressive disclosure gates
     - action: track_discovery_step
+
+    # Suggest memory extraction after closing a task with a commit
+    # Soft nudge, not a blocking gate — agent can choose to skip
+    - action: inject_context
+      when: "event.data.get('mcp_tool') == 'close_task' and ((event.data.get('tool_input') or {}).get('arguments') or {}).get('commit_sha')"
+      template: |
+        Consider saving any valuable memories from this task before stopping.
+        Use `create_memory` (via gobby-memory MCP) for insights worth preserving.
+        If nothing new was learned, no action needed.
 
   on_session_end:
     # Session summary generation - always runs on session end

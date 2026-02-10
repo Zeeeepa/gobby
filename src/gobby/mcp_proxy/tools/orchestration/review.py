@@ -480,13 +480,19 @@ def register_reviewer(
                         }
                     )
                 else:
-                    # Retry - reopen task and add back to queue
+                    # Retry - reopen task and release worktree for reuse
                     try:
                         task_manager.reopen_task(task_id, reason="Validation failed, retrying")
+                        # Release worktree so orchestrate_ready_tasks reuses it
+                        # instead of creating a new one (which would orphan this one)
+                        wt = worktree_storage.get_by_task(task_id)
+                        if wt:
+                            worktree_storage.release(wt.id)
                         retries_scheduled.append(
                             {
                                 **agent_info,
                                 "retry_count": fail_count + 1,
+                                "worktree_id": wt.id if wt else None,
                             }
                         )
                     except Exception as e:
@@ -574,10 +580,16 @@ def register_reviewer(
                         # Reopen for retry
                         try:
                             task_manager.update_task(task_id, status="open")
+                            # Release worktree so orchestrate_ready_tasks reuses it
+                            # instead of creating a new one (which would orphan this one)
+                            wt = worktree_storage.get_by_task(task_id)
+                            if wt:
+                                worktree_storage.release(wt.id)
                             retries_scheduled.append(
                                 {
                                     **agent_info,
                                     "retry_reason": "Agent crashed, reopened task",
+                                    "worktree_id": wt.id if wt else None,
                                 }
                             )
                             continue

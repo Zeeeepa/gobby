@@ -4,16 +4,10 @@ Extracted from actions.py as part of strangler fig decomposition.
 These functions handle memory injection, extraction, saving, and recall.
 """
 
-import hashlib
 import logging
 from typing import Any
 
 logger = logging.getLogger(__name__)
-
-
-def _content_fingerprint(content: str) -> str:
-    """Generate a secure fingerprint of content for logging (avoids PII exposure)."""
-    return hashlib.sha256(content.encode("utf-8")).hexdigest()[:16]
 
 
 async def memory_sync_import(memory_sync_manager: Any) -> dict[str, Any]:
@@ -29,7 +23,7 @@ async def memory_sync_import(memory_sync_manager: Any) -> dict[str, Any]:
         return {"error": "Memory Sync Manager not available"}
 
     count = await memory_sync_manager.import_from_files()
-    logger.info(f"Memory sync import: {count} memories imported")
+    logger.info("Memory sync import: %s memories imported", count)
     return {"imported": {"memories": count}}
 
 
@@ -46,7 +40,7 @@ async def memory_sync_export(memory_sync_manager: Any) -> dict[str, Any]:
         return {"error": "Memory Sync Manager not available"}
 
     count = await memory_sync_manager.export_to_files()
-    logger.info(f"Memory sync export: {count} memories exported")
+    logger.info("Memory sync export: %s memories exported", count)
     return {"exported": {"memories": count}}
 
 
@@ -110,7 +104,7 @@ async def memory_save(
 
     try:
         if memory_manager.content_exists(content, project_id):
-            logger.debug(f"save_memory: Skipping duplicate: {content[:50]}...")
+            logger.debug("save_memory: Skipping duplicate: %s...", content[:50])
             return {"saved": False, "reason": "duplicate"}
 
         memory = await memory_manager.remember(
@@ -123,7 +117,7 @@ async def memory_save(
             tags=tags,
         )
 
-        logger.info(f"save_memory: Created {memory_type} memory: {content[:50]}...")
+        logger.info("save_memory: Created %s memory: %s...", memory_type, content[:50])
         return {
             "saved": True,
             "memory_id": memory.id,
@@ -218,7 +212,7 @@ async def memory_recall_relevant(
 
         if not new_memories:
             logger.debug(
-                f"memory_recall_relevant: All {len(memories)} memories already injected, skipping"
+                "memory_recall_relevant: All %s memories already injected, skipping", len(memories)
             )
             return {"injected": False, "count": 0, "skipped": len(memories)}
 
@@ -235,11 +229,12 @@ async def memory_recall_relevant(
                 state.variables = {}
             state.variables["_injected_memory_ids"] = list(all_injected)
             logger.debug(
-                f"memory_recall_relevant: Tracking {len(new_ids)} new IDs, "
-                f"{len(all_injected)} total injected"
+                "memory_recall_relevant: Tracking %s new IDs, %s total injected",
+                len(new_ids),
+                len(all_injected),
             )
 
-        logger.info(f"memory_recall_relevant: Injecting {len(new_memories)} relevant memories")
+        logger.info("memory_recall_relevant: Injecting %s relevant memories", len(new_memories))
 
         return {
             "inject_context": memory_context,
@@ -278,83 +273,11 @@ def reset_memory_injection_tracking(state: Any | None = None) -> dict[str, Any]:
 
     if cleared_count > 0:
         variables["_injected_memory_ids"] = []
-        logger.info(f"reset_memory_injection_tracking: Cleared {cleared_count} injected memory IDs")
+        logger.info(
+            "reset_memory_injection_tracking: Cleared %s injected memory IDs", cleared_count
+        )
 
     return {"success": True, "cleared": cleared_count}
-
-
-async def memory_extract(
-    session_manager: Any,
-    session_id: str,
-    llm_service: Any,
-    memory_manager: Any,
-    transcript_processor: Any | None = None,
-    min_importance: float = 0.7,
-    max_memories: int = 5,
-    dry_run: bool = False,
-) -> dict[str, Any] | None:
-    """Extract memories from a session transcript.
-
-    Uses LLM analysis to identify high-value, reusable knowledge from
-    session transcripts and stores them as memories.
-
-    Args:
-        session_manager: The session manager instance
-        session_id: Current session ID
-        llm_service: LLM service for analysis
-        memory_manager: Memory manager for storage
-        transcript_processor: Optional transcript processor
-        min_importance: Minimum importance threshold (0.0-1.0)
-        max_memories: Maximum memories to extract
-        dry_run: If True, don't store memories
-
-    Returns:
-        Dict with extracted_count and memory details, or error
-    """
-    if not memory_manager:
-        return {"error": "Memory Manager not available"}
-
-    if not memory_manager.config.enabled:
-        logger.debug("memory_extract: Memory system disabled")
-        return None
-
-    if not llm_service:
-        return {"error": "LLM service not available"}
-
-    try:
-        from gobby.memory.extractor import SessionMemoryExtractor
-
-        extractor = SessionMemoryExtractor(
-            memory_manager=memory_manager,
-            session_manager=session_manager,
-            llm_service=llm_service,
-            transcript_processor=transcript_processor,
-        )
-
-        candidates = await extractor.extract(
-            session_id=session_id,
-            min_importance=min_importance,
-            max_memories=max_memories,
-            dry_run=dry_run,
-        )
-
-        if not candidates:
-            logger.debug(f"memory_extract: No memories extracted from session {session_id}")
-            return {"extracted_count": 0, "memories": []}
-
-        logger.info(
-            f"memory_extract: Extracted {len(candidates)} memories from session {session_id}"
-        )
-
-        return {
-            "extracted_count": len(candidates),
-            "memories": [c.to_dict() for c in candidates],
-            "dry_run": dry_run,
-        }
-
-    except Exception as e:
-        logger.error(f"memory_extract: Failed: {e}", exc_info=True)
-        return {"error": str(e)}
 
 
 # --- ActionHandler-compatible wrappers ---
@@ -423,15 +346,80 @@ async def handle_reset_memory_injection_tracking(
     return reset_memory_injection_tracking(state=context.state)
 
 
-async def handle_memory_extract(context: "ActionContext", **kwargs: Any) -> dict[str, Any] | None:
-    """ActionHandler wrapper for memory_extract."""
-    return await memory_extract(
-        session_manager=context.session_manager,
-        session_id=context.session_id,
-        llm_service=context.llm_service,
+async def handle_memory_extraction_gate(
+    context: "ActionContext", **kwargs: Any
+) -> dict[str, Any] | None:
+    """Stop-gate that blocks agent from stopping until memory extraction is done.
+
+    The agent has full context of its work — it uses create_memory/update_memory
+    MCP tools directly. No need to pre-fetch memories; the agent can search itself.
+    """
+    return await memory_extraction_gate(
         memory_manager=context.memory_manager,
-        transcript_processor=context.transcript_processor,
-        min_importance=kwargs.get("min_importance", 0.7),
-        max_memories=kwargs.get("max_memories", 5),
-        dry_run=kwargs.get("dry_run", False),
+        session_id=context.session_id,
+        session_manager=context.session_manager,
+        state=context.state,
     )
+
+
+async def memory_extraction_gate(
+    memory_manager: Any,
+    session_id: str,
+    session_manager: Any | None = None,
+    state: Any | None = None,
+) -> dict[str, Any] | None:
+    """Memory extraction stop-gate logic.
+
+    Blocks the agent from stopping until it has reviewed its work and either
+    created new memories or confirmed there's nothing to save.
+
+    Args:
+        memory_manager: The memory manager instance
+        session_id: Current session ID
+        session_manager: Session manager for resolving #N refs
+        state: WorkflowState for tracking extraction status
+
+    Returns:
+        Dict with block decision and reason, or None to allow stop
+    """
+    if not memory_manager:
+        return None
+
+    if not memory_manager.config.enabled:
+        return None
+
+    # Check if already extracted this turn
+    variables = getattr(state, "variables", None) or {}
+    if variables.get("memories_extracted"):
+        return None
+
+    # Resolve session ref: prefer #N format, fall back to UUID
+    session_ref = session_id
+    if session_manager:
+        try:
+            session = session_manager.get(session_id)
+            if session and session.seq_num:
+                session_ref = f"#{session.seq_num}"
+        except Exception:
+            pass
+
+    reason = (
+        "Before stopping, review your work this session and save any valuable memories.\n"
+        "\n"
+        "Use `create_memory` (via gobby-memory MCP) for NEW insights you discovered.\n"
+        "Duplicates are handled automatically — just create freely.\n"
+        "\n"
+        "**What to save** (5-minute rule: would this save a future session >5 min?):\n"
+        "- Debugging insights, root causes, misleading errors\n"
+        "- Architecture decisions and trade-offs\n"
+        "- API/library gotchas, undocumented quirks\n"
+        "- Project conventions, environment quirks\n"
+        "\n"
+        "If you learned nothing new this session, that's fine.\n"
+        "**When done**, call:\n"
+        f'`set_variable(name="memories_extracted", value=true, session_id="{session_ref}")` on gobby-workflows'
+    )
+
+    logger.info("memory_extraction_gate: Blocking stop for session %s", session_id)
+
+    return {"decision": "block", "reason": reason}

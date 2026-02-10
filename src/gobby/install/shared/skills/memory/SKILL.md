@@ -3,6 +3,7 @@ name: memory
 description: This skill should be used when the user asks to "/gobby memory", "remember", "recall", "forget memory". Manage persistent memories across sessions - store, search, delete, update, and list memories.
 category: core
 alwaysApply: false
+triggers: remember, recall, forget, memory
 ---
 
 # /gobby memory - Memory Management Skill

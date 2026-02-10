@@ -6,9 +6,18 @@ This file provides guidance for developing the Gobby codebase.
 
 **For skills and workflows**: Use `list_skills()` to discover available skills, then `get_skill(name)` for details.
 
-## Task Requirement
+## Guiding Principles
 
-**Create/claim a task before using Edit, Write, or NotebookEdit tools.**
+These are enforced by hooks and workflows.
+
+1. **Agent depth limit of 3.** No recursive agent chains deeper than 3 levels.
+2. **No monoliths.** Keep files under 1,000 lines. Decompose if larger.
+3. **Task before first write.** Create/claim a task before using Edit, Write, or NotebookEdit tools.
+4. **Claim before you work.** You must claim a task to work it.
+5. **No commits without validation.** If work is done, validation must run.
+6. **No closing without commits.** If your session has diffs, commit before closing.
+7. **No stopping until done.** Task must be closed or marked needs_review before stopping.
+8. **Triage what you find.** Create tasks for unrelated errors or issues you discover.
 
 ## Plan Mode
 
@@ -146,7 +155,7 @@ src/gobby/
 ### Key File Locations
 
 | Path | Purpose |
-|------|---------|
+| --- | --- |
 | `~/.gobby/config.yaml` | Daemon configuration |
 | `~/.gobby/gobby-hub.db` | SQLite database |
 | `~/.gobby/logs/` | Log files |
@@ -277,7 +286,7 @@ def test_integration() -> None:
 ### Common Issues
 
 | Issue | Solution |
-|-------|----------|
+| --- | --- |
 | Import errors | Run `uv sync` |
 | Test failures | Check fixtures in `tests/conftest.py` |
 | Type errors | Run `uv run mypy src/` |
@@ -293,6 +302,7 @@ def test_integration() -> None:
 
 ## See Also
 
+- `GUIDING_PRINCIPLES.md` - Development philosophy (the 8 principles)
 - `README.md` - Project overview
 - `CONTRIBUTING.md` - Contribution guidelines
 - Use `list_skills()` for workflow and usage guides

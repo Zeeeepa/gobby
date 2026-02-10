@@ -240,7 +240,7 @@ def create_agents_registry(
             try:
                 resolved_session_id = _resolve_session_id(session_id)
             except ValueError as e:
-                return {"error": str(e)}
+                return {"success": False, "error": str(e)}
 
             # Try registry first (fast path)
             agent = agent_registry.get_by_session(resolved_session_id)
@@ -522,6 +522,102 @@ def create_agents_registry(
             mcp_manager=mcp_mgr,
         )
         return eval_result.to_dict()
+
+    @registry.tool(
+        name="wait_for_agent",
+        description=(
+            "Wait for an agent run to complete. "
+            "Blocks until the agent reaches a terminal status (success, error, timeout, cancelled), "
+            "or the wait timeout expires."
+        ),
+    )
+    async def wait_for_agent(
+        run_id: str,
+        timeout: int = 600,
+        poll_interval: int = 10,
+    ) -> dict[str, Any]:
+        """
+        Wait for an agent run to complete.
+
+        Polls the agent run status until it is no longer pending/running, or timeout expires.
+
+        Args:
+            run_id: The agent run ID to wait for.
+            timeout: Maximum wait time in seconds (default: 600).
+            poll_interval: Time between status checks in seconds (default: 10).
+
+        Returns:
+            Dict with:
+            - completed: Whether the agent reached a terminal status
+            - status: Final agent status
+            - run_id: The agent run ID
+            - timed_out: Whether the wait timed out
+            - wait_time: How long we waited
+        """
+        import asyncio
+        import time
+
+        if poll_interval <= 0:
+            poll_interval = 10
+
+        start_time = time.monotonic()
+
+        # Check initial state
+        run = runner.get_run(run_id)
+        if not run:
+            return {"success": False, "error": f"Agent run {run_id} not found"}
+
+        terminal_statuses = {"success", "error", "timeout", "cancelled"}
+
+        if run.status in terminal_statuses:
+            return {
+                "success": True,
+                "completed": True,
+                "status": run.status,
+                "run_id": run_id,
+                "timed_out": False,
+                "wait_time": 0.0,
+            }
+
+        # Poll until complete or timeout
+        while True:
+            elapsed = time.monotonic() - start_time
+
+            if elapsed >= timeout:
+                # Re-fetch to get latest status
+                run = runner.get_run(run_id)
+                return {
+                    "success": True,
+                    "completed": False,
+                    "status": run.status if run else "unknown",
+                    "run_id": run_id,
+                    "timed_out": True,
+                    "wait_time": elapsed,
+                }
+
+            await asyncio.sleep(poll_interval)
+
+            run = runner.get_run(run_id)
+            if not run:
+                return {
+                    "success": False,
+                    "completed": False,
+                    "status": "unknown",
+                    "run_id": run_id,
+                    "timed_out": False,
+                    "wait_time": time.monotonic() - start_time,
+                    "error": "Agent run disappeared during wait",
+                }
+
+            if run.status in terminal_statuses:
+                return {
+                    "success": True,
+                    "completed": True,
+                    "status": run.status,
+                    "run_id": run_id,
+                    "timed_out": False,
+                    "wait_time": time.monotonic() - start_time,
+                }
 
     # Register spawn_agent tool from spawn_agent module
     from gobby.mcp_proxy.tools.spawn_agent import create_spawn_agent_registry

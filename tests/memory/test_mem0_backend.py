@@ -8,8 +8,7 @@ Tests cover:
 - Search and list operations
 - Close method for cleanup
 
-Note: Mem0 (mem0ai package) is a cloud-based semantic memory service,
-distinct from MemU (memu-sdk) which is in a separate file (test_memu_backend.py).
+Note: Mem0 (mem0ai package) is a cloud-based semantic memory service.
 """
 
 from __future__ import annotations

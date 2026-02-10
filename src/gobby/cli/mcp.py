@@ -27,4 +27,11 @@ def mcp_server(ctx: click.Context) -> None:
     from gobby.mcp_proxy.stdio import main as mcp_main
 
     # Run the stdio MCP server
-    asyncio.run(mcp_main())
+    try:
+        asyncio.run(mcp_main())
+    except Exception as e:
+        logger.error(f"MCP server failed: {e}")
+        # Use simple exit code to avoid scary tracebacks for common errors
+        import sys
+
+        sys.exit(1)

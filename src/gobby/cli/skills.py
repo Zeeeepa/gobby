@@ -15,6 +15,13 @@ from typing import Any
 import click
 
 from gobby.config.app import DaemonConfig
+from gobby.skills.metadata import (
+    get_nested_value,
+    get_skill_category,
+    get_skill_tags,
+    set_nested_value,
+    unset_nested_value,
+)
 from gobby.storage.database import LocalDatabase
 from gobby.storage.skills import LocalSkillManager
 from gobby.utils.daemon_client import DaemonClient
@@ -120,7 +127,7 @@ def list_skills(
         if tags_list:
             filtered_skills = []
             for skill in skills_list:
-                skill_tags = _get_skill_tags(skill)
+                skill_tags = get_skill_tags(skill)
                 if any(tag in skill_tags for tag in tags_list):
                     filtered_skills.append(skill)
             # Apply limit after tag filtering
@@ -137,7 +144,7 @@ def list_skills(
     for skill in skills_list:
         # Get category from metadata if available
         cat_str = ""
-        skill_category = _get_skill_category(skill)
+        skill_category = get_skill_category(skill)
         if skill_category:
             cat_str = f" [{skill_category}]"
 
@@ -146,39 +153,11 @@ def list_skills(
         click.echo(f"{status} {skill.name}{cat_str} - {desc}")
 
 
-def _get_skill_tags(skill: Any) -> list[str]:
-    """Extract tags from skill metadata."""
-    if skill.metadata and isinstance(skill.metadata, dict):
-        skillport = skill.metadata.get("skillport", {})
-        if isinstance(skillport, dict):
-            tags = skillport.get("tags", [])
-            return list(tags) if isinstance(tags, list) else []
-    return []
-
-
-def _get_skill_category(skill: Any) -> str | None:
-    """Extract category from skill metadata."""
-    if skill.metadata and isinstance(skill.metadata, dict):
-        skillport = skill.metadata.get("skillport", {})
-        if isinstance(skillport, dict):
-            return skillport.get("category")
-    return None
-
-
 def _output_json(skills_list: list[Any]) -> None:
     """Output skills as JSON."""
-    output = []
-    for skill in skills_list:
-        item = {
-            "name": skill.name,
-            "description": skill.description,
-            "enabled": skill.enabled,
-            "version": skill.version,
-            "category": _get_skill_category(skill),
-            "tags": _get_skill_tags(skill),
-        }
-        output.append(item)
-    click.echo(json.dumps(output, indent=2))
+    from gobby.skills.formatting import format_skills_json
+
+    click.echo(format_skills_json(skills_list))
 
 
 @skills.command()
@@ -208,8 +187,8 @@ def show(ctx: click.Context, name: str, json_output: bool) -> None:
             "source_path": skill.source_path,
             "compatibility": skill.compatibility if hasattr(skill, "compatibility") else None,
             "content": skill.content,
-            "category": _get_skill_category(skill),
-            "tags": _get_skill_tags(skill),
+            "category": get_skill_category(skill),
+            "tags": get_skill_tags(skill),
         }
         click.echo(json.dumps(output, indent=2))
         return
@@ -451,68 +430,6 @@ def meta() -> None:
     pass
 
 
-def _get_nested_value(data: dict[str, Any], key: str) -> Any:
-    """Get a nested value from a dict using dot notation."""
-    keys = key.split(".")
-    current = data
-    for k in keys:
-        if not isinstance(current, dict) or k not in current:
-            return None
-        current = current[k]
-    return current
-
-
-def _set_nested_value(data: dict[str, Any], key: str, value: Any) -> dict[str, Any]:
-    """Set a nested value in a dict using dot notation."""
-    keys = key.split(".")
-    result = data.copy() if data else {}
-    current = result
-
-    # Navigate to parent, creating dicts as needed
-    for k in keys[:-1]:
-        if k not in current or not isinstance(current[k], dict):
-            current[k] = {}
-        else:
-            current[k] = current[k].copy()
-        current = current[k]
-
-    # Set the final key
-    current[keys[-1]] = value
-    return result
-
-
-def _unset_nested_value(data: dict[str, Any], key: str) -> dict[str, Any]:
-    """Remove a nested value from a dict using dot notation."""
-    if not data:
-        return {}
-
-    keys = key.split(".")
-    result = data.copy()
-
-    if len(keys) == 1:
-        # Simple key
-        result.pop(keys[0], None)
-        return result
-
-    # Navigate to parent
-    current = result
-    parents: list[tuple[dict[str, Any], str]] = []
-
-    for k in keys[:-1]:
-        if not isinstance(current, dict) or k not in current:
-            return result  # Key doesn't exist, nothing to do
-        parents.append((current, k))
-        if isinstance(current[k], dict):
-            current[k] = current[k].copy()
-        current = current[k]
-
-    # Remove the final key
-    if isinstance(current, dict) and keys[-1] in current:
-        del current[keys[-1]]
-
-    return result
-
-
 @meta.command("get")
 @click.argument("name")
 @click.argument("key")
@@ -538,7 +455,7 @@ def meta_get(ctx: click.Context, name: str, key: str) -> None:
         click.echo("null")
         return
 
-    value = _get_nested_value(skill.metadata, key)
+    value = get_nested_value(skill.metadata, key)
     if value is None:
         click.echo(f"Key not found: {key}")
         sys.exit(1)
@@ -577,7 +494,7 @@ def meta_set(ctx: click.Context, name: str, key: str, value: str) -> None:
     except json.JSONDecodeError:
         parsed_value = value
 
-    new_metadata = _set_nested_value(skill.metadata or {}, key, parsed_value)
+    new_metadata = set_nested_value(skill.metadata or {}, key, parsed_value)
     try:
         storage.update_skill(skill.id, metadata=new_metadata)
     except Exception as e:
@@ -611,7 +528,7 @@ def meta_unset(ctx: click.Context, name: str, key: str) -> None:
         click.echo(f"Key not found: {key}")
         return
 
-    new_metadata = _unset_nested_value(skill.metadata, key)
+    new_metadata = unset_nested_value(skill.metadata, key)
     try:
         storage.update_skill(skill.id, metadata=new_metadata)
     except Exception as e:
@@ -628,35 +545,20 @@ def init(ctx: click.Context) -> None:
     Creates .gobby/skills/ directory and config file for local skill management.
     This is idempotent - running init multiple times is safe.
     """
-    import yaml
+    from gobby.skills.scaffold import init_skills_directory
 
-    skills_dir = Path(".gobby/skills")
+    base_path = Path(".")
+    skills_dir = base_path / ".gobby" / "skills"
     config_file = skills_dir / "config.yaml"
 
-    # Create .gobby directory if needed
-    gobby_dir = Path(".gobby")
-    if not gobby_dir.exists():
-        gobby_dir.mkdir(parents=True)
+    result = init_skills_directory(base_path)
 
-    # Create skills directory
-    if not skills_dir.exists():
-        skills_dir.mkdir(parents=True)
+    if result["dir_created"]:
         click.echo(f"Created {skills_dir}/")
     else:
         click.echo(f"Skills directory already exists: {skills_dir}/")
 
-    # Create config file if it doesn't exist
-    if not config_file.exists():
-        default_config = {
-            "version": "1.0",
-            "skills": {
-                "enabled": True,
-                "auto_discover": True,
-                "search_paths": ["./skills", "./.gobby/skills"],
-            },
-        }
-        with open(config_file, "w", encoding="utf-8") as f:
-            yaml.dump(default_config, f, default_flow_style=False)
+    if result["config_created"]:
         click.echo(f"Created {config_file}")
     else:
         click.echo(f"Config already exists: {config_file}")
@@ -679,68 +581,16 @@ def new(ctx: click.Context, name: str, description: str | None) -> None:
     - assets/ directory for images and files
     - references/ directory for documentation
     """
-    import re
+    from gobby.skills.scaffold import scaffold_skill
 
-    # Validate skill name format: lowercase letters, digits, hyphens only
-    # No leading/trailing hyphens, no spaces, no consecutive hyphens
-    name_pattern = re.compile(r"^[a-z][a-z0-9]*(-[a-z0-9]+)*$")
-    if not name_pattern.match(name):
-        click.echo(
-            f"Error: Invalid skill name '{name}'. "
-            "Name must be lowercase letters, digits, and hyphens only. "
-            "Must start with a letter and cannot have leading/trailing or consecutive hyphens.",
-            err=True,
-        )
+    try:
+        scaffold_skill(name, Path("."), description)
+    except ValueError as e:
+        click.echo(f"Error: {e}", err=True)
         sys.exit(1)
-
-    skill_dir = Path(name)
-
-    # Check if directory already exists
-    if skill_dir.exists():
-        click.echo(f"Directory already exists: {name}", err=True)
+    except FileExistsError as e:
+        click.echo(str(e), err=True)
         sys.exit(1)
-
-    # Create skill directory structure
-    skill_dir.mkdir(parents=True)
-    (skill_dir / "scripts").mkdir()
-    (skill_dir / "assets").mkdir()
-    (skill_dir / "references").mkdir()
-
-    # Default description if not provided
-    if description is None:
-        description = f"Description for {name}"
-
-    # Create SKILL.md with template
-    skill_template = f"""---
-name: {name}
-description: {description}
-version: "1.0.0"
-metadata:
-  skillport:
-    category: general
-    tags: []
-    alwaysApply: false
-  gobby:
-    triggers: []
----
-
-# {name.replace("-", " ").title()}
-
-## Overview
-
-{description}
-
-## Instructions
-
-Add your skill instructions here.
-
-## Examples
-
-Provide usage examples here.
-"""
-
-    with open(skill_dir / "SKILL.md", "w", encoding="utf-8") as f:
-        f.write(skill_template)
 
     click.echo(f"Created skill scaffold: {name}/")
     click.echo(f"  - {name}/SKILL.md")
@@ -772,41 +622,12 @@ def doc(ctx: click.Context, output: str | None, output_format: str) -> None:
         click.echo("No skills installed.")
         return
 
+    from gobby.skills.formatting import format_skills_json, format_skills_markdown_table
+
     if output_format == "json":
-        # JSON output
-        output_data = []
-        for skill in skills_list:
-            item = {
-                "name": skill.name,
-                "description": skill.description,
-                "enabled": skill.enabled,
-                "version": skill.version,
-                "category": _get_skill_category(skill),
-                "tags": _get_skill_tags(skill),
-            }
-            output_data.append(item)
-
-        content = json.dumps(output_data, indent=2)
+        content = format_skills_json(skills_list)
     else:
-        # Markdown table output
-        lines = [
-            "# Installed Skills",
-            "",
-            "| Name | Description | Category | Enabled |",
-            "|------|-------------|----------|---------|",
-        ]
-
-        for skill in skills_list:
-            category = (_get_skill_category(skill) or "-").replace("|", "\\|")
-            enabled = "✓" if skill.enabled else "✗"
-            desc_full = skill.description or ""
-            desc = desc_full[:50] + "..." if len(desc_full) > 50 else desc_full
-            # Escape pipe characters for valid markdown table
-            name_safe = skill.name.replace("|", "\\|")
-            desc_safe = desc.replace("|", "\\|")
-            lines.append(f"| {name_safe} | {desc_safe} | {category} | {enabled} |")
-
-        content = "\n".join(lines)
+        content = format_skills_markdown_table(skills_list)
 
     if output:
         with open(output, "w", encoding="utf-8") as f:

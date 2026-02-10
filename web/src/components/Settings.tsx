@@ -7,7 +7,7 @@ interface SettingsProps {
   modelInfo: ModelInfo | null
   modelsLoading: boolean
   onFontSizeChange: (size: number) => void
-  onModelChange: (model: string, provider: string) => void
+  onModelChange: (model: string) => void
   onReset: () => void
 }
 
@@ -23,31 +23,11 @@ export function Settings({
 }: SettingsProps) {
   if (!isOpen) return null
 
-  // Build list of all models with provider info
-  const allModels: Array<{ model: string; provider: string; label: string }> = []
-  if (modelInfo?.providers) {
-    for (const [provider, config] of Object.entries(modelInfo.providers)) {
-      for (const model of config.models) {
-        allModels.push({
-          model,
-          provider,
-          label: `${model} (${provider})`,
-        })
-      }
-    }
-  }
+  const models = modelInfo?.models || []
 
   const handleModelChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
-    const value = e.target.value
-    const selected = allModels.find(m => `${m.provider}:${m.model}` === value)
-    if (selected) {
-      onModelChange(selected.model, selected.provider)
-    }
+    onModelChange(e.target.value)
   }
-
-  const currentValue = settings.provider && settings.model
-    ? `${settings.provider}:${settings.model}`
-    : ''
 
   return (
     <>
@@ -65,16 +45,16 @@ export function Settings({
             <label htmlFor="model-select">Model</label>
             {modelsLoading ? (
               <span className="loading-text">Loading models...</span>
-            ) : allModels.length > 0 ? (
+            ) : models.length > 0 ? (
               <select
                 id="model-select"
-                value={currentValue}
+                value={settings.model || ''}
                 onChange={handleModelChange}
                 className="model-select"
               >
-                {allModels.map(({ model, provider, label }) => (
-                  <option key={`${provider}:${model}`} value={`${provider}:${model}`}>
-                    {label}
+                {models.map((model) => (
+                  <option key={model} value={model}>
+                    {model}
                   </option>
                 ))}
               </select>

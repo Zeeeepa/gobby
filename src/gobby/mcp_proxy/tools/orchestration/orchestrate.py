@@ -51,6 +51,7 @@ def register_orchestrator(
         | None = None,
         coding_model: str | None = None,
         base_branch: str | None = None,
+        dry_run: bool = False,
     ) -> dict[str, Any]:
         """
         Orchestrate spawning agents in worktrees for ready subtasks.
@@ -77,6 +78,8 @@ def register_orchestrator(
             coding_provider: LLM provider for implementation tasks (overrides provider)
             coding_model: Model for implementation tasks (overrides model)
             base_branch: Branch to base worktrees on (auto-detected if not provided)
+            dry_run: If True, resolve tasks, check slots, build prompts, and return
+                the plan without actually spawning agents or creating worktrees.
 
         Returns:
             Dict with:
@@ -159,20 +162,31 @@ def register_orchestrator(
                 "skipped": [],
             }
 
-        # Check how many agents are currently running for this project
-        # Get exact count by not limiting the query - ensures max_concurrent is respected
-        from gobby.storage.worktrees import WorktreeStatus
+        # Atomically check capacity and reserve slots to prevent concurrent
+        # orchestrate_ready_tasks calls from exceeding max_concurrent
+        from gobby.workflows.state_manager import WorkflowStateManager
 
-        active_worktrees = worktree_storage.list_worktrees(
-            project_id=resolved_project_id,
-            status=WorktreeStatus.ACTIVE.value,
-        )
+        state_manager = WorkflowStateManager(task_manager.db)
+        reserved_slots = 0
 
-        # Count worktrees claimed by active sessions (have agent_session_id)
-        current_running = sum(1 for wt in active_worktrees if wt.agent_session_id)
-        available_slots = max(0, max_concurrent - current_running)
+        if parent_session_id:
+            reserved_slots = state_manager.check_and_reserve_slots(
+                parent_session_id,
+                max_concurrent=max_concurrent,
+                requested=len(ready_tasks),
+            )
+        else:
+            # No parent session — fall back to non-atomic check
+            from gobby.storage.worktrees import WorktreeStatus
 
-        if available_slots == 0:
+            active_worktrees = worktree_storage.list_worktrees(
+                project_id=resolved_project_id,
+                status=WorktreeStatus.ACTIVE.value,
+            )
+            current_running = sum(1 for wt in active_worktrees if wt.agent_session_id)
+            reserved_slots = max(0, min(len(ready_tasks), max_concurrent - current_running))
+
+        if reserved_slots == 0:
             return {
                 "success": True,
                 "message": f"Max concurrent limit reached ({max_concurrent} agents running)",
@@ -180,20 +194,16 @@ def register_orchestrator(
                 "skipped": [
                     {"task_id": t.id, "reason": "max_concurrent limit reached"} for t in ready_tasks
                 ],
-                "current_running": current_running,
             }
 
-        # Limit to available slots
-        tasks_to_spawn = ready_tasks[:available_slots]
-        tasks_skipped = ready_tasks[available_slots:]
+        # Limit to reserved slots
+        tasks_to_spawn = ready_tasks[:reserved_slots]
+        tasks_skipped = ready_tasks[reserved_slots:]
 
         # Resolve effective provider and model for implementation tasks
         # Priority: explicit parameter > workflow variable > default
-        from gobby.workflows.state_manager import WorkflowStateManager
-
         workflow_vars: dict[str, Any] = {}
         if parent_session_id:
-            state_manager = WorkflowStateManager(task_manager.db)
             state = state_manager.get_state(parent_session_id)
             if state:
                 workflow_vars = state.variables
@@ -218,6 +228,39 @@ def register_orchestrator(
                     "reason": "max_concurrent limit reached",
                 }
             )
+
+        # Dry run: return the plan without spawning
+        if dry_run:
+            planned = [
+                {
+                    "task_id": task.id,
+                    "title": task.title,
+                    "category": task.category,
+                    "prompt": _build_task_prompt(task),
+                    "provider": effective_provider,
+                    "model": effective_model,
+                    "mode": mode,
+                    "workflow": workflow,
+                }
+                for task in tasks_to_spawn
+            ]
+
+            # Release reserved slots since we're not actually spawning
+            if parent_session_id:
+                state_manager.release_reserved_slots(parent_session_id, reserved_slots)
+
+            return {
+                "success": True,
+                "dry_run": True,
+                "parent_task_id": resolved_parent_task_id,
+                "planned": planned,
+                "skipped": skipped,
+                "planned_count": len(planned),
+                "skipped_count": len(skipped),
+                "max_concurrent": max_concurrent,
+                "effective_provider": effective_provider,
+                "effective_model": effective_model,
+            }
 
         # Import worktree tool helpers
         import platform
@@ -246,6 +289,86 @@ def register_orchestrator(
             logger.debug(f"Auto-detected base branch: {effective_base_branch}")
         elif not effective_base_branch:
             effective_base_branch = "main"  # Fallback when no git_manager
+
+        def _spawn_in_mode(
+            task: Task,
+            worktree: Any,
+            child_session: Any,
+            agent_run: Any,
+            newly_created_worktree: bool,
+            prompt: str,
+            effective_provider: str,
+            effective_terminal: str,
+            mode: str,
+        ) -> dict[str, Any] | None:
+            """Spawn agent in the configured mode.
+
+            Returns spawn info dict on success, or None on failure
+            (appends to ``skipped`` as a side effect).
+            """
+            from gobby.agents.spawn import EmbeddedSpawner, HeadlessSpawner, TerminalSpawner
+            from gobby.agents.spawners.base import EmbeddedPTYResult, HeadlessResult, SpawnResult
+
+            # Ensure agent_runner is available (checked in orchestrate_ready_tasks)
+            if agent_runner is None:
+                raise RuntimeError("agent_runner is None in _spawn_in_mode")
+
+            common_kwargs: dict[str, Any] = {
+                "cli": effective_provider,
+                "cwd": worktree.worktree_path,
+                "session_id": child_session.id,
+                "parent_session_id": parent_session_id,
+                "agent_run_id": agent_run.id,
+                "project_id": resolved_project_id,
+                "workflow_name": workflow,
+                "agent_depth": child_session.agent_depth,
+                "max_agent_depth": agent_runner.child_session_manager.max_agent_depth,
+                "prompt": prompt,
+            }
+
+            result: SpawnResult | EmbeddedPTYResult | HeadlessResult
+            if mode == "terminal":
+                common_kwargs["terminal"] = effective_terminal
+                result = TerminalSpawner().spawn_agent(**common_kwargs)
+            elif mode == "embedded":
+                result = EmbeddedSpawner().spawn_agent(**common_kwargs)
+            else:
+                result = HeadlessSpawner().spawn_agent(**common_kwargs)
+
+            if not result.success:
+                worktree_storage.release(worktree.id)
+                if newly_created_worktree and git_manager is not None:
+                    worktree_storage.delete(worktree.id)
+                    git_manager.delete_worktree(
+                        worktree_path=worktree.worktree_path,
+                        force=True,
+                        delete_branch=True,
+                    )
+                skipped.append(
+                    {
+                        "task_id": task.id,
+                        "title": task.title,
+                        "reason": result.error or f"{mode.title()} spawn failed",
+                    }
+                )
+                return None
+
+            task_manager.update_task(task.id, status="in_progress")
+
+            info: dict[str, Any] = {
+                "task_id": task.id,
+                "title": task.title,
+                "agent_id": agent_run.id,
+                "session_id": child_session.id,
+                "worktree_id": worktree.id,
+                "branch_name": worktree.branch_name,
+                "worktree_path": worktree.worktree_path,
+            }
+            if hasattr(result, "terminal_type") and result.terminal_type:
+                info["terminal_type"] = result.terminal_type
+            if result.pid is not None:
+                info["pid"] = result.pid
+            return info
 
         for task in tasks_to_spawn:
             try:
@@ -441,165 +564,21 @@ def register_orchestrator(
                 # Claim worktree for child session
                 worktree_storage.claim(worktree.id, child_session.id)
 
-                # Note: Task status is updated to in_progress only after successful spawn
-
-                # Spawn in terminal
-                if mode == "terminal":
-                    from gobby.agents.spawn import TerminalSpawner
-
-                    spawner = TerminalSpawner()
-                    spawn_result = spawner.spawn_agent(
-                        cli=effective_provider,
-                        cwd=worktree.worktree_path,
-                        session_id=child_session.id,
-                        parent_session_id=parent_session_id,
-                        agent_run_id=agent_run.id,
-                        project_id=resolved_project_id,
-                        workflow_name=workflow,
-                        agent_depth=child_session.agent_depth,
-                        max_agent_depth=agent_runner.child_session_manager.max_agent_depth,
-                        terminal=effective_terminal,
-                        prompt=prompt,
-                    )
-
-                    if not spawn_result.success:
-                        worktree_storage.release(worktree.id)
-                        # Clean up newly created worktree on spawn failure
-                        if newly_created_worktree and git_manager is not None:
-                            worktree_storage.delete(worktree.id)
-                            git_manager.delete_worktree(
-                                worktree_path=worktree.worktree_path,
-                                force=True,
-                                delete_branch=True,
-                            )
-                        skipped.append(
-                            {
-                                "task_id": task.id,
-                                "title": task.title,
-                                "reason": spawn_result.error or "Terminal spawn failed",
-                            }
-                        )
-                        continue
-
-                    # Mark task as in_progress only after successful spawn
-                    task_manager.update_task(task.id, status="in_progress")
-
-                    spawned.append(
-                        {
-                            "task_id": task.id,
-                            "title": task.title,
-                            "agent_id": agent_run.id,
-                            "session_id": child_session.id,
-                            "worktree_id": worktree.id,
-                            "branch_name": worktree.branch_name,
-                            "worktree_path": worktree.worktree_path,
-                            "terminal_type": spawn_result.terminal_type,
-                            "pid": spawn_result.pid,
-                        }
-                    )
-
-                elif mode == "embedded":
-                    from gobby.agents.spawn import EmbeddedSpawner
-
-                    embedded_spawner = EmbeddedSpawner()
-                    embedded_result = embedded_spawner.spawn_agent(
-                        cli=effective_provider,
-                        cwd=worktree.worktree_path,
-                        session_id=child_session.id,
-                        parent_session_id=parent_session_id,
-                        agent_run_id=agent_run.id,
-                        project_id=resolved_project_id,
-                        workflow_name=workflow,
-                        agent_depth=child_session.agent_depth,
-                        max_agent_depth=agent_runner.child_session_manager.max_agent_depth,
-                        prompt=prompt,
-                    )
-
-                    if not embedded_result.success:
-                        worktree_storage.release(worktree.id)
-                        # Clean up newly created worktree on spawn failure
-                        if newly_created_worktree and git_manager is not None:
-                            worktree_storage.delete(worktree.id)
-                            git_manager.delete_worktree(
-                                worktree_path=worktree.worktree_path,
-                                force=True,
-                                delete_branch=True,
-                            )
-                        skipped.append(
-                            {
-                                "task_id": task.id,
-                                "title": task.title,
-                                "reason": embedded_result.error or "Embedded spawn failed",
-                            }
-                        )
-                        continue
-
-                    # Mark task as in_progress only after successful spawn
-                    task_manager.update_task(task.id, status="in_progress")
-
-                    spawned.append(
-                        {
-                            "task_id": task.id,
-                            "title": task.title,
-                            "agent_id": agent_run.id,
-                            "session_id": child_session.id,
-                            "worktree_id": worktree.id,
-                            "branch_name": worktree.branch_name,
-                            "worktree_path": worktree.worktree_path,
-                        }
-                    )
-
-                else:  # headless
-                    from gobby.agents.spawn import HeadlessSpawner
-
-                    headless_spawner = HeadlessSpawner()
-                    headless_result = headless_spawner.spawn_agent(
-                        cli=effective_provider,
-                        cwd=worktree.worktree_path,
-                        session_id=child_session.id,
-                        parent_session_id=parent_session_id,
-                        agent_run_id=agent_run.id,
-                        project_id=resolved_project_id,
-                        workflow_name=workflow,
-                        agent_depth=child_session.agent_depth,
-                        max_agent_depth=agent_runner.child_session_manager.max_agent_depth,
-                        prompt=prompt,
-                    )
-
-                    if not headless_result.success:
-                        worktree_storage.release(worktree.id)
-                        # Clean up newly created worktree on spawn failure
-                        if newly_created_worktree and git_manager is not None:
-                            worktree_storage.delete(worktree.id)
-                            git_manager.delete_worktree(
-                                worktree_path=worktree.worktree_path,
-                                force=True,
-                                delete_branch=True,
-                            )
-                        skipped.append(
-                            {
-                                "task_id": task.id,
-                                "title": task.title,
-                                "reason": headless_result.error or "Headless spawn failed",
-                            }
-                        )
-                        continue
-
-                    # Mark task as in_progress only after successful spawn
-                    task_manager.update_task(task.id, status="in_progress")
-
-                    spawned.append(
-                        {
-                            "task_id": task.id,
-                            "title": task.title,
-                            "agent_id": agent_run.id,
-                            "session_id": child_session.id,
-                            "worktree_id": worktree.id,
-                            "branch_name": worktree.branch_name,
-                            "worktree_path": worktree.worktree_path,
-                            "pid": headless_result.pid,
-                        }
-                    )
+                # Spawn agent in the configured mode
+                spawn_info = _spawn_in_mode(
+                    task,
+                    worktree,
+                    child_session,
+                    agent_run,
+                    newly_created_worktree,
+                    prompt,
+                    effective_provider,
+                    effective_terminal,
+                    mode,
+                )
+                if spawn_info is None:
+                    continue
+                spawned.append(spawn_info)
 
             except Exception as e:
                 logger.exception(f"Error orchestrating task {task.id}")
@@ -611,22 +590,23 @@ def register_orchestrator(
                     }
                 )
 
-        # Store spawned agents in workflow state for tracking
-        if spawned and parent_session_id:
+        # Atomically append spawned agents and release reserved slots
+        if parent_session_id:
             try:
-                state_manager = WorkflowStateManager(task_manager.db)
-                state = state_manager.get_state(parent_session_id)
-                if state:
-                    current_spawned = state.variables.get("spawned_agents", [])
-                    # Append new agents to existing list
-                    current_spawned.extend(spawned)
-                    state.variables["spawned_agents"] = current_spawned
-                    state_manager.save_state(state)
+                state_manager.update_orchestration_lists(
+                    parent_session_id,
+                    append_to_spawned=spawned or None,
+                )
+                if spawned:
                     logger.info(
-                        f"Updated spawned_agents in workflow state: {len(current_spawned)} total"
+                        f"Appended {len(spawned)} agents to spawned_agents in workflow state"
                     )
             except Exception as e:
                 logger.warning(f"Failed to update workflow state: {e}")
+            finally:
+                # Release all reserved slots — spawned agents are now tracked
+                # in spawned_agents list, failed ones weren't added
+                state_manager.release_reserved_slots(parent_session_id, reserved_slots)
 
         return {
             "success": True,
@@ -635,7 +615,6 @@ def register_orchestrator(
             "skipped": skipped,
             "spawned_count": len(spawned),
             "skipped_count": len(skipped),
-            "current_running": current_running + len(spawned),
             "max_concurrent": max_concurrent,
         }
 
@@ -715,6 +694,14 @@ def register_orchestrator(
                         "Auto-detected from repository if not provided."
                     ),
                     "default": None,
+                },
+                "dry_run": {
+                    "type": "boolean",
+                    "description": (
+                        "If true, resolve tasks and check capacity but don't spawn. "
+                        "Returns the plan showing what would be spawned."
+                    ),
+                    "default": False,
                 },
             },
             "required": ["parent_task_id", "parent_session_id"],

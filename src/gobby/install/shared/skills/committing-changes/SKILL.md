@@ -2,6 +2,7 @@
 name: committing-changes
 description: Commit message format and task close workflow. Use when ready to commit or closing tasks.
 category: core
+triggers: commit, git commit, commit changes, close task, close
 ---
 
 # Committing Changes - Commit and Close Workflow

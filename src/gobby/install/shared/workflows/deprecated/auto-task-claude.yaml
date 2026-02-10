@@ -164,7 +164,7 @@ steps:
           Wait for the task to be closed:
 
           mcp__gobby__call_tool(
-            server_name="gobby-tasks",
+            server_name="gobby-orchestration",
             tool_name="wait_for_task",
             arguments={
               "task_id": "<task_id_being_worked>",
@@ -191,9 +191,9 @@ steps:
 
     transitions:
       - to: handle_timeout
-        when: "mcp_result_has('gobby-tasks', 'wait_for_task', 'timed_out', true)"
+        when: "mcp_result_has('gobby-orchestration', 'wait_for_task', 'timed_out', true)"
       - to: collect_results
-        when: "mcp_called('gobby-tasks', 'wait_for_task')"
+        when: "mcp_called('gobby-orchestration', 'wait_for_task')"
 
   - name: handle_timeout
     description: "Handle worker timeout"

@@ -46,7 +46,6 @@ class PlatformPreferences(BaseModel):
             "kitty",
             "alacritty",
             "terminal.app",
-            "tmux",  # Multiplexer (last resort)
         ],
         description="Terminal preference order for macOS",
     )
@@ -57,7 +56,6 @@ class PlatformPreferences(BaseModel):
             "gnome-terminal",
             "konsole",
             "alacritty",
-            "tmux",  # Multiplexer (last resort)
         ],
         description="Terminal preference order for Linux",
     )
@@ -112,10 +110,6 @@ DEFAULT_TERMINAL_CONFIGS: dict[str, dict[str, Any]] = {
     "wsl": {
         "command": "wsl",
         # Options can specify distribution: ["-d", "Ubuntu"]
-    },
-    "tmux": {
-        "command": "tmux",
-        # Options can set socket name, config file, etc.
     },
 }
 
@@ -231,14 +225,12 @@ preferences:
     - kitty
     - alacritty
     - terminal.app
-    - tmux
   linux:
     - ghostty
     - kitty
     - gnome-terminal
     - konsole
     - alacritty
-    - tmux
   windows:
     - windows-terminal
     - powershell
@@ -273,12 +265,6 @@ preferences:
 #     options:                              # Specify WSL distribution
 #       - "-d"
 #       - "Ubuntu"
-#
-#   tmux:
-#     command: tmux
-#     options:                              # Use specific socket/config
-#       - "-L"
-#       - "gobby"
 """
 
     with open(config_path, "w") as f:

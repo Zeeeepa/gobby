@@ -84,6 +84,7 @@ class ParsedSkill:
     assets: list[str] | None = None
     always_apply: bool = False
     injection_format: str = "summary"
+    triggers: list[str] | None = None
 
     def get_category(self) -> str | None:
         """Get category from top-level or metadata.skillport.category."""
@@ -145,6 +146,7 @@ class ParsedSkill:
             "assets": self.assets,
             "always_apply": self.always_apply,
             "injection_format": self.injection_format,
+            "triggers": self.triggers,
         }
 
 
@@ -272,6 +274,15 @@ def parse_skill_text(text: str, source_path: str | None = None) -> ParsedSkill:
     if top_level_injection_format is not None:
         injection_format = str(top_level_injection_format)
 
+    # Extract triggers: top-level field (string -> split on comma, list -> use directly)
+    triggers_raw = frontmatter.get("triggers")
+    triggers: list[str] | None = None
+    if triggers_raw:
+        if isinstance(triggers_raw, str):
+            triggers = [t.strip() for t in triggers_raw.split(",") if t.strip()]
+        elif isinstance(triggers_raw, list):
+            triggers = [str(t).strip() for t in triggers_raw if str(t).strip()]
+
     return ParsedSkill(
         name=name,
         description=description,
@@ -284,6 +295,7 @@ def parse_skill_text(text: str, source_path: str | None = None) -> ParsedSkill:
         source_path=source_path,
         always_apply=always_apply,
         injection_format=injection_format,
+        triggers=triggers,
     )
 
 

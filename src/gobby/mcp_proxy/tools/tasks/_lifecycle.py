@@ -632,6 +632,96 @@ def create_lifecycle_registry(ctx: RegistryContext) -> InternalToolRegistry:
         func=claim_task,
     )
 
+    def approve_task(
+        task_id: str,
+        session_id: str,
+        approval_notes: str | None = None,
+    ) -> dict[str, Any]:
+        """Approve a task after QA review.
+
+        Sets status to 'approved'. Use this after reviewing and fixing
+        a task that is in 'needs_review' status.
+
+        Args:
+            task_id: Task reference (#N, path, or UUID)
+            session_id: Session ID approving the task
+            approval_notes: Optional notes about the approval
+
+        Returns:
+            Empty dict on success, or error dict with details.
+        """
+        try:
+            resolved_id = resolve_task_id_for_mcp(ctx.task_manager, task_id)
+        except TaskNotFoundError as e:
+            return {"error": str(e)}
+        except ValueError as e:
+            return {"error": str(e)}
+
+        task = ctx.task_manager.get_task(resolved_id)
+        if not task:
+            return {"error": f"Task {task_id} not found"}
+
+        # Validate: current status must be needs_review or in_progress
+        if task.status not in ("needs_review", "in_progress"):
+            return {
+                "error": f"Cannot approve task with status '{task.status}'. "
+                "Task must be in 'needs_review' or 'in_progress' status to approve."
+            }
+
+        # Resolve session_id
+        resolved_session_id = session_id
+        try:
+            resolved_session_id = ctx.resolve_session_id(session_id)
+        except ValueError:
+            pass
+
+        # Build update kwargs
+        update_kwargs: dict[str, Any] = {"status": "approved"}
+
+        # Append approval notes to description if provided
+        if approval_notes:
+            current_desc = task.description or ""
+            approval_section = f"\n\n[Approval Notes]\n{approval_notes}"
+            update_kwargs["description"] = current_desc + approval_section
+
+        # Update task status to approved
+        updated = ctx.task_manager.update_task(resolved_id, **update_kwargs)
+        if not updated:
+            return {"error": f"Failed to approve task {task_id}"}
+
+        # Link task to session (best-effort)
+        try:
+            ctx.session_task_manager.link_task(resolved_session_id, resolved_id, "approved")
+        except Exception:
+            pass  # nosec B110 - best-effort linking
+
+        return {}
+
+    registry.register(
+        name="approve_task",
+        description="Approve a task after QA review. Sets status to 'approved'. Use after reviewing code in 'needs_review' status. The coordinator closes the task after merge.",
+        input_schema={
+            "type": "object",
+            "properties": {
+                "task_id": {
+                    "type": "string",
+                    "description": "Task reference: #N (e.g., #1, #47), path (e.g., 1.2.3), or UUID",
+                },
+                "session_id": {
+                    "type": "string",
+                    "description": "Your session ID (accepts #N, N, UUID, or prefix). The session approving the task.",
+                },
+                "approval_notes": {
+                    "type": "string",
+                    "description": "Optional notes about the approval.",
+                    "default": None,
+                },
+            },
+            "required": ["task_id", "session_id"],
+        },
+        func=approve_task,
+    )
+
     def mark_task_for_review(
         task_id: str,
         session_id: str,

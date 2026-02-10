@@ -16,7 +16,6 @@ __all__ = [
     "MemoryConfig",
     "MemorySyncConfig",
     "Mem0Config",
-    "MemUConfig",
     "OpenMemoryConfig",
 ]
 
@@ -41,37 +40,6 @@ class Mem0Config(BaseModel):
     org_id: str | None = Field(
         default=None,
         description="Organization ID for multi-tenant use (optional)",
-    )
-
-
-class MemUConfig(BaseModel):
-    """MemU backend configuration.
-
-    Configure this section when using backend: 'memu' for structured
-    memory storage via the MemU SDK (NevaMind-AI/memU via memu-py).
-
-    Requires: pip install memu-py
-    """
-
-    database_type: str = Field(
-        default="inmemory",
-        description="Database type: 'inmemory', 'sqlite', or 'postgres'",
-    )
-    database_url: str | None = Field(
-        default=None,
-        description="Database connection URL (for sqlite/postgres)",
-    )
-    llm_api_key: str | None = Field(
-        default=None,
-        description="LLM API key for embeddings (optional, uses OpenAI by default)",
-    )
-    llm_base_url: str | None = Field(
-        default=None,
-        description="LLM API base URL (optional)",
-    )
-    user_id: str | None = Field(
-        default=None,
-        description="Default user ID for memories (optional)",
     )
 
 
@@ -120,7 +88,6 @@ class MemoryConfig(BaseModel):
             "Storage backend for memories. Options: "
             "'sqlite' (default, local SQLite database), "
             "'mem0' (Mem0 cloud-based semantic memory via mem0ai), "
-            "'memu' (MemU structured memory via memu-py), "
             "'openmemory' (self-hosted OpenMemory REST API), "
             "'null' (no persistence, for testing)"
         ),
@@ -128,10 +95,6 @@ class MemoryConfig(BaseModel):
     mem0: Mem0Config = Field(
         default_factory=Mem0Config,
         description="Mem0 backend configuration (only used when backend='mem0')",
-    )
-    memu: MemUConfig = Field(
-        default_factory=MemUConfig,
-        description="MemU backend configuration (only used when backend='memu')",
     )
     openmemory: OpenMemoryConfig = Field(
         default_factory=OpenMemoryConfig,
@@ -209,7 +172,7 @@ class MemoryConfig(BaseModel):
     @classmethod
     def validate_backend(cls, v: str) -> str:
         """Validate backend is a supported storage option."""
-        valid_backends = {"sqlite", "mem0", "memu", "openmemory", "null"}
+        valid_backends = {"sqlite", "mem0", "openmemory", "null"}
         if v not in valid_backends:
             raise ValueError(f"Invalid backend '{v}'. Must be one of: {sorted(valid_backends)}")
         return v
