@@ -467,6 +467,30 @@ def backup_memories(ctx: click.Context, output_path: str | None) -> None:
         click.echo("No memories to backup.")
 
 
+@memory.command("reindex-embeddings")
+@click.pass_context
+def reindex_embeddings(ctx: click.Context) -> None:
+    """Regenerate embeddings for all memories.
+
+    Generates embedding vectors for all stored memories using the configured
+    embedding model. Useful after changing models or for initial setup.
+
+    Examples:
+
+        gobby memory reindex-embeddings
+    """
+    manager = get_memory_manager(ctx)
+    click.echo("Reindexing memory embeddings...")
+    result = asyncio.run(manager.reindex_embeddings())
+
+    if result["success"]:
+        total = result.get("total_memories", 0)
+        generated = result.get("embeddings_generated", 0)
+        click.echo(f"Reindexed {generated}/{total} memory embeddings.")
+    else:
+        click.echo(f"Error: {result.get('error', 'Unknown error')}")
+
+
 def resolve_memory_id(manager: MemoryManager, memory_ref: str) -> str:
     """Resolve memory reference (UUID or prefix) to full ID."""
     # Try exact match first

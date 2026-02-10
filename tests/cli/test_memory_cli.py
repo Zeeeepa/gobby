@@ -552,3 +552,84 @@ class TestMemoryShowNotFound:
         assert result.exit_code == 0
         assert "Tags: tag1, tag2" in result.output
         assert "Access Count: 5" in result.output
+
+
+class TestMemoryReindexCommand:
+    """Tests for gobby memory reindex-embeddings command."""
+
+    @pytest.fixture
+    def runner(self) -> CliRunner:
+        """Create a CLI test runner."""
+        return CliRunner()
+
+    @patch("gobby.cli.memory.asyncio.run")
+    @patch("gobby.cli.memory.get_memory_manager")
+    def test_reindex_success(
+        self,
+        mock_get_manager: MagicMock,
+        mock_asyncio_run: MagicMock,
+        runner: CliRunner,
+    ) -> None:
+        """Test reindex command with successful result."""
+        mock_manager = MagicMock()
+        mock_get_manager.return_value = mock_manager
+        mock_asyncio_run.return_value = {
+            "success": True,
+            "total_memories": 42,
+            "embeddings_generated": 42,
+        }
+
+        result = runner.invoke(cli, ["memory", "reindex-embeddings"])
+
+        assert result.exit_code == 0
+        assert "42" in result.output
+        mock_asyncio_run.assert_called_once()
+
+    @patch("gobby.cli.memory.asyncio.run")
+    @patch("gobby.cli.memory.get_memory_manager")
+    def test_reindex_unavailable(
+        self,
+        mock_get_manager: MagicMock,
+        mock_asyncio_run: MagicMock,
+        runner: CliRunner,
+    ) -> None:
+        """Test reindex command when embeddings are unavailable."""
+        mock_manager = MagicMock()
+        mock_get_manager.return_value = mock_manager
+        mock_asyncio_run.return_value = {
+            "success": False,
+            "error": "Embedding unavailable — no API key configured",
+        }
+
+        result = runner.invoke(cli, ["memory", "reindex-embeddings"])
+
+        assert result.exit_code == 0
+        assert "unavailable" in result.output.lower() or "Error" in result.output
+
+    @patch("gobby.cli.memory.asyncio.run")
+    @patch("gobby.cli.memory.get_memory_manager")
+    def test_reindex_empty(
+        self,
+        mock_get_manager: MagicMock,
+        mock_asyncio_run: MagicMock,
+        runner: CliRunner,
+    ) -> None:
+        """Test reindex command with no memories."""
+        mock_manager = MagicMock()
+        mock_get_manager.return_value = mock_manager
+        mock_asyncio_run.return_value = {
+            "success": True,
+            "total_memories": 0,
+            "embeddings_generated": 0,
+        }
+
+        result = runner.invoke(cli, ["memory", "reindex-embeddings"])
+
+        assert result.exit_code == 0
+        assert "0" in result.output
+
+    def test_reindex_help(self, runner: CliRunner) -> None:
+        """Test reindex-embeddings --help."""
+        result = runner.invoke(cli, ["memory", "reindex-embeddings", "--help"])
+        assert result.exit_code == 0
+        assert "embedding" in result.output.lower()
