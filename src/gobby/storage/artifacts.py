@@ -318,3 +318,80 @@ class LocalArtifactManager:
             row = self.db.fetchone("SELECT COUNT(*) FROM session_artifacts")
 
         return row[0] if row else 0
+
+    def add_tag(self, artifact_id: str, tag: str) -> bool:
+        """Add a tag to an artifact.
+
+        Args:
+            artifact_id: The artifact ID
+            tag: The tag to add
+
+        Returns:
+            True if tag was added (or already existed)
+        """
+        with self.db.transaction() as conn:
+            conn.execute(
+                "INSERT OR IGNORE INTO artifact_tags (artifact_id, tag) VALUES (?, ?)",
+                (artifact_id, tag),
+            )
+        return True
+
+    def remove_tag(self, artifact_id: str, tag: str) -> bool:
+        """Remove a tag from an artifact.
+
+        Args:
+            artifact_id: The artifact ID
+            tag: The tag to remove
+
+        Returns:
+            True if tag was removed, False if it didn't exist
+        """
+        with self.db.transaction() as conn:
+            cursor = conn.execute(
+                "DELETE FROM artifact_tags WHERE artifact_id = ? AND tag = ?",
+                (artifact_id, tag),
+            )
+            return cursor.rowcount > 0
+
+    def get_tags(self, artifact_id: str) -> list[str]:
+        """Get all tags for an artifact.
+
+        Args:
+            artifact_id: The artifact ID
+
+        Returns:
+            List of tag strings
+        """
+        rows = self.db.fetchall(
+            "SELECT tag FROM artifact_tags WHERE artifact_id = ? ORDER BY tag",
+            (artifact_id,),
+        )
+        return [row["tag"] for row in rows]
+
+    def list_by_tag(
+        self,
+        tag: str,
+        limit: int = 100,
+        offset: int = 0,
+    ) -> list[Artifact]:
+        """List artifacts with a given tag.
+
+        Args:
+            tag: The tag to filter by
+            limit: Maximum number of results
+            offset: Offset for pagination
+
+        Returns:
+            List of matching Artifacts
+        """
+        rows = self.db.fetchall(
+            """
+            SELECT sa.* FROM session_artifacts sa
+            INNER JOIN artifact_tags at ON sa.id = at.artifact_id
+            WHERE at.tag = ?
+            ORDER BY sa.created_at DESC
+            LIMIT ? OFFSET ?
+            """,
+            (tag, limit, offset),
+        )
+        return [Artifact.from_row(row) for row in rows]

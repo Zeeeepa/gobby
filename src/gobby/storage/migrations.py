@@ -287,6 +287,14 @@ CREATE INDEX idx_session_artifacts_created ON session_artifacts(created_at);
 CREATE INDEX idx_session_artifacts_task ON session_artifacts(task_id);
 CREATE VIRTUAL TABLE session_artifacts_fts USING fts5(id UNINDEXED, content);
 
+CREATE TABLE artifact_tags (
+    artifact_id TEXT NOT NULL REFERENCES session_artifacts(id) ON DELETE CASCADE,
+    tag TEXT NOT NULL,
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    PRIMARY KEY (artifact_id, tag)
+);
+CREATE INDEX idx_artifact_tags_tag ON artifact_tags(tag);
+
 CREATE TABLE session_stop_signals (
     session_id TEXT PRIMARY KEY REFERENCES sessions(id) ON DELETE CASCADE,
     source TEXT NOT NULL,
@@ -913,6 +921,20 @@ MIGRATIONS: list[tuple[int, str, MigrationAction]] = [
         87,
         "Add title and task_id to session_artifacts",
         _migrate_add_title_task_id_to_artifacts,
+    ),
+    # Artifacts V2: Add artifact_tags junction table
+    (
+        88,
+        "Add artifact_tags table",
+        """
+        CREATE TABLE IF NOT EXISTS artifact_tags (
+            artifact_id TEXT NOT NULL REFERENCES session_artifacts(id) ON DELETE CASCADE,
+            tag TEXT NOT NULL,
+            created_at TEXT NOT NULL DEFAULT (datetime('now')),
+            PRIMARY KEY (artifact_id, tag)
+        );
+        CREATE INDEX IF NOT EXISTS idx_artifact_tags_tag ON artifact_tags(tag);
+        """,
     ),
 ]
 
