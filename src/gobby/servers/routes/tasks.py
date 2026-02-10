@@ -1,15 +1,19 @@
 """
 Task routes for Gobby HTTP server.
 
-Provides CRUD endpoints for the task management system.
+Provides CRUD, list, lifecycle, and dependency endpoints for the task system.
 """
 
 import logging
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, Literal
 
 from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel, Field
 
+from gobby.storage.task_dependencies import (
+    DependencyCycleError,
+    TaskDependencyManager,
+)
 from gobby.storage.tasks._models import VALID_CATEGORIES, TaskNotFoundError
 from gobby.utils.metrics import get_metrics_collector
 
@@ -57,6 +61,29 @@ class TaskUpdateRequest(BaseModel):
     validation_criteria: str | None = Field(default=None, description="New validation criteria")
 
 
+class TaskCloseRequest(BaseModel):
+    """Request body for closing a task."""
+
+    reason: str | None = Field(default=None, description="Reason for closing")
+    commit_sha: str | None = Field(default=None, description="Git commit SHA to link")
+    session_id: str | None = Field(default=None, description="Session that closed the task")
+
+
+class TaskReopenRequest(BaseModel):
+    """Request body for reopening a task."""
+
+    reason: str | None = Field(default=None, description="Reason for reopening")
+
+
+class DependencyAddRequest(BaseModel):
+    """Request body for adding a dependency."""
+
+    depends_on: str = Field(..., description="Task ID that must complete first")
+    dep_type: Literal["blocks", "related", "discovered-from"] = Field(
+        default="blocks", description="Dependency type"
+    )
+
+
 # =============================================================================
 # Router
 # =============================================================================
@@ -72,6 +99,63 @@ def create_tasks_router(server: "HTTPServer") -> APIRouter:
         if project_id:
             return project_id
         return server._resolve_project_id(project_id=None, cwd=None)
+
+    # -----------------------------------------------------------------
+    # List / Stats
+    # -----------------------------------------------------------------
+
+    @router.get("")
+    async def list_tasks(
+        project_id: str | None = Query(None, description="Filter by project ID"),
+        status: str | None = Query(None, description="Filter by status"),
+        priority: int | None = Query(None, description="Filter by priority"),
+        task_type: str | None = Query(None, description="Filter by task type"),
+        assignee: str | None = Query(None, description="Filter by assignee"),
+        label: str | None = Query(None, description="Filter by label"),
+        parent_task_id: str | None = Query(None, description="Filter by parent task ID"),
+        search: str | None = Query(None, description="Search by title"),
+        limit: int = Query(50, description="Maximum results"),
+        offset: int = Query(0, description="Pagination offset"),
+    ) -> dict[str, Any]:
+        """List tasks with optional filters and status distribution stats."""
+        metrics.inc_counter("http_requests_total")
+        try:
+            resolved_project = _resolve_project(project_id)
+
+            # Parse comma-separated status values
+            status_filter: str | list[str] | None = None
+            if status and "," in status:
+                status_filter = [s.strip() for s in status.split(",")]
+            else:
+                status_filter = status
+
+            tasks = server.task_manager.list_tasks(
+                project_id=resolved_project,
+                status=status_filter,
+                priority=priority,
+                task_type=task_type,
+                assignee=assignee,
+                label=label,
+                parent_task_id=parent_task_id,
+                title_like=search,
+                limit=limit,
+                offset=offset,
+            )
+            status_counts = server.task_manager.count_by_status(project_id=resolved_project)
+            total = server.task_manager.count_tasks(project_id=resolved_project)
+            return {
+                "tasks": [t.to_brief() for t in tasks],
+                "total": total,
+                "stats": status_counts,
+                "limit": limit,
+                "offset": offset,
+            }
+        except ValueError as e:
+            raise HTTPException(status_code=400, detail=str(e)) from e
+
+    # -----------------------------------------------------------------
+    # CRUD
+    # -----------------------------------------------------------------
 
     @router.post("", status_code=201)
     async def create_task(request_data: TaskCreateRequest) -> Any:
@@ -153,5 +237,96 @@ def create_tasks_router(server: "HTTPServer") -> APIRouter:
         except Exception as e:
             logger.error(f"Failed to delete task {task_id}: {e}")
             raise HTTPException(status_code=500, detail=str(e)) from e
+
+    # -----------------------------------------------------------------
+    # Lifecycle
+    # -----------------------------------------------------------------
+
+    @router.post("/{task_id}/close")
+    async def close_task(task_id: str, request_data: TaskCloseRequest | None = None) -> Any:
+        """Close a task."""
+        metrics.inc_counter("http_requests_total")
+        try:
+            task = server.task_manager.get_task(task_id)
+            resolved_id = task.id
+            body = request_data or TaskCloseRequest()
+
+            if body.commit_sha:
+                server.task_manager.link_commit(resolved_id, body.commit_sha)
+
+            closed = server.task_manager.close_task(
+                resolved_id,
+                reason=body.reason,
+                closed_in_session_id=body.session_id,
+                closed_commit_sha=body.commit_sha,
+            )
+            return closed.to_dict()
+        except (ValueError, TaskNotFoundError) as e:
+            raise HTTPException(status_code=400, detail=str(e)) from e
+
+    @router.post("/{task_id}/reopen")
+    async def reopen_task(task_id: str, request_data: TaskReopenRequest | None = None) -> Any:
+        """Reopen a closed task."""
+        metrics.inc_counter("http_requests_total")
+        try:
+            task = server.task_manager.get_task(task_id)
+            resolved_id = task.id
+            body = request_data or TaskReopenRequest()
+            reopened = server.task_manager.reopen_task(resolved_id, reason=body.reason)
+            return reopened.to_dict()
+        except (ValueError, TaskNotFoundError) as e:
+            raise HTTPException(status_code=400, detail=str(e)) from e
+
+    # -----------------------------------------------------------------
+    # Dependencies
+    # -----------------------------------------------------------------
+
+    @router.get("/{task_id}/dependencies")
+    async def get_dependency_tree(
+        task_id: str,
+        direction: Literal["blockers", "blocking", "both"] = Query(
+            "both", description="Tree direction"
+        ),
+    ) -> Any:
+        """Get the dependency tree for a task."""
+        metrics.inc_counter("http_requests_total")
+        try:
+            task = server.task_manager.get_task(task_id)
+            dep_manager = TaskDependencyManager(server.task_manager.db)
+            return dep_manager.get_dependency_tree(task.id, direction=direction)
+        except (ValueError, TaskNotFoundError) as e:
+            raise HTTPException(status_code=404, detail=str(e)) from e
+
+    @router.post("/{task_id}/dependencies", status_code=201)
+    async def add_dependency(task_id: str, request_data: DependencyAddRequest) -> Any:
+        """Add a dependency to a task."""
+        metrics.inc_counter("http_requests_total")
+        try:
+            task = server.task_manager.get_task(task_id)
+            blocker = server.task_manager.get_task(request_data.depends_on)
+            dep_manager = TaskDependencyManager(server.task_manager.db)
+            dep = dep_manager.add_dependency(
+                task.id, blocker.id, dep_type=request_data.dep_type
+            )
+            return dep.to_dict()
+        except DependencyCycleError as e:
+            raise HTTPException(status_code=409, detail=str(e)) from e
+        except (ValueError, TaskNotFoundError) as e:
+            raise HTTPException(status_code=400, detail=str(e)) from e
+
+    @router.delete("/{task_id}/dependencies/{depends_on_id}")
+    async def remove_dependency(task_id: str, depends_on_id: str) -> dict[str, Any]:
+        """Remove a dependency from a task."""
+        metrics.inc_counter("http_requests_total")
+        try:
+            task = server.task_manager.get_task(task_id)
+            blocker = server.task_manager.get_task(depends_on_id)
+            dep_manager = TaskDependencyManager(server.task_manager.db)
+            removed = dep_manager.remove_dependency(task.id, blocker.id)
+            if not removed:
+                raise HTTPException(status_code=404, detail="Dependency not found")
+            return {"removed": True, "task_id": task.id, "depends_on": blocker.id}
+        except (ValueError, TaskNotFoundError) as e:
+            raise HTTPException(status_code=404, detail=str(e)) from e
 
     return router
