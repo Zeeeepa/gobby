@@ -75,6 +75,7 @@ class WebSocketServer(TmuxMixin, ChatMixin, HandlerMixin, AuthMixin, BroadcastMi
         self.auth_callback = auth_callback
         self.stop_registry = stop_registry
         self.session_manager = session_manager
+        self.workflow_handler: Any = None  # WorkflowHookHandler from HookManager
 
         # Connected clients: {websocket: client_metadata}
         self.clients: dict[Any, dict[str, Any]] = {}
@@ -206,6 +207,7 @@ class WebSocketServer(TmuxMixin, ChatMixin, HandlerMixin, AuthMixin, BroadcastMi
                 "tmux_create_session": self._handle_tmux_create_session,
                 "tmux_kill_session": self._handle_tmux_kill_session,
                 "tmux_resize": self._handle_tmux_resize,
+                "clear_chat": self._handle_clear_chat,
             }
 
         handler = self._dispatch_table.get(msg_type)

@@ -261,6 +261,7 @@ async def test_evaluate_lifecycle_full(engine, mock_components):
     wf.type = "lifecycle"
     wf.variables = {}
     wf.name = "lifecycle_wf"
+    wf.sources = None  # No source filter — applies to all sessions
     trigger1 = {"action": "act1", "when": "cond1"}
     wf.triggers = {"on_session_start": [trigger1]}
 
@@ -286,6 +287,7 @@ async def test_evaluate_lifecycle_alias(engine, mock_components):
     wf.type = "lifecycle"
     wf.variables = {}
     wf.name = "alias_wf"
+    wf.sources = None
     wf.triggers = {"on_prompt_submit": [{"action": "act1"}]}
 
     discovered = MagicMock()

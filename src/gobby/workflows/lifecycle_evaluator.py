@@ -551,6 +551,17 @@ async def evaluate_all_lifecycle_workflows(
         logger.debug("No lifecycle workflows discovered")
         return HookResponse(decision="allow")
 
+    # Filter by source if workflow specifies sources
+    if event.source:
+        source_val = event.source.value if hasattr(event.source, "value") else str(event.source)
+        workflows = [
+            w
+            for w in workflows
+            if not isinstance(w.definition, WorkflowDefinition)
+            or (srcs := getattr(w.definition, "sources", None)) is None
+            or source_val in srcs
+        ]
+
     logger.debug(
         f"Discovered {len(workflows)} lifecycle workflow(s): {[w.name for w in workflows]}"
     )

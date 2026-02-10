@@ -1,6 +1,7 @@
 name: session-lifecycle
 description: "Unified session lifecycle and behavior enforcement"
 type: lifecycle
+sources: [claude, gemini, codex, antigravity, cursor, windsurf, copilot]
 
 settings:
   priority: 10 # Run first - critical for handoff before other LLM calls

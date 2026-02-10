@@ -16,6 +16,7 @@ from uuid import uuid4
 
 from websockets.exceptions import ConnectionClosed, ConnectionClosedError
 
+from gobby.hooks.events import HookEvent, HookEventType, HookResponse, SessionSource
 from gobby.servers.chat_session import ChatSession
 from gobby.servers.websocket.models import (
     CLEANUP_INTERVAL_SECONDS,
@@ -93,6 +94,94 @@ class ChatMixin:
             for conv_id in list(self._active_chat_tasks.keys()):
                 await self._cancel_active_chat(conv_id)
 
+    async def _create_chat_session(
+        self,
+        conversation_id: str,
+        model: str | None = None,
+        project_id: str | None = None,
+    ) -> ChatSession:
+        """Create and bootstrap a new ChatSession with lifecycle hooks wired."""
+        session = ChatSession(conversation_id=conversation_id)
+
+        # Wire lifecycle callbacks before start() so hooks are registered with the SDK
+        session._on_before_agent = lambda data: self._fire_lifecycle(
+            conversation_id, HookEventType.BEFORE_AGENT, data
+        )
+        session._on_pre_tool = lambda data: self._fire_lifecycle(
+            conversation_id, HookEventType.BEFORE_TOOL, data
+        )
+        session._on_post_tool = lambda data: self._fire_lifecycle(
+            conversation_id, HookEventType.AFTER_TOOL, data
+        )
+        session._on_pre_compact = lambda data: self._fire_lifecycle(
+            conversation_id, HookEventType.PRE_COMPACT, data
+        )
+        session._on_stop = lambda data: self._fire_lifecycle(
+            conversation_id, HookEventType.STOP, data
+        )
+
+        await session.start(model=model)
+        self._chat_sessions[conversation_id] = session
+
+        # Register in database so it appears in session list
+        session_manager = getattr(self, "session_manager", None)
+        if session_manager:
+            try:
+                db_session = session_manager.register(
+                    external_id=conversation_id,
+                    machine_id=get_machine_id(),
+                    source="claude_sdk",
+                    project_id=project_id or PERSONAL_PROJECT_ID,
+                )
+                session.db_session_id = db_session.id
+                logger.info(
+                    f"Registered web-chat session {db_session.id} "
+                    f"(conv={conversation_id[:8]}, project={project_id or PERSONAL_PROJECT_ID})"
+                )
+            except Exception as e:
+                logger.warning(f"Failed to register web-chat session in DB: {e}")
+
+        return session
+
+    async def _fire_lifecycle(
+        self,
+        conversation_id: str,
+        event_type: HookEventType,
+        data: dict[str, Any],
+    ) -> dict[str, Any] | None:
+        """Bridge SDK hook events to workflow engine lifecycle triggers.
+
+        Returns a dict with HookResponse fields (decision, context, reason, etc.)
+        or None if no workflow handler is available.
+        """
+        workflow_handler = getattr(self, "workflow_handler", None)
+        if not workflow_handler:
+            return None
+
+        event = HookEvent(
+            event_type=event_type,
+            session_id=conversation_id,
+            source=SessionSource.CLAUDE_SDK,
+            timestamp=datetime.now(UTC),
+            data=data,
+            metadata={"_platform_session_id": conversation_id},
+        )
+
+        try:
+            # WorkflowHookHandler.handle_all_lifecycles is sync (bridges to async internally)
+            response: HookResponse = await asyncio.to_thread(
+                workflow_handler.handle_all_lifecycles, event
+            )
+            return {
+                "decision": response.decision,
+                "context": response.context,
+                "reason": response.reason,
+                "system_message": response.system_message,
+            }
+        except Exception as e:
+            logger.error(f"Lifecycle evaluation failed for {event_type}: {e}", exc_info=True)
+            return None
+
     async def _handle_chat_message(self, websocket: Any, data: dict[str, Any]) -> None:
         """
         Handle chat_message using a persistent ClaudeSDKClient-backed ChatSession.
@@ -162,7 +251,9 @@ class ChatMixin:
 
         # Run streaming as a cancellable task
         task = asyncio.create_task(
-            self._stream_chat_response(websocket, conversation_id, content, model, request_id, project_id)
+            self._stream_chat_response(
+                websocket, conversation_id, content, model, request_id, project_id
+            )
         )
         task.add_done_callback(self._on_chat_task_done)
         self._active_chat_tasks[conversation_id] = task
@@ -206,9 +297,10 @@ class ChatMixin:
             # Get or create ChatSession for this conversation
             session = self._chat_sessions.get(conversation_id)
             if session is None:
-                session = ChatSession(conversation_id=conversation_id)
                 try:
-                    await session.start(model=model)
+                    session = await self._create_chat_session(
+                        conversation_id, model=model, project_id=project_id
+                    )
                 except Exception as e:
                     logger.error(f"Failed to start chat session: {e}")
                     await websocket.send(
@@ -222,22 +314,6 @@ class ChatMixin:
                         )
                     )
                     return
-                self._chat_sessions[conversation_id] = session
-
-                # Register in database so it appears in session list
-                session_manager = getattr(self, "session_manager", None)
-                if session_manager:
-                    try:
-                        db_session = session_manager.register(
-                            external_id=conversation_id,
-                            machine_id=get_machine_id(),
-                            source="web-chat",
-                            project_id=project_id or PERSONAL_PROJECT_ID,
-                        )
-                        session.db_session_id = db_session.id
-                        logger.info(f"Registered web-chat session {db_session.id} (conv={conversation_id[:8]}, project={project_id or PERSONAL_PROJECT_ID})")
-                    except Exception as e:
-                        logger.warning(f"Failed to register web-chat session in DB: {e}")
 
             elif model and session.model and model != session.model:
                 # Mid-conversation model switch
@@ -410,6 +486,47 @@ class ChatMixin:
             return
 
         session.provide_answer(answers)
+
+    async def _handle_clear_chat(self, websocket: Any, data: dict[str, Any]) -> None:
+        """Handle clear_chat message: stop session, mark completed, notify frontend.
+
+        Message format:
+        {
+            "type": "clear_chat",
+            "conversation_id": "stable-id"
+        }
+        """
+        conversation_id = data.get("conversation_id")
+        if not conversation_id:
+            return
+
+        session = self._chat_sessions.get(conversation_id)
+        if not session:
+            # No active session — just acknowledge
+            await websocket.send(
+                json.dumps({"type": "chat_cleared", "conversation_id": conversation_id})
+            )
+            return
+
+        # Mark session as completed in database
+        if session.db_session_id:
+            session_manager = getattr(self, "session_manager", None)
+            if session_manager:
+                try:
+                    session_manager.update(session.db_session_id, status="completed")
+                except Exception as e:
+                    logger.warning(f"Failed to update session status on clear: {e}")
+
+        # Stop the old ChatSession
+        await self._cancel_active_chat(conversation_id)
+        await session.stop()
+        del self._chat_sessions[conversation_id]
+
+        # Notify frontend
+        await websocket.send(
+            json.dumps({"type": "chat_cleared", "conversation_id": conversation_id})
+        )
+        logger.info(f"Chat cleared for conversation {conversation_id[:8]}")
 
     async def _cleanup_idle_sessions(self) -> None:
         """Periodically disconnect chat sessions that have been idle too long."""

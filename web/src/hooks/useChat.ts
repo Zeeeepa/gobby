@@ -521,10 +521,19 @@ export function useChat() {
     setIsThinking(false)
   }, [messages])
 
-  // Clear chat history
+  // Clear chat history — notifies backend to teardown session, then resets frontend
   const clearHistory = useCallback(() => {
+    const oldConversationId = conversationIdRef.current
+    // Notify backend to generate summary + teardown session
+    if (wsRef.current?.readyState === WebSocket.OPEN) {
+      wsRef.current.send(JSON.stringify({
+        type: 'clear_chat',
+        conversation_id: oldConversationId,
+      }))
+    }
+    // Reset frontend state
     setMessages([])
-    localStorage.removeItem(chatStorageKey(conversationIdRef.current))
+    localStorage.removeItem(chatStorageKey(oldConversationId))
     activeRequestIdRef.current = null
     // Start a fresh conversation
     const newId = uuid()

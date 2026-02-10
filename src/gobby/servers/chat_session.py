@@ -10,7 +10,7 @@ import asyncio
 import logging
 import os
 import shutil
-from collections.abc import AsyncIterator
+from collections.abc import AsyncIterator, Awaitable, Callable
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path
@@ -20,6 +20,8 @@ from claude_agent_sdk import (
     AssistantMessage,
     ClaudeAgentOptions,
     ClaudeSDKClient,
+    HookContext,
+    HookMatcher,
     PermissionResultAllow,
     ResultMessage,
     TextBlock,
@@ -28,6 +30,15 @@ from claude_agent_sdk import (
     ToolResultBlock,
     ToolUseBlock,
     UserMessage,
+)
+from claude_agent_sdk.types import (
+    HookInput as SDKHookInput,
+)
+from claude_agent_sdk.types import (
+    PostToolUseHookSpecificOutput,
+    PreToolUseHookSpecificOutput,
+    SyncHookJSONOutput,
+    UserPromptSubmitHookSpecificOutput,
 )
 
 from gobby.llm.claude_models import (
@@ -106,6 +117,84 @@ def _parse_server_name(full_tool_name: str) -> str:
     return "builtin"
 
 
+def _response_to_prompt_output(resp: dict[str, Any] | None) -> SyncHookJSONOutput:
+    """Convert workflow HookResponse dict to UserPromptSubmit SDK output."""
+    if not resp:
+        return SyncHookJSONOutput()
+    output = SyncHookJSONOutput()
+    if resp.get("decision") == "block":
+        output["decision"] = "block"
+        if resp.get("reason"):
+            output["reason"] = resp["reason"]
+    context = resp.get("context")
+    if context:
+        output["hookSpecificOutput"] = UserPromptSubmitHookSpecificOutput(
+            hookEventName="UserPromptSubmit",
+            additionalContext=context,
+        )
+    return output
+
+
+def _response_to_pre_tool_output(resp: dict[str, Any] | None) -> SyncHookJSONOutput:
+    """Convert workflow HookResponse dict to PreToolUse SDK output."""
+    if not resp:
+        return SyncHookJSONOutput()
+    output = SyncHookJSONOutput()
+    if resp.get("decision") == "block":
+        specific: PreToolUseHookSpecificOutput = PreToolUseHookSpecificOutput(
+            hookEventName="PreToolUse",
+            permissionDecision="deny",
+        )
+        if resp.get("reason"):
+            specific["permissionDecisionReason"] = resp["reason"]
+        output["hookSpecificOutput"] = specific
+        if resp.get("reason"):
+            output["reason"] = resp["reason"]
+    elif resp.get("context"):
+        # Inject context via reason field for PreToolUse (no additionalContext)
+        output["reason"] = resp["context"]
+    return output
+
+
+def _response_to_post_tool_output(resp: dict[str, Any] | None) -> SyncHookJSONOutput:
+    """Convert workflow HookResponse dict to PostToolUse SDK output."""
+    if not resp:
+        return SyncHookJSONOutput()
+    output = SyncHookJSONOutput()
+    context = resp.get("context")
+    if context:
+        output["hookSpecificOutput"] = PostToolUseHookSpecificOutput(
+            hookEventName="PostToolUse",
+            additionalContext=context,
+        )
+    return output
+
+
+def _response_to_stop_output(resp: dict[str, Any] | None) -> SyncHookJSONOutput:
+    """Convert workflow HookResponse dict to Stop SDK output."""
+    if not resp:
+        return SyncHookJSONOutput()
+    output = SyncHookJSONOutput()
+    if resp.get("decision") == "block":
+        output["decision"] = "block"
+        if resp.get("reason"):
+            output["reason"] = resp["reason"]
+    return output
+
+
+def _response_to_compact_output(resp: dict[str, Any] | None) -> SyncHookJSONOutput:
+    """Convert workflow HookResponse dict to PreCompact SDK output."""
+    if not resp:
+        return SyncHookJSONOutput()
+    output = SyncHookJSONOutput()
+    context = resp.get("context")
+    if context:
+        # PreCompact doesn't have hook-specific additionalContext,
+        # use reason to surface info to the agent
+        output["reason"] = context
+    return output
+
+
 @dataclass
 class ChatSession:
     """
@@ -126,6 +215,23 @@ class ChatSession:
     _pending_answer_event: asyncio.Event | None = field(default=None, repr=False)
     _pending_answers: dict[str, str] | None = field(default=None, repr=False)
 
+    # Lifecycle callbacks — set by ChatMixin to bridge SDK hooks to workflow engine
+    _on_before_agent: Callable[[dict[str, Any]], Awaitable[dict[str, Any] | None]] | None = field(
+        default=None, repr=False
+    )
+    _on_pre_tool: Callable[[dict[str, Any]], Awaitable[dict[str, Any] | None]] | None = field(
+        default=None, repr=False
+    )
+    _on_post_tool: Callable[[dict[str, Any]], Awaitable[dict[str, Any] | None]] | None = field(
+        default=None, repr=False
+    )
+    _on_pre_compact: Callable[[dict[str, Any]], Awaitable[dict[str, Any] | None]] | None = field(
+        default=None, repr=False
+    )
+    _on_stop: Callable[[dict[str, Any]], Awaitable[dict[str, Any] | None]] | None = field(
+        default=None, repr=False
+    )
+
     async def start(self, model: str | None = None) -> None:
         """Connect the ClaudeSDKClient with configured options."""
         cli_path = _find_cli_path()
@@ -145,6 +251,9 @@ class ChatSession:
         # Inject working directory so the agent doesn't hallucinate paths
         system_prompt += f"\n\n## Environment\n- Working directory: {cwd}\n"
 
+        # Build SDK hooks from lifecycle callbacks
+        sdk_hooks = self._build_sdk_hooks()
+
         options = ClaudeAgentOptions(
             system_prompt=system_prompt,
             max_turns=None,
@@ -154,6 +263,7 @@ class ChatSession:
             cli_path=cli_path,
             mcp_servers=mcp_config if mcp_config is not None else {},
             cwd=cwd,
+            hooks=sdk_hooks if sdk_hooks else None,  # type: ignore[arg-type]
         )
 
         self._client = ClaudeSDKClient(options=options)
@@ -161,6 +271,91 @@ class ChatSession:
         self._connected = True
         self.last_activity = datetime.now(UTC)
         logger.debug(f"ChatSession {self.conversation_id} started")
+
+    def _build_sdk_hooks(self) -> dict[str, list[HookMatcher]] | None:
+        """Build SDK hook matchers from lifecycle callbacks."""
+        hooks: dict[str, list[HookMatcher]] = {}
+
+        if self._on_before_agent:
+            cb = self._on_before_agent
+
+            async def _prompt_hook(
+                inp: SDKHookInput,
+                tool_use_id: str | None,
+                ctx: HookContext,
+            ) -> SyncHookJSONOutput:
+                data = {"prompt_text": inp.get("prompt", ""), "source": "web-chat"}  # type: ignore[union-attr]
+                resp = await cb(data)
+                return _response_to_prompt_output(resp)
+
+            hooks["UserPromptSubmit"] = [HookMatcher(matcher=None, hooks=[_prompt_hook])]
+
+        if self._on_pre_tool:
+            cb_pre = self._on_pre_tool
+
+            async def _pre_tool_hook(
+                inp: SDKHookInput,
+                tool_use_id: str | None,
+                ctx: HookContext,
+            ) -> SyncHookJSONOutput:
+                data = {
+                    "tool_name": inp.get("tool_name", ""),  # type: ignore[union-attr]
+                    "tool_input": inp.get("tool_input", {}),  # type: ignore[union-attr]
+                }
+                resp = await cb_pre(data)
+                return _response_to_pre_tool_output(resp)
+
+            hooks["PreToolUse"] = [HookMatcher(matcher=None, hooks=[_pre_tool_hook])]
+
+        if self._on_post_tool:
+            cb_post = self._on_post_tool
+
+            async def _post_tool_hook(
+                inp: SDKHookInput,
+                tool_use_id: str | None,
+                ctx: HookContext,
+            ) -> SyncHookJSONOutput:
+                data = {
+                    "tool_name": inp.get("tool_name", ""),  # type: ignore[union-attr]
+                    "tool_input": inp.get("tool_input", {}),  # type: ignore[union-attr]
+                    "tool_response": inp.get("tool_response"),  # type: ignore[union-attr]
+                }
+                resp = await cb_post(data)
+                return _response_to_post_tool_output(resp)
+
+            hooks["PostToolUse"] = [HookMatcher(matcher=None, hooks=[_post_tool_hook])]
+
+        if self._on_stop:
+            cb_stop = self._on_stop
+
+            async def _stop_hook(
+                inp: SDKHookInput,
+                tool_use_id: str | None,
+                ctx: HookContext,
+            ) -> SyncHookJSONOutput:
+                data = {"stop_hook_active": inp.get("stop_hook_active", False)}  # type: ignore[union-attr]
+                resp = await cb_stop(data)
+                return _response_to_stop_output(resp)
+
+            hooks["Stop"] = [HookMatcher(matcher=None, hooks=[_stop_hook])]
+
+        if self._on_pre_compact:
+            cb_compact = self._on_pre_compact
+
+            async def _compact_hook(
+                inp: SDKHookInput,
+                tool_use_id: str | None,
+                ctx: HookContext,
+            ) -> SyncHookJSONOutput:
+                data = {
+                    "trigger": inp.get("trigger", "auto"),  # type: ignore[union-attr]
+                }
+                resp = await cb_compact(data)
+                return _response_to_compact_output(resp)
+
+            hooks["PreCompact"] = [HookMatcher(matcher=None, hooks=[_compact_hook])]
+
+        return hooks if hooks else None
 
     async def _can_use_tool(
         self,

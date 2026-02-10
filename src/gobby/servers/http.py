@@ -386,6 +386,17 @@ class HTTPServer:
                 self.services.websocket_server.stop_registry = app.state.hook_manager._stop_registry
                 logger.debug("Stop registry connected to WebSocket server")
 
+            # Wire workflow handler to WebSocket server for headless lifecycle
+            if (
+                self.services.websocket_server
+                and hasattr(app.state, "hook_manager")
+                and hasattr(app.state.hook_manager, "_workflow_handler")
+            ):
+                self.services.websocket_server.workflow_handler = (
+                    app.state.hook_manager._workflow_handler
+                )
+                logger.debug("Workflow handler connected to WebSocket server")
+
             # Store server instance for dependency injection
             app.state.server = self
 
