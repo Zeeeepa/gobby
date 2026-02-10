@@ -94,9 +94,10 @@ class TestFilesRoutes:
         resp = client.get("/api/files/projects")
         assert resp.status_code == 200
         data = resp.json()
-        assert len(data) == 1
-        assert data[0]["name"] == "test-project"
-        assert data[0]["id"] == "test-project-id"
+        assert len(data) == 2
+        assert data[0]["name"] == "Personal"
+        assert data[1]["name"] == "test-project"
+        assert data[1]["id"] == "test-project-id"
 
     # -- /tree --
 

@@ -218,7 +218,7 @@ class TestRecall:
         await memory_manager.remember(content="Python is a programming language")
         await memory_manager.remember(content="JavaScript runs in browsers")
 
-        memories = memory_manager.recall(query="Python")
+        memories = memory_manager.recall(query="Python", search_mode="text")
 
         assert len(memories) == 1
         assert "Python" in memories[0].content

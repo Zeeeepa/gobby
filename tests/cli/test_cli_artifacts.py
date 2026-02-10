@@ -59,6 +59,8 @@ def mock_artifact():
     artifact.line_start = 10
     artifact.line_end = 12
     artifact.created_at = "2024-01-01T00:00:00Z"
+    artifact.title = "Test artifact"
+    artifact.task_id = None
     artifact.metadata = {"language": "javascript"}
     artifact.to_dict = MagicMock(
         return_value={

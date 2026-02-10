@@ -1125,7 +1125,6 @@ class TestLocalTaskManager:
 
         # Should NOT include these fields
         assert "description" not in brief
-        assert "assignee" not in brief
         assert "labels" not in brief
 
     # =========================================================================

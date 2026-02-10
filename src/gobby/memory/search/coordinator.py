@@ -117,16 +117,11 @@ class SearchCoordinator:
         """Ensure the search backend is fitted with current memories."""
         if self._unified_searcher is not None:
             self._ensure_unified_fitted()
-            return
 
         if self._search_backend_fitted:
             return
 
         backend = self.search_backend
-        if not backend.needs_refit():
-            self._search_backend_fitted = True
-            return
-
         max_memories = getattr(self._config, "max_index_memories", 10000)
         memory_tuples = self._get_memory_tuples(max_memories)
 
@@ -143,9 +138,6 @@ class SearchCoordinator:
         if self._unified_fitted:
             return
         if self._unified_searcher is None:
-            return
-        if not self._unified_searcher.needs_refit():
-            self._unified_fitted = True
             return
 
         max_memories = getattr(self._config, "max_index_memories", 10000)
@@ -258,6 +250,17 @@ class SearchCoordinator:
         Returns:
             List of matching Memory objects
         """
+        # Direct text search mode bypasses TF-IDF/unified backends
+        if search_mode == "text":
+            return self._storage.search_memories(
+                query_text=query,
+                project_id=project_id,
+                limit=limit,
+                tags_all=tags_all,
+                tags_any=tags_any,
+                tags_none=tags_none,
+            )
+
         try:
             self.ensure_fitted()
             fetch_multiplier = 3 if (tags_all or tags_any or tags_none) else 2
