@@ -101,10 +101,19 @@ interface UpdateTaskParams {
 // =============================================================================
 
 const POLL_INTERVAL_MS = 5000
+const WS_RECONNECT_MS = 3000
+const REFETCH_DEBOUNCE_MS = 500
 
 function getBaseUrl(): string {
   const isSecure = window.location.protocol === 'https:'
   return isSecure ? '' : `http://${window.location.hostname}:60887`
+}
+
+function getWsUrl(): string {
+  const isSecure = window.location.protocol === 'https:'
+  return isSecure
+    ? `wss://${window.location.host}/ws`
+    : `ws://${window.location.hostname}:60888`
 }
 
 // =============================================================================
@@ -327,13 +336,92 @@ export function useTasks() {
     fetchTasks()
   }, [fetchTasks])
 
-  // Polling
+  // Polling (fallback for when WebSocket is unavailable)
   useEffect(() => {
     pollRef.current = window.setInterval(fetchTasks, POLL_INTERVAL_MS)
     return () => {
       if (pollRef.current) window.clearInterval(pollRef.current)
     }
   }, [fetchTasks])
+
+  // -------------------------------------------------------------------------
+  // WebSocket: real-time task event subscription
+  // -------------------------------------------------------------------------
+
+  const debouncedRefetchRef = useRef<number | null>(null)
+
+  // Use a ref for the event handler to avoid stale closures in the WS callback
+  const handleTaskEventRef = useRef<(event: string, taskData: Record<string, unknown>) => void>(() => {})
+  handleTaskEventRef.current = (event: string, taskData: Record<string, unknown>) => {
+    const taskId = taskData.id as string
+    if (!taskId) return
+
+    if (event === 'task_deleted') {
+      setTasks(prev => prev.filter(t => t.id !== taskId))
+      setTotal(prev => Math.max(0, prev - 1))
+    } else if (event === 'task_created') {
+      const newTask = taskData as unknown as GobbyTask
+      setTasks(prev => {
+        if (prev.some(t => t.id === taskId)) return prev
+        return [...prev, newTask]
+      })
+      setTotal(prev => prev + 1)
+    } else {
+      // task_updated, task_closed, task_reopened
+      const updated = taskData as unknown as GobbyTask
+      setTasks(prev => prev.map(t => t.id === taskId ? { ...t, ...updated } : t))
+    }
+
+    // Debounced full refetch to sync stats, total, and filter accuracy
+    if (debouncedRefetchRef.current) window.clearTimeout(debouncedRefetchRef.current)
+    debouncedRefetchRef.current = window.setTimeout(() => fetchTasks(), REFETCH_DEBOUNCE_MS)
+  }
+
+  useEffect(() => {
+    const wsUrl = getWsUrl()
+    let ws: WebSocket | null = null
+    let reconnectTimeout: number | null = null
+    let closed = false
+
+    function connect() {
+      if (closed) return
+      ws = new WebSocket(wsUrl)
+
+      ws.onopen = () => {
+        ws!.send(JSON.stringify({ type: 'subscribe', events: ['task_event'] }))
+      }
+
+      ws.onmessage = (evt) => {
+        try {
+          const data = JSON.parse(evt.data)
+          if (data.type === 'task_event' && data.event && (data.task || data.task_id)) {
+            handleTaskEventRef.current(data.event, data.task || { id: data.task_id })
+          }
+        } catch {
+          // ignore parse errors
+        }
+      }
+
+      ws.onclose = () => {
+        if (!closed) {
+          reconnectTimeout = window.setTimeout(connect, WS_RECONNECT_MS)
+        }
+      }
+
+      ws.onerror = () => {
+        // onclose will fire after onerror
+      }
+    }
+
+    connect()
+
+    return () => {
+      closed = true
+      if (reconnectTimeout) window.clearTimeout(reconnectTimeout)
+      if (debouncedRefetchRef.current) window.clearTimeout(debouncedRefetchRef.current)
+      if (ws) ws.close()
+    }
+  }, [])
 
   const refreshTasks = useCallback(() => {
     setIsLoading(true)
