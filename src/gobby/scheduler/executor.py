@@ -23,7 +23,7 @@ class CronExecutor:
         self,
         storage: CronJobStorage,
         agent_runner: Any | None = None,
-        pipeline_executor: "PipelineExecutor | None" = None,
+        pipeline_executor: PipelineExecutor | None = None,
     ):
         self.storage = storage
         self.agent_runner = agent_runner
@@ -160,7 +160,7 @@ class CronExecutor:
 
             return output
 
-        except TimeoutError:
+        except TimeoutError as err:
             if process:
                 process.terminate()
-            raise RuntimeError(f"Shell command timed out after {timeout}s")
+            raise RuntimeError(f"Shell command timed out after {timeout}s") from err

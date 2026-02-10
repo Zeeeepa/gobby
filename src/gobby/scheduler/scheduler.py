@@ -9,6 +9,7 @@ from datetime import UTC, datetime
 from gobby.config.cron import CronConfig
 from gobby.scheduler.executor import CronExecutor
 from gobby.storage.cron import CronJobStorage, compute_next_run
+from gobby.storage.cron_models import CronJob, CronRun
 
 logger = logging.getLogger(__name__)
 
