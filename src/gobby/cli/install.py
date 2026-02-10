@@ -21,12 +21,14 @@ from .installers import (
     install_default_mcp_servers,
     install_gemini,
     install_git_hooks,
+    install_mem0,
     install_windsurf,
     uninstall_claude,
     uninstall_codex_notify,
     uninstall_copilot,
     uninstall_cursor,
     uninstall_gemini,
+    uninstall_mem0,
     uninstall_windsurf,
 )
 from .utils import get_install_dir
@@ -170,6 +172,18 @@ def _is_copilot_cli_installed() -> bool:
     is_flag=True,
     help="Install Antigravity agent hooks (internal)",
 )
+@click.option(
+    "--mem0",
+    "mem0_flag",
+    is_flag=True,
+    help="Install mem0 memory backend (Docker-based)",
+)
+@click.option(
+    "--remote",
+    "remote_url",
+    default=None,
+    help="Remote mem0 URL (use with --mem0 to skip Docker)",
+)
 def install(
     claude_flag: bool,
     gemini_flag: bool,
@@ -180,6 +194,8 @@ def install(
     hooks_flag: bool,
     all_flag: bool,
     antigravity_flag: bool,
+    mem0_flag: bool,
+    remote_url: str | None,
 ) -> None:
     """Install Gobby hooks to AI coding CLIs and Git.
 
@@ -208,6 +224,7 @@ def install(
         and not hooks_flag
         and not all_flag
         and not antigravity_flag
+        and not mem0_flag
     ):
         all_flag = True
 
@@ -566,6 +583,26 @@ def install(
             click.echo(f"Failed: {result['error']}", err=True)
         click.echo("")
 
+    # Install Mem0 services
+    if mem0_flag:
+        click.echo("-" * 40)
+        click.echo("Mem0 Memory Backend")
+        click.echo("-" * 40)
+
+        result = install_mem0(remote_url=remote_url)
+        results["mem0"] = result
+
+        if result["success"]:
+            mode = result.get("mode", "local")
+            click.echo(f"Mem0 installed ({mode} mode)")
+            click.echo(f"  URL: {result['mem0_url']}")
+            if result.get("compose_file"):
+                click.echo(f"  Compose: {result['compose_file']}")
+            click.echo("\nRestart the daemon to apply: gobby restart")
+        else:
+            click.echo(f"Failed: {result['error']}", err=True)
+        click.echo("")
+
     # Summary
     click.echo("=" * 60)
     click.echo("  Summary")
@@ -650,6 +687,18 @@ def install(
     default=False,
     help="Uninstall hooks from all CLIs (default behavior when no flags specified)",
 )
+@click.option(
+    "--mem0",
+    "mem0_flag",
+    is_flag=True,
+    help="Uninstall mem0 memory backend",
+)
+@click.option(
+    "--volumes",
+    "volumes_flag",
+    is_flag=True,
+    help="Also remove Docker volumes (data loss, use with --mem0)",
+)
 @click.confirmation_option(prompt="Are you sure you want to uninstall Gobby hooks?")
 def uninstall(
     claude_flag: bool,
@@ -659,6 +708,8 @@ def uninstall(
     windsurf_flag: bool,
     copilot_flag: bool,
     all_flag: bool,
+    mem0_flag: bool,
+    volumes_flag: bool,
 ) -> None:
     """Uninstall Gobby hooks from AI coding CLIs.
 
@@ -679,6 +730,7 @@ def uninstall(
         and not windsurf_flag
         and not copilot_flag
         and not all_flag
+        and not mem0_flag
     ):
         all_flag = True
 
@@ -869,6 +921,27 @@ def uninstall(
                 click.echo(f"Removed {len(result['files_removed'])} files")
             if not result["hooks_removed"] and not result["files_removed"]:
                 click.echo("  (no hooks found to remove)")
+        else:
+            click.echo(f"Failed: {result['error']}", err=True)
+        click.echo("")
+
+    # Uninstall Mem0 services
+    if mem0_flag:
+        click.echo("-" * 40)
+        click.echo("Mem0 Memory Backend")
+        click.echo("-" * 40)
+
+        result = uninstall_mem0(remove_volumes=volumes_flag)
+        results["mem0"] = result
+
+        if result["success"]:
+            if result.get("already_uninstalled"):
+                click.echo("Mem0 was not installed")
+            else:
+                click.echo("Mem0 services removed")
+                if result.get("volumes_removed"):
+                    click.echo("  Docker volumes removed (data deleted)")
+            click.echo("\nRestart the daemon to apply: gobby restart")
         else:
             click.echo(f"Failed: {result['error']}", err=True)
         click.echo("")

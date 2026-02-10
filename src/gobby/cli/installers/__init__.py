@@ -12,6 +12,7 @@ from .copilot import install_copilot, uninstall_copilot
 from .cursor import install_cursor, uninstall_cursor
 from .gemini import install_gemini, uninstall_gemini
 from .git_hooks import install_git_hooks
+from .mem0 import install_mem0, uninstall_mem0
 from .shared import (
     install_cli_content,
     install_default_mcp_servers,
@@ -46,4 +47,7 @@ __all__ = [
     "install_git_hooks",
     # Antigravity
     "install_antigravity",
+    # Mem0
+    "install_mem0",
+    "uninstall_mem0",
 ]
