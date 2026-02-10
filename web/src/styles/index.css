@@ -7888,6 +7888,49 @@ body {
   margin-left: auto;
 }
 
+/* Learning-from-feedback confirmation */
+.task-memory-item--confirming {
+  border-color: var(--accent);
+  background: rgba(59, 130, 246, 0.05);
+}
+
+.task-memory-confirm {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.task-memory-confirm-label {
+  font-size: calc(var(--font-size-base) * 0.65);
+  font-weight: 600;
+  color: var(--accent);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.task-memory-confirm-preview {
+  font-size: calc(var(--font-size-base) * 0.72);
+  color: var(--text-primary);
+  background: rgba(59, 130, 246, 0.08);
+  border: 1px solid rgba(59, 130, 246, 0.2);
+  border-radius: 4px;
+  padding: 6px 8px;
+  line-height: 1.4;
+}
+
+.task-memory-confirm-diff {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.task-memory-confirm-old {
+  font-size: calc(var(--font-size-base) * 0.6);
+  color: var(--text-muted);
+  text-decoration: line-through;
+  opacity: 0.7;
+}
+
 /* Memory card pin & quick actions (MemoryTable) */
 .memory-card--pinned {
   border-color: #f59e0b40;

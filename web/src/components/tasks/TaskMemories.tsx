@@ -63,6 +63,7 @@ export function TaskMemories({ sessionId }: TaskMemoriesProps) {
   const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set())
   const [editingId, setEditingId] = useState<string | null>(null)
   const [editContent, setEditContent] = useState('')
+  const [confirmingId, setConfirmingId] = useState<string | null>(null)
 
   const fetchMemories = useCallback(async () => {
     if (!sessionId) return
@@ -123,15 +124,23 @@ export function TaskMemories({ sessionId }: TaskMemoriesProps) {
     setEditContent(mem.content)
   }, [])
 
-  const saveEdit = useCallback(async (memoryId: string) => {
+  const saveEdit = useCallback((memoryId: string) => {
+    if (!editContent.trim()) return
+    // Show confirmation preview instead of saving immediately
+    setEditingId(null)
+    setConfirmingId(memoryId)
+  }, [editContent])
+
+  const confirmSave = useCallback(async (memoryId: string) => {
     if (!editContent.trim()) return
     await updateMemory(memoryId, { content: editContent.trim() })
-    setEditingId(null)
+    setConfirmingId(null)
     setEditContent('')
   }, [editContent, updateMemory])
 
   const cancelEdit = useCallback(() => {
     setEditingId(null)
+    setConfirmingId(null)
     setEditContent('')
   }, [])
 
@@ -155,8 +164,9 @@ export function TaskMemories({ sessionId }: TaskMemoriesProps) {
         {sortedMemories.map(mem => {
           const isExpanded = expandedIds.has(mem.id)
           const isEditing = editingId === mem.id
+          const isConfirming = confirmingId === mem.id
           const pinned = isPinned(mem)
-          const preview = mem.content.length > 100 && !isExpanded && !isEditing
+          const preview = mem.content.length > 100 && !isExpanded && !isEditing && !isConfirming
             ? mem.content.slice(0, 100) + '...'
             : mem.content
           const icon = TYPE_ICONS[mem.memory_type] || '\u2022'
@@ -164,8 +174,8 @@ export function TaskMemories({ sessionId }: TaskMemoriesProps) {
           return (
             <div
               key={mem.id}
-              className={`task-memory-item ${pinned ? 'task-memory-item--pinned' : ''}`}
-              onClick={() => { if (!isEditing) toggle(mem.id) }}
+              className={`task-memory-item ${pinned ? 'task-memory-item--pinned' : ''} ${isConfirming ? 'task-memory-item--confirming' : ''}`}
+              onClick={() => { if (!isEditing && !isConfirming) toggle(mem.id) }}
             >
               <div className="task-memory-header">
                 <span className="task-memory-icon">{icon}</span>
@@ -214,9 +224,24 @@ export function TaskMemories({ sessionId }: TaskMemoriesProps) {
                     autoFocus
                   />
                   <div className="task-memory-edit-buttons">
-                    <button className="task-memory-edit-save" onClick={() => saveEdit(mem.id)}>Save</button>
+                    <button className="task-memory-edit-save" onClick={() => saveEdit(mem.id)}>Review</button>
                     <button className="task-memory-edit-cancel" onClick={cancelEdit}>Cancel</button>
-                    <span className="task-memory-edit-hint">Cmd+Enter to save</span>
+                    <span className="task-memory-edit-hint">Cmd+Enter to review</span>
+                  </div>
+                </div>
+              ) : isConfirming ? (
+                <div className="task-memory-confirm" onClick={e => e.stopPropagation()}>
+                  <div className="task-memory-confirm-label">Agent will remember:</div>
+                  <div className="task-memory-confirm-preview">{editContent.trim()}</div>
+                  {editContent.trim() !== mem.content && (
+                    <div className="task-memory-confirm-diff">
+                      <span className="task-memory-confirm-old">Was: {mem.content.length > 80 ? mem.content.slice(0, 80) + '...' : mem.content}</span>
+                    </div>
+                  )}
+                  <div className="task-memory-edit-buttons">
+                    <button className="task-memory-edit-save" onClick={() => confirmSave(mem.id)}>Confirm</button>
+                    <button className="task-memory-edit-cancel" onClick={() => { setConfirmingId(null); setEditingId(mem.id) }}>Edit Again</button>
+                    <button className="task-memory-edit-cancel" onClick={cancelEdit}>Discard</button>
                   </div>
                 </div>
               ) : (
