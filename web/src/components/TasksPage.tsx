@@ -3,6 +3,7 @@ import { useTasks } from '../hooks/useTasks'
 import type { GobbyTask } from '../hooks/useTasks'
 import { StatusDot, PriorityBadge, TypeBadge } from './tasks/TaskBadges'
 import { TaskDetail } from './tasks/TaskDetail'
+import { TaskCreateForm } from './tasks/TaskCreateForm'
 
 // =============================================================================
 // Constants
@@ -92,9 +93,10 @@ function TaskRow({ task, onSelect }: { task: GobbyTask; onSelect: (id: string) =
 // =============================================================================
 
 export function TasksPage() {
-  const { tasks, total, stats, isLoading, filters, setFilters, refreshTasks, getTask, updateTask, closeTask, reopenTask, getDependencies, getSubtasks } = useTasks()
+  const { tasks, total, stats, isLoading, filters, setFilters, refreshTasks, getTask, createTask, updateTask, closeTask, reopenTask, getDependencies, getSubtasks } = useTasks()
   const [viewMode, setViewMode] = useState<ViewMode>('list')
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null)
+  const [showCreateForm, setShowCreateForm] = useState(false)
 
   const hasActiveFilters = filters.status !== null || filters.priority !== null
     || filters.taskType !== null || filters.assignee !== null
@@ -132,7 +134,7 @@ export function TasksPage() {
           <button className="tasks-refresh-btn" onClick={refreshTasks} title="Refresh">
             ↻
           </button>
-          <button className="tasks-new-btn" title="New Task">
+          <button className="tasks-new-btn" title="New Task" onClick={() => setShowCreateForm(true)}>
             <PlusIcon />
             <span>New Task</span>
           </button>
@@ -251,6 +253,13 @@ export function TasksPage() {
         actions={{ updateTask, closeTask, reopenTask }}
         onSelectTask={setSelectedTaskId}
         onClose={() => setSelectedTaskId(null)}
+      />
+
+      <TaskCreateForm
+        isOpen={showCreateForm}
+        tasks={tasks}
+        onSubmit={createTask}
+        onClose={() => setShowCreateForm(false)}
       />
     </main>
   )

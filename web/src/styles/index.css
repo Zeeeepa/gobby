@@ -5173,3 +5173,114 @@ body {
 .task-detail-validation-feedback {
   margin-top: 0.5rem;
 }
+
+/* Task Create Form Modal */
+.task-create-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.5);
+  z-index: 200;
+}
+
+.task-create-modal {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 520px;
+  max-width: 90vw;
+  max-height: 85vh;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  border-radius: 0.75rem;
+  z-index: 210;
+  overflow-y: auto;
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.4);
+}
+
+.task-create-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 1rem 1.25rem;
+  border-bottom: 1px solid var(--border);
+}
+
+.task-create-title {
+  font-size: calc(var(--font-size-base) * 1.05);
+  font-weight: 600;
+}
+
+.task-create-form {
+  padding: 1rem 1.25rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.task-create-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.task-create-label {
+  font-size: calc(var(--font-size-base) * 0.75);
+  color: var(--text-muted);
+  font-weight: 500;
+}
+
+.task-create-required {
+  color: #ef4444;
+}
+
+.task-create-input,
+.task-create-select,
+.task-create-textarea {
+  padding: 0.4rem 0.6rem;
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border);
+  border-radius: 0.375rem;
+  color: var(--text-primary);
+  font-size: calc(var(--font-size-base) * 0.85);
+  font-family: inherit;
+}
+
+.task-create-input:focus,
+.task-create-select:focus,
+.task-create-textarea:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+.task-create-input::placeholder,
+.task-create-textarea::placeholder {
+  color: var(--text-muted);
+}
+
+.task-create-textarea {
+  resize: vertical;
+  min-height: 3rem;
+}
+
+.task-create-row {
+  display: flex;
+  gap: 0.75rem;
+}
+
+.task-create-row .task-create-field {
+  flex: 1;
+}
+
+.task-create-actions {
+  display: flex;
+  gap: 0.5rem;
+  justify-content: flex-end;
+  padding-top: 0.5rem;
+  border-top: 1px solid var(--border);
+}
+
+.task-create-actions .task-detail-action-btn {
+  flex: 0;
+  min-width: 100px;
+}
