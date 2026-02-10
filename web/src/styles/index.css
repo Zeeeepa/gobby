@@ -5450,6 +5450,14 @@ body {
   opacity: 0.4;
 }
 
+.kanban-card--drop-top {
+  box-shadow: 0 -2px 0 0 var(--accent);
+}
+
+.kanban-card--drop-bottom {
+  box-shadow: 0 2px 0 0 var(--accent);
+}
+
 .kanban-column--drag-over {
   background: rgba(59, 130, 246, 0.06);
   border-color: var(--accent);

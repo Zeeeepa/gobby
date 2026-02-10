@@ -19,6 +19,7 @@ export interface GobbyTask {
   requires_user_review: boolean
   assignee: string | null
   agent_name: string | null
+  sequence_order: number | null
 }
 
 export interface GobbyTaskDetail extends GobbyTask {
@@ -96,6 +97,7 @@ interface UpdateTaskParams {
   parent_task_id?: string
   category?: string
   validation_criteria?: string
+  sequence_order?: number
 }
 
 // =============================================================================

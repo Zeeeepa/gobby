@@ -59,6 +59,7 @@ class TaskUpdateRequest(BaseModel):
     parent_task_id: str | None = Field(default=None, description="New parent task ID")
     category: str | None = Field(default=None, description="New category")
     validation_criteria: str | None = Field(default=None, description="New validation criteria")
+    sequence_order: int | None = Field(default=None, description="Sort order within column/group")
 
 
 class TaskCloseRequest(BaseModel):

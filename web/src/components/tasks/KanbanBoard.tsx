@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState, useCallback } from 'react'
 import { draggable, dropTargetForElements, monitorForElements } from '@atlaskit/pragmatic-drag-and-drop/element/adapter'
 import type { GobbyTask } from '../../hooks/useTasks'
 import { StatusDot, PriorityBadge, TypeBadge, BlockedIndicator, PRIORITY_STYLES } from './TaskBadges'
@@ -33,6 +33,38 @@ const NEXT_STATUS: Record<string, string> = {
 }
 
 const BLOCKED_STATUSES = new Set(['failed', 'escalated'])
+
+// =============================================================================
+// Fractional indexing helpers
+// =============================================================================
+
+const ORDER_GAP = 1000
+const ORDER_MIN = 0
+
+/** Compute a sequence_order between two neighbors. */
+function orderBetween(prev: number | null, next: number | null): number {
+  const p = prev ?? ORDER_MIN
+  const n = next ?? p + ORDER_GAP
+  return Math.floor((p + n) / 2)
+}
+
+/** Assign initial orders to tasks that have no sequence_order, preserving existing ones. */
+function ensureOrders(tasks: GobbyTask[]): GobbyTask[] {
+  return tasks.map((t, i) => ({
+    ...t,
+    sequence_order: t.sequence_order ?? (i + 1) * ORDER_GAP,
+  }))
+}
+
+/** Sort by sequence_order (nulls last), then created_at. */
+function sortByOrder(tasks: GobbyTask[]): GobbyTask[] {
+  return [...tasks].sort((a, b) => {
+    const ao = a.sequence_order ?? Number.MAX_SAFE_INTEGER
+    const bo = b.sequence_order ?? Number.MAX_SAFE_INTEGER
+    if (ao !== bo) return ao - bo
+    return new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
+  })
+}
 
 // =============================================================================
 // Swimlane grouping
@@ -75,7 +107,6 @@ function groupIntoSwimlanes(tasks: GobbyTask[], mode: SwimlaneModeType): Swimlan
   const lanes: Swimlane[] = []
 
   if (mode === 'priority') {
-    // Fixed order by priority level
     for (let p = 0; p <= 4; p++) {
       const key = String(p)
       if (groups.has(key)) {
@@ -83,7 +114,6 @@ function groupIntoSwimlanes(tasks: GobbyTask[], mode: SwimlaneModeType): Swimlan
       }
     }
   } else if (mode === 'assignee') {
-    // Unassigned first, then by assignee
     if (groups.has('_unassigned')) {
       lanes.push({ key: '_unassigned', label: 'Unassigned', tasks: groups.get('_unassigned')! })
       groups.delete('_unassigned')
@@ -92,7 +122,6 @@ function groupIntoSwimlanes(tasks: GobbyTask[], mode: SwimlaneModeType): Swimlan
       lanes.push({ key, label: key.slice(0, 12), tasks })
     }
   } else {
-    // Parent: root tasks first
     if (groups.has('_root')) {
       lanes.push({ key: '_root', label: 'No Parent', tasks: groups.get('_root')! })
       groups.delete('_root')
@@ -107,37 +136,75 @@ function groupIntoSwimlanes(tasks: GobbyTask[], mode: SwimlaneModeType): Swimlan
 }
 
 // =============================================================================
-// KanbanCard (draggable + hover actions)
+// KanbanCard (draggable + drop target for reorder)
 // =============================================================================
 
 interface KanbanCardProps {
   task: GobbyTask
+  index: number
+  columnKey: string
   onSelect: (id: string) => void
   onUpdateStatus?: (taskId: string, newStatus: string) => void
 }
 
-function KanbanCard({ task, onSelect, onUpdateStatus }: KanbanCardProps) {
+function KanbanCard({ task, index, columnKey, onSelect, onUpdateStatus }: KanbanCardProps) {
   const ref = useRef<HTMLButtonElement | null>(null)
   const [isDragging, setIsDragging] = useState(false)
+  const [dropEdge, setDropEdge] = useState<'top' | 'bottom' | null>(null)
   const priorityColor = (PRIORITY_STYLES[task.priority] || PRIORITY_STYLES[2]).color
   const isBlocked = BLOCKED_STATUSES.has(task.status)
   const nextStatus = NEXT_STATUS[task.status]
 
+  // Draggable
   useEffect(() => {
     const el = ref.current
     if (!el || isBlocked) return
     return draggable({
       element: el,
-      getInitialData: () => ({ type: 'kanban-card', taskId: task.id, currentStatus: task.status }),
+      getInitialData: () => ({
+        type: 'kanban-card',
+        taskId: task.id,
+        currentStatus: task.status,
+        columnKey,
+        index,
+      }),
       onDragStart: () => setIsDragging(true),
       onDrop: () => setIsDragging(false),
     })
-  }, [task.id, task.status, isBlocked])
+  }, [task.id, task.status, isBlocked, columnKey, index])
+
+  // Drop target (for within-column reorder)
+  useEffect(() => {
+    const el = ref.current
+    if (!el) return
+    return dropTargetForElements({
+      element: el,
+      getData: ({ input }) => {
+        const rect = el.getBoundingClientRect()
+        const midY = rect.top + rect.height / 2
+        const edge = input.clientY < midY ? 'top' : 'bottom'
+        return {
+          type: 'kanban-card-target',
+          taskId: task.id,
+          columnKey,
+          index,
+          edge,
+        }
+      },
+      canDrop: ({ source }) => source.data.type === 'kanban-card' && source.data.taskId !== task.id,
+      onDragEnter: ({ self }) => setDropEdge(self.data.edge as 'top' | 'bottom'),
+      onDrag: ({ self }) => setDropEdge(self.data.edge as 'top' | 'bottom'),
+      onDragLeave: () => setDropEdge(null),
+      onDrop: () => setDropEdge(null),
+    })
+  }, [task.id, columnKey, index])
 
   const classes = [
     'kanban-card',
     isDragging ? 'kanban-card--dragging' : '',
     isBlocked ? 'kanban-card--blocked' : '',
+    dropEdge === 'top' ? 'kanban-card--drop-top' : '',
+    dropEdge === 'bottom' ? 'kanban-card--drop-bottom' : '',
   ].filter(Boolean).join(' ')
 
   return (
@@ -200,6 +267,9 @@ function KanbanColumnComponent({
   const ref = useRef<HTMLDivElement | null>(null)
   const [isDraggedOver, setIsDraggedOver] = useState(false)
 
+  // Sort tasks by sequence_order within the column
+  const sorted = useMemo(() => sortByOrder(tasks), [tasks])
+
   useEffect(() => {
     const el = ref.current
     if (!el) return
@@ -221,13 +291,15 @@ function KanbanColumnComponent({
         <span className="kanban-column-count">{tasks.length}</span>
       </div>
       <div className="kanban-column-body">
-        {tasks.length === 0 ? (
+        {sorted.length === 0 ? (
           <div className="kanban-column-empty">No tasks</div>
         ) : (
-          tasks.map(task => (
+          sorted.map((task, i) => (
             <KanbanCard
               key={task.id}
               task={task}
+              index={i}
+              columnKey={col.key}
               onSelect={onSelectTask}
               onUpdateStatus={onUpdateStatus}
             />
@@ -246,6 +318,7 @@ interface KanbanBoardProps {
   tasks: GobbyTask[]
   onSelectTask: (id: string) => void
   onUpdateStatus?: (taskId: string, newStatus: string) => void
+  onReorder?: (taskId: string, newOrder: number) => void
 }
 
 function groupByColumn(tasks: GobbyTask[]): Map<string, GobbyTask[]> {
@@ -262,34 +335,108 @@ function groupByColumn(tasks: GobbyTask[]): Map<string, GobbyTask[]> {
   return grouped
 }
 
-export function KanbanBoard({ tasks, onSelectTask, onUpdateStatus }: KanbanBoardProps) {
+export function KanbanBoard({ tasks, onSelectTask, onUpdateStatus, onReorder }: KanbanBoardProps) {
   const [swimlaneMode, setSwimlaneMode] = useState<SwimlaneModeType>('none')
   const [collapsedLanes, setCollapsedLanes] = useState<Set<string>>(new Set())
 
+  // Ensure all tasks have a sequence_order for sorting
+  const orderedTasks = useMemo(() => ensureOrders(tasks), [tasks])
+
+  // Build a lookup from column key → sorted task list (for order calculations)
+  const columnTasksRef = useRef<Map<string, GobbyTask[]>>(new Map())
+  useEffect(() => {
+    const grouped = groupByColumn(orderedTasks)
+    for (const [key, list] of grouped) {
+      grouped.set(key, sortByOrder(list))
+    }
+    columnTasksRef.current = grouped
+  }, [orderedTasks])
+
+  // Handle reorder within column
+  const handleReorder = useCallback(
+    (taskId: string, targetColumnKey: string, insertIndex: number) => {
+      if (!onReorder) return
+      const colTasks = columnTasksRef.current.get(targetColumnKey) || []
+      // Remove the dragged task from the list to get clean neighbors
+      const filtered = colTasks.filter(t => t.id !== taskId)
+
+      let newOrder: number
+      if (filtered.length === 0) {
+        newOrder = ORDER_GAP
+      } else if (insertIndex <= 0) {
+        // Before first
+        newOrder = orderBetween(null, filtered[0].sequence_order)
+      } else if (insertIndex >= filtered.length) {
+        // After last
+        newOrder = orderBetween(filtered[filtered.length - 1].sequence_order, null)
+      } else {
+        // Between two
+        newOrder = orderBetween(
+          filtered[insertIndex - 1].sequence_order,
+          filtered[insertIndex].sequence_order
+        )
+      }
+
+      onReorder(taskId, newOrder)
+    },
+    [onReorder]
+  )
+
   // Monitor for drops globally
   useEffect(() => {
-    if (!onUpdateStatus) return
     return monitorForElements({
       canMonitor: ({ source }) => source.data.type === 'kanban-card',
       onDrop: ({ source, location }) => {
         const dropTargets = location.current.dropTargets
         if (dropTargets.length === 0) return
 
-        const target = dropTargets[0]
-        if (target.data.type !== 'kanban-column') return
-
         const taskId = source.data.taskId as string
         const currentStatus = source.data.currentStatus as string
-        const targetStatus = target.data.targetStatus as string
 
-        if (currentStatus !== targetStatus) {
-          onUpdateStatus(taskId, targetStatus)
+        // Check if innermost target is a card (reorder within column)
+        const innermost = dropTargets[0]
+        if (innermost.data.type === 'kanban-card-target') {
+          const targetColumnKey = innermost.data.columnKey as string
+          const targetIndex = innermost.data.index as number
+          const edge = innermost.data.edge as string
+
+          // Find the column drop target for status change
+          const columnTarget = dropTargets.find(t => t.data.type === 'kanban-column')
+          const targetStatus = columnTarget?.data.targetStatus as string | undefined
+
+          // If cross-column, update status first
+          if (targetStatus && currentStatus !== targetStatus && onUpdateStatus) {
+            onUpdateStatus(taskId, targetStatus)
+          }
+
+          // Compute insert index based on edge
+          const insertIndex = edge === 'top' ? targetIndex : targetIndex + 1
+          handleReorder(taskId, targetColumnKey, insertIndex)
+          return
+        }
+
+        // Fallback: column-level drop (status change only, append to end)
+        if (innermost.data.type === 'kanban-column') {
+          const targetStatus = innermost.data.targetStatus as string
+          if (currentStatus !== targetStatus && onUpdateStatus) {
+            onUpdateStatus(taskId, targetStatus)
+          }
+          // Place at end of target column
+          if (onReorder) {
+            const targetColumnKey = innermost.data.columnKey as string
+            const colTasks = columnTasksRef.current.get(targetColumnKey) || []
+            const filtered = colTasks.filter(t => t.id !== taskId)
+            const lastOrder = filtered.length > 0
+              ? filtered[filtered.length - 1].sequence_order ?? ORDER_GAP
+              : 0
+            onReorder(taskId, lastOrder + ORDER_GAP)
+          }
         }
       },
     })
-  }, [onUpdateStatus])
+  }, [onUpdateStatus, onReorder, handleReorder])
 
-  const swimlanes = useMemo(() => groupIntoSwimlanes(tasks, swimlaneMode), [tasks, swimlaneMode])
+  const swimlanes = useMemo(() => groupIntoSwimlanes(orderedTasks, swimlaneMode), [orderedTasks, swimlaneMode])
 
   const toggleLane = (key: string) => {
     setCollapsedLanes(prev => {

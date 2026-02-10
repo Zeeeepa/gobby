@@ -255,6 +255,7 @@ export function TasksPage() {
           tasks={tasks}
           onSelectTask={setSelectedTaskId}
           onUpdateStatus={(taskId, newStatus) => updateTask(taskId, { status: newStatus })}
+          onReorder={(taskId, newOrder) => updateTask(taskId, { sequence_order: newOrder })}
         />
       ) : viewMode === 'tree' ? (
         <TaskTree tasks={tasks} onSelectTask={setSelectedTaskId} />
