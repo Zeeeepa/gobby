@@ -4,6 +4,7 @@ import type { GobbyTask } from '../../hooks/useTasks'
 import { StatusDot, PriorityBadge, TypeBadge, BlockedIndicator, PRIORITY_STYLES } from './TaskBadges'
 import { TaskStatusStrip } from './TaskStatusStrip'
 import { classifyTaskRisk, RiskBadge } from './RiskBadges'
+import { ActivityPulse } from './ActivityPulse'
 
 // =============================================================================
 // Column definitions: map 8 statuses → 6 columns
@@ -218,6 +219,7 @@ function KanbanCard({ task, index, columnKey, onSelect, onUpdateStatus }: Kanban
     >
       <div className="kanban-card-header">
         <span className="kanban-card-ref">{task.ref}</span>
+        <ActivityPulse task={task} compact />
         {isBlocked ? <BlockedIndicator /> : <PriorityBadge priority={task.priority} />}
       </div>
       <div className="kanban-card-title">{task.title}</div>
