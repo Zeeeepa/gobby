@@ -1,6 +1,6 @@
 # Moat Tasks
 
-**Total**: 14 | **To Do**: 1 | **Doing**: 0 | **Done**: 13
+**Total**: 14 | **To Do**: 0 | **Doing**: 0 | **Done**: 14
 
 ## Tasks
 
@@ -17,9 +17,9 @@
 11. [x] Freeform Rectangle Task – "Need to 1.5x the size of the icons above the text input, ..." `freeform`
 12. [x] Freeform Rectangle Task – "instead of a dot, change this back to Connected (green) o..." `freeform`
 13. [x] Freeform Rectangle Task – "why isn't the gobby repo showing up here? why is moltbot ..." `freeform`
-14. [ ] Freeform Rectangle Task – "This is the Terminals page, not Sessions. We haven't buil..." `freeform`
+14. [x] Freeform Rectangle Task – "This is the Terminals page, not Sessions. We haven't buil..." `freeform`
 
 ---
 
-_Generated: 2/9/2026, 8:16:35 PM_
+_Generated: 2/9/2026, 8:20:53 PM_
 _Source: moat-tasks-detail.json_

@@ -49,7 +49,7 @@ export function TerminalsPage({
   }, [attachSession])
 
   const handleKill = useCallback((sessionName: string, socket: string) => {
-    if (!window.confirm(`Kill session "${sessionName}"?`)) return
+    if (!window.confirm(`Kill terminal "${sessionName}"?`)) return
     killSession(sessionName, socket)
     setIsInteractive(false)
   }, [killSession])
@@ -62,7 +62,7 @@ export function TerminalsPage({
       {/* Sidebar */}
       <div className={`terminals-sidebar ${sidebarOpen ? '' : 'collapsed'}`}>
         <div className="terminals-sidebar-header">
-          <span className="terminals-sidebar-title">Sessions</span>
+          <span className="terminals-sidebar-title">Terminals</span>
           <div className="terminals-sidebar-actions">
             <button
               className="terminals-action-btn"
@@ -75,7 +75,7 @@ export function TerminalsPage({
             <button
               className="terminals-action-btn"
               onClick={() => createSession()}
-              title="New session"
+              title="New terminal"
             >
               <PlusIcon />
             </button>
@@ -92,13 +92,13 @@ export function TerminalsPage({
           <div className="terminals-session-list">
             {sessions.length === 0 && (
               <div className="terminals-empty-sidebar">
-                No tmux sessions found
+                No tmux terminals found
               </div>
             )}
 
             {defaultSessions.length > 0 && (
               <SessionGroup
-                label="Your Sessions"
+                label="Your Terminals"
                 sessions={defaultSessions}
                 attachedSession={attachedSession}
                 streamingId={streamingId}
@@ -108,7 +108,7 @@ export function TerminalsPage({
 
             {gobbySessions.length > 0 && (
               <SessionGroup
-                label="Agent Sessions"
+                label="Agent Terminals"
                 sessions={gobbySessions}
                 attachedSession={attachedSession}
                 streamingId={streamingId}
@@ -139,13 +139,13 @@ export function TerminalsPage({
         ) : (
           <div className="terminals-empty">
             <TerminalIcon size={48} />
-            <h3>No session attached</h3>
-            <p>Select a session from the sidebar or create a new one.</p>
+            <h3>No terminal attached</h3>
+            <p>Select a terminal from the sidebar or create a new one.</p>
             <button
               className="terminals-create-btn"
               onClick={() => createSession()}
             >
-              <PlusIcon /> Create Session
+              <PlusIcon /> Create Terminal
             </button>
           </div>
         )}
@@ -384,7 +384,7 @@ function TerminalView({ streamingId, sessionName, isInteractive, onSetInteractiv
               Attach
             </button>
           )}
-          <button className="terminals-kill-btn" onClick={onKill} title="Kill session">
+          <button className="terminals-kill-btn" onClick={onKill} title="Kill terminal">
             <TrashIcon />
           </button>
         </div>
