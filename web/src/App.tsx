@@ -29,11 +29,12 @@ export default function App() {
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null)
 
-  // Build project options for the selector (exclude system projects)
+  // Build project options for the selector (exclude internal system projects)
+  const HIDDEN_PROJECTS = new Set(['_orphaned', '_migrated'])
   const projectOptions = useMemo(
     () => sessionsHook.projects
-      .filter((p) => !p.name.startsWith('_'))
-      .map((p) => ({ id: p.id, name: p.name })),
+      .filter((p) => !HIDDEN_PROJECTS.has(p.name))
+      .map((p) => ({ id: p.id, name: p.name === '_personal' ? 'Personal' : p.name })),
     [sessionsHook.projects]
   )
 
