@@ -128,6 +128,12 @@ def create_expansion_registry(ctx: RegistryContext) -> InternalToolRegistry:
         except (TaskNotFoundError, ValueError) as e:
             return {"error": f"Task not found: {e}"}
 
+        # Resolve session ref (#N -> UUID)
+        try:
+            resolved_session_id = ctx.resolve_session_id(session_id)
+        except (ValueError, LookupError) as e:
+            return {"error": f"Session not found: {e}"}
+
         # Get task and check for pending spec
         task = ctx.task_manager.get_task(resolved_id)
         if not task:
@@ -166,7 +172,7 @@ def create_expansion_registry(ctx: RegistryContext) -> InternalToolRegistry:
                     parent_task_id=resolved_id,
                     category=subtask.get("category"),
                     validation_criteria=subtask.get("validation"),
-                    created_in_session_id=session_id,
+                    created_in_session_id=resolved_session_id,
                 )
 
                 # Get the task (create_task_with_decomposition returns dict with task dict)
