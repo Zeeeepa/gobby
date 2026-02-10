@@ -128,8 +128,6 @@ export default function App() {
           >
             <HamburgerIcon />
           </button>
-          <img src="/logo.png" alt="Gobby logo" className="header-logo" />
-          <h1>Gobby</h1>
         </div>
         <div className="header-actions">
           <span className={`status ${isConnected ? 'connected' : 'disconnected'}`}>

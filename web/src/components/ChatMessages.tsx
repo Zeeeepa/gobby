@@ -39,7 +39,10 @@ export function ChatMessages({ messages, isStreaming = false, isThinking = false
           {isThinking && (messages.length === 0 || messages[messages.length - 1].role === 'user') && (
             <div className="message message-assistant">
               <div className="message-header">
-                <span className="message-role">Gobby</span>
+                <span className="message-role">
+                  <img src="/logo.png" alt="" className="message-role-logo" />
+                  Gobby
+                </span>
               </div>
               <div className="thinking-indicator">
                 <span className="thinking-spinner" />

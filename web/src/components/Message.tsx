@@ -46,6 +46,9 @@ export function Message({
     >
       <div className="message-header">
         <span className="message-role">
+          {message.role === "assistant" && (
+            <img src="/logo.png" alt="" className="message-role-logo" />
+          )}
           {message.role === "user"
             ? "You"
             : message.role === "assistant"
