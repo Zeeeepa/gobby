@@ -480,81 +480,81 @@
     }
   },
   {
-    "id": "db8b708b-5fd5-4fc2-99f7-5442af17398c",
+    "id": "f824e760-82d5-4cb2-a59b-32df938d3e60",
     "title": "Freeform Rectangle Task",
-    "comment": "Need to build out the file browser.",
+    "comment": "why isn't the gobby repo showing up here? why is moltbot (which is empty, stale git reference?)",
     "selector": "freeform",
     "boundingRect": {
-      "x": 5,
-      "y": 7,
-      "w": 606,
-      "h": 568
+      "x": 2,
+      "y": 6,
+      "w": 366,
+      "h": 315
     },
-    "screenshotPath": "./screenshots/moat-1770678493740-m8nf41um3.png",
-    "status": "to do",
-    "timestamp": 1770678493750,
+    "screenshotPath": "./screenshots/moat-1770689513574-vylapug7h.png",
+    "status": "done",
+    "timestamp": 1770689513587,
     "boundingBox": {
       "xyxy": {
-        "x1": 5,
-        "y1": 7,
-        "x2": 611,
-        "y2": 575
+        "x1": 2,
+        "y1": 6,
+        "x2": 368,
+        "y2": 321
       },
       "xywh": {
-        "x": 5,
-        "y": 7,
-        "width": 606,
-        "height": 568
+        "x": 2,
+        "y": 6,
+        "width": 366,
+        "height": 315
       },
       "normalized": {
-        "x": 0.006802721088435374,
-        "y": 0.00842358604091456,
-        "width": 0.8244897959183674,
-        "height": 0.6835138387484958
+        "x": 0.0022271714922048997,
+        "y": 0.007761966364812419,
+        "width": 0.40757238307349664,
+        "height": 0.407503234152652
       },
       "viewport": {
-        "width": 735,
-        "height": 831
+        "width": 898,
+        "height": 773
       },
       "type": "freeform"
     }
   },
   {
-    "id": "0d40f654-6268-4f50-a4c2-43a33a69718d",
+    "id": "b9b43751-6f8f-458a-be42-1d59b2d8ab1d",
     "title": "Freeform Rectangle Task",
-    "comment": "Instead of a top list of tabs, put a three line button to the right of Gobby. Clicking that opens a sidebar menu with these elements.",
+    "comment": "This is the Terminals page, not Sessions. We haven't built Sessions yet. Change the naming.",
     "selector": "freeform",
     "boundingRect": {
       "x": 0,
-      "y": 1,
-      "w": 487,
-      "h": 458
+      "y": 3,
+      "w": 1224,
+      "h": 776
     },
-    "screenshotPath": "./screenshots/moat-1770678630683-rqd5alg6i.png",
+    "screenshotPath": "./screenshots/moat-1770689627209-ddd7ob1l7.png",
     "status": "to do",
-    "timestamp": 1770678630698,
+    "timestamp": 1770689627220,
     "boundingBox": {
       "xyxy": {
         "x1": 0,
-        "y1": 1,
-        "x2": 487,
-        "y2": 459
+        "y1": 3,
+        "x2": 1224,
+        "y2": 779
       },
       "xywh": {
         "x": 0,
-        "y": 1,
-        "width": 487,
-        "height": 458
+        "y": 3,
+        "width": 1224,
+        "height": 776
       },
       "normalized": {
         "x": 0,
-        "y": 0.0012033694344163659,
-        "width": 0.6625850340136055,
-        "height": 0.5511432009626955
+        "y": 0.0027752081406105457,
+        "width": 0.9863013698630136,
+        "height": 0.7178538390379279
       },
       "viewport": {
-        "width": 735,
-        "height": 831
+        "width": 1241,
+        "height": 1081
       },
       "type": "freeform"
     }

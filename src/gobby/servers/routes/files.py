@@ -177,7 +177,7 @@ def create_files_router(server: "HTTPServer") -> APIRouter:
                 "repo_path": p.repo_path,
             }
             for p in projects
-            if p.repo_path  # Only projects with a local path
+            if p.repo_path and Path(p.repo_path).is_dir()
         ]
 
     @router.get("/tree")

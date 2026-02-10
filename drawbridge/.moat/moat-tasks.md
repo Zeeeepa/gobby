@@ -1,6 +1,6 @@
 # Moat Tasks
 
-**Total**: 14 | **To Do**: 2 | **Doing**: 0 | **Done**: 12
+**Total**: 14 | **To Do**: 1 | **Doing**: 0 | **Done**: 13
 
 ## Tasks
 
@@ -16,10 +16,10 @@
 10. [x] Freeform Rectangle Task – "Need more padding around terminal panel. Need to change t..." `freeform`
 11. [x] Freeform Rectangle Task – "Need to 1.5x the size of the icons above the text input, ..." `freeform`
 12. [x] Freeform Rectangle Task – "instead of a dot, change this back to Connected (green) o..." `freeform`
-13. [ ] Freeform Rectangle Task – "Need to build out the file browser." `freeform`
-14. [ ] Freeform Rectangle Task – "Instead of a top list of tabs, put a three line button to..." `freeform`
+13. [x] Freeform Rectangle Task – "why isn't the gobby repo showing up here? why is moltbot ..." `freeform`
+14. [ ] Freeform Rectangle Task – "This is the Terminals page, not Sessions. We haven't buil..." `freeform`
 
 ---
 
-_Generated: 2/9/2026, 5:22:55 PM_
+_Generated: 2/9/2026, 8:16:35 PM_
 _Source: moat-tasks-detail.json_
