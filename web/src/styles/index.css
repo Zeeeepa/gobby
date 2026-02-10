@@ -5403,6 +5403,12 @@ body {
   margin-top: 0.1rem;
 }
 
+/* Blocked cards */
+.kanban-card--blocked {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
 /* Drag states */
 .kanban-card--dragging {
   opacity: 0.4;

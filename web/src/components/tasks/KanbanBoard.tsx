@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { draggable, dropTargetForElements, monitorForElements } from '@atlaskit/pragmatic-drag-and-drop/element/adapter'
 import type { GobbyTask } from '../../hooks/useTasks'
-import { StatusDot, PriorityBadge, TypeBadge, PRIORITY_STYLES } from './TaskBadges'
+import { StatusDot, PriorityBadge, TypeBadge, BlockedIndicator, PRIORITY_STYLES } from './TaskBadges'
 
 // =============================================================================
 // Column definitions: map 8 statuses → 6 columns
@@ -28,32 +28,41 @@ const COLUMNS: KanbanColumnDef[] = [
 // KanbanCard (draggable)
 // =============================================================================
 
+const BLOCKED_STATUSES = new Set(['failed', 'escalated'])
+
 function KanbanCard({ task, onSelect }: { task: GobbyTask; onSelect: (id: string) => void }) {
   const ref = useRef<HTMLButtonElement | null>(null)
   const [isDragging, setIsDragging] = useState(false)
   const priorityColor = (PRIORITY_STYLES[task.priority] || PRIORITY_STYLES[2]).color
+  const isBlocked = BLOCKED_STATUSES.has(task.status)
 
   useEffect(() => {
     const el = ref.current
-    if (!el) return
+    if (!el || isBlocked) return
     return draggable({
       element: el,
       getInitialData: () => ({ type: 'kanban-card', taskId: task.id, currentStatus: task.status }),
       onDragStart: () => setIsDragging(true),
       onDrop: () => setIsDragging(false),
     })
-  }, [task.id, task.status])
+  }, [task.id, task.status, isBlocked])
+
+  const classes = [
+    'kanban-card',
+    isDragging ? 'kanban-card--dragging' : '',
+    isBlocked ? 'kanban-card--blocked' : '',
+  ].filter(Boolean).join(' ')
 
   return (
     <button
       ref={ref}
-      className={`kanban-card ${isDragging ? 'kanban-card--dragging' : ''}`}
+      className={classes}
       onClick={() => onSelect(task.id)}
       style={{ borderLeftColor: priorityColor }}
     >
       <div className="kanban-card-header">
         <span className="kanban-card-ref">{task.ref}</span>
-        <PriorityBadge priority={task.priority} />
+        {isBlocked ? <BlockedIndicator /> : <PriorityBadge priority={task.priority} />}
       </div>
       <div className="kanban-card-title">{task.title}</div>
       <div className="kanban-card-footer">
