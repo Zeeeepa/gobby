@@ -146,6 +146,7 @@ class HTTPServer:
                 pipeline_executor=services.pipeline_executor,
                 workflow_loader=services.workflow_loader,
                 pipeline_execution_manager=services.pipeline_execution_manager,
+                hook_manager_resolver=lambda: getattr(self, "_hook_manager", None),
             )
             registry_count = len(self._internal_manager)
             logger.debug(f"Internal registries initialized: {registry_count} registries")
@@ -373,6 +374,7 @@ class HTTPServer:
                 hook_manager_kwargs["log_backup_count"] = self.services.config.logging.backup_count
 
                 app.state.hook_manager = HookManager(**hook_manager_kwargs)
+                self._hook_manager = app.state.hook_manager
             logger.debug("HookManager initialized in daemon")
 
             # Wire up stop_registry to WebSocket server for stop_request handling

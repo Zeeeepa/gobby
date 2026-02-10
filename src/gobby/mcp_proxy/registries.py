@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import logging
 from collections.abc import Callable
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from gobby.mcp_proxy.tools.internal import InternalRegistryManager
 
@@ -59,6 +59,7 @@ def setup_internal_registries(
     pipeline_executor: PipelineExecutor | None = None,
     workflow_loader: WorkflowLoader | None = None,
     pipeline_execution_manager: LocalPipelineExecutionManager | None = None,
+    hook_manager_resolver: Callable[[], Any] | None = None,
 ) -> InternalRegistryManager:
     """
     Setup internal MCP registries (tasks, messages, memory, metrics, agents, worktrees).
@@ -87,6 +88,8 @@ def setup_internal_registries(
         pipeline_executor: Pipeline executor for running pipelines
         workflow_loader: Workflow loader for loading pipeline definitions
         pipeline_execution_manager: Pipeline execution manager for tracking executions
+        hook_manager_resolver: Lazy callable returning HookManager (or None).
+            Solves timing: registries init before HookManager is created in HTTP lifespan.
 
     Returns:
         InternalRegistryManager containing all registries
@@ -364,6 +367,16 @@ def setup_internal_registries(
         )
         manager.add_registry(pipelines_registry)
         logger.debug("Pipelines registry initialized")
+
+    # Initialize plugins registry if hook_manager_resolver is provided
+    if hook_manager_resolver is not None:
+        from gobby.mcp_proxy.tools.plugins import create_plugins_registry
+
+        plugins_registry = create_plugins_registry(
+            hook_manager_resolver=hook_manager_resolver,
+        )
+        manager.add_registry(plugins_registry)
+        logger.debug("Plugins registry initialized")
 
     logger.info(f"Internal registries initialized: {len(manager)} registries")
     return manager
