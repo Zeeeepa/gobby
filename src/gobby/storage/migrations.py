@@ -34,7 +34,7 @@ MigrationAction = str | Callable[[LocalDatabase], None]
 # Baseline version - the schema state at v81 (flattened)
 # This is applied for new databases directly
 # Note: Migrations >= BASELINE_VERSION still run for existing databases
-BASELINE_VERSION = 84
+BASELINE_VERSION = 81
 
 # Baseline schema - flattened from v81 production state, includes all migrations
 # This is applied for new databases directly
@@ -52,7 +52,6 @@ CREATE TABLE projects (
     github_url TEXT,
     github_repo TEXT,
     linear_team_id TEXT,
-    deleted_at TEXT,
     created_at TEXT NOT NULL DEFAULT (datetime('now')),
     updated_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
@@ -63,8 +62,6 @@ INSERT INTO projects (id, name, repo_path, created_at, updated_at)
 VALUES ('00000000-0000-0000-0000-000000000000', '_orphaned', NULL, datetime('now'), datetime('now'));
 INSERT INTO projects (id, name, repo_path, created_at, updated_at)
 VALUES ('00000000-0000-0000-0000-000000000001', '_migrated', NULL, datetime('now'), datetime('now'));
-INSERT INTO projects (id, name, repo_path, created_at, updated_at)
-VALUES ('00000000-0000-0000-0000-000000060887', '_personal', NULL, datetime('now'), datetime('now'));
 
 CREATE TABLE mcp_servers (
     id TEXT PRIMARY KEY,
