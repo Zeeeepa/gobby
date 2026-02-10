@@ -20,7 +20,7 @@ def db(tmp_path):
 
 @pytest.fixture
 def memory_manager(db):
-    config = MemoryConfig()
+    config = MemoryConfig(search_backend="tfidf")
     return MemoryManager(db, config)
 
 
