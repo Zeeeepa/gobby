@@ -1,0 +1,353 @@
+name: qa-reviewer
+description: |
+  QA reviewer workflow: review → fix → verify → commit → approve → shutdown.
+  QA marks task approved — the coordinator closes it after merge.
+
+version: "1.0"
+type: step
+
+variables:
+  assigned_task_id: null
+  task_claimed: false
+  review_approved: false
+  issues_found: false
+  verified: false
+  committed: false
+  task_approved: false
+  parent_notified: false
+
+steps:
+  - name: claim_task
+    description: "Re-claim task with force (developer had it)"
+    on_enter:
+      - action: call_mcp_tool
+        server_name: gobby-tasks
+        tool_name: claim_task
+        arguments:
+          task_id: "{{ variables.assigned_task_id }}"
+          session_id: "{{ session_id }}"
+          force: true
+        output_as: _claim_result
+      - action: call_mcp_tool
+        server_name: gobby-tasks
+        tool_name: get_task
+        arguments:
+          task_id: "{{ variables.assigned_task_id }}"
+        output_as: _task_details
+      - action: inject_message
+        content: |
+          QA REVIEWER: Task claimed for review.
+
+          Task: {{ variables.assigned_task_id }}
+          Task details have been loaded. Proceeding to code review.
+
+    allowed_tools:
+      - mcp__gobby__call_tool
+      - mcp__gobby__get_tool_schema
+      - mcp__gobby__list_tools
+      - mcp__gobby__list_mcp_servers
+      - mcp__gobby__search_tools
+
+    allowed_mcp_tools:
+      - gobby-tasks:claim_task
+      - gobby-tasks:get_task
+
+    on_mcp_success:
+      - server: gobby-tasks
+        tool: claim_task
+        action: set_variable
+        variable: task_claimed
+        value: true
+
+    transitions:
+      - to: review
+        when: "task_claimed"
+
+  - name: review
+    description: "Read-only code review"
+    on_enter:
+      - action: inject_message
+        content: |
+          QA REVIEWER: REVIEW PHASE — Read-only code review.
+
+          Review the code changes for task {{ variables.assigned_task_id }}:
+
+          Checklist:
+          1. Check the diff against the target branch (git diff, git log)
+          2. Verify test coverage — are there tests for the changes?
+          3. Check for security issues (injection, XSS, etc.)
+          4. Check code style and conventions
+          5. Verify commit messages follow project format
+
+          If no issues found:
+            set_workflow_variable("review_approved", true)
+
+          If issues found:
+            set_workflow_variable("issues_found", true)
+
+    allowed_tools:
+      - Bash
+      - Read
+      - Glob
+      - Grep
+      - mcp__gobby__call_tool
+      - mcp__gobby__get_tool_schema
+      - mcp__gobby__list_tools
+      - mcp__gobby__list_mcp_servers
+      - mcp__gobby__search_tools
+
+    blocked_tools:
+      - Edit
+      - Write
+      - NotebookEdit
+
+    blocked_mcp_tools:
+      - gobby-agents:spawn_agent
+      - gobby-tasks:create_task
+      - gobby-tasks:close_task
+      - gobby-tasks:approve_task
+
+    blocked_commands:
+      - pattern: "git push"
+        reason: "Push is blocked. The parent orchestrator handles merging."
+      - pattern: "git push *"
+        reason: "Push is blocked. The parent orchestrator handles merging."
+
+    transitions:
+      - to: approve
+        when: "review_approved"
+      - to: fix
+        when: "issues_found"
+
+  - name: fix
+    description: "Write access to fix issues"
+    on_enter:
+      - action: inject_message
+        content: |
+          QA REVIEWER: FIX PHASE — Fix issues found during review.
+
+          Fix the issues identified during code review.
+          Run tests after each fix to ensure nothing breaks.
+
+          When all fixes are applied, proceed to verify:
+            set_workflow_variable("issues_found", false)
+
+    allowed_tools: all
+
+    blocked_mcp_tools:
+      - gobby-agents:spawn_agent
+      - gobby-tasks:create_task
+      - gobby-tasks:close_task
+      - gobby-tasks:approve_task
+
+    blocked_commands:
+      - pattern: "git push"
+        reason: "Push is blocked. The parent orchestrator handles merging."
+      - pattern: "git push *"
+        reason: "Push is blocked. The parent orchestrator handles merging."
+
+    transitions:
+      - to: verify
+        when: "not issues_found"
+
+  - name: verify
+    description: "Run tests. Confirm fixes."
+    on_enter:
+      - action: inject_message
+        content: |
+          QA REVIEWER: VERIFY PHASE — Run tests to confirm fixes.
+
+          Run the test suite to verify all fixes work correctly.
+
+          If tests pass:
+            set_workflow_variable("verified", true)
+
+          If tests fail, go back to fix:
+            set_workflow_variable("issues_found", true)
+
+    allowed_tools:
+      - Bash
+      - Read
+      - Glob
+      - Grep
+      - mcp__gobby__call_tool
+      - mcp__gobby__get_tool_schema
+      - mcp__gobby__list_tools
+      - mcp__gobby__list_mcp_servers
+      - mcp__gobby__search_tools
+
+    blocked_tools:
+      - Edit
+      - Write
+
+    blocked_commands:
+      - pattern: "git push"
+        reason: "Push is blocked. The parent orchestrator handles merging."
+      - pattern: "git push *"
+        reason: "Push is blocked. The parent orchestrator handles merging."
+
+    transitions:
+      - to: commit
+        when: "verified"
+      - to: fix
+        when: "issues_found"
+
+  - name: commit
+    description: "Commit QA fixes"
+    on_enter:
+      - action: inject_message
+        content: |
+          QA REVIEWER: COMMIT PHASE — Commit your fixes.
+
+          1. Stage your changes: git add <files>
+          2. Commit with format: git commit -m "[{{ project.name }}-{{ variables.assigned_task_id }}] QA: description"
+          3. Then set: set_workflow_variable("committed", true)
+
+          If you made no changes (review approved without fixes), just set committed to true.
+
+    allowed_tools:
+      - Bash
+      - Read
+      - mcp__gobby__call_tool
+      - mcp__gobby__get_tool_schema
+      - mcp__gobby__list_tools
+      - mcp__gobby__list_mcp_servers
+      - mcp__gobby__search_tools
+
+    blocked_tools:
+      - Edit
+      - Write
+
+    blocked_commands:
+      - pattern: "git push"
+        reason: "Push is blocked. The parent orchestrator handles merging."
+      - pattern: "git push *"
+        reason: "Push is blocked. The parent orchestrator handles merging."
+
+    transitions:
+      - to: approve
+        when: "committed"
+
+  - name: approve
+    description: "Mark task approved"
+    on_enter:
+      - action: inject_message
+        content: |
+          QA REVIEWER: APPROVE PHASE — Mark task as approved.
+
+          Call approve_task to sign off on this task:
+          - server_name: "gobby-tasks"
+          - tool_name: "approve_task"
+          - arguments: {"task_id": "{{ variables.assigned_task_id }}", "session_id": "{{ session_id }}"}
+
+    allowed_tools:
+      - mcp__gobby__call_tool
+      - mcp__gobby__get_tool_schema
+      - mcp__gobby__list_tools
+      - mcp__gobby__list_mcp_servers
+      - mcp__gobby__search_tools
+
+    allowed_mcp_tools:
+      - gobby-tasks:approve_task
+
+    on_mcp_success:
+      - server: gobby-tasks
+        tool: approve_task
+        action: set_variable
+        variable: task_approved
+        value: true
+
+    transitions:
+      - to: report_to_parent
+        when: "task_approved"
+
+  - name: report_to_parent
+    description: "Notify parent of completion"
+    on_enter:
+      - action: inject_message
+        content: |
+          QA REVIEWER: Reporting completion to parent.
+
+          Send a completion message to your parent session using the send_to_parent tool:
+          - server_name: "gobby-agents"
+          - tool_name: "send_to_parent"
+          - arguments: {"session_id": "{{ session_id }}", "content": "Task {{ variables.assigned_task_id }} QA approved."}
+
+          If send_to_parent fails, that's okay - proceed to shutdown.
+
+    allowed_tools:
+      - mcp__gobby__call_tool
+      - mcp__gobby__get_tool_schema
+      - mcp__gobby__list_tools
+      - mcp__gobby__list_mcp_servers
+      - mcp__gobby__search_tools
+      - Read
+
+    blocked_mcp_tools:
+      - gobby-tasks:claim_task
+      - gobby-tasks:create_task
+      - gobby-workflows:end_workflow
+
+    on_mcp_success:
+      - server: gobby-agents
+        tool: send_to_parent
+        action: set_variable
+        variable: parent_notified
+        value: true
+
+    on_mcp_error:
+      - server: gobby-agents
+        tool: send_to_parent
+        action: set_variable
+        variable: parent_notified
+        value: true
+
+    transitions:
+      - to: shutdown
+        when: "mcp_called('gobby-agents', 'send_to_parent')"
+
+  - name: shutdown
+    description: "Clean shutdown - MUST call kill_agent"
+    on_enter:
+      - action: inject_message
+        content: |
+          QA REVIEWER: Shutdown sequence - MANDATORY TERMINATION
+
+          Your review is complete. You MUST now terminate by calling kill_agent.
+
+          Step 1: Unlock kill_agent by fetching its schema:
+            mcp__gobby__get_tool_schema(server_name="gobby-agents", tool_name="kill_agent")
+
+          Step 2: Call kill_agent with your Gobby Session ID:
+            mcp__gobby__call_tool(server_name="gobby-agents", tool_name="kill_agent", arguments={"session_id": "{{ session_id }}"})
+
+    allowed_tools:
+      - mcp__gobby__call_tool
+      - mcp__gobby__get_tool_schema
+      - mcp__gobby__list_tools
+      - mcp__gobby__list_mcp_servers
+      - mcp__gobby__search_tools
+
+    allowed_mcp_tools:
+      - gobby-agents:kill_agent
+
+    on_premature_stop:
+      action: block
+      message: |
+        BLOCKED: You cannot stop without calling kill_agent.
+        Call kill_agent to exit. This is the ONLY way to end this session.
+
+    transitions:
+      - to: complete
+        when: "mcp_called('gobby-agents', 'kill_agent')"
+
+  - name: complete
+    description: "QA reviewer done"
+
+exit_condition: "current_step == 'complete'"
+
+on_premature_stop:
+  action: block
+  message: |
+    Cannot stop - QA review not complete.
+    You must review, fix issues (if any), and approve the task.

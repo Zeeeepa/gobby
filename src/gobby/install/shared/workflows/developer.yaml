@@ -1,0 +1,339 @@
+name: developer
+description: |
+  TDD developer workflow: red → green → blue → reflect → commit → shutdown.
+  Developer marks task needs_review, does NOT close it.
+
+version: "1.0"
+type: step
+
+variables:
+  assigned_task_id: null
+  task_claimed: false
+  tests_written: false
+  tests_passing: false
+  refactored: false
+  reflected: false
+  committed: false
+  parent_notified: false
+
+steps:
+  - name: claim_task
+    description: "Claim the assigned task"
+    on_enter:
+      - action: call_mcp_tool
+        server_name: gobby-tasks
+        tool_name: claim_task
+        arguments:
+          task_id: "{{ variables.assigned_task_id }}"
+          session_id: "{{ session_id }}"
+        output_as: _claim_result
+      - action: call_mcp_tool
+        server_name: gobby-tasks
+        tool_name: get_task
+        arguments:
+          task_id: "{{ variables.assigned_task_id }}"
+        output_as: _task_details
+      - action: inject_message
+        content: |
+          DEVELOPER: Task claimed. Starting TDD workflow.
+
+          Task: {{ variables.assigned_task_id }}
+          Task details have been loaded. You will follow red/green/blue TDD phases.
+
+    allowed_tools:
+      - mcp__gobby__call_tool
+      - mcp__gobby__get_tool_schema
+      - mcp__gobby__list_tools
+      - mcp__gobby__list_mcp_servers
+      - mcp__gobby__search_tools
+
+    allowed_mcp_tools:
+      - gobby-tasks:claim_task
+      - gobby-tasks:get_task
+
+    on_mcp_success:
+      - server: gobby-tasks
+        tool: claim_task
+        action: set_variable
+        variable: task_claimed
+        value: true
+
+    transitions:
+      - to: red
+        when: "task_claimed"
+
+  - name: red
+    description: "Write failing tests first"
+    on_enter:
+      - action: inject_message
+        content: |
+          DEVELOPER: RED PHASE — Write failing tests.
+
+          Write tests that define the expected behavior for task {{ variables.assigned_task_id }}.
+          Tests should fail because the implementation doesn't exist yet.
+
+          Rules:
+          - Focus on test files only
+          - Run tests to confirm they fail as expected
+          - When tests are written, set tests_written variable to true:
+            set_workflow_variable("tests_written", true)
+
+    allowed_tools: all
+
+    # Block editing non-test files during red phase
+    rules:
+      - name: test_files_only
+        when: "editing_non_test_file() and not tests_exist()"
+        action: warn
+        message: "RED PHASE: Focus on writing test files first. Implementation comes in the green phase."
+
+    blocked_mcp_tools:
+      - gobby-agents:spawn_agent
+      - gobby-tasks:create_task
+      - gobby-tasks:close_task
+      - gobby-tasks:approve_task
+
+    blocked_commands:
+      - pattern: "git push"
+        reason: "Push is blocked. The parent orchestrator handles merging."
+      - pattern: "git push *"
+        reason: "Push is blocked. The parent orchestrator handles merging."
+
+    transitions:
+      - to: green
+        when: "tests_written"
+
+  - name: green
+    description: "Implement minimum code to pass tests"
+    on_enter:
+      - action: inject_message
+        content: |
+          DEVELOPER: GREEN PHASE — Make tests pass.
+
+          Write the simplest implementation to make your tests pass.
+          Do not over-engineer. Do not refactor yet.
+
+          Run tests frequently. When all tests pass:
+            set_workflow_variable("tests_passing", true)
+
+    allowed_tools: all
+
+    rules:
+      - name: run_tests_reminder
+        when: "edit_count_since_test_run() >= 3"
+        action: warn
+        message: "GREEN PHASE: You've made 3+ edits without running tests. Run tests now."
+
+    blocked_mcp_tools:
+      - gobby-agents:spawn_agent
+      - gobby-tasks:create_task
+      - gobby-tasks:close_task
+      - gobby-tasks:approve_task
+
+    blocked_commands:
+      - pattern: "git push"
+        reason: "Push is blocked. The parent orchestrator handles merging."
+      - pattern: "git push *"
+        reason: "Push is blocked. The parent orchestrator handles merging."
+
+    transitions:
+      - to: blue
+        when: "tests_passing"
+
+  - name: blue
+    description: "Refactor while keeping tests green"
+    on_enter:
+      - action: inject_message
+        content: |
+          DEVELOPER: BLUE PHASE — Refactor.
+
+          Improve code quality. Remove duplication. Tests must stay green.
+          If tests fail during refactor, fix them before proceeding.
+
+          When refactoring is done:
+            set_workflow_variable("refactored", true)
+
+    allowed_tools: all
+
+    blocked_mcp_tools:
+      - gobby-agents:spawn_agent
+      - gobby-tasks:create_task
+      - gobby-tasks:close_task
+      - gobby-tasks:approve_task
+
+    blocked_commands:
+      - pattern: "git push"
+        reason: "Push is blocked. The parent orchestrator handles merging."
+      - pattern: "git push *"
+        reason: "Push is blocked. The parent orchestrator handles merging."
+
+    transitions:
+      - to: reflect
+        when: "refactored"
+
+  - name: reflect
+    description: "Extract learnings as memories"
+    on_enter:
+      - action: inject_message
+        content: |
+          DEVELOPER: REFLECT PHASE — Save learnings.
+
+          Review what you learned during implementation. Save debugging insights,
+          API quirks, architecture decisions as memories via gobby-memory:create_memory.
+
+          Focus on insights that would save a future session time.
+          When done reflecting:
+            set_workflow_variable("reflected", true)
+
+    allowed_tools:
+      - Read
+      - Glob
+      - Grep
+      - mcp__gobby__call_tool
+      - mcp__gobby__get_tool_schema
+      - mcp__gobby__list_tools
+      - mcp__gobby__list_mcp_servers
+      - mcp__gobby__search_tools
+
+    allowed_mcp_tools:
+      - gobby-memory:create_memory
+      - gobby-memory:search_memories
+
+    transitions:
+      - to: commit
+        when: "reflected"
+
+  - name: commit
+    description: "Commit and mark needs_review"
+    on_enter:
+      - action: inject_message
+        content: |
+          DEVELOPER: COMMIT PHASE — Commit and mark for review.
+
+          1. Stage your changes: git add <files>
+          2. Commit with task reference: git commit -m "[{{ project.name }}-{{ variables.assigned_task_id }}] Description"
+          3. Mark the task for review:
+             call_tool(server_name="gobby-tasks", tool_name="mark_task_for_review",
+               arguments={"task_id": "{{ variables.assigned_task_id }}", "session_id": "{{ session_id }}"})
+          4. Then set: set_workflow_variable("committed", true)
+
+    allowed_tools:
+      - Bash
+      - Read
+      - mcp__gobby__call_tool
+      - mcp__gobby__get_tool_schema
+      - mcp__gobby__list_tools
+      - mcp__gobby__list_mcp_servers
+      - mcp__gobby__search_tools
+
+    allowed_mcp_tools:
+      - gobby-tasks:mark_task_for_review
+      - gobby-tasks:link_commit
+
+    blocked_commands:
+      - pattern: "git push"
+        reason: "Push is blocked. The parent orchestrator handles merging."
+      - pattern: "git push *"
+        reason: "Push is blocked. The parent orchestrator handles merging."
+
+    on_mcp_success:
+      - server: gobby-tasks
+        tool: mark_task_for_review
+        action: set_variable
+        variable: committed
+        value: true
+
+    transitions:
+      - to: report_to_parent
+        when: "committed"
+
+  - name: report_to_parent
+    description: "Notify parent of completion"
+    on_enter:
+      - action: inject_message
+        content: |
+          DEVELOPER: Reporting completion to parent.
+
+          Send a completion message to your parent session using the send_to_parent tool:
+          - server_name: "gobby-agents"
+          - tool_name: "send_to_parent"
+          - arguments: {"session_id": "{{ session_id }}", "content": "Task {{ variables.assigned_task_id }} development complete. Marked for review."}
+
+          If send_to_parent fails, that's okay - proceed to shutdown.
+
+    allowed_tools:
+      - mcp__gobby__call_tool
+      - mcp__gobby__get_tool_schema
+      - mcp__gobby__list_tools
+      - mcp__gobby__list_mcp_servers
+      - mcp__gobby__search_tools
+      - Read
+
+    blocked_mcp_tools:
+      - gobby-tasks:claim_task
+      - gobby-tasks:create_task
+      - gobby-workflows:end_workflow
+
+    on_mcp_success:
+      - server: gobby-agents
+        tool: send_to_parent
+        action: set_variable
+        variable: parent_notified
+        value: true
+
+    on_mcp_error:
+      - server: gobby-agents
+        tool: send_to_parent
+        action: set_variable
+        variable: parent_notified
+        value: true
+
+    transitions:
+      - to: shutdown
+        when: "mcp_called('gobby-agents', 'send_to_parent')"
+
+  - name: shutdown
+    description: "Clean shutdown - MUST call kill_agent"
+    on_enter:
+      - action: inject_message
+        content: |
+          DEVELOPER: Shutdown sequence - MANDATORY TERMINATION
+
+          Your task is complete. You MUST now terminate by calling kill_agent.
+
+          Step 1: Unlock kill_agent by fetching its schema:
+            mcp__gobby__get_tool_schema(server_name="gobby-agents", tool_name="kill_agent")
+
+          Step 2: Call kill_agent with your Gobby Session ID:
+            mcp__gobby__call_tool(server_name="gobby-agents", tool_name="kill_agent", arguments={"session_id": "{{ session_id }}"})
+
+    allowed_tools:
+      - mcp__gobby__call_tool
+      - mcp__gobby__get_tool_schema
+      - mcp__gobby__list_tools
+      - mcp__gobby__list_mcp_servers
+      - mcp__gobby__search_tools
+
+    allowed_mcp_tools:
+      - gobby-agents:kill_agent
+
+    on_premature_stop:
+      action: block
+      message: |
+        BLOCKED: You cannot stop without calling kill_agent.
+        Call kill_agent to exit. This is the ONLY way to end this session.
+
+    transitions:
+      - to: complete
+        when: "mcp_called('gobby-agents', 'kill_agent')"
+
+  - name: complete
+    description: "Developer done"
+
+exit_condition: "current_step == 'complete'"
+
+on_premature_stop:
+  action: block
+  message: |
+    Cannot stop - task not complete.
+    You must complete all TDD phases, commit, and mark for review.

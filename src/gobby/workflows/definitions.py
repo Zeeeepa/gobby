@@ -132,10 +132,18 @@ class PipelineApproval(BaseModel):
     timeout_seconds: int | None = None
 
 
+class MCPStepConfig(BaseModel):
+    """Configuration for an MCP tool call step in a pipeline."""
+
+    server: str
+    tool: str
+    arguments: dict[str, Any] | None = None
+
+
 class PipelineStep(BaseModel):
     """A single step in a pipeline workflow.
 
-    Steps must have exactly one execution type: exec, prompt, or invoke_pipeline.
+    Steps must have exactly one execution type: exec, prompt, invoke_pipeline, or mcp.
     """
 
     id: str
@@ -144,6 +152,7 @@ class PipelineStep(BaseModel):
     exec: str | None = None  # Shell command to run
     prompt: str | None = None  # LLM prompt template
     invoke_pipeline: str | None = None  # Name of pipeline to invoke
+    mcp: MCPStepConfig | None = None  # Call MCP tool directly
 
     # Optional fields
     condition: str | None = None  # Condition for step execution
@@ -153,16 +162,18 @@ class PipelineStep(BaseModel):
 
     def model_post_init(self, __context: Any) -> None:
         """Validate that exactly one execution type is specified."""
-        exec_types = [self.exec, self.prompt, self.invoke_pipeline]
+        exec_types = [self.exec, self.prompt, self.invoke_pipeline, self.mcp]
         specified = [t for t in exec_types if t is not None]
 
         if len(specified) == 0:
             raise ValueError(
-                "PipelineStep requires at least one execution type: exec, prompt, or invoke_pipeline"
+                "PipelineStep requires at least one execution type: "
+                "exec, prompt, invoke_pipeline, or mcp"
             )
         if len(specified) > 1:
             raise ValueError(
-                "PipelineStep exec, prompt, and invoke_pipeline are mutually exclusive - only one allowed"
+                "PipelineStep exec, prompt, invoke_pipeline, and mcp are mutually exclusive "
+                "- only one allowed"
             )
 
 

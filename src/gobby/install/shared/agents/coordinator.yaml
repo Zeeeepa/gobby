@@ -1,0 +1,17 @@
+name: coordinator
+description: |
+  Deterministic coordinator that orchestrates developer/QA/merge agents.
+  Uses a pipeline workflow with MCP steps — no LLM cost for coordination.
+
+  Usage:
+    spawn_agent(coordinator, task_id="#123")
+
+mode: terminal
+terminal: tmux
+provider: claude
+default_workflow: coordinator
+
+workflows:
+  coordinator:
+    file: coordinator.yaml
+    mode: self  # Pipeline activates in caller session

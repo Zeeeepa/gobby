@@ -368,6 +368,13 @@ def create_crud_registry(ctx: RegistryContext) -> InternalToolRegistry:
                 "Use mark_task_for_review(task_id, session_id='...') to properly route tasks for review."
             }
 
+        # Block approved status via update_task - must use approve_task for proper workflow
+        if status is not None and status.lower() == "approved":
+            return {
+                "error": "Cannot set status to 'approved' via update_task. "
+                "Use approve_task(task_id, session_id='...') to properly approve tasks after QA review."
+            }
+
         # Build kwargs only for non-None values to avoid overwriting with NULL
         kwargs: dict[str, Any] = {}
         if title is not None:

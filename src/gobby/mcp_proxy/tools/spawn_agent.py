@@ -137,6 +137,7 @@ async def spawn_agent_impl(
     isolation: Literal["current", "worktree", "clone"] | None = None,
     branch_name: str | None = None,
     base_branch: str | None = None,
+    clone_id: str | None = None,  # Reuse existing clone instead of creating new isolation
     # Storage/managers for isolation
     worktree_storage: Any | None = None,
     git_manager: Any | None = None,
@@ -382,14 +383,32 @@ async def spawn_agent_impl(
         except Exception as e:
             logger.warning(f"Failed to resolve task_id {task_id}: {e}")
 
-    # 5. Get isolation handler
-    handler = get_isolation_handler(
-        effective_isolation,
-        git_manager=git_manager,
-        worktree_storage=worktree_storage,
-        clone_manager=clone_manager,
-        clone_storage=clone_storage,
-    )
+    # 5. Handle clone_id reuse: skip isolation creation when an existing clone is provided
+    if clone_id and clone_storage:
+        existing_clone = clone_storage.get(clone_id)
+        if not existing_clone:
+            return {"success": False, "error": f"Clone {clone_id} not found"}
+
+        from gobby.agents.isolation import IsolationContext
+
+        isolation_ctx = IsolationContext(
+            cwd=existing_clone.clone_path,
+            branch_name=existing_clone.branch_name,
+            clone_id=existing_clone.id,
+            isolation_type="clone",
+            extra={"source_repo": resolved_project_path, "reused_clone": True},
+        )
+        # Use current isolation handler for prompt building (no-op context addition)
+        handler = get_isolation_handler("current")
+    else:
+        # Normal isolation flow
+        handler = get_isolation_handler(
+            effective_isolation,
+            git_manager=git_manager,
+            worktree_storage=worktree_storage,
+            clone_manager=clone_manager,
+            clone_storage=clone_storage,
+        )
 
     # 6. Build spawn config
     spawn_config = SpawnConfig(
@@ -406,17 +425,20 @@ async def spawn_agent_impl(
         parent_session_id=parent_session_id,
     )
 
-    # 7. Prepare environment (worktree/clone creation)
-    try:
-        isolation_ctx = await handler.prepare_environment(spawn_config)
-    except Exception as e:
-        logger.error(f"Failed to prepare environment: {e}", exc_info=True)
-        # Clean up any partially created resources (worktree/clone on disk, storage records)
+    # 7. Prepare environment (worktree/clone creation) — skipped if clone_id was reused
+    if clone_id and clone_storage:
+        pass  # Already have isolation_ctx from clone lookup above
+    else:
         try:
-            await handler.cleanup_environment(spawn_config)
-        except Exception as cleanup_err:
-            logger.warning(f"Cleanup after prepare failure also failed: {cleanup_err}")
-        return {"success": False, "error": f"Failed to prepare environment: {e}"}
+            isolation_ctx = await handler.prepare_environment(spawn_config)
+        except Exception as e:
+            logger.error(f"Failed to prepare environment: {e}", exc_info=True)
+            # Clean up any partially created resources (worktree/clone on disk, storage records)
+            try:
+                await handler.cleanup_environment(spawn_config)
+            except Exception as cleanup_err:
+                logger.warning(f"Cleanup after prepare failure also failed: {cleanup_err}")
+            return {"success": False, "error": f"Failed to prepare environment: {e}"}
 
     # 7b. Add main repo path to sandbox read AND write paths for worktree isolation
     # Git operations in worktrees require read/write access to the main repo's .git directory
@@ -612,6 +634,7 @@ def create_spawn_agent_registry(
         isolation: Literal["current", "worktree", "clone"] | None = None,
         branch_name: str | None = None,
         base_branch: str | None = None,
+        clone_id: str | None = None,
         # Execution
         workflow: str | None = None,
         mode: Literal["terminal", "embedded", "headless", "self"] | None = None,
@@ -847,6 +870,7 @@ def create_spawn_agent_registry(
             isolation=isolation,
             branch_name=branch_name,
             base_branch=base_branch,
+            clone_id=clone_id,
             worktree_storage=worktree_storage,
             git_manager=git_manager,
             clone_storage=clone_storage,

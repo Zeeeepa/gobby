@@ -50,6 +50,7 @@ class PipelineExecutor:
         webhook_notifier: Any | None = None,
         loader: Any | None = None,
         event_callback: PipelineEventCallback | None = None,
+        tool_proxy_getter: Any | None = None,
     ):
         """Initialize the pipeline executor.
 
@@ -62,6 +63,7 @@ class PipelineExecutor:
             loader: Optional workflow loader for nested pipelines
             event_callback: Optional async callback for broadcasting events.
                            Signature: async def callback(event: str, execution_id: str, **kwargs)
+            tool_proxy_getter: Optional callable returning ToolProxyService for MCP steps
         """
         self.db = db
         self.execution_manager = execution_manager
@@ -70,6 +72,7 @@ class PipelineExecutor:
         self.webhook_notifier = webhook_notifier
         self.loader = loader
         self.event_callback = event_callback
+        self.tool_proxy_getter = tool_proxy_getter
 
     async def _emit_event(self, event: str, execution_id: str, **kwargs: Any) -> None:
         """Emit a pipeline event via the callback if configured.
@@ -317,6 +320,9 @@ class PipelineExecutor:
             return await self._execute_nested_pipeline(
                 rendered_step.invoke_pipeline, context, project_id
             )
+        elif step.mcp:
+            # Execute MCP tool call
+            return await self._execute_mcp_step(rendered_step, context)
         else:
             logger.warning(f"Step {step.id} has no action defined")
             return None
@@ -360,8 +366,53 @@ class PipelineExecutor:
 
             return template_engine.render(jinja_template, render_context)
 
+        def _coerce_value(value: str) -> Any:
+            """Auto-coerce rendered string values to native types.
+
+            After template rendering, values like "${{ inputs.timeout }}" become "600" (string).
+            MCP tools expect native types, so coerce: "600" → 600, "true" → True, etc.
+            """
+            if not isinstance(value, str):
+                return value
+            # Boolean
+            if value.lower() == "true":
+                return True
+            if value.lower() == "false":
+                return False
+            # Null
+            if value.lower() in ("null", "none", ""):
+                return None
+            # Integer
+            try:
+                return int(value)
+            except ValueError:
+                pass
+            # Float
+            try:
+                return float(value)
+            except ValueError:
+                pass
+            return value
+
+        def render_mcp_arguments(args: dict[str, Any]) -> dict[str, Any]:
+            """Render template variables in MCP arguments and coerce types."""
+            rendered: dict[str, Any] = {}
+            for key, value in args.items():
+                if isinstance(value, str):
+                    rendered_val = render_string(value)
+                    rendered[key] = _coerce_value(rendered_val)
+                elif isinstance(value, dict):
+                    rendered[key] = render_mcp_arguments(value)
+                elif isinstance(value, list):
+                    rendered[key] = [
+                        _coerce_value(render_string(v)) if isinstance(v, str) else v for v in value
+                    ]
+                else:
+                    rendered[key] = value
+            return rendered
+
         # Create a copy of the step to avoid modifying the definition
-        rendered_step = step.model_copy()
+        rendered_step = step.model_copy(deep=True)
 
         try:
             if rendered_step.exec:
@@ -370,15 +421,55 @@ class PipelineExecutor:
             if rendered_step.prompt:
                 rendered_step.prompt = render_string(rendered_step.prompt)
 
-            # We could also render 'input' field if needed, but requirements mention exec and prompt
+            if rendered_step.mcp and rendered_step.mcp.arguments:
+                rendered_step.mcp.arguments = render_mcp_arguments(rendered_step.mcp.arguments)
 
         except Exception as e:
-            # If rendering fails, we log it but might want to let it bubble up
-            # or fail the step execution later.
-            # For now, let's allow the exception to bubble up so the step fails immediately.
             raise ValueError(f"Failed to render step {step.id}: {e}") from e
 
         return rendered_step
+
+    async def _execute_mcp_step(self, rendered_step: Any, context: dict[str, Any]) -> Any:
+        """Execute an MCP tool call step.
+
+        Args:
+            rendered_step: The rendered step with MCP config
+            context: Execution context
+
+        Returns:
+            The MCP tool result (structured JSON)
+
+        Raises:
+            RuntimeError: If tool_proxy_getter is not configured or MCP call fails
+        """
+        mcp_config = rendered_step.mcp
+
+        logger.info(f"Executing MCP step: {mcp_config.server}:{mcp_config.tool}")
+
+        if not self.tool_proxy_getter:
+            raise RuntimeError(
+                f"MCP step {rendered_step.id} requires tool_proxy_getter but none configured"
+            )
+
+        tool_proxy = self.tool_proxy_getter()
+        if not tool_proxy:
+            raise RuntimeError("tool_proxy_getter returned None")
+
+        result = await tool_proxy.call_tool(
+            mcp_config.server,
+            mcp_config.tool,
+            mcp_config.arguments or {},
+        )
+
+        # Check for MCP-level failure
+        if isinstance(result, dict) and result.get("success") is False:
+            error_msg = result.get("error", "Unknown MCP tool error")
+            raise RuntimeError(
+                f"MCP step {rendered_step.id} failed: "
+                f"{mcp_config.server}:{mcp_config.tool} returned error: {error_msg}"
+            )
+
+        return result
 
     def _should_run_step(self, step: Any, context: dict[str, Any]) -> bool:
         """Check if a step should run based on its condition.
