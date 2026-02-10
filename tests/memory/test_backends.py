@@ -1,12 +1,9 @@
-"""Tests for memory backend factory.
+"""Tests for memory backend factory and StorageAdapter.
 
 Tests the pluggable backend system:
-- get_backend() factory function
-- SQLite backend type
-- Null backend type for testing
+- get_backend() factory function (null, mem0)
+- StorageAdapter for local SQLite storage
 - Error handling for unknown backend types
-
-TDD RED phase: These tests define expected behavior before implementation.
 """
 
 from __future__ import annotations
@@ -15,14 +12,21 @@ from typing import TYPE_CHECKING
 
 import pytest
 
-# These imports should fail until backends/__init__.py is implemented
 from gobby.memory.backends import get_backend
+from gobby.memory.backends.storage_adapter import StorageAdapter
 from gobby.memory.protocol import MemoryBackendProtocol, MemoryCapability
+from gobby.storage.memories import LocalMemoryManager
 
 if TYPE_CHECKING:
     from gobby.storage.database import LocalDatabase
 
 pytestmark = pytest.mark.unit
+
+
+def _make_adapter(temp_db: LocalDatabase) -> StorageAdapter:
+    """Create a StorageAdapter wrapping a fresh LocalMemoryManager."""
+    return StorageAdapter(LocalMemoryManager(temp_db))
+
 
 # =============================================================================
 # Test: get_backend Factory Function
@@ -36,11 +40,6 @@ class TestGetBackend:
         """Test that get_backend function is importable."""
         assert callable(get_backend)
 
-    def test_get_backend_returns_protocol(self, temp_db: LocalDatabase) -> None:
-        """Test that get_backend returns a MemoryBackendProtocol instance."""
-        backend = get_backend("sqlite", database=temp_db)
-        assert isinstance(backend, MemoryBackendProtocol)
-
     def test_get_backend_unknown_type_raises(self) -> None:
         """Test that unknown backend type raises ValueError."""
         with pytest.raises(ValueError, match="Unknown backend type"):
@@ -51,16 +50,10 @@ class TestGetBackend:
         backend = get_backend("null")
         assert isinstance(backend, MemoryBackendProtocol)
 
-    def test_get_backend_sqlite_type(self, temp_db: LocalDatabase) -> None:
-        """Test that 'sqlite' backend type returns SQLite backend."""
-        backend = get_backend("sqlite", database=temp_db)
-        assert isinstance(backend, MemoryBackendProtocol)
-        # SQLite backend should support full CRUD capabilities
-        caps = backend.capabilities()
-        assert MemoryCapability.CREATE in caps
-        assert MemoryCapability.READ in caps
-        assert MemoryCapability.UPDATE in caps
-        assert MemoryCapability.DELETE in caps
+    def test_get_backend_sqlite_raises(self) -> None:
+        """Test that 'sqlite' backend type is no longer supported via factory."""
+        with pytest.raises(ValueError, match="Unknown backend type"):
+            get_backend("sqlite")
 
 
 # =============================================================================
@@ -122,19 +115,18 @@ class TestNullBackend:
 
 
 # =============================================================================
-# Test: SQLiteBackend
+# Test: StorageAdapter
 # =============================================================================
 
 
-class TestSQLiteBackend:
-    """Tests for the SQLiteBackend implementation."""
+class TestStorageAdapter:
+    """Tests for the StorageAdapter (local SQLite storage via MemoryBackendProtocol)."""
 
-    def test_sqlite_backend_capabilities(self, temp_db: LocalDatabase) -> None:
-        """Test that SQLiteBackend declares full capabilities."""
-        backend = get_backend("sqlite", database=temp_db)
+    def test_storage_adapter_capabilities(self, temp_db: LocalDatabase) -> None:
+        """Test that StorageAdapter declares full capabilities."""
+        backend = _make_adapter(temp_db)
         caps = backend.capabilities()
         assert isinstance(caps, set)
-        # SQLite should support all basic operations
         assert MemoryCapability.CREATE in caps
         assert MemoryCapability.READ in caps
         assert MemoryCapability.UPDATE in caps
@@ -144,20 +136,20 @@ class TestSQLiteBackend:
         assert MemoryCapability.IMPORTANCE in caps
 
     @pytest.mark.asyncio
-    async def test_sqlite_backend_create_and_get(self, temp_db: LocalDatabase):
-        """Test SQLiteBackend create and get operations."""
-        backend = get_backend("sqlite", database=temp_db)
+    async def test_storage_adapter_create_and_get(self, temp_db: LocalDatabase):
+        """Test StorageAdapter create and get operations."""
+        backend = _make_adapter(temp_db)
 
         # Create a memory
         record = await backend.create(
-            content="Test memory for SQLite backend",
+            content="Test memory for StorageAdapter",
             memory_type="fact",
             importance=0.8,
-            tags=["test", "sqlite"],
+            tags=["test", "adapter"],
         )
         assert record is not None
         assert record.id is not None
-        assert record.content == "Test memory for SQLite backend"
+        assert record.content == "Test memory for StorageAdapter"
         assert record.importance == 0.8
 
         # Get the memory back
@@ -167,9 +159,9 @@ class TestSQLiteBackend:
         assert retrieved.content == record.content
 
     @pytest.mark.asyncio
-    async def test_sqlite_backend_update(self, temp_db: LocalDatabase):
-        """Test SQLiteBackend update operation."""
-        backend = get_backend("sqlite", database=temp_db)
+    async def test_storage_adapter_update(self, temp_db: LocalDatabase):
+        """Test StorageAdapter update operation."""
+        backend = _make_adapter(temp_db)
 
         # Create a memory
         record = await backend.create(content="Original content")
@@ -184,9 +176,9 @@ class TestSQLiteBackend:
         assert updated.importance == 0.9
 
     @pytest.mark.asyncio
-    async def test_sqlite_backend_delete(self, temp_db: LocalDatabase):
-        """Test SQLiteBackend delete operation."""
-        backend = get_backend("sqlite", database=temp_db)
+    async def test_storage_adapter_delete(self, temp_db: LocalDatabase):
+        """Test StorageAdapter delete operation."""
+        backend = _make_adapter(temp_db)
 
         # Create a memory
         record = await backend.create(content="To be deleted")
@@ -200,11 +192,11 @@ class TestSQLiteBackend:
         assert retrieved is None
 
     @pytest.mark.asyncio
-    async def test_sqlite_backend_search(self, temp_db: LocalDatabase):
-        """Test SQLiteBackend search operation."""
+    async def test_storage_adapter_search(self, temp_db: LocalDatabase):
+        """Test StorageAdapter search operation."""
         from gobby.memory.protocol import MemoryQuery
 
-        backend = get_backend("sqlite", database=temp_db)
+        backend = _make_adapter(temp_db)
 
         # Create some memories
         await backend.create(content="Python programming language")
@@ -219,9 +211,9 @@ class TestSQLiteBackend:
         assert all("Python" in r.content for r in results)
 
     @pytest.mark.asyncio
-    async def test_sqlite_backend_list_memories(self, temp_db: LocalDatabase):
-        """Test SQLiteBackend list_memories operation."""
-        backend = get_backend("sqlite", database=temp_db)
+    async def test_storage_adapter_list_memories(self, temp_db: LocalDatabase):
+        """Test StorageAdapter list_memories operation."""
+        backend = _make_adapter(temp_db)
 
         # Create some memories
         await backend.create(content="Memory 1", memory_type="fact")
@@ -237,9 +229,9 @@ class TestSQLiteBackend:
         assert all(r.memory_type == "fact" for r in facts)
 
     @pytest.mark.asyncio
-    async def test_sqlite_backend_list_with_limit(self, temp_db: LocalDatabase):
-        """Test SQLiteBackend list_memories with limit."""
-        backend = get_backend("sqlite", database=temp_db)
+    async def test_storage_adapter_list_with_limit(self, temp_db: LocalDatabase):
+        """Test StorageAdapter list_memories with limit."""
+        backend = _make_adapter(temp_db)
 
         # Create several memories
         for i in range(5):
@@ -272,23 +264,22 @@ class TestModuleExports:
         """
         from gobby.memory import backends
 
-        # NullBackend and SQLiteBackend should not be in __all__
+        # NullBackend should not be in __all__
         # (implementation detail, not public API)
         if hasattr(backends, "__all__"):
             assert "NullBackend" not in backends.__all__
-            assert "SQLiteBackend" not in backends.__all__
 
 
 # =============================================================================
-# TDD Tests: SQLiteBackend Media Support (Phase 2 Multimodal)
+# Test: StorageAdapter Media Support
 # =============================================================================
 
 
-class TestSQLiteBackendMediaSupport:
-    """TDD tests for SQLiteBackend media attachment support.
+class TestStorageAdapterMediaSupport:
+    """Tests for StorageAdapter media attachment support.
 
-    RED phase: These tests define expected behavior for storing/retrieving
-    media attachments via the SQLiteBackend.
+    Verifies that media attachments are correctly stored and retrieved
+    through the StorageAdapter interface.
     """
 
     @pytest.mark.asyncio
@@ -296,7 +287,7 @@ class TestSQLiteBackendMediaSupport:
         """Test that creating a memory with media stores the media attachment."""
         from gobby.memory.protocol import MediaAttachment
 
-        backend = get_backend("sqlite", database=temp_db)
+        backend = _make_adapter(temp_db)
 
         media = [
             MediaAttachment(
@@ -324,7 +315,7 @@ class TestSQLiteBackendMediaSupport:
         """Test that get() retrieves the stored media attachment."""
         from gobby.memory.protocol import MediaAttachment
 
-        backend = get_backend("sqlite", database=temp_db)
+        backend = _make_adapter(temp_db)
 
         media = [
             MediaAttachment(
@@ -354,7 +345,7 @@ class TestSQLiteBackendMediaSupport:
         """Test that list_memories returns memories with their media attachments."""
         from gobby.memory.protocol import MediaAttachment
 
-        backend = get_backend("sqlite", database=temp_db)
+        backend = _make_adapter(temp_db)
 
         # Create memory with media
         media = [
@@ -389,7 +380,7 @@ class TestSQLiteBackendMediaSupport:
         """Test that search() returns memories with their media attachments."""
         from gobby.memory.protocol import MediaAttachment, MemoryQuery
 
-        backend = get_backend("sqlite", database=temp_db)
+        backend = _make_adapter(temp_db)
 
         # Create memory with media
         media = [
@@ -416,7 +407,7 @@ class TestSQLiteBackendMediaSupport:
     @pytest.mark.asyncio
     async def test_create_without_media_returns_empty_list(self, temp_db: LocalDatabase):
         """Test that creating without media returns empty media list."""
-        backend = get_backend("sqlite", database=temp_db)
+        backend = _make_adapter(temp_db)
 
         record = await backend.create(content="No media attached")
 
@@ -427,7 +418,7 @@ class TestSQLiteBackendMediaSupport:
         """Test that multiple media attachments can be stored and retrieved."""
         from gobby.memory.protocol import MediaAttachment
 
-        backend = get_backend("sqlite", database=temp_db)
+        backend = _make_adapter(temp_db)
 
         media = [
             MediaAttachment(

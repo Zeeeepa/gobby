@@ -50,10 +50,10 @@ class MemoryConfig(BaseModel):
         description="Enable persistent memory system",
     )
     backend: str = Field(
-        default="sqlite",
+        default="local",
         description=(
             "Storage backend for memories. Options: "
-            "'sqlite' (default, local SQLite database), "
+            "'local' (default, direct SQLite via LocalMemoryManager), "
             "'mem0' (Mem0 cloud-based semantic memory via mem0ai), "
             "'null' (no persistence, for testing)"
         ),
@@ -171,7 +171,7 @@ class MemoryConfig(BaseModel):
     @classmethod
     def validate_backend(cls, v: str) -> str:
         """Validate backend is a supported storage option."""
-        valid_backends = {"sqlite", "mem0", "null"}
+        valid_backends = {"local", "mem0", "null"}
         if v not in valid_backends:
             raise ValueError(f"Invalid backend '{v}'. Must be one of: {sorted(valid_backends)}")
         return v

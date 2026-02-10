@@ -42,7 +42,7 @@ def memory_config():
     """Create a default memory configuration with SQLite backend."""
     return MemoryConfig(
         enabled=True,
-        backend="sqlite",  # Explicitly use SQLite backend
+        backend="local",  # Explicitly use SQLite backend
         injection_limit=10,
         importance_threshold=0.3,
         decay_enabled=True,

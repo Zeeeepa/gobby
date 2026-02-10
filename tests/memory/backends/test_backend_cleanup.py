@@ -1,10 +1,46 @@
-"""Tests verifying deprecated OpenMemory backend has been removed.
+"""Tests verifying deprecated backends have been removed.
 
-Part of Memory V4: cleaning up deprecated backends after mem0 integration
-replaced the self-hosted OpenMemory approach.
+Part of Memory V4: cleaning up deprecated backends after mem0 integration.
 """
 
 import pytest
+
+
+class TestSQLiteBackendRemoved:
+    """Verify the SQLite backend wrapper has been removed from the factory."""
+
+    def test_get_backend_rejects_sqlite(self) -> None:
+        """get_backend('sqlite') should raise ValueError."""
+        from gobby.memory.backends import get_backend
+
+        with pytest.raises(ValueError, match="Unknown backend type"):
+            get_backend("sqlite", database=None)
+
+    def test_sqlite_backend_not_importable(self) -> None:
+        """The SQLiteBackend class should no longer exist in backends."""
+        with pytest.raises(ImportError):
+            from gobby.memory.backends.sqlite import SQLiteBackend  # noqa: F401
+
+    def test_supported_backends_exclude_sqlite(self) -> None:
+        """The error message from get_backend should not list sqlite."""
+        from gobby.memory.backends import get_backend
+
+        with pytest.raises(ValueError, match="Supported types") as exc_info:
+            get_backend("nonexistent_backend")
+        assert "sqlite" not in str(exc_info.value)
+
+
+class TestSQLiteConfigRemoved:
+    """Verify 'sqlite' is no longer a valid backend config option."""
+
+    def test_backend_validator_rejects_sqlite(self) -> None:
+        """'sqlite' should not be a valid backend option."""
+        from pydantic import ValidationError
+
+        from gobby.config.persistence import MemoryConfig
+
+        with pytest.raises(ValidationError):
+            MemoryConfig(backend="sqlite")
 
 
 class TestOpenMemoryBackendRemoved:

@@ -7,6 +7,7 @@ from typing import TYPE_CHECKING, Any
 
 from gobby.config.persistence import MemoryConfig
 from gobby.memory.backends import get_backend
+from gobby.memory.backends.storage_adapter import StorageAdapter
 from gobby.memory.components.ingestion import IngestionService
 from gobby.memory.components.search import SearchService
 from gobby.memory.context import build_memory_context
@@ -39,26 +40,27 @@ class MemoryManager:
         self.config = config
         self._llm_service = llm_service
 
-        # Initialize storage backend based on config
-        # Note: SQLiteBackend wraps LocalMemoryManager internally
-        backend_type = getattr(config, "backend", "sqlite")
-        backend_kwargs: dict[str, Any] = {"database": db}
-
-        # Pass backend-specific config fields
-        if backend_type == "mem0" and hasattr(config, "mem0"):
-            mem0_cfg = config.mem0
-            backend_kwargs.update(
-                {
-                    "api_key": mem0_cfg.api_key,
-                    "user_id": mem0_cfg.user_id,
-                    "org_id": mem0_cfg.org_id,
-                }
-            )
-        self._backend: MemoryBackendProtocol = get_backend(backend_type, **backend_kwargs)
-
-        # Keep storage reference for backward compatibility with sync methods
-        # The SQLiteBackend uses LocalMemoryManager internally
+        # Primary storage layer — always SQLite via LocalMemoryManager
         self.storage = LocalMemoryManager(db)
+
+        # Backend for async protocol operations
+        backend_type = getattr(config, "backend", "local")
+        if backend_type in ("local", "sqlite"):
+            # Direct storage: StorageAdapter wraps self.storage (no factory)
+            self._backend: MemoryBackendProtocol = StorageAdapter(self.storage)
+        else:
+            # External backend via factory (mem0, null)
+            backend_kwargs: dict[str, Any] = {}
+            if backend_type == "mem0" and hasattr(config, "mem0"):
+                mem0_cfg = config.mem0
+                backend_kwargs.update(
+                    {
+                        "api_key": mem0_cfg.api_key,
+                        "user_id": mem0_cfg.user_id,
+                        "org_id": mem0_cfg.org_id,
+                    }
+                )
+            self._backend = get_backend(backend_type, **backend_kwargs)
 
         # Initialize extracted components
         self._search_service = SearchService(
