@@ -171,7 +171,24 @@ export function TaskDetail({ taskId, getTask, getDependencies, getSubtasks, acti
             {/* Reasoning Timeline */}
             <div className="task-detail-section">
               <h4 className="task-detail-section-title">Timeline</h4>
-              <ReasoningTimeline task={task} />
+              <ReasoningTimeline
+                task={task}
+                onIntervene={(_phaseKey, action) => {
+                  if (action === 'rollback' || action === 'retry') {
+                    // Roll back / retry: reopen the task so work can restart
+                    handleAction(() => actions.reopenTask(task.id))
+                  } else if (action === 'mark_resolved') {
+                    // Mark resolved: advance toward close
+                    if (task.status === 'failed' || task.status === 'escalated') {
+                      handleAction(() => actions.reopenTask(task.id))
+                    } else {
+                      handleAction(() => actions.updateTask(task.id, { status: 'needs_review' }))
+                    }
+                  } else if (action === 'edit_and_run') {
+                    handleAction(() => actions.reopenTask(task.id))
+                  }
+                }}
+              />
             </div>
 
             {/* Action Feed */}

@@ -111,11 +111,61 @@ function relativeTime(iso: string): string {
 // ReasoningTimeline
 // =============================================================================
 
-interface ReasoningTimelineProps {
-  task: GobbyTaskDetail
+// =============================================================================
+// Intervention buttons per phase
+// =============================================================================
+
+type InterventionAction = 'retry' | 'edit_and_run' | 'rollback' | 'mark_resolved'
+
+interface InterventionButton {
+  action: InterventionAction
+  label: string
+  icon: string
+  variant: 'default' | 'primary' | 'danger'
 }
 
-export function ReasoningTimeline({ task }: ReasoningTimelineProps) {
+function getInterventionsForPhase(
+  phase: TimelinePhase,
+  taskStatus: string,
+): InterventionButton[] {
+  const isFailed = taskStatus === 'failed' || taskStatus === 'escalated'
+
+  if (phase.status === 'pending') return []
+
+  if (phase.status === 'active') {
+    const buttons: InterventionButton[] = [
+      { action: 'mark_resolved', label: 'Mark Resolved', icon: '\u2714', variant: 'primary' },
+    ]
+    if (phase.key !== 'plan') {
+      buttons.push({ action: 'retry', label: 'Retry', icon: '\u21BB', variant: 'default' })
+    }
+    return buttons
+  }
+
+  // complete
+  const buttons: InterventionButton[] = []
+
+  if (isFailed && phase.key === 'verify') {
+    buttons.push({ action: 'retry', label: 'Retry', icon: '\u21BB', variant: 'primary' })
+    buttons.push({ action: 'mark_resolved', label: 'Mark Resolved', icon: '\u2714', variant: 'default' })
+  } else if (phase.key !== 'plan') {
+    buttons.push({ action: 'rollback', label: 'Roll Back', icon: '\u21A9', variant: 'danger' })
+    buttons.push({ action: 'retry', label: 'Retry', icon: '\u21BB', variant: 'default' })
+  }
+
+  return buttons
+}
+
+// =============================================================================
+// ReasoningTimeline
+// =============================================================================
+
+interface ReasoningTimelineProps {
+  task: GobbyTaskDetail
+  onIntervene?: (phaseKey: string, action: InterventionAction) => void
+}
+
+export function ReasoningTimeline({ task, onIntervene }: ReasoningTimelineProps) {
   const phases = derivePhases(task)
   const [expanded, setExpanded] = useState<Set<string>>(new Set())
 
@@ -158,7 +208,30 @@ export function ReasoningTimeline({ task }: ReasoningTimelineProps) {
                 )}
               </button>
               {isExpanded && phase.summary && (
-                <div className="reasoning-phase-detail">{phase.summary}</div>
+                <div className="reasoning-phase-detail">
+                  {phase.summary}
+                  {onIntervene && (() => {
+                    const buttons = getInterventionsForPhase(phase, task.status)
+                    if (buttons.length === 0) return null
+                    return (
+                      <div className="reasoning-phase-interventions">
+                        {buttons.map(btn => (
+                          <button
+                            key={btn.action}
+                            className={`reasoning-intervention-btn reasoning-intervention-btn--${btn.variant}`}
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              onIntervene(phase.key, btn.action)
+                            }}
+                          >
+                            <span className="reasoning-intervention-icon">{btn.icon}</span>
+                            {btn.label}
+                          </button>
+                        ))}
+                      </div>
+                    )
+                  })()}
+                </div>
               )}
             </div>
           </div>
