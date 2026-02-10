@@ -435,3 +435,152 @@ async def handle_memory_extract(context: "ActionContext", **kwargs: Any) -> dict
         max_memories=kwargs.get("max_memories", 5),
         dry_run=kwargs.get("dry_run", False),
     )
+
+
+async def handle_memory_extraction_gate(
+    context: "ActionContext", **kwargs: Any
+) -> dict[str, Any] | None:
+    """Stop-gate that blocks agent from stopping until memory extraction is done.
+
+    The agent has full context of its work — it extracts memories using existing
+    create_memory/update_memory MCP tools. This gate:
+    1. Checks if memories_extracted variable is already set (gate satisfied)
+    2. Fetches existing project memories to show the agent
+    3. Searches for memories relevant to current work
+    4. Returns block_stop with instructions to extract, update, or skip
+    """
+    return await memory_extraction_gate(
+        memory_manager=context.memory_manager,
+        session_manager=context.session_manager,
+        session_id=context.session_id,
+        state=context.state,
+    )
+
+
+async def memory_extraction_gate(
+    memory_manager: Any,
+    session_manager: Any,
+    session_id: str,
+    state: Any | None = None,
+) -> dict[str, Any] | None:
+    """Memory extraction stop-gate logic.
+
+    Args:
+        memory_manager: The memory manager instance
+        session_manager: The session manager instance
+        session_id: Current session ID
+        state: WorkflowState for tracking extraction status
+
+    Returns:
+        Dict with block decision and reason, or None to allow stop
+    """
+    if not memory_manager:
+        return None
+
+    if not memory_manager.config.enabled:
+        return None
+
+    # Check if already extracted this turn
+    variables = getattr(state, "variables", None) or {}
+    if variables.get("memories_extracted"):
+        return None
+
+    # Resolve project_id
+    project_id = None
+    if session_manager:
+        session = session_manager.get(session_id)
+        if session:
+            project_id = session.project_id
+
+    # Build the existing memories list for the agent
+    existing_memories_text = ""
+    try:
+        # Get top memories by importance
+        top_memories = memory_manager.list_memories(
+            project_id=project_id,
+            limit=20,
+            min_importance=0.5,
+        )
+
+        # Search for memories relevant to current work (task title or recent context)
+        relevant_memories: list[Any] = []
+        task_title = variables.get("current_task_title", "")
+        if task_title and hasattr(memory_manager, "recall"):
+            try:
+                relevant_memories = memory_manager.recall(
+                    query=task_title,
+                    project_id=project_id,
+                    limit=5,
+                    min_importance=0.3,
+                    search_mode="auto",
+                )
+            except Exception:
+                pass
+
+        # Combine and deduplicate
+        seen_ids: set[str] = set()
+        all_memories: list[Any] = []
+        for m in top_memories:
+            if m.id not in seen_ids:
+                seen_ids.add(m.id)
+                all_memories.append(m)
+        for m in relevant_memories:
+            if m.id not in seen_ids:
+                seen_ids.add(m.id)
+                all_memories.append(m)
+
+        if all_memories:
+            lines = ["**Existing project memories:**"]
+            for i, m in enumerate(all_memories, 1):
+                tags_str = f" tags={','.join(m.tags)}" if m.tags else ""
+                lines.append(
+                    f"[{i}] (id: {m.id}) type={m.memory_type}, "
+                    f"importance={m.importance}{tags_str}: \"{m.content[:120]}\""
+                )
+            existing_memories_text = "\n".join(lines)
+    except Exception as e:
+        logger.warning(f"memory_extraction_gate: Failed to fetch existing memories: {e}")
+
+    # Build the extraction instructions
+    reason_parts = [
+        "Before stopping, review your work this session and extract valuable memories.",
+        "",
+    ]
+
+    if existing_memories_text:
+        reason_parts.append(existing_memories_text)
+        reason_parts.append("")
+
+    reason_parts.extend([
+        "**Instructions:**",
+        "- Use `create_memory` (via gobby-memory MCP) for NEW insights discovered this session",
+        "- Use `update_memory` to REFINE an existing memory if you learned something that "
+        "contradicts or extends it",
+        "- SKIP if you learned nothing new — just set the variable and stop",
+        "",
+        "**What to save** (5-minute rule: would this save a future session >5 min?):",
+        "- Debugging insights — root causes, misleading errors, non-obvious failures",
+        "- Architecture decisions — why something is structured a certain way",
+        "- API/library gotchas — undocumented quirks, version-specific issues",
+        "- Project conventions — naming patterns, file organization, commit formats",
+        "- Environment quirks — OS-specific issues, dependency conflicts",
+        "",
+        "**Examples:**",
+        "- ADD: Discovered new gotcha → `create_memory(content=\"...\", memory_type=\"fact\", "
+        "tags=\"relevant-tag\")`",
+        "- UPDATE: Memory #5 says X but you learned it's actually Y → "
+        "`update_memory(id=\"<memory_id>\", content=\"corrected info\")`",
+        "- SKIP: Existing memories already cover what you learned → just set the variable",
+        "",
+        "**When done** (even if no memories to extract), call:",
+        f'`set_variable(name="memories_extracted", value=true, session_id="{session_id}")`',
+    ])
+
+    reason = "\n".join(reason_parts)
+
+    logger.info(
+        f"memory_extraction_gate: Blocking stop for session {session_id} "
+        f"({len(all_memories) if 'all_memories' in dir() else 0} existing memories shown)"
+    )
+
+    return {"decision": "block", "reason": reason}

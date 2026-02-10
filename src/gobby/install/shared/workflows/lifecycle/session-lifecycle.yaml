@@ -47,6 +47,9 @@ variables:
   stop_attempts: 0
   max_stop_attempts: 3
 
+  # Memory extraction gate - tracks whether agent has extracted memories this turn
+  memories_extracted: false
+
 triggers:
   on_stop:
     # Increment stop attempts counter
@@ -75,6 +78,12 @@ triggers:
     # Skip in plan mode or if escape hatch triggered (3+ consecutive stop attempts)
     - action: require_task_review_or_close_before_stop
       when: "not variables.get('plan_mode') and variables.get('stop_attempts', 0) < variables.get('max_stop_attempts', 3)"
+
+    # Memory extraction gate - block stop until agent extracts memories from this turn
+    # Respects the 3-attempt escape hatch: if agent tries to stop 3 times, let it through
+    # Skip in plan mode (no code work to extract memories from)
+    - action: memory_extraction_gate
+      when: "not variables.get('memories_extracted') and not variables.get('plan_mode') and variables.get('stop_attempts', 0) < variables.get('max_stop_attempts', 3)"
 
   on_session_start:
     # Clear plan_mode on new sessions - don't inherit from parent session
@@ -111,6 +120,13 @@ triggers:
     # Same condition as unlocked_tools reset
     - action: reset_memory_injection_tracking
       when: "event.data.get('source') in ['clear', 'compact'] or (event.data.get('source') == 'resume' and variables.get('pending_context_reset'))"
+
+    # Reset memory extraction gate on context loss / new session
+    # Ensures extraction triggers on the next stop after context loss
+    - action: set_variable
+      when: "event.data.get('source') in ['clear', 'compact', 'startup'] or (event.data.get('source') == 'resume' and variables.get('pending_context_reset'))"
+      name: memories_extracted
+      value: false
 
     # Clear pending_context_reset flag after use (Gemini resume flow)
     - action: set_variable
@@ -196,6 +212,12 @@ triggers:
     # Agents must re-confirm triage status for each interaction
     - action: set_variable
       name: pre_existing_errors_triaged
+      value: false
+
+    # Reset memory extraction gate on new user prompt
+    # Ensures extraction triggers on each turn's stop, not just once per session
+    - action: set_variable
+      name: memories_extracted
       value: false
 
     # Detect plan mode from system reminders (Claude Code UI-based plan mode)

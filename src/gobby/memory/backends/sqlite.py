@@ -240,6 +240,19 @@ class SQLiteBackend:
 
         return [self._memory_to_record(m) for m in memories]
 
+    async def content_exists(self, content: str, project_id: str | None = None) -> bool:
+        """Check if a memory with identical content already exists."""
+        return await asyncio.to_thread(self._storage.content_exists, content, project_id)
+
+    async def get_memory_by_content(
+        self, content: str, project_id: str | None = None
+    ) -> MemoryRecord | None:
+        """Get a memory by its exact content."""
+        memory = await asyncio.to_thread(self._storage.get_memory_by_content, content, project_id)
+        if memory:
+            return self._memory_to_record(memory)
+        return None
+
     def _memory_to_record(
         self,
         memory: Any,

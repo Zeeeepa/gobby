@@ -458,6 +458,25 @@ class OpenMemoryBackend:
             )
             return []
 
+    async def content_exists(self, content: str, project_id: str | None = None) -> bool:
+        """Check if a memory with identical content already exists."""
+        record = await self.get_memory_by_content(content, project_id)
+        return record is not None
+
+    async def get_memory_by_content(
+        self, content: str, project_id: str | None = None
+    ) -> MemoryRecord | None:
+        """Get a memory by its exact content."""
+        normalized = content.strip()
+        try:
+            records = await self.list_memories(project_id=project_id, limit=1000)
+            for record in records:
+                if record.content.strip() == normalized:
+                    return record
+        except Exception:
+            pass
+        return None
+
     async def health_check(self) -> bool:
         """Check if the OpenMemory server is healthy.
 

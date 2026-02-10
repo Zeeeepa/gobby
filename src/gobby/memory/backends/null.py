@@ -109,3 +109,13 @@ class NullBackend:
     ) -> list[MemoryRecord]:
         """List memories (always returns empty list)."""
         return []
+
+    async def content_exists(self, content: str, project_id: str | None = None) -> bool:
+        """Check if content exists (always returns False)."""
+        return False
+
+    async def get_memory_by_content(
+        self, content: str, project_id: str | None = None
+    ) -> MemoryRecord | None:
+        """Get memory by content (always returns None)."""
+        return None

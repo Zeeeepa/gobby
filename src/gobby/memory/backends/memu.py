@@ -402,6 +402,27 @@ class MemUBackend:
         # Then apply pagination
         return filtered_items[offset : offset + limit]
 
+    async def content_exists(self, content: str, project_id: str | None = None) -> bool:
+        """Check if a memory with identical content already exists."""
+        record = await self.get_memory_by_content(content, project_id)
+        return record is not None
+
+    async def get_memory_by_content(
+        self, content: str, project_id: str | None = None
+    ) -> MemoryRecord | None:
+        """Get a memory by its exact content."""
+        normalized = content.strip()
+        try:
+            results = await asyncio.to_thread(self._service.list_memory_items)
+            items = results.get("items", results.get("memories", []))
+            for item in items:
+                item_content = item.get("content") or item.get("memory_content", "")
+                if item_content.strip() == normalized:
+                    return self._memu_to_record(item)
+        except Exception:
+            pass
+        return None
+
     def close(self) -> None:
         """Clean up resources.
 

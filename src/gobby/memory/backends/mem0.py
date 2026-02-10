@@ -360,6 +360,27 @@ class Mem0Backend:
 
         return records
 
+    async def content_exists(self, content: str, project_id: str | None = None) -> bool:
+        """Check if a memory with identical content already exists."""
+        record = await self.get_memory_by_content(content, project_id)
+        return record is not None
+
+    async def get_memory_by_content(
+        self, content: str, project_id: str | None = None
+    ) -> MemoryRecord | None:
+        """Get a memory by its exact content."""
+        normalized = content.strip()
+        try:
+            user_id = self._default_user_id or "default"
+            results = await asyncio.to_thread(self._client.get_all, user_id=user_id)
+            for mem0_memory in results.get("results", []):
+                mem_content = mem0_memory.get("memory", "").strip()
+                if mem_content == normalized:
+                    return self._mem0_to_record(mem0_memory)
+        except Exception:
+            pass
+        return None
+
     def close(self) -> None:
         """Clean up resources.
 

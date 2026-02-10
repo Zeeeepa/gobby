@@ -379,6 +379,16 @@ class TestMemoryBackendProtocolCompliance:
             ) -> list[MemoryRecord]:
                 return []
 
+            async def content_exists(
+                self, content: str, project_id: str | None = None
+            ) -> bool:
+                return False
+
+            async def get_memory_by_content(
+                self, content: str, project_id: str | None = None
+            ) -> MemoryRecord | None:
+                return None
+
         return MockBackend()
 
     def test_mock_satisfies_protocol(self, mock_backend) -> None:

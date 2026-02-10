@@ -9,7 +9,7 @@ from gobby.memory.backends import get_backend
 from gobby.memory.components.ingestion import IngestionService
 from gobby.memory.components.search import SearchService
 from gobby.memory.context import build_memory_context
-from gobby.memory.protocol import MemoryBackendProtocol
+from gobby.memory.protocol import MemoryBackendProtocol, MemoryRecord
 from gobby.storage.database import DatabaseProtocol
 from gobby.storage.memories import LocalMemoryManager, Memory
 
@@ -79,6 +79,27 @@ class MemoryManager:
         """
         return self._search_service.backend
 
+    @staticmethod
+    def _record_to_memory(record: MemoryRecord) -> Memory:
+        """Convert a MemoryRecord from the backend to a Memory for downstream compatibility."""
+        return Memory(
+            id=record.id,
+            memory_type=record.memory_type,
+            content=record.content,
+            created_at=record.created_at.isoformat() if record.created_at else "",
+            updated_at=record.updated_at.isoformat() if record.updated_at else "",
+            project_id=record.project_id,
+            source_type=record.source_type,
+            source_session_id=record.source_session_id,
+            importance=record.importance,
+            access_count=record.access_count,
+            last_accessed_at=(
+                record.last_accessed_at.isoformat() if record.last_accessed_at else None
+            ),
+            tags=record.tags or [],
+            media=None,  # Media handled separately via MemoryRecord
+        )
+
     def _ensure_search_backend_fitted(self) -> None:
         """Ensure the search backend is fitted with current memories."""
         self._search_service.ensure_fitted()
@@ -125,18 +146,16 @@ class MemoryManager:
             tags: Optional tags
         """
         # Check for existing memory with same content to avoid duplicates.
-        # The storage layer also checks via content-hash ID, but this provides
-        # an additional safeguard against race conditions and project_id mismatches.
         normalized_content = content.strip()
-        if self.storage.content_exists(normalized_content, project_id):
-            # Return existing memory by computing the same content-derived ID
-            # that the storage layer uses, avoiding reliance on search ordering
-            existing_memory = self.storage.get_memory_by_content(normalized_content, project_id)
-            if existing_memory:
-                logger.debug(f"Memory already exists: {existing_memory.id}")
-                return existing_memory
+        if await self._backend.content_exists(normalized_content, project_id):
+            existing_record = await self._backend.get_memory_by_content(
+                normalized_content, project_id
+            )
+            if existing_record:
+                logger.debug(f"Memory already exists: {existing_record.id}")
+                return self._record_to_memory(existing_record)
 
-        memory = self.storage.create_memory(
+        record = await self._backend.create(
             content=content,
             memory_type=memory_type,
             importance=importance,
@@ -145,6 +164,7 @@ class MemoryManager:
             source_session_id=source_session_id,
             tags=tags,
         )
+        memory = self._record_to_memory(record)
 
         # Mark search index for refit since we added new content
         self.mark_search_refit_needed()
@@ -462,6 +482,13 @@ class MemoryManager:
             self.mark_search_refit_needed()
         return result
 
+    async def aforget(self, memory_id: str) -> bool:
+        """Forget a memory (async version)."""
+        result = await self._backend.delete(memory_id)
+        if result:
+            self.mark_search_refit_needed()
+        return result
+
     def list_memories(
         self,
         project_id: str | None = None,
@@ -497,9 +524,29 @@ class MemoryManager:
             tags_none=tags_none,
         )
 
+    async def alist_memories(
+        self,
+        project_id: str | None = None,
+        memory_type: str | None = None,
+        limit: int = 50,
+        offset: int = 0,
+    ) -> list[Memory]:
+        """List memories via backend (async, routes through backend)."""
+        records = await self._backend.list_memories(
+            project_id=project_id,
+            memory_type=memory_type,
+            limit=limit,
+            offset=offset,
+        )
+        return [self._record_to_memory(r) for r in records]
+
     def content_exists(self, content: str, project_id: str | None = None) -> bool:
         """Check if a memory with identical content already exists."""
         return self.storage.content_exists(content, project_id)
+
+    async def acontent_exists(self, content: str, project_id: str | None = None) -> bool:
+        """Check if a memory with identical content already exists (async, routes through backend)."""
+        return await self._backend.content_exists(content, project_id)
 
     def get_memory(self, memory_id: str) -> Memory | None:
         """Get a specific memory by ID."""
@@ -507,6 +554,13 @@ class MemoryManager:
             return self.storage.get_memory(memory_id)
         except ValueError:
             return None
+
+    async def aget_memory(self, memory_id: str) -> Memory | None:
+        """Get a specific memory by ID (async, routes through backend)."""
+        record = await self._backend.get(memory_id)
+        if record:
+            return self._record_to_memory(record)
+        return None
 
     def find_by_prefix(self, prefix: str, limit: int = 5) -> list[Memory]:
         """
@@ -561,6 +615,24 @@ class MemoryManager:
             self.mark_search_refit_needed()
 
         return result
+
+    async def aupdate_memory(
+        self,
+        memory_id: str,
+        content: str | None = None,
+        importance: float | None = None,
+        tags: list[str] | None = None,
+    ) -> Memory:
+        """Update an existing memory (async, routes through backend)."""
+        record = await self._backend.update(
+            memory_id=memory_id,
+            content=content,
+            importance=importance,
+            tags=tags,
+        )
+        if content is not None:
+            self.mark_search_refit_needed()
+        return self._record_to_memory(record)
 
     def get_stats(self, project_id: str | None = None) -> dict[str, Any]:
         """
