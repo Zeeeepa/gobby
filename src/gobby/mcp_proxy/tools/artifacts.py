@@ -235,4 +235,180 @@ def create_artifacts_registry(
         except Exception as e:
             return {"success": False, "error": str(e), "artifacts": []}
 
+    @registry.tool(
+        name="save_artifact",
+        description="Save an artifact explicitly. Auto-classifies type if not provided. Accepts #N, N, UUID, or prefix for session_id.",
+    )
+    def save_artifact(
+        content: str,
+        session_id: str,
+        artifact_type: str | None = None,
+        title: str | None = None,
+        task_id: str | None = None,
+        metadata: dict[str, Any] | None = None,
+        source_file: str | None = None,
+        line_start: int | None = None,
+        line_end: int | None = None,
+    ) -> dict[str, Any]:
+        """
+        Save an artifact explicitly.
+
+        Args:
+            content: The artifact content (required)
+            session_id: Session reference (accepts #N, N, UUID, or prefix) (required)
+            artifact_type: Type of artifact. If omitted, auto-classified from content.
+            title: Optional human-readable title
+            task_id: Optional task ID to link this artifact to
+            metadata: Optional metadata dict
+            source_file: Optional source file path
+            line_start: Optional starting line number
+            line_end: Optional ending line number
+
+        Returns:
+            Dict with success status and created artifact
+        """
+        # Resolve session_id
+        resolved_session_id = session_id
+        try:
+            resolved_session_id = _resolve_session_id(session_id)
+        except ValueError as e:
+            return {"success": False, "error": str(e)}
+
+        # Auto-classify if no type provided
+        if not artifact_type:
+            from gobby.storage.artifact_classifier import classify_artifact
+
+            classification = classify_artifact(content)
+            artifact_type = classification.artifact_type.value
+            # Merge classification metadata with provided metadata
+            if classification.metadata:
+                if metadata:
+                    merged = classification.metadata.copy()
+                    merged.update(metadata)
+                    metadata = merged
+                else:
+                    metadata = classification.metadata
+
+        try:
+            artifact = _artifact_manager.create_artifact(
+                session_id=resolved_session_id,
+                artifact_type=artifact_type,
+                content=content,
+                metadata=metadata,
+                source_file=source_file,
+                line_start=line_start,
+                line_end=line_end,
+                title=title,
+                task_id=task_id,
+            )
+            return {"success": True, "artifact": artifact.to_dict()}
+        except Exception as e:
+            return {"success": False, "error": str(e)}
+
+    @registry.tool(
+        name="delete_artifact",
+        description="Delete an artifact by ID.",
+    )
+    def delete_artifact(artifact_id: str) -> dict[str, Any]:
+        """
+        Delete an artifact by its ID.
+
+        Args:
+            artifact_id: The artifact ID to delete
+
+        Returns:
+            Dict with success status
+        """
+        try:
+            deleted = _artifact_manager.delete_artifact(artifact_id)
+            if not deleted:
+                return {
+                    "success": False,
+                    "error": f"Artifact '{artifact_id}' not found",
+                }
+            return {"success": True, "deleted": True}
+        except Exception as e:
+            return {"success": False, "error": str(e)}
+
+    @registry.tool(
+        name="tag_artifact",
+        description="Add a tag to an artifact.",
+    )
+    def tag_artifact(artifact_id: str, tag: str) -> dict[str, Any]:
+        """
+        Add a tag to an artifact.
+
+        Args:
+            artifact_id: The artifact ID
+            tag: The tag to add
+
+        Returns:
+            Dict with success status
+        """
+        try:
+            _artifact_manager.add_tag(artifact_id, tag)
+            return {"success": True, "artifact_id": artifact_id, "tag": tag}
+        except Exception as e:
+            return {"success": False, "error": str(e)}
+
+    @registry.tool(
+        name="untag_artifact",
+        description="Remove a tag from an artifact.",
+    )
+    def untag_artifact(artifact_id: str, tag: str) -> dict[str, Any]:
+        """
+        Remove a tag from an artifact.
+
+        Args:
+            artifact_id: The artifact ID
+            tag: The tag to remove
+
+        Returns:
+            Dict with success status
+        """
+        try:
+            removed = _artifact_manager.remove_tag(artifact_id, tag)
+            if not removed:
+                return {
+                    "success": False,
+                    "error": f"Tag '{tag}' not found on artifact '{artifact_id}'",
+                }
+            return {"success": True, "artifact_id": artifact_id, "tag": tag}
+        except Exception as e:
+            return {"success": False, "error": str(e)}
+
+    @registry.tool(
+        name="list_artifacts_by_task",
+        description="List artifacts linked to a specific task.",
+    )
+    def list_artifacts_by_task(
+        task_id: str,
+        artifact_type: str | None = None,
+        limit: int = 100,
+    ) -> dict[str, Any]:
+        """
+        List artifacts linked to a specific task.
+
+        Args:
+            task_id: The task ID to filter by (required)
+            artifact_type: Optional artifact type filter
+            limit: Maximum number of results (default: 100)
+
+        Returns:
+            Dict with success status and list of artifacts
+        """
+        try:
+            artifacts = _artifact_manager.list_by_task(
+                task_id=task_id,
+                artifact_type=artifact_type,
+                limit=limit,
+            )
+            return {
+                "success": True,
+                "artifacts": [a.to_dict() for a in artifacts],
+                "count": len(artifacts),
+            }
+        except Exception as e:
+            return {"success": False, "error": str(e), "artifacts": []}
+
     return registry

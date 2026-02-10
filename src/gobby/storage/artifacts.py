@@ -368,6 +368,35 @@ class LocalArtifactManager:
         )
         return [row["tag"] for row in rows]
 
+    def list_by_task(
+        self,
+        task_id: str,
+        artifact_type: str | None = None,
+        limit: int = 100,
+    ) -> list[Artifact]:
+        """List artifacts linked to a task.
+
+        Args:
+            task_id: The task ID to filter by
+            artifact_type: Optional artifact type filter
+            limit: Maximum number of results
+
+        Returns:
+            List of matching Artifacts
+        """
+        query = "SELECT * FROM session_artifacts WHERE task_id = ?"
+        params: list[Any] = [task_id]
+
+        if artifact_type:
+            query += " AND artifact_type = ?"
+            params.append(artifact_type)
+
+        query += " ORDER BY created_at DESC LIMIT ?"
+        params.append(limit)
+
+        rows = self.db.fetchall(query, tuple(params))
+        return [Artifact.from_row(row) for row in rows]
+
     def list_by_tag(
         self,
         tag: str,
