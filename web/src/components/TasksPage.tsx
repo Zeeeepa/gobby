@@ -245,6 +245,7 @@ export function TasksPage() {
   const [cloneDefaults, setCloneDefaults] = useState<TaskCreateDefaults | null>(null)
   const [scope, setScope] = useState<TaskScope>(getStoredScope)
   const [myIdentity, setMyIdentity] = useState(getStoredIdentity)
+  const [subtreeRootId, setSubtreeRootId] = useState<string | null>(null)
 
   const handleScopeChange = useCallback((s: TaskScope) => {
     setScope(s)
@@ -261,6 +262,32 @@ export function TasksPage() {
     if (scope !== 'mine' || !myIdentity) return tasks
     return tasks.filter(t => matchesIdentity(t, myIdentity))
   }, [tasks, scope, myIdentity])
+
+  // Subtree kanban: filter to leaf tasks under a specific parent
+  const kanbanTasks = useMemo(() => {
+    if (!subtreeRootId) return scopedTasks
+    // Collect all descendant IDs
+    const descendantIds = new Set<string>()
+    const collect = (parentId: string) => {
+      for (const t of tasks) {
+        if (t.parent_task_id === parentId && !descendantIds.has(t.id)) {
+          descendantIds.add(t.id)
+          collect(t.id)
+        }
+      }
+    }
+    collect(subtreeRootId)
+    // Leaf = has no children in the task set
+    const parentIds = new Set(tasks.map(t => t.parent_task_id).filter(Boolean))
+    return tasks.filter(t => descendantIds.has(t.id) && !parentIds.has(t.id))
+  }, [tasks, subtreeRootId, scopedTasks])
+
+  const subtreeRoot = subtreeRootId ? tasks.find(t => t.id === subtreeRootId) : null
+
+  const handleSubtreeKanban = useCallback((taskId: string) => {
+    setSubtreeRootId(taskId)
+    setViewMode('kanban')
+  }, [])
 
   const hasActiveFilters = filters.status !== null || filters.priority !== null
     || filters.taskType !== null || filters.assignee !== null
@@ -462,17 +489,31 @@ export function TasksPage() {
           onUpdateStatus={(taskId, newStatus) => updateTask(taskId, { status: newStatus })}
         />
       ) : viewMode === 'kanban' ? (
-        <KanbanBoard
-          tasks={scopedTasks}
-          onSelectTask={setSelectedTaskId}
-          onUpdateStatus={(taskId, newStatus) => updateTask(taskId, { status: newStatus })}
-          onReorder={(taskId, newOrder) => updateTask(taskId, { sequence_order: newOrder })}
-        />
+        <>
+          {subtreeRoot && (
+            <div className="subtree-kanban-banner">
+              <span className="subtree-kanban-label">
+                {'\u25A6'} Subtree of <strong>{subtreeRoot.ref}</strong> {subtreeRoot.title}
+              </span>
+              <span className="subtree-kanban-count">{kanbanTasks.length} leaf task{kanbanTasks.length !== 1 ? 's' : ''}</span>
+              <button className="subtree-kanban-clear" onClick={() => setSubtreeRootId(null)}>
+                {'\u2715'} Show all
+              </button>
+            </div>
+          )}
+          <KanbanBoard
+            tasks={subtreeRootId ? kanbanTasks : scopedTasks}
+            onSelectTask={setSelectedTaskId}
+            onUpdateStatus={(taskId, newStatus) => updateTask(taskId, { status: newStatus })}
+            onReorder={(taskId, newOrder) => updateTask(taskId, { sequence_order: newOrder })}
+          />
+        </>
       ) : viewMode === 'tree' ? (
         <TaskTree
           tasks={scopedTasks}
           onSelectTask={setSelectedTaskId}
           onReparent={(taskId, newParentId) => updateTask(taskId, { parent_task_id: newParentId || '' })}
+          onSubtreeKanban={handleSubtreeKanban}
         />
       ) : (
         <div className="tasks-table-container">

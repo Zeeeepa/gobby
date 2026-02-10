@@ -66,15 +66,25 @@ function HighlightText({ text, search }: { text: string; search: string }) {
 // Custom node renderer
 // =============================================================================
 
-function makeTaskNode(searchTerm: string) {
+function makeTaskNode(searchTerm: string, onSubtreeKanban?: (taskId: string) => void) {
   return function TaskNode({ node, style, dragHandle }: NodeRendererProps<TreeNode>) {
     const task = node.data.task
+    const [ctxMenu, setCtxMenu] = useState<{ x: number; y: number } | null>(null)
+
+    const handleContextMenu = useCallback((e: React.MouseEvent) => {
+      if (!onSubtreeKanban || !node.isInternal) return
+      e.preventDefault()
+      e.stopPropagation()
+      setCtxMenu({ x: e.clientX, y: e.clientY })
+    }, [node.isInternal])
+
     return (
       <div
         ref={dragHandle}
         style={style}
         className={`tree-node ${node.isSelected ? 'tree-node--selected' : ''}`}
         onClick={() => node.activate()}
+        onContextMenu={handleContextMenu}
       >
         {node.isInternal ? (
           <button
@@ -94,6 +104,27 @@ function makeTaskNode(searchTerm: string) {
         <TypeBadge type={task.type} />
         <PriorityBadge priority={task.priority} />
         <TaskStatusStrip task={task} compact />
+
+        {ctxMenu && (
+          <>
+            <div className="tree-ctx-backdrop" onClick={() => setCtxMenu(null)} />
+            <div
+              className="tree-ctx-menu"
+              style={{ position: 'fixed', left: ctxMenu.x, top: ctxMenu.y }}
+            >
+              <button
+                className="tree-ctx-item"
+                onClick={e => {
+                  e.stopPropagation()
+                  setCtxMenu(null)
+                  onSubtreeKanban!(task.id)
+                }}
+              >
+                {'\u25A6'} View subtree in Kanban
+              </button>
+            </div>
+          </>
+        )}
       </div>
     )
   }
@@ -117,6 +148,7 @@ interface TaskTreeProps {
   tasks: GobbyTask[]
   onSelectTask: (id: string) => void
   onReparent?: (taskId: string, newParentId: string | null) => void
+  onSubtreeKanban?: (taskId: string) => void
 }
 
 /** Check if making childId a child of parentId would create a cycle. */
@@ -132,12 +164,12 @@ function wouldCreateCycle(childId: string, parentId: string, tasks: GobbyTask[])
   return false
 }
 
-export function TaskTree({ tasks, onSelectTask, onReparent }: TaskTreeProps) {
+export function TaskTree({ tasks, onSelectTask, onReparent, onSubtreeKanban }: TaskTreeProps) {
   const treeRef = useRef<TreeApi<TreeNode> | null>(null)
   const [hideClosed, setHideClosed] = useState(false)
   const [searchTerm, setSearchTerm] = useState('')
   const treeData = useMemo(() => buildTree(tasks, hideClosed), [tasks, hideClosed])
-  const NodeRenderer = useMemo(() => makeTaskNode(searchTerm), [searchTerm])
+  const NodeRenderer = useMemo(() => makeTaskNode(searchTerm, onSubtreeKanban), [searchTerm, onSubtreeKanban])
 
   const handleMove = useCallback(
     ({ dragIds, parentId }: { dragIds: string[]; parentId: string | null; index: number }) => {

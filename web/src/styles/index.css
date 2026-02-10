@@ -6177,6 +6177,90 @@ body {
   padding: 0 1px;
 }
 
+/* Tree context menu */
+
+.tree-ctx-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 999;
+}
+
+.tree-ctx-menu {
+  z-index: 1000;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 4px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+  min-width: 180px;
+}
+
+.tree-ctx-item {
+  display: block;
+  width: 100%;
+  padding: 6px 10px;
+  border: none;
+  border-radius: 4px;
+  background: none;
+  color: var(--text-primary);
+  font-size: calc(var(--font-size-base) * 0.72);
+  font-family: var(--font-sans);
+  text-align: left;
+  cursor: pointer;
+  transition: background 0.1s;
+}
+
+.tree-ctx-item:hover {
+  background: var(--bg-tertiary);
+}
+
+/* Subtree kanban banner */
+
+.subtree-kanban-banner {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 12px;
+  background: rgba(59, 130, 246, 0.08);
+  border: 1px solid rgba(59, 130, 246, 0.2);
+  border-radius: 6px;
+  margin-bottom: 8px;
+}
+
+.subtree-kanban-label {
+  flex: 1;
+  font-size: calc(var(--font-size-base) * 0.72);
+  color: var(--text-secondary);
+}
+
+.subtree-kanban-label strong {
+  color: var(--accent);
+}
+
+.subtree-kanban-count {
+  font-size: calc(var(--font-size-base) * 0.62);
+  color: var(--text-muted);
+  padding: 1px 6px;
+  background: rgba(59, 130, 246, 0.1);
+  border-radius: 8px;
+}
+
+.subtree-kanban-clear {
+  padding: 3px 8px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: none;
+  color: var(--text-muted);
+  font-size: calc(var(--font-size-base) * 0.62);
+  cursor: pointer;
+  transition: color 0.15s, border-color 0.15s;
+}
+
+.subtree-kanban-clear:hover {
+  color: var(--text-primary);
+  border-color: var(--text-muted);
+}
+
 /* =============================================================================
    Quick Capture Task (Cmd+K → t)
    ============================================================================= */
