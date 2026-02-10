@@ -4,13 +4,12 @@ File browser routes for Gobby HTTP server.
 Provides file tree browsing, reading, and image serving endpoints.
 """
 
+import asyncio
 import logging
 import mimetypes
-import subprocess  # nosec B404 — subprocess needed for git commands
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
-import asyncio
 from fastapi import APIRouter, HTTPException, Query
 from fastapi.responses import FileResponse
 from pydantic import BaseModel
@@ -108,7 +107,7 @@ async def _run_git(cwd: str, args: list[str], timeout: float = 10.0) -> tuple[in
         )
         try:
             stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=timeout)
-        except asyncio.TimeoutError:
+        except TimeoutError:
             try:
                 proc.kill()
             except ProcessLookupError:
@@ -116,7 +115,7 @@ async def _run_git(cwd: str, args: list[str], timeout: float = 10.0) -> tuple[in
             raise
 
         return proc.returncode or 0, stdout.decode("utf-8", errors="replace")
-    except (OSError, asyncio.TimeoutError):
+    except (TimeoutError, OSError):
         return 1, ""
 
 
@@ -204,18 +203,19 @@ def create_files_router(server: "HTTPServer") -> APIRouter:
         if not project or not project.repo_path:
             raise HTTPException(404, "Project not found")
 
-        target = _resolve_safe_path(project.repo_path, path)
+        repo_path: str = project.repo_path
+        target = _resolve_safe_path(repo_path, path)
         if not target.is_dir():
             raise HTTPException(400, "Path is not a directory")
 
         # Get git-tracked files for filtering
-        git_files = await _get_git_tracked_files(project.repo_path)
+        git_files = await _get_git_tracked_files(repo_path)
 
         def _scan_dir() -> list[dict[str, Any]]:
             entries: list[dict[str, Any]] = []
             try:
                 for child in sorted(target.iterdir(), key=lambda p: p.name.lower()):
-                    rel = str(child.relative_to(Path(project.repo_path).resolve()))
+                    rel = str(child.relative_to(Path(repo_path).resolve()))
                     is_dir = child.is_dir()
 
                     if not _is_path_visible(rel, git_files, is_dir):
@@ -407,7 +407,7 @@ def create_files_router(server: "HTTPServer") -> APIRouter:
                         files[file_path] = status_code
                 result["files"] = files
         except Exception:
-            pass
+            logger.debug("Failed to get git status", exc_info=True)
 
         return result
 

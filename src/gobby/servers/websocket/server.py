@@ -85,6 +85,9 @@ class WebSocketServer(TmuxMixin, ChatMixin, HandlerMixin, AuthMixin, BroadcastMi
         # Active chat streaming tasks per conversation_id (for cancellation)
         self._active_chat_tasks: dict[str, asyncio.Task[None]] = {}
 
+        # Dispatch table for message routing (lazily populated in _handle_message)
+        self._dispatch_table: dict[str, Callable[..., Coroutine[Any, Any, None]]] = {}
+
         # Initialize tmux subsystem
         self._init_tmux()
 
@@ -185,8 +188,8 @@ class WebSocketServer(TmuxMixin, ChatMixin, HandlerMixin, AuthMixin, BroadcastMi
         data = json.loads(message)
         msg_type = data.get("type")
 
-        # Lazily initialize dispatch table to avoid cluttering __init__
-        if not hasattr(self, "_dispatch_table"):
+        # Lazily initialize dispatch table
+        if not self._dispatch_table:
             self._dispatch_table = {
                 "tool_call": self._handle_tool_call,
                 "ping": self._handle_ping,

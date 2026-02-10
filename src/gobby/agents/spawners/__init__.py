@@ -22,7 +22,12 @@ Usage:
     from gobby.agents.spawners import create_prompt_file, read_prompt_from_env
 """
 
-from typing import Any
+from __future__ import annotations
+
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    from gobby.agents.tmux.spawner import TmuxSpawner as TmuxSpawner
 
 from gobby.agents.spawners.base import (
     EmbeddedPTYResult,

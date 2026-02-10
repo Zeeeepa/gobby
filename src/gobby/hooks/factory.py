@@ -42,9 +42,51 @@ if TYPE_CHECKING:
     import asyncio
     from collections.abc import Callable
 
+    from gobby.hooks.artifact_capture import ArtifactCaptureHook
     from gobby.llm.service import LLMService
+    from gobby.storage.artifacts import LocalArtifactManager
+    from gobby.workflows.actions import ActionExecutor
+    from gobby.workflows.engine import WorkflowEngine
+    from gobby.workflows.pipeline_executor import PipelineExecutor
+    from gobby.workflows.templates import TemplateEngine
 
 logger = logging.getLogger(__name__)
+
+
+class _Storage:
+    """Container for storage managers."""
+
+    session: LocalSessionManager
+    session_task: SessionTaskManager
+    memory: LocalMemoryManager
+    message: LocalSessionMessageManager
+    task: LocalTaskManager
+    agent_run: LocalAgentRunManager
+    worktree: LocalWorktreeManager
+    artifact: LocalArtifactManager
+    artifact_capture_hook: ArtifactCaptureHook
+
+
+class _Autonomous:
+    """Container for autonomous subsystem components."""
+
+    stop_registry: StopRegistry
+    progress_tracker: ProgressTracker
+    stuck_detector: StuckDetector
+
+
+class _WorkflowComponents:
+    """Container for workflow engine components."""
+
+    loader: WorkflowLoader
+    state_manager: WorkflowStateManager
+    template_engine: TemplateEngine
+    skill_manager: HookSkillManager
+    pipeline_executor: PipelineExecutor | None
+    action_executor: ActionExecutor
+    engine: WorkflowEngine
+    handler: WorkflowHookHandler
+
 
 # Backward-compatible alias (moved from hook_manager.py)
 TranscriptProcessor = ClaudeTranscriptParser
@@ -264,14 +306,11 @@ class HookManagerFactory:
         return LocalDatabase()
 
     @staticmethod
-    def _create_storage(database: LocalDatabase) -> Any:
-        # Using a simple namespace or dataclass to group storage items would be cleaner,
-        # but for now we'll just return a DotDict or similar to match the usage above.
-        # To avoid introducing new types here, i'll use a simple class.
-        class Storage:
-            pass
+    def _create_storage(database: LocalDatabase) -> _Storage:
+        from gobby.hooks.artifact_capture import ArtifactCaptureHook
+        from gobby.storage.artifacts import LocalArtifactManager
 
-        s = Storage()
+        s = _Storage()
         s.session = LocalSessionManager(database)
         s.session_task = SessionTaskManager(database)
         s.memory = LocalMemoryManager(database)
@@ -279,20 +318,13 @@ class HookManagerFactory:
         s.task = LocalTaskManager(database)
         s.agent_run = LocalAgentRunManager(database)
         s.worktree = LocalWorktreeManager(database)
-
-        from gobby.hooks.artifact_capture import ArtifactCaptureHook
-        from gobby.storage.artifacts import LocalArtifactManager
-
         s.artifact = LocalArtifactManager(database)
         s.artifact_capture_hook = ArtifactCaptureHook(artifact_manager=s.artifact)
         return s
 
     @staticmethod
-    def _create_autonomous(database: LocalDatabase, storage: Any) -> Any:
-        class Autonomous:
-            pass
-
-        a = Autonomous()
+    def _create_autonomous(database: LocalDatabase, storage: Any) -> _Autonomous:
+        a = _Autonomous()
         a.stop_registry = StopRegistry(database)
         a.progress_tracker = ProgressTracker(database)
         a.stuck_detector = StuckDetector(database, progress_tracker=a.progress_tracker)
@@ -320,7 +352,7 @@ class HookManagerFactory:
 
     @staticmethod
     def _create_plugins(
-        config: Any | None, logger: logging.Logger, workflow: Any
+        config: Any | None, logger: logging.Logger, workflow: _WorkflowComponents
     ) -> PluginLoader | None:
         plugins_config = None
         if config and hasattr(config, "hook_extensions"):
@@ -348,22 +380,19 @@ class HookManagerFactory:
         llm_service: LLMService | None,
         transcript_processor: Any,
         memory_manager: MemoryManager,
-        storage: Any,
-        autonomous: Any,
+        storage: _Storage,
+        autonomous: _Autonomous,
         memory_sync_manager: Any | None,
         task_sync_manager: Any | None,
         tool_proxy_getter: Any | None,
         resolve_project_id: Callable[[str | None, str | None], str],
         broadcaster: Any | None,
-    ) -> Any:
+    ) -> _WorkflowComponents:
         from gobby.workflows.actions import ActionExecutor
         from gobby.workflows.engine import WorkflowEngine
         from gobby.workflows.templates import TemplateEngine
 
-        class WorkflowComponents:
-            pass
-
-        w = WorkflowComponents()
+        w = _WorkflowComponents()
         w.loader = WorkflowLoader(workflow_dirs=[Path.home() / ".gobby" / "workflows"])
         w.state_manager = WorkflowStateManager(database)
         w.template_engine = TemplateEngine()

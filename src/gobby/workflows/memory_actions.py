@@ -401,7 +401,7 @@ async def memory_extraction_gate(
             if session and session.seq_num:
                 session_ref = f"#{session.seq_num}"
         except Exception:
-            pass
+            logger.debug("Failed to resolve session ref", exc_info=True)
 
     reason = (
         "Before stopping, review your work this session and save any valuable memories.\n"
