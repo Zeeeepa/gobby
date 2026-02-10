@@ -117,12 +117,27 @@ class MemoryConfig(BaseModel):
         description="Minimum importance score after decay",
     )
     search_backend: str = Field(
-        default="tfidf",
+        default="auto",
         description=(
             "Search backend for memory recall. Options: "
-            "'tfidf' (default, zero-dependency local search), "
-            "'text' (simple substring matching)"
+            "'auto' (default, tries embeddings then falls back to TF-IDF), "
+            "'tfidf' (zero-dependency local search), "
+            "'text' (simple substring matching), "
+            "'embedding' (semantic search via embeddings), "
+            "'hybrid' (combined TF-IDF + embedding scores)"
         ),
+    )
+    embedding_model: str = Field(
+        default="text-embedding-3-small",
+        description="Embedding model for semantic search (used in auto/embedding/hybrid modes)",
+    )
+    embedding_weight: float = Field(
+        default=0.6,
+        description="Weight for embedding score in hybrid search (0.0-1.0)",
+    )
+    tfidf_weight: float = Field(
+        default=0.4,
+        description="Weight for TF-IDF score in hybrid search (0.0-1.0)",
     )
     auto_crossref: bool = Field(
         default=False,
@@ -141,7 +156,14 @@ class MemoryConfig(BaseModel):
         description="Minimum seconds between access stat updates for the same memory",
     )
 
-    @field_validator("importance_threshold", "decay_rate", "decay_floor", "crossref_threshold")
+    @field_validator(
+        "importance_threshold",
+        "decay_rate",
+        "decay_floor",
+        "crossref_threshold",
+        "embedding_weight",
+        "tfidf_weight",
+    )
     @classmethod
     def validate_probability(cls, v: float) -> float:
         """Validate value is between 0.0 and 1.0."""
@@ -161,7 +183,7 @@ class MemoryConfig(BaseModel):
     @classmethod
     def validate_search_backend(cls, v: str) -> str:
         """Validate search_backend is a supported option."""
-        valid_backends = {"tfidf", "text"}
+        valid_backends = {"tfidf", "text", "embedding", "auto", "hybrid"}
         if v not in valid_backends:
             raise ValueError(
                 f"Invalid search_backend '{v}'. Must be one of: {sorted(valid_backends)}"

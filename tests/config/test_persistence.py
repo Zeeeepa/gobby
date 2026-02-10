@@ -53,7 +53,10 @@ class TestMemoryConfigDefaults:
         assert config.decay_enabled is True
         assert config.decay_rate == 0.05
         assert config.decay_floor == 0.1
-        assert config.search_backend == "tfidf"
+        assert config.search_backend == "auto"
+        assert config.embedding_model == "text-embedding-3-small"
+        assert config.embedding_weight == 0.6
+        assert config.tfidf_weight == 0.4
         assert config.access_debounce_seconds == 60
 
 
@@ -444,6 +447,88 @@ class TestMemorySyncConfigValidation:
 # =============================================================================
 # Baseline Tests (import from app.py)
 # =============================================================================
+
+
+# =============================================================================
+# MemoryConfig: Expanded search_backend options (Memory V4)
+# =============================================================================
+
+
+class TestMemoryConfigSearchBackendOptions:
+    """Test expanded search_backend options for semantic search."""
+
+    @pytest.mark.parametrize("backend", ["tfidf", "text", "embedding", "auto", "hybrid"])
+    def test_valid_search_backends(self, backend: str) -> None:
+        """Test that all valid search_backend values are accepted."""
+        from gobby.config.persistence import MemoryConfig
+
+        config = MemoryConfig(search_backend=backend)
+        assert config.search_backend == backend
+
+    def test_invalid_search_backend_rejected(self) -> None:
+        """Test that invalid search_backend values are rejected."""
+        from gobby.config.persistence import MemoryConfig
+
+        with pytest.raises(ValidationError) as exc_info:
+            MemoryConfig(search_backend="invalid")
+        assert "invalid" in str(exc_info.value).lower()
+
+    def test_default_search_backend_is_auto(self) -> None:
+        """Test that the default search_backend is 'auto'."""
+        from gobby.config.persistence import MemoryConfig
+
+        config = MemoryConfig()
+        assert config.search_backend == "auto"
+
+
+class TestMemoryConfigEmbeddingFields:
+    """Test new embedding configuration fields."""
+
+    def test_embedding_model_default(self) -> None:
+        """Test default embedding_model value."""
+        from gobby.config.persistence import MemoryConfig
+
+        config = MemoryConfig()
+        assert config.embedding_model == "text-embedding-3-small"
+
+    def test_embedding_model_custom(self) -> None:
+        """Test setting a custom embedding model."""
+        from gobby.config.persistence import MemoryConfig
+
+        config = MemoryConfig(embedding_model="text-embedding-3-large")
+        assert config.embedding_model == "text-embedding-3-large"
+
+    def test_embedding_weight_default(self) -> None:
+        """Test default embedding_weight value."""
+        from gobby.config.persistence import MemoryConfig
+
+        config = MemoryConfig()
+        assert config.embedding_weight == 0.6
+
+    def test_tfidf_weight_default(self) -> None:
+        """Test default tfidf_weight value."""
+        from gobby.config.persistence import MemoryConfig
+
+        config = MemoryConfig()
+        assert config.tfidf_weight == 0.4
+
+    def test_custom_weights(self) -> None:
+        """Test setting custom search weights."""
+        from gobby.config.persistence import MemoryConfig
+
+        config = MemoryConfig(embedding_weight=0.8, tfidf_weight=0.2)
+        assert config.embedding_weight == 0.8
+        assert config.tfidf_weight == 0.2
+
+    def test_weight_validation_range(self) -> None:
+        """Test that weights must be between 0 and 1."""
+        from gobby.config.persistence import MemoryConfig
+
+        with pytest.raises(ValidationError):
+            MemoryConfig(embedding_weight=1.5)
+
+        with pytest.raises(ValidationError):
+            MemoryConfig(tfidf_weight=-0.1)
 
 
 class TestMemoryConfigFromAppPy:
