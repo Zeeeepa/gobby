@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { useTasks } from '../hooks/useTasks'
 import type { GobbyTask } from '../hooks/useTasks'
 import { StatusDot, PriorityBadge, TypeBadge } from './tasks/TaskBadges'
+import { TaskDetail } from './tasks/TaskDetail'
 
 // =============================================================================
 // Constants
@@ -65,9 +66,9 @@ function PlusIcon() {
 // TaskRow
 // =============================================================================
 
-function TaskRow({ task }: { task: GobbyTask }) {
+function TaskRow({ task, onSelect }: { task: GobbyTask; onSelect: (id: string) => void }) {
   return (
-    <tr className="tasks-row">
+    <tr className="tasks-row" onClick={() => onSelect(task.id)} style={{ cursor: 'pointer' }}>
       <td className="tasks-cell tasks-cell--status">
         <StatusDot status={task.status} />
       </td>
@@ -91,8 +92,9 @@ function TaskRow({ task }: { task: GobbyTask }) {
 // =============================================================================
 
 export function TasksPage() {
-  const { tasks, total, stats, isLoading, filters, setFilters, refreshTasks } = useTasks()
+  const { tasks, total, stats, isLoading, filters, setFilters, refreshTasks, getTask } = useTasks()
   const [viewMode, setViewMode] = useState<ViewMode>('list')
+  const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null)
 
   const hasActiveFilters = filters.status !== null || filters.priority !== null
     || filters.taskType !== null || filters.assignee !== null
@@ -234,12 +236,18 @@ export function TasksPage() {
             </thead>
             <tbody>
               {tasks.map(task => (
-                <TaskRow key={task.id} task={task} />
+                <TaskRow key={task.id} task={task} onSelect={setSelectedTaskId} />
               ))}
             </tbody>
           </table>
         </div>
       )}
+
+      <TaskDetail
+        taskId={selectedTaskId}
+        getTask={getTask}
+        onClose={() => setSelectedTaskId(null)}
+      />
     </main>
   )
 }
