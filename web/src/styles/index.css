@@ -2051,6 +2051,10 @@ body {
   color: var(--text-primary);
 }
 
+.terminals-open-sidebar-btn {
+  display: none;
+}
+
 /* Session list */
 .terminals-session-list {
   flex: 1;
@@ -2799,6 +2803,10 @@ body {
 
   .terminals-mobile-toolbar {
     display: flex;
+  }
+
+  .terminals-open-sidebar-btn {
+    display: inline-flex;
   }
 
   .sidebar {
