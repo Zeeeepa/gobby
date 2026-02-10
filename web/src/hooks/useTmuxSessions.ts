@@ -164,13 +164,17 @@ export function useTmuxSessions(): TmuxSessionsResult {
   const killSession = useCallback((sessionName: string, socket: string) => {
     if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) return
     setIsLoading(true)
+    if (sessionName === attachedSession) {
+      setStreamingId(null)
+      setAttachedSession(null)
+    }
     wsRef.current.send(JSON.stringify({
       type: 'tmux_kill_session',
       request_id: `kill-${Date.now()}`,
       session_name: sessionName,
       socket,
     }))
-  }, [])
+  }, [attachedSession])
 
   const sendInput = useCallback((data: string) => {
     if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN || !streamingId) return
