@@ -171,35 +171,30 @@ Persistent memory system. See [memory.md](memory.md) for details.
 ```yaml
 memory:
   enabled: true
-  backend: local                  # local, mem0, null
+  backend: local                  # local or null (testing)
 
-  # Mem0 Backend (cloud-based semantic memory)
-  mem0:
-    api_key: null                # Required when backend='mem0'
-    user_id: default
-    org_id: null
+  # Search
+  search_backend: auto            # tfidf, text, embedding, auto, hybrid
+  embedding_model: text-embedding-3-small
+  embedding_weight: 0.6           # 0.0-1.0 (hybrid mode)
+  tfidf_weight: 0.4               # 0.0-1.0 (hybrid mode)
 
-  # MemU Backend (structured memory)
-  memu:
-    database_type: inmemory      # inmemory, sqlite, postgres
-    database_url: null
-    llm_api_key: null
-    llm_base_url: null
-    user_id: null
-
-  # Behavior settings
-  importance_threshold: 0.7      # 0.0-1.0
+  # Importance & Decay
+  importance_threshold: 0.7       # 0.0-1.0
   decay_enabled: true
-  decay_rate: 0.05               # 0.0-1.0
-  decay_floor: 0.1               # 0.0-1.0
-  search_backend: tfidf          # tfidf, text
+  decay_rate: 0.05                # 0.0-1.0
+  decay_floor: 0.1                # 0.0-1.0
 
   # Cross-referencing
   auto_crossref: false
-  crossref_threshold: 0.3        # 0.0-1.0
+  crossref_threshold: 0.3         # 0.0-1.0
   crossref_max_links: 5
 
   access_debounce_seconds: 60
+
+  # Mem0 integration (optional — set via 'gobby install --mem0')
+  # mem0_url: http://localhost:8888
+  # mem0_api_key: ${MEM0_API_KEY}
 ```
 
 ### Memory Sync
