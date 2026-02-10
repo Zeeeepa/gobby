@@ -24,7 +24,7 @@ export function SourceIcon({ source, size = 14 }: SourceIconProps) {
           <polyline points="17 8 21 12 17 16" />
         </svg>
       )
-    case 'web-chat':
+    case 'claude_sdk_web_chat':
       return (
         <svg width={size} height={size} viewBox="0 0 24 24" fill="none" className="source-icon source-icon-web-chat" stroke="#4ade80" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
           <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
@@ -44,7 +44,7 @@ export function sourceColor(source: string): string {
     case 'claude': return '#f97316'
     case 'gemini': return '#3b82f6'
     case 'codex': return '#a855f7'
-    case 'web-chat': return '#4ade80'
+    case 'claude_sdk_web_chat': return '#4ade80'
     default: return '#737373'
   }
 }

@@ -284,7 +284,7 @@ class ChatSession:
                 tool_use_id: str | None,
                 ctx: HookContext,
             ) -> SyncHookJSONOutput:
-                data = {"prompt_text": inp.get("prompt", ""), "source": "web-chat"}  # type: ignore[union-attr]
+                data = {"prompt_text": inp.get("prompt", ""), "source": "claude_sdk_web_chat"}  # type: ignore[union-attr]
                 resp = await cb(data)
                 return _response_to_prompt_output(resp)
 

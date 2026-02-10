@@ -18,7 +18,7 @@ interface SessionsPageProps {
 
 function sourceLabel(source: string): string {
   switch (source) {
-    case 'web-chat': return 'Web Chat'
+    case 'claude_sdk_web_chat': return 'Web Chat'
     case 'claude': return 'Claude'
     case 'gemini': return 'Gemini'
     case 'codex': return 'Codex'

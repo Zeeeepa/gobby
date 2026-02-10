@@ -130,7 +130,7 @@ class ChatMixin:
                 db_session = session_manager.register(
                     external_id=conversation_id,
                     machine_id=get_machine_id(),
-                    source="claude_sdk",
+                    source="claude_sdk_web_chat",
                     project_id=project_id or PERSONAL_PROJECT_ID,
                 )
                 session.db_session_id = db_session.id
@@ -161,7 +161,7 @@ class ChatMixin:
         event = HookEvent(
             event_type=event_type,
             session_id=conversation_id,
-            source=SessionSource.CLAUDE_SDK,
+            source=SessionSource.CLAUDE_SDK_WEB_CHAT,
             timestamp=datetime.now(UTC),
             data=data,
             metadata={"_platform_session_id": conversation_id},

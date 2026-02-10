@@ -23,7 +23,7 @@ export interface GobbySession {
   parent_session_id: string | null
 }
 
-export const KNOWN_SOURCES = ['claude', 'gemini', 'codex', 'web-chat'] as const
+export const KNOWN_SOURCES = ['claude', 'gemini', 'codex', 'claude_sdk_web_chat'] as const
 
 export interface SessionFilters {
   source: string | null

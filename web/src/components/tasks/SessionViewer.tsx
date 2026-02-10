@@ -57,7 +57,7 @@ const SOURCE_LABELS: Record<string, string> = {
   claude: 'Claude Code',
   gemini: 'Gemini CLI',
   codex: 'Codex',
-  'web-chat': 'Web Chat',
+  'claude_sdk_web_chat': 'Web Chat',
 }
 
 const STATUS_COLORS: Record<string, string> = {

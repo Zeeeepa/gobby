@@ -96,7 +96,7 @@ export default function App() {
 
   // Web-chat sessions only (for ConversationPicker in ChatPage)
   const webChatSessions = useMemo(
-    () => sessionsHook.filteredSessions.filter((s) => s.source === 'web-chat'),
+    () => sessionsHook.filteredSessions.filter((s) => s.source === 'claude_sdk_web_chat'),
     [sessionsHook.filteredSessions]
   )
 
