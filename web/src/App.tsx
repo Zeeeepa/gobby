@@ -13,6 +13,7 @@ import { ChatPage } from './components/ChatPage'
 import { SessionsPage } from './components/SessionsPage'
 import { TerminalsPage } from './components/TerminalsPage'
 import { FilesPage } from './components/FilesPage'
+import { MemoryPage } from './components/MemoryPage'
 import type { GobbySession } from './hooks/useSessions'
 
 export default function App() {
@@ -226,6 +227,8 @@ export default function App() {
           onSaveFile={files.saveFile}
           onFetchDiff={files.fetchDiff}
         />
+      ) : activeTab === 'memory' ? (
+        <MemoryPage />
       ) : (
         <ComingSoonPage title={navItems.find(i => i.id === activeTab)?.label ?? activeTab} />
       )}

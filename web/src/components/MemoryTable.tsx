@@ -11,6 +11,8 @@ interface MemoryTableProps {
   onDelete: (memoryId: string) => void
   isLoading: boolean
   onRefresh: () => void
+  onSelect?: (memory: GobbyMemory) => void
+  onEdit?: (memory: GobbyMemory) => void
 }
 
 function typeColor(type: string): string {
@@ -43,6 +45,8 @@ export function MemoryTable({
   onDelete,
   isLoading,
   onRefresh,
+  onSelect,
+  onEdit,
 }: MemoryTableProps) {
   const [expandedId, setExpandedId] = useState<string | null>(null)
 
@@ -145,6 +149,30 @@ export function MemoryTable({
                     <span className="memory-card-access">
                       {m.access_count} accesses
                     </span>
+                    {onSelect && (
+                      <button
+                        className="memory-action-btn"
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          onSelect(m)
+                        }}
+                        title="View details"
+                      >
+                        View
+                      </button>
+                    )}
+                    {onEdit && (
+                      <button
+                        className="memory-action-btn"
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          onEdit(m)
+                        }}
+                        title="Edit memory"
+                      >
+                        Edit
+                      </button>
+                    )}
                     <button
                       className="memory-delete-btn"
                       onClick={(e) => {
