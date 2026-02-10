@@ -34,7 +34,7 @@ MigrationAction = str | Callable[[LocalDatabase], None]
 # Baseline version - the schema state at v81 (flattened)
 # This is applied for new databases directly
 # Note: Migrations >= BASELINE_VERSION still run for existing databases
-BASELINE_VERSION = 81
+BASELINE_VERSION = 84
 
 # Baseline schema - flattened from v81 production state, includes all migrations
 # This is applied for new databases directly
@@ -52,6 +52,7 @@ CREATE TABLE projects (
     github_url TEXT,
     github_repo TEXT,
     linear_team_id TEXT,
+    deleted_at TEXT,
     created_at TEXT NOT NULL DEFAULT (datetime('now')),
     updated_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
@@ -62,6 +63,8 @@ INSERT INTO projects (id, name, repo_path, created_at, updated_at)
 VALUES ('00000000-0000-0000-0000-000000000000', '_orphaned', NULL, datetime('now'), datetime('now'));
 INSERT INTO projects (id, name, repo_path, created_at, updated_at)
 VALUES ('00000000-0000-0000-0000-000000000001', '_migrated', NULL, datetime('now'), datetime('now'));
+INSERT INTO projects (id, name, repo_path, created_at, updated_at)
+VALUES ('00000000-0000-0000-0000-000000060887', '_personal', NULL, datetime('now'), datetime('now'));
 
 CREATE TABLE mcp_servers (
     id TEXT PRIMARY KEY,
@@ -818,6 +821,19 @@ MIGRATIONS: list[tuple[int, str, MigrationAction]] = [
         82,
         "Rename task status 'review' to 'needs_review'",
         "UPDATE tasks SET status = 'needs_review' WHERE status = 'review'",
+    ),
+    # Soft-delete support: Add deleted_at column to projects
+    (
+        83,
+        "Add deleted_at column to projects",
+        "ALTER TABLE projects ADD COLUMN deleted_at TEXT",
+    ),
+    # Add _personal system project
+    (
+        84,
+        "Add _personal system project",
+        """INSERT OR IGNORE INTO projects (id, name, repo_path, created_at, updated_at)
+        VALUES ('00000000-0000-0000-0000-000000060887', '_personal', NULL, datetime('now'), datetime('now'))""",
     ),
 ]
 

@@ -10,6 +10,10 @@ from gobby.storage.database import DatabaseProtocol
 
 logger = logging.getLogger(__name__)
 
+ORPHANED_PROJECT_ID = "00000000-0000-0000-0000-000000000000"
+PERSONAL_PROJECT_ID = "00000000-0000-0000-0000-000000060887"
+SYSTEM_PROJECT_NAMES = frozenset({"_orphaned", "_migrated", "_personal", "gobby"})
+
 
 @dataclass
 class Project:
@@ -23,10 +27,12 @@ class Project:
     updated_at: str
     github_repo: str | None = None  # GitHub repo in "owner/repo" format
     linear_team_id: str | None = None  # Linear team ID for project sync
+    deleted_at: str | None = None
 
     @classmethod
     def from_row(cls, row: Any) -> "Project":
         """Create Project from database row."""
+        keys = row.keys()
         return cls(
             id=row["id"],
             name=row["name"],
@@ -34,13 +40,14 @@ class Project:
             github_url=row["github_url"],
             created_at=row["created_at"],
             updated_at=row["updated_at"],
-            github_repo=row["github_repo"] if "github_repo" in row.keys() else None,
-            linear_team_id=row["linear_team_id"] if "linear_team_id" in row.keys() else None,
+            github_repo=row["github_repo"] if "github_repo" in keys else None,
+            linear_team_id=row["linear_team_id"] if "linear_team_id" in keys else None,
+            deleted_at=row["deleted_at"] if "deleted_at" in keys else None,
         )
 
     def to_dict(self) -> dict[str, Any]:
         """Convert to dictionary."""
-        return {
+        d: dict[str, Any] = {
             "id": self.id,
             "name": self.name,
             "repo_path": self.repo_path,
@@ -50,6 +57,9 @@ class Project:
             "created_at": self.created_at,
             "updated_at": self.updated_at,
         }
+        if self.deleted_at:
+            d["deleted_at"] = self.deleted_at
+        return d
 
 
 class LocalProjectManager:
@@ -101,9 +111,14 @@ class LocalProjectManager:
         row = self.db.fetchone("SELECT * FROM projects WHERE id = ?", (project_id,))
         return Project.from_row(row) if row else None
 
-    def get_by_name(self, name: str) -> Project | None:
-        """Get project by name."""
-        row = self.db.fetchone("SELECT * FROM projects WHERE name = ?", (name,))
+    def get_by_name(self, name: str, include_deleted: bool = False) -> Project | None:
+        """Get project by name. Excludes soft-deleted projects by default."""
+        if include_deleted:
+            row = self.db.fetchone("SELECT * FROM projects WHERE name = ?", (name,))
+        else:
+            row = self.db.fetchone(
+                "SELECT * FROM projects WHERE name = ? AND deleted_at IS NULL", (name,)
+            )
         return Project.from_row(row) if row else None
 
     def get_or_create(
@@ -118,9 +133,14 @@ class LocalProjectManager:
             return project
         return self.create(name, repo_path, github_url)
 
-    def list(self) -> list[Project]:
-        """List all projects."""
-        rows = self.db.fetchall("SELECT * FROM projects ORDER BY name")
+    def list(self, include_deleted: bool = False) -> list[Project]:
+        """List all projects. Excludes soft-deleted projects by default."""
+        if include_deleted:
+            rows = self.db.fetchall("SELECT * FROM projects ORDER BY name")
+        else:
+            rows = self.db.fetchall(
+                "SELECT * FROM projects WHERE deleted_at IS NULL ORDER BY name"
+            )
         return [Project.from_row(row) for row in rows]
 
     def update(self, project_id: str, **fields: Any) -> Project | None:
@@ -156,10 +176,34 @@ class LocalProjectManager:
 
     def delete(self, project_id: str) -> bool:
         """
-        Delete project by ID.
+        Delete project by ID (hard delete).
 
         Returns:
             True if deleted, False if not found
         """
         cursor = self.db.execute("DELETE FROM projects WHERE id = ?", (project_id,))
+        return cursor.rowcount > 0
+
+    def resolve_ref(self, ref: str) -> Project | None:
+        """Resolve a project reference (UUID or name). Excludes deleted projects."""
+        project = self.get(ref)
+        if project and not project.deleted_at:
+            return project
+        return self.get_by_name(ref)
+
+    def is_protected(self, project: Project) -> bool:
+        """Check if a project is a protected system project."""
+        return project.name in SYSTEM_PROJECT_NAMES
+
+    def soft_delete(self, project_id: str) -> bool:
+        """Soft-delete a project by setting deleted_at timestamp.
+
+        Returns:
+            True if updated, False if not found
+        """
+        now = datetime.now(UTC).isoformat()
+        cursor = self.db.execute(
+            "UPDATE projects SET deleted_at = ?, updated_at = ? WHERE id = ? AND deleted_at IS NULL",
+            (now, now, project_id),
+        )
         return cursor.rowcount > 0
