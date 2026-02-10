@@ -4,11 +4,6 @@ description: Progressive disclosure pattern for MCP tools and skills. Use when t
 category: core
 alwaysApply: false
 injectionFormat: full
-metadata:
-  gobby:
-    audience: all
-    format_overrides:
-      autonomous: full
 ---
 
 # Discovering Tools - Progressive Disclosure Pattern
