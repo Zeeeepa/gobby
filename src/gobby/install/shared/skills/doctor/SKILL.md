@@ -3,6 +3,10 @@ name: doctor
 description: This skill should be used when the user asks to "/gobby doctor", "run doctor", "security audit", "health check", "systems check", "run diagnostics". Run comprehensive systems check and security audit verifying CLI and MCP tools work correctly.
 category: core
 triggers: doctor, health check, diagnostic
+metadata:
+  gobby:
+    audience: interactive
+    depth: 0
 ---
 
 # /gobby doctor - System Health and Security Skill

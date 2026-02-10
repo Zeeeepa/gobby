@@ -2,6 +2,10 @@
 name: epic
 description: "Quickly create an epic (parent task for large features). Usage: /epic <title> [description]"
 category: core
+metadata:
+  gobby:
+    audience: all
+    depth: [0, 1]
 ---
 
 # /epic - Create Epic Task

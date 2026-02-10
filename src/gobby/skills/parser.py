@@ -46,6 +46,31 @@ FRONTMATTER_PATTERN = re.compile(
 
 
 @dataclass
+class SkillAudienceConfig:
+    """Agent-type-aware audience configuration for a skill.
+
+    Controls which agent types/depths receive this skill and how it's formatted
+    for different audiences. When absent on a ParsedSkill, the skill falls back
+    to legacy always_apply behavior.
+
+    Attributes:
+        audience: Target audience — "all", "interactive", "autonomous", "orchestrator", "worker"
+        depth: Agent depth filter — None (any), int (exact), list[int], or str range "0-2"
+        steps: Workflow step filter — None (any) or list of step names
+        task_categories: Task category filter — None (any) or list like ["code", "test"]
+        format_overrides: Per-audience injection format override, e.g. {"autonomous": "full"}
+        priority: Injection ordering (lower = earlier in output)
+    """
+
+    audience: str = "all"
+    depth: int | list[int] | str | None = None
+    steps: list[str] | None = None
+    task_categories: list[str] | None = None
+    format_overrides: dict[str, str] | None = None
+    priority: int = 50
+
+
+@dataclass
 class ParsedSkill:
     """Parsed skill data from a SKILL.md file.
 
@@ -66,6 +91,7 @@ class ParsedSkill:
         assets: List of asset file paths (relative to skill dir)
         always_apply: Whether skill should always be injected at session start
         injection_format: How to inject skill (summary, full, content)
+        audience_config: Agent-type-aware audience configuration (from metadata.gobby)
     """
 
     name: str
@@ -85,6 +111,7 @@ class ParsedSkill:
     always_apply: bool = False
     injection_format: str = "summary"
     triggers: list[str] | None = None
+    audience_config: SkillAudienceConfig | None = None
 
     def get_category(self) -> str | None:
         """Get category from top-level or metadata.skillport.category."""
@@ -129,7 +156,7 @@ class ParsedSkill:
 
     def to_dict(self) -> dict[str, Any]:
         """Convert to dictionary representation."""
-        return {
+        result = {
             "name": self.name,
             "description": self.description,
             "content": self.content,
@@ -148,6 +175,16 @@ class ParsedSkill:
             "injection_format": self.injection_format,
             "triggers": self.triggers,
         }
+        if self.audience_config:
+            result["audience_config"] = {
+                "audience": self.audience_config.audience,
+                "depth": self.audience_config.depth,
+                "steps": self.audience_config.steps,
+                "task_categories": self.audience_config.task_categories,
+                "format_overrides": self.audience_config.format_overrides,
+                "priority": self.audience_config.priority,
+            }
+        return result
 
 
 class SkillParseError(Exception):
@@ -283,6 +320,45 @@ def parse_skill_text(text: str, source_path: str | None = None) -> ParsedSkill:
         elif isinstance(triggers_raw, list):
             triggers = [str(t).strip() for t in triggers_raw if str(t).strip()]
 
+    # Extract audience config from metadata.gobby namespace
+    audience_config: SkillAudienceConfig | None = None
+    if metadata and isinstance(metadata, dict):
+        gobby_meta = metadata.get("gobby", {})
+        if isinstance(gobby_meta, dict) and any(
+            k in gobby_meta
+            for k in ("audience", "depth", "steps", "task_categories", "format_overrides", "priority")
+        ):
+            ac_kwargs: dict[str, Any] = {}
+            if "audience" in gobby_meta:
+                ac_kwargs["audience"] = str(gobby_meta["audience"])
+            if "depth" in gobby_meta:
+                raw_depth = gobby_meta["depth"]
+                # Support int, list[int], or str range like "0-2"
+                if isinstance(raw_depth, int):
+                    ac_kwargs["depth"] = raw_depth
+                elif isinstance(raw_depth, list):
+                    ac_kwargs["depth"] = [int(d) for d in raw_depth]
+                elif isinstance(raw_depth, str):
+                    ac_kwargs["depth"] = raw_depth
+            if "steps" in gobby_meta:
+                raw_steps = gobby_meta["steps"]
+                if isinstance(raw_steps, list):
+                    ac_kwargs["steps"] = [str(s) for s in raw_steps]
+            if "task_categories" in gobby_meta:
+                raw_cats = gobby_meta["task_categories"]
+                if isinstance(raw_cats, list):
+                    ac_kwargs["task_categories"] = [str(c) for c in raw_cats]
+            if "format_overrides" in gobby_meta:
+                raw_fo = gobby_meta["format_overrides"]
+                if isinstance(raw_fo, dict):
+                    ac_kwargs["format_overrides"] = {str(k): str(v) for k, v in raw_fo.items()}
+            if "priority" in gobby_meta:
+                try:
+                    ac_kwargs["priority"] = int(gobby_meta["priority"])
+                except (ValueError, TypeError):
+                    pass
+            audience_config = SkillAudienceConfig(**ac_kwargs)
+
     return ParsedSkill(
         name=name,
         description=description,
@@ -296,6 +372,7 @@ def parse_skill_text(text: str, source_path: str | None = None) -> ParsedSkill:
         always_apply=always_apply,
         injection_format=injection_format,
         triggers=triggers,
+        audience_config=audience_config,
     )
 
 

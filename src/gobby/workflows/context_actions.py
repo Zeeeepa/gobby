@@ -230,10 +230,17 @@ def inject_context(
         # Apply filter if specified
         if filter == "always_apply":
             skills = [s for s in skills if s.is_always_apply()]
-
-        if skills:
-            content = _format_skills(skills)
-            logger.debug(f"Formatted {len(skills)} skills for injection")
+            if skills:
+                content = _format_skills(skills)
+                logger.debug(f"Formatted {len(skills)} skills for injection")
+        elif filter == "context_aware":
+            content = _inject_context_aware_skills(
+                skills, session_manager, session_id, state
+            )
+        else:
+            if skills:
+                content = _format_skills(skills)
+                logger.debug(f"Formatted {len(skills)} skills for injection")
 
     elif source == "task_context":
         # Inject current task context from session_task_manager
@@ -546,6 +553,103 @@ def _format_skills(skills: list[Any]) -> str:
         name = getattr(skill, "name", "unknown")
         description = getattr(skill, "description", "")
         fmt = getattr(skill, "injection_format", "summary")
+        content = getattr(skill, "content", "")
+
+        if fmt == "full":
+            section_lines = [f"### {name}"]
+            if description:
+                section_lines.append(description)
+            if content:
+                section_lines.append("")
+                section_lines.append(content)
+            expanded_sections.append("\n".join(section_lines))
+        elif fmt == "content":
+            if content:
+                expanded_sections.append(content)
+        else:
+            # summary (default)
+            if description:
+                summary_lines.append(f"- **{name}**: {description}")
+            else:
+                summary_lines.append(f"- **{name}**")
+
+    parts: list[str] = []
+    if summary_lines:
+        parts.append("## Available Skills\n" + "\n".join(summary_lines))
+    if expanded_sections:
+        parts.extend(expanded_sections)
+
+    return "\n\n".join(parts)
+
+
+def _inject_context_aware_skills(
+    skills: list[Any],
+    session_manager: Any,
+    session_id: str,
+    state: Any,
+) -> str:
+    """Select and format skills using agent-type-aware injection.
+
+    Builds an AgentContext from the session and workflow state, then uses
+    SkillInjector to select relevant skills and resolve per-skill formats.
+
+    Args:
+        skills: All discovered core skills
+        session_manager: Session manager for looking up session
+        session_id: Current session ID
+        state: WorkflowState instance
+
+    Returns:
+        Formatted markdown string with context-appropriate skills
+    """
+    from gobby.skills.injector import AgentContext, SkillInjector, SkillProfile
+
+    # Build agent context from session + workflow state
+    session = session_manager.get(session_id) if session_manager else None
+    context = AgentContext.from_session(session, workflow_state=state) if session else AgentContext()
+
+    # Check for skill profile in workflow variables
+    profile: SkillProfile | None = None
+    if state and hasattr(state, "variables") and state.variables:
+        profile_data = state.variables.get("_skill_profile")
+        if isinstance(profile_data, dict):
+            profile = SkillProfile.from_dict(profile_data)
+
+    injector = SkillInjector()
+    selected = injector.select_skills(skills, context, profile)
+
+    if not selected:
+        logger.debug(
+            f"context_aware: no skills selected for agent_type={context.agent_type}, "
+            f"depth={context.agent_depth}"
+        )
+        return ""
+
+    logger.debug(
+        f"context_aware: selected {len(selected)}/{len(skills)} skills for "
+        f"agent_type={context.agent_type}, depth={context.agent_depth}"
+    )
+    return _format_skills_with_formats(selected)
+
+
+def _format_skills_with_formats(skills_with_formats: list[tuple[Any, str]]) -> str:
+    """Format skills with pre-resolved injection formats.
+
+    Like _format_skills() but uses the format resolved by SkillInjector
+    instead of reading from the skill's injection_format field.
+
+    Args:
+        skills_with_formats: List of (ParsedSkill, resolved_format) tuples
+
+    Returns:
+        Formatted markdown string with skill content
+    """
+    summary_lines: list[str] = []
+    expanded_sections: list[str] = []
+
+    for skill, fmt in skills_with_formats:
+        name = getattr(skill, "name", "unknown")
+        description = getattr(skill, "description", "")
         content = getattr(skill, "content", "")
 
         if fmt == "full":

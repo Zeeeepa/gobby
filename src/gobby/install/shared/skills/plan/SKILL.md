@@ -4,6 +4,10 @@ description: This skill should be used when the user asks to "/gobby plan", "cre
 version: "1.0.0"
 category: core
 triggers: plan, specification, requirements
+metadata:
+  gobby:
+    audience: interactive
+    depth: 0
 ---
 
 # /gobby:plan - Implementation Planning Skill

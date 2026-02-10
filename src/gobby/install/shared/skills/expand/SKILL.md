@@ -3,6 +3,10 @@ name: expand
 description: "Use when user asks to '/gobby expand', 'expand task', 'break down task', 'decompose task'. Expand a task into subtasks using codebase analysis and visible LLM reasoning. Survives session compaction."
 category: core
 triggers: expand task, break down, subtask, decompose
+metadata:
+  gobby:
+    audience: interactive
+    depth: 0
 ---
 
 # /gobby expand - Task Expansion Skill

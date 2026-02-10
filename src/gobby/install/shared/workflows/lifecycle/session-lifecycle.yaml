@@ -152,13 +152,13 @@ triggers:
     # Task sync - import from JSONL for Git persistence
     - action: task_sync_import
 
-    # Skill and task context injection - inject always-apply skills for all session starts
+    # Skill and task context injection - inject context-aware skills for all session starts
     # Skip on resume - conversation already has this context from original startup
-    # Uses array syntax to combine multiple sources
+    # context_aware filter uses SkillInjector to select skills based on agent depth/type
     - action: inject_context
       when: "event.data.get('source') != 'resume'"
       source: skills
-      filter: always_apply
+      filter: context_aware
       template: |
         {{ skills_list }}
 

@@ -323,6 +323,10 @@ class AgentRunner:
                 config_vars = config.default_variables or {}
                 config.default_variables = {**def_vars, **config_vars}
 
+                # Inject skill_profile into lifecycle_variables for context-aware injection
+                if agent_def.skill_profile and "_skill_profile" not in config.lifecycle_variables:
+                    config.lifecycle_variables["_skill_profile"] = agent_def.skill_profile
+
                 self.logger.info(f"Loaded agent definition '{config.agent}'")
             else:
                 self.logger.warning(f"Agent definition '{config.agent}' not found")
@@ -414,6 +418,10 @@ class AgentRunner:
                 child_session.agent_depth < self._child_session_manager.max_agent_depth
             )
             initial_variables["parent_session_id"] = parent_session_id
+
+            # Merge lifecycle_variables (includes _skill_profile for context-aware injection)
+            if config.lifecycle_variables:
+                initial_variables.update(config.lifecycle_variables)
 
             workflow_state = WorkflowState(
                 session_id=child_session.id,

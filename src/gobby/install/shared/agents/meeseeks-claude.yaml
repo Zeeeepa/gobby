@@ -25,6 +25,37 @@ sandbox:
   mode: permissive
   allow_network: true
 
+# Skill injection profile for workers — reduces token overhead by injecting only
+# essential skills in full format (autonomous agents can't invoke slash commands)
+skill_profile:
+  audience: worker
+  include_skills:
+    - tasks
+    - committing-changes
+    - discovering-tools
+    - memory
+    - bug
+    - feat
+    - chore
+    - ref
+    - eval
+  exclude_skills:
+    - plan
+    - sessions
+    - gobby
+    - worktrees
+    - clones
+    - workflows
+    - metrics
+    - usage
+    - doctor
+    - nit
+    - expand
+    - epic
+    - agents
+    - merge
+  default_format: full
+
 # Named workflows - select via spawn_agent(workflow="...")
 workflows:
   # Interactive orchestrator (activates in caller session)

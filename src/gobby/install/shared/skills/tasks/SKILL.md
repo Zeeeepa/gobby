@@ -4,6 +4,11 @@ description: This skill should be used when the user asks to "/gobby tasks", "ta
 version: "2.0.0"
 category: core
 triggers: create task, list tasks, close task, task management
+metadata:
+  gobby:
+    audience: all
+    format_overrides:
+      autonomous: full
 ---
 
 # /gobby tasks - Task Management Skill

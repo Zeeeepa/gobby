@@ -4,6 +4,11 @@ description: This skill should be used when the user asks to "/gobby memory", "r
 category: core
 alwaysApply: false
 triggers: remember, recall, forget, memory
+metadata:
+  gobby:
+    audience: all
+    format_overrides:
+      autonomous: full
 ---
 
 # /gobby memory - Memory Management Skill

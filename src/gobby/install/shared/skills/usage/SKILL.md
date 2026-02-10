@@ -2,6 +2,10 @@
 name: usage
 description: This skill should be used when the user asks to "/gobby usage", "show usage", "token usage", "cost report", "budget status". Display token usage, costs, and budget status from the gobby-metrics MCP server.
 category: core
+metadata:
+  gobby:
+    audience: interactive
+    depth: 0
 ---
 
 # /gobby usage - Token Usage and Cost Reporting

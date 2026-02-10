@@ -57,7 +57,7 @@ triggers:
     - action: inject_context
       when: "not variables.get('_session_initialized')"
       source: skills
-      filter: always_apply
+      filter: context_aware
       template: |
         {{ skills_list }}
 

@@ -125,6 +125,11 @@ class AgentDefinition(BaseModel):
     # Default variables passed to the agent
     default_variables: dict[str, Any] = Field(default_factory=dict)
 
+    # Skill injection profile — controls which skills are injected and in what format
+    # when context_aware filtering is active. Keys: audience, include_skills,
+    # exclude_skills, default_format
+    skill_profile: dict[str, Any] | None = None
+
     # Execution limits
     timeout: float = 120.0
     max_turns: int = 10
