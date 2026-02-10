@@ -1,6 +1,11 @@
 import { useState, useCallback } from 'react'
 import type { GobbyTaskDetail } from '../../hooks/useTasks'
 
+function getBaseUrl(): string {
+  const isSecure = window.location.protocol === 'https:'
+  return isSecure ? '' : `http://${window.location.hostname}:60887`
+}
+
 // =============================================================================
 // Types
 // =============================================================================
@@ -141,22 +146,50 @@ export function EscalationCard({ task, onResolve }: EscalationCardProps) {
   const [selectedOption, setSelectedOption] = useState<number | null>(null)
   const [customInput, setCustomInput] = useState('')
   const [showCustom, setShowCustom] = useState(false)
+  const [isSubmitting, setIsSubmitting] = useState(false)
 
   const escalation = parseEscalation(task.escalation_reason)
 
-  const handleResolve = useCallback(() => {
+  const handleResolve = useCallback(async () => {
     let decision: string
     if (showCustom && customInput.trim()) {
       decision = customInput.trim()
     } else if (selectedOption !== null && escalation.options[selectedOption]) {
       decision = `Selected: ${escalation.options[selectedOption].label}`
+      if (escalation.options[selectedOption].description) {
+        decision += ` — ${escalation.options[selectedOption].description}`
+      }
     } else {
       return
     }
-    onResolve(decision)
-  }, [selectedOption, customInput, showCustom, escalation.options, onResolve])
 
-  const canSubmit = showCustom ? customInput.trim().length > 0 : selectedOption !== null
+    setIsSubmitting(true)
+    try {
+      const baseUrl = getBaseUrl()
+      const response = await fetch(
+        `${baseUrl}/tasks/${encodeURIComponent(task.id)}/de-escalate`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ decision_context: decision }),
+        }
+      )
+      if (response.ok) {
+        onResolve(decision)
+      } else {
+        console.error('De-escalation failed:', await response.text())
+        // Fall back to simple reopen
+        onResolve(decision)
+      }
+    } catch (e) {
+      console.error('De-escalation request failed:', e)
+      onResolve(decision)
+    } finally {
+      setIsSubmitting(false)
+    }
+  }, [selectedOption, customInput, showCustom, escalation.options, onResolve, task.id])
+
+  const canSubmit = (showCustom ? customInput.trim().length > 0 : selectedOption !== null) && !isSubmitting
 
   return (
     <div className="escalation-card">
@@ -246,7 +279,7 @@ export function EscalationCard({ task, onResolve }: EscalationCardProps) {
           onClick={handleResolve}
           disabled={!canSubmit}
         >
-          Resolve Escalation
+          {isSubmitting ? 'Returning...' : '\u21A9 Return to Agent'}
         </button>
       </div>
     </div>

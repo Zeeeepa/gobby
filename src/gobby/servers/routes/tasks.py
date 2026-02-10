@@ -76,6 +76,13 @@ class TaskReopenRequest(BaseModel):
     reason: str | None = Field(default=None, description="Reason for reopening")
 
 
+class TaskDeEscalateRequest(BaseModel):
+    """Request body for de-escalating a task."""
+
+    decision_context: str = Field(..., description="User's decision or instructions for the agent")
+    reset_validation: bool = Field(default=False, description="Also reset validation fail count")
+
+
 class DependencyAddRequest(BaseModel):
     """Request body for adding a dependency."""
 
@@ -291,6 +298,38 @@ def create_tasks_router(server: "HTTPServer") -> APIRouter:
             body = request_data or TaskReopenRequest()
             reopened = server.task_manager.reopen_task(resolved_id, reason=body.reason)
             result = reopened.to_dict()
+            await _broadcast_task("task_reopened", result)
+            return result
+        except (ValueError, TaskNotFoundError) as e:
+            raise HTTPException(status_code=400, detail=str(e)) from e
+
+    @router.post("/{task_id}/de-escalate")
+    async def de_escalate_task(task_id: str, request_data: TaskDeEscalateRequest) -> Any:
+        """De-escalate a task and return it to open status with user decision context."""
+        metrics.inc_counter("http_requests_total")
+        try:
+            task = server.task_manager.get_task(task_id)
+            resolved_id = task.id
+
+            if task.status != "escalated":
+                raise ValueError(f"Task is not escalated (status: {task.status})")
+
+            update_kwargs: dict[str, Any] = {
+                "status": "open",
+                "escalated_at": None,
+                "escalation_reason": None,
+            }
+
+            if request_data.reset_validation:
+                update_kwargs["validation_fail_count"] = 0
+
+            # Append user decision context to description
+            decision_note = f"\n\n---\n**User decision:** {request_data.decision_context}"
+            current_desc = task.description or ""
+            update_kwargs["description"] = current_desc + decision_note
+
+            updated = server.task_manager.update_task(resolved_id, **update_kwargs)
+            result = updated.to_dict()
             await _broadcast_task("task_reopened", result)
             return result
         except (ValueError, TaskNotFoundError) as e:
