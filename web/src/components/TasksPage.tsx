@@ -12,12 +12,13 @@ import { TaskOverview } from './tasks/TaskOverview'
 import { AuditLog } from './tasks/AuditLog'
 import { GanttChart } from './tasks/GanttChart'
 import { DigestView } from './tasks/DigestView'
+import { DependencyGraph } from './tasks/DependencyGraph'
 
 // =============================================================================
 // Constants
 // =============================================================================
 
-type ViewMode = 'list' | 'tree' | 'kanban' | 'priority' | 'audit' | 'gantt' | 'digest'
+type ViewMode = 'list' | 'tree' | 'kanban' | 'priority' | 'audit' | 'gantt' | 'digest' | 'graph'
 
 const STATUS_OPTIONS = [
   'open', 'in_progress', 'needs_review', 'approved', 'closed', 'failed', 'escalated',
@@ -99,6 +100,15 @@ function DigestIcon() {
       <line x1="7" y1="8" x2="17" y2="8" />
       <line x1="7" y1="12" x2="13" y2="12" />
       <line x1="7" y1="16" x2="15" y2="16" />
+    </svg>
+  )
+}
+
+function GraphIcon() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <circle cx="6" cy="6" r="3" /><circle cx="18" cy="6" r="3" /><circle cx="12" cy="18" r="3" />
+      <line x1="9" y1="6" x2="15" y2="6" /><line x1="7.5" y1="8.5" x2="10.5" y2="15.5" /><line x1="16.5" y1="8.5" x2="13.5" y2="15.5" />
     </svg>
   )
 }
@@ -341,7 +351,7 @@ export function TasksPage() {
         </div>
         <div className="tasks-toolbar-right">
           <div className="tasks-view-toggle">
-            {([['list', ListIcon], ['tree', TreeIcon], ['kanban', KanbanIcon], ['priority', PriorityIcon], ['audit', AuditIcon], ['gantt', GanttIcon], ['digest', DigestIcon]] as const).map(
+            {([['list', ListIcon], ['tree', TreeIcon], ['kanban', KanbanIcon], ['priority', PriorityIcon], ['audit', AuditIcon], ['gantt', GanttIcon], ['digest', DigestIcon], ['graph', GraphIcon]] as const).map(
               ([mode, Icon]) => (
                 <button
                   key={mode}
@@ -463,6 +473,11 @@ export function TasksPage() {
         <div className="tasks-empty">{scope === 'mine' ? 'No tasks matching your identity' : 'No tasks found'}</div>
       ) : viewMode === 'digest' ? (
         <DigestView
+          tasks={scopedTasks}
+          onSelectTask={setSelectedTaskId}
+        />
+      ) : viewMode === 'graph' ? (
+        <DependencyGraph
           tasks={scopedTasks}
           onSelectTask={setSelectedTaskId}
         />

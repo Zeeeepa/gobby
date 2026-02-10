@@ -6262,6 +6262,73 @@ body {
 }
 
 /* =============================================================================
+   Dependency Graph
+   ============================================================================= */
+
+.dep-graph-container {
+  position: relative;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  overflow: hidden;
+  background: var(--bg-primary);
+}
+
+.dep-graph-svg {
+  width: 100%;
+  height: 520px;
+  display: block;
+}
+
+.dep-graph-empty {
+  text-align: center;
+  padding: 3rem;
+  color: var(--text-muted);
+  font-size: calc(var(--font-size-base) * 0.8);
+}
+
+.dep-graph-controls {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  z-index: 10;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 3px;
+}
+
+.dep-graph-ctrl-btn {
+  width: 28px;
+  height: 28px;
+  border: none;
+  border-radius: 4px;
+  background: none;
+  color: var(--text-secondary);
+  font-size: calc(var(--font-size-base) * 0.85);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.1s;
+}
+
+.dep-graph-ctrl-btn:hover {
+  background: var(--bg-tertiary);
+  color: var(--text-primary);
+}
+
+.dep-graph-ctrl-label {
+  font-size: calc(var(--font-size-base) * 0.6);
+  color: var(--text-muted);
+  padding: 0 4px;
+  min-width: 36px;
+  text-align: center;
+}
+
+/* =============================================================================
    Quick Capture Task (Cmd+K → t)
    ============================================================================= */
 
