@@ -150,7 +150,9 @@ class HookSkillManager:
         if self._trigger_index is None:
             raise RuntimeError("trigger_index not built")
 
-        prompt_words = set(prompt.lower().split())
+        import re
+
+        prompt_words = {start.lower() for start in re.findall(r"\w+", prompt.lower())}
         results: list[tuple[ParsedSkill, float]] = []
 
         for trigger_words, skill in self._trigger_index:
@@ -191,8 +193,10 @@ class HookSkillManager:
 
             # Build word set from all triggers for this skill
             all_words: list[str] = []
+            import re
+
             for trigger in triggers:
-                all_words.extend(trigger.lower().split())
+                all_words.extend(re.findall(r"\w+", trigger.lower()))
 
             # Deduplicate while preserving order
             seen: set[str] = set()

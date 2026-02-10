@@ -290,13 +290,25 @@ class Mem0Backend:
         if query.limit:
             search_kwargs["limit"] = query.limit
 
-        # Execute search via Mem0 API (run in thread to avoid blocking event loop)
-        results = await asyncio.to_thread(lambda: self._client.search(**search_kwargs))
+        try:
+            # Execute search via Mem0 API (run in thread to avoid blocking event loop)
+            results = await asyncio.to_thread(lambda: self._client.search(**search_kwargs))
+        except Exception as e:
+            # Log error but return empty list to avoid crashing callers
+            from logging import getLogger
+
+            logger = getLogger(__name__)
+            logger.warning(f"Mem0 search failed: {e}")
+            return []
 
         # Convert results to MemoryRecords
         records = []
         for mem0_memory in results.get("results", []):
-            record = self._mem0_to_record(mem0_memory)
+            try:
+                record = self._mem0_to_record(mem0_memory)
+            except Exception as e:
+                getLogger(__name__).warning(f"Failed to convert mem0 record: {e}")
+                continue
 
             # Apply additional filters not supported by Mem0 API
             if query.min_importance is not None and record.importance < query.min_importance:

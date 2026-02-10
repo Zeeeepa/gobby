@@ -240,7 +240,7 @@ def create_agents_registry(
             try:
                 resolved_session_id = _resolve_session_id(session_id)
             except ValueError as e:
-                return {"error": str(e)}
+                return {"success": False, "error": str(e)}
 
             # Try registry first (fast path)
             agent = agent_registry.get_by_session(resolved_session_id)
@@ -571,6 +571,7 @@ def create_agents_registry(
 
         if run.status in terminal_statuses:
             return {
+                "success": True,
                 "completed": True,
                 "status": run.status,
                 "run_id": run_id,
@@ -586,6 +587,7 @@ def create_agents_registry(
                 # Re-fetch to get latest status
                 run = runner.get_run(run_id)
                 return {
+                    "success": True,
                     "completed": False,
                     "status": run.status if run else "unknown",
                     "run_id": run_id,
@@ -598,6 +600,7 @@ def create_agents_registry(
             run = runner.get_run(run_id)
             if not run:
                 return {
+                    "success": False,
                     "completed": False,
                     "status": "unknown",
                     "run_id": run_id,
@@ -608,6 +611,7 @@ def create_agents_registry(
 
             if run.status in terminal_statuses:
                 return {
+                    "success": True,
                     "completed": True,
                     "status": run.status,
                     "run_id": run_id,

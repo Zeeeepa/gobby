@@ -22,6 +22,8 @@ Usage:
     from gobby.agents.spawners import create_prompt_file, read_prompt_from_env
 """
 
+from typing import Any
+
 from gobby.agents.spawners.base import (
     EmbeddedPTYResult,
     HeadlessResult,
@@ -105,7 +107,7 @@ __all__ = [
 ]
 
 
-def __getattr__(name: str):  # type: ignore[no-untyped-def]  # noqa: ANN001
+def __getattr__(name: str) -> Any:
     """Lazy import for TmuxSpawner to avoid circular imports."""
     if name == "TmuxSpawner":
         from gobby.agents.tmux.spawner import TmuxSpawner

@@ -15,6 +15,9 @@ import logging
 import os
 from typing import TYPE_CHECKING
 
+import aiofiles
+
+
 if TYPE_CHECKING:
     from gobby.servers.websocket.server import WebSocketServer
     from gobby.storage.sessions import LocalSessionManager
@@ -268,8 +271,6 @@ class SessionMessageProcessor:
 
         # Read and parse the entire file
         try:
-            import aiofiles
-
             async with aiofiles.open(transcript_path, encoding="utf-8") as f:
                 raw = await f.read()
             data = json.loads(raw)

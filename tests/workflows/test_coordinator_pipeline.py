@@ -29,7 +29,7 @@ class TestCoordinatorPipeline:
         """Load coordinator pipeline YAML."""
         path = WORKFLOWS_DIR / "coordinator.yaml"
         assert path.exists(), f"coordinator.yaml not found at {path}"
-        with open(path) as f:
+        with open(path, encoding="utf-8") as f:
             return yaml.safe_load(f)
 
     def test_loads_as_valid_yaml(self, coordinator_yaml: dict) -> None:
@@ -119,7 +119,7 @@ class TestDeveloperWorkflow:
         """Load developer workflow YAML."""
         path = WORKFLOWS_DIR / "developer.yaml"
         assert path.exists(), f"developer.yaml not found at {path}"
-        with open(path) as f:
+        with open(path, encoding="utf-8") as f:
             return yaml.safe_load(f)
 
     def test_loads_as_valid_yaml(self, developer_yaml: dict) -> None:
@@ -207,7 +207,7 @@ class TestQAReviewerWorkflow:
         """Load QA reviewer workflow YAML."""
         path = WORKFLOWS_DIR / "qa-reviewer.yaml"
         assert path.exists(), f"qa-reviewer.yaml not found at {path}"
-        with open(path) as f:
+        with open(path, encoding="utf-8") as f:
             return yaml.safe_load(f)
 
     def test_loads_as_valid_yaml(self, qa_yaml: dict) -> None:
@@ -301,7 +301,7 @@ class TestAgentDefinitions:
     def test_coordinator_agent_valid(self) -> None:
         """Test coordinator agent structure."""
         path = AGENTS_DIR / "coordinator.yaml"
-        with open(path) as f:
+        with open(path, encoding="utf-8") as f:
             data = yaml.safe_load(f)
         assert data["name"] == "coordinator"
         assert data["provider"] == "claude"
@@ -316,7 +316,7 @@ class TestAgentDefinitions:
     def test_developer_gemini_agent_valid(self) -> None:
         """Test developer-gemini agent structure."""
         path = AGENTS_DIR / "developer-gemini.yaml"
-        with open(path) as f:
+        with open(path, encoding="utf-8") as f:
             data = yaml.safe_load(f)
         assert data["name"] == "developer-gemini"
         assert data["provider"] == "gemini"
@@ -333,7 +333,7 @@ class TestAgentDefinitions:
     def test_qa_claude_agent_valid(self) -> None:
         """Test qa-claude agent structure."""
         path = AGENTS_DIR / "qa-claude.yaml"
-        with open(path) as f:
+        with open(path, encoding="utf-8") as f:
             data = yaml.safe_load(f)
         assert data["name"] == "qa-claude"
         assert data["provider"] == "claude"
@@ -345,7 +345,7 @@ class TestAgentDefinitions:
     def test_developer_has_sandbox_config(self) -> None:
         """Test developer agent has sandbox configuration."""
         path = AGENTS_DIR / "developer-gemini.yaml"
-        with open(path) as f:
+        with open(path, encoding="utf-8") as f:
             data = yaml.safe_load(f)
         assert "sandbox" in data
         assert data["sandbox"]["enabled"] is True
@@ -353,7 +353,7 @@ class TestAgentDefinitions:
     def test_qa_has_sandbox_config(self) -> None:
         """Test QA agent has sandbox configuration."""
         path = AGENTS_DIR / "qa-claude.yaml"
-        with open(path) as f:
+        with open(path, encoding="utf-8") as f:
             data = yaml.safe_load(f)
         assert "sandbox" in data
         assert data["sandbox"]["enabled"] is True
@@ -362,7 +362,7 @@ class TestAgentDefinitions:
         """Test that agents define timeout and max_turns."""
         for name in ["developer-gemini.yaml", "qa-claude.yaml"]:
             path = AGENTS_DIR / name
-            with open(path) as f:
+            with open(path, encoding="utf-8") as f:
                 data = yaml.safe_load(f)
             assert "timeout" in data, f"{name} missing timeout"
             assert "max_turns" in data, f"{name} missing max_turns"

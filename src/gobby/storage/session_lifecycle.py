@@ -26,15 +26,14 @@ def expire_stale_sessions(db: DatabaseProtocol, timeout_hours: int = 24) -> int:
     Returns:
         Number of sessions expired.
     """
-    now = datetime.now(UTC).isoformat()
     cursor = db.execute(
         """
         UPDATE sessions
-        SET status = 'expired', updated_at = ?
+        SET status = 'expired', updated_at = datetime('now')
         WHERE status IN ('active', 'paused', 'handoff_ready')
         AND datetime(updated_at) < datetime('now', 'utc', ? || ' hours')
         """,
-        (now, f"-{timeout_hours}"),
+        (f"-{timeout_hours}",),
     )
     count = cursor.rowcount or 0
     if count > 0:
@@ -56,15 +55,14 @@ def pause_inactive_active_sessions(db: DatabaseProtocol, timeout_minutes: int = 
     Returns:
         Number of sessions paused.
     """
-    now = datetime.now(UTC).isoformat()
     cursor = db.execute(
         """
         UPDATE sessions
-        SET status = 'paused', updated_at = ?
+        SET status = 'paused', updated_at = datetime('now')
         WHERE status = 'active'
         AND datetime(updated_at) < datetime('now', 'utc', ? || ' minutes')
         """,
-        (now, f"-{timeout_minutes}"),
+        (f"-{timeout_minutes}",),
     )
     count = cursor.rowcount or 0
     if count > 0:

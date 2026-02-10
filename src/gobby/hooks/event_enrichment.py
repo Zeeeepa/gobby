@@ -7,12 +7,10 @@ Extracted from HookManager.handle() as part of the Strangler Fig decomposition.
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+from typing import Any
 
 from gobby.hooks.events import HookEvent, HookResponse
 
-if TYPE_CHECKING:
-    from gobby.storage.sessions import LocalSessionManager
 
 # Terminal context keys copied from event metadata to response metadata
 TERMINAL_CONTEXT_KEYS = [
@@ -38,7 +36,7 @@ class EventEnricher:
 
     def __init__(
         self,
-        session_storage: LocalSessionManager,
+        session_storage: Any,  # Avoid runtime import of LocalSessionManager
         injected_sessions: set[str],
     ):
         self._session_storage = session_storage

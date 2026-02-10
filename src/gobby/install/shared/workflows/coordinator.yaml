@@ -95,7 +95,7 @@ steps:
         agent: "${{ inputs.qa_agent }}"
         workflow: merge
         clone_id: "${{ steps.create_clone.output.clone_id }}"
-        provider: claude
+        provider: "${{ inputs.qa_provider }}"
         mode: terminal
 
   - id: wait_merge
@@ -117,6 +117,7 @@ steps:
         changes_summary: "Merged to ${{ inputs.merge_target }}"
 
   - id: cleanup_clone
+    condition: "${{ steps.create_clone.output.clone_id if steps.create_clone.output is defined else '' }}"
     mcp:
       server: gobby-clones
       tool: delete_clone
@@ -132,4 +133,9 @@ steps:
 
   - id: next_iteration
     condition: "${{ steps.check_more_work.output.suggestion.ref if steps.check_more_work.output and steps.check_more_work.output.suggestion is defined else '' }}"
-    invoke_pipeline: coordinator
+    invoke_pipeline:
+      name: coordinator
+      arguments:
+        _current_iteration: "${{ inputs._current_iteration + 1 }}"
+        session_task: "${{ inputs.session_task }}"
+        merge_target: "${{ inputs.merge_target }}"

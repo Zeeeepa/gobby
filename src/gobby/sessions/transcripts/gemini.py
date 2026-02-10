@@ -289,9 +289,7 @@ class GeminiTranscriptParser:
 
         return parsed
 
-    def _parse_session_message(
-        self, msg: dict[str, Any], start_index: int
-    ) -> list[ParsedMessage] | None:
+    def _parse_session_message(self, msg: dict[str, Any], start_index: int) -> list[ParsedMessage]:
         """Parse a single message from a Gemini JSON session file.
 
         Returns a list because a gemini message with toolCalls produces
@@ -402,9 +400,9 @@ class GeminiTranscriptParser:
 
             return results
 
-        elif msg_type in ("info", "warning"):
+        if msg_type in ("info", "warning"):
             # Skip info/warning messages — they're not conversation content
-            return None
+            return []
 
         # Unknown type
-        return None
+        return []

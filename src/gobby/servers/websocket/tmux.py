@@ -10,7 +10,7 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, NamedTuple
 from uuid import uuid4
 
 from gobby.agents.registry import get_running_agent_registry
@@ -183,10 +183,9 @@ class TmuxMixin:
             reader = get_pty_reader_manager()
 
             # Create a lightweight RunningAgent-like object for the reader
-            class _BridgeAgent:
-                def __init__(self, run_id: str, fd: int) -> None:
-                    self.run_id = run_id
-                    self.master_fd = fd
+            class _BridgeAgent(NamedTuple):
+                run_id: str
+                master_fd: int
 
             await reader.start_reader(_BridgeAgent(streaming_id, master_fd))  # type: ignore[arg-type]
 

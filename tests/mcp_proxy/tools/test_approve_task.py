@@ -91,8 +91,7 @@ def lifecycle_registry(mock_task_manager, mock_sync_manager):
 class TestApproveTask:
     """Tests for approve_task lifecycle tool."""
 
-    @pytest.mark.asyncio
-    async def test_approve_needs_review_task(
+    def test_approve_needs_review_task(
         self, lifecycle_registry, mock_task_manager, sample_task_needs_review
     ) -> None:
         """Test approving a task in needs_review status."""
@@ -110,8 +109,7 @@ class TestApproveTask:
         call_kwargs = mock_task_manager.update_task.call_args
         assert call_kwargs[1]["status"] == "approved"
 
-    @pytest.mark.asyncio
-    async def test_approve_in_progress_task(
+    def test_approve_in_progress_task(
         self, lifecycle_registry, mock_task_manager, sample_task_in_progress
     ) -> None:
         """Test approving a task in in_progress status (also valid)."""
@@ -126,8 +124,7 @@ class TestApproveTask:
 
         assert "error" not in result
 
-    @pytest.mark.asyncio
-    async def test_approve_rejects_open_task(
+    def test_approve_rejects_open_task(
         self, lifecycle_registry, mock_task_manager, sample_task_open
     ) -> None:
         """Test that approving an open task is rejected."""
@@ -143,10 +140,7 @@ class TestApproveTask:
         assert "Cannot approve" in result["error"]
         mock_task_manager.update_task.assert_not_called()
 
-    @pytest.mark.asyncio
-    async def test_approve_rejects_closed_task(
-        self, lifecycle_registry, mock_task_manager
-    ) -> None:
+    def test_approve_rejects_closed_task(self, lifecycle_registry, mock_task_manager) -> None:
         """Test that approving a closed task is rejected."""
         closed_task = Task(
             id="550e8400-e29b-41d4-a716-446655440000",
@@ -169,8 +163,7 @@ class TestApproveTask:
         assert "error" in result
         assert "Cannot approve" in result["error"]
 
-    @pytest.mark.asyncio
-    async def test_approve_with_notes(
+    def test_approve_with_notes(
         self, lifecycle_registry, mock_task_manager, sample_task_needs_review
     ) -> None:
         """Test approving with approval notes appends to description."""
@@ -189,10 +182,7 @@ class TestApproveTask:
         assert "[Approval Notes]" in call_kwargs[1]["description"]
         assert "Looks good, all tests pass." in call_kwargs[1]["description"]
 
-    @pytest.mark.asyncio
-    async def test_approve_task_not_found(
-        self, lifecycle_registry, mock_task_manager
-    ) -> None:
+    def test_approve_task_not_found(self, lifecycle_registry, mock_task_manager) -> None:
         """Test approving a task that doesn't exist."""
         from unittest.mock import patch
 

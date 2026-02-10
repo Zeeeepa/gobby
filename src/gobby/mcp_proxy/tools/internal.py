@@ -10,6 +10,7 @@ number of tools exposed on the main MCP server.
 """
 
 import inspect
+import json
 import logging
 import types
 from collections.abc import Callable
@@ -210,15 +211,11 @@ class InternalToolRegistry:
                 elif declared_type == "boolean":
                     coerced[key] = value.lower() in ("true", "1", "yes")
                 elif declared_type == "array":
-                    import json
-
                     try:
                         coerced[key] = json.loads(value)
                     except (json.JSONDecodeError, ValueError):
                         coerced[key] = [s.strip() for s in value.split(",") if s.strip()]
                 elif declared_type == "object":
-                    import json
-
                     coerced[key] = json.loads(value)
                 else:
                     coerced[key] = value

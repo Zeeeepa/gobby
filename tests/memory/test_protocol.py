@@ -379,9 +379,7 @@ class TestMemoryBackendProtocolCompliance:
             ) -> list[MemoryRecord]:
                 return []
 
-            async def content_exists(
-                self, content: str, project_id: str | None = None
-            ) -> bool:
+            async def content_exists(self, content: str, project_id: str | None = None) -> bool:
                 return False
 
             async def get_memory_by_content(
@@ -403,11 +401,37 @@ class TestMemoryBackendProtocolCompliance:
         assert record.content == "test content"
 
     @pytest.mark.asyncio
-    async def test_search_returns_list(self, mock_backend):
+    async def test_search_returns_list(self, mock_backend) -> None:
         """Test that search returns a list of records."""
         query = MemoryQuery(text="test")
         results = await mock_backend.search(query)
         assert isinstance(results, list)
+
+    @pytest.mark.asyncio
+    async def test_get_returns_optional_record(self, mock_backend) -> None:
+        """Test that get returns Optional[MemoryRecord]."""
+        record = await mock_backend.get("mock-id")
+        assert record is None
+
+    @pytest.mark.asyncio
+    async def test_update_returns_record(self, mock_backend) -> None:
+        """Test that update returns MemoryRecord."""
+        record = await mock_backend.update("mock-id", content="updated")
+        assert isinstance(record, MemoryRecord)
+        assert record.content == "updated"
+
+    @pytest.mark.asyncio
+    async def test_delete_returns_bool(self, mock_backend) -> None:
+        """Test that delete returns boolean."""
+        result = await mock_backend.delete("mock-id")
+        assert isinstance(result, bool)
+        assert result is True
+
+    @pytest.mark.asyncio
+    async def test_list_memories_returns_list(self, mock_backend) -> None:
+        """Test that list_memories returns list[MemoryRecord]."""
+        records = await mock_backend.list_memories()
+        assert isinstance(records, list)
 
     def test_capabilities_returns_set(self, mock_backend) -> None:
         """Test that capabilities returns a set of MemoryCapability."""

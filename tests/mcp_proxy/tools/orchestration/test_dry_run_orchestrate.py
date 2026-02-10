@@ -153,7 +153,7 @@ class TestDryRunOrchestrateReadyTasks:
         state_manager: WorkflowStateManager,
     ) -> None:
         """dry_run returns planned tasks with prompts but never spawns."""
-        tool = registry._tools["orchestrate_ready_tasks"]
+        tool = registry.get_tool("orchestrate_ready_tasks")
         tasks = [
             _make_task("T1", "Implement auth", description="Add JWT auth"),
             _make_task("T2", "Add tests", category="test"),
@@ -218,7 +218,7 @@ class TestDryRunOrchestrateReadyTasks:
         workflow_state: None,
     ) -> None:
         """dry_run correctly splits planned vs skipped by max_concurrent."""
-        tool = registry._tools["orchestrate_ready_tasks"]
+        tool = registry.get_tool("orchestrate_ready_tasks")
         tasks = [_make_task(f"T{i}", f"Task {i}") for i in range(4)]
 
         mock_worktree_storage.list_worktrees.return_value = []
@@ -262,7 +262,7 @@ class TestDryRunOrchestrateReadyTasks:
         workflow_state: None,
     ) -> None:
         """dry_run resolves effective provider from coding_provider param."""
-        tool = registry._tools["orchestrate_ready_tasks"]
+        tool = registry.get_tool("orchestrate_ready_tasks")
         tasks = [_make_task("T1", "Task 1")]
 
         mock_worktree_storage.list_worktrees.return_value = []
@@ -300,7 +300,7 @@ class TestDryRunOrchestrateReadyTasks:
         workflow_state: None,
     ) -> None:
         """dry_run with no ready tasks returns empty plan."""
-        tool = registry._tools["orchestrate_ready_tasks"]
+        tool = registry.get_tool("orchestrate_ready_tasks")
 
         with (
             patch(
@@ -335,7 +335,7 @@ class TestDryRunOrchestrateReadyTasks:
         state_manager: WorkflowStateManager,
     ) -> None:
         """dry_run releases reserved slots so subsequent real runs can use them."""
-        tool = registry._tools["orchestrate_ready_tasks"]
+        tool = registry.get_tool("orchestrate_ready_tasks")
         tasks = [_make_task("T1", "Task 1")]
 
         mock_worktree_storage.list_worktrees.return_value = []
@@ -377,7 +377,7 @@ class TestDryRunOrchestrateReadyTasks:
         workflow_state: None,
     ) -> None:
         """dry_run builds prompts that include title, description, and validation criteria."""
-        tool = registry._tools["orchestrate_ready_tasks"]
+        tool = registry.get_tool("orchestrate_ready_tasks")
 
         task = _make_task(
             "T1",

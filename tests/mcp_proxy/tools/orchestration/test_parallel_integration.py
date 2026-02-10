@@ -70,19 +70,19 @@ def mock_task_manager(db: LocalDatabase) -> MagicMock:
 
 
 @pytest.fixture
-def mock_worktree_storage():
+def mock_worktree_storage() -> MagicMock:
     return MagicMock(spec=LocalWorktreeManager)
 
 
 @pytest.fixture
-def mock_git_manager():
+def mock_git_manager() -> MagicMock:
     m = MagicMock(spec=WorktreeGitManager)
     m.repo_path = "/repo"
     return m
 
 
 @pytest.fixture
-def mock_agent_runner():
+def mock_agent_runner() -> MagicMock:
     runner = MagicMock(spec=AgentRunner)
     runner.can_spawn.return_value = (True, None, 1)
     runner._child_session_manager = MagicMock()
@@ -140,15 +140,6 @@ def workflow_state(db: LocalDatabase, state_manager: WorkflowStateManager) -> No
     state_manager.save_state(initial_state)
 
 
-def _mock_spawner_context():
-    """Context manager that mocks all external spawning dependencies."""
-    return (
-        patch("gobby.agents.spawn.TerminalSpawner")
-        .__enter__
-        is None  # We'll use a real context manager combo below
-    )
-
-
 class TestParallelOrchestration:
     """Test orchestrate_ready_tasks → poll_agent_status flow."""
 
@@ -189,7 +180,7 @@ class TestParallelOrchestration:
         # Mock worktree creation
         wt_count = {"n": 0}
 
-        def make_worktree(*args, **kwargs):
+        def make_worktree(*args, **kwargs) -> Worktree:
             wt_count["n"] += 1
             n = wt_count["n"]
             return Worktree(
@@ -466,11 +457,6 @@ class TestParallelOrchestration:
         mock_git_manager.create_worktree.return_value = GitOperationResult(
             success=True, message="Created"
         )
-
-        common_patches = {
-            "gobby.mcp_proxy.tools.tasks.resolve_task_id_for_mcp": "PARENT",
-            "gobby.mcp_proxy.tools.orchestration.orchestrate.get_current_project_id": PROJECT_ID,
-        }
 
         with (
             patch(

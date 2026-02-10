@@ -162,18 +162,21 @@ class TmuxPTYBridge:
             except OSError as e:
                 logger.warning(f"Resize failed for {streaming_id}: {e}")
 
-    def get_master_fd(self, streaming_id: str) -> int | None:
+    async def get_master_fd(self, streaming_id: str) -> int | None:
         """Get master_fd for writing input."""
-        bridge = self._bridges.get(streaming_id)
+        async with self._lock:
+            bridge = self._bridges.get(streaming_id)
         return bridge.master_fd if bridge else None
 
-    def get_bridge(self, streaming_id: str) -> BridgeInfo | None:
+    async def get_bridge(self, streaming_id: str) -> BridgeInfo | None:
         """Get bridge info."""
-        return self._bridges.get(streaming_id)
+        async with self._lock:
+            return self._bridges.get(streaming_id)
 
-    def list_bridges(self) -> dict[str, BridgeInfo]:
+    async def list_bridges(self) -> dict[str, BridgeInfo]:
         """List all active bridges."""
-        return dict(self._bridges)
+        async with self._lock:
+            return dict(self._bridges)
 
     def _build_attach_cmd(self, session_name: str, config: TmuxConfig) -> list[str]:
         args = [config.command]

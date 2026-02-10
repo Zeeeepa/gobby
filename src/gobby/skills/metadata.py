@@ -5,10 +5,16 @@ on skill objects. Extracted from src/gobby/cli/skills.py as part of
 the Strangler Fig decomposition.
 """
 
-from typing import Any
+from typing import Any, Protocol
 
 
-def get_skill_tags(skill: Any) -> list[str]:
+class SkillLike(Protocol):
+    """Protocol for objects that look like a Skill."""
+
+    metadata: dict[str, Any] | None
+
+
+def get_skill_tags(skill: SkillLike) -> list[str]:
     """Extract tags from skill metadata."""
     if skill.metadata and isinstance(skill.metadata, dict):
         skillport = skill.metadata.get("skillport", {})
@@ -18,7 +24,7 @@ def get_skill_tags(skill: Any) -> list[str]:
     return []
 
 
-def get_skill_category(skill: Any) -> str | None:
+def get_skill_category(skill: SkillLike) -> str | None:
     """Extract category from skill metadata."""
     if skill.metadata and isinstance(skill.metadata, dict):
         skillport = skill.metadata.get("skillport", {})
@@ -39,7 +45,12 @@ def get_nested_value(data: dict[str, Any], key: str) -> Any:
 
 
 def set_nested_value(data: dict[str, Any], key: str, value: Any) -> dict[str, Any]:
-    """Set a nested value in a dict using dot notation."""
+    """Set a nested value in a dict using dot notation.
+
+    Returns a new dict with the value set. Note that only dictionaries along
+    the key path are copied; sibling branches remain shared with the original
+    structure, so this is not a full deep copy.
+    """
     keys = key.split(".")
     result = data.copy() if data else {}
     current = result

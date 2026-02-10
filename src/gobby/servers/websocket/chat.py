@@ -145,7 +145,7 @@ class ChatMixin:
         # Use content_blocks (multimodal) if provided, otherwise plain text
         if content_blocks and isinstance(content_blocks, list):
             content = content_blocks
-        elif not content or not isinstance(content, str):
+        elif not content or not isinstance(content, str) or not content.strip():
             await self._send_error(websocket, "Missing or invalid 'content' field")
             return
 

@@ -60,13 +60,18 @@ def resolve_session_reference(db: DatabaseProtocol, ref: str, project_id: str | 
     # Full UUID check
     try:
         uuid_obj = uuid.UUID(ref)
+        is_valid_uuid = True
+    except ValueError:
+        is_valid_uuid = False
+
+    if is_valid_uuid:
         # Verify the session exists in the database
         row = db.fetchone("SELECT id FROM sessions WHERE id = ?", (str(uuid_obj),))
         if not row:
             raise ValueError(f"Session '{ref}' not found")
         return str(uuid_obj)
-    except ValueError:
-        pass  # Not a valid UUID, try prefix
+
+    # Prefix matching
 
     # Prefix matching
     rows = db.fetchall("SELECT id FROM sessions WHERE id LIKE ? LIMIT 5", (f"{ref}%",))

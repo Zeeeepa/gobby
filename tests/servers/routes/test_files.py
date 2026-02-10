@@ -348,13 +348,14 @@ class TestFilesRoutes:
             "GIT_COMMITTER_NAME": "test",
             "GIT_COMMITTER_EMAIL": "test@test.com",
         }
-        subprocess.run(["git", "init"], cwd=git_dir, capture_output=True)
-        subprocess.run(["git", "add", "."], cwd=git_dir, capture_output=True)
+        subprocess.run(["git", "init"], cwd=git_dir, capture_output=True, check=True)
+        subprocess.run(["git", "add", "."], cwd=git_dir, capture_output=True, check=True)
         subprocess.run(
             ["git", "commit", "-m", "init", "--no-gpg-sign"],
             cwd=git_dir,
             capture_output=True,
             env=git_env,
+            check=True,
         )
         (git_dir / "README.md").write_text("# Modified\n")
 

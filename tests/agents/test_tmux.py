@@ -295,24 +295,30 @@ class TestTmuxSessionInfo:
 class TestSingletons:
     """Tests for module-level singleton getters."""
 
+    @pytest.fixture(autouse=True)
+    def reset_singletons(self) -> None:
+        """Reset module-level singletons before and after each test."""
+        import gobby.agents.tmux as mod
+
+        mod._session_manager = None
+        mod._output_reader = None
+        yield
+        mod._session_manager = None
+        mod._output_reader = None
+
     def test_get_tmux_session_manager_returns_same(self) -> None:
         import gobby.agents.tmux as mod
 
-        # Reset singletons
-        mod._session_manager = None
         mgr1 = mod.get_tmux_session_manager()
         mgr2 = mod.get_tmux_session_manager()
         assert mgr1 is mgr2
-        mod._session_manager = None  # cleanup
 
     def test_get_tmux_output_reader_returns_same(self) -> None:
         import gobby.agents.tmux as mod
 
-        mod._output_reader = None
         r1 = mod.get_tmux_output_reader()
         r2 = mod.get_tmux_output_reader()
         assert r1 is r2
-        mod._output_reader = None  # cleanup
 
 
 # =============================================================================

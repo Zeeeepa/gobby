@@ -10,6 +10,7 @@ import asyncio
 import logging
 import os
 import select
+import shlex
 import stat
 import tempfile
 from collections.abc import Awaitable, Callable
@@ -111,8 +112,12 @@ class TmuxOutputReader:
                 logger.error(f"Failed to create FIFO {fifo_path}: {e}")
                 return False
 
+            # Quote path to prevent shell injection in tmux invocation
+            safe_fifo_path = shlex.quote(fifo_path)
+
             # Tell tmux to pipe pane output into the FIFO
-            rc = await self._run("pipe-pane", "-t", session_name, f"cat >> {fifo_path}")
+            # Note: Holding lock to ensure race-free start vs stop
+            rc = await self._run("pipe-pane", "-t", session_name, f"cat >> {safe_fifo_path}")
             if rc != 0:
                 logger.error(f"tmux pipe-pane failed for session '{session_name}'")
                 try:
@@ -144,9 +149,14 @@ class TmuxOutputReader:
             fifo_path = self._fifo_paths.pop(run_id, None)
             session_name = self._session_names.pop(run_id, None)
 
-        # Disable pipe-pane (no command arg = disable)
-        if session_name:
-            await self._run("pipe-pane", "-t", session_name)
+            # Disable pipe-pane inside lock to prevent race with start_reader
+            # If we don't hold lock, a new start_reader could enable pipe,
+            # and then we disable it here, breaking the new reader.
+            if session_name:
+                # Check if anyone else is using this session (not possible with current logic,
+                # but good for safety if we allow shared sessions later)
+                if session_name not in self._session_names.values():
+                    await self._run("pipe-pane", "-t", session_name)
 
         if stop_event:
             stop_event.set()

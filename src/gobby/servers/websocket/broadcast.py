@@ -24,44 +24,69 @@ class BroadcastMixin:
 
     clients: dict[Any, dict[str, Any]]
 
+    def _is_subscribed(self, websocket: Any, message: dict[str, Any]) -> bool:
+        """Check if a client is subscribed to receive a message."""
+        msg_type = message.get("type")
+
+        # Always send non-event messages (system messages, errors, etc.)
+        # Defined as messages that aren't one of the high-volume event types
+        event_types = {
+            "hook_event",
+            "session_message",
+            "agent_event",
+            "worktree_event",
+            "autonomous_event",
+            "pipeline_event",
+            "terminal_output",
+            "tmux_session_event",
+        }
+
+        if msg_type not in event_types:
+            return True
+
+        # For event types, check subscriptions
+        subs = getattr(websocket, "subscriptions", None)
+
+        # If client has no subscriptions initialized, block high-volume events
+        if subs is None:
+            return False
+
+        # Global wildcard subscription
+        if "*" in subs:
+            return True
+
+        # Check for message type subscription
+        if msg_type in subs:
+            return True
+
+        # Special casing for hook_event granularity (subscribe by event_type)
+        if msg_type == "hook_event":
+            event_type = message.get("event_type")
+            if event_type and event_type in subs:
+                return True
+
+        return False
+
     async def broadcast(self, message: dict[str, Any]) -> None:
         """
         Broadcast message to all connected clients.
 
-        Filters messages based on client subscriptions:
-        1. If message type is NOT 'hook_event', always send (system messages)
-        2. If message type IS 'hook_event':
-           - If client has NO subscriptions, send ALL events (default behavior)
-           - If client HAS subscriptions, only send if event_type in subscriptions
+        Filters messages based on client subscriptions using _is_subscribed.
 
         Args:
             message: Dictionary to serialize and send
         """
         if not self.clients:
-            return  # No clients connected, silently skip
+            return
 
         message_str = json.dumps(message)
         sent_count = 0
         failed_count = 0
 
-        # Pre-calculate filtering criteria
-        is_hook_event = message.get("type") == "hook_event"
-        event_type = message.get("event_type")
-
         for websocket in list(self.clients.keys()):
             try:
-                # Filter by subscription: clients must subscribe to receive events
-                subs = getattr(websocket, "subscriptions", None)
-                if subs is None:
-                    # No subscriptions = receive nothing
+                if not self._is_subscribed(websocket, message):
                     continue
-
-                if is_hook_event:
-                    if event_type not in subs and "*" not in subs:
-                        continue
-                elif message.get("type") == "session_message":
-                    if "session_message" not in subs and "*" not in subs:
-                        continue
 
                 await websocket.send(message_str)
                 sent_count += 1
@@ -72,24 +97,28 @@ class BroadcastMixin:
                 logger.warning(f"Broadcast failed for client: {e}")
                 failed_count += 1
 
-        logger.debug(f"Broadcast complete: {sent_count} sent, {failed_count} failed")
+        if sent_count > 0 or failed_count > 0:
+            logger.debug(
+                f"Broadcast {message.get('type')}: {sent_count} sent, {failed_count} failed"
+            )
 
     async def broadcast_session_update(self, event: str, **kwargs: Any) -> None:
-        """
-        Broadcast session update to all clients.
-
-        Convenience method for sending session_update messages.
-
-        Args:
-            event: Event type (e.g., "token_refreshed", "logout")
-            **kwargs: Additional event data
-        """
+        """Broadcast session update (as session_message for back-compat)."""
+        # Note: Logic in original broadcast() handled 'session_message' types.
+        # We'll stick to that type for consistency with original expected behavior
+        # or convert to 'session_update' if that was intended.
+        # The original broadcast_session_update sent type="session_update",
+        # but the original broadcast() loop checked "session_message".
+        # We will assume "session_update" is safe to basic-broadcast if not restricted,
+        # OR we should treat it as restricted.
+        # Adding "session_update" to restricted types in _is_subscribed would require clients to sub.
+        # Original code didn't restrict "session_update" type, only "session_message".
+        # We'll treat "session_update" as a system message (unrestricted) for now unless it's noisy.
         message = {
             "type": "session_update",
             "event": event,
             **kwargs,
         }
-
         await self.broadcast(message)
 
     async def broadcast_agent_event(
@@ -99,17 +128,7 @@ class BroadcastMixin:
         parent_session_id: str,
         **kwargs: Any,
     ) -> None:
-        """
-        Broadcast agent event to all clients.
-
-        Used for agent lifecycle events like started, completed, cancelled.
-
-        Args:
-            event: Event type (agent_started, agent_completed, agent_failed, agent_cancelled)
-            run_id: Agent run ID
-            parent_session_id: Parent session that spawned the agent
-            **kwargs: Additional event data (provider, status, etc.)
-        """
+        """Broadcast agent event."""
         message = {
             "type": "agent_event",
             "event": event,
@@ -118,7 +137,6 @@ class BroadcastMixin:
             "timestamp": datetime.now(UTC).isoformat(),
             **kwargs,
         }
-
         await self.broadcast(message)
 
     async def broadcast_worktree_event(
@@ -127,16 +145,7 @@ class BroadcastMixin:
         worktree_id: str,
         **kwargs: Any,
     ) -> None:
-        """
-        Broadcast worktree event to all clients.
-
-        Used for worktree lifecycle events like created, claimed, released, merged.
-
-        Args:
-            event: Event type (worktree_created, worktree_claimed, worktree_released, worktree_merged)
-            worktree_id: Worktree ID
-            **kwargs: Additional event data (branch_name, task_id, session_id, etc.)
-        """
+        """Broadcast worktree event."""
         message = {
             "type": "worktree_event",
             "event": event,
@@ -144,7 +153,6 @@ class BroadcastMixin:
             "timestamp": datetime.now(UTC).isoformat(),
             **kwargs,
         }
-
         await self.broadcast(message)
 
     async def broadcast_autonomous_event(
@@ -153,24 +161,7 @@ class BroadcastMixin:
         session_id: str,
         **kwargs: Any,
     ) -> None:
-        """
-        Broadcast autonomous execution event to all clients.
-
-        Used for autonomous loop lifecycle and progress events:
-        - task_started: A task was selected for work
-        - task_completed: A task was completed
-        - validation_failed: Task validation failed
-        - stuck_detected: Loop detected stuck condition
-        - stop_requested: External stop signal received
-        - progress_recorded: Progress event recorded
-        - loop_started: Autonomous loop started
-        - loop_stopped: Autonomous loop stopped
-
-        Args:
-            event: Event type
-            session_id: Session ID of the autonomous loop
-            **kwargs: Additional event data (task_id, reason, details, etc.)
-        """
+        """Broadcast autonomous execution event."""
         message = {
             "type": "autonomous_event",
             "event": event,
@@ -178,7 +169,6 @@ class BroadcastMixin:
             "timestamp": datetime.now(UTC).isoformat(),
             **kwargs,
         }
-
         await self.broadcast(message)
 
     async def broadcast_pipeline_event(
@@ -187,27 +177,7 @@ class BroadcastMixin:
         execution_id: str,
         **kwargs: Any,
     ) -> None:
-        """
-        Broadcast pipeline execution event to subscribed clients.
-
-        Used for real-time pipeline execution updates:
-        - pipeline_started: Execution began
-        - pipeline_completed: Execution finished successfully
-        - pipeline_failed: Execution failed with error
-        - step_started: A step began executing
-        - step_completed: A step finished successfully
-        - step_failed: A step failed with error
-        - step_output: Streaming output from a step
-        - approval_required: Step is waiting for approval
-
-        Args:
-            event: Event type
-            execution_id: Pipeline execution ID
-            **kwargs: Additional event data (step_id, output, error, etc.)
-        """
-        if not self.clients:
-            return  # No clients connected
-
+        """Broadcast pipeline execution event."""
         message = {
             "type": "pipeline_event",
             "event": event,
@@ -215,59 +185,18 @@ class BroadcastMixin:
             "timestamp": datetime.now(UTC).isoformat(),
             **kwargs,
         }
-
-        message_str = json.dumps(message)
-
-        for websocket in list(self.clients.keys()):
-            try:
-                # Only send to clients subscribed to pipeline_event or *
-                subs = getattr(websocket, "subscriptions", None)
-                if subs is not None:
-                    if "pipeline_event" not in subs and "*" not in subs:
-                        continue
-
-                await websocket.send(message_str)
-            except ConnectionClosed:
-                pass
-            except Exception as e:
-                logger.warning(f"Pipeline event broadcast failed: {e}")
+        await self.broadcast(message)
 
     async def broadcast_terminal_output(
         self,
         run_id: str,
         data: str,
     ) -> None:
-        """
-        Broadcast terminal output to subscribed clients.
-
-        Used for streaming PTY output from embedded agents to web terminals.
-
-        Args:
-            run_id: Agent run ID
-            data: Raw terminal output data
-        """
-        if not self.clients:
-            return  # No clients connected
-
+        """Broadcast terminal output."""
         message = {
             "type": "terminal_output",
             "run_id": run_id,
             "data": data,
             "timestamp": datetime.now(UTC).isoformat(),
         }
-
-        message_str = json.dumps(message)
-
-        for websocket in list(self.clients.keys()):
-            try:
-                # Only send to clients subscribed to terminal_output or *
-                subs = getattr(websocket, "subscriptions", None)
-                if subs is not None:
-                    if "terminal_output" not in subs and "*" not in subs:
-                        continue
-
-                await websocket.send(message_str)
-            except ConnectionClosed:
-                pass
-            except Exception as e:
-                logger.warning(f"Terminal broadcast failed: {e}")
+        await self.broadcast(message)

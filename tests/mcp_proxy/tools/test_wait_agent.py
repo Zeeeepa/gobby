@@ -11,14 +11,14 @@ pytestmark = pytest.mark.unit
 
 
 @pytest.fixture
-def mock_runner():
+def mock_runner() -> MagicMock:
     """Create a mock AgentRunner."""
     runner = MagicMock()
     return runner
 
 
 @pytest.fixture
-def agents_registry(mock_runner):
+def agents_registry(mock_runner) -> object:
     """Create an agents registry with wait_for_agent tool."""
     from gobby.mcp_proxy.tools.agents import create_agents_registry
 
@@ -29,7 +29,9 @@ class TestWaitForAgent:
     """Tests for wait_for_agent tool."""
 
     @pytest.mark.asyncio
-    async def test_already_completed_returns_immediately(self, mock_runner, agents_registry) -> None:
+    async def test_already_completed_returns_immediately(
+        self, mock_runner, agents_registry
+    ) -> None:
         """Test that already-completed agent returns immediately without polling."""
         run = MagicMock()
         run.status = "success"
@@ -71,7 +73,9 @@ class TestWaitForAgent:
         assert result["status"] == "timeout"
 
     @pytest.mark.asyncio
-    async def test_already_cancelled_returns_immediately(self, mock_runner, agents_registry) -> None:
+    async def test_already_cancelled_returns_immediately(
+        self, mock_runner, agents_registry
+    ) -> None:
         """Test that cancelled agent returns immediately."""
         run = MagicMock()
         run.status = "cancelled"

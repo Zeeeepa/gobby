@@ -58,7 +58,7 @@ class LLMProvidersConfig(BaseModel):
 
     default_model: str | None = Field(
         default=None,
-        description="Default model for the web UI chat dropdown (e.g. claude-opus-4-6)",
+        description="Default model for the web UI chat dropdown (e.g. claude-opus-4-0)",
     )
     json_strict: bool = Field(
         default=True,

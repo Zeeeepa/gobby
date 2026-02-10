@@ -14,6 +14,12 @@ Replace `permission_mode="bypassPermissions"` with a `can_use_tool` callback on 
 - Removing `permission_mode="bypassPermissions"` means all tool calls go through `can_use_tool` — the auto-approve path is instant, so overhead is negligible
 - Session-lifecycle failover (SDK sessions not firing SessionStart hooks) is a separate concern — tracked independently, not part of this plan
 
+## Timeouts and Validation
+
+- **Timeout**: User response should timeout after 300 seconds (configurable) to prevent blocking the agent indefinitely. On timeout, `_can_use_tool` should return a rejection or default value.
+- **Validation**: `answers` payload from WebSocket must be validated against the `options` provided in the tool call. Reject invalid or extra keys.
+- **Disconnect**: If client disconnects while question is pending, pause the timer. Resume on reconnect? Or reject immediately? Policy: Reject immediately to free up the agent.
+
 ## Phase 1: Backend — ChatSession can_use_tool callback
 
 - [ ] Add `_can_use_tool()` async callback, pending question state fields, and `provide_answer()` method to ChatSession (category: code)

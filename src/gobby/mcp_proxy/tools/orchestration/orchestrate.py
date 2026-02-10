@@ -296,6 +296,10 @@ def register_orchestrator(
             child_session: Any,
             agent_run: Any,
             newly_created_worktree: bool,
+            prompt: str,
+            effective_provider: str,
+            effective_terminal: str,
+            mode: str,
         ) -> dict[str, Any] | None:
             """Spawn agent in the configured mode.
 
@@ -304,6 +308,10 @@ def register_orchestrator(
             """
             from gobby.agents.spawn import EmbeddedSpawner, HeadlessSpawner, TerminalSpawner
             from gobby.agents.spawners.base import EmbeddedPTYResult, HeadlessResult, SpawnResult
+
+            # Ensure agent_runner is available (checked in orchestrate_ready_tasks)
+            if agent_runner is None:
+                raise RuntimeError("agent_runner is None in _spawn_in_mode")
 
             common_kwargs: dict[str, Any] = {
                 "cli": effective_provider,
@@ -558,7 +566,15 @@ def register_orchestrator(
 
                 # Spawn agent in the configured mode
                 spawn_info = _spawn_in_mode(
-                    task, worktree, child_session, agent_run, newly_created_worktree
+                    task,
+                    worktree,
+                    child_session,
+                    agent_run,
+                    newly_created_worktree,
+                    prompt,
+                    effective_provider,
+                    effective_terminal,
+                    mode,
                 )
                 if spawn_info is None:
                     continue

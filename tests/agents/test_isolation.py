@@ -222,7 +222,7 @@ class TestCurrentIsolationHandler:
     """Tests for CurrentIsolationHandler."""
 
     @pytest.mark.asyncio
-    async def test_prepare_environment_returns_project_path(self):
+    async def test_prepare_environment_returns_project_path(self) -> None:
         """Test prepare_environment returns IsolationContext with project_path as cwd."""
         handler = CurrentIsolationHandler()
         config = SpawnConfig(
@@ -245,7 +245,7 @@ class TestCurrentIsolationHandler:
         assert ctx.isolation_type == "current"
 
     @pytest.mark.asyncio
-    async def test_prepare_environment_no_branch_or_ids(self):
+    async def test_prepare_environment_no_branch_or_ids(self) -> None:
         """Test prepare_environment returns no branch, worktree_id, or clone_id."""
         handler = CurrentIsolationHandler()
         config = SpawnConfig(
@@ -279,7 +279,7 @@ class TestCurrentIsolationHandler:
         assert result == original_prompt
 
     @pytest.mark.asyncio
-    async def test_cleanup_environment_is_noop(self):
+    async def test_cleanup_environment_is_noop(self) -> None:
         """Test cleanup_environment does nothing for current handler."""
         handler = CurrentIsolationHandler()
         config = SpawnConfig(
@@ -313,7 +313,7 @@ class TestWorktreeIsolationHandler:
     """Tests for WorktreeIsolationHandler."""
 
     @pytest.mark.asyncio
-    async def test_prepare_environment_creates_worktree(self):
+    async def test_prepare_environment_creates_worktree(self) -> None:
         """Test prepare_environment creates worktree if not exists."""
         mock_git_manager = MagicMock()
         mock_git_manager.repo_path = "/path/to/main/repo"
@@ -359,7 +359,7 @@ class TestWorktreeIsolationHandler:
         mock_git_manager.create_worktree.assert_called_once()
 
     @pytest.mark.asyncio
-    async def test_prepare_environment_reuses_existing_worktree(self):
+    async def test_prepare_environment_reuses_existing_worktree(self) -> None:
         """Test prepare_environment reuses existing worktree for same branch."""
         mock_git_manager = MagicMock()
         mock_git_manager.repo_path = "/path/to/main/repo"
@@ -423,7 +423,7 @@ class TestWorktreeIsolationHandler:
         assert "feature-branch" in result
 
     @pytest.mark.asyncio
-    async def test_cleanup_after_storage_create_failure(self):
+    async def test_cleanup_after_storage_create_failure(self) -> None:
         """Test cleanup removes worktree on disk when storage.create fails."""
         mock_git_manager = MagicMock()
         mock_git_manager.repo_path = "/path/to/main/repo"
@@ -473,7 +473,7 @@ class TestWorktreeIsolationHandler:
         assert handler._created_worktree_path is None
 
     @pytest.mark.asyncio
-    async def test_cleanup_after_hook_copy_failure(self):
+    async def test_cleanup_after_hook_copy_failure(self) -> None:
         """Test cleanup removes worktree and storage record when hook copy fails."""
         mock_git_manager = MagicMock()
         mock_git_manager.repo_path = "/path/to/main/repo"
@@ -523,7 +523,7 @@ class TestWorktreeIsolationHandler:
         mock_worktree_storage.delete.assert_called_once_with("wt-123")
 
     @pytest.mark.asyncio
-    async def test_cleanup_noop_on_success(self):
+    async def test_cleanup_noop_on_success(self) -> None:
         """Test cleanup does nothing after successful prepare."""
         mock_git_manager = MagicMock()
         mock_git_manager.repo_path = "/path/to/main/repo"
@@ -579,7 +579,7 @@ class TestCloneIsolationHandler:
     """Tests for CloneIsolationHandler."""
 
     @pytest.mark.asyncio
-    async def test_prepare_environment_creates_clone(self):
+    async def test_prepare_environment_creates_clone(self) -> None:
         """Test prepare_environment creates shallow clone if not exists."""
         mock_clone_manager = MagicMock()
         mock_clone_manager.create_clone.return_value = MagicMock(
@@ -622,7 +622,7 @@ class TestCloneIsolationHandler:
         mock_clone_manager.create_clone.assert_called_once()
 
     @pytest.mark.asyncio
-    async def test_prepare_environment_reuses_existing_clone(self):
+    async def test_prepare_environment_reuses_existing_clone(self) -> None:
         """Test prepare_environment reuses existing clone for same branch."""
         mock_clone_manager = MagicMock()
 
@@ -685,7 +685,7 @@ class TestCloneIsolationHandler:
         assert "feature-branch" in result
 
     @pytest.mark.asyncio
-    async def test_cleanup_after_storage_create_failure(self):
+    async def test_cleanup_after_storage_create_failure(self) -> None:
         """Test cleanup removes clone on disk when storage.create fails."""
         mock_clone_manager = MagicMock()
         mock_clone_manager.create_clone.return_value = MagicMock(success=True)
@@ -731,7 +731,7 @@ class TestCloneIsolationHandler:
         assert handler._created_clone_path is None
 
     @pytest.mark.asyncio
-    async def test_cleanup_after_hook_copy_failure(self):
+    async def test_cleanup_after_hook_copy_failure(self) -> None:
         """Test cleanup removes clone and storage record when hook copy fails."""
         mock_clone_manager = MagicMock()
         mock_clone_manager.create_clone.return_value = MagicMock(success=True)
@@ -776,7 +776,7 @@ class TestCloneIsolationHandler:
         mock_clone_storage.delete.assert_called_once_with("clone-123")
 
     @pytest.mark.asyncio
-    async def test_cleanup_noop_on_success(self):
+    async def test_cleanup_noop_on_success(self) -> None:
         """Test cleanup does nothing after successful prepare."""
         mock_clone_manager = MagicMock()
         mock_clone_manager.create_clone.return_value = MagicMock(success=True)

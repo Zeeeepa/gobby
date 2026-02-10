@@ -48,7 +48,7 @@ class FakeWorktree:
 
 
 @pytest.fixture
-def db(tmp_path):
+def db(tmp_path) -> LocalDatabase:
     database = LocalDatabase(tmp_path / "test.db")
     run_migrations(database)
     database.execute(
@@ -60,7 +60,7 @@ def db(tmp_path):
 
 
 @pytest.fixture
-def state_manager(db):
+def state_manager(db) -> WorkflowStateManager:
     return WorkflowStateManager(db)
 
 
@@ -128,10 +128,14 @@ class TestValidationRetryReleasesWorktree:
         task_id = "task-abc"
         wt_id = "wt-123"
 
-        _insert_state(db, parent_sid, {
-            "completed_agents": [{"task_id": task_id, "session_id": "agent-1"}],
-            "failed_agents": [],
-        })
+        _insert_state(
+            db,
+            parent_sid,
+            {
+                "completed_agents": [{"task_id": task_id, "session_id": "agent-1"}],
+                "failed_agents": [],
+            },
+        )
 
         task_manager = MagicMock()
         task_manager.db = db
@@ -149,10 +153,13 @@ class TestValidationRetryReleasesWorktree:
         agent_runner = MagicMock()
 
         registry = _make_registry(task_manager, worktree_storage, agent_runner)
-        result = await registry.call("process_completed_agents", {
-            "parent_session_id": parent_sid,
-            "spawn_reviews": False,
-        })
+        result = await registry.call(
+            "process_completed_agents",
+            {
+                "parent_session_id": parent_sid,
+                "spawn_reviews": False,
+            },
+        )
 
         assert result["success"] is True
         assert len(result["retries_scheduled"]) == 1
@@ -167,10 +174,14 @@ class TestValidationRetryReleasesWorktree:
         parent_sid = "orchestrator-1"
         task_id = "task-abc"
 
-        _insert_state(db, parent_sid, {
-            "completed_agents": [{"task_id": task_id, "session_id": "agent-1"}],
-            "failed_agents": [],
-        })
+        _insert_state(
+            db,
+            parent_sid,
+            {
+                "completed_agents": [{"task_id": task_id, "session_id": "agent-1"}],
+                "failed_agents": [],
+            },
+        )
 
         task_manager = MagicMock()
         task_manager.db = db
@@ -188,10 +199,13 @@ class TestValidationRetryReleasesWorktree:
         agent_runner = MagicMock()
 
         registry = _make_registry(task_manager, worktree_storage, agent_runner)
-        result = await registry.call("process_completed_agents", {
-            "parent_session_id": parent_sid,
-            "spawn_reviews": False,
-        })
+        result = await registry.call(
+            "process_completed_agents",
+            {
+                "parent_session_id": parent_sid,
+                "spawn_reviews": False,
+            },
+        )
 
         assert result["success"] is True
         assert len(result["retries_scheduled"]) == 1
@@ -203,10 +217,14 @@ class TestValidationRetryReleasesWorktree:
         parent_sid = "orchestrator-1"
         task_id = "task-abc"
 
-        _insert_state(db, parent_sid, {
-            "completed_agents": [{"task_id": task_id, "session_id": "agent-1"}],
-            "failed_agents": [],
-        })
+        _insert_state(
+            db,
+            parent_sid,
+            {
+                "completed_agents": [{"task_id": task_id, "session_id": "agent-1"}],
+                "failed_agents": [],
+            },
+        )
 
         task_manager = MagicMock()
         task_manager.db = db
@@ -220,11 +238,16 @@ class TestValidationRetryReleasesWorktree:
         worktree_storage = MagicMock()
         agent_runner = MagicMock()
 
-        registry = _make_registry(task_manager, worktree_storage, agent_runner, max_validation_retries=3)
-        result = await registry.call("process_completed_agents", {
-            "parent_session_id": parent_sid,
-            "spawn_reviews": False,
-        })
+        registry = _make_registry(
+            task_manager, worktree_storage, agent_runner, max_validation_retries=3
+        )
+        result = await registry.call(
+            "process_completed_agents",
+            {
+                "parent_session_id": parent_sid,
+                "spawn_reviews": False,
+            },
+        )
 
         assert result["success"] is True
         assert len(result["escalated"]) == 1
@@ -242,16 +265,20 @@ class TestCrashedAgentRetryReleasesWorktree:
         task_id = "task-def"
         wt_id = "wt-456"
 
-        _insert_state(db, parent_sid, {
-            "completed_agents": [],
-            "failed_agents": [
-                {
-                    "task_id": task_id,
-                    "session_id": "agent-2",
-                    "failure_reason": "Agent exited without completing task",
-                }
-            ],
-        })
+        _insert_state(
+            db,
+            parent_sid,
+            {
+                "completed_agents": [],
+                "failed_agents": [
+                    {
+                        "task_id": task_id,
+                        "session_id": "agent-2",
+                        "failure_reason": "Agent exited without completing task",
+                    }
+                ],
+            },
+        )
 
         task_manager = MagicMock()
         task_manager.db = db
@@ -267,10 +294,13 @@ class TestCrashedAgentRetryReleasesWorktree:
         agent_runner = MagicMock()
 
         registry = _make_registry(task_manager, worktree_storage, agent_runner)
-        result = await registry.call("process_completed_agents", {
-            "parent_session_id": parent_sid,
-            "spawn_reviews": False,
-        })
+        result = await registry.call(
+            "process_completed_agents",
+            {
+                "parent_session_id": parent_sid,
+                "spawn_reviews": False,
+            },
+        )
 
         assert result["success"] is True
         assert len(result["retries_scheduled"]) == 1
@@ -285,16 +315,20 @@ class TestCrashedAgentRetryReleasesWorktree:
         parent_sid = "orchestrator-1"
         task_id = "task-def"
 
-        _insert_state(db, parent_sid, {
-            "completed_agents": [],
-            "failed_agents": [
-                {
-                    "task_id": task_id,
-                    "session_id": "agent-2",
-                    "failure_reason": "Agent crashed unexpectedly",
-                }
-            ],
-        })
+        _insert_state(
+            db,
+            parent_sid,
+            {
+                "completed_agents": [],
+                "failed_agents": [
+                    {
+                        "task_id": task_id,
+                        "session_id": "agent-2",
+                        "failure_reason": "Agent crashed unexpectedly",
+                    }
+                ],
+            },
+        )
 
         task_manager = MagicMock()
         task_manager.db = db
@@ -310,10 +344,13 @@ class TestCrashedAgentRetryReleasesWorktree:
         agent_runner = MagicMock()
 
         registry = _make_registry(task_manager, worktree_storage, agent_runner)
-        result = await registry.call("process_completed_agents", {
-            "parent_session_id": parent_sid,
-            "spawn_reviews": False,
-        })
+        result = await registry.call(
+            "process_completed_agents",
+            {
+                "parent_session_id": parent_sid,
+                "spawn_reviews": False,
+            },
+        )
 
         assert result["success"] is True
         assert len(result["retries_scheduled"]) == 1
@@ -324,16 +361,20 @@ class TestCrashedAgentRetryReleasesWorktree:
         parent_sid = "orchestrator-1"
         task_id = "task-def"
 
-        _insert_state(db, parent_sid, {
-            "completed_agents": [],
-            "failed_agents": [
-                {
-                    "task_id": task_id,
-                    "session_id": "agent-2",
-                    "failure_reason": "Missing session_id in agent info",
-                }
-            ],
-        })
+        _insert_state(
+            db,
+            parent_sid,
+            {
+                "completed_agents": [],
+                "failed_agents": [
+                    {
+                        "task_id": task_id,
+                        "session_id": "agent-2",
+                        "failure_reason": "Missing session_id in agent info",
+                    }
+                ],
+            },
+        )
 
         task_manager = MagicMock()
         task_manager.db = db
@@ -342,10 +383,13 @@ class TestCrashedAgentRetryReleasesWorktree:
         agent_runner = MagicMock()
 
         registry = _make_registry(task_manager, worktree_storage, agent_runner)
-        result = await registry.call("process_completed_agents", {
-            "parent_session_id": parent_sid,
-            "spawn_reviews": False,
-        })
+        result = await registry.call(
+            "process_completed_agents",
+            {
+                "parent_session_id": parent_sid,
+                "spawn_reviews": False,
+            },
+        )
 
         assert result["success"] is True
         assert len(result["escalated"]) == 1

@@ -237,7 +237,7 @@ class WorkflowStateManager:
 
             variables = json.loads(row["variables"]) if row["variables"] else {}
             spawned_count = len(variables.get("spawned_agents", []))
-            reserved: int = int(variables.get("_reserved_slots", 0))
+            reserved: int = int(variables.get("_reserved_slots") or 0)
             total_active = spawned_count + reserved
             available = max(0, max_concurrent - total_active)
             slots: int = min(available, requested)
@@ -245,8 +245,7 @@ class WorkflowStateManager:
             if slots > 0:
                 variables["_reserved_slots"] = reserved + slots
                 conn.execute(
-                    "UPDATE workflow_states SET variables = ?, updated_at = ? "
-                    "WHERE session_id = ?",
+                    "UPDATE workflow_states SET variables = ?, updated_at = ? WHERE session_id = ?",
                     (json.dumps(variables), datetime.now(UTC).isoformat(), session_id),
                 )
 
@@ -270,11 +269,10 @@ class WorkflowStateManager:
                 return
 
             variables = json.loads(row["variables"]) if row["variables"] else {}
-            current_reserved: int = int(variables.get("_reserved_slots", 0))
+            current_reserved: int = int(variables.get("_reserved_slots") or 0)
             variables["_reserved_slots"] = max(0, current_reserved - count)
             conn.execute(
-                "UPDATE workflow_states SET variables = ?, updated_at = ? "
-                "WHERE session_id = ?",
+                "UPDATE workflow_states SET variables = ?, updated_at = ? WHERE session_id = ?",
                 (json.dumps(variables), datetime.now(UTC).isoformat(), session_id),
             )
 

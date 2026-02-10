@@ -380,7 +380,7 @@ class PipelineExecutor:
             if value.lower() == "false":
                 return False
             # Null
-            if value.lower() in ("null", "none", ""):
+            if value.lower() in ("null", "none"):
                 return None
             # Integer
             try:

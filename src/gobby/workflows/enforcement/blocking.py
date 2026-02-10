@@ -436,12 +436,16 @@ async def block_tools(
             cmd_pattern = rule.get("command_pattern")
             cmd_not_pattern = rule.get("command_not_pattern")
 
-            if cmd_pattern:
-                if not re.search(cmd_pattern, command):
-                    continue  # Pattern didn't match — skip this rule
-            if cmd_not_pattern:
-                if re.search(cmd_not_pattern, command):
-                    continue  # Exclusion pattern matched — skip this rule
+            try:
+                if cmd_pattern:
+                    if not re.search(cmd_pattern, command):
+                        continue  # Pattern didn't match — skip this rule
+                if cmd_not_pattern:
+                    if re.search(cmd_not_pattern, command):
+                        continue  # Exclusion pattern matched — skip this rule
+            except re.error as e:
+                logger.error(f"Invalid regex in blocking rule: {e}")
+                continue  # Skip this rule on regex error
 
         # Check optional condition
         condition = rule.get("when")

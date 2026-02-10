@@ -267,3 +267,6 @@ After all phases, manual end-to-end test using the production orchestrator workf
 3. Observe full loop: find -> spawn -> wait -> review -> merge -> cleanup
 4. Verify all subtasks close, clones/worktrees cleaned up, `complete` step reached
 5. Verify main repo on correct branch with merged changes
+6. **Process Cleanup**: Verify no orphaned `gobby-agent` processes remain (check `ps aux`)
+7. **File Cleanup**: Verify no temporary prompts or tool definitions remain in `/tmp`
+8. **State Consistency**: Verify `tasks.jsonl` reflects the final state of all tasks

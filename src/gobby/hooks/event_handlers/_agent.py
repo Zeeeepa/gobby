@@ -81,7 +81,7 @@ class AgentEventHandlerMixin(EventHandlersBase):
         args = (match.group(2) or "").strip()
 
         # /gobby or /gobby help → generate help
-        if not skill_name or skill_name.lower() == "help" or args.lower() == "help":
+        if not skill_name or skill_name.lower() == "help":
             return self._generate_help_content()
 
         # /gobby:skillname → resolve and inject

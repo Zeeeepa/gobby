@@ -8,7 +8,7 @@ This file provides guidance for developing the Gobby codebase.
 
 ## Guiding Principles
 
-These are enforced by hooks and workflows. See `GUIDING_PRINCIPLES.md` for the full philosophy.
+These are enforced by hooks and workflows.
 
 1. **Agent depth limit of 3.** No recursive agent chains deeper than 3 levels.
 2. **No monoliths.** Keep files under 1,000 lines. Decompose if larger.
@@ -155,7 +155,7 @@ src/gobby/
 ### Key File Locations
 
 | Path | Purpose |
-|------|---------|
+| --- | --- |
 | `~/.gobby/config.yaml` | Daemon configuration |
 | `~/.gobby/gobby-hub.db` | SQLite database |
 | `~/.gobby/logs/` | Log files |
@@ -286,7 +286,7 @@ def test_integration() -> None:
 ### Common Issues
 
 | Issue | Solution |
-|-------|----------|
+| --- | --- |
 | Import errors | Run `uv sync` |
 | Test failures | Check fixtures in `tests/conftest.py` |
 | Type errors | Run `uv run mypy src/` |

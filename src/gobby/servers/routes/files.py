@@ -10,6 +10,7 @@ import subprocess  # nosec B404 — subprocess needed for git commands
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
+import asyncio
 from fastapi import APIRouter, HTTPException, Query
 from fastapi.responses import FileResponse
 from pydantic import BaseModel
@@ -95,43 +96,51 @@ def _get_project_manager(server: "HTTPServer") -> LocalProjectManager:
     return LocalProjectManager(server.session_manager.db)
 
 
-def _get_git_tracked_files(project_path: str) -> set[str] | None:
-    """Get set of git-tracked files, or None if not a git repo.
+async def _run_git(cwd: str, args: list[str], timeout: float = 10.0) -> tuple[int, str]:
+    """Run a git command asynchronously."""
+    try:
+        proc = await asyncio.create_subprocess_exec(
+            "git",
+            *args,
+            cwd=cwd,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
+        )
+        try:
+            stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=timeout)
+        except asyncio.TimeoutError:
+            try:
+                proc.kill()
+            except ProcessLookupError:
+                pass
+            raise
 
-    Uses `git ls-files` for tracked files and `git ls-files --others --exclude-standard`
-    for untracked but not ignored files.
-    """
+        return proc.returncode or 0, stdout.decode("utf-8", errors="replace")
+    except (OSError, asyncio.TimeoutError):
+        return 1, ""
+
+
+async def _get_git_tracked_files(project_path: str) -> set[str] | None:
+    """Get set of git-tracked files, or None if not a git repo."""
     try:
         # Get tracked files
-        tracked = subprocess.run(  # nosec B603 B607 — hardcoded git command
-            ["git", "ls-files"],
-            cwd=project_path,
-            capture_output=True,
-            text=True,
-            timeout=10,
-        )
-        if tracked.returncode != 0:
+        rc, stdout = await _run_git(project_path, ["ls-files"])
+        if rc != 0:
             return None
 
         # Get untracked but not ignored files
-        untracked = subprocess.run(  # nosec B603 B607 — hardcoded git command
-            ["git", "ls-files", "--others", "--exclude-standard"],
-            cwd=project_path,
-            capture_output=True,
-            text=True,
-            timeout=10,
-        )
+        rc2, stdout2 = await _run_git(project_path, ["ls-files", "--others", "--exclude-standard"])
 
         files: set[str] = set()
-        for line in tracked.stdout.strip().splitlines():
+        for line in stdout.strip().splitlines():
             if line:
                 files.add(line)
-        if untracked.returncode == 0:
-            for line in untracked.stdout.strip().splitlines():
+        if rc2 == 0:
+            for line in stdout2.strip().splitlines():
                 if line:
                     files.add(line)
         return files
-    except (subprocess.TimeoutExpired, FileNotFoundError):
+    except Exception:
         return None
 
 
@@ -200,28 +209,33 @@ def create_files_router(server: "HTTPServer") -> APIRouter:
             raise HTTPException(400, "Path is not a directory")
 
         # Get git-tracked files for filtering
-        git_files = _get_git_tracked_files(project.repo_path)
+        git_files = await _get_git_tracked_files(project.repo_path)
 
-        entries: list[dict[str, Any]] = []
-        try:
-            for child in sorted(target.iterdir(), key=lambda p: p.name.lower()):
-                rel = str(child.relative_to(Path(project.repo_path).resolve()))
-                is_dir = child.is_dir()
+        def _scan_dir() -> list[dict[str, Any]]:
+            entries: list[dict[str, Any]] = []
+            try:
+                for child in sorted(target.iterdir(), key=lambda p: p.name.lower()):
+                    rel = str(child.relative_to(Path(project.repo_path).resolve()))
+                    is_dir = child.is_dir()
 
-                if not _is_path_visible(rel, git_files, is_dir):
-                    continue
+                    if not _is_path_visible(rel, git_files, is_dir):
+                        continue
 
-                entry: dict[str, Any] = {
-                    "name": child.name,
-                    "path": rel,
-                    "is_dir": is_dir,
-                }
-                if not is_dir:
-                    entry["size"] = child.stat().st_size
-                    entry["extension"] = child.suffix.lower()
-                entries.append(entry)
-        except PermissionError as e:
-            raise HTTPException(403, "Permission denied") from e
+                    entry: dict[str, Any] = {
+                        "name": child.name,
+                        "path": rel,
+                        "is_dir": is_dir,
+                    }
+                    if not is_dir:
+                        entry["size"] = child.stat().st_size
+                        entry["extension"] = child.suffix.lower()
+                    entries.append(entry)
+                return entries
+            except PermissionError as e:
+                raise HTTPException(403, "Permission denied") from e
+
+        # Offload blocking IO
+        entries = await asyncio.get_running_loop().run_in_executor(None, _scan_dir)
 
         # Sort: directories first, then files, alphabetical within each group
         entries.sort(key=lambda e: (not e["is_dir"], e["name"].lower()))
@@ -272,8 +286,10 @@ def create_files_router(server: "HTTPServer") -> APIRouter:
             return result
 
         # Read text content
+        # Read text content (async)
         try:
-            raw = target.read_bytes()
+            loop = asyncio.get_running_loop()
+            raw = await loop.run_in_executor(None, target.read_bytes)
             truncated = len(raw) > max_size
             if truncated:
                 raw = raw[:max_size]
@@ -334,7 +350,9 @@ def create_files_router(server: "HTTPServer") -> APIRouter:
             raise HTTPException(404, "Parent directory does not exist")
 
         try:
-            target.write_text(request.content, encoding="utf-8")
+            await asyncio.get_running_loop().run_in_executor(
+                None, lambda: target.write_text(request.content, encoding="utf-8")
+            )
         except OSError as e:
             raise HTTPException(500, f"Failed to write file: {e}") from e
 
@@ -362,27 +380,20 @@ def create_files_router(server: "HTTPServer") -> APIRouter:
 
         try:
             # Get branch name
-            branch_proc = subprocess.run(  # nosec B603 B607 — hardcoded git command
-                ["git", "rev-parse", "--abbrev-ref", "HEAD"],
-                cwd=project.repo_path,
-                capture_output=True,
-                text=True,
-                timeout=5,
+            rc_branch, stdout_branch = await _run_git(
+                project.repo_path, ["rev-parse", "--abbrev-ref", "HEAD"], timeout=5
             )
-            if branch_proc.returncode == 0:
-                result["branch"] = branch_proc.stdout.strip()
+            if rc_branch == 0:
+                result["branch"] = stdout_branch.strip()
 
             # Get file statuses
-            status_proc = subprocess.run(  # nosec B603 B607 — hardcoded git command
-                ["git", "status", "--porcelain"],
-                cwd=project.repo_path,
-                capture_output=True,
-                text=True,
-                timeout=10,
+            rc_status, stdout_status = await _run_git(
+                project.repo_path, ["status", "--porcelain"], timeout=10
             )
-            if status_proc.returncode == 0:
+
+            if rc_status == 0:
                 files: dict[str, str] = {}
-                for line in status_proc.stdout.splitlines():
+                for line in stdout_status.splitlines():
                     if not line or len(line) < 4:  # noqa: PLR2004
                         continue
                     # Format: "XY PATH" — XY is exactly 2 chars, then space, then path
@@ -395,7 +406,7 @@ def create_files_router(server: "HTTPServer") -> APIRouter:
                     if file_path:
                         files[file_path] = status_code
                 result["files"] = files
-        except (subprocess.TimeoutExpired, FileNotFoundError):
+        except Exception:
             pass
 
         return result
@@ -415,15 +426,9 @@ def create_files_router(server: "HTTPServer") -> APIRouter:
         _resolve_safe_path(project.repo_path, path)
 
         try:
-            diff_proc = subprocess.run(  # nosec B603 B607 — hardcoded git command
-                ["git", "diff", "HEAD", "--", path],
-                cwd=project.repo_path,
-                capture_output=True,
-                text=True,
-                timeout=10,
-            )
-            diff = diff_proc.stdout if diff_proc.returncode == 0 else ""
-        except (subprocess.TimeoutExpired, FileNotFoundError):
+            rc, stdout = await _run_git(project.repo_path, ["diff", "HEAD", "--", path], timeout=10)
+            diff = stdout if rc == 0 else ""
+        except Exception:
             diff = ""
 
         return {"diff": diff, "path": path}

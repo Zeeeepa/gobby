@@ -43,7 +43,7 @@ async def env(tmp_path) -> AsyncGenerator[dict]:
     run_migrations(db)
 
     # Patch LocalDatabase in hook_manager to return our shared db instance
-    with patch("gobby.hooks.factory.LocalDatabase", return_value=db):
+    with patch("gobby.storage.database.LocalDatabase", return_value=db):
         # Mock WebSocket
         ws = MockWebSocketServer()
 

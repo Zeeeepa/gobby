@@ -90,8 +90,9 @@ class HookManagerComponents:
 class HookManagerFactory:
     """Factory for creating and wiring all HookManager subsystems."""
 
-    @staticmethod
+    @classmethod
     def create(
+        cls,
         *,
         daemon_host: str,
         daemon_port: int,
@@ -139,19 +140,8 @@ class HookManagerFactory:
                     exc_info=True,
                 )
 
-        # Extract config values
-        health_check_interval = 10.0
-        if config:
-            health_check_interval = config.daemon_health_check_interval
-
-        # Initialize Database
-        if config and config.database_path:
-            db_path = Path(config.database_path).expanduser()
-            database = LocalDatabase(db_path)
-        else:
-            database = LocalDatabase()
-
-        # Create session-agnostic subsystems
+        # Initialize core components
+        database = cls._create_database(config)
         daemon_client = DaemonClient(
             host=daemon_host,
             port=daemon_port,
@@ -160,186 +150,70 @@ class HookManagerFactory:
         )
         transcript_processor = TranscriptProcessor(logger_instance=hook_logger)
 
-        # Create local storage
-        session_storage = LocalSessionManager(database)
-        session_task_manager = SessionTaskManager(database)
-        memory_storage = LocalMemoryManager(database)
-        message_manager = LocalSessionMessageManager(database)
-        task_manager = LocalTaskManager(database)
-        agent_run_manager = LocalAgentRunManager(database)
-        worktree_manager = LocalWorktreeManager(database)
+        # Create storage layer
+        storage = cls._create_storage(database)
 
-        # Initialize Artifact storage and capture hook
-        from gobby.hooks.artifact_capture import ArtifactCaptureHook
-        from gobby.storage.artifacts import LocalArtifactManager
+        # Initialize autonomous components
+        autonomous = cls._create_autonomous(database, storage)
 
-        artifact_manager = LocalArtifactManager(database)
-        artifact_capture_hook = ArtifactCaptureHook(artifact_manager=artifact_manager)
+        # Initialize memory system
+        mem_manager = cls._create_memory(database, config)
 
-        # Initialize autonomous execution components
-        stop_registry = StopRegistry(database)
-        progress_tracker = ProgressTracker(database)
-        stuck_detector = StuckDetector(database, progress_tracker=progress_tracker)
-
-        # Memory config
-        memory_config = config.memory if config and hasattr(config, "memory") else None
-        if not memory_config:
-            from gobby.config.persistence import MemoryConfig
-
-            memory_config = MemoryConfig()
-
-        mem_manager = MemoryManager(database, memory_config)
-
-        # Initialize Workflow Engine
-        from gobby.workflows.actions import ActionExecutor
-        from gobby.workflows.engine import WorkflowEngine
-        from gobby.workflows.templates import TemplateEngine
-
-        workflow_loader = WorkflowLoader(workflow_dirs=[Path.home() / ".gobby" / "workflows"])
-        workflow_state_manager = WorkflowStateManager(database)
-        template_engine = TemplateEngine()
-
-        # Skill manager for core skill injection
-        skill_manager = HookSkillManager()
-
-        # Get websocket_server from broadcaster if available
-        websocket_server = None
-        if broadcaster and hasattr(broadcaster, "websocket_server"):
-            websocket_server = broadcaster.websocket_server
-
-        # Initialize pipeline executor
-        pipeline_executor = None
-        try:
-            from gobby.storage.pipelines import LocalPipelineExecutionManager
-            from gobby.workflows.pipeline_executor import PipelineExecutor
-
-            project_id = resolve_project_id(None, None)
-            pipeline_execution_manager = LocalPipelineExecutionManager(database, project_id)
-            pipeline_executor = PipelineExecutor(
-                db=database,
-                execution_manager=pipeline_execution_manager,
-                llm_service=llm_service,
-                loader=workflow_loader,
-            )
-        except Exception as e:
-            logger.debug(f"Pipeline executor not available: {e}")
-
-        action_executor = ActionExecutor(
-            db=database,
-            session_manager=session_storage,
-            template_engine=template_engine,
-            llm_service=llm_service,
-            transcript_processor=transcript_processor,
-            config=config,
-            tool_proxy_getter=tool_proxy_getter,
-            memory_manager=mem_manager,
-            memory_sync_manager=memory_sync_manager,
-            task_manager=task_manager,
-            task_sync_manager=task_sync_manager,
-            session_task_manager=session_task_manager,
-            stop_registry=stop_registry,
-            progress_tracker=progress_tracker,
-            stuck_detector=stuck_detector,
-            websocket_server=websocket_server,
-            skill_manager=skill_manager,
-            pipeline_executor=pipeline_executor,
-            workflow_loader=workflow_loader,
+        # Initialize workflow engine
+        workflow_components = cls._create_workflow_engine(
+            database,
+            config,
+            llm_service,
+            transcript_processor,
+            mem_manager,
+            storage,
+            autonomous,
+            memory_sync_manager,
+            task_sync_manager,
+            tool_proxy_getter,
+            resolve_project_id,
+            broadcaster,
         )
 
-        workflow_engine = WorkflowEngine(
-            loader=workflow_loader,
-            state_manager=workflow_state_manager,
-            action_executor=action_executor,
-        )
+        # Initialize webhooks and plugins
+        webhook_dispatcher = cls._create_webhooks(config)
+        plugin_loader = cls._create_plugins(config, hook_logger, workflow_components)
 
-        # Register task_manager with evaluator for task_tree_complete() condition helper
-        if task_manager and workflow_engine.evaluator:
-            workflow_engine.evaluator.register_task_manager(task_manager)
-        # Register stop_registry with evaluator for has_stop_signal() condition helper
-        if stop_registry and workflow_engine.evaluator:
-            workflow_engine.evaluator.register_stop_registry(stop_registry)
-
-        workflow_timeout: float = 0.0  # 0 = no timeout
-        workflow_enabled = True
-        if config:
-            workflow_timeout = config.workflow.timeout
-            workflow_enabled = config.workflow.enabled
-
-        workflow_handler = WorkflowHookHandler(
-            engine=workflow_engine,
-            loop=loop,
-            timeout=workflow_timeout,
-            enabled=workflow_enabled,
-        )
-
-        # Initialize Webhook Dispatcher
-        webhooks_config = None
-        if config and hasattr(config, "hook_extensions"):
-            webhooks_config = config.hook_extensions.webhooks
-        if not webhooks_config:
-            from gobby.config.extensions import WebhooksConfig
-
-            webhooks_config = WebhooksConfig()
-        webhook_dispatcher = WebhookDispatcher(webhooks_config)
-
-        # Initialize Plugin Loader
-        plugin_loader: PluginLoader | None = None
-        plugins_config = None
-        if config and hasattr(config, "hook_extensions"):
-            plugins_config = config.hook_extensions.plugins
-        if plugins_config is not None and plugins_config.enabled:
-            plugin_loader = PluginLoader(plugins_config)
-            try:
-                loaded = plugin_loader.load_all()
-                if loaded:
-                    hook_logger.info(
-                        f"Loaded {len(loaded)} plugin(s): {', '.join(p.name for p in loaded)}"
-                    )
-                    # Register plugin actions and conditions with workflow system
-                    action_executor.register_plugin_actions(plugin_loader.registry)
-                    workflow_engine.evaluator.register_plugin_conditions(plugin_loader.registry)
-            except Exception as e:
-                hook_logger.error(f"Failed to load plugins: {e}", exc_info=True)
-
-        # Session manager
+        # Initialize session management
         session_mgr = SessionManager(
-            session_storage=session_storage,
+            session_storage=storage.session,
             logger_instance=hook_logger,
             config=config,
         )
 
-        # Session coordinator
         session_coordinator = SessionCoordinator(
-            session_storage=session_storage,
+            session_storage=storage.session,
             message_processor=message_processor,
-            agent_run_manager=agent_run_manager,
-            worktree_manager=worktree_manager,
+            agent_run_manager=storage.agent_run,
+            worktree_manager=storage.worktree,
             logger=hook_logger,
         )
 
-        # Health monitor
         health_monitor = HealthMonitor(
             daemon_client=daemon_client,
-            health_check_interval=health_check_interval,
+            health_check_interval=config.daemon_health_check_interval if config else 10.0,
             logger=hook_logger,
         )
 
-        # Hook-based transcript assembler
         hook_assembler = HookTranscriptAssembler()
 
-        # Event handlers
         event_handlers = EventHandlers(
             session_manager=session_mgr,
-            workflow_handler=workflow_handler,
-            session_storage=session_storage,
-            session_task_manager=session_task_manager,
+            workflow_handler=workflow_components.handler,
+            session_storage=storage.session,
+            session_task_manager=storage.session_task,
             message_processor=message_processor,
-            task_manager=task_manager,
+            task_manager=storage.task,
             session_coordinator=session_coordinator,
-            message_manager=message_manager,
-            skill_manager=skill_manager,
+            message_manager=storage.message,
+            skill_manager=workflow_components.skill_manager,
             skills_config=config.skills if config else None,
-            artifact_capture_hook=artifact_capture_hook,
+            artifact_capture_hook=storage.artifact_capture_hook,
             workflow_config=config.workflow if config else None,
             get_machine_id=get_machine_id,
             resolve_project_id=resolve_project_id,
@@ -351,27 +225,27 @@ class HookManagerFactory:
             database=database,
             daemon_client=daemon_client,
             transcript_processor=transcript_processor,
-            session_storage=session_storage,
-            session_task_manager=session_task_manager,
-            memory_storage=memory_storage,
-            message_manager=message_manager,
-            task_manager=task_manager,
-            agent_run_manager=agent_run_manager,
-            worktree_manager=worktree_manager,
-            artifact_manager=artifact_manager,
-            artifact_capture_hook=artifact_capture_hook,
-            stop_registry=stop_registry,
-            progress_tracker=progress_tracker,
-            stuck_detector=stuck_detector,
+            session_storage=storage.session,
+            session_task_manager=storage.session_task,
+            memory_storage=storage.memory,
+            message_manager=storage.message,
+            task_manager=storage.task,
+            agent_run_manager=storage.agent_run,
+            worktree_manager=storage.worktree,
+            artifact_manager=storage.artifact,
+            artifact_capture_hook=storage.artifact_capture_hook,
+            stop_registry=autonomous.stop_registry,
+            progress_tracker=autonomous.progress_tracker,
+            stuck_detector=autonomous.stuck_detector,
             memory_manager=mem_manager,
-            workflow_loader=workflow_loader,
-            workflow_state_manager=workflow_state_manager,
-            template_engine=template_engine,
-            skill_manager=skill_manager,
-            pipeline_executor=pipeline_executor,
-            action_executor=action_executor,
-            workflow_engine=workflow_engine,
-            workflow_handler=workflow_handler,
+            workflow_loader=workflow_components.loader,
+            workflow_state_manager=workflow_components.state_manager,
+            template_engine=workflow_components.template_engine,
+            skill_manager=workflow_components.skill_manager,
+            pipeline_executor=workflow_components.pipeline_executor,
+            action_executor=workflow_components.action_executor,
+            workflow_engine=workflow_components.engine,
+            workflow_handler=workflow_components.handler,
             webhook_dispatcher=webhook_dispatcher,
             plugin_loader=plugin_loader,
             session_manager=session_mgr,
@@ -380,3 +254,183 @@ class HookManagerFactory:
             hook_assembler=hook_assembler,
             event_handlers=event_handlers,
         )
+
+    @staticmethod
+    def _create_database(config: Any | None) -> LocalDatabase:
+        if config and config.database_path:
+            db_path = Path(config.database_path).expanduser()
+            return LocalDatabase(db_path)
+        return LocalDatabase()
+
+    @staticmethod
+    def _create_storage(database: LocalDatabase) -> Any:
+        # Using a simple namespace or dataclass to group storage items would be cleaner,
+        # but for now we'll just return a DotDict or similar to match the usage above.
+        # To avoid introducing new types here, i'll use a simple class.
+        class Storage:
+            pass
+
+        s = Storage()
+        s.session = LocalSessionManager(database)
+        s.session_task = SessionTaskManager(database)
+        s.memory = LocalMemoryManager(database)
+        s.message = LocalSessionMessageManager(database)
+        s.task = LocalTaskManager(database)
+        s.agent_run = LocalAgentRunManager(database)
+        s.worktree = LocalWorktreeManager(database)
+
+        from gobby.hooks.artifact_capture import ArtifactCaptureHook
+        from gobby.storage.artifacts import LocalArtifactManager
+
+        s.artifact = LocalArtifactManager(database)
+        s.artifact_capture_hook = ArtifactCaptureHook(artifact_manager=s.artifact)
+        return s
+
+    @staticmethod
+    def _create_autonomous(database: LocalDatabase, storage: Any) -> Any:
+        class Autonomous:
+            pass
+
+        a = Autonomous()
+        a.stop_registry = StopRegistry(database)
+        a.progress_tracker = ProgressTracker(database)
+        a.stuck_detector = StuckDetector(database, progress_tracker=a.progress_tracker)
+        return a
+
+    @staticmethod
+    def _create_memory(database: LocalDatabase, config: Any | None) -> MemoryManager:
+        memory_config = config.memory if config and hasattr(config, "memory") else None
+        if not memory_config:
+            from gobby.config.persistence import MemoryConfig
+
+            memory_config = MemoryConfig()
+        return MemoryManager(database, memory_config)
+
+    @staticmethod
+    def _create_webhooks(config: Any | None) -> WebhookDispatcher:
+        webhooks_config = None
+        if config and hasattr(config, "hook_extensions"):
+            webhooks_config = config.hook_extensions.webhooks
+        if not webhooks_config:
+            from gobby.config.extensions import WebhooksConfig
+
+            webhooks_config = WebhooksConfig()
+        return WebhookDispatcher(webhooks_config)
+
+    @staticmethod
+    def _create_plugins(
+        config: Any | None, logger: logging.Logger, workflow: Any
+    ) -> PluginLoader | None:
+        plugins_config = None
+        if config and hasattr(config, "hook_extensions"):
+            plugins_config = config.hook_extensions.plugins
+
+        if plugins_config is not None and plugins_config.enabled:
+            loader = PluginLoader(plugins_config)
+            try:
+                loaded = loader.load_all()
+                if loaded:
+                    logger.info(
+                        f"Loaded {len(loaded)} plugin(s): {', '.join(p.name for p in loaded)}"
+                    )
+                    workflow.action_executor.register_plugin_actions(loader.registry)
+                    workflow.engine.evaluator.register_plugin_conditions(loader.registry)
+                return loader
+            except Exception as e:
+                logger.error(f"Failed to load plugins: {e}", exc_info=True)
+        return None
+
+    @staticmethod
+    def _create_workflow_engine(
+        database: LocalDatabase,
+        config: Any | None,
+        llm_service: LLMService | None,
+        transcript_processor: Any,
+        memory_manager: MemoryManager,
+        storage: Any,
+        autonomous: Any,
+        memory_sync_manager: Any | None,
+        task_sync_manager: Any | None,
+        tool_proxy_getter: Any | None,
+        resolve_project_id: Callable[[str | None, str | None], str],
+        broadcaster: Any | None,
+    ) -> Any:
+        from gobby.workflows.actions import ActionExecutor
+        from gobby.workflows.engine import WorkflowEngine
+        from gobby.workflows.templates import TemplateEngine
+
+        class WorkflowComponents:
+            pass
+
+        w = WorkflowComponents()
+        w.loader = WorkflowLoader(workflow_dirs=[Path.home() / ".gobby" / "workflows"])
+        w.state_manager = WorkflowStateManager(database)
+        w.template_engine = TemplateEngine()
+        w.skill_manager = HookSkillManager()
+
+        websocket_server = None
+        if broadcaster and hasattr(broadcaster, "websocket_server"):
+            websocket_server = broadcaster.websocket_server
+
+        w.pipeline_executor = None
+        try:
+            from gobby.storage.pipelines import LocalPipelineExecutionManager
+            from gobby.workflows.pipeline_executor import PipelineExecutor
+
+            project_id = resolve_project_id(None, None)
+            pipeline_mgr = LocalPipelineExecutionManager(database, project_id)
+            w.pipeline_executor = PipelineExecutor(
+                db=database,
+                execution_manager=pipeline_mgr,
+                llm_service=llm_service,
+                loader=w.loader,
+            )
+        except Exception as e:
+            logger.debug(f"Pipeline executor not available: {e}")
+
+        w.action_executor = ActionExecutor(
+            db=database,
+            session_manager=storage.session,
+            template_engine=w.template_engine,
+            llm_service=llm_service,
+            transcript_processor=transcript_processor,
+            config=config,
+            tool_proxy_getter=tool_proxy_getter,
+            memory_manager=memory_manager,
+            memory_sync_manager=memory_sync_manager,
+            task_manager=storage.task,
+            task_sync_manager=task_sync_manager,
+            session_task_manager=storage.session_task,
+            stop_registry=autonomous.stop_registry,
+            progress_tracker=autonomous.progress_tracker,
+            stuck_detector=autonomous.stuck_detector,
+            websocket_server=websocket_server,
+            skill_manager=w.skill_manager,
+            pipeline_executor=w.pipeline_executor,
+            workflow_loader=w.loader,
+        )
+
+        w.engine = WorkflowEngine(
+            loader=w.loader,
+            state_manager=w.state_manager,
+            action_executor=w.action_executor,
+        )
+
+        if storage.task and w.engine.evaluator:
+            w.engine.evaluator.register_task_manager(storage.task)
+        if autonomous.stop_registry and w.engine.evaluator:
+            w.engine.evaluator.register_stop_registry(autonomous.stop_registry)
+
+        workflow_timeout = 0.0
+        workflow_enabled = True
+        if config:
+            workflow_timeout = config.workflow.timeout
+            workflow_enabled = config.workflow.enabled
+
+        w.handler = WorkflowHookHandler(
+            engine=w.engine,
+            loop=asyncio.get_running_loop() if asyncio.get_event_loop().is_running() else None,
+            timeout=workflow_timeout,
+            enabled=workflow_enabled,
+        )
+        return w

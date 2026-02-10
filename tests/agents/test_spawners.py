@@ -417,11 +417,14 @@ class TestTmuxSpawner:
         mock_create.return_value = TmuxSessionInfo(name="test-session-1", pane_pid=100)
 
         spawner = TmuxSpawner()
-        spawner.spawn(["echo", "test"], cwd="/tmp", title="test.session:1")
+        spawner.spawn(["echo", "test"], cwd="/tmp", title="test.session:1; rm -rf /")
 
         call_kwargs = mock_create.call_args
         # The session name passed to create_session should be sanitised
-        assert call_kwargs[1]["name"] == "test-session-1" or call_kwargs[0][0] == "test-session-1"
+        assert (
+            call_kwargs[1]["name"] == "test-session-1----------"
+            or call_kwargs[0][0] == "test-session-1----------"
+        )
 
     @patch("gobby.agents.tmux.session_manager.TmuxSessionManager.create_session")
     @patch("gobby.agents.tmux.session_manager.TmuxSessionManager.is_available", return_value=True)
@@ -1583,7 +1586,9 @@ class TestSecurityAndEdgeCases:
 
         # Verify the command passed to create_session is properly escaped
         call_kwargs = mock_create.call_args
-        command_arg = call_kwargs[1].get("command") or call_kwargs[0][1] if len(call_kwargs[0]) > 1 else None
+        command_arg = (
+            call_kwargs[1].get("command") or call_kwargs[0][1] if len(call_kwargs[0]) > 1 else None
+        )
         if command_arg:
             # shlex.join should quote the malicious argument
             assert "; rm -rf /" not in shlex.split(command_arg) or "rm" not in command_arg.split()

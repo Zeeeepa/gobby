@@ -116,7 +116,7 @@ class TmuxSessionManager:
         self.require_available()
 
         # Sanitise name (tmux dislikes dots and colons)
-        safe_name = name.replace(".", "-").replace(":", "-")
+        safe_name = "".join(c if c.isalnum() or c in "-_" else "-" for c in name)
 
         args: list[str] = [
             "new-session",
@@ -198,15 +198,26 @@ class TmuxSessionManager:
 
     async def list_sessions(self) -> list[TmuxSessionInfo]:
         """List all Gobby tmux sessions on the isolated socket."""
-        rc, stdout, _stderr = await self._run("list-sessions", "-F", "#{session_name}")
+        # Fetch name and pid in one go to avoid N+1 process spawns
+        rc, stdout, _stderr = await self._run(
+            "list-sessions",
+            "-F",
+            "#{session_name}\t#{pane_pid}",
+        )
         if rc != 0:
             # No server running is rc=1 with "no server running"
             return []
-        names = [line.strip() for line in stdout.splitlines() if line.strip()]
+
         results: list[TmuxSessionInfo] = []
-        for name in names:
-            pane_pid = await self.get_pane_pid(name)
-            results.append(TmuxSessionInfo(name=name, pane_pid=pane_pid))
+        for line in stdout.splitlines():
+            if not line.strip():
+                continue
+            parts = line.split("\t")
+            if len(parts) >= 2:
+                name = parts[0]
+                pid_str = parts[1]
+                pid = int(pid_str) if pid_str.isdigit() else None
+                results.append(TmuxSessionInfo(name=name, pane_pid=pid))
         return results
 
     async def has_session(self, name: str) -> bool:

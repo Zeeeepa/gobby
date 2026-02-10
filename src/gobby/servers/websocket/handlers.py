@@ -139,7 +139,7 @@ class HandlerMixin:
             json.dumps(
                 {
                     "type": "pong",
-                    "latency": websocket.latency,
+                    "latency": getattr(websocket, "latency", 0.0),
                 }
             )
         )
@@ -157,7 +157,7 @@ class HandlerMixin:
             await self._send_error(websocket, "events must be a list of strings")
             return
 
-        if not hasattr(websocket, "subscriptions"):
+        if not hasattr(websocket, "subscriptions") or websocket.subscriptions is None:
             websocket.subscriptions = set()
 
         websocket.subscriptions.update(events)

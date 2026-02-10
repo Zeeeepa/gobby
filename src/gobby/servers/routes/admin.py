@@ -11,7 +11,7 @@ import re
 import time
 from typing import TYPE_CHECKING, Any
 
-import litellm
+
 import psutil
 from fastapi import APIRouter
 from fastapi.responses import PlainTextResponse
@@ -35,6 +35,8 @@ def _discover_models() -> dict[str, list[str]]:
     Returns models grouped by provider prefix, excluding dated variants
     and provider-scoped names (containing / or .).
     """
+    import litellm
+
     all_keys = list(litellm.model_cost.keys())
     # Only bare names (no / or . — those are provider-scoped duplicates)
     bare = [m for m in all_keys if "/" not in m and "." not in m]

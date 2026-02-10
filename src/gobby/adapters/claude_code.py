@@ -88,7 +88,7 @@ class ClaudeCodeAdapter(BaseAdapter):
             Unified HookEvent with normalized fields.
         """
         hook_type = native_event.get("hook_type", "")
-        input_data = native_event.get("input_data", {})
+        input_data = native_event.get("input_data") or {}
 
         # Map Claude hook type to unified event type
         # Fall back to NOTIFICATION for unknown types (fail-open)

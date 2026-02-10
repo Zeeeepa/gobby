@@ -169,7 +169,7 @@ async def list_mcp_servers(
             "servers": servers,
             "total_count": len(servers),
             "connected_count": len(mcp_manager.connections),
-            "available_count": len([s for s in servers if s["available"]]),
+            "available_count": sum(1 for s in servers if s["available"]),
         }
 
     except Exception as e:

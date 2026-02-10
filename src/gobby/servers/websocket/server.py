@@ -182,51 +182,29 @@ class WebSocketServer(TmuxMixin, ChatMixin, HandlerMixin, AuthMixin, BroadcastMi
         data = json.loads(message)
         msg_type = data.get("type")
 
-        if msg_type == "tool_call":
-            await self._handle_tool_call(websocket, data)
+        # Lazily initialize dispatch table to avoid cluttering __init__
+        if not hasattr(self, "_dispatch_table"):
+            self._dispatch_table = {
+                "tool_call": self._handle_tool_call,
+                "ping": self._handle_ping,
+                "subscribe": self._handle_subscribe,
+                "unsubscribe": self._handle_unsubscribe,
+                "stop_request": self._handle_stop_request,
+                "terminal_input": self._handle_terminal_input,
+                "chat_message": self._handle_chat_message,
+                "stop_chat": self._handle_stop_chat,
+                "ask_user_response": self._handle_ask_user_response,
+                "tmux_list_sessions": self._handle_tmux_list_sessions,
+                "tmux_attach": self._handle_tmux_attach,
+                "tmux_detach": self._handle_tmux_detach,
+                "tmux_create_session": self._handle_tmux_create_session,
+                "tmux_kill_session": self._handle_tmux_kill_session,
+                "tmux_resize": self._handle_tmux_resize,
+            }
 
-        elif msg_type == "ping":
-            await self._handle_ping(websocket, data)
-
-        elif msg_type == "subscribe":
-            await self._handle_subscribe(websocket, data)
-
-        elif msg_type == "unsubscribe":
-            await self._handle_unsubscribe(websocket, data)
-
-        elif msg_type == "stop_request":
-            await self._handle_stop_request(websocket, data)
-
-        elif msg_type == "terminal_input":
-            await self._handle_terminal_input(websocket, data)
-
-        elif msg_type == "chat_message":
-            await self._handle_chat_message(websocket, data)
-
-        elif msg_type == "stop_chat":
-            await self._handle_stop_chat(websocket, data)
-
-        elif msg_type == "ask_user_response":
-            await self._handle_ask_user_response(websocket, data)
-
-        elif msg_type == "tmux_list_sessions":
-            await self._handle_tmux_list_sessions(websocket, data)
-
-        elif msg_type == "tmux_attach":
-            await self._handle_tmux_attach(websocket, data)
-
-        elif msg_type == "tmux_detach":
-            await self._handle_tmux_detach(websocket, data)
-
-        elif msg_type == "tmux_create_session":
-            await self._handle_tmux_create_session(websocket, data)
-
-        elif msg_type == "tmux_kill_session":
-            await self._handle_tmux_kill_session(websocket, data)
-
-        elif msg_type == "tmux_resize":
-            await self._handle_tmux_resize(websocket, data)
-
+        handler = self._dispatch_table.get(msg_type)
+        if handler:
+            await handler(websocket, data)
         else:
             logger.warning(f"Unknown message type: {msg_type}")
             await self._send_error(websocket, f"Unknown message type: {msg_type}")

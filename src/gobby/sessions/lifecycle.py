@@ -128,8 +128,8 @@ class SessionLifecycleManager:
             timeout_hours=self.config.stale_session_timeout_hours
         )
 
-        # Clean up stale prompt files
-        self._cleanup_prompt_files()
+        # Clean up stale prompt files (run in thread to avoid blocking)
+        await asyncio.to_thread(self._cleanup_prompt_files)
 
         return paused + expired
 
@@ -146,13 +146,16 @@ class SessionLifecycleManager:
 
         now = time.time()
         removed = 0
-        for path in prompt_dir.iterdir():
-            try:
-                if now - path.stat().st_mtime > max_age_seconds:
-                    path.unlink()
-                    removed += 1
-            except OSError:
-                pass
+        try:
+            for path in prompt_dir.iterdir():
+                try:
+                    if now - path.stat().st_mtime > max_age_seconds:
+                        path.unlink()
+                        removed += 1
+                except OSError:
+                    pass
+        except OSError:
+            pass  # Handle directory access errors
 
         if removed > 0:
             logger.info(f"Cleaned up {removed} stale prompt file(s)")

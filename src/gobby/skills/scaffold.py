@@ -59,7 +59,7 @@ def scaffold_skill(name: str, base_path: Path, description: str | None = None) -
     skill_dir = base_path / name
 
     if skill_dir.exists():
-        raise FileExistsError(f"Directory already exists: {name}")
+        raise FileExistsError(f"Directory already exists: {name} ({skill_dir.resolve()})")
 
     if description is None:
         description = f"Description for {name}"
@@ -128,8 +128,8 @@ def init_skills_directory(base_path: Path) -> dict[str, bool]:
 
     config_created = False
     if not config_file.exists():
-        with open(config_file, "w", encoding="utf-8") as f:
-            yaml.dump(DEFAULT_SKILLS_CONFIG, f, default_flow_style=False)
+        yaml_text = yaml.dump(DEFAULT_SKILLS_CONFIG, default_flow_style=False)
+        config_file.write_text(yaml_text, encoding="utf-8")
         config_created = True
 
     return {"dir_created": dir_created, "config_created": config_created}

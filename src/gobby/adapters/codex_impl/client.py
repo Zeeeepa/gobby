@@ -663,9 +663,17 @@ class CodexAppServerClient:
         proc = self._process
         if proc and proc.stdin:
             response_line = json.dumps(response) + "\n"
+
+            def write_response() -> None:
+                if proc and proc.stdin:
+                    try:
+                        proc.stdin.write(response_line)
+                        proc.stdin.flush()
+                    except OSError:
+                        pass
+
             loop = asyncio.get_running_loop()
-            await loop.run_in_executor(None, proc.stdin.write, response_line)
-            await loop.run_in_executor(None, proc.stdin.flush)
+            await loop.run_in_executor(None, write_response)
 
     async def _read_loop(self) -> None:
         """Background task to read responses and notifications."""

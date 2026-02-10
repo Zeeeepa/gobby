@@ -6,12 +6,22 @@ decomposition.
 """
 
 import json
-from typing import Any
+from typing import Any, Protocol
 
 from gobby.skills.metadata import get_skill_category, get_skill_tags
 
 
-def format_skills_json(skills_list: list[Any]) -> str:
+class SkillLike(Protocol):
+    """Protocol for objects that look like a Skill."""
+
+    name: str
+    description: str | None
+    enabled: bool
+    version: str | None
+    metadata: dict[str, Any] | None
+
+
+def format_skills_json(skills_list: list[SkillLike]) -> str:
     """Format a skills list as a JSON string."""
     output = []
     for skill in skills_list:

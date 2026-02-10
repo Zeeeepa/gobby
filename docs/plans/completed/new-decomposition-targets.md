@@ -58,7 +58,7 @@ Documentation-heavy CLI module that contains significant business logic:
 
 - **Validation**: `validate` command contains schema validation logic for `SKILL.md`.
 - **Metadata Manipulation**: `_get_nested_value`, `meta_set`, `meta_get` implement generic dict traversal.
-- **Installation Logic**: `install` command mixes resolving sources (GitHub vs Local) with validtion.
+- **Installation Logic**: `install` command mixes resolving sources (GitHub vs Local) with validation.
 
 **Proposed Decomposition**:
 

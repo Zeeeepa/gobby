@@ -12,6 +12,7 @@ Each handler implements the IsolationHandler ABC to provide:
 - Branch name generation
 """
 
+import asyncio
 import time
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
@@ -278,7 +279,8 @@ class WorktreeIsolationHandler(IsolationHandler):
 
         if self._created_worktree_path:
             try:
-                self._git_manager.delete_worktree(
+                await asyncio.to_thread(
+                    self._git_manager.delete_worktree,
                     worktree_path=self._created_worktree_path,
                     force=True,
                 )
@@ -521,7 +523,8 @@ class CloneIsolationHandler(IsolationHandler):
 
         if self._created_clone_path:
             try:
-                self._clone_manager.delete_clone(
+                await asyncio.to_thread(
+                    self._clone_manager.delete_clone,
                     clone_path=self._created_clone_path,
                     force=True,
                 )

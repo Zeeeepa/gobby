@@ -23,7 +23,7 @@ async def memory_sync_import(memory_sync_manager: Any) -> dict[str, Any]:
         return {"error": "Memory Sync Manager not available"}
 
     count = await memory_sync_manager.import_from_files()
-    logger.info(f"Memory sync import: {count} memories imported")
+    logger.info("Memory sync import: %s memories imported", count)
     return {"imported": {"memories": count}}
 
 
@@ -40,7 +40,7 @@ async def memory_sync_export(memory_sync_manager: Any) -> dict[str, Any]:
         return {"error": "Memory Sync Manager not available"}
 
     count = await memory_sync_manager.export_to_files()
-    logger.info(f"Memory sync export: {count} memories exported")
+    logger.info("Memory sync export: %s memories exported", count)
     return {"exported": {"memories": count}}
 
 
@@ -104,7 +104,7 @@ async def memory_save(
 
     try:
         if memory_manager.content_exists(content, project_id):
-            logger.debug(f"save_memory: Skipping duplicate: {content[:50]}...")
+            logger.debug("save_memory: Skipping duplicate: %s...", content[:50])
             return {"saved": False, "reason": "duplicate"}
 
         memory = await memory_manager.remember(
@@ -117,7 +117,7 @@ async def memory_save(
             tags=tags,
         )
 
-        logger.info(f"save_memory: Created {memory_type} memory: {content[:50]}...")
+        logger.info("save_memory: Created %s memory: %s...", memory_type, content[:50])
         return {
             "saved": True,
             "memory_id": memory.id,
@@ -212,7 +212,7 @@ async def memory_recall_relevant(
 
         if not new_memories:
             logger.debug(
-                f"memory_recall_relevant: All {len(memories)} memories already injected, skipping"
+                "memory_recall_relevant: All %s memories already injected, skipping", len(memories)
             )
             return {"injected": False, "count": 0, "skipped": len(memories)}
 
@@ -229,11 +229,12 @@ async def memory_recall_relevant(
                 state.variables = {}
             state.variables["_injected_memory_ids"] = list(all_injected)
             logger.debug(
-                f"memory_recall_relevant: Tracking {len(new_ids)} new IDs, "
-                f"{len(all_injected)} total injected"
+                "memory_recall_relevant: Tracking %s new IDs, %s total injected",
+                len(new_ids),
+                len(all_injected),
             )
 
-        logger.info(f"memory_recall_relevant: Injecting {len(new_memories)} relevant memories")
+        logger.info("memory_recall_relevant: Injecting %s relevant memories", len(new_memories))
 
         return {
             "inject_context": memory_context,
@@ -272,7 +273,9 @@ def reset_memory_injection_tracking(state: Any | None = None) -> dict[str, Any]:
 
     if cleared_count > 0:
         variables["_injected_memory_ids"] = []
-        logger.info(f"reset_memory_injection_tracking: Cleared {cleared_count} injected memory IDs")
+        logger.info(
+            "reset_memory_injection_tracking: Cleared %s injected memory IDs", cleared_count
+        )
 
     return {"success": True, "cleared": cleared_count}
 
@@ -417,6 +420,6 @@ async def memory_extraction_gate(
         f'`set_variable(name="memories_extracted", value=true, session_id="{session_ref}")` on gobby-workflows'
     )
 
-    logger.info(f"memory_extraction_gate: Blocking stop for session {session_id}")
+    logger.info("memory_extraction_gate: Blocking stop for session %s", session_id)
 
     return {"decision": "block", "reason": reason}

@@ -54,7 +54,7 @@ class TestSpawnAgentDefaults:
         return runner
 
     @pytest.mark.asyncio
-    async def test_spawn_agent_defaults_to_generic_agent(self, mock_runner):
+    async def test_spawn_agent_defaults_to_generic_agent(self, mock_runner) -> None:
         """Test spawn_agent with defaults uses generic agent definition."""
         from gobby.mcp_proxy.tools.spawn_agent import create_spawn_agent_registry
 
@@ -135,7 +135,9 @@ class TestSpawnAgentIsolation:
         return agent_def
 
     @pytest.mark.asyncio
-    async def test_spawn_agent_current_uses_current_handler(self, mock_runner, mock_agent_def):
+    async def test_spawn_agent_current_uses_current_handler(
+        self, mock_runner, mock_agent_def
+    ) -> None:
         """Test spawn_agent with isolation='current' uses CurrentIsolationHandler."""
         from gobby.mcp_proxy.tools.spawn_agent import create_spawn_agent_registry
 
@@ -185,7 +187,7 @@ class TestSpawnAgentIsolation:
             assert result["success"] is True
 
     @pytest.mark.asyncio
-    async def test_spawn_agent_worktree_creates_worktree(self, mock_runner, mock_agent_def):
+    async def test_spawn_agent_worktree_creates_worktree(self, mock_runner, mock_agent_def) -> None:
         """Test spawn_agent with isolation='worktree' creates/reuses worktree."""
         from gobby.mcp_proxy.tools.spawn_agent import create_spawn_agent_registry
 
@@ -246,7 +248,7 @@ class TestSpawnAgentIsolation:
             assert result["worktree_id"] == "wt-123"
 
     @pytest.mark.asyncio
-    async def test_spawn_agent_clone_creates_clone(self, mock_runner, mock_agent_def):
+    async def test_spawn_agent_clone_creates_clone(self, mock_runner, mock_agent_def) -> None:
         """Test spawn_agent with isolation='clone' creates clone."""
         from gobby.mcp_proxy.tools.spawn_agent import create_spawn_agent_registry
 
@@ -319,7 +321,7 @@ class TestSpawnAgentParamOverrides:
         return runner
 
     @pytest.mark.asyncio
-    async def test_tool_params_override_agent_definition(self, mock_runner):
+    async def test_tool_params_override_agent_definition(self, mock_runner) -> None:
         """Test that tool params take precedence over agent definition values."""
         from gobby.mcp_proxy.tools.spawn_agent import create_spawn_agent_registry
 
@@ -415,7 +417,7 @@ class TestSpawnAgentTaskResolution:
         return agent_def
 
     @pytest.mark.asyncio
-    async def test_task_id_supports_hash_n_format(self, mock_runner, mock_agent_def):
+    async def test_task_id_supports_hash_n_format(self, mock_runner, mock_agent_def) -> None:
         """Test task_id resolution supports #N format."""
         from gobby.mcp_proxy.tools.spawn_agent import create_spawn_agent_registry
 
@@ -474,7 +476,7 @@ class TestSpawnAgentTaskResolution:
             assert result["success"] is True
 
     @pytest.mark.asyncio
-    async def test_task_id_supports_numeric_format(self, mock_runner, mock_agent_def):
+    async def test_task_id_supports_numeric_format(self, mock_runner, mock_agent_def) -> None:
         """Test task_id resolution supports N format (bare number)."""
         from gobby.mcp_proxy.tools.spawn_agent import create_spawn_agent_registry
 
@@ -562,7 +564,7 @@ class TestSpawnAgentBranchGeneration:
         return agent_def
 
     @pytest.mark.asyncio
-    async def test_branch_auto_generated_from_task_title(self, mock_runner, mock_agent_def):
+    async def test_branch_auto_generated_from_task_title(self, mock_runner, mock_agent_def) -> None:
         """Test branch is auto-generated from task title when not provided."""
         from gobby.mcp_proxy.tools.spawn_agent import create_spawn_agent_registry
 
@@ -668,7 +670,7 @@ class TestSpawnAgentSandbox:
         return agent_def
 
     @pytest.mark.asyncio
-    async def test_sandbox_params_create_sandbox_config(self, mock_runner, mock_agent_def):
+    async def test_sandbox_params_create_sandbox_config(self, mock_runner, mock_agent_def) -> None:
         """Test sandbox params create SandboxConfig and pass to SpawnRequest."""
         from gobby.mcp_proxy.tools.spawn_agent import create_spawn_agent_registry
 
@@ -723,7 +725,7 @@ class TestSpawnAgentSandbox:
             assert spawn_request.sandbox_config.allow_network is False
 
     @pytest.mark.asyncio
-    async def test_sandbox_params_override_agent_def_sandbox(self, mock_runner):
+    async def test_sandbox_params_override_agent_def_sandbox(self, mock_runner) -> None:
         """Test that tool sandbox params override agent_def.sandbox."""
         from gobby.agents.sandbox import SandboxConfig
         from gobby.mcp_proxy.tools.spawn_agent import create_spawn_agent_registry
@@ -960,9 +962,7 @@ class TestSpawnAgentPreRegistration:
 
         call_order: list[str] = []
         mock_agent_registry = MagicMock()
-        mock_agent_registry.add.side_effect = lambda agent: call_order.append(
-            f"add:{agent.run_id}"
-        )
+        mock_agent_registry.add.side_effect = lambda agent: call_order.append(f"add:{agent.run_id}")
 
         async def fake_execute(req):
             # At this point, add should have been called already

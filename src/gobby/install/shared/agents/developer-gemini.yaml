@@ -97,8 +97,6 @@ workflows:
         blocked_commands:
           - pattern: "git push"
             reason: "Push is blocked. The parent orchestrator handles merging."
-          - pattern: "git push *"
-            reason: "Push is blocked. The parent orchestrator handles merging."
 
         on_mcp_success:
           - server: gobby-tasks

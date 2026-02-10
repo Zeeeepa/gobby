@@ -167,7 +167,7 @@ class WorkflowEngine:
             duration = diff.total_seconds()
             logger.debug(f"duration type: {type(duration)}, value: {duration}")
             # Configurable via workflow variable; default 30 minutes
-            stuck_timeout = int(state.variables.get("stuck_timeout", 1800))
+            stuck_timeout = int(state.variables.get("stuck_timeout") or 1800)
             if duration > stuck_timeout:
                 # Force transition to reflect if not already there
                 if state.step != "reflect":
@@ -478,43 +478,55 @@ class WorkflowEngine:
         # Log the transition
         self._log_transition(state.session_id, state.step, new_step_name)
 
-        # Execute on_exit of old step
-        if old_step:
-            await self._execute_actions(old_step.on_exit, state)
+        try:
+            # Execute on_exit of old step
+            if old_step:
+                await self._execute_actions(old_step.on_exit, state)
 
-        # Execute on_transition actions if defined
-        if transition and isinstance(transition, WorkflowTransition) and transition.on_transition:
-            await self._execute_actions(transition.on_transition, state)
+            # Execute on_transition actions if defined
+            if (
+                transition
+                and isinstance(transition, WorkflowTransition)
+                and transition.on_transition
+            ):
+                await self._execute_actions(transition.on_transition, state)
 
-        # Update state
-        state.step = new_step_name
-        state.step_entered_at = datetime.now(UTC)
-        state.step_action_count = 0
-        state.context_injected = False  # Reset for new step context
-        # Clear per-step MCP tracking so stale results from the previous step
-        # don't trigger transitions in the new step (e.g., auto_transition_chain
-        # looping back through a step that checks mcp_result_has).
-        state.variables.pop("mcp_results", None)
-        state.variables.pop("mcp_calls", None)
+            # Update state
+            state.step = new_step_name
+            state.step_entered_at = datetime.now(UTC)
+            state.step_action_count = 0
+            state.context_injected = False  # Reset for new step context
+            # Clear per-step MCP tracking so stale results from the previous step
+            # don't trigger transitions in the new step (e.g., auto_transition_chain
+            # looping back through a step that checks mcp_result_has).
+            state.variables.pop("mcp_results", None)
+            state.variables.pop("mcp_calls", None)
 
-        self.state_manager.save_state(state)
-
-        # Execute on_enter of new step and capture injected messages
-        injected_messages = await self._execute_actions(new_step.on_enter, state)
-
-        if injected_messages:
-            state.context_injected = True
             self.state_manager.save_state(state)
 
-        # Render status_message for user visibility (after on_enter so variables are populated)
-        system_messages: list[str] = []
-        status_msg = self._render_status_message(new_step, state)
-        if status_msg:
-            system_messages.append(status_msg)
+            # Execute on_enter of new step and capture injected messages
+            injected_messages = await self._execute_actions(new_step.on_enter, state)
 
-        return TransitionResult(
-            injected_messages=injected_messages, system_messages=system_messages
-        )
+            if injected_messages:
+                state.context_injected = True
+                self.state_manager.save_state(state)
+
+            # Render status_message for user visibility (after on_enter so variables are populated)
+            system_messages: list[str] = []
+            status_msg = self._render_status_message(new_step, state)
+            if status_msg:
+                system_messages.append(status_msg)
+
+            return TransitionResult(
+                injected_messages=injected_messages, system_messages=system_messages
+            )
+        except Exception as e:
+            logger.error(
+                f"Transition failed from '{state.step}' to '{new_step_name}': {e}", exc_info=True
+            )
+            # Re-raise to ensure the caller knows the transition failed,
+            # or handle gracefully (but state might be inconsistent if we don't bail)
+            raise
 
     async def _execute_actions(
         self, actions: list[dict[str, Any]], state: WorkflowState
