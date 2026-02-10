@@ -38,8 +38,15 @@ export default function App() {
     [sessionsHook.projects]
   )
 
-  // Effective project: selected or first available
-  const effectiveProjectId = selectedProjectId ?? projectOptions[0]?.id ?? null
+  // Default to "gobby" in dev mode (Vite port 5173), "Personal" otherwise
+  const defaultProjectId = useMemo(() => {
+    const isDev = window.location.port === '5173'
+    const preferred = isDev ? 'gobby' : 'Personal'
+    return projectOptions.find((p) => p.name === preferred)?.id
+      ?? projectOptions[0]?.id ?? null
+  }, [projectOptions])
+
+  const effectiveProjectId = selectedProjectId ?? defaultProjectId
 
   // Web-chat sessions only (for ConversationPicker in ChatPage)
   const webChatSessions = useMemo(
