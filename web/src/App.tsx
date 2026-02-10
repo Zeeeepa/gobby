@@ -152,16 +152,16 @@ export default function App() {
     { id: 'sessions', label: 'Sessions', icon: <SessionsIcon /> },
     { id: 'terminals', label: 'Terminals', icon: <TerminalIcon /> },
     { id: 'files', label: 'Files', icon: <FilesIcon /> },
-    { id: 'tasks', label: 'Tasks', icon: <TasksIcon />, separator: true },
-    { id: 'projects', label: 'Projects', icon: <ProjectsIcon /> },
+    { id: 'projects', label: 'Projects', icon: <ProjectsIcon />, separator: true },
+    { id: 'tasks', label: 'Tasks', icon: <TasksIcon /> },
     { id: 'agents', label: 'Agents', icon: <AgentsIcon /> },
     { id: 'workflows', label: 'Workflows', icon: <WorkflowsIcon /> },
+    { id: 'cron', label: 'Cron Jobs', icon: <CronIcon />, separator: true },
+    { id: 'worktrees', label: 'Worktrees/Clones', icon: <WorktreesIcon /> },
     { id: 'memory', label: 'Memory', icon: <MemoryIcon /> },
     { id: 'skills', label: 'Skills', icon: <SkillsIcon /> },
     { id: 'artifacts', label: 'Artifacts', icon: <ArtifactsIcon /> },
-    { id: 'cron', label: 'Cron Jobs', icon: <CronIcon /> },
-    { id: 'worktrees', label: 'Worktrees/Clones', icon: <WorktreesIcon /> },
-    { id: 'configuration', label: 'Configuration', icon: <ConfigurationIcon /> },
+    { id: 'configuration', label: 'Configuration', icon: <ConfigurationIcon />, separator: true },
   ]
 
   return (
@@ -176,6 +176,8 @@ export default function App() {
           >
             <HamburgerIcon />
           </button>
+          <img src="/logo.png" alt="Gobby logo" className="header-logo" />
+          <span className="header-title">Gobby</span>
         </div>
         <div className="header-actions">
           <span className={`status ${isConnected ? 'connected' : 'disconnected'}`}>

@@ -20,18 +20,6 @@ export function Sidebar({ items, activeItem, isOpen, onItemSelect, onClose }: Si
     <>
       {isOpen && <div className="sidebar-overlay" onClick={onClose} />}
       <nav className={`sidebar ${isOpen ? 'open' : ''}`}>
-        <div className="sidebar-brand">
-          <img src="/logo.png" alt="Gobby logo" className="sidebar-logo" />
-          <span className="sidebar-title">Gobby</span>
-          <button
-            className="sidebar-collapse-btn"
-            onClick={onClose}
-            title="Collapse menu"
-            aria-label="Collapse menu"
-          >
-            <CollapseIcon />
-          </button>
-        </div>
         <div className="sidebar-nav">
           {items.map((item) => (
             <React.Fragment key={item.id}>
@@ -48,6 +36,15 @@ export function Sidebar({ items, activeItem, isOpen, onItemSelect, onClose }: Si
               </button>
             </React.Fragment>
           ))}
+        </div>
+        <div className="sidebar-footer">
+          <button
+            className="sidebar-collapse-btn"
+            onClick={onClose}
+            aria-label="Collapse menu"
+          >
+            <CollapseIcon />
+          </button>
         </div>
       </nav>
     </>

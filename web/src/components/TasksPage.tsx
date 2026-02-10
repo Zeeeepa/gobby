@@ -19,9 +19,19 @@ import { DependencyGraph } from './tasks/DependencyGraph'
 // =============================================================================
 
 type ViewMode = 'list' | 'tree' | 'kanban' | 'priority' | 'audit' | 'gantt' | 'digest' | 'graph'
+type GroupBy = 'all' | 'agent'
+type SortColumn = 'ref' | 'title' | 'type' | 'priority' | 'status'
+type SortDirection = 'asc' | 'desc'
 
 const STATUS_OPTIONS = [
   'open', 'in_progress', 'needs_review', 'approved', 'closed', 'failed', 'escalated',
+  'needs_decomposition', 'cancelled',
+]
+
+// Explicit ordering for status filter pills
+const STATUS_ORDER = [
+  'open', 'in_progress', 'needs_review', 'approved', 'closed',
+  'failed', 'escalated', 'needs_decomposition', 'cancelled',
 ]
 
 const TYPE_OPTIONS = ['task', 'bug', 'feature', 'epic', 'chore']
@@ -122,100 +132,45 @@ function PlusIcon() {
 }
 
 // =============================================================================
-// Role-based scope
+// Sorting helpers
 // =============================================================================
 
-type TaskScope = 'all' | 'mine'
-
-const SCOPE_STORAGE_KEY = 'gobby-task-scope'
-const IDENTITY_STORAGE_KEY = 'gobby-my-identity'
-
-function getStoredScope(): TaskScope {
-  try {
-    const v = localStorage.getItem(SCOPE_STORAGE_KEY)
-    if (v === 'mine') return 'mine'
-  } catch { /* noop */ }
-  return 'all'
+function compareTasks(a: GobbyTask, b: GobbyTask, col: SortColumn, dir: SortDirection): number {
+  let cmp = 0
+  switch (col) {
+    case 'ref':
+      cmp = (a.seq_num ?? 0) - (b.seq_num ?? 0)
+      break
+    case 'title':
+      cmp = a.title.localeCompare(b.title)
+      break
+    case 'type':
+      cmp = a.type.localeCompare(b.type)
+      break
+    case 'priority':
+      cmp = a.priority - b.priority
+      break
+    case 'status':
+      cmp = a.status.localeCompare(b.status)
+      break
+  }
+  return dir === 'asc' ? cmp : -cmp
 }
 
-function storeScope(scope: TaskScope) {
-  try { localStorage.setItem(SCOPE_STORAGE_KEY, scope) } catch { /* noop */ }
+function groupTasksByAgent(tasks: GobbyTask[]): Map<string, GobbyTask[]> {
+  const groups = new Map<string, GobbyTask[]>()
+  for (const t of tasks) {
+    const key = t.agent_name || t.assignee || 'Unassigned'
+    const arr = groups.get(key) || []
+    arr.push(t)
+    groups.set(key, arr)
+  }
+  return groups
 }
 
-function getStoredIdentity(): string {
-  try { return localStorage.getItem(IDENTITY_STORAGE_KEY) || '' } catch { return '' }
-}
-
-function storeIdentity(id: string) {
-  try { localStorage.setItem(IDENTITY_STORAGE_KEY, id) } catch { /* noop */ }
-}
-
-function matchesIdentity(task: GobbyTask, identity: string): boolean {
-  if (!identity) return false
-  const lower = identity.toLowerCase()
-  // Match by assignee (session ID prefix or full match)
-  if (task.assignee && task.assignee.toLowerCase().includes(lower)) return true
-  // Match by agent_name
-  if (task.agent_name && task.agent_name.toLowerCase().includes(lower)) return true
-  return false
-}
-
-function ScopeToggle({
-  scope,
-  identity,
-  onScopeChange,
-  onIdentityChange,
-}: {
-  scope: TaskScope
-  identity: string
-  onScopeChange: (s: TaskScope) => void
-  onIdentityChange: (id: string) => void
-}) {
-  const [editing, setEditing] = useState(false)
-  const [draft, setDraft] = useState(identity)
-
-  return (
-    <div className="task-scope-toggle">
-      <button
-        className={`task-scope-btn ${scope === 'all' ? 'active' : ''}`}
-        onClick={() => onScopeChange('all')}
-      >
-        All Tasks
-      </button>
-      <button
-        className={`task-scope-btn ${scope === 'mine' ? 'active' : ''}`}
-        onClick={() => onScopeChange('mine')}
-      >
-        My Tasks
-      </button>
-      {scope === 'mine' && (
-        <div className="task-scope-identity">
-          {editing ? (
-            <input
-              className="task-scope-identity-input"
-              value={draft}
-              onChange={e => setDraft(e.target.value)}
-              onBlur={() => { onIdentityChange(draft.trim()); setEditing(false) }}
-              onKeyDown={e => {
-                if (e.key === 'Enter') { onIdentityChange(draft.trim()); setEditing(false) }
-                if (e.key === 'Escape') { setDraft(identity); setEditing(false) }
-              }}
-              placeholder="Session ID or agent name..."
-              autoFocus
-            />
-          ) : (
-            <button
-              className="task-scope-identity-badge"
-              onClick={() => { setDraft(identity); setEditing(true) }}
-              title="Click to change identity"
-            >
-              {identity || 'Set identity...'}
-            </button>
-          )}
-        </div>
-      )}
-    </div>
-  )
+function SortArrow({ column, sortColumn, sortDirection }: { column: SortColumn; sortColumn: SortColumn; sortDirection: SortDirection }) {
+  if (column !== sortColumn) return <span className="sort-arrow muted">{'\u2195'}</span>
+  return <span className="sort-arrow active">{sortDirection === 'asc' ? '\u2191' : '\u2193'}</span>
 }
 
 // =============================================================================
@@ -253,25 +208,27 @@ export function TasksPage() {
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null)
   const [showCreateForm, setShowCreateForm] = useState(false)
   const [cloneDefaults, setCloneDefaults] = useState<TaskCreateDefaults | null>(null)
-  const [scope, setScope] = useState<TaskScope>(getStoredScope)
-  const [myIdentity, setMyIdentity] = useState(getStoredIdentity)
+  const [groupBy, setGroupBy] = useState<GroupBy>('all')
+  const [sortColumn, setSortColumn] = useState<SortColumn>('ref')
+  const [sortDirection, setSortDirection] = useState<SortDirection>('desc')
   const [subtreeRootId, setSubtreeRootId] = useState<string | null>(null)
 
-  const handleScopeChange = useCallback((s: TaskScope) => {
-    setScope(s)
-    storeScope(s)
+  const handleSort = useCallback((col: SortColumn) => {
+    setSortColumn(prev => {
+      if (prev === col) {
+        setSortDirection(d => d === 'asc' ? 'desc' : 'asc')
+        return col
+      }
+      setSortDirection('asc')
+      return col
+    })
   }, [])
 
-  const handleIdentityChange = useCallback((id: string) => {
-    setMyIdentity(id)
-    storeIdentity(id)
-  }, [])
-
-  // Apply role-based scope filter
+  // Sorted tasks
   const scopedTasks = useMemo(() => {
-    if (scope !== 'mine' || !myIdentity) return tasks
-    return tasks.filter(t => matchesIdentity(t, myIdentity))
-  }, [tasks, scope, myIdentity])
+    const sorted = [...tasks].sort((a, b) => compareTasks(a, b, sortColumn, sortDirection))
+    return sorted
+  }, [tasks, sortColumn, sortDirection])
 
   // Subtree kanban: filter to leaf tasks under a specific parent
   const kanbanTasks = useMemo(() => {
@@ -341,13 +298,11 @@ export function TasksPage() {
       <div className="tasks-toolbar">
         <div className="tasks-toolbar-left">
           <h2 className="tasks-title">Tasks</h2>
-          <span className="tasks-count">{scope === 'mine' && myIdentity ? `${scopedTasks.length} of ${total}` : `${total} total`}</span>
-          <ScopeToggle
-            scope={scope}
-            identity={myIdentity}
-            onScopeChange={handleScopeChange}
-            onIdentityChange={handleIdentityChange}
-          />
+          <span className="tasks-count">{total} total</span>
+          <div className="task-group-tabs">
+            <button className={`task-group-tab ${groupBy === 'all' ? 'active' : ''}`} onClick={() => setGroupBy('all')}>All Tasks</button>
+            <button className={`task-group-tab ${groupBy === 'agent' ? 'active' : ''}`} onClick={() => setGroupBy('agent')}>By Agent</button>
+          </div>
         </div>
         <div className="tasks-toolbar-right">
           <div className="tasks-view-toggle">
@@ -392,8 +347,7 @@ export function TasksPage() {
       {/* Filter bar */}
       <div className="tasks-filter-bar">
         <div className="tasks-filter-chips">
-          {Object.entries(stats).map(([status, count]) =>
-            count > 0 ? (
+          {STATUS_ORDER.filter(status => (stats as Record<string, number>)[status] > 0).map(status => (
               <button
                 key={status}
                 className={`tasks-stat-chip ${filters.status === status ? 'active' : ''}`}
@@ -402,10 +356,9 @@ export function TasksPage() {
                 }
               >
                 <StatusDot status={status} />
-                {status.replace(/_/g, ' ')} ({count})
+                {status.replace(/_/g, ' ')} ({(stats as Record<string, number>)[status]})
               </button>
-            ) : null
-          )}
+          ))}
         </div>
         <div className="tasks-filter-dropdowns">
           <select
@@ -470,7 +423,7 @@ export function TasksPage() {
       {isLoading ? (
         <div className="tasks-loading">Loading tasks...</div>
       ) : scopedTasks.length === 0 ? (
-        <div className="tasks-empty">{scope === 'mine' ? 'No tasks matching your identity' : 'No tasks found'}</div>
+        <div className="tasks-empty">No tasks found</div>
       ) : viewMode === 'digest' ? (
         <DigestView
           tasks={scopedTasks}
@@ -532,23 +485,50 @@ export function TasksPage() {
         />
       ) : (
         <div className="tasks-table-container">
-          <table className="tasks-table">
-            <thead>
-              <tr>
-                <th className="tasks-th" style={{ width: 28 }}></th>
-                <th className="tasks-th" style={{ width: 64 }}>Ref</th>
-                <th className="tasks-th">Title</th>
-                <th className="tasks-th" style={{ width: 80 }}>Type</th>
-                <th className="tasks-th" style={{ width: 80 }}>Priority</th>
-                <th className="tasks-th" style={{ width: 100 }}>Status</th>
-              </tr>
-            </thead>
-            <tbody>
-              {scopedTasks.map(task => (
-                <TaskRow key={task.id} task={task} onSelect={setSelectedTaskId} />
+          {groupBy === 'agent' ? (
+            <>
+              {Array.from(groupTasksByAgent(scopedTasks)).map(([agent, agentTasks]) => (
+                <div key={agent} className="task-group-section">
+                  <div className="task-group-header">{agent} <span className="task-group-count">({agentTasks.length})</span></div>
+                  <table className="tasks-table">
+                    <thead>
+                      <tr>
+                        <th className="tasks-th" style={{ width: 28 }}></th>
+                        <th className="tasks-th tasks-th--sortable" style={{ width: 64 }} onClick={() => handleSort('ref')}>Ref <SortArrow column="ref" sortColumn={sortColumn} sortDirection={sortDirection} /></th>
+                        <th className="tasks-th tasks-th--sortable" onClick={() => handleSort('title')}>Title <SortArrow column="title" sortColumn={sortColumn} sortDirection={sortDirection} /></th>
+                        <th className="tasks-th tasks-th--sortable" style={{ width: 80 }} onClick={() => handleSort('type')}>Type <SortArrow column="type" sortColumn={sortColumn} sortDirection={sortDirection} /></th>
+                        <th className="tasks-th tasks-th--sortable" style={{ width: 80 }} onClick={() => handleSort('priority')}>Priority <SortArrow column="priority" sortColumn={sortColumn} sortDirection={sortDirection} /></th>
+                        <th className="tasks-th tasks-th--sortable" style={{ width: 100 }} onClick={() => handleSort('status')}>Status <SortArrow column="status" sortColumn={sortColumn} sortDirection={sortDirection} /></th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {agentTasks.map(task => (
+                        <TaskRow key={task.id} task={task} onSelect={setSelectedTaskId} />
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
               ))}
-            </tbody>
-          </table>
+            </>
+          ) : (
+            <table className="tasks-table">
+              <thead>
+                <tr>
+                  <th className="tasks-th" style={{ width: 28 }}></th>
+                  <th className="tasks-th tasks-th--sortable" style={{ width: 64 }} onClick={() => handleSort('ref')}>Ref <SortArrow column="ref" sortColumn={sortColumn} sortDirection={sortDirection} /></th>
+                  <th className="tasks-th tasks-th--sortable" onClick={() => handleSort('title')}>Title <SortArrow column="title" sortColumn={sortColumn} sortDirection={sortDirection} /></th>
+                  <th className="tasks-th tasks-th--sortable" style={{ width: 80 }} onClick={() => handleSort('type')}>Type <SortArrow column="type" sortColumn={sortColumn} sortDirection={sortDirection} /></th>
+                  <th className="tasks-th tasks-th--sortable" style={{ width: 80 }} onClick={() => handleSort('priority')}>Priority <SortArrow column="priority" sortColumn={sortColumn} sortDirection={sortDirection} /></th>
+                  <th className="tasks-th tasks-th--sortable" style={{ width: 100 }} onClick={() => handleSort('status')}>Status <SortArrow column="status" sortColumn={sortColumn} sortDirection={sortDirection} /></th>
+                </tr>
+              </thead>
+              <tbody>
+                {scopedTasks.map(task => (
+                  <TaskRow key={task.id} task={task} onSelect={setSelectedTaskId} />
+                ))}
+              </tbody>
+            </table>
+          )}
         </div>
       )}
 
