@@ -5025,6 +5025,29 @@ body {
   background: rgba(239, 68, 68, 0.1);
 }
 
+/* Secondary actions (Clone, etc.) */
+.task-detail-secondary-actions {
+  display: flex;
+  gap: 6px;
+  padding: 0 1.25rem 0.5rem;
+}
+
+.task-detail-clone-btn {
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border);
+  color: var(--text-secondary);
+  border-radius: 6px;
+  padding: 4px 10px;
+  font-size: calc(var(--font-size-base) * 0.72);
+  font-family: var(--font-sans);
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+.task-detail-clone-btn:hover {
+  background: var(--border);
+  color: var(--text-primary);
+}
+
 /* Parent link */
 .task-detail-parent-link {
   display: inline-block;

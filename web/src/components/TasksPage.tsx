@@ -1,6 +1,6 @@
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useCallback } from 'react'
 import { useTasks } from '../hooks/useTasks'
-import type { GobbyTask } from '../hooks/useTasks'
+import type { GobbyTask, GobbyTaskDetail } from '../hooks/useTasks'
 import { StatusDot, PriorityBadge, TypeBadge } from './tasks/TaskBadges'
 import { TaskDetail } from './tasks/TaskDetail'
 import { TaskCreateForm } from './tasks/TaskCreateForm'
@@ -145,12 +145,16 @@ export function TasksPage() {
   const [viewMode, setViewMode] = useState<ViewMode>('list')
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null)
   const [showCreateForm, setShowCreateForm] = useState(false)
+  const [cloneDefaults, setCloneDefaults] = useState<TaskCreateDefaults | null>(null)
 
   const hasActiveFilters = filters.status !== null || filters.priority !== null
     || filters.taskType !== null || filters.assignee !== null
 
   // Context-aware defaults for task creation
   const createDefaults = useMemo((): TaskCreateDefaults => {
+    // Clone defaults take priority when set
+    if (cloneDefaults) return cloneDefaults
+
     const defaults: TaskCreateDefaults = {}
     // Pre-fill type from active filter
     if (filters.taskType) defaults.taskType = filters.taskType
@@ -164,7 +168,20 @@ export function TasksPage() {
       }
     }
     return defaults
-  }, [filters.taskType, filters.priority, selectedTaskId, tasks])
+  }, [filters.taskType, filters.priority, selectedTaskId, tasks, cloneDefaults])
+
+  const handleClone = useCallback((task: GobbyTaskDetail) => {
+    setCloneDefaults({
+      title: `[Clone] ${task.title}`,
+      description: task.description || undefined,
+      taskType: task.type,
+      priority: task.priority,
+      validationCriteria: task.validation_criteria || undefined,
+      labels: task.labels || undefined,
+      parentTaskId: task.parent_task_id || undefined,
+    })
+    setShowCreateForm(true)
+  }, [])
 
   return (
     <main className="tasks-page">
@@ -366,6 +383,7 @@ export function TasksPage() {
         actions={{ updateTask, closeTask, reopenTask }}
         onSelectTask={setSelectedTaskId}
         onClose={() => setSelectedTaskId(null)}
+        onClone={handleClone}
       />
 
       <TaskCreateForm
@@ -373,7 +391,7 @@ export function TasksPage() {
         tasks={tasks}
         defaults={createDefaults}
         onSubmit={createTask}
-        onClose={() => setShowCreateForm(false)}
+        onClose={() => { setShowCreateForm(false); setCloneDefaults(null) }}
       />
     </main>
   )

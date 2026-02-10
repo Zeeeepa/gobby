@@ -5,6 +5,10 @@ export interface TaskCreateDefaults {
   taskType?: string
   priority?: number
   parentTaskId?: string
+  title?: string
+  description?: string
+  validationCriteria?: string
+  labels?: string[]
 }
 
 interface TaskCreateFormProps {
@@ -51,6 +55,10 @@ export function TaskCreateForm({ isOpen, tasks, defaults, onSubmit, onClose }: T
       if (defaults.taskType) setTaskType(defaults.taskType)
       if (defaults.priority !== undefined) setPriority(defaults.priority)
       if (defaults.parentTaskId) setParentTaskId(defaults.parentTaskId)
+      if (defaults.title) setTitle(defaults.title)
+      if (defaults.description) setDescription(defaults.description)
+      if (defaults.validationCriteria) setValidationCriteria(defaults.validationCriteria)
+      if (defaults.labels) setLabelsInput(defaults.labels.join(', '))
     }
   }, [isOpen, defaults])
 
@@ -102,7 +110,7 @@ export function TaskCreateForm({ isOpen, tasks, defaults, onSubmit, onClose }: T
       <div className="task-create-backdrop" onClick={handleClose} />
       <div className="task-create-modal">
         <div className="task-create-header">
-          <h3 className="task-create-title">New Task</h3>
+          <h3 className="task-create-title">{defaults?.title ? 'Clone Task' : 'New Task'}</h3>
           <button className="task-detail-close" onClick={handleClose} title="Close">
             <CloseIcon />
           </button>

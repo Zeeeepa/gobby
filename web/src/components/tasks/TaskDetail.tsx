@@ -28,6 +28,7 @@ interface TaskDetailProps {
   actions: TaskActions
   onSelectTask: (id: string) => void
   onClose: () => void
+  onClone?: (task: GobbyTaskDetail) => void
 }
 
 function CloseIcon() {
@@ -45,7 +46,7 @@ function formatDate(iso: string | null): string {
     + ' ' + d.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' })
 }
 
-export function TaskDetail({ taskId, getTask, getDependencies, getSubtasks, actions, onSelectTask, onClose }: TaskDetailProps) {
+export function TaskDetail({ taskId, getTask, getDependencies, getSubtasks, actions, onSelectTask, onClose, onClone }: TaskDetailProps) {
   const [task, setTask] = useState<GobbyTaskDetail | null>(null)
   const [deps, setDeps] = useState<DependencyTree | null>(null)
   const [subtasks, setSubtasks] = useState<GobbyTask[]>([])
@@ -133,6 +134,19 @@ export function TaskDetail({ taskId, getTask, getDependencies, getSubtasks, acti
               loading={actionLoading}
               onAction={handleAction}
             />
+
+            {/* Secondary actions */}
+            {onClone && (
+              <div className="task-detail-secondary-actions">
+                <button
+                  className="task-detail-clone-btn"
+                  onClick={() => onClone(task)}
+                  title="Clone this task with same fields"
+                >
+                  {'\u{1F4CB}'} Clone Task
+                </button>
+              </div>
+            )}
 
             {/* Escalation card (shown prominently when task is escalated) */}
             {task.status === 'escalated' && (
