@@ -6,7 +6,7 @@ Handles local Docker-based install and remote URL configuration.
 
 import logging
 import shutil
-import subprocess
+import subprocess  # nosec B404 - subprocess needed for docker compose management
 from pathlib import Path
 from typing import Any
 
@@ -57,7 +57,7 @@ def _install_local(home: Path, api_key: str | None) -> dict[str, Any]:
 
     # Run docker compose up -d
     try:
-        result = subprocess.run(
+        result = subprocess.run(  # nosec B603 B607 - hardcoded docker command
             ["docker", "compose", "-f", str(dest), "up", "-d"],
             capture_output=True,
             text=True,
@@ -135,7 +135,7 @@ def uninstall_mem0(
             cmd.append("-v")
 
         try:
-            subprocess.run(cmd, capture_output=True, text=True, timeout=60)
+            subprocess.run(cmd, capture_output=True, text=True, timeout=60)  # nosec B603 - hardcoded docker command
         except subprocess.TimeoutExpired:
             logger.warning("Docker compose down timed out")
 

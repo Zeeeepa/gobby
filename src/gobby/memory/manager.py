@@ -946,7 +946,8 @@ class MemoryManager:
 
         Returns None if Mem0 is unavailable (caller should fall back to local search).
         """
-        assert self._mem0_client is not None
+        if self._mem0_client is None:
+            raise RuntimeError("Mem0 client is not initialized")
 
         import asyncio
 

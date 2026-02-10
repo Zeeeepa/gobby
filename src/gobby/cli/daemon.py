@@ -40,7 +40,7 @@ def _mem0_start(gobby_home: Path) -> None:
     if not compose_file.exists():
         return
     try:
-        subprocess.run(
+        subprocess.run(  # nosec B603 B607 - hardcoded docker command
             ["docker", "compose", "-f", str(compose_file), "up", "-d"],
             capture_output=True,
             text=True,
@@ -56,7 +56,7 @@ def _mem0_stop(gobby_home: Path) -> None:
     if not compose_file.exists():
         return
     try:
-        subprocess.run(
+        subprocess.run(  # nosec B603 B607 - hardcoded docker command
             ["docker", "compose", "-f", str(compose_file), "down"],
             capture_output=True,
             text=True,

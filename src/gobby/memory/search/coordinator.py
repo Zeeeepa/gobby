@@ -207,7 +207,8 @@ class SearchCoordinator:
         self, memory_tuples: list[tuple[str, str]], backend_type: str
     ) -> dict[str, Any]:
         """Reindex using UnifiedSearcher."""
-        assert self._unified_searcher is not None
+        if self._unified_searcher is None:
+            raise RuntimeError("UnifiedSearcher is not initialized")
         try:
             _run_async(self._unified_searcher.fit_async(memory_tuples))
             self._unified_fitted = True
