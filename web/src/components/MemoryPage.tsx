@@ -1,5 +1,5 @@
 import { useState, useCallback } from 'react'
-import { useMemory } from '../hooks/useMemory'
+import { useMemory, useMem0Status } from '../hooks/useMemory'
 import type { GobbyMemory } from '../hooks/useMemory'
 import { MemoryTable } from './MemoryTable'
 import { MemoryForm } from './MemoryForm'
@@ -18,6 +18,7 @@ export function MemoryPage() {
     deleteMemory,
     refreshMemories,
   } = useMemory()
+  const mem0Status = useMem0Status()
 
   const [showForm, setShowForm] = useState(false)
   const [editMemory, setEditMemory] = useState<GobbyMemory | null>(null)
@@ -85,7 +86,20 @@ export function MemoryPage() {
   return (
     <main className="memory-page-root">
       <div className="memory-page-header">
-        <h2 className="memory-page-title">Memory</h2>
+        <div className="memory-page-header-left">
+          <h2 className="memory-page-title">Memory</h2>
+          {mem0Status?.configured && (
+            <a
+              className="mem0-badge"
+              href={mem0Status.url}
+              target="_blank"
+              rel="noopener noreferrer"
+              title={`Mem0 at ${mem0Status.url}`}
+            >
+              Powered by mem0
+            </a>
+          )}
+        </div>
         <button className="memory-create-btn" onClick={handleCreate}>
           + Create Memory
         </button>

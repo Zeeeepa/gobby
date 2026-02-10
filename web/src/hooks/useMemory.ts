@@ -234,3 +234,33 @@ export function useMemory() {
     refreshMemories,
   }
 }
+
+export interface Mem0Status {
+  configured: boolean
+  url?: string
+}
+
+export function useMem0Status() {
+  const [mem0Status, setMem0Status] = useState<Mem0Status | null>(null)
+
+  useEffect(() => {
+    async function fetchStatus() {
+      try {
+        const baseUrl = getBaseUrl()
+        const response = await fetch(`${baseUrl}/admin/status`)
+        if (response.ok) {
+          const data = await response.json()
+          const mem0 = data.memory?.mem0
+          if (mem0) {
+            setMem0Status(mem0)
+          }
+        }
+      } catch {
+        // Silently fail - mem0 status is optional
+      }
+    }
+    fetchStatus()
+  }, [])
+
+  return mem0Status
+}
