@@ -420,6 +420,65 @@ def create_sessions_router(server: "HTTPServer") -> APIRouter:
             logger.error(f"Update session summary error: {e}", exc_info=True)
             raise HTTPException(status_code=500, detail=str(e)) from e
 
+    @router.post("/{session_id}/generate-summary")
+    async def generate_session_summary(session_id: str) -> dict[str, Any]:
+        """
+        Generate an AI summary for a session on demand.
+
+        Uses the LLM service to analyze the session transcript and produce
+        a markdown summary. Stores the result on the session record.
+
+        Args:
+            session_id: Session ID
+
+        Returns:
+            Generated summary markdown and metadata
+        """
+        start_time = time.perf_counter()
+        metrics.inc_counter("http_requests_total")
+
+        try:
+            if server.session_manager is None:
+                raise HTTPException(status_code=503, detail="Session manager not available")
+            if server.llm_service is None:
+                raise HTTPException(status_code=503, detail="LLM service not available")
+
+            session = server.session_manager.get(session_id)
+            if session is None:
+                raise HTTPException(status_code=404, detail="Session not found")
+
+            from gobby.sessions.transcripts import get_parser
+            from gobby.workflows.summary_actions import generate_summary
+
+            transcript_processor = get_parser(session.source or "claude")
+
+            result = await generate_summary(
+                session_manager=server.session_manager,
+                session_id=session_id,
+                llm_service=server.llm_service,
+                transcript_processor=transcript_processor,
+            )
+
+            if result and result.get("error"):
+                raise HTTPException(status_code=422, detail=result["error"])
+
+            # Refetch session to get updated summary_markdown
+            updated_session = server.session_manager.get(session_id)
+            response_time_ms = (time.perf_counter() - start_time) * 1000
+
+            return {
+                "status": "success",
+                "summary_markdown": updated_session.summary_markdown if updated_session else None,
+                "result": result,
+                "response_time_ms": response_time_ms,
+            }
+
+        except HTTPException:
+            raise
+        except Exception as e:
+            logger.error(f"Generate summary error: {e}", exc_info=True)
+            raise HTTPException(status_code=500, detail=str(e)) from e
+
     @router.post("/{session_id}/stop")
     async def stop_session(session_id: str, request: Request) -> dict[str, Any]:
         """

@@ -204,6 +204,8 @@ export function SessionsPage({
             isLoading={detail.isLoading}
             onLoadMore={detail.loadMore}
             onAskGobby={onAskGobby}
+            onGenerateSummary={detail.generateSummary}
+            isGeneratingSummary={detail.isGeneratingSummary}
           />
         ) : (
           <div className="sessions-empty">

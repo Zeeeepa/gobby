@@ -90,5 +90,34 @@ export function useSessionDetail(sessionId: string | null) {
 
   const hasMore = offset < totalMessages
 
-  return { session, messages, isLoading, totalMessages, hasMore, loadMore }
+  const [isGeneratingSummary, setIsGeneratingSummary] = useState(false)
+
+  const generateSummary = useCallback(async () => {
+    if (!sessionId || isGeneratingSummary) return
+
+    const baseUrl = getBaseUrl()
+    setIsGeneratingSummary(true)
+    try {
+      const res = await fetch(`${baseUrl}/sessions/${sessionId}/generate-summary`, {
+        method: 'POST',
+      })
+      if (res.ok) {
+        const data = await res.json()
+        if (data.summary_markdown) {
+          setSession((prev) =>
+            prev ? { ...prev, summary_markdown: data.summary_markdown } : prev
+          )
+        }
+      } else {
+        const err = await res.json().catch(() => null)
+        console.error('Failed to generate summary:', err?.detail || res.statusText)
+      }
+    } catch (e) {
+      console.error('Failed to generate summary:', e)
+    } finally {
+      setIsGeneratingSummary(false)
+    }
+  }, [sessionId, isGeneratingSummary])
+
+  return { session, messages, isLoading, totalMessages, hasMore, loadMore, generateSummary, isGeneratingSummary }
 }
