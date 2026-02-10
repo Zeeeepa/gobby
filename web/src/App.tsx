@@ -14,6 +14,7 @@ import { SessionsPage } from './components/SessionsPage'
 import { TerminalsPage } from './components/TerminalsPage'
 import { FilesPage } from './components/FilesPage'
 import { MemoryPage } from './components/MemoryPage'
+import { TasksPage } from './components/TasksPage'
 import type { GobbySession } from './hooks/useSessions'
 
 export default function App() {
@@ -227,6 +228,8 @@ export default function App() {
           onSaveFile={files.saveFile}
           onFetchDiff={files.fetchDiff}
         />
+      ) : activeTab === 'tasks' ? (
+        <TasksPage />
       ) : activeTab === 'memory' ? (
         <MemoryPage />
       ) : (
