@@ -4,6 +4,7 @@ import { useSettings } from './hooks/useSettings'
 import { useTerminal } from './hooks/useTerminal'
 import { useTmuxSessions } from './hooks/useTmuxSessions'
 import { useSlashCommands } from './hooks/useSlashCommands'
+import { useFiles } from './hooks/useFiles'
 import { ChatMessages } from './components/ChatMessages'
 import { ChatInput } from './components/ChatInput'
 import type { QueuedFile } from './components/ChatInput'
@@ -11,12 +12,14 @@ import { Settings } from './components/Settings'
 import { TerminalPanel } from './components/Terminal'
 import { Sidebar } from './components/Sidebar'
 import { TerminalsPage } from './components/TerminalsPage'
+import { FilesPage } from './components/FilesPage'
 
 export default function App() {
   const { messages, isConnected, isStreaming, isThinking, sendMessage, stopStreaming, clearHistory, executeCommand, respondToQuestion } = useChat()
   const { settings, modelInfo, modelsLoading, updateFontSize, updateModel, resetSettings } = useSettings()
   const { agents, selectedAgent, setSelectedAgent, sendInput, onOutput } = useTerminal()
   const tmux = useTmuxSessions()
+  const files = useFiles()
   const { filteredCommands, parseCommand, filterCommands } = useSlashCommands()
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [terminalOpen, setTerminalOpen] = useState(false)
@@ -140,10 +143,25 @@ export default function App() {
           onOutput={tmux.onOutput}
         />
       ) : activeTab === 'files' ? (
-        <div className="files-placeholder">
-          <h3>Files</h3>
-          <p>Coming soon</p>
-        </div>
+        <FilesPage
+          projects={files.projects}
+          expandedDirs={files.expandedDirs}
+          expandedProjects={files.expandedProjects}
+          openFiles={files.openFiles}
+          activeFileIndex={files.activeFileIndex}
+          loadingDirs={files.loadingDirs}
+          gitStatuses={files.gitStatuses}
+          onExpandProject={files.expandProject}
+          onExpandDir={files.expandDir}
+          onOpenFile={files.openFile}
+          onCloseFile={files.closeFile}
+          onSetActiveFile={files.setActiveFileIndex}
+          getImageUrl={files.getImageUrl}
+          onToggleEditing={files.toggleEditing}
+          onUpdateEditContent={files.updateEditContent}
+          onSaveFile={files.saveFile}
+          onFetchDiff={files.fetchDiff}
+        />
       ) : null}
 
       <Settings
