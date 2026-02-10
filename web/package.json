@@ -9,6 +9,7 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@atlaskit/pragmatic-drag-and-drop": "^1.7.7",
     "@codemirror/commands": "^6.10.2",
     "@codemirror/lang-css": "^6.3.1",
     "@codemirror/lang-html": "^6.4.11",
@@ -26,6 +27,7 @@
     "@xterm/xterm": "^6.0.0",
     "marked": "^17.0.1",
     "react": "^18.3.1",
+    "react-arborist": "^3.4.3",
     "react-dom": "^18.3.1",
     "react-markdown": "^9.0.1",
     "react-syntax-highlighter": "^16.1.0",
