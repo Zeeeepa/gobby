@@ -30,17 +30,70 @@ class TestSQLiteBackendRemoved:
         assert "sqlite" not in str(exc_info.value)
 
 
-class TestSQLiteConfigRemoved:
-    """Verify 'sqlite' is no longer a valid backend config option."""
+class TestSQLiteConfigAlias:
+    """Verify 'sqlite' is accepted as backwards-compat alias for 'local'."""
 
-    def test_backend_validator_rejects_sqlite(self) -> None:
-        """'sqlite' should not be a valid backend option."""
+    def test_backend_validator_accepts_sqlite_as_local(self) -> None:
+        """'sqlite' should be accepted and mapped to 'local'."""
+        from gobby.config.persistence import MemoryConfig
+
+        config = MemoryConfig(backend="sqlite")
+        assert config.backend == "local"
+
+
+class TestMem0BackendRemoved:
+    """Verify the old Mem0Backend (mem0ai-based) has been removed from the factory."""
+
+    def test_get_backend_rejects_mem0(self) -> None:
+        """get_backend('mem0') should raise ValueError."""
+        from gobby.memory.backends import get_backend
+
+        with pytest.raises(ValueError, match="Unknown backend type"):
+            get_backend("mem0", api_key="test-key")
+
+    def test_mem0_backend_not_importable(self) -> None:
+        """The Mem0Backend class should no longer exist in backends."""
+        with pytest.raises(ImportError):
+            from gobby.memory.backends.mem0 import Mem0Backend  # noqa: F401
+
+    def test_supported_backends_exclude_mem0(self) -> None:
+        """The error message from get_backend should not list mem0."""
+        from gobby.memory.backends import get_backend
+
+        with pytest.raises(ValueError, match="Supported types") as exc_info:
+            get_backend("nonexistent_backend")
+        assert "mem0" not in str(exc_info.value)
+
+
+class TestMem0ConfigRemoved:
+    """Verify old Mem0Config is removed from persistence config."""
+
+    def test_mem0_config_not_importable(self) -> None:
+        """Mem0Config should no longer be importable from persistence."""
+        with pytest.raises(ImportError):
+            from gobby.config.persistence import Mem0Config  # noqa: F401
+
+    def test_memory_config_no_mem0_field(self) -> None:
+        """MemoryConfig should not have a 'mem0' field (old Mem0Config)."""
+        from gobby.config.persistence import MemoryConfig
+
+        config = MemoryConfig()
+        assert not hasattr(config, "mem0")
+
+    def test_backend_validator_rejects_mem0(self) -> None:
+        """'mem0' should not be a valid backend option."""
         from pydantic import ValidationError
 
         from gobby.config.persistence import MemoryConfig
 
         with pytest.raises(ValidationError):
-            MemoryConfig(backend="sqlite")
+            MemoryConfig(backend="mem0")
+
+    def test_mem0_config_not_in_exports(self) -> None:
+        """Mem0Config should not be in __all__."""
+        from gobby.config import persistence
+
+        assert "Mem0Config" not in persistence.__all__
 
 
 class TestOpenMemoryBackendRemoved:

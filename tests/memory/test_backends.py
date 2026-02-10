@@ -1,7 +1,7 @@
 """Tests for memory backend factory and StorageAdapter.
 
 Tests the pluggable backend system:
-- get_backend() factory function (null, mem0)
+- get_backend() factory function (null)
 - StorageAdapter for local SQLite storage
 - Error handling for unknown backend types
 """

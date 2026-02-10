@@ -15,31 +15,7 @@ from pydantic import BaseModel, Field, field_validator
 __all__ = [
     "MemoryConfig",
     "MemorySyncConfig",
-    "Mem0Config",
 ]
-
-
-class Mem0Config(BaseModel):
-    """Mem0 backend configuration.
-
-    Configure this section when using backend: 'mem0' for cloud-based
-    semantic memory storage via the Mem0 AI service (mem0ai package).
-
-    Requires: pip install mem0ai
-    """
-
-    api_key: str | None = Field(
-        default=None,
-        description="Mem0 API key for authentication (required when backend='mem0')",
-    )
-    user_id: str | None = Field(
-        default=None,
-        description="Default user ID for memories (optional, defaults to 'default')",
-    )
-    org_id: str | None = Field(
-        default=None,
-        description="Organization ID for multi-tenant use (optional)",
-    )
 
 
 class MemoryConfig(BaseModel):
@@ -54,13 +30,8 @@ class MemoryConfig(BaseModel):
         description=(
             "Storage backend for memories. Options: "
             "'local' (default, direct SQLite via LocalMemoryManager), "
-            "'mem0' (Mem0 cloud-based semantic memory via mem0ai), "
             "'null' (no persistence, for testing)"
         ),
-    )
-    mem0: Mem0Config = Field(
-        default_factory=Mem0Config,
-        description="Mem0 backend configuration (only used when backend='mem0')",
     )
     importance_threshold: float = Field(
         default=0.7,
@@ -171,7 +142,10 @@ class MemoryConfig(BaseModel):
     @classmethod
     def validate_backend(cls, v: str) -> str:
         """Validate backend is a supported storage option."""
-        valid_backends = {"local", "mem0", "null"}
+        # Accept "sqlite" as backwards-compat alias for "local"
+        if v == "sqlite":
+            return "local"
+        valid_backends = {"local", "null"}
         if v not in valid_backends:
             raise ValueError(f"Invalid backend '{v}'. Must be one of: {sorted(valid_backends)}")
         return v

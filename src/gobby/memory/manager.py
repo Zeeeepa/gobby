@@ -6,7 +6,6 @@ from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Any
 
 from gobby.config.persistence import MemoryConfig
-from gobby.memory.backends import get_backend
 from gobby.memory.backends.storage_adapter import StorageAdapter
 from gobby.memory.components.ingestion import IngestionService
 from gobby.memory.components.search import SearchService
@@ -43,24 +42,8 @@ class MemoryManager:
         # Primary storage layer — always SQLite via LocalMemoryManager
         self.storage = LocalMemoryManager(db)
 
-        # Backend for async protocol operations
-        backend_type = getattr(config, "backend", "local")
-        if backend_type in ("local", "sqlite"):
-            # Direct storage: StorageAdapter wraps self.storage (no factory)
-            self._backend: MemoryBackendProtocol = StorageAdapter(self.storage)
-        else:
-            # External backend via factory (mem0, null)
-            backend_kwargs: dict[str, Any] = {}
-            if backend_type == "mem0" and hasattr(config, "mem0"):
-                mem0_cfg = config.mem0
-                backend_kwargs.update(
-                    {
-                        "api_key": mem0_cfg.api_key,
-                        "user_id": mem0_cfg.user_id,
-                        "org_id": mem0_cfg.org_id,
-                    }
-                )
-            self._backend = get_backend(backend_type, **backend_kwargs)
+        # Backend for async protocol operations (always StorageAdapter)
+        self._backend: MemoryBackendProtocol = StorageAdapter(self.storage)
 
         # Initialize extracted components
         self._search_service = SearchService(
