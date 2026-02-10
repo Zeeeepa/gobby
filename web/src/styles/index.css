@@ -5402,3 +5402,17 @@ body {
   gap: 0.3rem;
   margin-top: 0.1rem;
 }
+
+/* Drag states */
+.kanban-card--dragging {
+  opacity: 0.4;
+}
+
+.kanban-column--drag-over {
+  background: rgba(59, 130, 246, 0.06);
+  border-color: var(--accent);
+}
+
+.kanban-column--drag-over .kanban-column-body {
+  min-height: 60px;
+}

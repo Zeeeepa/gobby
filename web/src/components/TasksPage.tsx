@@ -225,7 +225,11 @@ export function TasksPage() {
       ) : tasks.length === 0 ? (
         <div className="tasks-empty">No tasks found</div>
       ) : viewMode === 'kanban' ? (
-        <KanbanBoard tasks={tasks} onSelectTask={setSelectedTaskId} />
+        <KanbanBoard
+          tasks={tasks}
+          onSelectTask={setSelectedTaskId}
+          onUpdateStatus={(taskId, newStatus) => updateTask(taskId, { status: newStatus })}
+        />
       ) : (
         <div className="tasks-table-container">
           <table className="tasks-table">
