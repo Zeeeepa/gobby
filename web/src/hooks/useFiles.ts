@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect } from 'react'
+import { useState, useCallback, useEffect, useRef } from 'react'
 
 export interface FileEntry {
   name: string
@@ -114,8 +114,8 @@ function filenameToLanguage(name: string): string | null {
 }
 
 function getBaseUrl(): string {
-  const isSecure = window.location.protocol === 'https:'
-  return isSecure ? '' : `http://${window.location.hostname}:60887`
+  // Use relative URLs: Vite proxy handles /api in dev, same-origin in production
+  return ''
 }
 
 export interface GitStatus {
@@ -133,6 +133,12 @@ export function useFiles() {
   const [gitStatuses, setGitStatuses] = useState<Map<string, GitStatus>>(new Map())
 
   const baseUrl = getBaseUrl()
+
+  // Refs to avoid stale closures in async callbacks
+  const openFilesRef = useRef(openFiles)
+  openFilesRef.current = openFiles
+  const expandedDirsRef = useRef(expandedDirs)
+  expandedDirsRef.current = expandedDirs
 
   // Fetch projects on mount
   useEffect(() => {
@@ -176,7 +182,7 @@ export function useFiles() {
 
     // Load root directory if not already loaded
     const key = `${projectId}:`
-    if (!expandedDirs.has(key)) {
+    if (!expandedDirsRef.current.has(key)) {
       setLoadingDirs(prev => new Set(prev).add(key))
       try {
         const [treeRes] = await Promise.all([
@@ -197,13 +203,13 @@ export function useFiles() {
         })
       }
     }
-  }, [baseUrl, expandedDirs, fetchGitStatus])
+  }, [baseUrl, fetchGitStatus])
 
   const expandDir = useCallback(async (projectId: string, dirPath: string) => {
     const key = `${projectId}:${dirPath}`
 
     // Toggle if already expanded
-    if (expandedDirs.has(key)) {
+    if (expandedDirsRef.current.has(key)) {
       setExpandedDirs(prev => {
         const next = new Map(prev)
         next.delete(key)
@@ -230,11 +236,12 @@ export function useFiles() {
         return next
       })
     }
-  }, [baseUrl, expandedDirs])
+  }, [baseUrl])
 
   const openFile = useCallback(async (projectId: string, path: string, name: string) => {
-    // Check if already open
-    const existingIndex = openFiles.findIndex(f => f.projectId === projectId && f.path === path)
+    // Check if already open (use ref to avoid stale closure)
+    const current = openFilesRef.current
+    const existingIndex = current.findIndex(f => f.projectId === projectId && f.path === path)
     if (existingIndex >= 0) {
       setActiveFileIndex(existingIndex)
       return
@@ -264,7 +271,7 @@ export function useFiles() {
     }
 
     setOpenFiles(prev => [...prev, newFile])
-    setActiveFileIndex(openFiles.length)
+    setActiveFileIndex(current.length)
 
     // Fetch content
     try {
@@ -302,7 +309,7 @@ export function useFiles() {
         )
       )
     }
-  }, [baseUrl, openFiles])
+  }, [baseUrl])
 
   const closeFile = useCallback((index: number) => {
     setOpenFiles(prev => prev.filter((_, i) => i !== index))
@@ -337,7 +344,7 @@ export function useFiles() {
   }, [])
 
   const saveFile = useCallback(async (index: number) => {
-    const file = openFiles[index]
+    const file = openFilesRef.current[index]
     if (!file || !file.dirty || file.editContent === null) return
 
     setOpenFiles(prev =>
@@ -380,7 +387,7 @@ export function useFiles() {
         )
       )
     }
-  }, [baseUrl, openFiles])
+  }, [baseUrl])
 
   const fetchDiff = useCallback(async (projectId: string, path: string): Promise<string> => {
     try {

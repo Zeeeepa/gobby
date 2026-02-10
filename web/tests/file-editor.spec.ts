@@ -189,4 +189,60 @@ test.describe("File editor", () => {
     await expect(page.locator(".cm-editor")).not.toBeVisible();
     await expect(page.locator(".files-code-viewer")).toBeVisible();
   });
+
+  test("can open multiple files without fetch errors", async ({ page }) => {
+    // Navigate to files and expand the tree
+    await page.click(".hamburger-button");
+    await page.click('.sidebar-item:has-text("Files")');
+    await page.waitForSelector(".files-project-header");
+    await page.click(".files-project-header");
+    await page.waitForSelector(".files-project-children");
+    await page.click('.files-tree-item:has-text("src")');
+    await page.waitForSelector('.files-tree-file:has-text("main.py")');
+
+    // Open first file
+    await page.click('.files-tree-file:has-text("main.py")');
+    await page.waitForSelector(".files-tab.active");
+    await page.waitForSelector(".files-toolbar");
+    await expect(page.locator(".files-tab.active .files-tab-name")).toHaveText(
+      "main.py",
+    );
+
+    // Verify no errors on first file
+    await expect(page.locator(".files-viewer-error")).not.toBeVisible();
+
+    // Open second file
+    await page.click('.files-tree-file:has-text("utils.ts")');
+    await page.waitForSelector(
+      '.files-tab.active .files-tab-name:has-text("utils.ts")',
+    );
+
+    // Verify no errors on second file
+    await expect(page.locator(".files-viewer-error")).not.toBeVisible();
+    await expect(page.locator(".files-code-viewer")).toBeVisible();
+
+    // Should have 2 tabs
+    const tabs = page.locator(".files-tab");
+    await expect(tabs).toHaveCount(2);
+
+    // Open third file (README.md from root)
+    await page.click('.files-tree-file:has-text("README.md")');
+    await page.waitForSelector(
+      '.files-tab.active .files-tab-name:has-text("README.md")',
+    );
+
+    // Verify no errors on third file
+    await expect(page.locator(".files-viewer-error")).not.toBeVisible();
+    await expect(page.locator(".files-code-viewer")).toBeVisible();
+
+    // Should have 3 tabs
+    await expect(tabs).toHaveCount(3);
+
+    // Click back to first file tab - should still work
+    await page.click('.files-tab:has-text("main.py")');
+    await expect(
+      page.locator('.files-tab.active .files-tab-name:has-text("main.py")'),
+    ).toBeVisible();
+    await expect(page.locator(".files-viewer-error")).not.toBeVisible();
+  });
 });
