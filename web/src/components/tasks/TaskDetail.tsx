@@ -6,6 +6,7 @@ import { ActionFeed } from './ActionFeed'
 import { SessionViewer } from './SessionViewer'
 import { CapabilityScope } from './CapabilityScope'
 import { RawTraceView } from './RawTraceView'
+import { OversightSelector } from './OversightSelector'
 
 interface TaskActions {
   updateTask: (id: string, params: { status?: string }) => Promise<GobbyTaskDetail | null>
@@ -146,6 +147,11 @@ export function TaskDetail({ taskId, getTask, getDependencies, getSubtasks, acti
                   </div>
                 </div>
               )}
+            </div>
+
+            {/* Oversight Mode */}
+            <div className="task-detail-section">
+              <OversightSelector taskId={task.id} />
             </div>
 
             {/* Reasoning Timeline */}
