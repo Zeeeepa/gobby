@@ -116,6 +116,7 @@ class ChatSession:
     """
 
     conversation_id: str
+    db_session_id: str | None = field(default=None)
     last_activity: datetime = field(default_factory=lambda: datetime.now(UTC))
     _client: ClaudeSDKClient | None = field(default=None, repr=False)
     _connected: bool = field(default=False, repr=False)
@@ -182,7 +183,7 @@ class ChatSession:
 
         try:
             await asyncio.wait_for(self._pending_answer_event.wait(), timeout=600.0)
-        except asyncio.TimeoutError:
+        except TimeoutError:
             self._pending_answers = {"error": "Timed out waiting for user response"}
             logger.warning(f"AskUserQuestion timed out for session {self.conversation_id}")
 

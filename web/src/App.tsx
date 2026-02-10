@@ -5,26 +5,31 @@ import { useTerminal } from './hooks/useTerminal'
 import { useTmuxSessions } from './hooks/useTmuxSessions'
 import { useSlashCommands } from './hooks/useSlashCommands'
 import { useFiles } from './hooks/useFiles'
+import { useSessions } from './hooks/useSessions'
 import { ChatMessages } from './components/ChatMessages'
 import { ChatInput } from './components/ChatInput'
 import type { QueuedFile } from './components/ChatInput'
 import { Settings } from './components/Settings'
 import { TerminalPanel } from './components/Terminal'
 import { Sidebar } from './components/Sidebar'
+import { SessionSidebar } from './components/SessionSidebar'
 import { TerminalsPage } from './components/TerminalsPage'
 import { FilesPage } from './components/FilesPage'
+import type { GobbySession } from './hooks/useSessions'
 
 export default function App() {
-  const { messages, isConnected, isStreaming, isThinking, sendMessage, stopStreaming, clearHistory, executeCommand, respondToQuestion } = useChat()
+  const { messages, conversationId, isConnected, isStreaming, isThinking, sendMessage, stopStreaming, clearHistory, executeCommand, respondToQuestion, switchConversation, startNewChat, resumeSession } = useChat()
   const { settings, modelInfo, modelsLoading, updateFontSize, updateModel, resetSettings } = useSettings()
   const { agents, selectedAgent, setSelectedAgent, sendInput, onOutput } = useTerminal()
   const tmux = useTmuxSessions()
   const files = useFiles()
   const { filteredCommands, parseCommand, filterCommands } = useSlashCommands()
+  const sessionsHook = useSessions()
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [terminalOpen, setTerminalOpen] = useState(false)
   const [activeTab, setActiveTab] = useState<string>('chat')
   const [sidebarOpen, setSidebarOpen] = useState(false)
+  const [sessionSidebarOpen, setSessionSidebarOpen] = useState(true)
 
   // Wrap sendMessage to include the selected model and handle slash commands
   const handleSendMessage = useCallback((content: string, files?: QueuedFile[]) => {
@@ -43,6 +48,17 @@ export default function App() {
     }
     sendMessage(content, settings.model, files)
   }, [parseCommand, executeCommand, sendMessage, settings.model])
+
+  const handleSelectSession = useCallback((session: GobbySession) => {
+    if (session.source === 'web-chat') {
+      switchConversation(session.external_id)
+    } else if (session.source === 'claude') {
+      resumeSession(session.external_id)
+    } else {
+      // Non-resumable CLI session — switch to terminals tab
+      setActiveTab('terminals')
+    }
+  }, [switchConversation, resumeSession])
 
   const handleInputChange = useCallback((value: string) => {
     filterCommands(value)
@@ -113,30 +129,45 @@ export default function App() {
       />
 
       {activeTab === 'chat' ? (
-        <>
-          <main className="chat-container">
-            <ChatMessages messages={messages} isStreaming={isStreaming} isThinking={isThinking} onRespondToQuestion={respondToQuestion} />
-            <ChatInput
-              onSend={handleSendMessage}
-              onStop={stopStreaming}
-              isStreaming={isStreaming}
-              disabled={!isConnected}
-              onInputChange={handleInputChange}
-              filteredCommands={filteredCommands}
-              onCommandSelect={handleCommandSelect}
-            />
-          </main>
-
-          <TerminalPanel
-            isOpen={terminalOpen}
-            onToggle={() => setTerminalOpen(!terminalOpen)}
-            agents={agents}
-            selectedAgent={selectedAgent}
-            onSelectAgent={setSelectedAgent}
-            onInput={sendInput}
-            onOutput={onOutput}
+        <div className="chat-page">
+          <SessionSidebar
+            sessions={sessionsHook.filteredSessions}
+            projects={sessionsHook.projects}
+            filters={sessionsHook.filters}
+            onFiltersChange={sessionsHook.setFilters}
+            activeSessionId={conversationId}
+            isLoading={sessionsHook.isLoading}
+            onNewChat={startNewChat}
+            onSelectSession={handleSelectSession}
+            onRefresh={sessionsHook.refresh}
+            isOpen={sessionSidebarOpen}
+            onToggle={() => setSessionSidebarOpen(!sessionSidebarOpen)}
           />
-        </>
+          <div className="chat-main">
+            <main className="chat-container">
+              <ChatMessages messages={messages} isStreaming={isStreaming} isThinking={isThinking} onRespondToQuestion={respondToQuestion} />
+              <ChatInput
+                onSend={handleSendMessage}
+                onStop={stopStreaming}
+                isStreaming={isStreaming}
+                disabled={!isConnected}
+                onInputChange={handleInputChange}
+                filteredCommands={filteredCommands}
+                onCommandSelect={handleCommandSelect}
+              />
+            </main>
+
+            <TerminalPanel
+              isOpen={terminalOpen}
+              onToggle={() => setTerminalOpen(!terminalOpen)}
+              agents={agents}
+              selectedAgent={selectedAgent}
+              onSelectAgent={setSelectedAgent}
+              onInput={sendInput}
+              onOutput={onOutput}
+            />
+          </div>
+        </div>
       ) : activeTab === 'terminals' ? (
         <TerminalsPage
           sessions={tmux.sessions}

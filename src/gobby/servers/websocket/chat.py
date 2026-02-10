@@ -21,6 +21,7 @@ from gobby.servers.websocket.models import (
     CLEANUP_INTERVAL_SECONDS,
     IDLE_TIMEOUT_SECONDS,
 )
+from gobby.utils.machine_id import get_machine_id
 
 logger = logging.getLogger(__name__)
 
@@ -219,6 +220,21 @@ class ChatMixin:
                     )
                     return
                 self._chat_sessions[conversation_id] = session
+
+                # Register in database so it appears in session list
+                session_manager = getattr(self, "session_manager", None)
+                if session_manager:
+                    try:
+                        db_session = session_manager.register(
+                            external_id=conversation_id,
+                            machine_id=get_machine_id(),
+                            source="web-chat",
+                            project_id="",
+                        )
+                        session.db_session_id = db_session.id
+                    except Exception as e:
+                        logger.warning(f"Failed to register web-chat session in DB: {e}")
+
             elif model and session.model and model != session.model:
                 # Mid-conversation model switch
                 old_model = session.model
@@ -405,6 +421,14 @@ class ChatMixin:
                 for conv_id in stale_ids:
                     session = self._chat_sessions.pop(conv_id)
                     await self._cancel_active_chat(conv_id)
+                    # Mark as paused in database before stopping
+                    if session.db_session_id:
+                        session_manager = getattr(self, "session_manager", None)
+                        if session_manager:
+                            try:
+                                session_manager.update(session.db_session_id, status="paused")
+                            except Exception as e:
+                                logger.warning(f"Failed to update session status: {e}")
                     await session.stop()
                     logger.debug(f"Cleaned up idle chat session {conv_id}")
                 if stale_ids:

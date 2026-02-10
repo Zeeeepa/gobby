@@ -57,6 +57,7 @@ class WebSocketServer(TmuxMixin, ChatMixin, HandlerMixin, AuthMixin, BroadcastMi
         mcp_manager: MCPClientManager,
         auth_callback: Callable[[str], Coroutine[Any, Any, str | None]] | None = None,
         stop_registry: Any = None,
+        session_manager: Any = None,
     ):
         """
         Initialize WebSocket server.
@@ -67,11 +68,13 @@ class WebSocketServer(TmuxMixin, ChatMixin, HandlerMixin, AuthMixin, BroadcastMi
             auth_callback: Optional async function that validates token and returns user_id.
                           If None, all connections are accepted (local-first mode).
             stop_registry: Optional StopRegistry for handling stop requests from clients.
+            session_manager: Optional LocalSessionManager for persisting web-chat sessions.
         """
         self.config = config
         self.mcp_manager = mcp_manager
         self.auth_callback = auth_callback
         self.stop_registry = stop_registry
+        self.session_manager = session_manager
 
         # Connected clients: {websocket: client_metadata}
         self.clients: dict[Any, dict[str, Any]] = {}

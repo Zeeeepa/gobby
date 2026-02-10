@@ -2,9 +2,13 @@ import { useState, useEffect, useCallback, useRef } from 'react'
 import type { ChatMessage, ToolCall } from '../components/Message'
 import type { QueuedFile } from '../components/ChatInput'
 
-const STORAGE_KEY = 'gobby-chat-history'
 const CONVERSATION_ID_KEY = 'gobby-conversation-id'
 const MAX_STORED_MESSAGES = 100
+
+// Per-conversation storage key
+function chatStorageKey(conversationId: string): string {
+  return `gobby-chat-${conversationId}`
+}
 
 // Serialized message format for localStorage
 interface StoredMessage {
@@ -16,9 +20,9 @@ interface StoredMessage {
   thinkingContent?: string
 }
 
-function loadMessages(): ChatMessage[] {
+function loadMessagesForConversation(conversationId: string): ChatMessage[] {
   try {
-    const stored = localStorage.getItem(STORAGE_KEY)
+    const stored = localStorage.getItem(chatStorageKey(conversationId))
     if (stored) {
       const parsed: StoredMessage[] = JSON.parse(stored)
       return parsed.map((m) => ({
@@ -32,15 +36,14 @@ function loadMessages(): ChatMessage[] {
   return []
 }
 
-function saveMessages(messages: ChatMessage[]): void {
+function saveMessagesForConversation(conversationId: string, messages: ChatMessage[]): void {
   try {
-    // Only keep the last N messages
     const toStore = messages.slice(-MAX_STORED_MESSAGES)
     const serialized: StoredMessage[] = toStore.map((m) => ({
       ...m,
       timestamp: m.timestamp.toISOString(),
     }))
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(serialized))
+    localStorage.setItem(chatStorageKey(conversationId), JSON.stringify(serialized))
   } catch (e) {
     console.error('Failed to save chat history:', e)
   }
@@ -129,14 +132,40 @@ function saveConversationId(id: string): void {
   localStorage.setItem(CONVERSATION_ID_KEY, id)
 }
 
+// Migrate from old single-key storage to per-conversation storage
+function migrateOldStorage(conversationId: string): void {
+  const OLD_KEY = 'gobby-chat-history'
+  try {
+    const old = localStorage.getItem(OLD_KEY)
+    if (old) {
+      localStorage.setItem(chatStorageKey(conversationId), old)
+      localStorage.removeItem(OLD_KEY)
+      console.log('Migrated old chat history to per-conversation storage')
+    }
+  } catch (e) {
+    console.error('Failed to migrate old chat history:', e)
+  }
+}
+
 export function useChat() {
-  const [messages, setMessages] = useState<ChatMessage[]>(() => loadMessages())
+  const conversationIdRef = useRef<string>(loadConversationId())
+  const [conversationId, setConversationId] = useState<string>(conversationIdRef.current)
+
+  // Run migration once on first load
+  const migrated = useRef(false)
+  if (!migrated.current) {
+    migrateOldStorage(conversationIdRef.current)
+    migrated.current = true
+  }
+
+  const [messages, setMessages] = useState<ChatMessage[]>(() =>
+    loadMessagesForConversation(conversationIdRef.current)
+  )
   const [isConnected, setIsConnected] = useState(false)
   const [isStreaming, setIsStreaming] = useState(false)
   const [isThinking, setIsThinking] = useState(false)
   const wsRef = useRef<WebSocket | null>(null)
   const reconnectTimeoutRef = useRef<number | null>(null)
-  const conversationIdRef = useRef<string>(loadConversationId())
 
   // Track pending command request IDs for tool_result routing
   const pendingCommandsRef = useRef<Map<string, { server: string; tool: string }>>(new Map())
@@ -162,9 +191,6 @@ export function useChat() {
   const connect = useCallback(() => {
     if (wsRef.current?.readyState === WebSocket.OPEN) return
 
-    // Determine WebSocket URL based on context:
-    // - HTTPS (e.g., Tailscale Serve): use wss:// with /ws path
-    // - HTTP dev mode: connect directly to daemon port 60888
     const isSecure = window.location.protocol === 'https:'
     const wsUrl = isSecure
       ? `wss://${window.location.host}/ws`
@@ -178,7 +204,6 @@ export function useChat() {
       console.log('WebSocket connected')
       setIsConnected(true)
 
-      // Subscribe to chat events
       ws.send(JSON.stringify({
         type: 'subscribe',
         events: ['chat_stream', 'chat_error', 'tool_status', 'chat_thinking'],
@@ -190,9 +215,8 @@ export function useChat() {
       setIsConnected(false)
       setIsStreaming(false)
       setIsThinking(false)
-      activeRequestIdRef.current = null // No active request on disconnect
+      activeRequestIdRef.current = null
 
-      // Reconnect after 2 seconds
       reconnectTimeoutRef.current = window.setTimeout(() => {
         connect()
       }, 2000)
@@ -222,8 +246,6 @@ export function useChat() {
         } else if (data.type === 'error' && (data as unknown as ErrorMessage).request_id) {
           handleErrorRef.current(data as unknown as ErrorMessage)
         } else if (data.type === 'connection_established') {
-          // If the server still has our conversation alive, keep using it.
-          // Otherwise our stored ID is fine — the server will create a new session on first message.
           const serverConversations = (data.conversation_ids as string[]) || []
           if (serverConversations.includes(conversationIdRef.current)) {
             console.log('Reconnected to existing conversation:', conversationIdRef.current)
@@ -240,13 +262,11 @@ export function useChat() {
 
   // Handle streaming chat chunks
   const handleChatStream = useCallback((chunk: ChatStreamChunk) => {
-    // Drop stale chunks from a cancelled request
     if (!isActiveRequest(chunk.request_id)) {
       console.debug('Dropping stale chat_stream chunk, request_id:', chunk.request_id)
       return
     }
 
-    // First text chunk clears thinking state
     if (chunk.content) {
       setIsThinking(false)
     }
@@ -255,7 +275,6 @@ export function useChat() {
       const existingIndex = prev.findIndex((m) => m.id === chunk.message_id)
 
       if (existingIndex >= 0) {
-        // Update existing message
         const updated = [...prev]
         updated[existingIndex] = {
           ...updated[existingIndex],
@@ -263,7 +282,6 @@ export function useChat() {
         }
         return updated
       } else {
-        // New assistant message
         return [
           ...prev,
           {
@@ -284,7 +302,6 @@ export function useChat() {
 
   // Handle chat errors
   const handleChatError = useCallback((error: ChatError) => {
-    // Drop stale errors from a cancelled request
     if (!isActiveRequest(error.request_id)) {
       console.debug('Dropping stale chat_error, request_id:', error.request_id)
       return
@@ -305,13 +322,11 @@ export function useChat() {
 
   // Handle tool status updates
   const handleToolStatus = useCallback((status: ToolStatusMessage) => {
-    // Drop stale tool status from a cancelled request
     if (!isActiveRequest(status.request_id)) {
       console.debug('Dropping stale tool_status, request_id:', status.request_id)
       return
     }
 
-    // Tool call starting clears thinking state
     if (status.status === 'calling') {
       setIsThinking(false)
     }
@@ -325,7 +340,6 @@ export function useChat() {
       const existingIdx = toolCalls.findIndex((t) => t.id === status.tool_call_id)
 
       if (existingIdx >= 0) {
-        // Merge with existing call to preserve tool_name/server_name from initial "calling" event
         const existing = toolCalls[existingIdx]
         const merged: ToolCall = {
           ...existing,
@@ -335,7 +349,6 @@ export function useChat() {
         }
         toolCalls[existingIdx] = merged
       } else {
-        // New tool call - create with all available data
         const newCall: ToolCall = {
           id: status.tool_call_id,
           tool_name: status.tool_name || 'unknown',
@@ -353,11 +366,8 @@ export function useChat() {
     })
   }, [])
 
-  // Handle thinking events — create the assistant message bubble during
-  // the thinking phase so the thinking indicator renders correctly and
-  // accumulate thinking text for the collapsible block.
+  // Handle thinking events
   const handleChatThinking = useCallback((msg: ChatThinkingMessage) => {
-    // Drop stale thinking from a cancelled request
     if (!isActiveRequest(msg.request_id)) {
       console.debug('Dropping stale chat_thinking, request_id:', msg.request_id)
       return
@@ -367,7 +377,6 @@ export function useChat() {
     setMessages((prev) => {
       const existingIndex = prev.findIndex((m) => m.id === msg.message_id)
       if (existingIndex >= 0) {
-        // Append thinking content to existing message
         const updated = [...prev]
         updated[existingIndex] = {
           ...updated[existingIndex],
@@ -375,7 +384,6 @@ export function useChat() {
         }
         return updated
       } else {
-        // Create assistant message bubble during thinking phase
         return [...prev, {
           id: msg.message_id,
           role: 'assistant' as const,
@@ -450,18 +458,78 @@ export function useChat() {
     handleErrorRef.current = handleError
   }, [handleChatStream, handleChatError, handleToolStatus, handleChatThinking, handleModelSwitched, handleToolResult, handleError])
 
-  // Persist messages to localStorage
+  // Persist messages to localStorage (per-conversation)
   useEffect(() => {
-    saveMessages(messages)
+    saveMessagesForConversation(conversationIdRef.current, messages)
+  }, [messages])
+
+  // Switch to a different conversation
+  const switchConversation = useCallback((id: string) => {
+    // Save current conversation's messages before switching
+    saveMessagesForConversation(conversationIdRef.current, messages)
+
+    conversationIdRef.current = id
+    setConversationId(id)
+    saveConversationId(id)
+
+    // Load messages for the target conversation
+    const loaded = loadMessagesForConversation(id)
+    setMessages(loaded)
+
+    // Reset streaming state
+    activeRequestIdRef.current = null
+    setIsStreaming(false)
+    setIsThinking(false)
+  }, [messages])
+
+  // Start a new chat conversation
+  const startNewChat = useCallback(() => {
+    // Save current messages before switching
+    saveMessagesForConversation(conversationIdRef.current, messages)
+
+    const newId = uuid()
+    conversationIdRef.current = newId
+    setConversationId(newId)
+    saveConversationId(newId)
+    setMessages([])
+
+    activeRequestIdRef.current = null
+    setIsStreaming(false)
+    setIsThinking(false)
+  }, [messages])
+
+  // Resume a CLI session (e.g., Claude) — sets the conversation ID
+  // so the next message triggers server-side resume
+  const resumeSession = useCallback((externalId: string) => {
+    saveMessagesForConversation(conversationIdRef.current, messages)
+
+    conversationIdRef.current = externalId
+    setConversationId(externalId)
+    saveConversationId(externalId)
+
+    // Load any existing messages for this conversation (may be empty for CLI sessions)
+    const loaded = loadMessagesForConversation(externalId)
+    setMessages(loaded.length > 0 ? loaded : [{
+      id: `system-resume-${Date.now()}`,
+      role: 'system' as const,
+      content: 'Resuming session. Send a message to continue.',
+      timestamp: new Date(),
+    }])
+
+    activeRequestIdRef.current = null
+    setIsStreaming(false)
+    setIsThinking(false)
   }, [messages])
 
   // Clear chat history
   const clearHistory = useCallback(() => {
     setMessages([])
-    localStorage.removeItem(STORAGE_KEY)
-    activeRequestIdRef.current = null // Reject any in-flight chunks
-    // Start a fresh conversation — new ID so the backend creates a new ChatSession
-    conversationIdRef.current = uuid()
+    localStorage.removeItem(chatStorageKey(conversationIdRef.current))
+    activeRequestIdRef.current = null
+    // Start a fresh conversation
+    const newId = uuid()
+    conversationIdRef.current = newId
+    setConversationId(newId)
     localStorage.removeItem(CONVERSATION_ID_KEY)
   }, [])
 
@@ -472,8 +540,8 @@ export function useChat() {
       type: 'stop_chat',
       conversation_id: conversationIdRef.current,
     }))
-    activeRequestIdRef.current = null // Reject any further chunks from this request
-    setIsStreaming(false) // Optimistic update
+    activeRequestIdRef.current = null
+    setIsStreaming(false)
     setIsThinking(false)
   }, [])
 
@@ -489,7 +557,6 @@ export function useChat() {
     const requestId = uuid()
     activeRequestIdRef.current = requestId
 
-    // Add user message to state
     setMessages((prev) => [
       ...prev,
       {
@@ -500,10 +567,8 @@ export function useChat() {
       },
     ])
 
-    // Persist conversation_id on first send
     saveConversationId(conversationIdRef.current)
 
-    // Send to server — backend will cancel any active stream automatically
     const payload: Record<string, unknown> = {
       type: 'chat_message',
       content,
@@ -512,12 +577,10 @@ export function useChat() {
       request_id: requestId,
     }
 
-    // Include model if specified
     if (model) {
       payload.model = model
     }
 
-    // Build content_blocks when files are attached
     if (files && files.length > 0) {
       const contentBlocks: Array<Record<string, unknown>> = []
       for (const qf of files) {
@@ -557,10 +620,8 @@ export function useChat() {
 
     const requestId = uuid()
 
-    // Track pending command
     pendingCommandsRef.current.set(requestId, { server, tool })
 
-    // Add user message showing the command
     setMessages((prev) => [
       ...prev,
       {
@@ -571,7 +632,6 @@ export function useChat() {
       },
     ])
 
-    // Send tool_call via WebSocket
     wsRef.current.send(JSON.stringify({
       type: 'tool_call',
       request_id: requestId,
@@ -606,6 +666,7 @@ export function useChat() {
 
   return {
     messages,
+    conversationId,
     isConnected,
     isStreaming,
     isThinking,
@@ -614,5 +675,8 @@ export function useChat() {
     clearHistory,
     executeCommand,
     respondToQuestion,
+    switchConversation,
+    startNewChat,
+    resumeSession,
   }
 }

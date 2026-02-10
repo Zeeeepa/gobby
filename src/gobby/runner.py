@@ -307,6 +307,7 @@ class GobbyRunner:
             self.websocket_server = WebSocketServer(
                 config=websocket_config,
                 mcp_manager=self.mcp_proxy,
+                session_manager=self.session_manager,
             )
             # Pass WebSocket server reference to HTTP server for broadcasting
             self.http_server.websocket_server = self.websocket_server

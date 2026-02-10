@@ -2315,6 +2315,187 @@ body {
   }
 }
 
+/* ============================================
+   Chat Page Layout (with sessions sidebar)
+   ============================================ */
+.chat-page {
+  flex: 1;
+  display: flex;
+  overflow: hidden;
+  max-width: none;
+}
+
+.chat-main {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  overflow: hidden;
+}
+
+/* Sessions Sidebar — mirrors .terminals-sidebar */
+.sessions-sidebar {
+  width: 260px;
+  min-width: 260px;
+  background: var(--bg-secondary);
+  border-right: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  transition: min-width 0.2s, width 0.2s;
+}
+
+.sessions-sidebar.collapsed {
+  width: 40px;
+  min-width: 40px;
+}
+
+.sessions-sidebar-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.625rem 0.75rem;
+  border-bottom: 1px solid var(--border);
+  background: var(--bg-tertiary);
+}
+
+.sessions-sidebar-title {
+  font-size: calc(var(--font-size-base) * 0.85);
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.sessions-sidebar.collapsed .sessions-sidebar-title {
+  display: none;
+}
+
+.sessions-sidebar-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.375rem;
+}
+
+/* Filter bar */
+.sessions-filter-bar {
+  padding: 0.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.375rem;
+  border-bottom: 1px solid var(--border);
+}
+
+.sessions-filter-input {
+  width: 100%;
+  padding: 0.375rem 0.5rem;
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border);
+  border-radius: 0.375rem;
+  color: var(--text-primary);
+  font-size: calc(var(--font-size-base) * 0.8);
+  font-family: inherit;
+}
+
+.sessions-filter-input:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+.sessions-filter-input::placeholder {
+  color: var(--text-muted);
+}
+
+.sessions-filter-row {
+  display: flex;
+  gap: 0.375rem;
+}
+
+.sessions-filter-select {
+  flex: 1;
+  padding: 0.25rem 0.375rem;
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border);
+  border-radius: 0.375rem;
+  color: var(--text-primary);
+  font-size: calc(var(--font-size-base) * 0.75);
+  font-family: inherit;
+  cursor: pointer;
+}
+
+.sessions-filter-select:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+/* Session list */
+.sessions-list {
+  flex: 1;
+  overflow-y: auto;
+  padding: 0.5rem 0;
+}
+
+/* Source color dots */
+.session-source-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  background: var(--text-muted);
+}
+
+.session-source-dot.web-chat {
+  background: #4ade80;
+}
+
+.session-source-dot.claude {
+  background: #f97316;
+}
+
+.session-source-dot.gemini {
+  background: #3b82f6;
+}
+
+.session-source-dot.codex {
+  background: #a855f7;
+}
+
+/* Source badge */
+.source-badge {
+  background: var(--bg-tertiary);
+  color: var(--text-muted);
+}
+
+/* Muted sessions (non-resumable) */
+.session-item-muted {
+  opacity: 0.6;
+}
+
+/* Mobile: sidebar overlays */
+@media (max-width: 768px) {
+  .sessions-sidebar {
+    position: absolute;
+    left: 0;
+    top: 0;
+    bottom: 0;
+    z-index: 20;
+    width: 240px;
+    min-width: 240px;
+  }
+
+  .sessions-sidebar.collapsed {
+    width: 0;
+    min-width: 0;
+    border-right: none;
+  }
+
+  .sessions-sidebar.collapsed .sessions-sidebar-header {
+    display: none;
+  }
+
+  .chat-page {
+    position: relative;
+  }
+}
+
 /* Scrollbar */
 ::-webkit-scrollbar {
   width: 0.5rem;
