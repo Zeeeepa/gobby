@@ -9,6 +9,7 @@ interface MemoryTableProps {
   filters: MemoryFilters
   onFiltersChange: (filters: MemoryFilters) => void
   onDelete: (memoryId: string) => void
+  onUpdate?: (memoryId: string, params: { content?: string; importance?: number; tags?: string[] }) => void
   isLoading: boolean
   onRefresh: () => void
   onSelect?: (memory: GobbyMemory) => void
@@ -37,18 +38,29 @@ function importanceBar(importance: number): string {
   return 'importance-low'
 }
 
+function isPinned(m: GobbyMemory): boolean {
+  return m.importance >= 1.0
+}
+
 export function MemoryTable({
   memories,
   stats,
   filters,
   onFiltersChange,
   onDelete,
+  onUpdate,
   isLoading,
   onRefresh,
   onSelect,
   onEdit,
 }: MemoryTableProps) {
   const [expandedId, setExpandedId] = useState<string | null>(null)
+
+  const handlePin = (e: React.MouseEvent, m: GobbyMemory) => {
+    e.stopPropagation()
+    if (!onUpdate) return
+    onUpdate(m.id, { importance: isPinned(m) ? 0.5 : 1.0 })
+  }
 
   return (
     <div className="memory-page">
@@ -94,99 +106,127 @@ export function MemoryTable({
           </div>
         ) : (
           <div className="memory-list">
-            {memories.map((m) => (
-              <div
-                key={m.id}
-                className={`memory-card ${expandedId === m.id ? 'expanded' : ''}`}
-                onClick={() =>
-                  setExpandedId(expandedId === m.id ? null : m.id)
-                }
-              >
-                <div className="memory-card-header">
-                  <span
-                    className="memory-type-badge"
-                    style={{ backgroundColor: typeColor(m.memory_type) }}
-                  >
-                    {m.memory_type}
-                  </span>
-                  <div
-                    className={`memory-importance ${importanceBar(m.importance)}`}
-                    title={`Importance: ${(m.importance * 100).toFixed(0)}%`}
-                  >
-                    <div
-                      className="memory-importance-fill"
-                      style={{ width: `${m.importance * 100}%` }}
-                    />
-                  </div>
-                  <span className="memory-date">
-                    {formatRelativeTime(m.created_at)}
-                  </span>
-                </div>
-
-                <div className="memory-card-content">
-                  {expandedId === m.id
-                    ? m.content
-                    : m.content.length > 120
-                      ? m.content.slice(0, 120) + '...'
-                      : m.content}
-                </div>
-
-                {m.tags && m.tags.length > 0 && (
-                  <div className="memory-tags">
-                    {m.tags.map((tag) => (
-                      <span key={tag} className="memory-tag">
-                        {tag}
-                      </span>
-                    ))}
-                  </div>
-                )}
-
-                {expandedId === m.id && (
-                  <div className="memory-card-actions">
-                    <span className="memory-card-id" title={m.id}>
-                      {m.id.slice(0, 12)}
-                    </span>
-                    <span className="memory-card-access">
-                      {m.access_count} accesses
-                    </span>
-                    {onSelect && (
-                      <button
-                        className="memory-action-btn"
-                        onClick={(e) => {
-                          e.stopPropagation()
-                          onSelect(m)
-                        }}
-                        title="View details"
-                      >
-                        View
-                      </button>
-                    )}
-                    {onEdit && (
-                      <button
-                        className="memory-action-btn"
-                        onClick={(e) => {
-                          e.stopPropagation()
-                          onEdit(m)
-                        }}
-                        title="Edit memory"
-                      >
-                        Edit
-                      </button>
-                    )}
-                    <button
-                      className="memory-delete-btn"
-                      onClick={(e) => {
-                        e.stopPropagation()
-                        onDelete(m.id)
-                      }}
-                      title="Delete memory"
+            {memories.map((m) => {
+              const pinned = isPinned(m)
+              return (
+                <div
+                  key={m.id}
+                  className={`memory-card ${expandedId === m.id ? 'expanded' : ''} ${pinned ? 'memory-card--pinned' : ''}`}
+                  onClick={() =>
+                    setExpandedId(expandedId === m.id ? null : m.id)
+                  }
+                >
+                  <div className="memory-card-header">
+                    <span
+                      className="memory-type-badge"
+                      style={{ backgroundColor: typeColor(m.memory_type) }}
                     >
-                      Delete
-                    </button>
+                      {m.memory_type}
+                    </span>
+                    {pinned && <span className="memory-pin-indicator" title="Pinned">{'\u{1F4CC}'}</span>}
+                    <div
+                      className={`memory-importance ${importanceBar(m.importance)}`}
+                      title={`Importance: ${(m.importance * 100).toFixed(0)}%`}
+                    >
+                      <div
+                        className="memory-importance-fill"
+                        style={{ width: `${m.importance * 100}%` }}
+                      />
+                    </div>
+                    <span className="memory-date">
+                      {formatRelativeTime(m.created_at)}
+                    </span>
+                    {/* Quick action buttons - always visible */}
+                    <div className="memory-card-quick-actions">
+                      {onUpdate && (
+                        <button
+                          className={`memory-pin-btn ${pinned ? 'memory-pin-btn--active' : ''}`}
+                          onClick={(e) => handlePin(e, m)}
+                          title={pinned ? 'Unpin memory' : 'Pin memory'}
+                        >
+                          {'\u{1F4CC}'}
+                        </button>
+                      )}
+                      {onEdit && (
+                        <button
+                          className="memory-quick-edit-btn"
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            onEdit(m)
+                          }}
+                          title="Edit memory"
+                        >
+                          {'\u270E'}
+                        </button>
+                      )}
+                    </div>
                   </div>
-                )}
-              </div>
-            ))}
+
+                  <div className="memory-card-content">
+                    {expandedId === m.id
+                      ? m.content
+                      : m.content.length > 120
+                        ? m.content.slice(0, 120) + '...'
+                        : m.content}
+                  </div>
+
+                  {m.tags && m.tags.length > 0 && (
+                    <div className="memory-tags">
+                      {m.tags.map((tag) => (
+                        <span key={tag} className="memory-tag">
+                          {tag}
+                        </span>
+                      ))}
+                    </div>
+                  )}
+
+                  {expandedId === m.id && (
+                    <div className="memory-card-actions">
+                      <span className="memory-card-id" title={m.id}>
+                        {m.id.slice(0, 12)}
+                      </span>
+                      <span className="memory-card-access">
+                        {m.access_count} accesses
+                      </span>
+                      {onSelect && (
+                        <button
+                          className="memory-action-btn"
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            onSelect(m)
+                          }}
+                          title="View details"
+                        >
+                          View
+                        </button>
+                      )}
+                      {onEdit && (
+                        <button
+                          className="memory-action-btn"
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            onEdit(m)
+                          }}
+                          title="Edit memory"
+                        >
+                          Edit
+                        </button>
+                      )}
+                      <button
+                        className="memory-delete-btn"
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          onDelete(m.id)
+                        }}
+                        title="Delete memory"
+                      >
+                        Delete
+                      </button>
+                    </div>
+                  )}
+                </div>
+              )
+            })}
           </div>
         )}
       </div>

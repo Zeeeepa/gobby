@@ -36,6 +36,10 @@ function importanceColor(imp: number): string {
   return '#737373'
 }
 
+function isPinned(mem: MemoryEntry): boolean {
+  return mem.importance >= 1.0
+}
+
 const TYPE_ICONS: Record<string, string> = {
   fact: '\u2139',         // ℹ
   pattern: '\u2699',      // ⚙
@@ -57,6 +61,8 @@ export function TaskMemories({ sessionId }: TaskMemoriesProps) {
   const [memories, setMemories] = useState<MemoryEntry[]>([])
   const [isLoading, setIsLoading] = useState(false)
   const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set())
+  const [editingId, setEditingId] = useState<string | null>(null)
+  const [editContent, setEditContent] = useState('')
 
   const fetchMemories = useCallback(async () => {
     if (!sessionId) return
@@ -90,8 +96,51 @@ export function TaskMemories({ sessionId }: TaskMemoriesProps) {
     })
   }, [])
 
+  const updateMemory = useCallback(async (memoryId: string, params: { content?: string; importance?: number }) => {
+    try {
+      const baseUrl = getBaseUrl()
+      const response = await fetch(`${baseUrl}/memories/${memoryId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(params),
+      })
+      if (response.ok) {
+        fetchMemories()
+      }
+    } catch (e) {
+      console.error('Failed to update memory:', e)
+    }
+  }, [fetchMemories])
+
+  const handlePin = useCallback((e: React.MouseEvent, mem: MemoryEntry) => {
+    e.stopPropagation()
+    updateMemory(mem.id, { importance: isPinned(mem) ? 0.5 : 1.0 })
+  }, [updateMemory])
+
+  const startEdit = useCallback((e: React.MouseEvent, mem: MemoryEntry) => {
+    e.stopPropagation()
+    setEditingId(mem.id)
+    setEditContent(mem.content)
+  }, [])
+
+  const saveEdit = useCallback(async (memoryId: string) => {
+    if (!editContent.trim()) return
+    await updateMemory(memoryId, { content: editContent.trim() })
+    setEditingId(null)
+    setEditContent('')
+  }, [editContent, updateMemory])
+
+  const cancelEdit = useCallback(() => {
+    setEditingId(null)
+    setEditContent('')
+  }, [])
+
   const sortedMemories = useMemo(
-    () => [...memories].sort((a, b) => b.importance - a.importance),
+    () => [...memories].sort((a, b) => {
+      // Pinned first, then by importance
+      if (isPinned(a) !== isPinned(b)) return isPinned(a) ? -1 : 1
+      return b.importance - a.importance
+    }),
     [memories],
   )
 
@@ -105,19 +154,22 @@ export function TaskMemories({ sessionId }: TaskMemoriesProps) {
       <div className="task-memories-list">
         {sortedMemories.map(mem => {
           const isExpanded = expandedIds.has(mem.id)
-          const preview = mem.content.length > 100 && !isExpanded
+          const isEditing = editingId === mem.id
+          const pinned = isPinned(mem)
+          const preview = mem.content.length > 100 && !isExpanded && !isEditing
             ? mem.content.slice(0, 100) + '...'
             : mem.content
           const icon = TYPE_ICONS[mem.memory_type] || '\u2022'
 
           return (
-            <button
+            <div
               key={mem.id}
-              className="task-memory-item"
-              onClick={() => toggle(mem.id)}
+              className={`task-memory-item ${pinned ? 'task-memory-item--pinned' : ''}`}
+              onClick={() => { if (!isEditing) toggle(mem.id) }}
             >
               <div className="task-memory-header">
                 <span className="task-memory-icon">{icon}</span>
+                {pinned && <span className="task-memory-pin-badge" title="Pinned">{'\u{1F4CC}'}</span>}
                 <span className="task-memory-type">{mem.memory_type}</span>
                 <span
                   className="task-memory-importance"
@@ -127,8 +179,50 @@ export function TaskMemories({ sessionId }: TaskMemoriesProps) {
                   {'\u25CF'} {(mem.importance * 100).toFixed(0)}%
                 </span>
                 <span className="task-memory-date">{formatDate(mem.created_at)}</span>
+                <div className="task-memory-actions">
+                  <button
+                    className={`task-memory-action-btn ${pinned ? 'task-memory-action-btn--active' : ''}`}
+                    onClick={(e) => handlePin(e, mem)}
+                    title={pinned ? 'Unpin' : 'Pin'}
+                  >
+                    {'\u{1F4CC}'}
+                  </button>
+                  <button
+                    className="task-memory-action-btn"
+                    onClick={(e) => startEdit(e, mem)}
+                    title="Edit"
+                  >
+                    {'\u270E'}
+                  </button>
+                </div>
               </div>
-              <div className="task-memory-content">{preview}</div>
+
+              {isEditing ? (
+                <div className="task-memory-edit" onClick={e => e.stopPropagation()}>
+                  <textarea
+                    className="task-memory-edit-textarea"
+                    value={editContent}
+                    onChange={e => setEditContent(e.target.value)}
+                    onKeyDown={e => {
+                      if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
+                        e.preventDefault()
+                        saveEdit(mem.id)
+                      }
+                      if (e.key === 'Escape') cancelEdit()
+                    }}
+                    rows={3}
+                    autoFocus
+                  />
+                  <div className="task-memory-edit-buttons">
+                    <button className="task-memory-edit-save" onClick={() => saveEdit(mem.id)}>Save</button>
+                    <button className="task-memory-edit-cancel" onClick={cancelEdit}>Cancel</button>
+                    <span className="task-memory-edit-hint">Cmd+Enter to save</span>
+                  </div>
+                </div>
+              ) : (
+                <div className="task-memory-content">{preview}</div>
+              )}
+
               {mem.tags.length > 0 && (
                 <div className="task-memory-tags">
                   {mem.tags.map(tag => (
@@ -136,7 +230,7 @@ export function TaskMemories({ sessionId }: TaskMemoriesProps) {
                   ))}
                 </div>
               )}
-            </button>
+            </div>
           )
         })}
       </div>

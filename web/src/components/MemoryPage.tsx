@@ -111,6 +111,7 @@ export function MemoryPage() {
         filters={filters}
         onFiltersChange={setFilters}
         onDelete={handleDelete}
+        onUpdate={updateMemory}
         isLoading={isLoading}
         onRefresh={refreshMemories}
         onSelect={handleSelect}
