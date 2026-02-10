@@ -6,6 +6,7 @@ Extracted from HookManager.__init__() as part of the Strangler Fig decomposition
 
 from __future__ import annotations
 
+import asyncio
 import logging
 from dataclasses import dataclass
 from pathlib import Path
