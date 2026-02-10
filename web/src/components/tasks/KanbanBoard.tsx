@@ -8,7 +8,7 @@ import { ActivityPulse } from './ActivityPulse'
 import { AssigneeBadge } from './AssigneePicker'
 
 // =============================================================================
-// Column definitions: map 8 statuses → 6 columns
+// Column definitions: map 8 statuses → 5 columns
 // =============================================================================
 
 interface KanbanColumnDef {
@@ -23,16 +23,14 @@ const COLUMNS: KanbanColumnDef[] = [
   { key: 'in_progress', label: 'In Progress', statuses: ['in_progress'],         targetStatus: 'in_progress' },
   { key: 'review',      label: 'Review',      statuses: ['needs_review'],        targetStatus: 'needs_review' },
   { key: 'blocked',     label: 'Blocked',     statuses: ['failed', 'escalated'], targetStatus: 'failed' },
-  { key: 'done',        label: 'Done',        statuses: ['approved'],            targetStatus: 'approved' },
-  { key: 'closed',      label: 'Closed',      statuses: ['closed'],              targetStatus: 'closed' },
+  { key: 'closed',      label: 'Closed',      statuses: ['approved', 'closed'],  targetStatus: 'closed' },
 ]
 
 // Status progression: current → next
 const NEXT_STATUS: Record<string, string> = {
   open: 'in_progress',
   in_progress: 'needs_review',
-  needs_review: 'approved',
-  approved: 'closed',
+  needs_review: 'closed',
 }
 
 const BLOCKED_STATUSES = new Set(['failed', 'escalated'])
