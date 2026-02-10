@@ -138,6 +138,10 @@ def format_status_message(
     ui_mode: str | None = None,
     ui_url: str | None = None,
     ui_pid: int | None = None,
+    # Mem0 info
+    mem0_installed: bool | None = None,
+    mem0_healthy: bool | None = None,
+    mem0_url: str | None = None,
     **kwargs: Any,
 ) -> str:
     """
@@ -295,6 +299,19 @@ def format_status_message(
         if memories_avg_importance is not None:
             mem_str += f" (avg importance: {memories_avg_importance:.2f})"
         lines.append(f"  {mem_str}")
+        lines.append("")
+
+    # Mem0 section (only show if we have data)
+    if mem0_installed is not None:
+        lines.append("Mem0:")
+        if not mem0_installed:
+            lines.append("  Not installed")
+        elif mem0_healthy:
+            url_str = f" ({mem0_url})" if mem0_url else ""
+            lines.append(f"  Healthy{url_str}")
+        else:
+            url_str = f" ({mem0_url})" if mem0_url else ""
+            lines.append(f"  Not responding{url_str}")
         lines.append("")
 
     # Artifacts section (only show if we have data)
