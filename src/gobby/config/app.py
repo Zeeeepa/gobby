@@ -550,8 +550,14 @@ def save_config(config: DaemonConfig, config_file: str | None = None) -> None:
 
     Raises:
         OSError: If file operations fail
+        RuntimeError: If called with default path during tests (GOBBY_TEST_PROTECT=1)
     """
     if config_file is None:
+        if os.environ.get("GOBBY_TEST_PROTECT") == "1":
+            raise RuntimeError(
+                "save_config() called with default path during tests. "
+                "Pass an explicit config_file path or mock save_config."
+            )
         config_file = "~/.gobby/config.yaml"
 
     config_path = Path(config_file).expanduser()

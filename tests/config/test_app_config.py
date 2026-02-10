@@ -532,6 +532,7 @@ class TestGenerateDefaultConfig:
         assert config_file.exists()
 
 
+@pytest.mark.no_config_protection
 class TestSaveConfig:
     """Tests for save_config function."""
 
@@ -580,6 +581,50 @@ class TestSaveConfig:
         # Check the file was saved to the mocked default path
         expected_path = temp_dir / ".gobby" / "config.yaml"
         assert expected_path.exists()
+
+
+@pytest.mark.no_config_protection
+class TestSaveConfigTestGuard:
+    """Tests for save_config GOBBY_TEST_PROTECT guard."""
+
+    def test_raises_when_test_protect_set_and_no_path(
+        self, default_config: DaemonConfig, monkeypatch
+    ) -> None:
+        """save_config raises RuntimeError when GOBBY_TEST_PROTECT=1 and config_file is None."""
+        monkeypatch.setenv("GOBBY_TEST_PROTECT", "1")
+
+        with pytest.raises(RuntimeError, match="save_config.*called with default path during tests"):
+            save_config(default_config, config_file=None)
+
+    def test_no_error_with_explicit_path(
+        self, temp_dir: Path, default_config: DaemonConfig, monkeypatch
+    ) -> None:
+        """save_config works with explicit path even when GOBBY_TEST_PROTECT=1."""
+        monkeypatch.setenv("GOBBY_TEST_PROTECT", "1")
+
+        config_file = temp_dir / "safe.yaml"
+        save_config(default_config, str(config_file))
+        assert config_file.exists()
+
+    def test_no_error_without_test_protect(
+        self, temp_dir: Path, default_config: DaemonConfig, monkeypatch
+    ) -> None:
+        """save_config works normally when GOBBY_TEST_PROTECT is not set."""
+        monkeypatch.delenv("GOBBY_TEST_PROTECT", raising=False)
+
+        # Redirect expanduser so we don't touch real config
+        original_expanduser = Path.expanduser
+
+        def mock_expanduser(self):
+            path_str = str(self)
+            if path_str.startswith("~/.gobby"):
+                return temp_dir / ".gobby" / path_str[9:]
+            return original_expanduser(self)
+
+        monkeypatch.setattr(Path, "expanduser", mock_expanduser)
+
+        save_config(default_config, config_file=None)
+        assert (temp_dir / ".gobby" / "config.yaml").exists()
 
 
 class TestRecommendToolsConfig:

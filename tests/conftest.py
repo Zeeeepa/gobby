@@ -4,7 +4,7 @@ import tempfile
 import tracemalloc
 from collections.abc import Iterator
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -245,15 +245,37 @@ def protect_production_resources(
         # they have a reference to the OLD function object.
         # We must find ALL references to the old function and patch them too.
 
-        # 1. Standard patch for the definition (covers future imports)
+        # Capture the REAL save_config to find rogue references
+        try:
+            _real_save_config: Any = app.save_config
+        except AttributeError:
+            _real_save_config = None
+
+        def safe_save_config(config: Any, config_file: str | None = None) -> None:
+            """Redirect save_config to safe temp path during tests."""
+            assert _real_save_config is not None
+            if config_file is None:
+                config_file = str(safe_logs_dir / "config-test.yaml")
+            _real_save_config(config, config_file=config_file)
+
+        # 1. Standard patch for the definitions (covers future imports)
         p = patch("gobby.config.app.load_config", side_effect=safe_load_config)
         p.start()
+        p_save = patch("gobby.config.app.save_config", side_effect=safe_save_config)
+        p_save.start()
 
-        # 2. Scan sys.modules for rogue references
+        # 2. Scan sys.modules for rogue references to load_config AND save_config
         patched_modules = []
-        if _real_load_config:
-            import sys
+        import sys
 
+        # Build a mapping of real → safe for both functions
+        rogue_replacements: dict[int, tuple[Any, Any]] = {}
+        if _real_load_config:
+            rogue_replacements[id(_real_load_config)] = (safe_load_config, _real_load_config)
+        if _real_save_config:
+            rogue_replacements[id(_real_save_config)] = (safe_save_config, _real_save_config)
+
+        if rogue_replacements:
             for _mod_name, mod in list(sys.modules.items()):
                 # Skip our own test modules or things that might be weird
                 if not mod or not hasattr(mod, "__dict__"):
@@ -263,29 +285,30 @@ def protect_production_resources(
                 updates = {}
                 try:
                     for attr_name, attr_val in mod.__dict__.items():
-                        if attr_val is _real_load_config:
-                            updates[attr_name] = safe_load_config
+                        replacement = rogue_replacements.get(id(attr_val))
+                        if replacement:
+                            updates[attr_name] = replacement  # (safe_fn, real_fn)
                 except Exception:
                     # Some modules might error on iteration or access
                     continue
 
                 # Apply updates
                 if updates:
-                    for attr_name, new_val in updates.items():
-                        setattr(mod, attr_name, new_val)
+                    for attr_name, (safe_fn, _real_fn) in updates.items():
+                        setattr(mod, attr_name, safe_fn)
                     patched_modules.append((mod, updates))
 
         yield
 
         # Restore everything
         p.stop()
+        p_save.stop()
         for mod, updates in patched_modules:
-            for attr_name in updates:
-                if _real_load_config is not None:
-                    setattr(mod, attr_name, _real_load_config)
+            for attr_name, (_safe_fn, real_fn) in updates.items():
+                if real_fn is not None:
+                    setattr(mod, attr_name, real_fn)
                 else:
-                    # Remove the patched attribute instead of setting to None
                     try:
                         delattr(mod, attr_name)
                     except AttributeError:
-                        pass  # Attribute already removed
+                        pass
