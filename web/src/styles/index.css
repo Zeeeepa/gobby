@@ -7511,3 +7511,99 @@ body {
   color: var(--text-muted);
   font-size: calc(var(--font-size-base) * 0.6);
 }
+
+/* =============================================================================
+   Cost & Token Tracker
+   ============================================================================= */
+
+.cost-tracker {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.cost-tracker-loading,
+.cost-tracker-empty {
+  font-size: calc(var(--font-size-base) * 0.7);
+  color: var(--text-muted);
+}
+
+.cost-tracker-total {
+  display: flex;
+  align-items: baseline;
+  gap: 0.4rem;
+}
+
+.cost-tracker-cost {
+  font-family: var(--font-mono);
+  font-size: calc(var(--font-size-base) * 1.1);
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.cost-tracker-total-label {
+  font-size: calc(var(--font-size-base) * 0.65);
+  color: var(--text-muted);
+}
+
+.cost-tracker-bar-container {
+  padding: 0.1rem 0;
+}
+
+.cost-tracker-bar {
+  display: flex;
+  height: 6px;
+  border-radius: 3px;
+  overflow: hidden;
+  background: var(--bg-tertiary);
+}
+
+.cost-tracker-bar-input {
+  background: var(--accent);
+  border-radius: 3px 0 0 3px;
+  transition: width 0.3s;
+}
+
+.cost-tracker-bar-output {
+  background: #8b5cf6;
+  border-radius: 0 3px 3px 0;
+  transition: width 0.3s;
+}
+
+.cost-tracker-stats {
+  display: flex;
+  gap: 0.8rem;
+}
+
+.cost-tracker-stat {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+}
+
+.cost-tracker-stat-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.cost-tracker-stat-dot--input {
+  background: var(--accent);
+}
+
+.cost-tracker-stat-dot--output {
+  background: #8b5cf6;
+}
+
+.cost-tracker-stat-label {
+  font-size: calc(var(--font-size-base) * 0.6);
+  color: var(--text-muted);
+}
+
+.cost-tracker-stat-value {
+  font-family: var(--font-mono);
+  font-size: calc(var(--font-size-base) * 0.65);
+  font-weight: 600;
+  color: var(--text-secondary);
+}

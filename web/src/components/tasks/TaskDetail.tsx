@@ -9,6 +9,7 @@ import { RawTraceView } from './RawTraceView'
 import { OversightSelector } from './OversightSelector'
 import { EscalationCard } from './EscalationCard'
 import { TaskResults } from './TaskResults'
+import { CostTracker } from './CostTracker'
 
 interface TaskActions {
   updateTask: (id: string, params: { status?: string }) => Promise<GobbyTaskDetail | null>
@@ -271,6 +272,14 @@ export function TaskDetail({ taskId, getTask, getDependencies, getSubtasks, acti
               <h4 className="task-detail-section-title">Results</h4>
               <TaskResults task={task} />
             </div>
+
+            {/* Cost & Token Usage */}
+            {task.created_in_session_id && (
+              <div className="task-detail-section">
+                <h4 className="task-detail-section-title">Usage</h4>
+                <CostTracker sessionId={task.created_in_session_id} />
+              </div>
+            )}
           </>
         ) : null}
       </div>
