@@ -6487,3 +6487,105 @@ body {
   text-align: center;
   padding: 4px 0;
 }
+
+/* ==========================================================================
+   Capability Scope (agent permissions in TaskDetail)
+   ========================================================================== */
+
+.capability-loading,
+.capability-empty {
+  font-size: calc(var(--font-size-base) * 0.75);
+  color: var(--text-muted);
+  padding: 0.5rem 0;
+}
+
+.capability-scope {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+}
+
+.capability-summary {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.3rem 0;
+}
+
+.capability-summary-count {
+  font-family: var(--font-mono);
+  font-size: calc(var(--font-size-base) * 0.8);
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.capability-summary-label {
+  font-size: calc(var(--font-size-base) * 0.75);
+  color: var(--text-muted);
+}
+
+.capability-group {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.capability-group-label {
+  font-size: calc(var(--font-size-base) * 0.7);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-muted);
+}
+
+.capability-group-items {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem;
+}
+
+.capability-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.15rem 0.45rem;
+  border-radius: 999px;
+  font-size: calc(var(--font-size-base) * 0.7);
+  border: 1px solid var(--border);
+}
+
+.capability-item--active {
+  background: rgba(34, 197, 94, 0.08);
+  border-color: rgba(34, 197, 94, 0.25);
+  color: var(--text-primary);
+}
+
+.capability-item--inactive {
+  background: rgba(115, 115, 115, 0.06);
+  color: var(--text-muted);
+  opacity: 0.7;
+}
+
+.capability-item-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.capability-item--active .capability-item-dot {
+  background: #22c55e;
+}
+
+.capability-item--inactive .capability-item-dot {
+  background: #737373;
+}
+
+.capability-item-name {
+  font-weight: 500;
+}
+
+.capability-item-detail {
+  font-size: calc(var(--font-size-base) * 0.6);
+  color: var(--text-muted);
+}

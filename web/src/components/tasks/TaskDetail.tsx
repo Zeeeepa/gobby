@@ -4,6 +4,7 @@ import { StatusBadge, PriorityBadge, TypeBadge, StatusDot } from './TaskBadges'
 import { ReasoningTimeline } from './ReasoningTimeline'
 import { ActionFeed } from './ActionFeed'
 import { SessionViewer } from './SessionViewer'
+import { CapabilityScope } from './CapabilityScope'
 
 interface TaskActions {
   updateTask: (id: string, params: { status?: string }) => Promise<GobbyTaskDetail | null>
@@ -165,6 +166,14 @@ export function TaskDetail({ taskId, getTask, getDependencies, getSubtasks, acti
               <div className="task-detail-section">
                 <h4 className="task-detail-section-title">Session</h4>
                 <SessionViewer sessionId={task.created_in_session_id} />
+              </div>
+            )}
+
+            {/* Capability Scope */}
+            {task.created_in_session_id && (
+              <div className="task-detail-section">
+                <h4 className="task-detail-section-title">Capabilities</h4>
+                <CapabilityScope sessionId={task.created_in_session_id} />
               </div>
             )}
 
