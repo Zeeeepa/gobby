@@ -1,5 +1,5 @@
 import type { GobbyTask } from '../../hooks/useTasks'
-import { StatusDot, PriorityBadge, TypeBadge } from './TaskBadges'
+import { StatusDot, PriorityBadge, TypeBadge, PRIORITY_STYLES } from './TaskBadges'
 
 // =============================================================================
 // Column definitions: map 8 statuses → 6 columns
@@ -26,8 +26,13 @@ const COLUMNS: KanbanColumn[] = [
 // =============================================================================
 
 function KanbanCard({ task, onSelect }: { task: GobbyTask; onSelect: (id: string) => void }) {
+  const priorityColor = (PRIORITY_STYLES[task.priority] || PRIORITY_STYLES[2]).color
   return (
-    <button className="kanban-card" onClick={() => onSelect(task.id)}>
+    <button
+      className="kanban-card"
+      onClick={() => onSelect(task.id)}
+      style={{ borderLeftColor: priorityColor }}
+    >
       <div className="kanban-card-header">
         <span className="kanban-card-ref">{task.ref}</span>
         <PriorityBadge priority={task.priority} />
