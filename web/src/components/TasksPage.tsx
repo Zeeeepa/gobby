@@ -1,31 +1,13 @@
 import { useState } from 'react'
 import { useTasks } from '../hooks/useTasks'
 import type { GobbyTask } from '../hooks/useTasks'
+import { StatusDot, PriorityBadge, TypeBadge } from './tasks/TaskBadges'
 
 // =============================================================================
 // Constants
 // =============================================================================
 
 type ViewMode = 'list' | 'tree' | 'kanban'
-
-const STATUS_COLORS: Record<string, string> = {
-  open: '#3b82f6',
-  in_progress: '#f59e0b',
-  needs_review: '#8b5cf6',
-  approved: '#22c55e',
-  closed: '#737373',
-  failed: '#ef4444',
-  escalated: '#ef4444',
-  needs_decomposition: '#f59e0b',
-}
-
-const PRIORITY_LABELS: Record<number, string> = {
-  0: 'Critical',
-  1: 'High',
-  2: 'Medium',
-  3: 'Low',
-  4: 'Backlog',
-}
 
 const STATUS_OPTIONS = [
   'open', 'in_progress', 'needs_review', 'approved', 'closed', 'failed', 'escalated',
@@ -40,20 +22,6 @@ const PRIORITY_OPTIONS = [
   { value: 3, label: 'Low' },
   { value: 4, label: 'Backlog' },
 ]
-
-// =============================================================================
-// Badge components
-// =============================================================================
-
-function StatusDot({ status }: { status: string }) {
-  return (
-    <span
-      className="tasks-status-dot"
-      style={{ backgroundColor: STATUS_COLORS[status] || '#737373' }}
-      title={status}
-    />
-  )
-}
 
 // =============================================================================
 // View toggle icons
@@ -108,12 +76,10 @@ function TaskRow({ task }: { task: GobbyTask }) {
       </td>
       <td className="tasks-cell tasks-cell--title">{task.title}</td>
       <td className="tasks-cell tasks-cell--type">
-        <span className="tasks-badge tasks-badge--type">{task.type}</span>
+        <TypeBadge type={task.type} />
       </td>
       <td className="tasks-cell tasks-cell--priority">
-        <span className={`tasks-badge tasks-badge--p${task.priority}`}>
-          {PRIORITY_LABELS[task.priority] || `P${task.priority}`}
-        </span>
+        <PriorityBadge priority={task.priority} />
       </td>
       <td className="tasks-cell tasks-cell--status-text">{task.status.replace(/_/g, ' ')}</td>
     </tr>

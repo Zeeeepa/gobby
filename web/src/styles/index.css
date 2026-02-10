@@ -4756,3 +4756,41 @@ body {
   color: var(--text-primary);
   border-color: var(--text-muted);
 }
+
+/* Shared task badges (TaskBadges.tsx) */
+.task-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0.1rem 0.45rem;
+  border-radius: 0.25rem;
+  font-size: calc(var(--font-size-base) * 0.7);
+  font-weight: 500;
+  white-space: nowrap;
+  text-transform: capitalize;
+}
+
+.task-badge-dot {
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.task-badge-dot--standalone {
+  width: 8px;
+  height: 8px;
+}
+
+.task-badge--blocked {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.2rem;
+  color: #f87171;
+  background: rgba(239, 68, 68, 0.1);
+  padding: 0.1rem 0.4rem;
+  border-radius: 0.25rem;
+  font-size: calc(var(--font-size-base) * 0.7);
+  font-weight: 500;
+}
