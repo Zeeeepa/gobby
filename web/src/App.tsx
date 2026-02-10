@@ -15,6 +15,7 @@ import { TerminalsPage } from './components/TerminalsPage'
 import { FilesPage } from './components/FilesPage'
 import { MemoryPage } from './components/MemoryPage'
 import { TasksPage } from './components/TasksPage'
+import { ArtifactsPage } from './components/ArtifactsPage'
 import type { GobbySession } from './hooks/useSessions'
 
 export default function App() {
@@ -232,6 +233,8 @@ export default function App() {
         <TasksPage />
       ) : activeTab === 'memory' ? (
         <MemoryPage />
+      ) : activeTab === 'artifacts' ? (
+        <ArtifactsPage />
       ) : (
         <ComingSoonPage title={navItems.find(i => i.id === activeTab)?.label ?? activeTab} />
       )}
