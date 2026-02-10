@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import type { GobbyTask, GobbyTaskDetail, DependencyTree } from '../../hooks/useTasks'
 import { StatusBadge, PriorityBadge, TypeBadge, StatusDot } from './TaskBadges'
+import { ReasoningTimeline } from './ReasoningTimeline'
 
 interface TaskActions {
   updateTask: (id: string, params: { status?: string }) => Promise<GobbyTaskDetail | null>
@@ -141,6 +142,12 @@ export function TaskDetail({ taskId, getTask, getDependencies, getSubtasks, acti
                   </div>
                 </div>
               )}
+            </div>
+
+            {/* Reasoning Timeline */}
+            <div className="task-detail-section">
+              <h4 className="task-detail-section-title">Timeline</h4>
+              <ReasoningTimeline task={task} />
             </div>
 
             {/* Dependencies: Blocked By */}
