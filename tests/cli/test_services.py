@@ -1,8 +1,13 @@
 """Tests for mem0 docker-compose bundle and lifecycle utilities."""
 
-import yaml
-import pytest
 from pathlib import Path
+from unittest.mock import patch
+
+import httpx
+import pytest
+import yaml
+
+from gobby.cli.services import get_mem0_status, is_mem0_healthy, is_mem0_installed
 
 
 COMPOSE_FILE = Path(__file__).resolve().parents[2] / "src" / "gobby" / "data" / "docker-compose.mem0.yml"
@@ -85,3 +90,68 @@ class TestDockerComposeMem0:
         assert "data/" in content or "data/*" in content or "data/**" in content, (
             "data/ not registered in pyproject.toml package-data"
         )
+
+
+class TestIsMem0Installed:
+    """Tests for is_mem0_installed()."""
+
+    def test_installed_when_dir_exists(self, tmp_path: Path) -> None:
+        svc_dir = tmp_path / "services" / "mem0"
+        svc_dir.mkdir(parents=True)
+        assert is_mem0_installed(gobby_home=tmp_path) is True
+
+    def test_not_installed_when_dir_missing(self, tmp_path: Path) -> None:
+        assert is_mem0_installed(gobby_home=tmp_path) is False
+
+
+class TestIsMem0Healthy:
+    """Tests for is_mem0_healthy()."""
+
+    def test_healthy_when_reachable(self) -> None:
+        with patch("httpx.get") as mock_get:
+            mock_get.return_value = httpx.Response(200)
+            assert is_mem0_healthy("http://localhost:8888") is True
+
+    def test_unhealthy_when_unreachable(self) -> None:
+        with patch("httpx.get", side_effect=httpx.ConnectError("refused")):
+            assert is_mem0_healthy("http://localhost:8888") is False
+
+    def test_unhealthy_when_server_error(self) -> None:
+        with patch("httpx.get") as mock_get:
+            mock_get.return_value = httpx.Response(500)
+            assert is_mem0_healthy("http://localhost:8888") is False
+
+    def test_unhealthy_when_no_url(self) -> None:
+        assert is_mem0_healthy(None) is False
+
+
+class TestGetMem0Status:
+    """Tests for get_mem0_status()."""
+
+    def test_status_installed_and_healthy(self, tmp_path: Path) -> None:
+        svc_dir = tmp_path / "services" / "mem0"
+        svc_dir.mkdir(parents=True)
+        with patch("httpx.get") as mock_get:
+            mock_get.return_value = httpx.Response(200)
+            status = get_mem0_status(
+                gobby_home=tmp_path, mem0_url="http://localhost:8888"
+            )
+        assert status["installed"] is True
+        assert status["healthy"] is True
+        assert status["url"] == "http://localhost:8888"
+
+    def test_status_not_installed(self, tmp_path: Path) -> None:
+        status = get_mem0_status(gobby_home=tmp_path, mem0_url=None)
+        assert status["installed"] is False
+        assert status["healthy"] is False
+        assert status["url"] is None
+
+    def test_status_installed_but_unhealthy(self, tmp_path: Path) -> None:
+        svc_dir = tmp_path / "services" / "mem0"
+        svc_dir.mkdir(parents=True)
+        with patch("httpx.get", side_effect=httpx.ConnectError("refused")):
+            status = get_mem0_status(
+                gobby_home=tmp_path, mem0_url="http://localhost:8888"
+            )
+        assert status["installed"] is True
+        assert status["healthy"] is False
