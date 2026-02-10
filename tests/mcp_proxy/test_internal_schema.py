@@ -71,6 +71,86 @@ def test_decorator_resolves_stringified_annotations() -> None:
     assert props["metadata"]["type"] == "object"
 
 
+# --- _coerce_args tests ---
+
+
+def test_coerce_integer_from_string() -> None:
+    """String values should be coerced to int when schema says integer."""
+    schema = {"properties": {"limit": {"type": "integer"}}}
+    result = InternalToolRegistry._coerce_args({"limit": "5"}, schema)
+    assert result["limit"] == 5
+    assert isinstance(result["limit"], int)
+
+
+def test_coerce_number_from_string() -> None:
+    """String values should be coerced to float when schema says number."""
+    schema = {"properties": {"threshold": {"type": "number"}}}
+    result = InternalToolRegistry._coerce_args({"threshold": "0.7"}, schema)
+    assert result["threshold"] == 0.7
+    assert isinstance(result["threshold"], float)
+
+
+def test_coerce_boolean_from_string() -> None:
+    """String values should be coerced to bool when schema says boolean."""
+    schema = {"properties": {"enabled": {"type": "boolean"}}}
+    assert InternalToolRegistry._coerce_args({"enabled": "true"}, schema)["enabled"] is True
+    assert InternalToolRegistry._coerce_args({"enabled": "false"}, schema)["enabled"] is False
+    assert InternalToolRegistry._coerce_args({"enabled": "1"}, schema)["enabled"] is True
+    assert InternalToolRegistry._coerce_args({"enabled": "0"}, schema)["enabled"] is False
+
+
+def test_coerce_array_from_csv_string() -> None:
+    """Comma-separated string should be coerced to list when schema says array."""
+    schema = {"properties": {"tags": {"type": "array"}}}
+    result = InternalToolRegistry._coerce_args({"tags": "a,b,c"}, schema)
+    assert result["tags"] == ["a", "b", "c"]
+
+
+def test_coerce_array_from_json_string() -> None:
+    """JSON array string should be coerced to list when schema says array."""
+    schema = {"properties": {"tags": {"type": "array"}}}
+    result = InternalToolRegistry._coerce_args({"tags": '["a", "b"]'}, schema)
+    assert result["tags"] == ["a", "b"]
+
+
+def test_coerce_skips_non_string_values() -> None:
+    """Values that are already the correct type should pass through."""
+    schema = {"properties": {"limit": {"type": "integer"}, "tags": {"type": "array"}}}
+    result = InternalToolRegistry._coerce_args({"limit": 10, "tags": ["a"]}, schema)
+    assert result["limit"] == 10
+    assert result["tags"] == ["a"]
+
+
+def test_coerce_skips_string_type() -> None:
+    """String values for string-typed params should not be modified."""
+    schema = {"properties": {"query": {"type": "string"}}}
+    result = InternalToolRegistry._coerce_args({"query": "hello"}, schema)
+    assert result["query"] == "hello"
+
+
+def test_coerce_handles_invalid_value_gracefully() -> None:
+    """Invalid values should pass through without raising."""
+    schema = {"properties": {"limit": {"type": "integer"}}}
+    result = InternalToolRegistry._coerce_args({"limit": "not_a_number"}, schema)
+    assert result["limit"] == "not_a_number"
+
+
+@pytest.mark.asyncio
+async def test_call_coerces_string_args_to_declared_types() -> None:
+    """End-to-end: call() should coerce string args before invoking the function."""
+    registry = InternalToolRegistry(name="test-registry")
+
+    @registry.tool(name="search", description="Search")
+    def search(query: str, limit: int = 10, threshold: float = 0.5) -> dict[str, Any]:
+        return {"query": query, "limit": limit, "threshold": threshold}
+
+    result = await registry.call("search", {"query": "test", "limit": "5", "threshold": "0.7"})
+    assert result["limit"] == 5
+    assert isinstance(result["limit"], int)
+    assert result["threshold"] == 0.7
+    assert isinstance(result["threshold"], float)
+
+
 def test_decorator_required_vs_optional() -> None:
     """Parameters without defaults should be required."""
     registry = InternalToolRegistry(name="test-registry")

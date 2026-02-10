@@ -184,6 +184,49 @@ class InternalToolRegistry:
 
         return decorator
 
+    @staticmethod
+    def _coerce_args(args: dict[str, Any], schema: dict[str, Any]) -> dict[str, Any]:
+        """Coerce string arguments to their declared schema types.
+
+        MCP arguments may arrive as strings even when the schema declares
+        integer, number, boolean, or array types. This method converts
+        them based on the tool's input_schema.
+        """
+        properties = schema.get("properties", {})
+        coerced = {}
+        for key, value in args.items():
+            prop = properties.get(key, {})
+            declared_type = prop.get("type")
+
+            if not isinstance(value, str) or declared_type is None or declared_type == "string":
+                coerced[key] = value
+                continue
+
+            try:
+                if declared_type == "integer":
+                    coerced[key] = int(value)
+                elif declared_type == "number":
+                    coerced[key] = float(value)
+                elif declared_type == "boolean":
+                    coerced[key] = value.lower() in ("true", "1", "yes")
+                elif declared_type == "array":
+                    import json
+
+                    try:
+                        coerced[key] = json.loads(value)
+                    except (json.JSONDecodeError, ValueError):
+                        coerced[key] = [s.strip() for s in value.split(",") if s.strip()]
+                elif declared_type == "object":
+                    import json
+
+                    coerced[key] = json.loads(value)
+                else:
+                    coerced[key] = value
+            except (ValueError, TypeError):
+                coerced[key] = value
+
+        return coerced
+
     async def call(self, name: str, args: dict[str, Any]) -> Any:
         """
         Call a tool by name with the given arguments.
@@ -204,10 +247,13 @@ class InternalToolRegistry:
             available = ", ".join(self._tools.keys())
             raise ValueError(f"Tool '{name}' not found on '{self.name}'. Available: {available}")
 
+        # Coerce string arguments to declared schema types
+        coerced_args = self._coerce_args(args, tool.input_schema)
+
         # Call the function (handle both sync and async)
         if inspect.iscoroutinefunction(tool.func):
-            return await tool.func(**args)
-        return tool.func(**args)
+            return await tool.func(**coerced_args)
+        return tool.func(**coerced_args)
 
     def list_tools(self) -> list[dict[str, str]]:
         """
