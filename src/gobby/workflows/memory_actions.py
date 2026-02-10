@@ -354,6 +354,7 @@ async def handle_memory_extraction_gate(
     return await memory_extraction_gate(
         memory_manager=context.memory_manager,
         session_id=context.session_id,
+        session_manager=context.session_manager,
         state=context.state,
     )
 
@@ -361,6 +362,7 @@ async def handle_memory_extraction_gate(
 async def memory_extraction_gate(
     memory_manager: Any,
     session_id: str,
+    session_manager: Any | None = None,
     state: Any | None = None,
 ) -> dict[str, Any] | None:
     """Memory extraction stop-gate logic.
@@ -371,6 +373,7 @@ async def memory_extraction_gate(
     Args:
         memory_manager: The memory manager instance
         session_id: Current session ID
+        session_manager: Session manager for resolving #N refs
         state: WorkflowState for tracking extraction status
 
     Returns:
@@ -387,6 +390,16 @@ async def memory_extraction_gate(
     if variables.get("memories_extracted"):
         return None
 
+    # Resolve session ref: prefer #N format, fall back to UUID
+    session_ref = session_id
+    if session_manager:
+        try:
+            session = session_manager.get(session_id)
+            if session and session.seq_num:
+                session_ref = f"#{session.seq_num}"
+        except Exception:
+            pass
+
     reason = (
         "Before stopping, review your work this session and save any valuable memories.\n"
         "\n"
@@ -401,7 +414,7 @@ async def memory_extraction_gate(
         "\n"
         "If you learned nothing new this session, that's fine.\n"
         "**When done**, call:\n"
-        f'`set_variable(name="memories_extracted", value=true, session_id="{session_id}")`'
+        f'`set_variable(name="memories_extracted", value=true, session_id="{session_ref}")` on gobby-workflows'
     )
 
     logger.info(f"memory_extraction_gate: Blocking stop for session {session_id}")

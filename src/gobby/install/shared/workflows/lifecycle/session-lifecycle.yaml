@@ -70,7 +70,8 @@ triggers:
       reason: |
         You must triage pre-existing issues before stopping.
         - If you found errors, warnings, or failures unrelated to your changes, create a task for each one.
-        - If you found no pre-existing issues, confirm by calling:
+        - If you found no pre-existing issues, confirm by calling
+          set_variable on gobby-workflows:
           set_variable(name="pre_existing_errors_triaged", value=true, session_id="<session_id>")
 
     # Task closure enforcement - block stop if task is still in_progress
@@ -194,7 +195,8 @@ triggers:
         build failures, deprecation warnings) unrelated to your changes — you
         MUST create a gobby task for each distinct issue before stopping.
 
-        After triaging all issues (or confirming none were found), call:
+        After triaging all issues (or confirming none were found), call
+        set_variable on gobby-workflows:
         set_variable(name="pre_existing_errors_triaged", value=true, session_id="<session_id>")
 
   on_before_agent:
