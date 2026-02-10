@@ -30,7 +30,8 @@ const COLUMNS: KanbanColumnDef[] = [
 const NEXT_STATUS: Record<string, string> = {
   open: 'in_progress',
   in_progress: 'needs_review',
-  needs_review: 'closed',
+  needs_review: 'approved',
+  approved: 'closed',
 }
 
 const BLOCKED_STATUSES = new Set(['failed', 'escalated'])
