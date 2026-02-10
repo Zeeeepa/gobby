@@ -3,26 +3,8 @@ import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter'
 import { oneDark } from 'react-syntax-highlighter/dist/esm/styles/prism'
 import { useArtifacts } from '../hooks/useArtifacts'
 import type { GobbyArtifact, ArtifactFilters } from '../hooks/useArtifacts'
+import { ArtifactTypeBadge, getTypeMeta } from './artifacts/ArtifactIcons'
 import './ArtifactsPage.css'
-
-// =============================================================================
-// Helpers
-// =============================================================================
-
-const ARTIFACT_TYPE_META: Record<string, { label: string; color: string }> = {
-  code: { label: 'Code', color: '#3b82f6' },
-  error: { label: 'Error', color: '#ef4444' },
-  diff: { label: 'Diff', color: '#f59e0b' },
-  file_path: { label: 'File', color: '#8b5cf6' },
-  structured_data: { label: 'Data', color: '#06b6d4' },
-  text: { label: 'Text', color: '#6b7280' },
-  plan: { label: 'Plan', color: '#10b981' },
-  command_output: { label: 'Output', color: '#f97316' },
-}
-
-function getTypeMeta(type: string) {
-  return ARTIFACT_TYPE_META[type] ?? { label: type, color: '#6b7280' }
-}
 
 function getLanguageFromMetadata(artifact: GobbyArtifact): string {
   const meta = artifact.metadata
@@ -98,18 +80,6 @@ const codeTheme = {
 // Sub-components
 // =============================================================================
 
-function TypeBadge({ type }: { type: string }) {
-  const meta = getTypeMeta(type)
-  return (
-    <span
-      className="artifact-type-badge"
-      style={{ borderColor: meta.color, color: meta.color }}
-    >
-      {meta.label}
-    </span>
-  )
-}
-
 function ArtifactListItem({
   artifact,
   isSelected,
@@ -125,7 +95,7 @@ function ArtifactListItem({
       onClick={onClick}
     >
       <div className="artifact-list-item-header">
-        <TypeBadge type={artifact.artifact_type} />
+        <ArtifactTypeBadge type={artifact.artifact_type} />
         <span className="artifact-list-item-time">
           {formatRelativeDate(artifact.created_at)}
         </span>
@@ -186,7 +156,7 @@ function ArtifactDetail({
     <div className="artifact-detail">
       <div className="artifact-detail-header">
         <div className="artifact-detail-title-row">
-          <TypeBadge type={artifact.artifact_type} />
+          <ArtifactTypeBadge type={artifact.artifact_type} />
           <h3 className="artifact-detail-title">
             {artifact.title ?? 'Untitled Artifact'}
           </h3>
