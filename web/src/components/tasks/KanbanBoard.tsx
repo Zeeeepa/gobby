@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { draggable, dropTargetForElements, monitorForElements } from '@atlaskit/pragmatic-drag-and-drop/element/adapter'
 import type { GobbyTask } from '../../hooks/useTasks'
 import { StatusDot, PriorityBadge, TypeBadge, BlockedIndicator, PRIORITY_STYLES } from './TaskBadges'
@@ -33,6 +33,78 @@ const NEXT_STATUS: Record<string, string> = {
 }
 
 const BLOCKED_STATUSES = new Set(['failed', 'escalated'])
+
+// =============================================================================
+// Swimlane grouping
+// =============================================================================
+
+type SwimlaneModeType = 'none' | 'assignee' | 'priority' | 'parent'
+
+interface Swimlane {
+  key: string
+  label: string
+  tasks: GobbyTask[]
+}
+
+const PRIORITY_LABELS: Record<number, string> = {
+  0: 'Critical',
+  1: 'High',
+  2: 'Medium',
+  3: 'Low',
+  4: 'Backlog',
+}
+
+function groupIntoSwimlanes(tasks: GobbyTask[], mode: SwimlaneModeType): Swimlane[] {
+  if (mode === 'none') return [{ key: '_all', label: '', tasks }]
+
+  const groups = new Map<string, GobbyTask[]>()
+
+  for (const task of tasks) {
+    let key: string
+    if (mode === 'assignee') {
+      key = task.assignee || '_unassigned'
+    } else if (mode === 'priority') {
+      key = String(task.priority)
+    } else {
+      key = task.parent_task_id || '_root'
+    }
+    if (!groups.has(key)) groups.set(key, [])
+    groups.get(key)!.push(task)
+  }
+
+  const lanes: Swimlane[] = []
+
+  if (mode === 'priority') {
+    // Fixed order by priority level
+    for (let p = 0; p <= 4; p++) {
+      const key = String(p)
+      if (groups.has(key)) {
+        lanes.push({ key, label: PRIORITY_LABELS[p] || `P${p}`, tasks: groups.get(key)! })
+      }
+    }
+  } else if (mode === 'assignee') {
+    // Unassigned first, then by assignee
+    if (groups.has('_unassigned')) {
+      lanes.push({ key: '_unassigned', label: 'Unassigned', tasks: groups.get('_unassigned')! })
+      groups.delete('_unassigned')
+    }
+    for (const [key, tasks] of groups) {
+      lanes.push({ key, label: key.slice(0, 12), tasks })
+    }
+  } else {
+    // Parent: root tasks first
+    if (groups.has('_root')) {
+      lanes.push({ key: '_root', label: 'No Parent', tasks: groups.get('_root')! })
+      groups.delete('_root')
+    }
+    for (const [key, tasks] of groups) {
+      const parentRef = tasks[0]?.path_cache?.split('.')[0] || key.slice(0, 8)
+      lanes.push({ key, label: `Parent ${parentRef}`, tasks })
+    }
+  }
+
+  return lanes
+}
 
 // =============================================================================
 // KanbanCard (draggable + hover actions)
@@ -176,7 +248,24 @@ interface KanbanBoardProps {
   onUpdateStatus?: (taskId: string, newStatus: string) => void
 }
 
+function groupByColumn(tasks: GobbyTask[]): Map<string, GobbyTask[]> {
+  const grouped = new Map<string, GobbyTask[]>()
+  for (const col of COLUMNS) {
+    grouped.set(col.key, [])
+  }
+  for (const task of tasks) {
+    const col = COLUMNS.find(c => c.statuses.includes(task.status))
+    if (col) {
+      grouped.get(col.key)!.push(task)
+    }
+  }
+  return grouped
+}
+
 export function KanbanBoard({ tasks, onSelectTask, onUpdateStatus }: KanbanBoardProps) {
+  const [swimlaneMode, setSwimlaneMode] = useState<SwimlaneModeType>('none')
+  const [collapsedLanes, setCollapsedLanes] = useState<Set<string>>(new Set())
+
   // Monitor for drops globally
   useEffect(() => {
     if (!onUpdateStatus) return
@@ -200,29 +289,63 @@ export function KanbanBoard({ tasks, onSelectTask, onUpdateStatus }: KanbanBoard
     })
   }, [onUpdateStatus])
 
-  // Group tasks by column
-  const grouped = new Map<string, GobbyTask[]>()
-  for (const col of COLUMNS) {
-    grouped.set(col.key, [])
-  }
-  for (const task of tasks) {
-    const col = COLUMNS.find(c => c.statuses.includes(task.status))
-    if (col) {
-      grouped.get(col.key)!.push(task)
-    }
+  const swimlanes = useMemo(() => groupIntoSwimlanes(tasks, swimlaneMode), [tasks, swimlaneMode])
+
+  const toggleLane = (key: string) => {
+    setCollapsedLanes(prev => {
+      const next = new Set(prev)
+      if (next.has(key)) next.delete(key)
+      else next.add(key)
+      return next
+    })
   }
 
   return (
-    <div className="kanban-board">
-      {COLUMNS.map(col => (
-        <KanbanColumnComponent
-          key={col.key}
-          col={col}
-          tasks={grouped.get(col.key) || []}
-          onSelectTask={onSelectTask}
-          onUpdateStatus={onUpdateStatus}
-        />
-      ))}
+    <div className="kanban-wrapper">
+      {/* Swimlane toolbar */}
+      <div className="kanban-toolbar">
+        <span className="kanban-toolbar-label">Group by:</span>
+        {(['none', 'assignee', 'priority', 'parent'] as const).map(mode => (
+          <button
+            key={mode}
+            className={`kanban-toolbar-btn ${swimlaneMode === mode ? 'active' : ''}`}
+            onClick={() => { setSwimlaneMode(mode); setCollapsedLanes(new Set()) }}
+          >
+            {mode === 'none' ? 'None' : mode.charAt(0).toUpperCase() + mode.slice(1)}
+          </button>
+        ))}
+      </div>
+
+      {/* Board with optional swimlanes */}
+      {swimlanes.map(lane => {
+        const isCollapsed = collapsedLanes.has(lane.key)
+        const grouped = groupByColumn(lane.tasks)
+
+        return (
+          <div key={lane.key} className="kanban-swimlane">
+            {swimlaneMode !== 'none' && (
+              <button className="kanban-swimlane-header" onClick={() => toggleLane(lane.key)}>
+                <span className="kanban-swimlane-chevron">{isCollapsed ? '\u25B8' : '\u25BE'}</span>
+                <span className="kanban-swimlane-label">{lane.label}</span>
+                <span className="kanban-swimlane-count">{lane.tasks.length}</span>
+              </button>
+            )}
+            {!isCollapsed && (
+              <div className="kanban-board">
+                {COLUMNS.map(col => (
+                  <KanbanColumnComponent
+                    key={col.key}
+                    col={col}
+                    tasks={grouped.get(col.key) || []}
+                    onSelectTask={onSelectTask}
+                    onUpdateStatus={onUpdateStatus}
+                  />
+                ))}
+              </div>
+            )}
+          </div>
+        )
+      })}
     </div>
   )
 }
