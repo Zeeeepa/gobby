@@ -2,6 +2,7 @@ import { test } from "@playwright/test";
 
 test("screenshot terminal ANSI colors", async ({ page }) => {
   await page.goto("/");
+  await page.click(".hamburger-button");
   await page.click("text=Terminals");
   await page.waitForSelector(".terminals-page");
   await page.waitForTimeout(2000);
