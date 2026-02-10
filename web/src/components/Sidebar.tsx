@@ -1,7 +1,10 @@
+import React from 'react'
+
 interface NavItem {
   id: string
   label: string
   icon: React.ReactNode
+  separator?: boolean
 }
 
 interface SidebarProps {
@@ -19,17 +22,19 @@ export function Sidebar({ items, activeItem, isOpen, onItemSelect, onClose }: Si
       <nav className={`sidebar ${isOpen ? 'open' : ''}`}>
         <div className="sidebar-nav">
           {items.map((item) => (
-            <button
-              key={item.id}
-              className={`sidebar-item ${activeItem === item.id ? 'active' : ''}`}
-              onClick={() => {
-                onItemSelect(item.id)
-                onClose()
-              }}
-            >
-              <span className="sidebar-item-icon">{item.icon}</span>
-              <span className="sidebar-item-label">{item.label}</span>
-            </button>
+            <React.Fragment key={item.id}>
+              {item.separator && <hr className="sidebar-separator" />}
+              <button
+                className={`sidebar-item ${activeItem === item.id ? 'active' : ''}`}
+                onClick={() => {
+                  onItemSelect(item.id)
+                  onClose()
+                }}
+              >
+                <span className="sidebar-item-icon">{item.icon}</span>
+                <span className="sidebar-item-label">{item.label}</span>
+              </button>
+            </React.Fragment>
           ))}
         </div>
       </nav>
