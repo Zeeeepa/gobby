@@ -5,6 +5,7 @@ import { StatusDot, PriorityBadge, TypeBadge } from './tasks/TaskBadges'
 import { TaskDetail } from './tasks/TaskDetail'
 import { TaskCreateForm } from './tasks/TaskCreateForm'
 import { KanbanBoard } from './tasks/KanbanBoard'
+import { TaskTree } from './tasks/TaskTree'
 
 // =============================================================================
 // Constants
@@ -230,6 +231,8 @@ export function TasksPage() {
           onSelectTask={setSelectedTaskId}
           onUpdateStatus={(taskId, newStatus) => updateTask(taskId, { status: newStatus })}
         />
+      ) : viewMode === 'tree' ? (
+        <TaskTree tasks={tasks} onSelectTask={setSelectedTaskId} />
       ) : (
         <div className="tasks-table-container">
           <table className="tasks-table">

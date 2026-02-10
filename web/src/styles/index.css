@@ -5416,3 +5416,65 @@ body {
 .kanban-column--drag-over .kanban-column-body {
   min-height: 60px;
 }
+
+/* ==========================================================================
+   Task Tree View
+   ========================================================================== */
+
+.task-tree-container {
+  flex: 1;
+  overflow: hidden;
+}
+
+.tree-node {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0 0.5rem;
+  height: 100%;
+  cursor: pointer;
+  transition: background 0.1s;
+  font-size: calc(var(--font-size-base) * 0.85);
+}
+
+.tree-node:hover {
+  background: var(--bg-tertiary);
+}
+
+.tree-node--selected {
+  background: rgba(59, 130, 246, 0.08);
+}
+
+.tree-node-toggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1rem;
+  height: 1rem;
+  flex-shrink: 0;
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  font-size: calc(var(--font-size-base) * 0.75);
+  padding: 0;
+}
+
+.tree-node-toggle--leaf {
+  cursor: default;
+}
+
+.tree-node-ref {
+  font-family: var(--font-mono);
+  font-size: calc(var(--font-size-base) * 0.7);
+  color: var(--text-muted);
+  flex-shrink: 0;
+}
+
+.tree-node-title {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--text-primary);
+}
