@@ -960,14 +960,22 @@ DEFAULT_MCP_SERVERS: list[dict[str, Any]] = [
         "optional_env_args": {"CONTEXT7_API_KEY": ["--api-key", "${CONTEXT7_API_KEY}"]},  # nosec B105
         "description": "Context7 library documentation lookup (set CONTEXT7_API_KEY for private repos)",
     },
+    {
+        "name": "playwright",
+        "transport": "stdio",
+        "command": "npx",
+        "args": ["-y", "@anthropic/mcp-server-playwright"],
+        "description": "Playwright browser automation for testing",
+    },
 ]
 
 
 def install_default_mcp_servers() -> dict[str, Any]:
     """Install default external MCP servers to ~/.gobby/.mcp.json.
 
-    Adds GitHub, Linear, and context7 MCP servers if not already configured.
-    These servers pull API keys from environment variables.
+    Adds default MCP servers (GitHub, Linear, context7, playwright) if not
+    already configured. Also syncs to the database so the daemon proxy can
+    serve them. These servers pull API keys from environment variables.
 
     Returns:
         Dict with 'success', 'servers_added', 'servers_skipped', and 'error' keys
@@ -1036,6 +1044,19 @@ def install_default_mcp_servers() -> dict[str, Any]:
         except OSError as e:
             result["error"] = f"Failed to write MCP config: {e}"
             return result
+
+    # Sync .mcp.json to database so the daemon proxy can serve them
+    try:
+        from gobby.storage.database import LocalDatabase
+        from gobby.storage.mcp import LocalMCPManager
+
+        db = LocalDatabase()
+        mcp_db = LocalMCPManager(db)
+        imported = mcp_db.import_from_mcp_json(mcp_config_path, project_id="global")
+        if imported:
+            logger.info(f"Synced {imported} MCP servers to database")
+    except Exception as e:
+        logger.warning(f"Failed to sync MCP servers to database: {e}")
 
     result["success"] = True
     return result
