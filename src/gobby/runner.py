@@ -253,20 +253,21 @@ class GobbyRunner:
         )
 
         # Cron Scheduler (background jobs for recurring tasks)
+        self.cron_storage: CronJobStorage | None = None
         self.cron_scheduler: CronScheduler | None = None
         try:
             from gobby.scheduler.executor import CronExecutor
             from gobby.scheduler.scheduler import CronScheduler
             from gobby.storage.cron import CronJobStorage
 
-            cron_storage = CronJobStorage(self.database)
+            self.cron_storage = CronJobStorage(self.database)
             cron_executor = CronExecutor(
-                storage=cron_storage,
+                storage=self.cron_storage,
                 agent_runner=self.agent_runner,
                 pipeline_executor=self.pipeline_executor,
             )
             self.cron_scheduler = CronScheduler(
-                storage=cron_storage,
+                storage=self.cron_storage,
                 executor=cron_executor,
                 config=self.config.cron,
             )
@@ -299,6 +300,8 @@ class GobbyRunner:
             pipeline_executor=self.pipeline_executor,
             workflow_loader=self.workflow_loader,
             pipeline_execution_manager=self.pipeline_execution_manager,
+            cron_storage=self.cron_storage,
+            cron_scheduler=self.cron_scheduler,
         )
 
         self.http_server = HTTPServer(

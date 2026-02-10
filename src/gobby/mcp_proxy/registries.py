@@ -368,6 +368,19 @@ def setup_internal_registries(
         manager.add_registry(pipelines_registry)
         logger.debug("Pipelines registry initialized")
 
+    # Initialize cron registry if database is available
+    if db is not None:
+        try:
+            from gobby.mcp_proxy.tools.cron import create_cron_registry
+            from gobby.storage.cron import CronJobStorage
+
+            cron_storage = CronJobStorage(db)
+            cron_registry = create_cron_registry(cron_storage=cron_storage)
+            manager.add_registry(cron_registry)
+            logger.debug("Cron registry initialized")
+        except Exception as e:
+            logger.debug(f"Cron registry not initialized: {e}")
+
     # Initialize plugins registry if hook_manager_resolver is provided
     if hook_manager_resolver is not None:
         from gobby.mcp_proxy.tools.plugins import create_plugins_registry

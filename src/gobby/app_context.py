@@ -59,6 +59,10 @@ class ServiceContainer:
     workflow_loader: Any | None = None  # WorkflowLoader
     pipeline_execution_manager: Any | None = None  # LocalPipelineExecutionManager
 
+    # Cron Scheduler
+    cron_storage: Any | None = None  # CronJobStorage
+    cron_scheduler: Any | None = None  # CronScheduler
+
     # Context
     project_id: str | None = None
     websocket_server: Any | None = None
