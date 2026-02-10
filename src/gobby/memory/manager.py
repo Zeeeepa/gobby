@@ -43,18 +43,22 @@ class MemoryManager:
         # Pass backend-specific config fields
         if backend_type == "mem0" and hasattr(config, "mem0"):
             mem0_cfg = config.mem0
-            backend_kwargs.update({
-                "api_key": mem0_cfg.api_key,
-                "user_id": mem0_cfg.user_id,
-                "org_id": mem0_cfg.org_id,
-            })
+            backend_kwargs.update(
+                {
+                    "api_key": mem0_cfg.api_key,
+                    "user_id": mem0_cfg.user_id,
+                    "org_id": mem0_cfg.org_id,
+                }
+            )
         elif backend_type == "openmemory" and hasattr(config, "openmemory"):
             om_cfg = config.openmemory
-            backend_kwargs.update({
-                "base_url": om_cfg.base_url,
-                "api_key": om_cfg.api_key,
-                "user_id": om_cfg.user_id,
-            })
+            backend_kwargs.update(
+                {
+                    "base_url": om_cfg.base_url,
+                    "api_key": om_cfg.api_key,
+                    "user_id": om_cfg.user_id,
+                }
+            )
 
         self._backend: MemoryBackendProtocol = get_backend(backend_type, **backend_kwargs)
 
@@ -102,12 +106,12 @@ class MemoryManager:
         """Convert a MemoryRecord from the backend to a Memory for downstream compatibility."""
         return Memory(
             id=record.id,
-            memory_type=record.memory_type,
+            memory_type=record.memory_type,  # type: ignore[arg-type]  # MemoryRecord uses str, Memory uses Literal
             content=record.content,
             created_at=record.created_at.isoformat() if record.created_at else "",
             updated_at=record.updated_at.isoformat() if record.updated_at else "",
             project_id=record.project_id,
-            source_type=record.source_type,
+            source_type=record.source_type,  # type: ignore[arg-type]  # MemoryRecord uses str, Memory uses Literal
             source_session_id=record.source_session_id,
             importance=record.importance,
             access_count=record.access_count,

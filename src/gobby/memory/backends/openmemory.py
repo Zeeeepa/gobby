@@ -473,7 +473,7 @@ class OpenMemoryBackend:
             for record in records:
                 if record.content.strip() == normalized:
                     return record
-        except Exception:
+        except Exception:  # nosec B110 — best-effort duplicate check, failure returns None
             pass
         return None
 

@@ -136,5 +136,5 @@ class TmuxSpawner(TerminalSpawnerBase):
             terminal_type=self.terminal_type.value,
         )
         # Attach tmux_session_name to the result for callers that need it
-        result.tmux_session_name = info.name  # type: ignore[attr-defined]
+        result.tmux_session_name = info.name
         return result

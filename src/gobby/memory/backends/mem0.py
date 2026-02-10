@@ -377,7 +377,7 @@ class Mem0Backend:
                 mem_content = mem0_memory.get("memory", "").strip()
                 if mem_content == normalized:
                     return self._mem0_to_record(mem0_memory)
-        except Exception:
+        except Exception:  # nosec B110 — best-effort duplicate check, failure returns None
             pass
         return None
 

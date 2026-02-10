@@ -219,8 +219,8 @@ class TmuxMixin:
                     stderr=asyncio.subprocess.DEVNULL,
                 )
                 await asyncio.wait_for(proc.wait(), timeout=5.0)
-            except Exception:
-                pass  # Non-critical — status bar is cosmetic
+            except Exception:  # nosec B110 — status bar is cosmetic
+                pass
 
         except Exception as e:
             logger.error(f"Failed to attach tmux session '{session_name}': {e}")

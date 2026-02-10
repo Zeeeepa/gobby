@@ -6,7 +6,7 @@ Provides file tree browsing, reading, and image serving endpoints.
 
 import logging
 import mimetypes
-import subprocess
+import subprocess  # nosec B404 — subprocess needed for git commands
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
@@ -103,7 +103,7 @@ def _get_git_tracked_files(project_path: str) -> set[str] | None:
     """
     try:
         # Get tracked files
-        tracked = subprocess.run(
+        tracked = subprocess.run(  # nosec B603 B607 — hardcoded git command
             ["git", "ls-files"],
             cwd=project_path,
             capture_output=True,
@@ -114,7 +114,7 @@ def _get_git_tracked_files(project_path: str) -> set[str] | None:
             return None
 
         # Get untracked but not ignored files
-        untracked = subprocess.run(
+        untracked = subprocess.run(  # nosec B603 B607 — hardcoded git command
             ["git", "ls-files", "--others", "--exclude-standard"],
             cwd=project_path,
             capture_output=True,
@@ -362,7 +362,7 @@ def create_files_router(server: "HTTPServer") -> APIRouter:
 
         try:
             # Get branch name
-            branch_proc = subprocess.run(
+            branch_proc = subprocess.run(  # nosec B603 B607 — hardcoded git command
                 ["git", "rev-parse", "--abbrev-ref", "HEAD"],
                 cwd=project.repo_path,
                 capture_output=True,
@@ -373,7 +373,7 @@ def create_files_router(server: "HTTPServer") -> APIRouter:
                 result["branch"] = branch_proc.stdout.strip()
 
             # Get file statuses
-            status_proc = subprocess.run(
+            status_proc = subprocess.run(  # nosec B603 B607 — hardcoded git command
                 ["git", "status", "--porcelain"],
                 cwd=project.repo_path,
                 capture_output=True,
@@ -415,7 +415,7 @@ def create_files_router(server: "HTTPServer") -> APIRouter:
         _resolve_safe_path(project.repo_path, path)
 
         try:
-            diff_proc = subprocess.run(
+            diff_proc = subprocess.run(  # nosec B603 B607 — hardcoded git command
                 ["git", "diff", "HEAD", "--", path],
                 cwd=project.repo_path,
                 capture_output=True,

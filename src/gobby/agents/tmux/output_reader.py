@@ -218,7 +218,7 @@ class TmuxOutputReader:
                 try:
                     data = await loop.run_in_executor(
                         None,
-                        lambda: os.read(fd, 4096),  # type: ignore[arg-type]
+                        lambda: os.read(fd, 4096),
                     )
                 except OSError as e:
                     logger.debug(f"FIFO read error for {run_id}: {e}")
