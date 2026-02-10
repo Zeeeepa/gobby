@@ -8,7 +8,6 @@ import click
 
 from gobby.cli.utils import resolve_project_ref
 from gobby.storage.cron import CronJobStorage
-from gobby.storage.cron_models import CronJob
 from gobby.storage.database import LocalDatabase
 
 

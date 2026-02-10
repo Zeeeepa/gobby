@@ -11,7 +11,7 @@ from datetime import UTC, datetime, timedelta
 from typing import Any
 from zoneinfo import ZoneInfo
 
-from croniter import croniter
+from croniter import croniter  # type: ignore[import-untyped]
 
 from gobby.storage.cron_models import CronJob, CronRun
 from gobby.storage.database import DatabaseProtocol

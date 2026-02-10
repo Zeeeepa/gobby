@@ -75,8 +75,6 @@ Gobby uses progressive disclosure for MCP tools. Use `list_mcp_servers()` to dis
 
 **Never load all schemas upfront** - it wastes your context window.
 
-See skill: **discovering-tools** for the complete pattern.
-
 ## Task Management
 
 Before editing files, create or claim a task:

@@ -36,7 +36,6 @@ skill_profile:
   include_skills:
     - tasks
     - committing-changes
-    - discovering-tools
     - memory
     - bug
     - feat

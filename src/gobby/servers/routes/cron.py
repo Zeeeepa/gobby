@@ -4,7 +4,6 @@ Cron job routes for Gobby HTTP server.
 Provides endpoints for managing cron jobs and viewing run history.
 """
 
-import json
 import logging
 from typing import TYPE_CHECKING, Any
 
