@@ -42,6 +42,7 @@ os.environ["TOKENIZERS_PARALLELISM"] = "false"
 
 # Type hints for pipeline components (imported lazily at runtime)
 if TYPE_CHECKING:
+    from gobby.scheduler.scheduler import CronScheduler
     from gobby.storage.pipelines import LocalPipelineExecutionManager
     from gobby.workflows.loader import WorkflowLoader
     from gobby.workflows.pipeline_executor import PipelineExecutor
@@ -250,6 +251,28 @@ class GobbyRunner:
             db=self.database,
             config=self.config.session_lifecycle,
         )
+
+        # Cron Scheduler (background jobs for recurring tasks)
+        self.cron_scheduler: CronScheduler | None = None
+        try:
+            from gobby.scheduler.executor import CronExecutor
+            from gobby.scheduler.scheduler import CronScheduler
+            from gobby.storage.cron import CronJobStorage
+
+            cron_storage = CronJobStorage(self.database)
+            cron_executor = CronExecutor(
+                storage=cron_storage,
+                agent_runner=self.agent_runner,
+                pipeline_executor=self.pipeline_executor,
+            )
+            self.cron_scheduler = CronScheduler(
+                storage=cron_storage,
+                executor=cron_executor,
+                config=self.config.cron,
+            )
+            logger.debug("CronScheduler initialized")
+        except Exception as e:
+            logger.error(f"Failed to initialize CronScheduler: {e}")
 
         # HTTP Server
         # Bundle services into container
@@ -553,6 +576,10 @@ class GobbyRunner:
             # Start Session Lifecycle Manager
             await self.lifecycle_manager.start()
 
+            # Start Cron Scheduler
+            if self.cron_scheduler:
+                await self.cron_scheduler.start()
+
             # Start periodic metrics cleanup (every 24 hours)
             self._metrics_cleanup_task = asyncio.create_task(
                 self._metrics_cleanup_loop(),
@@ -593,6 +620,12 @@ class GobbyRunner:
                 await asyncio.wait_for(self.lifecycle_manager.stop(), timeout=2.0)
             except TimeoutError:
                 logger.warning("Lifecycle manager shutdown timed out")
+
+            if self.cron_scheduler:
+                try:
+                    await asyncio.wait_for(self.cron_scheduler.stop(), timeout=2.0)
+                except TimeoutError:
+                    logger.warning("Cron scheduler shutdown timed out")
 
             if self.message_processor:
                 try:
