@@ -4471,6 +4471,80 @@ body {
   gap: 0.5rem;
 }
 
+/* Role-based scope toggle */
+
+.task-scope-toggle {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  background: var(--bg-secondary);
+  border-radius: 6px;
+  padding: 2px;
+  margin-left: 4px;
+}
+
+.task-scope-btn {
+  padding: 3px 10px;
+  border: none;
+  border-radius: 4px;
+  background: none;
+  color: var(--text-muted);
+  font-size: calc(var(--font-size-base) * 0.7);
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+  white-space: nowrap;
+}
+
+.task-scope-btn:hover {
+  color: var(--text-primary);
+}
+
+.task-scope-btn.active {
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
+}
+
+.task-scope-identity {
+  margin-left: 4px;
+}
+
+.task-scope-identity-badge {
+  padding: 2px 8px;
+  border: 1px dashed var(--border);
+  border-radius: 4px;
+  background: none;
+  color: var(--accent);
+  font-size: calc(var(--font-size-base) * 0.6);
+  font-family: var(--font-mono);
+  cursor: pointer;
+  white-space: nowrap;
+  max-width: 140px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.task-scope-identity-badge:hover {
+  border-color: var(--accent);
+}
+
+.task-scope-identity-input {
+  padding: 2px 6px;
+  border: 1px solid var(--accent);
+  border-radius: 4px;
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  font-size: calc(var(--font-size-base) * 0.6);
+  font-family: var(--font-mono);
+  width: 160px;
+  outline: none;
+}
+
+.task-scope-identity-input::placeholder {
+  color: var(--text-muted);
+}
+
 .tasks-title {
   font-size: calc(var(--font-size-base) * 1.1);
   font-weight: 600;

@@ -112,6 +112,103 @@ function PlusIcon() {
 }
 
 // =============================================================================
+// Role-based scope
+// =============================================================================
+
+type TaskScope = 'all' | 'mine'
+
+const SCOPE_STORAGE_KEY = 'gobby-task-scope'
+const IDENTITY_STORAGE_KEY = 'gobby-my-identity'
+
+function getStoredScope(): TaskScope {
+  try {
+    const v = localStorage.getItem(SCOPE_STORAGE_KEY)
+    if (v === 'mine') return 'mine'
+  } catch { /* noop */ }
+  return 'all'
+}
+
+function storeScope(scope: TaskScope) {
+  try { localStorage.setItem(SCOPE_STORAGE_KEY, scope) } catch { /* noop */ }
+}
+
+function getStoredIdentity(): string {
+  try { return localStorage.getItem(IDENTITY_STORAGE_KEY) || '' } catch { return '' }
+}
+
+function storeIdentity(id: string) {
+  try { localStorage.setItem(IDENTITY_STORAGE_KEY, id) } catch { /* noop */ }
+}
+
+function matchesIdentity(task: GobbyTask, identity: string): boolean {
+  if (!identity) return false
+  const lower = identity.toLowerCase()
+  // Match by assignee (session ID prefix or full match)
+  if (task.assignee && task.assignee.toLowerCase().includes(lower)) return true
+  // Match by agent_name
+  if (task.agent_name && task.agent_name.toLowerCase().includes(lower)) return true
+  return false
+}
+
+function ScopeToggle({
+  scope,
+  identity,
+  onScopeChange,
+  onIdentityChange,
+}: {
+  scope: TaskScope
+  identity: string
+  onScopeChange: (s: TaskScope) => void
+  onIdentityChange: (id: string) => void
+}) {
+  const [editing, setEditing] = useState(false)
+  const [draft, setDraft] = useState(identity)
+
+  return (
+    <div className="task-scope-toggle">
+      <button
+        className={`task-scope-btn ${scope === 'all' ? 'active' : ''}`}
+        onClick={() => onScopeChange('all')}
+      >
+        All Tasks
+      </button>
+      <button
+        className={`task-scope-btn ${scope === 'mine' ? 'active' : ''}`}
+        onClick={() => onScopeChange('mine')}
+      >
+        My Tasks
+      </button>
+      {scope === 'mine' && (
+        <div className="task-scope-identity">
+          {editing ? (
+            <input
+              className="task-scope-identity-input"
+              value={draft}
+              onChange={e => setDraft(e.target.value)}
+              onBlur={() => { onIdentityChange(draft.trim()); setEditing(false) }}
+              onKeyDown={e => {
+                if (e.key === 'Enter') { onIdentityChange(draft.trim()); setEditing(false) }
+                if (e.key === 'Escape') { setDraft(identity); setEditing(false) }
+              }}
+              placeholder="Session ID or agent name..."
+              autoFocus
+            />
+          ) : (
+            <button
+              className="task-scope-identity-badge"
+              onClick={() => { setDraft(identity); setEditing(true) }}
+              title="Click to change identity"
+            >
+              {identity || 'Set identity...'}
+            </button>
+          )}
+        </div>
+      )}
+    </div>
+  )
+}
+
+// =============================================================================
 // TaskRow
 // =============================================================================
 
@@ -146,6 +243,24 @@ export function TasksPage() {
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null)
   const [showCreateForm, setShowCreateForm] = useState(false)
   const [cloneDefaults, setCloneDefaults] = useState<TaskCreateDefaults | null>(null)
+  const [scope, setScope] = useState<TaskScope>(getStoredScope)
+  const [myIdentity, setMyIdentity] = useState(getStoredIdentity)
+
+  const handleScopeChange = useCallback((s: TaskScope) => {
+    setScope(s)
+    storeScope(s)
+  }, [])
+
+  const handleIdentityChange = useCallback((id: string) => {
+    setMyIdentity(id)
+    storeIdentity(id)
+  }, [])
+
+  // Apply role-based scope filter
+  const scopedTasks = useMemo(() => {
+    if (scope !== 'mine' || !myIdentity) return tasks
+    return tasks.filter(t => matchesIdentity(t, myIdentity))
+  }, [tasks, scope, myIdentity])
 
   const hasActiveFilters = filters.status !== null || filters.priority !== null
     || filters.taskType !== null || filters.assignee !== null
@@ -189,7 +304,13 @@ export function TasksPage() {
       <div className="tasks-toolbar">
         <div className="tasks-toolbar-left">
           <h2 className="tasks-title">Tasks</h2>
-          <span className="tasks-count">{total} total</span>
+          <span className="tasks-count">{scope === 'mine' && myIdentity ? `${scopedTasks.length} of ${total}` : `${total} total`}</span>
+          <ScopeToggle
+            scope={scope}
+            identity={myIdentity}
+            onScopeChange={handleScopeChange}
+            onIdentityChange={handleIdentityChange}
+          />
         </div>
         <div className="tasks-toolbar-right">
           <div className="tasks-view-toggle">
@@ -225,7 +346,7 @@ export function TasksPage() {
 
       {/* Overview cards */}
       <TaskOverview
-        tasks={tasks}
+        tasks={scopedTasks}
         stats={stats}
         activeFilter={filters.status}
         onFilterStatus={status => setFilters(f => ({ ...f, status }))}
@@ -311,45 +432,45 @@ export function TasksPage() {
       {/* Content */}
       {isLoading ? (
         <div className="tasks-loading">Loading tasks...</div>
-      ) : tasks.length === 0 ? (
-        <div className="tasks-empty">No tasks found</div>
+      ) : scopedTasks.length === 0 ? (
+        <div className="tasks-empty">{scope === 'mine' ? 'No tasks matching your identity' : 'No tasks found'}</div>
       ) : viewMode === 'digest' ? (
         <DigestView
-          tasks={tasks}
+          tasks={scopedTasks}
           onSelectTask={setSelectedTaskId}
         />
       ) : viewMode === 'gantt' ? (
         <GanttChart
-          tasks={tasks}
+          tasks={scopedTasks}
           onSelectTask={setSelectedTaskId}
           onReschedule={(taskId, offsetDays) => {
             // Persist position change via sequence_order (offset * 1000 for granularity)
-            const task = tasks.find(t => t.id === taskId)
+            const task = scopedTasks.find(t => t.id === taskId)
             const currentOrder = task?.sequence_order ?? 0
             updateTask(taskId, { sequence_order: currentOrder + offsetDays * 1000 })
           }}
         />
       ) : viewMode === 'audit' ? (
         <AuditLog
-          tasks={tasks}
+          tasks={scopedTasks}
           onSelectTask={setSelectedTaskId}
         />
       ) : viewMode === 'priority' ? (
         <PriorityBoard
-          tasks={tasks}
+          tasks={scopedTasks}
           onSelectTask={setSelectedTaskId}
           onUpdateStatus={(taskId, newStatus) => updateTask(taskId, { status: newStatus })}
         />
       ) : viewMode === 'kanban' ? (
         <KanbanBoard
-          tasks={tasks}
+          tasks={scopedTasks}
           onSelectTask={setSelectedTaskId}
           onUpdateStatus={(taskId, newStatus) => updateTask(taskId, { status: newStatus })}
           onReorder={(taskId, newOrder) => updateTask(taskId, { sequence_order: newOrder })}
         />
       ) : viewMode === 'tree' ? (
         <TaskTree
-          tasks={tasks}
+          tasks={scopedTasks}
           onSelectTask={setSelectedTaskId}
           onReparent={(taskId, newParentId) => updateTask(taskId, { parent_task_id: newParentId || '' })}
         />
@@ -367,7 +488,7 @@ export function TasksPage() {
               </tr>
             </thead>
             <tbody>
-              {tasks.map(task => (
+              {scopedTasks.map(task => (
                 <TaskRow key={task.id} task={task} onSelect={setSelectedTaskId} />
               ))}
             </tbody>
