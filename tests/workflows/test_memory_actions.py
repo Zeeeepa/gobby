@@ -6,7 +6,6 @@ from gobby.memory.manager import MemoryManager
 from gobby.workflows.actions import ActionContext, ActionExecutor
 from gobby.workflows.definitions import WorkflowState
 from gobby.workflows.memory_actions import (
-    _content_fingerprint,
     memory_recall_relevant,
     memory_save,
     memory_sync_export,
@@ -375,29 +374,6 @@ async def test_memory_recall_relevant_respects_kwargs(
 # DIRECT FUNCTION TESTS - Testing memory_actions.py functions directly
 # These tests bypass ActionExecutor to directly test the functions
 # =============================================================================
-
-
-class TestContentFingerprint:
-    """Tests for _content_fingerprint helper function."""
-
-    def test_content_fingerprint_returns_16_char_hash(self) -> None:
-        """Test fingerprint returns a 16 character hex string."""
-        result = _content_fingerprint("test content")
-        assert len(result) == 16
-        assert all(c in "0123456789abcdef" for c in result)
-
-    def test_content_fingerprint_deterministic(self) -> None:
-        """Test fingerprint is deterministic for same input."""
-        content = "some test content here"
-        result1 = _content_fingerprint(content)
-        result2 = _content_fingerprint(content)
-        assert result1 == result2
-
-    def test_content_fingerprint_different_for_different_content(self) -> None:
-        """Test fingerprint differs for different content."""
-        result1 = _content_fingerprint("content A")
-        result2 = _content_fingerprint("content B")
-        assert result1 != result2
 
 
 class TestMemorySyncImportDirect:
