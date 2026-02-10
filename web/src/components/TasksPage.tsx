@@ -1,9 +1,10 @@
-import { useState } from 'react'
+import { useState, useMemo } from 'react'
 import { useTasks } from '../hooks/useTasks'
 import type { GobbyTask } from '../hooks/useTasks'
 import { StatusDot, PriorityBadge, TypeBadge } from './tasks/TaskBadges'
 import { TaskDetail } from './tasks/TaskDetail'
 import { TaskCreateForm } from './tasks/TaskCreateForm'
+import type { TaskCreateDefaults } from './tasks/TaskCreateForm'
 import { KanbanBoard } from './tasks/KanbanBoard'
 import { TaskTree } from './tasks/TaskTree'
 import { PriorityBoard } from './tasks/PriorityBoard'
@@ -124,6 +125,23 @@ export function TasksPage() {
 
   const hasActiveFilters = filters.status !== null || filters.priority !== null
     || filters.taskType !== null || filters.assignee !== null
+
+  // Context-aware defaults for task creation
+  const createDefaults = useMemo((): TaskCreateDefaults => {
+    const defaults: TaskCreateDefaults = {}
+    // Pre-fill type from active filter
+    if (filters.taskType) defaults.taskType = filters.taskType
+    // Pre-fill priority from active filter
+    if (filters.priority !== null) defaults.priority = filters.priority
+    // Pre-fill parent from selected task (if it's an epic/task)
+    if (selectedTaskId) {
+      const selected = tasks.find(t => t.id === selectedTaskId)
+      if (selected && (selected.type === 'epic' || selected.type === 'task')) {
+        defaults.parentTaskId = selectedTaskId
+      }
+    }
+    return defaults
+  }, [filters.taskType, filters.priority, selectedTaskId, tasks])
 
   return (
     <main className="tasks-page">
@@ -314,6 +332,7 @@ export function TasksPage() {
       <TaskCreateForm
         isOpen={showCreateForm}
         tasks={tasks}
+        defaults={createDefaults}
         onSubmit={createTask}
         onClose={() => setShowCreateForm(false)}
       />

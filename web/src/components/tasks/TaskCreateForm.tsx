@@ -1,9 +1,16 @@
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useEffect } from 'react'
 import type { GobbyTask } from '../../hooks/useTasks'
+
+export interface TaskCreateDefaults {
+  taskType?: string
+  priority?: number
+  parentTaskId?: string
+}
 
 interface TaskCreateFormProps {
   isOpen: boolean
   tasks: GobbyTask[]
+  defaults?: TaskCreateDefaults
   onSubmit: (params: CreateTaskParams) => Promise<unknown>
   onClose: () => void
 }
@@ -28,7 +35,7 @@ const PRIORITY_OPTIONS = [
   { value: 4, label: 'Backlog' },
 ]
 
-export function TaskCreateForm({ isOpen, tasks, onSubmit, onClose }: TaskCreateFormProps) {
+export function TaskCreateForm({ isOpen, tasks, defaults, onSubmit, onClose }: TaskCreateFormProps) {
   const [title, setTitle] = useState('')
   const [description, setDescription] = useState('')
   const [taskType, setTaskType] = useState('task')
@@ -37,6 +44,15 @@ export function TaskCreateForm({ isOpen, tasks, onSubmit, onClose }: TaskCreateF
   const [labelsInput, setLabelsInput] = useState('')
   const [validationCriteria, setValidationCriteria] = useState('')
   const [submitting, setSubmitting] = useState(false)
+
+  // Apply defaults when form opens
+  useEffect(() => {
+    if (isOpen && defaults) {
+      if (defaults.taskType) setTaskType(defaults.taskType)
+      if (defaults.priority !== undefined) setPriority(defaults.priority)
+      if (defaults.parentTaskId) setParentTaskId(defaults.parentTaskId)
+    }
+  }, [isOpen, defaults])
 
   const reset = useCallback(() => {
     setTitle('')
