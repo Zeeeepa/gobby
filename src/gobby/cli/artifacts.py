@@ -178,23 +178,29 @@ def timeline(
 def _display_artifact_list(artifacts_list: list[Any]) -> None:
     """Display a list of artifacts in table format."""
     # Header
-    click.echo(f"{'ID':<12} {'Type':<8} {'Source':<20} {'Created':<20}")
-    click.echo("-" * 60)
+    click.echo(f"{'ID':<12} {'Type':<8} {'Title':<30} {'Task':<10} {'Created':<20}")
+    click.echo("-" * 80)
 
     for artifact in artifacts_list:
         artifact_id = artifact.id[:12] if len(artifact.id) > 12 else artifact.id
-        source = artifact.source_file or "-"
-        if len(source) > 18:
-            source = "..." + source[-15:]
+        title = artifact.title or "-"
+        if len(title) > 28:
+            title = title[:25] + "..."
+        task_ref = artifact.task_id[:8] + ".." if artifact.task_id else "-"
         created = artifact.created_at[:19] if artifact.created_at else "-"
-        click.echo(f"{artifact_id:<12} {artifact.artifact_type:<8} {source:<20} {created:<20}")
+        click.echo(f"{artifact_id:<12} {artifact.artifact_type:<8} {title:<30} {task_ref:<10} {created:<20}")
 
 
 def _display_artifact_detail(artifact: Artifact, verbose: bool) -> None:
     """Display a single artifact with optional verbosity."""
     click.echo(f"ID: {artifact.id}")
+    if artifact.title:
+        click.echo(f"Title: {artifact.title}")
     click.echo(f"Type: {artifact.artifact_type}")
     click.echo(f"Session: {artifact.session_id}")
+
+    if artifact.task_id:
+        click.echo(f"Task: {artifact.task_id}")
 
     if artifact.source_file:
         location = artifact.source_file
@@ -205,6 +211,12 @@ def _display_artifact_detail(artifact: Artifact, verbose: bool) -> None:
         click.echo(f"Source: {location}")
 
     click.echo(f"Created: {artifact.created_at}")
+
+    # Show tags
+    manager = get_artifact_manager()
+    tags = manager.get_tags(artifact.id)
+    if tags:
+        click.echo(f"Tags: {', '.join(tags)}")
 
     if verbose and artifact.metadata:
         click.echo(f"Metadata: {json.dumps(artifact.metadata, indent=2)}")
@@ -250,7 +262,12 @@ def _display_content(content: str, artifact_type: str, metadata: dict[str, Any] 
 
 def _display_timeline_entry(artifact: Artifact) -> None:
     """Display a single timeline entry."""
-    click.echo(f"[{artifact.created_at[:19]}] {artifact.artifact_type.upper()}: {artifact.id}")
+    header = f"[{artifact.created_at[:19]}] {artifact.artifact_type.upper()}"
+    if artifact.title:
+        header += f": {artifact.title}"
+    else:
+        header += f": {artifact.id}"
+    click.echo(header)
     if artifact.source_file:
         click.echo(f"  Source: {artifact.source_file}")
 
