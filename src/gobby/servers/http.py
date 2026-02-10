@@ -582,6 +582,7 @@ class HTTPServer:
             create_files_router,
             create_hooks_router,
             create_mcp_router,
+            create_memory_router,
             create_pipelines_router,
             create_plugins_router,
             create_sessions_router,
@@ -591,6 +592,7 @@ class HTTPServer:
         # Include all routers
         app.include_router(create_admin_router(self))
         app.include_router(create_sessions_router(self))
+        app.include_router(create_memory_router(self))
         app.include_router(create_mcp_router())
         app.include_router(create_hooks_router(self))
         app.include_router(create_plugins_router())
