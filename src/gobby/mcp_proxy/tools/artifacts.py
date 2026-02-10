@@ -62,8 +62,14 @@ def create_artifacts_registry(
 
     registry = InternalToolRegistry(
         name="gobby-artifacts",
-        description="Artifact management - search, list, get, timeline",
+        description="Artifact management - search, list, get, save, delete, tag, timeline",
     )
+
+    def _enrich_with_tags(artifact_dicts: list[dict[str, Any]]) -> list[dict[str, Any]]:
+        """Add tags to each artifact dict."""
+        for d in artifact_dicts:
+            d["tags"] = _artifact_manager.get_tags(d["id"])
+        return artifact_dicts
 
     @registry.tool(
         name="search_artifacts",
@@ -73,6 +79,8 @@ def create_artifacts_registry(
         query: str,
         session_id: str | None = None,
         artifact_type: str | None = None,
+        task_id: str | None = None,
+        tag: str | None = None,
         limit: int = 50,
     ) -> dict[str, Any]:
         """
@@ -82,10 +90,12 @@ def create_artifacts_registry(
             query: Search query text
             session_id: Optional session reference (accepts #N, N, UUID, or prefix) to filter by
             artifact_type: Optional artifact type to filter by (code, diff, error, etc.)
+            task_id: Optional task ID to filter by
+            tag: Optional tag to filter by
             limit: Maximum number of results (default: 50)
 
         Returns:
-            Dict with success status and list of matching artifacts
+            Dict with success status and list of matching artifacts with tags
         """
         if not query or not query.strip():
             return {"success": True, "artifacts": [], "count": 0}
@@ -105,10 +115,19 @@ def create_artifacts_registry(
                 artifact_type=artifact_type,
                 limit=limit,
             )
+
+            # Apply post-search filters for task_id and tag
+            if task_id:
+                artifacts = [a for a in artifacts if a.task_id == task_id]
+            if tag:
+                tag_set = {a.id for a in _artifact_manager.list_by_tag(tag)}
+                artifacts = [a for a in artifacts if a.id in tag_set]
+
+            result_dicts = _enrich_with_tags([a.to_dict() for a in artifacts])
             return {
                 "success": True,
-                "artifacts": [a.to_dict() for a in artifacts],
-                "count": len(artifacts),
+                "artifacts": result_dicts,
+                "count": len(result_dicts),
             }
         except Exception as e:
             return {"success": False, "error": str(e), "artifacts": []}
@@ -120,6 +139,8 @@ def create_artifacts_registry(
     def list_artifacts(
         session_id: str | None = None,
         artifact_type: str | None = None,
+        task_id: str | None = None,
+        tag: str | None = None,
         limit: int = 100,
         offset: int = 0,
     ) -> dict[str, Any]:
@@ -129,11 +150,13 @@ def create_artifacts_registry(
         Args:
             session_id: Optional session reference (accepts #N, N, UUID, or prefix) to filter by
             artifact_type: Optional artifact type to filter by
+            task_id: Optional task ID to filter by
+            tag: Optional tag to filter by
             limit: Maximum number of results (default: 100)
             offset: Offset for pagination (default: 0)
 
         Returns:
-            Dict with success status and list of artifacts
+            Dict with success status and list of artifacts with tags
         """
         # Resolve session_id to UUID (accepts #N, N, UUID, or prefix)
         resolved_session_id = session_id
@@ -144,16 +167,30 @@ def create_artifacts_registry(
                 return {"success": False, "error": str(e), "artifacts": []}
 
         try:
-            artifacts = _artifact_manager.list_artifacts(
-                session_id=resolved_session_id,
-                artifact_type=artifact_type,
-                limit=limit,
-                offset=offset,
-            )
+            # If filtering by tag, use list_by_tag and apply other filters
+            if tag:
+                artifacts = _artifact_manager.list_by_tag(tag, limit=limit, offset=offset)
+                if resolved_session_id:
+                    artifacts = [a for a in artifacts if a.session_id == resolved_session_id]
+                if artifact_type:
+                    artifacts = [a for a in artifacts if a.artifact_type == artifact_type]
+                if task_id:
+                    artifacts = [a for a in artifacts if a.task_id == task_id]
+            else:
+                artifacts = _artifact_manager.list_artifacts(
+                    session_id=resolved_session_id,
+                    artifact_type=artifact_type,
+                    limit=limit,
+                    offset=offset,
+                )
+                if task_id:
+                    artifacts = [a for a in artifacts if a.task_id == task_id]
+
+            result_dicts = _enrich_with_tags([a.to_dict() for a in artifacts])
             return {
                 "success": True,
-                "artifacts": [a.to_dict() for a in artifacts],
-                "count": len(artifacts),
+                "artifacts": result_dicts,
+                "count": len(result_dicts),
             }
         except Exception as e:
             return {"success": False, "error": str(e), "artifacts": []}
@@ -180,7 +217,9 @@ def create_artifacts_registry(
                     "error": f"Artifact '{artifact_id}' not found",
                     "artifact": None,
                 }
-            return {"success": True, "artifact": artifact.to_dict()}
+            artifact_dict = artifact.to_dict()
+            artifact_dict["tags"] = _artifact_manager.get_tags(artifact_id)
+            return {"success": True, "artifact": artifact_dict}
         except Exception as e:
             return {"success": False, "error": str(e), "artifact": None}
 
@@ -227,10 +266,11 @@ def create_artifacts_registry(
             )
             # Reverse to get chronological order (oldest first)
             artifacts = list(reversed(artifacts))
+            result_dicts = _enrich_with_tags([a.to_dict() for a in artifacts])
             return {
                 "success": True,
-                "artifacts": [a.to_dict() for a in artifacts],
-                "count": len(artifacts),
+                "artifacts": result_dicts,
+                "count": len(result_dicts),
             }
         except Exception as e:
             return {"success": False, "error": str(e), "artifacts": []}
