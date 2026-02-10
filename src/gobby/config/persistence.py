@@ -139,6 +139,21 @@ class MemoryConfig(BaseModel):
         default=0.4,
         description="Weight for TF-IDF score in hybrid search (0.0-1.0)",
     )
+    mem0_url: str | None = Field(
+        default=None,
+        description=(
+            "Mem0 REST API URL for cloud-based memory sync. "
+            "None means standalone mode (local-only). "
+            "Example: 'https://api.mem0.ai' or 'http://localhost:8888'"
+        ),
+    )
+    mem0_api_key: str | None = Field(
+        default=None,
+        description=(
+            "Mem0 API key for authentication. "
+            "Supports ${ENV_VAR} pattern for env var expansion at load time."
+        ),
+    )
     auto_crossref: bool = Field(
         default=False,
         description="Automatically create cross-references between similar memories",

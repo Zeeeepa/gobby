@@ -552,3 +552,53 @@ class TestMemorySyncConfigFromAppPy:
         config = MemorySyncConfig()
         assert config.enabled is True
         assert config.export_debounce == 5.0
+
+
+class TestMemoryConfigMem0Fields:
+    """Test mem0_url and mem0_api_key fields on MemoryConfig."""
+
+    def test_mem0_url_defaults_to_none(self) -> None:
+        """mem0_url should default to None (standalone mode)."""
+        from gobby.config.persistence import MemoryConfig
+
+        config = MemoryConfig()
+        assert config.mem0_url is None
+
+    def test_mem0_api_key_defaults_to_none(self) -> None:
+        """mem0_api_key should default to None."""
+        from gobby.config.persistence import MemoryConfig
+
+        config = MemoryConfig()
+        assert config.mem0_api_key is None
+
+    def test_mem0_url_accepts_valid_url(self) -> None:
+        """Setting mem0_url to a valid URL should work."""
+        from gobby.config.persistence import MemoryConfig
+
+        config = MemoryConfig(mem0_url="http://localhost:8888")
+        assert config.mem0_url == "http://localhost:8888"
+
+    def test_mem0_api_key_stores_env_var_pattern(self) -> None:
+        """mem0_api_key should store ${ENV_VAR} as-is (expansion at load time)."""
+        from gobby.config.persistence import MemoryConfig
+
+        config = MemoryConfig(mem0_api_key="${MEM0_API_KEY}")
+        assert config.mem0_api_key == "${MEM0_API_KEY}"
+
+    def test_none_mem0_url_means_standalone(self) -> None:
+        """When mem0_url is None, the system operates in standalone mode."""
+        from gobby.config.persistence import MemoryConfig
+
+        config = MemoryConfig(mem0_url=None)
+        assert config.mem0_url is None
+
+    def test_mem0_url_with_api_key(self) -> None:
+        """Both mem0_url and mem0_api_key can be set together."""
+        from gobby.config.persistence import MemoryConfig
+
+        config = MemoryConfig(
+            mem0_url="https://api.mem0.ai",
+            mem0_api_key="sk-test-key",
+        )
+        assert config.mem0_url == "https://api.mem0.ai"
+        assert config.mem0_api_key == "sk-test-key"
