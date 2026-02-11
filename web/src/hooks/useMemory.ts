@@ -350,8 +350,8 @@ export function useMem0Status() {
             setMem0Status(mem0)
           }
         }
-      } catch {
-        // Silently fail - mem0 status is optional
+      } catch (e) {
+        console.warn('Failed to fetch mem0 status:', e)
       }
     }
     fetchStatus()
@@ -375,8 +375,8 @@ export function useNeo4jStatus() {
             setNeo4jStatus(neo4j)
           }
         }
-      } catch {
-        // Silently fail - neo4j status is optional
+      } catch (e) {
+        console.warn('Failed to fetch neo4j status:', e)
       }
     }
     fetchStatus()

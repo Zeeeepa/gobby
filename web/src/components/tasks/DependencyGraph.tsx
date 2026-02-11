@@ -9,8 +9,6 @@ import type { GobbyTask } from '../../hooks/useTasks'
 interface GraphNode {
   id: string
   task: GobbyTask
-  layer: number
-  order: number
   x: number
   y: number
 }
@@ -78,8 +76,6 @@ function buildGraph(tasks: GobbyTask[]): { nodes: GraphNode[]; edges: GraphEdge[
     nodes.push({
       id: task.id,
       task,
-      layer: 0,
-      order: 0,
       x: nodeData.x - NODE_WIDTH / 2,
       y: nodeData.y - NODE_HEIGHT / 2,
     })
@@ -242,7 +238,7 @@ export function DependencyGraph({ tasks, onSelectTask }: DependencyGraphProps) {
         <ArrowDefs />
         <g transform={`translate(${view.x}, ${view.y}) scale(${view.scale})`}>
           {/* Edges */}
-          {edges.map((edge, i) => {
+          {edges.map((edge) => {
             const from = nodeMap.get(edge.from)
             const to = nodeMap.get(edge.to)
             if (!from || !to) return null
@@ -255,7 +251,7 @@ export function DependencyGraph({ tasks, onSelectTask }: DependencyGraphProps) {
             const isHighlighted = hoveredId === edge.from || hoveredId === edge.to
             return (
               <path
-                key={i}
+                key={`${edge.from}-${edge.to}`}
                 d={`M ${x1} ${y1} C ${cx1} ${y1}, ${cx2} ${y2}, ${x2} ${y2}`}
                 fill="none"
                 stroke={isHighlighted ? 'var(--accent)' : 'var(--border)'}
