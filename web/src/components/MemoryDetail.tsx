@@ -1,4 +1,12 @@
+import type { GobbyMemory } from '../hooks/useMemory'
 import { formatRelativeTime, typeLabel } from '../utils/formatTime'
+
+interface MemoryDetailProps {
+  memory: GobbyMemory
+  onEdit: () => void
+  onDelete: () => void
+  onClose: () => void
+}
 
 export function MemoryDetail({ memory, onEdit, onDelete, onClose }: MemoryDetailProps) {
   return (

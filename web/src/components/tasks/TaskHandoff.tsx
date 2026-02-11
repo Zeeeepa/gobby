@@ -208,6 +208,10 @@ export function TaskHandoff({ taskId, currentAssignee, onHandoff }: TaskHandoffP
         />
       </div>
 
+      {error && (
+        <div className="task-handoff-error">{error}</div>
+      )}
+
       {/* Actions */}
       <div className="task-handoff-actions">
         <button

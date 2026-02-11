@@ -5351,6 +5351,14 @@ body {
   color: var(--text-muted);
 }
 
+.task-handoff-error {
+  padding: 0.375rem 0.5rem;
+  border-radius: 0.25rem;
+  background: rgba(239, 68, 68, 0.12);
+  color: #f87171;
+  font-size: calc(var(--font-size-base) * 0.8);
+}
+
 .task-handoff-actions {
   display: flex;
   justify-content: flex-end;
