@@ -132,6 +132,8 @@ export function TaskHandoff({ taskId, currentAssignee, onHandoff }: TaskHandoffP
         <button
           className="task-handoff-form-close"
           onClick={() => { reset(); setIsOpen(false) }}
+          aria-label="Close handoff form"
+          type="button"
         >
           {'\u2715'}
         </button>
@@ -215,12 +217,14 @@ export function TaskHandoff({ taskId, currentAssignee, onHandoff }: TaskHandoffP
       {/* Actions */}
       <div className="task-handoff-actions">
         <button
+          type="button"
           className="task-handoff-cancel"
           onClick={() => { reset(); setIsOpen(false) }}
         >
           Cancel
         </button>
         <button
+          type="button"
           className="task-handoff-submit"
           onClick={handleSubmit}
           disabled={!assignee.trim() || submitting}

@@ -85,13 +85,14 @@ function PriorityCard({
         <TypeBadge type={task.type} />
         <span className="priority-card-status">{task.status.replace(/_/g, ' ')}</span>
         {onUpdateStatus && task.status === 'open' && (
-          <span
+          <button
+            type="button"
             className="priority-card-action"
             title="Start work"
             onClick={e => { e.stopPropagation(); onUpdateStatus(task.id, 'in_progress') }}
           >
             ▶
-          </span>
+          </button>
         )}
       </div>
       <TaskStatusStrip task={task} compact />

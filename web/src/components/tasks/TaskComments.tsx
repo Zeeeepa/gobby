@@ -352,6 +352,8 @@ export function TaskComments({ taskId }: TaskCommentsProps) {
       })
       if (response.ok) {
         fetchComments()
+      } else {
+        console.error('Failed to post comment:', response.status)
       }
     } catch (e) {
       console.error('Failed to post comment:', e)
