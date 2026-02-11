@@ -206,8 +206,8 @@ export function TaskDetail({ taskId, getTask, getDependencies, getSubtasks, acti
                 <div className="task-detail-meta-row">
                   <span className="task-detail-meta-label">Labels</span>
                   <div className="task-detail-labels">
-                    {task.labels.map(l => (
-                      <span key={l} className="task-detail-label">{l}</span>
+                    {task.labels.map((l, i) => (
+                      <span key={`${l}-${i}`} className="task-detail-label">{l}</span>
                     ))}
                   </div>
                 </div>
@@ -267,7 +267,7 @@ export function TaskDetail({ taskId, getTask, getDependencies, getSubtasks, acti
             {task.created_in_session_id && (
               <div className="task-detail-section">
                 <h4 className="task-detail-section-title">Capabilities</h4>
-                <CapabilityScope sessionId={task.created_in_session_id} />
+                <CapabilityScope />
               </div>
             )}
 
@@ -413,7 +413,7 @@ function ValidationSection({ task }: { task: GobbyTaskDetail }) {
         </span>
         {(task.validation_fail_count ?? 0) > 0 && (
           <span className="task-detail-validation-fails">
-            {task.validation_fail_count} failure{task.validation_fail_count !== 1 ? 's' : ''}
+            {task.validation_fail_count ?? 0} failure{(task.validation_fail_count ?? 0) !== 1 ? 's' : ''}
           </span>
         )}
       </div>

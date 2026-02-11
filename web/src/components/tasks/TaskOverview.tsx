@@ -48,7 +48,7 @@ export function TaskOverview({ tasks, stats, activeFilter, onFilterStatus }: Tas
       key: 'recent',
       label: 'Recently Done',
       count: recentlyCompleted,
-      filterStatus: 'closed',
+      filterStatus: 'closed,approved',
       className: 'task-overview-card--recent',
     },
   ]

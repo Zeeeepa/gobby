@@ -93,7 +93,7 @@ function parseEscalation(reason: string | null): ParsedEscalation {
       } else if (consMatch) {
         currentOption.cons.push(...consMatch[1].split(',').map(s => s.trim()).filter(Boolean))
       } else if (confMatch) {
-        currentOption.confidence = parseInt(confMatch[1])
+        currentOption.confidence = parseInt(confMatch[1], 10)
       } else if (line) {
         currentOption.description += (currentOption.description ? ' ' : '') + line
       }

@@ -263,6 +263,14 @@ export function RawTraceView({ sessionId }: RawTraceViewProps) {
     return result
   }, [entries, searchTerm, showErrors])
 
+  function tryParse(str: string): unknown {
+    try {
+      return JSON.parse(str)
+    } catch {
+      return str
+    }
+  }
+
   const handleCopyAll = async () => {
     const allJson = filtered.map(e => ({
       index: e.index,
@@ -272,14 +280,6 @@ export function RawTraceView({ sessionId }: RawTraceViewProps) {
       result: e.result ? tryParse(e.result) : null,
     }))
     await copyToClipboard(JSON.stringify(allJson, null, 2))
-  }
-
-  function tryParse(str: string): unknown {
-    try {
-      return JSON.parse(str)
-    } catch {
-      return str
-    }
   }
 
   if (!sessionId) return null
