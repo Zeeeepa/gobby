@@ -1,4 +1,4 @@
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
@@ -6,7 +6,10 @@ from gobby.memory.manager import MemoryManager
 from gobby.workflows.actions import ActionContext, ActionExecutor
 from gobby.workflows.definitions import WorkflowState
 from gobby.workflows.memory_actions import (
+    memory_extract_from_session,
+    memory_inject_project_context,
     memory_recall_relevant,
+    memory_review_gate,
     memory_save,
     memory_sync_export,
     memory_sync_import,
@@ -1003,3 +1006,443 @@ class TestResetMemoryInjectionTracking:
         )
         assert result3["count"] == 1
         assert result3["injected"] is True
+
+
+# =============================================================================
+# MEMORY REVIEW GATE TESTS
+# =============================================================================
+
+
+class TestMemoryReviewGate:
+    """Tests for memory_review_gate function."""
+
+    @pytest.mark.asyncio
+    async def test_blocks_when_pending_review(self):
+        """Test gate blocks when pending_memory_review is true."""
+        mock_mm = MagicMock()
+        mock_mm.config.enabled = True
+
+        state = WorkflowState(
+            session_id="test-session", workflow_name="test", step="test"
+        )
+        state.variables = {"pending_memory_review": True}
+
+        result = await memory_review_gate(
+            memory_manager=mock_mm,
+            session_id="test-session",
+            state=state,
+        )
+
+        assert result is not None
+        assert result["decision"] == "block"
+        assert "pending_memory_review" in result["reason"]
+
+    @pytest.mark.asyncio
+    async def test_allows_when_no_pending_review(self):
+        """Test gate allows stop when no pending review."""
+        mock_mm = MagicMock()
+        mock_mm.config.enabled = True
+
+        state = WorkflowState(
+            session_id="test-session", workflow_name="test", step="test"
+        )
+        state.variables = {"pending_memory_review": False}
+
+        result = await memory_review_gate(
+            memory_manager=mock_mm,
+            session_id="test-session",
+            state=state,
+        )
+
+        assert result is None
+
+    @pytest.mark.asyncio
+    async def test_allows_when_no_state(self):
+        """Test gate allows stop when state is None."""
+        mock_mm = MagicMock()
+        mock_mm.config.enabled = True
+
+        result = await memory_review_gate(
+            memory_manager=mock_mm,
+            session_id="test-session",
+            state=None,
+        )
+
+        assert result is None
+
+    @pytest.mark.asyncio
+    async def test_allows_when_memory_disabled(self):
+        """Test gate allows stop when memory is disabled."""
+        mock_mm = MagicMock()
+        mock_mm.config.enabled = False
+
+        state = WorkflowState(
+            session_id="test-session", workflow_name="test", step="test"
+        )
+        state.variables = {"pending_memory_review": True}
+
+        result = await memory_review_gate(
+            memory_manager=mock_mm,
+            session_id="test-session",
+            state=state,
+        )
+
+        assert result is None
+
+    @pytest.mark.asyncio
+    async def test_allows_when_no_memory_manager(self):
+        """Test gate allows stop when memory_manager is None."""
+        result = await memory_review_gate(
+            memory_manager=None,
+            session_id="test-session",
+            state=MagicMock(),
+        )
+
+        assert result is None
+
+    @pytest.mark.asyncio
+    async def test_resolves_session_ref(self):
+        """Test gate resolves session #N ref for the nudge message."""
+        mock_mm = MagicMock()
+        mock_mm.config.enabled = True
+
+        mock_sm = MagicMock()
+        mock_session = MagicMock()
+        mock_session.seq_num = 42
+        mock_sm.get.return_value = mock_session
+
+        state = WorkflowState(
+            session_id="test-session", workflow_name="test", step="test"
+        )
+        state.variables = {"pending_memory_review": True}
+
+        result = await memory_review_gate(
+            memory_manager=mock_mm,
+            session_id="test-session",
+            session_manager=mock_sm,
+            state=state,
+        )
+
+        assert result is not None
+        assert "#42" in result["reason"]
+
+
+# =============================================================================
+# MEMORY EXTRACT FROM SESSION TESTS
+# =============================================================================
+
+
+class TestMemoryExtractFromSession:
+    """Tests for memory_extract_from_session function."""
+
+    @pytest.mark.asyncio
+    @patch("gobby.memory.extractor.SessionMemoryExtractor")
+    async def test_extracts_memories(self, mock_extractor_cls):
+        """Test successful memory extraction from session."""
+        mock_mm = MagicMock()
+        mock_mm.config.enabled = True
+
+        mock_sm = MagicMock()
+        mock_llm = MagicMock()
+
+        from gobby.memory.extractor import MemoryCandidate
+
+        candidates = [
+            MemoryCandidate(
+                content="Use uv run for development",
+                memory_type="fact",
+                importance=0.8,
+                tags=["development"],
+            ),
+        ]
+
+        mock_extractor = AsyncMock()
+        mock_extractor.extract.return_value = candidates
+        mock_extractor_cls.return_value = mock_extractor
+
+        result = await memory_extract_from_session(
+            memory_manager=mock_mm,
+            session_manager=mock_sm,
+            llm_service=mock_llm,
+            transcript_processor=None,
+            session_id="test-session",
+        )
+
+        assert result is not None
+        assert result["extracted"] == 1
+        assert len(result["memories"]) == 1
+
+    @pytest.mark.asyncio
+    async def test_returns_error_without_memory_manager(self):
+        """Test returns error when memory_manager is None."""
+        result = await memory_extract_from_session(
+            memory_manager=None,
+            session_manager=MagicMock(),
+            llm_service=MagicMock(),
+            transcript_processor=None,
+            session_id="test-session",
+        )
+
+        assert result is not None
+        assert "error" in result
+
+    @pytest.mark.asyncio
+    async def test_returns_none_when_disabled(self):
+        """Test returns None when memory is disabled."""
+        mock_mm = MagicMock()
+        mock_mm.config.enabled = False
+
+        result = await memory_extract_from_session(
+            memory_manager=mock_mm,
+            session_manager=MagicMock(),
+            llm_service=MagicMock(),
+            transcript_processor=None,
+            session_id="test-session",
+        )
+
+        assert result is None
+
+    @pytest.mark.asyncio
+    async def test_returns_error_without_llm(self):
+        """Test returns error when llm_service is None."""
+        mock_mm = MagicMock()
+        mock_mm.config.enabled = True
+
+        result = await memory_extract_from_session(
+            memory_manager=mock_mm,
+            session_manager=MagicMock(),
+            llm_service=None,
+            transcript_processor=None,
+            session_id="test-session",
+        )
+
+        assert result is not None
+        assert "error" in result
+
+    @pytest.mark.asyncio
+    @patch("gobby.memory.extractor.SessionMemoryExtractor")
+    async def test_handles_extraction_error(self, mock_extractor_cls):
+        """Test graceful handling of extraction errors."""
+        mock_mm = MagicMock()
+        mock_mm.config.enabled = True
+
+        mock_sm = MagicMock()
+        mock_llm = MagicMock()
+
+        mock_extractor = AsyncMock()
+        mock_extractor.extract.side_effect = Exception("LLM error")
+        mock_extractor_cls.return_value = mock_extractor
+
+        result = await memory_extract_from_session(
+            memory_manager=mock_mm,
+            session_manager=mock_sm,
+            llm_service=mock_llm,
+            transcript_processor=None,
+            session_id="test-session",
+        )
+
+        assert result is not None
+        assert "error" in result
+
+
+# =============================================================================
+# MEMORY INJECT PROJECT CONTEXT TESTS
+# =============================================================================
+
+
+class TestMemoryInjectProjectContext:
+    """Tests for memory_inject_project_context function."""
+
+    @pytest.mark.asyncio
+    async def test_injects_project_memories(self):
+        """Test successful injection of project memories."""
+        mock_mm = MagicMock()
+        mock_mm.config.enabled = True
+
+        m1 = MagicMock()
+        m1.id = "mem-001"
+        m1.memory_type = "fact"
+        m1.content = "Use uv run for development"
+        m2 = MagicMock()
+        m2.id = "mem-002"
+        m2.memory_type = "preference"
+        m2.content = "Prefer bun over npm"
+        mock_mm.list_memories.return_value = [m1, m2]
+
+        mock_sm = MagicMock()
+        mock_session = MagicMock()
+        mock_session.project_id = "proj-123"
+        mock_sm.get.return_value = mock_session
+
+        state = WorkflowState(
+            session_id="test-session", workflow_name="test", step="test"
+        )
+
+        result = await memory_inject_project_context(
+            memory_manager=mock_mm,
+            session_manager=mock_sm,
+            session_id="test-session",
+            state=state,
+        )
+
+        assert result is not None
+        assert result["injected"] is True
+        assert result["count"] == 2
+        assert "inject_context" in result
+
+        # Verify list_memories was called with project_id and min_importance
+        mock_mm.list_memories.assert_called_once_with(
+            project_id="proj-123",
+            min_importance=0.7,
+            limit=10,
+        )
+
+        # Verify IDs tracked in state
+        assert set(state.variables["_injected_memory_ids"]) == {"mem-001", "mem-002"}
+
+    @pytest.mark.asyncio
+    async def test_returns_none_when_disabled(self):
+        """Test returns None when memory is disabled."""
+        mock_mm = MagicMock()
+        mock_mm.config.enabled = False
+
+        result = await memory_inject_project_context(
+            memory_manager=mock_mm,
+            session_manager=MagicMock(),
+            session_id="test-session",
+        )
+
+        assert result is None
+
+    @pytest.mark.asyncio
+    async def test_returns_none_when_no_manager(self):
+        """Test returns None when memory_manager is None."""
+        result = await memory_inject_project_context(
+            memory_manager=None,
+            session_manager=MagicMock(),
+            session_id="test-session",
+        )
+
+        assert result is None
+
+    @pytest.mark.asyncio
+    async def test_returns_none_when_no_project(self):
+        """Test returns None when session has no project_id."""
+        mock_mm = MagicMock()
+        mock_mm.config.enabled = True
+
+        mock_sm = MagicMock()
+        mock_session = MagicMock()
+        mock_session.project_id = None
+        mock_sm.get.return_value = mock_session
+
+        result = await memory_inject_project_context(
+            memory_manager=mock_mm,
+            session_manager=mock_sm,
+            session_id="test-session",
+        )
+
+        assert result is None
+
+    @pytest.mark.asyncio
+    async def test_returns_empty_when_no_memories(self):
+        """Test returns empty result when no memories found."""
+        mock_mm = MagicMock()
+        mock_mm.config.enabled = True
+        mock_mm.list_memories.return_value = []
+
+        mock_sm = MagicMock()
+        mock_session = MagicMock()
+        mock_session.project_id = "proj-123"
+        mock_sm.get.return_value = mock_session
+
+        result = await memory_inject_project_context(
+            memory_manager=mock_mm,
+            session_manager=mock_sm,
+            session_id="test-session",
+        )
+
+        assert result is not None
+        assert result["injected"] is False
+        assert result["count"] == 0
+
+    @pytest.mark.asyncio
+    async def test_deduplicates_already_injected(self):
+        """Test skips memories already injected in this session."""
+        mock_mm = MagicMock()
+        mock_mm.config.enabled = True
+
+        m1 = MagicMock()
+        m1.id = "mem-001"
+        m1.memory_type = "fact"
+        m1.content = "Already injected"
+        mock_mm.list_memories.return_value = [m1]
+
+        mock_sm = MagicMock()
+        mock_session = MagicMock()
+        mock_session.project_id = "proj-123"
+        mock_sm.get.return_value = mock_session
+
+        state = WorkflowState(
+            session_id="test-session", workflow_name="test", step="test"
+        )
+        state.variables = {"_injected_memory_ids": ["mem-001"]}
+
+        result = await memory_inject_project_context(
+            memory_manager=mock_mm,
+            session_manager=mock_sm,
+            session_id="test-session",
+            state=state,
+        )
+
+        assert result is not None
+        assert result["injected"] is False
+        assert result["count"] == 0
+        assert result.get("skipped") == 1
+
+    @pytest.mark.asyncio
+    async def test_handles_exception(self):
+        """Test graceful handling of errors."""
+        mock_mm = MagicMock()
+        mock_mm.config.enabled = True
+        mock_mm.list_memories.side_effect = Exception("DB error")
+
+        mock_sm = MagicMock()
+        mock_session = MagicMock()
+        mock_session.project_id = "proj-123"
+        mock_sm.get.return_value = mock_session
+
+        result = await memory_inject_project_context(
+            memory_manager=mock_mm,
+            session_manager=mock_sm,
+            session_id="test-session",
+        )
+
+        assert result is not None
+        assert "error" in result
+
+    @pytest.mark.asyncio
+    async def test_respects_limit_and_importance(self):
+        """Test custom limit and min_importance are passed through."""
+        mock_mm = MagicMock()
+        mock_mm.config.enabled = True
+        mock_mm.list_memories.return_value = []
+
+        mock_sm = MagicMock()
+        mock_session = MagicMock()
+        mock_session.project_id = "proj-123"
+        mock_sm.get.return_value = mock_session
+
+        await memory_inject_project_context(
+            memory_manager=mock_mm,
+            session_manager=mock_sm,
+            session_id="test-session",
+            limit=5,
+            min_importance=0.9,
+        )
+
+        mock_mm.list_memories.assert_called_once_with(
+            project_id="proj-123",
+            min_importance=0.9,
+            limit=5,
+        )

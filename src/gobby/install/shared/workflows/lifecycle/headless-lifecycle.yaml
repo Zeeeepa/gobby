@@ -51,6 +51,11 @@ triggers:
     - action: memory_sync_import
       when: "not variables.get('_session_initialized')"
 
+    - action: memory_inject_project_context
+      when: "not variables.get('_session_initialized')"
+      limit: 10
+      min_importance: 0.7
+
     - action: task_sync_import
       when: "not variables.get('_session_initialized')"
 
@@ -108,6 +113,14 @@ triggers:
     - action: memory_recall_relevant
       limit: 5
       min_importance: 0.7
+
+    # Memory capture nudge - remind agent to save user preferences/facts
+    - action: inject_context
+      when: "len((event.data.get('prompt') or '').strip()) >= 10 and not (event.data.get('prompt') or '').strip().startswith('/')"
+      template: |
+        If the user just told you something worth remembering across sessions
+        (a preference, fact, convention, or instruction), save it with
+        create_memory on gobby-memory. If not, carry on.
 
   on_before_tool:
     - action: block_tools
@@ -217,6 +230,12 @@ triggers:
     # Track list_mcp_servers and list_tools for progressive disclosure gates
     - action: track_discovery_step
 
+    # Track significant work for memory review nudge on stop
+    - action: set_variable
+      when: "event.data.get('tool_name') in ['Edit', 'Write', 'NotebookEdit'] or event.data.get('mcp_tool') == 'close_task'"
+      name: pending_memory_review
+      value: true
+
     # Suggest memory extraction after closing a task with a commit
     - action: inject_context
       when: "event.data.get('mcp_tool') == 'close_task' and ((event.data.get('tool_input') or {}).get('arguments') or {}).get('commit_sha')"
@@ -241,6 +260,11 @@ triggers:
 
     # Extract handoff context for compact continuation
     - action: extract_handoff_context
+
+    # Daemon-side memory extraction — capture before context loss
+    - action: memory_extract_from_session
+      min_importance: 0.7
+      max_memories: 5
 
     # Sync to JSONL for Git persistence
     - action: memory_sync_export
@@ -272,6 +296,10 @@ triggers:
         - If you found no pre-existing issues, confirm by calling
           set_variable on gobby-workflows:
           set_variable(name="pre_existing_errors_triaged", value=true, session_id="<session_id>")
+
+    # Memory review nudge — only when significant work done since last review
+    - action: memory_review_gate
+      when: "variables.get('pending_memory_review') and (variables.get('stop_attempts', 0) or 0) < 3"
 
     # Task closure enforcement
     - action: require_task_review_or_close_before_stop

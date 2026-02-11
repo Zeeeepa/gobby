@@ -72,6 +72,10 @@ triggers:
           set_variable on gobby-workflows:
           set_variable(name="pre_existing_errors_triaged", value=true, session_id="<session_id>")
 
+    # Memory review nudge — only when significant work done since last review
+    - action: memory_review_gate
+      when: "variables.get('pending_memory_review') and (variables.get('stop_attempts', 0) or 0) < 3"
+
     # Task closure enforcement - block stop if task is still in_progress
     # Agents must close_task() or set to review before stopping
     # Skip in plan mode or if escape hatch triggered (3+ consecutive stop attempts)
@@ -149,6 +153,12 @@ triggers:
     # Memory sync - import from JSONL for Git persistence
     - action: memory_sync_import
 
+    # Project memory injection — baseline context for new/cleared sessions
+    - action: memory_inject_project_context
+      when: "event.data.get('source') in ['startup', 'clear']"
+      limit: 10
+      min_importance: 0.7
+
     # Task sync - import from JSONL for Git persistence
     - action: task_sync_import
 
@@ -212,6 +222,14 @@ triggers:
     - action: memory_recall_relevant
       limit: 5
       min_importance: 0.7
+
+    # Memory capture nudge - remind agent to save user preferences/facts
+    - action: inject_context
+      when: "len((event.data.get('prompt') or '').strip()) >= 10 and not (event.data.get('prompt') or '').strip().startswith('/')"
+      template: |
+        If the user just told you something worth remembering across sessions
+        (a preference, fact, convention, or instruction), save it with
+        create_memory on gobby-memory. If not, carry on.
 
   on_before_tool:
     # Unified tool blocking with multiple rules
@@ -328,6 +346,12 @@ triggers:
     # Track list_mcp_servers and list_tools for progressive disclosure gates
     - action: track_discovery_step
 
+    # Track significant work for memory review nudge on stop
+    - action: set_variable
+      when: "event.data.get('tool_name') in ['Edit', 'Write', 'NotebookEdit'] or event.data.get('mcp_tool') == 'close_task'"
+      name: pending_memory_review
+      value: true
+
     # Suggest memory extraction after closing a task with a commit
     # Soft nudge, not a blocking gate — agent can choose to skip
     - action: inject_context
@@ -346,6 +370,11 @@ triggers:
         - pending_tasks
       prompt: handoff/session_end
       write_file: true
+
+    # Daemon-side memory extraction — safety net for ungraceful exits
+    - action: memory_extract_from_session
+      min_importance: 0.7
+      max_memories: 5
 
     # Memory sync - export to JSONL for Git persistence
     - action: memory_sync_export
@@ -372,6 +401,12 @@ triggers:
     # Saves formatted markdown to session.compact_markdown
     - action: extract_handoff_context
       when: "event.source.value != 'gemini' or event.data.get('trigger') == 'manual'"
+
+    # Daemon-side memory extraction — capture before context loss
+    - action: memory_extract_from_session
+      when: "event.source.value != 'gemini' or event.data.get('trigger') == 'manual'"
+      min_importance: 0.7
+      max_memories: 5
 
     # Memory sync - export to JSONL for Git persistence
     - action: memory_sync_export

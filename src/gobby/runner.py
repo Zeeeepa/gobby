@@ -251,6 +251,9 @@ class GobbyRunner:
         self.lifecycle_manager = SessionLifecycleManager(
             db=self.database,
             config=self.config.session_lifecycle,
+            memory_manager=self.memory_manager,
+            llm_service=self.llm_service,
+            memory_sync_manager=self.memory_sync_manager,
         )
 
         # Cron Scheduler (background jobs for recurring tasks)

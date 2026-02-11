@@ -34,11 +34,21 @@ class SessionLifecycleManager:
     2. process_pending_transcripts - processes transcripts for expired sessions
     """
 
-    def __init__(self, db: DatabaseProtocol, config: SessionLifecycleConfig):
+    def __init__(
+        self,
+        db: DatabaseProtocol,
+        config: SessionLifecycleConfig,
+        memory_manager: Any | None = None,
+        llm_service: Any | None = None,
+        memory_sync_manager: Any | None = None,
+    ):
         self.db = db
         self.config = config
         self.session_manager = LocalSessionManager(db)
         self.message_manager = LocalSessionMessageManager(db)
+        self.memory_manager = memory_manager
+        self.llm_service = llm_service
+        self.memory_sync_manager = memory_sync_manager
 
         self._running = False
         self._expire_task: asyncio.Task[None] | None = None
@@ -185,6 +195,51 @@ class SessionLifecycleManager:
 
         return processed
 
+    async def _extract_memories_if_needed(self, session_id: str) -> None:
+        """Extract memories from a processed session transcript.
+
+        Safety net for ungraceful exits — if on_session_end never fired,
+        this catches memories during background transcript processing.
+        """
+        if not self.memory_manager or not self.llm_service:
+            return
+
+        if not getattr(self.memory_manager, "config", None):
+            return
+
+        if not self.memory_manager.config.enabled:
+            return
+
+        try:
+            from gobby.memory.extractor import SessionMemoryExtractor
+
+            extractor = SessionMemoryExtractor(
+                memory_manager=self.memory_manager,
+                session_manager=self.session_manager,
+                llm_service=self.llm_service,
+            )
+
+            candidates = await extractor.extract(
+                session_id=session_id,
+                min_importance=0.7,
+                max_memories=5,
+            )
+
+            if candidates:
+                logger.info(
+                    f"Extracted {len(candidates)} memories from expired session {session_id}"
+                )
+
+                # Export to JSONL if sync manager available
+                if self.memory_sync_manager:
+                    try:
+                        await self.memory_sync_manager.export_to_files()
+                    except Exception as e:
+                        logger.warning(f"Memory sync export after extraction failed: {e}")
+
+        except Exception as e:
+            logger.warning(f"Memory extraction failed for session {session_id}: {e}")
+
     async def _process_session_transcript(self, session_id: str, jsonl_path: str | None) -> None:
         """
         Process a full transcript for a session.
@@ -272,3 +327,6 @@ class SessionLifecycleManager:
             byte_offset=sum(len(line.encode("utf-8")) for line in lines),
             message_index=messages[-1].index,
         )
+
+        # Extract memories from transcript (ungraceful exit fallback)
+        await self._extract_memories_if_needed(session_id)
