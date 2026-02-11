@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import asyncio
+import inspect
 import json
 import logging
 from collections.abc import Callable
@@ -69,9 +71,6 @@ def register_interaction_tools(
 
         # Call the action handler
         try:
-            import asyncio
-            import inspect
-
             if inspect.iscoroutinefunction(plugin_action.handler):
                 result = await plugin_action.handler(**kwargs)
             else:
@@ -79,8 +78,8 @@ def register_interaction_tools(
 
             return {"success": True, "result": result}
         except Exception as e:
-            logger.error(f"Plugin action '{plugin}.{action}' failed: {e}")
-            return {"success": False, "error": str(e)}
+            logger.exception(f"Plugin action '{plugin}.{action}' failed")
+            return {"success": False, "error": "Plugin action failed"}
 
     @registry.tool(
         name="list_plugin_actions",

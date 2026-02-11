@@ -108,7 +108,6 @@ def create_sync_registry(
                 "project": {
                     "type": "string",
                     "description": "Project name or UUID to scope sync",
-                    "default": None,
                 },
             },
         },
