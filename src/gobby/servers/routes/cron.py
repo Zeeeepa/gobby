@@ -203,7 +203,7 @@ def create_cron_router(server: "HTTPServer") -> APIRouter:
             logger.error(f"Error toggling cron job: {e}", exc_info=True)
             raise HTTPException(status_code=500, detail=str(e)) from e
 
-    @router.post("/jobs/{job_id}/run")
+    @router.post("/jobs/{job_id}/run", response_model=None)
     async def run_job_now(job_id: str) -> dict[str, Any] | JSONResponse:
         """Trigger immediate execution of a cron job."""
         metrics.inc_counter("http_requests_total")

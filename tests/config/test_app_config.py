@@ -188,7 +188,7 @@ class TestSessionSummaryConfig:
         config = SessionSummaryConfig()
         assert config.enabled is True
         assert config.provider == "claude"
-        assert config.model == "claude-haiku-4-5"
+        assert config.model == "claude-haiku-4-5-20251001"
         # prompt now has a default template with placeholders
         assert config.prompt is not None
         assert "Generate a concise session summary" in config.prompt
@@ -647,7 +647,7 @@ class TestImportMCPServerConfig:
         config = ImportMCPServerConfig()
         assert config.enabled is True
         assert config.provider == "claude"
-        assert config.model == "claude-haiku-4-5"
+        assert config.model == "claude-haiku-4-5-20251001"
         assert config.prompt_path is None  # Uses DEFAULT_IMPORT_MCP_SERVER_PROMPT
 
 
@@ -659,7 +659,7 @@ class TestTitleSynthesisConfig:
         config = TitleSynthesisConfig()
         assert config.enabled is True
         assert config.provider == "claude"
-        assert config.model == "claude-haiku-4-5"
+        assert config.model == "claude-haiku-4-5-20251001"
         assert config.prompt is None
 
 
@@ -829,7 +829,7 @@ class TestToolSummarizerConfig:
         config = ToolSummarizerConfig()
         assert config.enabled is True
         assert config.provider == "claude"
-        assert config.model == "claude-haiku-4-5"
+        assert config.model == "claude-haiku-4-5-20251001"
         assert config.prompt_path is None  # Uses default prompt from prompts/
 
 

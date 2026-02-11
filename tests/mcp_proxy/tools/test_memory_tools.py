@@ -61,7 +61,7 @@ def mock_memory_manager():
     manager = MagicMock()
     manager.remember = AsyncMock(return_value=MockMemory())
     manager.recall = MagicMock(return_value=[MockMemory()])
-    manager.forget = MagicMock(return_value=True)
+    manager.forget = AsyncMock(return_value=True)
     manager.list_memories = MagicMock(return_value=[MockMemory()])
     manager.get_memory = MagicMock(return_value=MockMemory())
     manager.get_related = AsyncMock(return_value=[MockMemory()])

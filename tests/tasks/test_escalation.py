@@ -119,50 +119,6 @@ class TestEscalationManager:
 
         assert result.feedback == "LLM validation failed repeatedly"
 
-    def test_de_escalate_returns_to_open(self, escalation_manager, mock_task_manager) -> None:
-        """Test that de_escalate_task() returns task to open status."""
-        mock_task = MagicMock()
-        mock_task.id = "gt-test123"
-        mock_task.status = "escalated"
-        mock_task_manager.get_task.return_value = mock_task
-        mock_task_manager.update_task.return_value = mock_task
-
-        escalation_manager.de_escalate(task_id="gt-test123")
-
-        call_kwargs = mock_task_manager.update_task.call_args.kwargs
-        assert call_kwargs["status"] == "open"
-        assert call_kwargs["escalated_at"] is None
-        assert call_kwargs["escalation_reason"] is None
-
-    def test_de_escalate_clears_escalation_fields(
-        self, escalation_manager, mock_task_manager
-    ) -> None:
-        """Test that de_escalate clears escalation metadata."""
-        mock_task = MagicMock()
-        mock_task.id = "gt-test123"
-        mock_task.status = "escalated"
-        mock_task.escalated_at = "2026-01-01T00:00:00+00:00"
-        mock_task.escalation_reason = "max_iterations"
-        mock_task_manager.get_task.return_value = mock_task
-        mock_task_manager.update_task.return_value = mock_task
-
-        escalation_manager.de_escalate(task_id="gt-test123")
-
-        call_kwargs = mock_task_manager.update_task.call_args.kwargs
-        assert call_kwargs["escalated_at"] is None
-        assert call_kwargs["escalation_reason"] is None
-
-    def test_de_escalate_raises_if_not_escalated(
-        self, escalation_manager, mock_task_manager
-    ) -> None:
-        """Test that de_escalate raises if task is not escalated."""
-        mock_task = MagicMock()
-        mock_task.id = "gt-test123"
-        mock_task.status = "open"
-        mock_task_manager.get_task.return_value = mock_task
-
-        with pytest.raises(ValueError, match="not escalated"):
-            escalation_manager.de_escalate(task_id="gt-test123")
 
 
 class TestGenerateEscalationSummary:

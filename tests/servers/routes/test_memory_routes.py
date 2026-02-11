@@ -41,6 +41,7 @@ def mock_server():
     """Create mock HTTPServer with memory_manager."""
     server = MagicMock()
     server.memory_manager = MagicMock()
+    server.memory_manager.forget = AsyncMock(return_value=True)
     return server
 
 
