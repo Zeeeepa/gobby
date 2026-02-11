@@ -23,6 +23,9 @@ class HandoffContext:
     """Structured context for autonomous handoff."""
 
     active_gobby_task: dict[str, Any] | None = None
+    task_progress: list[dict[str, Any]] = field(default_factory=list)
+    """Chronological list of task state changes observed in transcript.
+    Each entry: {"id": str, "action": str, "title": str}"""
     files_modified: list[str] = field(default_factory=list)
     git_commits: list[dict[str, Any]] = field(default_factory=list)
     git_status: str = ""
@@ -131,6 +134,8 @@ class TranscriptAnalyzer:
                             pass
 
         context.files_modified = sorted(modified_files_set)
+        # task_progress was built in reverse order; restore chronological
+        context.task_progress.reverse()
 
         # 3. Recent Activity Summary (Last 10 calls)
         # Extract meaningful details from recent tool uses
@@ -204,22 +209,23 @@ class TranscriptAnalyzer:
             args = tool_input.get("arguments", {})
 
             if server == "gobby-tasks":
+                # Track all task interactions for task_progress
+                task_id = args.get("task_id") or args.get("id")
+                title = args.get("title", "")
+                if task_id and tool:
+                    context.task_progress.append({
+                        "id": task_id,
+                        "action": tool,
+                        "title": title or f"Task {task_id}",
+                    })
+
                 # We want the most recent task interaction that implies working on a task
                 # e.g., create_task, update_task, get_task
                 if not context.active_gobby_task:
-                    # Heuristic: If we see a task interaction, it might be the active task
-                    # especially if it's get_task or update_task
-                    task_id = args.get("task_id") or args.get("id")
                     if task_id:
                         context.active_gobby_task = {
                             "id": task_id,
                             "action": tool,
-                            # We don't have the full task object here, just the ID and intent
-                            # The injection template might need to fetch it or we assume
-                            # the ID is enough for the user to know.
-                            # Ideally, we'd have the title, but we can't get it from the tool input easily
-                            # unless it was a create/update with title.
-                            # For now, store what we have.
                             "title": args.get("title", f"Task {task_id}"),
                         }
 

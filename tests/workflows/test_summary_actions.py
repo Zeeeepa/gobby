@@ -13,7 +13,9 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
+from gobby.sessions.analyzer import HandoffContext
 from gobby.workflows.summary_actions import (
+    _format_structured_context,
     _write_summary_file,
     format_turns_for_llm,
     generate_handoff,
@@ -1712,3 +1714,71 @@ class TestWriteSummaryFile:
 
         assert Path(result["summary_file"]).exists()
         assert "ext-write-test" in result["summary_file"]
+
+
+# =============================================================================
+# Tests for _format_structured_context
+# =============================================================================
+
+
+class TestFormatStructuredContext:
+    """Tests for the _format_structured_context helper function."""
+
+    def test_format_structured_context_with_task_progress(self) -> None:
+        """Test that task_progress is formatted with task IDs and actions."""
+        ctx = HandoffContext(
+            task_progress=[
+                {"id": "gt-001", "action": "create_task", "title": "Fix login bug"},
+                {"id": "gt-001", "action": "claim_task", "title": "Task gt-001"},
+                {"id": "gt-001", "action": "close_task", "title": "Task gt-001"},
+            ]
+        )
+        result = _format_structured_context(ctx)
+
+        assert "Task Progress:" in result
+        assert "create_task: Fix login bug (gt-001)" in result
+        assert "claim_task: Task gt-001 (gt-001)" in result
+        assert "close_task: Task gt-001 (gt-001)" in result
+
+    def test_format_structured_context_empty(self) -> None:
+        """Test that empty HandoffContext returns empty string."""
+        ctx = HandoffContext()
+        result = _format_structured_context(ctx)
+        assert result == ""
+
+    def test_format_structured_context_caps_task_progress(self) -> None:
+        """Test that task_progress is capped at 15 entries."""
+        ctx = HandoffContext(
+            task_progress=[
+                {"id": f"gt-{i:03d}", "action": "update_task", "title": f"Task {i}"}
+                for i in range(20)
+            ]
+        )
+        result = _format_structured_context(ctx)
+
+        assert "Task Progress:" in result
+        # Should only show the last 15 (indices 5-19)
+        assert "Task 5" in result
+        assert "Task 19" in result
+        # First 5 should be excluded
+        assert "gt-000" not in result
+        assert "gt-004" not in result
+        # Count the lines
+        progress_section = result.split("Task Progress:\n")[1]
+        lines = [line for line in progress_section.split("\n") if line.strip().startswith("- ")]
+        assert len(lines) == 15
+
+    def test_format_structured_context_task_progress_with_other_fields(self) -> None:
+        """Test that task_progress coexists with other context fields."""
+        ctx = HandoffContext(
+            active_gobby_task={"id": "gt-001", "title": "Active task", "status": "in_progress"},
+            task_progress=[
+                {"id": "gt-001", "action": "claim_task", "title": "Active task"},
+            ],
+            initial_goal="Fix all the bugs",
+        )
+        result = _format_structured_context(ctx)
+
+        assert "Active Task:" in result
+        assert "Task Progress:" in result
+        assert "Original Goal:" in result

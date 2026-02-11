@@ -960,6 +960,173 @@ class TestFormatToolDescription:
         assert result == "Called Write"
 
 
+class TestTaskProgress:
+    """Tests for task_progress extraction."""
+
+    def test_extract_task_progress_multiple_tasks(self) -> None:
+        """Test task_progress captures multiple task interactions in chronological order."""
+        turns = [
+            {"type": "user", "message": {"content": "work on tasks"}},
+            {
+                "type": "assistant",
+                "message": {
+                    "content": [
+                        {
+                            "type": "tool_use",
+                            "name": "mcp_call_tool",
+                            "input": {
+                                "server_name": "gobby-tasks",
+                                "tool_name": "create_task",
+                                "arguments": {"task_id": "gt-001", "title": "First task"},
+                            },
+                        },
+                    ]
+                },
+            },
+            {
+                "type": "assistant",
+                "message": {
+                    "content": [
+                        {
+                            "type": "tool_use",
+                            "name": "mcp_call_tool",
+                            "input": {
+                                "server_name": "gobby-tasks",
+                                "tool_name": "claim_task",
+                                "arguments": {"task_id": "gt-001"},
+                            },
+                        },
+                    ]
+                },
+            },
+            {
+                "type": "assistant",
+                "message": {
+                    "content": [
+                        {
+                            "type": "tool_use",
+                            "name": "mcp_call_tool",
+                            "input": {
+                                "server_name": "gobby-tasks",
+                                "tool_name": "close_task",
+                                "arguments": {"task_id": "gt-001"},
+                            },
+                        },
+                    ]
+                },
+            },
+            {
+                "type": "assistant",
+                "message": {
+                    "content": [
+                        {
+                            "type": "tool_use",
+                            "name": "mcp_call_tool",
+                            "input": {
+                                "server_name": "gobby-tasks",
+                                "tool_name": "create_task",
+                                "arguments": {"task_id": "gt-002", "title": "Second task"},
+                            },
+                        },
+                    ]
+                },
+            },
+        ]
+
+        analyzer = TranscriptAnalyzer()
+        ctx = analyzer.extract_handoff_context(turns)
+
+        assert len(ctx.task_progress) == 4
+        # Verify chronological order (not reversed)
+        assert ctx.task_progress[0]["id"] == "gt-001"
+        assert ctx.task_progress[0]["action"] == "create_task"
+        assert ctx.task_progress[0]["title"] == "First task"
+        assert ctx.task_progress[1]["action"] == "claim_task"
+        assert ctx.task_progress[1]["title"] == "Task gt-001"  # No title in args
+        assert ctx.task_progress[2]["action"] == "close_task"
+        assert ctx.task_progress[3]["id"] == "gt-002"
+        assert ctx.task_progress[3]["title"] == "Second task"
+
+    def test_extract_task_progress_empty(self) -> None:
+        """Test task_progress is empty when no gobby-tasks calls."""
+        turns = [
+            {"type": "user", "message": {"content": "do something"}},
+            {
+                "type": "assistant",
+                "message": {
+                    "content": [
+                        {"type": "tool_use", "name": "Write", "input": {"file_path": "/a.py"}},
+                    ]
+                },
+            },
+        ]
+
+        analyzer = TranscriptAnalyzer()
+        ctx = analyzer.extract_handoff_context(turns)
+
+        assert ctx.task_progress == []
+
+    def test_extract_task_progress_reverse_order(self) -> None:
+        """Test that task_progress is in chronological order despite reverse iteration."""
+        turns = [
+            {"type": "user", "message": {"content": "work"}},
+            {
+                "type": "assistant",
+                "message": {
+                    "content": [
+                        {
+                            "type": "tool_use",
+                            "name": "mcp_call_tool",
+                            "input": {
+                                "server_name": "gobby-tasks",
+                                "tool_name": "create_task",
+                                "arguments": {"task_id": "gt-A", "title": "Alpha"},
+                            },
+                        },
+                    ]
+                },
+            },
+            {
+                "type": "assistant",
+                "message": {
+                    "content": [
+                        {
+                            "type": "tool_use",
+                            "name": "mcp_call_tool",
+                            "input": {
+                                "server_name": "gobby-tasks",
+                                "tool_name": "update_task",
+                                "arguments": {"task_id": "gt-B", "title": "Beta"},
+                            },
+                        },
+                    ]
+                },
+            },
+            {
+                "type": "assistant",
+                "message": {
+                    "content": [
+                        {
+                            "type": "tool_use",
+                            "name": "mcp_call_tool",
+                            "input": {
+                                "server_name": "gobby-tasks",
+                                "tool_name": "close_task",
+                                "arguments": {"task_id": "gt-C", "title": "Charlie"},
+                            },
+                        },
+                    ]
+                },
+            },
+        ]
+
+        analyzer = TranscriptAnalyzer()
+        ctx = analyzer.extract_handoff_context(turns)
+
+        # Must be chronological: A, B, C
+        assert [p["id"] for p in ctx.task_progress] == ["gt-A", "gt-B", "gt-C"]
+
+
 class TestHandoffContext:
     """Tests for HandoffContext dataclass."""
 
@@ -967,6 +1134,7 @@ class TestHandoffContext:
         """Test HandoffContext has correct default values."""
         ctx = HandoffContext()
         assert ctx.active_gobby_task is None
+        assert ctx.task_progress == []
         assert ctx.files_modified == []
         assert ctx.git_commits == []
         assert ctx.git_status == ""
