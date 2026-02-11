@@ -1,5 +1,5 @@
 import { useState, useCallback, useMemo, useEffect } from 'react'
-import { useMemory, useMem0Status, useNeo4jStatus } from '../hooks/useMemory'
+import { useMemory, useNeo4jStatus } from '../hooks/useMemory'
 import type { GobbyMemory } from '../hooks/useMemory'
 import { MemoryOverview } from './MemoryOverview'
 import { MemoryFilters } from './MemoryFilters'
@@ -65,7 +65,6 @@ export function MemoryPage() {
     fetchKnowledgeGraph,
     fetchEntityNeighbors,
   } = useMemory()
-  const mem0Status = useMem0Status()
   const neo4jStatus = useNeo4jStatus()
 
   const [viewMode, setViewMode] = useState<ViewMode>('graph')
@@ -187,17 +186,6 @@ export function MemoryPage() {
         <div className="memory-toolbar-left">
           <h2 className="memory-toolbar-title">Memory</h2>
           <span className="memory-toolbar-count">{stats?.total_count ?? 0}</span>
-          {mem0Status?.configured && (
-            <a
-              className="mem0-badge"
-              href={mem0Status.url}
-              target="_blank"
-              rel="noopener noreferrer"
-              title={`Mem0 at ${mem0Status.url}`}
-            >
-              mem0
-            </a>
-          )}
         </div>
         <div className="memory-toolbar-right">
           <div className="memory-view-toggle">
