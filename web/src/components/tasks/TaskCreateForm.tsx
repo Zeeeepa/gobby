@@ -49,16 +49,16 @@ export function TaskCreateForm({ isOpen, tasks, defaults, onSubmit, onClose }: T
   const [validationCriteria, setValidationCriteria] = useState('')
   const [submitting, setSubmitting] = useState(false)
 
-  // Apply defaults when form opens
+  // Reset and apply defaults when form opens
   useEffect(() => {
-    if (isOpen && defaults) {
-      if (defaults.taskType) setTaskType(defaults.taskType)
-      if (defaults.priority !== undefined) setPriority(defaults.priority)
-      if (defaults.parentTaskId) setParentTaskId(defaults.parentTaskId)
-      if (defaults.title) setTitle(defaults.title)
-      if (defaults.description) setDescription(defaults.description)
-      if (defaults.validationCriteria) setValidationCriteria(defaults.validationCriteria)
-      if (defaults.labels) setLabelsInput(defaults.labels.join(', '))
+    if (isOpen) {
+      setTitle(defaults?.title || '')
+      setDescription(defaults?.description || '')
+      setTaskType(defaults?.taskType || 'task')
+      setPriority(defaults?.priority ?? 2)
+      setParentTaskId(defaults?.parentTaskId || '')
+      setLabelsInput(defaults?.labels?.join(', ') || '')
+      setValidationCriteria(defaults?.validationCriteria || '')
     }
   }, [isOpen, defaults])
 
@@ -89,10 +89,15 @@ export function TaskCreateForm({ isOpen, tasks, defaults, onSubmit, onClose }: T
     }
     if (validationCriteria.trim()) params.validation_criteria = validationCriteria.trim()
 
-    await onSubmit(params)
-    setSubmitting(false)
-    reset()
-    onClose()
+    try {
+      await onSubmit(params)
+      reset()
+      onClose()
+    } catch (err) {
+      console.error('Failed to create task:', err)
+    } finally {
+      setSubmitting(false)
+    }
   }, [title, description, taskType, priority, parentTaskId, labelsInput, validationCriteria, onSubmit, onClose, reset])
 
   const handleClose = useCallback(() => {

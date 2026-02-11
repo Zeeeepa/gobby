@@ -60,6 +60,7 @@ interface TaskMemoriesProps {
 export function TaskMemories({ sessionId }: TaskMemoriesProps) {
   const [memories, setMemories] = useState<MemoryEntry[]>([])
   const [isLoading, setIsLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
   const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set())
   const [editingId, setEditingId] = useState<string | null>(null)
   const [editContent, setEditContent] = useState('')
@@ -68,18 +69,23 @@ export function TaskMemories({ sessionId }: TaskMemoriesProps) {
   const fetchMemories = useCallback(async () => {
     if (!sessionId) return
     setIsLoading(true)
+    setError(null)
     try {
       const baseUrl = getBaseUrl()
       const response = await fetch(`${baseUrl}/memories?limit=200`)
-      if (response.ok) {
-        const data = await response.json()
-        const all: MemoryEntry[] = data.memories || []
-        // Filter to memories created in this session
-        const sessionMemories = all.filter(m => m.source_session_id === sessionId)
-        setMemories(sessionMemories)
+      if (!response.ok) {
+        setError('Failed to load memories')
+        setIsLoading(false)
+        return
       }
+      const data = await response.json()
+      const all: MemoryEntry[] = data.memories || []
+      // Filter to memories created in this session
+      const sessionMemories = all.filter(m => m.source_session_id === sessionId)
+      setMemories(sessionMemories)
     } catch (e) {
       console.error('Failed to fetch memories:', e)
+      setError('Failed to load memories')
     }
     setIsLoading(false)
   }, [sessionId])
@@ -98,6 +104,7 @@ export function TaskMemories({ sessionId }: TaskMemoriesProps) {
   }, [])
 
   const updateMemory = useCallback(async (memoryId: string, params: { content?: string; importance?: number }) => {
+    setError(null)
     try {
       const baseUrl = getBaseUrl()
       const response = await fetch(`${baseUrl}/memories/${memoryId}`, {
@@ -107,9 +114,12 @@ export function TaskMemories({ sessionId }: TaskMemoriesProps) {
       })
       if (response.ok) {
         fetchMemories()
+      } else {
+        setError('Failed to update memory')
       }
     } catch (e) {
       console.error('Failed to update memory:', e)
+      setError('Failed to update memory')
     }
   }, [fetchMemories])
 
@@ -155,6 +165,7 @@ export function TaskMemories({ sessionId }: TaskMemoriesProps) {
 
   if (!sessionId) return null
   if (isLoading) return <div className="task-memories-loading">Loading memories...</div>
+  if (error) return <div className="task-memories-empty">{error}</div>
   if (memories.length === 0) return <div className="task-memories-empty">No memories from this session</div>
 
   return (
