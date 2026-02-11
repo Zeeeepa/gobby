@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect } from 'react'
 
 // =============================================================================
 // Types
@@ -43,35 +43,43 @@ export function CostTracker({ sessionId }: CostTrackerProps) {
   const [usage, setUsage] = useState<SessionUsage | null>(null)
   const [isLoading, setIsLoading] = useState(false)
 
-  const fetchUsage = useCallback(async () => {
-    if (!sessionId) return
-    setIsLoading(true)
-    try {
-      const baseUrl = getBaseUrl()
-      const response = await fetch(
-        `${baseUrl}/sessions/${encodeURIComponent(sessionId)}`
-      )
-      if (response.ok) {
-        const data = await response.json()
-        const session = data.session
-        if (session) {
-          setUsage({
-            sessionId: session.id || sessionId,
-            inputTokens: session.usage_input_tokens || 0,
-            outputTokens: session.usage_output_tokens || 0,
-            totalCostUsd: session.usage_total_cost_usd || 0,
-          })
-        }
-      }
-    } catch (e) {
-      console.error('Failed to fetch session usage:', e)
-    }
-    setIsLoading(false)
-  }, [sessionId])
-
   useEffect(() => {
+    if (!sessionId) return
+    const sid = sessionId
+    const controller = new AbortController()
+    let cancelled = false
+
+    async function fetchUsage() {
+      setIsLoading(true)
+      try {
+        const baseUrl = getBaseUrl()
+        const response = await fetch(
+          `${baseUrl}/sessions/${encodeURIComponent(sid)}`,
+          { signal: controller.signal }
+        )
+        if (!response.ok) {
+          console.warn(`Session usage fetch returned ${response.status}`)
+        } else {
+          const data = await response.json()
+          const session = data.session
+          if (session && !cancelled) {
+            setUsage({
+              sessionId: session.id || sid,
+              inputTokens: session.usage_input_tokens || 0,
+              outputTokens: session.usage_output_tokens || 0,
+              totalCostUsd: session.usage_total_cost_usd || 0,
+            })
+          }
+        }
+      } catch (e) {
+        if (!cancelled) console.error('Failed to fetch session usage:', e)
+      }
+      if (!cancelled) setIsLoading(false)
+    }
+
     fetchUsage()
-  }, [fetchUsage])
+    return () => { cancelled = true; controller.abort() }
+  }, [sessionId])
 
   if (!sessionId) return null
   if (isLoading) return <div className="cost-tracker-loading">Loading usage...</div>

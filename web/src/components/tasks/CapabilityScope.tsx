@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect } from 'react'
 
 // =============================================================================
 // Types
@@ -115,27 +115,40 @@ interface CapabilityScopeProps {
 export function CapabilityScope({ sessionId: _sessionId }: CapabilityScopeProps) {
   const [servers, setServers] = useState<MCPServer[]>([])
   const [isLoading, setIsLoading] = useState(true)
-
-  const fetchCapabilities = useCallback(async () => {
-    setIsLoading(true)
-    try {
-      const baseUrl = getBaseUrl()
-      const response = await fetch(`${baseUrl}/mcp/servers`)
-      if (response.ok) {
-        const data = await response.json()
-        setServers(data.servers || [])
-      }
-    } catch (e) {
-      console.error('Failed to fetch MCP servers:', e)
-    }
-    setIsLoading(false)
-  }, [])
+  const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
+    const controller = new AbortController()
+    let cancelled = false
+
+    async function fetchCapabilities() {
+      setIsLoading(true)
+      setError(null)
+      try {
+        const baseUrl = getBaseUrl()
+        const response = await fetch(`${baseUrl}/mcp/servers`, { signal: controller.signal })
+        if (!response.ok) {
+          console.warn(`MCP servers fetch returned ${response.status}`)
+          setError('Failed to load capabilities')
+        } else {
+          const data = await response.json()
+          if (!cancelled) setServers(data.servers || [])
+        }
+      } catch (e) {
+        if (!cancelled) {
+          console.error('Failed to fetch MCP servers:', e)
+          setError('Failed to load capabilities')
+        }
+      }
+      if (!cancelled) setIsLoading(false)
+    }
+
     fetchCapabilities()
-  }, [fetchCapabilities])
+    return () => { cancelled = true; controller.abort() }
+  }, [])
 
   if (isLoading) return <div className="capability-loading">Loading capabilities...</div>
+  if (error) return <div className="capability-empty">{error}</div>
   if (servers.length === 0) return <div className="capability-empty">No capability data</div>
 
   const groups = categorizeServers(servers)
