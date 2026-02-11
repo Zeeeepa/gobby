@@ -64,26 +64,14 @@ export function MemoryTable({
 
   return (
     <div className="memory-page">
-      <div className="memory-sidebar">
-        <div className="memory-sidebar-header">
-          <span className="memory-sidebar-title">Memories</span>
-          <button
-            className="terminals-action-btn"
-            onClick={onRefresh}
-            title="Refresh"
-            disabled={isLoading}
-          >
-            &#x21bb;
-          </button>
-        </div>
-
+      {/* Toolbar with inline filters */}
+      <div className="memory-toolbar">
         <MemoryFiltersComponent
           filters={filters}
           onFiltersChange={onFiltersChange}
         />
-
         {stats && (
-          <div className="memory-stats-bar">
+          <div className="memory-toolbar-stats">
             <span className="memory-stats-count">{stats.total_count} memories</span>
             <span className="memory-stats-sep">&middot;</span>
             <span className="memory-stats-avg">
@@ -91,8 +79,17 @@ export function MemoryTable({
             </span>
           </div>
         )}
+        <button
+          className="terminals-action-btn"
+          onClick={onRefresh}
+          title="Refresh"
+          disabled={isLoading}
+        >
+          &#x21bb;
+        </button>
       </div>
 
+      {/* Memory cards */}
       <div className="memory-content">
         {isLoading ? (
           <div className="memory-empty">Loading memories...</div>

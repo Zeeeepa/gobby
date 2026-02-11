@@ -77,7 +77,13 @@ export function useMemory() {
       const response = await fetch(`${baseUrl}/memories?${params}`)
       if (response.ok) {
         const data = await response.json()
-        setMemories(data.memories || [])
+        const items = (data.memories || []).map((m: GobbyMemory) => ({
+          ...m,
+          tags: Array.isArray(m.tags) ? m.tags
+            : typeof m.tags === 'string' ? m.tags.split(',').map((t: string) => t.trim()).filter(Boolean)
+            : null,
+        }))
+        setMemories(items)
       }
     } catch (e) {
       console.error('Failed to fetch memories:', e)

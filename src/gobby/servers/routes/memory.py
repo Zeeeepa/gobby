@@ -56,7 +56,6 @@ def create_memory_router(server: "HTTPServer") -> APIRouter:
     metrics = get_metrics_collector()
 
     @router.get("")
-    @router.get("")
     def list_memories(
         project_id: str | None = Query(None, description="Filter by project ID"),
         memory_type: str | None = Query(None, description="Filter by memory type"),
@@ -101,7 +100,6 @@ def create_memory_router(server: "HTTPServer") -> APIRouter:
             raise HTTPException(status_code=500, detail=str(e)) from e
 
     @router.get("/search")
-    @router.get("/search")
     def search_memories(
         q: str = Query(..., description="Search query"),
         project_id: str | None = Query(None, description="Filter by project ID"),
@@ -129,7 +127,6 @@ def create_memory_router(server: "HTTPServer") -> APIRouter:
             raise HTTPException(status_code=500, detail=str(e)) from e
 
     @router.get("/stats")
-    @router.get("/stats")
     def memory_stats(
         project_id: str | None = Query(None, description="Filter by project ID"),
     ) -> Any:
@@ -141,7 +138,6 @@ def create_memory_router(server: "HTTPServer") -> APIRouter:
             logger.error(f"Failed to get memory stats: {e}")
             raise HTTPException(status_code=500, detail=str(e)) from e
 
-    @router.get("/{memory_id}")
     @router.get("/{memory_id}")
     def get_memory(memory_id: str) -> Any:
         """Get a specific memory by ID."""
@@ -156,7 +152,6 @@ def create_memory_router(server: "HTTPServer") -> APIRouter:
             raise HTTPException(status_code=404, detail="Memory not found")
         return memory.to_dict()
 
-    @router.put("/{memory_id}")
     @router.put("/{memory_id}")
     def update_memory(memory_id: str, request_data: MemoryUpdateRequest) -> Any:
         """Update an existing memory."""
@@ -175,7 +170,6 @@ def create_memory_router(server: "HTTPServer") -> APIRouter:
             logger.error(f"Failed to update memory {memory_id}: {e}")
             raise HTTPException(status_code=500, detail=str(e)) from e
 
-    @router.delete("/{memory_id}")
     @router.delete("/{memory_id}")
     def delete_memory(memory_id: str) -> dict[str, Any]:
         """Delete a memory."""

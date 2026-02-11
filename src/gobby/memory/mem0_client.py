@@ -51,6 +51,12 @@ class Mem0Client:
         self._user_id = user_id
         self._timeout = timeout
 
+        # Self-hosted instances use /memories, /search (no /v1/ prefix).
+        # The hosted platform (api.mem0.ai) uses /v1/memories/, /v1/memories/search/.
+        self._is_platform = "api.mem0.ai" in self._base_url
+        self._prefix = "/v1/memories" if self._is_platform else "/memories"
+        self._search_path = "/v1/memories/search/" if self._is_platform else "/search"
+
         headers: dict[str, str] = {"Content-Type": "application/json"}
         if api_key:
             headers["Authorization"] = f"Token {api_key}"
@@ -60,6 +66,11 @@ class Mem0Client:
             headers=headers,
             timeout=timeout,
         )
+
+    @property
+    def base_url(self) -> str:
+        """Public access to the configured base URL."""
+        return self._base_url
 
     async def __aenter__(self) -> Mem0Client:
         return self
@@ -96,7 +107,7 @@ class Mem0Client:
         if mem_metadata:
             body["metadata"] = mem_metadata
 
-        return await self._request("POST", "/v1/memories/", json=body)
+        return await self._request("POST", self._prefix, json=body)
 
     async def search(
         self,
@@ -124,7 +135,7 @@ class Mem0Client:
         if project_id:
             body["filters"] = {"project_id": project_id}
 
-        return await self._request("POST", "/v1/memories/search/", json=body)
+        return await self._request("POST", self._search_path, json=body)
 
     async def get(self, memory_id: str) -> Any:
         """Retrieve a single memory by ID.
@@ -135,7 +146,7 @@ class Mem0Client:
         Returns:
             Memory dict from the API
         """
-        return await self._request("GET", f"/v1/memories/{memory_id}/")
+        return await self._request("GET", f"{self._prefix}/{memory_id}")
 
     async def update(
         self,
@@ -159,7 +170,7 @@ class Mem0Client:
         if metadata is not None:
             body["metadata"] = metadata
 
-        return await self._request("PUT", f"/v1/memories/{memory_id}/", json=body)
+        return await self._request("PUT", f"{self._prefix}/{memory_id}", json=body)
 
     async def delete(self, memory_id: str) -> bool:
         """Delete a memory.
@@ -170,7 +181,7 @@ class Mem0Client:
         Returns:
             True if deleted successfully
         """
-        await self._request("DELETE", f"/v1/memories/{memory_id}/")
+        await self._request("DELETE", f"{self._prefix}/{memory_id}")
         return True
 
     async def list_all(
@@ -191,7 +202,7 @@ class Mem0Client:
             "user_id": user_id or self._user_id,
             "limit": limit,
         }
-        return await self._request("GET", "/v1/memories/", params=params)
+        return await self._request("GET", self._prefix, params=params)
 
     async def get_history(self, memory_id: str) -> Any:
         """Get version history for a memory.
@@ -202,7 +213,7 @@ class Mem0Client:
         Returns:
             List of history entries
         """
-        return await self._request("GET", f"/v1/memories/{memory_id}/history/")
+        return await self._request("GET", f"{self._prefix}/{memory_id}/history")
 
     async def close(self) -> None:
         """Close the underlying HTTP client."""
