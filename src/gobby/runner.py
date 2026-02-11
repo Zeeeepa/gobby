@@ -43,6 +43,7 @@ os.environ["TOKENIZERS_PARALLELISM"] = "false"
 # Type hints for pipeline components (imported lazily at runtime)
 if TYPE_CHECKING:
     from gobby.scheduler.scheduler import CronScheduler
+    from gobby.storage.cron import CronJobStorage
     from gobby.storage.pipelines import LocalPipelineExecutionManager
     from gobby.workflows.loader import WorkflowLoader
     from gobby.workflows.pipeline_executor import PipelineExecutor

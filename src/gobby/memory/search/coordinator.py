@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import concurrent.futures
 import logging
 from typing import TYPE_CHECKING, Any
 
@@ -20,16 +21,16 @@ logger = logging.getLogger(__name__)
 # Modes that use UnifiedSearcher instead of the simple sync SearchBackend
 _UNIFIED_MODES = {"auto", "embedding", "hybrid"}
 
+# Shared executor for bridging async-to-sync calls
+_shared_executor = concurrent.futures.ThreadPoolExecutor(max_workers=1)
+
 
 def _run_async(coro: Any) -> Any:
     """Bridge async coroutine to sync, handling existing event loops."""
     try:
         asyncio.get_running_loop()
         # Already in an async context — run in a new thread
-        import concurrent.futures
-
-        with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
-            return pool.submit(asyncio.run, coro).result()
+        return _shared_executor.submit(asyncio.run, coro).result()
     except RuntimeError:
         # No running loop — safe to use asyncio.run()
         return asyncio.run(coro)
