@@ -71,7 +71,9 @@ class Neo4jClient:
         """Close the underlying HTTP client."""
         await self._client.aclose()
 
-    async def query(self, cypher: str, params: dict[str, Any] | None = None) -> list[dict[str, Any]]:
+    async def query(
+        self, cypher: str, params: dict[str, Any] | None = None
+    ) -> list[dict[str, Any]]:
         """Execute a Cypher query via the HTTP Query API v2.
 
         Args:
@@ -133,7 +135,8 @@ class Neo4jClient:
         if not isinstance(props, dict):
             return {}
         return {
-            k: v for k, v in props.items()
+            k: v
+            for k, v in props.items()
             if not (isinstance(v, list) and len(v) > 20)  # skip embedding vectors
             and k not in ("embedding",)
         }
@@ -166,11 +169,13 @@ class Neo4jClient:
                     if label not in ("Node", "_Entity"):
                         entity_type = label.lower()
                         break
-            entities.append({
-                "name": name,
-                "type": entity_type,
-                "properties": self._clean_props(props),
-            })
+            entities.append(
+                {
+                    "name": name,
+                    "type": entity_type,
+                    "properties": self._clean_props(props),
+                }
+            )
 
         # Fetch relationships
         rel_rows = await self.query(
@@ -190,12 +195,14 @@ class Neo4jClient:
                 continue
             rel_type = row.get("rel_type", "RELATED")
             props = row.get("props", {})
-            relationships.append({
-                "source": source,
-                "target": target,
-                "type": rel_type,
-                "properties": self._clean_props(props),
-            })
+            relationships.append(
+                {
+                    "source": source,
+                    "target": target,
+                    "type": rel_type,
+                    "properties": self._clean_props(props),
+                }
+            )
 
         return {"entities": entities, "relationships": relationships}
 
@@ -234,11 +241,13 @@ class Neo4jClient:
                         if label not in ("Node", "_Entity"):
                             entity_type = label.lower()
                             break
-                entities.append({
-                    "name": target_name,
-                    "type": entity_type,
-                    "properties": self._clean_props(row.get("target_props", {})),
-                })
+                entities.append(
+                    {
+                        "name": target_name,
+                        "type": entity_type,
+                        "properties": self._clean_props(row.get("target_props", {})),
+                    }
+                )
 
             # Add relationship
             source_name = row.get("source_name") or ""
@@ -248,19 +257,23 @@ class Neo4jClient:
             if source_name and target_name:
                 rel_props = self._clean_props(row.get("rel_props", {}))
                 if is_outgoing:
-                    relationships.append({
-                        "source": source_name,
-                        "target": target_name,
-                        "type": rel_type,
-                        "properties": rel_props,
-                    })
+                    relationships.append(
+                        {
+                            "source": source_name,
+                            "target": target_name,
+                            "type": rel_type,
+                            "properties": rel_props,
+                        }
+                    )
                 else:
-                    relationships.append({
-                        "source": target_name,
-                        "target": source_name,
-                        "type": rel_type,
-                        "properties": rel_props,
-                    })
+                    relationships.append(
+                        {
+                            "source": target_name,
+                            "target": source_name,
+                            "type": rel_type,
+                            "properties": rel_props,
+                        }
+                    )
 
         # Add the center entity itself if not already present
         if entity_name not in seen:
@@ -279,11 +292,13 @@ class Neo4jClient:
                         if label not in ("Node", "_Entity"):
                             entity_type = label.lower()
                             break
-            entities.append({
-                "name": entity_name,
-                "type": entity_type,
-                "properties": self._clean_props(props),
-            })
+            entities.append(
+                {
+                    "name": entity_name,
+                    "type": entity_type,
+                    "properties": self._clean_props(props),
+                }
+            )
 
         return {"entities": entities, "relationships": relationships}
 

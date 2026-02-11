@@ -65,17 +65,17 @@ def scan_skill_content(content: str, name: str = "untitled") -> dict[str, Any]:
                     for finding in item.findings:
                         sev = getattr(finding, "severity", "LOW")
                         sev_str = str(sev).upper() if sev else "LOW"
-                        findings.append({
-                            "severity": sev_str,
-                            "title": getattr(finding, "title", "Unknown"),
-                            "description": getattr(finding, "description", ""),
-                            "category": getattr(finding, "category", ""),
-                            "remediation": getattr(finding, "remediation", ""),
-                            "location": getattr(finding, "location", ""),
-                        })
-                        max_severity_num = max(
-                            max_severity_num, severity_order.get(sev_str, 0)
+                        findings.append(
+                            {
+                                "severity": sev_str,
+                                "title": getattr(finding, "title", "Unknown"),
+                                "description": getattr(finding, "description", ""),
+                                "category": getattr(finding, "category", ""),
+                                "remediation": getattr(finding, "remediation", ""),
+                                "location": getattr(finding, "location", ""),
+                            }
                         )
+                        max_severity_num = max(max_severity_num, severity_order.get(sev_str, 0))
 
         # Determine max severity string
         severity_names = {v: k for k, v in severity_order.items()}

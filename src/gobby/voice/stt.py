@@ -21,6 +21,7 @@ class _WhisperModelProto(Protocol):
 
     def transcribe(self, *args: Any, **kwargs: Any) -> Any: ...
 
+
 logger = logging.getLogger(__name__)
 
 

@@ -222,7 +222,8 @@ def create_validation_registry(
                 updates["escalated_at"] = datetime.now(UTC).isoformat()
                 updates["escalation_reason"] = f"exceeded_validation_retries ({max_retries})"
                 updates["validation_feedback"] = (
-                    feedback_str + f"\n\nExceeded max retries ({max_retries}). Escalated for human intervention."
+                    feedback_str
+                    + f"\n\nExceeded max retries ({max_retries}). Escalated for human intervention."
                 )
 
         task_manager.update_task(task.id, **updates)

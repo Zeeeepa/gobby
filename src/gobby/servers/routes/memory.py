@@ -149,7 +149,9 @@ def create_memory_router(server: "HTTPServer") -> APIRouter:
         ):
             raise HTTPException(status_code=404, detail="Neo4j not configured")
         try:
-            result: dict[str, Any] | None = await server.memory_manager.get_entity_graph(limit=limit)
+            result: dict[str, Any] | None = await server.memory_manager.get_entity_graph(
+                limit=limit
+            )
             if result is None:
                 raise HTTPException(status_code=502, detail="Neo4j unreachable")
             return result
@@ -168,7 +170,9 @@ def create_memory_router(server: "HTTPServer") -> APIRouter:
         ):
             raise HTTPException(status_code=404, detail="Neo4j not configured")
         try:
-            result: dict[str, Any] | None = await server.memory_manager.get_entity_neighbors(entity_name)
+            result: dict[str, Any] | None = await server.memory_manager.get_entity_neighbors(
+                entity_name
+            )
             if result is None:
                 raise HTTPException(status_code=502, detail="Neo4j unreachable")
             return result
@@ -208,9 +212,7 @@ def create_memory_router(server: "HTTPServer") -> APIRouter:
         """Rebuild crossrefs for all existing memories."""
         metrics.inc_counter("http_requests_total")
         try:
-            memories = server.memory_manager.list_memories(
-                project_id=project_id, limit=500
-            )
+            memories = server.memory_manager.list_memories(project_id=project_id, limit=500)
             total_created = 0
             for memory in memories:
                 try:

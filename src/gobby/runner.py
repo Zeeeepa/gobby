@@ -101,7 +101,9 @@ class GobbyRunner:
             self.hub_manager = HubManager(configs=skills_config.hubs)
             self.hub_manager.register_provider_factory("clawdhub", ClawdHubProvider)
             self.hub_manager.register_provider_factory("skillhub", SkillHubProvider)
-            self.hub_manager.register_provider_factory("github-collection", GitHubCollectionProvider)
+            self.hub_manager.register_provider_factory(
+                "github-collection", GitHubCollectionProvider
+            )
             self.hub_manager.register_provider_factory("claude-plugins", ClaudePluginsProvider)
             logger.debug(f"HubManager initialized with {len(skills_config.hubs)} hubs")
         except Exception as e:

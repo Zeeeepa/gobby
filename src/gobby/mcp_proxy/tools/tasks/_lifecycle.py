@@ -673,9 +673,7 @@ def create_lifecycle_registry(ctx: RegistryContext) -> InternalToolRegistry:
             return {"error": f"Task {task_id} not found"}
 
         if task.status in ("escalated", "closed"):
-            return {
-                "error": f"Cannot escalate task with status '{task.status}'."
-            }
+            return {"error": f"Cannot escalate task with status '{task.status}'."}
 
         ctx.task_manager.update_task(
             resolved_id,

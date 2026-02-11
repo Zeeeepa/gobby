@@ -265,7 +265,8 @@ def create_cron_registry(
                 return {"success": False, "error": f"Cron job not found: {job_id}"}
             run = cron_storage.create_run(job.id)
             cron_storage.update_run(
-                run.id, status="skipped",
+                run.id,
+                status="skipped",
                 output="Scheduler not running; run created but not executed",
             )
             run.status = "skipped"

@@ -213,11 +213,13 @@ class TranscriptAnalyzer:
                 task_id = args.get("task_id") or args.get("id")
                 title = args.get("title", "")
                 if task_id and tool:
-                    context.task_progress.append({
-                        "id": task_id,
-                        "action": tool,
-                        "title": title or f"Task {task_id}",
-                    })
+                    context.task_progress.append(
+                        {
+                            "id": task_id,
+                            "action": tool,
+                            "title": title or f"Task {task_id}",
+                        }
+                    )
 
                 # We want the most recent task interaction that implies working on a task
                 # e.g., create_task, update_task, get_task

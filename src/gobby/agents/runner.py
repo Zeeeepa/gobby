@@ -325,7 +325,9 @@ class AgentRunner:
 
                 # Inject skill_profile into lifecycle_variables for context-aware injection
                 if agent_def.skill_profile and "_skill_profile" not in config.lifecycle_variables:
-                    config.lifecycle_variables["_skill_profile"] = agent_def.skill_profile.model_dump()
+                    config.lifecycle_variables["_skill_profile"] = (
+                        agent_def.skill_profile.model_dump()
+                    )
 
                 self.logger.info(f"Loaded agent definition '{config.agent}'")
             else:

@@ -80,9 +80,7 @@ def create_projects_router(server: HTTPServer) -> APIRouter:
                 continue
 
             data = project.to_dict()
-            data["display_name"] = (
-                "Personal" if project.name == "_personal" else project.name
-            )
+            data["display_name"] = "Personal" if project.name == "_personal" else project.name
             data.update(_get_project_stats(server, project.id))
             results.append(data)
 
@@ -97,16 +95,12 @@ def create_projects_router(server: HTTPServer) -> APIRouter:
             raise HTTPException(404, "Project not found")
 
         data = project.to_dict()
-        data["display_name"] = (
-            "Personal" if project.name == "_personal" else project.name
-        )
+        data["display_name"] = "Personal" if project.name == "_personal" else project.name
         data.update(_get_project_stats(server, project.id))
         return data
 
     @router.put("/{project_id}")
-    async def update_project(
-        project_id: str, body: ProjectUpdate
-    ) -> dict[str, Any]:
+    async def update_project(project_id: str, body: ProjectUpdate) -> dict[str, Any]:
         """Update project fields."""
         pm = _get_project_manager(server)
         project = pm.get(project_id)
@@ -116,9 +110,7 @@ def create_projects_router(server: HTTPServer) -> APIRouter:
         fields = body.model_dump(exclude_none=True)
         if not fields:
             data = project.to_dict()
-            data["display_name"] = (
-                "Personal" if project.name == "_personal" else project.name
-            )
+            data["display_name"] = "Personal" if project.name == "_personal" else project.name
             data.update(_get_project_stats(server, project.id))
             return data
 
@@ -127,9 +119,7 @@ def create_projects_router(server: HTTPServer) -> APIRouter:
             raise HTTPException(500, "Failed to update project")
 
         data = updated.to_dict()
-        data["display_name"] = (
-            "Personal" if updated.name == "_personal" else updated.name
-        )
+        data["display_name"] = "Personal" if updated.name == "_personal" else updated.name
         data.update(_get_project_stats(server, project_id))
         return data
 
@@ -142,9 +132,7 @@ def create_projects_router(server: HTTPServer) -> APIRouter:
             raise HTTPException(404, "Project not found")
 
         if project.name in SYSTEM_PROJECT_NAMES:
-            raise HTTPException(
-                403, f"Cannot delete protected project '{project.name}'"
-            )
+            raise HTTPException(403, f"Cannot delete protected project '{project.name}'")
 
         if not pm.soft_delete(project_id):
             raise HTTPException(500, "Failed to delete project")

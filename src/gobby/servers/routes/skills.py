@@ -175,9 +175,7 @@ def create_skills_router(server: "HTTPServer") -> APIRouter:
             disabled = server.skill_manager.count_skills(project_id=project_id, enabled=False)
 
             # Get all skills to compute by_category and by_source_type
-            all_skills = server.skill_manager.list_skills(
-                project_id=project_id, limit=1000
-            )
+            all_skills = server.skill_manager.list_skills(project_id=project_id, limit=1000)
             by_category: dict[str, int] = {}
             by_source_type: dict[str, int] = {}
             bundled_count = 0
@@ -230,9 +228,7 @@ def create_skills_router(server: "HTTPServer") -> APIRouter:
 
             # Detect source type and load
             if source.startswith(("github:", "https://github.com", "http://github.com")) or (
-                "/" in source
-                and not source.startswith("/")
-                and not source.endswith(".zip")
+                "/" in source and not source.startswith("/") and not source.endswith(".zip")
             ):
                 parsed = loader.load_from_github(source, validate=True)
             elif source.endswith(".zip"):
@@ -308,12 +304,14 @@ def create_skills_router(server: "HTTPServer") -> APIRouter:
             for name in hub_names:
                 try:
                     config = server.hub_manager.get_config(name)
-                    hubs.append({
-                        "name": name,
-                        "type": config.type,
-                        "base_url": config.base_url,
-                        "repo": config.repo,
-                    })
+                    hubs.append(
+                        {
+                            "name": name,
+                            "type": config.type,
+                            "base_url": config.base_url,
+                            "repo": config.repo,
+                        }
+                    )
                 except KeyError:
                     pass
             return {"hubs": hubs}
