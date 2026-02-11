@@ -68,7 +68,7 @@ export function useSessions() {
       const response = await fetch(`${baseUrl}/sessions?${params}`)
       if (response.ok) {
         const data = await response.json()
-        setSessions(data.sessions || [])
+        setSessions(Array.isArray(data.sessions) ? data.sessions : [])
       } else {
         throw new Error(`Failed to fetch sessions: ${response.status}`)
       }

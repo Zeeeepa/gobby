@@ -135,7 +135,7 @@ export function useMemory() {
         if (response.ok) {
           const memory = await response.json()
           // Refresh list after creation
-          fetchMemories()
+          await fetchMemories()
           return memory
         }
       } catch (e) {
@@ -158,7 +158,7 @@ export function useMemory() {
         })
         if (response.ok) {
           const memory = await response.json()
-          fetchMemories()
+          await fetchMemories()
           return memory
         }
       } catch (e) {
@@ -178,7 +178,7 @@ export function useMemory() {
           method: 'DELETE',
         })
         if (response.ok) {
-          fetchMemories()
+          await fetchMemories()
           return true
         }
       } catch (e) {

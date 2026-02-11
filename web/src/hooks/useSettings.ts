@@ -38,7 +38,6 @@ export function useSettings() {
   useEffect(() => {
     const fetchModels = async () => {
       try {
-        // Use same host logic as WebSocket - HTTPS uses relative path, HTTP uses daemon port
         const baseUrl = ''
 
         const response = await fetch(`${baseUrl}/admin/models?provider=claude`)
