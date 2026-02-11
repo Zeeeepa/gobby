@@ -73,6 +73,9 @@ export function MemoryTable({
             key={m.id}
             className={`memory-card ${expandedId === m.id ? 'expanded' : ''} ${pinned ? 'memory-card--pinned' : ''}`}
             onClick={() => setExpandedId(expandedId === m.id ? null : m.id)}
+            role="button"
+            tabIndex={0}
+            onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setExpandedId(expandedId === m.id ? null : m.id) } }}
           >
             <div className="memory-card-header">
               <span

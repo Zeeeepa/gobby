@@ -34,13 +34,20 @@ export function QuickCaptureTask({ isOpen, onClose }: QuickCaptureTaskProps) {
     setSubmitting(true)
     try {
       const baseUrl = getBaseUrl()
-      await fetch(`${baseUrl}/tasks`, {
+      const response = await fetch(`${baseUrl}/tasks`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ title: title.trim(), task_type: taskType, priority: 2 }),
       })
+      if (!response.ok) {
+        console.error('Failed to create task:', response.status)
+        setSubmitting(false)
+        return
+      }
     } catch (err) {
       console.error('Failed to create task:', err)
+      setSubmitting(false)
+      return
     }
     setSubmitting(false)
     onClose()

@@ -74,6 +74,9 @@ export function ConversationPicker({
                   key={session.id}
                   className={`session-item ${isActive ? 'attached' : ''}`}
                   onClick={() => onSelectSession(session)}
+                  role="button"
+                  tabIndex={0}
+                  onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onSelectSession(session) } }}
                 >
                   <div className="session-item-main">
                     <span className="session-source-dot web-chat" />
