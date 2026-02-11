@@ -81,6 +81,32 @@ class GobbyRunner:
         except Exception as e:
             logger.warning(f"Failed to sync bundled skills: {e}")
 
+        # Initialize Skill Manager and Hub Manager
+        from gobby.storage.skills import LocalSkillManager
+
+        self.skill_manager = LocalSkillManager(self.database)
+
+        self.hub_manager: Any | None = None
+        try:
+            from gobby.config.skills import SkillsConfig
+            from gobby.skills.hubs import (
+                ClaudePluginsProvider,
+                ClawdHubProvider,
+                GitHubCollectionProvider,
+                HubManager,
+                SkillHubProvider,
+            )
+
+            skills_config = self.config.skills if hasattr(self.config, "skills") else SkillsConfig()
+            self.hub_manager = HubManager(configs=skills_config.hubs)
+            self.hub_manager.register_provider_factory("clawdhub", ClawdHubProvider)
+            self.hub_manager.register_provider_factory("skillhub", SkillHubProvider)
+            self.hub_manager.register_provider_factory("github-collection", GitHubCollectionProvider)
+            self.hub_manager.register_provider_factory("claude-plugins", ClaudePluginsProvider)
+            logger.debug(f"HubManager initialized with {len(skills_config.hubs)} hubs")
+        except Exception as e:
+            logger.warning(f"Failed to initialize HubManager: {e}")
+
         # Initialize LLM Service
         self.llm_service: LLMService | None = None  # Added type hint
         try:
@@ -306,6 +332,8 @@ class GobbyRunner:
             pipeline_execution_manager=self.pipeline_execution_manager,
             cron_storage=self.cron_storage,
             cron_scheduler=self.cron_scheduler,
+            skill_manager=self.skill_manager,
+            hub_manager=self.hub_manager,
         )
 
         self.http_server = HTTPServer(

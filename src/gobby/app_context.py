@@ -66,6 +66,10 @@ class ServiceContainer:
     # Agent Definitions
     agent_definition_manager: Any | None = None  # LocalAgentDefinitionManager
 
+    # Skills
+    skill_manager: Any | None = None  # LocalSkillManager
+    hub_manager: Any | None = None  # HubManager
+
     # Context
     project_id: str | None = None
     websocket_server: Any | None = None

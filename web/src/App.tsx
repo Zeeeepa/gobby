@@ -16,6 +16,7 @@ import { MemoryPage } from './components/MemoryPage'
 import { ProjectsPage } from './components/ProjectsPage'
 import { TasksPage } from './components/TasksPage'
 import { ArtifactsPage } from './components/ArtifactsPage'
+import { SkillsPage } from './components/SkillsPage'
 import { CronJobsPage } from './components/CronJobsPage'
 import { AgentDefinitionsPage } from './components/AgentDefinitionsPage'
 import { QuickCaptureTask } from './components/tasks/QuickCaptureTask'
@@ -301,6 +302,8 @@ export default function App() {
         <CronJobsPage />
       ) : activeTab === 'agents' ? (
         <AgentDefinitionsPage />
+      ) : activeTab === 'skills' ? (
+        <SkillsPage />
       ) : (
         <ComingSoonPage title={navItems.find(i => i.id === activeTab)?.label ?? activeTab} />
       )}

@@ -608,16 +608,17 @@ class HTTPServer:
             create_admin_router,
             create_agents_router,
             create_artifacts_router,
+            create_configuration_router,
             create_cron_router,
             create_files_router,
             create_hooks_router,
-            create_projects_router,
             create_mcp_router,
             create_memory_router,
-            create_skills_router,
             create_pipelines_router,
             create_plugins_router,
+            create_projects_router,
             create_sessions_router,
+            create_skills_router,
             create_tasks_router,
             create_voice_router,
             create_webhooks_router,
@@ -640,6 +641,7 @@ class HTTPServer:
         app.include_router(create_projects_router(self))
         app.include_router(create_skills_router(self))
         app.include_router(create_voice_router(self))
+        app.include_router(create_configuration_router(self))
 
     async def _process_shutdown(self) -> None:
         """
