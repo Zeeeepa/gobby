@@ -129,9 +129,12 @@ function ArtifactDetail({
   const [copied, setCopied] = useState(false)
 
   const handleCopy = useCallback(() => {
-    navigator.clipboard.writeText(artifact.content)
-    setCopied(true)
-    setTimeout(() => setCopied(false), 2000)
+    navigator.clipboard.writeText(artifact.content).then(() => {
+      setCopied(true)
+      setTimeout(() => setCopied(false), 2000)
+    }).catch((err) => {
+      console.error('Failed to copy to clipboard:', err)
+    })
   }, [artifact.content])
 
   const handleAddTag = useCallback(() => {
@@ -276,6 +279,13 @@ export function ArtifactsPage() {
     refreshArtifacts,
   } = useArtifacts()
 
+  const [errorMessage, setErrorMessage] = useState<string | null>(null)
+
+  const showError = useCallback((msg: string) => {
+    setErrorMessage(msg)
+    setTimeout(() => setErrorMessage(null), 4000)
+  }, [])
+
   const displayArtifacts = searchResults ?? artifacts
 
   // Group artifacts by date
@@ -315,7 +325,7 @@ export function ArtifactsPage() {
       await deleteArtifact(id)
     } catch (e) {
       console.error('Failed to delete artifact:', e)
-      alert('Failed to delete artifact')
+      showError('Failed to delete artifact')
     }
   }, [deleteArtifact])
 
@@ -324,7 +334,7 @@ export function ArtifactsPage() {
       await addTag(id, tag)
     } catch (e) {
       console.error('Failed to add tag:', e)
-      alert('Failed to add tag')
+      showError('Failed to add tag')
     }
   }, [addTag])
 
@@ -333,12 +343,17 @@ export function ArtifactsPage() {
       await removeTag(id, tag)
     } catch (e) {
       console.error('Failed to remove tag:', e)
-      alert('Failed to remove tag')
+      showError('Failed to remove tag')
     }
   }, [removeTag])
 
   return (
     <main className="artifacts-page">
+      {errorMessage && (
+        <div className="artifacts-error-toast" onClick={() => setErrorMessage(null)}>
+          {errorMessage}
+        </div>
+      )}
       {/* Sidebar */}
       <div className="artifacts-sidebar">
         <div className="artifacts-sidebar-header">
