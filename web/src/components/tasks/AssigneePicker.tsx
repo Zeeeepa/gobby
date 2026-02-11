@@ -135,6 +135,9 @@ export function AssigneePicker({ currentAssignee, currentAgentName, onAssign }: 
       <button
         className="assignee-picker-trigger"
         onClick={() => setIsOpen(!isOpen)}
+        aria-haspopup="listbox"
+        aria-expanded={isOpen}
+        aria-controls={isOpen ? 'assignee-picker-dropdown' : undefined}
       >
         <span className="assignee-picker-icon">
           {currentAssignee ? agentIcon(currentAgentName ? 'agent' : 'session') : '\u25CB'}
@@ -144,7 +147,7 @@ export function AssigneePicker({ currentAssignee, currentAgentName, onAssign }: 
       </button>
 
       {isOpen && (
-        <div className="assignee-picker-dropdown">
+        <div className="assignee-picker-dropdown" id="assignee-picker-dropdown" role="listbox">
           {/* Mode toggle */}
           <div className="assignee-picker-mode">
             <button
@@ -167,6 +170,7 @@ export function AssigneePicker({ currentAssignee, currentAgentName, onAssign }: 
               placeholder="Secondary assignee..."
               value={secondaryAssignee}
               onChange={e => setSecondaryAssignee(e.target.value)}
+              onKeyDown={e => { if (e.key === 'Enter') e.preventDefault() }}
             />
           )}
 
@@ -208,7 +212,7 @@ export function AssigneePicker({ currentAssignee, currentAgentName, onAssign }: 
                 placeholder="Session ID or name..."
                 value={customValue}
                 onChange={e => setCustomValue(e.target.value)}
-                onKeyDown={e => { if (e.key === 'Enter') handleCustomSubmit() }}
+                onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); handleCustomSubmit() } }}
                 autoFocus
               />
               <button
