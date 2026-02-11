@@ -1,5 +1,5 @@
 import { useState, useMemo, useCallback, useRef, useEffect, useId } from 'react'
-import dagre from 'dagre'
+import dagre from '@dagrejs/dagre'
 import type { GobbyTask } from '../../hooks/useTasks'
 
 // =============================================================================

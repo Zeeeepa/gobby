@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useMemo, useCallback } from 'react'
-import dagre from 'dagre'
+import dagre from '@dagrejs/dagre'
 import type { GobbyMemory, MemoryGraphData, MemoryCrossRef } from '../hooks/useMemory'
 
 interface MemoryGraphProps {
