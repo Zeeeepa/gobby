@@ -24,7 +24,7 @@ const COLUMNS: KanbanColumnDef[] = [
   { key: 'review',      label: 'Review',      statuses: ['needs_review'],        targetStatus: 'needs_review' },
   { key: 'blocked',     label: 'Blocked',     statuses: ['failed', 'escalated'], targetStatus: 'failed' },
   { key: 'approved',    label: 'Approved',    statuses: ['approved'],            targetStatus: 'approved' },
-  { key: 'closed',      label: 'Closed',      statuses: ['closed'],              targetStatus: 'closed' },
+  { key: 'closed',      label: 'Closed',      statuses: ['closed', 'cancelled'], targetStatus: 'closed' },
 ]
 
 // Status progression: current → next

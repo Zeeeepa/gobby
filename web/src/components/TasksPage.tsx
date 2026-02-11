@@ -25,14 +25,18 @@ type SortDirection = 'asc' | 'desc'
 
 const STATUS_OPTIONS = [
   'open', 'in_progress', 'needs_review', 'approved', 'closed', 'failed', 'escalated',
-  'needs_decomposition', 'cancelled',
+  'needs_decomposition',
 ]
 
 // Explicit ordering for status filter pills
+// 'cancelled' is grouped with 'closed' (not shown as a separate pill)
 const STATUS_ORDER = [
   'open', 'in_progress', 'needs_review', 'approved', 'closed',
-  'failed', 'escalated', 'needs_decomposition', 'cancelled',
+  'failed', 'escalated', 'needs_decomposition',
 ]
+
+// Statuses grouped under the 'closed' filter
+const CLOSED_GROUP = ['closed', 'cancelled']
 
 const TYPE_OPTIONS = ['task', 'bug', 'feature', 'epic', 'chore']
 
@@ -347,7 +351,16 @@ export function TasksPage() {
       {/* Filter bar */}
       <div className="tasks-filter-bar">
         <div className="tasks-filter-chips">
-          {STATUS_ORDER.filter(status => (stats as Record<string, number>)[status] > 0).map(status => (
+          {STATUS_ORDER.filter(status => {
+              const count = status === 'closed'
+                ? CLOSED_GROUP.reduce((sum, s) => sum + ((stats as Record<string, number>)[s] || 0), 0)
+                : (stats as Record<string, number>)[status] || 0
+              return count > 0
+            }).map(status => {
+              const count = status === 'closed'
+                ? CLOSED_GROUP.reduce((sum, s) => sum + ((stats as Record<string, number>)[s] || 0), 0)
+                : (stats as Record<string, number>)[status] || 0
+              return (
               <button
                 key={status}
                 className={`tasks-stat-chip ${filters.status === status ? 'active' : ''}`}
@@ -356,9 +369,10 @@ export function TasksPage() {
                 }
               >
                 <StatusDot status={status} />
-                {status.replace(/_/g, ' ')} ({(stats as Record<string, number>)[status]})
+                {status.replace(/_/g, ' ')} ({count})
               </button>
-          ))}
+              )
+          })}
         </div>
         <div className="tasks-filter-dropdowns">
           <select

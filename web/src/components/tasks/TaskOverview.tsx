@@ -5,7 +5,7 @@ import type { GobbyTask, TaskStats } from '../../hooks/useTasks'
 // Constants
 // =============================================================================
 
-const COMPLETED_STATUSES = new Set(['closed', 'approved'])
+const COMPLETED_STATUSES = new Set(['closed', 'approved', 'cancelled'])
 const TWENTY_FOUR_HOURS_MS = 24 * 60 * 60 * 1000
 
 // =============================================================================

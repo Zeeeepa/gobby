@@ -3714,8 +3714,9 @@ body {
    ============================================================================= */
 
 .memory-page {
+  flex: 1;
   display: flex;
-  height: 100%;
+  min-height: 0;
   overflow: hidden;
 }
 
@@ -4332,9 +4333,9 @@ body {
 /* MemoryPage */
 
 .memory-page-root {
+  flex: 1;
   display: flex;
   flex-direction: column;
-  height: 100%;
   overflow: hidden;
 }
 
@@ -4829,6 +4830,70 @@ body {
 .tasks-filter-clear:hover {
   color: var(--text-primary);
   border-color: var(--text-muted);
+}
+
+/* Tasks page mobile responsive */
+@media (max-width: 768px) {
+  .tasks-page {
+    padding: 0.75rem;
+  }
+
+  .tasks-toolbar {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.5rem;
+  }
+
+  .tasks-toolbar-left {
+    width: 100%;
+  }
+
+  .tasks-toolbar-right {
+    width: 100%;
+    flex-wrap: wrap;
+  }
+
+  .tasks-search {
+    flex: 1;
+    min-width: 0;
+  }
+
+  .tasks-cell--type,
+  .tasks-cell--priority,
+  .tasks-cell--status-text {
+    display: none;
+  }
+
+  .tasks-th:nth-child(4),
+  .tasks-th:nth-child(5),
+  .tasks-th:nth-child(6) {
+    display: none;
+  }
+
+  .tasks-cell--title {
+    font-size: calc(var(--font-size-base) * 0.85);
+  }
+
+  .tasks-filter-bar {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .tasks-filter-chips {
+    overflow-x: auto;
+    max-width: 100%;
+    flex-wrap: nowrap;
+    padding-bottom: 0.25rem;
+  }
+
+  .tasks-filter-dropdowns {
+    width: 100%;
+  }
+
+  .tasks-filter-select {
+    flex: 1;
+    min-width: 0;
+  }
 }
 
 /* Shared task badges (TaskBadges.tsx) */
