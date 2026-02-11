@@ -5,7 +5,7 @@ Provides endpoints for managing cron jobs and viewing run history.
 """
 
 import logging
-from typing import TYPE_CHECKING, Any, Literal, cast
+from typing import TYPE_CHECKING, Any, Literal
 
 from fastapi import APIRouter, HTTPException, Query
 from fastapi.responses import JSONResponse
@@ -103,8 +103,8 @@ def create_cron_router(server: "HTTPServer") -> APIRouter:
             job = storage.create_job(
                 project_id=request.project_id,
                 name=request.name,
-                schedule_type=cast(Literal["cron", "interval", "once"], request.schedule_type),
-                action_type=cast(Literal["agent_spawn", "pipeline", "shell"], request.action_type),
+                schedule_type=request.schedule_type,
+                action_type=request.action_type,
                 action_config=request.action_config,
                 cron_expr=request.cron_expr,
                 interval_seconds=request.interval_seconds,
@@ -204,7 +204,7 @@ def create_cron_router(server: "HTTPServer") -> APIRouter:
             raise HTTPException(status_code=500, detail=str(e)) from e
 
     @router.post("/jobs/{job_id}/run")
-    async def run_job_now(job_id: str) -> dict[str, Any]:
+    async def run_job_now(job_id: str) -> dict[str, Any] | JSONResponse:
         """Trigger immediate execution of a cron job."""
         metrics.inc_counter("http_requests_total")
         try:

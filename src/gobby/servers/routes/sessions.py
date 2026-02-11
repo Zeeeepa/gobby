@@ -90,8 +90,8 @@ def _get_commit_count(db: "DatabaseProtocol", session: Any) -> int:
             )
             if row and row[0]:
                 cwd = row[0]
-        except Exception:
-            pass
+        except Exception as e:
+            logger.debug(f"Failed to resolve repo_path for session {session.id}: {e}")
 
     if not cwd:
         return 0

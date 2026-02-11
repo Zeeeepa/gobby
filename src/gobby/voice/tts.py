@@ -14,6 +14,8 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
+    from websockets.asyncio.client import ClientConnection
+
     from gobby.config.voice import VoiceConfig
 
 logger = logging.getLogger(__name__)
@@ -32,7 +34,7 @@ class ElevenLabsTTS:
 
     def __init__(self, config: VoiceConfig) -> None:
         self._config = config
-        self._ws: object | None = None
+        self._ws: ClientConnection | None = None
         self._keepalive_task: asyncio.Task[None] | None = None
         self._connected = False
 
@@ -51,7 +53,7 @@ class ElevenLabsTTS:
                 f"/stream-input?model_id={model_id}"
             )
 
-            self._ws = await websockets.connect(url)  # type: ignore[assignment]
+            self._ws = await websockets.connect(url)
 
             # Send BOS (beginning of stream) message
             bos_message = {
@@ -64,7 +66,7 @@ class ElevenLabsTTS:
                 "output_format": self._config.audio_format,
                 "chunk_length_schedule": [120, 160, 250, 290],
             }
-            await self._ws.send(json.dumps(bos_message))  # type: ignore[union-attr]
+            await self._ws.send(json.dumps(bos_message))
             self._connected = True
 
             # Start keepalive to prevent 20s timeout
@@ -87,7 +89,7 @@ class ElevenLabsTTS:
                 await asyncio.sleep(15)
                 if self._connected and self._ws:
                     try:
-                        await self._ws.send(json.dumps({"text": " "}))  # type: ignore[union-attr]
+                        await self._ws.send(json.dumps({"text": " "}))
                     except Exception:
                         break
         except asyncio.CancelledError:
@@ -105,14 +107,18 @@ class ElevenLabsTTS:
         if not self._connected or not self._ws:
             await self.connect()
 
+        ws = self._ws
+        if not ws:
+            raise RuntimeError("WebSocket not connected after connect()")
+
         try:
-            await self._ws.send(json.dumps({"text": text + " "}))  # type: ignore[union-attr]
+            await ws.send(json.dumps({"text": text + " "}))
 
             # Read audio chunks until we get alignment or silence
             while True:
                 try:
                     response = await asyncio.wait_for(
-                        self._ws.recv(),  # type: ignore[union-attr]
+                        ws.recv(),
                         timeout=10.0,
                     )
                     data = json.loads(response)
@@ -151,12 +157,12 @@ class ElevenLabsTTS:
 
         try:
             # Send EOS (end of stream)
-            await self._ws.send(json.dumps({"text": ""}))  # type: ignore[union-attr]
+            await self._ws.send(json.dumps({"text": ""}))
 
             while True:
                 try:
                     response = await asyncio.wait_for(
-                        self._ws.recv(),  # type: ignore[union-attr]
+                        self._ws.recv(),
                         timeout=5.0,
                     )
                     data = json.loads(response)
@@ -190,9 +196,9 @@ class ElevenLabsTTS:
 
         if self._ws:
             try:
-                await self._ws.close()  # type: ignore[union-attr]
-            except Exception:
-                pass
+                await self._ws.close()
+            except Exception as e:
+                logger.debug(f"Error closing TTS WebSocket: {e}")
             self._ws = None
 
         logger.debug("ElevenLabs TTS disconnected")

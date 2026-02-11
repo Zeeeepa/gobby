@@ -19,6 +19,8 @@ from gobby.utils.project_context import get_project_context
 if TYPE_CHECKING:
     from gobby.storage.database import DatabaseProtocol
 
+AgentSource = Literal["project-file", "user-file", "built-in-file", "project-db", "global-db"]
+
 logger = logging.getLogger(__name__)
 
 
@@ -278,7 +280,7 @@ class AgentDefinitionInfo(BaseModel):
     """Wrapper that pairs an AgentDefinition with its source metadata."""
 
     definition: AgentDefinition
-    source: Literal["project-file", "user-file", "built-in-file", "project-db", "global-db"]
+    source: AgentSource
     source_path: str | None = None  # filesystem path for file sources
     db_id: str | None = None  # database ID for DB sources
     overridden_by: str | None = None  # if a higher-priority source shadows this
@@ -434,7 +436,7 @@ class AgentDefinitionLoader:
     def _scan_directory(
         self,
         directory: Path | None,
-        source: str,
+        source: AgentSource,
         seen: dict[str, AgentDefinitionInfo],
     ) -> None:
         """Scan a directory for YAML agent definitions."""
@@ -454,7 +456,7 @@ class AgentDefinitionLoader:
                     old.overridden_by = source
                 seen[name] = AgentDefinitionInfo(
                     definition=defn,
-                    source=source,  # type: ignore[arg-type]
+                    source=source,
                     source_path=str(yaml_file),
                 )
             except Exception as e:

@@ -54,8 +54,14 @@ class VoiceMixin:
         """Get voice config from daemon_config if available."""
         config = getattr(self, "daemon_config", None)
         if config and hasattr(config, "voice"):
-            return config.voice
+            voice: VoiceConfig | None = config.voice
+            return voice
         return None
+
+    def _get_audio_format(self) -> str:
+        """Get the configured audio format, with a safe default."""
+        vc = self._get_voice_config()
+        return vc.audio_format if vc else "mp3_44100_128"
 
     def _get_stt(self) -> Any:
         """Get or create the WhisperSTT singleton."""
@@ -277,7 +283,7 @@ class VoiceMixin:
                                 "request_id": request_id,
                                 "audio_data": chunk.audio_base64,
                                 "is_final": False,
-                                "format": self._get_voice_config().audio_format if self._get_voice_config() else "mp3_44100_128",
+                                "format": self._get_audio_format(),
                             }
                         )
                     )
@@ -315,7 +321,7 @@ class VoiceMixin:
                                 "request_id": request_id,
                                 "audio_data": chunk.audio_base64,
                                 "is_final": False,
-                                "format": self._get_voice_config().audio_format if self._get_voice_config() else "mp3_44100_128",
+                                "format": self._get_audio_format(),
                             }
                         )
                     )
@@ -330,7 +336,7 @@ class VoiceMixin:
                             "request_id": request_id,
                             "audio_data": chunk.audio_base64,
                             "is_final": chunk.is_final,
-                            "format": self._get_voice_config().audio_format if self._get_voice_config() else "mp3_44100_128",
+                            "format": self._get_audio_format(),
                         }
                     )
                 )
@@ -344,7 +350,7 @@ class VoiceMixin:
                         "request_id": request_id,
                         "audio_data": "",
                         "is_final": True,
-                        "format": self._get_voice_config().audio_format if self._get_voice_config() else "mp3_44100_128",
+                        "format": self._get_audio_format(),
                     }
                 )
             )

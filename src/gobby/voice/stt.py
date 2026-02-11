@@ -10,10 +10,16 @@ import asyncio
 import logging
 import tempfile
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any, Protocol
 
 if TYPE_CHECKING:
     from gobby.config.voice import VoiceConfig
+
+
+class _WhisperModelProto(Protocol):
+    """Protocol for faster-whisper WhisperModel to avoid runtime import."""
+
+    def transcribe(self, *args: Any, **kwargs: Any) -> Any: ...
 
 logger = logging.getLogger(__name__)
 
@@ -23,11 +29,11 @@ class WhisperSTT:
 
     def __init__(self, config: VoiceConfig) -> None:
         self._config = config
-        self._model: object | None = None
+        self._model: _WhisperModelProto | None = None
         self._loading = False
         self._load_lock = asyncio.Lock()
 
-    async def _ensure_model(self) -> object:
+    async def _ensure_model(self) -> _WhisperModelProto:
         """Lazy-load the Whisper model (thread-safe, async)."""
         if self._model is not None:
             return self._model
@@ -43,14 +49,15 @@ class WhisperSTT:
                 f"compute_type={self._config.whisper_compute_type})"
             )
 
-            def _load() -> object:
+            def _load() -> _WhisperModelProto:
                 from faster_whisper import WhisperModel
 
-                return WhisperModel(
+                model: _WhisperModelProto = WhisperModel(
                     self._config.whisper_model_size,
                     device=self._config.whisper_device,
                     compute_type=self._config.whisper_compute_type,
                 )
+                return model
 
             self._model = await asyncio.to_thread(_load)
             logger.info("Whisper model loaded successfully")
@@ -87,7 +94,7 @@ class WhisperSTT:
                 tmp_path = Path(f.name)
 
             try:
-                segments, info = model.transcribe(  # type: ignore[union-attr]
+                segments, info = model.transcribe(
                     str(tmp_path),
                     vad_filter=True,
                     vad_parameters={"min_silence_duration_ms": 500},

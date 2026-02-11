@@ -90,7 +90,8 @@ def create_configuration_router(server: "HTTPServer") -> APIRouter:
         from gobby.storage.database import LocalDatabase
 
         db = server.services.database
-        assert isinstance(db, LocalDatabase)
+        if not isinstance(db, LocalDatabase):
+            raise HTTPException(status_code=503, detail="Database not available")
         return SecretStore(db)
 
     def _get_prompt_loader() -> PromptLoader:

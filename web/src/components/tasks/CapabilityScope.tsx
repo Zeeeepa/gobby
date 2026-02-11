@@ -109,7 +109,7 @@ function categorizeServers(servers: MCPServer[]): CapabilityGroup[] {
 // =============================================================================
 
 interface CapabilityScopeProps {
-  sessionId: string
+  sessionId?: string
 }
 
 export function CapabilityScope({ sessionId: _sessionId }: CapabilityScopeProps) {

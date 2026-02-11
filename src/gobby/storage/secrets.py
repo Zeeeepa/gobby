@@ -169,7 +169,8 @@ class SecretStore:
             )
 
         row = self.db.fetchone("SELECT * FROM secrets WHERE id = ?", (secret_id,))
-        assert row is not None  # Just inserted/updated
+        if row is None:
+            raise ValueError(f"Secret '{name}' not found after upsert (id={secret_id})")
         return SecretInfo(
             id=row["id"],
             name=row["name"],
