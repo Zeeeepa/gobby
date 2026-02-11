@@ -77,7 +77,7 @@ def register_interaction_tools(
                 result = await asyncio.to_thread(plugin_action.handler, **kwargs)
 
             return {"success": True, "result": result}
-        except Exception as e:
+        except Exception:
             logger.exception(f"Plugin action '{plugin}.{action}' failed")
             return {"success": False, "error": "Plugin action failed"}
 

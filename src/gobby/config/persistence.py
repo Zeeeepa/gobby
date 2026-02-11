@@ -8,9 +8,9 @@ Contains storage and sync-related Pydantic config models:
 Extracted from app.py using Strangler Fig pattern for code decomposition.
 """
 
+import logging
 from pathlib import Path
 
-import logging
 from pydantic import BaseModel, Field, field_validator, model_validator
 
 logger = logging.getLogger(__name__)

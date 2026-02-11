@@ -4,13 +4,14 @@ from __future__ import annotations
 
 import logging
 from collections.abc import Callable
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING
 
 from gobby.mcp_proxy.tools.internal import InternalRegistryManager
 
 if TYPE_CHECKING:
     from gobby.agents.runner import AgentRunner
     from gobby.config.app import DaemonConfig
+    from gobby.hooks.hook_manager import HookManager
     from gobby.llm.service import LLMService
     from gobby.mcp_proxy.metrics import ToolMetricsManager
     from gobby.mcp_proxy.services.tool_proxy import ToolProxyService
@@ -30,7 +31,6 @@ if TYPE_CHECKING:
     from gobby.workflows.loader import WorkflowLoader
     from gobby.workflows.pipeline_executor import PipelineExecutor
     from gobby.worktrees.git import WorktreeGitManager
-    from gobby.hooks.hook_manager import HookManager
     from gobby.worktrees.merge import MergeResolver
 
 logger = logging.getLogger("gobby.mcp.registries")
