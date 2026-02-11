@@ -6,6 +6,8 @@ import pytest
 
 from gobby.config.cron import CronConfig
 
+pytestmark = pytest.mark.unit
+
 
 def test_cron_config_defaults() -> None:
     """CronConfig creates with sensible defaults."""

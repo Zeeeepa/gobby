@@ -10,6 +10,8 @@ import pytest
 
 from gobby.hooks.artifact_capture import ArtifactCaptureHook
 
+pytestmark = pytest.mark.unit
+
 
 @dataclass
 class FakeArtifact:
