@@ -246,19 +246,20 @@ class Neo4jClient:
             is_outgoing = row.get("is_outgoing", True)
 
             if source_name and target_name:
+                rel_props = self._clean_props(row.get("rel_props", {}))
                 if is_outgoing:
                     relationships.append({
                         "source": source_name,
                         "target": target_name,
                         "type": rel_type,
-                        "properties": row.get("rel_props", {}),
+                        "properties": rel_props,
                     })
                 else:
                     relationships.append({
                         "source": target_name,
                         "target": source_name,
                         "type": rel_type,
-                        "properties": row.get("rel_props", {}),
+                        "properties": rel_props,
                     })
 
         # Add the center entity itself if not already present
@@ -281,7 +282,7 @@ class Neo4jClient:
             entities.append({
                 "name": entity_name,
                 "type": entity_type,
-                "properties": props if isinstance(props, dict) else {},
+                "properties": self._clean_props(props),
             })
 
         return {"entities": entities, "relationships": relationships}
