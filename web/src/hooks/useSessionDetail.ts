@@ -14,7 +14,7 @@ export interface SessionMessage {
 }
 
 function getBaseUrl(): string {
-  return ''
+  return import.meta.env.VITE_API_BASE_URL || ''
 }
 
 export function useSessionDetail(sessionId: string | null) {

@@ -44,10 +44,10 @@ export function classifyRisk(toolName: string, toolInput?: string | null): RiskL
     if (pattern.test(combined)) return 'critical'
   }
   for (const pattern of HIGH_PATTERNS) {
-    if (pattern.test(toolName)) return 'high'
+    if (pattern.test(combined)) return 'high'
   }
   for (const pattern of MEDIUM_PATTERNS) {
-    if (pattern.test(toolName)) return 'medium'
+    if (pattern.test(combined)) return 'medium'
   }
   return 'none'
 }
