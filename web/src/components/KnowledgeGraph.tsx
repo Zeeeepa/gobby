@@ -335,8 +335,8 @@ export function KnowledgeGraph({ fetchKnowledgeGraph, fetchEntityNeighbors }: Kn
         </div>
       )}
 
-      {/* Animate toggle (bottom-right) */}
-      <div className="knowledge-graph-animate-toggle">
+      {/* Controls (top-right) */}
+      <div className="knowledge-graph-controls">
         <button
           className={`knowledge-graph-ctrl-btn${animateIdle ? ' active' : ''}`}
           onClick={toggleAnimate}
