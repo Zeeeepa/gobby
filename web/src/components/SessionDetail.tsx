@@ -116,6 +116,7 @@ export function SessionDetail({
               className="session-detail-regenerate-btn"
               onClick={onGenerateSummary}
               title="Regenerate summary"
+              aria-label="Regenerate summary"
             >
               <SummaryIcon />
             </button>

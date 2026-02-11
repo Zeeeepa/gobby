@@ -182,9 +182,10 @@ export function ActionFeed({ sessionId }: ActionFeedProps) {
     <div className="action-feed">
       {actions.map((action, i) => (
         <button
-          key={i}
+          key={`${action.timestamp}-${i}`}
           className={`action-feed-item ${action.success ? '' : 'action-feed-item--error'}`}
           onClick={() => action.resultPreview && toggle(i)}
+          aria-expanded={action.resultPreview ? expanded.has(i) : undefined}
         >
           <span className={`action-feed-dot ${action.success ? 'action-feed-dot--success' : 'action-feed-dot--error'}`} />
           <span className="action-feed-desc">{action.description}</span>

@@ -179,8 +179,8 @@ export function MemoryPage() {
     }
   }, [selectedMemory, handleDelete])
 
-  const viewModes: [ViewMode, React.FC, string][] = [
-    ...(neo4jStatus?.configured ? [['knowledge' as ViewMode, KnowledgeIcon, 'Knowledge graph'] as [ViewMode, React.FC, string]] : []),
+  const viewModes: [ViewMode, React.ComponentType, string][] = [
+    ...(neo4jStatus?.configured ? [['knowledge' as ViewMode, KnowledgeIcon, 'Knowledge graph'] as [ViewMode, React.ComponentType, string]] : []),
     ['graph', GraphIcon, 'Graph view'],
     ['list', ListIcon, 'List view'],
   ]
