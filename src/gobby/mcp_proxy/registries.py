@@ -30,6 +30,7 @@ if TYPE_CHECKING:
     from gobby.workflows.loader import WorkflowLoader
     from gobby.workflows.pipeline_executor import PipelineExecutor
     from gobby.worktrees.git import WorktreeGitManager
+    from gobby.hooks.hook_manager import HookManager
     from gobby.worktrees.merge import MergeResolver
 
 logger = logging.getLogger("gobby.mcp.registries")
@@ -59,7 +60,7 @@ def setup_internal_registries(
     pipeline_executor: PipelineExecutor | None = None,
     workflow_loader: WorkflowLoader | None = None,
     pipeline_execution_manager: LocalPipelineExecutionManager | None = None,
-    hook_manager_resolver: Callable[[], Any] | None = None,
+    hook_manager_resolver: Callable[[], HookManager | None] | None = None,
 ) -> InternalRegistryManager:
     """
     Setup internal MCP registries (tasks, messages, memory, metrics, agents, worktrees).
@@ -378,18 +379,21 @@ def setup_internal_registries(
             cron_registry = create_cron_registry(cron_storage=cron_storage)
             manager.add_registry(cron_registry)
             logger.debug("Cron registry initialized")
-        except Exception as e:
+        except (ImportError, RuntimeError, OSError) as e:
             logger.debug(f"Cron registry not initialized: {e}")
 
     # Initialize plugins registry if hook_manager_resolver is provided
     if hook_manager_resolver is not None:
-        from gobby.mcp_proxy.tools.plugins import create_plugins_registry
+        try:
+            from gobby.mcp_proxy.tools.plugins import create_plugins_registry
 
-        plugins_registry = create_plugins_registry(
-            hook_manager_resolver=hook_manager_resolver,
-        )
-        manager.add_registry(plugins_registry)
-        logger.debug("Plugins registry initialized")
+            plugins_registry = create_plugins_registry(
+                hook_manager_resolver=hook_manager_resolver,
+            )
+            manager.add_registry(plugins_registry)
+            logger.debug("Plugins registry initialized")
+        except (ImportError, RuntimeError, OSError) as e:
+            logger.debug(f"Plugins registry not initialized: {e}")
 
     logger.info(f"Internal registries initialized: {len(manager)} registries")
     return manager

@@ -200,7 +200,7 @@ class HookManagerFactory:
         storage = cls._create_storage(database)
 
         # Initialize autonomous components
-        autonomous = cls._create_autonomous(database, storage)
+        autonomous = cls._create_autonomous(database)
 
         # Initialize memory system
         mem_manager = cls._create_memory(database, config)
@@ -332,7 +332,7 @@ class HookManagerFactory:
         )
 
     @staticmethod
-    def _create_autonomous(database: LocalDatabase, storage: Any) -> _Autonomous:
+    def _create_autonomous(database: LocalDatabase) -> _Autonomous:
         progress_tracker = ProgressTracker(database)
         return _Autonomous(
             stop_registry=StopRegistry(database),

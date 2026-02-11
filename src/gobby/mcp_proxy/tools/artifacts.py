@@ -66,10 +66,11 @@ def create_artifacts_registry(
     )
 
     def _enrich_with_tags(artifact_dicts: list[dict[str, Any]]) -> list[dict[str, Any]]:
-        """Add tags to each artifact dict."""
-        for d in artifact_dicts:
-            d["tags"] = _artifact_manager.get_tags(d["id"])
-        return artifact_dicts
+        """Add tags to each artifact dict (returns new list, no mutation)."""
+        return [
+            {**d, "tags": _artifact_manager.get_tags(d["id"])}
+            for d in artifact_dicts
+        ]
 
     @registry.tool(
         name="search_artifacts",
