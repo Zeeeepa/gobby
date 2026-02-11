@@ -75,19 +75,19 @@ export function SessionDetail({
       <div className="session-detail-stats">
         <div className="session-detail-stat">
           <span className="session-detail-stat-label">Messages</span>
-          <span className="session-detail-stat-value">{session.message_count}</span>
+          <span className="session-detail-stat-value">{session.message_count != null ? session.message_count : '\u2014'}</span>
         </div>
         <div className="session-detail-stat">
           <span className="session-detail-stat-label">Input</span>
-          <span className="session-detail-stat-value">{session.usage_input_tokens ? formatTokens(session.usage_input_tokens) : '\u2014'}</span>
+          <span className="session-detail-stat-value">{session.usage_input_tokens > 0 ? formatTokens(session.usage_input_tokens) : '\u2014'}</span>
         </div>
         <div className="session-detail-stat">
           <span className="session-detail-stat-label">Output</span>
-          <span className="session-detail-stat-value">{session.usage_output_tokens ? formatTokens(session.usage_output_tokens) : '\u2014'}</span>
+          <span className="session-detail-stat-value">{session.usage_output_tokens > 0 ? formatTokens(session.usage_output_tokens) : '\u2014'}</span>
         </div>
         <div className="session-detail-stat">
           <span className="session-detail-stat-label">Cost</span>
-          <span className="session-detail-stat-value">{session.usage_total_cost_usd ? formatCost(session.usage_total_cost_usd) : '\u2014'}</span>
+          <span className="session-detail-stat-value">{session.usage_total_cost_usd > 0 ? formatCost(session.usage_total_cost_usd) : '\u2014'}</span>
         </div>
         <div className="session-detail-stat">
           <span className="session-detail-stat-label">Duration</span>

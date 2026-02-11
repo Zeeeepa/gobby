@@ -849,6 +849,109 @@ body {
   border-color: var(--accent);
 }
 
+/* Scope toggle (Personal / Project) */
+.chat-scope-toggle {
+  position: relative;
+  margin-left: auto;
+}
+
+.chat-scope-buttons {
+  display: flex;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  overflow: hidden;
+}
+
+.chat-scope-btn {
+  padding: 0.25rem 0.625rem;
+  font-size: 0.8rem;
+  background: transparent;
+  color: var(--text-secondary);
+  border: none;
+  cursor: pointer;
+  transition: background 0.1s, color 0.1s;
+  white-space: nowrap;
+}
+
+.chat-scope-btn:hover:not(:disabled) {
+  color: var(--text-primary);
+  background: var(--bg-tertiary);
+}
+
+.chat-scope-btn.active {
+  color: var(--text-primary);
+  background: var(--bg-tertiary);
+  font-weight: 500;
+}
+
+.chat-scope-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.chat-scope-btn + .chat-scope-btn {
+  border-left: 1px solid var(--border);
+}
+
+.chat-scope-dropdown {
+  position: absolute;
+  bottom: calc(100% + 4px);
+  right: 0;
+  width: 220px;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+  z-index: 100;
+  overflow: hidden;
+}
+
+.chat-scope-search {
+  width: 100%;
+  padding: 0.5rem;
+  font-size: 0.8rem;
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  border: none;
+  border-bottom: 1px solid var(--border);
+  outline: none;
+  box-sizing: border-box;
+}
+
+.chat-scope-list {
+  max-height: 160px;
+  overflow-y: auto;
+}
+
+.chat-scope-option {
+  display: block;
+  width: 100%;
+  padding: 0.4rem 0.5rem;
+  font-size: 0.8rem;
+  text-align: left;
+  background: none;
+  color: var(--text-secondary);
+  border: none;
+  cursor: pointer;
+}
+
+.chat-scope-option:hover {
+  background: var(--bg-tertiary);
+  color: var(--text-primary);
+}
+
+.chat-scope-option.active {
+  color: var(--accent);
+  font-weight: 500;
+}
+
+.chat-scope-empty {
+  padding: 0.5rem;
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+  text-align: center;
+}
+
 /* Textarea + send button row */
 .chat-input-row {
   display: flex;
@@ -10207,6 +10310,14 @@ body {
 .agent-def-actions {
   display: flex;
   gap: 8px;
+  align-items: center;
   padding-top: 4px;
   border-top: 1px solid var(--border);
 }
+
+.agent-def-import-result {
+  font-size: 0.8rem;
+  font-weight: 500;
+}
+.agent-def-import-result--ok { color: #10b981; }
+.agent-def-import-result--err { color: #ef4444; }

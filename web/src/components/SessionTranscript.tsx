@@ -44,20 +44,10 @@ function mapMessage(msg: SessionMessage): TranscriptEntry | null {
     }
   }
 
-  // Detect tool_result JSON blobs sent as "user" role (Claude API convention)
+  // Skip tool_result JSON blobs sent as "user" role (Claude API convention).
+  // These are internal protocol messages — actual results are shown in tool call dropdowns.
   if (msg.role === 'user' && content.startsWith('[{') && content.includes('tool_result')) {
-    try {
-      const results = JSON.parse(content) as Array<{ type?: string; tool_use_id?: string }>
-      const count = results.filter((r) => r.type === 'tool_result').length
-      return {
-        id: String(msg.id),
-        role: 'tool',
-        content: `${count} tool result${count !== 1 ? 's' : ''}`,
-        timestamp: msg.timestamp,
-      }
-    } catch {
-      return { id: String(msg.id), role: 'tool', content: 'Tool results', timestamp: msg.timestamp }
-    }
+    return null
   }
 
   // Detect tool_use blocks in assistant messages

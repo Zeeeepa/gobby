@@ -108,6 +108,8 @@ export function AgentDefinitionsPage() {
   const [filterSource, setFilterSource] = useState<string>('all')
   const [filterProvider, setFilterProvider] = useState<string>('all')
   const [showCreateForm, setShowCreateForm] = useState(false)
+  const [importingName, setImportingName] = useState<string | null>(null)
+  const [importResult, setImportResult] = useState<{ name: string; ok: boolean } | null>(null)
   const [createForm, setCreateForm] = useState<CreateFormData>({
     name: '', description: '', provider: 'claude', model: '',
     mode: 'headless', terminal: 'auto', isolation: '',
@@ -193,13 +195,20 @@ export function AgentDefinitionsPage() {
   }
 
   const handleImport = async (name: string) => {
+    setImportingName(name)
+    setImportResult(null)
     try {
       const res = await fetch(`${getBaseUrl()}/api/agents/definitions/import/${name}`, {
         method: 'POST',
       })
+      setImportResult({ name, ok: res.ok })
       if (res.ok) fetchDefinitions()
     } catch (e) {
       console.error('Failed to import agent definition:', e)
+      setImportResult({ name, ok: false })
+    } finally {
+      setImportingName(null)
+      setTimeout(() => setImportResult(null), 3000)
     }
   }
 
@@ -505,13 +514,21 @@ export function AgentDefinitionsPage() {
                         </button>
                       )}
                       {!isDb && (
-                        <button
-                          className="agent-defs-btn"
-                          onClick={() => handleImport(d.name)}
-                          title="Copy this file-based definition into the DB for customization"
-                        >
-                          Import to DB
-                        </button>
+                        <>
+                          <button
+                            className="agent-defs-btn"
+                            onClick={() => handleImport(d.name)}
+                            disabled={importingName === d.name}
+                            title="Copy this file-based definition into the DB for customization"
+                          >
+                            {importingName === d.name ? 'Importing...' : 'Import to DB'}
+                          </button>
+                          {importResult?.name === d.name && (
+                            <span className={`agent-def-import-result ${importResult.ok ? 'agent-def-import-result--ok' : 'agent-def-import-result--err'}`}>
+                              {importResult.ok ? 'Imported successfully' : 'Import failed'}
+                            </span>
+                          )}
+                        </>
                       )}
                     </div>
                   </div>

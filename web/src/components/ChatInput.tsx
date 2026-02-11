@@ -1,4 +1,4 @@
-import { useState, useCallback, KeyboardEvent, useRef, useEffect } from 'react'
+import { useState, useCallback, KeyboardEvent, useRef, useEffect, useMemo } from 'react'
 import { CommandPalette } from './CommandPalette'
 import type { CommandInfo } from '../hooks/useSlashCommands'
 
@@ -211,25 +211,12 @@ export function ChatInput({
           </button>
         )}
         {projects.length > 0 && (
-          <div className="chat-project-toggle" role="group" aria-label="Project scope">
-            <button
-              className={`chat-project-toggle-btn${!selectedProjectId ? ' active' : ''}`}
-              onClick={() => onProjectChange?.('')}
-              disabled={disabled}
-            >
-              Personal
-            </button>
-            <button
-              className={`chat-project-toggle-btn${selectedProjectId ? ' active' : ''}`}
-              onClick={() => {
-                const target = projects.find(p => p.id === selectedProjectId) || projects[0]
-                if (target) onProjectChange?.(target.id)
-              }}
-              disabled={disabled}
-            >
-              {projects.find(p => p.id === selectedProjectId)?.name || projects[0]?.name || 'Project'}
-            </button>
-          </div>
+          <ProjectScopeToggle
+            projects={projects}
+            selectedProjectId={selectedProjectId ?? null}
+            onProjectChange={onProjectChange}
+            disabled={disabled}
+          />
         )}
         <input
           ref={fileInputRef}
@@ -343,6 +330,136 @@ export function ChatInput({
           </button>
         )}
       </div>
+    </div>
+  )
+}
+
+function ProjectScopeToggle({
+  projects,
+  selectedProjectId,
+  onProjectChange,
+  disabled,
+}: {
+  projects: ProjectOption[]
+  selectedProjectId: string | null
+  onProjectChange?: (projectId: string) => void
+  disabled: boolean
+}) {
+  const [showSearch, setShowSearch] = useState(false)
+  const [search, setSearch] = useState('')
+  const searchRef = useRef<HTMLInputElement>(null)
+  const containerRef = useRef<HTMLDivElement>(null)
+
+  // Find the _personal project (mapped to "Personal" name in App.tsx)
+  const personalProject = projects.find(p => p.name === 'Personal')
+  const isPersonal = !selectedProjectId || selectedProjectId === personalProject?.id
+
+  const nonPersonalProjects = useMemo(
+    () => projects.filter(p => p.name !== 'Personal'),
+    [projects]
+  )
+
+  const filtered = useMemo(
+    () => search
+      ? nonPersonalProjects.filter(p => p.name.toLowerCase().includes(search.toLowerCase()))
+      : nonPersonalProjects,
+    [nonPersonalProjects, search]
+  )
+
+  const selectedName = !isPersonal
+    ? projects.find(p => p.id === selectedProjectId)?.name ?? 'Project'
+    : null
+
+  // Focus search input when dropdown opens
+  useEffect(() => {
+    if (showSearch) searchRef.current?.focus()
+  }, [showSearch])
+
+  // Close dropdown on outside click
+  useEffect(() => {
+    if (!showSearch) return
+    const handler = (e: MouseEvent) => {
+      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
+        setShowSearch(false)
+        setSearch('')
+      }
+    }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [showSearch])
+
+  return (
+    <div className="chat-scope-toggle" ref={containerRef}>
+      <div className="chat-scope-buttons" role="group" aria-label="Memory scope">
+        <button
+          className={`chat-scope-btn${isPersonal ? ' active' : ''}`}
+          onClick={() => {
+            if (personalProject) onProjectChange?.(personalProject.id)
+            else onProjectChange?.('')
+            setShowSearch(false)
+            setSearch('')
+          }}
+          disabled={disabled}
+        >
+          Personal
+        </button>
+        <button
+          className={`chat-scope-btn${!isPersonal ? ' active' : ''}`}
+          onClick={() => {
+            if (isPersonal) {
+              // Switch to project mode — show search if multiple projects
+              if (nonPersonalProjects.length === 1) {
+                onProjectChange?.(nonPersonalProjects[0].id)
+              } else {
+                setShowSearch(!showSearch)
+              }
+            } else {
+              // Already on project — toggle search
+              setShowSearch(!showSearch)
+            }
+          }}
+          disabled={disabled}
+        >
+          {selectedName ?? 'Project'}
+        </button>
+      </div>
+      {showSearch && (
+        <div className="chat-scope-dropdown">
+          <input
+            ref={searchRef}
+            className="chat-scope-search"
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+            placeholder="Search projects..."
+            onKeyDown={e => {
+              if (e.key === 'Escape') { setShowSearch(false); setSearch('') }
+              if (e.key === 'Enter' && filtered.length > 0) {
+                onProjectChange?.(filtered[0].id)
+                setShowSearch(false)
+                setSearch('')
+              }
+            }}
+          />
+          <div className="chat-scope-list">
+            {filtered.map(p => (
+              <button
+                key={p.id}
+                className={`chat-scope-option${p.id === selectedProjectId ? ' active' : ''}`}
+                onClick={() => {
+                  onProjectChange?.(p.id)
+                  setShowSearch(false)
+                  setSearch('')
+                }}
+              >
+                {p.name}
+              </button>
+            ))}
+            {filtered.length === 0 && (
+              <div className="chat-scope-empty">No projects found</div>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   )
 }

@@ -195,11 +195,22 @@ def create_sessions_router(server: "HTTPServer") -> APIRouter:
             if session is None:
                 raise HTTPException(status_code=404, detail="Session not found")
 
+            session_data = session.to_dict()
+
+            # Enrich with message count (same as list endpoint)
+            if server.message_manager:
+                try:
+                    counts = await server.message_manager.get_all_counts()
+                    session_data["message_count"] = counts.get(session.id, 0)
+                except Exception as e:
+                    logger.warning(f"Failed to fetch message count: {e}")
+                    session_data["message_count"] = 0
+
             response_time_ms = (time.perf_counter() - start_time) * 1000
 
             return {
                 "status": "success",
-                "session": session.to_dict(),
+                "session": session_data,
                 "response_time_ms": response_time_ms,
             }
 
