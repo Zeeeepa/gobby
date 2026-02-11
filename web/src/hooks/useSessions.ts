@@ -90,6 +90,7 @@ export function useSessions() {
       }
     } catch (e) {
       console.error('Failed to fetch projects:', e)
+      setError(e instanceof Error ? e : new Error(String(e)))
     }
   }, [])
 

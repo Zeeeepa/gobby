@@ -27,11 +27,6 @@ const STATUS_OPTIONS = [
   'open', 'in_progress', 'needs_review', 'approved', 'closed', 'escalated',
 ]
 
-// Explicit ordering for status filter pills
-const STATUS_ORDER = [
-  'open', 'in_progress', 'needs_review', 'approved', 'closed', 'escalated',
-]
-
 // Statuses grouped under the 'closed' filter
 const CLOSED_GROUP = ['closed']
 
@@ -348,7 +343,7 @@ export function TasksPage() {
       {/* Filter bar */}
       <div className="tasks-filter-bar">
         <div className="tasks-filter-chips">
-          {STATUS_ORDER.filter(status => {
+          {STATUS_OPTIONS.filter(status => {
               const count = status === 'closed'
                 ? CLOSED_GROUP.reduce((sum, s) => sum + ((stats as Record<string, number>)[s] || 0), 0)
                 : (stats as Record<string, number>)[status] || 0

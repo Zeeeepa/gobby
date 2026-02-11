@@ -40,7 +40,6 @@ export function useSlashCommands() {
 
     const fetchTools = async () => {
       try {
-        // Derive HTTP base URL same way as WebSocket
         const baseUrl = ''
 
         const resp = await fetch(`${baseUrl}/mcp/tools`)
