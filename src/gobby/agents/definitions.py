@@ -77,6 +77,19 @@ class WorkflowSpec(BaseModel):
         return self.file is None and (self.type is not None or len(self.steps) > 0)
 
 
+class SkillProfileConfig(BaseModel):
+    """Typed skill injection profile for agent definitions.
+
+    Controls which skills are injected and in what format
+    when context_aware filtering is active.
+    """
+
+    audience: str | None = None
+    include_skills: list[str] = Field(default_factory=list)
+    exclude_skills: list[str] = Field(default_factory=list)
+    default_format: str | None = None
+
+
 class AgentDefinition(BaseModel):
     """
     Configuration for a named agent.
@@ -126,9 +139,8 @@ class AgentDefinition(BaseModel):
     default_variables: dict[str, Any] = Field(default_factory=dict)
 
     # Skill injection profile — controls which skills are injected and in what format
-    # when context_aware filtering is active. Keys: audience, include_skills,
-    # exclude_skills, default_format
-    skill_profile: dict[str, Any] | None = None
+    # when context_aware filtering is active.
+    skill_profile: SkillProfileConfig | None = None
 
     # Execution limits
     timeout: float = 120.0
