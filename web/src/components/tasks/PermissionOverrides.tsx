@@ -88,7 +88,15 @@ const CATEGORIES: { key: string; label: string }[] = [
 function getStoredOverrides(taskId: string): PermissionOverridesState {
   try {
     const raw = localStorage.getItem(`${STORAGE_KEY}${taskId}`)
-    if (raw) return JSON.parse(raw)
+    if (raw) {
+      const parsed = JSON.parse(raw)
+      if (parsed && typeof parsed === 'object' && typeof parsed.rules === 'object') {
+        return {
+          rules: parsed.rules ?? {},
+          fileScope: typeof parsed.fileScope === 'string' ? parsed.fileScope : '',
+        }
+      }
+    }
   } catch { /* noop */ }
   return { rules: {}, fileScope: '' }
 }
@@ -124,30 +132,28 @@ export function PermissionOverrides({ taskId }: PermissionOverridesProps) {
     setState(getStoredOverrides(taskId))
   }, [taskId])
 
+  // Debounced persist to localStorage
+  useEffect(() => {
+    const timer = setTimeout(() => storeOverrides(taskId, state), 300)
+    return () => clearTimeout(timer)
+  }, [taskId, state])
+
   const toggleRule = useCallback((ruleId: string) => {
     setState(prev => {
       const rule = PERMISSION_RULES.find(r => r.id === ruleId)
       if (!rule) return prev
       const current = prev.rules[ruleId] ?? rule.default
-      const next = { ...prev, rules: { ...prev.rules, [ruleId]: !current } }
-      storeOverrides(taskId, next)
-      return next
+      return { ...prev, rules: { ...prev.rules, [ruleId]: !current } }
     })
-  }, [taskId])
+  }, [])
 
   const setFileScope = useCallback((value: string) => {
-    setState(prev => {
-      const next = { ...prev, fileScope: value }
-      storeOverrides(taskId, next)
-      return next
-    })
-  }, [taskId])
+    setState(prev => ({ ...prev, fileScope: value }))
+  }, [])
 
   const resetAll = useCallback(() => {
-    const fresh: PermissionOverridesState = { rules: {}, fileScope: '' }
-    setState(fresh)
-    storeOverrides(taskId, fresh)
-  }, [taskId])
+    setState({ rules: {}, fileScope: '' })
+  }, [])
 
   const overrideCount = Object.entries(state.rules).filter(([id, val]) => {
     const rule = PERMISSION_RULES.find(r => r.id === id)
@@ -216,9 +222,10 @@ export function PermissionOverrides({ taskId }: PermissionOverridesProps) {
 
           {/* File scope restriction */}
           <div className="perm-overrides-category">
-            <div className="perm-overrides-category-label">File Scope</div>
+            <label htmlFor="perm-file-scope-input" className="perm-overrides-category-label">File Scope</label>
             <div className="perm-overrides-file-scope">
               <input
+                id="perm-file-scope-input"
                 type="text"
                 className="perm-overrides-file-input"
                 value={state.fileScope}
