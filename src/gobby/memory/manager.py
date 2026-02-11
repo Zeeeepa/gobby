@@ -424,6 +424,15 @@ class MemoryManager:
         self.mark_search_refit_needed()
         return memory
 
+    async def rebuild_crossrefs_for_memory(
+        self,
+        memory: Memory,
+        threshold: float | None = None,
+        max_links: int | None = None,
+    ) -> int:
+        """Public wrapper for cross-reference creation."""
+        return await self._create_crossrefs(memory, threshold, max_links)
+
     async def _create_crossrefs(
         self,
         memory: Memory,

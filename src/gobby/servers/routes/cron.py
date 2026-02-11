@@ -8,6 +8,7 @@ import logging
 from typing import TYPE_CHECKING, Any, Literal, cast
 
 from fastapi import APIRouter, HTTPException, Query
+from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 
 from gobby.utils.metrics import get_metrics_collector
@@ -25,12 +26,12 @@ class CreateCronJobRequest(BaseModel):
     name: str
     project_id: str = ""
     description: str | None = None
-    schedule_type: str = "cron"
+    schedule_type: Literal["cron", "interval", "once"] = "cron"
     cron_expr: str | None = None
     interval_seconds: int | None = None
     run_at: str | None = None
     timezone: str = "UTC"
-    action_type: str
+    action_type: Literal["agent_spawn", "pipeline", "shell"]
     action_config: dict[str, Any] = Field(default_factory=dict)
 
 
@@ -141,9 +142,18 @@ def create_cron_router(server: "HTTPServer") -> APIRouter:
         try:
             storage = _get_storage()
             kwargs: dict[str, Any] = {}
-            for field in ["name", "description", "schedule_type", "cron_expr",
-                          "interval_seconds", "run_at", "timezone", "action_type",
-                          "action_config", "enabled"]:
+            for field in [
+                "name",
+                "description",
+                "schedule_type",
+                "cron_expr",
+                "interval_seconds",
+                "run_at",
+                "timezone",
+                "action_type",
+                "action_config",
+                "enabled",
+            ]:
                 val = getattr(request, field)
                 if val is not None:
                     kwargs[field] = val
@@ -205,13 +215,16 @@ def create_cron_router(server: "HTTPServer") -> APIRouter:
                     raise HTTPException(status_code=404, detail=f"Cron job not found: {job_id}")
                 return {"status": "success", "run": run.to_dict()}
 
-            # Fallback: just create a run record without actual execution
+            # Scheduler not available - record the run but can't execute
             storage = _get_storage()
             job = storage.get_job(job_id)
             if not job:
                 raise HTTPException(status_code=404, detail=f"Cron job not found: {job_id}")
             run = storage.create_run(job.id)
-            return {"status": "success", "run": run.to_dict()}
+            return JSONResponse(
+                status_code=202,
+                content={"status": "accepted", "executed": False, "run": run.to_dict()},
+            )
         except HTTPException:
             raise
         except Exception as e:

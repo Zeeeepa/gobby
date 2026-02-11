@@ -182,12 +182,13 @@ def create_memory_router(server: "HTTPServer") -> APIRouter:
     def memory_graph(
         project_id: str | None = Query(None, description="Filter by project ID"),
         limit: int = Query(5000, description="Maximum crossrefs"),
+        memory_limit: int = Query(500, description="Maximum memories"),
     ) -> dict[str, Any]:
         """Get memory graph data (memories + crossrefs) for visualization."""
         metrics.inc_counter("http_requests_total")
         try:
             memories = server.memory_manager.list_memories(
-                project_id=project_id, limit=500
+                project_id=project_id, limit=memory_limit
             )
             crossrefs = server.memory_manager.storage.get_all_crossrefs(
                 project_id=project_id, limit=limit
@@ -213,7 +214,7 @@ def create_memory_router(server: "HTTPServer") -> APIRouter:
             total_created = 0
             for memory in memories:
                 try:
-                    created = await server.memory_manager._create_crossrefs(memory)
+                    created = await server.memory_manager.rebuild_crossrefs_for_memory(memory)
                     total_created += created
                 except Exception as e:
                     logger.warning(f"Crossref failed for {memory.id}: {e}")
