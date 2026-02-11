@@ -78,15 +78,15 @@ export function SessionDetail({
         </div>
         <div className="session-detail-stat">
           <span className="session-detail-stat-label">Input</span>
-          <span className="session-detail-stat-value">{formatTokens(session.usage_input_tokens)}</span>
+          <span className="session-detail-stat-value">{session.usage_input_tokens ? formatTokens(session.usage_input_tokens) : '\u2014'}</span>
         </div>
         <div className="session-detail-stat">
           <span className="session-detail-stat-label">Output</span>
-          <span className="session-detail-stat-value">{formatTokens(session.usage_output_tokens)}</span>
+          <span className="session-detail-stat-value">{session.usage_output_tokens ? formatTokens(session.usage_output_tokens) : '\u2014'}</span>
         </div>
         <div className="session-detail-stat">
           <span className="session-detail-stat-label">Cost</span>
-          <span className="session-detail-stat-value">{formatCost(session.usage_total_cost_usd)}</span>
+          <span className="session-detail-stat-value">{session.usage_total_cost_usd ? formatCost(session.usage_total_cost_usd) : '\u2014'}</span>
         </div>
         <div className="session-detail-stat">
           <span className="session-detail-stat-label">Duration</span>
