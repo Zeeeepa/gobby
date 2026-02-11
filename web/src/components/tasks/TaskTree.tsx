@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState, useCallback } from 'react'
+import { useMemo, useRef, useState, useCallback, useEffect } from 'react'
 import { Tree, TreeApi, NodeRendererProps } from 'react-arborist'
 import type { GobbyTask } from '../../hooks/useTasks'
 import { StatusDot, PriorityBadge, TypeBadge } from './TaskBadges'
@@ -166,10 +166,24 @@ function wouldCreateCycle(childId: string, parentId: string, tasks: GobbyTask[])
 
 export function TaskTree({ tasks, onSelectTask, onReparent, onSubtreeKanban }: TaskTreeProps) {
   const treeRef = useRef<TreeApi<TreeNode> | null>(null)
+  const containerRef = useRef<HTMLDivElement | null>(null)
+  const [treeHeight, setTreeHeight] = useState(560)
   const [hideClosed, setHideClosed] = useState(false)
   const [searchTerm, setSearchTerm] = useState('')
   const treeData = useMemo(() => buildTree(tasks, hideClosed), [tasks, hideClosed])
   const NodeRenderer = useMemo(() => makeTaskNode(searchTerm, onSubtreeKanban), [searchTerm, onSubtreeKanban])
+
+  useEffect(() => {
+    const container = containerRef.current
+    if (!container) return
+    const observer = new ResizeObserver(([entry]) => {
+      // Subtract toolbar height (approx 40px) from container
+      const available = entry.contentRect.height - 40
+      if (available > 100) setTreeHeight(Math.round(available))
+    })
+    observer.observe(container)
+    return () => observer.disconnect()
+  }, [])
 
   const handleMove = useCallback(
     ({ dragIds, parentId }: { dragIds: string[]; parentId: string | null; index: number }) => {
@@ -186,7 +200,7 @@ export function TaskTree({ tasks, onSelectTask, onReparent, onSubtreeKanban }: T
   )
 
   return (
-    <div className="task-tree-container">
+    <div className="task-tree-container" ref={containerRef}>
       <div className="task-tree-toolbar">
         <input
           type="text"
@@ -222,7 +236,7 @@ export function TaskTree({ tasks, onSelectTask, onReparent, onSubtreeKanban }: T
         ref={treeRef}
         data={treeData}
         width="100%"
-        height={560}
+        height={treeHeight}
         indent={24}
         rowHeight={34}
         openByDefault={false}

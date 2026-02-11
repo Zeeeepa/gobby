@@ -3467,6 +3467,12 @@ body {
   background: var(--text-muted);
 }
 
+/* Firefox scrollbar */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--border) var(--bg-primary);
+}
+
 /* Pipeline Panel */
 .pipeline-panel {
   background: var(--bg-secondary);
@@ -6171,6 +6177,11 @@ body {
 .kanban-card:hover {
   border-color: var(--accent);
   background: var(--bg-tertiary);
+}
+
+.kanban-card:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
 }
 
 .kanban-card-header {
