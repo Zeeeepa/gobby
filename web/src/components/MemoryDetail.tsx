@@ -1,3 +1,4 @@
+import { useEffect } from 'react'
 import type { GobbyMemory } from '../hooks/useMemory'
 import { formatRelativeTime, typeLabel } from '../utils/formatTime'
 
@@ -10,6 +11,15 @@ interface MemoryDetailProps {
 
 export function MemoryDetail({ memory, onEdit, onDelete, onClose }: MemoryDetailProps) {
   const isOpen = memory !== null
+
+  useEffect(() => {
+    if (!isOpen) return
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose()
+    }
+    document.addEventListener('keydown', handleKeyDown)
+    return () => document.removeEventListener('keydown', handleKeyDown)
+  }, [isOpen, onClose])
 
   return (
     <>

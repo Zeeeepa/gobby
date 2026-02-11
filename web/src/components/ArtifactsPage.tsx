@@ -223,6 +223,7 @@ function ArtifactDetail({
                 className="artifact-tag-remove"
                 onClick={() => onRemoveTag(artifact.id, tag)}
                 title={`Remove tag "${tag}"`}
+                aria-label={`Remove tag "${tag}"`}
               >
                 x
               </button>

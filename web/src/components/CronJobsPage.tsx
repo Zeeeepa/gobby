@@ -103,8 +103,8 @@ function CreateJobDialog({ onSubmit, onClose }: CreateDialogProps) {
 
   return (
     <div className="cron-dialog-overlay" onClick={onClose}>
-      <div className="cron-dialog" onClick={e => e.stopPropagation()}>
-        <h3>Create Cron Job</h3>
+      <div className="cron-dialog" role="dialog" aria-modal="true" aria-labelledby="cron-dialog-title" onClick={e => e.stopPropagation()}>
+        <h3 id="cron-dialog-title">Create Cron Job</h3>
 
         <div className="cron-form-group">
           <label className="cron-form-label">Name</label>

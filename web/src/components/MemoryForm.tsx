@@ -106,8 +106,9 @@ export function MemoryForm({ memory, onSave, onCancel }: MemoryFormProps) {
           </div>
 
           <div className="memory-form-field">
-            <label>Importance: {(importance * 100).toFixed(0)}%</label>
+            <label htmlFor="memory-importance-slider">Importance: {(importance * 100).toFixed(0)}%</label>
             <input
+              id="memory-importance-slider"
               type="range"
               className="memory-form-slider"
               min="0"
