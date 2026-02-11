@@ -255,7 +255,7 @@ class TestForgetCascadesEmbedding:
         assert embedding_mgr.get_embedding(memory.id) is not None
 
         # Delete memory
-        manager.forget(memory.id)
+        await manager.forget(memory.id)
 
         # Embedding should be gone (FK cascade)
         assert embedding_mgr.get_embedding(memory.id) is None

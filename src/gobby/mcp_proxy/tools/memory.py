@@ -181,7 +181,7 @@ def create_memory_registry(
         name="delete_memory",
         description="Delete a memory by ID.",
     )
-    def delete_memory(memory_id: str) -> dict[str, Any]:
+    async def delete_memory(memory_id: str) -> dict[str, Any]:
         """
         Delete a memory by ID.
 
@@ -189,7 +189,7 @@ def create_memory_registry(
             memory_id: The ID of the memory to delete
         """
         try:
-            success = memory_manager.forget(memory_id)
+            success = await memory_manager.forget(memory_id)
             if success:
                 return {"success": True}
             else:

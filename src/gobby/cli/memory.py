@@ -98,7 +98,7 @@ def delete(ctx: click.Context, memory_ref: str) -> None:
     """Delete a memory by ID (UUID or prefix)."""
     manager = get_memory_manager(ctx)
     memory_id = resolve_memory_id(manager, memory_ref)
-    success = manager.forget(memory_id)
+    success = asyncio.run(manager.forget(memory_id))
     if success:
         click.echo(f"Deleted memory: {memory_id}")
     else:
@@ -343,7 +343,7 @@ def dedupe_memories(ctx: click.Context, dry_run: bool) -> None:
         # Delete duplicates
         deleted = 0
         for memory_id in duplicates_to_delete:
-            if manager.forget(memory_id):
+            if asyncio.run(manager.forget(memory_id)):
                 deleted += 1
 
         click.echo(f"Deleted {deleted} duplicate memories.")

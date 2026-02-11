@@ -360,14 +360,15 @@ class TestForget:
         """Test forgetting an existing memory."""
         memory = await memory_manager.remember(content="To forget", importance=0.5)
 
-        result = memory_manager.forget(memory.id)
+        result = await memory_manager.forget(memory.id)
 
         assert result is True
         assert memory_manager.get_memory(memory.id) is None
 
-    def test_forget_nonexistent_memory(self, memory_manager) -> None:
+    @pytest.mark.asyncio
+    async def test_forget_nonexistent_memory(self, memory_manager) -> None:
         """Test forgetting a non-existent memory returns False."""
-        result = memory_manager.forget("mm-nonexistent")
+        result = await memory_manager.forget("mm-nonexistent")
         assert result is False
 
 

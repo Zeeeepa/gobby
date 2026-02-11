@@ -610,11 +610,11 @@ class MemoryManager:
             except Exception as e:
                 logger.warning(f"Failed to update access stats for {memory.id}: {e}")
 
-    def forget(self, memory_id: str) -> bool:
+    async def forget(self, memory_id: str) -> bool:
         """Forget a memory."""
         # Mem0 dual-mode: delete from Mem0 if memory has mem0_id
         if self._mem0_client:
-            self._delete_from_mem0(memory_id)
+            await self._delete_from_mem0(memory_id)
 
         result = self.storage.delete_memory(memory_id)
         if result:
@@ -952,32 +952,14 @@ class MemoryManager:
                 return results[0].get("id")
         return None
 
-    def _delete_from_mem0(self, memory_id: str) -> None:
+    async def _delete_from_mem0(self, memory_id: str) -> None:
         """Delete a memory from Mem0 if it has a mem0_id. Non-blocking on failure."""
         memory = self.get_memory(memory_id)
         if not memory or not memory.mem0_id:
             return
 
-        import asyncio
-
         try:
-            loop = asyncio.get_running_loop()
-        except RuntimeError:
-            loop = None
-
-        try:
-            if loop and loop.is_running():
-                import concurrent.futures
-
-                with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
-                    pool.submit(
-                        asyncio.run,
-                        self._mem0_client.delete(memory.mem0_id),  # type: ignore[union-attr]
-                    ).result()
-            else:
-                asyncio.run(
-                    self._mem0_client.delete(memory.mem0_id)  # type: ignore[union-attr]
-                )
+            await self._mem0_client.delete(memory.mem0_id)  # type: ignore[union-attr]
         except Mem0ConnectionError as e:
             logger.warning(f"Mem0 unreachable during delete for {memory_id}: {e}")
         except Exception as e:
@@ -987,6 +969,9 @@ class MemoryManager:
         """Search Mem0 and return local memories enriched by results.
 
         Returns None if Mem0 is unavailable (caller should fall back to local search).
+
+        Warning: This method blocks the calling thread. When called from an
+        async context, it spawns a thread pool to run the async Mem0 search.
         """
         if self._mem0_client is None:
             raise RuntimeError("Mem0 client is not initialized")

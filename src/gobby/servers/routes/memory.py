@@ -258,11 +258,11 @@ def create_memory_router(server: "HTTPServer") -> APIRouter:
             raise HTTPException(status_code=500, detail=str(e)) from e
 
     @router.delete("/{memory_id}")
-    def delete_memory(memory_id: str) -> dict[str, Any]:
+    async def delete_memory(memory_id: str) -> dict[str, Any]:
         """Delete a memory."""
         metrics.inc_counter("http_requests_total")
         try:
-            result = server.memory_manager.forget(memory_id)
+            result = await server.memory_manager.forget(memory_id)
         except Exception as e:
             logger.error(f"Failed to delete memory {memory_id}: {e}")
             raise HTTPException(status_code=500, detail=str(e)) from e

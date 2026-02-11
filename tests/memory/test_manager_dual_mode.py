@@ -288,7 +288,7 @@ class TestForgetDualMode:
                 project_id="test-project",
             )
 
-        result = manager.forget(memory.id)
+        result = await manager.forget(memory.id)
         assert result is True
 
         # Mem0 delete should have been called with the mem0_id
@@ -313,7 +313,7 @@ class TestForgetDualMode:
             )
 
         mock_client.delete.reset_mock()
-        result = manager.forget(memory.id)
+        result = await manager.forget(memory.id)
         assert result is True
 
         # Mem0 delete should NOT have been called (no mem0_id)

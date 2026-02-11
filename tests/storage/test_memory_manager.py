@@ -61,7 +61,7 @@ async def test_recall_with_query(memory_manager):
 @pytest.mark.asyncio
 async def test_forget(memory_manager):
     memory = await memory_manager.remember("To forget")
-    assert memory_manager.forget(memory.id)
+    assert await memory_manager.forget(memory.id)
     assert memory_manager.recall(query="To forget") == []
 
 
