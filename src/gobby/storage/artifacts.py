@@ -330,6 +330,11 @@ class LocalArtifactManager:
             True if tag was added (or already existed)
         """
         with self.db.transaction() as conn:
+            row = conn.execute(
+                "SELECT 1 FROM session_artifacts WHERE id = ?", (artifact_id,)
+            ).fetchone()
+            if not row:
+                return False
             conn.execute(
                 "INSERT OR IGNORE INTO artifact_tags (artifact_id, tag) VALUES (?, ?)",
                 (artifact_id, tag),

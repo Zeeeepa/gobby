@@ -241,9 +241,10 @@ class CronJobStorage:
 
     def delete_job(self, job_id: str) -> bool:
         """Delete a cron job and its runs."""
-        # Delete runs first (foreign key)
-        self.db.execute("DELETE FROM cron_runs WHERE cron_job_id = ?", (job_id,))
-        cursor = self.db.execute("DELETE FROM cron_jobs WHERE id = ?", (job_id,))
+        with self.db.transaction() as conn:
+            # Delete runs first (foreign key)
+            conn.execute("DELETE FROM cron_runs WHERE cron_job_id = ?", (job_id,))
+            cursor = conn.execute("DELETE FROM cron_jobs WHERE id = ?", (job_id,))
         return cursor.rowcount > 0
 
     def toggle_job(self, job_id: str) -> CronJob | None:
@@ -257,8 +258,10 @@ class CronJobStorage:
 
         # Recompute next_run when enabling
         if new_enabled:
-            job.enabled = True
-            next_run = compute_next_run(job)
+            from dataclasses import replace
+
+            enabled_job = replace(job, enabled=True)
+            next_run = compute_next_run(enabled_job)
             updates["next_run_at"] = next_run.isoformat() if next_run else None
         else:
             updates["next_run_at"] = None

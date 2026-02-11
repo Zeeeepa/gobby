@@ -146,9 +146,7 @@ _DIFF_HEADER_PATTERN = re.compile(r"^---\s", re.MULTILINE)
 _DIFF_HEADER_PLUS_PATTERN = re.compile(r"^\+\+\+\s", re.MULTILINE)
 
 # Plan patterns
-_PLAN_HEADER_PATTERN = re.compile(
-    r"^#+\s*(.*\b(Plan|Phase|Step)\b)", re.MULTILINE | re.IGNORECASE
-)
+_PLAN_HEADER_PATTERN = re.compile(r"^#+\s*(.*\b(Plan|Phase|Step)\b)", re.MULTILINE | re.IGNORECASE)
 _PLAN_NUMBERED_LIST_PATTERN = re.compile(r"^\d+\.\s+\w", re.MULTILINE)
 
 
@@ -161,7 +159,8 @@ def _is_diff(content: str) -> bool:
     # Check for --- / +++ header pair with @@ hunk marker
     has_minus = _DIFF_HEADER_PATTERN.search(content) is not None
     has_plus = _DIFF_HEADER_PLUS_PATTERN.search(content) is not None
-    if has_minus and has_plus:
+    has_hunk = re.search(r"^@@\s", content, re.MULTILINE) is not None
+    if has_minus and has_plus and has_hunk:
         return True
     return False
 
