@@ -225,7 +225,6 @@ export default function App() {
       {activeTab === 'chat' ? (
         <ChatPage
           messages={messages}
-          conversationId={conversationId}
           isStreaming={isStreaming}
           isThinking={isThinking}
           isConnected={isConnected}

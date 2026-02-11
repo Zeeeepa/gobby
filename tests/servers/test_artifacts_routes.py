@@ -159,6 +159,15 @@ class TestListArtifacts:
         data = response.json()
         assert data["count"] == 2
 
+    def test_list_pagination_offset(self, client: TestClient, sample_artifacts) -> None:
+        """Verify offset produces disjoint results from first page."""
+        page1 = client.get("/artifacts?limit=2&offset=0").json()
+        page2 = client.get("/artifacts?limit=2&offset=2").json()
+        page1_ids = {a["id"] for a in page1["artifacts"]}
+        page2_ids = {a["id"] for a in page2["artifacts"]}
+        assert page1_ids.isdisjoint(page2_ids)
+        assert page2["count"] == 1  # 3 total, offset=2 gives 1
+
     def test_list_includes_tags(
         self, client: TestClient, sample_artifacts, artifact_manager: LocalArtifactManager
     ) -> None:

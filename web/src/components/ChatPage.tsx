@@ -10,7 +10,6 @@ import type { CommandInfo } from '../hooks/useSlashCommands'
 interface ChatPageProps {
   // Chat state
   messages: ChatMessage[]
-  conversationId: string | null
   isStreaming: boolean
   isThinking: boolean
   isConnected: boolean
@@ -47,8 +46,6 @@ interface ChatPageProps {
   onStartRecording?: () => void
   onStopRecording?: () => void
   onStopSpeaking?: () => void
-  // Prefilled context from "Ask Gobby" in sessions page
-  prefillContext?: string | null
 }
 
 export function ChatPage({
