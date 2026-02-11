@@ -304,8 +304,8 @@ def install(
 
         init_local_storage()
         click.echo("Database initialized")
-    except Exception as e:
-        click.echo(f"Warning: Database init failed: {e}")
+    except (OSError, PermissionError, ValueError) as e:
+        click.echo(f"Warning: Database init failed ({type(e).__name__}): {e}")
 
     # Install default external MCP servers (GitHub, Linear, context7)
     mcp_result = install_default_mcp_servers()

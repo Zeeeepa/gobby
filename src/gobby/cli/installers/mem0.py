@@ -39,7 +39,7 @@ def install_mem0(
     home = gobby_home or Path("~/.gobby").expanduser()
 
     if remote_url:
-        return _install_remote(home, remote_url, api_key)
+        return _install_remote(remote_url, api_key)
     return _install_local(home, api_key)
 
 
@@ -92,7 +92,7 @@ def _install_local(home: Path, api_key: str | None) -> dict[str, Any]:
     }
 
 
-def _install_remote(home: Path, remote_url: str, api_key: str | None) -> dict[str, Any]:
+def _install_remote(remote_url: str, api_key: str | None) -> dict[str, Any]:
     """Configure remote mem0 instance (no Docker)."""
     if not _check_remote_health(remote_url):
         return {
@@ -189,5 +189,5 @@ def _update_config(
         config.memory.mem0_url = mem0_url
         config.memory.mem0_api_key = mem0_api_key
         save_config(config)
-    except Exception as e:
+    except (ImportError, OSError, ValueError) as e:
         logger.warning(f"Failed to update config: {e}")
