@@ -51,7 +51,7 @@ function deriveAuditEntries(tasks: GobbyTask[]): AuditEntry[] {
         actor: task.assignee || 'system',
         target: `${task.ref} → ${task.status.replace(/_/g, ' ')}`,
         targetId: task.id,
-        result: task.status === 'failed' || task.status === 'escalated' ? 'failure' : 'success',
+        result: task.status === 'escalated' ? 'failure' : 'success',
         riskLevel: risk,
         status: task.status,
       })

@@ -24,19 +24,16 @@ type SortColumn = 'ref' | 'title' | 'type' | 'priority' | 'status'
 type SortDirection = 'asc' | 'desc'
 
 const STATUS_OPTIONS = [
-  'open', 'in_progress', 'needs_review', 'approved', 'closed', 'failed', 'escalated',
-  'needs_decomposition',
+  'open', 'in_progress', 'needs_review', 'approved', 'closed', 'escalated',
 ]
 
 // Explicit ordering for status filter pills
-// 'cancelled' is grouped with 'closed' (not shown as a separate pill)
 const STATUS_ORDER = [
-  'open', 'in_progress', 'needs_review', 'approved', 'closed',
-  'failed', 'escalated', 'needs_decomposition',
+  'open', 'in_progress', 'needs_review', 'approved', 'closed', 'escalated',
 ]
 
 // Statuses grouped under the 'closed' filter
-const CLOSED_GROUP = ['closed', 'cancelled']
+const CLOSED_GROUP = ['closed']
 
 const TYPE_OPTIONS = ['task', 'bug', 'feature', 'epic', 'chore']
 

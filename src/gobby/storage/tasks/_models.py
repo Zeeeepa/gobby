@@ -87,9 +87,7 @@ class Task:
         "needs_review",
         "approved",
         "closed",
-        "failed",
         "escalated",
-        "needs_decomposition",
     ]
     priority: int
     task_type: str  # bug, feature, task, epic, chore

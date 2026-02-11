@@ -22,9 +22,9 @@ const COLUMNS: KanbanColumnDef[] = [
   { key: 'backlog',     label: 'Backlog',     statuses: ['open'],                targetStatus: 'open' },
   { key: 'in_progress', label: 'In Progress', statuses: ['in_progress'],         targetStatus: 'in_progress' },
   { key: 'review',      label: 'Review',      statuses: ['needs_review'],        targetStatus: 'needs_review' },
-  { key: 'blocked',     label: 'Blocked',     statuses: ['failed', 'escalated'], targetStatus: 'failed' },
+  { key: 'blocked',     label: 'Blocked',     statuses: ['escalated'],           targetStatus: 'escalated' },
   { key: 'approved',    label: 'Approved',    statuses: ['approved'],            targetStatus: 'approved' },
-  { key: 'closed',      label: 'Closed',      statuses: ['closed', 'cancelled'], targetStatus: 'closed' },
+  { key: 'closed',      label: 'Closed',      statuses: ['closed'],              targetStatus: 'closed' },
 ]
 
 // Status progression: current → next
@@ -35,7 +35,7 @@ const NEXT_STATUS: Record<string, string> = {
   approved: 'closed',
 }
 
-const BLOCKED_STATUSES = new Set(['failed', 'escalated'])
+const BLOCKED_STATUSES = new Set(['escalated'])
 
 // =============================================================================
 // Fractional indexing helpers

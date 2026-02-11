@@ -34,7 +34,6 @@ const STATUS_COLORS: Record<string, string> = {
   needs_review: '#f59e0b',
   approved: '#22c55e',
   closed: '#16a34a',
-  failed: '#ef4444',
   escalated: '#f97316',
 }
 

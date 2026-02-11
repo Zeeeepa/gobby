@@ -18,7 +18,7 @@ const STATUS_ORDER = ['open', 'in_progress', 'needs_review', 'approved', 'closed
 
 function derivePhases(task: GobbyTaskDetail): TimelinePhase[] {
   const statusIdx = STATUS_ORDER.indexOf(task.status)
-  const isFailed = task.status === 'failed' || task.status === 'escalated'
+  const isFailed = task.status === 'escalated'
 
   const phases: TimelinePhase[] = []
 
@@ -66,9 +66,7 @@ function derivePhases(task: GobbyTaskDetail): TimelinePhase[] {
   const verifyReached = statusIdx >= 3 || task.validation_status !== 'pending' || isFailed
   let verifySummary: string | null = null
   if (isFailed) {
-    verifySummary = task.status === 'escalated'
-      ? `Escalated: ${task.escalation_reason || 'needs attention'}`
-      : `Failed: ${task.validation_feedback || 'validation failed'}`
+    verifySummary = `Escalated: ${task.escalation_reason || 'needs attention'}`
   } else if (task.validation_status === 'passed' || task.validation_status === 'valid') {
     verifySummary = 'Validation passed'
   } else if (task.validation_status === 'failed') {
@@ -128,7 +126,7 @@ function getInterventionsForPhase(
   phase: TimelinePhase,
   taskStatus: string,
 ): InterventionButton[] {
-  const isFailed = taskStatus === 'failed' || taskStatus === 'escalated'
+  const isFailed = taskStatus === 'escalated'
 
   if (phase.status === 'pending') return []
 

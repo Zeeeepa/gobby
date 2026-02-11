@@ -27,7 +27,6 @@ const STEP_LABELS: Record<string, string> = {
   needs_review: 'In Review',
   approved: 'Approved',
   closed: 'Done',
-  failed: 'Failed',
   escalated: 'Escalated',
 }
 

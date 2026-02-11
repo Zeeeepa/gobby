@@ -118,13 +118,14 @@ class EscalationResult:
 
 
 class EscalationManager:
-    """Manages task escalation and de-escalation.
+    """Manages task escalation.
 
     Handles:
     - Escalating tasks that exceed validation thresholds
-    - De-escalating tasks back to open status
     - Generating escalation summaries
     - Sending webhook notifications
+
+    De-escalation is handled by reopen_task() and claim_task() lifecycle tools.
     """
 
     def __init__(
@@ -215,31 +216,6 @@ class EscalationManager:
                 # Don't fail the escalation if webhook fails
 
         return result
-
-    def de_escalate(self, task_id: str) -> None:
-        """De-escalate a task back to open status.
-
-        Clears escalation fields and returns task to open status.
-
-        Args:
-            task_id: ID of the task to de-escalate.
-
-        Raises:
-            ValueError: If task is not escalated.
-        """
-        task = self.task_manager.get_task(task_id)
-
-        if task.status != "escalated":
-            raise ValueError(f"Task {task_id} is not escalated (status: {task.status})")
-
-        self.task_manager.update_task(
-            task_id,
-            status="open",
-            escalated_at=None,
-            escalation_reason=None,
-        )
-
-        logger.info(f"De-escalated task {task_id}")
 
     def generate_escalation_summary(self, task_id: str) -> EscalationSummary:
         """Generate a summary of an escalated task.

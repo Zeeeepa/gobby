@@ -49,7 +49,6 @@ interface AgentProfile {
   sessions: SessionData[]
   tasksAssigned: TaskData[]
   tasksClosed: TaskData[]
-  tasksFailed: TaskData[]
   tasksEscalated: TaskData[]
   totalTokensIn: number
   totalTokensOut: number
@@ -239,9 +238,9 @@ function AgentCard({
                 <span className="agent-detail-value">{agent.tasksClosed.length}</span>
               </div>
               <div className="agent-detail-row">
-                <span>Failed</span>
+                <span>Escalated</span>
                 <span className="agent-detail-value agent-detail-value--danger">
-                  {agent.tasksFailed.length}
+                  {agent.tasksEscalated.length}
                 </span>
               </div>
               <div className="agent-detail-row">
@@ -360,9 +359,6 @@ export function AgentPortfolioPage() {
       const closed = tasks.filter(
         t => t.closed_in_session_id && sessionIds.has(t.closed_in_session_id) && (t.status === 'closed' || t.status === 'approved')
       )
-      const failed = tasks.filter(
-        t => (t.assignee && sessionIds.has(t.assignee)) && t.status === 'failed'
-      )
       const escalated = tasks.filter(
         t => (t.assignee && sessionIds.has(t.assignee)) && t.escalated_at !== null
       )
@@ -405,7 +401,6 @@ export function AgentPortfolioPage() {
       )
       if (failedWithValidation.length > 0) modes.push(`Validation failures (${failedWithValidation.length})`)
       if (escalated.length > 0) modes.push(`Escalations (${escalated.length})`)
-      if (failed.length > 0) modes.push(`Task failures (${failed.length})`)
 
       // Last active
       const lastActive = group.sessions.reduce((latest, s) => {
@@ -420,7 +415,6 @@ export function AgentPortfolioPage() {
         sessions: group.sessions,
         tasksAssigned: assigned,
         tasksClosed: closed,
-        tasksFailed: failed,
         tasksEscalated: escalated,
         totalTokensIn: totalIn,
         totalTokensOut: totalOut,

@@ -1689,7 +1689,7 @@ class TestValidateCommandExtended:
             mock_manager.update_task.assert_called()
             # Verify status update
             call_kwargs = mock_manager.update_task.call_args.kwargs
-            assert call_kwargs["status"] == "failed"
+            assert call_kwargs["status"] == "escalated"
 
 
 class TestComplexityCommandExtended:
@@ -2555,7 +2555,7 @@ class TestTaskUtilsFunctions:
         from gobby.cli.tasks._utils import normalize_status
 
         assert normalize_status("in-progress") == "in_progress"
-        assert normalize_status("needs-decomposition") == "needs_decomposition"
+        assert normalize_status("needs-review") == "needs_review"
         assert normalize_status("open") == "open"
 
     def test_pad_to_width(self) -> None:

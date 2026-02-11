@@ -632,15 +632,95 @@ def create_lifecycle_registry(ctx: RegistryContext) -> InternalToolRegistry:
         func=claim_task,
     )
 
+    def escalate_task(
+        task_id: str,
+        reason: str,
+        session_id: str | None = None,
+    ) -> dict[str, Any]:
+        """Escalate a task for human intervention.
+
+        Sets status to 'escalated' with a reason and timestamp. Use when
+        the task cannot be completed by the agent and needs human attention.
+
+        Args:
+            task_id: Task reference (#N, path, or UUID)
+            reason: Why the task is being escalated
+            session_id: Optional session ID for tracking
+
+        Returns:
+            Empty dict on success, or error dict with details.
+        """
+        from datetime import UTC, datetime
+
+        try:
+            resolved_id = resolve_task_id_for_mcp(ctx.task_manager, task_id)
+        except (TaskNotFoundError, ValueError) as e:
+            return {"error": str(e)}
+
+        task = ctx.task_manager.get_task(resolved_id)
+        if not task:
+            return {"error": f"Task {task_id} not found"}
+
+        if task.status in ("escalated", "closed"):
+            return {
+                "error": f"Cannot escalate task with status '{task.status}'."
+            }
+
+        ctx.task_manager.update_task(
+            resolved_id,
+            status="escalated",
+            escalated_at=datetime.now(UTC).isoformat(),
+            escalation_reason=reason,
+        )
+
+        # Link task to session (best-effort)
+        if session_id:
+            resolved_session_id = session_id
+            try:
+                resolved_session_id = ctx.resolve_session_id(session_id)
+            except ValueError:
+                pass
+            try:
+                ctx.session_task_manager.link_task(resolved_session_id, resolved_id, "escalated")
+            except Exception:
+                pass  # nosec B110 - best-effort linking
+
+        return {}
+
+    registry.register(
+        name="escalate_task",
+        description="Escalate a task for human intervention. Sets status to 'escalated'. Use when the task cannot be completed and needs human attention.",
+        input_schema={
+            "type": "object",
+            "properties": {
+                "task_id": {
+                    "type": "string",
+                    "description": "Task reference: #N (e.g., #1, #47), path (e.g., 1.2.3), or UUID",
+                },
+                "reason": {
+                    "type": "string",
+                    "description": "Why the task is being escalated (e.g., 'blocked by external dependency', 'needs architectural decision')",
+                },
+                "session_id": {
+                    "type": "string",
+                    "description": "Your session ID (accepts #N, N, UUID, or prefix). Optional.",
+                    "default": None,
+                },
+            },
+            "required": ["task_id", "reason"],
+        },
+        func=escalate_task,
+    )
+
     def approve_task(
         task_id: str,
         session_id: str,
         approval_notes: str | None = None,
     ) -> dict[str, Any]:
-        """Approve a task after QA review.
+        """Approve a task after review.
 
-        Sets status to 'approved'. Use this after reviewing and fixing
-        a task that is in 'needs_review' status.
+        Sets status to 'approved', indicating the review gate has passed.
+        Accepts tasks in 'needs_review', 'in_progress', or 'escalated' status.
 
         Args:
             task_id: Task reference (#N, path, or UUID)
@@ -661,11 +741,11 @@ def create_lifecycle_registry(ctx: RegistryContext) -> InternalToolRegistry:
         if not task:
             return {"error": f"Task {task_id} not found"}
 
-        # Validate: current status must be needs_review or in_progress
-        if task.status not in ("needs_review", "in_progress"):
+        # Validate: current status must be needs_review, in_progress, or escalated
+        if task.status not in ("needs_review", "in_progress", "escalated"):
             return {
                 "error": f"Cannot approve task with status '{task.status}'. "
-                "Task must be in 'needs_review' or 'in_progress' status to approve."
+                "Task must be in 'needs_review', 'in_progress', or 'escalated' status to approve."
             }
 
         # Resolve session_id
@@ -699,7 +779,7 @@ def create_lifecycle_registry(ctx: RegistryContext) -> InternalToolRegistry:
 
     registry.register(
         name="approve_task",
-        description="Approve a task after QA review. Sets status to 'approved'. Use after reviewing code in 'needs_review' status. The coordinator closes the task after merge.",
+        description="Approve a task after review. Sets status to 'approved' (review gate passed). Accepts tasks in 'needs_review', 'in_progress', or 'escalated' status.",
         input_schema={
             "type": "object",
             "properties": {

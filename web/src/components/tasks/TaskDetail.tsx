@@ -235,7 +235,7 @@ export function TaskDetail({ taskId, getTask, getDependencies, getSubtasks, acti
                     handleAction(() => actions.reopenTask(task.id))
                   } else if (action === 'mark_resolved') {
                     // Mark resolved: advance toward close
-                    if (task.status === 'failed' || task.status === 'escalated') {
+                    if (task.status === 'escalated') {
                       handleAction(() => actions.reopenTask(task.id))
                     } else {
                       handleAction(() => actions.updateTask(task.id, { status: 'needs_review' }))
@@ -503,7 +503,6 @@ function getActionsForStatus(
       return [
         { label: 'Reopen', variant: 'default', onClick: () => actions.reopenTask(id) },
       ]
-    case 'failed':
     case 'escalated':
       return [
         { label: 'Reopen', variant: 'primary', onClick: () => actions.reopenTask(id) },

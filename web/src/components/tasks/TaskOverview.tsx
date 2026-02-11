@@ -5,7 +5,7 @@ import type { GobbyTask, TaskStats } from '../../hooks/useTasks'
 // Constants
 // =============================================================================
 
-const COMPLETED_STATUSES = new Set(['closed', 'approved', 'cancelled'])
+const COMPLETED_STATUSES = new Set(['closed', 'approved'])
 const TWENTY_FOUR_HOURS_MS = 24 * 60 * 60 * 1000
 
 // =============================================================================
@@ -21,7 +21,7 @@ interface TaskOverviewProps {
 
 export function TaskOverview({ tasks, stats, activeFilter, onFilterStatus }: TaskOverviewProps) {
   const nowCount = stats['in_progress'] || 0
-  const stuckCount = (stats['failed'] || 0) + (stats['escalated'] || 0)
+  const stuckCount = (stats['escalated'] || 0)
   const recentlyCompleted = useMemo(() => {
     const cutoff = Date.now() - TWENTY_FOUR_HOURS_MS
     return tasks.filter(
@@ -41,7 +41,7 @@ export function TaskOverview({ tasks, stats, activeFilter, onFilterStatus }: Tas
       key: 'stuck',
       label: 'Stuck',
       count: stuckCount,
-      filterStatus: 'failed',
+      filterStatus: 'escalated',
       className: 'task-overview-card--stuck',
     },
     {

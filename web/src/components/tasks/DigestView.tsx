@@ -74,9 +74,9 @@ export function DigestView({ tasks, onSelectTask }: DigestViewProps) {
     // In progress: active tasks
     const inProgress = tasks.filter(t => t.status === 'in_progress')
 
-    // Needs input: escalated, failed, or needs_review
+    // Needs input: escalated or needs_review
     const needsInput = tasks.filter(
-      t => t.status === 'escalated' || t.status === 'failed' || t.status === 'needs_review'
+      t => t.status === 'escalated' || t.status === 'needs_review'
     )
 
     // Recently created (within period)

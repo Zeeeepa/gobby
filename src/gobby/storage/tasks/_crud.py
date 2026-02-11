@@ -153,23 +153,6 @@ def create_task(
                     (path_cache, task_id),
                 )
 
-                # Auto-transition parent from needs_decomposition to open
-                if parent_task_id:
-                    parent = db.fetchone(
-                        "SELECT status FROM tasks WHERE id = ?",
-                        (parent_task_id,),
-                    )
-                    if parent and parent["status"] == "needs_decomposition":
-                        transition_now = datetime.now(UTC).isoformat()
-                        conn.execute(
-                            "UPDATE tasks SET status = 'open', updated_at = ? WHERE id = ?",
-                            (transition_now, parent_task_id),
-                        )
-                        logger.debug(
-                            f"Auto-transitioned parent task {parent_task_id} from "
-                            "needs_decomposition to open"
-                        )
-
             return task_id
 
         except sqlite3.IntegrityError as e:
@@ -284,38 +267,6 @@ def update_task(
 
     Returns True if parent_task_id was changed (indicating path cache needs update).
     """
-    # Validate status transitions from needs_decomposition
-    if status is not UNSET and status in ("in_progress", "closed"):
-        current_task = get_task(db, task_id)
-        if current_task.status == "needs_decomposition":
-            # Check if task has subtasks (required to transition out of needs_decomposition)
-            children = db.fetchone(
-                "SELECT COUNT(*) as count FROM tasks WHERE parent_task_id = ?",
-                (task_id,),
-            )
-            has_children = children and children["count"] > 0
-            if not has_children:
-                raise ValueError(
-                    f"Cannot transition task {task_id} from 'needs_decomposition' to '{status}'. "
-                    "Task must be decomposed into subtasks first."
-                )
-
-    # Block setting validation criteria on needs_decomposition tasks without subtasks
-    if validation_criteria is not UNSET and validation_criteria is not None:
-        current_task = get_task(db, task_id)
-        if current_task.status == "needs_decomposition":
-            # Check if task has subtasks
-            children = db.fetchone(
-                "SELECT COUNT(*) as count FROM tasks WHERE parent_task_id = ?",
-                (task_id,),
-            )
-            has_children = children and children["count"] > 0
-            if not has_children:
-                raise ValueError(
-                    f"Cannot set validation criteria on task {task_id} with 'needs_decomposition' status. "
-                    "Decompose the task into subtasks first, then set validation criteria."
-                )
-
     updates: list[str] = []
     params: list[Any] = []
 

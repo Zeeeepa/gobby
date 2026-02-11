@@ -847,7 +847,9 @@ def _migrate_add_title_task_id_to_artifacts(db: LocalDatabase) -> None:
         db.execute("ALTER TABLE session_artifacts ADD COLUMN title TEXT")
     if "task_id" not in columns:
         db.execute("ALTER TABLE session_artifacts ADD COLUMN task_id TEXT")
-    db.execute("CREATE INDEX IF NOT EXISTS idx_session_artifacts_task ON session_artifacts(task_id)")
+    db.execute(
+        "CREATE INDEX IF NOT EXISTS idx_session_artifacts_task ON session_artifacts(task_id)"
+    )
     logger.info("Added title and task_id columns to session_artifacts")
 
 
@@ -1044,6 +1046,19 @@ MIGRATIONS: list[tuple[int, str, MigrationAction]] = [
         CREATE INDEX IF NOT EXISTS idx_task_comments_task ON task_comments(task_id);
         CREATE INDEX IF NOT EXISTS idx_task_comments_parent ON task_comments(parent_comment_id);
         CREATE INDEX IF NOT EXISTS idx_task_comments_created ON task_comments(task_id, created_at);
+        """,
+    ),
+    # Task status cleanup: Remove 'failed' and 'needs_decomposition' statuses
+    (
+        91,
+        "Migrate failed → escalated and needs_decomposition → open",
+        """
+        UPDATE tasks SET status = 'escalated',
+            escalated_at = COALESCE(escalated_at, updated_at),
+            escalation_reason = COALESCE(escalation_reason, 'migrated_from_failed')
+        WHERE status = 'failed';
+
+        UPDATE tasks SET status = 'open' WHERE status = 'needs_decomposition';
         """,
     ),
 ]

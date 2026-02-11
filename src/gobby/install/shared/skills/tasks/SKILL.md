@@ -93,7 +93,7 @@ Example: `/gobby tasks claim #1 --force` → `claim_task(task_id="#1", session_i
 
 ### `/gobby tasks list [status]` - List tasks
 Call `list_tasks` with:
-- `status`: Filter (open, in_progress, needs_review, closed, or comma-separated)
+- `status`: Filter (open, in_progress, needs_review, approved, closed, escalated, or comma-separated)
 - `priority`: Filter by priority
 - `task_type`: Filter by type
 - `assignee`: Filter by assignee
