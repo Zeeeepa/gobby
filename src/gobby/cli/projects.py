@@ -224,7 +224,7 @@ def repair_project(fix: bool) -> None:
             local_data = json.load(f)
     except (json.JSONDecodeError, OSError) as e:
         click.echo(f"Failed to read project.json: {e}", err=True)
-        raise SystemExit(1) from None
+        raise SystemExit(1)
 
     project_id = local_data.get("id")
     local_name = local_data.get("name")
@@ -289,5 +289,6 @@ def repair_project(fix: bool) -> None:
     if name_mismatch:
         with open(project_json_path, "w", encoding="utf-8") as f:
             json.dump(local_data, f, indent=2)
+            f.write("\n")
 
     click.echo(f"\nApplied {fixes_applied} fix(es).")

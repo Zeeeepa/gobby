@@ -5,10 +5,13 @@ Provides status checks for the optional mem0 Docker services
 without starting or stopping anything.
 """
 
+import logging
 from pathlib import Path
 from typing import Any
 
 import httpx
+
+logger = logging.getLogger(__name__)
 
 
 def is_mem0_installed(*, gobby_home: Path | None = None) -> bool:
@@ -31,8 +34,12 @@ async def is_mem0_healthy(url: str | None) -> bool:
     try:
         async with httpx.AsyncClient() as client:
             resp = await client.get(f"{url}/docs", timeout=5)
-            return resp.status_code < 500
-    except httpx.HTTPError:
+            if resp.status_code >= 500:
+                logger.warning(f"mem0 health check failed: {url} returned {resp.status_code}")
+                return False
+            return True
+    except httpx.HTTPError as e:
+        logger.warning(f"mem0 health check failed: {url} unreachable: {e}")
         return False
 
 
