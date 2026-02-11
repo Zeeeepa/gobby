@@ -1,6 +1,7 @@
 """Tests for cron CLI commands."""
 
 import json
+from collections.abc import Iterator
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -14,7 +15,7 @@ pytestmark = pytest.mark.unit
 PROJECT_ID = "00000000-0000-0000-0000-000000000000"
 
 
-def _make_job(**overrides) -> CronJob:
+def _make_job(**overrides: object) -> CronJob:
     """Create a CronJob with sensible defaults."""
     defaults = {
         "id": "cj-abc123",
@@ -40,7 +41,7 @@ def _make_job(**overrides) -> CronJob:
     return CronJob(**defaults)
 
 
-def _make_run(**overrides) -> CronRun:
+def _make_run(**overrides: object) -> CronRun:
     """Create a CronRun with sensible defaults."""
     defaults = {
         "id": "cr-run123",
@@ -65,7 +66,7 @@ def runner() -> CliRunner:
 
 
 @pytest.fixture
-def mock_storage():
+def mock_storage() -> Iterator[MagicMock]:
     """Create a mock cron storage with a mock db."""
     mock_db = MagicMock()
     mock_st = MagicMock()

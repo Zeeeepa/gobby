@@ -18,6 +18,8 @@ from gobby.cli.artifacts import (
 )
 from gobby.storage.artifacts import Artifact
 
+pytestmark = pytest.mark.unit
+
 
 def _make_artifact(
     id: str = "abc123",
