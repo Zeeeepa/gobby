@@ -136,14 +136,15 @@ export function ActionFeed({ sessionId }: ActionFeedProps) {
   const [error, setError] = useState<string | null>(null)
   const [expanded, setExpanded] = useState<Set<number>>(new Set())
 
-  const fetchActions = useCallback(async () => {
+  const fetchActions = useCallback(async (signal?: AbortSignal) => {
     if (!sessionId) return
     setIsLoading(true)
     setError(null)
     try {
       const baseUrl = getBaseUrl()
       const response = await fetch(
-        `${baseUrl}/sessions/${encodeURIComponent(sessionId)}/messages?limit=200`
+        `${baseUrl}/sessions/${encodeURIComponent(sessionId)}/messages?limit=200`,
+        { signal }
       )
       if (response.ok) {
         const data = await response.json()
@@ -153,6 +154,7 @@ export function ActionFeed({ sessionId }: ActionFeedProps) {
         throw new Error(`Failed to fetch actions: ${response.statusText}`)
       }
     } catch (e) {
+      if (e instanceof DOMException && e.name === 'AbortError') return
       console.error('Failed to fetch session messages:', e)
       setError('Failed to load actions')
     } finally {
@@ -161,7 +163,9 @@ export function ActionFeed({ sessionId }: ActionFeedProps) {
   }, [sessionId])
 
   useEffect(() => {
-    fetchActions()
+    const controller = new AbortController()
+    fetchActions(controller.signal)
+    return () => controller.abort()
   }, [fetchActions])
 
   const toggle = (idx: number) => {

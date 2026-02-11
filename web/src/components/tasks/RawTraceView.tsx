@@ -85,6 +85,20 @@ function highlightJson(json: string, searchTerm: string): (JSX.Element | string)
   return parts
 }
 
+/** Check if a tool result indicates an error using JSON parsing with string fallback. */
+function isErrorResult(resultStr: string | null): boolean {
+  if (!resultStr) return false
+  try {
+    const parsed = JSON.parse(resultStr)
+    if (typeof parsed === 'object' && parsed !== null) {
+      return 'error' in parsed || parsed.success === false
+    }
+  } catch {
+    // Not JSON — fall back to string check
+  }
+  return resultStr.includes('"error"')
+}
+
 async function copyToClipboard(text: string): Promise<boolean> {
   try {
     await navigator.clipboard.writeText(text)
@@ -219,7 +233,7 @@ export function RawTraceView({ sessionId }: RawTraceViewProps) {
             input: m.tool_input,
             result: m.tool_result,
             timestamp: m.timestamp,
-            hasError: !!m.tool_result?.includes('"error"'),
+            hasError: isErrorResult(m.tool_result),
           }))
         setEntries(traceEntries)
       }
@@ -254,10 +268,18 @@ export function RawTraceView({ sessionId }: RawTraceViewProps) {
       index: e.index,
       tool: e.toolName,
       timestamp: e.timestamp,
-      input: e.input ? JSON.parse(e.input) : null,
-      result: e.result ? JSON.parse(e.result) : null,
+      input: e.input ? tryParse(e.input) : null,
+      result: e.result ? tryParse(e.result) : null,
     }))
     await copyToClipboard(JSON.stringify(allJson, null, 2))
+  }
+
+  function tryParse(str: string): unknown {
+    try {
+      return JSON.parse(str)
+    } catch {
+      return str
+    }
   }
 
   if (!sessionId) return null
