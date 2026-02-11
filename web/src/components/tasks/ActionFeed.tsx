@@ -35,6 +35,7 @@ function getBaseUrl(): string {
 
 function relativeTime(iso: string): string {
   const diff = Date.now() - new Date(iso).getTime()
+  if (diff < 0) return 'just now'
   const seconds = Math.floor(diff / 1000)
   if (seconds < 60) return 'just now'
   const minutes = Math.floor(seconds / 60)
@@ -176,7 +177,7 @@ export function ActionFeed({ sessionId }: ActionFeedProps) {
           <RiskDot level={action.riskLevel} />
           <span className="action-feed-time">{relativeTime(action.timestamp)}</span>
           {expanded.has(i) && action.resultPreview && (
-            <div className="action-feed-result">{action.resultPreview}</div>
+            <span className="action-feed-result">{action.resultPreview}</span>
           )}
         </button>
       ))}

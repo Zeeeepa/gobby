@@ -18,10 +18,16 @@ interface TreeNode {
 }
 
 /** Walk up to find the root ancestor of a session. */
-function findRoot(sessionId: string, lookup: Map<string, GobbySession>): GobbySession {
+function findRoot(sessionId: string, lookup: Map<string, GobbySession>): GobbySession | null {
   let current = lookup.get(sessionId)
-  if (!current) return lookup.get(sessionId)!
+  if (!current) return null
+  
+  // Guard against cycles with a visited set
+  const visited = new Set<string>()
   while (current.parent_session_id) {
+    if (visited.has(current.id)) break
+    visited.add(current.id)
+    
     const parent = lookup.get(current.parent_session_id)
     if (!parent) break
     current = parent
@@ -30,10 +36,12 @@ function findRoot(sessionId: string, lookup: Map<string, GobbySession>): GobbySe
 }
 
 /** Build a tree from a root session. */
-function buildTree(root: GobbySession, childrenMap: Map<string, GobbySession[]>): TreeNode {
+function buildTree(root: GobbySession, childrenMap: Map<string, GobbySession[]>, visited = new Set<string>()): TreeNode {
+  visited.add(root.id)
   const children = (childrenMap.get(root.id) || [])
+    .filter((child) => !visited.has(child.id))
     .sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime())
-    .map((child) => buildTree(child, childrenMap))
+    .map((child) => buildTree(child, childrenMap, visited))
   return { session: root, children }
 }
 
@@ -113,6 +121,7 @@ export function SessionLineage({ session, allSessions, onSelectSession }: Sessio
 
     const lookup = new Map(allSessions.map((s) => [s.id, s]))
     const root = findRoot(session.id, lookup)
+    if (!root) return null
 
     // Build children map
     const childrenMap = new Map<string, GobbySession[]>()

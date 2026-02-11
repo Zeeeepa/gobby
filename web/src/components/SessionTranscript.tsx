@@ -78,8 +78,8 @@ function mapMessage(msg: SessionMessage): TranscriptEntry | null {
           },
         }
       }
-    } catch {
-      // Fall through
+    } catch (e) {
+      console.warn('Failed to parse tool_use JSON in assistant message:', e)
     }
   }
 
@@ -87,7 +87,14 @@ function mapMessage(msg: SessionMessage): TranscriptEntry | null {
   if (!content && msg.role === 'assistant') return null
   if (!content) return null
 
-  const role = msg.role === 'user' ? 'user' : msg.role === 'assistant' ? 'assistant' : 'tool'
+  let role: TranscriptEntry['role']
+  if (msg.role === 'user') role = 'user'
+  else if (msg.role === 'assistant') role = 'assistant'
+  else if (msg.role === 'system') role = 'tool'
+  else {
+    console.warn(`Unexpected message role: ${msg.role}`)
+    role = 'tool'
+  }
 
   return {
     id: String(msg.id),
