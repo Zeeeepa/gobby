@@ -1,9 +1,11 @@
-"""Tests for memory backend factory and StorageAdapter.
+"""Tests for memory backend factory, NullBackend, and StorageAdapter.
 
 Tests the pluggable backend system:
-- get_backend() factory function (null)
-- StorageAdapter for local SQLite storage
-- Error handling for unknown backend types
+- get_backend() factory function (null, unknown types)
+- NullBackend CRUD operations (no persistence)
+- StorageAdapter for local SQLite storage (CRUD, search, list)
+- StorageAdapter media attachment support
+- Module exports
 """
 
 from __future__ import annotations

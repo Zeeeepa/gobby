@@ -13,6 +13,8 @@ from gobby.storage.cron_models import CronJob
 if TYPE_CHECKING:
     from gobby.storage.database import LocalDatabase
 
+pytestmark = pytest.mark.unit
+
 PROJECT_ID = "00000000-0000-0000-0000-000000000000"
 
 

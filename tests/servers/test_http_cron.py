@@ -18,7 +18,7 @@ pytestmark = pytest.mark.unit
 PROJECT_ID = "00000000-0000-0000-0000-000000000000"
 
 
-def _make_job(**overrides) -> CronJob:
+def _make_job(**overrides: object) -> CronJob:
     defaults = {
         "id": "cj-abc123",
         "project_id": PROJECT_ID,
@@ -43,7 +43,7 @@ def _make_job(**overrides) -> CronJob:
     return CronJob(**defaults)
 
 
-def _make_run(**overrides) -> CronRun:
+def _make_run(**overrides: object) -> CronRun:
     defaults = {
         "id": "cr-run123",
         "cron_job_id": "cj-abc123",
