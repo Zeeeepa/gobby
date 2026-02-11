@@ -62,7 +62,7 @@ class CronExecutor:
             return updated or run
 
         except Exception as e:
-            logger.error(f"Cron job {job.id} ({job.name}) failed: {e}")
+            logger.exception("Cron job %s (%s) failed", job.id, job.name)
             completed_at = datetime.now(UTC).isoformat()
             updated = self.storage.update_run(
                 run.id,
@@ -138,6 +138,7 @@ class CronExecutor:
 
         cmd = [command] + args
 
+        process = None
         try:
             process = await asyncio.create_subprocess_exec(
                 *cmd,
