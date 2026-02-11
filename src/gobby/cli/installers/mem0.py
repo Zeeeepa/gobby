@@ -58,7 +58,7 @@ def _install_local(home: Path, api_key: str | None) -> dict[str, Any]:
     # Run docker compose up -d
     try:
         result = subprocess.run(  # nosec B603 B607 - hardcoded docker command
-            ["docker", "compose", "-f", str(dest), "up", "-d"],
+            ["docker", "compose", "-f", str(dest), "up", "-d", "--remove-orphans"],
             capture_output=True,
             text=True,
             timeout=120,

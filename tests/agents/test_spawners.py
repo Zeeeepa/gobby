@@ -420,7 +420,7 @@ class TestTmuxSpawner:
         spawner.spawn(["echo", "test"], cwd="/tmp", title="test.session:1; rm -rf /")
 
         # The session name passed to create_session should be sanitised
-        assert mock_create.call_args.kwargs["name"] == "test-session-1--rm--rf--"
+        assert mock_create.call_args.kwargs["name"] == "test-session-1-rm-rf-"
 
     @patch("gobby.agents.tmux.session_manager.TmuxSessionManager.create_session")
     @patch("gobby.agents.tmux.session_manager.TmuxSessionManager.is_available", return_value=True)

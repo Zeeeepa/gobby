@@ -154,7 +154,7 @@ class TestUpdateRegeneratesEmbedding:
         ), patch(
             "gobby.memory.manager.is_embedding_available", return_value=True
         ):
-            manager.update_memory(memory.id, content="Updated content")
+            await manager.aupdate_memory(memory.id, content="Updated content")
 
         stored = embedding_mgr.get_embedding(memory.id)
         assert stored is not None

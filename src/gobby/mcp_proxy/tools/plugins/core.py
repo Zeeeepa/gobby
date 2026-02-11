@@ -18,7 +18,7 @@ def _get_plugin_loader(get_hook_manager: Callable[[], HookManager | None]) -> An
     hm = get_hook_manager()
     if hm is None:
         return None
-    return getattr(hm, "plugin_loader", None)
+    return getattr(hm, "_plugin_loader", None)
 
 
 def register_core_tools(
