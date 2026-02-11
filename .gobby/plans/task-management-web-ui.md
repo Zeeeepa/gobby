@@ -14,7 +14,7 @@ The goal is a system that feels like "Linear + LangGraph DevTools + Jira" in one
 - Task operations currently MCP-only; need REST endpoints first
 - Must follow existing patterns: `useMemory.ts` hook, `memory.py` route factory, `broadcast.py` mixin
 - Key backend files: `storage/tasks/_manager.py`, `storage/tasks/_models.py`, `storage/tasks/_queries.py`, `storage/task_dependencies.py`
-- New dependencies allowed: `@atlaskit/pragmatic-drag-and-drop` (~5KB), `react-arborist` (~15KB)
+- New dependencies allowed: `@atlaskit/pragmatic-drag-and-drop` (~5KB), `react-arborist` (~15KB), `dagre` (~30KB, graph layout)
 
 ## Phase 1: Backend REST API
 
@@ -57,7 +57,7 @@ The goal is a system that feels like "Linear + LangGraph DevTools + Jira" in one
 **Tasks:**
 - [ ] Create TaskCreateForm modal with required and optional fields (depends: Phase 3) (category: code)
 - [ ] Add quick-capture command palette entry for task creation (depends: Phase 3) (category: code)
-- [ ] Add context-aware defaults - auto-suggest project, type, priority from current view (category: code)
+- [ ] Add context-aware defaults - auto-suggest project, type, priority from current view (depends: Phase 3) (category: code)
 
 ## Phase 5: Kanban Board
 
@@ -99,9 +99,9 @@ The goal is a system that feels like "Linear + LangGraph DevTools + Jira" in one
 
 **Tasks:**
 - [ ] Create reasoning timeline component - collapsed Plan/Investigate/Act/Verify phases (depends: Phase 3) (category: code)
-- [ ] Create action feed component - tool calls with human-readable descriptions and results (category: code)
+- [ ] Create action feed component - tool calls with human-readable descriptions and results (depends: Phase 3) (category: code)
 - [ ] Add session transcript viewer to TaskDetail linking to agent sessions (depends: Phase 3) (category: code)
-- [ ] Add expandable raw trace view for debugging (category: code)
+- [ ] Add expandable raw trace view for debugging (depends: Phase 3) (category: code)
 
 ## Phase 9: Oversight and Escalation
 
@@ -111,7 +111,7 @@ The goal is a system that feels like "Linear + LangGraph DevTools + Jira" in one
 - [ ] Add oversight mode selector to TaskDetail - hands-off, ask-before-risky, ask-each-step (depends: Phase 3) (category: code)
 - [ ] Create escalation view showing agent options with pros/cons for user decision (depends: Phase 3) (category: code)
 - [ ] Add intervention buttons per step - Retry, Edit and Run, Roll Back, Mark Resolved (depends: Phase 8) (category: code)
-- [ ] Add de-escalation flow for returning escalated tasks to agents (category: code)
+- [ ] Add de-escalation flow for returning escalated tasks to agents (depends: Phase 3) (category: code)
 
 ## Phase 10: Planning Views
 
@@ -122,7 +122,7 @@ The goal is a system that feels like "Linear + LangGraph DevTools + Jira" in one
 - [ ] Create priority view - Now/Next/Later grouping (depends: Phase 5) (category: code)
 - [ ] Add within-column card reordering with fractional indexing (depends: Phase 5) (category: code)
 - [ ] Create Gantt chart view with timeline, dependency arrows, and milestones (depends: Phase 6) (category: code)
-- [ ] Add drag-to-reschedule on Gantt bars (category: code)
+- [ ] Add drag-to-reschedule on Gantt bars (depends: Phase 10) (category: code)
 
 ## Phase 11: Results and Work Reports
 
@@ -140,9 +140,9 @@ The goal is a system that feels like "Linear + LangGraph DevTools + Jira" in one
 
 **Tasks:**
 - [ ] Add task-linked memory section to TaskDetail - memories read/written during work (depends: Phase 3) (category: code)
-- [ ] Add memory correction UI - edit or pin memories from task context (category: code)
+- [ ] Add memory correction UI - edit or pin memories from task context (depends: Phase 3) (category: code)
 - [ ] Add re-run capability - clone task with new inputs or schedule recurring (depends: Phase 4) (category: code)
-- [ ] Add learning-from-feedback display - show what agent will remember after corrections (category: code)
+- [ ] Add learning-from-feedback display - show what agent will remember after corrections (depends: Phase 3) (category: code)
 
 ## Phase 13: Safety, Guardrails, and Trust
 
@@ -150,9 +150,9 @@ The goal is a system that feels like "Linear + LangGraph DevTools + Jira" in one
 
 **Tasks:**
 - [ ] Add capability scope display to TaskDetail - active connections and permissions (depends: Phase 3) (category: code)
-- [ ] Add risk indicator badges for sensitive actions - deploy, payments, data access (category: code)
+- [ ] Add risk indicator badges for sensitive actions - deploy, payments, data access (depends: Phase 3) (category: code)
 - [ ] Create audit log view - immutable log of significant actions with approvals (depends: Phase 1) (category: code)
-- [ ] Add per-task permission overrides with inline toggle switches (category: code)
+- [ ] Add per-task permission overrides with inline toggle switches (depends: Phase 3) (category: code)
 
 ## Phase 14: Collaboration
 

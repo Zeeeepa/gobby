@@ -171,7 +171,7 @@ Persistent memory system. See [memory.md](memory.md) for details.
 ```yaml
 memory:
   enabled: true
-  backend: local                  # local or null (testing)
+  backend: local                  # local (preferred), sqlite (alias for local), mem0, or null (testing)
 
   # Search
   search_backend: auto            # tfidf, text, embedding, auto, hybrid
@@ -736,7 +736,7 @@ All values are validated via Pydantic:
 | Count | Positive integer |
 | Search mode | tfidf, embedding, auto, hybrid |
 | Log level | debug, info, warning, error |
-| Memory backend | local, mem0, null |
+| Memory backend | local, sqlite (alias for local), mem0, null |
 | Auth mode | subscription, api_key, adc |
 
 ---
