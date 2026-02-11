@@ -98,6 +98,7 @@ export function OversightSelector({ taskId }: OversightSelectorProps) {
             key={opt.value}
             className={`oversight-option ${mode === opt.value ? 'oversight-option--active' : ''}`}
             onClick={() => handleChange(opt.value)}
+            aria-pressed={mode === opt.value}
             title={opt.description}
           >
             <span className="oversight-option-icon">{opt.icon}</span>

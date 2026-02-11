@@ -343,7 +343,15 @@ export function GanttChart({ tasks, onSelectTask, onReschedule }: GanttChartProp
               const cy = y + ROW_HEIGHT / 2
               const size = 8
               return (
-                <g key={`bar-${bar.task.id}`} onClick={() => onSelectTask(bar.task.id)} style={{ cursor: 'pointer' }}>
+                <g
+                  key={`bar-${bar.task.id}`}
+                  onClick={() => onSelectTask(bar.task.id)}
+                  onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onSelectTask(bar.task.id) } }}
+                  tabIndex={0}
+                  role="button"
+                  aria-label={`Milestone: ${bar.task.ref} ${bar.task.title}`}
+                  style={{ cursor: 'pointer' }}
+                >
                   <polygon
                     points={`${cx},${cy - size} ${cx + size},${cy} ${cx},${cy + size} ${cx - size},${cy}`}
                     fill={color}
