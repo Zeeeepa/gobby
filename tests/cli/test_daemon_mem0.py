@@ -63,7 +63,7 @@ class TestDaemonMem0Flag:
         svc_dir.mkdir(parents=True)
         (svc_dir / "docker-compose.yml").write_text("services: {}")
 
-        with patch("subprocess.run") as mock_run:
+        with patch("gobby.cli.daemon.subprocess.run") as mock_run:
             mock_run.return_value = MagicMock(returncode=0)
             _mem0_start(tmp_path)
 
@@ -74,7 +74,7 @@ class TestDaemonMem0Flag:
         """start --mem0 does nothing when mem0 is not installed."""
         from gobby.cli.daemon import _mem0_start
 
-        with patch("subprocess.run") as mock_run:
+        with patch("gobby.cli.daemon.subprocess.run") as mock_run:
             _mem0_start(tmp_path)
 
         mock_run.assert_not_called()
@@ -87,7 +87,7 @@ class TestDaemonMem0Flag:
         svc_dir.mkdir(parents=True)
         (svc_dir / "docker-compose.yml").write_text("services: {}")
 
-        with patch("subprocess.run") as mock_run:
+        with patch("gobby.cli.daemon.subprocess.run") as mock_run:
             mock_run.return_value = MagicMock(returncode=0)
             _mem0_stop(tmp_path)
 
@@ -98,7 +98,7 @@ class TestDaemonMem0Flag:
         """stop --mem0 does nothing when mem0 is not installed."""
         from gobby.cli.daemon import _mem0_stop
 
-        with patch("subprocess.run") as mock_run:
+        with patch("gobby.cli.daemon.subprocess.run") as mock_run:
             _mem0_stop(tmp_path)
 
         mock_run.assert_not_called()

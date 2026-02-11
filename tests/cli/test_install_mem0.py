@@ -7,14 +7,9 @@ from unittest.mock import MagicMock, patch
 import pytest
 import yaml
 
-from gobby.cli.installers.mem0 import install_mem0, uninstall_mem0
+from gobby.cli.installers.mem0 import DEFAULT_MEM0_URL, install_mem0, uninstall_mem0
 
 pytestmark = pytest.mark.unit
-
-
-COMPOSE_SRC = (
-    Path(__file__).resolve().parents[2] / "src" / "gobby" / "data" / "docker-compose.mem0.yml"
-)
 
 
 class TestInstallMem0Local:
@@ -83,7 +78,7 @@ class TestInstallMem0Local:
         mock_update.assert_called_once()
         call_kwargs = mock_update.call_args
         # Should pass mem0_url
-        assert "http://localhost:8888" in str(call_kwargs)
+        assert DEFAULT_MEM0_URL in str(call_kwargs)
 
     def test_docker_compose_failure(self, tmp_path: Path) -> None:
         """install_mem0 fails when docker compose up fails."""
