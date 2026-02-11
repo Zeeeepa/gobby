@@ -106,7 +106,7 @@ async def resolve_project_id(request: Request, project_id: str | None = None) ->
         HTTPException: If no project ID can be resolved
     """
     server = await get_server(request)
-    resolved = server._resolve_project_id(project_id, cwd=None)
+    resolved = server.resolve_project_id(project_id, cwd=None)
     if resolved is None:
         raise HTTPException(status_code=400, detail="No project ID provided or detected")
     return resolved

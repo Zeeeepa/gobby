@@ -290,7 +290,7 @@ class HTTPServer:
             return self._tools_handler.tool_proxy
         return None
 
-    def _resolve_project_id(self, project_id: str | None, cwd: str | None) -> str:
+    def resolve_project_id(self, project_id: str | None, cwd: str | None) -> str:
         """
         Resolve project_id from cwd if not provided.
 

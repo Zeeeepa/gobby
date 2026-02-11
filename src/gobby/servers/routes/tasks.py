@@ -124,7 +124,7 @@ def create_tasks_router(server: "HTTPServer") -> APIRouter:
         """Resolve project ID, falling back to server's project context."""
         if project_id:
             return project_id
-        return server._resolve_project_id(project_id=None, cwd=None)
+        return server.resolve_project_id(project_id=None, cwd=None)
 
     async def _broadcast_task(event: str, task_dict: dict[str, Any]) -> None:
         """Broadcast a task event via WebSocket if available."""
@@ -354,7 +354,7 @@ def create_tasks_router(server: "HTTPServer") -> APIRouter:
 
             updated = server.task_manager.update_task(resolved_id, **update_kwargs)
             result = updated.to_dict()
-            await _broadcast_task("task_reopened", result)
+            await _broadcast_task("task_de_escalated", result)
             return result
         except TaskNotFoundError as e:
             raise HTTPException(status_code=404, detail=str(e)) from e
@@ -366,23 +366,34 @@ def create_tasks_router(server: "HTTPServer") -> APIRouter:
     # -----------------------------------------------------------------
 
     @router.get("/{task_id}/comments")
-    async def list_comments(task_id: str) -> Any:
+    async def list_comments(
+        task_id: str,
+        limit: int = Query(50, ge=1, le=500),
+        offset: int = Query(0, ge=0),
+    ) -> Any:
         """List comments for a task, threaded."""
         metrics.inc_counter("http_requests_total")
         try:
             task = server.task_manager.get_task(task_id)
             resolved_id = task.id
 
+            total_row = server.task_manager.db.fetchone(
+                "SELECT COUNT(*) as total FROM task_comments WHERE task_id = ?",
+                (resolved_id,),
+            )
+            total = total_row["total"] if total_row else 0
+
             rows = server.task_manager.db.fetchall(
                 """SELECT id, task_id, parent_comment_id, author, author_type, body,
                           created_at, updated_at
                    FROM task_comments
                    WHERE task_id = ?
-                   ORDER BY created_at ASC""",
-                (resolved_id,),
+                   ORDER BY created_at ASC
+                   LIMIT ? OFFSET ?""",
+                (resolved_id, limit, offset),
             )
             comments = [dict(row) for row in rows]
-            return {"comments": comments, "count": len(comments)}
+            return {"comments": comments, "count": len(comments), "total": total}
         except TaskNotFoundError as e:
             raise HTTPException(status_code=404, detail=str(e)) from e
         except ValueError as e:

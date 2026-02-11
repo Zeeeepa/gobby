@@ -71,7 +71,7 @@ def create_sessions_router(server: "HTTPServer") -> APIRouter:
                     git_branch = git_metadata.get("git_branch")
 
             # Resolve project_id from cwd if not provided
-            project_id = server._resolve_project_id(request_data.project_id, request_data.cwd)
+            project_id = server.resolve_project_id(request_data.project_id, request_data.cwd)
 
             # Register session in local storage
             session = server.session_manager.register(
@@ -282,7 +282,7 @@ def create_sessions_router(server: "HTTPServer") -> APIRouter:
 
             # Resolve project_id from cwd if not provided
             if not project_id and cwd:
-                project_id = server._resolve_project_id(None, cwd)
+                project_id = server.resolve_project_id(None, cwd)
 
             if not project_id:
                 raise HTTPException(
@@ -341,7 +341,7 @@ def create_sessions_router(server: "HTTPServer") -> APIRouter:
                         status_code=400,
                         detail="Required field: project_id or cwd",
                     )
-                project_id = server._resolve_project_id(None, cwd)
+                project_id = server.resolve_project_id(None, cwd)
 
             session = server.session_manager.find_parent(
                 machine_id=machine_id,
@@ -476,6 +476,7 @@ def create_sessions_router(server: "HTTPServer") -> APIRouter:
         except HTTPException:
             raise
         except Exception as e:
+            metrics.inc_counter("http_requests_errors_total")
             logger.error(f"Generate summary error: {e}", exc_info=True)
             raise HTTPException(status_code=500, detail=str(e)) from e
 
