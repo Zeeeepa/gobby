@@ -17,7 +17,7 @@ import { MemoryPage } from './components/MemoryPage'
 import { TasksPage } from './components/TasksPage'
 import { ArtifactsPage } from './components/ArtifactsPage'
 import { CronJobsPage } from './components/CronJobsPage'
-import { AgentPortfolioPage } from './components/AgentPortfolioPage'
+import { AgentDefinitionsPage } from './components/AgentDefinitionsPage'
 import { QuickCaptureTask } from './components/tasks/QuickCaptureTask'
 import type { GobbySession } from './hooks/useSessions'
 
@@ -124,14 +124,25 @@ export default function App() {
     switchConversation(session.external_id)
   }, [switchConversation])
 
-  // "Ask Gobby about this session" from Sessions page
+  /* "Ask Gobby about this session" from Sessions page */
   const handleAskGobby = useCallback((context: string) => {
     setActiveTab('chat')
-    // Send the context as a new message after switching to chat
+    // Defer to next macrotask so the tab switch state update is flushed
     setTimeout(() => {
-      sendMessage(context, settings.model)
-    }, 100)
-  }, [sendMessage, settings.model])
+      try {
+        if (!isConnected) {
+          console.warn('Cannot ask Gobby: disconnected')
+          return
+        }
+        const sent = sendMessage(context, settings.model)
+        if (!sent) {
+          console.error('Failed to send message to Gobby')
+        }
+      } catch (e) {
+        console.error('Error in handleAskGobby:', e)
+      }
+    }, 0)
+  }, [sendMessage, settings.model, isConnected])
 
   const handleInputChange = useCallback((value: string) => {
     filterCommands(value)
@@ -155,7 +166,7 @@ export default function App() {
     { id: 'files', label: 'Files', icon: <FilesIcon /> },
     { id: 'projects', label: 'Projects', icon: <ProjectsIcon />, separator: true },
     { id: 'tasks', label: 'Tasks', icon: <TasksIcon /> },
-    { id: 'agents', label: 'Agents', icon: <AgentsIcon /> },
+    { id: 'agents', label: 'Agent Definitions', icon: <AgentsIcon /> },
     { id: 'workflows', label: 'Workflows', icon: <WorkflowsIcon /> },
     { id: 'worktrees', label: 'Worktrees/Clones', icon: <WorktreesIcon /> },
     { id: 'cron', label: 'Cron Jobs', icon: <CronIcon /> },
@@ -285,7 +296,7 @@ export default function App() {
       ) : activeTab === 'cron' ? (
         <CronJobsPage />
       ) : activeTab === 'agents' ? (
-        <AgentPortfolioPage />
+        <AgentDefinitionsPage />
       ) : (
         <ComingSoonPage title={navItems.find(i => i.id === activeTab)?.label ?? activeTab} />
       )}

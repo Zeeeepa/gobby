@@ -134,7 +134,7 @@ async def memory_save(
         }
 
     except Exception as e:
-        logger.error(f"save_memory: Failed for session {session_id}: {e}", exc_info=True)
+        logger.error("save_memory: Failed for session %s: %s", session_id, e, exc_info=True)
         return {"error": str(e)}
 
 
@@ -251,7 +251,7 @@ async def memory_recall_relevant(
         }
 
     except Exception as e:
-        logger.error(f"memory_recall_relevant: Failed for session {session_id}: {e}", exc_info=True)
+        logger.error("memory_recall_relevant: Failed for session %s: %s", session_id, e, exc_info=True)
         return {"error": str(e)}
 
 
