@@ -292,6 +292,13 @@ class LocalSessionManager:
         )
         return self.get(session_id)
 
+    def clear_had_edits(self, session_id: str) -> None:
+        """Reset had_edits after a task is closed with a linked commit."""
+        self.db.execute(
+            "UPDATE sessions SET had_edits = 0 WHERE id = ?",
+            (session_id,),
+        )
+
     def update_title(self, session_id: str, title: str) -> Session | None:
         """Update session title."""
         now = datetime.now(UTC).isoformat()

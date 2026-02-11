@@ -273,6 +273,17 @@ def create_lifecycle_registry(ctx: RegistryContext) -> InternalToolRegistry:
             except Exception:
                 pass  # nosec B110 - best-effort state update
 
+        # Reset had_edits after successful close with a linked commit
+        # The commit accounts for this task's edits; subsequent tasks start clean
+        if resolved_session_id and (bool(task.commits) or bool(commit_sha)):
+            try:
+                from gobby.storage.sessions import LocalSessionManager
+
+                session_manager = LocalSessionManager(ctx.task_manager.db)
+                session_manager.clear_had_edits(resolved_session_id)
+            except Exception:
+                pass  # nosec B110 - best-effort reset
+
         # Update worktree status based on closure reason (case-insensitive)
         try:
             reason_normalized = reason.lower()
