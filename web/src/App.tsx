@@ -224,39 +224,49 @@ export default function App() {
 
       {activeTab === 'chat' ? (
         <ChatPage
-          messages={messages}
-          isStreaming={isStreaming}
-          isThinking={isThinking}
-          isConnected={isConnected}
-          onSend={handleSendMessage}
-          onStop={stopStreaming}
-          onRespondToQuestion={respondToQuestion}
-          onInputChange={handleInputChange}
-          filteredCommands={filteredCommands}
-          onCommandSelect={handleCommandSelect}
-          webChatSessions={webChatSessions}
-          activeSessionId={conversationId}
-          onNewChat={startNewChat}
-          onSelectSession={handleSelectConversation}
-          terminalOpen={terminalOpen}
-          onTerminalToggle={() => setTerminalOpen(!terminalOpen)}
-          agents={agents}
-          selectedAgent={selectedAgent}
-          onSelectAgent={setSelectedAgent}
-          onTerminalInput={sendInput}
-          onTerminalOutput={onOutput}
-          projects={projectOptions}
-          selectedProjectId={effectiveProjectId}
-          onProjectChange={setSelectedProjectId}
-          voiceMode={voice.voiceMode}
-          isRecording={voice.isRecording}
-          isTranscribing={voice.isTranscribing}
-          isSpeaking={voice.isSpeaking}
-          voiceError={voice.voiceError}
-          onToggleVoice={voice.toggleVoiceMode}
-          onStartRecording={voice.startRecording}
-          onStopRecording={voice.stopRecording}
-          onStopSpeaking={voice.stopSpeaking}
+          chat={{
+            messages,
+            isStreaming,
+            isThinking,
+            isConnected,
+            onSend: handleSendMessage,
+            onStop: stopStreaming,
+            onRespondToQuestion: respondToQuestion,
+            onInputChange: handleInputChange,
+            filteredCommands,
+            onCommandSelect: handleCommandSelect,
+          }}
+          conversations={{
+            sessions: webChatSessions,
+            activeSessionId: conversationId,
+            onNewChat: startNewChat,
+            onSelectSession: handleSelectConversation,
+          }}
+          terminal={{
+            isOpen: terminalOpen,
+            onToggle: () => setTerminalOpen(!terminalOpen),
+            agents,
+            selectedAgent,
+            onSelectAgent: setSelectedAgent,
+            onInput: sendInput,
+            onOutput,
+          }}
+          project={{
+            projects: projectOptions,
+            selectedProjectId: effectiveProjectId,
+            onProjectChange: setSelectedProjectId,
+          }}
+          voice={{
+            voiceMode: voice.voiceMode,
+            isRecording: voice.isRecording,
+            isTranscribing: voice.isTranscribing,
+            isSpeaking: voice.isSpeaking,
+            voiceError: voice.voiceError,
+            onToggleVoice: voice.toggleVoiceMode,
+            onStartRecording: voice.startRecording,
+            onStopRecording: voice.stopRecording,
+            onStopSpeaking: voice.stopSpeaking,
+          }}
         />
       ) : activeTab === 'sessions' ? (
         <SessionsPage

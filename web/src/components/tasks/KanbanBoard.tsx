@@ -44,11 +44,11 @@ const BLOCKED_STATUSES = new Set(['escalated'])
 const ORDER_GAP = 1000
 const ORDER_MIN = 0
 
-/** Compute a sequence_order between two neighbors. */
+/** Compute a sequence_order between two neighbors using float midpoint for ~53 levels of precision. */
 function orderBetween(prev: number | null, next: number | null): number {
   const p = prev ?? ORDER_MIN
   const n = next ?? p + ORDER_GAP
-  return Math.floor((p + n) / 2)
+  return p + (n - p) / 2
 }
 
 /** Assign initial orders to tasks that have no sequence_order, preserving existing ones. */

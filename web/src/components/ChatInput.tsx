@@ -211,17 +211,25 @@ export function ChatInput({
           </button>
         )}
         {projects.length > 0 && (
-          <select
-            className="chat-project-select"
-            value={selectedProjectId || ''}
-            onChange={(e) => onProjectChange?.(e.target.value)}
-            title="Select project context"
-          >
-            <option value="">No project</option>
-            {projects.map((p) => (
-              <option key={p.id} value={p.id}>{p.name}</option>
-            ))}
-          </select>
+          <div className="chat-project-toggle" role="group" aria-label="Project scope">
+            <button
+              className={`chat-project-toggle-btn${!selectedProjectId ? ' active' : ''}`}
+              onClick={() => onProjectChange?.('')}
+              disabled={disabled}
+            >
+              Personal
+            </button>
+            <button
+              className={`chat-project-toggle-btn${selectedProjectId ? ' active' : ''}`}
+              onClick={() => {
+                const target = projects.find(p => p.id === selectedProjectId) || projects[0]
+                if (target) onProjectChange?.(target.id)
+              }}
+              disabled={disabled}
+            >
+              {projects.find(p => p.id === selectedProjectId)?.name || projects[0]?.name || 'Project'}
+            </button>
+          </div>
         )}
         <input
           ref={fileInputRef}

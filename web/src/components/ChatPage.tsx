@@ -7,8 +7,7 @@ import type { ChatMessage } from './Message'
 import type { GobbySession } from '../hooks/useSessions'
 import type { CommandInfo } from '../hooks/useSlashCommands'
 
-interface ChatPageProps {
-  // Chat state
+export interface ChatState {
   messages: ChatMessage[]
   isStreaming: boolean
   isThinking: boolean
@@ -19,24 +18,32 @@ interface ChatPageProps {
   onInputChange: (value: string) => void
   filteredCommands: CommandInfo[]
   onCommandSelect: (cmd: CommandInfo) => void
-  // ConversationPicker state
-  webChatSessions: GobbySession[]
+}
+
+export interface ConversationState {
+  sessions: GobbySession[]
   activeSessionId: string | null
   onNewChat: () => void
   onSelectSession: (session: GobbySession) => void
-  // Terminal state
-  terminalOpen: boolean
-  onTerminalToggle: () => void
+}
+
+export interface TerminalProps {
+  isOpen: boolean
+  onToggle: () => void
   agents: Array<{ run_id: string; provider: string; pid?: number; mode?: string }>
   selectedAgent: string | null
   onSelectAgent: (runId: string | null) => void
-  onTerminalInput: (runId: string, data: string) => void
-  onTerminalOutput: (callback: (runId: string, data: string) => void) => void
-  // Project selector
+  onInput: (runId: string, data: string) => void
+  onOutput: (callback: (runId: string, data: string) => void) => void
+}
+
+export interface ProjectProps {
   projects: ProjectOption[]
   selectedProjectId: string | null
   onProjectChange: (projectId: string) => void
-  // Voice props
+}
+
+export interface VoiceProps {
   voiceMode?: boolean
   isRecording?: boolean
   isTranscribing?: boolean
@@ -48,88 +55,62 @@ interface ChatPageProps {
   onStopSpeaking?: () => void
 }
 
-export function ChatPage({
-  messages,
-  isStreaming,
-  isThinking,
-  isConnected,
-  onSend,
-  onStop,
-  onRespondToQuestion,
-  onInputChange,
-  filteredCommands,
-  onCommandSelect,
-  webChatSessions,
-  activeSessionId,
-  onNewChat,
-  onSelectSession,
-  terminalOpen,
-  onTerminalToggle,
-  agents,
-  selectedAgent,
-  onSelectAgent,
-  onTerminalInput,
-  onTerminalOutput,
-  projects,
-  selectedProjectId,
-  onProjectChange,
-  voiceMode,
-  isRecording,
-  isTranscribing,
-  isSpeaking,
-  voiceError,
-  onToggleVoice,
-  onStartRecording,
-  onStopRecording,
-  onStopSpeaking,
-}: ChatPageProps) {
+interface ChatPageProps {
+  chat: ChatState
+  conversations: ConversationState
+  terminal: TerminalProps
+  project: ProjectProps
+  voice: VoiceProps
+}
+
+export function ChatPage({ chat, conversations, terminal, project, voice }: ChatPageProps) {
   return (
     <div className="chat-page">
       <ConversationPicker
-        sessions={webChatSessions}
-        activeSessionId={activeSessionId}
-        onNewChat={onNewChat}
-        onSelectSession={onSelectSession}
+        sessions={conversations.sessions}
+        activeSessionId={conversations.activeSessionId}
+        onNewChat={conversations.onNewChat}
+        onSelectSession={conversations.onSelectSession}
       />
       <div className="chat-main">
         <main className="chat-container">
           <ChatMessages
-            messages={messages}
-            isStreaming={isStreaming}
-            isThinking={isThinking}
-            onRespondToQuestion={onRespondToQuestion}
+            messages={chat.messages}
+            isStreaming={chat.isStreaming}
+            isThinking={chat.isThinking}
+            onRespondToQuestion={chat.onRespondToQuestion}
           />
           <ChatInput
-            onSend={onSend}
-            onStop={onStop}
-            isStreaming={isStreaming}
-            disabled={!isConnected}
-            onInputChange={onInputChange}
-            filteredCommands={filteredCommands}
-            onCommandSelect={onCommandSelect}
-            projects={projects}
-            selectedProjectId={selectedProjectId}
-            onProjectChange={onProjectChange}
-            voiceMode={voiceMode}
-            isRecording={isRecording}
-            isTranscribing={isTranscribing}
-            isSpeaking={isSpeaking}
-            voiceError={voiceError}
-            onToggleVoice={onToggleVoice}
-            onStartRecording={onStartRecording}
-            onStopRecording={onStopRecording}
-            onStopSpeaking={onStopSpeaking}
+            onSend={chat.onSend}
+            onStop={chat.onStop}
+            isStreaming={chat.isStreaming}
+            disabled={!chat.isConnected}
+            onInputChange={chat.onInputChange}
+            filteredCommands={chat.filteredCommands}
+            onCommandSelect={chat.onCommandSelect}
+            projects={project.projects}
+            selectedProjectId={project.selectedProjectId}
+            onProjectChange={project.onProjectChange}
+            voiceMode={voice.voiceMode}
+            isRecording={voice.isRecording}
+            isTranscribing={voice.isTranscribing}
+            isSpeaking={voice.isSpeaking}
+            voiceError={voice.voiceError}
+            onToggleVoice={voice.onToggleVoice}
+            onStartRecording={voice.onStartRecording}
+            onStopRecording={voice.onStopRecording}
+            onStopSpeaking={voice.onStopSpeaking}
           />
         </main>
 
         <TerminalPanel
-          isOpen={terminalOpen}
-          onToggle={onTerminalToggle}
-          agents={agents}
-          selectedAgent={selectedAgent}
-          onSelectAgent={onSelectAgent}
-          onInput={onTerminalInput}
-          onOutput={onTerminalOutput}
+          isOpen={terminal.isOpen}
+          onToggle={terminal.onToggle}
+          agents={terminal.agents}
+          selectedAgent={terminal.selectedAgent}
+          onSelectAgent={terminal.onSelectAgent}
+          onInput={terminal.onInput}
+          onOutput={terminal.onOutput}
         />
       </div>
     </div>
