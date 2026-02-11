@@ -24,10 +24,6 @@ interface DepArrow {
 // Helpers
 // =============================================================================
 
-function getBaseUrl(): string {
-  return ''
-}
-
 const STATUS_COLORS: Record<string, string> = {
   open: '#737373',
   in_progress: '#3b82f6',
@@ -140,36 +136,8 @@ interface GanttChartProps {
 
 export function GanttChart({ tasks, onSelectTask, onReschedule }: GanttChartProps) {
   const [zoom, setZoom] = useState<ZoomLevel>('day')
-  const [deps, setDeps] = useState<Map<string, string[]>>(new Map())
-  const [error, setError] = useState<string | null>(null)
   const [drag, setDrag] = useState<DragState | null>(null)
   const svgRef = useRef<SVGSVGElement>(null)
-
-  // Fetch dependency info
-  const fetchDeps = useCallback(async () => {
-    try {
-      setError(null)
-      const baseUrl = getBaseUrl()
-      const response = await fetch(`${baseUrl}/tasks?limit=200`)
-      if (!response.ok) throw new Error('Failed to fetch tasks')
-      const data = await response.json()
-      // Build dep map from parent_task_id already in task data
-      const depMap = new Map<string, string[]>()
-      for (const t of data.tasks || []) {
-        if (t.parent_task_id) {
-          if (!depMap.has(t.parent_task_id)) depMap.set(t.parent_task_id, [])
-          depMap.get(t.parent_task_id)!.push(t.id)
-        }
-      }
-      setDeps(depMap)
-    } catch (e) {
-      console.error('Failed to load dependencies:', e)
-      setError('Failed to load dependency data')
-    }
-  }, [])
-
-  // Fetch deps on mount
-  useState(() => { fetchDeps() })
 
   const bars = useMemo(() => buildBars(tasks), [tasks])
   const arrows = useMemo(() => buildArrows(bars, tasks), [bars, tasks])
@@ -266,9 +234,6 @@ export function GanttChart({ tasks, onSelectTask, onReschedule }: GanttChartProp
     setDrag(null)
   }, [drag, onReschedule])
 
-  // Suppress unused variable warning
-  void deps
-
   return (
     <div className="gantt-wrapper">
       {/* Zoom controls */}
@@ -284,7 +249,6 @@ export function GanttChart({ tasks, onSelectTask, onReschedule }: GanttChartProp
           </button>
         ))}
         <span className="gantt-task-count">{tasks.length} tasks</span>
-        {error && <span className="gantt-error" style={{ color: 'var(--red-400)', marginLeft: '1rem' }}>{error}</span>}
       </div>
 
       <div className="gantt-scroll">

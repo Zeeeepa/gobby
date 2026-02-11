@@ -151,7 +151,7 @@ interface KanbanCardProps {
 }
 
 function KanbanCard({ task, index, columnKey, onSelect, onUpdateStatus }: KanbanCardProps) {
-  const ref = useRef<HTMLButtonElement | null>(null)
+  const ref = useRef<HTMLDivElement | null>(null)
   const [isDragging, setIsDragging] = useState(false)
   const [dropEdge, setDropEdge] = useState<'top' | 'bottom' | null>(null)
   const priorityColor = (PRIORITY_STYLES[task.priority] || PRIORITY_STYLES[2]).color
@@ -212,10 +212,13 @@ function KanbanCard({ task, index, columnKey, onSelect, onUpdateStatus }: Kanban
   ].filter(Boolean).join(' ')
 
   return (
-    <button
+    <div
       ref={ref}
       className={classes}
+      role="button"
+      tabIndex={0}
       onClick={() => onSelect(task.id)}
+      onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onSelect(task.id) } }}
       style={{ borderLeftColor: priorityColor }}
     >
       <div className="kanban-card-header">
@@ -231,28 +234,30 @@ function KanbanCard({ task, index, columnKey, onSelect, onUpdateStatus }: Kanban
         {onUpdateStatus && !isBlocked && (
           <div className="kanban-card-actions">
             {nextStatus && (
-              <span
+              <button
+                type="button"
                 className="kanban-card-action"
                 title={`Move to ${nextStatus.replace(/_/g, ' ')}`}
                 onClick={e => { e.stopPropagation(); onUpdateStatus(task.id, nextStatus) }}
               >
                 →
-              </span>
+              </button>
             )}
             {task.status !== 'closed' && (
-              <span
+              <button
+                type="button"
                 className="kanban-card-action kanban-card-action--close"
                 title="Close task"
                 onClick={e => { e.stopPropagation(); onUpdateStatus(task.id, 'closed') }}
               >
                 ✓
-              </span>
+              </button>
             )}
           </div>
         )}
       </div>
       <TaskStatusStrip task={task} />
-    </button>
+    </div>
   )
 }
 

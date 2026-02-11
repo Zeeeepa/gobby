@@ -1,4 +1,4 @@
-import { useState, useMemo, useCallback, useRef, useEffect } from 'react'
+import { useState, useMemo, useCallback, useRef, useEffect, useId } from 'react'
 import dagre from 'dagre'
 import type { GobbyTask } from '../../hooks/useTasks'
 
@@ -88,11 +88,11 @@ function buildGraph(tasks: GobbyTask[]): { nodes: GraphNode[]; edges: GraphEdge[
 // SVG Arrow marker
 // =============================================================================
 
-function ArrowDefs() {
+function ArrowDefs({ markerId }: { markerId: string }) {
   return (
     <defs>
       <marker
-        id="arrow"
+        id={markerId}
         viewBox="0 0 10 10"
         refX="10"
         refY="5"
@@ -116,6 +116,7 @@ interface DependencyGraphProps {
 }
 
 export function DependencyGraph({ tasks, onSelectTask }: DependencyGraphProps) {
+  const markerId = `arrow${useId()}`
   const svgRef = useRef<SVGSVGElement>(null)
   const [view, setView] = useState<ViewBox>({ x: 0, y: 0, scale: 1 })
   const [dragging, setDragging] = useState(false)
@@ -235,7 +236,7 @@ export function DependencyGraph({ tasks, onSelectTask }: DependencyGraphProps) {
         onWheel={handleWheel}
         style={{ cursor: dragging ? 'grabbing' : 'grab' }}
       >
-        <ArrowDefs />
+        <ArrowDefs markerId={markerId} />
         <g transform={`translate(${view.x}, ${view.y}) scale(${view.scale})`}>
           {/* Edges */}
           {edges.map((edge) => {
@@ -256,7 +257,7 @@ export function DependencyGraph({ tasks, onSelectTask }: DependencyGraphProps) {
                 fill="none"
                 stroke={isHighlighted ? 'var(--accent)' : 'var(--border)'}
                 strokeWidth={isHighlighted ? 2 : 1.5}
-                markerEnd="url(#arrow)"
+                markerEnd={`url(#${markerId})`}
                 opacity={isHighlighted ? 1 : 0.6}
               />
             )

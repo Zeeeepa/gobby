@@ -263,6 +263,7 @@ export function EscalationCard({ task, onResolve }: EscalationCardProps) {
           value={customInput}
           onChange={e => setCustomInput(e.target.value)}
           placeholder="Type your decision or instructions..."
+          aria-label="Decision or instructions"
           rows={3}
           autoFocus
         />
