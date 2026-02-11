@@ -542,8 +542,7 @@ def _kill_port_holder(port: int) -> None:
                     and conn.status == psutil.CONN_LISTEN
                 ):
                     logger.info(
-                        f"Killing orphan process on port {port}: "
-                        f"PID {proc.pid} ({proc.name()})"
+                        f"Killing orphan process on port {port}: PID {proc.pid} ({proc.name()})"
                     )
                     parent = psutil.Process(proc.pid)
                     children = parent.children(recursive=True)
@@ -574,9 +573,9 @@ def spawn_ui_server(host: str, port: int, web_dir: Path, log_file: Path) -> int 
     stop_ui_server(quiet=True)
 
     # Kill any orphan process occupying our port (e.g. manually started Vite)
-    if not is_port_available(port, host="0.0.0.0"):
+    if not is_port_available(port, host="0.0.0.0"):  # nosec B104
         _kill_port_holder(port)
-        if not wait_for_port_available(port, host="0.0.0.0", timeout=5.0):
+        if not wait_for_port_available(port, host="0.0.0.0", timeout=5.0):  # nosec B104
             logger.error(f"Port {port} still in use after cleanup — aborting UI server spawn")
             return None
 
