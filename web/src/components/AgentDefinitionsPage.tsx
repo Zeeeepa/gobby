@@ -494,10 +494,27 @@ export function AgentDefinitionsPage() {
                       {d.default_workflow && (
                         <PropRow label="Default workflow" value={d.default_workflow} />
                       )}
-                      {d.role && <PropRow label="Role" value={d.role} />}
-                      {d.goal && <PropRow label="Goal" value={d.goal} />}
-                      {d.personality && <PropRow label="Personality" value={d.personality} />}
                     </div>
+
+                    {/* Role / Goal / Personality as full-width sections */}
+                    {d.role && (
+                      <div className="agent-def-section">
+                        <div className="agent-def-section-title">Role</div>
+                        <pre className="agent-def-description-full">{d.role}</pre>
+                      </div>
+                    )}
+                    {d.goal && (
+                      <div className="agent-def-section">
+                        <div className="agent-def-section-title">Goal</div>
+                        <pre className="agent-def-description-full">{d.goal}</pre>
+                      </div>
+                    )}
+                    {d.personality && (
+                      <div className="agent-def-section">
+                        <div className="agent-def-section-title">Personality</div>
+                        <pre className="agent-def-description-full">{d.personality}</pre>
+                      </div>
+                    )}
 
                     {/* Full description */}
                     {d.description && d.description.includes('\n') && (

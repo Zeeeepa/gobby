@@ -196,7 +196,6 @@ export function MemoryPage() {
       <div className="memory-toolbar">
         <div className="memory-toolbar-left">
           <h2 className="memory-toolbar-title">Memory</h2>
-          <span className="memory-toolbar-count">{stats?.total_count ?? 0}</span>
         </div>
         <div className="memory-toolbar-right">
           <div className="memory-view-toggle">

@@ -866,10 +866,10 @@ body {
   padding: 0.25rem 0.625rem;
   font-size: 0.8rem;
   background: transparent;
-  color: var(--text-secondary);
+  color: var(--text-muted);
   border: none;
   cursor: pointer;
-  transition: background 0.1s, color 0.1s;
+  transition: background 0.1s, color 0.1s, box-shadow 0.1s;
   white-space: nowrap;
 }
 
@@ -882,6 +882,7 @@ body {
   color: var(--text-primary);
   background: var(--bg-tertiary);
   font-weight: 500;
+  box-shadow: inset 0 -2px 0 var(--accent);
 }
 
 .chat-scope-btn:disabled {
@@ -1580,8 +1581,8 @@ body {
 
 /* ConversationPicker */
 .conversation-picker {
-  width: 200px;
-  min-width: 200px;
+  width: var(--sidebar-width);
+  min-width: var(--sidebar-width);
   background: var(--bg-secondary);
   border-right: 1px solid var(--border);
   display: flex;
@@ -2326,8 +2327,8 @@ body {
     top: 0;
     bottom: 0;
     z-index: 20;
-    width: 200px;
-    min-width: 200px;
+    width: var(--sidebar-width);
+    min-width: var(--sidebar-width);
   }
 
   .conversation-picker.collapsed {

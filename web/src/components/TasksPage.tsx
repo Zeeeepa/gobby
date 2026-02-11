@@ -203,7 +203,7 @@ interface TasksPageProps {
 }
 
 export function TasksPage({ projectFilter }: TasksPageProps = {}) {
-  const { tasks: allTasks, total, stats, isLoading, filters, setFilters, refreshTasks, getTask, createTask, updateTask, closeTask, reopenTask, getDependencies, getSubtasks } = useTasks()
+  const { tasks: allTasks, total, isLoading, filters, setFilters, refreshTasks, getTask, createTask, updateTask, closeTask, reopenTask, getDependencies, getSubtasks } = useTasks()
 
   // Apply project filter if provided (client-side since the API defaults to resolved project)
   const tasks = projectFilter
@@ -234,6 +234,15 @@ export function TasksPage({ projectFilter }: TasksPageProps = {}) {
     const sorted = [...tasks].sort((a, b) => compareTasks(a, b, sortColumn, sortDirection))
     return sorted
   }, [tasks, sortColumn, sortDirection])
+
+  // Compute stats from the filtered task array so overview cards reflect project scope
+  const localStats = useMemo(() => {
+    const counts: Record<string, number> = {}
+    for (const t of scopedTasks) {
+      counts[t.status] = (counts[t.status] || 0) + 1
+    }
+    return counts
+  }, [scopedTasks])
 
   // Subtree kanban: filter to leaf tasks under a specific parent
   const kanbanTasks = useMemo(() => {
@@ -344,7 +353,7 @@ export function TasksPage({ projectFilter }: TasksPageProps = {}) {
       {/* Overview cards */}
       <TaskOverview
         tasks={scopedTasks}
-        stats={stats}
+        stats={localStats}
         activeFilter={filters.status}
         onFilterStatus={status => setFilters(f => ({ ...f, status }))}
       />
@@ -354,13 +363,13 @@ export function TasksPage({ projectFilter }: TasksPageProps = {}) {
         <div className="tasks-filter-chips">
           {STATUS_OPTIONS.filter(status => {
               const count = status === 'closed'
-                ? CLOSED_GROUP.reduce((sum, s) => sum + ((stats as Record<string, number>)[s] || 0), 0)
-                : (stats as Record<string, number>)[status] || 0
+                ? CLOSED_GROUP.reduce((sum, s) => sum + ((localStats as Record<string, number>)[s] || 0), 0)
+                : (localStats as Record<string, number>)[status] || 0
               return count > 0
             }).map(status => {
               const count = status === 'closed'
-                ? CLOSED_GROUP.reduce((sum, s) => sum + ((stats as Record<string, number>)[s] || 0), 0)
-                : (stats as Record<string, number>)[status] || 0
+                ? CLOSED_GROUP.reduce((sum, s) => sum + ((localStats as Record<string, number>)[s] || 0), 0)
+                : (localStats as Record<string, number>)[status] || 0
               return (
               <button
                 key={status}
