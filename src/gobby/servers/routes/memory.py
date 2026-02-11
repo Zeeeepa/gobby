@@ -160,6 +160,31 @@ def create_memory_router(server: "HTTPServer") -> APIRouter:
             logger.error(f"Failed to get memory graph: {e}")
             raise HTTPException(status_code=500, detail=str(e)) from e
 
+    @router.post("/crossrefs/rebuild")
+    async def rebuild_crossrefs(
+        project_id: str | None = Query(None, description="Filter by project ID"),
+    ) -> dict[str, Any]:
+        """Rebuild crossrefs for all existing memories."""
+        metrics.inc_counter("http_requests_total")
+        try:
+            memories = server.memory_manager.list_memories(
+                project_id=project_id, limit=500
+            )
+            total_created = 0
+            for memory in memories:
+                try:
+                    created = await server.memory_manager._create_crossrefs(memory)
+                    total_created += created
+                except Exception as e:
+                    logger.warning(f"Crossref failed for {memory.id}: {e}")
+            return {
+                "memories_processed": len(memories),
+                "crossrefs_created": total_created,
+            }
+        except Exception as e:
+            logger.error(f"Failed to rebuild crossrefs: {e}")
+            raise HTTPException(status_code=500, detail=str(e)) from e
+
     @router.get("/{memory_id}")
     def get_memory(memory_id: str) -> Any:
         """Get a specific memory by ID."""

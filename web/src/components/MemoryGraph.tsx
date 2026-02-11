@@ -48,29 +48,65 @@ function buildGraph(
     }
   }
 
-  const g = new dagre.graphlib.Graph()
-  g.setGraph({ rankdir: 'TB', nodesep: 30, ranksep: 50, marginx: 30, marginy: 30 })
-  g.setDefaultEdgeLabel(() => ({}))
-
-  for (const m of memories) {
-    g.setNode(m.id, { width: NODE_WIDTH, height: NODE_HEIGHT })
-  }
+  // Find connected components
+  const connected = new Set<string>()
   for (const edge of edges) {
-    g.setEdge(edge.from, edge.to)
+    connected.add(edge.from)
+    connected.add(edge.to)
   }
 
-  dagre.layout(g)
+  const connectedMemories = memories.filter(m => connected.has(m.id))
+  const disconnected = memories.filter(m => !connected.has(m.id))
 
+  // Use dagre for connected subgraph
   const nodes: GraphNode[] = []
-  for (const m of memories) {
-    const nodeData = g.node(m.id)
-    if (!nodeData) continue
-    nodes.push({
-      id: m.id,
-      memory: m,
-      x: nodeData.x - NODE_WIDTH / 2,
-      y: nodeData.y - NODE_HEIGHT / 2,
-    })
+
+  if (connectedMemories.length > 0) {
+    const g = new dagre.graphlib.Graph()
+    g.setGraph({ rankdir: 'TB', nodesep: 30, ranksep: 50, marginx: 30, marginy: 30 })
+    g.setDefaultEdgeLabel(() => ({}))
+
+    for (const m of connectedMemories) {
+      g.setNode(m.id, { width: NODE_WIDTH, height: NODE_HEIGHT })
+    }
+    for (const edge of edges) {
+      g.setEdge(edge.from, edge.to)
+    }
+
+    dagre.layout(g)
+
+    for (const m of connectedMemories) {
+      const nodeData = g.node(m.id)
+      if (!nodeData) continue
+      nodes.push({
+        id: m.id,
+        memory: m,
+        x: nodeData.x - NODE_WIDTH / 2,
+        y: nodeData.y - NODE_HEIGHT / 2,
+      })
+    }
+  }
+
+  // Grid layout for disconnected nodes (or all nodes if no edges)
+  if (disconnected.length > 0) {
+    const cols = Math.ceil(Math.sqrt(disconnected.length))
+    const padX = NODE_WIDTH + 24
+    const padY = NODE_HEIGHT + 20
+    // Offset grid below the dagre layout
+    const gridOffsetY = nodes.length > 0
+      ? Math.max(...nodes.map(n => n.y)) + NODE_HEIGHT + 60
+      : 30
+
+    for (let i = 0; i < disconnected.length; i++) {
+      const col = i % cols
+      const row = Math.floor(i / cols)
+      nodes.push({
+        id: disconnected[i].id,
+        memory: disconnected[i],
+        x: 30 + col * padX,
+        y: gridOffsetY + row * padY,
+      })
+    }
   }
 
   return { nodes, edges }
