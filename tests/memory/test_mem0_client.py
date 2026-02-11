@@ -97,7 +97,7 @@ class TestCreateMemory:
         client._client.request.assert_called_once()
         args, kwargs = client._client.request.call_args
         assert args[0] == "POST"
-        assert args[1] == "/v1/memories/"
+        assert args[1] == "/v1/memories"
         body = kwargs["json"]
         assert body["messages"] == [{"role": "user", "content": "User likes dark mode"}]
         assert body["user_id"] == "gobby"
@@ -165,12 +165,12 @@ class TestCRUDOperations:
 
         args, kwargs = client._client.request.call_args
         assert args[0] == "GET"
-        assert args[1] == "/v1/memories/mem-1/"
+        assert args[1] == "/v1/memories/mem-1"
         assert result["id"] == "mem-1"
 
     @pytest.mark.asyncio
     async def test_update_memory(self) -> None:
-        """update() should PUT /v1/memories/{id}/."""
+        """update() should PUT /v1/memories/{id}."""
         client = Mem0Client(api_key="test-key")
         mock_resp = _mock_response(200, {"id": "mem-1", "memory": "updated content"})
 
@@ -179,14 +179,14 @@ class TestCRUDOperations:
 
         args, kwargs = client._client.request.call_args
         assert args[0] == "PUT"
-        assert args[1] == "/v1/memories/mem-1/"
+        assert args[1] == "/v1/memories/mem-1"
         body = kwargs["json"]
         assert body["text"] == "updated content"
         assert result["memory"] == "updated content"
 
     @pytest.mark.asyncio
     async def test_delete_memory(self) -> None:
-        """delete() should DELETE /v1/memories/{id}/."""
+        """delete() should DELETE /v1/memories/{id}."""
         client = Mem0Client(api_key="test-key")
         mock_resp = _mock_response(200, {"message": "Memory deleted successfully"})
 
@@ -195,7 +195,7 @@ class TestCRUDOperations:
 
         args, kwargs = client._client.request.call_args
         assert args[0] == "DELETE"
-        assert args[1] == "/v1/memories/mem-1/"
+        assert args[1] == "/v1/memories/mem-1"
         assert result is True
 
 
@@ -221,7 +221,7 @@ class TestListMemories:
 
         args, kwargs = client._client.request.call_args
         assert args[0] == "GET"
-        assert args[1] == "/v1/memories/"
+        assert args[1] == "/v1/memories"
         assert kwargs["params"]["user_id"] == "gobby"
         assert len(result["results"]) == 2
 
@@ -247,7 +247,7 @@ class TestHistory:
         result = await client.get_history("mem-1")
 
         args, kwargs = client._client.request.call_args
-        assert args[1] == "/v1/memories/mem-1/history/"
+        assert args[1] == "/v1/memories/mem-1/history"
         assert len(result) == 1
         assert result[0]["old_value"] == "v1"
 

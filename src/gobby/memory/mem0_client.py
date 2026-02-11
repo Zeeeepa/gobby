@@ -264,4 +264,10 @@ class Mem0Client:
                 response_body=body,
             )
 
-        return response.json()
+        if response.status_code == 204 or not response.content:
+            return {}
+
+        try:
+            return response.json()
+        except Exception:
+            return {"raw": response.text}

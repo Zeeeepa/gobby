@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import hashlib
 import logging
 from datetime import UTC, datetime
@@ -72,6 +73,9 @@ class MemoryManager:
         else:
             self._mem0_client = None
 
+        # Track background tasks to prevent GC and surface exceptions
+        self._background_tasks: set[asyncio.Task[Any]] = set()
+
         # Neo4j knowledge graph: initialize client when neo4j_url is configured
         if config.neo4j_url:
             self._neo4j_client: Neo4jClient | None = Neo4jClient(
@@ -142,8 +146,6 @@ class MemoryManager:
         if not is_embedding_available(model=self.config.embedding_model):
             return
 
-        import asyncio
-
         try:
             loop = asyncio.get_running_loop()
         except RuntimeError:
@@ -151,7 +153,9 @@ class MemoryManager:
 
         if loop and loop.is_running():
             # We are in an event loop. Schedule as background task to avoid blocking/crashing.
-            loop.create_task(self._store_embedding_async(memory_id, content, project_id))
+            task = loop.create_task(self._store_embedding_async(memory_id, content, project_id))
+            self._background_tasks.add(task)
+            task.add_done_callback(self._background_tasks.discard)
             return
 
         try:
