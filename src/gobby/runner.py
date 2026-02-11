@@ -549,68 +549,6 @@ class GobbyRunner:
         for sig in (signal.SIGTERM, signal.SIGINT):
             loop.add_signal_handler(sig, handle_shutdown)
 
-    def _register_tmux_hooks(self) -> None:
-        """Register tmux pane-focus hooks for interactive/autonomous mode toggling.
-
-        Only runs if config.tmux.focus_hooks is True and tmux is available.
-        Uses numeric index [100] to avoid clobbering user hooks.
-        """
-        import shutil
-        import subprocess
-
-        if not shutil.which("tmux"):
-            logger.debug("Tmux not found, skipping focus hook registration")
-            return
-
-        port = self.config.daemon_port
-        host = self.config.bind_host
-
-        focus_in_cmd = (
-            f"curl -s -X POST http://{host}:{port}/sessions/interactive-mode "
-            f"-H 'Content-Type: application/json' "
-            f"""-d '{{"pane_id": \"#{{pane_id}}\", \"interactive\": true}}'"""
-        )
-        focus_out_cmd = (
-            f"curl -s -X POST http://{host}:{port}/sessions/interactive-mode "
-            f"-H 'Content-Type: application/json' "
-            f"""-d '{{"pane_id": \"#{{pane_id}}\", \"interactive\": false}}'"""
-        )
-
-        for hook_name, cmd in [
-            ("pane-focus-in[100]", focus_in_cmd),
-            ("pane-focus-out[100]", focus_out_cmd),
-        ]:
-            try:
-                subprocess.run(
-                    ["tmux", "set-hook", "-g", hook_name, f"run-shell \"{cmd}\""],
-                    check=False,
-                    capture_output=True,
-                    timeout=5,
-                )
-            except Exception as e:
-                logger.debug(f"Failed to register tmux hook {hook_name}: {e}")
-
-        logger.info("Tmux pane-focus hooks registered for interactive mode toggling")
-
-    def _unregister_tmux_hooks(self) -> None:
-        """Unregister tmux pane-focus hooks. Idempotent — safe to call always."""
-        import shutil
-        import subprocess
-
-        if not shutil.which("tmux"):
-            return
-
-        for hook_name in ["pane-focus-in[100]", "pane-focus-out[100]"]:
-            try:
-                subprocess.run(
-                    ["tmux", "set-hook", "-gu", hook_name],
-                    check=False,
-                    capture_output=True,
-                    timeout=5,
-                )
-            except Exception:
-                pass  # nosec B110 - best-effort cleanup
-
     async def run(self) -> None:
         try:
             self._setup_signal_handlers()
@@ -669,16 +607,9 @@ class GobbyRunner:
             server = uvicorn.Server(config)
             server_task = asyncio.create_task(server.serve())
 
-            # Register tmux focus hooks (gated by config)
-            if self.config.tmux.focus_hooks:
-                self._register_tmux_hooks()
-
             # Wait for shutdown
             while not self._shutdown_requested:
                 await asyncio.sleep(0.5)
-
-            # Unregister tmux focus hooks (always attempt, idempotent)
-            self._unregister_tmux_hooks()
 
             # Cleanup with timeouts to prevent hanging
             # Use timeout slightly longer than uvicorn's graceful shutdown to let it finish

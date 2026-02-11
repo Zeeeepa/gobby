@@ -38,7 +38,3 @@ class TmuxConfig(BaseModel):
         ge=100,
         description="Scrollback buffer size for spawned sessions.",
     )
-    focus_hooks: bool = Field(
-        default=False,
-        description="Register tmux pane-focus hooks for automatic interactive/autonomous mode toggling.",
-    )

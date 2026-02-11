@@ -154,17 +154,25 @@ def uninstall_mem0(
 
 
 def _wait_for_health(url: str, retries: int = 30, interval: float = 2.0) -> bool:
-    """Wait for mem0 to become healthy via HTTP check."""
-    import time
+    """Synchronous wrapper for health check (used by CLI installers)."""
+    import asyncio
 
-    for _ in range(retries):
-        try:
-            resp = httpx.get(f"{url}/docs", timeout=5)
-            if resp.status_code < 500:
-                return True
-        except httpx.HTTPError:
-            pass
-        time.sleep(interval)
+    return asyncio.run(_wait_for_health_async(url, retries, interval))
+
+
+async def _wait_for_health_async(url: str, retries: int = 30, interval: float = 2.0) -> bool:
+    """Wait for mem0 to become healthy via async HTTP check."""
+    import asyncio
+
+    async with httpx.AsyncClient() as client:
+        for _ in range(retries):
+            try:
+                resp = await client.get(f"{url}/docs", timeout=5)
+                if resp.status_code < 500:
+                    return True
+            except httpx.HTTPError:
+                pass
+            await asyncio.sleep(interval)
     return False
 
 

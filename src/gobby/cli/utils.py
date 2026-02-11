@@ -546,6 +546,8 @@ def _kill_port_holder(port: int) -> None:
                     )
                     parent = psutil.Process(proc.pid)
                     children = parent.children(recursive=True)
+                    for child in children:
+                        child.terminate()
                     parent.terminate()
                     _, alive = psutil.wait_procs([parent] + children, timeout=3)
                     for p in alive:

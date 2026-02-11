@@ -48,10 +48,6 @@ variables:
   stop_attempts: 0
   max_stop_attempts: 3
 
-  # Interactive mode - when true, stop gates are relaxed (user is watching)
-  # Toggled automatically by tmux pane-focus hooks when focus_hooks is enabled
-  interactive_mode: true
-
 triggers:
   on_stop:
     # Increment stop attempts counter
@@ -67,9 +63,8 @@ triggers:
     # Pre-existing error triage enforcement - block stop until agent confirms triage
     # Only applies when commits were made (agent ran code and could have seen issues)
     # Uses same escape hatch as other stop gates (3+ consecutive stop attempts)
-    # Skipped in interactive mode (user is watching, can handle triage themselves)
     - action: block_stop
-      when: "not variables.get('interactive_mode') and task_has_commits and not variables.get('pre_existing_errors_triaged') and variables.get('stop_attempts', 0) < variables.get('max_stop_attempts', 3)"
+      when: "task_has_commits and not variables.get('pre_existing_errors_triaged') and variables.get('stop_attempts', 0) < variables.get('max_stop_attempts', 3)"
       reason: |
         You must triage pre-existing issues before stopping.
         - If you found errors, warnings, or failures unrelated to your changes, create a task for each one.
@@ -79,9 +74,9 @@ triggers:
 
     # Task closure enforcement - block stop if task is still in_progress
     # Agents must close_task() or set to review before stopping
-    # Skip in plan mode, interactive mode, or if escape hatch triggered (3+ consecutive stop attempts)
+    # Skip in plan mode or if escape hatch triggered (3+ consecutive stop attempts)
     - action: require_task_review_or_close_before_stop
-      when: "not variables.get('interactive_mode') and not variables.get('plan_mode') and variables.get('stop_attempts', 0) < variables.get('max_stop_attempts', 3)"
+      when: "not variables.get('plan_mode') and variables.get('stop_attempts', 0) < variables.get('max_stop_attempts', 3)"
 
   on_session_start:
     # Clear plan_mode on new sessions - don't inherit from parent session

@@ -203,26 +203,6 @@ class LocalSessionManager:
         )
         return Session.from_row(row) if row else None
 
-    def find_by_tmux_pane(self, tmux_pane: str) -> Session | None:
-        """Find active session by tmux pane ID from terminal_context.
-
-        Args:
-            tmux_pane: Tmux pane identifier (e.g., "%403")
-
-        Returns:
-            Most recently updated active session in that pane, or None.
-        """
-        row = self.db.fetchone(
-            """
-            SELECT * FROM sessions
-            WHERE json_extract(terminal_context, '$.tmux_pane') = ?
-            AND status = 'active'
-            ORDER BY updated_at DESC LIMIT 1
-            """,
-            (tmux_pane,),
-        )
-        return Session.from_row(row) if row else None
-
     def find_parent(
         self,
         machine_id: str,

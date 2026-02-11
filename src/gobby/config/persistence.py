@@ -10,7 +10,10 @@ Extracted from app.py using Strangler Fig pattern for code decomposition.
 
 from pathlib import Path
 
-from pydantic import BaseModel, Field, field_validator
+import logging
+from pydantic import BaseModel, Field, field_validator, model_validator
+
+logger = logging.getLogger(__name__)
 
 __all__ = [
     "MemoryConfig",
@@ -167,6 +170,17 @@ class MemoryConfig(BaseModel):
         if v not in valid_backends:
             raise ValueError(f"Invalid backend '{v}'. Must be one of: {sorted(valid_backends)}")
         return v
+
+    @model_validator(mode="after")
+    def validate_hybrid_weights(self) -> "MemoryConfig":
+        """Warn if embedding_weight + tfidf_weight don't sum to ~1.0."""
+        total = self.embedding_weight + self.tfidf_weight
+        if abs(total - 1.0) > 0.01:
+            logger.warning(
+                f"embedding_weight ({self.embedding_weight}) + tfidf_weight ({self.tfidf_weight}) "
+                f"= {total}, expected ~1.0"
+            )
+        return self
 
 
 class MemorySyncConfig(BaseModel):
