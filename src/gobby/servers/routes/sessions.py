@@ -638,4 +638,56 @@ def create_sessions_router(server: "HTTPServer") -> APIRouter:
             logger.error(f"Error clearing stop signal: {e}", exc_info=True)
             raise HTTPException(status_code=500, detail=str(e)) from e
 
+    @router.post("/interactive-mode")
+    async def set_interactive_mode(request: Request) -> dict[str, Any]:
+        """
+        Toggle interactive mode for a session identified by tmux pane.
+
+        Called by tmux pane-focus-in/out hooks to automatically relax or
+        enforce stop gates based on whether the user is looking at the pane.
+
+        Request body:
+            pane_id: Tmux pane ID (e.g., "%403")
+            interactive: Boolean - true for focus-in, false for focus-out
+        """
+        try:
+            if server.session_manager is None:
+                raise HTTPException(status_code=503, detail="Session manager not available")
+
+            body = await request.json()
+            pane_id = body.get("pane_id")
+            interactive = body.get("interactive")
+
+            if pane_id is None or interactive is None:
+                raise HTTPException(
+                    status_code=400, detail="Required fields: pane_id, interactive"
+                )
+
+            session = server.session_manager.find_by_tmux_pane(pane_id)
+            if session is None:
+                # No active session in this pane — normal during startup or non-agent panes
+                return {"status": "no_session", "pane_id": pane_id}
+
+            from gobby.workflows.state_manager import WorkflowStateManager
+
+            state_mgr = WorkflowStateManager(server.services.database)
+            state_mgr.merge_variables(session.id, {"interactive_mode": interactive})
+
+            logger.debug(
+                f"Set interactive_mode={interactive} for session {session.id} (pane {pane_id})"
+            )
+
+            return {
+                "status": "updated",
+                "session_id": session.id,
+                "pane_id": pane_id,
+                "interactive_mode": interactive,
+            }
+
+        except HTTPException:
+            raise
+        except Exception as e:
+            logger.error(f"Set interactive mode error: {e}", exc_info=True)
+            raise HTTPException(status_code=500, detail=str(e)) from e
+
     return router
