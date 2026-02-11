@@ -7,6 +7,7 @@ import type { GobbyTask } from '../../hooks/useTasks'
 
 function relativeTime(iso: string): string {
   const diff = Date.now() - new Date(iso).getTime()
+  if (diff < 0) return 'just now'
   const seconds = Math.floor(diff / 1000)
   if (seconds < 60) return 'just now'
   const minutes = Math.floor(seconds / 60)

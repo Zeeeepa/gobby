@@ -145,7 +145,7 @@ export function SessionViewer({ sessionId }: SessionViewerProps) {
             .filter(m => m.content || m.tool_name)
             .slice(0, 8)
             .map((m, i) => (
-              <div key={i} className={`session-viewer-msg session-viewer-msg--${m.role}`}>
+              <div key={`${m.timestamp}-${i}`} className={`session-viewer-msg session-viewer-msg--${m.role}`}>
                 <span className="session-viewer-msg-role">
                   {m.tool_name ? m.tool_name : m.role}
                 </span>

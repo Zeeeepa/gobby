@@ -15,8 +15,11 @@ export function formatRelativeTime(dateStr: string): string {
 
 export function formatDuration(startStr: string, endStr?: string): string {
   const start = new Date(startStr).getTime()
+  if (isNaN(start)) return '\u2014'
   const end = endStr ? new Date(endStr).getTime() : Date.now()
+  if (isNaN(end)) return '\u2014'
   const diffMs = end - start
+  if (diffMs < 0) return '<1m'
   const mins = Math.floor(diffMs / 60000)
   if (mins < 1) return '<1m'
   if (mins < 60) return `${mins}m`
@@ -26,6 +29,7 @@ export function formatDuration(startStr: string, endStr?: string): string {
 }
 
 export function typeLabel(type: string): string {
+  if (!type) return ''
   return type.charAt(0).toUpperCase() + type.slice(1)
 }
 
