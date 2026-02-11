@@ -6,6 +6,7 @@ import type { KnowledgeGraphData, KnowledgeEntity, KnowledgeRelationship } from 
 interface KnowledgeGraphProps {
   fetchKnowledgeGraph: (limit?: number) => Promise<KnowledgeGraphData | null>
   fetchEntityNeighbors: (name: string) => Promise<KnowledgeGraphData | null>
+  animateIdle: boolean
 }
 
 interface GraphNode {
@@ -100,7 +101,7 @@ function buildForceData(data: KnowledgeGraphData): { nodes: GraphNode[]; links: 
   return { nodes, links }
 }
 
-export function KnowledgeGraph({ fetchKnowledgeGraph, fetchEntityNeighbors }: KnowledgeGraphProps) {
+export function KnowledgeGraph({ fetchKnowledgeGraph, fetchEntityNeighbors, animateIdle }: KnowledgeGraphProps) {
   const containerRef = useRef<HTMLDivElement>(null)
   const fgRef = useRef<any>(null) // eslint-disable-line @typescript-eslint/no-explicit-any
   const [graphData, setGraphData] = useState<KnowledgeGraphData | null>(null)
@@ -108,9 +109,6 @@ export function KnowledgeGraph({ fetchKnowledgeGraph, fetchEntityNeighbors }: Kn
   const [searchQuery, setSearchQuery] = useState('')
   const [expandingNode, setExpandingNode] = useState<string | null>(null)
   const [dimensions, setDimensions] = useState({ width: 800, height: 600 })
-  const [animateIdle, setAnimateIdle] = useState(() => {
-    try { return localStorage.getItem('gobby-kg-animate') === 'true' } catch { return false }
-  })
 
   // Track container size
   useEffect(() => {
@@ -129,22 +127,6 @@ export function KnowledgeGraph({ fetchKnowledgeGraph, fetchEntityNeighbors }: Kn
     return () => observer.disconnect()
   }, [])
 
-  // Persist animation toggle
-  const toggleAnimate = useCallback(() => {
-    setAnimateIdle(prev => {
-      const next = !prev
-      try { localStorage.setItem('gobby-kg-animate', String(next)) } catch { /* noop */ }
-      return next
-    })
-  }, [])
-
-  // Auto-rotation via OrbitControls
-  useEffect(() => {
-    const controls = fgRef.current?.controls() as any // eslint-disable-line @typescript-eslint/no-explicit-any
-    if (!controls) return
-    controls.autoRotate = animateIdle
-    controls.autoRotateSpeed = 0.4
-  }, [animateIdle])
 
   // Initial data fetch
   useEffect(() => {
@@ -212,13 +194,66 @@ export function KnowledgeGraph({ fetchKnowledgeGraph, fetchEntityNeighbors }: Kn
 
   const linkLabel = useCallback((link: any) => link.type as string, []) // eslint-disable-line @typescript-eslint/no-explicit-any
 
-  // Node breathing effect when animating
-  const nodePositionUpdate = useCallback((obj: any) => { // eslint-disable-line @typescript-eslint/no-explicit-any
-    if (!animateIdle) return
-    const t = performance.now() * 0.001
-    const offset = (obj.id % 100) * 0.1
-    const scale = 1 + Math.sin(t * 1.5 + offset) * 0.06
-    obj.scale.set(scale, scale, scale)
+  // Idle animation: camera orbit + node breathing via rAF
+  // Avoids nodePositionUpdate prop (destroys SpriteText) and scene.rotation (breaks raycasting)
+  useEffect(() => {
+    const fg = fgRef.current
+    if (!animateIdle) {
+      // Stop rotation and reset node scales
+      try {
+        const controls = fg?.controls() as any // eslint-disable-line @typescript-eslint/no-explicit-any
+        if (controls) controls.autoRotate = false
+      } catch { /* controls not ready */ }
+      const nodes = fg?.graphData()?.nodes
+      if (nodes) {
+        for (const node of nodes) {
+          if ((node as any).__threeObj) (node as any).__threeObj.scale.set(1, 1, 1) // eslint-disable-line @typescript-eslint/no-explicit-any
+        }
+      }
+      return
+    }
+
+    // Enable orbit rotation via controls
+    try {
+      const controls = fg?.controls() as any // eslint-disable-line @typescript-eslint/no-explicit-any
+      if (controls) {
+        controls.autoRotate = true
+        controls.autoRotateSpeed = 0.5
+      }
+    } catch { /* controls not ready */ }
+
+    let frameId: number
+    const animate = () => {
+      const fgCurrent = fgRef.current
+      // Tick controls for autoRotate
+      try {
+        const controls = fgCurrent?.controls() as any // eslint-disable-line @typescript-eslint/no-explicit-any
+        if (controls?.update) controls.update()
+      } catch { /* noop */ }
+
+      // Node breathing
+      const nodes = fgCurrent?.graphData()?.nodes
+      if (nodes) {
+        const t = performance.now() * 0.001
+        for (let i = 0; i < nodes.length; i++) {
+          const obj = (nodes[i] as any).__threeObj // eslint-disable-line @typescript-eslint/no-explicit-any
+          if (obj) {
+            const offset = (i % 100) * 0.1
+            const scale = 1 + Math.sin(t * 1.5 + offset) * 0.06
+            obj.scale.set(scale, scale, scale)
+          }
+        }
+      }
+      frameId = requestAnimationFrame(animate)
+    }
+    frameId = requestAnimationFrame(animate)
+    return () => {
+      cancelAnimationFrame(frameId)
+      try {
+        const controls = fgRef.current?.controls() as any // eslint-disable-line @typescript-eslint/no-explicit-any
+        if (controls) controls.autoRotate = false
+      } catch { /* noop */ }
+    }
   }, [animateIdle])
 
   // Legend types
@@ -280,11 +315,10 @@ export function KnowledgeGraph({ fetchKnowledgeGraph, fetchEntityNeighbors }: Kn
         linkOpacity={0.6}
         linkDirectionalArrowLength={3}
         linkDirectionalArrowRelPos={1}
-        linkDirectionalParticles={animateIdle ? 2 : 0}
+        linkDirectionalParticles={2}
         linkDirectionalParticleSpeed={0.004}
         linkDirectionalParticleWidth={0.8}
         linkDirectionalParticleColor={linkColor}
-        nodePositionUpdate={animateIdle ? nodePositionUpdate : undefined}
         backgroundColor="rgba(0,0,0,0)"
         showNavInfo={false}
         enableNodeDrag={true}
@@ -335,25 +369,6 @@ export function KnowledgeGraph({ fetchKnowledgeGraph, fetchEntityNeighbors }: Kn
         </div>
       )}
 
-      {/* Controls (top-right) */}
-      <div className="knowledge-graph-controls">
-        <button
-          className={`knowledge-graph-ctrl-btn${animateIdle ? ' active' : ''}`}
-          onClick={toggleAnimate}
-          title={animateIdle ? 'Pause idle animation' : 'Animate when idle'}
-        >
-          {animateIdle ? (
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
-              <rect x="6" y="4" width="4" height="16" rx="1" />
-              <rect x="14" y="4" width="4" height="16" rx="1" />
-            </svg>
-          ) : (
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
-              <path d="M8 5v14l11-7z" />
-            </svg>
-          )}
-        </button>
-      </div>
     </div>
   )
 }
