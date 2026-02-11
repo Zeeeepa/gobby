@@ -11,6 +11,8 @@ from gobby.memory.components.ingestion import IngestionService
 from gobby.memory.components.search import SearchService
 from gobby.memory.context import build_memory_context
 from gobby.memory.mem0_client import Mem0Client, Mem0ConnectionError
+from gobby.memory.neo4j_client import Neo4jClient
+from gobby.memory.neo4j_client import Neo4jConnectionError as _Neo4jConnError
 from gobby.memory.protocol import MemoryBackendProtocol, MemoryRecord
 from gobby.search.embeddings import generate_embedding, generate_embeddings, is_embedding_available
 from gobby.storage.database import DatabaseProtocol
@@ -69,6 +71,16 @@ class MemoryManager:
             )
         else:
             self._mem0_client = None
+
+        # Neo4j knowledge graph: initialize client when neo4j_url is configured
+        if config.neo4j_url:
+            self._neo4j_client: Neo4jClient | None = Neo4jClient(
+                url=config.neo4j_url,
+                auth=config.neo4j_auth,
+                database=config.neo4j_database,
+            )
+        else:
+            self._neo4j_client = None
 
     @property
     def llm_service(self) -> LLMService | None:
@@ -867,6 +879,42 @@ class MemoryManager:
                 count += 1
 
         return count
+
+    # =========================================================================
+    # Neo4j knowledge graph
+    # =========================================================================
+
+    async def get_entity_graph(self, limit: int = 500) -> dict[str, Any] | None:
+        """Get the Neo4j entity graph for visualization.
+
+        Returns None if Neo4j is not configured or unreachable.
+        """
+        if not self._neo4j_client:
+            return None
+        try:
+            return await self._neo4j_client.get_entity_graph(limit=limit)
+        except _Neo4jConnError as e:
+            logger.warning(f"Neo4j unreachable: {e}")
+            return None
+        except Exception as e:
+            logger.warning(f"Neo4j query failed: {e}")
+            return None
+
+    async def get_entity_neighbors(self, name: str) -> dict[str, Any] | None:
+        """Get neighbors for a single Neo4j entity.
+
+        Returns None if Neo4j is not configured or unreachable.
+        """
+        if not self._neo4j_client:
+            return None
+        try:
+            return await self._neo4j_client.get_entity_neighbors(name)
+        except _Neo4jConnError as e:
+            logger.warning(f"Neo4j unreachable: {e}")
+            return None
+        except Exception as e:
+            logger.warning(f"Neo4j query failed: {e}")
+            return None
 
     # =========================================================================
     # Mem0 dual-mode helpers

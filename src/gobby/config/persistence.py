@@ -87,6 +87,24 @@ class MemoryConfig(BaseModel):
             "Supports ${ENV_VAR} pattern for env var expansion at load time."
         ),
     )
+    neo4j_url: str | None = Field(
+        default=None,
+        description=(
+            "Neo4j HTTP API URL for knowledge graph visualization. "
+            "Example: 'http://localhost:7474' or 'http://localhost:8474'"
+        ),
+    )
+    neo4j_auth: str | None = Field(
+        default=None,
+        description=(
+            "Neo4j authentication in 'user:password' format. "
+            "Supports ${ENV_VAR} pattern for env var expansion at load time."
+        ),
+    )
+    neo4j_database: str = Field(
+        default="neo4j",
+        description="Neo4j database name",
+    )
     auto_crossref: bool = Field(
         default=False,
         description="Automatically create cross-references between similar memories",

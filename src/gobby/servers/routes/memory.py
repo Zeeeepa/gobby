@@ -138,6 +138,46 @@ def create_memory_router(server: "HTTPServer") -> APIRouter:
             logger.error(f"Failed to get memory stats: {e}")
             raise HTTPException(status_code=500, detail=str(e)) from e
 
+    @router.get("/graph/entities")
+    async def entity_graph(
+        limit: int = Query(500, description="Maximum entities to fetch"),
+    ) -> dict[str, Any]:
+        """Get Neo4j knowledge graph entities and relationships."""
+        metrics.inc_counter("http_requests_total")
+        if server.memory_manager is None or not getattr(
+            server.memory_manager, "_neo4j_client", None
+        ):
+            raise HTTPException(status_code=404, detail="Neo4j not configured")
+        try:
+            result = await server.memory_manager.get_entity_graph(limit=limit)
+            if result is None:
+                raise HTTPException(status_code=502, detail="Neo4j unreachable")
+            return result
+        except HTTPException:
+            raise
+        except Exception as e:
+            logger.error(f"Failed to get entity graph: {e}")
+            raise HTTPException(status_code=500, detail=str(e)) from e
+
+    @router.get("/graph/entities/{entity_name}/neighbors")
+    async def entity_neighbors(entity_name: str) -> dict[str, Any]:
+        """Get neighbors for a single Neo4j entity."""
+        metrics.inc_counter("http_requests_total")
+        if server.memory_manager is None or not getattr(
+            server.memory_manager, "_neo4j_client", None
+        ):
+            raise HTTPException(status_code=404, detail="Neo4j not configured")
+        try:
+            result = await server.memory_manager.get_entity_neighbors(entity_name)
+            if result is None:
+                raise HTTPException(status_code=502, detail="Neo4j unreachable")
+            return result
+        except HTTPException:
+            raise
+        except Exception as e:
+            logger.error(f"Failed to get entity neighbors: {e}")
+            raise HTTPException(status_code=500, detail=str(e)) from e
+
     @router.get("/graph")
     def memory_graph(
         project_id: str | None = Query(None, description="Filter by project ID"),

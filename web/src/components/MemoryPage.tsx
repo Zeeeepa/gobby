@@ -1,10 +1,11 @@
 import { useState, useCallback, useMemo } from 'react'
-import { useMemory, useMem0Status } from '../hooks/useMemory'
+import { useMemory, useMem0Status, useNeo4jStatus } from '../hooks/useMemory'
 import type { GobbyMemory } from '../hooks/useMemory'
 import { MemoryOverview } from './MemoryOverview'
 import { MemoryFilters } from './MemoryFilters'
 import { MemoryTable } from './MemoryTable'
 import { MemoryGraph } from './MemoryGraph'
+import { KnowledgeGraph } from './KnowledgeGraph'
 import { MemoryForm } from './MemoryForm'
 import type { MemoryFormData } from './MemoryForm'
 import { MemoryDetail } from './MemoryDetail'
@@ -33,7 +34,20 @@ function GraphIcon() {
   )
 }
 
-type ViewMode = 'list' | 'graph'
+function KnowledgeIcon() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round">
+      <rect x="1" y="2" width="4" height="3" rx="1" />
+      <rect x="9" y="2" width="4" height="3" rx="1" />
+      <rect x="5" y="9" width="4" height="3" rx="1" />
+      <line x1="5" y1="3.5" x2="9" y2="3.5" />
+      <line x1="3" y1="5" x2="7" y2="9" />
+      <line x1="11" y1="5" x2="7" y2="9" />
+    </svg>
+  )
+}
+
+type ViewMode = 'list' | 'graph' | 'knowledge'
 type OverviewFilter = 'total' | 'important' | 'recent' | null
 
 export function MemoryPage() {
@@ -48,8 +62,11 @@ export function MemoryPage() {
     deleteMemory,
     refreshMemories,
     fetchGraphData,
+    fetchKnowledgeGraph,
+    fetchEntityNeighbors,
   } = useMemory()
   const mem0Status = useMem0Status()
+  const neo4jStatus = useNeo4jStatus()
 
   const [viewMode, setViewMode] = useState<ViewMode>('list')
   const [showForm, setShowForm] = useState(false)
@@ -150,9 +167,10 @@ export function MemoryPage() {
     }
   }, [selectedMemory, handleDelete])
 
-  const viewModes: [ViewMode, React.FC][] = [
-    ['list', ListIcon],
-    ['graph', GraphIcon],
+  const viewModes: [ViewMode, React.FC, string][] = [
+    ['list', ListIcon, 'List view'],
+    ['graph', GraphIcon, 'Graph view'],
+    ...(neo4jStatus?.configured ? [['knowledge' as ViewMode, KnowledgeIcon, 'Knowledge graph'] as [ViewMode, React.FC, string]] : []),
   ]
 
   return (
@@ -176,12 +194,12 @@ export function MemoryPage() {
         </div>
         <div className="memory-toolbar-right">
           <div className="memory-view-toggle">
-            {viewModes.map(([mode, Icon]) => (
+            {viewModes.map(([mode, Icon, title]) => (
               <button
                 key={mode}
                 className={`memory-view-btn ${viewMode === mode ? 'active' : ''}`}
                 onClick={() => setViewMode(mode)}
-                title={mode === 'list' ? 'List view' : 'Graph view'}
+                title={title}
               >
                 <Icon />
               </button>
@@ -225,7 +243,12 @@ export function MemoryPage() {
 
       {/* Content area */}
       <div className="memory-content">
-        {viewMode === 'graph' ? (
+        {viewMode === 'knowledge' ? (
+          <KnowledgeGraph
+            fetchKnowledgeGraph={fetchKnowledgeGraph}
+            fetchEntityNeighbors={fetchEntityNeighbors}
+          />
+        ) : viewMode === 'graph' ? (
           <MemoryGraph
             memories={filteredMemories}
             fetchGraphData={fetchGraphData}

@@ -231,6 +231,20 @@ def create_admin_router(server: "HTTPServer") -> APIRouter:
                 logger.warning(f"Failed to check Mem0 status: {e}")
                 memory_stats["mem0"] = {"configured": False, "error": str(e)}
 
+            # Neo4j knowledge graph status
+            try:
+                neo4j_client = getattr(server.memory_manager, "_neo4j_client", None)
+                if neo4j_client is not None:
+                    memory_stats["neo4j"] = {
+                        "configured": True,
+                        "url": neo4j_client.base_url,
+                    }
+                else:
+                    memory_stats["neo4j"] = {"configured": False}
+            except Exception as e:
+                logger.warning(f"Failed to check Neo4j status: {e}")
+                memory_stats["neo4j"] = {"configured": False, "error": str(e)}
+
         # Get artifact statistics
         artifact_stats = {"count": 0}
         if server.session_manager is not None:

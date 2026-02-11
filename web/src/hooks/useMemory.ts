@@ -28,6 +28,24 @@ export interface GobbyMemory {
   mem0_id: string | null
 }
 
+export interface KnowledgeEntity {
+  name: string
+  type: string
+  properties: Record<string, unknown>
+}
+
+export interface KnowledgeRelationship {
+  source: string
+  target: string
+  type: string
+  properties: Record<string, unknown>
+}
+
+export interface KnowledgeGraphData {
+  entities: KnowledgeEntity[]
+  relationships: KnowledgeRelationship[]
+}
+
 export interface MemoryFilters {
   projectId: string | null
   memoryType: string | null
@@ -237,6 +255,33 @@ export function useMemory() {
     fetchStats()
   }, [fetchMemories, fetchStats])
 
+  const fetchKnowledgeGraph = useCallback(async (limit = 500): Promise<KnowledgeGraphData | null> => {
+    try {
+      const baseUrl = getBaseUrl()
+      const params = new URLSearchParams({ limit: String(limit) })
+      const response = await fetch(`${baseUrl}/memories/graph/entities?${params}`)
+      if (response.ok) {
+        return await response.json()
+      }
+    } catch (e) {
+      console.error('Failed to fetch knowledge graph:', e)
+    }
+    return null
+  }, [])
+
+  const fetchEntityNeighbors = useCallback(async (name: string): Promise<KnowledgeGraphData | null> => {
+    try {
+      const baseUrl = getBaseUrl()
+      const response = await fetch(`${baseUrl}/memories/graph/entities/${encodeURIComponent(name)}/neighbors`)
+      if (response.ok) {
+        return await response.json()
+      }
+    } catch (e) {
+      console.error('Failed to fetch entity neighbors:', e)
+    }
+    return null
+  }, [])
+
   const fetchGraphData = useCallback(async (): Promise<MemoryGraphData | null> => {
     try {
       const baseUrl = getBaseUrl()
@@ -275,10 +320,17 @@ export function useMemory() {
     searchMemories,
     refreshMemories,
     fetchGraphData,
+    fetchKnowledgeGraph,
+    fetchEntityNeighbors,
   }
 }
 
 export interface Mem0Status {
+  configured: boolean
+  url?: string
+}
+
+export interface Neo4jStatus {
   configured: boolean
   url?: string
 }
@@ -306,4 +358,29 @@ export function useMem0Status() {
   }, [])
 
   return mem0Status
+}
+
+export function useNeo4jStatus() {
+  const [neo4jStatus, setNeo4jStatus] = useState<Neo4jStatus | null>(null)
+
+  useEffect(() => {
+    async function fetchStatus() {
+      try {
+        const baseUrl = getBaseUrl()
+        const response = await fetch(`${baseUrl}/admin/status`)
+        if (response.ok) {
+          const data = await response.json()
+          const neo4j = data.memory?.neo4j
+          if (neo4j) {
+            setNeo4jStatus(neo4j)
+          }
+        }
+      } catch {
+        // Silently fail - neo4j status is optional
+      }
+    }
+    fetchStatus()
+  }, [])
+
+  return neo4jStatus
 }
