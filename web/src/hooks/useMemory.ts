@@ -1,5 +1,11 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 
+function normalizeTags(tags: unknown): string[] | null {
+  if (Array.isArray(tags)) return tags
+  if (typeof tags === 'string') return tags.split(',').map(t => t.trim()).filter(Boolean)
+  return null
+}
+
 export interface MemoryCrossRef {
   source_id: string
   target_id: string
@@ -109,9 +115,7 @@ export function useMemory() {
         const data = await response.json()
         const items = (data.memories || []).map((m: Record<string, unknown>) => ({
           ...m,
-          tags: Array.isArray(m.tags) ? m.tags
-            : typeof m.tags === 'string' ? (m.tags as string).split(',').map((t: string) => t.trim()).filter(Boolean)
-            : null,
+          tags: normalizeTags(m.tags),
         })) as GobbyMemory[]
         setMemories(items)
       }
@@ -294,9 +298,7 @@ export function useMemory() {
         return {
           memories: (data.memories || []).map((m: Record<string, unknown>) => ({
             ...m,
-            tags: Array.isArray(m.tags) ? m.tags
-              : typeof m.tags === 'string' ? (m.tags as string).split(',').map((t: string) => t.trim()).filter(Boolean)
-              : null,
+            tags: normalizeTags(m.tags),
           })) as GobbyMemory[],
           crossrefs: data.crossrefs || [],
         }

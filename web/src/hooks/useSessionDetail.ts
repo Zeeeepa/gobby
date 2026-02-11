@@ -52,6 +52,8 @@ export function useSessionDetail(sessionId: string | null) {
         if (sessionRes.ok) {
           const data = await sessionRes.json()
           setSession(data.session || null)
+        } else {
+          console.warn(`Session fetch returned ${sessionRes.status}`)
         }
 
         if (messagesRes.ok) {
@@ -59,6 +61,8 @@ export function useSessionDetail(sessionId: string | null) {
           setMessages(data.messages || [])
           setTotalMessages(data.total_count || 0)
           setOffset(LIMIT)
+        } else {
+          console.warn(`Messages fetch returned ${messagesRes.status}`)
         }
       } catch (e) {
         console.error('Failed to fetch session detail:', e)

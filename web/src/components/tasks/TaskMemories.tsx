@@ -237,7 +237,7 @@ export function TaskMemories({ sessionId }: TaskMemoriesProps) {
                   <div className="task-memory-edit-buttons">
                     <button className="task-memory-edit-save" onClick={() => saveEdit(mem.id)}>Review</button>
                     <button className="task-memory-edit-cancel" onClick={cancelEdit}>Cancel</button>
-                    <span className="task-memory-edit-hint">Cmd+Enter to review</span>
+                    <span className="task-memory-edit-hint">{navigator.platform?.includes('Mac') ? 'Cmd' : 'Ctrl'}+Enter to review</span>
                   </div>
                 </div>
               ) : isConfirming ? (

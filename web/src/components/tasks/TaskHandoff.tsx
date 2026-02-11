@@ -57,6 +57,7 @@ export function TaskHandoff({ taskId, currentAssignee, onHandoff }: TaskHandoffP
     setWhatsDone('')
     setWhatsLeft('')
     setBlockers('')
+    setError(null)
   }, [])
 
   const handleSubmit = useCallback(async () => {
@@ -90,13 +91,19 @@ export function TaskHandoff({ taskId, currentAssignee, onHandoff }: TaskHandoffP
       }
 
       // Update assignee
-      await onHandoff(assignee.trim())
+      try {
+        await onHandoff(assignee.trim())
+      } catch (handoffErr) {
+        console.error('Assignee update failed:', handoffErr)
+        setError('Comment posted but assignee update failed.')
+        return
+      }
 
       reset()
       setIsOpen(false)
     } catch (e) {
       console.error('Handoff failed:', e)
-      setError('Failed to effect handoff. Please try again.')
+      setError('Failed to post handoff comment. Please try again.')
     } finally {
       setSubmitting(false)
     }
@@ -157,10 +164,11 @@ export function TaskHandoff({ taskId, currentAssignee, onHandoff }: TaskHandoffP
 
       {/* Assignee */}
       <div className="task-handoff-field">
-        <label className="task-handoff-label">
+        <label htmlFor="handoff-assignee" className="task-handoff-label">
           New assignee <span className="task-handoff-required">*</span>
         </label>
         <input
+          id="handoff-assignee"
           className="task-handoff-input"
           value={assignee}
           onChange={e => setAssignee(e.target.value)}
@@ -176,8 +184,9 @@ export function TaskHandoff({ taskId, currentAssignee, onHandoff }: TaskHandoffP
 
       {/* What's done */}
       <div className="task-handoff-field">
-        <label className="task-handoff-label">What's been completed</label>
+        <label htmlFor="handoff-done" className="task-handoff-label">What's been completed</label>
         <textarea
+          id="handoff-done"
           className="task-handoff-textarea"
           value={whatsDone}
           onChange={e => setWhatsDone(e.target.value)}
@@ -188,8 +197,9 @@ export function TaskHandoff({ taskId, currentAssignee, onHandoff }: TaskHandoffP
 
       {/* What's left */}
       <div className="task-handoff-field">
-        <label className="task-handoff-label">What's remaining</label>
+        <label htmlFor="handoff-remaining" className="task-handoff-label">What's remaining</label>
         <textarea
+          id="handoff-remaining"
           className="task-handoff-textarea"
           value={whatsLeft}
           onChange={e => setWhatsLeft(e.target.value)}
@@ -200,8 +210,9 @@ export function TaskHandoff({ taskId, currentAssignee, onHandoff }: TaskHandoffP
 
       {/* Blockers */}
       <div className="task-handoff-field">
-        <label className="task-handoff-label">Blockers</label>
+        <label htmlFor="handoff-blockers" className="task-handoff-label">Blockers</label>
         <textarea
+          id="handoff-blockers"
           className="task-handoff-textarea"
           value={blockers}
           onChange={e => setBlockers(e.target.value)}
