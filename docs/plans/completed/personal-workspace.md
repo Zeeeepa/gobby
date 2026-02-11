@@ -21,7 +21,7 @@ Use the existing special project pattern:
 '00000000-0000-0000-0000-000000000001' → '_migrated'
 
 -- Add this
-'00000000-0000-0000-0000-000000000002' → '_personal'
+'00000000-0000-0000-0000-000000060887' → '_personal'
 ```
 
 **Behavior:**

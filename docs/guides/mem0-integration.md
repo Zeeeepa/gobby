@@ -224,7 +224,7 @@ The default ports are 8888, 8432, 8474, and 8687. If these conflict with existin
 
 ```yaml
 ports:
-  - "9888:8080"  # Changed from 8888
+  - "9888:8888"  # Changed host port from 8888 to 9888
 ```
 
 Then update `mem0_url` in config to match.

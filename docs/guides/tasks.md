@@ -86,7 +86,7 @@ open → in_progress → needs_review → approved → closed
 
 ### Review Status (HITL)
 
-Tasks enter `review` status instead of `closed` when:
+Tasks enter `needs_review` status instead of `closed` when:
 - Task has `requires_user_review=true` (explicitly flagged for human approval)
 - Agent uses `override_justification` to bypass validation failures
 
