@@ -185,7 +185,9 @@ export function AuditLog({ tasks, onSelectTask }: AuditLogProps) {
               <span className="audit-log-entry-action">{ACTION_LABELS[entry.action] || entry.action}</span>
               <span className="audit-log-entry-target">{entry.target}</span>
               <RiskBadge level={entry.riskLevel} compact />
-              <span className="audit-log-entry-actor">{entry.actor === 'system' ? 'system' : entry.actor.slice(0, 8)}</span>
+              <span className="audit-log-entry-actor" title={entry.actor}>
+                {entry.actor === 'system' ? 'system' : entry.actor.length > 8 ? entry.actor.slice(0, 8) + '\u2026' : entry.actor}
+              </span>
             </button>
           ))
         )}

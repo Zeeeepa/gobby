@@ -55,28 +55,30 @@ export function AssigneePicker({ currentAssignee, currentAgentName, onAssign }: 
     try {
       const baseUrl = getBaseUrl()
       const response = await fetch(`${baseUrl}/sessions?limit=50`)
-      if (response.ok) {
-        const data = await response.json()
-        const sessions: Array<{ id: string; agent_name?: string; cli_type?: string }> = data.sessions || []
-
-        const seen = new Set<string>()
-        const results: KnownAgent[] = []
-
-        for (const s of sessions) {
-          const name = s.agent_name || s.cli_type || null
-          const key = name || s.id
-          if (seen.has(key)) continue
-          seen.add(key)
-
-          results.push({
-            id: s.id,
-            label: name || shortId(s.id),
-            type: name ? 'agent' : 'session',
-          })
-        }
-
-        setAgents(results)
+      if (!response.ok) {
+        console.warn(`Agent fetch returned ${response.status}`)
+        return
       }
+      const data = await response.json()
+      const sessions: Array<{ id: string; agent_name?: string; cli_type?: string }> = data.sessions || []
+
+      const seen = new Set<string>()
+      const results: KnownAgent[] = []
+
+      for (const s of sessions) {
+        const name = s.agent_name || s.cli_type || null
+        const key = name || s.id
+        if (seen.has(key)) continue
+        seen.add(key)
+
+        results.push({
+          id: s.id,
+          label: name || shortId(s.id),
+          type: name ? 'agent' : 'session',
+        })
+      }
+
+      setAgents(results)
     } catch (e) {
       console.error('Failed to fetch agents:', e)
     }
@@ -123,6 +125,7 @@ export function AssigneePicker({ currentAssignee, currentAgentName, onAssign }: 
     setIsOpen(false)
     setShowCustom(false)
     setCustomValue('')
+    setSecondaryAssignee('')
   }
 
   // Parse joint assignee display
@@ -187,7 +190,7 @@ export function AssigneePicker({ currentAssignee, currentAgentName, onAssign }: 
           {agents.map(agent => (
             <button
               key={agent.id}
-              className={`assignee-picker-option ${currentAssignee === agent.id ? 'active' : ''}`}
+              className={`assignee-picker-option ${currentAssignee?.split('+')[0] === agent.id ? 'active' : ''}`}
               onClick={() => handleSelect(agent)}
             >
               <span className="assignee-picker-option-icon">{agentIcon(agent.type)}</span>
