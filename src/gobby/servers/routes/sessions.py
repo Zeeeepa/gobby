@@ -5,7 +5,9 @@ Provides session registration, listing, lookup, and update endpoints.
 """
 
 import logging
+import subprocess  # nosec B404 - subprocess needed for git commit counting
 import time
+from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Any
 
 from fastapi import APIRouter, HTTPException, Query, Request
@@ -15,8 +17,131 @@ from gobby.utils.metrics import get_metrics_collector
 
 if TYPE_CHECKING:
     from gobby.servers.http import HTTPServer
+    from gobby.storage.database import DatabaseProtocol
 
 logger = logging.getLogger(__name__)
+
+
+def _get_session_stats(db: "DatabaseProtocol", session: Any) -> dict[str, int]:
+    """Get activity stats for a session (tasks closed, memories, artifacts, commits).
+
+    Args:
+        db: Database connection
+        session: Session object with id, created_at, updated_at, jsonl_path
+
+    Returns:
+        Dict with tasks_closed, memories_created, artifacts_count, commit_count
+    """
+    stats: dict[str, int] = {}
+
+    # Tasks closed in this session
+    try:
+        row = db.fetchone(
+            "SELECT COUNT(*) FROM session_tasks WHERE session_id = ? AND action = 'closed'",
+            (session.id,),
+        )
+        stats["tasks_closed"] = row[0] if row else 0
+    except Exception:
+        stats["tasks_closed"] = 0
+
+    # Memories created by this session
+    try:
+        row = db.fetchone(
+            "SELECT COUNT(*) FROM memories WHERE source_session_id = ?",
+            (session.id,),
+        )
+        stats["memories_created"] = row[0] if row else 0
+    except Exception:
+        stats["memories_created"] = 0
+
+    # Artifacts generated in this session
+    try:
+        row = db.fetchone(
+            "SELECT COUNT(*) FROM session_artifacts WHERE session_id = ?",
+            (session.id,),
+        )
+        stats["artifacts_count"] = row[0] if row else 0
+    except Exception:
+        stats["artifacts_count"] = 0
+
+    # Commits made during session timeframe
+    stats["commit_count"] = _get_commit_count(db, session)
+
+    return stats
+
+
+def _get_commit_count(db: "DatabaseProtocol", session: Any) -> int:
+    """Count git commits made during a session's timeframe.
+
+    Args:
+        db: Database connection for project lookup
+        session: Session object with created_at, updated_at, project_id
+
+    Returns:
+        Number of commits, or 0 if git is unavailable
+    """
+    # Resolve cwd from project repo_path (jsonl_path parent is not a git repo)
+    cwd = None
+    if session.project_id:
+        try:
+            row = db.fetchone(
+                "SELECT repo_path FROM projects WHERE id = ?",
+                (session.project_id,),
+            )
+            if row and row[0]:
+                cwd = row[0]
+        except Exception:
+            pass
+
+    if not cwd:
+        return 0
+
+    # Parse timestamps
+    if isinstance(session.created_at, str):
+        since_time = datetime.fromisoformat(session.created_at.replace("Z", "+00:00"))
+    else:
+        since_time = session.created_at
+
+    if session.updated_at:
+        if isinstance(session.updated_at, str):
+            until_time = datetime.fromisoformat(session.updated_at.replace("Z", "+00:00"))
+        else:
+            until_time = session.updated_at
+    else:
+        until_time = datetime.now(UTC)
+
+    # Include timezone offset so git doesn't assume local time
+    if since_time.tzinfo is not None:
+        since_str = since_time.strftime("%Y-%m-%dT%H:%M:%S%z")
+    else:
+        since_str = since_time.strftime("%Y-%m-%dT%H:%M:%S")
+    if until_time.tzinfo is not None:
+        until_str = until_time.strftime("%Y-%m-%dT%H:%M:%S%z")
+    else:
+        until_str = until_time.strftime("%Y-%m-%dT%H:%M:%S")
+
+    try:
+        cmd = [
+            "git",
+            "rev-list",
+            "--count",
+            f"--since={since_str}",
+            f"--until={until_str}",
+            "HEAD",
+        ]
+        result = subprocess.run(  # nosec B603 - cmd built from hardcoded git arguments
+            cmd,
+            capture_output=True,
+            text=True,
+            timeout=5,
+            cwd=cwd,
+        )
+        if result.returncode == 0:
+            return int(result.stdout.strip())
+    except (subprocess.TimeoutExpired, FileNotFoundError, ValueError):
+        pass
+
+    return 0
 
 
 def create_sessions_router(server: "HTTPServer") -> APIRouter:
@@ -205,6 +330,13 @@ def create_sessions_router(server: "HTTPServer") -> APIRouter:
                 except Exception as e:
                     logger.warning(f"Failed to fetch message count: {e}")
                     session_data["message_count"] = 0
+
+            # Enrich with activity stats
+            try:
+                stats = _get_session_stats(server.session_manager.db, session)
+                session_data.update(stats)
+            except Exception as e:
+                logger.warning(f"Failed to fetch session stats: {e}")
 
             response_time_ms = (time.perf_counter() - start_time) * 1000
 

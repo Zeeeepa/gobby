@@ -21,6 +21,10 @@ export interface GobbySession {
   had_edits: boolean
   agent_depth: number
   parent_session_id: string | null
+  tasks_closed?: number
+  memories_created?: number
+  artifacts_count?: number
+  commit_count?: number
 }
 
 export const KNOWN_SOURCES = ['claude', 'gemini', 'codex', 'claude_sdk_web_chat'] as const

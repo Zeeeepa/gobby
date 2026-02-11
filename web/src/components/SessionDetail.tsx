@@ -93,6 +93,30 @@ export function SessionDetail({
           <span className="session-detail-stat-label">Duration</span>
           <span className="session-detail-stat-value">{formatDuration(session.created_at, session.updated_at)}</span>
         </div>
+        {(session.commit_count ?? 0) > 0 && (
+          <div className="session-detail-stat">
+            <span className="session-detail-stat-label">Commits</span>
+            <span className="session-detail-stat-value">{session.commit_count}</span>
+          </div>
+        )}
+        {(session.tasks_closed ?? 0) > 0 && (
+          <div className="session-detail-stat">
+            <span className="session-detail-stat-label">Tasks Closed</span>
+            <span className="session-detail-stat-value">{session.tasks_closed}</span>
+          </div>
+        )}
+        {(session.memories_created ?? 0) > 0 && (
+          <div className="session-detail-stat">
+            <span className="session-detail-stat-label">Memories</span>
+            <span className="session-detail-stat-value">{session.memories_created}</span>
+          </div>
+        )}
+        {(session.artifacts_count ?? 0) > 0 && (
+          <div className="session-detail-stat">
+            <span className="session-detail-stat-label">Artifacts</span>
+            <span className="session-detail-stat-value">{session.artifacts_count}</span>
+          </div>
+        )}
         {session.had_edits && (
           <div className="session-detail-stat">
             <span className="session-detail-stat-value session-detail-edited">Edited files</span>
