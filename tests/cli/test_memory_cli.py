@@ -1,6 +1,6 @@
 """Tests for the memory CLI module."""
 
-from unittest.mock import MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from click.testing import CliRunner
@@ -75,7 +75,7 @@ class TestMemoryDeleteCommand:
     ) -> None:
         """Test deleting a memory item."""
         mock_manager = MagicMock()
-        mock_manager.forget.return_value = True
+        mock_manager.forget = AsyncMock(return_value=True)
         mock_get_manager.return_value = mock_manager
         mock_resolve.return_value = "mem-del123"
 
@@ -485,7 +485,7 @@ class TestMemoryDeleteNotFound:
     ) -> None:
         """Test deleting a non-existent memory."""
         mock_manager = MagicMock()
-        mock_manager.forget.return_value = False
+        mock_manager.forget = AsyncMock(return_value=False)
         mock_get_manager.return_value = mock_manager
         mock_resolve.return_value = "nonexistent"
 

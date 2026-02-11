@@ -139,7 +139,7 @@ class ArtifactCaptureHook:
                 task = link["task"]
                 if task.status == "in_progress" and link["action"] == "worked_on":
                     return str(task.id)
-        except (KeyError, ValueError, OSError) as e:
+        except (KeyError, ValueError, OSError, RuntimeError) as e:
             logger.debug(f"Failed to look up active task for session {session_id}: {e}")
 
         return None

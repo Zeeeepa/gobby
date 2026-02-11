@@ -176,6 +176,7 @@ export function DependencyGraph({ tasks, onSelectTask }: DependencyGraphProps) {
 
   // Zoom handler
   const handleWheel = useCallback((e: React.WheelEvent) => {
+    if (!e.ctrlKey && !e.metaKey) return
     e.preventDefault()
     const delta = e.deltaY > 0 ? 0.9 : 1.1
     setView(v => {
