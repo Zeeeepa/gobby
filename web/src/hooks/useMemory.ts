@@ -1,5 +1,17 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 
+export interface MemoryCrossRef {
+  source_id: string
+  target_id: string
+  similarity: number
+  created_at: string
+}
+
+export interface MemoryGraphData {
+  memories: GobbyMemory[]
+  crossrefs: MemoryCrossRef[]
+}
+
 export interface GobbyMemory {
   id: string
   memory_type: string
@@ -77,12 +89,12 @@ export function useMemory() {
       const response = await fetch(`${baseUrl}/memories?${params}`)
       if (response.ok) {
         const data = await response.json()
-        const items = (data.memories || []).map((m: GobbyMemory) => ({
+        const items = (data.memories || []).map((m: Record<string, unknown>) => ({
           ...m,
           tags: Array.isArray(m.tags) ? m.tags
-            : typeof m.tags === 'string' ? m.tags.split(',').map((t: string) => t.trim()).filter(Boolean)
+            : typeof m.tags === 'string' ? (m.tags as string).split(',').map((t: string) => t.trim()).filter(Boolean)
             : null,
-        }))
+        })) as GobbyMemory[]
         setMemories(items)
       }
     } catch (e) {
@@ -225,6 +237,31 @@ export function useMemory() {
     fetchStats()
   }, [fetchMemories, fetchStats])
 
+  const fetchGraphData = useCallback(async (): Promise<MemoryGraphData | null> => {
+    try {
+      const baseUrl = getBaseUrl()
+      const params = new URLSearchParams()
+      if (filters.projectId) params.set('project_id', filters.projectId)
+
+      const response = await fetch(`${baseUrl}/memories/graph?${params}`)
+      if (response.ok) {
+        const data = await response.json()
+        return {
+          memories: (data.memories || []).map((m: Record<string, unknown>) => ({
+            ...m,
+            tags: Array.isArray(m.tags) ? m.tags
+              : typeof m.tags === 'string' ? (m.tags as string).split(',').map((t: string) => t.trim()).filter(Boolean)
+              : null,
+          })) as GobbyMemory[],
+          crossrefs: data.crossrefs || [],
+        }
+      }
+    } catch (e) {
+      console.error('Failed to fetch graph data:', e)
+    }
+    return null
+  }, [filters.projectId])
+
   return {
     memories,
     searchResults,
@@ -237,6 +274,7 @@ export function useMemory() {
     deleteMemory,
     searchMemories,
     refreshMemories,
+    fetchGraphData,
   }
 }
 

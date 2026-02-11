@@ -138,6 +138,28 @@ def create_memory_router(server: "HTTPServer") -> APIRouter:
             logger.error(f"Failed to get memory stats: {e}")
             raise HTTPException(status_code=500, detail=str(e)) from e
 
+    @router.get("/graph")
+    def memory_graph(
+        project_id: str | None = Query(None, description="Filter by project ID"),
+        limit: int = Query(5000, description="Maximum crossrefs"),
+    ) -> dict[str, Any]:
+        """Get memory graph data (memories + crossrefs) for visualization."""
+        metrics.inc_counter("http_requests_total")
+        try:
+            memories = server.memory_manager.list_memories(
+                project_id=project_id, limit=500
+            )
+            crossrefs = server.memory_manager.storage.get_all_crossrefs(
+                project_id=project_id, limit=limit
+            )
+            return {
+                "memories": [m.to_dict() for m in memories],
+                "crossrefs": [c.to_dict() for c in crossrefs],
+            }
+        except Exception as e:
+            logger.error(f"Failed to get memory graph: {e}")
+            raise HTTPException(status_code=500, detail=str(e)) from e
+
     @router.get("/{memory_id}")
     def get_memory(memory_id: str) -> Any:
         """Get a specific memory by ID."""
