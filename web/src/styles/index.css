@@ -4961,6 +4961,23 @@ body {
   pointer-events: none;
 }
 
+.knowledge-graph-animate-toggle {
+  position: absolute;
+  bottom: 8px;
+  right: 8px;
+  z-index: 10;
+}
+
+.knowledge-graph-ctrl-btn.active {
+  background: var(--accent);
+  color: var(--bg-primary);
+}
+
+.knowledge-graph-ctrl-btn.active:hover {
+  background: var(--accent-hover, var(--accent));
+  color: var(--bg-primary);
+}
+
 /* ==========================================================================
    Tasks Page
    ========================================================================== */

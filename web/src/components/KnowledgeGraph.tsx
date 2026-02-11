@@ -108,6 +108,9 @@ export function KnowledgeGraph({ fetchKnowledgeGraph, fetchEntityNeighbors }: Kn
   const [searchQuery, setSearchQuery] = useState('')
   const [expandingNode, setExpandingNode] = useState<string | null>(null)
   const [dimensions, setDimensions] = useState({ width: 800, height: 600 })
+  const [animateIdle, setAnimateIdle] = useState(() => {
+    try { return localStorage.getItem('gobby-kg-animate') === 'true' } catch { return false }
+  })
 
   // Track container size
   useEffect(() => {
@@ -125,6 +128,23 @@ export function KnowledgeGraph({ fetchKnowledgeGraph, fetchEntityNeighbors }: Kn
     observer.observe(container)
     return () => observer.disconnect()
   }, [])
+
+  // Persist animation toggle
+  const toggleAnimate = useCallback(() => {
+    setAnimateIdle(prev => {
+      const next = !prev
+      try { localStorage.setItem('gobby-kg-animate', String(next)) } catch { /* noop */ }
+      return next
+    })
+  }, [])
+
+  // Auto-rotation via OrbitControls
+  useEffect(() => {
+    const controls = fgRef.current?.controls() as any // eslint-disable-line @typescript-eslint/no-explicit-any
+    if (!controls) return
+    controls.autoRotate = animateIdle
+    controls.autoRotateSpeed = 0.4
+  }, [animateIdle])
 
   // Initial data fetch
   useEffect(() => {
@@ -192,6 +212,15 @@ export function KnowledgeGraph({ fetchKnowledgeGraph, fetchEntityNeighbors }: Kn
 
   const linkLabel = useCallback((link: any) => link.type as string, []) // eslint-disable-line @typescript-eslint/no-explicit-any
 
+  // Node breathing effect when animating
+  const nodePositionUpdate = useCallback((obj: any) => { // eslint-disable-line @typescript-eslint/no-explicit-any
+    if (!animateIdle) return
+    const t = performance.now() * 0.001
+    const offset = (obj.id % 100) * 0.1
+    const scale = 1 + Math.sin(t * 1.5 + offset) * 0.06
+    obj.scale.set(scale, scale, scale)
+  }, [animateIdle])
+
   // Legend types
   const legendTypes = useMemo(() => {
     if (!graphData) return []
@@ -251,7 +280,11 @@ export function KnowledgeGraph({ fetchKnowledgeGraph, fetchEntityNeighbors }: Kn
         linkOpacity={0.6}
         linkDirectionalArrowLength={3}
         linkDirectionalArrowRelPos={1}
-        linkDirectionalParticles={0}
+        linkDirectionalParticles={animateIdle ? 2 : 0}
+        linkDirectionalParticleSpeed={0.004}
+        linkDirectionalParticleWidth={0.8}
+        linkDirectionalParticleColor={linkColor}
+        nodePositionUpdate={animateIdle ? nodePositionUpdate : undefined}
         backgroundColor="rgba(0,0,0,0)"
         showNavInfo={false}
         enableNodeDrag={true}
@@ -301,6 +334,26 @@ export function KnowledgeGraph({ fetchKnowledgeGraph, fetchEntityNeighbors }: Kn
           ))}
         </div>
       )}
+
+      {/* Animate toggle (bottom-right) */}
+      <div className="knowledge-graph-animate-toggle">
+        <button
+          className={`knowledge-graph-ctrl-btn${animateIdle ? ' active' : ''}`}
+          onClick={toggleAnimate}
+          title={animateIdle ? 'Pause idle animation' : 'Animate when idle'}
+        >
+          {animateIdle ? (
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
+              <rect x="6" y="4" width="4" height="16" rx="1" />
+              <rect x="14" y="4" width="4" height="16" rx="1" />
+            </svg>
+          ) : (
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
+              <path d="M8 5v14l11-7z" />
+            </svg>
+          )}
+        </button>
+      </div>
     </div>
   )
 }
