@@ -1,4 +1,4 @@
-import { useState, useCallback, useMemo } from 'react'
+import { useState, useCallback, useMemo, useEffect } from 'react'
 import { useMemory, useMem0Status, useNeo4jStatus } from '../hooks/useMemory'
 import type { GobbyMemory } from '../hooks/useMemory'
 import { MemoryOverview } from './MemoryOverview'
@@ -68,8 +68,15 @@ export function MemoryPage() {
   const mem0Status = useMem0Status()
   const neo4jStatus = useNeo4jStatus()
 
-  const [viewMode, setViewMode] = useState<ViewMode>('list')
+  const [viewMode, setViewMode] = useState<ViewMode>('graph')
   const [showForm, setShowForm] = useState(false)
+
+  // Default to knowledge view when Neo4j status loads and is configured
+  useEffect(() => {
+    if (neo4jStatus?.configured && viewMode === 'graph') {
+      setViewMode('knowledge')
+    }
+  }, [neo4jStatus?.configured]) // eslint-disable-line react-hooks/exhaustive-deps
   const [editMemory, setEditMemory] = useState<GobbyMemory | null>(null)
   const [selectedMemory, setSelectedMemory] = useState<GobbyMemory | null>(null)
   const [overviewFilter, setOverviewFilter] = useState<OverviewFilter>(null)
@@ -168,9 +175,9 @@ export function MemoryPage() {
   }, [selectedMemory, handleDelete])
 
   const viewModes: [ViewMode, React.FC, string][] = [
-    ['list', ListIcon, 'List view'],
-    ['graph', GraphIcon, 'Graph view'],
     ...(neo4jStatus?.configured ? [['knowledge' as ViewMode, KnowledgeIcon, 'Knowledge graph'] as [ViewMode, React.FC, string]] : []),
+    ['graph', GraphIcon, 'Graph view'],
+    ['list', ListIcon, 'List view'],
   ]
 
   return (
