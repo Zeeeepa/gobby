@@ -1461,6 +1461,8 @@ body {
   width: 100%;
 }
 
+.xterm-screen { isolation: isolate; }
+
 /* Read-only badge */
 .read-only-badge {
   font-size: calc(var(--font-size-base) * 0.65);
@@ -6332,7 +6334,6 @@ body {
   gap: 0.4rem;
   padding: 0.45rem 0.75rem;
   background: var(--bg-tertiary);
-  border-bottom: 1px solid var(--border);
   cursor: pointer;
   width: 100%;
   border: none;
@@ -10198,4 +10199,3 @@ body {
   padding-top: 4px;
   border-top: 1px solid var(--border);
 }
-.xterm-screen { isolation: isolate; }

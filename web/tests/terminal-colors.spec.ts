@@ -36,7 +36,12 @@ test("screenshot terminal ANSI colors", async ({ page }) => {
   // Mock the WebSocket to provide fake tmux sessions and ANSI output
   await page.routeWebSocket("**/ws", (ws) => {
     ws.onMessage((msg) => {
-      const data = JSON.parse(msg as string);
+      let data: Record<string, unknown>;
+      try {
+        data = JSON.parse(msg as string);
+      } catch {
+        return;
+      }
 
       switch (data.type) {
         case "subscribe":
@@ -61,16 +66,14 @@ test("screenshot terminal ANSI colors", async ({ page }) => {
               session_name: data.session_name,
             })
           );
-          // Send ANSI color output shortly after attach
-          setTimeout(() => {
-            ws.send(
-              JSON.stringify({
-                type: "terminal_output",
-                run_id: STREAMING_ID,
-                data: ANSI_OUTPUT,
-              })
-            );
-          }, 200);
+          // Send ANSI color output immediately — Playwright waitFor handles synchronization
+          ws.send(
+            JSON.stringify({
+              type: "terminal_output",
+              run_id: STREAMING_ID,
+              data: ANSI_OUTPUT,
+            })
+          );
           break;
 
         case "tmux_detach":
