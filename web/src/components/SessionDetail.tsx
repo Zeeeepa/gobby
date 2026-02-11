@@ -147,7 +147,7 @@ export function SessionDetail({
       <div className="session-detail-actions">
         <button
           className="session-detail-ask-btn"
-          onClick={() => onAskGobby(`Tell me about session ${session.ref} (${title}). Here's the summary:\n\n${session.summary_markdown || 'No summary available.'}`)}
+          onClick={() => onAskGobby(`Tell me about session ${session.ref || 'unknown'} (${title}). Here's the summary:\n\n${session.summary_markdown || 'No summary available.'}`)}
         >
           <ChatIcon /> Ask Gobby about this session
         </button>

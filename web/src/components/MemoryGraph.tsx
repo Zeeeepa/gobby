@@ -163,7 +163,7 @@ export function MemoryGraph({ memories, fetchGraphData, onSelect }: MemoryGraphP
   }, [])
 
   const handleWheel = useCallback((e: React.WheelEvent) => {
-    e.preventDefault()
+    if (e.currentTarget.contains(e.target as Node)) e.preventDefault()
     const rect = svgRef.current?.getBoundingClientRect()
     if (!rect) return
     const mx = e.clientX - rect.left
@@ -206,7 +206,7 @@ export function MemoryGraph({ memories, fetchGraphData, onSelect }: MemoryGraphP
   // Fit on first load
   useEffect(() => {
     if (nodes.length > 0) fitView()
-  }, [nodes.length > 0]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [nodes.length, fitView]) // re-fit only when node count changes
 
   if (loading) {
     return (

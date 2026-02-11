@@ -79,6 +79,12 @@ export function MemoryPage() {
   const [editMemory, setEditMemory] = useState<GobbyMemory | null>(null)
   const [selectedMemory, setSelectedMemory] = useState<GobbyMemory | null>(null)
   const [overviewFilter, setOverviewFilter] = useState<OverviewFilter>(null)
+  const [errorMessage, setErrorMessage] = useState<string | null>(null)
+
+  const showError = useCallback((msg: string) => {
+    setErrorMessage(msg)
+    setTimeout(() => setErrorMessage(null), 4000)
+  }, [])
   const [searchText, setSearchText] = useState('')
 
   // Apply overview filter + search to memories
@@ -136,7 +142,7 @@ export function MemoryPage() {
         setEditMemory(null)
       } catch (e) {
         console.error('Failed to save memory:', e)
-        alert('Failed to save memory')
+        showError('Failed to save memory')
       }
     },
     [editMemory, createMemory, updateMemory]
@@ -151,7 +157,7 @@ export function MemoryPage() {
         }
       } catch (e) {
         console.error('Failed to delete memory:', e)
-        alert('Failed to delete memory')
+        showError('Failed to delete memory')
       }
     },
     [deleteMemory, selectedMemory]
@@ -181,6 +187,11 @@ export function MemoryPage() {
 
   return (
     <main className="memory-page">
+      {errorMessage && (
+        <div className="memory-error-toast" onClick={() => setErrorMessage(null)}>
+          {errorMessage}
+        </div>
+      )}
       {/* Toolbar */}
       <div className="memory-toolbar">
         <div className="memory-toolbar-left">
