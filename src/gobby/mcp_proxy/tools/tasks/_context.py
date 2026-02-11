@@ -120,7 +120,7 @@ class RegistryContext:
         Raises:
             ValueError: If project name/UUID not found
         """
-        return resolve_project_filter_standalone(project, all_projects, self.db)
+        return resolve_project_filter_standalone(project, all_projects, self.task_manager.db)
 
     def resolve_session_id(self, session_id: str) -> str:
         """Resolve session reference (#N, N, UUID, or prefix) to UUID.
