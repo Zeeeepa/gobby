@@ -142,9 +142,21 @@ class MemoryEmbeddingManager:
         )
         return [MemoryEmbedding.from_row(row) for row in rows]
 
-    def get_all_embeddings(self) -> list[MemoryEmbedding]:
-        """Get all stored memory embeddings."""
-        rows = self.db.fetchall("SELECT * FROM memory_embeddings", ())
+    def get_all_embeddings(
+        self, *, limit: int | None = None, offset: int = 0
+    ) -> list[MemoryEmbedding]:
+        """Get stored memory embeddings with optional pagination.
+
+        Args:
+            limit: Maximum number of embeddings to return (None for all)
+            offset: Number of rows to skip
+        """
+        if limit is not None:
+            rows = self.db.fetchall(
+                "SELECT * FROM memory_embeddings LIMIT ? OFFSET ?", (limit, offset)
+            )
+        else:
+            rows = self.db.fetchall("SELECT * FROM memory_embeddings", ())
         return [MemoryEmbedding.from_row(row) for row in rows]
 
     def get_embeddings_needing_update(
@@ -161,12 +173,21 @@ class MemoryEmbeddingManager:
         if not current_hashes:
             return []
 
-        all_embeddings = self.get_all_embeddings()
-        return [
-            e
-            for e in all_embeddings
-            if e.memory_id in current_hashes and e.text_hash != current_hashes[e.memory_id]
-        ]
+        stale: list[MemoryEmbedding] = []
+        batch_size = 500
+        ids = list(current_hashes.keys())
+        for i in range(0, len(ids), batch_size):
+            batch = ids[i : i + batch_size]
+            placeholders = ",".join("?" * len(batch))
+            rows = self.db.fetchall(
+                f"SELECT * FROM memory_embeddings WHERE memory_id IN ({placeholders})",  # nosec B608
+                tuple(batch),
+            )
+            for row in rows:
+                emb = MemoryEmbedding.from_row(row)
+                if emb.text_hash != current_hashes.get(emb.memory_id):
+                    stale.append(emb)
+        return stale
 
     def batch_store_embeddings(self, items: list[dict[str, Any]]) -> int:
         """Store multiple embeddings in a single transaction.

@@ -715,6 +715,36 @@ CREATE TABLE step_executions (
 );
 CREATE INDEX idx_step_executions_execution ON step_executions(execution_id);
 CREATE INDEX idx_step_executions_approval_token ON step_executions(approval_token);
+
+CREATE TABLE agent_definitions (
+    id TEXT PRIMARY KEY,
+    project_id TEXT REFERENCES projects(id) ON DELETE CASCADE,
+    name TEXT NOT NULL,
+    description TEXT,
+    provider TEXT NOT NULL DEFAULT 'claude',
+    model TEXT,
+    mode TEXT NOT NULL DEFAULT 'headless',
+    terminal TEXT DEFAULT 'auto',
+    isolation TEXT,
+    base_branch TEXT DEFAULT 'main',
+    timeout REAL DEFAULT 120.0,
+    max_turns INTEGER DEFAULT 10,
+    default_workflow TEXT,
+    sandbox_config TEXT,
+    skill_profile TEXT,
+    workflows TEXT,
+    lifecycle_variables TEXT,
+    default_variables TEXT,
+    enabled INTEGER NOT NULL DEFAULT 1,
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE UNIQUE INDEX idx_agent_defs_project_name
+    ON agent_definitions(project_id, name) WHERE project_id IS NOT NULL;
+CREATE UNIQUE INDEX idx_agent_defs_global_name
+    ON agent_definitions(name) WHERE project_id IS NULL;
+CREATE INDEX idx_agent_defs_project ON agent_definitions(project_id);
+CREATE INDEX idx_agent_defs_provider ON agent_definitions(provider);
 """
 
 # Future migrations (v61+)
@@ -835,7 +865,8 @@ def _migrate_add_deleted_at_to_projects(db: LocalDatabase) -> None:
     if any(col["name"] == "deleted_at" for col in columns):
         logger.debug("projects.deleted_at column already exists, skipping")
         return
-    db.execute("ALTER TABLE projects ADD COLUMN deleted_at TEXT")
+    with db.transaction() as conn:
+        conn.execute("ALTER TABLE projects ADD COLUMN deleted_at TEXT")
     logger.info("Added deleted_at column to projects table")
 
 
@@ -843,13 +874,14 @@ def _migrate_add_title_task_id_to_artifacts(db: LocalDatabase) -> None:
     """Add title and task_id columns to session_artifacts (idempotent)."""
     # Check existing columns to avoid duplicate column errors
     columns = {row["name"] for row in db.fetchall("PRAGMA table_info(session_artifacts)")}
-    if "title" not in columns:
-        db.execute("ALTER TABLE session_artifacts ADD COLUMN title TEXT")
-    if "task_id" not in columns:
-        db.execute("ALTER TABLE session_artifacts ADD COLUMN task_id TEXT")
-    db.execute(
-        "CREATE INDEX IF NOT EXISTS idx_session_artifacts_task ON session_artifacts(task_id)"
-    )
+    with db.transaction() as conn:
+        if "title" not in columns:
+            conn.execute("ALTER TABLE session_artifacts ADD COLUMN title TEXT")
+        if "task_id" not in columns:
+            conn.execute("ALTER TABLE session_artifacts ADD COLUMN task_id TEXT")
+        conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_session_artifacts_task ON session_artifacts(task_id)"
+        )
     logger.info("Added title and task_id columns to session_artifacts")
 
 
@@ -1059,6 +1091,42 @@ MIGRATIONS: list[tuple[int, str, MigrationAction]] = [
         WHERE status = 'failed';
 
         UPDATE tasks SET status = 'open' WHERE status = 'needs_decomposition';
+        """,
+    ),
+    # Agent definitions: Store agent configuration in database
+    (
+        92,
+        "Add agent_definitions table",
+        """
+        CREATE TABLE IF NOT EXISTS agent_definitions (
+            id TEXT PRIMARY KEY,
+            project_id TEXT REFERENCES projects(id) ON DELETE CASCADE,
+            name TEXT NOT NULL,
+            description TEXT,
+            provider TEXT NOT NULL DEFAULT 'claude',
+            model TEXT,
+            mode TEXT NOT NULL DEFAULT 'headless',
+            terminal TEXT DEFAULT 'auto',
+            isolation TEXT,
+            base_branch TEXT DEFAULT 'main',
+            timeout REAL DEFAULT 120.0,
+            max_turns INTEGER DEFAULT 10,
+            default_workflow TEXT,
+            sandbox_config TEXT,
+            skill_profile TEXT,
+            workflows TEXT,
+            lifecycle_variables TEXT,
+            default_variables TEXT,
+            enabled INTEGER NOT NULL DEFAULT 1,
+            created_at TEXT NOT NULL DEFAULT (datetime('now')),
+            updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+        );
+        CREATE UNIQUE INDEX IF NOT EXISTS idx_agent_defs_project_name
+            ON agent_definitions(project_id, name) WHERE project_id IS NOT NULL;
+        CREATE UNIQUE INDEX IF NOT EXISTS idx_agent_defs_global_name
+            ON agent_definitions(name) WHERE project_id IS NULL;
+        CREATE INDEX IF NOT EXISTS idx_agent_defs_project ON agent_definitions(project_id);
+        CREATE INDEX IF NOT EXISTS idx_agent_defs_provider ON agent_definitions(provider);
         """,
     ),
 ]
