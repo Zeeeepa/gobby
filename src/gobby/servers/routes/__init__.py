@@ -17,6 +17,8 @@ from gobby.servers.routes.mcp import (
 )
 from gobby.servers.routes.memory import create_memory_router
 from gobby.servers.routes.pipelines import create_pipelines_router
+from gobby.servers.routes.skills import create_skills_router
+from gobby.servers.routes.projects import create_projects_router
 from gobby.servers.routes.sessions import create_sessions_router
 from gobby.servers.routes.tasks import create_tasks_router
 from gobby.servers.routes.voice import create_voice_router
@@ -32,7 +34,9 @@ __all__ = [
     "create_memory_router",
     "create_pipelines_router",
     "create_plugins_router",
+    "create_projects_router",
     "create_sessions_router",
+    "create_skills_router",
     "create_tasks_router",
     "create_voice_router",
     "create_webhooks_router",

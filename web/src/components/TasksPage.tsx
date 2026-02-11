@@ -198,8 +198,17 @@ function TaskRow({ task, onSelect }: { task: GobbyTask; onSelect: (id: string) =
 // TasksPage
 // =============================================================================
 
-export function TasksPage() {
-  const { tasks, total, stats, isLoading, filters, setFilters, refreshTasks, getTask, createTask, updateTask, closeTask, reopenTask, getDependencies, getSubtasks } = useTasks()
+interface TasksPageProps {
+  projectFilter?: string
+}
+
+export function TasksPage({ projectFilter }: TasksPageProps = {}) {
+  const { tasks: allTasks, total, stats, isLoading, filters, setFilters, refreshTasks, getTask, createTask, updateTask, closeTask, reopenTask, getDependencies, getSubtasks } = useTasks()
+
+  // Apply project filter if provided (client-side since the API defaults to resolved project)
+  const tasks = projectFilter
+    ? allTasks.filter(t => t.project_id === projectFilter)
+    : allTasks
   const [viewMode, setViewMode] = useState<ViewMode>('list')
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null)
   const [showCreateForm, setShowCreateForm] = useState(false)

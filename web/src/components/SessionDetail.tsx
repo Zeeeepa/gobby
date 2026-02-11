@@ -14,7 +14,7 @@ interface SessionDetailProps {
   hasMore: boolean
   isLoading: boolean
   onLoadMore: () => void
-  onAskGobby: (context: string) => void
+  onAskGobby?: (context: string) => void
   onGenerateSummary: () => void
   isGeneratingSummary: boolean
   allSessions: GobbySession[]
@@ -170,14 +170,16 @@ export function SessionDetail({
       />
 
       {/* Ask Gobby button */}
-      <div className="session-detail-actions">
-        <button
-          className="session-detail-ask-btn"
-          onClick={() => onAskGobby(`Tell me about session ${session.ref || 'unknown'} (${title}). Here's the summary:\n\n${session.summary_markdown || 'No summary available.'}`)}
-        >
-          <ChatIcon /> Ask Gobby about this session
-        </button>
-      </div>
+      {onAskGobby && (
+        <div className="session-detail-actions">
+          <button
+            className="session-detail-ask-btn"
+            onClick={() => onAskGobby(`Tell me about session ${session.ref || 'unknown'} (${title}). Here's the summary:\n\n${session.summary_markdown || 'No summary available.'}`)}
+          >
+            <ChatIcon /> Ask Gobby about this session
+          </button>
+        </div>
+      )}
 
       {/* Transcript */}
       <SessionTranscript

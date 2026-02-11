@@ -284,6 +284,22 @@ class HTTPServer:
         self.services.mcp_db_manager = value
 
     @property
+    def skill_manager(self) -> Any:
+        return self.services.skill_manager
+
+    @skill_manager.setter
+    def skill_manager(self, value: Any) -> None:
+        self.services.skill_manager = value
+
+    @property
+    def hub_manager(self) -> Any:
+        return self.services.hub_manager
+
+    @hub_manager.setter
+    def hub_manager(self, value: Any) -> None:
+        self.services.hub_manager = value
+
+    @property
     def tool_proxy(self) -> Any:
         """Get the ToolProxyService instance for routing tool calls with error enrichment."""
         if self._tools_handler is not None:
@@ -595,8 +611,10 @@ class HTTPServer:
             create_cron_router,
             create_files_router,
             create_hooks_router,
+            create_projects_router,
             create_mcp_router,
             create_memory_router,
+            create_skills_router,
             create_pipelines_router,
             create_plugins_router,
             create_sessions_router,
@@ -619,6 +637,8 @@ class HTTPServer:
         app.include_router(create_webhooks_router())
         app.include_router(create_pipelines_router(self))
         app.include_router(create_files_router(self))
+        app.include_router(create_projects_router(self))
+        app.include_router(create_skills_router(self))
         app.include_router(create_voice_router(self))
 
     async def _process_shutdown(self) -> None:

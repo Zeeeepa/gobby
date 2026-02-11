@@ -20,6 +20,7 @@ export interface GobbyTask {
   assignee: string | null
   agent_name: string | null
   sequence_order: number | null
+  project_id: string
 }
 
 export interface GobbyTaskDetail extends GobbyTask {
@@ -37,7 +38,6 @@ export interface GobbyTaskDetail extends GobbyTask {
   commits: string[] | null
   escalated_at: string | null
   escalation_reason: string | null
-  project_id: string
   created_in_session_id: string | null
   closed_in_session_id: string | null
   complexity_score: number | null

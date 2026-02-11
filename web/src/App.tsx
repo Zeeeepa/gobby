@@ -5,7 +5,6 @@ import { useSettings } from './hooks/useSettings'
 import { useTerminal } from './hooks/useTerminal'
 import { useTmuxSessions } from './hooks/useTmuxSessions'
 import { useSlashCommands } from './hooks/useSlashCommands'
-import { useFiles } from './hooks/useFiles'
 import { useSessions } from './hooks/useSessions'
 import type { QueuedFile } from './components/ChatInput'
 import { Settings } from './components/Settings'
@@ -13,8 +12,8 @@ import { Sidebar } from './components/Sidebar'
 import { ChatPage } from './components/ChatPage'
 import { SessionsPage } from './components/SessionsPage'
 import { TerminalsPage } from './components/TerminalsPage'
-import { FilesPage } from './components/FilesPage'
 import { MemoryPage } from './components/MemoryPage'
+import { ProjectsPage } from './components/ProjectsPage'
 import { TasksPage } from './components/TasksPage'
 import { ArtifactsPage } from './components/ArtifactsPage'
 import { CronJobsPage } from './components/CronJobsPage'
@@ -30,7 +29,6 @@ export default function App() {
   const { settings, modelInfo, modelsLoading, updateFontSize, updateModel, resetSettings } = useSettings()
   const { agents, selectedAgent, setSelectedAgent, sendInput, onOutput } = useTerminal()
   const tmux = useTmuxSessions()
-  const files = useFiles()
   const { filteredCommands, parseCommand, filterCommands } = useSlashCommands()
   const sessionsHook = useSessions()
   const [settingsOpen, setSettingsOpen] = useState(false)
@@ -170,7 +168,6 @@ export default function App() {
     { id: 'chat', label: 'Chat', icon: <ChatIcon /> },
     { id: 'sessions', label: 'Sessions', icon: <SessionsIcon /> },
     { id: 'terminals', label: 'Terminals', icon: <TerminalIcon /> },
-    { id: 'files', label: 'Files', icon: <FilesIcon /> },
     { id: 'projects', label: 'Projects', icon: <ProjectsIcon />, separator: true },
     { id: 'tasks', label: 'Tasks', icon: <TasksIcon /> },
     { id: 'agents', label: 'Agent Definitions', icon: <AgentsIcon /> },
@@ -292,26 +289,8 @@ export default function App() {
           resizeTerminal={tmux.resizeTerminal}
           onOutput={tmux.onOutput}
         />
-      ) : activeTab === 'files' ? (
-        <FilesPage
-          projects={files.projects}
-          expandedDirs={files.expandedDirs}
-          expandedProjects={files.expandedProjects}
-          openFiles={files.openFiles}
-          activeFileIndex={files.activeFileIndex}
-          loadingDirs={files.loadingDirs}
-          gitStatuses={files.gitStatuses}
-          onExpandProject={files.expandProject}
-          onExpandDir={files.expandDir}
-          onOpenFile={files.openFile}
-          onCloseFile={files.closeFile}
-          onSetActiveFile={files.setActiveFileIndex}
-          getImageUrl={files.getImageUrl}
-          onToggleEditing={files.toggleEditing}
-          onUpdateEditContent={files.updateEditContent}
-          onSaveFile={files.saveFile}
-          onFetchDiff={files.fetchDiff}
-        />
+      ) : activeTab === 'projects' ? (
+        <ProjectsPage />
       ) : activeTab === 'tasks' ? (
         <TasksPage />
       ) : activeTab === 'memory' ? (
@@ -416,23 +395,6 @@ function TerminalIcon() {
     >
       <polyline points="4 17 10 11 4 5" />
       <line x1="12" y1="19" x2="20" y2="19" />
-    </svg>
-  )
-}
-
-function FilesIcon() {
-  return (
-    <svg
-      width="18"
-      height="18"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    >
-      <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
     </svg>
   )
 }

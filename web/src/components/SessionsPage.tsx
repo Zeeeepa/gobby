@@ -13,7 +13,7 @@ interface SessionsPageProps {
   onFiltersChange: (filters: SessionFilters) => void
   isLoading: boolean
   onRefresh: () => void
-  onAskGobby: (context: string) => void
+  onAskGobby?: (context: string) => void
 }
 
 function sourceLabel(source: string): string {
