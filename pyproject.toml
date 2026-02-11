@@ -48,6 +48,8 @@ dependencies = [
     "python-multipart>=0.0.22",
     # protobuf <6.33.5 has CVE-2026-0994 (JSON recursion depth bypass DoS)
     "protobuf>=6.33.5",
+    # cryptography <46.0.5 has CVE-2026-26007
+    "cryptography>=46.0.5",
 ]
 
 [project.optional-dependencies]
