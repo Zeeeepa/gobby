@@ -18,9 +18,9 @@ from gobby.servers.routes.mcp import (
 )
 from gobby.servers.routes.memory import create_memory_router
 from gobby.servers.routes.pipelines import create_pipelines_router
-from gobby.servers.routes.skills import create_skills_router
 from gobby.servers.routes.projects import create_projects_router
 from gobby.servers.routes.sessions import create_sessions_router
+from gobby.servers.routes.skills import create_skills_router
 from gobby.servers.routes.tasks import create_tasks_router
 from gobby.servers.routes.voice import create_voice_router
 

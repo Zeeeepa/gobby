@@ -19,6 +19,7 @@ import { ArtifactsPage } from './components/ArtifactsPage'
 import { SkillsPage } from './components/SkillsPage'
 import { CronJobsPage } from './components/CronJobsPage'
 import { AgentDefinitionsPage } from './components/AgentDefinitionsPage'
+import { ConfigurationPage } from './components/ConfigurationPage'
 import { QuickCaptureTask } from './components/tasks/QuickCaptureTask'
 import type { GobbySession } from './hooks/useSessions'
 
@@ -304,6 +305,8 @@ export default function App() {
         <AgentDefinitionsPage />
       ) : activeTab === 'skills' ? (
         <SkillsPage />
+      ) : activeTab === 'configuration' ? (
+        <ConfigurationPage />
       ) : (
         <ComingSoonPage title={navItems.find(i => i.id === activeTab)?.label ?? activeTab} />
       )}

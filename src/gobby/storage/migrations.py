@@ -745,6 +745,17 @@ CREATE UNIQUE INDEX idx_agent_defs_global_name
     ON agent_definitions(name) WHERE project_id IS NULL;
 CREATE INDEX idx_agent_defs_project ON agent_definitions(project_id);
 CREATE INDEX idx_agent_defs_provider ON agent_definitions(provider);
+
+CREATE TABLE secrets (
+    id TEXT PRIMARY KEY,
+    name TEXT NOT NULL UNIQUE,
+    encrypted_value TEXT NOT NULL,
+    category TEXT DEFAULT 'general',
+    description TEXT,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+);
+CREATE INDEX idx_secrets_category ON secrets(category);
 """
 
 # Future migrations (v61+)
@@ -1127,6 +1138,23 @@ MIGRATIONS: list[tuple[int, str, MigrationAction]] = [
             ON agent_definitions(name) WHERE project_id IS NULL;
         CREATE INDEX IF NOT EXISTS idx_agent_defs_project ON agent_definitions(project_id);
         CREATE INDEX IF NOT EXISTS idx_agent_defs_provider ON agent_definitions(provider);
+        """,
+    ),
+    # Secrets store: Encrypted API keys and sensitive values
+    (
+        93,
+        "Add secrets table",
+        """
+        CREATE TABLE IF NOT EXISTS secrets (
+            id TEXT PRIMARY KEY,
+            name TEXT NOT NULL UNIQUE,
+            encrypted_value TEXT NOT NULL,
+            category TEXT DEFAULT 'general',
+            description TEXT,
+            created_at TEXT NOT NULL,
+            updated_at TEXT NOT NULL
+        );
+        CREATE INDEX IF NOT EXISTS idx_secrets_category ON secrets(category);
         """,
     ),
 ]

@@ -399,6 +399,46 @@ class MCPClientManager:
 
         return health_status
 
+    def _resolve_secrets_in_config(self, config: MCPServerConfig) -> MCPServerConfig:
+        """Resolve $secret:NAME references in config headers and env.
+
+        Returns a copy with secrets resolved, leaving the original unchanged.
+        """
+        if not config.headers and not config.env:
+            return config
+
+        try:
+            from gobby.storage.secrets import SECRET_REF_PATTERN, SecretStore
+
+            has_refs = False
+            for d in (config.headers, config.env):
+                if d:
+                    for v in d.values():
+                        if SECRET_REF_PATTERN.search(v):
+                            has_refs = True
+                            break
+
+            if not has_refs:
+                return config
+
+            # Get database from mcp_db_manager
+            db = getattr(self.mcp_db_manager, "db", None) if self.mcp_db_manager else None
+            if not db:
+                return config
+
+            store = SecretStore(db)
+            import dataclasses
+
+            updates: dict[str, Any] = {}
+            if config.headers:
+                updates["headers"] = store.resolve_dict(config.headers)
+            if config.env:
+                updates["env"] = store.resolve_dict(config.env)
+            return dataclasses.replace(config, **updates)
+        except Exception as e:
+            logger.debug(f"Secret resolution skipped for {config.name}: {e}")
+            return config
+
     async def _connect_server(self, config: MCPServerConfig) -> ClientSession | None:
         """Connect to a single server."""
         # Ensure health record exists before we try to update it
@@ -408,11 +448,14 @@ class MCPClientManager:
             )
 
         try:
+            # Resolve $secret:NAME references in headers/env before connecting
+            resolved_config = self._resolve_secrets_in_config(config)
+
             # Create transport if doesn't exist or if config changed
             # (Simplification: always recreate for now if not connected)
             if config.name not in self._connections:
                 connection = create_transport_connection(
-                    config,
+                    resolved_config,
                     self._auth_token,
                     self._token_refresh_callback,
                 )
