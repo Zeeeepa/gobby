@@ -34,6 +34,7 @@ class CronScheduler:
         self._running = False
         self._check_task: asyncio.Task[None] | None = None
         self._cleanup_task: asyncio.Task[None] | None = None
+        self._active_tasks: set[asyncio.Task[None]] = set()
 
     async def start(self) -> None:
         """Start the scheduler loops."""
@@ -65,6 +66,9 @@ class CronScheduler:
             task.cancel()
         if tasks:
             await asyncio.gather(*tasks, return_exceptions=True)
+        # Wait for in-flight job executions to finish
+        if self._active_tasks:
+            await asyncio.gather(*self._active_tasks, return_exceptions=True)
         logger.info("Cron scheduler stopped")
 
     async def _check_loop(self) -> None:
@@ -132,11 +136,13 @@ class CronScheduler:
                 run = self.storage.create_run(job.id)
                 logger.info(f"Dispatching cron job {job.id} ({job.name}), run {run.id}")
 
-                # Fire and forget - let it run in the background
-                asyncio.create_task(
+                # Track background task to prevent GC and await on stop
+                task = asyncio.create_task(
                     self._execute_and_update(job, run),
                     name=f"cron-run-{run.id}",
                 )
+                self._active_tasks.add(task)
+                task.add_done_callback(self._active_tasks.discard)
             except Exception as e:
                 logger.error(f"Failed to dispatch cron job {job.id}: {e}", exc_info=True)
 
@@ -187,7 +193,12 @@ class CronScheduler:
         return delays[idx]
 
     async def run_now(self, job_id: str) -> CronRun | None:
-        """Trigger immediate execution of a job (bypasses schedule)."""
+        """Trigger immediate execution of a job (bypasses schedule).
+
+        The job executes in the background via create_task. The returned
+        CronRun will initially have status 'running'; poll the run or
+        check job.last_status for the final result.
+        """
         job = self.storage.get_job(job_id)
         if not job:
             return None
@@ -196,9 +207,11 @@ class CronScheduler:
         logger.info(f"Manual trigger: cron job {job.id} ({job.name}), run {run.id}")
 
         # Execute in background
-        asyncio.create_task(
+        task = asyncio.create_task(
             self._execute_and_update(job, run),
             name=f"cron-run-manual-{run.id}",
         )
+        self._active_tasks.add(task)
+        task.add_done_callback(self._active_tasks.discard)
 
         return run

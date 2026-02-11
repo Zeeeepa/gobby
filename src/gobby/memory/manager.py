@@ -204,34 +204,52 @@ class MemoryManager:
                 "error": "Embedding unavailable — no API key configured",
             }
 
-        memories = self.storage.list_memories(limit=10000)
-        if not memories:
-            return {"success": True, "total_memories": 0, "embeddings_generated": 0}
+        batch_size = 500
+        total_memories = 0
+        total_generated = 0
+        offset = 0
+        truncated = False
 
-        texts = [m.content for m in memories]
-        try:
-            embeddings = await generate_embeddings(texts, model=self.config.embedding_model)
-        except Exception as e:
-            logger.error(f"Batch embedding generation failed: {e}")
-            return {"success": False, "error": str(e)}
+        while True:
+            memories = self.storage.list_memories(limit=batch_size, offset=offset)
+            if not memories:
+                break
 
-        items = []
-        for memory, embedding in zip(memories, embeddings, strict=True):
-            items.append(
-                {
-                    "memory_id": memory.id,
-                    "project_id": memory.project_id,
-                    "embedding": embedding,
-                    "embedding_model": self.config.embedding_model,
-                    "text_hash": hashlib.sha256(memory.content.encode()).hexdigest(),
-                }
-            )
+            total_memories += len(memories)
+            if total_memories > 10000:
+                truncated = True
+                break
 
-        count = self._embedding_mgr.batch_store_embeddings(items)
+            texts = [m.content for m in memories]
+            try:
+                embeddings = await generate_embeddings(texts, model=self.config.embedding_model)
+            except Exception as e:
+                logger.error(f"Batch embedding generation failed at offset {offset}: {e}")
+                return {"success": False, "error": str(e)}
+
+            items = []
+            for memory, embedding in zip(memories, embeddings, strict=True):
+                items.append(
+                    {
+                        "memory_id": memory.id,
+                        "project_id": memory.project_id,
+                        "embedding": embedding,
+                        "embedding_model": self.config.embedding_model,
+                        "text_hash": hashlib.sha256(memory.content.encode()).hexdigest(),
+                    }
+                )
+
+            total_generated += self._embedding_mgr.batch_store_embeddings(items)
+            offset += batch_size
+
+            if len(memories) < batch_size:
+                break
+
         return {
             "success": True,
-            "total_memories": len(memories),
-            "embeddings_generated": count,
+            "total_memories": total_memories,
+            "embeddings_generated": total_generated,
+            "truncated": truncated,
         }
 
     def reindex_search(self) -> dict[str, Any]:
@@ -1026,31 +1044,39 @@ class MemoryManager:
         if not self._mem0_client:
             return 0
 
-        rows = self.db.fetchall(
-            "SELECT id, content, project_id FROM memories WHERE mem0_id IS NULL"
-        )
-        if not rows:
-            return 0
-
+        batch_size = 100
         synced = 0
-        for row in rows:
-            try:
-                result = await self._mem0_client.create(
-                    content=row["content"],
-                    project_id=row["project_id"],
-                    metadata={"gobby_id": row["id"]},
-                )
-                mem0_id = self._extract_mem0_id(result)
-                if mem0_id:
-                    self.db.execute(
-                        "UPDATE memories SET mem0_id = ? WHERE id = ?",
-                        (mem0_id, row["id"]),
+        offset = 0
+
+        while True:
+            rows = self.db.fetchall(
+                "SELECT id, content, project_id FROM memories WHERE mem0_id IS NULL LIMIT ? OFFSET ?",
+                (batch_size, offset),
+            )
+            if not rows:
+                break
+
+            for row in rows:
+                try:
+                    result = await self._mem0_client.create(
+                        content=row["content"],
+                        project_id=row["project_id"],
+                        metadata={"gobby_id": row["id"]},
                     )
-                    synced += 1
-            except Mem0ConnectionError as e:
-                logger.warning(f"Mem0 unreachable during lazy sync for {row['id']}: {e}")
-            except Exception as e:
-                logger.warning(f"Failed to sync memory {row['id']} to Mem0: {e}")
+                    mem0_id = self._extract_mem0_id(result)
+                    if mem0_id:
+                        self.db.execute(
+                            "UPDATE memories SET mem0_id = ? WHERE id = ?",
+                            (mem0_id, row["id"]),
+                        )
+                        synced += 1
+                except Mem0ConnectionError as e:
+                    logger.warning(f"Mem0 unreachable during lazy sync for {row['id']}: {e}")
+                    return synced  # Stop on connection errors
+                except Exception as e:
+                    logger.warning(f"Failed to sync memory {row['id']} to Mem0: {e}")
+
+            offset += batch_size
 
         return synced
 
