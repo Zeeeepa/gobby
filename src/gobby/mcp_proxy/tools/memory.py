@@ -67,6 +67,7 @@ def create_memory_registry(
         memory_type: str = "fact",
         importance: float = 0.8,
         tags: list[str] | None = None,
+        session_id: str | None = None,
     ) -> dict[str, Any]:
         """
         Create a new memory.
@@ -76,6 +77,7 @@ def create_memory_registry(
             memory_type: Type of memory (fact, preference, etc)
             importance: Importance score (0.0-1.0), defaults to 0.8
             tags: Optional list of tags
+            session_id: Session ID that created this memory (accepts #N, N, UUID, or prefix)
         """
         try:
             project_id = get_current_project_id()
@@ -86,6 +88,7 @@ def create_memory_registry(
                 project_id=project_id,
                 tags=tags,
                 source_type="mcp_tool",
+                source_session_id=session_id,
             )
 
             # Search for similar existing memories to surface potential duplicates

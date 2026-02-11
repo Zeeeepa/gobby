@@ -148,6 +148,22 @@ class TestCreateMemory:
         assert call_kwargs["tags"] == ["tag1", "tag2"]
 
     @pytest.mark.asyncio
+    async def test_create_memory_with_session_id(self, memory_registry, mock_memory_manager):
+        """Test memory creation passes source_session_id."""
+        mock_memory_manager.recall.return_value = []
+
+        with patch(
+            "gobby.utils.project_context.get_project_context", return_value={"id": "proj-1"}
+        ):
+            result = await memory_registry.call(
+                "create_memory", {"content": "Test", "session_id": "#42"}
+            )
+
+        assert result["success"] is True
+        call_kwargs = mock_memory_manager.remember.call_args.kwargs
+        assert call_kwargs["source_session_id"] == "#42"
+
+    @pytest.mark.asyncio
     async def test_create_memory_default_importance(self, memory_registry, mock_memory_manager):
         """Test that default importance is 0.8."""
         mock_memory_manager.recall.return_value = []
