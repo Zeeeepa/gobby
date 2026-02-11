@@ -25,6 +25,7 @@ function formatSchedule(job: CronJob): string {
 
 function formatRelativeTime(dateStr: string): string {
   const diff = Date.now() - new Date(dateStr).getTime()
+  if (diff < 0) return 'in the future'
   const mins = Math.floor(diff / 60000)
   if (mins < 1) return 'just now'
   if (mins < 60) return `${mins}m ago`
@@ -87,8 +88,15 @@ function CreateJobDialog({ onSubmit, onClose }: CreateDialogProps) {
       timezone,
     }
     if (description.trim()) req.description = description.trim()
-    if (scheduleType === 'cron') req.cron_expr = cronExpr
-    if (scheduleType === 'interval') req.interval_seconds = parseInt(intervalSeconds, 10)
+    if (scheduleType === 'cron') {
+      if (!cronExpr.trim()) return
+      req.cron_expr = cronExpr
+    }
+    if (scheduleType === 'interval') {
+      const parsed = parseInt(intervalSeconds, 10)
+      if (isNaN(parsed) || parsed <= 0) return
+      req.interval_seconds = parsed
+    }
 
     onSubmit(req)
   }

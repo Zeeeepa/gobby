@@ -188,6 +188,7 @@ export function ChatInput({
             onChange={(e) => onProjectChange?.(e.target.value)}
             title="Select project context"
           >
+            <option value="">No project</option>
             {projects.map((p) => (
               <option key={p.id} value={p.id}>{p.name}</option>
             ))}

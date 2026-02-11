@@ -44,8 +44,10 @@ function formatRelativeDate(dateStr: string): string {
 function getDateGroup(dateStr: string): string {
   const date = new Date(dateStr)
   const now = new Date()
-  const diffMs = now.getTime() - date.getTime()
-  const diffDays = Math.floor(diffMs / 86400000)
+  // Normalize to midnight for consistent day grouping
+  const dateDay = new Date(date.getFullYear(), date.getMonth(), date.getDate())
+  const nowDay = new Date(now.getFullYear(), now.getMonth(), now.getDate())
+  const diffDays = Math.floor((nowDay.getTime() - dateDay.getTime()) / 86400000)
 
   if (diffDays === 0) return 'Today'
   if (diffDays === 1) return 'Yesterday'
