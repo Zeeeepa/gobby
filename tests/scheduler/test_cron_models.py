@@ -6,7 +6,11 @@ import json
 from datetime import datetime, timezone
 from unittest.mock import MagicMock
 
+import pytest
+
 from gobby.storage.cron_models import CronJob, CronRun
+
+pytestmark = pytest.mark.unit
 
 
 # --- croniter dependency tests (#7618) ---

@@ -7,6 +7,7 @@ from unittest.mock import AsyncMock, MagicMock
 import pytest
 
 from gobby.mcp_proxy.tools.cron import create_cron_registry
+from gobby.mcp_proxy.tools.internal import InternalToolRegistry
 from gobby.storage.cron import CronJobStorage
 from gobby.storage.cron_models import CronJob, CronRun
 
@@ -15,7 +16,7 @@ pytestmark = pytest.mark.unit
 PROJECT_ID = "00000000-0000-0000-0000-000000000000"
 
 
-def _make_job(**overrides) -> CronJob:
+def _make_job(**overrides: object) -> CronJob:
     defaults = {
         "id": "cj-abc123",
         "project_id": PROJECT_ID,
@@ -40,7 +41,7 @@ def _make_job(**overrides) -> CronJob:
     return CronJob(**defaults)
 
 
-def _make_run(**overrides) -> CronRun:
+def _make_run(**overrides: object) -> CronRun:
     defaults = {
         "id": "cr-run123",
         "cron_job_id": "cj-abc123",
@@ -71,7 +72,7 @@ def mock_scheduler() -> MagicMock:
 
 
 @pytest.fixture
-def registry(mock_storage, mock_scheduler):
+def registry(mock_storage: MagicMock, mock_scheduler: MagicMock) -> InternalToolRegistry:
     return create_cron_registry(cron_storage=mock_storage, cron_scheduler=mock_scheduler)
 
 

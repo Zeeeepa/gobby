@@ -234,7 +234,7 @@ class TestMemoryRecallCommand:
         result = runner.invoke(cli, ["memory", "recall", "test"])
 
         assert result.exit_code == 0
-        assert "mem-1234" in result.output
+        assert "[mem-1234]" in result.output
         assert "fact" in result.output
         assert "[tag1, tag2]" in result.output
 
@@ -305,7 +305,7 @@ class TestMemoryListCommand:
         result = runner.invoke(cli, ["memory", "list"])
 
         assert result.exit_code == 0
-        assert "mem-1234" in result.output
+        assert "[mem-1234]" in result.output
         assert "preference" in result.output
         assert "..." in result.output  # Truncated content
 
