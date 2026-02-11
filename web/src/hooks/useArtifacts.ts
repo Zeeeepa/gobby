@@ -283,13 +283,17 @@ export function useArtifacts() {
     }
   }, [hasMore, isLoading, fetchArtifacts])
 
-  // Fetch on mount and when filters change
+  // Fetch artifacts on mount and when filters change
   useEffect(() => {
     setIsLoading(true)
     offsetRef.current = 0
     fetchArtifacts()
+  }, [fetchArtifacts])
+
+  // Fetch stats on mount and when project filter changes
+  useEffect(() => {
     fetchStats()
-  }, [fetchArtifacts, fetchStats])
+  }, [fetchStats])
 
   // Handle search filter changes
   useEffect(() => {

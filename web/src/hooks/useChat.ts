@@ -152,15 +152,15 @@ export function useChat() {
   const [conversationId, setConversationId] = useState<string>(conversationIdRef.current)
 
   // Run migration once on first load
-  const migrated = useRef(false)
-  if (!migrated.current) {
+  useEffect(() => {
     migrateOldStorage(conversationIdRef.current)
-    migrated.current = true
-  }
+  }, [])
 
   const [messages, setMessages] = useState<ChatMessage[]>(() =>
     loadMessagesForConversation(conversationIdRef.current)
   )
+  const messagesRef = useRef(messages)
+  messagesRef.current = messages
   const [isConnected, setIsConnected] = useState(false)
   const [isStreaming, setIsStreaming] = useState(false)
   const [isThinking, setIsThinking] = useState(false)
@@ -475,7 +475,7 @@ export function useChat() {
 
     // Save current conversation's messages before switching (explicit save)
     if (conversationIdRef.current) {
-      saveMessagesForConversation(conversationIdRef.current, messages)
+      saveMessagesForConversation(conversationIdRef.current, messagesRef.current)
     }
 
     conversationIdRef.current = id
@@ -485,12 +485,12 @@ export function useChat() {
     // Load messages for the target conversation
     const loaded = loadMessagesForConversation(id)
     setMessages(loaded)
-  }, [messages])
+  }, [])
 
   // Start a new chat conversation
   const startNewChat = useCallback(() => {
     // Save current messages before switching
-    saveMessagesForConversation(conversationIdRef.current, messages)
+    saveMessagesForConversation(conversationIdRef.current, messagesRef.current)
 
     const newId = uuid()
     conversationIdRef.current = newId
@@ -501,12 +501,12 @@ export function useChat() {
     activeRequestIdRef.current = null
     setIsStreaming(false)
     setIsThinking(false)
-  }, [messages])
+  }, [])
 
   // Resume a CLI session (e.g., Claude) — sets the conversation ID
   // so the next message triggers server-side resume
   const resumeSession = useCallback((externalId: string) => {
-    saveMessagesForConversation(conversationIdRef.current, messages)
+    saveMessagesForConversation(conversationIdRef.current, messagesRef.current)
 
     conversationIdRef.current = externalId
     setConversationId(externalId)
@@ -524,7 +524,7 @@ export function useChat() {
     activeRequestIdRef.current = null
     setIsStreaming(false)
     setIsThinking(false)
-  }, [messages])
+  }, [])
 
   // Clear chat history — notifies backend to teardown session, then resets frontend
   const clearHistory = useCallback(() => {
@@ -544,7 +544,7 @@ export function useChat() {
     const newId = uuid()
     conversationIdRef.current = newId
     setConversationId(newId)
-    localStorage.removeItem(CONVERSATION_ID_KEY)
+    saveConversationId(newId)
   }, [])
 
   // Stop the current streaming response
