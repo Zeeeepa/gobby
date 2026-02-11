@@ -31,7 +31,7 @@ logger = logging.getLogger(__name__)
 
 
 if TYPE_CHECKING:
-    from gobby.sessions.manager import LocalSessionManager
+    from gobby.storage.sessions import LocalSessionManager
 
 
 class WebSocketServer(TmuxMixin, ChatMixin, HandlerMixin, AuthMixin, BroadcastMixin):

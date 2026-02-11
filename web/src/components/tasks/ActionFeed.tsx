@@ -95,6 +95,20 @@ function previewResult(resultStr: string | null): string | null {
   }
 }
 
+/** Check if a tool result indicates an error using JSON parsing with string fallback. */
+function isErrorResult(resultStr: string | null): boolean {
+  if (!resultStr) return false
+  try {
+    const parsed = JSON.parse(resultStr)
+    if (typeof parsed === 'object' && parsed !== null) {
+      return 'error' in parsed || parsed.success === false
+    }
+  } catch {
+    // Not JSON — fall back to string check
+  }
+  return resultStr.includes('"error"')
+}
+
 function toActions(messages: SessionMessage[]): ActionEntry[] {
   return messages
     .filter(m => m.tool_name)
@@ -102,7 +116,7 @@ function toActions(messages: SessionMessage[]): ActionEntry[] {
       toolName: m.tool_name!,
       description: describeAction(m.tool_name!, m.tool_input),
       resultPreview: previewResult(m.tool_result),
-      success: !m.tool_result?.includes('"error"'),
+      success: !isErrorResult(m.tool_result),
       timestamp: m.timestamp,
       riskLevel: classifyRisk(m.tool_name!, m.tool_input),
     }))
