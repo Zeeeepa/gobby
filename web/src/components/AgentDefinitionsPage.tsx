@@ -8,6 +8,10 @@ interface AgentDefInfo {
   definition: {
     name: string
     description: string | null
+    role: string | null
+    goal: string | null
+    personality: string | null
+    instructions: string | null
     provider: string
     model: string | null
     mode: string
@@ -41,6 +45,10 @@ interface WorkflowSummary {
 interface CreateFormData {
   name: string
   description: string
+  role: string
+  goal: string
+  personality: string
+  instructions: string
   provider: string
   model: string
   mode: string
@@ -111,8 +119,8 @@ export function AgentDefinitionsPage() {
   const [importingName, setImportingName] = useState<string | null>(null)
   const [importResult, setImportResult] = useState<{ name: string; ok: boolean } | null>(null)
   const [createForm, setCreateForm] = useState<CreateFormData>({
-    name: '', description: '', provider: 'claude', model: '',
-    mode: 'headless', terminal: 'auto', isolation: '',
+    name: '', description: '', role: '', goal: '', personality: '', instructions: '',
+    provider: 'claude', model: '', mode: 'headless', terminal: 'auto', isolation: '',
     base_branch: 'main', timeout: 120, max_turns: 10,
   })
 
@@ -160,6 +168,10 @@ export function AgentDefinitionsPage() {
         max_turns: createForm.max_turns,
       }
       if (createForm.description) body.description = createForm.description
+      if (createForm.role) body.role = createForm.role
+      if (createForm.goal) body.goal = createForm.goal
+      if (createForm.personality) body.personality = createForm.personality
+      if (createForm.instructions) body.instructions = createForm.instructions
       if (createForm.model) body.model = createForm.model
       if (createForm.isolation) body.isolation = createForm.isolation
 
@@ -171,8 +183,8 @@ export function AgentDefinitionsPage() {
       if (res.ok) {
         setShowCreateForm(false)
         setCreateForm({
-          name: '', description: '', provider: 'claude', model: '',
-          mode: 'headless', terminal: 'auto', isolation: '',
+          name: '', description: '', role: '', goal: '', personality: '', instructions: '',
+          provider: 'claude', model: '', mode: 'headless', terminal: 'auto', isolation: '',
           base_branch: 'main', timeout: 120, max_turns: 10,
         })
         fetchDefinitions()
@@ -192,6 +204,10 @@ export function AgentDefinitionsPage() {
     } catch (e) {
       console.error('Failed to delete agent definition:', e)
     }
+  }
+
+  const handleExport = (name: string) => {
+    window.open(`${getBaseUrl()}/api/agents/definitions/${name}/export`, '_blank')
   }
 
   const handleImport = async (name: string) => {
@@ -345,6 +361,39 @@ export function AgentDefinitionsPage() {
                 placeholder="What this agent does..."
               />
             </label>
+            <label>
+              <span>Role</span>
+              <input
+                value={createForm.role}
+                onChange={e => setCreateForm(f => ({ ...f, role: e.target.value }))}
+                placeholder="e.g. Senior security engineer"
+              />
+            </label>
+            <label>
+              <span>Goal</span>
+              <input
+                value={createForm.goal}
+                onChange={e => setCreateForm(f => ({ ...f, goal: e.target.value }))}
+                placeholder="What success looks like..."
+              />
+            </label>
+            <label>
+              <span>Personality</span>
+              <input
+                value={createForm.personality}
+                onChange={e => setCreateForm(f => ({ ...f, personality: e.target.value }))}
+                placeholder="Communication style, tone..."
+              />
+            </label>
+            <label className="agent-defs-form-wide">
+              <span>Instructions</span>
+              <textarea
+                value={createForm.instructions}
+                onChange={e => setCreateForm(f => ({ ...f, instructions: e.target.value }))}
+                placeholder="Detailed rules, constraints, approach..."
+                rows={3}
+              />
+            </label>
           </div>
           <div className="agent-defs-form-actions">
             <button className="agent-defs-btn" onClick={() => setShowCreateForm(false)}>Cancel</button>
@@ -445,6 +494,9 @@ export function AgentDefinitionsPage() {
                       {d.default_workflow && (
                         <PropRow label="Default workflow" value={d.default_workflow} />
                       )}
+                      {d.role && <PropRow label="Role" value={d.role} />}
+                      {d.goal && <PropRow label="Goal" value={d.goal} />}
+                      {d.personality && <PropRow label="Personality" value={d.personality} />}
                     </div>
 
                     {/* Full description */}
@@ -452,6 +504,14 @@ export function AgentDefinitionsPage() {
                       <div className="agent-def-section">
                         <div className="agent-def-section-title">Description</div>
                         <pre className="agent-def-description-full">{d.description}</pre>
+                      </div>
+                    )}
+
+                    {/* Instructions */}
+                    {d.instructions && (
+                      <div className="agent-def-section">
+                        <div className="agent-def-section-title">Instructions</div>
+                        <pre className="agent-def-description-full">{d.instructions}</pre>
                       </div>
                     )}
 
@@ -505,6 +565,13 @@ export function AgentDefinitionsPage() {
 
                     {/* Actions */}
                     <div className="agent-def-actions">
+                      <button
+                        className="agent-defs-btn"
+                        onClick={() => handleExport(d.name)}
+                        title="Download as YAML file"
+                      >
+                        Export YAML
+                      </button>
                       {isDb && item.db_id && (
                         <button
                           className="agent-defs-btn agent-defs-btn--danger"

@@ -30,6 +30,10 @@ class AgentDefinitionRow:
     updated_at: str
     project_id: str | None = None
     description: str | None = None
+    role: str | None = None
+    goal: str | None = None
+    personality: str | None = None
+    instructions: str | None = None
     model: str | None = None
     isolation: str | None = None
     default_workflow: str | None = None
@@ -55,6 +59,10 @@ class AgentDefinitionRow:
             project_id=row["project_id"],
             name=row["name"],
             description=row["description"],
+            role=row["role"],
+            goal=row["goal"],
+            personality=row["personality"],
+            instructions=row["instructions"],
             provider=row["provider"],
             model=row["model"],
             mode=row["mode"],
@@ -80,6 +88,10 @@ class AgentDefinitionRow:
             "project_id": self.project_id,
             "name": self.name,
             "description": self.description,
+            "role": self.role,
+            "goal": self.goal,
+            "personality": self.personality,
+            "instructions": self.instructions,
             "provider": self.provider,
             "model": self.model,
             "mode": self.mode,
@@ -111,6 +123,10 @@ class LocalAgentDefinitionManager:
         name: str,
         project_id: str | None = None,
         description: str | None = None,
+        role: str | None = None,
+        goal: str | None = None,
+        personality: str | None = None,
+        instructions: str | None = None,
         provider: str = "claude",
         model: str | None = None,
         mode: str = "headless",
@@ -135,18 +151,23 @@ class LocalAgentDefinitionManager:
                 """
                 INSERT INTO agent_definitions (
                     id, project_id, name, description,
+                    role, goal, personality, instructions,
                     provider, model, mode, terminal, isolation, base_branch,
                     timeout, max_turns, default_workflow,
                     sandbox_config, skill_profile, workflows,
                     lifecycle_variables, default_variables,
                     enabled, created_at, updated_at
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?)
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?)
                 """,
                 (
                     definition_id,
                     project_id,
                     name,
                     description,
+                    role,
+                    goal,
+                    personality,
+                    instructions,
                     provider,
                     model,
                     mode,
@@ -170,16 +191,12 @@ class LocalAgentDefinitionManager:
 
     def get(self, definition_id: str) -> AgentDefinitionRow:
         """Get an agent definition by primary key."""
-        row = self.db.fetchone(
-            "SELECT * FROM agent_definitions WHERE id = ?", (definition_id,)
-        )
+        row = self.db.fetchone("SELECT * FROM agent_definitions WHERE id = ?", (definition_id,))
         if not row:
             raise ValueError(f"Agent definition {definition_id} not found")
         return AgentDefinitionRow.from_row(row)
 
-    def get_by_name(
-        self, name: str, project_id: str | None = None
-    ) -> AgentDefinitionRow | None:
+    def get_by_name(self, name: str, project_id: str | None = None) -> AgentDefinitionRow | None:
         """Get an agent definition by name and scope (project first, then global)."""
         if project_id:
             row = self.db.fetchone(
@@ -221,9 +238,7 @@ class LocalAgentDefinitionManager:
     def delete(self, definition_id: str) -> bool:
         """Delete an agent definition from the database."""
         with self.db.transaction() as conn:
-            cursor = conn.execute(
-                "DELETE FROM agent_definitions WHERE id = ?", (definition_id,)
-            )
+            cursor = conn.execute("DELETE FROM agent_definitions WHERE id = ?", (definition_id,))
             return cursor.rowcount > 0
 
     def list_by_project(self, project_id: str) -> list[AgentDefinitionRow]:
@@ -273,14 +288,16 @@ class LocalAgentDefinitionManager:
             }
 
         sandbox_dict = agent_def.sandbox.model_dump() if agent_def.sandbox else None
-        skill_dict = (
-            agent_def.skill_profile.model_dump() if agent_def.skill_profile else None
-        )
+        skill_dict = agent_def.skill_profile.model_dump() if agent_def.skill_profile else None
 
         return self.create(
             name=agent_def.name,
             project_id=project_id,
             description=agent_def.description,
+            role=agent_def.role,
+            goal=agent_def.goal,
+            personality=agent_def.personality,
+            instructions=agent_def.instructions,
             provider=agent_def.provider,
             model=agent_def.model,
             mode=agent_def.mode,
@@ -313,6 +330,14 @@ class LocalAgentDefinitionManager:
         }
         if row.description:
             data["description"] = row.description
+        if row.role:
+            data["role"] = row.role
+        if row.goal:
+            data["goal"] = row.goal
+        if row.personality:
+            data["personality"] = row.personality
+        if row.instructions:
+            data["instructions"] = row.instructions
         if row.model:
             data["model"] = row.model
         if row.isolation:

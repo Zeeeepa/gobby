@@ -51,6 +51,44 @@ class TestAgentDefinitionRow:
         assert d["description"] == "A test agent"
 
 
+class TestBuildPromptPreamble:
+    """Tests for AgentDefinition.build_prompt_preamble()."""
+
+    def test_all_fields_set(self) -> None:
+        from gobby.agents.definitions import AgentDefinition
+
+        defn = AgentDefinition(
+            name="test",
+            role="Security engineer",
+            goal="Find vulnerabilities",
+            personality="Concise and direct",
+            instructions="Check OWASP top 10",
+        )
+        result = defn.build_prompt_preamble()
+        assert result is not None
+        assert "## Role\nSecurity engineer" in result
+        assert "## Goal\nFind vulnerabilities" in result
+        assert "## Personality\nConcise and direct" in result
+        assert "## Instructions\nCheck OWASP top 10" in result
+
+    def test_partial_fields(self) -> None:
+        from gobby.agents.definitions import AgentDefinition
+
+        defn = AgentDefinition(name="test", role="Dev agent", instructions="Write tests")
+        result = defn.build_prompt_preamble()
+        assert result is not None
+        assert "## Role\nDev agent" in result
+        assert "## Instructions\nWrite tests" in result
+        assert "## Goal" not in result
+        assert "## Personality" not in result
+
+    def test_no_fields_returns_none(self) -> None:
+        from gobby.agents.definitions import AgentDefinition
+
+        defn = AgentDefinition(name="test")
+        assert defn.build_prompt_preamble() is None
+
+
 class TestLocalAgentDefinitionManager:
     """Tests for CRUD operations."""
 
@@ -317,6 +355,63 @@ class TestLocalAgentDefinitionManager:
         mgr.create(name="dup-global")
         with pytest.raises(Exception):
             mgr.create(name="dup-global")
+
+    def test_create_with_prompt_fields(self, tmp_path: Path) -> None:
+        """Verify role/goal/personality/instructions are stored and retrieved."""
+        db = _setup_db(tmp_path)
+        mgr = LocalAgentDefinitionManager(db)
+
+        row = mgr.create(
+            name="persona-agent",
+            role="Senior security engineer",
+            goal="Every PR reviewed for OWASP top 10 vulnerabilities",
+            personality="Ultra-succinct. Speaks in file paths.",
+            instructions="Review all changed files. Check for bugs.",
+        )
+
+        assert row.role == "Senior security engineer"
+        assert row.goal == "Every PR reviewed for OWASP top 10 vulnerabilities"
+        assert row.personality == "Ultra-succinct. Speaks in file paths."
+        assert row.instructions == "Review all changed files. Check for bugs."
+
+        # Verify persistence via fresh fetch
+        fetched = mgr.get(row.id)
+        assert fetched.role == row.role
+        assert fetched.goal == row.goal
+        assert fetched.personality == row.personality
+        assert fetched.instructions == row.instructions
+
+        # Verify to_dict includes fields
+        d = fetched.to_dict()
+        assert d["role"] == "Senior security engineer"
+        assert d["goal"] == "Every PR reviewed for OWASP top 10 vulnerabilities"
+        assert d["personality"] == "Ultra-succinct. Speaks in file paths."
+        assert d["instructions"] == "Review all changed files. Check for bugs."
+
+    def test_import_export_roundtrip_with_prompt_fields(self, tmp_path: Path) -> None:
+        """Verify role/goal/personality/instructions survive import/export roundtrip."""
+        from gobby.agents.definitions import AgentDefinition
+
+        db = _setup_db(tmp_path)
+        mgr = LocalAgentDefinitionManager(db)
+
+        original = AgentDefinition(
+            name="roundtrip-prompts",
+            provider="claude",
+            mode="headless",
+            role="QA specialist",
+            goal="Ship quality, not perfection",
+            personality="Thorough but pragmatic",
+            instructions="Fix issues in-place. Run tests after fixes.",
+        )
+
+        row = mgr.import_from_definition(original)
+        exported = mgr.export_to_definition(row.id)
+
+        assert exported.role == original.role
+        assert exported.goal == original.goal
+        assert exported.personality == original.personality
+        assert exported.instructions == original.instructions
 
     def test_same_name_different_scopes(self, tmp_path: Path) -> None:
         """Same name in project vs global should be allowed."""

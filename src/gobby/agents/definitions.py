@@ -115,6 +115,12 @@ class AgentDefinition(BaseModel):
     name: str
     description: str | None = None
 
+    # Structured prompt fields (composed into preamble at spawn time)
+    role: str | None = None  # One-liner identity/persona
+    goal: str | None = None  # What success looks like
+    personality: str | None = None  # Communication style, tone, anti-patterns
+    instructions: str | None = None  # Detailed rules, constraints, approach
+
     # Execution parameters
     model: str | None = None
     mode: str = "headless"  # Default to headless for stability
@@ -254,14 +260,25 @@ class AgentDefinition(BaseModel):
 
         return None
 
+    def build_prompt_preamble(self) -> str | None:
+        """Build structured prompt preamble from role/goal/personality/instructions."""
+        parts = []
+        if self.role:
+            parts.append(f"## Role\n{self.role}")
+        if self.goal:
+            parts.append(f"## Goal\n{self.goal}")
+        if self.personality:
+            parts.append(f"## Personality\n{self.personality}")
+        if self.instructions:
+            parts.append(f"## Instructions\n{self.instructions}")
+        return "\n\n".join(parts) if parts else None
+
 
 class AgentDefinitionInfo(BaseModel):
     """Wrapper that pairs an AgentDefinition with its source metadata."""
 
     definition: AgentDefinition
-    source: Literal[
-        "project-file", "user-file", "built-in-file", "project-db", "global-db"
-    ]
+    source: Literal["project-file", "user-file", "built-in-file", "project-db", "global-db"]
     source_path: str | None = None  # filesystem path for file sources
     db_id: str | None = None  # database ID for DB sources
     overridden_by: str | None = None  # if a higher-priority source shadows this
@@ -365,9 +382,7 @@ class AgentDefinitionLoader:
                 continue
         return None
 
-    def load(
-        self, name: str, project_id: str | None = None
-    ) -> AgentDefinition | None:
+    def load(self, name: str, project_id: str | None = None) -> AgentDefinition | None:
         """
         Load an agent definition by name.
 
@@ -395,9 +410,7 @@ class AgentDefinitionLoader:
 
                 return AgentDefinition(**data)
             except Exception as e:
-                logger.error(
-                    f"Failed to load agent definition '{name}' from {path}: {e}"
-                )
+                logger.error(f"Failed to load agent definition '{name}' from {path}: {e}")
                 return None
 
         # Fall back to database
@@ -413,9 +426,7 @@ class AgentDefinitionLoader:
                     defn: AgentDefinition = mgr.export_to_definition(row.id)
                     return defn
             except Exception as e:
-                logger.error(
-                    f"Failed to load agent definition '{name}' from DB: {e}"
-                )
+                logger.error(f"Failed to load agent definition '{name}' from DB: {e}")
 
         logger.debug(f"Agent definition '{name}' not found")
         return None
@@ -447,13 +458,9 @@ class AgentDefinitionLoader:
                     source_path=str(yaml_file),
                 )
             except Exception as e:
-                logger.warning(
-                    f"Failed to load agent definition from {yaml_file}: {e}"
-                )
+                logger.warning(f"Failed to load agent definition from {yaml_file}: {e}")
 
-    def list_all(
-        self, project_id: str | None = None
-    ) -> list[AgentDefinitionInfo]:
+    def list_all(self, project_id: str | None = None) -> list[AgentDefinitionInfo]:
         """
         List all agent definitions from all sources, merged by priority.
 

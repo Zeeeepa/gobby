@@ -8,7 +8,9 @@ Provides endpoints for viewing and managing agent definitions
 import logging
 from typing import TYPE_CHECKING, Any
 
+import yaml
 from fastapi import APIRouter, HTTPException, Query
+from fastapi.responses import Response
 from pydantic import BaseModel
 
 from gobby.utils.metrics import get_metrics_collector
@@ -25,6 +27,10 @@ class CreateAgentDefinitionRequest(BaseModel):
     name: str
     project_id: str | None = None
     description: str | None = None
+    role: str | None = None
+    goal: str | None = None
+    personality: str | None = None
+    instructions: str | None = None
     provider: str = "claude"
     model: str | None = None
     mode: str = "headless"
@@ -46,6 +52,10 @@ class UpdateAgentDefinitionRequest(BaseModel):
 
     name: str | None = None
     description: str | None = None
+    role: str | None = None
+    goal: str | None = None
+    personality: str | None = None
+    instructions: str | None = None
     provider: str | None = None
     model: str | None = None
     mode: str | None = None
@@ -104,6 +114,47 @@ def create_agents_router(server: "HTTPServer") -> APIRouter:
             logger.error(f"Error listing agent definitions: {e}", exc_info=True)
             raise HTTPException(status_code=500, detail=str(e)) from e
 
+    @router.get("/definitions/{name}/export")
+    async def export_definition(
+        name: str,
+        project_id: str | None = Query(None),
+    ) -> Response:
+        """Export an agent definition as YAML for download."""
+        metrics.inc_counter("http_requests_total")
+        try:
+            loader = _get_loader()
+            items = loader.list_all(project_id=project_id)
+            match = next((i for i in items if i.definition.name == name), None)
+            if not match:
+                raise HTTPException(status_code=404, detail=f"Agent definition '{name}' not found")
+
+            # For file-based agents, read the original YAML (preserves comments)
+            if match.source_path:
+                from pathlib import Path
+
+                source = Path(match.source_path)
+                if source.exists():
+                    yaml_content = source.read_text(encoding="utf-8")
+                else:
+                    # Fall back to model serialization
+                    data = match.definition.model_dump(exclude_none=True)
+                    yaml_content = yaml.dump(data, default_flow_style=False, sort_keys=False)
+            else:
+                # DB-backed: serialize from model
+                data = match.definition.model_dump(exclude_none=True)
+                yaml_content = yaml.dump(data, default_flow_style=False, sort_keys=False)
+
+            return Response(
+                content=yaml_content,
+                media_type="application/x-yaml",
+                headers={"Content-Disposition": f'attachment; filename="{name}.yaml"'},
+            )
+        except HTTPException:
+            raise
+        except Exception as e:
+            logger.error(f"Error exporting agent definition '{name}': {e}", exc_info=True)
+            raise HTTPException(status_code=500, detail=str(e)) from e
+
     @router.get("/definitions/{name}")
     async def get_definition(
         name: str,
@@ -116,16 +167,12 @@ def create_agents_router(server: "HTTPServer") -> APIRouter:
             items = loader.list_all(project_id=project_id)
             match = next((i for i in items if i.definition.name == name), None)
             if not match:
-                raise HTTPException(
-                    status_code=404, detail=f"Agent definition '{name}' not found"
-                )
+                raise HTTPException(status_code=404, detail=f"Agent definition '{name}' not found")
             return {"status": "success", "definition": match.to_api_dict()}
         except HTTPException:
             raise
         except Exception as e:
-            logger.error(
-                f"Error getting agent definition '{name}': {e}", exc_info=True
-            )
+            logger.error(f"Error getting agent definition '{name}': {e}", exc_info=True)
             raise HTTPException(status_code=500, detail=str(e)) from e
 
     @router.post("/definitions")
@@ -140,6 +187,10 @@ def create_agents_router(server: "HTTPServer") -> APIRouter:
                 name=request.name,
                 project_id=request.project_id,
                 description=request.description,
+                role=request.role,
+                goal=request.goal,
+                personality=request.personality,
+                instructions=request.instructions,
                 provider=request.provider,
                 model=request.model,
                 mode=request.mode,
@@ -221,9 +272,7 @@ def create_agents_router(server: "HTTPServer") -> APIRouter:
         except HTTPException:
             raise
         except Exception as e:
-            logger.error(
-                f"Error importing agent definition '{name}': {e}", exc_info=True
-            )
+            logger.error(f"Error importing agent definition '{name}': {e}", exc_info=True)
             raise HTTPException(status_code=500, detail=str(e)) from e
 
     return router

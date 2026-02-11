@@ -721,6 +721,10 @@ CREATE TABLE agent_definitions (
     project_id TEXT REFERENCES projects(id) ON DELETE CASCADE,
     name TEXT NOT NULL,
     description TEXT,
+    role TEXT,
+    goal TEXT,
+    personality TEXT,
+    instructions TEXT,
     provider TEXT NOT NULL DEFAULT 'claude',
     model TEXT,
     mode TEXT NOT NULL DEFAULT 'headless',
@@ -894,6 +898,21 @@ def _migrate_add_title_task_id_to_artifacts(db: LocalDatabase) -> None:
             "CREATE INDEX IF NOT EXISTS idx_session_artifacts_task ON session_artifacts(task_id)"
         )
     logger.info("Added title and task_id columns to session_artifacts")
+
+
+def _migrate_agent_definition_prompt_fields(db: LocalDatabase) -> None:
+    """Add role, goal, personality, instructions columns to agent_definitions (idempotent)."""
+    columns = {row["name"] for row in db.fetchall("PRAGMA table_info(agent_definitions)")}
+    with db.transaction() as conn:
+        if "role" not in columns:
+            conn.execute("ALTER TABLE agent_definitions ADD COLUMN role TEXT")
+        if "goal" not in columns:
+            conn.execute("ALTER TABLE agent_definitions ADD COLUMN goal TEXT")
+        if "personality" not in columns:
+            conn.execute("ALTER TABLE agent_definitions ADD COLUMN personality TEXT")
+        if "instructions" not in columns:
+            conn.execute("ALTER TABLE agent_definitions ADD COLUMN instructions TEXT")
+    logger.info("Added role, goal, personality, instructions columns to agent_definitions")
 
 
 MIGRATIONS: list[tuple[int, str, MigrationAction]] = [
@@ -1156,6 +1175,12 @@ MIGRATIONS: list[tuple[int, str, MigrationAction]] = [
         );
         CREATE INDEX IF NOT EXISTS idx_secrets_category ON secrets(category);
         """,
+    ),
+    # Agent definition prompt fields: role, goal, personality, instructions
+    (
+        94,
+        "Add role, goal, personality, instructions columns to agent_definitions",
+        _migrate_agent_definition_prompt_fields,
     ),
 ]
 

@@ -472,7 +472,13 @@ async def spawn_agent_impl(
                 f"Added main repo path {main_repo_path} to sandbox read/write paths for worktree"
             )
 
-    # 8. Build enhanced prompt with isolation context
+    # 8. Prepend agent definition prompt preamble (role/goal/personality/instructions)
+    if agent_def:
+        preamble = agent_def.build_prompt_preamble()
+        if preamble:
+            prompt = f"{preamble}\n\n---\n\n{prompt}"
+
+    # 8b. Build enhanced prompt with isolation context
     enhanced_prompt = handler.build_context_prompt(prompt, isolation_ctx)
 
     # 9. Generate session and run IDs
