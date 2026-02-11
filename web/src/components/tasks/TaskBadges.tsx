@@ -64,6 +64,7 @@ export function StatusDot({ status }: { status: string }) {
       className="task-badge-dot task-badge-dot--standalone"
       style={{ backgroundColor: STATUS_COLORS[status] || '#737373' }}
       title={status.replace(/_/g, ' ')}
+      aria-label={`Status: ${status.replace(/_/g, ' ')}`}
     />
   )
 }
@@ -109,7 +110,7 @@ function LockIcon() {
 
 export function BlockedIndicator({ count }: { count?: number }) {
   return (
-    <span className="task-badge task-badge--blocked" title={`Blocked by ${count ?? '?'} task(s)`}>
+    <span className="task-badge task-badge--blocked" title={`Blocked by ${count ?? '?'} task(s)`} aria-label={`Blocked by ${count ?? 'unknown'} task(s)`}>
       <LockIcon />
       {count !== undefined && count > 0 && <span>{count}</span>}
     </span>
