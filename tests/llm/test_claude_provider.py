@@ -279,7 +279,7 @@ async def test_generate_text_api_key_mode(api_key_config):
         text = await provider.generate_text("test prompt", system_prompt="Be helpful")
         assert text == "LiteLLM generated text"
         assert mock_litellm.call_count == 1
-        assert mock_litellm.last_call_args["model"] == "anthropic/claude-haiku-4-5"
+        assert mock_litellm.last_call_args["model"] == "anthropic/claude-haiku-4-5-20251001"
 
 
 @pytest.mark.asyncio

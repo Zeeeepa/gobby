@@ -213,11 +213,17 @@ class ClaudeLLMProvider(LLMProvider):
     ) -> str:
         """
         Generate session summary using Claude.
+
+        Always tries SDK first (works with any auth_mode if CLI is available),
+        falls back to LiteLLM only if CLI is unavailable.
         """
-        if self._auth_mode == "subscription":
+        cli_path = self._verify_cli_path()
+        if cli_path:
             return await self._generate_summary_sdk(context, prompt_template)
-        else:
+        elif self._litellm:
             return await self._generate_summary_litellm(context, prompt_template)
+        else:
+            return "Session summary unavailable (no LLM backend configured)"
 
     async def _generate_summary_sdk(
         self, context: dict[str, Any], prompt_template: str | None = None
@@ -287,11 +293,16 @@ class ClaudeLLMProvider(LLMProvider):
     ) -> str | None:
         """
         Synthesize session title using Claude.
+
+        Always tries SDK first, falls back to LiteLLM only if CLI is unavailable.
         """
-        if self._auth_mode == "subscription":
+        cli_path = self._verify_cli_path()
+        if cli_path:
             return await self._synthesize_title_sdk(user_prompt, prompt_template)
-        else:
+        elif self._litellm:
             return await self._synthesize_title_litellm(user_prompt, prompt_template)
+        else:
+            return None
 
     async def _synthesize_title_sdk(
         self, user_prompt: str, prompt_template: str | None = None
@@ -396,11 +407,16 @@ class ClaudeLLMProvider(LLMProvider):
     ) -> str:
         """
         Generate text using Claude.
+
+        Always tries SDK first, falls back to LiteLLM only if CLI is unavailable.
         """
-        if self._auth_mode == "subscription":
+        cli_path = self._verify_cli_path()
+        if cli_path:
             return await self._generate_text_sdk(prompt, system_prompt, model)
-        else:
+        elif self._litellm:
             return await self._generate_text_litellm(prompt, system_prompt, model)
+        else:
+            return "Generation unavailable (no LLM backend configured)"
 
     async def _generate_text_sdk(
         self,
