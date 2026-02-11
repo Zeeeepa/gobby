@@ -266,7 +266,7 @@ export function TaskDetail({ taskId, getTask, getDependencies, getSubtasks, acti
             {task.created_in_session_id && (
               <div className="task-detail-section">
                 <h4 className="task-detail-section-title">Capabilities</h4>
-                <CapabilityScope />
+                <CapabilityScope sessionId={task.created_in_session_id} />
               </div>
             )}
 
