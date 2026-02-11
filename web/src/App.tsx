@@ -1,5 +1,6 @@
 import { useState, useCallback, useMemo, useEffect, useRef } from 'react'
 import { useChat } from './hooks/useChat'
+import { useVoice } from './hooks/useVoice'
 import { useSettings } from './hooks/useSettings'
 import { useTerminal } from './hooks/useTerminal'
 import { useTmuxSessions } from './hooks/useTmuxSessions'
@@ -24,7 +25,8 @@ import type { GobbySession } from './hooks/useSessions'
 const HIDDEN_PROJECTS = new Set(['_orphaned', '_migrated'])
 
 export default function App() {
-  const { messages, conversationId, isConnected, isStreaming, isThinking, sendMessage, stopStreaming, clearHistory, executeCommand, respondToQuestion, switchConversation, startNewChat } = useChat()
+  const { messages, conversationId, isConnected, isStreaming, isThinking, sendMessage, stopStreaming, clearHistory, executeCommand, respondToQuestion, switchConversation, startNewChat, wsRef, handleVoiceMessageRef } = useChat()
+  const voice = useVoice(wsRef, conversationId)
   const { settings, modelInfo, modelsLoading, updateFontSize, updateModel, resetSettings } = useSettings()
   const { agents, selectedAgent, setSelectedAgent, sendInput, onOutput } = useTerminal()
   const tmux = useTmuxSessions()
@@ -144,6 +146,11 @@ export default function App() {
     }, 0)
   }, [sendMessage, settings.model, isConnected])
 
+  // Wire voice message handler into useChat's WebSocket routing
+  useEffect(() => {
+    handleVoiceMessageRef.current = voice.handleVoiceMessage
+  }, [voice.handleVoiceMessage, handleVoiceMessageRef])
+
   const handleInputChange = useCallback((value: string) => {
     filterCommands(value)
   }, [filterCommands])
@@ -242,6 +249,15 @@ export default function App() {
           projects={projectOptions}
           selectedProjectId={effectiveProjectId}
           onProjectChange={setSelectedProjectId}
+          voiceMode={voice.voiceMode}
+          isRecording={voice.isRecording}
+          isTranscribing={voice.isTranscribing}
+          isSpeaking={voice.isSpeaking}
+          voiceError={voice.voiceError}
+          onToggleVoice={voice.toggleVoiceMode}
+          onStartRecording={voice.startRecording}
+          onStopRecording={voice.stopRecording}
+          onStopSpeaking={voice.stopSpeaking}
         />
       ) : activeTab === 'sessions' ? (
         <SessionsPage

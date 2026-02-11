@@ -374,6 +374,12 @@ class ChatMixin:
                             )
                         )
                     )
+                    # Feed TTS if voice mode is active
+                    _voice_hook = getattr(self, "_voice_tts_hook", None)
+                    if _voice_hook:
+                        await _voice_hook(
+                            websocket, conversation_id, request_id, event.content
+                        )
                 elif isinstance(event, ToolCallEvent):
                     await websocket.send(
                         json.dumps(
@@ -404,6 +410,11 @@ class ChatMixin:
                         )
                     )
                 elif isinstance(event, DoneEvent):
+                    # Flush TTS if voice mode is active
+                    _voice_flush = getattr(self, "_voice_tts_flush", None)
+                    if _voice_flush:
+                        await _voice_flush(websocket, conversation_id, request_id)
+
                     await websocket.send(
                         json.dumps(
                             _base_msg(

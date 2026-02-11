@@ -186,6 +186,7 @@ export function useChat() {
   const handleModelSwitchedRef = useRef<(msg: ModelSwitchedMessage) => void>(() => {})
   const handleToolResultRef = useRef<(msg: ToolResultMessage) => void>(() => {})
   const handleErrorRef = useRef<(msg: ErrorMessage) => void>(() => {})
+  const handleVoiceMessageRef = useRef<(data: Record<string, unknown>) => void>(() => {})
 
   // Connect to WebSocket
   const connect = useCallback(() => {
@@ -243,6 +244,8 @@ export function useChat() {
           handleToolResultRef.current(data as unknown as ToolResultMessage)
         } else if (data.type === 'error' && (data as unknown as ErrorMessage).request_id) {
           handleErrorRef.current(data as unknown as ErrorMessage)
+        } else if (data.type === 'voice_transcription' || data.type === 'voice_audio_chunk' || data.type === 'voice_status') {
+          handleVoiceMessageRef.current(data as Record<string, unknown>)
         } else if (data.type === 'connection_established') {
           const serverConversations = (data.conversation_ids as string[]) || []
           if (serverConversations.includes(conversationIdRef.current)) {
@@ -463,8 +466,17 @@ export function useChat() {
 
   // Switch to a different conversation
   const switchConversation = useCallback((id: string) => {
-    // Save current conversation's messages before switching
-    saveMessagesForConversation(conversationIdRef.current, messages)
+    if (!id || id === conversationIdRef.current) return
+
+    // Stop partial streaming first
+    activeRequestIdRef.current = null
+    setIsStreaming(false)
+    setIsThinking(false)
+
+    // Save current conversation's messages before switching (explicit save)
+    if (conversationIdRef.current) {
+      saveMessagesForConversation(conversationIdRef.current, messages)
+    }
 
     conversationIdRef.current = id
     setConversationId(id)
@@ -473,11 +485,6 @@ export function useChat() {
     // Load messages for the target conversation
     const loaded = loadMessagesForConversation(id)
     setMessages(loaded)
-
-    // Reset streaming state
-    activeRequestIdRef.current = null
-    setIsStreaming(false)
-    setIsThinking(false)
   }, [messages])
 
   // Start a new chat conversation
@@ -689,5 +696,7 @@ export function useChat() {
     switchConversation,
     startNewChat,
     resumeSession,
+    wsRef,
+    handleVoiceMessageRef,
   }
 }

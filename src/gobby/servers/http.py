@@ -601,6 +601,7 @@ class HTTPServer:
             create_plugins_router,
             create_sessions_router,
             create_tasks_router,
+            create_voice_router,
             create_webhooks_router,
         )
 
@@ -618,6 +619,7 @@ class HTTPServer:
         app.include_router(create_webhooks_router())
         app.include_router(create_pipelines_router(self))
         app.include_router(create_files_router(self))
+        app.include_router(create_voice_router(self))
 
     async def _process_shutdown(self) -> None:
         """

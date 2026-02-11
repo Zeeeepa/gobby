@@ -37,6 +37,16 @@ interface ChatPageProps {
   projects: ProjectOption[]
   selectedProjectId: string | null
   onProjectChange: (projectId: string) => void
+  // Voice props
+  voiceMode?: boolean
+  isRecording?: boolean
+  isTranscribing?: boolean
+  isSpeaking?: boolean
+  voiceError?: string | null
+  onToggleVoice?: () => void
+  onStartRecording?: () => void
+  onStopRecording?: () => void
+  onStopSpeaking?: () => void
   // Prefilled context from "Ask Gobby" in sessions page
   prefillContext?: string | null
 }
@@ -66,6 +76,15 @@ export function ChatPage({
   projects,
   selectedProjectId,
   onProjectChange,
+  voiceMode,
+  isRecording,
+  isTranscribing,
+  isSpeaking,
+  voiceError,
+  onToggleVoice,
+  onStartRecording,
+  onStopRecording,
+  onStopSpeaking,
 }: ChatPageProps) {
   return (
     <div className="chat-page">
@@ -94,6 +113,15 @@ export function ChatPage({
             projects={projects}
             selectedProjectId={selectedProjectId}
             onProjectChange={onProjectChange}
+            voiceMode={voiceMode}
+            isRecording={isRecording}
+            isTranscribing={isTranscribing}
+            isSpeaking={isSpeaking}
+            voiceError={voiceError}
+            onToggleVoice={onToggleVoice}
+            onStartRecording={onStartRecording}
+            onStopRecording={onStopRecording}
+            onStopSpeaking={onStopSpeaking}
           />
         </main>
 

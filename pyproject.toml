@@ -54,6 +54,7 @@ dependencies = [
 
 [project.optional-dependencies]
 mem0 = ["mem0ai"]
+voice = ["faster-whisper>=1.0.0"]
 
 [project.scripts]
 gobby = "gobby.cli:cli"

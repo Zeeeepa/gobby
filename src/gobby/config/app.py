@@ -42,6 +42,7 @@ from gobby.config.sessions import (
 from gobby.config.skills import SkillsConfig
 from gobby.config.tasks import CompactHandoffConfig, GobbyTasksConfig, WorkflowConfig
 from gobby.config.tmux import TmuxConfig
+from gobby.config.voice import VoiceConfig
 from gobby.config.watchdog import WatchdogConfig
 
 
@@ -311,6 +312,10 @@ class DaemonConfig(BaseModel):
     cron: CronConfig = Field(
         default_factory=CronConfig,
         description="Cron scheduler configuration",
+    )
+    voice: VoiceConfig = Field(
+        default_factory=VoiceConfig,
+        description="Voice chat configuration (STT + TTS)",
     )
 
     def get_recommend_tools_config(self) -> RecommendToolsConfig:

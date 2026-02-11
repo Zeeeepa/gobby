@@ -25,6 +25,16 @@ interface ChatInputProps {
   projects?: ProjectOption[]
   selectedProjectId?: string | null
   onProjectChange?: (projectId: string) => void
+  // Voice props
+  voiceMode?: boolean
+  isRecording?: boolean
+  isTranscribing?: boolean
+  isSpeaking?: boolean
+  voiceError?: string | null
+  onToggleVoice?: () => void
+  onStartRecording?: () => void
+  onStopRecording?: () => void
+  onStopSpeaking?: () => void
 }
 
 export function ChatInput({
@@ -38,6 +48,15 @@ export function ChatInput({
   projects = [],
   selectedProjectId,
   onProjectChange,
+  voiceMode = false,
+  isRecording = false,
+  isTranscribing = false,
+  isSpeaking = false,
+  voiceError,
+  onToggleVoice,
+  onStartRecording,
+  onStopRecording,
+  onStopSpeaking,
 }: ChatInputProps) {
   const [input, setInput] = useState('')
   const [selectedIndex, setSelectedIndex] = useState(0)
@@ -181,6 +200,16 @@ export function ChatInput({
         >
           <PaperclipIcon />
         </button>
+        {onToggleVoice && (
+          <button
+            className={`chat-toolbar-btn${voiceMode ? ' voice-active' : ''}`}
+            onClick={onToggleVoice}
+            title={voiceMode ? 'Disable voice mode' : 'Enable voice mode'}
+            disabled={disabled}
+          >
+            <MicIcon />
+          </button>
+        )}
         {projects.length > 0 && (
           <select
             className="chat-project-select"
@@ -223,6 +252,20 @@ export function ChatInput({
         </div>
       )}
 
+      {voiceMode && isSpeaking && onStopSpeaking && (
+        <div className="speaking-indicator" onClick={onStopSpeaking} title="Click to stop">
+          <span className="speaking-bar" />
+          <span className="speaking-bar" />
+          <span className="speaking-bar" />
+          <span className="speaking-bar" />
+          <span className="speaking-label">Speaking...</span>
+        </div>
+      )}
+
+      {voiceError && (
+        <div className="voice-error">{voiceError}</div>
+      )}
+
       <div className="chat-input-row">
         <textarea
           ref={textareaRef}
@@ -230,11 +273,36 @@ export function ChatInput({
           value={input}
           onChange={(e) => handleChange(e.target.value)}
           onKeyDown={handleKeyDown}
-          placeholder={disabled ? 'Connecting...' : isStreaming ? 'Interrupt...' : 'Message or /command...'}
+          placeholder={disabled ? 'Connecting...' : isStreaming ? 'Interrupt...' : voiceMode ? 'Voice mode on — hold mic to talk...' : 'Message or /command...'}
           disabled={disabled}
           rows={1}
         />
-        {isStreaming ? (
+        {voiceMode && onStartRecording && onStopRecording ? (
+          <div className="chat-actions">
+            <button
+              className={`ptt-button${isRecording ? ' recording' : ''}${isTranscribing ? ' transcribing' : ''}`}
+              onMouseDown={onStartRecording}
+              onMouseUp={onStopRecording}
+              onMouseLeave={isRecording ? onStopRecording : undefined}
+              onTouchStart={(e) => { e.preventDefault(); onStartRecording() }}
+              onTouchEnd={(e) => { e.preventDefault(); onStopRecording() }}
+              disabled={disabled || isTranscribing}
+              title={isRecording ? 'Release to send' : isTranscribing ? 'Transcribing...' : 'Hold to talk'}
+              aria-label={isRecording ? 'Release to send' : 'Hold to talk'}
+            >
+              {isTranscribing ? <SpinnerIcon /> : <MicIcon />}
+            </button>
+            {hasInput && (
+              <button
+                className="send-button"
+                onClick={handleSubmit}
+                disabled={disabled || !hasInput}
+              >
+                <SendIcon />
+              </button>
+            )}
+          </div>
+        ) : isStreaming ? (
           <div className="chat-actions">
             {onStop && (
               <button
@@ -298,6 +366,28 @@ function SendIcon() {
     >
       <line x1="22" y1="2" x2="11" y2="13" />
       <polygon points="22 2 15 22 11 13 2 9 22 2" />
+    </svg>
+  )
+}
+
+function MicIcon() {
+  return (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z" />
+      <path d="M19 10v2a7 7 0 0 1-14 0v-2" />
+      <line x1="12" y1="19" x2="12" y2="23" />
+      <line x1="8" y1="23" x2="16" y2="23" />
+    </svg>
+  )
+}
+
+function SpinnerIcon() {
+  return (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="spinner-icon">
+      <circle cx="12" cy="12" r="10" strokeDasharray="32" strokeDashoffset="32">
+        <animateTransform attributeName="transform" type="rotate" from="0 12 12" to="360 12 12" dur="1s" repeatCount="indefinite" />
+        <animate attributeName="stroke-dashoffset" values="32;0" dur="1s" repeatCount="indefinite" />
+      </circle>
     </svg>
   )
 }
