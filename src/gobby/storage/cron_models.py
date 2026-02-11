@@ -3,9 +3,12 @@
 from __future__ import annotations
 
 import json
+import logging
 import sqlite3
 from dataclasses import dataclass
 from typing import Any, Literal
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -39,6 +42,7 @@ class CronJob:
         try:
             action_config = json.loads(action_config_raw) if action_config_raw else {}
         except json.JSONDecodeError:
+            logger.warning(f"Bad JSON in action_config for job {row['id']}: {action_config_raw!r}")
             action_config = {}
 
         return cls(
@@ -122,7 +126,7 @@ class CronRun:
     @classmethod
     def from_row(cls, row: sqlite3.Row) -> CronRun:
         """Convert database row to CronRun object."""
-        keys = row.keys()
+        keys = set(row.keys())
         return cls(
             id=row["id"],
             cron_job_id=row["cron_job_id"],

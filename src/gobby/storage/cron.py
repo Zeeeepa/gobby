@@ -35,7 +35,7 @@ def compute_next_run(job: CronJob) -> datetime | None:
     try:
         tz = ZoneInfo(job.timezone) if job.timezone else ZoneInfo("UTC")
     except ZoneInfoNotFoundError:
-        # Fallback to UTC if timezone is invalid
+        logger.warning(f"Invalid timezone {job.timezone!r} for job {job.id}, falling back to UTC")
         tz = ZoneInfo("UTC")
     now = datetime.now(tz)
 

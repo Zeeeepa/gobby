@@ -85,32 +85,33 @@ class MemoryEmbeddingManager:
         now = datetime.now(UTC).isoformat()
         embedding_blob = _embedding_to_blob(embedding)
 
-        self.db.execute(
-            """
-            INSERT INTO memory_embeddings (
-                memory_id, project_id, embedding,
-                embedding_model, embedding_dim, text_hash, created_at, updated_at
+        with self.db.transaction() as conn:
+            conn.execute(
+                """
+                INSERT INTO memory_embeddings (
+                    memory_id, project_id, embedding,
+                    embedding_model, embedding_dim, text_hash, created_at, updated_at
+                )
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                ON CONFLICT(memory_id) DO UPDATE SET
+                    project_id = excluded.project_id,
+                    embedding = excluded.embedding,
+                    embedding_model = excluded.embedding_model,
+                    embedding_dim = excluded.embedding_dim,
+                    text_hash = excluded.text_hash,
+                    updated_at = excluded.updated_at
+                """,
+                (
+                    memory_id,
+                    project_id,
+                    embedding_blob,
+                    embedding_model,
+                    len(embedding),
+                    text_hash,
+                    now,
+                    now,
+                ),
             )
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-            ON CONFLICT(memory_id) DO UPDATE SET
-                project_id = excluded.project_id,
-                embedding = excluded.embedding,
-                embedding_model = excluded.embedding_model,
-                embedding_dim = excluded.embedding_dim,
-                text_hash = excluded.text_hash,
-                updated_at = excluded.updated_at
-            """,
-            (
-                memory_id,
-                project_id,
-                embedding_blob,
-                embedding_model,
-                len(embedding),
-                text_hash,
-                now,
-                now,
-            ),
-        )
 
         result = self.get_embedding(memory_id)
         if result is None:
