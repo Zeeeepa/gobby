@@ -9,7 +9,7 @@ from fastapi.testclient import TestClient
 
 from gobby.app_context import ServiceContainer
 from gobby.servers.http import HTTPServer
-from gobby.storage.artifacts import LocalArtifactManager
+from gobby.storage.artifacts import Artifact, LocalArtifactManager
 from gobby.storage.database import LocalDatabase
 from gobby.storage.sessions import LocalSessionManager
 
@@ -66,7 +66,7 @@ def sample_session_id(temp_db: LocalDatabase) -> str:
 
 
 @pytest.fixture
-def sample_artifacts(artifact_manager: LocalArtifactManager, sample_session_id: str):
+def sample_artifacts(artifact_manager: LocalArtifactManager, sample_session_id: str) -> list[Artifact]:
     """Create sample artifacts and return them."""
     a1 = artifact_manager.create_artifact(
         session_id=sample_session_id,

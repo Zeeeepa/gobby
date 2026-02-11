@@ -4,7 +4,7 @@ from typing import TYPE_CHECKING
 
 import pytest
 
-from gobby.storage.artifacts import LocalArtifactManager
+from gobby.storage.artifacts import Artifact, LocalArtifactManager
 
 if TYPE_CHECKING:
     from gobby.storage.database import LocalDatabase
@@ -25,7 +25,7 @@ def artifact_manager(temp_db: "LocalDatabase") -> LocalArtifactManager:
 
 
 @pytest.fixture
-def sample_artifact(artifact_manager: LocalArtifactManager):
+def sample_artifact(artifact_manager: LocalArtifactManager) -> Artifact:
     """Create a sample artifact for tag tests."""
     return artifact_manager.create_artifact(
         session_id="sess-tags",
