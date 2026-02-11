@@ -523,7 +523,7 @@ class ChatMixin:
         # Stop the old ChatSession
         await self._cancel_active_chat(conversation_id)
         await session.stop()
-        del self._chat_sessions[conversation_id]
+        self._chat_sessions.pop(conversation_id, None)
 
         # Notify frontend
         await websocket.send(

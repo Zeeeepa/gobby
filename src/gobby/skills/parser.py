@@ -326,7 +326,14 @@ def parse_skill_text(text: str, source_path: str | None = None) -> ParsedSkill:
         gobby_meta = metadata.get("gobby", {})
         if isinstance(gobby_meta, dict) and any(
             k in gobby_meta
-            for k in ("audience", "depth", "steps", "task_categories", "format_overrides", "priority")
+            for k in (
+                "audience",
+                "depth",
+                "steps",
+                "task_categories",
+                "format_overrides",
+                "priority",
+            )
         ):
             ac_kwargs: dict[str, Any] = {}
             if "audience" in gobby_meta:
@@ -337,7 +344,10 @@ def parse_skill_text(text: str, source_path: str | None = None) -> ParsedSkill:
                 if isinstance(raw_depth, int):
                     ac_kwargs["depth"] = raw_depth
                 elif isinstance(raw_depth, list):
-                    ac_kwargs["depth"] = [int(d) for d in raw_depth]
+                    try:
+                        ac_kwargs["depth"] = [int(d) for d in raw_depth]
+                    except (ValueError, TypeError):
+                        pass  # skip invalid depth list elements
                 elif isinstance(raw_depth, str):
                     ac_kwargs["depth"] = raw_depth
             if "steps" in gobby_meta:

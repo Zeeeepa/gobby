@@ -8,6 +8,7 @@ skills without audience_config fall back to legacy always_apply behavior.
 from __future__ import annotations
 
 import logging
+import re
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -87,9 +88,9 @@ def _derive_agent_type(depth: int, workflow_name: str | None) -> str:
         return "interactive"
     if workflow_name:
         wf_lower = workflow_name.lower()
-        if "box" in wf_lower or "orchestrat" in wf_lower:
+        if re.search(r"\bbox\b", wf_lower) or re.search(r"\borchestrat", wf_lower):
             return "orchestrator"
-        if "worker" in wf_lower:
+        if re.search(r"\bworker\b", wf_lower):
             return "worker"
     return "autonomous"
 
@@ -227,6 +228,7 @@ class SkillInjector:
                     return low <= actual_depth <= high
             except (ValueError, IndexError):
                 pass
+        logger.warning(f"Invalid depth_spec type {type(depth_spec).__name__}: {depth_spec!r}")
         return False
 
     def _resolve_format(
