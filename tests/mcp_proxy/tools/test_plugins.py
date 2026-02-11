@@ -358,7 +358,7 @@ class TestTestHookEvent:
 
 class TestRegistryCreation:
     def test_creates_9_tools(self, registry):
-        assert len(registry._tools) == 9
+        assert len(registry.list_tools()) == 9
 
     def test_registry_name(self, registry):
         assert registry.name == "gobby-plugins"
@@ -375,4 +375,4 @@ class TestRegistryCreation:
             "list_hook_handlers",
             "test_hook_event",
         }
-        assert set(registry._tools.keys()) == expected
+        assert {t["name"] for t in registry.list_tools()} == expected

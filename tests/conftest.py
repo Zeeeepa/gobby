@@ -261,8 +261,9 @@ def protect_production_resources(
         # 1. Standard patch for the definitions (covers future imports)
         p = patch("gobby.config.app.load_config", side_effect=safe_load_config)
         p.start()
-        p_save = patch("gobby.config.app.save_config", side_effect=safe_save_config)
-        p_save.start()
+        if _real_save_config is not None:
+            p_save = patch("gobby.config.app.save_config", side_effect=safe_save_config)
+            p_save.start()
 
         # 2. Scan sys.modules for rogue references to load_config AND save_config
         patched_modules = []

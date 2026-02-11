@@ -108,36 +108,34 @@ class TestIsMem0Installed:
         assert is_mem0_installed(gobby_home=tmp_path) is False
 
 
+@pytest.fixture
+def mock_async_client() -> AsyncMock:
+    """Create a reusable async HTTP client mock with context-manager support."""
+    client = AsyncMock()
+    client.__aenter__ = AsyncMock(return_value=client)
+    client.__aexit__ = AsyncMock(return_value=False)
+    return client
+
+
 class TestIsMem0Healthy:
     """Tests for is_mem0_healthy()."""
 
     @pytest.mark.asyncio
-    async def test_healthy_when_reachable(self) -> None:
-        mock_response = httpx.Response(200)
-        mock_client = AsyncMock()
-        mock_client.__aenter__ = AsyncMock(return_value=mock_client)
-        mock_client.__aexit__ = AsyncMock(return_value=False)
-        mock_client.get = AsyncMock(return_value=mock_response)
-        with patch("gobby.cli.services.httpx.AsyncClient", return_value=mock_client):
+    async def test_healthy_when_reachable(self, mock_async_client: AsyncMock) -> None:
+        mock_async_client.get = AsyncMock(return_value=httpx.Response(200))
+        with patch("gobby.cli.services.httpx.AsyncClient", return_value=mock_async_client):
             assert await is_mem0_healthy("http://localhost:8888") is True
 
     @pytest.mark.asyncio
-    async def test_unhealthy_when_unreachable(self) -> None:
-        mock_client = AsyncMock()
-        mock_client.__aenter__ = AsyncMock(return_value=mock_client)
-        mock_client.__aexit__ = AsyncMock(return_value=False)
-        mock_client.get = AsyncMock(side_effect=httpx.ConnectError("refused"))
-        with patch("gobby.cli.services.httpx.AsyncClient", return_value=mock_client):
+    async def test_unhealthy_when_unreachable(self, mock_async_client: AsyncMock) -> None:
+        mock_async_client.get = AsyncMock(side_effect=httpx.ConnectError("refused"))
+        with patch("gobby.cli.services.httpx.AsyncClient", return_value=mock_async_client):
             assert await is_mem0_healthy("http://localhost:8888") is False
 
     @pytest.mark.asyncio
-    async def test_unhealthy_when_server_error(self) -> None:
-        mock_response = httpx.Response(500)
-        mock_client = AsyncMock()
-        mock_client.__aenter__ = AsyncMock(return_value=mock_client)
-        mock_client.__aexit__ = AsyncMock(return_value=False)
-        mock_client.get = AsyncMock(return_value=mock_response)
-        with patch("gobby.cli.services.httpx.AsyncClient", return_value=mock_client):
+    async def test_unhealthy_when_server_error(self, mock_async_client: AsyncMock) -> None:
+        mock_async_client.get = AsyncMock(return_value=httpx.Response(500))
+        with patch("gobby.cli.services.httpx.AsyncClient", return_value=mock_async_client):
             assert await is_mem0_healthy("http://localhost:8888") is False
 
     @pytest.mark.asyncio
@@ -149,15 +147,11 @@ class TestGetMem0Status:
     """Tests for get_mem0_status()."""
 
     @pytest.mark.asyncio
-    async def test_status_installed_and_healthy(self, tmp_path: Path) -> None:
+    async def test_status_installed_and_healthy(self, tmp_path: Path, mock_async_client: AsyncMock) -> None:
         svc_dir = tmp_path / "services" / "mem0"
         svc_dir.mkdir(parents=True)
-        mock_response = httpx.Response(200)
-        mock_client = AsyncMock()
-        mock_client.__aenter__ = AsyncMock(return_value=mock_client)
-        mock_client.__aexit__ = AsyncMock(return_value=False)
-        mock_client.get = AsyncMock(return_value=mock_response)
-        with patch("gobby.cli.services.httpx.AsyncClient", return_value=mock_client):
+        mock_async_client.get = AsyncMock(return_value=httpx.Response(200))
+        with patch("gobby.cli.services.httpx.AsyncClient", return_value=mock_async_client):
             status = await get_mem0_status(gobby_home=tmp_path, mem0_url="http://localhost:8888")
         assert status["installed"] is True
         assert status["healthy"] is True
@@ -171,14 +165,11 @@ class TestGetMem0Status:
         assert status["url"] is None
 
     @pytest.mark.asyncio
-    async def test_status_installed_but_unhealthy(self, tmp_path: Path) -> None:
+    async def test_status_installed_but_unhealthy(self, tmp_path: Path, mock_async_client: AsyncMock) -> None:
         svc_dir = tmp_path / "services" / "mem0"
         svc_dir.mkdir(parents=True)
-        mock_client = AsyncMock()
-        mock_client.__aenter__ = AsyncMock(return_value=mock_client)
-        mock_client.__aexit__ = AsyncMock(return_value=False)
-        mock_client.get = AsyncMock(side_effect=httpx.ConnectError("refused"))
-        with patch("gobby.cli.services.httpx.AsyncClient", return_value=mock_client):
+        mock_async_client.get = AsyncMock(side_effect=httpx.ConnectError("refused"))
+        with patch("gobby.cli.services.httpx.AsyncClient", return_value=mock_async_client):
             status = await get_mem0_status(gobby_home=tmp_path, mem0_url="http://localhost:8888")
         assert status["installed"] is True
         assert status["healthy"] is False
