@@ -212,7 +212,7 @@ _LANG_EXTENSIONS: dict[str, str] = {
 }
 
 
-def _get_extension(artifact: Any) -> str:
+def _get_extension(artifact: Artifact) -> str:
     """Derive a file extension from artifact type and metadata language."""
     if artifact.metadata and "language" in artifact.metadata:
         lang = artifact.metadata["language"].lower()
@@ -242,7 +242,7 @@ def export_artifact(artifact_id: str, output_path: str | None) -> None:
         if "." not in output_path.rsplit("/", 1)[-1]:
             output_path += _get_extension(artifact)
 
-        with open(output_path, "w") as f:
+        with open(output_path, "w", encoding="utf-8") as f:
             f.write(artifact.content)
         click.echo(f"Exported to {output_path}", err=True)
     else:
@@ -262,7 +262,9 @@ def _display_artifact_list(artifacts_list: list[Any]) -> None:
             title = title[:25] + "..."
         task_ref = artifact.task_id[:8] + ".." if artifact.task_id else "-"
         created = artifact.created_at[:19] if artifact.created_at else "-"
-        click.echo(f"{artifact_id:<12} {artifact.artifact_type:<8} {title:<30} {task_ref:<10} {created:<20}")
+        click.echo(
+            f"{artifact_id:<12} {artifact.artifact_type:<8} {title:<30} {task_ref:<10} {created:<20}"
+        )
 
 
 def _display_artifact_detail(artifact: Artifact, verbose: bool) -> None:
