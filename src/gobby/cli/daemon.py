@@ -478,9 +478,11 @@ def status(ctx: click.Context) -> None:
     # Check mem0 status
     from gobby.cli.services import get_mem0_status
 
-    mem0_status = asyncio.run(get_mem0_status(
-        mem0_url=config.memory.mem0_url if hasattr(config.memory, "mem0_url") else None,
-    ))
+    mem0_status = asyncio.run(
+        get_mem0_status(
+            mem0_url=config.memory.mem0_url if hasattr(config.memory, "mem0_url") else None,
+        )
+    )
 
     # Build status kwargs
     status_kwargs: dict[str, Any] = {
