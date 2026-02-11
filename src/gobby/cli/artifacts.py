@@ -125,7 +125,7 @@ def show(artifact_id: str, verbose: bool, output_json: bool) -> None:
     if output_json:
         click.echo(json.dumps(artifact.to_dict(), indent=2))
     else:
-        _display_artifact_detail(artifact, verbose)
+        _display_artifact_detail(artifact, verbose, manager=manager)
 
 
 @artifacts.command()
@@ -267,7 +267,9 @@ def _display_artifact_list(artifacts_list: list[Any]) -> None:
         )
 
 
-def _display_artifact_detail(artifact: Artifact, verbose: bool) -> None:
+def _display_artifact_detail(
+    artifact: Artifact, verbose: bool, manager: LocalArtifactManager | None = None
+) -> None:
     """Display a single artifact with optional verbosity."""
     click.echo(f"ID: {artifact.id}")
     if artifact.title:
@@ -289,7 +291,8 @@ def _display_artifact_detail(artifact: Artifact, verbose: bool) -> None:
     click.echo(f"Created: {artifact.created_at}")
 
     # Show tags
-    manager = get_artifact_manager()
+    if manager is None:
+        manager = get_artifact_manager()
     tags = manager.get_tags(artifact.id)
     if tags:
         click.echo(f"Tags: {', '.join(tags)}")

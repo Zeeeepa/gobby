@@ -480,7 +480,7 @@ def status(ctx: click.Context) -> None:
 
     mem0_status = asyncio.run(
         get_mem0_status(
-            mem0_url=config.memory.mem0_url if hasattr(config.memory, "mem0_url") else None,
+            mem0_url=getattr(config.memory, "mem0_url", None),
         )
     )
 

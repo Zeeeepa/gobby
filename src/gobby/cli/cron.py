@@ -3,6 +3,7 @@ CLI commands for managing cron jobs.
 """
 
 import json
+from datetime import datetime
 from typing import Any, Literal, cast
 
 import click
@@ -51,19 +52,21 @@ def list_jobs(
         status_icon = "●" if job.enabled else "○"
         schedule = job.cron_expr or f"every {job.interval_seconds}s" or job.run_at or "?"
         last = job.last_status or "never"
-        click.echo(
-            f"  {status_icon} {job.id}  {job.name:<30} {schedule:<20} last: {last}"
-        )
+        click.echo(f"  {status_icon} {job.id}  {job.name:<30} {schedule:<20} last: {last}")
 
 
 @cron.command("add")
 @click.option("--name", "-n", required=True, help="Job name")
 @click.option(
-    "--schedule", "-s", required=True,
+    "--schedule",
+    "-s",
+    required=True,
     help="Cron expression (e.g., '0 7 * * *') or interval (e.g., '300s')",
 )
 @click.option(
-    "--action-type", "-t", required=True,
+    "--action-type",
+    "-t",
+    required=True,
     type=click.Choice(["shell", "agent_spawn", "pipeline"]),
     help="Action type",
 )
@@ -96,9 +99,12 @@ def add_job(
     cron_expr = None
     interval_seconds = None
 
-    if schedule.endswith("s") and schedule[:-1].isdigit():
+    schedule_normalized = schedule.strip().lower()
+    multipliers = {"s": 1, "m": 60, "h": 3600}
+    suffix = schedule_normalized[-1:] if schedule_normalized else ""
+    if suffix in multipliers and schedule_normalized[:-1].isdigit():
         schedule_type = "interval"
-        interval_seconds = int(schedule[:-1])
+        interval_seconds = int(schedule_normalized[:-1]) * multipliers[suffix]
     else:
         schedule_type = "cron"
         cron_expr = schedule
@@ -194,8 +200,6 @@ def list_runs(job_id: str, limit: int, json_format: bool) -> None:
         )
         duration = ""
         if run.started_at and run.completed_at:
-            from datetime import datetime
-
             start = datetime.fromisoformat(run.started_at)
             end = datetime.fromisoformat(run.completed_at)
             secs = (end - start).total_seconds()
