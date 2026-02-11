@@ -121,7 +121,7 @@ def register_core_tools(
                 "description": plugin.description,
             }
         except Exception as e:
-            logger.error(f"Plugin reload failed: {e}")
+            logger.exception("Plugin reload failed")
             return {"success": False, "error": str(e)}
 
     @registry.tool(

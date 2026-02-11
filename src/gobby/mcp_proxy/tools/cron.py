@@ -15,7 +15,7 @@ Exposes functionality for:
 from __future__ import annotations
 
 import logging
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, Literal
 
 from gobby.mcp_proxy.tools.internal import InternalToolRegistry
 
@@ -77,10 +77,10 @@ def create_cron_registry(
     )
     def create_cron_job(
         name: str,
-        action_type: str,
+        action_type: Literal["agent_spawn", "pipeline", "shell"],
         action_config: dict[str, Any],
         project_id: str = "",
-        schedule_type: str = "cron",
+        schedule_type: Literal["cron", "interval", "once"] = "cron",
         cron_expr: str | None = None,
         interval_seconds: int | None = None,
         run_at: str | None = None,
@@ -264,6 +264,11 @@ def create_cron_registry(
             if not job:
                 return {"success": False, "error": f"Cron job not found: {job_id}"}
             run = cron_storage.create_run(job.id)
+            cron_storage.update_run(
+                run.id, status="skipped",
+                output="Scheduler not running; run created but not executed",
+            )
+            run.status = "skipped"
             return {
                 "success": True,
                 "run": run.to_dict(),

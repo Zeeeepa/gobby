@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import logging
 from collections.abc import Callable
 from datetime import UTC, datetime
@@ -14,6 +15,9 @@ if TYPE_CHECKING:
     from gobby.mcp_proxy.tools.internal import InternalToolRegistry
 
 logger = logging.getLogger(__name__)
+
+# Handlers with priority below this threshold run before the main tool execution
+PRE_HANDLER_PRIORITY_THRESHOLD = 50
 
 
 def register_hook_tools(
@@ -72,7 +76,7 @@ def register_hook_tools(
                         "plugin": h.plugin.name,
                         "method": h.method.__name__,
                         "priority": h.priority,
-                        "is_pre_handler": h.priority < 50,
+                        "is_pre_handler": h.priority < PRE_HANDLER_PRIORITY_THRESHOLD,
                     }
                     for h in handlers
                 ]
@@ -123,8 +127,6 @@ def register_hook_tools(
         # Parse extra data
         extra_data: dict[str, Any] = {}
         if data:
-            import json
-
             try:
                 extra_data = json.loads(data)
             except json.JSONDecodeError as e:
