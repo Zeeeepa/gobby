@@ -112,9 +112,7 @@ class TestCreateMemory:
 
     def test_create_memory(self, client, mock_server) -> None:
         """POST /memories creates a memory and returns id."""
-        mock_server.memory_manager.remember = AsyncMock(
-            return_value=_make_memory(id="mm-new-123")
-        )
+        mock_server.memory_manager.remember = AsyncMock(return_value=_make_memory(id="mm-new-123"))
         response = client.post(
             "/memories",
             json={
@@ -134,6 +132,16 @@ class TestCreateMemory:
         """POST /memories requires content field."""
         response = client.post("/memories", json={})
         assert response.status_code == 422
+
+    def test_create_memory_server_error(self, client, mock_server) -> None:
+        """POST /memories returns 500 when manager raises error."""
+        mock_server.memory_manager.remember.side_effect = RuntimeError("Backend failure")
+        response = client.post(
+            "/memories",
+            json={"content": "test"},
+        )
+        assert response.status_code == 500
+        assert "Backend failure" in response.json()["detail"]
 
 
 # =============================================================================
@@ -185,12 +193,8 @@ class TestUpdateMemory:
 
     def test_update_not_found(self, client, mock_server) -> None:
         """PUT /memories/{id} returns 404 when not found."""
-        mock_server.memory_manager.update_memory.side_effect = ValueError(
-            "Memory not found"
-        )
-        response = client.put(
-            "/memories/nonexistent", json={"content": "new content"}
-        )
+        mock_server.memory_manager.update_memory.side_effect = ValueError("Memory not found")
+        response = client.put("/memories/nonexistent", json={"content": "new content"})
         assert response.status_code == 404
 
 
@@ -291,6 +295,4 @@ class TestMemoryStats:
         }
         response = client.get("/memories/stats", params={"project_id": "proj-1"})
         assert response.status_code == 200
-        mock_server.memory_manager.get_stats.assert_called_once_with(
-            project_id="proj-1"
-        )
+        mock_server.memory_manager.get_stats.assert_called_once_with(project_id="proj-1")

@@ -300,6 +300,7 @@ export function AgentPortfolioPage() {
   const [sessions, setSessions] = useState<SessionData[]>([])
   const [tasks, setTasks] = useState<TaskData[]>([])
   const [isLoading, setIsLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
   const [sortField, setSortField] = useState<SortField>('tasks')
   const [expandedAgent, setExpandedAgent] = useState<string | null>(null)
   const [filterSource, setFilterSource] = useState<string | null>(null)
@@ -307,6 +308,7 @@ export function AgentPortfolioPage() {
   const fetchData = useCallback(async () => {
     setIsLoading(true)
     try {
+      setError(null)
       const baseUrl = getBaseUrl()
       const [sessRes, taskRes] = await Promise.all([
         fetch(`${baseUrl}/sessions?limit=500`),
@@ -321,10 +323,15 @@ export function AgentPortfolioPage() {
         const data = await taskRes.json()
         setTasks(data.tasks || [])
       }
+      if (!sessRes.ok || !taskRes.ok) {
+        setError('Failed to load some agent data')
+      }
     } catch (e) {
       console.error('Failed to fetch agent data:', e)
+      setError('Failed to fetch agent data')
+    } finally {
+      setIsLoading(false)
     }
-    setIsLoading(false)
   }, [])
 
   useEffect(() => { fetchData() }, [fetchData])
@@ -531,6 +538,8 @@ export function AgentPortfolioPage() {
       {/* Agent list */}
       {isLoading ? (
         <div className="agent-loading">Loading agent data...</div>
+      ) : error ? (
+        <div className="agent-error">{error}</div>
       ) : displayAgents.length === 0 ? (
         <div className="agent-empty">No agents found</div>
       ) : (

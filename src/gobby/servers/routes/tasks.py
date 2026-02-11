@@ -34,8 +34,12 @@ class TaskCreateRequest(BaseModel):
 
     title: str = Field(..., description="Task title")
     description: str | None = Field(default=None, description="Detailed description")
-    priority: int = Field(default=2, description="Priority (0=Critical, 1=High, 2=Medium, 3=Low, 4=Backlog)")
-    task_type: str = Field(default="task", description="Task type (task, bug, feature, epic, chore)")
+    priority: int = Field(
+        default=2, description="Priority (0=Critical, 1=High, 2=Medium, 3=Low, 4=Backlog)"
+    )
+    task_type: str = Field(
+        default="task", description="Task type (task, bug, feature, epic, chore)"
+    )
     parent_task_id: str | None = Field(default=None, description="Parent task ID")
     labels: list[str] | None = Field(default=None, description="Labels for categorization")
     category: str | None = Field(
@@ -44,7 +48,9 @@ class TaskCreateRequest(BaseModel):
     )
     validation_criteria: str | None = Field(default=None, description="Acceptance criteria")
     assignee: str | None = Field(default=None, description="Assignee session ID")
-    project_id: str | None = Field(default=None, description="Project ID (resolved from cwd if omitted)")
+    project_id: str | None = Field(
+        default=None, description="Project ID (resolved from cwd if omitted)"
+    )
 
 
 class TaskUpdateRequest(BaseModel):
@@ -90,7 +96,9 @@ class TaskCommentCreateRequest(BaseModel):
     body: str = Field(..., description="Comment body (markdown)")
     author: str = Field(..., description="Author ID (session or user)")
     author_type: str = Field(default="session", description="Author type: session, agent, human")
-    parent_comment_id: str | None = Field(default=None, description="Parent comment ID for threading")
+    parent_comment_id: str | None = Field(
+        default=None, description="Parent comment ID for threading"
+    )
 
 
 class DependencyAddRequest(BaseModel):
@@ -123,7 +131,9 @@ def create_tasks_router(server: "HTTPServer") -> APIRouter:
         ws = server.services.websocket_server
         if ws:
             try:
-                await ws.broadcast_task_event(event, task_id=task_dict.get("id", ""), task=task_dict)
+                await ws.broadcast_task_event(
+                    event, task_id=task_dict.get("id", ""), task=task_dict
+                )
             except Exception as e:
                 logger.debug(f"Failed to broadcast task event {event}: {e}")
 
@@ -295,7 +305,9 @@ def create_tasks_router(server: "HTTPServer") -> APIRouter:
             result = closed.to_dict()
             await _broadcast_task("task_closed", result)
             return result
-        except (ValueError, TaskNotFoundError) as e:
+        except TaskNotFoundError as e:
+            raise HTTPException(status_code=404, detail=str(e)) from e
+        except ValueError as e:
             raise HTTPException(status_code=400, detail=str(e)) from e
 
     @router.post("/{task_id}/reopen")
@@ -310,7 +322,9 @@ def create_tasks_router(server: "HTTPServer") -> APIRouter:
             result = reopened.to_dict()
             await _broadcast_task("task_reopened", result)
             return result
-        except (ValueError, TaskNotFoundError) as e:
+        except TaskNotFoundError as e:
+            raise HTTPException(status_code=404, detail=str(e)) from e
+        except ValueError as e:
             raise HTTPException(status_code=400, detail=str(e)) from e
 
     @router.post("/{task_id}/de-escalate")
@@ -342,7 +356,9 @@ def create_tasks_router(server: "HTTPServer") -> APIRouter:
             result = updated.to_dict()
             await _broadcast_task("task_reopened", result)
             return result
-        except (ValueError, TaskNotFoundError) as e:
+        except TaskNotFoundError as e:
+            raise HTTPException(status_code=404, detail=str(e)) from e
+        except ValueError as e:
             raise HTTPException(status_code=400, detail=str(e)) from e
 
     # -----------------------------------------------------------------
@@ -367,7 +383,9 @@ def create_tasks_router(server: "HTTPServer") -> APIRouter:
             )
             comments = [dict(row) for row in rows]
             return {"comments": comments, "count": len(comments)}
-        except (ValueError, TaskNotFoundError) as e:
+        except TaskNotFoundError as e:
+            raise HTTPException(status_code=404, detail=str(e)) from e
+        except ValueError as e:
             raise HTTPException(status_code=400, detail=str(e)) from e
 
     @router.post("/{task_id}/comments")
@@ -398,7 +416,9 @@ def create_tasks_router(server: "HTTPServer") -> APIRouter:
             result = dict(row) if row else {"id": comment_id}
             await _broadcast_task("task_comment_added", {**result, "task_ref": task.ref})
             return result
-        except (ValueError, TaskNotFoundError) as e:
+        except TaskNotFoundError as e:
+            raise HTTPException(status_code=404, detail=str(e)) from e
+        except ValueError as e:
             raise HTTPException(status_code=400, detail=str(e)) from e
 
     @router.delete("/{task_id}/comments/{comment_id}")
@@ -412,7 +432,9 @@ def create_tasks_router(server: "HTTPServer") -> APIRouter:
                 (comment_id, task.id),
             )
             return {"deleted": True}
-        except (ValueError, TaskNotFoundError) as e:
+        except TaskNotFoundError as e:
+            raise HTTPException(status_code=404, detail=str(e)) from e
+        except ValueError as e:
             raise HTTPException(status_code=400, detail=str(e)) from e
 
     # -----------------------------------------------------------------
@@ -443,9 +465,7 @@ def create_tasks_router(server: "HTTPServer") -> APIRouter:
             task = server.task_manager.get_task(task_id)
             blocker = server.task_manager.get_task(request_data.depends_on)
             dep_manager = TaskDependencyManager(server.task_manager.db)
-            dep = dep_manager.add_dependency(
-                task.id, blocker.id, dep_type=request_data.dep_type
-            )
+            dep = dep_manager.add_dependency(task.id, blocker.id, dep_type=request_data.dep_type)
             return dep.to_dict()
         except DependencyCycleError as e:
             raise HTTPException(status_code=409, detail=str(e)) from e

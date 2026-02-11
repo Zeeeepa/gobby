@@ -140,7 +140,6 @@ export function MemoryForm({ memory, onSave, onCancel }: MemoryFormProps) {
               value={tagInput}
               onChange={(e) => setTagInput(e.target.value)}
               onKeyDown={handleTagKeyDown}
-              onBlur={handleAddTag}
               placeholder="Add tag..."
             />
           </div>

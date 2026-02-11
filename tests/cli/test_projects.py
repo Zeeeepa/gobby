@@ -9,7 +9,10 @@ Tests cover:
 - Repairing projects (no issues, mismatches, --fix)
 """
 
+from pathlib import Path
+
 import json
+import os
 from datetime import UTC, datetime
 from unittest.mock import MagicMock, patch
 
@@ -397,9 +400,7 @@ class TestDeleteProject:
         mock_manager.is_protected.return_value = True
         mock_get_manager.return_value = mock_manager
 
-        result = runner.invoke(
-            cli, ["projects", "delete", "gobby", "--confirm=gobby"]
-        )
+        result = runner.invoke(cli, ["projects", "delete", "gobby", "--confirm=gobby"])
 
         assert result.exit_code == 1
         assert "Cannot delete protected project" in result.output
@@ -417,9 +418,7 @@ class TestDeleteProject:
         mock_manager.is_protected.return_value = False
         mock_get_manager.return_value = mock_manager
 
-        result = runner.invoke(
-            cli, ["projects", "delete", "test-project", "--confirm=wrong-name"]
-        )
+        result = runner.invoke(cli, ["projects", "delete", "test-project", "--confirm=wrong-name"])
 
         assert result.exit_code == 1
         assert "Confirmation mismatch" in result.output
@@ -485,9 +484,13 @@ class TestUpdateProject:
         result = runner.invoke(
             cli,
             [
-                "projects", "update", "test-project",
-                "--github-repo", "user/repo",
-                "--linear-team-id", "TEAM-123",
+                "projects",
+                "update",
+                "test-project",
+                "--github-repo",
+                "user/repo",
+                "--linear-team-id",
+                "TEAM-123",
             ],
         )
 
@@ -520,12 +523,10 @@ class TestRepairProject:
         self,
         mock_get_manager: MagicMock,
         runner: CliRunner,
-        tmp_path,
+        tmp_path: Path,
     ) -> None:
         """Test repair when everything is consistent."""
         with runner.isolated_filesystem(temp_dir=tmp_path) as td:
-            import os
-
             os.makedirs(".gobby")
             cwd = os.path.realpath(td)
             with open(".gobby/project.json", "w") as f:
@@ -549,12 +550,10 @@ class TestRepairProject:
         self,
         mock_get_manager: MagicMock,
         runner: CliRunner,
-        tmp_path,
+        tmp_path: Path,
     ) -> None:
         """Test repair detects repo_path mismatch."""
         with runner.isolated_filesystem(temp_dir=tmp_path):
-            import os
-
             os.makedirs(".gobby")
             with open(".gobby/project.json", "w") as f:
                 json.dump({"id": "proj-123", "name": "my-project"}, f)
@@ -578,12 +577,10 @@ class TestRepairProject:
         self,
         mock_get_manager: MagicMock,
         runner: CliRunner,
-        tmp_path,
+        tmp_path: Path,
     ) -> None:
         """Test repair --fix applies corrections."""
         with runner.isolated_filesystem(temp_dir=tmp_path):
-            import os
-
             os.makedirs(".gobby")
             with open(".gobby/project.json", "w") as f:
                 json.dump({"id": "proj-123", "name": "my-project"}, f)

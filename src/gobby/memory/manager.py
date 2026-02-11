@@ -137,19 +137,13 @@ class MemoryManager:
         except RuntimeError:
             loop = None
 
-        try:
-            if loop and loop.is_running():
-                import concurrent.futures
+        if loop and loop.is_running():
+            # We are in an event loop. Schedule as background task to avoid blocking/crashing.
+            loop.create_task(self._store_embedding_async(memory_id, content, project_id))
+            return
 
-                with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
-                    embedding = pool.submit(
-                        asyncio.run,
-                        generate_embedding(content, model=self.config.embedding_model),
-                    ).result()
-            else:
-                embedding = asyncio.run(
-                    generate_embedding(content, model=self.config.embedding_model)
-                )
+        try:
+            embedding = asyncio.run(generate_embedding(content, model=self.config.embedding_model))
 
             text_hash = hashlib.sha256(content.encode()).hexdigest()
             self._embedding_mgr.store_embedding(

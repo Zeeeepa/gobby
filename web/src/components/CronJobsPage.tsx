@@ -359,23 +359,43 @@ export function CronJobsPage() {
   const [showCreateDialog, setShowCreateDialog] = useState(false)
 
   const handleCreate = useCallback(async (req: CreateCronJobRequest) => {
-    const job = await createJob(req)
-    if (job) {
-      setShowCreateDialog(false)
-      selectJob(job)
+    try {
+      const job = await createJob(req)
+      if (job) {
+        setShowCreateDialog(false)
+        selectJob(job)
+      }
+    } catch (e) {
+      console.error('Failed to create job:', e)
+      alert('Failed to create job')
     }
   }, [createJob, selectJob])
 
   const handleToggle = useCallback(async () => {
-    if (selectedJob) await toggleJob(selectedJob.id)
+    try {
+      if (selectedJob) await toggleJob(selectedJob.id)
+    } catch (e) {
+      console.error('Failed to toggle job:', e)
+      alert('Failed to toggle job')
+    }
   }, [selectedJob, toggleJob])
 
   const handleRunNow = useCallback(async () => {
-    if (selectedJob) await runNow(selectedJob.id)
+    try {
+      if (selectedJob) await runNow(selectedJob.id)
+    } catch (e) {
+      console.error('Failed to run job:', e)
+      alert('Failed to run job')
+    }
   }, [selectedJob, runNow])
 
   const handleDelete = useCallback(async () => {
-    if (selectedJob) await deleteJob(selectedJob.id)
+    try {
+      if (selectedJob) await deleteJob(selectedJob.id)
+    } catch (e) {
+      console.error('Failed to delete job:', e)
+      alert('Failed to delete job')
+    }
   }, [selectedJob, deleteJob])
 
   return (

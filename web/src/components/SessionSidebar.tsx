@@ -222,6 +222,14 @@ function SessionItem({
     <div
       className={`session-item ${isActive ? 'attached' : ''} ${!isResumable ? 'session-item-muted' : ''}`}
       onClick={() => onSelect(session)}
+      role="button"
+      tabIndex={0}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault()
+          onSelect(session)
+        }
+      }}
     >
       <div className="session-item-main">
         <span className={sourceDotClass(session.source)} />

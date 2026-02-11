@@ -20,7 +20,7 @@ def is_mem0_installed(*, gobby_home: Path | None = None) -> bool:
     return (home / "services" / "mem0").exists()
 
 
-def is_mem0_healthy(url: str | None) -> bool:
+async def is_mem0_healthy(url: str | None) -> bool:
     """Check if a mem0 instance is reachable and healthy.
 
     Sends a GET request to the /docs endpoint with a short timeout.
@@ -29,13 +29,14 @@ def is_mem0_healthy(url: str | None) -> bool:
     if not url:
         return False
     try:
-        resp = httpx.get(f"{url}/docs", timeout=5)
-        return resp.status_code < 500
+        async with httpx.AsyncClient() as client:
+            resp = await client.get(f"{url}/docs", timeout=5)
+            return resp.status_code < 500
     except httpx.HTTPError:
         return False
 
 
-def get_mem0_status(
+async def get_mem0_status(
     *,
     gobby_home: Path | None = None,
     mem0_url: str | None = None,
@@ -48,7 +49,7 @@ def get_mem0_status(
         url: str | None - configured URL
     """
     installed = is_mem0_installed(gobby_home=gobby_home)
-    healthy = is_mem0_healthy(mem0_url)
+    healthy = await is_mem0_healthy(mem0_url)
 
     return {
         "installed": installed,

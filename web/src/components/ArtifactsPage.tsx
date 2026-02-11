@@ -311,15 +311,30 @@ export function ArtifactsPage() {
   }, [setFilters])
 
   const handleDelete = useCallback(async (id: string) => {
-    await deleteArtifact(id)
+    try {
+      await deleteArtifact(id)
+    } catch (e) {
+      console.error('Failed to delete artifact:', e)
+      alert('Failed to delete artifact')
+    }
   }, [deleteArtifact])
 
   const handleAddTag = useCallback(async (id: string, tag: string) => {
-    await addTag(id, tag)
+    try {
+      await addTag(id, tag)
+    } catch (e) {
+      console.error('Failed to add tag:', e)
+      alert('Failed to add tag')
+    }
   }, [addTag])
 
   const handleRemoveTag = useCallback(async (id: string, tag: string) => {
-    await removeTag(id, tag)
+    try {
+      await removeTag(id, tag)
+    } catch (e) {
+      console.error('Failed to remove tag:', e)
+      alert('Failed to remove tag')
+    }
   }, [removeTag])
 
   return (

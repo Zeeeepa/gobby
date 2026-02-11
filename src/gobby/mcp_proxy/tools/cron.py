@@ -68,6 +68,7 @@ def create_cron_registry(
                 "count": len(jobs),
             }
         except Exception as e:
+            logger.exception("Failed to list cron jobs", extra={"project_id": project_id})
             return {"success": False, "error": str(e)}
 
     @registry.tool(
@@ -116,6 +117,9 @@ def create_cron_registry(
             )
             return {"success": True, "job": job.to_dict()}
         except Exception as e:
+            logger.exception(
+                "Failed to create cron job", extra={"name": name, "project_id": project_id}
+            )
             return {"success": False, "error": str(e)}
 
     @registry.tool(
@@ -135,6 +139,7 @@ def create_cron_registry(
                 return {"success": False, "error": f"Cron job not found: {job_id}"}
             return {"success": True, "job": job.to_dict()}
         except Exception as e:
+            logger.exception("Failed to get cron job", extra={"job_id": job_id})
             return {"success": False, "error": str(e)}
 
     @registry.tool(
@@ -171,10 +176,14 @@ def create_cron_registry(
         try:
             kwargs: dict[str, Any] = {}
             for field, val in [
-                ("name", name), ("description", description),
-                ("schedule_type", schedule_type), ("cron_expr", cron_expr),
-                ("interval_seconds", interval_seconds), ("timezone", timezone),
-                ("action_type", action_type), ("action_config", action_config),
+                ("name", name),
+                ("description", description),
+                ("schedule_type", schedule_type),
+                ("cron_expr", cron_expr),
+                ("interval_seconds", interval_seconds),
+                ("timezone", timezone),
+                ("action_type", action_type),
+                ("action_config", action_config),
                 ("enabled", enabled),
             ]:
                 if val is not None:
@@ -188,6 +197,7 @@ def create_cron_registry(
                 return {"success": False, "error": f"Cron job not found: {job_id}"}
             return {"success": True, "job": updated.to_dict()}
         except Exception as e:
+            logger.exception("Failed to update cron job", extra={"job_id": job_id})
             return {"success": False, "error": str(e)}
 
     @registry.tool(
@@ -208,6 +218,7 @@ def create_cron_registry(
             state = "enabled" if job.enabled else "disabled"
             return {"success": True, "job": job.to_brief(), "state": state}
         except Exception as e:
+            logger.exception("Failed to toggle cron job", extra={"job_id": job_id})
             return {"success": False, "error": str(e)}
 
     @registry.tool(
@@ -227,6 +238,7 @@ def create_cron_registry(
                 return {"success": False, "error": f"Cron job not found: {job_id}"}
             return {"success": True}
         except Exception as e:
+            logger.exception("Failed to delete cron job", extra={"job_id": job_id})
             return {"success": False, "error": str(e)}
 
     @registry.tool(
@@ -252,8 +264,13 @@ def create_cron_registry(
             if not job:
                 return {"success": False, "error": f"Cron job not found: {job_id}"}
             run = cron_storage.create_run(job.id)
-            return {"success": True, "run": run.to_dict(), "note": "Scheduler not running; run created but not executed"}
+            return {
+                "success": True,
+                "run": run.to_dict(),
+                "note": "Scheduler not running; run created but not executed",
+            }
         except Exception as e:
+            logger.exception("Failed to run cron job", extra={"job_id": job_id})
             return {"success": False, "error": str(e)}
 
     @registry.tool(
@@ -279,6 +296,7 @@ def create_cron_registry(
                 "count": len(runs),
             }
         except Exception as e:
+            logger.exception("Failed to list cron runs", extra={"job_id": job_id})
             return {"success": False, "error": str(e)}
 
     return registry

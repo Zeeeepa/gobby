@@ -56,6 +56,20 @@ class TestMem0ClientInit:
         assert client._timeout == 60.0
 
 
+class TestMem0ClientClose:
+    """Test closing the client."""
+
+    @pytest.mark.asyncio
+    async def test_close(self) -> None:
+        """close() should close the underlying httpx client."""
+        client = Mem0Client(api_key="test-key")
+        client._client.aclose = AsyncMock()
+
+        await client.close()
+
+        client._client.aclose.assert_called_once()
+
+
 # =============================================================================
 # Create memory
 # =============================================================================
@@ -250,9 +264,7 @@ class TestErrorHandling:
     async def test_connection_error(self) -> None:
         """Connection errors should raise Mem0ConnectionError."""
         client = Mem0Client(api_key="test-key")
-        client._client.request = AsyncMock(
-            side_effect=httpx.ConnectError("Connection refused")
-        )
+        client._client.request = AsyncMock(side_effect=httpx.ConnectError("Connection refused"))
         with pytest.raises(Mem0ConnectionError, match="Connection refused"):
             await client.get("mem-1")
 
@@ -282,8 +294,6 @@ class TestErrorHandling:
     async def test_timeout_raises_connection_error(self) -> None:
         """Timeout should raise Mem0ConnectionError."""
         client = Mem0Client(api_key="test-key", timeout=0.001)
-        client._client.request = AsyncMock(
-            side_effect=httpx.TimeoutException("Request timed out")
-        )
+        client._client.request = AsyncMock(side_effect=httpx.TimeoutException("Request timed out"))
         with pytest.raises(Mem0ConnectionError, match="timed out"):
             await client.get("mem-1")

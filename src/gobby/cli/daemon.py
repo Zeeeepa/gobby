@@ -2,6 +2,7 @@
 Daemon management commands.
 """
 
+import asyncio
 import logging
 import os
 import subprocess  # nosec B404 - subprocess needed for daemon management
@@ -40,12 +41,16 @@ def _mem0_start(gobby_home: Path) -> None:
     if not compose_file.exists():
         return
     try:
-        subprocess.run(  # nosec B603 B607 - hardcoded docker command
+        result = subprocess.run(  # nosec B603 B607 - hardcoded docker command
             ["docker", "compose", "-f", str(compose_file), "up", "-d"],
             capture_output=True,
             text=True,
             timeout=120,
         )
+        if result.returncode != 0:
+            logger.warning(f"Failed to start mem0 containers: {result.stderr or result.stdout}")
+    except subprocess.TimeoutExpired:
+        logger.warning("Timed out starting mem0 containers")
     except Exception as e:
         logger.warning(f"Failed to start mem0 containers: {e}")
 
@@ -56,12 +61,16 @@ def _mem0_stop(gobby_home: Path) -> None:
     if not compose_file.exists():
         return
     try:
-        subprocess.run(  # nosec B603 B607 - hardcoded docker command
+        result = subprocess.run(  # nosec B603 B607 - hardcoded docker command
             ["docker", "compose", "-f", str(compose_file), "down"],
             capture_output=True,
             text=True,
             timeout=60,
         )
+        if result.returncode != 0:
+            logger.warning(f"Failed to stop mem0 containers: {result.stderr or result.stdout}")
+    except subprocess.TimeoutExpired:
+        logger.warning("Timed out stopping mem0 containers")
     except Exception as e:
         logger.warning(f"Failed to stop mem0 containers: {e}")
 
@@ -469,9 +478,9 @@ def status(ctx: click.Context) -> None:
     # Check mem0 status
     from gobby.cli.services import get_mem0_status
 
-    mem0_status = get_mem0_status(
+    mem0_status = asyncio.run(get_mem0_status(
         mem0_url=config.memory.mem0_url if hasattr(config.memory, "mem0_url") else None,
-    )
+    ))
 
     # Build status kwargs
     status_kwargs: dict[str, Any] = {

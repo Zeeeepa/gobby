@@ -20,7 +20,8 @@ from gobby.mcp_proxy.tools.tasks import (
     _infer_category,
     create_task_registry,
 )
-from gobby.storage.tasks import LocalTaskManager, Task
+from gobby.storage.projects import PERSONAL_PROJECT_ID
+from gobby.storage.tasks import LocalTaskManager, Task, TaskNotFoundError
 from gobby.sync.tasks import TaskSyncManager
 
 pytestmark = pytest.mark.unit
@@ -301,8 +302,6 @@ class TestCreateTaskTool:
     @pytest.mark.asyncio
     async def test_create_task_depends_on_with_errors(self, mock_task_manager, mock_sync_manager):
         """Test create_task with depends_on handles invalid refs gracefully."""
-        from gobby.storage.tasks import TaskNotFoundError
-
         with patch("gobby.mcp_proxy.tools.tasks._context.TaskDependencyManager") as MockDepManager:
             mock_dep_instance = MagicMock()
             MockDepManager.return_value = mock_dep_instance
@@ -501,8 +500,6 @@ class TestCreateTaskTool:
             await registry.call("create_task", {"title": "Task", "session_id": "test-session"})
 
             # When no project context, should fall back to PERSONAL_PROJECT_ID
-            from gobby.storage.projects import PERSONAL_PROJECT_ID
-
             call_kwargs = mock_task_manager.create_task_with_decomposition.call_args.kwargs
             assert call_kwargs["project_id"] == PERSONAL_PROJECT_ID
 

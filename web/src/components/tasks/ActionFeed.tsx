@@ -118,11 +118,13 @@ interface ActionFeedProps {
 export function ActionFeed({ sessionId }: ActionFeedProps) {
   const [actions, setActions] = useState<ActionEntry[]>([])
   const [isLoading, setIsLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
   const [expanded, setExpanded] = useState<Set<number>>(new Set())
 
   const fetchActions = useCallback(async () => {
     if (!sessionId) return
     setIsLoading(true)
+    setError(null)
     try {
       const baseUrl = getBaseUrl()
       const response = await fetch(
@@ -132,11 +134,15 @@ export function ActionFeed({ sessionId }: ActionFeedProps) {
         const data = await response.json()
         const messages: SessionMessage[] = data.messages || []
         setActions(toActions(messages))
+      } else {
+        throw new Error(`Failed to fetch actions: ${response.statusText}`)
       }
     } catch (e) {
       console.error('Failed to fetch session messages:', e)
+      setError('Failed to load actions')
+    } finally {
+      setIsLoading(false)
     }
-    setIsLoading(false)
   }, [sessionId])
 
   useEffect(() => {
@@ -154,6 +160,7 @@ export function ActionFeed({ sessionId }: ActionFeedProps) {
 
   if (!sessionId) return null
   if (isLoading) return <div className="action-feed-loading">Loading actions...</div>
+  if (error) return <div className="action-feed-error">{error}</div>
   if (actions.length === 0) return <div className="action-feed-empty">No tool calls recorded</div>
 
   return (

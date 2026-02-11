@@ -54,9 +54,11 @@ export function useSessions() {
     sortOrder: 'newest',
   })
   const [isLoading, setIsLoading] = useState(true)
+  const [error, setError] = useState<Error | null>(null)
   const intervalRef = useRef<number | null>(null)
 
   const fetchSessions = useCallback(async () => {
+    setError(null)
     try {
       const baseUrl = getBaseUrl()
       const params = new URLSearchParams({ limit: '200' })
@@ -67,9 +69,12 @@ export function useSessions() {
       if (response.ok) {
         const data = await response.json()
         setSessions(data.sessions || [])
+      } else {
+        throw new Error(`Failed to fetch sessions: ${response.status}`)
       }
     } catch (e) {
       console.error('Failed to fetch sessions:', e)
+      setError(e instanceof Error ? e : new Error(String(e)))
     } finally {
       setIsLoading(false)
     }
@@ -88,11 +93,15 @@ export function useSessions() {
     }
   }, [])
 
-  // Fetch on mount and when server-side filters change
+  // Fetch sessions on mount and when server-side filters change
   useEffect(() => {
     fetchSessions()
+  }, [fetchSessions])
+
+  // Fetch projects only once on mount
+  useEffect(() => {
     fetchProjects()
-  }, [fetchSessions, fetchProjects])
+  }, [fetchProjects])
 
   // Poll for updates
   useEffect(() => {
@@ -139,6 +148,7 @@ export function useSessions() {
     filters,
     setFilters,
     isLoading,
+    error,
     refresh,
   }
 }

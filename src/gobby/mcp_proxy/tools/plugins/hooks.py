@@ -41,7 +41,7 @@ def register_hook_tools(
                 "message": "Hook manager not available - plugins not loaded",
             }
 
-        loader = getattr(hm, "_plugin_loader", None)
+        loader = getattr(hm, "plugin_loader", None)
         if loader is None:
             return {
                 "success": True,

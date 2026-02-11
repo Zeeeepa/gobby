@@ -56,7 +56,8 @@ def create_memory_router(server: "HTTPServer") -> APIRouter:
     metrics = get_metrics_collector()
 
     @router.get("")
-    async def list_memories(
+    @router.get("")
+    def list_memories(
         project_id: str | None = Query(None, description="Filter by project ID"),
         memory_type: str | None = Query(None, description="Filter by memory type"),
         min_importance: float | None = Query(None, description="Minimum importance"),
@@ -65,14 +66,18 @@ def create_memory_router(server: "HTTPServer") -> APIRouter:
     ) -> dict[str, Any]:
         """List memories with optional filters."""
         metrics.inc_counter("http_requests_total")
-        memories = server.memory_manager.list_memories(
-            project_id=project_id,
-            memory_type=memory_type,
-            min_importance=min_importance,
-            limit=limit,
-            offset=offset,
-        )
-        return {"memories": [m.to_dict() for m in memories]}
+        try:
+            memories = server.memory_manager.list_memories(
+                project_id=project_id,
+                memory_type=memory_type,
+                min_importance=min_importance,
+                limit=limit,
+                offset=offset,
+            )
+            return {"memories": [m.to_dict() for m in memories]}
+        except Exception as e:
+            logger.error(f"Failed to list memories: {e}")
+            raise HTTPException(status_code=500, detail=str(e)) from e
 
     @router.post("", status_code=201)
     async def create_memory(request_data: MemoryCreateRequest) -> Any:
@@ -89,12 +94,15 @@ def create_memory_router(server: "HTTPServer") -> APIRouter:
                 tags=request_data.tags,
             )
             return memory.to_dict()
+        except HTTPException:
+            raise
         except Exception as e:
             logger.error(f"Failed to create memory: {e}")
             raise HTTPException(status_code=500, detail=str(e)) from e
 
     @router.get("/search")
-    async def search_memories(
+    @router.get("/search")
+    def search_memories(
         q: str = Query(..., description="Search query"),
         project_id: str | None = Query(None, description="Filter by project ID"),
         limit: int = Query(10, description="Maximum results"),
@@ -102,37 +110,55 @@ def create_memory_router(server: "HTTPServer") -> APIRouter:
     ) -> dict[str, Any]:
         """Search memories by query."""
         metrics.inc_counter("http_requests_total")
-        results = server.memory_manager.recall(
-            query=q,
-            project_id=project_id,
-            limit=limit,
-            min_importance=min_importance,
-        )
-        return {
-            "query": q,
-            "results": [m.to_dict() for m in results],
-            "count": len(results),
-        }
+        try:
+            results = server.memory_manager.recall(
+                query=q,
+                project_id=project_id,
+                limit=limit,
+                min_importance=min_importance,
+            )
+            return {
+                "query": q,
+                "results": [m.to_dict() for m in results],
+                "count": len(results),
+            }
+        except HTTPException:
+            raise
+        except Exception as e:
+            logger.error(f"Failed to search memories: {e}")
+            raise HTTPException(status_code=500, detail=str(e)) from e
 
     @router.get("/stats")
-    async def memory_stats(
+    @router.get("/stats")
+    def memory_stats(
         project_id: str | None = Query(None, description="Filter by project ID"),
     ) -> Any:
         """Get memory statistics."""
         metrics.inc_counter("http_requests_total")
-        return server.memory_manager.get_stats(project_id=project_id)
+        try:
+            return server.memory_manager.get_stats(project_id=project_id)
+        except Exception as e:
+            logger.error(f"Failed to get memory stats: {e}")
+            raise HTTPException(status_code=500, detail=str(e)) from e
 
     @router.get("/{memory_id}")
-    async def get_memory(memory_id: str) -> Any:
+    @router.get("/{memory_id}")
+    def get_memory(memory_id: str) -> Any:
         """Get a specific memory by ID."""
         metrics.inc_counter("http_requests_total")
-        memory = server.memory_manager.get_memory(memory_id)
+        try:
+            memory = server.memory_manager.get_memory(memory_id)
+        except Exception as e:
+            logger.error(f"Failed to get memory {memory_id}: {e}")
+            raise HTTPException(status_code=500, detail=str(e)) from e
+
         if memory is None:
             raise HTTPException(status_code=404, detail="Memory not found")
         return memory.to_dict()
 
     @router.put("/{memory_id}")
-    async def update_memory(memory_id: str, request_data: MemoryUpdateRequest) -> Any:
+    @router.put("/{memory_id}")
+    def update_memory(memory_id: str, request_data: MemoryUpdateRequest) -> Any:
         """Update an existing memory."""
         metrics.inc_counter("http_requests_total")
         try:
@@ -145,12 +171,21 @@ def create_memory_router(server: "HTTPServer") -> APIRouter:
             return memory.to_dict()
         except ValueError as e:
             raise HTTPException(status_code=404, detail=str(e)) from e
+        except Exception as e:
+            logger.error(f"Failed to update memory {memory_id}: {e}")
+            raise HTTPException(status_code=500, detail=str(e)) from e
 
     @router.delete("/{memory_id}")
-    async def delete_memory(memory_id: str) -> dict[str, Any]:
+    @router.delete("/{memory_id}")
+    def delete_memory(memory_id: str) -> dict[str, Any]:
         """Delete a memory."""
         metrics.inc_counter("http_requests_total")
-        result = server.memory_manager.forget(memory_id)
+        try:
+            result = server.memory_manager.forget(memory_id)
+        except Exception as e:
+            logger.error(f"Failed to delete memory {memory_id}: {e}")
+            raise HTTPException(status_code=500, detail=str(e)) from e
+
         if not result:
             raise HTTPException(status_code=404, detail="Memory not found")
         return {"deleted": True, "id": memory_id}

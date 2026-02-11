@@ -16,6 +16,7 @@ export function MemoryFilters({ filters, onFiltersChange }: MemoryFiltersProps) 
         placeholder="Search memories..."
         value={filters.search}
         onChange={(e) => onFiltersChange({ ...filters, search: e.target.value })}
+        aria-label="Search memories"
       />
       <div className="memory-filter-row">
         <select

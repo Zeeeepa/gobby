@@ -1,16 +1,4 @@
-import type { GobbyMemory } from '../hooks/useMemory'
-import { formatRelativeTime } from '../utils/formatTime'
-
-interface MemoryDetailProps {
-  memory: GobbyMemory
-  onEdit: () => void
-  onDelete: () => void
-  onClose: () => void
-}
-
-function typeLabel(type: string): string {
-  return type.charAt(0).toUpperCase() + type.slice(1)
-}
+import { formatRelativeTime, typeLabel } from '../utils/formatTime'
 
 export function MemoryDetail({ memory, onEdit, onDelete, onClose }: MemoryDetailProps) {
   return (
@@ -99,7 +87,14 @@ export function MemoryDetail({ memory, onEdit, onDelete, onClose }: MemoryDetail
         <button className="memory-form-btn-save" onClick={onEdit}>
           Edit
         </button>
-        <button className="memory-delete-btn" onClick={onDelete}>
+        <button
+          className="memory-delete-btn"
+          onClick={() => {
+            if (window.confirm('Are you sure you want to delete this memory?')) {
+              onDelete()
+            }
+          }}
+        >
           Delete
         </button>
       </div>

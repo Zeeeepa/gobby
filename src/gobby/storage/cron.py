@@ -9,7 +9,7 @@ import json
 import logging
 from datetime import UTC, datetime, timedelta
 from typing import Any, Literal, cast
-from zoneinfo import ZoneInfo
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from croniter import croniter  # type: ignore[import-untyped]
 
@@ -32,15 +32,23 @@ def compute_next_run(job: CronJob) -> datetime | None:
     if not job.enabled:
         return None
 
-    tz = ZoneInfo(job.timezone) if job.timezone else ZoneInfo("UTC")
+    try:
+        tz = ZoneInfo(job.timezone) if job.timezone else ZoneInfo("UTC")
+    except ZoneInfoNotFoundError:
+        # Fallback to UTC if timezone is invalid
+        tz = ZoneInfo("UTC")
     now = datetime.now(tz)
 
     if job.schedule_type == "cron":
         if not job.cron_expr:
             return None
-        cron = croniter(job.cron_expr, now)
-        next_dt = cast(datetime, cron.get_next(datetime))
-        return next_dt.astimezone(ZoneInfo("UTC"))
+        try:
+            cron = croniter(job.cron_expr, now)
+            next_dt = cast(datetime, cron.get_next(datetime))
+            return next_dt.astimezone(ZoneInfo("UTC"))
+        except (ValueError, KeyError):
+            # Invalid cron expression
+            return None
 
     elif job.schedule_type == "interval":
         if not job.interval_seconds:
@@ -346,9 +354,7 @@ class CronJobStorage:
         row = self.db.fetchone("SELECT * FROM cron_runs WHERE id = ?", (run_id,))
         return CronRun.from_row(row) if row else None
 
-    def list_runs(
-        self, cron_job_id: str, limit: int = 20
-    ) -> list[CronRun]:
+    def list_runs(self, cron_job_id: str, limit: int = 20) -> list[CronRun]:
         """List runs for a cron job, most recent first."""
         rows = self.db.fetchall(
             """
@@ -363,9 +369,7 @@ class CronJobStorage:
 
     def count_running(self) -> int:
         """Count currently running cron runs."""
-        row = self.db.fetchone(
-            "SELECT COUNT(*) as cnt FROM cron_runs WHERE status = 'running'"
-        )
+        row = self.db.fetchone("SELECT COUNT(*) as cnt FROM cron_runs WHERE status = 'running'")
         return row["cnt"] if row else 0
 
     def cleanup_old_runs(self, days: int) -> int:
@@ -377,5 +381,5 @@ class CronJobStorage:
         )
         deleted = cursor.rowcount
         if deleted > 0:
-            logger.info(f"Cleaned up {deleted} cron runs older than {days} days")
+            logger.info("Cleaned up %d cron runs older than %d days", deleted, days)
         return deleted

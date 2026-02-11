@@ -49,6 +49,7 @@ export function TaskHandoff({ taskId, currentAssignee, onHandoff }: TaskHandoffP
   const [whatsLeft, setWhatsLeft] = useState('')
   const [blockers, setBlockers] = useState('')
   const [submitting, setSubmitting] = useState(false)
+  const [error, setError] = useState<string | null>(null)
 
   const reset = useCallback(() => {
     setTarget('agent')
@@ -61,6 +62,7 @@ export function TaskHandoff({ taskId, currentAssignee, onHandoff }: TaskHandoffP
   const handleSubmit = useCallback(async () => {
     if (!assignee.trim()) return
     setSubmitting(true)
+    setError(null)
 
     const ctx: HandoffContext = {
       target,
@@ -73,7 +75,7 @@ export function TaskHandoff({ taskId, currentAssignee, onHandoff }: TaskHandoffP
     try {
       // Post handoff comment
       const baseUrl = getBaseUrl()
-      await fetch(`${baseUrl}/tasks/${encodeURIComponent(taskId)}/comments`, {
+      const response = await fetch(`${baseUrl}/tasks/${encodeURIComponent(taskId)}/comments`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -83,6 +85,10 @@ export function TaskHandoff({ taskId, currentAssignee, onHandoff }: TaskHandoffP
         }),
       })
 
+      if (!response.ok) {
+        throw new Error(`Failed to post handoff comment: ${response.statusText}`)
+      }
+
       // Update assignee
       await onHandoff(assignee.trim())
 
@@ -90,8 +96,10 @@ export function TaskHandoff({ taskId, currentAssignee, onHandoff }: TaskHandoffP
       setIsOpen(false)
     } catch (e) {
       console.error('Handoff failed:', e)
+      setError('Failed to effect handoff. Please try again.')
+    } finally {
+      setSubmitting(false)
     }
-    setSubmitting(false)
   }, [taskId, target, assignee, whatsDone, whatsLeft, blockers, onHandoff, reset])
 
   if (!isOpen) {

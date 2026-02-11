@@ -37,31 +37,41 @@ export function MemoryPage() {
 
   const handleSave = useCallback(
     async (data: MemoryFormData) => {
-      if (editMemory) {
-        await updateMemory(editMemory.id, {
-          content: data.content,
-          importance: data.importance,
-          tags: data.tags,
-        })
-      } else {
-        await createMemory({
-          content: data.content,
-          memory_type: data.memory_type,
-          importance: data.importance,
-          tags: data.tags,
-        })
+      try {
+        if (editMemory) {
+          await updateMemory(editMemory.id, {
+            content: data.content,
+            importance: data.importance,
+            tags: data.tags,
+          })
+        } else {
+          await createMemory({
+            content: data.content,
+            memory_type: data.memory_type,
+            importance: data.importance,
+            tags: data.tags,
+          })
+        }
+        setShowForm(false)
+        setEditMemory(null)
+      } catch (e) {
+        console.error('Failed to save memory:', e)
+        alert('Failed to save memory')
       }
-      setShowForm(false)
-      setEditMemory(null)
     },
     [editMemory, createMemory, updateMemory]
   )
 
   const handleDelete = useCallback(
     async (memoryId: string) => {
-      await deleteMemory(memoryId)
-      if (selectedMemory?.id === memoryId) {
-        setSelectedMemory(null)
+      try {
+        await deleteMemory(memoryId)
+        if (selectedMemory?.id === memoryId) {
+          setSelectedMemory(null)
+        }
+      } catch (e) {
+        console.error('Failed to delete memory:', e)
+        alert('Failed to delete memory')
       }
     },
     [deleteMemory, selectedMemory]

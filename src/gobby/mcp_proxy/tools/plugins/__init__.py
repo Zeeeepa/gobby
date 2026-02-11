@@ -51,5 +51,5 @@ def create_plugins_registry(
     register_interaction_tools(registry, get_hook_manager)
     register_hook_tools(registry, get_hook_manager)
 
-    logger.debug("Plugins registry created with %d tools", len(registry._tools))
+    logger.debug("Plugins registry created with %d tools", len(registry.list_tools()))
     return registry

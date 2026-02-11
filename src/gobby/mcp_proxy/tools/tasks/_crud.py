@@ -123,7 +123,8 @@ def create_crud_registry(ctx: RegistryContext) -> InternalToolRegistry:
         # Link task to session (best-effort) - tracks which session created the task
         try:
             ctx.session_task_manager.link_task(resolved_session_id, task.id, "created")
-        except Exception:
+        except Exception as e:
+            logger.warning(f"Failed to link task {task.id} to session {resolved_session_id}: {e}")
             pass  # nosec B110 - best-effort linking
 
         # Auto-claim if requested: set assignee and status to in_progress
@@ -140,7 +141,8 @@ def create_crud_registry(ctx: RegistryContext) -> InternalToolRegistry:
                 # Link task to session with "claimed" action (best-effort)
                 try:
                     ctx.session_task_manager.link_task(resolved_session_id, task.id, "claimed")
-                except Exception:
+                except Exception as e:
+                    logger.warning(f"Failed to link claimed task {task.id}: {e}")
                     pass  # nosec B110 - best-effort linking
 
             # Set workflow state for Claude Code (CC doesn't include tool results in PostToolUse)

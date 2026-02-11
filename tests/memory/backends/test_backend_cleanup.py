@@ -5,6 +5,8 @@ Part of Memory V4: cleaning up deprecated backends after mem0 integration.
 
 import pytest
 
+pytestmark = pytest.mark.unit
+
 
 class TestSQLiteBackendRemoved:
     """Verify the SQLite backend wrapper has been removed from the factory."""

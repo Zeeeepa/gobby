@@ -59,7 +59,7 @@ async def memory_save(
     Args:
         memory_manager: The memory manager instance
         session_manager: The session manager instance
-        session_id: Current session ID
+        session_id: Current session ID (used for project resolution and logging)
         content: The memory content to save (required)
         memory_type: One of 'fact', 'preference', 'pattern', 'context'
         importance: Float 0.0-1.0
@@ -86,6 +86,14 @@ async def memory_save(
 
     if not project_id:
         return {"error": "No project_id found"}
+
+    logger.debug(
+        "Saving memory type=%s session=%s project=%s importance=%.2f",
+        memory_type,
+        session_id,
+        project_id,
+        importance,
+    )
 
     # Validate memory_type
     if memory_type not in ("fact", "preference", "pattern", "context"):
@@ -126,7 +134,7 @@ async def memory_save(
         }
 
     except Exception as e:
-        logger.error(f"save_memory: Failed: {e}", exc_info=True)
+        logger.error(f"save_memory: Failed for session {session_id}: {e}", exc_info=True)
         return {"error": str(e)}
 
 
@@ -243,7 +251,7 @@ async def memory_recall_relevant(
         }
 
     except Exception as e:
-        logger.error(f"memory_recall_relevant: Failed: {e}", exc_info=True)
+        logger.error(f"memory_recall_relevant: Failed for session {session_id}: {e}", exc_info=True)
         return {"error": str(e)}
 
 

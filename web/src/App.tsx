@@ -21,6 +21,8 @@ import { AgentPortfolioPage } from './components/AgentPortfolioPage'
 import { QuickCaptureTask } from './components/tasks/QuickCaptureTask'
 import type { GobbySession } from './hooks/useSessions'
 
+const HIDDEN_PROJECTS = new Set(['_orphaned', '_migrated'])
+
 export default function App() {
   const { messages, conversationId, isConnected, isStreaming, isThinking, sendMessage, stopStreaming, clearHistory, executeCommand, respondToQuestion, switchConversation, startNewChat } = useChat()
   const { settings, modelInfo, modelsLoading, updateFontSize, updateModel, resetSettings } = useSettings()
@@ -76,7 +78,6 @@ export default function App() {
   }, [])
 
   // Build project options for the selector (exclude internal system projects)
-  const HIDDEN_PROJECTS = new Set(['_orphaned', '_migrated'])
   const projectOptions = useMemo(
     () => sessionsHook.projects
       .filter((p) => !HIDDEN_PROJECTS.has(p.name))

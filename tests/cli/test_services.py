@@ -9,8 +9,12 @@ import yaml
 
 from gobby.cli.services import get_mem0_status, is_mem0_healthy, is_mem0_installed
 
+pytestmark = pytest.mark.unit
 
-COMPOSE_FILE = Path(__file__).resolve().parents[2] / "src" / "gobby" / "data" / "docker-compose.mem0.yml"
+
+COMPOSE_FILE = (
+    Path(__file__).resolve().parents[2] / "src" / "gobby" / "data" / "docker-compose.mem0.yml"
+)
 
 
 class TestDockerComposeMem0:
@@ -133,9 +137,7 @@ class TestGetMem0Status:
         svc_dir.mkdir(parents=True)
         with patch("httpx.get") as mock_get:
             mock_get.return_value = httpx.Response(200)
-            status = get_mem0_status(
-                gobby_home=tmp_path, mem0_url="http://localhost:8888"
-            )
+            status = get_mem0_status(gobby_home=tmp_path, mem0_url="http://localhost:8888")
         assert status["installed"] is True
         assert status["healthy"] is True
         assert status["url"] == "http://localhost:8888"
@@ -150,8 +152,6 @@ class TestGetMem0Status:
         svc_dir = tmp_path / "services" / "mem0"
         svc_dir.mkdir(parents=True)
         with patch("httpx.get", side_effect=httpx.ConnectError("refused")):
-            status = get_mem0_status(
-                gobby_home=tmp_path, mem0_url="http://localhost:8888"
-            )
+            status = get_mem0_status(gobby_home=tmp_path, mem0_url="http://localhost:8888")
         assert status["installed"] is True
         assert status["healthy"] is False

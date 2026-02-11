@@ -63,6 +63,7 @@ def _install_local(home: Path, api_key: str | None) -> dict[str, Any]:
             text=True,
             timeout=120,
         )
+
         if result.returncode != 0:
             return {
                 "success": False,
@@ -70,6 +71,8 @@ def _install_local(home: Path, api_key: str | None) -> dict[str, Any]:
             }
     except subprocess.TimeoutExpired:
         return {"success": False, "error": "Docker compose up timed out after 120s"}
+    except (OSError, subprocess.SubprocessError) as e:
+        return {"success": False, "error": f"Docker compose execution failed: {e}"}
 
     # Wait for health check
     if not _wait_for_health(DEFAULT_MEM0_URL):
@@ -135,7 +138,9 @@ def uninstall_mem0(
             cmd.append("-v")
 
         try:
-            subprocess.run(cmd, capture_output=True, text=True, timeout=60)  # nosec B603 - hardcoded docker command
+            result = subprocess.run(cmd, capture_output=True, text=True, timeout=60)  # nosec B603 - hardcoded docker command
+            if result.returncode != 0:
+                logger.warning(f"Docker compose down failed: {result.stderr or result.stdout}")
         except subprocess.TimeoutExpired:
             logger.warning("Docker compose down timed out")
 

@@ -103,7 +103,7 @@ def registry_no_hm():
 
 class TestListPlugins:
     @pytest.mark.asyncio
-    async def test_list_plugins(self, registry):
+    async def test_list_plugins(self, registry) -> None:
         result = await registry.call("list_plugins", {})
         assert result["success"] is True
         assert result["enabled"] is True

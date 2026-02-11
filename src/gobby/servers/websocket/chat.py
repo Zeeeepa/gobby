@@ -127,7 +127,8 @@ class ChatMixin:
         session_manager = getattr(self, "session_manager", None)
         if session_manager:
             try:
-                db_session = session_manager.register(
+                db_session = await asyncio.to_thread(
+                    session_manager.register,
                     external_id=conversation_id,
                     machine_id=get_machine_id(),
                     source="claude_sdk_web_chat",
@@ -513,7 +514,9 @@ class ChatMixin:
             session_manager = getattr(self, "session_manager", None)
             if session_manager:
                 try:
-                    session_manager.update(session.db_session_id, status="completed")
+                    await asyncio.to_thread(
+                        session_manager.update, session.db_session_id, status="completed"
+                    )
                 except Exception as e:
                     logger.warning(f"Failed to update session status on clear: {e}")
 
@@ -547,7 +550,9 @@ class ChatMixin:
                         session_manager = getattr(self, "session_manager", None)
                         if session_manager:
                             try:
-                                session_manager.update(session.db_session_id, status="paused")
+                                await asyncio.to_thread(
+                                    session_manager.update, session.db_session_id, status="paused"
+                                )
                             except Exception as e:
                                 logger.warning(f"Failed to update session status: {e}")
                     await session.stop()

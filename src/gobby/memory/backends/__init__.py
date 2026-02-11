@@ -1,9 +1,13 @@
 """Memory backend factory.
 
 This module provides a factory function for creating memory backends.
-The default local storage is handled directly by MemoryManager via
-StorageAdapter wrapping LocalMemoryManager — it does not go through
-this factory. Mem0 integration uses Mem0Client directly in manager.py.
+
+Note:
+    - Default local storage is handled directly by MemoryManager via
+      StorageAdapter wrapping LocalMemoryManager — it does not go through
+      this factory.
+    - Mem0 integration uses Mem0Client directly in manager.py.
+    - This factory is primarily for testing (null backend) or future extensions.
 
 Example:
     from gobby.memory.backends import get_backend
@@ -51,6 +55,4 @@ def get_backend(backend_type: str, **kwargs: Any) -> MemoryBackendProtocol:
         return NullBackend()
 
     else:
-        raise ValueError(
-            f"Unknown backend type: '{backend_type}'. Supported types: 'null'"
-        )
+        raise ValueError(f"Unknown backend type: '{backend_type}'. Supported types: 'null'")

@@ -57,15 +57,20 @@ export function TaskDetail({ taskId, getTask, getDependencies, getSubtasks, acti
 
   const fetchDetail = useCallback(async (id: string) => {
     setIsLoading(true)
-    const [result, depTree, children] = await Promise.all([
-      getTask(id),
-      getDependencies(id),
-      getSubtasks(id),
-    ])
-    setTask(result)
-    setDeps(depTree)
-    setSubtasks(children)
-    setIsLoading(false)
+    try {
+      const [result, depTree, children] = await Promise.all([
+        getTask(id),
+        getDependencies(id),
+        getSubtasks(id),
+      ])
+      setTask(result)
+      setDeps(depTree)
+      setSubtasks(children)
+    } catch (e) {
+      console.error('Failed to fetch task detail:', e)
+    } finally {
+      setIsLoading(false)
+    }
   }, [getTask, getDependencies, getSubtasks])
 
   useEffect(() => {
@@ -80,9 +85,14 @@ export function TaskDetail({ taskId, getTask, getDependencies, getSubtasks, acti
 
   const handleAction = useCallback(async (action: () => Promise<GobbyTaskDetail | null>) => {
     setActionLoading(true)
-    const updated = await action()
-    if (updated) setTask(updated)
-    setActionLoading(false)
+    try {
+      const updated = await action()
+      if (updated) setTask(updated)
+    } catch (e) {
+      console.error('Failed to perform action:', e)
+    } finally {
+      setActionLoading(false)
+    }
   }, [])
 
   const isOpen = taskId !== null
@@ -401,7 +411,7 @@ function ValidationSection({ task }: { task: GobbyTaskDetail }) {
         >
           {style.label}
         </span>
-        {task.validation_fail_count > 0 && (
+        {(task.validation_fail_count ?? 0) > 0 && (
           <span className="task-detail-validation-fails">
             {task.validation_fail_count} failure{task.validation_fail_count !== 1 ? 's' : ''}
           </span>

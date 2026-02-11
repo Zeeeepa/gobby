@@ -285,22 +285,28 @@ interface TaskCommentsProps {
 export function TaskComments({ taskId }: TaskCommentsProps) {
   const [comments, setComments] = useState<Comment[]>([])
   const [isLoading, setIsLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
   const [newComment, setNewComment] = useState('')
   const [authors, setAuthors] = useState<KnownAuthor[]>([])
 
   const fetchComments = useCallback(async () => {
     setIsLoading(true)
+    setError(null)
     try {
       const baseUrl = getBaseUrl()
       const response = await fetch(`${baseUrl}/tasks/${encodeURIComponent(taskId)}/comments`)
       if (response.ok) {
         const data = await response.json()
         setComments(data.comments || [])
+      } else {
+        throw new Error(`Failed to fetch comments: ${response.statusText}`)
       }
     } catch (e) {
       console.error('Failed to fetch comments:', e)
+      setError('Failed to load comments')
+    } finally {
+      setIsLoading(false)
     }
-    setIsLoading(false)
   }, [taskId])
 
   const fetchAuthors = useCallback(async () => {
@@ -366,6 +372,10 @@ export function TaskComments({ taskId }: TaskCommentsProps) {
 
   if (isLoading && comments.length === 0) {
     return <div className="task-comments-loading">Loading comments...</div>
+  }
+
+  if (error && comments.length === 0) {
+    return <div className="task-comments-error">{error}</div>
   }
 
   return (

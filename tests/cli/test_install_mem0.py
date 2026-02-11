@@ -9,8 +9,12 @@ import yaml
 
 from gobby.cli.installers.mem0 import install_mem0, uninstall_mem0
 
+pytestmark = pytest.mark.unit
 
-COMPOSE_SRC = Path(__file__).resolve().parents[2] / "src" / "gobby" / "data" / "docker-compose.mem0.yml"
+
+COMPOSE_SRC = (
+    Path(__file__).resolve().parents[2] / "src" / "gobby" / "data" / "docker-compose.mem0.yml"
+)
 
 
 class TestInstallMem0Local:
@@ -53,11 +57,17 @@ class TestInstallMem0Local:
             install_mem0(gobby_home=tmp_path)
 
         # Find the docker compose up call
-        compose_calls = [
-            c for c in mock_run.call_args_list
-            if "up" in str(c)
-        ]
+        compose_calls = [c for c in mock_run.call_args_list if "up" in str(c)]
         assert len(compose_calls) >= 1, "Expected docker compose up call"
+
+        # Verify exact command structure
+        # args[0] is the command list
+        last_call_args = compose_calls[-1].args[0]
+        assert "docker" in last_call_args
+        assert "compose" in last_call_args
+        assert "up" in last_call_args
+        assert "-d" in last_call_args
+        assert "--remove-orphans" in last_call_args
 
     def test_updates_config_on_success(self, tmp_path: Path) -> None:
         """install_mem0 updates daemon config with mem0_url."""
@@ -81,9 +91,7 @@ class TestInstallMem0Local:
             patch("shutil.which", return_value="/usr/bin/docker"),
             patch("subprocess.run") as mock_run,
         ):
-            mock_run.return_value = MagicMock(
-                returncode=1, stderr="container failed to start"
-            )
+            mock_run.return_value = MagicMock(returncode=1, stderr="container failed to start")
             result = install_mem0(gobby_home=tmp_path)
 
         assert not result["success"]
@@ -214,10 +222,14 @@ class TestUninstallMem0:
 
         mock_update.assert_called_once()
         # Should reset mem0_url to None
-        assert mock_update.call_args[1].get("mem0_url") is None or "None" in str(mock_update.call_args)
+        assert mock_update.call_args[1].get("mem0_url") is None or "None" in str(
+            mock_update.call_args
+        )
 
     def test_graceful_when_not_installed(self, tmp_path: Path) -> None:
         """uninstall_mem0 handles case when mem0 is not installed."""
         result = uninstall_mem0(gobby_home=tmp_path, remove_volumes=False)
         assert result["success"]
-        assert "not installed" in result.get("message", "").lower() or result.get("already_uninstalled")
+        assert "not installed" in result.get("message", "").lower() or result.get(
+            "already_uninstalled"
+        )

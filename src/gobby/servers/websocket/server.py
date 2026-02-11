@@ -12,7 +12,7 @@ import json
 import logging
 from collections.abc import Callable, Coroutine
 from datetime import UTC, datetime
-from typing import Any
+from typing import TYPE_CHECKING, Any
 from uuid import uuid4
 
 from websockets.asyncio.server import serve
@@ -28,6 +28,10 @@ from gobby.servers.websocket.models import WebSocketConfig
 from gobby.servers.websocket.tmux import TmuxMixin
 
 logger = logging.getLogger(__name__)
+
+
+if TYPE_CHECKING:
+    from gobby.sessions.manager import LocalSessionManager
 
 
 class WebSocketServer(TmuxMixin, ChatMixin, HandlerMixin, AuthMixin, BroadcastMixin):
@@ -57,7 +61,7 @@ class WebSocketServer(TmuxMixin, ChatMixin, HandlerMixin, AuthMixin, BroadcastMi
         mcp_manager: MCPClientManager,
         auth_callback: Callable[[str], Coroutine[Any, Any, str | None]] | None = None,
         stop_registry: Any = None,
-        session_manager: Any = None,
+        session_manager: "LocalSessionManager | None" = None,
     ):
         """
         Initialize WebSocket server.

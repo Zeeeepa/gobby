@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from pathlib import Path
 from unittest.mock import patch
 
 import pytest
@@ -15,7 +16,16 @@ from gobby.storage.migrations import run_migrations
 pytestmark = pytest.mark.unit
 
 
-def _setup(tmp_path, search_backend: str = "tfidf") -> tuple[SearchCoordinator, LocalMemoryManager]:
+TEST_MEMORIES = [
+    ("User prefers dark mode for all applications", "preference"),
+    ("The API uses REST endpoints at /api/v1", "fact"),
+    ("Database migrations run on startup automatically", "fact"),
+]
+
+
+def create_coordinator(
+    tmp_path: Path, search_backend: str = "tfidf"
+) -> tuple[SearchCoordinator, LocalMemoryManager]:
     """Create a coordinator with a fresh database and some test memories."""
     db_path = tmp_path / "test.db"
     db = LocalDatabase(db_path)
@@ -34,15 +44,10 @@ def _setup(tmp_path, search_backend: str = "tfidf") -> tuple[SearchCoordinator, 
     return coordinator, storage
 
 
-def _add_memories(storage: LocalMemoryManager, project_id: str = "test-project") -> list[str]:
+def add_test_memories(storage: LocalMemoryManager, project_id: str = "test-project") -> list[str]:
     """Add some test memories and return their IDs."""
     ids = []
-    memories = [
-        ("User prefers dark mode for all applications", "preference"),
-        ("The API uses REST endpoints at /api/v1", "fact"),
-        ("Database migrations run on startup automatically", "fact"),
-    ]
-    for content, mtype in memories:
+    for content, mtype in TEST_MEMORIES:
         m = storage.create_memory(
             project_id=project_id,
             content=content,
@@ -62,8 +67,8 @@ class TestTFIDFBackwardCompat:
 
     def test_tfidf_mode_uses_tfidf_backend(self, tmp_path) -> None:
         """Coordinator with tfidf search_backend should use TFIDFSearcher."""
-        coordinator, storage = _setup(tmp_path, "tfidf")
-        _add_memories(storage)
+        coordinator, storage = create_coordinator(tmp_path, "tfidf")
+        add_test_memories(storage)
 
         # Search should work with TF-IDF
         results = coordinator.search("dark mode", project_id="test-project")
@@ -72,8 +77,8 @@ class TestTFIDFBackwardCompat:
 
     def test_text_mode_uses_text_backend(self, tmp_path) -> None:
         """Coordinator with text search_backend should use TextSearcher."""
-        coordinator, storage = _setup(tmp_path, "text")
-        _add_memories(storage)
+        coordinator, storage = create_coordinator(tmp_path, "text")
+        add_test_memories(storage)
 
         results = coordinator.search("dark mode", project_id="test-project")
         assert len(results) >= 1
@@ -89,25 +94,25 @@ class TestUnifiedSearcherInit:
 
     def test_auto_mode_creates_unified_searcher(self, tmp_path) -> None:
         """Coordinator with auto search_backend should use UnifiedSearcher."""
-        coordinator, storage = _setup(tmp_path, "auto")
-        _add_memories(storage)
+        coordinator, storage = create_coordinator(tmp_path, "auto")
+        add_test_memories(storage)
 
         # Should have a unified searcher, not a plain SearchBackend
         assert coordinator._unified_searcher is not None
 
     def test_hybrid_mode_creates_unified_searcher(self, tmp_path) -> None:
         """Coordinator with hybrid search_backend should use UnifiedSearcher."""
-        coordinator, storage = _setup(tmp_path, "hybrid")
+        coordinator, storage = create_coordinator(tmp_path, "hybrid")
         assert coordinator._unified_searcher is not None
 
     def test_embedding_mode_creates_unified_searcher(self, tmp_path) -> None:
         """Coordinator with embedding search_backend should use UnifiedSearcher."""
-        coordinator, storage = _setup(tmp_path, "embedding")
+        coordinator, storage = create_coordinator(tmp_path, "embedding")
         assert coordinator._unified_searcher is not None
 
     def test_tfidf_mode_does_not_create_unified_searcher(self, tmp_path) -> None:
         """Coordinator with tfidf search_backend should NOT use UnifiedSearcher."""
-        coordinator, _ = _setup(tmp_path, "tfidf")
+        coordinator, _ = create_coordinator(tmp_path, "tfidf")
         assert coordinator._unified_searcher is None
 
 
@@ -156,21 +161,19 @@ class TestSearchWithUnifiedSearcher:
 
     def test_auto_mode_search_returns_results(self, tmp_path) -> None:
         """Auto mode should return search results (falls back to TF-IDF without API key)."""
-        coordinator, storage = _setup(tmp_path, "auto")
-        _add_memories(storage)
+        coordinator, storage = create_coordinator(tmp_path, "auto")
+        add_test_memories(storage)
 
         results = coordinator.search("dark mode preference", project_id="test-project")
         assert len(results) >= 1
 
     def test_auto_mode_fallback_to_tfidf(self, tmp_path) -> None:
         """Auto mode without embedding API should fallback to TF-IDF gracefully."""
-        coordinator, storage = _setup(tmp_path, "auto")
-        _add_memories(storage)
+        coordinator, storage = create_coordinator(tmp_path, "auto")
+        add_test_memories(storage)
 
         # Mock embedding unavailable so auto mode falls back to TF-IDF
-        with patch(
-            "gobby.search.unified.is_embedding_available", return_value=False
-        ):
+        with patch("gobby.search.unified.is_embedding_available", return_value=False):
             coordinator.ensure_fitted()
 
         searcher = coordinator._unified_searcher
@@ -179,8 +182,8 @@ class TestSearchWithUnifiedSearcher:
 
     def test_hybrid_mode_search_returns_results(self, tmp_path) -> None:
         """Hybrid mode should return results (TF-IDF component works without API key)."""
-        coordinator, storage = _setup(tmp_path, "hybrid")
-        _add_memories(storage)
+        coordinator, storage = create_coordinator(tmp_path, "hybrid")
+        add_test_memories(storage)
 
         results = coordinator.search("REST API endpoints", project_id="test-project")
         assert len(results) >= 1
@@ -196,8 +199,8 @@ class TestReindex:
 
     def test_reindex_with_unified_searcher(self, tmp_path) -> None:
         """Reindex should rebuild the UnifiedSearcher index and report stats."""
-        coordinator, storage = _setup(tmp_path, "auto")
-        _add_memories(storage)
+        coordinator, storage = create_coordinator(tmp_path, "auto")
+        add_test_memories(storage)
 
         stats = coordinator.reindex()
         assert stats["success"] is True
@@ -206,8 +209,8 @@ class TestReindex:
 
     def test_reindex_with_tfidf_mode(self, tmp_path) -> None:
         """Reindex in tfidf mode should work as before."""
-        coordinator, storage = _setup(tmp_path, "tfidf")
-        _add_memories(storage)
+        coordinator, storage = create_coordinator(tmp_path, "tfidf")
+        add_test_memories(storage)
 
         stats = coordinator.reindex()
         assert stats["success"] is True
@@ -215,8 +218,8 @@ class TestReindex:
 
     def test_mark_refit_needed_triggers_refit(self, tmp_path) -> None:
         """After mark_refit_needed, next search should refit."""
-        coordinator, storage = _setup(tmp_path, "auto")
-        _add_memories(storage)
+        coordinator, storage = create_coordinator(tmp_path, "auto")
+        add_test_memories(storage)
 
         coordinator.ensure_fitted()
         coordinator.mark_refit_needed()

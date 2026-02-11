@@ -1,6 +1,7 @@
 export function formatRelativeTime(dateStr: string): string {
   const now = Date.now()
   const then = new Date(dateStr).getTime()
+  if (isNaN(then)) return 'Invalid date'
   const diffMs = now - then
   const diffMin = Math.floor(diffMs / 60000)
   if (diffMin < 1) return 'now'
@@ -22,4 +23,20 @@ export function formatDuration(startStr: string, endStr?: string): string {
   const hrs = Math.floor(mins / 60)
   const remainMins = mins % 60
   return remainMins > 0 ? `${hrs}h ${remainMins}m` : `${hrs}h`
+}
+
+export function typeLabel(type: string): string {
+  return type.charAt(0).toUpperCase() + type.slice(1)
+}
+
+export function formatTokens(n: number): string {
+  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`
+  if (n >= 1_000) return `${(n / 1_000).toFixed(1)}K`
+  return String(n)
+}
+
+export function formatCost(usd: number): string {
+  if (usd === 0) return '$0'
+  if (usd < 0.01) return '<$0.01'
+  return `$${usd.toFixed(2)}`
 }

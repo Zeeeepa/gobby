@@ -4,7 +4,7 @@ import { SourceIcon } from './SourceIcon'
 import { MemoizedMarkdown } from './MemoizedMarkdown'
 import { SessionTranscript } from './SessionTranscript'
 import { SessionLineage } from './SessionLineage'
-import { formatDuration } from '../utils/formatTime'
+import { formatDuration, formatTokens, formatCost } from '../utils/formatTime'
 
 interface SessionDetailProps {
   session: GobbySession
@@ -20,17 +20,7 @@ interface SessionDetailProps {
   onSelectSession: (sessionId: string) => void
 }
 
-function formatTokens(n: number): string {
-  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`
-  if (n >= 1_000) return `${(n / 1_000).toFixed(1)}K`
-  return String(n)
-}
 
-function formatCost(usd: number): string {
-  if (usd === 0) return '$0'
-  if (usd < 0.01) return '<$0.01'
-  return `$${usd.toFixed(2)}`
-}
 
 function statusLabel(status: string): string {
   switch (status) {

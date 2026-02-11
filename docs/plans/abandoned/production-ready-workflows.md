@@ -146,7 +146,25 @@ variables:
 
 - name: expand_task
   description: "Expand task into subtasks using LLM"
-  # Uses /g expand skill or expansion tools directly
+  action: call_mcp_tool
+  tool_name: "gobby-tasks:execute_expansion"
+  tool_args:
+    task_id: "{{ variables.session_task }}"
+  on_success: set_variable(expansion_successful, true)
+  on_error: set_variable(expansion_failed, true)
+  transitions:
+    - to: find_work
+      when: "variables.expansion_successful"
+    - to: handle_expansion_failure
+      when: "variables.expansion_failed"
+
+- name: handle_expansion_failure
+  description: "Handle failed expansion (log/notify)"
+  action: call_mcp_tool
+  tool_name: "gobby-tasks:log_expansion_failure"
+  transitions:
+    - to: find_work # Fallback to manual work finding
+
 ```
 
 **Reuse:**
@@ -174,10 +192,38 @@ variables:
 2. Enhance `handle_timeout` with retry logic:
 ```yaml
 transitions:
-  - to: retry_task
-    when: "get_attempts(current_task_id) < max_task_retries"
+  - to: increment_retry_count
+    when: "task_attempts.get(variables.current_task_id, 0) < variables.max_task_retries"
   - to: escalate_task
-    when: "get_attempts(current_task_id) >= max_task_retries"
+    when: "task_attempts.get(variables.current_task_id, 0) >= variables.max_task_retries"
+
+- name: increment_retry_count
+  description: "Increment retry counter for the current task"
+  action: set_variable
+  variable: task_attempts
+  value: "{{ task_attempts | update({variables.current_task_id: task_attempts.get(variables.current_task_id, 0) + 1}) }}"
+  transitions:
+    - to: retry_task
+
+- name: retry_task
+  description: "Clean up failed worker and respawn"
+  action: call_mcp_tool
+  tool_name: "gobby-agents:kill_agent" # Kill the stuck worker
+  tool_args:
+    agent_id: "{{ variables.current_worker_id }}"
+  transitions:
+      - to: find_work # Reset and try again (find_work should re-assign or pick up)
+
+- name: escalate_task
+  description: "Escalate task for human review"
+  action: call_mcp_tool
+  tool_name: "gobby-tasks:mark_needs_review"
+  tool_args:
+    task_id: "{{ variables.current_task_id }}"
+    reason: "Max retries exceeded"
+  transitions:
+    - to: find_work # Move on to next task
+
 ```
 
 3. Add `retry_task` step (kill worker, reset task, respawn)

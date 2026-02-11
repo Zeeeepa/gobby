@@ -176,6 +176,9 @@ def format_status_message(
         ui_mode: UI mode ('production' or 'dev')
         ui_url: URL where the UI is accessible
         ui_pid: Process ID of the UI dev server (dev mode only)
+        mem0_installed: Whether mem0 is installed
+        mem0_healthy: Whether mem0 service is healthy
+        mem0_url: URL for mem0 service
 
     Returns:
         Formatted status message string

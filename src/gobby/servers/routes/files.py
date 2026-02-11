@@ -207,7 +207,7 @@ def create_files_router(server: "HTTPServer") -> APIRouter:
         pm = _get_project_manager(server)
         project = pm.get(project_id)
         if not project or not project.repo_path:
-            raise HTTPException(404, "Project not found")
+            raise HTTPException(404, f"Project not found: {project_id}")
 
         repo_path: str = project.repo_path
         target = _resolve_safe_path(repo_path, path)
@@ -303,6 +303,7 @@ def create_files_router(server: "HTTPServer") -> APIRouter:
             result["content"] = content
             result["truncated"] = truncated
         except OSError as e:
+            logger.error(f"Failed to read file: {e} (project_id={project_id})")
             raise HTTPException(500, f"Failed to read file: {e}") from e
 
         return result

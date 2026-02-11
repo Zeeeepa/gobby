@@ -163,8 +163,7 @@ class SearchCoordinator:
         Returns:
             Dict with index statistics including memory_count, backend_type, etc.
         """
-        memories = self._storage.list_memories(limit=10000)
-        memory_tuples = [(m.id, m.content) for m in memories]
+        memory_tuples = self._get_memory_tuples(10000)
         backend_type = getattr(self._config, "search_backend", "tfidf")
 
         if self._unified_searcher is not None:

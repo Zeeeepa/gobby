@@ -119,10 +119,10 @@ def rename_project(project_ref: str, new_name: str) -> None:
         project_json = Path(project.repo_path) / ".gobby" / "project.json"
         if project_json.exists():
             try:
-                with open(project_json) as f:
+                with open(project_json, encoding="utf-8") as f:
                     data = json.load(f)
                 data["name"] = new_name
-                with open(project_json, "w") as f:
+                with open(project_json, "w", encoding="utf-8") as f:
                     json.dump(data, f, indent=2)
             except (json.JSONDecodeError, OSError) as e:
                 click.echo(f"Warning: Could not update project.json: {e}", err=True)
@@ -220,7 +220,7 @@ def repair_project(fix: bool) -> None:
         raise SystemExit(1)
 
     try:
-        with open(project_json_path) as f:
+        with open(project_json_path, encoding="utf-8") as f:
             local_data = json.load(f)
     except (json.JSONDecodeError, OSError) as e:
         click.echo(f"Failed to read project.json: {e}", err=True)
@@ -275,7 +275,8 @@ def repair_project(fix: bool) -> None:
     fixes_applied = 0
 
     # Fix name mismatch: DB wins (rename local)
-    if local_name and db_project.name != local_name:
+    name_mismatch = local_name and db_project.name != local_name
+    if name_mismatch:
         local_data["name"] = db_project.name
         fixes_applied += 1
 
@@ -285,8 +286,8 @@ def repair_project(fix: bool) -> None:
         fixes_applied += 1
 
     # Write back project.json if name was fixed
-    if local_name and db_project.name != local_name:
-        with open(project_json_path, "w") as f:
+    if name_mismatch:
+        with open(project_json_path, "w", encoding="utf-8") as f:
             json.dump(local_data, f, indent=2)
 
     click.echo(f"\nApplied {fixes_applied} fix(es).")

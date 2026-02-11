@@ -5,6 +5,10 @@ from unittest.mock import MagicMock, patch
 
 from gobby.utils.status import format_status_message
 
+import pytest
+
+pytestmark = pytest.mark.unit
+
 
 class TestStatusMem0Display:
     """Tests for mem0 status in format_status_message."""

@@ -104,6 +104,14 @@ class TmuxSpawner(TerminalSpawnerBase):
         # Sanitise (TmuxSessionManager also sanitises, but normalise here
         # so the name we return is consistent).
         session_name = "".join(c if c.isalnum() or c in "-_" else "-" for c in session_name)
+        # Collapse multiple dashes
+        while "--" in session_name:
+            session_name = session_name.replace("--", "-")
+        # Prevent leading dashes which confuse tmux CLI
+        while session_name.startswith("-"):
+            session_name = session_name[1:]
+        if not session_name:
+            session_name = "gobby-session"
 
         shell_cmd = shlex.join(command) if len(command) > 1 else command[0]
 

@@ -323,7 +323,6 @@ def create_expansion_registry(ctx: RegistryContext) -> InternalToolRegistry:
                 "project": {
                     "type": "string",
                     "description": "Project name or UUID for task resolution",
-                    "default": None,
                 },
             },
             "required": ["task_id", "spec"],
@@ -348,7 +347,6 @@ def create_expansion_registry(ctx: RegistryContext) -> InternalToolRegistry:
                 "project": {
                     "type": "string",
                     "description": "Project name or UUID for task resolution",
-                    "default": None,
                 },
             },
             "required": ["parent_task_id", "session_id"],
@@ -369,7 +367,6 @@ def create_expansion_registry(ctx: RegistryContext) -> InternalToolRegistry:
                 "project": {
                     "type": "string",
                     "description": "Project name or UUID for task resolution",
-                    "default": None,
                 },
             },
             "required": ["task_id"],

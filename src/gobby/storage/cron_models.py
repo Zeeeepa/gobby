@@ -34,9 +34,12 @@ class CronJob:
     @classmethod
     def from_row(cls, row: sqlite3.Row) -> CronJob:
         """Convert database row to CronJob object."""
-        keys = row.keys()
+        keys = set(row.keys())
         action_config_raw = row["action_config"]
-        action_config = json.loads(action_config_raw) if action_config_raw else {}
+        try:
+            action_config = json.loads(action_config_raw) if action_config_raw else {}
+        except json.JSONDecodeError:
+            action_config = {}
 
         return cls(
             id=row["id"],

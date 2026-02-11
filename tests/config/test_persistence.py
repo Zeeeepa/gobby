@@ -322,29 +322,6 @@ class TestMemoryConfigEmbeddingFields:
             MemoryConfig(tfidf_weight=-0.1)
 
 
-class TestMemoryConfigFromAppPy:
-    """Verify that tests pass when importing from app.py (reference implementation)."""
-
-    def test_import_from_app_py(self) -> None:
-        """Test importing MemoryConfig from app.py works (baseline)."""
-        from gobby.config.persistence import MemoryConfig
-
-        config = MemoryConfig()
-        assert config.enabled is True
-
-
-class TestMemorySyncConfigFromAppPy:
-    """Verify MemorySyncConfig tests pass when importing from app.py."""
-
-    def test_import_from_persistence_module(self) -> None:
-        """Test importing MemorySyncConfig from persistence module works."""
-        from gobby.config.persistence import MemorySyncConfig
-
-        config = MemorySyncConfig()
-        assert config.enabled is True
-        assert config.export_debounce == 5.0
-
-
 class TestMemoryConfigMem0Fields:
     """Test mem0_url and mem0_api_key fields on MemoryConfig."""
 

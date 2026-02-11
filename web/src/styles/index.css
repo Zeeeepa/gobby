@@ -9735,3 +9735,4 @@ body {
   padding: 1px 6px;
   border-radius: 8px;
 }
+.xterm-screen { isolation: isolate; }

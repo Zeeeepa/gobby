@@ -50,7 +50,7 @@ def create_artifacts_router(server: "HTTPServer") -> APIRouter:
         return artifact_dicts
 
     @router.get("")
-    async def list_artifacts(
+    def list_artifacts(
         session_id: str | None = Query(None, description="Filter by session ID"),
         task_id: str | None = Query(None, description="Filter by task ID"),
         artifact_type: str | None = Query(None, description="Filter by artifact type"),
@@ -82,7 +82,7 @@ def create_artifacts_router(server: "HTTPServer") -> APIRouter:
         return {"artifacts": result_dicts, "count": len(result_dicts)}
 
     @router.get("/search")
-    async def search_artifacts(
+    def search_artifacts(
         q: str = Query(..., description="Search query"),
         session_id: str | None = Query(None, description="Filter by session ID"),
         task_id: str | None = Query(None, description="Filter by task ID"),
@@ -108,7 +108,7 @@ def create_artifacts_router(server: "HTTPServer") -> APIRouter:
         return {"query": q, "artifacts": result_dicts, "count": len(result_dicts)}
 
     @router.get("/stats")
-    async def artifact_stats(
+    def artifact_stats(
         session_id: str | None = Query(None, description="Filter by session ID"),
     ) -> dict[str, Any]:
         """Get aggregate artifact statistics."""
@@ -128,7 +128,7 @@ def create_artifacts_router(server: "HTTPServer") -> APIRouter:
         }
 
     @router.get("/timeline/{session_id}")
-    async def get_timeline(
+    def get_timeline(
         session_id: str,
         artifact_type: str | None = Query(None, description="Filter by type"),
         limit: int = Query(100, description="Maximum results"),
@@ -146,7 +146,7 @@ def create_artifacts_router(server: "HTTPServer") -> APIRouter:
         return {"session_id": session_id, "artifacts": result_dicts, "count": len(result_dicts)}
 
     @router.get("/{artifact_id}")
-    async def get_artifact(artifact_id: str) -> dict[str, Any]:
+    def get_artifact(artifact_id: str) -> dict[str, Any]:
         """Get a single artifact by ID."""
         manager = _get_manager()
         artifact = manager.get_artifact(artifact_id)
@@ -157,7 +157,7 @@ def create_artifacts_router(server: "HTTPServer") -> APIRouter:
         return artifact_dict
 
     @router.delete("/{artifact_id}")
-    async def delete_artifact(artifact_id: str) -> dict[str, Any]:
+    def delete_artifact(artifact_id: str) -> dict[str, Any]:
         """Delete an artifact."""
         manager = _get_manager()
         deleted = manager.delete_artifact(artifact_id)
@@ -166,7 +166,7 @@ def create_artifacts_router(server: "HTTPServer") -> APIRouter:
         return {"deleted": True, "id": artifact_id}
 
     @router.post("/{artifact_id}/tags", status_code=201)
-    async def add_tag(artifact_id: str, request_data: TagRequest) -> dict[str, Any]:
+    def add_tag(artifact_id: str, request_data: TagRequest) -> dict[str, Any]:
         """Add a tag to an artifact."""
         manager = _get_manager()
         artifact = manager.get_artifact(artifact_id)
@@ -176,7 +176,7 @@ def create_artifacts_router(server: "HTTPServer") -> APIRouter:
         return {"artifact_id": artifact_id, "tag": request_data.tag}
 
     @router.delete("/{artifact_id}/tags/{tag}")
-    async def remove_tag(artifact_id: str, tag: str) -> dict[str, Any]:
+    def remove_tag(artifact_id: str, tag: str) -> dict[str, Any]:
         """Remove a tag from an artifact."""
         manager = _get_manager()
         removed = manager.remove_tag(artifact_id, tag)

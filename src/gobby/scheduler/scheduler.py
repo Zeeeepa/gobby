@@ -112,33 +112,39 @@ class CronScheduler:
             return
 
         for job in due_jobs[:available_slots]:
-            # Check backoff for consecutive failures
-            if job.consecutive_failures > 0:
-                backoff = self._get_backoff_seconds(job.consecutive_failures)
-                if job.last_run_at:
-                    last = datetime.fromisoformat(job.last_run_at)
-                    if last.tzinfo is None:
-                        last = last.replace(tzinfo=UTC)
-                    elapsed = (datetime.now(UTC) - last).total_seconds()
-                    if elapsed < backoff:
-                        logger.debug(
-                            f"Skipping job {job.id} ({job.name}): "
-                            f"backoff {backoff}s, elapsed {elapsed:.0f}s"
-                        )
-                        continue
+            try:
+                # Check backoff for consecutive failures
+                if job.consecutive_failures > 0:
+                    backoff = self._get_backoff_seconds(job.consecutive_failures)
+                    if job.last_run_at:
+                        last = datetime.fromisoformat(job.last_run_at)
+                        if last.tzinfo is None:
+                            last = last.replace(tzinfo=UTC)
+                        elapsed = (datetime.now(UTC) - last).total_seconds()
+                        if elapsed < backoff:
+                            logger.debug(
+                                f"Skipping job {job.id} ({job.name}): "
+                                f"backoff {backoff}s, elapsed {elapsed:.0f}s"
+                            )
+                            continue
 
-            # Create run and dispatch
-            run = self.storage.create_run(job.id)
-            logger.info(f"Dispatching cron job {job.id} ({job.name}), run {run.id}")
+                # Create run and dispatch
+                run = self.storage.create_run(job.id)
+                logger.info(f"Dispatching cron job {job.id} ({job.name}), run {run.id}")
 
-            # Fire and forget - let it run in the background
-            asyncio.create_task(
-                self._execute_and_update(job, run),
-                name=f"cron-run-{run.id}",
-            )
+                # Fire and forget - let it run in the background
+                asyncio.create_task(
+                    self._execute_and_update(job, run),
+                    name=f"cron-run-{run.id}",
+                )
+            except Exception as e:
+                logger.error(f"Failed to dispatch cron job {job.id}: {e}", exc_info=True)
 
-    async def _execute_and_update(self, job: CronJob, run: CronRun) -> None:
+    async def _execute_and_update(self, job: CronJob, run: CronRun | None) -> None:
         """Execute a job and update its status afterward."""
+        if not run:
+            logger.error(f"Cannot execute job {job.id}: valid run record required")
+            return
         try:
             result = await self.executor.execute(job, run)
 
@@ -166,8 +172,7 @@ class CronScheduler:
                     next_run_at=next_run.isoformat() if next_run else None,
                 )
                 logger.warning(
-                    f"Cron job {job.id} ({job.name}) failed "
-                    f"({failures} consecutive failures)"
+                    f"Cron job {job.id} ({job.name}) failed ({failures} consecutive failures)"
                 )
 
         except Exception as e:
