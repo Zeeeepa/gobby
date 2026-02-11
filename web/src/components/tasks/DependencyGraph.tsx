@@ -220,9 +220,9 @@ export function DependencyGraph({ tasks, onSelectTask }: DependencyGraphProps) {
   return (
     <div className="dep-graph-container">
       <div className="dep-graph-controls">
-        <button className="dep-graph-ctrl-btn" onClick={zoomIn} title="Zoom in">+</button>
-        <button className="dep-graph-ctrl-btn" onClick={zoomOut} title="Zoom out">{'\u2212'}</button>
-        <button className="dep-graph-ctrl-btn" onClick={fitView} title="Fit to view">{'\u2922'}</button>
+        <button className="dep-graph-ctrl-btn" onClick={zoomIn} title="Zoom in" aria-label="Zoom in">+</button>
+        <button className="dep-graph-ctrl-btn" onClick={zoomOut} title="Zoom out" aria-label="Zoom out">{'\u2212'}</button>
+        <button className="dep-graph-ctrl-btn" onClick={fitView} title="Fit to view" aria-label="Fit to view">{'\u2922'}</button>
         <span className="dep-graph-ctrl-label">{Math.round(view.scale * 100)}%</span>
       </div>
       <svg

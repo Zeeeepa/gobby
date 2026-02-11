@@ -65,11 +65,14 @@ export function MemoryForm({ memory, onSave, onCancel }: MemoryFormProps) {
     <div className="memory-form-overlay" onClick={onCancel}>
       <form
         className="memory-form"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="memory-form-title"
         onSubmit={handleSubmit}
         onClick={(e) => e.stopPropagation()}
       >
         <div className="memory-form-header">
-          <h3>{isEdit ? 'Edit Memory' : 'Create Memory'}</h3>
+          <h3 id="memory-form-title">{isEdit ? 'Edit Memory' : 'Create Memory'}</h3>
           <button type="button" className="memory-form-close" onClick={onCancel}>
             &times;
           </button>

@@ -36,13 +36,12 @@ function shortId(id: string): string {
 // =============================================================================
 
 interface AssigneePickerProps {
-  taskId: string
   currentAssignee: string | null
   currentAgentName: string | null
   onAssign: (assignee: string | null) => void
 }
 
-export function AssigneePicker({ taskId: _taskId, currentAssignee, currentAgentName, onAssign }: AssigneePickerProps) {
+export function AssigneePicker({ currentAssignee, currentAgentName, onAssign }: AssigneePickerProps) {
   const [isOpen, setIsOpen] = useState(false)
   const [agents, setAgents] = useState<KnownAgent[]>([])
   const [mode, setMode] = useState<OwnershipMode>('single')

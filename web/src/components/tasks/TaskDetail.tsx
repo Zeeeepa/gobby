@@ -188,7 +188,6 @@ export function TaskDetail({ taskId, getTask, getDependencies, getSubtasks, acti
               <div className="task-detail-meta-row">
                 <span className="task-detail-meta-label">Assignee</span>
                 <AssigneePicker
-                  taskId={task.id}
                   currentAssignee={task.assignee}
                   currentAgentName={task.agent_name}
                   onAssign={(assignee) => {

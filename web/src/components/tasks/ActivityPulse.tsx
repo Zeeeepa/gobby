@@ -1,4 +1,4 @@
-import { useMemo } from 'react'
+import { useState, useEffect } from 'react'
 import type { GobbyTask } from '../../hooks/useTasks'
 
 // =============================================================================
@@ -38,7 +38,13 @@ const STATE_LABELS: Record<ActivityState, string> = {
 }
 
 export function ActivityPulse({ task, compact }: ActivityPulseProps) {
-  const state = useMemo(() => classifyActivity(task), [task])
+  const [state, setState] = useState<ActivityState>(() => classifyActivity(task))
+
+  useEffect(() => {
+    setState(classifyActivity(task))
+    const id = setInterval(() => setState(classifyActivity(task)), 30_000)
+    return () => clearInterval(id)
+  }, [task])
 
   if (state === 'none') return null
 
