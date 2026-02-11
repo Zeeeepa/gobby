@@ -13,7 +13,7 @@ services:
       - MEM0_GRAPH_STORE=neo4j
       - MEM0_NEO4J_URL=bolt://neo4j:7687
       - MEM0_NEO4J_USERNAME=neo4j
-      - MEM0_NEO4J_PASSWORD=gobby_mem0
+      - MEM0_NEO4J_PASSWORD=mem0graph
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8080/v1/health"]
       interval: 10s
@@ -49,7 +49,7 @@ services:
       - "8474:7474"
       - "8687:7687"
     environment:
-      - NEO4J_AUTH=neo4j/gobby_mem0
+      - NEO4J_AUTH=neo4j/mem0graph
       - NEO4J_PLUGINS=["apoc"]
     volumes:
       - mem0_neo4j_data:/data
