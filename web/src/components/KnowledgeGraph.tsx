@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useMemo, useCallback } from 'react'
-import dagre from 'dagre'
+import ForceGraph3D from 'react-force-graph-3d'
+import SpriteText from 'three-spritetext'
 import type { KnowledgeGraphData, KnowledgeEntity, KnowledgeRelationship } from '../hooks/useMemory'
 
 interface KnowledgeGraphProps {
@@ -9,19 +10,19 @@ interface KnowledgeGraphProps {
 
 interface GraphNode {
   id: string
+  name: string
+  type: string
   entity: KnowledgeEntity
-  x: number
-  y: number
+  color: string
+  val: number // node size
 }
 
-interface GraphEdge {
+interface GraphLink {
   source: string
   target: string
-  relationship: KnowledgeRelationship
+  type: string
+  color: string
 }
-
-const NODE_WIDTH = 140
-const NODE_HEIGHT = 36
 
 const ENTITY_TYPE_COLORS: Record<string, string> = {
   function: '#60a5fa',
@@ -37,10 +38,9 @@ const ENTITY_TYPE_COLORS: Record<string, string> = {
 }
 
 function getEntityColor(type: string): string {
-  return ENTITY_TYPE_COLORS[type.toLowerCase()] || 'var(--text-muted)'
+  return ENTITY_TYPE_COLORS[type.toLowerCase()] || '#8b8b8b'
 }
 
-/** Simple string hash to generate a hue value for edge colors. */
 function hashToHue(str: string): number {
   let hash = 0
   for (let i = 0; i < str.length; i++) {
@@ -51,11 +51,7 @@ function hashToHue(str: string): number {
 
 function edgeColor(relType: string): string {
   const hue = hashToHue(relType)
-  return `hsl(${hue}, 55%, 55%)`
-}
-
-function truncate(text: string, max: number): string {
-  return text.length > max ? text.slice(0, max) + '\u2026' : text
+  return `hsl(${hue}, 45%, 50%)`
 }
 
 function mergeGraphData(
@@ -64,256 +60,159 @@ function mergeGraphData(
 ): KnowledgeGraphData {
   const entityMap = new Map(existing.entities.map(e => [e.name, e]))
   for (const e of incoming.entities) {
-    if (!entityMap.has(e.name)) {
-      entityMap.set(e.name, e)
-    }
+    if (!entityMap.has(e.name)) entityMap.set(e.name, e)
   }
 
   const edgeKey = (r: KnowledgeRelationship) => `${r.source}|${r.type}|${r.target}`
   const edgeSet = new Set(existing.relationships.map(edgeKey))
-  const mergedRelationships = [...existing.relationships]
+  const merged = [...existing.relationships]
   for (const r of incoming.relationships) {
     if (!edgeSet.has(edgeKey(r))) {
       edgeSet.add(edgeKey(r))
-      mergedRelationships.push(r)
+      merged.push(r)
     }
   }
 
-  return {
-    entities: [...entityMap.values()],
-    relationships: mergedRelationships,
-  }
+  return { entities: [...entityMap.values()], relationships: merged }
 }
 
-function buildLayout(data: KnowledgeGraphData): { nodes: GraphNode[]; edges: GraphEdge[] } {
-  if (data.entities.length === 0) return { nodes: [], edges: [] }
-
+function buildForceData(data: KnowledgeGraphData): { nodes: GraphNode[]; links: GraphLink[] } {
   const entityNames = new Set(data.entities.map(e => e.name))
 
-  const edges: GraphEdge[] = data.relationships.filter(
-    r => entityNames.has(r.source) && entityNames.has(r.target)
-  ).map(r => ({ source: r.source, target: r.target, relationship: r }))
+  const nodes: GraphNode[] = data.entities.map(e => ({
+    id: e.name,
+    name: e.name,
+    type: e.type,
+    entity: e,
+    color: getEntityColor(e.type),
+    val: 2,
+  }))
 
-  // Find connected entities
-  const connected = new Set<string>()
-  for (const edge of edges) {
-    connected.add(edge.source)
-    connected.add(edge.target)
-  }
+  const links: GraphLink[] = data.relationships
+    .filter(r => entityNames.has(r.source) && entityNames.has(r.target))
+    .map(r => ({
+      source: r.source,
+      target: r.target,
+      type: r.type,
+      color: edgeColor(r.type),
+    }))
 
-  const connectedEntities = data.entities.filter(e => connected.has(e.name))
-  const disconnected = data.entities.filter(e => !connected.has(e.name))
-
-  const nodes: GraphNode[] = []
-
-  if (connectedEntities.length > 0) {
-    const g = new dagre.graphlib.Graph()
-    g.setGraph({ rankdir: 'LR', nodesep: 24, ranksep: 60, marginx: 30, marginy: 30 })
-    g.setDefaultEdgeLabel(() => ({}))
-
-    for (const entity of connectedEntities) {
-      g.setNode(entity.name, { width: NODE_WIDTH, height: NODE_HEIGHT })
-    }
-    for (const edge of edges) {
-      g.setEdge(edge.source, edge.target)
-    }
-
-    dagre.layout(g)
-
-    for (const entity of connectedEntities) {
-      const nodeData = g.node(entity.name)
-      if (!nodeData) continue
-      nodes.push({
-        id: entity.name,
-        entity,
-        x: nodeData.x - NODE_WIDTH / 2,
-        y: nodeData.y - NODE_HEIGHT / 2,
-      })
-    }
-  }
-
-  // Grid layout for disconnected nodes below the dagre layout
-  if (disconnected.length > 0) {
-    const cols = Math.ceil(Math.sqrt(disconnected.length))
-    const padX = NODE_WIDTH + 20
-    const padY = NODE_HEIGHT + 16
-    const gridOffsetY = nodes.length > 0
-      ? Math.max(...nodes.map(n => n.y)) + NODE_HEIGHT + 50
-      : 30
-
-    for (let i = 0; i < disconnected.length; i++) {
-      const col = i % cols
-      const row = Math.floor(i / cols)
-      nodes.push({
-        id: disconnected[i].name,
-        entity: disconnected[i],
-        x: 30 + col * padX,
-        y: gridOffsetY + row * padY,
-      })
-    }
-  }
-
-  return { nodes, edges }
+  return { nodes, links }
 }
 
 export function KnowledgeGraph({ fetchKnowledgeGraph, fetchEntityNeighbors }: KnowledgeGraphProps) {
-  const svgRef = useRef<SVGSVGElement>(null)
+  const containerRef = useRef<HTMLDivElement>(null)
+  const fgRef = useRef<any>(null) // eslint-disable-line @typescript-eslint/no-explicit-any
   const [graphData, setGraphData] = useState<KnowledgeGraphData | null>(null)
   const [loading, setLoading] = useState(true)
-  const [hoveredId, setHoveredId] = useState<string | null>(null)
-  const [view, setView] = useState({ x: 0, y: 0, scale: 1 })
-  const [dragging, setDragging] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
   const [expandingNode, setExpandingNode] = useState<string | null>(null)
-  const dragStart = useRef<{ x: number; y: number; vx: number; vy: number } | null>(null)
+  const [dimensions, setDimensions] = useState({ width: 800, height: 600 })
+
+  // Track container size
+  useEffect(() => {
+    const container = containerRef.current
+    if (!container) return
+
+    const observer = new ResizeObserver(entries => {
+      for (const entry of entries) {
+        setDimensions({
+          width: entry.contentRect.width,
+          height: entry.contentRect.height,
+        })
+      }
+    })
+    observer.observe(container)
+    return () => observer.disconnect()
+  }, [])
 
   // Initial data fetch
   useEffect(() => {
     let cancelled = false
     setLoading(true)
     fetchKnowledgeGraph().then(data => {
-      if (!cancelled && data) {
-        setGraphData(data)
-      }
+      if (!cancelled && data) setGraphData(data)
       if (!cancelled) setLoading(false)
     })
     return () => { cancelled = true }
   }, [fetchKnowledgeGraph])
 
-  // Build layout from data
-  const { nodes, edges } = useMemo(() => {
-    if (!graphData) return { nodes: [], edges: [] }
-    return buildLayout(graphData)
+  // Build force graph data
+  const forceData = useMemo(() => {
+    if (!graphData) return { nodes: [], links: [] }
+    return buildForceData(graphData)
   }, [graphData])
 
-  const nodeMap = useMemo(
-    () => new Map(nodes.map(n => [n.id, n])),
-    [nodes]
-  )
-
-  // Search matching
+  // Search
   const searchLower = searchQuery.toLowerCase()
   const isSearchActive = searchQuery.length > 0
-  const matchesSearch = useCallback((name: string) => {
-    if (!isSearchActive) return true
-    return name.toLowerCase().includes(searchLower)
-  }, [isSearchActive, searchLower])
 
-  // Double-click handler: fetch neighbors and merge
-  const handleDoubleClick = useCallback((entityName: string) => {
+  // Node click: expand neighbors
+  const handleNodeClick = useCallback((node: any) => { // eslint-disable-line @typescript-eslint/no-explicit-any
     if (expandingNode) return
-    setExpandingNode(entityName)
-    fetchEntityNeighbors(entityName).then(data => {
+    const name = node.id as string
+    setExpandingNode(name)
+    fetchEntityNeighbors(name).then(data => {
       if (data && graphData) {
         setGraphData(mergeGraphData(graphData, data))
       }
       setExpandingNode(null)
-    }).catch(() => {
-      setExpandingNode(null)
-    })
+    }).catch(() => setExpandingNode(null))
   }, [fetchEntityNeighbors, graphData, expandingNode])
 
-  // Pan & zoom handlers
-  const handleMouseDown = useCallback((e: React.MouseEvent) => {
-    if (e.button !== 0) return
-    setDragging(true)
-    dragStart.current = { x: e.clientX, y: e.clientY, vx: view.x, vy: view.y }
-  }, [view.x, view.y])
+  // Custom node rendering with three-spritetext
+  const nodeThreeObject = useCallback((node: any) => { // eslint-disable-line @typescript-eslint/no-explicit-any
+    const label = node.name as string
+    const color = node.color as string
+    const dimmed = isSearchActive && !label.toLowerCase().includes(searchLower)
 
-  const handleMouseMove = useCallback((e: React.MouseEvent) => {
-    if (!dragging || !dragStart.current) return
-    const dx = e.clientX - dragStart.current.x
-    const dy = e.clientY - dragStart.current.y
-    setView(v => ({ ...v, x: dragStart.current!.vx + dx, y: dragStart.current!.vy + dy }))
-  }, [dragging])
+    const sprite = new SpriteText(label)
+    sprite.color = dimmed ? '#444444' : color
+    sprite.textHeight = 3
+    sprite.fontFace = 'SF Mono, Menlo, monospace'
+    sprite.backgroundColor = dimmed ? 'rgba(20,20,20,0.3)' : 'rgba(20,20,30,0.75)'
+    sprite.borderColor = dimmed ? 'transparent' : color
+    sprite.borderWidth = 0.3
+    sprite.borderRadius = 3
+    sprite.padding = [2, 4] as any // eslint-disable-line @typescript-eslint/no-explicit-any
+    return sprite
+  }, [isSearchActive, searchLower])
 
-  const handleMouseUp = useCallback(() => {
-    setDragging(false)
-    dragStart.current = null
-  }, [])
-
-  const handleWheel = useCallback((e: React.WheelEvent) => {
-    e.preventDefault()
-    const rect = svgRef.current?.getBoundingClientRect()
-    if (!rect) return
-    const mx = e.clientX - rect.left
-    const my = e.clientY - rect.top
-    const delta = e.deltaY > 0 ? 0.9 : 1.1
-    setView(v => {
-      const newScale = Math.min(3, Math.max(0.2, v.scale * delta))
-      const ratio = newScale / v.scale
-      return {
-        scale: newScale,
-        x: mx - (mx - v.x) * ratio,
-        y: my - (my - v.y) * ratio,
-      }
-    })
-  }, [])
-
-  const zoomIn = () => setView(v => ({ ...v, scale: Math.min(3, v.scale * 1.2) }))
-  const zoomOut = () => setView(v => ({ ...v, scale: Math.max(0.2, v.scale / 1.2) }))
-
-  const fitView = useCallback(() => {
-    if (nodes.length === 0 || !svgRef.current) return
-    const rect = svgRef.current.getBoundingClientRect()
-    let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity
-    for (const n of nodes) {
-      minX = Math.min(minX, n.x)
-      minY = Math.min(minY, n.y)
-      maxX = Math.max(maxX, n.x + NODE_WIDTH)
-      maxY = Math.max(maxY, n.y + NODE_HEIGHT)
+  // Link styling
+  const linkColor = useCallback((link: any) => { // eslint-disable-line @typescript-eslint/no-explicit-any
+    if (isSearchActive) {
+      const srcId = typeof link.source === 'object' ? link.source.id : link.source
+      const tgtId = typeof link.target === 'object' ? link.target.id : link.target
+      const srcMatch = String(srcId).toLowerCase().includes(searchLower)
+      const tgtMatch = String(tgtId).toLowerCase().includes(searchLower)
+      if (!srcMatch && !tgtMatch) return 'rgba(60,60,60,0.15)'
     }
-    const gw = maxX - minX
-    const gh = maxY - minY
-    const scale = Math.min(rect.width / (gw + 60), rect.height / (gh + 60), 2) * 0.9
-    setView({
-      scale,
-      x: (rect.width - gw * scale) / 2 - minX * scale,
-      y: (rect.height - gh * scale) / 2 - minY * scale,
-    })
-  }, [nodes])
+    return link.color || 'rgba(120,120,120,0.4)'
+  }, [isSearchActive, searchLower])
 
-  // Fit on first load
-  useEffect(() => {
-    if (nodes.length > 0) fitView()
-  }, [nodes.length > 0]) // eslint-disable-line react-hooks/exhaustive-deps
+  const linkLabel = useCallback((link: any) => link.type as string, []) // eslint-disable-line @typescript-eslint/no-explicit-any
 
-  // Tooltip state
-  const [tooltip, setTooltip] = useState<{
-    x: number; y: number; entity: KnowledgeEntity
-  } | null>(null)
-
-  const handleNodeMouseEnter = useCallback((e: React.MouseEvent, entity: KnowledgeEntity) => {
-    setHoveredId(entity.name)
-    const rect = svgRef.current?.getBoundingClientRect()
-    if (!rect) return
-    setTooltip({
-      x: e.clientX - rect.left,
-      y: e.clientY - rect.top,
-      entity,
-    })
-  }, [])
-
-  const handleNodeMouseLeave = useCallback(() => {
-    setHoveredId(null)
-    setTooltip(null)
-  }, [])
+  // Legend types
+  const legendTypes = useMemo(() => {
+    if (!graphData) return []
+    return [...new Set(graphData.entities.map(e => e.type.toLowerCase()))]
+  }, [graphData])
 
   // Loading state
   if (loading) {
     return (
-      <div className="knowledge-graph-container">
+      <div className="knowledge-graph-container" ref={containerRef}>
         <div className="knowledge-graph-empty">Loading knowledge graph...</div>
       </div>
     )
   }
 
   // Empty state
-  if (!graphData || (graphData.entities.length === 0 && graphData.relationships.length === 0)) {
+  if (!graphData || graphData.entities.length === 0) {
     return (
-      <div className="knowledge-graph-container">
+      <div className="knowledge-graph-container" ref={containerRef}>
         <div className="knowledge-graph-empty">
-          <div>Neo4j not configured</div>
+          <div>No entities found</div>
           <div style={{ fontSize: 'calc(var(--font-size-base) * 0.8)', marginTop: 4 }}>
             Connect a Neo4j instance to explore knowledge graph entities and relationships.
           </div>
@@ -322,243 +221,55 @@ export function KnowledgeGraph({ fetchKnowledgeGraph, fetchEntityNeighbors }: Kn
     )
   }
 
-  // Determine which entity types are present for the legend
-  const legendTypes = [...new Set(nodes.map(n => n.entity.type.toLowerCase()))]
-
-  // Arrow marker ID
-  const arrowMarkerId = 'knowledge-graph-arrow'
-
   return (
-    <div className="knowledge-graph-container">
-      <svg
-        ref={svgRef}
-        className="knowledge-graph-svg"
-        onMouseDown={handleMouseDown}
-        onMouseMove={handleMouseMove}
-        onMouseUp={handleMouseUp}
-        onMouseLeave={handleMouseUp}
-        onWheel={handleWheel}
-        style={{ cursor: dragging ? 'grabbing' : 'grab' }}
-      >
-        <defs>
-          <marker
-            id={arrowMarkerId}
-            viewBox="0 0 10 6"
-            refX="10"
-            refY="3"
-            markerWidth="8"
-            markerHeight="6"
-            orient="auto-start-reverse"
-          >
-            <path d="M 0 0 L 10 3 L 0 6 Z" fill="var(--text-muted)" />
-          </marker>
-        </defs>
+    <div className="knowledge-graph-container" ref={containerRef}>
+      <ForceGraph3D
+        ref={fgRef}
+        width={dimensions.width}
+        height={dimensions.height}
+        graphData={forceData}
+        nodeId="id"
+        nodeLabel={(node: any) => { // eslint-disable-line @typescript-eslint/no-explicit-any
+          const e = node.entity as KnowledgeEntity
+          const props = Object.entries(e.properties || {}).slice(0, 4)
+            .map(([k, v]) => `${k}: ${String(v).slice(0, 30)}`)
+            .join('\n')
+          return `<div style="text-align:center;font-family:monospace;font-size:11px;line-height:1.4">
+            <b>${e.name}</b><br/>
+            <span style="color:${getEntityColor(e.type)};text-transform:uppercase;font-size:9px">${e.type}</span>
+            ${props ? '<br/><span style="color:#888;font-size:9px">' + props.replace(/\n/g, '<br/>') + '</span>' : ''}
+          </div>`
+        }}
+        nodeThreeObject={nodeThreeObject}
+        nodeThreeObjectExtend={false}
+        onNodeClick={handleNodeClick}
+        linkSource="source"
+        linkTarget="target"
+        linkLabel={linkLabel}
+        linkColor={linkColor}
+        linkWidth={0.5}
+        linkOpacity={0.6}
+        linkDirectionalArrowLength={3}
+        linkDirectionalArrowRelPos={1}
+        linkDirectionalParticles={0}
+        backgroundColor="rgba(0,0,0,0)"
+        showNavInfo={false}
+        enableNodeDrag={true}
+      />
 
-        <g transform={`translate(${view.x}, ${view.y}) scale(${view.scale})`}>
-          {/* Edges */}
-          {edges.map((edge, i) => {
-            const fromNode = nodeMap.get(edge.source)
-            const toNode = nodeMap.get(edge.target)
-            if (!fromNode || !toNode) return null
-
-            const isHighlighted = hoveredId === edge.source || hoveredId === edge.target
-            const color = edgeColor(edge.relationship.type)
-
-            // Source exits from right side, target enters from left side (LR layout)
-            const x1 = fromNode.x + NODE_WIDTH
-            const y1 = fromNode.y + NODE_HEIGHT / 2
-            const x2 = toNode.x
-            const y2 = toNode.y + NODE_HEIGHT / 2
-
-            // Bezier control points
-            const dx = Math.abs(x2 - x1)
-            const cpOffset = Math.max(dx * 0.4, 30)
-            const cx1 = x1 + cpOffset
-            const cy1 = y1
-            const cx2 = x2 - cpOffset
-            const cy2 = y2
-
-            // Midpoint for label
-            const mx = (x1 + x2) / 2
-            const my = (y1 + y2) / 2
-            const angle = Math.atan2(y2 - y1, x2 - x1) * (180 / Math.PI)
-
-            const dimmedBySearch = isSearchActive && !matchesSearch(edge.source) && !matchesSearch(edge.target)
-
-            return (
-              <g key={`edge-${i}`} opacity={dimmedBySearch ? 0.15 : 1}>
-                <path
-                  d={`M ${x1} ${y1} C ${cx1} ${cy1}, ${cx2} ${cy2}, ${x2} ${y2}`}
-                  fill="none"
-                  stroke={isHighlighted ? color : 'var(--border)'}
-                  strokeWidth={isHighlighted ? 2 : 1}
-                  opacity={isHighlighted ? 1 : 0.6}
-                  markerEnd={`url(#${arrowMarkerId})`}
-                />
-                <text
-                  className="knowledge-graph-edge-label"
-                  x={mx}
-                  y={my}
-                  textAnchor="middle"
-                  dominantBaseline="central"
-                  fontSize={8}
-                  fontFamily="var(--font-mono)"
-                  fill={isHighlighted ? color : 'var(--text-muted)'}
-                  transform={`rotate(${Math.abs(angle) > 90 ? angle + 180 : angle}, ${mx}, ${my})`}
-                  dy={-6}
-                  style={{ pointerEvents: 'none' }}
-                >
-                  {edge.relationship.type}
-                </text>
-              </g>
-            )
-          })}
-
-          {/* Nodes */}
-          {nodes.map(node => {
-            const color = getEntityColor(node.entity.type)
-            const isHovered = hoveredId === node.id
-            const dimmedBySearch = isSearchActive && !matchesSearch(node.id)
-            const isExpanding = expandingNode === node.id
-
-            return (
-              <g
-                key={node.id}
-                transform={`translate(${node.x}, ${node.y})`}
-                onMouseEnter={e => handleNodeMouseEnter(e, node.entity)}
-                onMouseLeave={handleNodeMouseLeave}
-                onDoubleClick={e => { e.stopPropagation(); handleDoubleClick(node.id) }}
-                style={{ cursor: 'pointer' }}
-                opacity={dimmedBySearch ? 0.3 : 1}
-              >
-                {/* Background rect */}
-                <rect
-                  width={NODE_WIDTH}
-                  height={NODE_HEIGHT}
-                  rx={6}
-                  fill="var(--bg-secondary)"
-                  stroke={isHovered ? color : 'var(--border)'}
-                  strokeWidth={isHovered ? 2.5 : 1}
-                />
-                {/* Left color bar */}
-                <rect
-                  x={0}
-                  y={0}
-                  width={4}
-                  height={NODE_HEIGHT}
-                  rx={2}
-                  fill={color}
-                />
-                {/* Entity type label */}
-                <text
-                  x={12}
-                  y={12}
-                  fontSize={8}
-                  fontFamily="var(--font-mono)"
-                  fill="var(--text-muted)"
-                  style={{ textTransform: 'uppercase', userSelect: 'none' }}
-                >
-                  {node.entity.type}
-                </text>
-                {/* Entity name */}
-                <text
-                  x={12}
-                  y={NODE_HEIGHT - 8}
-                  fontSize={11}
-                  fontFamily="var(--font-sans)"
-                  fill="var(--text-primary)"
-                  style={{ userSelect: 'none' }}
-                >
-                  {truncate(node.entity.name, 18)}
-                </text>
-                {/* Expanding indicator */}
-                {isExpanding && (
-                  <circle
-                    cx={NODE_WIDTH - 10}
-                    cy={NODE_HEIGHT / 2}
-                    r={4}
-                    fill="none"
-                    stroke={color}
-                    strokeWidth={1.5}
-                    strokeDasharray="6 4"
-                  >
-                    <animateTransform
-                      attributeName="transform"
-                      type="rotate"
-                      from={`0 ${NODE_WIDTH - 10} ${NODE_HEIGHT / 2}`}
-                      to={`360 ${NODE_WIDTH - 10} ${NODE_HEIGHT / 2}`}
-                      dur="1s"
-                      repeatCount="indefinite"
-                    />
-                  </circle>
-                )}
-              </g>
-            )
-          })}
-        </g>
-      </svg>
-
-      {/* Tooltip */}
-      {tooltip && (
-        <div
-          style={{
-            position: 'absolute',
-            left: tooltip.x + 12,
-            top: tooltip.y - 8,
-            background: 'var(--bg-secondary)',
-            border: '1px solid var(--border)',
-            borderRadius: 6,
-            padding: '6px 10px',
-            zIndex: 20,
-            fontSize: 'calc(var(--font-size-base) * 0.75)',
-            color: 'var(--text-secondary)',
-            maxWidth: 260,
-            pointerEvents: 'none',
-            whiteSpace: 'pre-wrap',
-            boxShadow: '0 2px 8px rgba(0,0,0,0.2)',
-          }}
-        >
-          <div style={{ fontWeight: 600, color: 'var(--text-primary)', marginBottom: 2 }}>
-            {tooltip.entity.name}
-          </div>
-          <div style={{
-            color: getEntityColor(tooltip.entity.type),
-            fontSize: 'calc(var(--font-size-base) * 0.65)',
-            textTransform: 'uppercase',
-            fontFamily: 'var(--font-mono)',
-            marginBottom: 4,
-          }}>
-            {tooltip.entity.type}
-          </div>
-          {Object.keys(tooltip.entity.properties).length > 0 && (
-            <div style={{ borderTop: '1px solid var(--border)', paddingTop: 4, marginTop: 2 }}>
-              {Object.entries(tooltip.entity.properties).slice(0, 6).map(([key, val]) => (
-                <div key={key} style={{ display: 'flex', gap: 6, lineHeight: 1.4 }}>
-                  <span style={{ color: 'var(--text-muted)', flexShrink: 0 }}>{key}:</span>
-                  <span style={{ color: 'var(--text-primary)', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                    {String(val).length > 40 ? String(val).slice(0, 40) + '\u2026' : String(val)}
-                  </span>
-                </div>
-              ))}
-            </div>
-          )}
+      {/* Expanding indicator */}
+      {expandingNode && (
+        <div className="knowledge-graph-info" style={{ top: 36, color: 'var(--accent)' }}>
+          Expanding {expandingNode}...
         </div>
       )}
 
-      {/* Controls overlay (top-right) */}
-      <div className="knowledge-graph-controls">
-        <button className="knowledge-graph-ctrl-btn" onClick={zoomIn} title="Zoom in">+</button>
-        <button className="knowledge-graph-ctrl-btn" onClick={zoomOut} title="Zoom out">&minus;</button>
-        <button className="knowledge-graph-ctrl-btn" onClick={fitView} title="Fit to view">&#x2318;</button>
-        <span className="knowledge-graph-ctrl-label">{Math.round(view.scale * 100)}%</span>
-      </div>
-
       {/* Info overlay (top-left) */}
       <div className="knowledge-graph-info">
-        {nodes.length} entities &middot; {edges.length} relationships
+        {forceData.nodes.length} entities &middot; {forceData.links.length} relationships
       </div>
 
-      {/* Search overlay (below info, top-left) */}
+      {/* Search overlay */}
       <div className="knowledge-graph-search">
         <input
           type="text"
