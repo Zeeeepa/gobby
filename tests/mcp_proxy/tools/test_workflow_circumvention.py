@@ -360,3 +360,124 @@ class TestBlockSessionTaskModification:
 
         assert "error" in result
         assert "end_workflow()" in result["error"]
+
+
+class TestSetVariableBooleanCoercion:
+    """Tests for string-to-boolean coercion in set_variable.
+
+    MCP schema collapses union types to 'string', so agents send "true"/"false"
+    as strings. Without coercion, the string "false" is truthy and breaks
+    workflow gate conditions like pending_memory_review.
+    """
+
+    def test_coerces_string_false_to_bool(self, registry, mock_state_manager) -> None:
+        """String 'false' is coerced to boolean False."""
+        mock_state = MagicMock(spec=WorkflowState)
+        mock_state.workflow_name = "__lifecycle__"
+        mock_state.variables = {"pending_memory_review": True}
+        mock_state_manager.get_state.return_value = mock_state
+
+        call_tool(
+            registry,
+            "set_variable",
+            name="pending_memory_review",
+            value="false",
+            session_id="test-session",
+        )
+
+        assert mock_state.variables["pending_memory_review"] is False
+
+    def test_coerces_string_true_to_bool(self, registry, mock_state_manager) -> None:
+        """String 'true' is coerced to boolean True."""
+        mock_state = MagicMock(spec=WorkflowState)
+        mock_state.workflow_name = "__lifecycle__"
+        mock_state.variables = {}
+        mock_state_manager.get_state.return_value = mock_state
+
+        call_tool(
+            registry,
+            "set_variable",
+            name="pre_existing_errors_triaged",
+            value="true",
+            session_id="test-session",
+        )
+
+        assert mock_state.variables["pre_existing_errors_triaged"] is True
+
+    def test_coerces_case_insensitive(self, registry, mock_state_manager) -> None:
+        """Coercion is case-insensitive for True/False/NULL."""
+        mock_state = MagicMock(spec=WorkflowState)
+        mock_state.workflow_name = "__lifecycle__"
+        mock_state.variables = {}
+        mock_state_manager.get_state.return_value = mock_state
+
+        call_tool(registry, "set_variable", name="v1", value="True", session_id="test-session")
+        assert mock_state.variables["v1"] is True
+
+        call_tool(registry, "set_variable", name="v2", value="FALSE", session_id="test-session")
+        assert mock_state.variables["v2"] is False
+
+        call_tool(registry, "set_variable", name="v3", value="Null", session_id="test-session")
+        assert mock_state.variables["v3"] is None
+
+    def test_coerces_string_null_to_none(self, registry, mock_state_manager) -> None:
+        """String 'null' and 'none' are coerced to None."""
+        mock_state = MagicMock(spec=WorkflowState)
+        mock_state.workflow_name = "__lifecycle__"
+        mock_state.variables = {}
+        mock_state_manager.get_state.return_value = mock_state
+
+        call_tool(registry, "set_variable", name="v1", value="null", session_id="test-session")
+        assert mock_state.variables["v1"] is None
+
+        call_tool(registry, "set_variable", name="v2", value="none", session_id="test-session")
+        assert mock_state.variables["v2"] is None
+
+    def test_coerces_string_int_to_int(self, registry, mock_state_manager) -> None:
+        """String '0' is coerced to integer 0."""
+        mock_state = MagicMock(spec=WorkflowState)
+        mock_state.workflow_name = "__lifecycle__"
+        mock_state.variables = {}
+        mock_state_manager.get_state.return_value = mock_state
+
+        call_tool(registry, "set_variable", name="count", value="0", session_id="test-session")
+        assert mock_state.variables["count"] == 0
+        assert isinstance(mock_state.variables["count"], int)
+
+        call_tool(registry, "set_variable", name="count", value="42", session_id="test-session")
+        assert mock_state.variables["count"] == 42
+
+    def test_coerces_string_float_to_float(self, registry, mock_state_manager) -> None:
+        """String '3.14' is coerced to float."""
+        mock_state = MagicMock(spec=WorkflowState)
+        mock_state.workflow_name = "__lifecycle__"
+        mock_state.variables = {}
+        mock_state_manager.get_state.return_value = mock_state
+
+        call_tool(registry, "set_variable", name="ratio", value="3.14", session_id="test-session")
+        assert mock_state.variables["ratio"] == 3.14
+        assert isinstance(mock_state.variables["ratio"], float)
+
+    def test_preserves_regular_strings(self, registry, mock_state_manager) -> None:
+        """Non-boolean/numeric strings are kept as-is."""
+        mock_state = MagicMock(spec=WorkflowState)
+        mock_state.workflow_name = "__lifecycle__"
+        mock_state.variables = {}
+        mock_state_manager.get_state.return_value = mock_state
+
+        call_tool(
+            registry, "set_variable", name="name", value="hello world", session_id="test-session"
+        )
+        assert mock_state.variables["name"] == "hello world"
+
+    def test_preserves_native_bool(self, registry, mock_state_manager) -> None:
+        """Native boolean values pass through without coercion."""
+        mock_state = MagicMock(spec=WorkflowState)
+        mock_state.workflow_name = "__lifecycle__"
+        mock_state.variables = {}
+        mock_state_manager.get_state.return_value = mock_state
+
+        call_tool(
+            registry, "set_variable", name="flag", value=False, session_id="test-session"
+        )
+        assert mock_state.variables["flag"] is False

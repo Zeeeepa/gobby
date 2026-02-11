@@ -330,10 +330,15 @@ triggers:
       value: false
       when: "event.data.get('tool_name') == 'ExitPlanMode'"
 
-    # Reset stop attempts counter on successful tool use
+    # Reset stop attempts counter on successful native tool use
+    # Skip for MCP tool calls — those are often the agent complying with a
+    # stop-gate directive (e.g., set_variable to clear a gate). Resetting the
+    # counter on MCP calls prevents the 3-strike escape hatch from triggering.
+    # The on_before_agent handler resets stop_attempts on each new user prompt.
     - action: set_variable
       name: stop_attempts
       value: 0
+      when: "not event.data.get('mcp_tool')"
 
     # Clear tool block flag on successful tool use
     - action: set_variable
