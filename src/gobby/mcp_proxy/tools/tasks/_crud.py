@@ -125,7 +125,6 @@ def create_crud_registry(ctx: RegistryContext) -> InternalToolRegistry:
             ctx.session_task_manager.link_task(resolved_session_id, task.id, "created")
         except Exception as e:
             logger.warning(f"Failed to link task {task.id} to session {resolved_session_id}: {e}")
-            pass  # nosec B110 - best-effort linking
 
         # Auto-claim if requested: set assignee and status to in_progress
         if claim:
@@ -645,8 +644,8 @@ def build_task_tree(
     if project:
         try:
             resolved = ctx.resolve_project_filter(project)
-        except ValueError:
-            return {"success": False, "error": f"Project not found: {project}"}
+        except ValueError as e:
+            return {"success": False, "error": str(e)}
         project_id: str = resolved or PERSONAL_PROJECT_ID
     else:
         project_ctx = get_project_context()

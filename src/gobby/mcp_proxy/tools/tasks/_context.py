@@ -108,6 +108,8 @@ class RegistryContext:
     ) -> str | None:
         """Resolve project filter to project_id.
 
+        Delegates to resolve_project_filter_standalone for consistency.
+
         Args:
             project: Project name or UUID to filter by
             all_projects: If True, return None (no filter)
@@ -118,14 +120,7 @@ class RegistryContext:
         Raises:
             ValueError: If project name/UUID not found
         """
-        if project:
-            p = self.project_manager.resolve_ref(project)
-            if not p:
-                raise ValueError(f"Project not found: {project}")
-            return p.id
-        if all_projects:
-            return None
-        return self.get_current_project_id()
+        return resolve_project_filter_standalone(project, all_projects, self.db)
 
     def resolve_session_id(self, session_id: str) -> str:
         """Resolve session reference (#N, N, UUID, or prefix) to UUID.
