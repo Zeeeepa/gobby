@@ -2,6 +2,7 @@
 
 **Status:** Planned
 **Created:** 2026-02-11
+**Updated:** 2026-02-11
 **Task:** #8038
 **Rationale:** Drawbridge annotations live in `.moat/moat-tasks-detail.json` as flat JSON objects with no dependencies, session linking, or validation. By importing them as gobby tasks, they gain the full task lifecycle: dependency graphs, session tracking, validation gates, and the expand/close workflow. The `/bridge` skill becomes a focused importer rather than a parallel task system.
 
@@ -11,11 +12,16 @@
 
 The current `/bridge` skill (286 lines) and `drawbridge-workflow.md` (802 lines) implement a standalone task processing system that duplicates gobby's own task management. This plan replaces that with an import flow: read `.moat/` annotations, create gobby tasks, and let the existing task system handle the rest.
 
+**Key decisions:**
+- **Import only** — `.moat/` files are read-only input; no dual-tracking back to Drawbridge files
+- **Auto-create epic** — all imported tasks nest under a parent epic per project
+- **Label-based dedup** — `drawbridge:{uuid}` labels make re-runs safe
+
 **Total scope:**
 
 - **1 file to rewrite** (`bridge.md` ~150 lines replacing 286)
-- **1 file to trim** (`drawbridge-workflow.md` ~200 lines replacing 802)
-- **0 new source files** (import logic lives entirely in the skill prompt)
+- **1 file to trim** (`drawbridge-workflow.md` ~350 lines replacing 802)
+- **0 new source files** (import logic lives entirely in the skill prompt; existing MCP tools are sufficient)
 
 ---
 
@@ -46,23 +52,31 @@ Key observations:
 
 ---
 
-## Phase 1: Field Mapping
+## Field Mapping
 
 ### Drawbridge JSON -> Gobby Task
 
 | Drawbridge Field | Gobby Task Field | Transformation |
 | --- | --- | --- |
-| `comment` | `title` | First line (truncated to 120 chars) |
-| `comment` | `description` | Full multi-line comment, plus metadata block (see below) |
-| `id` | label: `drawbridge:{id}` | For deduplication (see Phase 3) |
-| `status` | `status` | `"to do"` / `"doing"` -> `"open"`, `"done"` -> skip import |
-| `screenshotPath` | appended to `description` | Resolved path: `.moat/screenshots/...` |
-| `selector` | appended to `description` | CSS selector context |
-| `boundingRect` | appended to `description` | Viewport region context |
-| `timestamp` | appended to `description` | Original annotation time |
-| (inferred) | `task_type` | `"task"` for all (default) |
-| (inferred) | `category` | `"code"` for all (UI implementation) |
-| (inferred) | `priority` | `2` (medium) for all; user can override post-import |
+| `comment` | `title` | First 120 chars, truncated at word boundary |
+| `comment` (full) + metadata | `description` | Structured markdown (see template below) |
+| `id` | label: `drawbridge:{id}` | For deduplication |
+| (inferred from `comment`) | `task_type` | See inference rules below |
+| — | `category` | `"code"` for all (UI implementation) |
+| — | `priority` | `2` (medium) default; user can override post-import |
+| — | `labels` | `["drawbridge", "drawbridge:{id}"]` |
+| epic ref | `parent_task_id` | Auto-created epic |
+| — | `validation_criteria` | `"Visual change matches the annotation screenshot and comment description"` |
+
+### Task Type Inference
+
+Applied to `comment` text (case-insensitive):
+
+| Pattern in comment | task_type |
+| --- | --- |
+| "doesn't work", "broken", "missing", "wrong", "incorrect", "not working", "bug", "error", "disabled", "can't" | `bug` |
+| "add", "need", "want", "should have", "create", "new" | `feature` |
+| Everything else (styling, layout, tweaks) | `task` |
 
 ### Description Template
 
@@ -75,6 +89,7 @@ Key observations:
 - Screenshot: `{resolved_screenshot_path}`
 - Region: {x},{y} {w}x{h} (viewport: {viewport.width}x{viewport.height})
 - Annotated: {ISO timestamp from epoch ms}
+- Drawbridge ID: {id}
 ```
 
 ### Status Mapping
@@ -82,13 +97,13 @@ Key observations:
 | Drawbridge Status | Import Action |
 | --- | --- |
 | `"to do"` | Create as `open` gobby task |
-| `"doing"` | Create as `open` gobby task (agent will claim when ready) |
-| `"done"` | **Skip** — already completed, no import needed |
+| `"doing"` | Skip — may be actively worked in old system; mention in summary |
+| `"done"` | Skip — already completed |
 | `"failed"` | Create as `open` gobby task (retry) |
 
 ---
 
-## Phase 2: Import Flow
+## Import Flow
 
 The import is a prompt-driven workflow executed by the agent when the user runs `/bridge`. No new Python code is required — the agent reads files and calls existing MCP tools.
 
@@ -102,160 +117,172 @@ The import is a prompt-driven workflow executed by the agent when the user runs 
    → Error if not found (show setup instructions)
 
 2. READ + PARSE annotations
-   └─ Parse JSON array, filter out status="done"
+   └─ Parse JSON array, filter to status="to do" or "failed"
 
 3. CHECK for existing epic
-   └─ list_tasks(label="drawbridge:epic")
-   → If found, reuse as parent
-   → If not found, create epic (see below)
+   └─ list_tasks(label="drawbridge-epic")
+   → If open epic found: reuse as parent
+   → If not found: create epic (see below)
 
 4. CREATE EPIC (if needed)
    └─ create_task(
-        title="Drawbridge UI Annotations",
+        title="Drawbridge UI Review - {date}",
         task_type="epic",
-        labels=["drawbridge:epic"],
-        description="Imported from .moat/moat-tasks-detail.json\n\nParent epic for Drawbridge Chrome extension annotations.",
+        labels=["drawbridge", "drawbridge-epic"],
+        category="code",
+        description="Imported UI annotations from Drawbridge Chrome extension.\n\nSource: .moat/moat-tasks-detail.json",
         session_id="#current"
       )
 
-5. DEDUPLICATE (for each annotation)
-   └─ list_tasks(label="drawbridge:{annotation.id}")
-   → If task exists: skip (already imported)
-   → If not: proceed to create
+5. DEDUPLICATE
+   └─ list_tasks(label="drawbridge", parent_task_id=EPIC_REF, limit=200)
+   → Extract all drawbridge:{uuid} labels into a set
+   → O(1) lookup per annotation instead of N API calls
 
 6. CREATE CHILD TASKS (for each new annotation)
    └─ create_task(
-        title=first_line(annotation.comment),
+        title=first_line(annotation.comment, max=120),
         description=format_description(annotation),
         parent_task_id=epic.ref,
-        task_type="task",
+        task_type=infer_type(annotation.comment),
         category="code",
-        labels=["drawbridge:{annotation.id}", "drawbridge"],
+        labels=["drawbridge", "drawbridge:{annotation.id}"],
+        validation_criteria="Visual change matches the annotation screenshot and comment description",
         session_id="#current"
       )
 
 7. REPORT results
    └─ Print summary:
-      "Imported N new tasks (M skipped as duplicates, K already done)"
-      List each created task with #ref
+      "Epic: #{seq} 'Drawbridge UI Review - Feb 11'"
+      "Imported: N new tasks (skipped M duplicates, K done, J doing)"
+      List each created task with #ref and task_type
 ```
 
 ### Screenshot Handling
 
 Screenshots are **not** copied or moved. The resolved path (e.g., `.moat/screenshots/moat-1770769416084-swqxu5mqu.png`) is included in the task description. Agents working on the task can read the screenshot directly from that path.
 
+Path resolution: `./screenshots/...` → `.moat/screenshots/...`
+
 ---
 
-## Phase 3: Deduplication
-
-Deduplication uses the `labels` field with a `drawbridge:{uuid}` convention.
+## Deduplication
 
 ### Why labels?
 
-- Labels are queryable via `list_tasks(label="drawbridge:...")` — fast lookup
+- Labels are queryable via `list_tasks(label="drawbridge:...")` using SQLite's `json_each` — exact match
 - No schema changes needed
 - Labels survive task updates, renames, and re-parenting
-- The `drawbridge:` prefix avoids collision with user labels
+- Title-based dedup unreliable since comments can be similar across annotations
 
 ### Re-run safety
 
-Running `/bridge` multiple times is safe:
+Running `/bridge` multiple times is always safe:
 
-1. **New annotations** (no matching label) -> created
-2. **Previously imported** (matching label exists) -> skipped with note
-3. **Done annotations** (status="done") -> skipped at parse time
-4. **Deleted gobby tasks** (label gone) -> re-imported as new task
+1. **New annotations** (no matching label) → created
+2. **Previously imported** (matching label exists) → skipped with note
+3. **Done annotations** (status="done") → skipped at parse time
+4. **Deleted gobby tasks** (label gone) → re-imported as new task
 
 ### Label convention
 
 | Label | Purpose |
 | --- | --- |
-| `drawbridge:epic` | Identifies the parent epic (one per project) |
+| `drawbridge-epic` | Identifies the parent epic (one per project) |
 | `drawbridge:{uuid}` | Links gobby task to Drawbridge annotation ID |
 | `drawbridge` | Generic tag for filtering all imported tasks |
 
 ---
 
-## Phase 4: Changes to bridge.md
+## Changes to `.claude/commands/bridge.md`
 
 **Current:** 286 lines covering MCP setup, file-based fallback, task processing with status lifecycle, three processing modes (step/batch/yolo), error handling.
 
-**New:** ~150 lines focused on import-only. The skill becomes a thin importer that delegates all task management to gobby.
+**New:** ~150 lines focused solely on import. The skill becomes a thin importer that delegates all task management to gobby.
 
 ### New structure
 
 ```
-# Drawbridge Import
+---
+description: Import Drawbridge Chrome extension annotations as Gobby tasks
+---
 
-## Locate .moat/ data
-- Search priority (3 locations)
-- Error handling if not found
+# /bridge — Drawbridge Task Importer
 
-## Read annotations
-- Parse moat-tasks-detail.json
-- Filter out done tasks
-- Resolve screenshot paths
+## Purpose
+Import visual UI annotations from Drawbridge (.moat/) into the Gobby task system.
+.moat/ files are READ-ONLY input. Gobby tasks are the output.
 
-## Import to gobby
-- Find or create parent epic (drawbridge:epic label)
-- For each annotation:
-  - Check dedup via drawbridge:{id} label
-  - Create task with field mapping
-- Report summary
+## Prerequisites
+- Gobby daemon running
+- .moat/moat-tasks-detail.json exists
+- gobby-tasks MCP tools available
 
-## Post-import
-- Remind user: use /gobby tasks to manage imported tasks
-- Suggest: /gobby expand on complex tasks
-- Note: screenshots available at resolved .moat/ paths
+## Import Flow
+### Step 1: Read Annotations
+### Step 2: Find or Create Epic
+### Step 3: Deduplicate
+### Step 4: Create Tasks (with field mapping table + type inference rules)
+### Step 5: Report Summary
+
+## Error Handling
+## Re-running (idempotent)
 ```
 
 ### What's removed
 
-- MCP connection check/setup (Phase 1 of current skill — Drawbridge MCP server no longer needed)
+- MCP connection check/setup for Drawbridge MCP server (no longer needed)
 - Processing modes (step/batch/yolo) — gobby's task system handles execution
-- Status lifecycle management (to do -> doing -> done in JSON) — gobby tracks status
+- Status lifecycle management (`to do` → `doing` → `done` in .moat/ JSON files)
 - File-based task processing — replaced by gobby task claims and closes
-- moat-tasks.md checkbox updates — gobby is the source of truth
+- `moat-tasks.md` checkbox updates — gobby is the source of truth
 
 ### What's kept
 
-- `.moat/` directory detection and error messages
+- `.moat/` directory detection and search priority
 - Screenshot path resolution logic
 - Setup instructions for the Chrome extension (in error handling)
 
 ---
 
-## Phase 5: Changes to drawbridge-workflow.md
+## Changes to `.moat/drawbridge-workflow.md`
 
 **Current:** 802 lines as an `alwaysApply: true` workflow covering task ingestion, status lifecycle, three processing modes, batching logic, framework detection, UI pattern library, and implementation standards.
 
-**New:** ~200 lines retaining only the implementation standards that apply when an agent is working on a Drawbridge-originated task. The workflow stops being `alwaysApply` and instead activates when the agent claims a task with a `drawbridge` label.
+**New:** ~350 lines retaining the implementation standards that apply when an agent works on a Drawbridge-originated task.
 
-### What's kept (trimmed)
+### What's kept
 
+- Front-end engineer persona and role description
+- Screenshot validation and path resolution
+- File discovery intelligence
+- Framework detection & adaptation (React, Vue, Svelte, Vanilla)
 - Implementation standards (design tokens, rem units, modern CSS)
-- Screenshot path resolution
-- Framework detection & adaptation patterns
 - UI change pattern library (colors, layout, typography, effects)
 - Accessibility guidelines
+- Error handling and quality assurance
 
-### What's removed
+### What's removed (~450 lines)
 
-- Status lifecycle management (to do -> doing -> done)
-- Task ingestion from JSON (now handled by import)
-- Processing modes (step/batch/yolo)
-- Batching logic and grouping criteria
+- "Critical Workflow Requirements" — batched status updates (lines 29-118)
+- Processing modes: Step/Batch/YOLO (lines 289-487)
+- "Status File Management" (lines 493-525)
+- "Status Transition Validation" (lines 527-567)
+- Task ingestion from `.moat/` files (lines 145-157)
+- All references to updating `moat-tasks-detail.json` and `moat-tasks.md`
 - Concurrent file update handling
-- moat-tasks.md/moat-tasks-detail.json file management
-- Standard task announcement template
-- Dependency detection (gobby handles dependencies)
-- Communication style guidelines (verbose/terse) — handled by gobby workflows
+- Task announcement template (gobby has its own)
+- Communication style guidelines (verbose/terse)
 
 ### Frontmatter change
 
 ```yaml
 # Before
 alwaysApply: true
+globs:
+  - ".moat/**"
+  - "**/moat-tasks.md"
+  - "**/moat-tasks-detail.json"
 
 # After
 alwaysApply: false
@@ -263,39 +290,73 @@ globs:
   - ".moat/**"
 ```
 
-The workflow content becomes a reference that agents consult when implementing UI changes from Drawbridge annotations, not an always-injected prompt.
+Add header note: "Tasks are managed in Gobby. Use `/bridge` to import annotations. This file provides implementation standards for working on Drawbridge UI tasks."
 
 ---
 
-## Phase 6: Verification
+## No Backend Changes Required
+
+The existing gobby-tasks MCP API fully supports this workflow:
+
+- `create_task` — supports `task_type: "epic"`, `parent_task_id`, `labels`, `category`, `validation_criteria`
+- `list_tasks` — supports `label` filter for dedup, `parent_task_id` for hierarchy
+- `claim_task` — agents claim imported tasks the normal way
+- `close_task` — standard close with commit linking
+- `validate_task` — validation criteria set at import time
+
+No new tools, models, or storage changes needed.
+
+---
+
+## Error Handling
+
+| Scenario | Handling |
+| --- | --- |
+| No `.moat/` directory | Error with Chrome extension setup instructions |
+| Empty JSON or all tasks done | "No pending tasks" with count of done tasks |
+| MCP tools unavailable | Error asking user to ensure gobby daemon is running |
+| Individual task creation failure | Log error, continue with remaining tasks, report in summary |
+| Re-run with partial import | Dedup skips already-imported, imports only new annotations |
+| Very long comment text | Title truncated to 120 chars at word boundary; full comment in description |
+| Missing screenshot | Note in description: "Screenshot not available"; don't fail import |
+| Tasks with "doing" status | Skip during import; mention in summary |
+
+---
+
+## Verification
 
 ### Manual test steps
 
 1. **Fresh import:**
    - Ensure `.moat/moat-tasks-detail.json` exists with mix of "to do" and "done" tasks
    - Run `/bridge`
-   - Verify: epic created with `drawbridge:epic` label
-   - Verify: only non-done tasks imported as children
-   - Verify: each task has `drawbridge:{uuid}` label
+   - Verify: epic created with `drawbridge-epic` label
+   - Verify: only "to do" tasks imported as children
+   - Verify: each task has `["drawbridge", "drawbridge:{uuid}"]` labels
    - Verify: task descriptions include screenshot paths and selector info
 
-2. **Re-run (idempotent):**
+2. **Spot-check task_type inference:**
+   - "Create job doesn't work. Button remains disabled." → `bug`
+   - "Might want a card up here for unimportant memories..." → `feature`
+   - "the graph animation toggle should go up here with the other options" → `task`
+
+3. **Re-run (idempotent):**
    - Run `/bridge` again without changes
    - Verify: all tasks skipped as duplicates
    - Verify: no new epic created
    - Verify: summary shows "0 new, N skipped"
 
-3. **New annotations added:**
+4. **New annotations added:**
    - Add a new entry to `moat-tasks-detail.json`
    - Run `/bridge`
    - Verify: only the new annotation imported
    - Verify: existing tasks untouched
 
-4. **No .moat/ directory:**
+5. **No `.moat/` directory:**
    - Run `/bridge` from a directory without `.moat/`
    - Verify: helpful error with Chrome extension setup instructions
 
-5. **Task workflow integration:**
+6. **Task workflow integration:**
    - Claim an imported task via gobby
    - Verify: screenshot path in description is readable
    - Close the task with a commit
@@ -307,13 +368,10 @@ The workflow content becomes a reference that agents consult when implementing U
 
 | File | Action | Lines Before | Lines After |
 | --- | --- | --- | --- |
-| `docs/plans/drawbridge-enhancements.md` | Create | 0 | ~220 |
 | `.claude/commands/bridge.md` | Rewrite | 286 | ~150 |
-| `.moat/drawbridge-workflow.md` | Trim | 802 | ~200 |
-| `drawbridge/.claude/commands/bridge.md` | Rewrite (mirror) | 292 | ~150 |
-| `drawbridge/.moat/drawbridge-workflow.md` | Trim (mirror) | 802 | ~200 |
+| `.moat/drawbridge-workflow.md` | Trim | 802 | ~350 |
 
-**No new Python source files.** The import logic is entirely prompt-driven, using existing gobby MCP tools (`create_task`, `list_tasks`, `add_label`).
+**No new Python source files.** The import logic is entirely prompt-driven, using existing gobby MCP tools (`create_task`, `list_tasks`).
 
 ---
 
@@ -321,10 +379,10 @@ The workflow content becomes a reference that agents consult when implementing U
 
 | Risk | Mitigation |
 | --- | --- |
-| Large annotation sets (50+) hit MCP rate limits | Import sequentially with brief pauses; report progress |
+| Large annotation sets (50+) hit MCP rate limits | Import sequentially; report progress per task |
 | Generic titles ("Freeform Rectangle Task") reduce task readability | Use `comment` first line as title; full comment in description |
-| Screenshot paths break if `.moat/` moves | Paths are relative to project root; document this in description |
-| Users expect `/bridge` to still process tasks directly | Clear messaging: "Tasks imported — use `/gobby tasks` to manage" |
+| Screenshot paths break if `.moat/` moves | Paths are relative to project root; documented in description |
+| Users expect `/bridge` to still process tasks directly | Clear messaging: "Tasks imported — use gobby task workflow to manage" |
 | `alwaysApply: false` means agents miss implementation standards | Add note in imported task descriptions pointing to drawbridge-workflow.md |
 
 ---
@@ -332,7 +390,7 @@ The workflow content becomes a reference that agents consult when implementing U
 ## Out of Scope
 
 - **Drawbridge MCP server** — no longer needed for import; may be deprecated separately
-- **Bidirectional sync** (gobby -> .moat/) — one-way import only; Drawbridge JSON is read-only input
+- **Bidirectional sync** (gobby → `.moat/`) — one-way import only; Drawbridge JSON is read-only input
 - **Automatic re-import on file change** — manual `/bridge` invocation required
 - **Screenshot embedding** — paths are referenced, not copied into gobby storage
 - **Task expansion** — users can run `/gobby expand` post-import for complex tasks
