@@ -193,8 +193,8 @@ triggers:
 
         # Block naked python/pip commands
         - tools: [Bash]
-          command_pattern: "(?:^|[;&|])\\s*(?:sudo\\s+)?(?:python(?:3(?:\\.\\d+)?)?|pip3?)\\b"
-          command_not_pattern: "(?:^|[;&|])\\s*(?:sudo\\s+)?uv\\s+"
+          command_pattern: "(?:^|&&|\\|\\||[;&|])\\s*(?:sudo\\s+)?(?:python(?:3(?:\\.\\d+)?)?|pip3?)\\b"
+          command_not_pattern: "(?:^|&&|\\|\\||[;&|])\\s*(?:sudo\\s+)?uv\\s+"
           when: "variables.get('require_uv')"
           reason: |
             Do not run python or pip directly. Use `uv` to ensure the correct virtual environment:

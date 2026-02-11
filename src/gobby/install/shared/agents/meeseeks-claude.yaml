@@ -38,21 +38,6 @@ skill_profile:
     - chore
     - ref
     - eval
-  exclude_skills:
-    - plan
-    - sessions
-    - gobby
-    - worktrees
-    - clones
-    - workflows
-    - metrics
-    - usage
-    - doctor
-    - nit
-    - expand
-    - epic
-    - agents
-    - merge
   default_format: full
 
 # Named workflows - select via spawn_agent(workflow="...")
