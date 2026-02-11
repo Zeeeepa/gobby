@@ -137,6 +137,7 @@ export function useTasks() {
     search: '',
   })
   const [isLoading, setIsLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
   const pollRef = useRef<number | null>(null)
 
   // Fetch tasks list
@@ -158,9 +159,13 @@ export function useTasks() {
         setTasks(data.tasks || [])
         setTotal(data.total)
         setStats(data.stats || {})
+        setError(null)
+      } else {
+        setError(`Failed to fetch tasks (${response.status})`)
       }
     } catch (e) {
       console.error('Failed to fetch tasks:', e)
+      setError('Failed to fetch tasks')
     } finally {
       setIsLoading(false)
     }
@@ -436,6 +441,7 @@ export function useTasks() {
     total,
     stats,
     isLoading,
+    error,
     filters,
     setFilters,
     getTask,

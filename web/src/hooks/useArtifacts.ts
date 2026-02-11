@@ -188,12 +188,12 @@ export function useArtifacts() {
           // Update local state
           setArtifacts(prev =>
             prev.map(a =>
-              a.id === artifactId ? { ...a, tags: [...a.tags, tag] } : a
+              a.id === artifactId && !a.tags.includes(tag) ? { ...a, tags: [...a.tags, tag] } : a
             )
           )
           if (selectedArtifact?.id === artifactId) {
             setSelectedArtifact(prev =>
-              prev ? { ...prev, tags: [...prev.tags, tag] } : prev
+              prev && !prev.tags.includes(tag) ? { ...prev, tags: [...prev.tags, tag] } : prev
             )
           }
           return true
