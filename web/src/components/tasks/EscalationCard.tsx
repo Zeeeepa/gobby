@@ -177,12 +177,9 @@ export function EscalationCard({ task, onResolve }: EscalationCardProps) {
         onResolve(decision)
       } else {
         console.error('De-escalation failed:', await response.text())
-        // Fall back to simple reopen
-        onResolve(decision)
       }
     } catch (e) {
       console.error('De-escalation request failed:', e)
-      onResolve(decision)
     } finally {
       setIsSubmitting(false)
     }

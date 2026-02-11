@@ -91,10 +91,14 @@ export function SessionViewer({ sessionId }: SessionViewerProps) {
       if (sessionRes.ok) {
         const data = await sessionRes.json()
         setSession(data.session || data)
+      } else {
+        console.warn(`Failed to fetch session ${sessionId}: ${sessionRes.status}`)
       }
       if (msgRes.ok) {
         const data = await msgRes.json()
         setMessages(data.messages || [])
+      } else {
+        console.warn(`Failed to fetch session messages: ${msgRes.status}`)
       }
     } catch (e) {
       console.error('Failed to fetch session:', e)

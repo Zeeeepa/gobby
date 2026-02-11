@@ -250,8 +250,8 @@ export function TaskMemories({ sessionId }: TaskMemoriesProps) {
 
               {mem.tags.length > 0 && (
                 <div className="task-memory-tags">
-                  {mem.tags.map(tag => (
-                    <span key={tag} className="task-memory-tag">{tag}</span>
+                  {mem.tags.map((tag, i) => (
+                    <span key={`${tag}-${i}`} className="task-memory-tag">{tag}</span>
                   ))}
                 </div>
               )}
