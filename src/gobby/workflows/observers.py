@@ -229,8 +229,45 @@ async def _task_claim_tracking(
     )
 
 
+async def _detect_plan_mode(
+    event: "HookEvent | None",
+    state: WorkflowState,
+    **kwargs: Any,
+) -> None:
+    """Behavior: detect plan mode from system-reminder tags.
+
+    Wraps the existing detect_plan_mode_from_context function.
+    """
+    if event is None or not event.data:
+        return
+
+    from gobby.workflows.detection_helpers import detect_plan_mode_from_context
+
+    prompt = event.data.get("prompt", "") or ""
+    detect_plan_mode_from_context(prompt, state)
+
+
+async def _mcp_call_tracking(
+    event: "HookEvent | None",
+    state: WorkflowState,
+    **kwargs: Any,
+) -> None:
+    """Behavior: track MCP tool calls in state variables.
+
+    Wraps the existing detect_mcp_call function.
+    """
+    if event is None:
+        return
+
+    from gobby.workflows.detection_helpers import detect_mcp_call
+
+    detect_mcp_call(event, state)
+
+
 def get_default_registry() -> BehaviorRegistry:
     """Create a BehaviorRegistry with all built-in behaviors registered."""
     registry = BehaviorRegistry()
     registry.register("task_claim_tracking", _task_claim_tracking)
+    registry.register("detect_plan_mode", _detect_plan_mode)
+    registry.register("mcp_call_tracking", _mcp_call_tracking)
     return registry
