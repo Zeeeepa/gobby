@@ -36,7 +36,7 @@ You have access to Gobby's MCP tools. To call internal tools, use progressive di
 
 ### Internal Servers
 
-gobby-tasks, gobby-sessions, gobby-memory, gobby-workflows, gobby-orchestration, gobby-agents, gobby-worktrees, gobby-clones, gobby-artifacts, gobby-pipelines, gobby-skills, gobby-metrics, gobby-hub, gobby-merge.
+gobby-tasks, gobby-sessions, gobby-memory, gobby-workflows, gobby-orchestration, gobby-agents, gobby-worktrees, gobby-clones, gobby-pipelines, gobby-skills, gobby-metrics, gobby-hub, gobby-merge.
 
 ### Error Handling
 
