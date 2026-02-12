@@ -541,6 +541,7 @@ async def evaluate_all_lifecycle_workflows(
     detect_task_claim_fn: Any,
     check_premature_stop_fn: Any,
     context_data: dict[str, Any] | None = None,
+    observer_engine: Any | None = None,
 ) -> HookResponse:
     """
     Discover and evaluate all lifecycle workflows for the given event.
@@ -692,6 +693,41 @@ async def evaluate_all_lifecycle_workflows(
             break
 
         logger.debug(f"Triggers fired in iteration {iteration + 1}, continuing")
+
+    # Evaluate observers for all lifecycle workflows
+    if observer_engine is not None:
+        event_type_str = event.event_type.name.lower()
+        for discovered in workflows:
+            workflow = discovered.definition
+            if not isinstance(workflow, WorkflowDefinition):
+                continue
+            if not workflow.observers:
+                continue
+
+            obs_session_id = event.metadata.get("_platform_session_id")
+            if not obs_session_id:
+                continue
+
+            existing_state = state_manager.get_state(obs_session_id)
+            state_was_created = existing_state is None
+            state = existing_state or WorkflowState(
+                session_id=obs_session_id,
+                workflow_name=workflow.name,
+                step="global",
+            )
+            vars_snapshot = copy.deepcopy(state.variables) if not state_was_created else None
+
+            await observer_engine.evaluate_observers(
+                observers=workflow.observers,
+                event_type=event_type_str,
+                event_data=event.data or {},
+                state=state,
+                event=event,
+            )
+
+            _persist_state_changes(
+                obs_session_id, state, state_was_created, vars_snapshot, state_manager
+            )
 
     # Detect task claims for AFTER_TOOL events (session-scoped enforcement)
     # This enables require_task_before_edit to work with lifecycle workflows
