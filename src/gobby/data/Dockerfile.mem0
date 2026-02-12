@@ -1,0 +1,4 @@
+FROM mem0/mem0-api-server:latest
+RUN pip install --no-cache-dir \
+    "mem0ai[graph,vector-stores]" \
+    "psycopg[binary,pool]>=3.2.8"

@@ -36,16 +36,38 @@ logger = logging.getLogger(__name__)
 
 
 def _mem0_start(gobby_home: Path) -> None:
-    """Start mem0 Docker containers if installed."""
+    """Start mem0 Docker containers if installed.
+
+    Resolves OPENAI_API_KEY from the secret store and passes it
+    to the Docker subprocess environment so mem0 can use it for embeddings.
+    """
     compose_file = gobby_home / "services" / "mem0" / "docker-compose.yml"
     if not compose_file.exists():
         return
+
+    # Build subprocess env with secrets resolved from the store
+    env = dict(os.environ)
+    try:
+        from gobby.config.app import load_config
+        from gobby.storage.database import LocalDatabase
+        from gobby.storage.secrets import SecretStore
+
+        config = load_config(create_default=False)
+        db = LocalDatabase(Path(config.database_path).expanduser())
+        secret_store = SecretStore(db)
+        api_key = secret_store.get("OPENAI_API_KEY")
+        if api_key:
+            env["OPENAI_API_KEY"] = api_key
+    except Exception as e:
+        logger.warning(f"Could not resolve secrets for mem0: {e}")
+
     try:
         result = subprocess.run(  # nosec B603 B607 - hardcoded docker command
             ["docker", "compose", "-f", str(compose_file), "up", "-d"],
             capture_output=True,
             text=True,
             timeout=120,
+            env=env,
         )
         if result.returncode != 0:
             logger.warning(f"Failed to start mem0 containers: {result.stderr or result.stdout}")
