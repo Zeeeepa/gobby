@@ -59,7 +59,7 @@ export function DigestView({ tasks, onSelectTask }: DigestViewProps) {
   const sections = useMemo((): DigestSection[] => {
     // Completed: closed tasks within period
     const completed = tasks.filter(
-      t => (t.status === 'closed' || t.status === 'approved') && isAfter(t.updated_at, cutoff)
+      t => (t.status === 'closed' || t.status === 'review_approved') && isAfter(t.updated_at, cutoff)
     )
 
     // In progress: active tasks

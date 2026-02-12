@@ -20,6 +20,8 @@ export interface GobbyTask {
   assignee: string | null
   agent_name: string | null
   sequence_order: number | null
+  start_date: string | null
+  due_date: string | null
   project_id: string
 }
 
@@ -146,7 +148,7 @@ export function useTasks() {
       const baseUrl = getBaseUrl()
       const params = new URLSearchParams({ limit: '200' })
       if (filters.status === 'recently_done') params.set('status', 'closed')
-      else if (filters.status === 'in_review') params.set('status', 'needs_review,approved')
+      else if (filters.status === 'in_review') params.set('status', 'needs_review,review_approved')
       else if (filters.status) params.set('status', filters.status)
       if (filters.priority !== null) params.set('priority', String(filters.priority))
       if (filters.taskType) params.set('task_type', filters.taskType)

@@ -24,7 +24,7 @@ type SortColumn = 'ref' | 'title' | 'type' | 'priority' | 'status'
 type SortDirection = 'asc' | 'desc'
 
 const STATUS_OPTIONS = [
-  'open', 'in_progress', 'needs_review', 'approved', 'closed', 'escalated',
+  'open', 'in_progress', 'needs_review', 'review_approved', 'closed', 'escalated',
 ]
 
 // Statuses grouped under the 'closed' filter

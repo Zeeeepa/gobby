@@ -18,7 +18,7 @@ interface TreeNode {
 // Closed statuses to filter
 // =============================================================================
 
-const CLOSED_STATUSES = new Set(['closed', 'approved'])
+const CLOSED_STATUSES = new Set(['closed', 'review_approved'])
 
 // =============================================================================
 // Build tree from flat task list

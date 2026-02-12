@@ -19,7 +19,7 @@ rule_definitions:
     mcp_tools:
       - gobby-tasks:create_task
       - gobby-tasks:close_task
-      - gobby-tasks:approve_task
+      - gobby-tasks:mark_task_review_approved
     reason: "Task creation, closing, and approval are not allowed. Let the parent handle task management."
     action: block
 
@@ -200,7 +200,7 @@ steps:
           1. Stage your changes: git add <files>
           2. Commit with task reference: git commit -m "[{{ project.name }}-{{ variables.assigned_task_id }}] Description"
           3. Mark the task for review:
-             call_tool(server_name="gobby-tasks", tool_name="mark_task_for_review",
+             call_tool(server_name="gobby-tasks", tool_name="mark_task_needs_review",
                arguments={"task_id": "{{ variables.assigned_task_id }}", "session_id": "{{ session_id }}"})
           4. Then set: set_workflow_variable("committed", true)
 
@@ -214,14 +214,14 @@ steps:
       - mcp__gobby__search_tools
 
     allowed_mcp_tools:
-      - gobby-tasks:mark_task_for_review
+      - gobby-tasks:mark_task_needs_review
       - gobby-tasks:link_commit
 
     check_rules: [no_push]
 
     on_mcp_success:
       - server: gobby-tasks
-        tool: mark_task_for_review
+        tool: mark_task_needs_review
         action: set_variable
         variable: committed
         value: true

@@ -105,7 +105,7 @@ steps:
       - gobby-agents:spawn_agent
       - gobby-tasks:create_task
       - gobby-tasks:close_task
-      - gobby-tasks:approve_task
+      - gobby-tasks:mark_task_review_approved
 
     blocked_commands:
       - pattern: "git push"
@@ -136,7 +136,7 @@ steps:
       - gobby-agents:spawn_agent
       - gobby-tasks:create_task
       - gobby-tasks:close_task
-      - gobby-tasks:approve_task
+      - gobby-tasks:mark_task_review_approved
 
     blocked_commands:
       - pattern: "git push"
@@ -233,9 +233,9 @@ steps:
         content: |
           QA REVIEWER: APPROVE PHASE — Mark task as approved.
 
-          Call approve_task to sign off on this task:
+          Call mark_task_review_approved to sign off on this task:
           - server_name: "gobby-tasks"
-          - tool_name: "approve_task"
+          - tool_name: "mark_task_review_approved"
           - arguments: {"task_id": "{{ variables.assigned_task_id }}", "session_id": "{{ session_id }}"}
 
     allowed_tools:
@@ -246,11 +246,11 @@ steps:
       - mcp__gobby__search_tools
 
     allowed_mcp_tools:
-      - gobby-tasks:approve_task
+      - gobby-tasks:mark_task_review_approved
 
     on_mcp_success:
       - server: gobby-tasks
-        tool: approve_task
+        tool: mark_task_review_approved
         action: set_variable
         variable: task_approved
         value: true

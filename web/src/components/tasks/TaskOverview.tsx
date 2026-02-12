@@ -22,7 +22,7 @@ interface TaskOverviewProps {
 export function TaskOverview({ tasks, stats, activeFilter, onFilterStatus }: TaskOverviewProps) {
   const nowCount = stats['in_progress'] || 0
   const stuckCount = (stats['escalated'] || 0)
-  const reviewCount = (stats['needs_review'] || 0) + (stats['approved'] || 0)
+  const reviewCount = (stats['needs_review'] || 0) + (stats['review_approved'] || 0)
   const recentlyCompleted = useMemo(() => {
     const cutoff = Date.now() - TWENTY_FOUR_HOURS_MS
     return tasks.filter(

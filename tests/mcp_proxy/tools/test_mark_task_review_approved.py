@@ -1,4 +1,4 @@
-"""Tests for approve_task MCP tool and approved status.
+"""Tests for mark_task_review_approved MCP tool and review_approved status.
 
 Tests status transitions, validation, and blocked status in update_task.
 """
@@ -77,7 +77,7 @@ def sample_task_open():
 
 @pytest.fixture
 def lifecycle_registry(mock_task_manager, mock_sync_manager):
-    """Create a lifecycle registry with approve_task tool."""
+    """Create a lifecycle registry with mark_task_review_approved tool."""
     from gobby.mcp_proxy.tools.tasks._context import RegistryContext
     from gobby.mcp_proxy.tools.tasks._lifecycle import create_lifecycle_registry
 
@@ -88,8 +88,8 @@ def lifecycle_registry(mock_task_manager, mock_sync_manager):
     return create_lifecycle_registry(ctx)
 
 
-class TestApproveTask:
-    """Tests for approve_task lifecycle tool."""
+class TestMarkTaskReviewApproved:
+    """Tests for mark_task_review_approved lifecycle tool."""
 
     def test_approve_needs_review_task(
         self, lifecycle_registry, mock_task_manager, sample_task_needs_review
@@ -98,7 +98,7 @@ class TestApproveTask:
         mock_task_manager.get_task.return_value = sample_task_needs_review
         mock_task_manager.update_task.return_value = sample_task_needs_review
 
-        tool_func = lifecycle_registry._tools["approve_task"].func
+        tool_func = lifecycle_registry._tools["mark_task_review_approved"].func
         result = tool_func(
             task_id="#42",
             session_id="session-abc",
@@ -107,7 +107,7 @@ class TestApproveTask:
         assert "error" not in result
         mock_task_manager.update_task.assert_called_once()
         call_kwargs = mock_task_manager.update_task.call_args
-        assert call_kwargs[1]["status"] == "approved"
+        assert call_kwargs[1]["status"] == "review_approved"
 
     def test_approve_in_progress_task(
         self, lifecycle_registry, mock_task_manager, sample_task_in_progress
@@ -116,7 +116,7 @@ class TestApproveTask:
         mock_task_manager.get_task.return_value = sample_task_in_progress
         mock_task_manager.update_task.return_value = sample_task_in_progress
 
-        tool_func = lifecycle_registry._tools["approve_task"].func
+        tool_func = lifecycle_registry._tools["mark_task_review_approved"].func
         result = tool_func(
             task_id="#42",
             session_id="session-abc",
@@ -130,7 +130,7 @@ class TestApproveTask:
         """Test that approving an open task is rejected."""
         mock_task_manager.get_task.return_value = sample_task_open
 
-        tool_func = lifecycle_registry._tools["approve_task"].func
+        tool_func = lifecycle_registry._tools["mark_task_review_approved"].func
         result = tool_func(
             task_id="#42",
             session_id="session-abc",
@@ -154,7 +154,7 @@ class TestApproveTask:
         )
         mock_task_manager.get_task.return_value = closed_task
 
-        tool_func = lifecycle_registry._tools["approve_task"].func
+        tool_func = lifecycle_registry._tools["mark_task_review_approved"].func
         result = tool_func(
             task_id="#42",
             session_id="session-abc",
@@ -170,7 +170,7 @@ class TestApproveTask:
         mock_task_manager.get_task.return_value = sample_task_needs_review
         mock_task_manager.update_task.return_value = sample_task_needs_review
 
-        tool_func = lifecycle_registry._tools["approve_task"].func
+        tool_func = lifecycle_registry._tools["mark_task_review_approved"].func
         result = tool_func(
             task_id="#42",
             session_id="session-abc",
@@ -192,7 +192,7 @@ class TestApproveTask:
             "gobby.mcp_proxy.tools.tasks._lifecycle.resolve_task_id_for_mcp",
             side_effect=TaskNotFoundError("Task #999 not found"),
         ):
-            tool_func = lifecycle_registry._tools["approve_task"].func
+            tool_func = lifecycle_registry._tools["mark_task_review_approved"].func
             result = tool_func(
                 task_id="#999",
                 session_id="session-abc",
@@ -201,22 +201,22 @@ class TestApproveTask:
         assert "error" in result
 
 
-class TestApprovedStatusInModel:
-    """Tests for 'approved' in Task status Literal."""
+class TestReviewApprovedStatusInModel:
+    """Tests for 'review_approved' in Task status Literal."""
 
-    def test_approved_is_valid_status(self) -> None:
-        """Test that 'approved' is a valid task status."""
+    def test_review_approved_is_valid_status(self) -> None:
+        """Test that 'review_approved' is a valid task status."""
         task = Task(
             id="test-id",
             project_id="proj-1",
             title="Test",
-            status="approved",
+            status="review_approved",
             priority=2,
             task_type="task",
             created_at="2024-01-01T00:00:00Z",
             updated_at="2024-01-01T00:00:00Z",
         )
-        assert task.status == "approved"
+        assert task.status == "review_approved"
 
     def test_all_valid_statuses(self) -> None:
         """Test that all expected statuses are valid in the Literal type."""
@@ -227,7 +227,7 @@ class TestApprovedStatusInModel:
         status_type = hints["status"]
         # Extract literal values
         valid_statuses = typing.get_args(status_type)
-        assert "approved" in valid_statuses
+        assert "review_approved" in valid_statuses
         assert "open" in valid_statuses
         assert "closed" in valid_statuses
         assert "needs_review" in valid_statuses

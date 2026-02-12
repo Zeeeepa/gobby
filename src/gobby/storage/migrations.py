@@ -34,7 +34,7 @@ MigrationAction = str | Callable[[LocalDatabase], None]
 # Baseline version - the schema state at v81 (flattened)
 # This is applied for new databases directly
 # Note: Migrations >= BASELINE_VERSION still run for existing databases
-BASELINE_VERSION = 81
+BASELINE_VERSION = 100
 
 # Baseline schema - flattened from v81 production state, includes all migrations
 # This is applied for new databases directly
@@ -340,6 +340,8 @@ CREATE TABLE tasks (
     expansion_status TEXT DEFAULT 'none',
     requires_user_review INTEGER DEFAULT 0,
     accepted_by_user INTEGER DEFAULT 0,
+    start_date TEXT,
+    due_date TEXT,
     created_at TEXT NOT NULL,
     updated_at TEXT NOT NULL
 );
@@ -1240,6 +1242,21 @@ MIGRATIONS: list[tuple[int, str, MigrationAction]] = [
             updated_at TEXT NOT NULL DEFAULT (datetime('now'))
         );
         CREATE INDEX IF NOT EXISTS idx_config_store_source ON config_store(source);
+        """,
+    ),
+    # Rename task status 'approved' to 'review_approved' for clarity
+    (
+        99,
+        "Rename task status 'approved' to 'review_approved'",
+        "UPDATE tasks SET status = 'review_approved' WHERE status = 'approved'",
+    ),
+    # Add scheduling fields for Gantt chart
+    (
+        100,
+        "Add start_date and due_date to tasks",
+        """
+        ALTER TABLE tasks ADD COLUMN start_date TEXT;
+        ALTER TABLE tasks ADD COLUMN due_date TEXT;
         """,
     ),
 ]

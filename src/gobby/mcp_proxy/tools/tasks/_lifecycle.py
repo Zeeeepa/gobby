@@ -721,14 +721,14 @@ def create_lifecycle_registry(ctx: RegistryContext) -> InternalToolRegistry:
         func=escalate_task,
     )
 
-    def approve_task(
+    def mark_task_review_approved(
         task_id: str,
         session_id: str,
         approval_notes: str | None = None,
     ) -> dict[str, Any]:
         """Approve a task after review.
 
-        Sets status to 'approved', indicating the review gate has passed.
+        Sets status to 'review_approved', indicating the review gate has passed.
         Accepts tasks in 'needs_review', 'in_progress', or 'escalated' status.
 
         Args:
@@ -765,7 +765,7 @@ def create_lifecycle_registry(ctx: RegistryContext) -> InternalToolRegistry:
             pass
 
         # Build update kwargs
-        update_kwargs: dict[str, Any] = {"status": "approved"}
+        update_kwargs: dict[str, Any] = {"status": "review_approved"}
 
         # Append approval notes to description if provided
         if approval_notes:
@@ -773,22 +773,22 @@ def create_lifecycle_registry(ctx: RegistryContext) -> InternalToolRegistry:
             approval_section = f"\n\n[Approval Notes]\n{approval_notes}"
             update_kwargs["description"] = current_desc + approval_section
 
-        # Update task status to approved
+        # Update task status to review_approved
         updated = ctx.task_manager.update_task(resolved_id, **update_kwargs)
         if not updated:
             return {"error": f"Failed to approve task {task_id}"}
 
         # Link task to session (best-effort)
         try:
-            ctx.session_task_manager.link_task(resolved_session_id, resolved_id, "approved")
+            ctx.session_task_manager.link_task(resolved_session_id, resolved_id, "review_approved")
         except Exception:
             pass  # nosec B110 - best-effort linking
 
         return {}
 
     registry.register(
-        name="approve_task",
-        description="Approve a task after review. Sets status to 'approved' (review gate passed). Accepts tasks in 'needs_review', 'in_progress', or 'escalated' status.",
+        name="mark_task_review_approved",
+        description="Approve a task after review. Sets status to 'review_approved' (review gate passed). Accepts tasks in 'needs_review', 'in_progress', or 'escalated' status.",
         input_schema={
             "type": "object",
             "properties": {
@@ -808,10 +808,10 @@ def create_lifecycle_registry(ctx: RegistryContext) -> InternalToolRegistry:
             },
             "required": ["task_id", "session_id"],
         },
-        func=approve_task,
+        func=mark_task_review_approved,
     )
 
-    def mark_task_for_review(
+    def mark_task_needs_review(
         task_id: str,
         session_id: str,
         review_notes: str | None = None,
@@ -871,7 +871,7 @@ def create_lifecycle_registry(ctx: RegistryContext) -> InternalToolRegistry:
         return {}
 
     registry.register(
-        name="mark_task_for_review",
+        name="mark_task_needs_review",
         description="Mark a task as ready for review. Sets status to 'needs_review'. Use this when work is complete but needs human verification before closing.",
         input_schema={
             "type": "object",
@@ -892,7 +892,7 @@ def create_lifecycle_registry(ctx: RegistryContext) -> InternalToolRegistry:
             },
             "required": ["task_id", "session_id"],
         },
-        func=mark_task_for_review,
+        func=mark_task_needs_review,
     )
 
     return registry

@@ -9,7 +9,7 @@ const STATUS_COLORS: Record<string, string> = {
   open: '#3b82f6',
   in_progress: '#f59e0b',
   needs_review: '#8b5cf6',
-  approved: '#22c55e',
+  review_approved: '#22c55e',
   closed: '#737373',
   escalated: '#ef4444',
 }
@@ -18,7 +18,7 @@ const STATUS_BG: Record<string, string> = {
   open: 'rgba(59, 130, 246, 0.12)',
   in_progress: 'rgba(245, 158, 11, 0.12)',
   needs_review: 'rgba(139, 92, 246, 0.12)',
-  approved: 'rgba(34, 197, 94, 0.12)',
+  review_approved: 'rgba(34, 197, 94, 0.12)',
   closed: 'rgba(115, 115, 115, 0.12)',
   escalated: 'rgba(239, 68, 68, 0.12)',
 }

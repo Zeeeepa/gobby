@@ -20,7 +20,7 @@ const COLUMNS: PriorityColumnDef[] = [
   { key: 'later', label: 'Later', color: '#737373', description: 'Low + Backlog' },
 ]
 
-const DONE_STATUSES = new Set(['closed', 'approved'])
+const DONE_STATUSES = new Set(['closed', 'review_approved'])
 
 function classifyTask(task: GobbyTask): 'now' | 'next' | 'later' | null {
   // Skip completed tasks
