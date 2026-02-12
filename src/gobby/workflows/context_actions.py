@@ -542,67 +542,22 @@ def _inject_context_aware_skills(
     session_id: str,
     state: Any,
 ) -> str:
-    """Select and format skills using agent-type-aware injection.
+    """Return empty string — skill discovery is now handled by the
+    ``discovery`` always-apply skill injected via lifecycle workflows.
 
-    Builds an AgentContext from the session and workflow state, then uses
-    SkillInjector to select relevant skills and resolve per-skill formats.
+    The full skill list is available on-demand via ``list_skills()`` /
+    ``get_skill(name)`` on the ``gobby-skills`` MCP server.
 
     Args:
-        skills: All discovered core skills
-        session_manager: Session manager for looking up session
-        session_id: Current session ID
-        state: WorkflowState instance
+        skills: All discovered core skills (unused, kept for API compat)
+        session_manager: Session manager (unused, kept for API compat)
+        session_id: Current session ID (unused, kept for API compat)
+        state: WorkflowState instance (unused, kept for API compat)
 
     Returns:
-        Formatted markdown string with context-appropriate skills
+        Empty string (discovery guide injected via always-apply skill)
     """
-    from gobby.skills.injector import AgentContext, SkillInjector, SkillProfile
-
-    # Build agent context from session + workflow state
-    session = session_manager.get(session_id) if session_manager else None
-    context = (
-        AgentContext.from_session(session, workflow_state=state) if session else AgentContext()
-    )
-
-    # Check for skill profile in workflow variables
-    profile: SkillProfile | None = None
-    if state and hasattr(state, "variables") and state.variables:
-        profile_data = state.variables.get("_skill_profile")
-        if isinstance(profile_data, dict):
-            profile = SkillProfile.from_dict(profile_data)
-
-    injector = SkillInjector()
-    selected = injector.select_skills(skills, context, profile)
-
-    if not selected:
-        logger.debug(
-            f"context_aware: no skills selected for agent_type={context.agent_type}, "
-            f"depth={context.agent_depth}"
-        )
-        return ""
-
-    logger.debug(
-        f"context_aware: selected {len(selected)}/{len(skills)} skills for "
-        f"agent_type={context.agent_type}, depth={context.agent_depth}"
-    )
-
-    # Track which skills were injected for this session
-    if session_id and session_manager and selected:
-        try:
-            if not hasattr(session_manager, "record_skills_used"):
-                logger.warning(
-                    f"session_manager missing record_skills_used for session {session_id}"
-                )
-            else:
-                skill_names = [skill.name for skill, _fmt in selected]
-                session_manager.record_skills_used(session_id, skill_names)
-        except (AttributeError, TypeError, ValueError) as e:
-            logger.debug(
-                f"Failed to record skills used for session {session_id}: {e}",
-                exc_info=True,
-            )
-
-    return _format_skills_with_formats(selected)
+    return ""
 
 
 def _format_skills_with_formats(skills_with_formats: list[tuple[Any, str]]) -> str:

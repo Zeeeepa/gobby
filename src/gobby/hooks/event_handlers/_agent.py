@@ -132,10 +132,7 @@ class AgentEventHandlerMixin(EventHandlersBase):
             return None
 
         skill, score = matches[0]
-        return (
-            f"Relevant gobby skill: **{skill.name}** — {skill.description}. "
-            f'Load with get_skill(name="{skill.name}") on gobby-skills server.'
-        )
+        return f'Relevant skill available: `get_skill(name="{skill.name}")` on `gobby-skills`'
 
     def _generate_help_content(self) -> str:
         """Generate help content listing all available skills."""
@@ -163,7 +160,9 @@ class AgentEventHandlerMixin(EventHandlersBase):
         lines.extend(
             [
                 "",
-                "Run `list_mcp_servers()` for MCP tool discovery.",
+                "**MCP access**: `list_skills()` / `get_skill(name)` on `gobby-skills`.",
+                "**Hub search**: `search_hub(query)` on `gobby-skills`.",
+                "**MCP tools**: `list_mcp_servers()` for tool discovery.",
             ]
         )
 

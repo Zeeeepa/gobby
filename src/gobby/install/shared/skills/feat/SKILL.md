@@ -1,6 +1,6 @@
 ---
 name: feat
-description: "Quickly create a feature task. Usage: /feat <title> [description]"
+description: "Quickly create a feature task. Usage: /gobby:feat <title> [description]"
 category: core
 triggers: feature, new feature
 metadata:
@@ -10,22 +10,22 @@ metadata:
       autonomous: full
 ---
 
-# /feat - Create Feature Task
+# /gobby:feat - Create Feature Task
 
 Create a new feature task with the provided title and optional description.
 
 ## Usage
 
 ```
-/feat <title>
-/feat <title> - <description>
+/gobby:feat <title>
+/gobby:feat <title> - <description>
 ```
 
 ## Examples
 
 ```
-/feat Add dark mode toggle
-/feat User profile avatars - Allow users to upload custom profile pictures with cropping support
+/gobby:feat Add dark mode toggle
+/gobby:feat User profile avatars - Allow users to upload custom profile pictures with cropping support
 ```
 
 ## Tool Schema Reminder

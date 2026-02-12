@@ -1,6 +1,6 @@
 ---
 name: nit
-description: "Quickly create a nitpick/minor cleanup task. Usage: /nit <title> [description]"
+description: "Quickly create a nitpick/minor cleanup task. Usage: /gobby:nit <title> [description]"
 category: core
 metadata:
   gobby:
@@ -8,23 +8,23 @@ metadata:
     depth: 0
 ---
 
-# /nit - Create Nitpick Task
+# /gobby:nit - Create Nitpick Task
 
 Create a minor cleanup or nitpick task with the provided title and optional description. These are small improvements that don't warrant a full feature or bug.
 
 ## Usage
 
 ```
-/nit <title>
-/nit <title> - <description>
+/gobby:nit <title>
+/gobby:nit <title> - <description>
 ```
 
 ## Examples
 
 ```
-/nit Rename confusing variable
-/nit Fix typo in error message - "authentification" should be "authentication"
-/nit Remove unused import in utils.py
+/gobby:nit Rename confusing variable
+/gobby:nit Fix typo in error message - "authentification" should be "authentication"
+/gobby:nit Remove unused import in utils.py
 ```
 
 ## Tool Schema Reminder

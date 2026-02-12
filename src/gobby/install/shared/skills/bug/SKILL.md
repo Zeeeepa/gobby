@@ -1,6 +1,6 @@
 ---
 name: bug
-description: "Quickly create a bug task. Usage: /bug <title> [description]"
+description: "Quickly create a bug task. Usage: /gobby:bug <title> [description]"
 category: core
 triggers: bug, file bug, report bug
 metadata:
@@ -10,22 +10,22 @@ metadata:
       autonomous: full
 ---
 
-# /bug - Create Bug Task
+# /gobby:bug - Create Bug Task
 
 Create a bug/defect task with the provided title and optional description.
 
 ## Usage
 
 ```text
-/bug <title>
-/bug <title> - <description>
+/gobby:bug <title>
+/gobby:bug <title> - <description>
 ```
 
 ## Examples
 
 ```text
-/bug Fix login timeout
-/bug Database connection drops - Users report intermittent connection failures after 5 minutes of inactivity
+/gobby:bug Fix login timeout
+/gobby:bug Database connection drops - Users report intermittent connection failures after 5 minutes of inactivity
 ```
 
 ## Tool Schema Reminder

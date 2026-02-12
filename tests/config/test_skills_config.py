@@ -64,9 +64,14 @@ class TestSkillsConfigHubs:
     def test_hubs_empty_default(self) -> None:
         """Test that hubs defaults to built-in hubs."""
         config = SkillsConfig()
-        # Default now includes anthropic-skills and claude-plugins hubs
         assert "anthropic-skills" in config.hubs
         assert "claude-plugins" in config.hubs
+        assert "clawdhub" in config.hubs
+        assert "skillhub" in config.hubs
+        assert len(config.hubs) == 4
+        assert config.hubs["clawdhub"].type == "clawdhub"
+        assert config.hubs["skillhub"].type == "skillhub"
+        assert config.hubs["skillhub"].base_url == "https://www.skillhub.club/api/v1"
         assert isinstance(config.hubs, dict)
 
     def test_hubs_single_hub(self) -> None:
