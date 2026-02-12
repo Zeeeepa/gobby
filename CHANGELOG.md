@@ -148,21 +148,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Bug Fixes
 
-- Resolve 28 pytest failures across 4 root causes (#8010)
-- Resolve 28 static analysis issues across ruff, mypy, bandit, tsc (#8011)
+- Resolve 60+ pytest failures and 90+ static analysis issues (ruff, mypy, bandit, tsc) across multiple stabilization passes (#7656, #7658, #7679, #8010, #8011)
 - Graph animation toggle placement and label preservation (#8023)
 - Data bugs and UI polish from Drawbridge review (#8037)
 - RegistryContext.resolve_project_filter references self.db instead of self.task_manager.db (#7988)
 - Pass source_session_id in MCP create_memory tool (#7981)
 - Resolve invalid model ID claude-haiku-4-5 for Anthropic API (#7684)
-- Resolve 18 failing tests across 5 test files (#7679)
-- Resolve 61 mypy errors across 8 files (#7656)
-- Resolve 14 failing tests across 4 test files (#7658)
 - MCP tool args not coerced to declared schema types (#7430)
 - InternalToolRegistry schema generation broken by `from __future__ import annotations` (#7418)
 - Prevent save_config from writing test paths to production config (#7505)
 - Handle string tool_input in block_tools (#7345)
-- Resolve mypy override errors in tool registry subclasses (#7461)
 - Make migration 83 idempotent for deleted_at column (#7446)
 - Keep BASELINE_VERSION at 81 for existing databases (#7442)
 - Replace crypto.randomUUID() with fallback for non-secure contexts (#7307)
