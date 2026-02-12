@@ -714,7 +714,7 @@ class LocalSessionManager:
         self.db.safe_update("sessions", values, "id = ?", (session_id,))
         return self.get(session_id)
 
-    def record_skills_used(self, session_id: str, skill_names: list[str]) -> int:
+    def record_skills_used(self, session_id: str, skill_names: builtins.list[str]) -> int:
         """Record skills used in a session (idempotent via UNIQUE constraint).
 
         Args:

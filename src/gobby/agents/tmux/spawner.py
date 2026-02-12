@@ -17,7 +17,7 @@ import time
 from pathlib import Path
 
 from gobby.agents.constants import get_terminal_env_vars
-from gobby.agents.sandbox import compute_sandbox_paths, get_sandbox_resolver
+from gobby.agents.sandbox import SandboxConfig, compute_sandbox_paths, get_sandbox_resolver
 from gobby.agents.spawners.base import (
     SpawnResult,
     TerminalSpawnerBase,
@@ -155,7 +155,7 @@ class TmuxSpawner(TerminalSpawnerBase):
         max_agent_depth: int = 3,
         terminal: TerminalType | str = TerminalType.AUTO,
         prompt: str | None = None,
-        sandbox_config: object | None = None,
+        sandbox_config: SandboxConfig | None = None,
     ) -> SpawnResult:
         """Spawn a CLI agent in a new tmux session with Gobby env vars.
 

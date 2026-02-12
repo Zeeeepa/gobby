@@ -365,7 +365,8 @@ class WorkflowLoader:
         data = yaml.safe_load(content)
         if not data or not isinstance(data, dict):
             return {}
-        return data.get("rule_definitions", {})
+        result: dict[str, Any] = data.get("rule_definitions", {})
+        return result
 
     async def _resolve_imports(
         self,

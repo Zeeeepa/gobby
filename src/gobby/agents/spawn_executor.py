@@ -183,7 +183,6 @@ async def _spawn_claude_terminal(request: SpawnRequest) -> SpawnResult:
     terminal_result = terminal_spawner.spawn(
         command=cmd,
         cwd=request.cwd,
-        terminal=request.terminal,
         env=env,
     )
 
@@ -357,7 +356,6 @@ async def _spawn_gemini_terminal(request: SpawnRequest) -> SpawnResult:
     terminal_result = terminal_spawner.spawn(
         command=cmd,
         cwd=request.cwd,
-        terminal=request.terminal,
         env=env,
     )
 
@@ -445,7 +443,6 @@ async def _spawn_codex_terminal(request: SpawnRequest) -> SpawnResult:
     terminal_result = terminal_spawner.spawn(
         command=cmd,
         cwd=request.cwd,
-        terminal=request.terminal,
     )
 
     if not terminal_result.success:
