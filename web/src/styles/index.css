@@ -2343,8 +2343,8 @@ body {
     top: 0;
     bottom: 0;
     z-index: 20;
-    width: 260px;
-    min-width: 260px;
+    width: var(--sidebar-width);
+    min-width: var(--sidebar-width);
   }
 
   .sessions-browser.collapsed {
@@ -2895,7 +2895,7 @@ body {
 
 .files-sidebar {
   width: var(--sidebar-width);
-  min-width: 200px;
+  min-width: var(--sidebar-width);
   display: flex;
   flex-direction: column;
   background: var(--bg-secondary);
