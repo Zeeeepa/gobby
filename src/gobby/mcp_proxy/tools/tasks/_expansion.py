@@ -14,7 +14,6 @@ from gobby.mcp_proxy.tools.internal import InternalToolRegistry
 from gobby.mcp_proxy.tools.tasks._context import RegistryContext
 from gobby.mcp_proxy.tools.tasks._resolution import resolve_task_id_for_mcp
 from gobby.storage.tasks import TaskNotFoundError
-from gobby.utils.project_context import get_project_context
 
 logger = logging.getLogger(__name__)
 
@@ -36,6 +35,7 @@ def create_expansion_registry(ctx: RegistryContext) -> InternalToolRegistry:
     async def save_expansion_spec(
         task_id: str,
         spec: dict[str, Any],
+        project: str | None = None,
     ) -> dict[str, Any]:
         """Save expansion spec to task.expansion_context for later execution.
 
@@ -52,13 +52,16 @@ def create_expansion_registry(ctx: RegistryContext) -> InternalToolRegistry:
                     - validation: Validation criteria string
                     - description: Optional description
                     - priority: Optional priority (default: 2)
+            project: Project name or UUID for task resolution (optional)
 
         Returns:
             {"saved": True, "task_id": str, "subtask_count": int}
         """
         # Get project context
-        project_ctx = get_project_context()
-        project_id = project_ctx.get("id") if project_ctx else None
+        try:
+            project_id = ctx.resolve_project_filter(project)
+        except ValueError as e:
+            return {"error": str(e)}
 
         # Resolve task ID
         try:
@@ -98,6 +101,7 @@ def create_expansion_registry(ctx: RegistryContext) -> InternalToolRegistry:
     async def execute_expansion(
         parent_task_id: str,
         session_id: str,
+        project: str | None = None,
     ) -> dict[str, Any]:
         """Execute a saved expansion spec atomically.
 
@@ -107,19 +111,28 @@ def create_expansion_registry(ctx: RegistryContext) -> InternalToolRegistry:
         Args:
             parent_task_id: Task ID with saved expansion spec
             session_id: Session ID for tracking created tasks
+            project: Project name or UUID for task resolution (optional)
 
         Returns:
             {"created": ["#N", ...], "count": int} or {"error": str}
         """
         # Get project context
-        project_ctx = get_project_context()
-        project_id = project_ctx.get("id") if project_ctx else None
+        try:
+            project_id = ctx.resolve_project_filter(project)
+        except ValueError as e:
+            return {"error": str(e)}
 
         # Resolve task ID
         try:
             resolved_id = resolve_task_id_for_mcp(ctx.task_manager, parent_task_id, project_id)
         except (TaskNotFoundError, ValueError) as e:
             return {"error": f"Task not found: {e}"}
+
+        # Resolve session ref (#N -> UUID)
+        try:
+            resolved_session_id = ctx.resolve_session_id(session_id)
+        except (ValueError, LookupError) as e:
+            return {"error": f"Session not found: {e}"}
 
         # Get task and check for pending spec
         task = ctx.task_manager.get_task(resolved_id)
@@ -159,7 +172,7 @@ def create_expansion_registry(ctx: RegistryContext) -> InternalToolRegistry:
                     parent_task_id=resolved_id,
                     category=subtask.get("category"),
                     validation_criteria=subtask.get("validation"),
-                    created_in_session_id=session_id,
+                    created_in_session_id=resolved_session_id,
                 )
 
                 # Get the task (create_task_with_decomposition returns dict with task dict)
@@ -224,6 +237,7 @@ def create_expansion_registry(ctx: RegistryContext) -> InternalToolRegistry:
 
     async def get_expansion_spec(
         task_id: str,
+        project: str | None = None,
     ) -> dict[str, Any]:
         """Check for pending expansion spec (for resume after compaction).
 
@@ -232,14 +246,17 @@ def create_expansion_registry(ctx: RegistryContext) -> InternalToolRegistry:
 
         Args:
             task_id: Task ID to check
+            project: Project name or UUID for task resolution (optional)
 
         Returns:
             {"pending": True, "spec": {...}} if pending expansion exists
             {"pending": False} otherwise
         """
         # Get project context
-        project_ctx = get_project_context()
-        project_id = project_ctx.get("id") if project_ctx else None
+        try:
+            project_id = ctx.resolve_project_filter(project)
+        except ValueError as e:
+            return {"error": str(e)}
 
         # Resolve task ID
         try:
@@ -303,6 +320,10 @@ def create_expansion_registry(ctx: RegistryContext) -> InternalToolRegistry:
                     },
                     "required": ["subtasks"],
                 },
+                "project": {
+                    "type": "string",
+                    "description": "Project name or UUID for task resolution",
+                },
             },
             "required": ["task_id", "spec"],
         },
@@ -323,6 +344,10 @@ def create_expansion_registry(ctx: RegistryContext) -> InternalToolRegistry:
                     "type": "string",
                     "description": "Session ID for tracking created tasks",
                 },
+                "project": {
+                    "type": "string",
+                    "description": "Project name or UUID for task resolution",
+                },
             },
             "required": ["parent_task_id", "session_id"],
         },
@@ -338,6 +363,10 @@ def create_expansion_registry(ctx: RegistryContext) -> InternalToolRegistry:
                 "task_id": {
                     "type": "string",
                     "description": "Task ID to check",
+                },
+                "project": {
+                    "type": "string",
+                    "description": "Project name or UUID for task resolution",
                 },
             },
             "required": ["task_id"],

@@ -218,10 +218,8 @@ export function usePipeline() {
   const connect = useCallback(() => {
     if (wsRef.current?.readyState === WebSocket.OPEN) return
 
-    const isSecure = window.location.protocol === 'https:'
-    const wsUrl = isSecure
-      ? `wss://${window.location.host}/ws`
-      : `ws://${window.location.hostname}:60888`
+    const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
+    const wsUrl = `${wsProtocol}//${window.location.host}/ws`
 
     console.log('Pipeline: Connecting to WebSocket:', wsUrl)
     const ws = new WebSocket(wsUrl)

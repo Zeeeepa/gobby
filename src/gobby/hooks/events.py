@@ -62,6 +62,7 @@ class SessionSource(str, Enum):
     GEMINI = "gemini"
     CODEX = "codex"
     CLAUDE_SDK = "claude_sdk"
+    CLAUDE_SDK_WEB_CHAT = "claude_sdk_web_chat"  # Web chat UI (uses Claude SDK)
     ANTIGRAVITY = "antigravity"  # Antigravity IDE (uses Claude Code format)
     CURSOR = "cursor"
     WINDSURF = "windsurf"

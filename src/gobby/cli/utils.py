@@ -526,6 +526,37 @@ def find_web_dir(config: DaemonConfig | None = None) -> Path | None:
     return None
 
 
+def _kill_port_holder(port: int) -> None:
+    """Kill any process listening on the given port.
+
+    Handles orphaned Vite/node processes that weren't cleaned up by a previous
+    daemon stop (e.g. manually started with ``npm run dev``).
+    """
+    for proc in psutil.process_iter(["pid", "name"]):
+        try:
+            for conn in proc.connections():
+                if (
+                    hasattr(conn, "laddr")
+                    and conn.laddr
+                    and conn.laddr.port == port
+                    and conn.status == psutil.CONN_LISTEN
+                ):
+                    logger.info(
+                        f"Killing orphan process on port {port}: PID {proc.pid} ({proc.name()})"
+                    )
+                    parent = psutil.Process(proc.pid)
+                    children = parent.children(recursive=True)
+                    for child in children:
+                        child.terminate()
+                    parent.terminate()
+                    _, alive = psutil.wait_procs([parent] + children, timeout=3)
+                    for p in alive:
+                        p.kill()
+                    return
+        except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.ZombieProcess):
+            continue
+
+
 def spawn_ui_server(host: str, port: int, web_dir: Path, log_file: Path) -> int | None:
     """Spawn the UI dev server as a detached subprocess.
 
@@ -539,6 +570,16 @@ def spawn_ui_server(host: str, port: int, web_dir: Path, log_file: Path) -> int 
         Process PID, or None on failure
     """
     import subprocess  # nosec B404
+
+    # Clean up any stale PID from a previous run
+    stop_ui_server(quiet=True)
+
+    # Kill any orphan process occupying our port (e.g. manually started Vite)
+    if not is_port_available(port, host="0.0.0.0"):  # nosec B104
+        _kill_port_holder(port)
+        if not wait_for_port_available(port, host="0.0.0.0", timeout=5.0):  # nosec B104
+            logger.error(f"Port {port} still in use after cleanup — aborting UI server spawn")
+            return None
 
     # Install deps if needed
     node_modules = web_dir / "node_modules"

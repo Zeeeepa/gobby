@@ -1,30 +1,107 @@
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useMemo, useEffect, useRef } from 'react'
 import { useChat } from './hooks/useChat'
+import { useVoice } from './hooks/useVoice'
 import { useSettings } from './hooks/useSettings'
 import { useTerminal } from './hooks/useTerminal'
 import { useTmuxSessions } from './hooks/useTmuxSessions'
 import { useSlashCommands } from './hooks/useSlashCommands'
-import { useFiles } from './hooks/useFiles'
-import { ChatMessages } from './components/ChatMessages'
-import { ChatInput } from './components/ChatInput'
+import { useSessions } from './hooks/useSessions'
 import type { QueuedFile } from './components/ChatInput'
 import { Settings } from './components/Settings'
-import { TerminalPanel } from './components/Terminal'
 import { Sidebar } from './components/Sidebar'
+import { ChatPage } from './components/ChatPage'
+import { SessionsPage } from './components/SessionsPage'
 import { TerminalsPage } from './components/TerminalsPage'
-import { FilesPage } from './components/FilesPage'
+import { MemoryPage } from './components/MemoryPage'
+import { ProjectsPage } from './components/ProjectsPage'
+import { TasksPage } from './components/TasksPage'
+import { ArtifactsPage } from './components/ArtifactsPage'
+import { SkillsPage } from './components/SkillsPage'
+import { CronJobsPage } from './components/CronJobsPage'
+import { AgentDefinitionsPage } from './components/AgentDefinitionsPage'
+import { ConfigurationPage } from './components/ConfigurationPage'
+import { QuickCaptureTask } from './components/tasks/QuickCaptureTask'
+import type { GobbySession } from './hooks/useSessions'
+
+const HIDDEN_PROJECTS = new Set(['_orphaned', '_migrated'])
 
 export default function App() {
-  const { messages, isConnected, isStreaming, isThinking, sendMessage, stopStreaming, clearHistory, executeCommand, respondToQuestion } = useChat()
+  const { messages, conversationId, isConnected, isStreaming, isThinking, sendMessage, stopStreaming, clearHistory, executeCommand, respondToQuestion, switchConversation, startNewChat, wsRef, handleVoiceMessageRef } = useChat()
+  const voice = useVoice(wsRef, conversationId)
   const { settings, modelInfo, modelsLoading, updateFontSize, updateModel, resetSettings } = useSettings()
   const { agents, selectedAgent, setSelectedAgent, sendInput, onOutput } = useTerminal()
   const tmux = useTmuxSessions()
-  const files = useFiles()
   const { filteredCommands, parseCommand, filterCommands } = useSlashCommands()
+  const sessionsHook = useSessions()
   const [settingsOpen, setSettingsOpen] = useState(false)
-  const [terminalOpen, setTerminalOpen] = useState(false)
+  const [terminalOpen, setTerminalOpen] = useState(true)
   const [activeTab, setActiveTab] = useState<string>('chat')
   const [sidebarOpen, setSidebarOpen] = useState(false)
+  const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null)
+  const [quickCaptureOpen, setQuickCaptureOpen] = useState(false)
+
+  // Global keyboard chord: Cmd+K → t opens quick capture task creation
+  const chordPendingRef = useRef(false)
+  const chordTimeoutRef = useRef<number | null>(null)
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Don't trigger when typing in inputs/textareas (unless quick capture is closed)
+      const tag = (e.target as HTMLElement).tagName
+      if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return
+
+      if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
+        e.preventDefault()
+        chordPendingRef.current = true
+        if (chordTimeoutRef.current) window.clearTimeout(chordTimeoutRef.current)
+        chordTimeoutRef.current = window.setTimeout(() => {
+          chordPendingRef.current = false
+        }, 1000)
+        return
+      }
+
+      if (chordPendingRef.current && e.key === 't') {
+        e.preventDefault()
+        chordPendingRef.current = false
+        if (chordTimeoutRef.current) window.clearTimeout(chordTimeoutRef.current)
+        setQuickCaptureOpen(true)
+      } else if (chordPendingRef.current) {
+        // Any other key cancels the chord
+        chordPendingRef.current = false
+        if (chordTimeoutRef.current) window.clearTimeout(chordTimeoutRef.current)
+      }
+    }
+
+    window.addEventListener('keydown', handleKeyDown)
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown)
+      if (chordTimeoutRef.current) window.clearTimeout(chordTimeoutRef.current)
+    }
+  }, [])
+
+  // Build project options for the selector (exclude internal system projects)
+  const projectOptions = useMemo(
+    () => sessionsHook.projects
+      .filter((p) => !HIDDEN_PROJECTS.has(p.name))
+      .map((p) => ({ id: p.id, name: p.name === '_personal' ? 'Personal' : p.name })),
+    [sessionsHook.projects]
+  )
+
+  // Default to "gobby" in dev mode (Vite port 5173), "Personal" otherwise
+  const defaultProjectId = useMemo(() => {
+    const isDev = window.location.port === '5173'
+    const preferred = isDev ? 'gobby' : 'Personal'
+    return projectOptions.find((p) => p.name === preferred)?.id
+      ?? projectOptions[0]?.id ?? null
+  }, [projectOptions])
+
+  const effectiveProjectId = selectedProjectId ?? defaultProjectId
+
+  // Web-chat sessions only (for ConversationPicker in ChatPage)
+  const webChatSessions = useMemo(
+    () => sessionsHook.filteredSessions.filter((s) => s.source === 'claude_sdk_web_chat'),
+    [sessionsHook.filteredSessions]
+  )
 
   // Wrap sendMessage to include the selected model and handle slash commands
   const handleSendMessage = useCallback((content: string, files?: QueuedFile[]) => {
@@ -41,8 +118,38 @@ export default function App() {
       executeCommand(cmd.server, cmd.tool, cmd.args)
       return
     }
-    sendMessage(content, settings.model, files)
-  }, [parseCommand, executeCommand, sendMessage, settings.model])
+    sendMessage(content, settings.model, files, effectiveProjectId)
+  }, [parseCommand, executeCommand, sendMessage, settings.model, effectiveProjectId])
+
+  // Chat page: only web-chat sessions are selectable
+  const handleSelectConversation = useCallback((session: GobbySession) => {
+    switchConversation(session.external_id)
+  }, [switchConversation])
+
+  /* "Ask Gobby about this session" from Sessions page */
+  const handleAskGobby = useCallback((context: string) => {
+    setActiveTab('chat')
+    // Defer to next macrotask so the tab switch state update is flushed
+    setTimeout(() => {
+      try {
+        if (!isConnected) {
+          console.warn('Cannot ask Gobby: disconnected')
+          return
+        }
+        const sent = sendMessage(context, settings.model)
+        if (!sent) {
+          console.error('Failed to send message to Gobby')
+        }
+      } catch (e) {
+        console.error('Error in handleAskGobby:', e)
+      }
+    }, 0)
+  }, [sendMessage, settings.model, isConnected])
+
+  // Wire voice message handler into useChat's WebSocket routing
+  useEffect(() => {
+    handleVoiceMessageRef.current = voice.handleVoiceMessage
+  }, [voice.handleVoiceMessage, handleVoiceMessageRef])
 
   const handleInputChange = useCallback((value: string) => {
     filterCommands(value)
@@ -59,18 +166,20 @@ export default function App() {
   }, [executeCommand])
 
   const navItems = [
+    { id: 'dashboard', label: 'Dashboard', icon: <DashboardIcon /> },
     { id: 'chat', label: 'Chat', icon: <ChatIcon /> },
+    { id: 'sessions', label: 'Sessions', icon: <SessionsIcon /> },
     { id: 'terminals', label: 'Terminals', icon: <TerminalIcon /> },
-    { id: 'files', label: 'Files', icon: <FilesIcon /> },
-    { id: 'tasks', label: 'Tasks', icon: <TasksIcon />, separator: true },
-    { id: 'projects', label: 'Projects', icon: <ProjectsIcon /> },
-    { id: 'agents', label: 'Agents', icon: <AgentsIcon /> },
+    { id: 'projects', label: 'Projects', icon: <ProjectsIcon />, separator: true },
+    { id: 'tasks', label: 'Tasks', icon: <TasksIcon /> },
+    { id: 'agents', label: 'Agent Definitions', icon: <AgentsIcon /> },
     { id: 'workflows', label: 'Workflows', icon: <WorkflowsIcon /> },
+    { id: 'worktrees', label: 'Worktrees/Clones', icon: <WorktreesIcon /> },
+    { id: 'cron', label: 'Cron Jobs', icon: <CronIcon /> },
     { id: 'memory', label: 'Memory', icon: <MemoryIcon /> },
     { id: 'skills', label: 'Skills', icon: <SkillsIcon /> },
     { id: 'artifacts', label: 'Artifacts', icon: <ArtifactsIcon /> },
-    { id: 'worktrees', label: 'Worktrees/Clones', icon: <WorktreesIcon /> },
-    { id: 'configuration', label: 'Configuration', icon: <ConfigurationIcon /> },
+    { id: 'configuration', label: 'Configuration', icon: <ConfigurationIcon />, separator: true },
   ]
 
   return (
@@ -86,7 +195,7 @@ export default function App() {
             <HamburgerIcon />
           </button>
           <img src="/logo.png" alt="Gobby logo" className="header-logo" />
-          <h1>Gobby</h1>
+          <span className="header-title">Gobby</span>
         </div>
         <div className="header-actions">
           <span className={`status ${isConnected ? 'connected' : 'disconnected'}`}>
@@ -113,30 +222,61 @@ export default function App() {
       />
 
       {activeTab === 'chat' ? (
-        <>
-          <main className="chat-container">
-            <ChatMessages messages={messages} isStreaming={isStreaming} isThinking={isThinking} onRespondToQuestion={respondToQuestion} />
-            <ChatInput
-              onSend={handleSendMessage}
-              onStop={stopStreaming}
-              isStreaming={isStreaming}
-              disabled={!isConnected}
-              onInputChange={handleInputChange}
-              filteredCommands={filteredCommands}
-              onCommandSelect={handleCommandSelect}
-            />
-          </main>
-
-          <TerminalPanel
-            isOpen={terminalOpen}
-            onToggle={() => setTerminalOpen(!terminalOpen)}
-            agents={agents}
-            selectedAgent={selectedAgent}
-            onSelectAgent={setSelectedAgent}
-            onInput={sendInput}
-            onOutput={onOutput}
-          />
-        </>
+        <ChatPage
+          chat={{
+            messages,
+            isStreaming,
+            isThinking,
+            isConnected,
+            onSend: handleSendMessage,
+            onStop: stopStreaming,
+            onRespondToQuestion: respondToQuestion,
+            onInputChange: handleInputChange,
+            filteredCommands,
+            onCommandSelect: handleCommandSelect,
+          }}
+          conversations={{
+            sessions: webChatSessions,
+            activeSessionId: conversationId,
+            onNewChat: startNewChat,
+            onSelectSession: handleSelectConversation,
+          }}
+          terminal={{
+            isOpen: terminalOpen,
+            onToggle: () => setTerminalOpen(!terminalOpen),
+            agents,
+            selectedAgent,
+            onSelectAgent: setSelectedAgent,
+            onInput: sendInput,
+            onOutput,
+          }}
+          project={{
+            projects: projectOptions,
+            selectedProjectId: effectiveProjectId,
+            onProjectChange: setSelectedProjectId,
+          }}
+          voice={{
+            voiceMode: voice.voiceMode,
+            isRecording: voice.isRecording,
+            isTranscribing: voice.isTranscribing,
+            isSpeaking: voice.isSpeaking,
+            voiceError: voice.voiceError,
+            onToggleVoice: voice.toggleVoiceMode,
+            onStartRecording: voice.startRecording,
+            onStopRecording: voice.stopRecording,
+            onStopSpeaking: voice.stopSpeaking,
+          }}
+        />
+      ) : activeTab === 'sessions' ? (
+        <SessionsPage
+          sessions={sessionsHook.filteredSessions}
+          projects={sessionsHook.projects}
+          filters={sessionsHook.filters}
+          onFiltersChange={sessionsHook.setFilters}
+          isLoading={sessionsHook.isLoading}
+          onRefresh={sessionsHook.refresh}
+          onAskGobby={handleAskGobby}
+        />
       ) : activeTab === 'terminals' ? (
         <TerminalsPage
           sessions={tmux.sessions}
@@ -151,26 +291,22 @@ export default function App() {
           resizeTerminal={tmux.resizeTerminal}
           onOutput={tmux.onOutput}
         />
-      ) : activeTab === 'files' ? (
-        <FilesPage
-          projects={files.projects}
-          expandedDirs={files.expandedDirs}
-          expandedProjects={files.expandedProjects}
-          openFiles={files.openFiles}
-          activeFileIndex={files.activeFileIndex}
-          loadingDirs={files.loadingDirs}
-          gitStatuses={files.gitStatuses}
-          onExpandProject={files.expandProject}
-          onExpandDir={files.expandDir}
-          onOpenFile={files.openFile}
-          onCloseFile={files.closeFile}
-          onSetActiveFile={files.setActiveFileIndex}
-          getImageUrl={files.getImageUrl}
-          onToggleEditing={files.toggleEditing}
-          onUpdateEditContent={files.updateEditContent}
-          onSaveFile={files.saveFile}
-          onFetchDiff={files.fetchDiff}
-        />
+      ) : activeTab === 'projects' ? (
+        <ProjectsPage />
+      ) : activeTab === 'tasks' ? (
+        <TasksPage />
+      ) : activeTab === 'memory' ? (
+        <MemoryPage />
+      ) : activeTab === 'artifacts' ? (
+        <ArtifactsPage />
+      ) : activeTab === 'cron' ? (
+        <CronJobsPage />
+      ) : activeTab === 'agents' ? (
+        <AgentDefinitionsPage />
+      ) : activeTab === 'skills' ? (
+        <SkillsPage />
+      ) : activeTab === 'configuration' ? (
+        <ConfigurationPage />
       ) : (
         <ComingSoonPage title={navItems.find(i => i.id === activeTab)?.label ?? activeTab} />
       )}
@@ -184,6 +320,11 @@ export default function App() {
         onFontSizeChange={updateFontSize}
         onModelChange={updateModel}
         onReset={resetSettings}
+      />
+
+      <QuickCaptureTask
+        isOpen={quickCaptureOpen}
+        onClose={() => setQuickCaptureOpen(false)}
       />
     </div>
   )
@@ -208,6 +349,17 @@ function HamburgerIcon() {
   )
 }
 
+function DashboardIcon() {
+  return (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <rect x="3" y="3" width="7" height="9" />
+      <rect x="14" y="3" width="7" height="5" />
+      <rect x="14" y="12" width="7" height="9" />
+      <rect x="3" y="16" width="7" height="5" />
+    </svg>
+  )
+}
+
 function ChatIcon() {
   return (
     <svg
@@ -221,6 +373,16 @@ function ChatIcon() {
       strokeLinejoin="round"
     >
       <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+    </svg>
+  )
+}
+
+function SessionsIcon() {
+  return (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <rect x="2" y="3" width="20" height="14" rx="2" ry="2" />
+      <line x1="8" y1="21" x2="16" y2="21" />
+      <line x1="12" y1="17" x2="12" y2="21" />
     </svg>
   )
 }
@@ -239,23 +401,6 @@ function TerminalIcon() {
     >
       <polyline points="4 17 10 11 4 5" />
       <line x1="12" y1="19" x2="20" y2="19" />
-    </svg>
-  )
-}
-
-function FilesIcon() {
-  return (
-    <svg
-      width="18"
-      height="18"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    >
-      <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
     </svg>
   )
 }
@@ -335,6 +480,15 @@ function ArtifactsIcon() {
       <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z" />
       <polyline points="3.27 6.96 12 12.01 20.73 6.96" />
       <line x1="12" y1="22.08" x2="12" y2="12" />
+    </svg>
+  )
+}
+
+function CronIcon() {
+  return (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <circle cx="12" cy="12" r="10" />
+      <polyline points="12 6 12 12 16 14" />
     </svg>
   )
 }

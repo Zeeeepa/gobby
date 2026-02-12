@@ -10,7 +10,7 @@
 ### What Exists
 
 | Component | Location | Status |
-|-----------|----------|--------|
+| :--- | :--- | :--- |
 | Task expansion | `mcp_proxy/tools/tasks/_expansion.py` (save_expansion_spec, execute_expansion) | MCP tools only, no workflow |
 | Task validation | `tasks/validation.py`, `tasks/external_validator.py` | MCP tools + 3 modes (llm/agent/spawn) |
 | validate_and_fix loop | `mcp_proxy/tools/tasks/_lifecycle_validation.py` | Code-based, not workflow |
@@ -38,6 +38,7 @@ Each step spawns an agent in its own session. Expansion/validation agents fit th
 **Goal**: Create a reusable research agent that gathers codebase context for any task. Used by expansion, developer pre-work, validation context gathering.
 
 **Create**:
+
 - `src/gobby/install/shared/agents/researcher.yaml` — Agent definition
   - provider: configurable (default: claude)
   - mode: headless (runs in-process, no terminal)
@@ -52,6 +53,7 @@ Each step spawns an agent in its own session. Expansion/validation agents fit th
   - References the existing `install/shared/prompts/research/step.md`
 
 **Modify**:
+
 - `src/gobby/config/tasks.py` — Add `research_agent` field to `TaskExpansionConfig` (default: "researcher")
 
 **Usage pattern**: `spawn_agent(agent="researcher", task_id="#42", mode="headless")` → returns research context as `AgentResult.output`
@@ -65,6 +67,7 @@ Each step spawns an agent in its own session. Expansion/validation agents fit th
 **Goal**: Structured multi-step expansion workflow. Can be activated interactively (mode=self on human session) or spawned by the coordinator pipeline in its own session.
 
 **Create**:
+
 - `src/gobby/install/shared/workflows/task-expansion.yaml` — Step workflow
 
   Steps:
@@ -86,6 +89,7 @@ Each step spawns an agent in its own session. Expansion/validation agents fit th
 **Goal**: Structured validate-fix-retry loop that runs autonomously. The agent fixes its own issues — the user is only involved at escalation (after max retries are exhausted).
 
 **Create**:
+
 - `src/gobby/install/shared/workflows/task-validation.yaml` — Step workflow
 
   Steps:
@@ -113,6 +117,7 @@ Each step spawns an agent in its own session. Expansion/validation agents fit th
 **Modify `install/shared/workflows/coordinator.yaml`**:
 
 Add steps before the existing `find_work`:
+
 1. **check_expansion** — MCP call to `get_task` → check `is_expanded`
 2. **spawn_expander** — Conditionally spawn task-ops agent with expansion workflow in a fresh session. Wait for completion.
 
@@ -129,6 +134,7 @@ The coordinator already spawns developer/QA/merge agents in separate sessions �
 **Goal**: Bundle expansion, validation, and research workflows into a single agent definition. The coordinator spawns `task-ops` with the appropriate workflow key.
 
 **Create**:
+
 - `src/gobby/install/shared/agents/task-ops.yaml`
 
 ```yaml
@@ -152,6 +158,7 @@ workflows:
 ```
 
 **Usage from coordinator pipeline**:
+
 ```yaml
 # Coordinator spawns expansion agent in fresh session
 - id: spawn_expander
@@ -167,7 +174,8 @@ workflows:
 ```
 
 **Usage from interactive session**:
-```
+
+```text
 spawn_agent(agent="task-ops", workflow="expansion", task_id="#42")
 spawn_agent(agent="task-ops", workflow="validation", task_id="#42")
 spawn_agent(agent="researcher", task_id="#42", mode="headless")
@@ -182,6 +190,7 @@ spawn_agent(agent="researcher", task_id="#42", mode="headless")
 Q&A is specifically for **expansion** (understanding user intent for task decomposition), not validation. Validation is autonomous — agents fix their own issues and only escalate after exhausting retries.
 
 The Q&A pattern is a workflow step pattern:
+
 1. Agent enters a `clarify` step when it genuinely can't proceed without user input
 2. `on_enter` injects a message telling the agent to ask the user
 3. Agent uses `AskUserQuestion` (in Claude Code) or the chat API (in web)
@@ -195,7 +204,7 @@ The `clarify` step in the expansion workflow is **optional** — most expansions
 
 ## Migration Order
 
-```
+```text
 Phase 1: Research Agent (foundation — no dependencies)
     ↓
 Phase 2: Expansion Workflow (uses researcher from Phase 1)
@@ -213,12 +222,13 @@ Phase 6: Q&A Documentation
 ## Backward Compatibility
 
 All existing MCP tools remain unchanged:
+
 - `save_expansion_spec`, `execute_expansion`, `get_expansion_spec` — primitives
 - `validate_task`, `close_task`, `get_validation_status` — primitives
 - `orchestrate_ready_tasks` — unchanged
 - Worker workflows (developer, qa-reviewer) — unchanged
 
-`/gobby:expand` skill is being retired after testing. The expansion workflow replaces it.
+`/gobby expand` skill is being deprecated after testing. The expansion workflow replaces it.
 
 The new workflows compose existing primitives. No breaking changes.
 
@@ -227,7 +237,7 @@ The new workflows compose existing primitives. No breaking changes.
 ## Key Files
 
 | File | Action | Phase |
-|------|--------|-------|
+| :--- | :--- | :--- |
 | `install/shared/agents/researcher.yaml` | Create | 1 |
 | `install/shared/prompts/research/system.md` | Create | 1 |
 | `config/tasks.py` | Modify (add research_agent field) | 1 |

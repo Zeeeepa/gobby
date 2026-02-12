@@ -182,11 +182,7 @@ class TestTmuxSessionManager:
     async def test_list_sessions_with_entries(self) -> None:
         mgr = TmuxSessionManager()
         with patch.object(mgr, "_run", new_callable=AsyncMock) as mock_run:
-            mock_run.side_effect = [
-                (0, "session1\nsession2\n", ""),  # list-sessions
-                (0, "100\n", ""),  # get_pane_pid for session1
-                (0, "200\n", ""),  # get_pane_pid for session2
-            ]
+            mock_run.return_value = (0, "session1\t100\nsession2\t200\n", "")
             result = await mgr.list_sessions()
             assert len(result) == 2
             assert result[0].name == "session1"
@@ -352,18 +348,21 @@ class TestDaemonConfigTmux:
 class TestTmuxPTYBridge:
     """Tests for TmuxPTYBridge."""
 
-    def test_init(self) -> None:
+    @pytest.mark.asyncio
+    async def test_init(self) -> None:
         bridge = TmuxPTYBridge()
         assert bridge._bridges == {}
-        assert bridge.list_bridges() == {}
+        assert await bridge.list_bridges() == {}
 
-    def test_get_master_fd_missing(self) -> None:
+    @pytest.mark.asyncio
+    async def test_get_master_fd_missing(self) -> None:
         bridge = TmuxPTYBridge()
-        assert bridge.get_master_fd("nonexistent") is None
+        assert await bridge.get_master_fd("nonexistent") is None
 
-    def test_get_bridge_missing(self) -> None:
+    @pytest.mark.asyncio
+    async def test_get_bridge_missing(self) -> None:
         bridge = TmuxPTYBridge()
-        assert bridge.get_bridge("nonexistent") is None
+        assert await bridge.get_bridge("nonexistent") is None
 
     def test_build_attach_cmd_gobby(self) -> None:
         bridge = TmuxPTYBridge()

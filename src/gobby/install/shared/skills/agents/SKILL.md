@@ -3,6 +3,12 @@ name: agents
 description: Manage subagent spawning - spawn, cancel, list, and check results of autonomous agents.
 triggers: spawn agent, list agents
 category: core
+metadata:
+  gobby:
+    audience: all
+    depth: [0, 1]
+    format_overrides:
+      autonomous: full
 ---
 
 # /gobby agents - Agent Management Skill

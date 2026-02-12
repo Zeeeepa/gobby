@@ -42,7 +42,7 @@ def memory_config():
     """Create a default memory configuration with SQLite backend."""
     return MemoryConfig(
         enabled=True,
-        backend="sqlite",  # Explicitly use SQLite backend
+        backend="local",  # Explicitly use SQLite backend
         injection_limit=10,
         importance_threshold=0.3,
         decay_enabled=True,
@@ -218,7 +218,7 @@ class TestRecall:
         await memory_manager.remember(content="Python is a programming language")
         await memory_manager.remember(content="JavaScript runs in browsers")
 
-        memories = memory_manager.recall(query="Python")
+        memories = memory_manager.recall(query="Python", search_mode="text")
 
         assert len(memories) == 1
         assert "Python" in memories[0].content
@@ -360,14 +360,15 @@ class TestForget:
         """Test forgetting an existing memory."""
         memory = await memory_manager.remember(content="To forget", importance=0.5)
 
-        result = memory_manager.forget(memory.id)
+        result = await memory_manager.forget(memory.id)
 
         assert result is True
         assert memory_manager.get_memory(memory.id) is None
 
-    def test_forget_nonexistent_memory(self, memory_manager) -> None:
+    @pytest.mark.asyncio
+    async def test_forget_nonexistent_memory(self, memory_manager) -> None:
         """Test forgetting a non-existent memory returns False."""
-        result = memory_manager.forget("mm-nonexistent")
+        result = await memory_manager.forget("mm-nonexistent")
         assert result is False
 
 

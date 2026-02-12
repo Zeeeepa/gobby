@@ -12,7 +12,7 @@ import json
 import logging
 from collections.abc import Callable, Coroutine
 from datetime import UTC, datetime
-from typing import Any
+from typing import TYPE_CHECKING, Any
 from uuid import uuid4
 
 from websockets.asyncio.server import serve
@@ -26,11 +26,16 @@ from gobby.servers.websocket.chat import ChatMixin
 from gobby.servers.websocket.handlers import HandlerMixin
 from gobby.servers.websocket.models import WebSocketConfig
 from gobby.servers.websocket.tmux import TmuxMixin
+from gobby.servers.websocket.voice import VoiceMixin
 
 logger = logging.getLogger(__name__)
 
 
-class WebSocketServer(TmuxMixin, ChatMixin, HandlerMixin, AuthMixin, BroadcastMixin):
+if TYPE_CHECKING:
+    from gobby.storage.sessions import LocalSessionManager
+
+
+class WebSocketServer(VoiceMixin, TmuxMixin, ChatMixin, HandlerMixin, AuthMixin, BroadcastMixin):
     """
     WebSocket server for real-time communication.
 
@@ -57,6 +62,8 @@ class WebSocketServer(TmuxMixin, ChatMixin, HandlerMixin, AuthMixin, BroadcastMi
         mcp_manager: MCPClientManager,
         auth_callback: Callable[[str], Coroutine[Any, Any, str | None]] | None = None,
         stop_registry: Any = None,
+        session_manager: "LocalSessionManager | None" = None,
+        daemon_config: Any = None,
     ):
         """
         Initialize WebSocket server.
@@ -67,11 +74,16 @@ class WebSocketServer(TmuxMixin, ChatMixin, HandlerMixin, AuthMixin, BroadcastMi
             auth_callback: Optional async function that validates token and returns user_id.
                           If None, all connections are accepted (local-first mode).
             stop_registry: Optional StopRegistry for handling stop requests from clients.
+            session_manager: Optional LocalSessionManager for persisting web-chat sessions.
+            daemon_config: Optional DaemonConfig for voice and other features.
         """
         self.config = config
         self.mcp_manager = mcp_manager
         self.auth_callback = auth_callback
         self.stop_registry = stop_registry
+        self.session_manager = session_manager
+        self.daemon_config = daemon_config
+        self.workflow_handler: Any = None  # WorkflowHookHandler from HookManager
 
         # Connected clients: {websocket: client_metadata}
         self.clients: dict[Any, dict[str, Any]] = {}
@@ -82,8 +94,14 @@ class WebSocketServer(TmuxMixin, ChatMixin, HandlerMixin, AuthMixin, BroadcastMi
         # Active chat streaming tasks per conversation_id (for cancellation)
         self._active_chat_tasks: dict[str, asyncio.Task[None]] = {}
 
+        # Dispatch table for message routing (lazily populated in _handle_message)
+        self._dispatch_table: dict[str, Callable[..., Coroutine[Any, Any, None]]] = {}
+
         # Initialize tmux subsystem
         self._init_tmux()
+
+        # Initialize voice subsystem
+        self._init_voice()
 
         # Server instance (set when started)
         self._server: Any = None
@@ -182,8 +200,8 @@ class WebSocketServer(TmuxMixin, ChatMixin, HandlerMixin, AuthMixin, BroadcastMi
         data = json.loads(message)
         msg_type = data.get("type")
 
-        # Lazily initialize dispatch table to avoid cluttering __init__
-        if not hasattr(self, "_dispatch_table"):
+        # Lazily initialize dispatch table
+        if not self._dispatch_table:
             self._dispatch_table = {
                 "tool_call": self._handle_tool_call,
                 "ping": self._handle_ping,
@@ -200,6 +218,9 @@ class WebSocketServer(TmuxMixin, ChatMixin, HandlerMixin, AuthMixin, BroadcastMi
                 "tmux_create_session": self._handle_tmux_create_session,
                 "tmux_kill_session": self._handle_tmux_kill_session,
                 "tmux_resize": self._handle_tmux_resize,
+                "clear_chat": self._handle_clear_chat,
+                "voice_audio": self._handle_voice_audio,
+                "voice_mode_toggle": self._handle_voice_mode_toggle,
             }
 
         handler = self._dispatch_table.get(msg_type)
@@ -258,6 +279,9 @@ class WebSocketServer(TmuxMixin, ChatMixin, HandlerMixin, AuthMixin, BroadcastMi
 
         # Stop all tmux bridges
         await self._cleanup_tmux()
+
+        # Stop voice subsystem
+        await self._cleanup_voice()
 
         # Stop all chat sessions
         for conv_id, session in list(self._chat_sessions.items()):

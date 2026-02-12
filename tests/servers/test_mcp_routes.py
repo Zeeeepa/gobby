@@ -682,7 +682,7 @@ class TestListAllMCPTools:
 
         with (
             TestClient(server.app) as client,
-            patch.object(server, "_resolve_project_id", return_value="test-project-id"),
+            patch.object(server, "resolve_project_id", return_value="test-project-id"),
         ):
             response = client.get("/mcp/tools?include_metrics=true")
 
@@ -1337,7 +1337,7 @@ class TestRecommendMCPTools:
             TestClient(server.app) as client,
             patch.object(
                 server,
-                "_resolve_project_id",
+                "resolve_project_id",
                 side_effect=ValueError("No project found"),
             ),
         ):
@@ -1383,7 +1383,7 @@ class TestSearchMCPTools:
             TestClient(server.app) as client,
             patch.object(
                 server,
-                "_resolve_project_id",
+                "resolve_project_id",
                 side_effect=ValueError("No project"),
             ),
         ):
@@ -1407,7 +1407,7 @@ class TestSearchMCPTools:
 
         with (
             TestClient(server.app) as client,
-            patch.object(server, "_resolve_project_id", return_value="test-project"),
+            patch.object(server, "resolve_project_id", return_value="test-project"),
         ):
             response = client.post(
                 "/mcp/tools/search",
@@ -1445,7 +1445,7 @@ class TestSearchMCPTools:
 
         with (
             TestClient(server.app) as client,
-            patch.object(server, "_resolve_project_id", return_value="test-project"),
+            patch.object(server, "resolve_project_id", return_value="test-project"),
         ):
             response = client.post(
                 "/mcp/tools/search",
@@ -1484,7 +1484,7 @@ class TestEmbedMCPTools:
             TestClient(server.app) as client,
             patch.object(
                 server,
-                "_resolve_project_id",
+                "resolve_project_id",
                 side_effect=ValueError("No project"),
             ),
         ):
@@ -1507,7 +1507,7 @@ class TestEmbedMCPTools:
 
         with (
             TestClient(server.app) as client,
-            patch.object(server, "_resolve_project_id", return_value="test-project"),
+            patch.object(server, "resolve_project_id", return_value="test-project"),
         ):
             response = client.post(
                 "/mcp/tools/embed",
@@ -1538,7 +1538,7 @@ class TestEmbedMCPTools:
 
         with (
             TestClient(server.app) as client,
-            patch.object(server, "_resolve_project_id", return_value="test-project"),
+            patch.object(server, "resolve_project_id", return_value="test-project"),
         ):
             response = client.post(
                 "/mcp/tools/embed",
@@ -1791,7 +1791,7 @@ class TestRefreshMCPTools:
             TestClient(server.app) as client,
             patch.object(
                 server,
-                "_resolve_project_id",
+                "resolve_project_id",
                 side_effect=ValueError("No project"),
             ),
         ):
@@ -1814,7 +1814,7 @@ class TestRefreshMCPTools:
 
         with (
             TestClient(server.app) as client,
-            patch.object(server, "_resolve_project_id", return_value="test-project"),
+            patch.object(server, "resolve_project_id", return_value="test-project"),
         ):
             response = client.post(
                 "/mcp/refresh",
@@ -1858,7 +1858,7 @@ class TestRefreshMCPTools:
 
         with (
             TestClient(server.app) as client,
-            patch.object(server, "_resolve_project_id", return_value="test-project"),
+            patch.object(server, "resolve_project_id", return_value="test-project"),
             patch(
                 "gobby.mcp_proxy.schema_hash.SchemaHashManager",
                 return_value=mock_schema_hash_manager,
@@ -1898,7 +1898,7 @@ class TestRefreshMCPTools:
 
         with (
             TestClient(server.app) as client,
-            patch.object(server, "_resolve_project_id", return_value="test-project"),
+            patch.object(server, "resolve_project_id", return_value="test-project"),
             patch(
                 "gobby.mcp_proxy.schema_hash.SchemaHashManager",
                 return_value=mock_schema_hash_manager,

@@ -276,10 +276,10 @@ class LinearSyncService:
         status_map = {
             "open": "Todo",
             "in_progress": "In Progress",
+            "needs_review": "In Review",
+            "approved": "Done",
             "closed": "Done",
-            "failed": "Canceled",
-            "escalated": "In Review",
-            "needs_decomposition": "Backlog",
+            "escalated": "Canceled",
         }
         return status_map.get(gobby_status, "Todo")
 

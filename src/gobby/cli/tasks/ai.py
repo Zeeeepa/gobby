@@ -205,11 +205,17 @@ def validate_task_cmd(
                 ) + f"\n\nCreated fix task: {fix_task.id}"
                 click.echo(f"Created fix task: {fix_task.id}")
             else:
-                validation_updates["status"] = "failed"
+                from datetime import UTC, datetime
+
+                validation_updates["status"] = "escalated"
+                validation_updates["escalated_at"] = datetime.now(UTC).isoformat()
+                validation_updates["escalation_reason"] = (
+                    f"exceeded_validation_retries ({MAX_RETRIES})"
+                )
                 validation_updates["validation_feedback"] = (
                     result.feedback or ""
-                ) + f"\n\nExceeded max retries ({MAX_RETRIES}). Marked as failed."
-                click.echo("Exceeded max retries. Task marked as FAILED.")
+                ) + f"\n\nExceeded max retries ({MAX_RETRIES}). Escalated for human intervention."
+                click.echo("Exceeded max retries. Task ESCALATED for human intervention.")
 
         manager.update_task(resolved.id, **validation_updates)
 

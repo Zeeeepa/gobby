@@ -3,6 +3,11 @@ name: bug
 description: "Quickly create a bug task. Usage: /bug <title> [description]"
 category: core
 triggers: bug, file bug, report bug
+metadata:
+  gobby:
+    audience: all
+    format_overrides:
+      autonomous: full
 ---
 
 # /bug - Create Bug Task

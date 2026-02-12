@@ -37,4 +37,4 @@ class WebSocketConfig:
     port: int = 60888
     ping_interval: int = 30  # seconds
     ping_timeout: int = 10  # seconds
-    max_message_size: int = 2 * 1024 * 1024  # 2MB
+    max_message_size: int = 5 * 1024 * 1024  # 5MB (increased for voice audio)

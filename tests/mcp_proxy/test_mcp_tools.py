@@ -188,8 +188,8 @@ async def test_list_ready_tasks(mock_task_manager, mock_sync_manager):
     mock_t1.to_brief.return_value = {"id": "t1"}
     mock_task_manager.list_ready_tasks.return_value = [mock_t1]
 
-    # Mock get_project_context for project filtering (in task_readiness module)
-    with patch("gobby.mcp_proxy.tools.task_readiness.get_project_context") as mock_ctx:
+    # Mock get_project_context for project filtering (in _context module used by standalone resolver)
+    with patch("gobby.mcp_proxy.tools.tasks._context.get_project_context") as mock_ctx:
         mock_ctx.return_value = {"id": "test-project-id"}
 
         result = await registry.call("list_ready_tasks", {"limit": 5})
@@ -215,8 +215,8 @@ async def test_list_ready_tasks_all_projects(mock_task_manager, mock_sync_manage
     mock_t1.to_brief.return_value = {"id": "t1"}
     mock_task_manager.list_ready_tasks.return_value = [mock_t1]
 
-    # Mock get_project_context (in task_readiness module)
-    with patch("gobby.mcp_proxy.tools.task_readiness.get_project_context") as mock_ctx:
+    # Mock get_project_context (in _context module used by standalone resolver)
+    with patch("gobby.mcp_proxy.tools.tasks._context.get_project_context") as mock_ctx:
         mock_ctx.return_value = {"id": "test-project-id"}
 
         result = await registry.call("list_ready_tasks", {"limit": 5, "all_projects": True})

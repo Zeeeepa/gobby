@@ -1020,7 +1020,7 @@ class TestProxyNamespaceResolution:
         assert "list_mcp_servers()" in result["error"]
         assert result["error_code"] == "SERVER_NOT_FOUND"
 
-    def test_is_proxy_namespace(self, mock_mcp_manager) -> None:
+    async def test_is_proxy_namespace(self, mock_mcp_manager) -> None:
         """Test _is_proxy_namespace correctly identifies the proxy namespace."""
         proxy = ToolProxyService(mcp_manager=mock_mcp_manager)
 

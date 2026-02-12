@@ -310,7 +310,7 @@ class TestTerminalInputBridgeRouting:
     async def test_input_routes_to_bridge(self, server: WebSocketServer) -> None:
         ws = MockWebSocket()
         with patch.object(
-            server._tmux_bridge, "get_master_fd", return_value=42
+            server._tmux_bridge, "get_master_fd", new_callable=AsyncMock, return_value=42
         ):
             with patch("asyncio.to_thread", new_callable=AsyncMock) as mock_thread:
                 await server._handle_terminal_input(
@@ -325,7 +325,7 @@ class TestTerminalInputBridgeRouting:
     async def test_input_falls_through_to_registry(self, server: WebSocketServer) -> None:
         ws = MockWebSocket()
         # Bridge returns None for fd - should fall through to registry lookup
-        with patch.object(server._tmux_bridge, "get_master_fd", return_value=None):
+        with patch.object(server._tmux_bridge, "get_master_fd", new_callable=AsyncMock, return_value=None):
             with patch(
                 "gobby.servers.websocket.handlers.get_running_agent_registry"
             ) as mock_reg:

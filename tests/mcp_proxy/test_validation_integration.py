@@ -170,10 +170,10 @@ async def test_validate_task_tool_failure_max_retries(
     # Verify NO subtask created
     mock_task_manager.create_task.assert_not_called()
 
-    # Verify task marked as failed
+    # Verify task escalated
     mock_task_manager.update_task.assert_called_once()
     update_args = mock_task_manager.update_task.call_args.kwargs
-    assert update_args["status"] == "failed"
+    assert update_args["status"] == "escalated"
     assert "Exceeded max retries" in update_args["validation_feedback"]
 
 
@@ -529,9 +529,9 @@ async def test_validate_task_exactly_at_max_retries(
     # NO subtask should be created at max retries
     mock_task_manager.create_task.assert_not_called()
 
-    # Task should be marked as failed
+    # Task should be escalated
     update_args = mock_task_manager.update_task.call_args.kwargs
-    assert update_args["status"] == "failed"
+    assert update_args["status"] == "escalated"
     assert update_args["validation_fail_count"] == 3
     assert "Exceeded max retries (3)" in update_args["validation_feedback"]
 
@@ -572,9 +572,9 @@ async def test_validate_task_beyond_max_retries(
     # Still no subtask (already past max)
     mock_task_manager.create_task.assert_not_called()
 
-    # Task should be marked as failed again
+    # Task should be escalated again
     update_args = mock_task_manager.update_task.call_args.kwargs
-    assert update_args["status"] == "failed"
+    assert update_args["status"] == "escalated"
 
 
 # ============================================================================
@@ -792,9 +792,9 @@ async def test_reset_validation_count(
     """Test resetting validation failure count."""
     task = Task(
         id="t1",
-        title="Failed Task",
+        title="Escalated Task",
         project_id="p1",
-        status="failed",
+        status="escalated",
         priority=2,
         task_type="task",
         created_at="now",
@@ -804,9 +804,9 @@ async def test_reset_validation_count(
     mock_task_manager.get_task.return_value = task
     mock_task_manager.update_task.return_value = Task(
         id="t1",
-        title="Failed Task",
+        title="Escalated Task",
         project_id="p1",
-        status="failed",
+        status="escalated",
         priority=2,
         task_type="task",
         created_at="now",

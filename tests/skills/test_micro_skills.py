@@ -9,39 +9,6 @@ from gobby.skills.loader import SkillLoader
 pytestmark = pytest.mark.unit
 
 
-class TestDiscoveringToolsSkill:
-    """Tests for the discovering-tools micro-skill."""
-
-    @pytest.fixture
-    def skill_loader(self) -> SkillLoader:
-        """Create a skill loader."""
-        return SkillLoader(default_source_type="filesystem")
-
-    @pytest.fixture
-    def skills_dir(self) -> Path:
-        """Path to bundled skills directory."""
-        return (
-            Path(__file__).parent.parent.parent / "src" / "gobby" / "install" / "shared" / "skills"
-        )
-
-    def test_discovering_tools_skill_exists(self, skills_dir: Path) -> None:
-        """Verify discovering-tools skill directory exists."""
-        skill_dir = skills_dir / "discovering-tools"
-        assert skill_dir.exists(), f"Expected skill directory: {skill_dir}"
-
-    def test_discovering_tools_skill_content_mentions_progressive_disclosure(
-        self, skill_loader: SkillLoader, skills_dir: Path
-    ) -> None:
-        """Verify skill content covers progressive disclosure."""
-        skill_path = skills_dir / "discovering-tools"
-        skill = skill_loader.load_skill(skill_path)
-
-        content = skill.content.lower()
-        # Should mention progressive disclosure pattern
-        assert "list_tools" in content
-        assert "get_tool_schema" in content
-
-
 class TestCommittingChangesSkill:
     """Tests for the committing-changes micro-skill."""
 

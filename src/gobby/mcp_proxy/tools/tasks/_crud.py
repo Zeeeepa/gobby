@@ -10,10 +10,10 @@ from gobby.mcp_proxy.tools.internal import InternalToolRegistry
 from gobby.mcp_proxy.tools.tasks._context import RegistryContext
 from gobby.mcp_proxy.tools.tasks._helpers import _infer_category
 from gobby.mcp_proxy.tools.tasks._resolution import resolve_task_id_for_mcp
+from gobby.storage.projects import PERSONAL_PROJECT_ID
 from gobby.storage.task_dependencies import DependencyCycleError
 from gobby.storage.tasks import TaskNotFoundError
 from gobby.utils.project_context import get_project_context
-from gobby.utils.project_init import initialize_project
 
 logger = logging.getLogger(__name__)
 
@@ -45,6 +45,7 @@ def create_crud_registry(ctx: RegistryContext) -> InternalToolRegistry:
         category: str | None = None,
         validation_criteria: str | None = None,
         claim: bool = False,
+        project: str | None = None,
     ) -> dict[str, Any]:
         """Create a single task in the current project.
 
@@ -68,13 +69,19 @@ def create_crud_registry(ctx: RegistryContext) -> InternalToolRegistry:
         Returns:
             Created task dict with id (minimal) or full task details based on config.
         """
-        # Get current project context which is required for task creation
-        project_ctx = get_project_context()
-        if project_ctx and project_ctx.get("id"):
-            project_id = project_ctx["id"]
+        # Resolve project: explicit param > context > personal workspace
+        if project:
+            try:
+                resolved = ctx.resolve_project_filter(project)
+            except ValueError as e:
+                return {"error": str(e)}
+            project_id: str = resolved or PERSONAL_PROJECT_ID
         else:
-            init_result = initialize_project()
-            project_id = init_result.project_id
+            project_ctx = get_project_context()
+            if project_ctx and project_ctx.get("id"):
+                project_id = project_ctx["id"]
+            else:
+                project_id = PERSONAL_PROJECT_ID
 
         # Resolve parent_task_id if it's a reference format
         if parent_task_id:
@@ -116,8 +123,8 @@ def create_crud_registry(ctx: RegistryContext) -> InternalToolRegistry:
         # Link task to session (best-effort) - tracks which session created the task
         try:
             ctx.session_task_manager.link_task(resolved_session_id, task.id, "created")
-        except Exception:
-            pass  # nosec B110 - best-effort linking
+        except Exception as e:
+            logger.warning(f"Failed to link task {task.id} to session {resolved_session_id}: {e}")
 
         # Auto-claim if requested: set assignee and status to in_progress
         if claim:
@@ -133,7 +140,8 @@ def create_crud_registry(ctx: RegistryContext) -> InternalToolRegistry:
                 # Link task to session with "claimed" action (best-effort)
                 try:
                     ctx.session_task_manager.link_task(resolved_session_id, task.id, "claimed")
-                except Exception:
+                except Exception as e:
+                    logger.warning(f"Failed to link claimed task {task.id}: {e}")
                     pass  # nosec B110 - best-effort linking
 
             # Set workflow state for Claude Code (CC doesn't include tool results in PostToolUse)
@@ -261,6 +269,11 @@ def create_crud_registry(ctx: RegistryContext) -> InternalToolRegistry:
                     "type": "boolean",
                     "description": "If true, auto-claim the task (set assignee to session_id and status to in_progress). Default: false - task is created with status 'open' and no assignee.",
                     "default": False,
+                },
+                "project": {
+                    "type": "string",
+                    "description": "Target project name or UUID (e.g., '_personal'). Defaults to current project context.",
+                    "default": None,
                 },
             },
             "required": ["title", "session_id"],
@@ -489,10 +502,13 @@ def create_crud_registry(ctx: RegistryContext) -> InternalToolRegistry:
         title_like: str | None = None,
         limit: int = 50,
         all_projects: bool = False,
+        project: str | None = None,
     ) -> dict[str, Any]:
         """List tasks with optional filters."""
-        # Filter by current project unless all_projects is True
-        project_id = None if all_projects else ctx.get_current_project_id()
+        try:
+            project_id = ctx.resolve_project_filter(project, all_projects)
+        except ValueError as e:
+            return {"error": str(e), "tasks": [], "count": 0}
 
         # Resolve parent_task_id if it's a reference format
         if parent_task_id:
@@ -572,6 +588,11 @@ def create_crud_registry(ctx: RegistryContext) -> InternalToolRegistry:
                     "description": "If true, list tasks from all projects instead of just the current project",
                     "default": False,
                 },
+                "project": {
+                    "type": "string",
+                    "description": "Filter by project name or UUID (e.g., '_personal')",
+                    "default": None,
+                },
             },
         },
         func=list_tasks,
@@ -584,6 +605,7 @@ def build_task_tree(
     ctx: RegistryContext,
     tree: dict[str, Any],
     session_id: str,
+    project: str | None = None,
 ) -> dict[str, Any]:
     """Create an entire task tree in one call.
 
@@ -618,13 +640,19 @@ def build_task_tree(
     """
     from gobby.tasks.tree_builder import TaskTreeBuilder
 
-    # Get current project context
-    project_ctx = get_project_context()
-    if project_ctx and project_ctx.get("id"):
-        project_id = project_ctx["id"]
+    # Resolve project: explicit param > context > personal workspace
+    if project:
+        try:
+            resolved = ctx.resolve_project_filter(project)
+        except ValueError as e:
+            return {"success": False, "error": str(e)}
+        project_id: str = resolved or PERSONAL_PROJECT_ID
     else:
-        init_result = initialize_project()
-        project_id = init_result.project_id
+        project_ctx = get_project_context()
+        if project_ctx and project_ctx.get("id"):
+            project_id = project_ctx["id"]
+        else:
+            project_id = PERSONAL_PROJECT_ID
 
     # Build the tree
     builder = TaskTreeBuilder(

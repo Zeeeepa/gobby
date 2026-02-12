@@ -54,8 +54,22 @@ This is the most important section. Be as specific as possible.]
 [Bullet points of this segment's actions only, not historical.
 Reference specific files, functions, commit SHAs.]
 
+### Discoveries & Dead Ends
+[Things learned this segment that aren't obvious from the code.
+Include failed approaches and WHY they failed -- this prevents
+the next segment from retrying them. If nothing notable, write "None".]
+
+### Key Decisions
+[Decisions made this segment and WHY. Reference specific alternatives
+that were considered and rejected. If none, write "None".]
+
 ### Session History (compressed)
 [1-2 sentences if previous_summary exists. Skip if no previous context.]
+
+### Task Progress
+- Completed this segment: [task IDs + titles, or "None"]
+- Currently working: [task ID + title + what's done so far on it]
+- Remaining: [task IDs in planned order, or "None" if not working a list]
 
 ### Technical State
 - Files with uncommitted changes: [list with status]

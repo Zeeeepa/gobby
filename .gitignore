@@ -248,3 +248,6 @@ docs/archive/
 scripts/
 .last-run.json
 playwright-report/
+
+# Moat task system
+.moat/

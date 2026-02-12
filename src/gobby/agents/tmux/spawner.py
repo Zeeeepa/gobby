@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import re
 import time
 from pathlib import Path
 
@@ -103,7 +104,11 @@ class TmuxSpawner(TerminalSpawnerBase):
         session_name = title or f"{self._config.session_prefix}-{int(time.time())}"
         # Sanitise (TmuxSessionManager also sanitises, but normalise here
         # so the name we return is consistent).
-        session_name = session_name.replace(".", "-").replace(":", "-")
+        session_name = re.sub(r"[^a-zA-Z0-9_-]", "-", session_name)
+        session_name = re.sub(r"-{2,}", "-", session_name)
+        session_name = session_name.lstrip("-")
+        if not session_name:
+            session_name = "gobby-session"
 
         shell_cmd = shlex.join(command) if len(command) > 1 else command[0]
 

@@ -743,85 +743,6 @@ class TestLocalTaskManager:
             task_manager.update_task("gt-nonexistent", title="New")
 
     # =========================================================================
-    # Needs Decomposition Status Tests
-    # =========================================================================
-
-    def test_update_task_needs_decomposition_to_in_progress_without_children(
-        self, task_manager, project_id
-    ) -> None:
-        """Test cannot transition from needs_decomposition to in_progress without children."""
-        task = task_manager.create_task(project_id, "Task")
-        task_manager.update_task(task.id, status="needs_decomposition")
-
-        with pytest.raises(ValueError, match="must be decomposed into subtasks"):
-            task_manager.update_task(task.id, status="in_progress")
-
-    def test_update_task_needs_decomposition_to_closed_without_children(
-        self, task_manager, project_id
-    ) -> None:
-        """Test cannot transition from needs_decomposition to closed without children."""
-        task = task_manager.create_task(project_id, "Task")
-        task_manager.update_task(task.id, status="needs_decomposition")
-
-        with pytest.raises(ValueError, match="must be decomposed into subtasks"):
-            task_manager.update_task(task.id, status="closed")
-
-    def test_update_task_needs_decomposition_to_in_progress_with_children(
-        self, task_manager, project_id
-    ) -> None:
-        """Test can transition from needs_decomposition with children."""
-        task = task_manager.create_task(project_id, "Parent")
-        task_manager.update_task(task.id, status="needs_decomposition")
-        task_manager.create_task(project_id, "Child", parent_task_id=task.id)
-
-        # Should succeed now
-        updated = task_manager.update_task(task.id, status="in_progress")
-        assert updated.status == "in_progress"
-
-    def test_update_validation_criteria_on_needs_decomposition_without_children(
-        self, task_manager, project_id
-    ) -> None:
-        """Test cannot set validation criteria on needs_decomposition task without children."""
-        task = task_manager.create_task(project_id, "Task")
-        task_manager.update_task(task.id, status="needs_decomposition")
-
-        with pytest.raises(ValueError, match="Decompose the task into subtasks first"):
-            task_manager.update_task(task.id, validation_criteria="Test criteria")
-
-    def test_update_validation_criteria_on_needs_decomposition_with_children(
-        self, task_manager, project_id
-    ) -> None:
-        """Test can set validation criteria on needs_decomposition task with children."""
-        task = task_manager.create_task(project_id, "Parent")
-        task_manager.update_task(task.id, status="needs_decomposition")
-        task_manager.create_task(project_id, "Child", parent_task_id=task.id)
-
-        updated = task_manager.update_task(task.id, validation_criteria="Test criteria")
-        assert updated.validation_criteria == "Test criteria"
-
-    # =========================================================================
-    # Create Task with Parent Auto-transition Tests
-    # =========================================================================
-
-    def test_create_child_auto_transitions_parent_from_needs_decomposition(
-        self, task_manager, project_id
-    ) -> None:
-        """Test creating a child task auto-transitions parent from needs_decomposition to open."""
-        parent = task_manager.create_task(project_id, "Parent")
-        task_manager.update_task(parent.id, status="needs_decomposition")
-
-        # Verify parent is in needs_decomposition
-        parent = task_manager.get_task(parent.id)
-        assert parent.status == "needs_decomposition"
-
-        # Create child - should auto-transition parent
-        task_manager.create_task(project_id, "Child", parent_task_id=parent.id)
-
-        # Parent should now be open
-        parent = task_manager.get_task(parent.id)
-        assert parent.status == "open"
-
-    # =========================================================================
     # Delete Task Tests
     # =========================================================================
 
@@ -1125,7 +1046,6 @@ class TestLocalTaskManager:
 
         # Should NOT include these fields
         assert "description" not in brief
-        assert "assignee" not in brief
         assert "labels" not in brief
 
     # =========================================================================

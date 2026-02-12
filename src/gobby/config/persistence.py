@@ -8,71 +8,17 @@ Contains storage and sync-related Pydantic config models:
 Extracted from app.py using Strangler Fig pattern for code decomposition.
 """
 
+import logging
 from pathlib import Path
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
+
+logger = logging.getLogger(__name__)
 
 __all__ = [
     "MemoryConfig",
     "MemorySyncConfig",
-    "Mem0Config",
-    "OpenMemoryConfig",
 ]
-
-
-class Mem0Config(BaseModel):
-    """Mem0 backend configuration.
-
-    Configure this section when using backend: 'mem0' for cloud-based
-    semantic memory storage via the Mem0 AI service (mem0ai package).
-
-    Requires: pip install mem0ai
-    """
-
-    api_key: str | None = Field(
-        default=None,
-        description="Mem0 API key for authentication (required when backend='mem0')",
-    )
-    user_id: str | None = Field(
-        default=None,
-        description="Default user ID for memories (optional, defaults to 'default')",
-    )
-    org_id: str | None = Field(
-        default=None,
-        description="Organization ID for multi-tenant use (optional)",
-    )
-
-
-class OpenMemoryConfig(BaseModel):
-    """OpenMemory backend configuration.
-
-    Configure this section when using backend: 'openmemory' for self-hosted
-    embedding-based memory storage via the OpenMemory REST API.
-
-    OpenMemory provides semantic search over memories using local embeddings.
-    """
-
-    base_url: str = Field(
-        default="http://localhost:8080",
-        description="OpenMemory server base URL (required when backend='openmemory')",
-    )
-    api_key: str | None = Field(
-        default=None,
-        description="Optional API key for authentication",
-    )
-    user_id: str | None = Field(
-        default=None,
-        description="Default user ID for memories (optional, defaults to 'default')",
-    )
-
-    @field_validator("base_url")
-    @classmethod
-    def validate_url(cls, v: str) -> str:
-        """Validate base_url is a valid URL format."""
-        if not v.startswith(("http://", "https://")):
-            raise ValueError("base_url must start with http:// or https://")
-        # Remove trailing slash for consistency
-        return v.rstrip("/")
 
 
 class MemoryConfig(BaseModel):
@@ -83,22 +29,12 @@ class MemoryConfig(BaseModel):
         description="Enable persistent memory system",
     )
     backend: str = Field(
-        default="sqlite",
+        default="local",
         description=(
             "Storage backend for memories. Options: "
-            "'sqlite' (default, local SQLite database), "
-            "'mem0' (Mem0 cloud-based semantic memory via mem0ai), "
-            "'openmemory' (self-hosted OpenMemory REST API), "
+            "'local' (default, direct SQLite via LocalMemoryManager), "
             "'null' (no persistence, for testing)"
         ),
-    )
-    mem0: Mem0Config = Field(
-        default_factory=Mem0Config,
-        description="Mem0 backend configuration (only used when backend='mem0')",
-    )
-    openmemory: OpenMemoryConfig = Field(
-        default_factory=OpenMemoryConfig,
-        description="OpenMemory backend configuration (only used when backend='openmemory')",
     )
     importance_threshold: float = Field(
         default=0.7,
@@ -117,12 +53,60 @@ class MemoryConfig(BaseModel):
         description="Minimum importance score after decay",
     )
     search_backend: str = Field(
-        default="tfidf",
+        default="auto",
         description=(
             "Search backend for memory recall. Options: "
-            "'tfidf' (default, zero-dependency local search), "
-            "'text' (simple substring matching)"
+            "'auto' (default, tries embeddings then falls back to TF-IDF), "
+            "'tfidf' (zero-dependency local search), "
+            "'text' (simple substring matching), "
+            "'embedding' (semantic search via embeddings), "
+            "'hybrid' (combined TF-IDF + embedding scores)"
         ),
+    )
+    embedding_model: str = Field(
+        default="text-embedding-3-small",
+        description="Embedding model for semantic search (used in auto/embedding/hybrid modes)",
+    )
+    embedding_weight: float = Field(
+        default=0.6,
+        description="Weight for embedding score in hybrid search (0.0-1.0)",
+    )
+    tfidf_weight: float = Field(
+        default=0.4,
+        description="Weight for TF-IDF score in hybrid search (0.0-1.0)",
+    )
+    mem0_url: str | None = Field(
+        default=None,
+        description=(
+            "Mem0 REST API URL for cloud-based memory sync. "
+            "None means standalone mode (local-only). "
+            "Example: 'https://api.mem0.ai' or 'http://localhost:8888'"
+        ),
+    )
+    mem0_api_key: str | None = Field(
+        default=None,
+        description=(
+            "Mem0 API key for authentication. "
+            "Supports ${ENV_VAR} pattern for env var expansion at load time."
+        ),
+    )
+    neo4j_url: str | None = Field(
+        default=None,
+        description=(
+            "Neo4j HTTP API URL for knowledge graph visualization. "
+            "Example: 'http://localhost:7474' or 'http://localhost:8474'"
+        ),
+    )
+    neo4j_auth: str | None = Field(
+        default=None,
+        description=(
+            "Neo4j authentication in 'user:password' format. "
+            "Supports ${ENV_VAR} pattern for env var expansion at load time."
+        ),
+    )
+    neo4j_database: str = Field(
+        default="neo4j",
+        description="Neo4j database name",
     )
     auto_crossref: bool = Field(
         default=False,
@@ -141,7 +125,14 @@ class MemoryConfig(BaseModel):
         description="Minimum seconds between access stat updates for the same memory",
     )
 
-    @field_validator("importance_threshold", "decay_rate", "decay_floor", "crossref_threshold")
+    @field_validator(
+        "importance_threshold",
+        "decay_rate",
+        "decay_floor",
+        "crossref_threshold",
+        "embedding_weight",
+        "tfidf_weight",
+    )
     @classmethod
     def validate_probability(cls, v: float) -> float:
         """Validate value is between 0.0 and 1.0."""
@@ -161,7 +152,7 @@ class MemoryConfig(BaseModel):
     @classmethod
     def validate_search_backend(cls, v: str) -> str:
         """Validate search_backend is a supported option."""
-        valid_backends = {"tfidf", "text"}
+        valid_backends = {"tfidf", "text", "embedding", "auto", "hybrid"}
         if v not in valid_backends:
             raise ValueError(
                 f"Invalid search_backend '{v}'. Must be one of: {sorted(valid_backends)}"
@@ -172,10 +163,24 @@ class MemoryConfig(BaseModel):
     @classmethod
     def validate_backend(cls, v: str) -> str:
         """Validate backend is a supported storage option."""
-        valid_backends = {"sqlite", "mem0", "openmemory", "null"}
+        # Accept "sqlite" as backwards-compat alias for "local"
+        if v == "sqlite":
+            return "local"
+        valid_backends = {"local", "null"}
         if v not in valid_backends:
             raise ValueError(f"Invalid backend '{v}'. Must be one of: {sorted(valid_backends)}")
         return v
+
+    @model_validator(mode="after")
+    def validate_hybrid_weights(self) -> "MemoryConfig":
+        """Warn if embedding_weight + tfidf_weight don't sum to ~1.0."""
+        total = self.embedding_weight + self.tfidf_weight
+        if abs(total - 1.0) > 0.01:
+            logger.warning(
+                f"embedding_weight ({self.embedding_weight}) + tfidf_weight ({self.tfidf_weight}) "
+                f"= {total}, expected ~1.0"
+            )
+        return self
 
 
 class MemorySyncConfig(BaseModel):

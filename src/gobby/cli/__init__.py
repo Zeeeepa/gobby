@@ -10,6 +10,7 @@ from .agents import agents
 from .artifacts import artifacts
 from .clones import clones
 from .conductor import conductor
+from .cron import cron
 from .daemon import restart, start, status, stop
 from .export_import import export_cmd, import_cmd
 from .extensions import hooks, plugins, webhooks
@@ -70,6 +71,7 @@ cli.add_command(github)
 cli.add_command(linear)
 cli.add_command(clones)
 cli.add_command(conductor)
+cli.add_command(cron)
 cli.add_command(hooks)
 cli.add_command(plugins)
 cli.add_command(webhooks)

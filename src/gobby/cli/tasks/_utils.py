@@ -60,7 +60,7 @@ def normalize_status(status: str) -> str:
 
     Converts hyphen-separated status names to underscore format:
       in-progress -> in_progress
-      needs-decomposition -> needs_decomposition
+      needs-review -> needs_review
 
     Also handles common variations.
     """

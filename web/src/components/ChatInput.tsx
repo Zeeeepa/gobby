@@ -1,4 +1,4 @@
-import { useState, useCallback, KeyboardEvent, useRef, useEffect } from 'react'
+import { useState, useCallback, KeyboardEvent, useRef, useEffect, useMemo } from 'react'
 import { CommandPalette } from './CommandPalette'
 import type { CommandInfo } from '../hooks/useSlashCommands'
 
@@ -9,6 +9,11 @@ export interface QueuedFile {
   base64: string | null
 }
 
+export interface ProjectOption {
+  id: string
+  name: string
+}
+
 interface ChatInputProps {
   onSend: (message: string, files?: QueuedFile[]) => void
   onStop?: () => void
@@ -17,6 +22,19 @@ interface ChatInputProps {
   onInputChange?: (value: string) => void
   filteredCommands?: CommandInfo[]
   onCommandSelect?: (command: CommandInfo) => void
+  projects?: ProjectOption[]
+  selectedProjectId?: string | null
+  onProjectChange?: (projectId: string) => void
+  // Voice props
+  voiceMode?: boolean
+  isRecording?: boolean
+  isTranscribing?: boolean
+  isSpeaking?: boolean
+  voiceError?: string | null
+  onToggleVoice?: () => void
+  onStartRecording?: () => void
+  onStopRecording?: () => void
+  onStopSpeaking?: () => void
 }
 
 export function ChatInput({
@@ -27,13 +45,24 @@ export function ChatInput({
   onInputChange,
   filteredCommands = [],
   onCommandSelect,
+  projects = [],
+  selectedProjectId,
+  onProjectChange,
+  voiceMode = false,
+  isRecording = false,
+  isTranscribing = false,
+  isSpeaking = false,
+  voiceError,
+  onToggleVoice,
+  onStartRecording,
+  onStopRecording,
+  onStopSpeaking,
 }: ChatInputProps) {
   const [input, setInput] = useState('')
   const [selectedIndex, setSelectedIndex] = useState(0)
   const [queuedFiles, setQueuedFiles] = useState<QueuedFile[]>([])
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
-  const imageInputRef = useRef<HTMLInputElement>(null)
 
   const showPalette = input.startsWith('/') && filteredCommands.length > 0
 
@@ -171,25 +200,27 @@ export function ChatInput({
         >
           <PaperclipIcon />
         </button>
-        <button
-          className="chat-toolbar-btn"
-          onClick={() => imageInputRef.current?.click()}
-          title="Attach image"
-          disabled={disabled}
-        >
-          <ImageIcon />
-        </button>
+        {onToggleVoice && (
+          <button
+            className={`chat-toolbar-btn${voiceMode ? ' voice-active' : ''}`}
+            onClick={onToggleVoice}
+            title={voiceMode ? 'Disable voice mode' : 'Enable voice mode'}
+            disabled={disabled}
+          >
+            <MicIcon />
+          </button>
+        )}
+        {projects.length > 0 && (
+          <ProjectScopeToggle
+            projects={projects}
+            selectedProjectId={selectedProjectId ?? null}
+            onProjectChange={onProjectChange}
+            disabled={disabled}
+          />
+        )}
         <input
           ref={fileInputRef}
           type="file"
-          multiple
-          style={{ display: 'none' }}
-          onChange={(e) => { handleFilesSelected(e.target.files); e.target.value = '' }}
-        />
-        <input
-          ref={imageInputRef}
-          type="file"
-          accept="image/*"
           multiple
           style={{ display: 'none' }}
           onChange={(e) => { handleFilesSelected(e.target.files); e.target.value = '' }}
@@ -216,6 +247,20 @@ export function ChatInput({
         </div>
       )}
 
+      {voiceMode && isSpeaking && onStopSpeaking && (
+        <div className="speaking-indicator" onClick={onStopSpeaking} title="Click to stop">
+          <span className="speaking-bar" />
+          <span className="speaking-bar" />
+          <span className="speaking-bar" />
+          <span className="speaking-bar" />
+          <span className="speaking-label">Speaking...</span>
+        </div>
+      )}
+
+      {voiceError && (
+        <div className="voice-error">{voiceError}</div>
+      )}
+
       <div className="chat-input-row">
         <textarea
           ref={textareaRef}
@@ -223,11 +268,36 @@ export function ChatInput({
           value={input}
           onChange={(e) => handleChange(e.target.value)}
           onKeyDown={handleKeyDown}
-          placeholder={disabled ? 'Connecting...' : isStreaming ? 'Interrupt...' : 'Message or /command...'}
+          placeholder={disabled ? 'Connecting...' : isStreaming ? 'Interrupt...' : voiceMode ? 'Voice mode on — hold mic to talk...' : 'Message or /command...'}
           disabled={disabled}
           rows={1}
         />
-        {isStreaming ? (
+        {voiceMode && onStartRecording && onStopRecording ? (
+          <div className="chat-actions">
+            <button
+              className={`ptt-button${isRecording ? ' recording' : ''}${isTranscribing ? ' transcribing' : ''}`}
+              onMouseDown={onStartRecording}
+              onMouseUp={onStopRecording}
+              onMouseLeave={isRecording ? onStopRecording : undefined}
+              onTouchStart={(e) => { e.preventDefault(); onStartRecording() }}
+              onTouchEnd={(e) => { e.preventDefault(); onStopRecording() }}
+              disabled={disabled || isTranscribing}
+              title={isRecording ? 'Release to send' : isTranscribing ? 'Transcribing...' : 'Hold to talk'}
+              aria-label={isRecording ? 'Release to send' : 'Hold to talk'}
+            >
+              {isTranscribing ? <SpinnerIcon /> : <MicIcon />}
+            </button>
+            {hasInput && (
+              <button
+                className="send-button"
+                onClick={handleSubmit}
+                disabled={disabled || !hasInput}
+              >
+                <SendIcon />
+              </button>
+            )}
+          </div>
+        ) : isStreaming ? (
           <div className="chat-actions">
             {onStop && (
               <button
@@ -264,6 +334,136 @@ export function ChatInput({
   )
 }
 
+function ProjectScopeToggle({
+  projects,
+  selectedProjectId,
+  onProjectChange,
+  disabled,
+}: {
+  projects: ProjectOption[]
+  selectedProjectId: string | null
+  onProjectChange?: (projectId: string) => void
+  disabled: boolean
+}) {
+  const [showSearch, setShowSearch] = useState(false)
+  const [search, setSearch] = useState('')
+  const searchRef = useRef<HTMLInputElement>(null)
+  const containerRef = useRef<HTMLDivElement>(null)
+
+  // Find the _personal project (mapped to "Personal" name in App.tsx)
+  const personalProject = projects.find(p => p.name === 'Personal')
+  const isPersonal = !selectedProjectId || selectedProjectId === personalProject?.id
+
+  const nonPersonalProjects = useMemo(
+    () => projects.filter(p => p.name !== 'Personal'),
+    [projects]
+  )
+
+  const filtered = useMemo(
+    () => search
+      ? nonPersonalProjects.filter(p => p.name.toLowerCase().includes(search.toLowerCase()))
+      : nonPersonalProjects,
+    [nonPersonalProjects, search]
+  )
+
+  const selectedName = !isPersonal
+    ? projects.find(p => p.id === selectedProjectId)?.name ?? 'Project'
+    : null
+
+  // Focus search input when dropdown opens
+  useEffect(() => {
+    if (showSearch) searchRef.current?.focus()
+  }, [showSearch])
+
+  // Close dropdown on outside click
+  useEffect(() => {
+    if (!showSearch) return
+    const handler = (e: MouseEvent) => {
+      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
+        setShowSearch(false)
+        setSearch('')
+      }
+    }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [showSearch])
+
+  return (
+    <div className="chat-scope-toggle" ref={containerRef}>
+      <div className="chat-scope-buttons" role="group" aria-label="Memory scope">
+        <button
+          className={`chat-scope-btn${isPersonal ? ' active' : ''}`}
+          onClick={() => {
+            if (personalProject) onProjectChange?.(personalProject.id)
+            else onProjectChange?.('')
+            setShowSearch(false)
+            setSearch('')
+          }}
+          disabled={disabled}
+        >
+          Personal
+        </button>
+        <button
+          className={`chat-scope-btn${!isPersonal ? ' active' : ''}`}
+          onClick={() => {
+            if (isPersonal) {
+              // Switch to project mode — show search if multiple projects
+              if (nonPersonalProjects.length === 1) {
+                onProjectChange?.(nonPersonalProjects[0].id)
+              } else {
+                setShowSearch(!showSearch)
+              }
+            } else {
+              // Already on project — toggle search
+              setShowSearch(!showSearch)
+            }
+          }}
+          disabled={disabled}
+        >
+          {selectedName ?? 'Project'}
+        </button>
+      </div>
+      {showSearch && (
+        <div className="chat-scope-dropdown">
+          <input
+            ref={searchRef}
+            className="chat-scope-search"
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+            placeholder="Search projects..."
+            onKeyDown={e => {
+              if (e.key === 'Escape') { setShowSearch(false); setSearch('') }
+              if (e.key === 'Enter' && filtered.length > 0) {
+                onProjectChange?.(filtered[0].id)
+                setShowSearch(false)
+                setSearch('')
+              }
+            }}
+          />
+          <div className="chat-scope-list">
+            {filtered.map(p => (
+              <button
+                key={p.id}
+                className={`chat-scope-option${p.id === selectedProjectId ? ' active' : ''}`}
+                onClick={() => {
+                  onProjectChange?.(p.id)
+                  setShowSearch(false)
+                  setSearch('')
+                }}
+              >
+                {p.name}
+              </button>
+            ))}
+            {filtered.length === 0 && (
+              <div className="chat-scope-empty">No projects found</div>
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
 function StopIcon() {
   return (
     <svg
@@ -295,6 +495,28 @@ function SendIcon() {
   )
 }
 
+function MicIcon() {
+  return (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z" />
+      <path d="M19 10v2a7 7 0 0 1-14 0v-2" />
+      <line x1="12" y1="19" x2="12" y2="23" />
+      <line x1="8" y1="23" x2="16" y2="23" />
+    </svg>
+  )
+}
+
+function SpinnerIcon() {
+  return (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="spinner-icon">
+      <circle cx="12" cy="12" r="10" strokeDasharray="32" strokeDashoffset="32">
+        <animateTransform attributeName="transform" type="rotate" from="0 12 12" to="360 12 12" dur="1s" repeatCount="indefinite" />
+        <animate attributeName="stroke-dashoffset" values="32;0" dur="1s" repeatCount="indefinite" />
+      </circle>
+    </svg>
+  )
+}
+
 function PaperclipIcon() {
   return (
     <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -303,12 +525,3 @@ function PaperclipIcon() {
   )
 }
 
-function ImageIcon() {
-  return (
-    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <rect x="3" y="3" width="18" height="18" rx="2" ry="2" />
-      <circle cx="8.5" cy="8.5" r="1.5" />
-      <polyline points="21 15 16 10 5 21" />
-    </svg>
-  )
-}

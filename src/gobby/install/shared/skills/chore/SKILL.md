@@ -2,6 +2,11 @@
 name: chore
 description: "Quickly create a chore/maintenance task. Usage: /chore <title> [description]"
 category: core
+metadata:
+  gobby:
+    audience: all
+    format_overrides:
+      autonomous: full
 ---
 
 # /chore - Create Chore Task

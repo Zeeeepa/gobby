@@ -59,7 +59,7 @@ async def list_all_mcp_tools(
         resolved_project_id = None
         if include_metrics:
             try:
-                resolved_project_id = server._resolve_project_id(project_id, cwd=None)
+                resolved_project_id = server.resolve_project_id(project_id, cwd=None)
             except ValueError:
                 # Project not initialized; skip metrics enrichment
                 resolved_project_id = None
@@ -214,7 +214,7 @@ async def recommend_mcp_tools(
         project_id = None
         if search_mode in ("semantic", "hybrid"):
             try:
-                project_id = server._resolve_project_id(None, cwd)
+                project_id = server.resolve_project_id(None, cwd)
             except ValueError as e:
                 response_time_ms = (time.perf_counter() - start_time) * 1000
                 return {
@@ -303,7 +303,7 @@ async def search_mcp_tools(
 
         # Resolve project_id from cwd
         try:
-            project_id = server._resolve_project_id(None, cwd)
+            project_id = server.resolve_project_id(None, cwd)
         except ValueError as e:
             response_time_ms = (time.perf_counter() - start_time) * 1000
             return {

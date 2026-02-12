@@ -2,6 +2,11 @@
 name: ref
 description: "Quickly create a refactoring task. Usage: /ref <title> [description]"
 category: core
+metadata:
+  gobby:
+    audience: all
+    format_overrides:
+      autonomous: full
 ---
 
 # /ref - Create Refactoring Task

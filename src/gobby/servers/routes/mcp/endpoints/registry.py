@@ -49,7 +49,7 @@ async def embed_mcp_tools(
 
         # Resolve project_id from cwd
         try:
-            project_id = server._resolve_project_id(None, cwd)
+            project_id = server.resolve_project_id(None, cwd)
         except ValueError as e:
             return {
                 "success": False,
@@ -183,7 +183,7 @@ async def refresh_mcp_tools(
 
         # Resolve project_id from cwd
         try:
-            project_id = server._resolve_project_id(None, cwd)
+            project_id = server.resolve_project_id(None, cwd)
         except ValueError as e:
             return {
                 "success": False,

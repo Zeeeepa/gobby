@@ -42,6 +42,8 @@ os.environ["TOKENIZERS_PARALLELISM"] = "false"
 
 # Type hints for pipeline components (imported lazily at runtime)
 if TYPE_CHECKING:
+    from gobby.scheduler.scheduler import CronScheduler
+    from gobby.storage.cron import CronJobStorage
     from gobby.storage.pipelines import LocalPipelineExecutionManager
     from gobby.workflows.loader import WorkflowLoader
     from gobby.workflows.pipeline_executor import PipelineExecutor
@@ -78,6 +80,34 @@ class GobbyRunner:
                 logger.info(f"Synced {skill_result['synced']} bundled skills to database")
         except Exception as e:
             logger.warning(f"Failed to sync bundled skills: {e}")
+
+        # Initialize Skill Manager and Hub Manager
+        from gobby.storage.skills import LocalSkillManager
+
+        self.skill_manager = LocalSkillManager(self.database)
+
+        self.hub_manager: Any | None = None
+        try:
+            from gobby.config.skills import SkillsConfig
+            from gobby.skills.hubs import (
+                ClaudePluginsProvider,
+                ClawdHubProvider,
+                GitHubCollectionProvider,
+                HubManager,
+                SkillHubProvider,
+            )
+
+            skills_config = self.config.skills if hasattr(self.config, "skills") else SkillsConfig()
+            self.hub_manager = HubManager(configs=skills_config.hubs)
+            self.hub_manager.register_provider_factory("clawdhub", ClawdHubProvider)
+            self.hub_manager.register_provider_factory("skillhub", SkillHubProvider)
+            self.hub_manager.register_provider_factory(
+                "github-collection", GitHubCollectionProvider
+            )
+            self.hub_manager.register_provider_factory("claude-plugins", ClaudePluginsProvider)
+            logger.debug(f"HubManager initialized with {len(skills_config.hubs)} hubs")
+        except Exception as e:
+            logger.warning(f"Failed to initialize HubManager: {e}")
 
         # Initialize LLM Service
         self.llm_service: LLMService | None = None  # Added type hint
@@ -249,7 +279,33 @@ class GobbyRunner:
         self.lifecycle_manager = SessionLifecycleManager(
             db=self.database,
             config=self.config.session_lifecycle,
+            memory_manager=self.memory_manager,
+            llm_service=self.llm_service,
+            memory_sync_manager=self.memory_sync_manager,
         )
+
+        # Cron Scheduler (background jobs for recurring tasks)
+        self.cron_storage: CronJobStorage | None = None
+        self.cron_scheduler: CronScheduler | None = None
+        try:
+            from gobby.scheduler.executor import CronExecutor
+            from gobby.scheduler.scheduler import CronScheduler
+            from gobby.storage.cron import CronJobStorage
+
+            self.cron_storage = CronJobStorage(self.database)
+            cron_executor = CronExecutor(
+                storage=self.cron_storage,
+                agent_runner=self.agent_runner,
+                pipeline_executor=self.pipeline_executor,
+            )
+            self.cron_scheduler = CronScheduler(
+                storage=self.cron_storage,
+                executor=cron_executor,
+                config=self.config.cron,
+            )
+            logger.debug("CronScheduler initialized")
+        except Exception as e:
+            logger.error(f"Failed to initialize CronScheduler: {e}")
 
         # HTTP Server
         # Bundle services into container
@@ -276,6 +332,10 @@ class GobbyRunner:
             pipeline_executor=self.pipeline_executor,
             workflow_loader=self.workflow_loader,
             pipeline_execution_manager=self.pipeline_execution_manager,
+            cron_storage=self.cron_storage,
+            cron_scheduler=self.cron_scheduler,
+            skill_manager=self.skill_manager,
+            hub_manager=self.hub_manager,
         )
 
         self.http_server = HTTPServer(
@@ -307,6 +367,8 @@ class GobbyRunner:
             self.websocket_server = WebSocketServer(
                 config=websocket_config,
                 mcp_manager=self.mcp_proxy,
+                session_manager=self.session_manager,
+                daemon_config=self.config,
             )
             # Pass WebSocket server reference to HTTP server for broadcasting
             self.http_server.websocket_server = self.websocket_server
@@ -552,6 +614,10 @@ class GobbyRunner:
             # Start Session Lifecycle Manager
             await self.lifecycle_manager.start()
 
+            # Start Cron Scheduler
+            if self.cron_scheduler:
+                await self.cron_scheduler.start()
+
             # Start periodic metrics cleanup (every 24 hours)
             self._metrics_cleanup_task = asyncio.create_task(
                 self._metrics_cleanup_loop(),
@@ -592,6 +658,12 @@ class GobbyRunner:
                 await asyncio.wait_for(self.lifecycle_manager.stop(), timeout=2.0)
             except TimeoutError:
                 logger.warning("Lifecycle manager shutdown timed out")
+
+            if self.cron_scheduler:
+                try:
+                    await asyncio.wait_for(self.cron_scheduler.stop(), timeout=2.0)
+                except TimeoutError:
+                    logger.warning("Cron scheduler shutdown timed out")
 
             if self.message_processor:
                 try:

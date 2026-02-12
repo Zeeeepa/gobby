@@ -61,6 +61,7 @@ class Memory:
     last_accessed_at: str | None = None
     tags: list[str] | None = None
     media: str | None = None  # JSON-serialized MediaAttachment data
+    mem0_id: str | None = None  # Mem0 remote memory ID (dual-mode sync)
 
     @classmethod
     def from_row(cls, row: sqlite3.Row) -> "Memory":
@@ -77,6 +78,7 @@ class Memory:
 
         # Handle media column (may not exist in older databases)
         media = row["media"] if "media" in row.keys() else None
+        mem0_id = row["mem0_id"] if "mem0_id" in row.keys() else None
 
         return cls(
             id=row["id"],
@@ -92,6 +94,7 @@ class Memory:
             last_accessed_at=row["last_accessed_at"],
             tags=tags,
             media=media,
+            mem0_id=mem0_id,
         )
 
     def to_dict(self) -> dict[str, Any]:
@@ -109,6 +112,7 @@ class Memory:
             "last_accessed_at": self.last_accessed_at,
             "tags": self.tags,
             "media": self.media,
+            "mem0_id": self.mem0_id,
         }
 
 

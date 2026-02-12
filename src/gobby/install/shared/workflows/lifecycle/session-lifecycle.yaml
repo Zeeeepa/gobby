@@ -1,6 +1,7 @@
 name: session-lifecycle
 description: "Unified session lifecycle and behavior enforcement"
 type: lifecycle
+sources: [claude, gemini, codex, antigravity, cursor, windsurf, copilot]
 
 settings:
   priority: 10 # Run first - critical for handoff before other LLM calls
@@ -70,6 +71,10 @@ triggers:
         - If you found no pre-existing issues, confirm by calling
           set_variable on gobby-workflows:
           set_variable(name="pre_existing_errors_triaged", value=true, session_id="<session_id>")
+
+    # Memory review nudge — only when significant work done since last review
+    - action: memory_review_gate
+      when: "variables.get('pending_memory_review') and (variables.get('stop_attempts', 0) or 0) < 3"
 
     # Task closure enforcement - block stop if task is still in_progress
     # Agents must close_task() or set to review before stopping
@@ -148,16 +153,22 @@ triggers:
     # Memory sync - import from JSONL for Git persistence
     - action: memory_sync_import
 
+    # Project memory injection — baseline context for new/cleared sessions
+    - action: memory_inject_project_context
+      when: "event.data.get('source') in ['startup', 'clear']"
+      limit: 10
+      min_importance: 0.7
+
     # Task sync - import from JSONL for Git persistence
     - action: task_sync_import
 
-    # Skill and task context injection - inject always-apply skills for all session starts
+    # Skill and task context injection - inject context-aware skills for all session starts
     # Skip on resume - conversation already has this context from original startup
-    # Uses array syntax to combine multiple sources
+    # context_aware filter uses SkillInjector to select skills based on agent depth/type
     - action: inject_context
       when: "event.data.get('source') != 'resume'"
       source: skills
-      filter: always_apply
+      filter: context_aware
       template: |
         {{ skills_list }}
 
@@ -211,6 +222,14 @@ triggers:
     - action: memory_recall_relevant
       limit: 5
       min_importance: 0.7
+
+    # Memory capture nudge - remind agent to save user preferences/facts
+    - action: inject_context
+      when: "len((event.data.get('prompt') or '').strip()) >= 10 and not (event.data.get('prompt') or '').strip().startswith('/')"
+      template: |
+        If the user just told you something worth remembering across sessions
+        (a preference, fact, convention, or instruction), save it with
+        create_memory on gobby-memory. If not, carry on.
 
   on_before_tool:
     # Unified tool blocking with multiple rules
@@ -311,10 +330,15 @@ triggers:
       value: false
       when: "event.data.get('tool_name') == 'ExitPlanMode'"
 
-    # Reset stop attempts counter on successful tool use
+    # Reset stop attempts counter on successful native tool use
+    # Skip for MCP tool calls — those are often the agent complying with a
+    # stop-gate directive (e.g., set_variable to clear a gate). Resetting the
+    # counter on MCP calls prevents the 3-strike escape hatch from triggering.
+    # The on_before_agent handler resets stop_attempts on each new user prompt.
     - action: set_variable
       name: stop_attempts
       value: 0
+      when: "not event.data.get('mcp_tool')"
 
     # Clear tool block flag on successful tool use
     - action: set_variable
@@ -326,6 +350,12 @@ triggers:
 
     # Track list_mcp_servers and list_tools for progressive disclosure gates
     - action: track_discovery_step
+
+    # Track significant work for memory review nudge on stop
+    - action: set_variable
+      when: "event.data.get('tool_name') in ['Edit', 'Write', 'NotebookEdit'] or event.data.get('mcp_tool') == 'close_task'"
+      name: pending_memory_review
+      value: true
 
     # Suggest memory extraction after closing a task with a commit
     # Soft nudge, not a blocking gate — agent can choose to skip
@@ -345,6 +375,11 @@ triggers:
         - pending_tasks
       prompt: handoff/session_end
       write_file: true
+
+    # Daemon-side memory extraction — safety net for ungraceful exits
+    - action: memory_extract_from_session
+      min_importance: 0.7
+      max_memories: 5
 
     # Memory sync - export to JSONL for Git persistence
     - action: memory_sync_export
@@ -371,6 +406,12 @@ triggers:
     # Saves formatted markdown to session.compact_markdown
     - action: extract_handoff_context
       when: "event.source.value != 'gemini' or event.data.get('trigger') == 'manual'"
+
+    # Daemon-side memory extraction — capture before context loss
+    - action: memory_extract_from_session
+      when: "event.source.value != 'gemini' or event.data.get('trigger') == 'manual'"
+      min_importance: 0.7
+      max_memories: 5
 
     # Memory sync - export to JSONL for Git persistence
     - action: memory_sync_export

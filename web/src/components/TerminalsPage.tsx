@@ -3,6 +3,7 @@ import { Terminal as XTerm } from '@xterm/xterm'
 import { FitAddon } from '@xterm/addon-fit'
 import '@xterm/xterm/css/xterm.css'
 import { TmuxSession } from '../hooks/useTmuxSessions'
+import { MenuIcon } from './Icons'
 
 interface TerminalsPageProps {
   sessions: TmuxSession[]
@@ -126,7 +127,9 @@ export function TerminalsPage({
             streamingId={streamingId}
             sessionName={attachedSession}
             isInteractive={isInteractive}
+            sidebarOpen={sidebarOpen}
             onSetInteractive={setIsInteractive}
+            onToggleSidebar={() => setSidebarOpen(!sidebarOpen)}
             sendInput={sendInput}
             resizeTerminal={resizeTerminal}
             onOutput={onOutput}
@@ -138,6 +141,15 @@ export function TerminalsPage({
           />
         ) : (
           <div className="terminals-empty">
+            {!sidebarOpen && (
+              <button
+                className="terminals-action-btn terminals-open-sidebar-btn"
+                onClick={() => setSidebarOpen(true)}
+                title="Show terminals"
+              >
+                <MenuIcon />
+              </button>
+            )}
             <TerminalIcon size={48} />
             <h3>No terminal attached</h3>
             <p>Select a terminal from the sidebar or create a new one.</p>
@@ -213,14 +225,27 @@ interface TerminalViewProps {
   streamingId: string
   sessionName: string | null
   isInteractive: boolean
+  sidebarOpen: boolean
   onSetInteractive: (interactive: boolean) => void
+  onToggleSidebar: () => void
   sendInput: (data: string) => void
   resizeTerminal: (rows: number, cols: number) => void
   onOutput: (callback: (runId: string, data: string) => void) => void
   onKill: () => void
 }
 
-function TerminalView({ streamingId, sessionName, isInteractive, onSetInteractive, sendInput, resizeTerminal, onOutput, onKill }: TerminalViewProps) {
+function TerminalView({
+  streamingId,
+  sessionName,
+  isInteractive,
+  sidebarOpen,
+  onSetInteractive,
+  onToggleSidebar,
+  sendInput,
+  resizeTerminal,
+  onOutput,
+  onKill,
+}: TerminalViewProps) {
   const containerRef = useRef<HTMLDivElement>(null)
   const terminalRef = useRef<XTerm | null>(null)
   const fitAddonRef = useRef<FitAddon | null>(null)
@@ -368,6 +393,15 @@ function TerminalView({ streamingId, sessionName, isInteractive, onSetInteractiv
     <div className="terminals-terminal-wrapper">
       <div className="terminals-terminal-header">
         <span className="terminals-terminal-title">
+          {!sidebarOpen && (
+            <button
+              className="terminals-action-btn terminals-open-sidebar-btn"
+              onClick={onToggleSidebar}
+              title="Show terminals"
+            >
+              <MenuIcon />
+            </button>
+          )}
           <TerminalIcon size={14} />
           {sessionName || 'Terminal'}
           {!isInteractive && (
@@ -442,3 +476,4 @@ function TrashIcon() {
     </svg>
   )
 }
+

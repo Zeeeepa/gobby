@@ -11,7 +11,6 @@ from typing import Any
 
 from gobby.hooks.events import HookEvent, HookResponse
 
-
 # Terminal context keys copied from event metadata to response metadata
 TERMINAL_CONTEXT_KEYS = [
     "terminal_term_program",

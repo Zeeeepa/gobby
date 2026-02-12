@@ -1,6 +1,8 @@
 import { test, expect } from "@playwright/test";
 
-const STORAGE_KEY = "gobby-chat-history";
+const CONVERSATION_ID = "test-conversation-id";
+const STORAGE_KEY = `gobby-chat-${CONVERSATION_ID}`;
+const CONVERSATION_ID_KEY = "gobby-conversation-id";
 
 const markdownFixture = `# Heading 1
 ## Heading 2
@@ -54,9 +56,16 @@ function makeStoredMessages(content: string) {
 test.describe("Markdown rendering", () => {
   test.beforeEach(async ({ page }) => {
     // Inject test messages into localStorage before the app loads
-    await page.addInitScript((data) => {
-      localStorage.setItem("gobby-chat-history", data);
-    }, makeStoredMessages(markdownFixture));
+    // Uses per-conversation storage keys (gobby-chat-<id>) and conversation ID key
+    await page.addInitScript(({ messages, convId, storageKey, convIdKey }) => {
+      localStorage.setItem(convIdKey, convId);
+      localStorage.setItem(storageKey, messages);
+    }, {
+      messages: makeStoredMessages(markdownFixture),
+      convId: CONVERSATION_ID,
+      storageKey: STORAGE_KEY,
+      convIdKey: CONVERSATION_ID_KEY,
+    });
     await page.goto("/");
     // Wait for the message content to render
     await page.waitForSelector(".message-content");

@@ -3,6 +3,11 @@ name: feat
 description: "Quickly create a feature task. Usage: /feat <title> [description]"
 category: core
 triggers: feature, new feature
+metadata:
+  gobby:
+    audience: all
+    format_overrides:
+      autonomous: full
 ---
 
 # /feat - Create Feature Task

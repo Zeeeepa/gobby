@@ -1,0 +1,65 @@
+# Mem0 services for Gobby memory integration
+# Installed via: gobby install mem0
+# Uses non-standard ports to avoid conflicts with existing services.
+
+services:
+  mem0:
+    image: mem0ai/mem0:0.1.29
+    ports:
+      - "8888:8080"
+    environment:
+      - MEM0_STORE=postgres
+      - MEM0_POSTGRES_URL=postgresql://mem0:mem0@postgres:5432/mem0
+      - MEM0_GRAPH_STORE=neo4j
+      - MEM0_NEO4J_URL=bolt://neo4j:7687
+      - MEM0_NEO4J_USERNAME=neo4j
+      - MEM0_NEO4J_PASSWORD=mem0graph
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/v1/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    depends_on:
+      postgres:
+        condition: service_healthy
+      neo4j:
+        condition: service_healthy
+    restart: unless-stopped
+
+  postgres:
+    image: pgvector/pgvector:0.8.0-pg16
+    ports:
+      - "8432:5432"
+    environment:
+      - POSTGRES_USER=${GOBBY_MEM0_PG_USER:-mem0}
+      - POSTGRES_PASSWORD=${GOBBY_MEM0_PG_PASSWORD:-mem0}
+      - POSTGRES_DB=${GOBBY_MEM0_PG_DB:-mem0}
+    volumes:
+      - mem0_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U mem0"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  neo4j:
+    image: neo4j:5.26
+    ports:
+      - "8474:7474"
+      - "8687:7687"
+    environment:
+      - NEO4J_AUTH=neo4j/${GOBBY_MEM0_NEO4J_PASSWORD:-mem0graph}
+      - NEO4J_PLUGINS=["apoc"]
+    volumes:
+      - mem0_neo4j_data:/data
+    healthcheck:
+      test: ["CMD-SHELL", "cypher-shell -u neo4j -p ${GOBBY_MEM0_NEO4J_PASSWORD:-mem0graph} 'RETURN 1'"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+volumes:
+  mem0_pgdata:
+  mem0_neo4j_data:

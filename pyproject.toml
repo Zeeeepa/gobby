@@ -38,6 +38,8 @@ dependencies = [
     "msgspec>=0.20.0",
     # gitingest>=0.3.1 includes CVE-2024-56074 fix (commit 9996a06, Dec 2024)
     "gitingest>=0.3.1",
+    # croniter for cron expression parsing (scheduler)
+    "croniter>=2.0.0",
     # scikit-learn for TF-IDF memory search
     "scikit-learn>=1.0.0",
     "textual>=7.3.0",
@@ -46,10 +48,13 @@ dependencies = [
     "python-multipart>=0.0.22",
     # protobuf <6.33.5 has CVE-2026-0994 (JSON recursion depth bypass DoS)
     "protobuf>=6.33.5",
+    # cryptography <46.0.5 has CVE-2026-26007
+    "cryptography>=46.0.5",
 ]
 
 [project.optional-dependencies]
 mem0 = ["mem0ai"]
+voice = ["faster-whisper>=1.0.0"]
 
 [project.scripts]
 gobby = "gobby.cli:cli"
@@ -74,6 +79,7 @@ gobby = [
     "install/codex/**/*",
     "install/antigravity/**/*",
     "install/shared/**/*",
+    "data/*",
 ]
 
 [tool.pytest.ini_options]

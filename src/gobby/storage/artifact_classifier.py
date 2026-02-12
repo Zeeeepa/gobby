@@ -26,10 +26,12 @@ class ArtifactType(str, Enum):
     """Artifact type enumeration."""
 
     CODE = "code"
+    DIFF = "diff"
     FILE_PATH = "file_path"
     ERROR = "error"
     COMMAND_OUTPUT = "command_output"
     STRUCTURED_DATA = "structured_data"
+    PLAN = "plan"
     TEXT = "text"
 
 
@@ -131,6 +133,53 @@ _COMMAND_OUTPUT_PATTERNS = [
     re.compile(r"^collected\s+\d+\s+items?", re.MULTILINE),  # pytest
     re.compile(r"^\d+\s+passed", re.MULTILINE),  # pytest results
 ]
+
+
+# Diff patterns
+_DIFF_PATTERNS = [
+    re.compile(r"^diff --git\s", re.MULTILINE),
+    re.compile(r"^@@\s.*@@", re.MULTILINE),
+]
+
+# Combined check: must have at least --- and +++ markers alongside @@ or diff --git
+_DIFF_HEADER_PATTERN = re.compile(r"^---\s", re.MULTILINE)
+_DIFF_HEADER_PLUS_PATTERN = re.compile(r"^\+\+\+\s", re.MULTILINE)
+
+# Plan patterns
+_PLAN_HEADER_PATTERN = re.compile(r"^#+\s*(.*\b(Plan|Phase|Step)\b)", re.MULTILINE | re.IGNORECASE)
+_PLAN_NUMBERED_LIST_PATTERN = re.compile(r"^\d+\.\s+\w", re.MULTILINE)
+
+
+def _is_diff(content: str) -> bool:
+    """Check if content is a unified diff."""
+    # Check for diff --git or @@ markers
+    for pattern in _DIFF_PATTERNS:
+        if pattern.search(content):
+            return True
+    # Check for --- / +++ header pair with @@ hunk marker
+    has_minus = _DIFF_HEADER_PATTERN.search(content) is not None
+    has_plus = _DIFF_HEADER_PLUS_PATTERN.search(content) is not None
+    has_hunk = re.search(r"^@@\s", content, re.MULTILINE) is not None
+    if has_minus and has_plus and has_hunk:
+        return True
+    return False
+
+
+def _is_plan(content: str) -> bool:
+    """Check if content is a plan document."""
+    has_plan_header = _PLAN_HEADER_PATTERN.search(content) is not None
+    has_numbered_items = len(_PLAN_NUMBERED_LIST_PATTERN.findall(content)) >= 3
+
+    # Need plan-style headers OR (a "Plan" heading + numbered items)
+    if has_plan_header and has_numbered_items:
+        return True
+    # Multiple Phase/Step headers indicate a plan
+    phase_step_count = len(
+        re.findall(r"^#+\s*(Phase|Step)\s+\d+", content, re.MULTILINE | re.IGNORECASE)
+    )
+    if phase_step_count >= 2:
+        return True
+    return False
 
 
 def _detect_language(content: str) -> str | None:
@@ -290,6 +339,10 @@ def classify_artifact(content: str) -> ClassificationResult:
                     metadata["language"] = detected_lang
         return ClassificationResult(artifact_type=ArtifactType.CODE, metadata=metadata)
 
+    # Check for diff (before file path / error since diffs have --- lines)
+    if _is_diff(content):
+        return ClassificationResult(artifact_type=ArtifactType.DIFF, metadata={})
+
     # Check for file path (single line only)
     is_path, path_metadata = _is_file_path(content)
     if is_path:
@@ -336,6 +389,10 @@ def classify_artifact(content: str) -> ClassificationResult:
     # Check for command output
     if _is_command_output(content):
         return ClassificationResult(artifact_type=ArtifactType.COMMAND_OUTPUT, metadata={})
+
+    # Check for plan documents
+    if _is_plan(content):
+        return ClassificationResult(artifact_type=ArtifactType.PLAN, metadata={})
 
     # Default to text
     return ClassificationResult(artifact_type=ArtifactType.TEXT, metadata={})

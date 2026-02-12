@@ -277,12 +277,23 @@ CREATE TABLE session_artifacts (
     source_file TEXT,
     line_start INTEGER,
     line_end INTEGER,
+    title TEXT,
+    task_id TEXT,
     created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 CREATE INDEX idx_session_artifacts_session ON session_artifacts(session_id);
 CREATE INDEX idx_session_artifacts_type ON session_artifacts(artifact_type);
 CREATE INDEX idx_session_artifacts_created ON session_artifacts(created_at);
+CREATE INDEX idx_session_artifacts_task ON session_artifacts(task_id);
 CREATE VIRTUAL TABLE session_artifacts_fts USING fts5(id UNINDEXED, content);
+
+CREATE TABLE artifact_tags (
+    artifact_id TEXT NOT NULL REFERENCES session_artifacts(id) ON DELETE CASCADE,
+    tag TEXT NOT NULL,
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    PRIMARY KEY (artifact_id, tag)
+);
+CREATE INDEX idx_artifact_tags_tag ON artifact_tags(tag);
 
 CREATE TABLE session_stop_signals (
     session_id TEXT PRIMARY KEY REFERENCES sessions(id) ON DELETE CASCADE,
@@ -473,6 +484,22 @@ CREATE INDEX idx_memories_project ON memories(project_id);
 CREATE INDEX idx_memories_type ON memories(memory_type);
 CREATE INDEX idx_memories_importance ON memories(importance DESC);
 
+CREATE TABLE memory_embeddings (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    memory_id TEXT NOT NULL REFERENCES memories(id) ON DELETE CASCADE,
+    project_id TEXT REFERENCES projects(id) ON DELETE CASCADE,
+    embedding BLOB NOT NULL,
+    embedding_model TEXT NOT NULL,
+    embedding_dim INTEGER NOT NULL,
+    text_hash TEXT NOT NULL,
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+    UNIQUE(memory_id)
+);
+CREATE INDEX idx_memory_embeddings_memory ON memory_embeddings(memory_id);
+CREATE INDEX idx_memory_embeddings_hash ON memory_embeddings(text_hash);
+CREATE INDEX idx_memory_embeddings_project ON memory_embeddings(project_id);
+
 CREATE TABLE session_memories (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     session_id TEXT NOT NULL REFERENCES sessions(id) ON DELETE CASCADE,
@@ -611,6 +638,48 @@ CREATE INDEX idx_clones_task ON clones(task_id);
 CREATE INDEX idx_clones_session ON clones(agent_session_id);
 CREATE UNIQUE INDEX idx_clones_path ON clones(clone_path);
 
+CREATE TABLE cron_jobs (
+    id TEXT PRIMARY KEY,
+    project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+    name TEXT NOT NULL,
+    description TEXT,
+    schedule_type TEXT NOT NULL,
+    cron_expr TEXT,
+    interval_seconds INTEGER,
+    run_at TEXT,
+    timezone TEXT DEFAULT 'UTC',
+    action_type TEXT NOT NULL,
+    action_config TEXT NOT NULL,
+    enabled INTEGER DEFAULT 1,
+    next_run_at TEXT,
+    last_run_at TEXT,
+    last_status TEXT,
+    consecutive_failures INTEGER DEFAULT 0,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+);
+CREATE INDEX idx_cron_jobs_project ON cron_jobs(project_id);
+CREATE INDEX idx_cron_jobs_enabled ON cron_jobs(enabled);
+CREATE INDEX idx_cron_jobs_next_run ON cron_jobs(next_run_at);
+CREATE INDEX idx_cron_jobs_due ON cron_jobs(project_id, enabled, next_run_at);
+
+CREATE TABLE cron_runs (
+    id TEXT PRIMARY KEY,
+    cron_job_id TEXT NOT NULL REFERENCES cron_jobs(id) ON DELETE CASCADE,
+    triggered_at TEXT NOT NULL,
+    started_at TEXT,
+    completed_at TEXT,
+    status TEXT DEFAULT 'pending',
+    output TEXT,
+    error TEXT,
+    agent_run_id TEXT,
+    pipeline_execution_id TEXT,
+    created_at TEXT NOT NULL
+);
+CREATE INDEX idx_cron_runs_job ON cron_runs(cron_job_id);
+CREATE INDEX idx_cron_runs_triggered ON cron_runs(triggered_at);
+CREATE INDEX idx_cron_runs_status ON cron_runs(status);
+
 CREATE TABLE pipeline_executions (
     id TEXT PRIMARY KEY,
     pipeline_name TEXT NOT NULL,
@@ -646,6 +715,51 @@ CREATE TABLE step_executions (
 );
 CREATE INDEX idx_step_executions_execution ON step_executions(execution_id);
 CREATE INDEX idx_step_executions_approval_token ON step_executions(approval_token);
+
+CREATE TABLE agent_definitions (
+    id TEXT PRIMARY KEY,
+    project_id TEXT REFERENCES projects(id) ON DELETE CASCADE,
+    name TEXT NOT NULL,
+    description TEXT,
+    role TEXT,
+    goal TEXT,
+    personality TEXT,
+    instructions TEXT,
+    provider TEXT NOT NULL DEFAULT 'claude',
+    model TEXT,
+    mode TEXT NOT NULL DEFAULT 'headless',
+    terminal TEXT DEFAULT 'auto',
+    isolation TEXT,
+    base_branch TEXT DEFAULT 'main',
+    timeout REAL DEFAULT 120.0,
+    max_turns INTEGER DEFAULT 10,
+    default_workflow TEXT,
+    sandbox_config TEXT,
+    skill_profile TEXT,
+    workflows TEXT,
+    lifecycle_variables TEXT,
+    default_variables TEXT,
+    enabled INTEGER NOT NULL DEFAULT 1,
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE UNIQUE INDEX idx_agent_defs_project_name
+    ON agent_definitions(project_id, name) WHERE project_id IS NOT NULL;
+CREATE UNIQUE INDEX idx_agent_defs_global_name
+    ON agent_definitions(name) WHERE project_id IS NULL;
+CREATE INDEX idx_agent_defs_project ON agent_definitions(project_id);
+CREATE INDEX idx_agent_defs_provider ON agent_definitions(provider);
+
+CREATE TABLE secrets (
+    id TEXT PRIMARY KEY,
+    name TEXT NOT NULL UNIQUE,
+    encrypted_value TEXT NOT NULL,
+    category TEXT DEFAULT 'general',
+    description TEXT,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+);
+CREATE INDEX idx_secrets_category ON secrets(category);
 """
 
 # Future migrations (v61+)
@@ -756,6 +870,51 @@ def _migrate_add_skill_injection_columns(db: LocalDatabase) -> None:
     logger.info("Added always_apply and injection_format columns to skills table")
 
 
+def _migrate_add_deleted_at_to_projects(db: LocalDatabase) -> None:
+    """Add deleted_at column to projects table (idempotent).
+
+    SQLite doesn't support ADD COLUMN IF NOT EXISTS, so we check
+    the column list first.
+    """
+    columns = db.fetchall("PRAGMA table_info(projects)")
+    if any(col["name"] == "deleted_at" for col in columns):
+        logger.debug("projects.deleted_at column already exists, skipping")
+        return
+    with db.transaction() as conn:
+        conn.execute("ALTER TABLE projects ADD COLUMN deleted_at TEXT")
+    logger.info("Added deleted_at column to projects table")
+
+
+def _migrate_add_title_task_id_to_artifacts(db: LocalDatabase) -> None:
+    """Add title and task_id columns to session_artifacts (idempotent)."""
+    # Check existing columns to avoid duplicate column errors
+    columns = {row["name"] for row in db.fetchall("PRAGMA table_info(session_artifacts)")}
+    with db.transaction() as conn:
+        if "title" not in columns:
+            conn.execute("ALTER TABLE session_artifacts ADD COLUMN title TEXT")
+        if "task_id" not in columns:
+            conn.execute("ALTER TABLE session_artifacts ADD COLUMN task_id TEXT")
+        conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_session_artifacts_task ON session_artifacts(task_id)"
+        )
+    logger.info("Added title and task_id columns to session_artifacts")
+
+
+def _migrate_agent_definition_prompt_fields(db: LocalDatabase) -> None:
+    """Add role, goal, personality, instructions columns to agent_definitions (idempotent)."""
+    columns = {row["name"] for row in db.fetchall("PRAGMA table_info(agent_definitions)")}
+    with db.transaction() as conn:
+        if "role" not in columns:
+            conn.execute("ALTER TABLE agent_definitions ADD COLUMN role TEXT")
+        if "goal" not in columns:
+            conn.execute("ALTER TABLE agent_definitions ADD COLUMN goal TEXT")
+        if "personality" not in columns:
+            conn.execute("ALTER TABLE agent_definitions ADD COLUMN personality TEXT")
+        if "instructions" not in columns:
+            conn.execute("ALTER TABLE agent_definitions ADD COLUMN instructions TEXT")
+    logger.info("Added role, goal, personality, instructions columns to agent_definitions")
+
+
 MIGRATIONS: list[tuple[int, str, MigrationAction]] = [
     # Project-scoped session refs: Change seq_num index from global to project-scoped
     (76, "Make sessions.seq_num project-scoped", _migrate_session_seq_num_project_scoped),
@@ -818,6 +977,210 @@ MIGRATIONS: list[tuple[int, str, MigrationAction]] = [
         82,
         "Rename task status 'review' to 'needs_review'",
         "UPDATE tasks SET status = 'needs_review' WHERE status = 'review'",
+    ),
+    # Soft-delete support: Add deleted_at column to projects
+    (
+        83,
+        "Add deleted_at column to projects",
+        _migrate_add_deleted_at_to_projects,
+    ),
+    # Add _personal system project
+    (
+        84,
+        "Add _personal system project",
+        """INSERT OR IGNORE INTO projects (id, name, repo_path, created_at, updated_at)
+        VALUES ('00000000-0000-0000-0000-000000060887', '_personal', NULL, datetime('now'), datetime('now'))""",
+    ),
+    # Memory V4: Add memory_embeddings table for semantic search
+    (
+        85,
+        "Add memory_embeddings table",
+        """
+        CREATE TABLE IF NOT EXISTS memory_embeddings (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            memory_id TEXT NOT NULL REFERENCES memories(id) ON DELETE CASCADE,
+            project_id TEXT REFERENCES projects(id) ON DELETE CASCADE,
+            embedding BLOB NOT NULL,
+            embedding_model TEXT NOT NULL,
+            embedding_dim INTEGER NOT NULL,
+            text_hash TEXT NOT NULL,
+            created_at TEXT NOT NULL DEFAULT (datetime('now')),
+            updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+            UNIQUE(memory_id)
+        );
+        CREATE INDEX IF NOT EXISTS idx_memory_embeddings_memory ON memory_embeddings(memory_id);
+        CREATE INDEX IF NOT EXISTS idx_memory_embeddings_hash ON memory_embeddings(text_hash);
+        CREATE INDEX IF NOT EXISTS idx_memory_embeddings_project ON memory_embeddings(project_id);
+        """,
+    ),
+    # Memory V4: Add mem0_id column for Mem0 dual-mode sync
+    (
+        86,
+        "Add mem0_id to memories",
+        """
+        ALTER TABLE memories ADD COLUMN mem0_id TEXT;
+        CREATE INDEX IF NOT EXISTS idx_memories_mem0_id ON memories(mem0_id);
+        """,
+    ),
+    # Artifacts V2: Add title and task_id columns to session_artifacts
+    (
+        87,
+        "Add title and task_id to session_artifacts",
+        _migrate_add_title_task_id_to_artifacts,
+    ),
+    # Artifacts V2: Add artifact_tags junction table
+    (
+        88,
+        "Add artifact_tags table",
+        """
+        CREATE TABLE IF NOT EXISTS artifact_tags (
+            artifact_id TEXT NOT NULL REFERENCES session_artifacts(id) ON DELETE CASCADE,
+            tag TEXT NOT NULL,
+            created_at TEXT NOT NULL DEFAULT (datetime('now')),
+            PRIMARY KEY (artifact_id, tag)
+        );
+        CREATE INDEX IF NOT EXISTS idx_artifact_tags_tag ON artifact_tags(tag);
+        """,
+    ),
+    # Cron scheduler: Add cron_jobs and cron_runs tables
+    (
+        89,
+        "Add cron scheduler tables",
+        """
+        CREATE TABLE IF NOT EXISTS cron_jobs (
+            id TEXT PRIMARY KEY,
+            project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+            name TEXT NOT NULL,
+            description TEXT,
+            schedule_type TEXT NOT NULL,
+            cron_expr TEXT,
+            interval_seconds INTEGER,
+            run_at TEXT,
+            timezone TEXT DEFAULT 'UTC',
+            action_type TEXT NOT NULL,
+            action_config TEXT NOT NULL,
+            enabled INTEGER DEFAULT 1,
+            next_run_at TEXT,
+            last_run_at TEXT,
+            last_status TEXT,
+            consecutive_failures INTEGER DEFAULT 0,
+            created_at TEXT NOT NULL,
+            updated_at TEXT NOT NULL
+        );
+        CREATE INDEX IF NOT EXISTS idx_cron_jobs_project ON cron_jobs(project_id);
+        CREATE INDEX IF NOT EXISTS idx_cron_jobs_enabled ON cron_jobs(enabled);
+        CREATE INDEX IF NOT EXISTS idx_cron_jobs_next_run ON cron_jobs(next_run_at);
+        CREATE INDEX IF NOT EXISTS idx_cron_jobs_due ON cron_jobs(project_id, enabled, next_run_at);
+
+        CREATE TABLE IF NOT EXISTS cron_runs (
+            id TEXT PRIMARY KEY,
+            cron_job_id TEXT NOT NULL REFERENCES cron_jobs(id) ON DELETE CASCADE,
+            triggered_at TEXT NOT NULL,
+            started_at TEXT,
+            completed_at TEXT,
+            status TEXT DEFAULT 'pending',
+            output TEXT,
+            error TEXT,
+            agent_run_id TEXT,
+            pipeline_execution_id TEXT,
+            created_at TEXT NOT NULL
+        );
+        CREATE INDEX IF NOT EXISTS idx_cron_runs_job ON cron_runs(cron_job_id);
+        CREATE INDEX IF NOT EXISTS idx_cron_runs_triggered ON cron_runs(triggered_at);
+        CREATE INDEX IF NOT EXISTS idx_cron_runs_status ON cron_runs(status);
+        """,
+    ),
+    # Task comments: Add task_comments table for threaded comments
+    (
+        90,
+        "Add task_comments table",
+        """
+        CREATE TABLE IF NOT EXISTS task_comments (
+            id TEXT PRIMARY KEY,
+            task_id TEXT NOT NULL REFERENCES tasks(id) ON DELETE CASCADE,
+            parent_comment_id TEXT REFERENCES task_comments(id) ON DELETE CASCADE,
+            author TEXT NOT NULL,
+            author_type TEXT NOT NULL DEFAULT 'session',
+            body TEXT NOT NULL,
+            created_at TEXT NOT NULL DEFAULT (datetime('now')),
+            updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+        );
+        CREATE INDEX IF NOT EXISTS idx_task_comments_task ON task_comments(task_id);
+        CREATE INDEX IF NOT EXISTS idx_task_comments_parent ON task_comments(parent_comment_id);
+        CREATE INDEX IF NOT EXISTS idx_task_comments_created ON task_comments(task_id, created_at);
+        """,
+    ),
+    # Task status cleanup: Remove 'failed' and 'needs_decomposition' statuses
+    (
+        91,
+        "Migrate failed → escalated and needs_decomposition → open",
+        """
+        UPDATE tasks SET status = 'escalated',
+            escalated_at = COALESCE(escalated_at, updated_at),
+            escalation_reason = COALESCE(escalation_reason, 'migrated_from_failed')
+        WHERE status = 'failed';
+
+        UPDATE tasks SET status = 'open' WHERE status = 'needs_decomposition';
+        """,
+    ),
+    # Agent definitions: Store agent configuration in database
+    (
+        92,
+        "Add agent_definitions table",
+        """
+        CREATE TABLE IF NOT EXISTS agent_definitions (
+            id TEXT PRIMARY KEY,
+            project_id TEXT REFERENCES projects(id) ON DELETE CASCADE,
+            name TEXT NOT NULL,
+            description TEXT,
+            provider TEXT NOT NULL DEFAULT 'claude',
+            model TEXT,
+            mode TEXT NOT NULL DEFAULT 'headless',
+            terminal TEXT DEFAULT 'auto',
+            isolation TEXT,
+            base_branch TEXT DEFAULT 'main',
+            timeout REAL DEFAULT 120.0,
+            max_turns INTEGER DEFAULT 10,
+            default_workflow TEXT,
+            sandbox_config TEXT,
+            skill_profile TEXT,
+            workflows TEXT,
+            lifecycle_variables TEXT,
+            default_variables TEXT,
+            enabled INTEGER NOT NULL DEFAULT 1,
+            created_at TEXT NOT NULL DEFAULT (datetime('now')),
+            updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+        );
+        CREATE UNIQUE INDEX IF NOT EXISTS idx_agent_defs_project_name
+            ON agent_definitions(project_id, name) WHERE project_id IS NOT NULL;
+        CREATE UNIQUE INDEX IF NOT EXISTS idx_agent_defs_global_name
+            ON agent_definitions(name) WHERE project_id IS NULL;
+        CREATE INDEX IF NOT EXISTS idx_agent_defs_project ON agent_definitions(project_id);
+        CREATE INDEX IF NOT EXISTS idx_agent_defs_provider ON agent_definitions(provider);
+        """,
+    ),
+    # Secrets store: Encrypted API keys and sensitive values
+    (
+        93,
+        "Add secrets table",
+        """
+        CREATE TABLE IF NOT EXISTS secrets (
+            id TEXT PRIMARY KEY,
+            name TEXT NOT NULL UNIQUE,
+            encrypted_value TEXT NOT NULL,
+            category TEXT DEFAULT 'general',
+            description TEXT,
+            created_at TEXT NOT NULL,
+            updated_at TEXT NOT NULL
+        );
+        CREATE INDEX IF NOT EXISTS idx_secrets_category ON secrets(category);
+        """,
+    ),
+    # Agent definition prompt fields: role, goal, personality, instructions
+    (
+        94,
+        "Add role, goal, personality, instructions columns to agent_definitions",
+        _migrate_agent_definition_prompt_fields,
     ),
 ]
 

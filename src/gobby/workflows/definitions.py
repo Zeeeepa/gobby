@@ -81,6 +81,8 @@ class WorkflowDefinition(BaseModel):
         """Accept numeric versions (1.0, 2) and coerce to string."""
         return str(v) if v is not None else "1.0"
 
+    sources: list[str] | None = None  # Session sources this workflow applies to (None = all)
+
     settings: dict[str, Any] = Field(default_factory=dict)
     variables: dict[str, Any] = Field(default_factory=dict)
 
@@ -151,7 +153,7 @@ class PipelineStep(BaseModel):
     # Execution types (mutually exclusive - exactly one required)
     exec: str | None = None  # Shell command to run
     prompt: str | None = None  # LLM prompt template
-    invoke_pipeline: str | None = None  # Name of pipeline to invoke
+    invoke_pipeline: str | dict[str, Any] | None = None  # Name of pipeline to invoke
     mcp: MCPStepConfig | None = None  # Call MCP tool directly
 
     # Optional fields

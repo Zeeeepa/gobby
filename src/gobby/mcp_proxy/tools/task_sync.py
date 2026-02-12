@@ -33,22 +33,13 @@ def get_current_project_id() -> str | None:
     return context.get("id") if context else None
 
 
-class SyncToolRegistry(InternalToolRegistry):
-    """Registry for sync tools with test-friendly get_tool method."""
-
-    def get_tool(self, name: str) -> Callable[..., Any] | None:
-        """Get a tool function by name (for testing)."""
-        tool = self._tools.get(name)
-        return tool.func if tool else None
-
-
 def create_sync_registry(
     sync_manager: "TaskSyncManager | None" = None,
     task_manager: "LocalTaskManager | None" = None,
     project_manager: "LocalProjectManager | None" = None,
     auto_link_commits_fn: Callable[..., Any] | None = None,
     get_task_diff_fn: Callable[..., Any] | None = None,
-) -> SyncToolRegistry:
+) -> InternalToolRegistry:
     """
     Create a registry with task sync and commit linking tools.
 
@@ -60,12 +51,12 @@ def create_sync_registry(
         get_task_diff_fn: Function for getting task diff (injectable for testing)
 
     Returns:
-        SyncToolRegistry with sync tools registered
+        InternalToolRegistry with sync tools registered
     """
     # Lazy import to avoid circular dependency
     from gobby.mcp_proxy.tools.tasks import resolve_task_id_for_mcp
 
-    registry = SyncToolRegistry(
+    registry = InternalToolRegistry(
         name="gobby-tasks-sync",
         description="Task synchronization and commit linking tools",
     )
@@ -77,7 +68,7 @@ def create_sync_registry(
 
     # --- sync_tasks ---
 
-    def sync_tasks(direction: str = "both") -> dict[str, Any]:
+    def sync_tasks(direction: str = "both", project: str | None = None) -> dict[str, Any]:
         """Manually trigger task synchronization."""
         valid_directions = ("import", "export", "both")
         if direction not in valid_directions:
@@ -85,16 +76,19 @@ def create_sync_registry(
                 "error": f"Invalid direction '{direction}'. Must be one of: {', '.join(valid_directions)}"
             }
 
+        try:
+            from gobby.mcp_proxy.tools.tasks._context import resolve_project_filter_standalone
+
+            project_id = resolve_project_filter_standalone(project, False, task_manager.db)
+        except ValueError as e:
+            return {"error": str(e)}
+
         result = {}
         if direction in ["import", "both"]:
-            # Get current project ID for context-aware sync
-            project_id = get_current_project_id()
             sync_manager.import_from_jsonl(project_id=project_id)
             result["import"] = "completed"
 
         if direction in ["export", "both"]:
-            # Get current project ID for context-aware sync
-            project_id = get_current_project_id()
             sync_manager.export_to_jsonl(project_id=project_id)
             result["export"] = "completed"
 
@@ -110,6 +104,10 @@ def create_sync_registry(
                     "type": "string",
                     "description": '"import", "export", or "both"',
                     "default": "both",
+                },
+                "project": {
+                    "type": "string",
+                    "description": "Project name or UUID to scope sync",
                 },
             },
         },

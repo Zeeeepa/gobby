@@ -18,6 +18,7 @@ interface ParsedCommand {
 // Local commands that execute client-side actions (no MCP round-trip)
 const LOCAL_COMMANDS: Array<{ name: string; description: string; action: string }> = [
   { name: 'settings', description: 'Open settings panel', action: 'open_settings' },
+  { name: 'clear', description: 'Clear chat history', action: 'clear_history' },
 ]
 
 // Built-in aliases: /shortcut -> server.tool
@@ -40,11 +41,7 @@ export function useSlashCommands() {
 
     const fetchTools = async () => {
       try {
-        // Derive HTTP base URL same way as WebSocket
-        const isSecure = window.location.protocol === 'https:'
-        const baseUrl = isSecure
-          ? `${window.location.origin}`
-          : `http://${window.location.hostname}:60887`
+        const baseUrl = ''
 
         const resp = await fetch(`${baseUrl}/mcp/tools`)
         if (!resp.ok) return

@@ -141,6 +141,25 @@ def set_variable(
                 "error": f"Failed to resolve session_task value '{value}': {e}",
             }
 
+    # Coerce string representations of booleans/null/numbers to native types.
+    # MCP schema collapses union types (str|int|float|bool|None) to "string",
+    # so agents send "true"/"false" as strings. Without coercion, "false" is
+    # truthy and breaks workflow gate conditions like pending_memory_review.
+    if isinstance(value, str):
+        stripped = value.strip().lower()
+        if stripped in ("true", "false"):
+            value = stripped == "true"
+        elif stripped in ("null", "none"):
+            value = None
+        else:
+            try:
+                value = int(value)
+            except ValueError:
+                try:
+                    value = float(value)
+                except ValueError:
+                    pass  # Keep as string
+
     # Set the variable
     state.variables[name] = value
     state_manager.save_state(state)

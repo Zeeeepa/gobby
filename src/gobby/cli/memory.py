@@ -98,7 +98,7 @@ def delete(ctx: click.Context, memory_ref: str) -> None:
     """Delete a memory by ID (UUID or prefix)."""
     manager = get_memory_manager(ctx)
     memory_id = resolve_memory_id(manager, memory_ref)
-    success = manager.forget(memory_id)
+    success = asyncio.run(manager.forget(memory_id))
     if success:
         click.echo(f"Deleted memory: {memory_id}")
     else:
@@ -343,7 +343,7 @@ def dedupe_memories(ctx: click.Context, dry_run: bool) -> None:
         # Delete duplicates
         deleted = 0
         for memory_id in duplicates_to_delete:
-            if manager.forget(memory_id):
+            if asyncio.run(manager.forget(memory_id)):
                 deleted += 1
 
         click.echo(f"Deleted {deleted} duplicate memories.")
@@ -465,6 +465,30 @@ def backup_memories(ctx: click.Context, output_path: str | None) -> None:
         click.echo(f"Backed up {count} memories to {export_path}")
     else:
         click.echo("No memories to backup.")
+
+
+@memory.command("reindex-embeddings")
+@click.pass_context
+def reindex_embeddings(ctx: click.Context) -> None:
+    """Regenerate embeddings for all memories.
+
+    Generates embedding vectors for all stored memories using the configured
+    embedding model. Useful after changing models or for initial setup.
+
+    Examples:
+
+        gobby memory reindex-embeddings
+    """
+    manager = get_memory_manager(ctx)
+    click.echo("Reindexing memory embeddings...")
+    result = asyncio.run(manager.reindex_embeddings())
+
+    if result["success"]:
+        total = result.get("total_memories", 0)
+        generated = result.get("embeddings_generated", 0)
+        click.echo(f"Reindexed {generated}/{total} memory embeddings.")
+    else:
+        click.echo(f"Error: {result.get('error', 'Unknown error')}")
 
 
 def resolve_memory_id(manager: MemoryManager, memory_ref: str) -> str:

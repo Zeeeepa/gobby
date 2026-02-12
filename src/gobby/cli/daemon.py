@@ -2,6 +2,7 @@
 Daemon management commands.
 """
 
+import asyncio
 import logging
 import os
 import subprocess  # nosec B404 - subprocess needed for daemon management
@@ -32,6 +33,46 @@ from .utils import (
 )
 
 logger = logging.getLogger(__name__)
+
+
+def _mem0_start(gobby_home: Path) -> None:
+    """Start mem0 Docker containers if installed."""
+    compose_file = gobby_home / "services" / "mem0" / "docker-compose.yml"
+    if not compose_file.exists():
+        return
+    try:
+        result = subprocess.run(  # nosec B603 B607 - hardcoded docker command
+            ["docker", "compose", "-f", str(compose_file), "up", "-d"],
+            capture_output=True,
+            text=True,
+            timeout=120,
+        )
+        if result.returncode != 0:
+            logger.warning(f"Failed to start mem0 containers: {result.stderr or result.stdout}")
+    except subprocess.TimeoutExpired:
+        logger.warning("Timed out starting mem0 containers")
+    except Exception as e:
+        logger.warning(f"Failed to start mem0 containers: {e}")
+
+
+def _mem0_stop(gobby_home: Path) -> None:
+    """Stop mem0 Docker containers if installed."""
+    compose_file = gobby_home / "services" / "mem0" / "docker-compose.yml"
+    if not compose_file.exists():
+        return
+    try:
+        result = subprocess.run(  # nosec B603 B607 - hardcoded docker command
+            ["docker", "compose", "-f", str(compose_file), "down"],
+            capture_output=True,
+            text=True,
+            timeout=60,
+        )
+        if result.returncode != 0:
+            logger.warning(f"Failed to stop mem0 containers: {result.stderr or result.stdout}")
+    except subprocess.TimeoutExpired:
+        logger.warning("Timed out stopping mem0 containers")
+    except Exception as e:
+        logger.warning(f"Failed to stop mem0 containers: {e}")
 
 
 def spawn_watchdog(daemon_port: int, verbose: bool, log_file: Path) -> int | None:
@@ -88,8 +129,16 @@ def spawn_watchdog(daemon_port: int, verbose: bool, log_file: Path) -> int | Non
     is_flag=True,
     help="Disable auto-starting the web UI",
 )
+@click.option(
+    "--mem0",
+    "mem0_flag",
+    is_flag=True,
+    help="Also start mem0 Docker containers",
+)
 @click.pass_context
-def start(ctx: click.Context, verbose: bool, no_watchdog: bool, no_ui: bool) -> None:
+def start(
+    ctx: click.Context, verbose: bool, no_watchdog: bool, no_ui: bool, mem0_flag: bool
+) -> None:
     """Start the Gobby daemon."""
     # Get config object
     config = ctx.obj["config"]
@@ -107,6 +156,11 @@ def start(ctx: click.Context, verbose: bool, no_watchdog: bool, no_ui: bool) -> 
     # Initialize local storage before starting daemon
     click.echo("Initializing local storage...")
     init_local_storage()
+
+    # Start mem0 containers if requested
+    if mem0_flag:
+        click.echo("Starting mem0 containers...")
+        _mem0_start(gobby_dir)
 
     # Check if already running
     if pid_file.exists():
@@ -277,10 +331,22 @@ def start(ctx: click.Context, verbose: bool, no_watchdog: bool, no_ui: bool) -> 
 
 
 @click.command()
+@click.option(
+    "--mem0",
+    "mem0_flag",
+    is_flag=True,
+    help="Also stop mem0 Docker containers",
+)
 @click.pass_context
-def stop(ctx: click.Context) -> None:
+def stop(ctx: click.Context, mem0_flag: bool) -> None:
     """Stop the Gobby daemon."""
     success = stop_daemon_util(quiet=False)
+
+    # Stop mem0 containers if requested
+    if mem0_flag:
+        click.echo("Stopping mem0 containers...")
+        _mem0_stop(get_gobby_home())
+
     sys.exit(0 if success else 1)
 
 
@@ -301,12 +367,25 @@ def stop(ctx: click.Context) -> None:
     is_flag=True,
     help="Disable auto-starting the web UI",
 )
+@click.option(
+    "--mem0",
+    "mem0_flag",
+    is_flag=True,
+    help="Also restart mem0 Docker containers",
+)
 @click.pass_context
-def restart(ctx: click.Context, verbose: bool, no_watchdog: bool, no_ui: bool) -> None:
+def restart(
+    ctx: click.Context, verbose: bool, no_watchdog: bool, no_ui: bool, mem0_flag: bool
+) -> None:
     """Restart the Gobby daemon (stop then start)."""
     setup_logging(verbose)
 
     click.echo("Restarting Gobby daemon...")
+
+    # Stop mem0 containers if requested (before daemon stop)
+    if mem0_flag:
+        click.echo("Stopping mem0 containers...")
+        _mem0_stop(get_gobby_home())
 
     # Stop daemon using helper function (doesn't call sys.exit)
     if not stop_daemon_util(quiet=False):
@@ -316,8 +395,8 @@ def restart(ctx: click.Context, verbose: bool, no_watchdog: bool, no_ui: bool) -
     # Wait for cleanup and port release (TIME_WAIT state)
     time.sleep(3)
 
-    # Call start command
-    ctx.invoke(start, verbose=verbose, no_watchdog=no_watchdog, no_ui=no_ui)
+    # Call start command (with mem0 flag forwarded)
+    ctx.invoke(start, verbose=verbose, no_watchdog=no_watchdog, no_ui=no_ui, mem0_flag=mem0_flag)
 
 
 @click.command()
@@ -396,6 +475,15 @@ def status(ctx: click.Context) -> None:
         elif ui_mode == "production":
             ui_url = f"http://localhost:{http_port}/"
 
+    # Check mem0 status
+    from gobby.cli.services import get_mem0_status
+
+    mem0_status = asyncio.run(
+        get_mem0_status(
+            mem0_url=getattr(config.memory, "mem0_url", None),
+        )
+    )
+
     # Build status kwargs
     status_kwargs: dict[str, Any] = {
         "running": True,
@@ -410,6 +498,9 @@ def status(ctx: click.Context) -> None:
         "ui_mode": ui_mode,
         "ui_url": ui_url,
         "ui_pid": ui_pid,
+        "mem0_installed": mem0_status["installed"],
+        "mem0_healthy": mem0_status["healthy"],
+        "mem0_url": mem0_status["url"],
     }
 
     # Fetch rich status from daemon API

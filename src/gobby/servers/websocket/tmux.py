@@ -58,7 +58,7 @@ class TmuxMixin:
         from gobby.agents.pty_reader import get_pty_reader_manager
 
         reader = get_pty_reader_manager()
-        for streaming_id in list(self._tmux_bridge.list_bridges().keys()):
+        for streaming_id in list((await self._tmux_bridge.list_bridges()).keys()):
             await reader.stop_reader(streaming_id)
             await self._tmux_bridge.detach(streaming_id)
         self._tmux_client_bridges.clear()
@@ -118,7 +118,8 @@ class TmuxMixin:
 
                     # Check if a bridge is active for this session
                     attached_bridge = None
-                    for sid, bridge in self._tmux_bridge.list_bridges().items():
+                    bridges = await self._tmux_bridge.list_bridges()
+                    for sid, bridge in bridges.items():
                         if (
                             bridge.session_name == s.name
                             and bridge.socket_name == mgr.config.socket_name
@@ -324,7 +325,8 @@ class TmuxMixin:
         reader = get_pty_reader_manager()
         mgr = self._get_tmux_manager(socket)
 
-        for sid, bridge in list(self._tmux_bridge.list_bridges().items()):
+        bridges = await self._tmux_bridge.list_bridges()
+        for sid, bridge in list(bridges.items()):
             if bridge.session_name == session_name and bridge.socket_name == mgr.config.socket_name:
                 await reader.stop_reader(sid)
                 await self._tmux_bridge.detach(sid)

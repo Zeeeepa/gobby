@@ -32,6 +32,8 @@ class Artifact:
     source_file: str | None = None
     line_start: int | None = None
     line_end: int | None = None
+    title: str | None = None
+    task_id: str | None = None
 
     @classmethod
     def from_row(cls, row: sqlite3.Row) -> "Artifact":
@@ -49,6 +51,8 @@ class Artifact:
             source_file=row["source_file"],
             line_start=row["line_start"],
             line_end=row["line_end"],
+            title=row["title"] if "title" in row.keys() else None,
+            task_id=row["task_id"] if "task_id" in row.keys() else None,
         )
 
     def to_dict(self) -> dict[str, Any]:
@@ -63,6 +67,8 @@ class Artifact:
             "source_file": self.source_file,
             "line_start": self.line_start,
             "line_end": self.line_end,
+            "title": self.title,
+            "task_id": self.task_id,
         }
 
 
@@ -98,6 +104,8 @@ class LocalArtifactManager:
         source_file: str | None = None,
         line_start: int | None = None,
         line_end: int | None = None,
+        title: str | None = None,
+        task_id: str | None = None,
     ) -> Artifact:
         """Create a new artifact.
 
@@ -109,6 +117,8 @@ class LocalArtifactManager:
             source_file: Optional source file path
             line_start: Optional starting line number
             line_end: Optional ending line number
+            title: Optional human-readable title
+            task_id: Optional task ID to link this artifact to
 
         Returns:
             The created Artifact
@@ -123,8 +133,8 @@ class LocalArtifactManager:
                 """
                 INSERT INTO session_artifacts (
                     id, session_id, artifact_type, content, metadata_json,
-                    source_file, line_start, line_end, created_at
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    source_file, line_start, line_end, title, task_id, created_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     artifact_id,
@@ -135,6 +145,8 @@ class LocalArtifactManager:
                     source_file,
                     line_start,
                     line_end,
+                    title,
+                    task_id,
                     now,
                 ),
             )
@@ -306,3 +318,114 @@ class LocalArtifactManager:
             row = self.db.fetchone("SELECT COUNT(*) FROM session_artifacts")
 
         return row[0] if row else 0
+
+    def add_tag(self, artifact_id: str, tag: str) -> bool:
+        """Add a tag to an artifact.
+
+        Args:
+            artifact_id: The artifact ID
+            tag: The tag to add
+
+        Returns:
+            True if tag was added (or already existed)
+        """
+        with self.db.transaction() as conn:
+            row = conn.execute(
+                "SELECT 1 FROM session_artifacts WHERE id = ?", (artifact_id,)
+            ).fetchone()
+            if not row:
+                return False
+            conn.execute(
+                "INSERT OR IGNORE INTO artifact_tags (artifact_id, tag) VALUES (?, ?)",
+                (artifact_id, tag),
+            )
+        return True
+
+    def remove_tag(self, artifact_id: str, tag: str) -> bool:
+        """Remove a tag from an artifact.
+
+        Args:
+            artifact_id: The artifact ID
+            tag: The tag to remove
+
+        Returns:
+            True if tag was removed, False if it didn't exist
+        """
+        with self.db.transaction() as conn:
+            cursor = conn.execute(
+                "DELETE FROM artifact_tags WHERE artifact_id = ? AND tag = ?",
+                (artifact_id, tag),
+            )
+            return cursor.rowcount > 0
+
+    def get_tags(self, artifact_id: str) -> list[str]:
+        """Get all tags for an artifact.
+
+        Args:
+            artifact_id: The artifact ID
+
+        Returns:
+            List of tag strings
+        """
+        rows = self.db.fetchall(
+            "SELECT tag FROM artifact_tags WHERE artifact_id = ? ORDER BY tag",
+            (artifact_id,),
+        )
+        return [row["tag"] for row in rows]
+
+    def list_by_task(
+        self,
+        task_id: str,
+        artifact_type: str | None = None,
+        limit: int = 100,
+    ) -> list[Artifact]:
+        """List artifacts linked to a task.
+
+        Args:
+            task_id: The task ID to filter by
+            artifact_type: Optional artifact type filter
+            limit: Maximum number of results
+
+        Returns:
+            List of matching Artifacts
+        """
+        query = "SELECT * FROM session_artifacts WHERE task_id = ?"
+        params: list[Any] = [task_id]
+
+        if artifact_type:
+            query += " AND artifact_type = ?"
+            params.append(artifact_type)
+
+        query += " ORDER BY created_at DESC LIMIT ?"
+        params.append(limit)
+
+        rows = self.db.fetchall(query, tuple(params))
+        return [Artifact.from_row(row) for row in rows]
+
+    def list_by_tag(
+        self,
+        tag: str,
+        limit: int = 100,
+        offset: int = 0,
+    ) -> list[Artifact]:
+        """List artifacts with a given tag.
+
+        Args:
+            tag: The tag to filter by
+            limit: Maximum number of results
+            offset: Offset for pagination
+
+        Returns:
+            List of matching Artifacts
+        """
+        rows = self.db.fetchall(
+            """
+            SELECT sa.* FROM session_artifacts sa
+            INNER JOIN artifact_tags at ON sa.id = at.artifact_id
+            WHERE at.tag = ?
+            ORDER BY sa.created_at DESC
+            LIMIT ? OFFSET ?
+            """,
+            (tag, limit, offset),
+        )
+        return [Artifact.from_row(row) for row in rows]

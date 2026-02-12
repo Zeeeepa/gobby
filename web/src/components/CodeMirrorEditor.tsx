@@ -11,6 +11,7 @@ import { json } from '@codemirror/lang-json'
 import { css } from '@codemirror/lang-css'
 import { html } from '@codemirror/lang-html'
 import { markdown } from '@codemirror/lang-markdown'
+import { yaml } from '@codemirror/lang-yaml'
 
 interface CodeMirrorEditorProps {
   content: string
@@ -41,6 +42,9 @@ function getLanguageExtension(lang: string) {
       return html()
     case 'markdown':
       return markdown()
+    case 'yaml':
+    case 'yml':
+      return yaml()
     default:
       return null
   }

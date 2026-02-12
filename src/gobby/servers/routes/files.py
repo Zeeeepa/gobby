@@ -4,13 +4,12 @@ File browser routes for Gobby HTTP server.
 Provides file tree browsing, reading, and image serving endpoints.
 """
 
+import asyncio
 import logging
 import mimetypes
-import subprocess  # nosec B404 — subprocess needed for git commands
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
-import asyncio
 from fastapi import APIRouter, HTTPException, Query
 from fastapi.responses import FileResponse
 from pydantic import BaseModel
@@ -108,7 +107,7 @@ async def _run_git(cwd: str, args: list[str], timeout: float = 10.0) -> tuple[in
         )
         try:
             stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=timeout)
-        except asyncio.TimeoutError:
+        except TimeoutError:
             try:
                 proc.kill()
             except ProcessLookupError:
@@ -116,7 +115,7 @@ async def _run_git(cwd: str, args: list[str], timeout: float = 10.0) -> tuple[in
             raise
 
         return proc.returncode or 0, stdout.decode("utf-8", errors="replace")
-    except (OSError, asyncio.TimeoutError):
+    except (TimeoutError, OSError):
         return 1, ""
 
 
@@ -177,9 +176,11 @@ def create_files_router(server: "HTTPServer") -> APIRouter:
     @router.get("/projects")
     async def list_projects() -> list[dict[str, Any]]:
         """List all registered projects."""
+        from gobby.storage.projects import PERSONAL_PROJECT_ID
+
         pm = _get_project_manager(server)
         projects = pm.list()
-        return [
+        result: list[dict[str, Any]] = [
             {
                 "id": p.id,
                 "name": p.name,
@@ -188,6 +189,10 @@ def create_files_router(server: "HTTPServer") -> APIRouter:
             for p in projects
             if p.repo_path and Path(p.repo_path).is_dir()
         ]
+        # Include Personal project so it appears in filter dropdowns
+        if not any(p["id"] == PERSONAL_PROJECT_ID for p in result):
+            result.insert(0, {"id": PERSONAL_PROJECT_ID, "name": "Personal", "repo_path": None})
+        return result
 
     @router.get("/tree")
     async def list_directory(
@@ -202,20 +207,21 @@ def create_files_router(server: "HTTPServer") -> APIRouter:
         pm = _get_project_manager(server)
         project = pm.get(project_id)
         if not project or not project.repo_path:
-            raise HTTPException(404, "Project not found")
+            raise HTTPException(404, f"Project not found: {project_id}")
 
-        target = _resolve_safe_path(project.repo_path, path)
+        repo_path: str = project.repo_path
+        target = _resolve_safe_path(repo_path, path)
         if not target.is_dir():
             raise HTTPException(400, "Path is not a directory")
 
         # Get git-tracked files for filtering
-        git_files = await _get_git_tracked_files(project.repo_path)
+        git_files = await _get_git_tracked_files(repo_path)
 
         def _scan_dir() -> list[dict[str, Any]]:
             entries: list[dict[str, Any]] = []
             try:
                 for child in sorted(target.iterdir(), key=lambda p: p.name.lower()):
-                    rel = str(child.relative_to(Path(project.repo_path).resolve()))
+                    rel = str(child.relative_to(Path(repo_path).resolve()))
                     is_dir = child.is_dir()
 
                     if not _is_path_visible(rel, git_files, is_dir):
@@ -297,6 +303,7 @@ def create_files_router(server: "HTTPServer") -> APIRouter:
             result["content"] = content
             result["truncated"] = truncated
         except OSError as e:
+            logger.error(f"Failed to read file: {e} (project_id={project_id})")
             raise HTTPException(500, f"Failed to read file: {e}") from e
 
         return result
@@ -407,7 +414,7 @@ def create_files_router(server: "HTTPServer") -> APIRouter:
                         files[file_path] = status_code
                 result["files"] = files
         except Exception:
-            pass
+            logger.debug("Failed to get git status", exc_info=True)
 
         return result
 

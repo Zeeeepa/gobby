@@ -32,6 +32,7 @@ from gobby.llm.claude_models import (
     MCPToolResult,
     TextChunk,
     ToolCall,
+    resolve_model_id,
 )
 
 # Type alias for auth mode
@@ -212,11 +213,17 @@ class ClaudeLLMProvider(LLMProvider):
     ) -> str:
         """
         Generate session summary using Claude.
+
+        Always tries SDK first (works with any auth_mode if CLI is available),
+        falls back to LiteLLM only if CLI is unavailable.
         """
-        if self._auth_mode == "subscription":
+        cli_path = self._verify_cli_path()
+        if cli_path:
             return await self._generate_summary_sdk(context, prompt_template)
-        else:
+        elif self._litellm:
             return await self._generate_summary_litellm(context, prompt_template)
+        else:
+            return "Session summary unavailable (no LLM backend configured)"
 
     async def _generate_summary_sdk(
         self, context: dict[str, Any], prompt_template: str | None = None
@@ -232,7 +239,7 @@ class ClaudeLLMProvider(LLMProvider):
         options = ClaudeAgentOptions(
             system_prompt="You are a session summary generator. Create comprehensive, actionable summaries.",
             max_turns=1,
-            model=self.config.session_summary.model,
+            model=resolve_model_id(self.config.session_summary.model),
             allowed_tools=[],
             permission_mode="default",
             cli_path=cli_path,
@@ -265,7 +272,7 @@ class ClaudeLLMProvider(LLMProvider):
 
         try:
             response = await self._litellm.acompletion(
-                model=f"anthropic/{self.config.session_summary.model}",
+                model=f"anthropic/{resolve_model_id(self.config.session_summary.model)}",
                 messages=[
                     {
                         "role": "system",
@@ -286,11 +293,16 @@ class ClaudeLLMProvider(LLMProvider):
     ) -> str | None:
         """
         Synthesize session title using Claude.
+
+        Always tries SDK first, falls back to LiteLLM only if CLI is unavailable.
         """
-        if self._auth_mode == "subscription":
+        cli_path = self._verify_cli_path()
+        if cli_path:
             return await self._synthesize_title_sdk(user_prompt, prompt_template)
-        else:
+        elif self._litellm:
             return await self._synthesize_title_litellm(user_prompt, prompt_template)
+        else:
+            return None
 
     async def _synthesize_title_sdk(
         self, user_prompt: str, prompt_template: str | None = None
@@ -395,11 +407,16 @@ class ClaudeLLMProvider(LLMProvider):
     ) -> str:
         """
         Generate text using Claude.
+
+        Always tries SDK first, falls back to LiteLLM only if CLI is unavailable.
         """
-        if self._auth_mode == "subscription":
+        cli_path = self._verify_cli_path()
+        if cli_path:
             return await self._generate_text_sdk(prompt, system_prompt, model)
-        else:
+        elif self._litellm:
             return await self._generate_text_litellm(prompt, system_prompt, model)
+        else:
+            return "Generation unavailable (no LLM backend configured)"
 
     async def _generate_text_sdk(
         self,
@@ -417,7 +434,7 @@ class ClaudeLLMProvider(LLMProvider):
         options = ClaudeAgentOptions(
             system_prompt=system_prompt or "You are a helpful assistant.",
             max_turns=1,
-            model=model or "claude-haiku-4-5",
+            model=resolve_model_id(model or "claude-haiku-4-5"),
             tools=[],  # Explicitly disable all tools
             allowed_tools=[],
             permission_mode="default",
@@ -469,7 +486,7 @@ class ClaudeLLMProvider(LLMProvider):
         if not self._litellm:
             return "Generation unavailable (LiteLLM not initialized)"
 
-        model = model or "claude-haiku-4-5"
+        model = resolve_model_id(model or "claude-haiku-4-5")
         litellm_model = f"anthropic/{model}"
 
         try:
@@ -581,7 +598,7 @@ class ClaudeLLMProvider(LLMProvider):
         options = ClaudeAgentOptions(
             system_prompt=system_prompt or "You are a helpful assistant with access to MCP tools.",
             max_turns=max_turns,
-            model=model or "claude-sonnet-4-5",
+            model=resolve_model_id(model or "claude-sonnet-4-5"),
             allowed_tools=allowed_tools,
             permission_mode="bypassPermissions",
             cli_path=cli_path,
@@ -778,7 +795,7 @@ class ClaudeLLMProvider(LLMProvider):
         options = ClaudeAgentOptions(
             system_prompt="You are a vision assistant that describes images in detail.",
             max_turns=1,
-            model="claude-haiku-4-5",
+            model=resolve_model_id("claude-haiku-4-5"),
             tools=[],
             allowed_tools=[],
             permission_mode="default",
@@ -845,7 +862,7 @@ class ClaudeLLMProvider(LLMProvider):
             # Route through LiteLLM with anthropic prefix
             # Use same model as SDK path for consistency
             response = await self._litellm.acompletion(
-                model="anthropic/claude-haiku-4-5",
+                model=f"anthropic/{resolve_model_id('claude-haiku-4-5')}",
                 messages=[
                     {
                         "role": "user",

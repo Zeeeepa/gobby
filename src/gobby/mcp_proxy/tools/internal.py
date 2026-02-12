@@ -287,6 +287,15 @@ class InternalToolRegistry:
             "inputSchema": tool.input_schema,
         }
 
+    def get_tool(self, name: str) -> Callable[..., Any] | None:
+        """Return tool function by name, or None if not found."""
+        tool = self._tools.get(name)
+        return tool.func if tool else None
+
+    def get_tool_metadata(self, name: str) -> InternalTool | None:
+        """Return full tool metadata (name, description, schema, func) by name."""
+        return self._tools.get(name)
+
     def __len__(self) -> int:
         """Return number of registered tools."""
         return len(self._tools)

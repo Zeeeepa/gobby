@@ -37,7 +37,26 @@ export function Sidebar({ items, activeItem, isOpen, onItemSelect, onClose }: Si
             </React.Fragment>
           ))}
         </div>
+        <div className="sidebar-footer">
+          <button
+            type="button"
+            className="sidebar-collapse-btn"
+            onClick={onClose}
+            aria-label="Collapse menu"
+          >
+            <CollapseIcon />
+          </button>
+        </div>
       </nav>
     </>
+  )
+}
+
+function CollapseIcon() {
+  return (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <polyline points="11 17 6 12 11 7" />
+      <polyline points="18 17 13 12 18 7" />
+    </svg>
   )
 }

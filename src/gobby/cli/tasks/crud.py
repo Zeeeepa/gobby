@@ -321,12 +321,14 @@ def task_stats(project_ref: str | None, json_format: bool) -> None:
 @click.option("--priority", "-p", type=int, default=2, help="Priority (1=High, 2=Med, 3=Low)")
 @click.option("--type", "-t", "task_type", default="task", help="Task type")
 @click.option("--depends-on", "-D", multiple=True, help="Task(s) this task depends on (#N, UUID)")
+@click.option("--project", "project_ref", help="Target project (name or UUID)")
 def create_task(
     title: str,
     description: str | None,
     priority: int,
     task_type: str,
     depends_on: tuple[str, ...],
+    project_ref: str | None,
 ) -> None:
     """Create a new task.
 
@@ -334,21 +336,25 @@ def create_task(
         gobby tasks create "Fix bug"
         gobby tasks create "Implement feature" --depends-on "#1"
         gobby tasks create "Final review" -D "#1" -D "#2"
+        gobby tasks create "Note" --project _personal
     """
-    project_ctx = get_project_context()
-    if not project_ctx or "id" not in project_ctx:
-        click.echo("Error: Not in a gobby project or project.json missing 'id'.", err=True)
-        return
+    from gobby.storage.projects import PERSONAL_PROJECT_ID
+
+    project_id = resolve_project_ref(project_ref)
+    if not project_id:
+        # No explicit project and no project context — use personal workspace
+        project_id = PERSONAL_PROJECT_ID
 
     manager = get_task_manager()
     task = manager.create_task(
-        project_id=project_ctx["id"],
+        project_id=project_id,
         title=title,
         description=description,
         priority=priority,
         task_type=task_type,
     )
     task_ref = f"#{task.seq_num}" if task.seq_num else task.id[:8]
+    project_ctx = get_project_context()
     project_name = project_ctx.get("name") if project_ctx else None
 
     if project_name and task.seq_num:

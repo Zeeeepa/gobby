@@ -172,7 +172,7 @@ class TestDryRunOrchestrateReadyTasks:
                 return_value=PROJECT_ID,
             ),
         ):
-            result = await tool.func(
+            result = await tool(
                 parent_task_id="PARENT",
                 parent_session_id=PARENT_SESSION,
                 max_concurrent=3,
@@ -234,7 +234,7 @@ class TestDryRunOrchestrateReadyTasks:
                 return_value=PROJECT_ID,
             ),
         ):
-            result = await tool.func(
+            result = await tool(
                 parent_task_id="PARENT",
                 parent_session_id=PARENT_SESSION,
                 max_concurrent=2,
@@ -278,7 +278,7 @@ class TestDryRunOrchestrateReadyTasks:
                 return_value=PROJECT_ID,
             ),
         ):
-            result = await tool.func(
+            result = await tool(
                 parent_task_id="PARENT",
                 parent_session_id=PARENT_SESSION,
                 coding_provider="claude",
@@ -313,7 +313,7 @@ class TestDryRunOrchestrateReadyTasks:
                 return_value=PROJECT_ID,
             ),
         ):
-            result = await tool.func(
+            result = await tool(
                 parent_task_id="PARENT",
                 parent_session_id=PARENT_SESSION,
                 dry_run=True,
@@ -351,7 +351,7 @@ class TestDryRunOrchestrateReadyTasks:
                 return_value=PROJECT_ID,
             ),
         ):
-            dry_result = await tool.func(
+            dry_result = await tool(
                 parent_task_id="PARENT",
                 parent_session_id=PARENT_SESSION,
                 dry_run=True,
@@ -399,7 +399,7 @@ class TestDryRunOrchestrateReadyTasks:
                 return_value=PROJECT_ID,
             ),
         ):
-            result = await tool.func(
+            result = await tool(
                 parent_task_id="PARENT",
                 parent_session_id=PARENT_SESSION,
                 dry_run=True,

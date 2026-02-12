@@ -10,7 +10,6 @@ Extracted from tasks.py using Strangler Fig pattern for code decomposition.
 """
 
 import logging
-from collections.abc import Callable
 from typing import TYPE_CHECKING, Any
 
 from gobby.mcp_proxy.tools.internal import InternalToolRegistry
@@ -194,18 +193,9 @@ def _compute_proximity_boost(
     return 0
 
 
-class ReadinessToolRegistry(InternalToolRegistry):
-    """Registry for readiness tools with test-friendly get_tool method."""
-
-    def get_tool(self, name: str) -> Callable[..., Any] | None:
-        """Get a tool function by name (for testing)."""
-        tool = self._tools.get(name)
-        return tool.func if tool else None
-
-
 def create_readiness_registry(
     task_manager: "LocalTaskManager | None" = None,
-) -> ReadinessToolRegistry:
+) -> InternalToolRegistry:
     """
     Create a registry with task readiness tools.
 
@@ -213,12 +203,12 @@ def create_readiness_registry(
         task_manager: LocalTaskManager instance (required)
 
     Returns:
-        ReadinessToolRegistry with readiness tools registered
+        InternalToolRegistry with readiness tools registered
     """
     # Lazy import to avoid circular dependency
     from gobby.mcp_proxy.tools.tasks import resolve_task_id_for_mcp
 
-    registry = ReadinessToolRegistry(
+    registry = InternalToolRegistry(
         name="gobby-tasks-readiness",
         description="Task readiness management tools",
     )
@@ -239,10 +229,15 @@ def create_readiness_registry(
         parent_task_id: str | None = None,
         limit: int = 10,
         all_projects: bool = False,
+        project: str | None = None,
     ) -> dict[str, Any]:
         """List tasks that are open and have no unresolved blocking dependencies."""
-        # Filter by current project unless all_projects is True
-        project_id = None if all_projects else get_current_project_id()
+        try:
+            from gobby.mcp_proxy.tools.tasks._context import resolve_project_filter_standalone
+
+            project_id = resolve_project_filter_standalone(project, all_projects, task_manager.db)
+        except ValueError as e:
+            return {"error": str(e), "tasks": [], "count": 0}
 
         # Resolve parent_task_id if it's a reference format
         if parent_task_id:
@@ -289,6 +284,11 @@ def create_readiness_registry(
                     "description": "If true, list tasks from all projects instead of just the current project",
                     "default": False,
                 },
+                "project": {
+                    "type": "string",
+                    "description": "Filter by project name or UUID (e.g., '_personal')",
+                    "default": None,
+                },
             },
         },
         func=list_ready_tasks,
@@ -300,10 +300,15 @@ def create_readiness_registry(
         parent_task_id: str | None = None,
         limit: int = 20,
         all_projects: bool = False,
+        project: str | None = None,
     ) -> dict[str, Any]:
         """List tasks that are currently blocked, including what blocks them."""
-        # Filter by current project unless all_projects is True
-        project_id = None if all_projects else get_current_project_id()
+        try:
+            from gobby.mcp_proxy.tools.tasks._context import resolve_project_filter_standalone
+
+            project_id = resolve_project_filter_standalone(project, all_projects, task_manager.db)
+        except ValueError as e:
+            return {"error": str(e), "tasks": [], "count": 0}
 
         # Resolve parent_task_id if it's a reference format
         if parent_task_id:
@@ -336,6 +341,11 @@ def create_readiness_registry(
                     "description": "If true, list tasks from all projects instead of just the current project",
                     "default": False,
                 },
+                "project": {
+                    "type": "string",
+                    "description": "Filter by project name or UUID (e.g., '_personal')",
+                    "default": None,
+                },
             },
         },
         func=list_blocked_tasks,
@@ -348,6 +358,7 @@ def create_readiness_registry(
         prefer_subtasks: bool = True,
         parent_task_id: str | None = None,
         session_id: str | None = None,
+        project: str | None = None,
     ) -> dict[str, Any]:
         """
         Suggest the best next task to work on.
@@ -369,12 +380,18 @@ def create_readiness_registry(
                        When provided and parent_task_id is not set, checks workflow state
                        for session_task variable and auto-scopes suggestions to that task's
                        hierarchy. Function signature is optional for TUI/internal callers.
+            project: Filter by project name or UUID (optional).
 
         Returns:
             Suggested task with reasoning
         """
-        # Filter by current project
-        project_id = get_current_project_id()
+        # Filter by project
+        try:
+            from gobby.mcp_proxy.tools.tasks._context import resolve_project_filter_standalone
+
+            project_id = resolve_project_filter_standalone(project, False, task_manager.db)
+        except ValueError as e:
+            return {"error": str(e), "suggestion": None}
 
         # Auto-scope to session_task if session_id is provided and parent_task_id is not set
         if session_id and not parent_task_id:
@@ -550,6 +567,11 @@ def create_readiness_registry(
                 "session_id": {
                     "type": "string",
                     "description": "Your session ID (from system context). When provided, auto-scopes suggestions based on workflow's session_task variable.",
+                },
+                "project": {
+                    "type": "string",
+                    "description": "Filter by project name or UUID (e.g., '_personal')",
+                    "default": None,
                 },
             },
         },

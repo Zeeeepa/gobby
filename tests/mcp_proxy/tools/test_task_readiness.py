@@ -815,6 +815,6 @@ class TestIsDescendantOf:
 @pytest.fixture
 def mock_readiness_registry():
     """Fixture providing mock dependencies for registry creation."""
-    with patch("gobby.mcp_proxy.tools.task_readiness.get_current_project_id") as mock_proj:
-        mock_proj.return_value = "test-project-id"
-        yield mock_proj
+    with patch("gobby.mcp_proxy.tools.tasks._context.get_project_context") as mock_ctx:
+        mock_ctx.return_value = {"id": "test-project-id"}
+        yield mock_ctx

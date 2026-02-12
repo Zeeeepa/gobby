@@ -72,21 +72,21 @@ gobby tasks sync
 ## Task Lifecycle
 
 ```text
-open → in_progress → review → closed
-   ↘                    ↓      ↘ failed (validation failures)
-    needs_decomposition ↑ open (when subtasks added)
+open → in_progress → needs_review → approved → closed
+                  ↘                            ↗
+                   escalated (human intervention needed)
 ```
 
 - **open**: Ready or blocked, not started
 - **in_progress**: Currently being worked on
-- **review**: Agent-complete, awaiting user sign-off (HITL)
+- **needs_review**: Agent-complete, awaiting human sign-off (HITL)
+- **approved**: Review gate passed, workflow handles the rest (merge, deploy, etc.)
 - **closed**: Completed with reason
-- **failed**: Exceeded validation retry limit
-- **needs_decomposition**: Multi-step task awaiting breakdown into subtasks
+- **escalated**: Needs human intervention (validation failures, blocked, etc.)
 
 ### Review Status (HITL)
 
-Tasks enter `review` status instead of `closed` when:
+Tasks enter `needs_review` status instead of `closed` when:
 - Task has `requires_user_review=true` (explicitly flagged for human approval)
 - Agent uses `override_justification` to bypass validation failures
 

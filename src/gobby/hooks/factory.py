@@ -42,9 +42,54 @@ if TYPE_CHECKING:
     import asyncio
     from collections.abc import Callable
 
+    from gobby.hooks.artifact_capture import ArtifactCaptureHook
     from gobby.llm.service import LLMService
+    from gobby.storage.artifacts import LocalArtifactManager
+    from gobby.workflows.actions import ActionExecutor
+    from gobby.workflows.engine import WorkflowEngine
+    from gobby.workflows.pipeline_executor import PipelineExecutor
+    from gobby.workflows.templates import TemplateEngine
 
 logger = logging.getLogger(__name__)
+
+
+@dataclass
+class _Storage:
+    """Container for storage managers."""
+
+    session: LocalSessionManager
+    session_task: SessionTaskManager
+    memory: LocalMemoryManager
+    message: LocalSessionMessageManager
+    task: LocalTaskManager
+    agent_run: LocalAgentRunManager
+    worktree: LocalWorktreeManager
+    artifact: LocalArtifactManager
+    artifact_capture_hook: ArtifactCaptureHook
+
+
+@dataclass
+class _Autonomous:
+    """Container for autonomous subsystem components."""
+
+    stop_registry: StopRegistry
+    progress_tracker: ProgressTracker
+    stuck_detector: StuckDetector
+
+
+@dataclass
+class _WorkflowComponents:
+    """Container for workflow engine components."""
+
+    loader: WorkflowLoader
+    state_manager: WorkflowStateManager
+    template_engine: TemplateEngine
+    skill_manager: HookSkillManager
+    pipeline_executor: PipelineExecutor | None
+    action_executor: ActionExecutor
+    engine: WorkflowEngine
+    handler: WorkflowHookHandler
+
 
 # Backward-compatible alias (moved from hook_manager.py)
 TranscriptProcessor = ClaudeTranscriptParser
@@ -155,7 +200,7 @@ class HookManagerFactory:
         storage = cls._create_storage(database)
 
         # Initialize autonomous components
-        autonomous = cls._create_autonomous(database, storage)
+        autonomous = cls._create_autonomous(database)
 
         # Initialize memory system
         mem_manager = cls._create_memory(database, config)
@@ -264,39 +309,36 @@ class HookManagerFactory:
         return LocalDatabase()
 
     @staticmethod
-    def _create_storage(database: LocalDatabase) -> Any:
-        # Using a simple namespace or dataclass to group storage items would be cleaner,
-        # but for now we'll just return a DotDict or similar to match the usage above.
-        # To avoid introducing new types here, i'll use a simple class.
-        class Storage:
-            pass
-
-        s = Storage()
-        s.session = LocalSessionManager(database)
-        s.session_task = SessionTaskManager(database)
-        s.memory = LocalMemoryManager(database)
-        s.message = LocalSessionMessageManager(database)
-        s.task = LocalTaskManager(database)
-        s.agent_run = LocalAgentRunManager(database)
-        s.worktree = LocalWorktreeManager(database)
-
+    def _create_storage(database: LocalDatabase) -> _Storage:
         from gobby.hooks.artifact_capture import ArtifactCaptureHook
         from gobby.storage.artifacts import LocalArtifactManager
 
-        s.artifact = LocalArtifactManager(database)
-        s.artifact_capture_hook = ArtifactCaptureHook(artifact_manager=s.artifact)
-        return s
+        session = LocalSessionManager(database)
+        session_task = SessionTaskManager(database)
+        artifact = LocalArtifactManager(database)
+        return _Storage(
+            session=session,
+            session_task=session_task,
+            memory=LocalMemoryManager(database),
+            message=LocalSessionMessageManager(database),
+            task=LocalTaskManager(database),
+            agent_run=LocalAgentRunManager(database),
+            worktree=LocalWorktreeManager(database),
+            artifact=artifact,
+            artifact_capture_hook=ArtifactCaptureHook(
+                artifact_manager=artifact,
+                session_task_manager=session_task,
+            ),
+        )
 
     @staticmethod
-    def _create_autonomous(database: LocalDatabase, storage: Any) -> Any:
-        class Autonomous:
-            pass
-
-        a = Autonomous()
-        a.stop_registry = StopRegistry(database)
-        a.progress_tracker = ProgressTracker(database)
-        a.stuck_detector = StuckDetector(database, progress_tracker=a.progress_tracker)
-        return a
+    def _create_autonomous(database: LocalDatabase) -> _Autonomous:
+        progress_tracker = ProgressTracker(database)
+        return _Autonomous(
+            stop_registry=StopRegistry(database),
+            progress_tracker=progress_tracker,
+            stuck_detector=StuckDetector(database, progress_tracker=progress_tracker),
+        )
 
     @staticmethod
     def _create_memory(database: LocalDatabase, config: Any | None) -> MemoryManager:
@@ -320,7 +362,7 @@ class HookManagerFactory:
 
     @staticmethod
     def _create_plugins(
-        config: Any | None, logger: logging.Logger, workflow: Any
+        config: Any | None, logger: logging.Logger, workflow: _WorkflowComponents
     ) -> PluginLoader | None:
         plugins_config = None
         if config and hasattr(config, "hook_extensions"):
@@ -348,51 +390,47 @@ class HookManagerFactory:
         llm_service: LLMService | None,
         transcript_processor: Any,
         memory_manager: MemoryManager,
-        storage: Any,
-        autonomous: Any,
+        storage: _Storage,
+        autonomous: _Autonomous,
         memory_sync_manager: Any | None,
         task_sync_manager: Any | None,
         tool_proxy_getter: Any | None,
         resolve_project_id: Callable[[str | None, str | None], str],
         broadcaster: Any | None,
-    ) -> Any:
+    ) -> _WorkflowComponents:
         from gobby.workflows.actions import ActionExecutor
         from gobby.workflows.engine import WorkflowEngine
         from gobby.workflows.templates import TemplateEngine
 
-        class WorkflowComponents:
-            pass
-
-        w = WorkflowComponents()
-        w.loader = WorkflowLoader(workflow_dirs=[Path.home() / ".gobby" / "workflows"])
-        w.state_manager = WorkflowStateManager(database)
-        w.template_engine = TemplateEngine()
-        w.skill_manager = HookSkillManager()
+        loader = WorkflowLoader(workflow_dirs=[Path.home() / ".gobby" / "workflows"])
+        state_manager = WorkflowStateManager(database)
+        template_engine = TemplateEngine()
+        skill_manager = HookSkillManager()
 
         websocket_server = None
         if broadcaster and hasattr(broadcaster, "websocket_server"):
             websocket_server = broadcaster.websocket_server
 
-        w.pipeline_executor = None
+        pipeline_executor = None
         try:
             from gobby.storage.pipelines import LocalPipelineExecutionManager
             from gobby.workflows.pipeline_executor import PipelineExecutor
 
             project_id = resolve_project_id(None, None)
             pipeline_mgr = LocalPipelineExecutionManager(database, project_id)
-            w.pipeline_executor = PipelineExecutor(
+            pipeline_executor = PipelineExecutor(
                 db=database,
                 execution_manager=pipeline_mgr,
                 llm_service=llm_service,
-                loader=w.loader,
+                loader=loader,
             )
         except Exception as e:
             logger.debug(f"Pipeline executor not available: {e}")
 
-        w.action_executor = ActionExecutor(
+        action_executor = ActionExecutor(
             db=database,
             session_manager=storage.session,
-            template_engine=w.template_engine,
+            template_engine=template_engine,
             llm_service=llm_service,
             transcript_processor=transcript_processor,
             config=config,
@@ -406,21 +444,21 @@ class HookManagerFactory:
             progress_tracker=autonomous.progress_tracker,
             stuck_detector=autonomous.stuck_detector,
             websocket_server=websocket_server,
-            skill_manager=w.skill_manager,
-            pipeline_executor=w.pipeline_executor,
-            workflow_loader=w.loader,
+            skill_manager=skill_manager,
+            pipeline_executor=pipeline_executor,
+            workflow_loader=loader,
         )
 
-        w.engine = WorkflowEngine(
-            loader=w.loader,
-            state_manager=w.state_manager,
-            action_executor=w.action_executor,
+        engine = WorkflowEngine(
+            loader=loader,
+            state_manager=state_manager,
+            action_executor=action_executor,
         )
 
-        if storage.task and w.engine.evaluator:
-            w.engine.evaluator.register_task_manager(storage.task)
-        if autonomous.stop_registry and w.engine.evaluator:
-            w.engine.evaluator.register_stop_registry(autonomous.stop_registry)
+        if storage.task and engine.evaluator:
+            engine.evaluator.register_task_manager(storage.task)
+        if autonomous.stop_registry and engine.evaluator:
+            engine.evaluator.register_stop_registry(autonomous.stop_registry)
 
         workflow_timeout = 0.0
         workflow_enabled = True
@@ -428,10 +466,24 @@ class HookManagerFactory:
             workflow_timeout = config.workflow.timeout
             workflow_enabled = config.workflow.enabled
 
-        w.handler = WorkflowHookHandler(
-            engine=w.engine,
-            loop=asyncio.get_running_loop() if asyncio.get_event_loop().is_running() else None,
+        try:
+            _loop = asyncio.get_running_loop()
+        except RuntimeError:
+            _loop = None
+
+        handler = WorkflowHookHandler(
+            engine=engine,
+            loop=_loop,
             timeout=workflow_timeout,
             enabled=workflow_enabled,
         )
-        return w
+        return _WorkflowComponents(
+            loader=loader,
+            state_manager=state_manager,
+            template_engine=template_engine,
+            skill_manager=skill_manager,
+            pipeline_executor=pipeline_executor,
+            action_executor=action_executor,
+            engine=engine,
+            handler=handler,
+        )

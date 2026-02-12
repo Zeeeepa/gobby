@@ -11,6 +11,7 @@ from gobby.mcp_proxy.tools.internal import InternalRegistryManager
 if TYPE_CHECKING:
     from gobby.agents.runner import AgentRunner
     from gobby.config.app import DaemonConfig
+    from gobby.hooks.hook_manager import HookManager
     from gobby.llm.service import LLMService
     from gobby.mcp_proxy.metrics import ToolMetricsManager
     from gobby.mcp_proxy.services.tool_proxy import ToolProxyService
@@ -59,6 +60,7 @@ def setup_internal_registries(
     pipeline_executor: PipelineExecutor | None = None,
     workflow_loader: WorkflowLoader | None = None,
     pipeline_execution_manager: LocalPipelineExecutionManager | None = None,
+    hook_manager_resolver: Callable[[], HookManager | None] | None = None,
 ) -> InternalRegistryManager:
     """
     Setup internal MCP registries (tasks, messages, memory, metrics, agents, worktrees).
@@ -87,6 +89,8 @@ def setup_internal_registries(
         pipeline_executor: Pipeline executor for running pipelines
         workflow_loader: Workflow loader for loading pipeline definitions
         pipeline_execution_manager: Pipeline execution manager for tracking executions
+        hook_manager_resolver: Lazy callable returning HookManager (or None).
+            Solves timing: registries init before HookManager is created in HTTP lifespan.
 
     Returns:
         InternalRegistryManager containing all registries
@@ -364,6 +368,32 @@ def setup_internal_registries(
         )
         manager.add_registry(pipelines_registry)
         logger.debug("Pipelines registry initialized")
+
+    # Initialize cron registry if database is available
+    if db is not None:
+        try:
+            from gobby.mcp_proxy.tools.cron import create_cron_registry
+            from gobby.storage.cron import CronJobStorage
+
+            cron_storage = CronJobStorage(db)
+            cron_registry = create_cron_registry(cron_storage=cron_storage)
+            manager.add_registry(cron_registry)
+            logger.debug("Cron registry initialized")
+        except (ImportError, RuntimeError, OSError) as e:
+            logger.debug(f"Cron registry not initialized: {e}")
+
+    # Initialize plugins registry if hook_manager_resolver is provided
+    if hook_manager_resolver is not None:
+        try:
+            from gobby.mcp_proxy.tools.plugins import create_plugins_registry
+
+            plugins_registry = create_plugins_registry(
+                hook_manager_resolver=hook_manager_resolver,
+            )
+            manager.add_registry(plugins_registry)
+            logger.debug("Plugins registry initialized")
+        except (ImportError, RuntimeError, OSError) as e:
+            logger.debug(f"Plugins registry not initialized: {e}")
 
     logger.info(f"Internal registries initialized: {len(manager)} registries")
     return manager

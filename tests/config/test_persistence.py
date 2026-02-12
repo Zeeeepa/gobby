@@ -53,7 +53,10 @@ class TestMemoryConfigDefaults:
         assert config.decay_enabled is True
         assert config.decay_rate == 0.05
         assert config.decay_floor == 0.1
-        assert config.search_backend == "tfidf"
+        assert config.search_backend == "auto"
+        assert config.embedding_model == "text-embedding-3-small"
+        assert config.embedding_weight == 0.6
+        assert config.tfidf_weight == 0.4
         assert config.access_debounce_seconds == 60
 
 
@@ -145,99 +148,12 @@ class TestMemoryConfigValidation:
 
 
 # =============================================================================
-# Mem0Config Tests
+# Backend Validator Tests
 # =============================================================================
 
 
-class TestMem0ConfigImport:
-    """Test that Mem0Config can be imported from the persistence module."""
-
-    def test_import_from_persistence_module(self) -> None:
-        """Test importing Mem0Config from config.persistence."""
-        from gobby.config.persistence import Mem0Config
-
-        assert Mem0Config is not None
-
-
-class TestMem0ConfigDefaults:
-    """Test Mem0Config default values."""
-
-    def test_default_instantiation(self) -> None:
-        """Test Mem0Config creates with all defaults (None values)."""
-        from gobby.config.persistence import Mem0Config
-
-        config = Mem0Config()
-        assert config.api_key is None
-        assert config.user_id is None
-        assert config.org_id is None
-
-
-class TestMem0ConfigCustom:
-    """Test Mem0Config with custom values."""
-
-    def test_with_api_key(self) -> None:
-        """Test setting API key."""
-        from gobby.config.persistence import Mem0Config
-
-        config = Mem0Config(api_key="test-api-key")
-        assert config.api_key == "test-api-key"
-
-    def test_with_user_id(self) -> None:
-        """Test setting user ID."""
-        from gobby.config.persistence import Mem0Config
-
-        config = Mem0Config(user_id="test-user")
-        assert config.user_id == "test-user"
-
-    def test_with_org_id(self) -> None:
-        """Test setting organization ID."""
-        from gobby.config.persistence import Mem0Config
-
-        config = Mem0Config(org_id="test-org")
-        assert config.org_id == "test-org"
-
-    def test_full_configuration(self) -> None:
-        """Test setting all configuration values."""
-        from gobby.config.persistence import Mem0Config
-
-        config = Mem0Config(
-            api_key="my-api-key",
-            user_id="my-user",
-            org_id="my-org",
-        )
-        assert config.api_key == "my-api-key"
-        assert config.user_id == "my-user"
-        assert config.org_id == "my-org"
-
-
-class TestMemoryConfigMem0Integration:
-    """Test MemoryConfig integration with Mem0Config."""
-
-    def test_default_mem0_config(self) -> None:
-        """Test that MemoryConfig has default Mem0Config."""
-        from gobby.config.persistence import MemoryConfig
-
-        config = MemoryConfig()
-        assert config.mem0 is not None
-        assert config.mem0.api_key is None
-
-    def test_mem0_backend_selection(self) -> None:
-        """Test selecting mem0 backend."""
-        from gobby.config.persistence import Mem0Config, MemoryConfig
-
-        config = MemoryConfig(
-            backend="mem0",
-            mem0=Mem0Config(api_key="test-key"),
-        )
-        assert config.backend == "mem0"
-        assert config.mem0.api_key == "test-key"
-
-    def test_backend_validator_accepts_mem0(self) -> None:
-        """Test that 'mem0' is a valid backend option."""
-        from gobby.config.persistence import MemoryConfig
-
-        config = MemoryConfig(backend="mem0")
-        assert config.backend == "mem0"
+class TestMemoryConfigBackendValidator:
+    """Test MemoryConfig backend validation."""
 
     def test_backend_validator_rejects_invalid(self) -> None:
         """Test that invalid backends are rejected."""
@@ -247,134 +163,12 @@ class TestMemoryConfigMem0Integration:
             MemoryConfig(backend="invalid_backend")
         assert "invalid_backend" in str(exc_info.value).lower()
 
-
-# =============================================================================
-# OpenMemoryConfig Tests
-# =============================================================================
-
-
-class TestOpenMemoryConfigImport:
-    """Test that OpenMemoryConfig can be imported from the persistence module."""
-
-    def test_import_from_persistence_module(self) -> None:
-        """Test importing OpenMemoryConfig from config.persistence."""
-        from gobby.config.persistence import OpenMemoryConfig
-
-        assert OpenMemoryConfig is not None
-
-
-class TestOpenMemoryConfigDefaults:
-    """Test OpenMemoryConfig default values."""
-
-    def test_default_instantiation(self) -> None:
-        """Test OpenMemoryConfig creates with all defaults."""
-        from gobby.config.persistence import OpenMemoryConfig
-
-        config = OpenMemoryConfig()
-        assert config.base_url == "http://localhost:8080"
-        assert config.api_key is None
-        assert config.user_id is None
-
-
-class TestOpenMemoryConfigCustom:
-    """Test OpenMemoryConfig with custom values."""
-
-    def test_with_base_url(self) -> None:
-        """Test setting custom base URL."""
-        from gobby.config.persistence import OpenMemoryConfig
-
-        config = OpenMemoryConfig(base_url="http://memory.example.com:9000")
-        assert config.base_url == "http://memory.example.com:9000"
-
-    def test_with_https_url(self) -> None:
-        """Test setting HTTPS URL."""
-        from gobby.config.persistence import OpenMemoryConfig
-
-        config = OpenMemoryConfig(base_url="https://memory.example.com")
-        assert config.base_url == "https://memory.example.com"
-
-    def test_with_api_key(self) -> None:
-        """Test setting API key."""
-        from gobby.config.persistence import OpenMemoryConfig
-
-        config = OpenMemoryConfig(api_key="test-api-key")
-        assert config.api_key == "test-api-key"
-
-    def test_with_user_id(self) -> None:
-        """Test setting user ID."""
-        from gobby.config.persistence import OpenMemoryConfig
-
-        config = OpenMemoryConfig(user_id="test-user")
-        assert config.user_id == "test-user"
-
-    def test_full_configuration(self) -> None:
-        """Test setting all configuration values."""
-        from gobby.config.persistence import OpenMemoryConfig
-
-        config = OpenMemoryConfig(
-            base_url="https://memory.example.com:8443",
-            api_key="my-api-key",
-            user_id="my-user",
-        )
-        assert config.base_url == "https://memory.example.com:8443"
-        assert config.api_key == "my-api-key"
-        assert config.user_id == "my-user"
-
-
-class TestOpenMemoryConfigValidation:
-    """Test OpenMemoryConfig validation."""
-
-    def test_url_trailing_slash_stripped(self) -> None:
-        """Test that trailing slash is stripped from base_url."""
-        from gobby.config.persistence import OpenMemoryConfig
-
-        config = OpenMemoryConfig(base_url="http://localhost:8080/")
-        assert config.base_url == "http://localhost:8080"
-
-    def test_invalid_url_rejected(self) -> None:
-        """Test that invalid URLs are rejected."""
-        from gobby.config.persistence import OpenMemoryConfig
-
-        with pytest.raises(ValidationError) as exc_info:
-            OpenMemoryConfig(base_url="not-a-url")
-        assert "http://" in str(exc_info.value) or "https://" in str(exc_info.value)
-
-    def test_ftp_url_rejected(self) -> None:
-        """Test that non-HTTP URLs are rejected."""
-        from gobby.config.persistence import OpenMemoryConfig
-
-        with pytest.raises(ValidationError):
-            OpenMemoryConfig(base_url="ftp://memory.example.com")
-
-
-class TestMemoryConfigOpenMemoryIntegration:
-    """Test MemoryConfig integration with OpenMemoryConfig."""
-
-    def test_default_openmemory_config(self) -> None:
-        """Test that MemoryConfig has default OpenMemoryConfig."""
+    def test_backend_sqlite_alias(self) -> None:
+        """Test that 'sqlite' is accepted as alias for 'local'."""
         from gobby.config.persistence import MemoryConfig
 
-        config = MemoryConfig()
-        assert config.openmemory is not None
-        assert config.openmemory.base_url == "http://localhost:8080"
-
-    def test_openmemory_backend_selection(self) -> None:
-        """Test selecting openmemory backend."""
-        from gobby.config.persistence import MemoryConfig, OpenMemoryConfig
-
-        config = MemoryConfig(
-            backend="openmemory",
-            openmemory=OpenMemoryConfig(base_url="https://memory.myserver.com"),
-        )
-        assert config.backend == "openmemory"
-        assert config.openmemory.base_url == "https://memory.myserver.com"
-
-    def test_backend_validator_accepts_openmemory(self) -> None:
-        """Test that 'openmemory' is a valid backend option."""
-        from gobby.config.persistence import MemoryConfig
-
-        config = MemoryConfig(backend="openmemory")
-        assert config.backend == "openmemory"
+        config = MemoryConfig(backend="sqlite")
+        assert config.backend == "local"
 
 
 # =============================================================================
@@ -446,24 +240,133 @@ class TestMemorySyncConfigValidation:
 # =============================================================================
 
 
-class TestMemoryConfigFromAppPy:
-    """Verify that tests pass when importing from app.py (reference implementation)."""
+# =============================================================================
+# MemoryConfig: Expanded search_backend options (Memory V4)
+# =============================================================================
 
-    def test_import_from_app_py(self) -> None:
-        """Test importing MemoryConfig from app.py works (baseline)."""
+
+class TestMemoryConfigSearchBackendOptions:
+    """Test expanded search_backend options for semantic search."""
+
+    @pytest.mark.parametrize("backend", ["tfidf", "text", "embedding", "auto", "hybrid"])
+    def test_valid_search_backends(self, backend: str) -> None:
+        """Test that all valid search_backend values are accepted."""
+        from gobby.config.persistence import MemoryConfig
+
+        config = MemoryConfig(search_backend=backend)
+        assert config.search_backend == backend
+
+    def test_invalid_search_backend_rejected(self) -> None:
+        """Test that invalid search_backend values are rejected."""
+        from gobby.config.persistence import MemoryConfig
+
+        with pytest.raises(ValidationError) as exc_info:
+            MemoryConfig(search_backend="invalid")
+        assert "invalid" in str(exc_info.value).lower()
+
+    def test_default_search_backend_is_auto(self) -> None:
+        """Test that the default search_backend is 'auto'."""
         from gobby.config.persistence import MemoryConfig
 
         config = MemoryConfig()
-        assert config.enabled is True
+        assert config.search_backend == "auto"
 
 
-class TestMemorySyncConfigFromAppPy:
-    """Verify MemorySyncConfig tests pass when importing from app.py."""
+class TestMemoryConfigEmbeddingFields:
+    """Test new embedding configuration fields."""
 
-    def test_import_from_persistence_module(self) -> None:
-        """Test importing MemorySyncConfig from persistence module works."""
-        from gobby.config.persistence import MemorySyncConfig
+    def test_embedding_model_default(self) -> None:
+        """Test default embedding_model value."""
+        from gobby.config.persistence import MemoryConfig
 
-        config = MemorySyncConfig()
-        assert config.enabled is True
-        assert config.export_debounce == 5.0
+        config = MemoryConfig()
+        assert config.embedding_model == "text-embedding-3-small"
+
+    def test_embedding_model_custom(self) -> None:
+        """Test setting a custom embedding model."""
+        from gobby.config.persistence import MemoryConfig
+
+        config = MemoryConfig(embedding_model="text-embedding-3-large")
+        assert config.embedding_model == "text-embedding-3-large"
+
+    def test_embedding_weight_default(self) -> None:
+        """Test default embedding_weight value."""
+        from gobby.config.persistence import MemoryConfig
+
+        config = MemoryConfig()
+        assert config.embedding_weight == 0.6
+
+    def test_tfidf_weight_default(self) -> None:
+        """Test default tfidf_weight value."""
+        from gobby.config.persistence import MemoryConfig
+
+        config = MemoryConfig()
+        assert config.tfidf_weight == 0.4
+
+    def test_custom_weights(self) -> None:
+        """Test setting custom search weights."""
+        from gobby.config.persistence import MemoryConfig
+
+        config = MemoryConfig(embedding_weight=0.8, tfidf_weight=0.2)
+        assert config.embedding_weight == 0.8
+        assert config.tfidf_weight == 0.2
+
+    def test_weight_validation_range(self) -> None:
+        """Test that weights must be between 0 and 1."""
+        from gobby.config.persistence import MemoryConfig
+
+        with pytest.raises(ValidationError):
+            MemoryConfig(embedding_weight=1.5)
+
+        with pytest.raises(ValidationError):
+            MemoryConfig(tfidf_weight=-0.1)
+
+
+class TestMemoryConfigMem0Fields:
+    """Test mem0_url and mem0_api_key fields on MemoryConfig."""
+
+    def test_mem0_url_defaults_to_none(self) -> None:
+        """mem0_url should default to None (standalone mode)."""
+        from gobby.config.persistence import MemoryConfig
+
+        config = MemoryConfig()
+        assert config.mem0_url is None
+
+    def test_mem0_api_key_defaults_to_none(self) -> None:
+        """mem0_api_key should default to None."""
+        from gobby.config.persistence import MemoryConfig
+
+        config = MemoryConfig()
+        assert config.mem0_api_key is None
+
+    def test_mem0_url_accepts_valid_url(self) -> None:
+        """Setting mem0_url to a valid URL should work."""
+        from gobby.config.persistence import MemoryConfig
+
+        config = MemoryConfig(mem0_url="http://localhost:8888")
+        assert config.mem0_url == "http://localhost:8888"
+
+    def test_mem0_api_key_stores_env_var_pattern(self) -> None:
+        """mem0_api_key should store ${ENV_VAR} as-is (expansion at load time)."""
+        from gobby.config.persistence import MemoryConfig
+
+        config = MemoryConfig(mem0_api_key="${MEM0_API_KEY}")
+        assert config.mem0_api_key == "${MEM0_API_KEY}"
+
+    def test_none_mem0_url_means_standalone(self) -> None:
+        """When mem0_url is None, the system operates in standalone mode."""
+        from gobby.config.persistence import MemoryConfig
+
+        config = MemoryConfig(mem0_url=None)
+        assert config.mem0_url is None
+
+    def test_mem0_url_with_api_key(self) -> None:
+        """Both mem0_url and mem0_api_key can be set together."""
+        from gobby.config.persistence import MemoryConfig
+
+        config = MemoryConfig(
+            mem0_url="https://api.mem0.ai",
+            mem0_api_key="sk-test-key",
+        )
+        assert config.mem0_url == "https://api.mem0.ai"
+        assert config.mem0_api_key == "sk-test-key"

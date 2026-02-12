@@ -16,6 +16,7 @@ import yaml
 from pydantic import BaseModel, Field, field_validator
 
 # Internal imports for DaemonConfig fields - NOT re-exported
+from gobby.config.cron import CronConfig
 from gobby.config.extensions import HookExtensionsConfig
 from gobby.config.features import (
     ImportMCPServerConfig,
@@ -41,6 +42,7 @@ from gobby.config.sessions import (
 from gobby.config.skills import SkillsConfig
 from gobby.config.tasks import CompactHandoffConfig, GobbyTasksConfig, WorkflowConfig
 from gobby.config.tmux import TmuxConfig
+from gobby.config.voice import VoiceConfig
 from gobby.config.watchdog import WatchdogConfig
 
 
@@ -307,6 +309,14 @@ class DaemonConfig(BaseModel):
         default_factory=TmuxConfig,
         description="Tmux agent spawning configuration",
     )
+    cron: CronConfig = Field(
+        default_factory=CronConfig,
+        description="Cron scheduler configuration",
+    )
+    voice: VoiceConfig = Field(
+        default_factory=VoiceConfig,
+        description="Voice chat configuration (STT + TTS)",
+    )
 
     def get_recommend_tools_config(self) -> RecommendToolsConfig:
         """Get recommend_tools configuration."""
@@ -550,8 +560,14 @@ def save_config(config: DaemonConfig, config_file: str | None = None) -> None:
 
     Raises:
         OSError: If file operations fail
+        RuntimeError: If called with default path during tests (GOBBY_TEST_PROTECT=1)
     """
     if config_file is None:
+        if os.environ.get("GOBBY_TEST_PROTECT") == "1":
+            raise RuntimeError(
+                "save_config() called with default path during tests. "
+                "Pass an explicit config_file path or mock save_config."
+            )
         config_file = "~/.gobby/config.yaml"
 
     config_path = Path(config_file).expanduser()

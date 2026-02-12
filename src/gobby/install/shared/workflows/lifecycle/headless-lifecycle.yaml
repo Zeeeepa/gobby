@@ -1,0 +1,311 @@
+name: headless-lifecycle
+description: "Lifecycle for headless/SDK clients without session_start/session_end hooks"
+type: lifecycle
+sources: [claude_sdk]
+
+settings:
+  priority: 10
+
+# Session-scoped variables (mirrors session-lifecycle)
+variables:
+  # First-run guard — set to true after init actions run
+  _session_initialized: false
+
+  # Debug: echo additionalContext to system_message for terminal visibility
+  debug_echo_context: true
+
+  # Task enforcement - require active task before file modifications
+  require_task_before_edit: true
+
+  # Task lifecycle policies
+  require_commit_before_close: true
+  clear_task_on_close: true
+
+  # Require uv for python/pip commands
+  require_uv: true
+
+  # Progressive tool discovery
+  enforce_tool_schema_check: true
+  unlocked_tools: []
+  servers_listed: false
+  listed_servers: []
+
+  # Pre-existing error triage
+  pre_existing_errors_triaged: false
+
+  # Stop attempt counter for escape hatch
+  stop_attempts: 0
+  max_stop_attempts: 3
+
+triggers:
+  on_before_agent:
+    # --- First-run init (replaces on_session_start) ---
+    - action: set_variable
+      when: "not variables.get('_session_initialized')"
+      name: plan_mode
+      value: false
+
+    - action: capture_baseline_dirty_files
+      when: "not variables.get('_session_initialized')"
+
+    - action: memory_sync_import
+      when: "not variables.get('_session_initialized')"
+
+    - action: memory_inject_project_context
+      when: "not variables.get('_session_initialized')"
+      limit: 10
+      min_importance: 0.7
+
+    - action: task_sync_import
+      when: "not variables.get('_session_initialized')"
+
+    - action: inject_context
+      when: "not variables.get('_session_initialized')"
+      source: skills
+      filter: context_aware
+      template: |
+        {{ skills_list }}
+
+    - action: inject_context
+      when: "not variables.get('_session_initialized')"
+      source: task_context
+      template: |
+        {{ task_context }}
+
+    - action: inject_context
+      when: "not variables.get('_session_initialized')"
+      template: |
+        ## Pre-Existing Error/Warning/Failure Policy
+
+        If you encounter ANY pre-existing issues during your work — errors,
+        warnings, or failures (test failures, lint errors/warnings, type errors,
+        build failures, deprecation warnings) unrelated to your changes — you
+        MUST create a gobby task for each distinct issue before stopping.
+
+        After triaging all issues (or confirming none were found), call
+        set_variable on gobby-workflows:
+        set_variable(name="pre_existing_errors_triaged", value=true, session_id="<session_id>")
+
+    # Mark initialization complete (must be last init action)
+    - action: set_variable
+      when: "not variables.get('_session_initialized')"
+      name: _session_initialized
+      value: true
+
+    # --- Per-turn resets (run every prompt, same as session-lifecycle) ---
+    - action: set_variable
+      name: stop_attempts
+      value: 0
+
+    - action: set_variable
+      name: _tool_block_pending
+      value: false
+
+    - action: set_variable
+      name: pre_existing_errors_triaged
+      value: false
+
+    - action: detect_plan_mode_from_context
+
+    - action: synthesize_title
+      when: "session.title == None"
+
+    - action: memory_recall_relevant
+      limit: 5
+      min_importance: 0.7
+
+    # Memory capture nudge - remind agent to save user preferences/facts
+    - action: inject_context
+      when: "len((event.data.get('prompt') or '').strip()) >= 10 and not (event.data.get('prompt') or '').strip().startswith('/')"
+      template: |
+        If the user just told you something worth remembering across sessions
+        (a preference, fact, convention, or instruction), save it with
+        create_memory on gobby-memory. If not, carry on.
+
+  on_before_tool:
+    - action: block_tools
+      rules:
+        # Block CC native task tools — use gobby-tasks MCP tools instead
+        - tools: [TaskCreate, TaskUpdate, TaskGet, TaskList]
+          reason: |
+            CC native task tools are disabled. Use gobby-tasks MCP tools instead:
+            - create_task(title, description, session_id, claim=True) - Create and auto-claim new task.
+            - claim_task(task_id, session_id) - Claim existing unclaimed task.
+            - list_ready_tasks() - List available tasks.
+
+        # Block file edits without active task
+        - tools: [Edit, Write, NotebookEdit]
+          when: "not task_claimed and not plan_mode and not is_plan_file(tool_input.get('file_path', ''), source)"
+          reason: |
+            You must create or claim a task before editing files. This is required. DO NOT stop or ask the user - just create/claim a task and then retry your edit.
+            - create_task(title, description, session_id, claim=True) - Create and auto-claim new task.
+            - claim_task(task_id, session_id) - Claim existing unclaimed task.
+
+        # Block list_tools without prior list_mcp_servers
+        - tools: ["mcp__gobby__list_tools"]
+          when: "variables.get('enforce_tool_schema_check') and not variables.get('servers_listed')"
+          reason: |
+            Call list_mcp_servers() first to discover available servers, then retry list_tools.
+
+        # Block get_tool_schema without prior list_tools for that server
+        - tools: ["mcp__gobby__get_tool_schema"]
+          when: "variables.get('enforce_tool_schema_check') and not is_server_listed(tool_input)"
+          reason: |
+            Call list_tools(server_name="{{ tool_input.get('server_name', '') }}") first, then retry get_tool_schema.
+
+        # Block call_tool if schema wasn't fetched first
+        - tools: ["mcp__gobby__call_tool"]
+          when: "variables.get('enforce_tool_schema_check') and tool_input.get('arguments') and not is_discovery_tool(tool_input.get('tool_name')) and not is_tool_unlocked(tool_input)"
+          reason: |
+            Schema required before calling call_tool("{{ tool_input.get('server_name', '') }}", "{{ tool_input.get('tool_name') }}"). DO NOT stop or ask the user. Just call get_tool_schema("{{ tool_input.get('server_name', '') }}", "{{ tool_input.get('tool_name') }}") now, then retry your call_tool immediately after.
+
+        # Block close_task without a linked commit
+        - mcp_tools: ["gobby-tasks:close_task"]
+          when: "variables.get('require_commit_before_close') and not task_has_commits and not tool_input.get('commit_sha') and tool_input.get('reason') not in ['already_implemented', 'obsolete', 'duplicate', 'wont_fix', 'out_of_repo']"
+          reason: |
+            A commit is required before closing this task.
+
+            **Normal flow:**
+            1. Commit your changes: git commit -m "[{{ project.name }}-#N] description"
+            2. Close with commit_sha: close_task(task_id="#N", commit_sha="<sha>")
+
+            **Edge cases (no work done):**
+            - Task was already done: reason="already_implemented"
+            - Task is no longer needed: reason="obsolete"
+            - Task duplicates another: reason="duplicate"
+            - Decided not to do it: reason="wont_fix"
+            - Changes outside repo (e.g., ~/.gobby/config.yaml): reason="out_of_repo"
+
+        # Block skip_validation when a commit is attached
+        - mcp_tools: ["gobby-tasks:close_task"]
+          when: "tool_input.get('skip_validation') and (task_has_commits or tool_input.get('commit_sha'))"
+          reason: |
+            skip_validation is not allowed when a commit is attached. If work was done, validation must run. Close the task without skip_validation.
+
+        # Block AskUserQuestion when stop hook has fired
+        - tools: [AskUserQuestion]
+          when: "variables.get('stop_attempts', 0) > 0 and task_claimed"
+          reason: |
+            Do not ask — act on the hook directive. The stop hook told you what to do:
+            1. Commit your changes: git commit -m "[{{ project.name }}-#N] description"
+            2. Close the task: close_task(task_id="#N", commit_sha="<sha>")
+            3. Then stop.
+
+        # Block naked python/pip commands
+        - tools: [Bash]
+          command_pattern: "(?:^|&&|\\|\\||[;&|])\\s*(?:sudo\\s+)?(?:python(?:3(?:\\.\\d+)?)?|pip3?)\\b"
+          command_not_pattern: "(?:^|&&|\\|\\||[;&|])\\s*(?:sudo\\s+)?uv\\s+"
+          when: "variables.get('require_uv')"
+          reason: |
+            Do not run python or pip directly. Use `uv` to ensure the correct virtual environment:
+            - `uv run python3 script.py` instead of `python3 script.py`
+            - `uv run python -m module` instead of `python -m module`
+            - `uv pip install pkg` or `uv add pkg` instead of `pip install pkg`
+            Rewrite your command with `uv` and retry.
+
+  on_after_tool:
+    # Detect plan mode entry/exit
+    - action: set_variable
+      name: plan_mode
+      value: true
+      when: "event.data.get('tool_name') == 'EnterPlanMode'"
+    - action: set_variable
+      name: plan_mode
+      value: false
+      when: "event.data.get('tool_name') == 'ExitPlanMode'"
+
+    # Reset stop attempts counter on successful native tool use
+    # Skip for MCP tool calls — those are often the agent complying with a
+    # stop-gate directive (e.g., set_variable to clear a gate). Resetting the
+    # counter on MCP calls prevents the 3-strike escape hatch from triggering.
+    # The on_before_agent handler resets stop_attempts on each new user prompt.
+    - action: set_variable
+      name: stop_attempts
+      value: 0
+      when: "not event.data.get('mcp_tool')"
+
+    # Clear tool block flag on successful tool use
+    - action: set_variable
+      name: _tool_block_pending
+      value: false
+
+    # Track successful get_tool_schema calls to unlock tools for call_tool
+    - action: track_schema_lookup
+
+    # Track list_mcp_servers and list_tools for progressive disclosure gates
+    - action: track_discovery_step
+
+    # Track significant work for memory review nudge on stop
+    - action: set_variable
+      when: "event.data.get('tool_name') in ['Edit', 'Write', 'NotebookEdit'] or event.data.get('mcp_tool') == 'close_task'"
+      name: pending_memory_review
+      value: true
+
+    # Suggest memory extraction after closing a task with a commit
+    - action: inject_context
+      when: "event.data.get('mcp_tool') == 'close_task' and ((event.data.get('tool_input') or {}).get('arguments') or {}).get('commit_sha')"
+      template: |
+        Consider saving any valuable memories from this task before stopping.
+        Use `create_memory` (via gobby-memory MCP) for insights worth preserving.
+        If nothing new was learned, no action needed.
+
+  on_pre_compact:
+    # Reset progressive disclosure directly (no pending_context_reset dance
+    # since headless clients don't have session_start to consume the flag)
+    - action: set_variable
+      name: unlocked_tools
+      value: []
+    - action: set_variable
+      name: servers_listed
+      value: false
+    - action: set_variable
+      name: listed_servers
+      value: []
+    - action: reset_memory_injection_tracking
+
+    # Extract handoff context for compact continuation
+    - action: extract_handoff_context
+
+    # Daemon-side memory extraction — capture before context loss
+    - action: memory_extract_from_session
+      min_importance: 0.7
+      max_memories: 5
+
+    # Sync to JSONL for Git persistence
+    - action: memory_sync_export
+    - action: task_sync_export
+
+    # Generate LLM summary with cumulative compression
+    - action: generate_handoff
+      mode: compact
+      prompt: handoff/compact
+      write_file: true
+
+  on_stop:
+    # Increment stop attempts counter
+    - action: increment_variable
+      name: stop_attempts
+
+    # Block stop when a tool was just blocked
+    - action: block_stop
+      when: "variables.get('_tool_block_pending') and variables.get('stop_attempts', 0) < variables.get('max_stop_attempts', 3)"
+      reason: |
+        Do not stop. A tool was blocked — follow the instructions in the error message to resolve it, then continue working.
+
+    # Pre-existing error triage enforcement
+    - action: block_stop
+      when: "task_has_commits and not variables.get('pre_existing_errors_triaged') and variables.get('stop_attempts', 0) < variables.get('max_stop_attempts', 3)"
+      reason: |
+        You must triage pre-existing issues before stopping.
+        - If you found errors, warnings, or failures unrelated to your changes, create a task for each one.
+        - If you found no pre-existing issues, confirm by calling
+          set_variable on gobby-workflows:
+          set_variable(name="pre_existing_errors_triaged", value=true, session_id="<session_id>")
+
+    # Memory review nudge — only when significant work done since last review
+    - action: memory_review_gate
+      when: "variables.get('pending_memory_review') and (variables.get('stop_attempts', 0) or 0) < 3"
+
+    # Task closure enforcement
+    - action: require_task_review_or_close_before_stop
+      when: "not variables.get('plan_mode') and variables.get('stop_attempts', 0) < variables.get('max_stop_attempts', 3)"

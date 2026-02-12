@@ -2,6 +2,10 @@
 name: nit
 description: "Quickly create a nitpick/minor cleanup task. Usage: /nit <title> [description]"
 category: core
+metadata:
+  gobby:
+    audience: interactive
+    depth: 0
 ---
 
 # /nit - Create Nitpick Task

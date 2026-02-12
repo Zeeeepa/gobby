@@ -279,18 +279,18 @@ class TestHTTPServerInit:
 
 
 class TestResolveProjectId:
-    """Tests for _resolve_project_id method."""
+    """Tests for resolve_project_id method."""
 
     def test_resolve_with_explicit_project_id(self, basic_http_server: HTTPServer) -> None:
         """Test that explicit project_id is returned directly."""
-        result = basic_http_server._resolve_project_id("explicit-id", None)
+        result = basic_http_server.resolve_project_id("explicit-id", None)
         assert result == "explicit-id"
 
     def test_resolve_from_cwd(
         self, basic_http_server: HTTPServer, temp_dir: Path, test_project: dict[str, Any]
     ) -> None:
         """Test resolving project_id from cwd."""
-        result = basic_http_server._resolve_project_id(None, str(temp_dir))
+        result = basic_http_server.resolve_project_id(None, str(temp_dir))
         assert result == test_project["id"]
 
     def test_resolve_no_project_json_raises(
@@ -305,7 +305,7 @@ class TestResolveProjectId:
         # (find_project_root searches up the tree and might find project.json in parents)
         with patch("gobby.utils.project_context.get_project_context", return_value=None):
             with pytest.raises(ValueError) as exc_info:
-                basic_http_server._resolve_project_id(None, str(no_project_dir))
+                basic_http_server.resolve_project_id(None, str(no_project_dir))
 
         assert "No .gobby/project.json found" in str(exc_info.value)
         assert "gobby init" in str(exc_info.value)
@@ -315,7 +315,7 @@ class TestResolveProjectId:
         with patch("gobby.utils.project_context.get_project_context") as mock_ctx:
             mock_ctx.return_value = {"id": "default-project-id", "name": "test"}
 
-            result = basic_http_server._resolve_project_id(None, None)
+            result = basic_http_server.resolve_project_id(None, None)
             assert result == "default-project-id"
 
 

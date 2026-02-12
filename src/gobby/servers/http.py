@@ -146,6 +146,7 @@ class HTTPServer:
                 pipeline_executor=services.pipeline_executor,
                 workflow_loader=services.workflow_loader,
                 pipeline_execution_manager=services.pipeline_execution_manager,
+                hook_manager_resolver=lambda: getattr(self, "_hook_manager", None),
             )
             registry_count = len(self._internal_manager)
             logger.debug(f"Internal registries initialized: {registry_count} registries")
@@ -283,13 +284,29 @@ class HTTPServer:
         self.services.mcp_db_manager = value
 
     @property
+    def skill_manager(self) -> Any:
+        return self.services.skill_manager
+
+    @skill_manager.setter
+    def skill_manager(self, value: Any) -> None:
+        self.services.skill_manager = value
+
+    @property
+    def hub_manager(self) -> Any:
+        return self.services.hub_manager
+
+    @hub_manager.setter
+    def hub_manager(self, value: Any) -> None:
+        self.services.hub_manager = value
+
+    @property
     def tool_proxy(self) -> Any:
         """Get the ToolProxyService instance for routing tool calls with error enrichment."""
         if self._tools_handler is not None:
             return self._tools_handler.tool_proxy
         return None
 
-    def _resolve_project_id(self, project_id: str | None, cwd: str | None) -> str:
+    def resolve_project_id(self, project_id: str | None, cwd: str | None) -> str:
         """
         Resolve project_id from cwd if not provided.
 
@@ -373,6 +390,7 @@ class HTTPServer:
                 hook_manager_kwargs["log_backup_count"] = self.services.config.logging.backup_count
 
                 app.state.hook_manager = HookManager(**hook_manager_kwargs)
+                self._hook_manager = app.state.hook_manager
             logger.debug("HookManager initialized in daemon")
 
             # Wire up stop_registry to WebSocket server for stop_request handling
@@ -383,6 +401,17 @@ class HTTPServer:
             ):
                 self.services.websocket_server.stop_registry = app.state.hook_manager._stop_registry
                 logger.debug("Stop registry connected to WebSocket server")
+
+            # Wire workflow handler to WebSocket server for headless lifecycle
+            if (
+                self.services.websocket_server
+                and hasattr(app.state, "hook_manager")
+                and hasattr(app.state.hook_manager, "_workflow_handler")
+            ):
+                self.services.websocket_server.workflow_handler = (
+                    app.state.hook_manager._workflow_handler
+                )
+                logger.debug("Workflow handler connected to WebSocket server")
 
             # Store server instance for dependency injection
             app.state.server = self
@@ -577,24 +606,42 @@ class HTTPServer:
         """
         from gobby.servers.routes import (
             create_admin_router,
+            create_agents_router,
+            create_artifacts_router,
+            create_configuration_router,
+            create_cron_router,
             create_files_router,
             create_hooks_router,
             create_mcp_router,
+            create_memory_router,
             create_pipelines_router,
             create_plugins_router,
+            create_projects_router,
             create_sessions_router,
+            create_skills_router,
+            create_tasks_router,
+            create_voice_router,
             create_webhooks_router,
         )
 
         # Include all routers
         app.include_router(create_admin_router(self))
+        app.include_router(create_agents_router(self))
         app.include_router(create_sessions_router(self))
+        app.include_router(create_memory_router(self))
+        app.include_router(create_tasks_router(self))
+        app.include_router(create_artifacts_router(self))
+        app.include_router(create_cron_router(self))
         app.include_router(create_mcp_router())
         app.include_router(create_hooks_router(self))
         app.include_router(create_plugins_router())
         app.include_router(create_webhooks_router())
         app.include_router(create_pipelines_router(self))
         app.include_router(create_files_router(self))
+        app.include_router(create_projects_router(self))
+        app.include_router(create_skills_router(self))
+        app.include_router(create_voice_router(self))
+        app.include_router(create_configuration_router(self))
 
     async def _process_shutdown(self) -> None:
         """

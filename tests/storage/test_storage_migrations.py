@@ -58,6 +58,7 @@ def test_migrations_fresh_db(tmp_path) -> None:
         "session_messages",
         "memories",
         "tool_embeddings",
+        "memory_embeddings",
         "task_validation_history",
     ]
     for table in tables:
@@ -1157,3 +1158,192 @@ def test_inter_session_messages_cascade_delete(tmp_path) -> None:
     # Verify message was cascade deleted
     row = db.fetchone("SELECT * FROM inter_session_messages WHERE id = ?", (msg_id,))
     assert row is None, "Message should be cascade deleted when sender session is deleted"
+
+
+# =============================================================================
+# Memory V4: memory_embeddings table migration
+# =============================================================================
+
+
+def test_memory_embeddings_table_exists(tmp_path) -> None:
+    """Test that memory_embeddings table is created after migration."""
+    db_path = tmp_path / "memory_embeddings.db"
+    db = LocalDatabase(db_path)
+
+    run_migrations(db)
+
+    row = db.fetchone(
+        "SELECT name FROM sqlite_master WHERE type='table' AND name='memory_embeddings'"
+    )
+    assert row is not None, "memory_embeddings table not created"
+
+
+def test_memory_embeddings_schema(tmp_path) -> None:
+    """Test that memory_embeddings has correct columns."""
+    db_path = tmp_path / "memory_embeddings_schema.db"
+    db = LocalDatabase(db_path)
+
+    run_migrations(db)
+
+    rows = db.fetchall("PRAGMA table_info(memory_embeddings)")
+    columns = {row["name"] for row in rows}
+
+    expected_columns = {
+        "id",
+        "memory_id",
+        "project_id",
+        "embedding",
+        "embedding_model",
+        "embedding_dim",
+        "text_hash",
+        "created_at",
+        "updated_at",
+    }
+    for col in expected_columns:
+        assert col in columns, f"Column {col} missing from memory_embeddings"
+
+
+def test_memory_embeddings_unique_memory_id(tmp_path) -> None:
+    """Test that memory_embeddings has UNIQUE(memory_id) constraint."""
+    db_path = tmp_path / "memory_embeddings_unique.db"
+    db = LocalDatabase(db_path)
+
+    run_migrations(db)
+
+    row = db.fetchone(
+        "SELECT sql FROM sqlite_master WHERE type='table' AND name='memory_embeddings'"
+    )
+    assert row is not None
+    sql_lower = row["sql"].lower()
+    assert "unique(memory_id)" in sql_lower, "UNIQUE(memory_id) constraint missing"
+
+
+def test_memory_embeddings_foreign_key_memories(tmp_path) -> None:
+    """Test that memory_embeddings has FK to memories(id) with ON DELETE CASCADE."""
+    db_path = tmp_path / "memory_embeddings_fk.db"
+    db = LocalDatabase(db_path)
+
+    run_migrations(db)
+
+    row = db.fetchone(
+        "SELECT sql FROM sqlite_master WHERE type='table' AND name='memory_embeddings'"
+    )
+    assert row is not None
+    sql_lower = row["sql"].lower()
+    assert "references memories(id)" in sql_lower, "FK to memories(id) missing"
+    assert "on delete cascade" in sql_lower, "ON DELETE CASCADE missing for memories FK"
+
+
+def test_memory_embeddings_foreign_key_projects(tmp_path) -> None:
+    """Test that memory_embeddings has FK to projects(id) with ON DELETE CASCADE."""
+    db_path = tmp_path / "memory_embeddings_fk_proj.db"
+    db = LocalDatabase(db_path)
+
+    run_migrations(db)
+
+    row = db.fetchone(
+        "SELECT sql FROM sqlite_master WHERE type='table' AND name='memory_embeddings'"
+    )
+    assert row is not None
+    sql_lower = row["sql"].lower()
+    assert "references projects(id)" in sql_lower, "FK to projects(id) missing"
+
+
+def test_memory_embeddings_indexes(tmp_path) -> None:
+    """Test that memory_embeddings has indexes on memory_id, text_hash, and project_id."""
+    db_path = tmp_path / "memory_embeddings_idx.db"
+    db = LocalDatabase(db_path)
+
+    run_migrations(db)
+
+    rows = db.fetchall(
+        "SELECT name FROM sqlite_master WHERE type='index' AND tbl_name='memory_embeddings'"
+    )
+    index_names = {row["name"] for row in rows}
+
+    assert "idx_memory_embeddings_memory" in index_names, "idx_memory_embeddings_memory missing"
+    assert "idx_memory_embeddings_hash" in index_names, "idx_memory_embeddings_hash missing"
+    assert "idx_memory_embeddings_project" in index_names, "idx_memory_embeddings_project missing"
+
+
+def test_memory_embeddings_cascade_delete_from_memory(tmp_path) -> None:
+    """Test that deleting a memory cascades to memory_embeddings."""
+    db_path = tmp_path / "memory_embeddings_cascade.db"
+    db = LocalDatabase(db_path)
+
+    run_migrations(db)
+
+    # Enable foreign keys
+    db.execute("PRAGMA foreign_keys = ON")
+
+    # Create project and memory
+    db.execute(
+        "INSERT INTO projects (id, name, created_at, updated_at) "
+        "VALUES (?, ?, datetime('now'), datetime('now'))",
+        ("test-project", "Test Project"),
+    )
+    db.execute(
+        "INSERT INTO memories (id, project_id, memory_type, content, created_at, updated_at) "
+        "VALUES (?, ?, ?, ?, datetime('now'), datetime('now'))",
+        ("mem-1", "test-project", "fact", "User prefers dark mode"),
+    )
+
+    # Insert embedding
+    db.execute(
+        """INSERT INTO memory_embeddings
+           (memory_id, project_id, embedding, embedding_model, embedding_dim, text_hash, created_at, updated_at)
+           VALUES (?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))""",
+        ("mem-1", "test-project", b"\x00\x01\x02\x03", "text-embedding-3-small", 1536, "abc123hash"),
+    )
+
+    # Verify embedding exists
+    row = db.fetchone("SELECT * FROM memory_embeddings WHERE memory_id = ?", ("mem-1",))
+    assert row is not None
+
+    # Delete the memory
+    db.execute("DELETE FROM memories WHERE id = ?", ("mem-1",))
+
+    # Verify embedding was cascade deleted
+    row = db.fetchone("SELECT * FROM memory_embeddings WHERE memory_id = ?", ("mem-1",))
+    assert row is None, "memory_embeddings not cascade deleted when memory deleted"
+
+
+def test_memory_embeddings_insert_and_query(tmp_path) -> None:
+    """Test that memory_embeddings can store and retrieve embedding data."""
+    db_path = tmp_path / "memory_embeddings_insert.db"
+    db = LocalDatabase(db_path)
+
+    run_migrations(db)
+
+    # Create project and memory
+    db.execute(
+        "INSERT INTO projects (id, name, created_at, updated_at) "
+        "VALUES (?, ?, datetime('now'), datetime('now'))",
+        ("test-project", "Test Project"),
+    )
+    db.execute(
+        "INSERT INTO memories (id, project_id, memory_type, content, created_at, updated_at) "
+        "VALUES (?, ?, ?, ?, datetime('now'), datetime('now'))",
+        ("mem-1", "test-project", "fact", "User prefers dark mode"),
+    )
+
+    # Insert embedding with all fields
+    embedding_blob = b"\x00" * 6144  # 1536 floats * 4 bytes
+    db.execute(
+        """INSERT INTO memory_embeddings
+           (memory_id, project_id, embedding, embedding_model, embedding_dim, text_hash, created_at, updated_at)
+           VALUES (?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))""",
+        ("mem-1", "test-project", embedding_blob, "text-embedding-3-small", 1536, "sha256hash"),
+    )
+
+    # Verify data stored correctly
+    row = db.fetchone("SELECT * FROM memory_embeddings WHERE memory_id = ?", ("mem-1",))
+    assert row is not None
+    assert row["memory_id"] == "mem-1"
+    assert row["project_id"] == "test-project"
+    assert row["embedding"] == embedding_blob
+    assert row["embedding_model"] == "text-embedding-3-small"
+    assert row["embedding_dim"] == 1536
+    assert row["text_hash"] == "sha256hash"
+    assert row["created_at"] is not None
+    assert row["updated_at"] is not None

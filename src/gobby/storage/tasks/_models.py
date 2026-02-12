@@ -87,9 +87,7 @@ class Task:
         "needs_review",
         "approved",
         "closed",
-        "failed",
         "escalated",
-        "needs_decomposition",
     ]
     priority: int
     task_type: str  # bug, feature, task, epic, chore
@@ -293,7 +291,7 @@ class Task:
         Use get_task() with to_dict() for full task details.
 
         This follows the progressive disclosure pattern used for MCP tools:
-        - list_tasks() returns brief format (8 fields)
+        - list_tasks() returns brief format (20 fields)
         - get_task() returns full format (33 fields)
         """
         return {
@@ -308,5 +306,13 @@ class Task:
             "seq_num": self.seq_num,
             "path_cache": self.path_cache,
             "requires_user_review": self.requires_user_review,
+            "assignee": self.assignee,
+            "agent_name": self.agent_name,
+            "category": self.category,
+            "closed_at": self.closed_at,
+            "closed_in_session_id": self.closed_in_session_id,
+            "validation_fail_count": self.validation_fail_count,
+            "escalated_at": self.escalated_at,
+            "sequence_order": self.sequence_order,
             "id": self.id,  # UUID at end for backwards compat
         }

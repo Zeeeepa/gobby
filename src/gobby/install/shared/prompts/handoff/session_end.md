@@ -45,6 +45,12 @@ Create a markdown summary with the following sections (do NOT include a top-leve
 ## Problems Encountered
 [Errors, failed approaches, exact error messages. Write "None" if none.]
 
+## What Didn't Work
+[Approaches that were tried and abandoned, and WHY they failed.
+Different from Problems Encountered (which are blockers).
+These are dead ends that future sessions should not retry.
+Write "None" if all approaches succeeded.]
+
 ## Current State
 [What is working, what is broken, uncommitted changes, failing tests.]
 
