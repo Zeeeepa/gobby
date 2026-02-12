@@ -10855,6 +10855,34 @@ body {
   grid-column: 1 / -1;
 }
 
+.agent-defs-model-field {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.agent-defs-model-field input {
+  flex: 1;
+  min-width: 0;
+}
+
+.agent-defs-model-toggle {
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  color: var(--text-muted);
+  cursor: pointer;
+  padding: 4px 6px;
+  font-size: 14px;
+  line-height: 1;
+  transition: all 0.15s;
+}
+
+.agent-defs-model-toggle:hover {
+  background: var(--bg-tertiary);
+  color: var(--text-primary);
+}
+
 .agent-defs-form-actions {
   display: flex;
   justify-content: flex-end;

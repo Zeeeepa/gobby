@@ -112,6 +112,36 @@ const ISOLATION_COLORS: Record<string, string> = {
   current: '#6b7280',
 }
 
+const PROVIDER_MODELS: Record<string, { value: string; label: string }[]> = {
+  claude: [
+    { value: '', label: '(default)' },
+    { value: 'claude-sonnet-4-5', label: 'Sonnet 4.5' },
+    { value: 'claude-opus-4-6', label: 'Opus 4.6' },
+    { value: 'claude-haiku-4-5', label: 'Haiku 4.5' },
+  ],
+  gemini: [
+    { value: '', label: '(default)' },
+    { value: 'gemini-2.5-pro', label: 'Gemini 2.5 Pro' },
+    { value: 'gemini-2.5-flash', label: 'Gemini 2.5 Flash' },
+    { value: 'gemini-2.0-flash', label: 'Gemini 2.0 Flash' },
+  ],
+  codex: [
+    { value: '', label: '(default)' },
+    { value: 'gpt-4o', label: 'GPT-4o' },
+    { value: 'o3', label: 'o3' },
+    { value: 'o4-mini', label: 'o4-mini' },
+  ],
+  cursor: [
+    { value: '', label: '(default)' },
+  ],
+  windsurf: [
+    { value: '', label: '(default)' },
+  ],
+  copilot: [
+    { value: '', label: '(default)' },
+  ],
+}
+
 function getBaseUrl(): string {
   return ''
 }
@@ -125,6 +155,7 @@ export function AgentDefinitionsPage() {
   const [definitions, setDefinitions] = useState<AgentDefInfo[]>([])
   const [loading, setLoading] = useState(true)
   const [showRecentRuns, setShowRecentRuns] = useState(false)
+  const [customModelInput, setCustomModelInput] = useState(false)
   const [expandedName, setExpandedName] = useState<string | null>(null)
   const [filterSource, setFilterSource] = useState<string>('all')
   const [filterProvider, setFilterProvider] = useState<string>('all')
@@ -369,7 +400,17 @@ export function AgentDefinitionsPage() {
               <span>Provider</span>
               <select
                 value={createForm.provider}
-                onChange={e => setCreateForm(f => ({ ...f, provider: e.target.value }))}
+                onChange={e => {
+                  const newProvider = e.target.value
+                  const newModels = PROVIDER_MODELS[newProvider]
+                  const modelValid = newModels?.some(m => m.value === createForm.model)
+                  setCustomModelInput(false)
+                  setCreateForm(f => ({
+                    ...f,
+                    provider: newProvider,
+                    model: modelValid ? f.model : '',
+                  }))
+                }}
               >
                 <option value="claude">claude</option>
                 <option value="gemini">gemini</option>
@@ -390,11 +431,48 @@ export function AgentDefinitionsPage() {
             </label>
             <label>
               <span>Model</span>
-              <input
-                value={createForm.model}
-                onChange={e => setCreateForm(f => ({ ...f, model: e.target.value }))}
-                placeholder="e.g. claude-sonnet-4-5-20250929"
-              />
+              {(() => {
+                const models = PROVIDER_MODELS[createForm.provider]
+                const isKnown = models?.some(m => m.value === createForm.model)
+                const showCustom = customModelInput || !models || (!isKnown && createForm.model !== '')
+                return showCustom ? (
+                  <div className="agent-defs-model-field">
+                    <input
+                      value={createForm.model}
+                      onChange={e => setCreateForm(f => ({ ...f, model: e.target.value }))}
+                      placeholder="e.g. claude-sonnet-4-5-20250929"
+                      autoFocus={customModelInput}
+                    />
+                    {models && (
+                      <button
+                        type="button"
+                        className="agent-defs-model-toggle"
+                        onClick={() => { setCustomModelInput(false); setCreateForm(f => ({ ...f, model: '' })) }}
+                        title="Switch to preset list"
+                      >
+                        &times;
+                      </button>
+                    )}
+                  </div>
+                ) : (
+                  <select
+                    value={createForm.model}
+                    onChange={e => {
+                      if (e.target.value === '__custom__') {
+                        setCustomModelInput(true)
+                        setCreateForm(f => ({ ...f, model: '' }))
+                      } else {
+                        setCreateForm(f => ({ ...f, model: e.target.value }))
+                      }
+                    }}
+                  >
+                    {models?.map(m => (
+                      <option key={m.value} value={m.value}>{m.label}</option>
+                    ))}
+                    <option value="__custom__">Custom...</option>
+                  </select>
+                )
+              })()}
             </label>
             <label>
               <span>Isolation</span>
