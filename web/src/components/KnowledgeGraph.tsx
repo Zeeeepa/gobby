@@ -216,11 +216,26 @@ export function KnowledgeGraph({ fetchKnowledgeGraph, fetchEntityNeighbors }: Kn
   const animateRef = useRef(animateIdle)
   animateRef.current = animateIdle
   const nodePositionUpdate = useCallback((obj: any) => { // eslint-disable-line @typescript-eslint/no-explicit-any
-    if (!animateRef.current) return
+    if (!animateRef.current) {
+      // Restore original scale when animation stops
+      if (obj.__origScale) {
+        obj.scale.copy(obj.__origScale)
+        delete obj.__origScale
+      }
+      return
+    }
+    // Capture SpriteText's dimensional scale on first animated frame
+    if (!obj.__origScale) {
+      obj.__origScale = obj.scale.clone()
+    }
     const t = performance.now() * 0.001
     const offset = (obj.id % 100) * 0.1
-    const scale = 1 + Math.sin(t * 1.5 + offset) * 0.06
-    obj.scale.set(scale, scale, scale)
+    const factor = 1 + Math.sin(t * 1.5 + offset) * 0.06
+    obj.scale.set(
+      obj.__origScale.x * factor,
+      obj.__origScale.y * factor,
+      obj.__origScale.z * factor
+    )
   }, [])
 
   // Legend types

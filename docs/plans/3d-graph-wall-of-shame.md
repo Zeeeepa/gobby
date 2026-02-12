@@ -25,4 +25,21 @@ Toggling animation (play button) in the KnowledgeGraph component causes all node
 - Toggle only affects `controls.autoRotate` via imperative ref + breathing via `animateRef`
 - No ForceGraph3D props change when animation is toggled
 
-**Result:** PENDING — testing needed
+**Result:** FAILED — labels still disappeared. The hypothesis about prop changes was correct for attempt 1 (stabilizing nodePositionUpdate) but didn't address the real issue. The re-render from `setAnimateIdle` was NOT the problem.
+
+## Attempt 3: Preserve SpriteText dimensional scale (FIXED)
+**Root Cause Found:** `three-spritetext` sets `.scale` to text dimensions during construction (`this.scale.set(yScale * canvas.width / canvas.height, yScale, 0)`). The breathing effect did `obj.scale.set(1.06, 1.06, 1.06)`, **overwriting** the sprite's dimensional scale (e.g. `(9, 3, 0)`) with near-unity values — making text ~3-9x smaller and essentially invisible.
+
+**Change:** Capture each sprite's original `.scale` on first animated frame (`obj.__origScale = obj.scale.clone()`), then multiply by the breathing factor instead of replacing. When animation stops, restore the original scale.
+
+```typescript
+if (!obj.__origScale) obj.__origScale = obj.scale.clone()
+const factor = 1 + Math.sin(t * 1.5 + offset) * 0.06
+obj.scale.set(
+  obj.__origScale.x * factor,
+  obj.__origScale.y * factor,
+  obj.__origScale.z * factor
+)
+```
+
+**Result:** FIXED — labels persist through multiple play/pause toggles, verified with Playwright screenshots.
