@@ -92,7 +92,7 @@ def create_memory_registry(
                     resolved_session_id = resolve_session_reference(
                         memory_manager.db, session_id, project_id
                     )
-                except (ValueError, Exception) as e:
+                except Exception as e:
                     logger.warning(f"Could not resolve session_id '{session_id}': {e}")
 
             memory = await memory_manager.remember(

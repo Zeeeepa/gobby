@@ -233,8 +233,9 @@ def create_configuration_router(server: "HTTPServer") -> APIRouter:
             diff = {k: v for k, v in parsed_flat.items() if k not in defaults_flat or defaults_flat[k] != v}
 
             config_store = _get_config_store()
-            config_store.delete_all()
-            count = config_store.set_many(diff, source="user") if diff else 0
+            with config_store.db.transaction():
+                config_store.delete_all()
+                count = config_store.set_many(diff, source="user") if diff else 0
             logger.info(f"Template saved: {count} non-default keys stored")
 
             server.services.config = new_config
@@ -496,8 +497,9 @@ def create_configuration_router(server: "HTTPServer") -> APIRouter:
                 # Validate by unflattening and creating DaemonConfig
                 nested = unflatten_config(request.config_store)
                 DaemonConfig(**nested)
-                config_store.delete_all()
-                count = config_store.set_many(request.config_store, source="import")
+                with config_store.db.transaction():
+                    config_store.delete_all()
+                    count = config_store.set_many(request.config_store, source="import")
                 summary_parts.append(f"config restored ({count} keys)")
                 config_imported = True
 
@@ -510,8 +512,9 @@ def create_configuration_router(server: "HTTPServer") -> APIRouter:
                     DaemonConfig().model_dump(mode="json", exclude_none=True)
                 )
                 diff = {k: v for k, v in flat.items() if k not in defaults_flat or defaults_flat[k] != v}
-                config_store.delete_all()
-                count = config_store.set_many(diff, source="import") if diff else 0
+                with config_store.db.transaction():
+                    config_store.delete_all()
+                    count = config_store.set_many(diff, source="import") if diff else 0
                 summary_parts.append(f"config restored ({count} keys)")
                 config_imported = True
 

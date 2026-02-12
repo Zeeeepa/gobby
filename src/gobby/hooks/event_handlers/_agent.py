@@ -87,9 +87,9 @@ class AgentEventHandlerMixin(EventHandlersBase):
             parts = args.split(None, 1)
             first_word = parts[0]
             if first_word.lower() != "help":
+                skill_name = first_word
                 resolved = self._skill_manager.resolve_skill_name(first_word)
                 if resolved:
-                    skill_name = first_word
                     args = parts[1] if len(parts) > 1 else ""
 
         # /gobby or /gobby help → generate help

@@ -339,7 +339,7 @@ class TestBlockSessionTaskModification:
             session_id="test-session",
         )
 
-        assert result == {}
+        assert result == {"ok": True, "value": "new"}
 
     def test_blocks_session_task_modification_suggests_end_workflow(
         self, registry, mock_state_manager

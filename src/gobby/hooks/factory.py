@@ -330,8 +330,10 @@ class HookManagerFactory:
 
             memory_config = MemoryConfig()
         embedding_api_key = None
-        if config and hasattr(config, "llm_providers") and config.llm_providers and config.llm_providers.api_keys:
-            embedding_api_key = config.llm_providers.api_keys.get("OPENAI_API_KEY")
+        if config:
+            api_keys = getattr(getattr(config, "llm_providers", None), "api_keys", None)
+            if api_keys:
+                embedding_api_key = api_keys.get("OPENAI_API_KEY")
         return MemoryManager(database, memory_config, embedding_api_key=embedding_api_key)
 
     @staticmethod

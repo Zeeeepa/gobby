@@ -567,6 +567,13 @@ def _resolve_config_values(
     for key, value in d.items():
         if isinstance(value, dict):
             result[key] = _resolve_config_values(value, secret_resolver)
+        elif isinstance(value, list):
+            result[key] = [
+                expand_env_vars(item, secret_resolver=secret_resolver) if isinstance(item, str)
+                else _resolve_config_values(item, secret_resolver) if isinstance(item, dict)
+                else item
+                for item in value
+            ]
         elif isinstance(value, str):
             result[key] = expand_env_vars(value, secret_resolver=secret_resolver)
         else:

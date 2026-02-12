@@ -247,6 +247,13 @@ get_session_variable(name="task_claimed", session_id="#123")
 - Workflow variables are created when enabled, cleared when disabled.
 - **Storage isolation:** Workflow variables and session variables are stored in separate dicts in the state model — not merged into a single namespace. The `variables.*` and `session.*` prefixes in condition expressions resolve to different backing stores. Writing to `variables.foo` can never leak into `session.foo`.
 
+### Variable name collision resolution
+
+When the deprecated `variables.<name>` form is used (without explicit `variables.*` or `session.*` prefix), the system resolves by checking workflow-scoped variables first, then session-scoped variables. A deprecation warning is emitted advising callers to use the explicit prefix:
+
+- **MCP APIs:** `set_variable`/`get_variable` default to workflow-scoped. Use `set_session_variable`/`get_session_variable` for session-scoped access.
+- **Condition expressions:** Bare `variables.get('key')` checks workflow scope first, then session scope, with a deprecation warning logged. Prefer `variables.key` (workflow) or `session.key` (session).
+
 ### Condition context
 
 Both namespaces available in `when` expressions and templates:
@@ -320,6 +327,7 @@ steps:
 - If `wait_for: exit_condition`, pipeline blocks until workflow signals completion
 - Workflow's final variables become the step's output
 - Timeout prevents infinite waits
+- Requires tmux (uses consolidated `TmuxSpawner`). On Windows, requires WSL with tmux installed. Pipeline parsing should validate tmux availability early, failing with an actionable error if tmux is not found.
 
 ### Workflow inside pipeline (inline pattern)
 
@@ -397,7 +405,7 @@ No `lifecycle/` subdirectory. No `type` field on workflows. Pipelines keep `type
 
 **Changes:**
 
-1. **New `workflow_instances` table** (migration v98):
+1. **New `workflow_instances` table** (migration v99):
 
 ```sql
 CREATE TABLE workflow_instances (
@@ -421,7 +429,7 @@ CREATE INDEX idx_workflow_instances_session ON workflow_instances(session_id);
 CREATE INDEX idx_workflow_instances_enabled ON workflow_instances(session_id, enabled);
 ```
 
-2. **New `session_variables` table** (migration v98):
+2. **New `session_variables` table** (migration v99):
 
 ```sql
 CREATE TABLE session_variables (
@@ -431,7 +439,7 @@ CREATE TABLE session_variables (
 );
 ```
 
-3. **Data migration** (v98 Python migration):
+3. **Data migration** (v99 Python migration):
    - For each row in `workflow_states`:
      - Create a `session_variables` row with the existing `variables` JSON
      - If `workflow_name` not in (`__lifecycle__`, `__ended__`): create a `workflow_instances` row
@@ -458,7 +466,7 @@ CREATE TABLE session_variables (
 
 | File | Change |
 |------|--------|
-| `src/gobby/storage/migrations.py` | Add migration v98 (tables + data migration) |
+| `src/gobby/storage/migrations.py` | Add migration v99 (tables + data migration) |
 | `src/gobby/workflows/state_manager.py` | Add `WorkflowInstanceManager`, `SessionVariableManager` |
 | `src/gobby/workflows/definitions.py` | Add `WorkflowInstance` model |
 
@@ -495,6 +503,8 @@ class WorkflowDefinition(BaseModel):
     session_variables: dict[str, Any] = Field(default_factory=dict)
     # ... rest unchanged
 ```
+
+   **Deprecation handling:** When the loader encounters a YAML with a `type` field, it should emit a `DeprecationWarning` explaining the mapping (`type: lifecycle` → `enabled: true`, `type: step` → `enabled: false`) and instruct users to remove `type` and use `enabled` directly.
 
 2. **Update `WorkflowLoader.discover_lifecycle_workflows()`** → rename to `discover_workflows()`:
    - Scan both root `workflows/` directory AND `lifecycle/` subdirectory (backward compat)
@@ -807,7 +817,7 @@ if self._workflow_handler:
 | File | Lines | What changes |
 |------|-------|-------------|
 | **Storage** | | |
-| `src/gobby/storage/migrations.py` | ~1220 | Add v98: `workflow_instances` + `session_variables` tables + data migration |
+| `src/gobby/storage/migrations.py` | ~1220 | Add v99: `workflow_instances` + `session_variables` tables + data migration |
 | **Workflow definitions** | | |
 | `src/gobby/workflows/definitions.py` | 136-184 | Add `enabled`, `priority`, `session_variables` to `WorkflowDefinition`; add `WorkflowInstance` model; add `spawn_session`/`activate_workflow` to `PipelineStep` |
 | **State management** | | |
@@ -848,10 +858,10 @@ if self._workflow_handler:
 
 ## Part 7: Migration Details
 
-### Database migration v98
+### Database migration v99
 
 ```python
-def _migrate_v98(db: LocalDatabase) -> None:
+def _migrate_v99(db: LocalDatabase) -> None:
     """Migrate workflow_states to workflow_instances + session_variables."""
 
     with db.transaction():
@@ -978,7 +988,7 @@ session_variables:    # Shared (persists across workflow activations)
 | Condition `variables.get('session_var')` | Still works — evaluator checks both workflow + session variables for `variables.*` access. Deprecation warning logged. |
 | `set_variable(name, value)` without `workflow` | Writes to session variables (backward compat). Deprecation warning. |
 | Workflows in `lifecycle/` subdirectory | Still discovered. Warning to migrate to flat directory. |
-| Old `workflow_states` table | Kept until v100 migration (data already migrated to new tables). |
+| Old `workflow_states` table | Kept until v101 migration (data already migrated to new tables). |
 
 ---
 
@@ -986,8 +996,8 @@ session_variables:    # Shared (persists across workflow activations)
 
 ### Phase 1 verification (State Model)
 
-- [ ] Migration v98 applies cleanly on fresh database
-- [ ] Migration v98 migrates existing `workflow_states` data correctly
+- [ ] Migration v99 applies cleanly on fresh database
+- [ ] Migration v99 migrates existing `workflow_states` data correctly
 - [ ] `WorkflowInstanceManager` CRUD operations work (create, get, list, update, delete)
 - [ ] `SessionVariableManager` CRUD operations work
 - [ ] Atomic `merge_variables` prevents concurrent write corruption
@@ -1049,7 +1059,7 @@ session_variables:    # Shared (persists across workflow activations)
 
 ### End-to-end verification
 
-1. **Fresh install**: New database with v98 schema, all workflows load and evaluate correctly
+1. **Fresh install**: New database with v99 schema, all workflows load and evaluate correctly
 2. **Upgrade path**: Existing database migrates cleanly, no behavior changes
 3. **Multi-workflow session**: Activate `session-lifecycle` (always-on) + `auto-task` + `developer` simultaneously — priorities respected, variables isolated, first block wins
 4. **Pipeline → workflow**: Pipeline step spawns agent with `developer` workflow, waits for completion, receives final variables

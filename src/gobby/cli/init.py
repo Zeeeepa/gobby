@@ -46,6 +46,23 @@ def init(ctx: click.Context, name: str | None, github_url: str | None) -> None:
                     "  Warning: WSL not found. Install: wsl --install, "
                     "then: sudo apt install tmux"
                 )
+            else:
+                # WSL available — check if tmux is installed inside it
+                import subprocess
+
+                try:
+                    tmux_check = subprocess.run(
+                        ["wsl", "which", "tmux"],
+                        capture_output=True,
+                        timeout=5,
+                    )
+                    if tmux_check.returncode != 0:
+                        click.echo(
+                            "  Warning: tmux not found inside WSL. "
+                            "Install: wsl -e sudo apt install tmux"
+                        )
+                except (subprocess.TimeoutExpired, OSError):
+                    pass  # WSL may be slow to start; don't block init
         elif not shutil.which("tmux"):
             import platform as _platform
 

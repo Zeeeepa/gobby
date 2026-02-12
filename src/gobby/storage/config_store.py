@@ -78,20 +78,13 @@ class ConfigStore:
 
     def delete(self, key: str) -> bool:
         """Delete a single key. Returns True if it existed."""
-        row = self.db.fetchone(
-            "SELECT 1 FROM config_store WHERE key = ?", (key,)
-        )
-        if not row:
-            return False
-        self.db.execute("DELETE FROM config_store WHERE key = ?", (key,))
-        return True
+        cursor = self.db.execute("DELETE FROM config_store WHERE key = ?", (key,))
+        return bool(cursor.rowcount and cursor.rowcount > 0)
 
     def delete_all(self) -> int:
         """Delete all config entries. Returns count deleted."""
-        row = self.db.fetchone("SELECT COUNT(*) as cnt FROM config_store")
-        count = row["cnt"] if row else 0
-        self.db.execute("DELETE FROM config_store")
-        return count
+        cursor = self.db.execute("DELETE FROM config_store")
+        return cursor.rowcount or 0
 
     def list_keys(self, prefix: str | None = None) -> list[str]:
         """List all keys, optionally filtered by prefix."""

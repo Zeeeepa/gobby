@@ -169,13 +169,22 @@ class TmuxSpawner(TerminalSpawnerBase):
             workflow_name: Optional workflow to activate.
             agent_depth: Current nesting depth.
             max_agent_depth: Maximum allowed depth.
-            terminal: Ignored (kept for backward compat).
+            terminal: Deprecated, ignored. Will be removed in a future release.
             prompt: Optional initial prompt.
             sandbox_config: Optional sandbox configuration.
 
         Returns:
             SpawnResult with success status.
         """
+        if terminal != TerminalType.AUTO:
+            import warnings
+
+            warnings.warn(
+                "The 'terminal' parameter is deprecated and ignored. "
+                "TmuxSpawner always uses tmux. This parameter will be removed in a future release.",
+                DeprecationWarning,
+                stacklevel=2,
+            )
         # Resolve sandbox configuration if enabled
         sandbox_args: list[str] | None = None
         sandbox_env: dict[str, str] = {}

@@ -22,6 +22,6 @@ rule_definitions:
 
   no_destructive_git:
     tools: [Bash]
-    command_pattern: "git\\s+(reset\\s+--hard|clean\\s+-f|checkout\\s+\\.)"
+    command_pattern: "git\\s+(reset\\s+--hard|clean\\s+-f|checkout\\s+(--\\s+)?\\.|restore\\s+\\.)"
     reason: "Destructive git operations are not allowed without explicit approval."
     action: block

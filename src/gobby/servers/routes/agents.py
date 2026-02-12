@@ -281,22 +281,7 @@ def create_agents_router(server: "HTTPServer") -> APIRouter:
             from gobby.storage.agents import LocalAgentRunManager
 
             manager = LocalAgentRunManager(server.services.database)
-            if status == "running":
-                runs = manager.list_running(limit=limit)
-            else:
-                from gobby.storage.agents import AgentRun
-
-                if status:
-                    rows = server.services.database.fetchall(
-                        "SELECT * FROM agent_runs WHERE status = ? ORDER BY created_at DESC LIMIT ?",
-                        (status, limit),
-                    )
-                else:
-                    rows = server.services.database.fetchall(
-                        "SELECT * FROM agent_runs ORDER BY created_at DESC LIMIT ?",
-                        (limit,),
-                    )
-                runs = [AgentRun.from_row(row) for row in rows]
+            runs = manager.list_by_status(status=status, limit=limit)
             return {
                 "status": "success",
                 "runs": [r.to_dict() for r in runs],
@@ -333,7 +318,12 @@ def create_agents_router(server: "HTTPServer") -> APIRouter:
                 )
                 raise HTTPException(
                     status_code=500,
-                    detail=f"Agent killed but DB update failed: {e}",
+                    detail=(
+                        f"Agent '{run_id}' was killed in the process registry but "
+                        f"the database status update failed: {e}. "
+                        f"The DB record may still show 'running'. "
+                        f"This will be auto-corrected by cleanup_stale_runs."
+                    ),
                 ) from e
 
             return {"status": "success", "result": result}

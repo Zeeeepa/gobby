@@ -51,6 +51,7 @@ def set_variable(
     # Require explicit session_id to prevent cross-session bleed
     if not session_id:
         return {
+            "ok": False,
             "error": "session_id is required. Pass the session ID explicitly to prevent cross-session variable bleed.",
         }
 
@@ -58,7 +59,7 @@ def set_variable(
     try:
         resolved_session_id = resolve_session_id(session_manager, session_id)
     except ValueError as e:
-        return {"error": str(e)}
+        return {"ok": False, "error": str(e)}
 
     # Get or create state
     state = state_manager.get_state(resolved_session_id)
@@ -78,6 +79,7 @@ def set_variable(
         current_value = state.variables.get("session_task")
         if current_value is not None and value != current_value:
             return {
+                "ok": False,
                 "error": (
                     f"Cannot modify session_task while workflow '{state.workflow_name}' is active. "
                     f"Current value: {current_value}. "
@@ -95,6 +97,7 @@ def set_variable(
                 f"Failed to resolve session_task value '{value}' for session {resolved_session_id}: {e}"
             )
             return {
+                "ok": False,
                 "error": f"Failed to resolve session_task value '{value}': {e}",
             }
 
@@ -124,13 +127,15 @@ def set_variable(
     # Add deprecation warning for session_task on __lifecycle__ workflow
     if name == "session_task" and state.workflow_name == "__lifecycle__":
         return {
+            "ok": True,
+            "value": value,
             "warning": (
                 "DEPRECATED: Setting session_task via set_variable on __lifecycle__ workflow. "
                 "Prefer using activate_workflow(variables={session_task: ...}) instead."
-            )
+            ),
         }
 
-    return {}
+    return {"ok": True, "value": value}
 
 
 def get_variable(
@@ -154,6 +159,7 @@ def get_variable(
     # Require explicit session_id to prevent cross-session bleed
     if not session_id:
         return {
+            "ok": False,
             "error": "session_id is required. Pass the session ID explicitly to prevent cross-session variable bleed.",
         }
 
@@ -161,18 +167,20 @@ def get_variable(
     try:
         resolved_session_id = resolve_session_id(session_manager, session_id)
     except ValueError as e:
-        return {"error": str(e)}
+        return {"ok": False, "error": str(e)}
 
     state = state_manager.get_state(resolved_session_id)
     if not state:
         if name:
             return {
+                "ok": True,
                 "session_id": resolved_session_id,
                 "variable": name,
                 "value": None,
                 "exists": False,
             }
         return {
+            "ok": True,
             "session_id": resolved_session_id,
             "variables": {},
         }
@@ -180,6 +188,7 @@ def get_variable(
     if name:
         value = state.variables.get(name)
         return {
+            "ok": True,
             "session_id": resolved_session_id,
             "variable": name,
             "value": value,
@@ -187,6 +196,7 @@ def get_variable(
         }
 
     return {
+        "ok": True,
         "session_id": resolved_session_id,
         "variables": state.variables,
     }
