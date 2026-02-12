@@ -69,17 +69,6 @@ export function MemoryPage() {
 
   const [viewMode, setViewMode] = useState<ViewMode>('graph')
   const [showForm, setShowForm] = useState(false)
-  const [animateIdle, setAnimateIdle] = useState(() => {
-    try { return localStorage.getItem('gobby-kg-animate') === 'true' } catch { return false }
-  })
-
-  const toggleAnimate = useCallback(() => {
-    setAnimateIdle(prev => {
-      const next = !prev
-      try { localStorage.setItem('gobby-kg-animate', String(next)) } catch { /* noop */ }
-      return next
-    })
-  }, [])
 
   // Default to knowledge view when Neo4j status loads and is configured
   useEffect(() => {
@@ -221,24 +210,6 @@ export function MemoryPage() {
               </button>
             ))}
           </div>
-          {viewMode === 'knowledge' && (
-            <button
-              className={`memory-toolbar-btn memory-animate-btn${animateIdle ? ' active' : ''}`}
-              onClick={toggleAnimate}
-              title={animateIdle ? 'Pause idle animation' : 'Animate when idle'}
-            >
-              {animateIdle ? (
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
-                  <rect x="6" y="4" width="4" height="16" rx="1" />
-                  <rect x="14" y="4" width="4" height="16" rx="1" />
-                </svg>
-              ) : (
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
-                  <path d="M8 5v14l11-7z" />
-                </svg>
-              )}
-            </button>
-          )}
           <input
             className="memory-search"
             type="text"
@@ -281,7 +252,6 @@ export function MemoryPage() {
           <KnowledgeGraph
             fetchKnowledgeGraph={fetchKnowledgeGraph}
             fetchEntityNeighbors={fetchEntityNeighbors}
-            animateIdle={animateIdle}
           />
         ) : viewMode === 'graph' ? (
           <MemoryGraph
