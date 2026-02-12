@@ -244,6 +244,17 @@ export function TasksPage({ projectFilter }: TasksPageProps = {}) {
     return counts
   }, [scopedTasks])
 
+  // Apply 24h cutoff when "Recently Done" filter is active so the displayed
+  // task list matches the overview card count (which uses the same cutoff).
+  const displayTasks = useMemo(() => {
+    if (filters.status !== 'recently_done') return scopedTasks
+    const cutoff = Date.now() - 24 * 60 * 60 * 1000
+    const completed = new Set(['closed', 'approved'])
+    return scopedTasks.filter(
+      t => completed.has(t.status) && new Date(t.updated_at).getTime() > cutoff
+    )
+  }, [scopedTasks, filters.status])
+
   // Subtree kanban: filter to leaf tasks under a specific parent
   const kanbanTasks = useMemo(() => {
     if (!subtreeRootId) return scopedTasks
@@ -446,37 +457,37 @@ export function TasksPage({ projectFilter }: TasksPageProps = {}) {
       {/* Content */}
       {isLoading ? (
         <div className="tasks-loading">Loading tasks...</div>
-      ) : scopedTasks.length === 0 ? (
+      ) : displayTasks.length === 0 ? (
         <div className="tasks-empty">No tasks found</div>
       ) : viewMode === 'digest' ? (
         <DigestView
-          tasks={scopedTasks}
+          tasks={displayTasks}
           onSelectTask={setSelectedTaskId}
         />
       ) : viewMode === 'graph' ? (
         <DependencyGraph
-          tasks={scopedTasks}
+          tasks={displayTasks}
           onSelectTask={setSelectedTaskId}
         />
       ) : viewMode === 'gantt' ? (
         <GanttChart
-          tasks={scopedTasks}
+          tasks={displayTasks}
           onSelectTask={setSelectedTaskId}
           onReschedule={(taskId, offsetDays) => {
             // Persist position change via sequence_order (offset * 1000 for granularity)
-            const task = scopedTasks.find(t => t.id === taskId)
+            const task = displayTasks.find(t => t.id === taskId)
             const currentOrder = task?.sequence_order ?? 0
             updateTask(taskId, { sequence_order: currentOrder + offsetDays * 1000 })
           }}
         />
       ) : viewMode === 'audit' ? (
         <AuditLog
-          tasks={scopedTasks}
+          tasks={displayTasks}
           onSelectTask={setSelectedTaskId}
         />
       ) : viewMode === 'priority' ? (
         <PriorityBoard
-          tasks={scopedTasks}
+          tasks={displayTasks}
           onSelectTask={setSelectedTaskId}
           onUpdateStatus={(taskId, newStatus) => updateTask(taskId, { status: newStatus })}
         />
@@ -494,7 +505,7 @@ export function TasksPage({ projectFilter }: TasksPageProps = {}) {
             </div>
           )}
           <KanbanBoard
-            tasks={subtreeRootId ? kanbanTasks : scopedTasks}
+            tasks={subtreeRootId ? kanbanTasks : displayTasks}
             onSelectTask={setSelectedTaskId}
             onUpdateStatus={(taskId, newStatus) => updateTask(taskId, { status: newStatus })}
             onReorder={(taskId, newOrder) => updateTask(taskId, { sequence_order: newOrder })}
@@ -502,7 +513,7 @@ export function TasksPage({ projectFilter }: TasksPageProps = {}) {
         </>
       ) : viewMode === 'tree' ? (
         <TaskTree
-          tasks={scopedTasks}
+          tasks={displayTasks}
           onSelectTask={setSelectedTaskId}
           onReparent={(taskId, newParentId) => updateTask(taskId, { parent_task_id: newParentId || '' })}
           onSubtreeKanban={handleSubtreeKanban}
@@ -511,7 +522,7 @@ export function TasksPage({ projectFilter }: TasksPageProps = {}) {
         <div className="tasks-table-container">
           {groupBy === 'agent' ? (
             <>
-              {Array.from(groupTasksByAgent(scopedTasks)).map(([agent, agentTasks]) => (
+              {Array.from(groupTasksByAgent(displayTasks)).map(([agent, agentTasks]) => (
                 <div key={agent} className="task-group-section">
                   <div className="task-group-header">{agent} <span className="task-group-count">({agentTasks.length})</span></div>
                   <table className="tasks-table">
@@ -547,7 +558,7 @@ export function TasksPage({ projectFilter }: TasksPageProps = {}) {
                 </tr>
               </thead>
               <tbody>
-                {scopedTasks.map(task => (
+                {displayTasks.map(task => (
                   <TaskRow key={task.id} task={task} onSelect={setSelectedTaskId} />
                 ))}
               </tbody>
