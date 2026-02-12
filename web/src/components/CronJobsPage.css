@@ -10,8 +10,8 @@
 
 /* Left panel: job list */
 .cron-browser {
-  width: 300px;
-  min-width: 300px;
+  width: var(--sidebar-width);
+  min-width: var(--sidebar-width);
   background: var(--bg-secondary);
   border-right: 1px solid var(--border-color);
   display: flex;
@@ -264,6 +264,11 @@
 
 .cron-btn.primary:hover {
   opacity: 0.9;
+}
+
+.cron-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
 }
 
 .cron-btn.danger {
