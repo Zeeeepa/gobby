@@ -173,6 +173,7 @@ class TestSessionInfoLookup:
         step.blocked_tools = []
         step.allowed_tools = "all"
         step.rules = []
+        step.check_rules = []
         step.transitions = []
         step.exit_conditions = []
         step.on_enter = []
@@ -215,6 +216,7 @@ class TestSessionInfoLookup:
         step.blocked_tools = []
         step.allowed_tools = "all"
         step.rules = []
+        step.check_rules = []
         step.transitions = []
         step.exit_conditions = []
         step.on_enter = []
@@ -344,6 +346,7 @@ class TestPrematureStopCounterReset:
         step.blocked_tools = []
         step.allowed_tools = "all"
         step.rules = []
+        step.check_rules = []
         step.transitions = []
         step.exit_conditions = []
         step.on_enter = []

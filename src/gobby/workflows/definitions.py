@@ -123,6 +123,10 @@ class WorkflowDefinition(BaseModel):
     # Cross-file rule imports (e.g., ["worker-safety"])
     imports: list[str] = Field(default_factory=list)
 
+    # Top-level tool blocking rules (same format as block_tools action rules).
+    # Evaluated on BEFORE_TOOL events before trigger-based block_tools actions.
+    tool_rules: list[dict[str, Any]] = Field(default_factory=list)
+
     steps: list[WorkflowStep] = Field(default_factory=list)
 
     # Global triggers (on_session_start, etc.)

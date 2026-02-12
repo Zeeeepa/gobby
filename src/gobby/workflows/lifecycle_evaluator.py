@@ -154,11 +154,19 @@ async def evaluate_workflow_triggers(
                 if triggers:
                     break
 
-    if not triggers:
+    # Evaluate top-level tool_rules on BEFORE_TOOL events (before triggers)
+    has_tool_rules = (
+        event.event_type == HookEventType.BEFORE_TOOL
+        and getattr(workflow, "tool_rules", None)
+    )
+
+    if not triggers and not has_tool_rules:
         return HookResponse(decision="allow")
 
     logger.debug(
-        f"Evaluating {len(triggers)} trigger(s) for '{trigger_name}' in workflow '{workflow.name}'"
+        f"Evaluating workflow '{workflow.name}': "
+        f"{len(triggers)} trigger(s) for '{trigger_name}', "
+        f"{len(workflow.tool_rules) if has_tool_rules else 0} tool_rule(s)"
     )
 
     # Get or create persisted state for action execution
@@ -214,6 +222,24 @@ async def evaluate_workflow_triggers(
 
     injected_context: list[str] = []
     system_message: str | None = None
+
+    # Evaluate tool_rules before triggers (runs block_tools directly)
+    if has_tool_rules:
+        from gobby.workflows.enforcement.blocking import block_tools
+
+        block_result = await block_tools(
+            rules=workflow.tool_rules,
+            event_data=event.data,
+            workflow_state=state,
+        )
+        if block_result and block_result.get("decision") == "block":
+            _persist_state_changes(
+                session_id, state, state_was_created, vars_snapshot, state_manager, workflow
+            )
+            return HookResponse(
+                decision="block",
+                reason=block_result.get("reason", "Blocked by tool_rules"),
+            )
 
     # Fetch session for condition evaluation (enables session.title checks)
     session = None
