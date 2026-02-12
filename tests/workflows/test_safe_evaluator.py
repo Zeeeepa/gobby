@@ -355,6 +355,74 @@ class TestCombinedExpressions:
         ev = _build_evaluator(ctx)
         assert ev.evaluate("not mcp_called('gobby-tasks')") is True
 
+    def test_or_returns_actual_value_not_bool(self) -> None:
+        """Python's `or` returns actual values — needed for (dict.get() or {}).get()."""
+        from gobby.workflows.safe_evaluator import SafeExpressionEvaluator
+
+        ctx: dict[str, Any] = {"a": None, "b": {"key": "val"}}
+        ev = SafeExpressionEvaluator(ctx, {"len": len})
+        # `None or {'key': 'val'}` should return the dict, not True
+        assert ev.evaluate("(a or b).get('key') == 'val'") is True
+
+    def test_and_returns_actual_value_not_bool(self) -> None:
+        """Python's `and` returns last truthy or first falsy."""
+        from gobby.workflows.safe_evaluator import SafeExpressionEvaluator
+
+        ctx: dict[str, Any] = {"a": "hello", "b": ""}
+        ev = SafeExpressionEvaluator(ctx, {})
+        assert ev.evaluate("a and b") is False  # b is falsy empty string
+
+    def test_chained_or_default_pattern(self) -> None:
+        """Test the (dict.get('key') or {}).get('nested') pattern from lifecycle YAML."""
+        from gobby.workflows.safe_evaluator import SafeExpressionEvaluator
+
+        ctx: dict[str, Any] = {"event": {"data": {"tool_input": {"arguments": {"commit_sha": "abc"}}}}}
+        ev = SafeExpressionEvaluator(ctx, {})
+        # This is the pattern from session-lifecycle.yaml line 363
+        result = ev.evaluate(
+            "((event.data.get('tool_input') or {}).get('arguments') or {}).get('commit_sha')"
+        )
+        assert result is True  # "abc" is truthy
+
+    def test_string_strip_method(self) -> None:
+        """Test .strip() on strings — used in lifecycle title synthesis."""
+        from gobby.workflows.safe_evaluator import SafeExpressionEvaluator
+
+        ctx: dict[str, Any] = {"s": "  hello  "}
+        ev = SafeExpressionEvaluator(ctx, {"len": len})
+        assert ev.evaluate("len(s.strip()) > 0") is True
+
+    def test_string_startswith_method(self) -> None:
+        """Test .startswith() — used in lifecycle YAML to detect slash commands."""
+        from gobby.workflows.safe_evaluator import SafeExpressionEvaluator
+
+        ctx: dict[str, Any] = {"prompt": "/gobby help"}
+        ev = SafeExpressionEvaluator(ctx, {})
+        assert ev.evaluate("prompt.startswith('/')") is True
+
+        ctx2: dict[str, Any] = {"prompt": "help me"}
+        ev2 = SafeExpressionEvaluator(ctx2, {})
+        assert ev2.evaluate("prompt.startswith('/')") is False
+
+    def test_lifecycle_title_synthesis_expression(self) -> None:
+        """Test the exact expression from session-lifecycle.yaml for title synthesis."""
+        from gobby.workflows.safe_evaluator import SafeExpressionEvaluator
+
+        ctx: dict[str, Any] = {"event": {"data": {"prompt": "Fix the login bug"}}}
+        ev = SafeExpressionEvaluator(ctx, {"len": len})
+        expr = "len((event.data.get('prompt') or '').strip()) >= 10 and not (event.data.get('prompt') or '').strip().startswith('/')"
+        assert ev.evaluate(expr) is True
+
+        # Slash command should fail
+        ctx2: dict[str, Any] = {"event": {"data": {"prompt": "/gobby help with tasks"}}}
+        ev2 = SafeExpressionEvaluator(ctx2, {"len": len})
+        assert ev2.evaluate(expr) is False
+
+        # Short prompt should fail
+        ctx3: dict[str, Any] = {"event": {"data": {"prompt": "hi"}}}
+        ev3 = SafeExpressionEvaluator(ctx3, {"len": len})
+        assert ev3.evaluate(expr) is False
+
     def test_helper_with_variable_reference(self, mock_task_manager: MagicMock) -> None:
         """Test calling a helper with a variable from context."""
         task = _make_task(status="closed")

@@ -82,12 +82,29 @@ class SafeExpressionEvaluator(ast.NodeVisitor):
         except Exception as e:
             raise ValueError(f"Invalid expression: {e}") from e
 
-    def visit_BoolOp(self, node: ast.BoolOp) -> bool:
-        """Handle 'and' / 'or' operations."""
+    def visit_BoolOp(self, node: ast.BoolOp) -> Any:
+        """Handle 'and' / 'or' operations with Python semantics.
+
+        Python's `and`/`or` return actual values, not just True/False:
+        - `a and b` returns `a` if falsy, else `b`
+        - `a or b` returns `a` if truthy, else `b`
+
+        This matters for expressions like: `(dict.get('key') or {}).get('nested')`
+        """
         if isinstance(node.op, ast.And):
-            return all(self.visit(v) for v in node.values)
+            result: Any = True
+            for v in node.values:
+                result = self.visit(v)
+                if not result:
+                    return result
+            return result
         elif isinstance(node.op, ast.Or):
-            return any(self.visit(v) for v in node.values)
+            result = False
+            for v in node.values:
+                result = self.visit(v)
+                if result:
+                    return result
+            return result
         raise ValueError(f"Unsupported boolean operator: {type(node.op).__name__}")
 
     def visit_Compare(self, node: ast.Compare) -> bool:
@@ -133,19 +150,30 @@ class SafeExpressionEvaluator(ast.NodeVisitor):
         """Handle literal values (strings, numbers, booleans, None)."""
         return node.value
 
+    # Safe method calls allowed on specific types
+    SAFE_METHODS: dict[type, set[str]] = {
+        dict: {"get", "keys", "values", "items"},
+        str: {"strip", "lstrip", "rstrip", "startswith", "endswith", "lower", "upper", "split"},
+        list: {"count", "index"},
+    }
+
     def visit_Call(self, node: ast.Call) -> Any:
-        """Handle function calls (only allowed functions)."""
+        """Handle function calls (only allowed functions and safe method calls)."""
         # Get function name
         if isinstance(node.func, ast.Name):
             func_name = node.func.id
         elif isinstance(node.func, ast.Attribute):
-            # Handle method calls like tool_input.get('key')
+            # Handle method calls like obj.get('key'), s.strip(), s.startswith('/')
             obj = self.visit(node.func.value)
             method_name = node.func.attr
-            if method_name == "get" and isinstance(obj, dict):
-                args = [self.visit(arg) for arg in node.args]
-                return obj.get(*args)
-            raise ValueError(f"Unsupported method call: {method_name}")
+            args = [self.visit(arg) for arg in node.args]
+
+            # Check if this is an allowed method call
+            for allowed_type, allowed_methods in self.SAFE_METHODS.items():
+                if isinstance(obj, allowed_type) and method_name in allowed_methods:
+                    return getattr(obj, method_name)(*args)
+
+            raise ValueError(f"Unsupported method call: {type(obj).__name__}.{method_name}")
         else:
             raise ValueError(f"Unsupported call type: {type(node.func).__name__}")
 
