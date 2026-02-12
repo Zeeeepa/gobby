@@ -8,7 +8,6 @@ Exposes functionality for:
 - end_workflow: Complete/terminate active workflow
 - get_workflow_status: Get current workflow state
 - request_step_transition: Request transition to a different step
-- mark_artifact_complete: Register an artifact as complete
 - set_variable: Set a workflow variable for the session
 - get_variable: Get workflow variable(s) for the session
 - import_workflow: Import a workflow from a file path
@@ -21,11 +20,6 @@ via the downstream proxy pattern (call_tool, list_tools, get_tool_schema).
 from typing import Any
 
 from gobby.mcp_proxy.tools.internal import InternalToolRegistry
-from gobby.mcp_proxy.tools.workflows._artifacts import (
-    get_variable,
-    mark_artifact_complete,
-    set_variable,
-)
 from gobby.mcp_proxy.tools.workflows._import import import_workflow, reload_cache
 from gobby.mcp_proxy.tools.workflows._lifecycle import (
     activate_workflow,
@@ -36,6 +30,10 @@ from gobby.mcp_proxy.tools.workflows._query import (
     get_workflow,
     get_workflow_status,
     list_workflows,
+)
+from gobby.mcp_proxy.tools.workflows._variables import (
+    get_variable,
+    set_variable,
 )
 from gobby.storage.database import DatabaseProtocol
 from gobby.storage.sessions import LocalSessionManager
@@ -188,21 +186,6 @@ def create_workflows_registry(
             session_id,
             force,
             project_path,
-        )
-
-    @registry.tool(
-        name="mark_artifact_complete",
-        description="Register an artifact as complete (plan, spec, etc.). Accepts #N, N, UUID, or prefix for session_id.",
-    )
-    def _mark_artifact_complete(
-        artifact_type: str,
-        file_path: str,
-        session_id: str | None = None,
-    ) -> dict[str, Any]:
-        if _state_manager is None or _session_manager is None:
-            return {"error": "Workflow tools require database connection"}
-        return mark_artifact_complete(
-            _state_manager, _session_manager, artifact_type, file_path, session_id
         )
 
     @registry.tool(

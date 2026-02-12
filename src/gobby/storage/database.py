@@ -13,7 +13,7 @@ from collections.abc import Iterator
 from contextlib import AbstractContextManager, contextmanager
 from datetime import UTC, date, datetime
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Protocol, cast, runtime_checkable
+from typing import Any, Protocol, cast, runtime_checkable
 
 # Register custom datetime adapters/converters (required since Python 3.12)
 # See: https://docs.python.org/3/library/sqlite3.html#default-adapters-and-converters-deprecated
@@ -54,9 +54,6 @@ sqlite3.register_adapter(date, _adapt_date)
 sqlite3.register_converter("datetime", _convert_datetime)
 sqlite3.register_converter("date", _convert_date)
 
-if TYPE_CHECKING:
-    from gobby.storage.artifacts import LocalArtifactManager
-
 logger = logging.getLogger(__name__)
 
 
@@ -72,11 +69,6 @@ class DatabaseProtocol(Protocol):
     @property
     def connection(self) -> sqlite3.Connection:
         """Get database connection (for reads)."""
-        ...
-
-    @property
-    def artifact_manager(self) -> Any:
-        """Get artifact manager."""
         ...
 
     def execute(self, sql: str, params: tuple[Any, ...] = ()) -> sqlite3.Cursor:
@@ -152,8 +144,6 @@ class LocalDatabase:
 
         self.db_path = Path(db_path) if db_path else DEFAULT_DB_PATH
         self._local = threading.local()
-        self._artifact_manager: LocalArtifactManager | None = None
-        self._artifact_manager_lock = threading.Lock()
         # Track all connections for proper cleanup across threads
         self._all_connections: set[sqlite3.Connection] = set()
         self._connections_lock = threading.Lock()
@@ -190,26 +180,6 @@ class LocalDatabase:
     def connection(self) -> sqlite3.Connection:
         """Get current thread's database connection."""
         return self._get_connection()
-
-    @property
-    def artifact_manager(self) -> LocalArtifactManager:
-        """Get lazily-initialized LocalArtifactManager instance.
-
-        The artifact manager is created on first access and reused for the
-        lifetime of this LocalDatabase instance. Uses double-checked locking
-        for thread-safe initialization.
-
-        Returns:
-            LocalArtifactManager instance for managing session artifacts.
-        """
-        if self._artifact_manager is None:
-            with self._artifact_manager_lock:
-                # Double-check inside lock
-                if self._artifact_manager is None:
-                    from gobby.storage.artifacts import LocalArtifactManager
-
-                    self._artifact_manager = LocalArtifactManager(self)
-        return self._artifact_manager
 
     def execute(self, sql: str, params: tuple[Any, ...] = ()) -> sqlite3.Cursor:
         """Execute SQL statement."""
@@ -338,9 +308,6 @@ class LocalDatabase:
         at interpreter shutdown, atexit handler is used instead of __del__ to
         avoid lock acquisition issues during GC.
         """
-        # Clean up artifact manager
-        self._artifact_manager = None
-
         # Close all connections from all threads
         with self._connections_lock:
             for conn in self._all_connections:

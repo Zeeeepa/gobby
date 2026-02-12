@@ -42,9 +42,7 @@ if TYPE_CHECKING:
     import asyncio
     from collections.abc import Callable
 
-    from gobby.hooks.artifact_capture import ArtifactCaptureHook
     from gobby.llm.service import LLMService
-    from gobby.storage.artifacts import LocalArtifactManager
     from gobby.workflows.actions import ActionExecutor
     from gobby.workflows.engine import WorkflowEngine
     from gobby.workflows.pipeline_executor import PipelineExecutor
@@ -64,8 +62,6 @@ class _Storage:
     task: LocalTaskManager
     agent_run: LocalAgentRunManager
     worktree: LocalWorktreeManager
-    artifact: LocalArtifactManager
-    artifact_capture_hook: ArtifactCaptureHook
 
 
 @dataclass
@@ -110,8 +106,6 @@ class HookManagerComponents:
     task_manager: LocalTaskManager
     agent_run_manager: LocalAgentRunManager
     worktree_manager: LocalWorktreeManager
-    artifact_manager: Any  # LocalArtifactManager
-    artifact_capture_hook: Any  # ArtifactCaptureHook
     stop_registry: StopRegistry
     progress_tracker: ProgressTracker
     stuck_detector: StuckDetector
@@ -259,7 +253,6 @@ class HookManagerFactory:
             message_manager=storage.message,
             skill_manager=workflow_components.skill_manager,
             skills_config=config.skills if config else None,
-            artifact_capture_hook=storage.artifact_capture_hook,
             workflow_config=config.workflow if config else None,
             get_machine_id=get_machine_id,
             resolve_project_id=resolve_project_id,
@@ -278,8 +271,6 @@ class HookManagerFactory:
             task_manager=storage.task,
             agent_run_manager=storage.agent_run,
             worktree_manager=storage.worktree,
-            artifact_manager=storage.artifact,
-            artifact_capture_hook=storage.artifact_capture_hook,
             stop_registry=autonomous.stop_registry,
             progress_tracker=autonomous.progress_tracker,
             stuck_detector=autonomous.stuck_detector,
@@ -310,12 +301,8 @@ class HookManagerFactory:
 
     @staticmethod
     def _create_storage(database: LocalDatabase) -> _Storage:
-        from gobby.hooks.artifact_capture import ArtifactCaptureHook
-        from gobby.storage.artifacts import LocalArtifactManager
-
         session = LocalSessionManager(database)
         session_task = SessionTaskManager(database)
-        artifact = LocalArtifactManager(database)
         return _Storage(
             session=session,
             session_task=session_task,
@@ -324,11 +311,6 @@ class HookManagerFactory:
             task=LocalTaskManager(database),
             agent_run=LocalAgentRunManager(database),
             worktree=LocalWorktreeManager(database),
-            artifact=artifact,
-            artifact_capture_hook=ArtifactCaptureHook(
-                artifact_manager=artifact,
-                session_task_manager=session_task,
-            ),
         )
 
     @staticmethod
