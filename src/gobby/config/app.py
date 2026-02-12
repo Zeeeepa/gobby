@@ -32,7 +32,6 @@ from gobby.config.persistence import MemoryConfig, MemorySyncConfig
 from gobby.config.search import SearchConfig
 from gobby.config.servers import MCPClientProxyConfig, WebSocketSettings
 from gobby.config.sessions import (
-    ArtifactHandoffConfig,
     ContextInjectionConfig,
     MessageTrackingConfig,
     SessionLifecycleConfig,
@@ -212,10 +211,6 @@ class DaemonConfig(BaseModel):
     context_injection: ContextInjectionConfig = Field(
         default_factory=ContextInjectionConfig,
         description="Context injection configuration for subagent spawning",
-    )
-    artifact_handoff: ArtifactHandoffConfig = Field(
-        default_factory=ArtifactHandoffConfig,
-        description="Artifact inclusion in handoff context configuration",
     )
     mcp_client_proxy: MCPClientProxyConfig = Field(
         default_factory=MCPClientProxyConfig,
