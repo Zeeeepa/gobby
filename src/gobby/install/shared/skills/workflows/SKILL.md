@@ -89,8 +89,8 @@ Parameters:
 
 Returns a `WorkflowEvaluation` with `valid` (bool), `items` (list of findings), and `step_trace` (reachability analysis).
 
-Example: `/gobby workflows evaluate meeseeks-box`
-→ `evaluate_workflow(name="meeseeks-box")`
+Example: `/gobby workflows evaluate auto-task`
+→ `evaluate_workflow(name="auto-task")`
 
 ## Response Format
 
