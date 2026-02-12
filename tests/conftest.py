@@ -12,6 +12,19 @@ from filelock import FileLock
 
 tracemalloc.start()
 
+
+def pytest_collection_modifyitems(items: list[pytest.Item]) -> None:
+    """Sort e2e tests to run last, reducing port collision risk with production daemon."""
+    non_e2e = []
+    e2e = []
+    for item in items:
+        if item.get_closest_marker("e2e") or "tests/e2e" in str(item.fspath):
+            e2e.append(item)
+        else:
+            non_e2e.append(item)
+    items[:] = non_e2e + e2e
+
+
 if TYPE_CHECKING:
     from gobby.config.app import DaemonConfig
     from gobby.storage.database import LocalDatabase

@@ -691,6 +691,26 @@ class GobbyRunner:
             if self.websocket_server:
                 websocket_task = asyncio.create_task(self.websocket_server.start())
 
+            # Auto-start UI dev server if configured
+            if self.config.ui.enabled and self.config.ui.mode == "dev":
+                from gobby.cli.utils import find_web_dir, spawn_ui_server
+
+                web_dir = find_web_dir(self.config)
+                if web_dir:
+                    ui_log = Path(self.config.logging.client).expanduser().parent / "ui.log"
+                    ui_pid = spawn_ui_server(
+                        self.config.ui.host, self.config.ui.port, web_dir, ui_log
+                    )
+                    if ui_pid:
+                        logger.info(
+                            f"UI dev server started (PID: {ui_pid}) "
+                            f"at http://{self.config.ui.host}:{self.config.ui.port}"
+                        )
+                    else:
+                        logger.warning("Failed to start UI dev server")
+                else:
+                    logger.warning("UI dev mode enabled but web/ directory not found")
+
             # Start HTTP server
             graceful_shutdown_timeout = 15
             config = uvicorn.Config(
@@ -747,6 +767,12 @@ class GobbyRunner:
                     await asyncio.wait_for(self._metrics_cleanup_task, timeout=2.0)
                 except (asyncio.CancelledError, TimeoutError):
                     pass
+
+            # Stop UI dev server if we started it
+            if self.config.ui.enabled and self.config.ui.mode == "dev":
+                from gobby.cli.utils import stop_ui_server
+
+                stop_ui_server(quiet=True)
 
             # Export memories to JSONL backup on shutdown
             if self.memory_sync_manager:

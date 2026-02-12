@@ -52,7 +52,7 @@ class UIConfig(BaseModel):
 
     enabled: bool = Field(default=False, description="Enable web UI serving")
     mode: str = Field(default="production", description="'production' or 'dev'")
-    port: int = Field(default=5173, description="Dev server port (dev mode only)")
+    port: int = Field(default=60889, description="Dev server port (dev mode only)")
     host: str = Field(default="localhost", description="Dev server host (dev mode only)")
     web_dir: str | None = Field(
         default=None, description="Path to web/ dir (auto-detected if None)"
