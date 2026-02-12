@@ -37,6 +37,38 @@ class RuleDefinition(BaseModel):
         return rule
 
 
+class Observer(BaseModel):
+    """Observer that watches events and sets variables.
+
+    Two variants (exactly one must be specified):
+    1. YAML observer: on + set (match optional) — inline event/variable mapping
+    2. Behavior ref: behavior — references a registered behavior by name
+    """
+
+    name: str
+    # YAML observer fields
+    on: str | None = None  # Event type to observe (e.g., "after_tool")
+    match: dict[str, str] | None = None  # Optional filter (tool, mcp_server, mcp_tool)
+    set: dict[str, str] | None = None  # Variable assignments (name -> expression)
+    # Behavior ref field
+    behavior: str | None = None  # Registered behavior name
+
+    def model_post_init(self, __context: Any) -> None:
+        """Validate that exactly one variant is specified."""
+        is_yaml = self.on is not None or self.match is not None or self.set is not None
+        is_behavior = self.behavior is not None
+        if is_yaml and is_behavior:
+            raise ValueError(
+                "Observer must specify exactly one variant: "
+                "YAML observer (on/match/set) or behavior ref (behavior), not both."
+            )
+        if not is_yaml and not is_behavior:
+            raise ValueError(
+                "Observer must specify exactly one variant: "
+                "YAML observer (on/match/set) or behavior ref (behavior)."
+            )
+
+
 class WorkflowRule(BaseModel):
     name: str | None = None
     when: str
@@ -126,6 +158,9 @@ class WorkflowDefinition(BaseModel):
     # Top-level tool blocking rules (same format as block_tools action rules).
     # Evaluated on BEFORE_TOOL events before trigger-based block_tools actions.
     tool_rules: list[dict[str, Any]] = Field(default_factory=list)
+
+    # Observers: watch events and set variables or invoke registered behaviors
+    observers: list[Observer] = Field(default_factory=list)
 
     steps: list[WorkflowStep] = Field(default_factory=list)
 
