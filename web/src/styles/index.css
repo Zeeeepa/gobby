@@ -4145,6 +4145,7 @@ body {
 
 .memory-overview-card--total .memory-overview-count { color: var(--accent); }
 .memory-overview-card--important .memory-overview-count { color: #f59e0b; }
+.memory-overview-card--review .memory-overview-count { color: #ef4444; }
 .memory-overview-card--recent .memory-overview-count { color: #22c55e; }
 
 .memory-overview-label {

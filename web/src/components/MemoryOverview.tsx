@@ -16,6 +16,11 @@ export function MemoryOverview({ memories, stats, activeFilter, onFilter }: Memo
     [memories]
   )
 
+  const needsReviewCount = useMemo(
+    () => memories.filter(m => m.importance < 0.3).length,
+    [memories]
+  )
+
   const recentCount = useMemo(() => {
     const cutoff = Date.now() - TWENTY_FOUR_HOURS_MS
     return memories.filter(m => new Date(m.created_at).getTime() > cutoff).length
@@ -24,6 +29,7 @@ export function MemoryOverview({ memories, stats, activeFilter, onFilter }: Memo
   const cards = [
     { key: 'total', label: 'Total', count: stats?.total_count ?? 0, filterKey: 'total', className: 'memory-overview-card--total' },
     { key: 'important', label: 'Important', count: importantCount, filterKey: 'important', className: 'memory-overview-card--important' },
+    { key: 'review', label: 'Needs Review', count: needsReviewCount, filterKey: 'needs_review', className: 'memory-overview-card--review' },
     { key: 'recent', label: 'New (24h)', count: recentCount, filterKey: 'recent', className: 'memory-overview-card--recent' },
   ]
 
