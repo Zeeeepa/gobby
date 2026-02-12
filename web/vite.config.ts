@@ -13,7 +13,7 @@ export default defineConfig({
     proxy: {
       // Proxy API requests to Gobby daemon
       ...Object.fromEntries(
-        ['/api', '/mcp', '/admin', '/tasks', '/sessions', '/artifacts', '/memories'].map(
+        ['/api', '/mcp', '/admin', '/tasks', '/sessions', '/artifacts', '/memories', '/skills'].map(
           (path) => [path, { target: 'http://localhost:60887', changeOrigin: true }]
         )
       ),
