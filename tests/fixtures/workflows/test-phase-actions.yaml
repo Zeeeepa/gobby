@@ -39,36 +39,6 @@ phases:
       - type: auto
         after_actions: true
 
-  - name: capture
-    description: "Test artifact capture and reading"
-
-    on_enter:
-      - action: switch_mode
-        mode: capture
-
-      - action: inject_message
-        content: "TEST PHASE: capture - Looking for plan files..."
-
-      # 4. Capture artifact
-      - action: capture_artifact
-        pattern: "**/*.plan.md"
-        as: plan_file
-
-      # 5. Read artifact (if captured)
-      - action: read_artifact
-        pattern: "{{ plan_file }}"
-        as: plan_content
-        when: "state.variables.get('plan_file')"
-
-      # 6. Increment counter
-      - action: increment_variable
-        name: counter
-        amount: 1
-
-    exit_conditions:
-      - type: auto
-        after_actions: true
-
   - name: llm_test
     description: "Test LLM and MCP actions"
 

@@ -146,7 +146,6 @@ def inject_context(
         render_context = {
             "session": session_manager.get(session_id),
             "state": state,
-            "artifacts": state.artifacts if state else {},
             "observations": state.observations if state else {},
         }
         rendered = template_engine.render(template, render_context)

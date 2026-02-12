@@ -313,7 +313,6 @@ def workflow_status(ctx: click.Context, session_id: str | None, json_format: boo
                     "reflection_pending": state.reflection_pending,
                     "disabled": state.disabled,
                     "disabled_reason": state.disabled_reason,
-                    "artifacts": list(state.artifacts.keys()) if state.artifacts else [],
                     "updated_at": state.updated_at.isoformat() if state.updated_at else None,
                 },
                 indent=2,
@@ -333,9 +332,6 @@ def workflow_status(ctx: click.Context, session_id: str | None, json_format: boo
 
     if state.reflection_pending:
         click.echo("⚠️  Reflection pending")
-
-    if state.artifacts:
-        click.echo(f"Artifacts: {', '.join(state.artifacts.keys())}")
 
     if state.task_list:
         click.echo(f"Task progress: {state.current_task_index + 1}/{len(state.task_list)}")
@@ -405,7 +401,6 @@ def set_workflow(
         step_entered_at=datetime.now(UTC),
         step_action_count=0,
         total_action_count=0,
-        artifacts={},
         observations=[],
         reflection_pending=False,
         context_injected=False,
@@ -602,36 +597,6 @@ def enable_workflow(ctx: click.Context, session_id: str | None) -> None:
     state_manager.save_state(state)
     click.echo(f"✓ Re-enabled workflow '{state.workflow_name}'")
     click.echo(f"  Current step: {state.step}")
-
-
-@workflows.command("artifact")
-@click.argument("artifact_type")
-@click.argument("file_path")
-@click.option("--session", "-s", "session_id", help="Session ID (defaults to current)")
-@click.pass_context
-def mark_artifact(
-    ctx: click.Context, artifact_type: str, file_path: str, session_id: str | None
-) -> None:
-    """Mark an artifact as complete (plan, spec, test, etc.)."""
-    state_manager = get_state_manager()
-
-    try:
-        session_id = resolve_session_id(session_id)
-    except click.ClickException as e:
-        raise SystemExit(1) from e
-
-    state = state_manager.get_state(session_id)
-    if not state:
-        click.echo(f"No workflow active for session: {session_id[:12]}...", err=True)
-        raise SystemExit(1)
-
-    # Update artifacts
-    state.artifacts[artifact_type] = file_path
-    state_manager.save_state(state)
-
-    click.echo(f"✓ Marked '{artifact_type}' artifact complete: {file_path}")
-    if len(state.artifacts) > 1:
-        click.echo(f"  All artifacts: {', '.join(state.artifacts.keys())}")
 
 
 @workflows.command("import")

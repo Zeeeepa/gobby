@@ -67,7 +67,6 @@ class TestForceTransitionContextInjected:
             step_entered_at=datetime.now(UTC),
             step_action_count=5,
             total_action_count=10,
-            artifacts={},
             observations=[],
             reflection_pending=False,
             context_injected=True,  # Already injected for current step
@@ -122,7 +121,6 @@ class TestEndWorkflowVariablePersistence:
             step_entered_at=datetime.now(UTC),
             step_action_count=0,
             total_action_count=0,
-            artifacts={},
             observations=[],
             reflection_pending=False,
             context_injected=True,

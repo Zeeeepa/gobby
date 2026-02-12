@@ -94,7 +94,6 @@ def test_status_active(cli_runner, mock_state_manager) -> None:
             state.step_action_count = 5
             state.total_action_count = 10
             state.disabled = False
-            state.artifacts = {}
             state.task_list = None
             state.reflection_pending = False
             mock_state_manager.get_state.return_value = state
@@ -250,7 +249,6 @@ def test_status_json_format(cli_runner, mock_state_manager) -> None:
             state.total_action_count = 7
             state.disabled = False
             state.disabled_reason = None
-            state.artifacts = {"plan": "/path/to/plan.md"}
             state.task_list = None
             state.reflection_pending = False
             state.updated_at = None
@@ -288,7 +286,6 @@ def test_status_disabled_workflow(cli_runner, mock_state_manager) -> None:
             state.total_action_count = 5
             state.disabled = True
             state.disabled_reason = "Manual override"
-            state.artifacts = {}
             state.task_list = None
             state.reflection_pending = False
             mock_state_manager.get_state.return_value = state
@@ -537,45 +534,6 @@ def test_enable_not_disabled(cli_runner, mock_state_manager) -> None:
 
             assert result.exit_code == 0
             assert "not disabled" in result.output
-
-
-# ==============================================================================
-# Tests for artifact command
-# ==============================================================================
-
-
-def test_mark_artifact(cli_runner, mock_state_manager) -> None:
-    """Test marking an artifact as complete."""
-    with patch("gobby.cli.workflows.get_state_manager", return_value=mock_state_manager):
-        with patch("gobby.cli.workflows.resolve_session_id", return_value="sess1"):
-            state = MagicMock(spec=WorkflowState)
-            state.workflow_name = "test_wf"
-            state.artifacts = {}
-            mock_state_manager.get_state.return_value = state
-
-            result = cli_runner.invoke(
-                workflows, ["artifact", "plan", "/path/to/plan.md", "--session", "sess1"]
-            )
-
-            assert result.exit_code == 0
-            assert "Marked 'plan' artifact complete" in result.output
-
-
-def test_mark_multiple_artifacts(cli_runner, mock_state_manager) -> None:
-    """Test marking multiple artifacts."""
-    with patch("gobby.cli.workflows.get_state_manager", return_value=mock_state_manager):
-        with patch("gobby.cli.workflows.resolve_session_id", return_value="sess1"):
-            state = MagicMock(spec=WorkflowState)
-            state.workflow_name = "test_wf"
-            state.artifacts = {"spec": "/path/to/spec.md"}
-            mock_state_manager.get_state.return_value = state
-
-            result = cli_runner.invoke(
-                workflows, ["artifact", "plan", "/path/to/plan.md", "--session", "sess1"]
-            )
-
-            assert result.exit_code == 0
-            assert "All artifacts:" in result.output
 
 
 # ==============================================================================

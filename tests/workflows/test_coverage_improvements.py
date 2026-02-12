@@ -28,8 +28,6 @@ def mock_action_context():
     # Simple render mock that replaces handlebars
     def simple_render(template, ctx):
         result = template
-        if "{{ artifacts_list }}" in result:
-            result = result.replace("{{ artifacts_list }}", ctx.get("artifacts_list", ""))
         if "{{ observations_text }}" in result:
             result = result.replace("{{ observations_text }}", ctx.get("observations_text", ""))
         if "{{ workflow_state_text }}" in result:
@@ -64,21 +62,6 @@ def mock_config():
     # Set llm_providers to None to prevent MagicMock from being truthy
     config.llm_providers = None
     return config
-
-
-@pytest.mark.asyncio
-async def test_inject_context_artifacts(mock_action_context):
-    """Test injecting artifact context."""
-    context = mock_action_context
-    context.state.artifacts = {"test.txt": "/path/to/test.txt"}
-
-    result = await context.executor.execute(
-        "inject_context", context, source="artifacts", template="Artifacts: {{ artifacts_list }}"
-    )
-    assert (
-        result["inject_context"]
-        == "Artifacts: ## Captured Artifacts\n- test.txt: /path/to/test.txt"
-    )
 
 
 @pytest.mark.asyncio
@@ -179,21 +162,6 @@ async def test_inject_context_require_allows_with_content(mock_action_context):
 
     assert "inject_context" in result
     assert result["inject_context"] == "Test handoff content"
-
-
-@pytest.mark.asyncio
-async def test_read_artifact_glob(mock_action_context, tmp_path):
-    """Test reading artifact with glob pattern."""
-    context = mock_action_context
-    test_file = tmp_path / "glob_test.txt"
-    test_file.write_text("glob content")
-
-    result = await context.executor.execute(
-        "read_artifact", context, pattern=str(tmp_path / "*.txt"), **{"as": "glob_var"}
-    )
-
-    assert result["read_artifact"] is True
-    assert context.state.variables["glob_var"] == "glob content"
 
 
 @pytest.mark.asyncio

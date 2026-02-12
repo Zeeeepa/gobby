@@ -186,7 +186,6 @@ class TestAgentResult:
         assert result.status == "success"
         assert result.turns_used == 3
         assert result.tool_calls == []
-        assert result.artifacts == {}
         assert result.files_modified == []
         assert result.next_steps == []
         assert result.error is None
@@ -204,7 +203,6 @@ class TestAgentResult:
             output="Feature implemented.",
             status="success",
             tool_calls=[tool_call],
-            artifacts={"plan": "implementation steps"},
             files_modified=["src/main.py", "tests/test_main.py"],
             next_steps=["Run tests", "Deploy"],
             turns_used=5,
@@ -214,7 +212,6 @@ class TestAgentResult:
         assert result.output == "Feature implemented."
         assert result.status == "success"
         assert len(result.tool_calls) == 1
-        assert result.artifacts == {"plan": "implementation steps"}
         assert len(result.files_modified) == 2
         assert len(result.next_steps) == 2
         assert result.run_id == "run-abc123"
@@ -365,7 +362,6 @@ class TestAgentExecutorRunWithCompleteTool:
         assert schema["type"] == "object"
         assert "output" in schema["properties"]
         assert "status" in schema["properties"]
-        assert "artifacts" in schema["properties"]
         assert "files_modified" in schema["properties"]
         assert "next_steps" in schema["properties"]
         assert schema["required"] == ["output"]
@@ -395,7 +391,6 @@ class TestAgentExecutorRunWithCompleteTool:
                     {
                         "output": "Successfully completed",
                         "status": "success",
-                        "artifacts": {"key": "value"},
                         "files_modified": ["test.py"],
                         "next_steps": ["Review code"],
                     },
@@ -417,7 +412,6 @@ class TestAgentExecutorRunWithCompleteTool:
 
         assert result.output == "Successfully completed"
         assert result.status == "success"
-        assert result.artifacts == {"key": "value"}
         assert result.files_modified == ["test.py"]
         assert result.next_steps == ["Review code"]
         assert result.turns_used == 1

@@ -97,29 +97,6 @@ async def test_inject_context_previous_session(
 
 
 @pytest.mark.asyncio
-async def test_capture_artifact(action_executor, action_context, tmp_path):
-    # Create a dummy file
-    artifact_file = tmp_path / "plan.md"
-    artifact_file.write_text("Plan content")
-
-    # We need to use glob pattern relative to CWD, or absolute.
-    # Use absolute for test stability.
-    pattern = str(artifact_file)
-
-    result = await action_executor.execute(
-        "capture_artifact",
-        action_context,
-        pattern=pattern,
-        **{"as": "current_plan"},  # 'as' is a python keyword
-    )
-
-    assert result is not None
-    assert result["captured"] == str(artifact_file)
-    assert "current_plan" in action_context.state.artifacts
-    assert action_context.state.artifacts["current_plan"] == str(artifact_file)
-
-
-@pytest.mark.asyncio
 async def test_generate_handoff(
     action_executor, action_context, session_manager, sample_project, mock_services, tmp_path
 ):
@@ -285,23 +262,6 @@ async def test_inject_message(action_executor, action_context, mock_services):
     assert result is not None
     assert result["inject_message"] == "Rendered Message"
     mock_services["template_engine"].render.assert_called_once()
-
-
-@pytest.mark.asyncio
-async def test_read_artifact(action_executor, action_context, tmp_path):
-    artifact_file = tmp_path / "data.txt"
-    artifact_file.write_text("Secret Data")
-
-    # Store artifact in state first (simulate capture)
-    action_context.state.artifacts["my_data"] = str(artifact_file)
-
-    result = await action_executor.execute(
-        "read_artifact", action_context, pattern="my_data", **{"as": "data_var"}
-    )
-
-    assert result is not None
-    assert result["read_artifact"] is True
-    assert action_context.state.variables["data_var"] == "Secret Data"
 
 
 @pytest.mark.asyncio
@@ -479,14 +439,7 @@ async def test_inject_context(action_executor, action_context, session_manager, 
         project_id=sample_project["id"],
     )
     action_context.session_id = session.id
-    action_context.state.artifacts["art1"] = "/tmp/path"
-
-    # 1. Source: artifacts
-    res = await action_executor.execute("inject_context", action_context, source="artifacts")
-    assert res is not None
-    assert "- art1: /tmp/path" in res["inject_context"]
-
-    # 2. Source: workflow_state
+    # 1. Source: workflow_state
     action_context.state.variables["k"] = "v"
     res = await action_executor.execute("inject_context", action_context, source="workflow_state")
     assert res is not None
@@ -864,13 +817,7 @@ async def test_inject_context_variations(action_executor, action_context, mock_s
     res = await action_executor.execute("inject_context", action_context, source="compact_handoff")
     assert res["inject_context"] == "Compact Markdown"
 
-    # 2. Artifacts injection
-    action_context.state.artifacts = {"Plan": "/path/to/plan.md"}
-    res = await action_executor.execute("inject_context", action_context, source="artifacts")
-    assert "## Captured Artifacts" in res["inject_context"]
-    assert "- Plan: /path/to/plan.md" in res["inject_context"]
-
-    # 3. Observations injection
+    # 2. Observations injection
     action_context.state.observations = ["User clicked button"]
     res = await action_executor.execute("inject_context", action_context, source="observations")
     assert "## Observations" in res["inject_context"]
@@ -1245,9 +1192,8 @@ class TestWebhookAction:
     @pytest.mark.asyncio
     async def test_webhook_action_interpolation_context(self, action_executor, action_context):
         """Test webhook action builds interpolation context from state."""
-        # Set up workflow state with variables and artifacts
+        # Set up workflow state with variables
         action_context.state.variables = {"task_id": "123", "status": "completed"}
-        action_context.state.artifacts = {"plan": "/path/to/plan.md"}
 
         with patch("gobby.workflows.webhook_executor.WebhookExecutor") as MockExecutor:
             mock_result = MagicMock()
@@ -1270,4 +1216,3 @@ class TestWebhookAction:
             # Verify context was passed for interpolation
             call_kwargs = mock_executor_instance.execute.call_args.kwargs
             assert call_kwargs["context"]["state"]["variables"]["task_id"] == "123"
-            assert call_kwargs["context"]["artifacts"]["plan"] == "/path/to/plan.md"
