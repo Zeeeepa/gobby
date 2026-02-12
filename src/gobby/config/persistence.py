@@ -91,7 +91,7 @@ class MemoryConfig(BaseModel):
         ),
     )
     mem0_timeout: float = Field(
-        default=60.0,
+        default=90.0,
         description="Timeout in seconds for mem0 API requests (includes embedding generation).",
     )
     neo4j_url: str | None = Field(
