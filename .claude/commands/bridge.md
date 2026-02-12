@@ -22,26 +22,17 @@ Try to determine if you have access to drawbridge MCP tools by checking your ava
 
 Check these in order:
 
-1. **Check if drawbridge directory exists:**
-   ```bash
-   ls -d drawbridge-mcp-server/
-   ```
-   - If missing → The drawbridge repo is not cloned or you're in the wrong directory
-
-2. **Check if MCP server is built:**
+1. **Check if MCP server is built:**
    ```bash
    ls -la drawbridge-mcp-server/dist/index.js
    ```
    - If missing → Offer to build it: `cd drawbridge-mcp-server && npm run build`
 
-3. **Check if MCP config exists:**
+2. **Check if MCP config exists:**
    ```bash
    cat ~/.config/claude-code/mcp_config.json
    ```
-   Handle three cases:
-   - **File missing** → Create it with the drawbridge entry
-   - **File exists without "drawbridge" entry** → Merge the drawbridge entry into existing config (never overwrite)
-   - **File exists with "drawbridge" entry** → Config is already set up, check connection
+   - If missing or no "drawbridge" entry → Offer to create it
 
 3. **If config exists but MCP not connected:**
    - Explain that Claude Code restart is needed
@@ -56,9 +47,9 @@ Check these in order:
   "mcpServers": {
     "drawbridge": {
       "command": "node",
-      "args": ["/home/you/projects/drawbridge/drawbridge-mcp-server/dist/index.js"],
+      "args": ["<ABSOLUTE_PATH_TO_DRAWBRIDGE>/drawbridge-mcp-server/dist/index.js"],
       "env": {
-        "DRAWBRIDGE_PROJECT_PATH": "/home/you/projects/my-app",
+        "DRAWBRIDGE_PROJECT_PATH": "<CURRENT_PROJECT_DIR>",
         "DRAWBRIDGE_MODE": "manual"
       }
     }
@@ -67,10 +58,9 @@ Check these in order:
 ```
 
 **IMPORTANT:**
-- Replace `/home/you/projects/drawbridge` with the full path to your drawbridge repo
-- Replace `/home/you/projects/my-app` with actual project path (use `pwd`)
+- Replace `<ABSOLUTE_PATH_TO_DRAWBRIDGE>` with full path to drawbridge repo
+- Replace `<CURRENT_PROJECT_DIR>` with actual project path (use `pwd`)
 - Use absolute paths only (not `~` or relative paths)
-- `DRAWBRIDGE_MODE` values: `"manual"` (default, requires explicit task processing) or `"auto"` (watches for changes and processes automatically)
 - Tell user to restart Claude Code after config creation
 
 ### Step 4: Show MCP Status

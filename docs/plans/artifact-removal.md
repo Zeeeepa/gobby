@@ -11,6 +11,7 @@
 The artifact system consists of ~30 dedicated files (source, test, web, docs) plus ~50 files with artifact references that need cleanup. The removal also requires a database migration to drop 3 tables and 5 indexes.
 
 **Total scope:**
+
 - **30 files to delete** (8 source + 4 web + 12 test + 1 doc + 5 web assets)
 - **~48 files to modify** (~25 source + ~15 test + ~10 docs)
 - **1 database migration** to add
@@ -22,7 +23,7 @@ The artifact system consists of ~30 dedicated files (source, test, web, docs) pl
 ### Source Files (8)
 
 | File | Purpose |
-|------|---------|
+| --- | --- |
 | `src/gobby/storage/artifacts.py` | `LocalArtifactManager` — CRUD for artifact storage |
 | `src/gobby/storage/artifact_classifier.py` | `ArtifactClassifier` — content type classification |
 | `src/gobby/hooks/artifact_capture.py` | `ArtifactCaptureHook` — auto-capture from tool outputs |
@@ -35,7 +36,7 @@ The artifact system consists of ~30 dedicated files (source, test, web, docs) pl
 ### Web Files (4)
 
 | File | Purpose |
-|------|---------|
+| --- | --- |
 | `web/src/components/ArtifactsPage.tsx` | Artifacts page component |
 | `web/src/components/ArtifactsPage.css` | Artifacts page styles |
 | `web/src/components/artifacts/ArtifactIcons.tsx` | Artifact type icons |
@@ -44,7 +45,7 @@ The artifact system consists of ~30 dedicated files (source, test, web, docs) pl
 ### Test Files (12)
 
 | File | Tests |
-|------|-------|
+| --- | --- |
 | `tests/cli/test_cli_artifacts.py` | CLI artifact commands |
 | `tests/cli/test_artifacts_cli.py` | CLI artifact commands (alt) |
 | `tests/hooks/test_artifact_capture.py` | Artifact capture hook |
@@ -61,15 +62,16 @@ The artifact system consists of ~30 dedicated files (source, test, web, docs) pl
 ### Documentation (1)
 
 | File | Purpose |
-|------|---------|
+| --- | --- |
 | `docs/guides/artifacts.md` | Artifact system user guide |
 
 ### Web Assets (check for additional)
 
 After deleting the above, also check:
+
 - `web/src/components/artifacts/` — delete entire directory if empty after `ArtifactIcons.tsx` removal
 
-**Total: 25 confirmed files + directory cleanup**
+### Total: 25 confirmed files + directory cleanup
 
 ---
 
@@ -80,7 +82,7 @@ After deleting the above, also check:
 These files import or register artifact modules. Failure to update them causes import errors at startup.
 
 | File | What to Remove |
-|------|---------------|
+| --- | --- |
 | `src/gobby/servers/http.py` | Artifact route registration (`include_router` call for artifacts) |
 | `src/gobby/servers/routes/__init__.py` | Artifact route import and `__all__` entry |
 | `src/gobby/mcp_proxy/registries.py` | Artifact tools registry entry |
@@ -97,14 +99,14 @@ These files import or register artifact modules. Failure to update them causes i
 ### 2b. Configuration
 
 | File | What to Remove |
-|------|---------------|
+| --- | --- |
 | `src/gobby/config/app.py` | Artifact config fields (e.g., `artifacts:` section in `DaemonConfig`) |
 | `src/gobby/config/sessions.py` | Artifact session config fields |
 
 ### 2c. Workflow Engine
 
 | File | What to Remove |
-|------|---------------|
+| --- | --- |
 | `src/gobby/workflows/actions.py` | Artifact action registrations |
 | `src/gobby/workflows/engine.py` | Artifact action references |
 | `src/gobby/workflows/context_actions.py` | Artifact context actions |
@@ -119,7 +121,7 @@ These files import or register artifact modules. Failure to update them causes i
 ### 2d. Other Source
 
 | File | What to Remove |
-|------|---------------|
+| --- | --- |
 | `src/gobby/sessions/manager.py` | Artifact manager references |
 | `src/gobby/utils/status.py` | Artifact status reporting |
 | `src/gobby/llm/executor.py` | Artifact references |
@@ -130,20 +132,20 @@ These files import or register artifact modules. Failure to update them causes i
 ### 2e. Web
 
 | File | What to Remove |
-|------|---------------|
+| --- | --- |
 | `web/src/App.tsx` | Artifacts nav item, `ArtifactsPage` import, route case |
 
 ### 2f. Schema / Migration
 
 | File | What to Do |
-|------|-----------|
+| --- | --- |
 | `src/gobby/storage/migrations.py` | Add migration to DROP tables (see Phase 4) |
 | `src/gobby/storage/schema_dump.sql` | Remove artifact table definitions |
 
 ### 2g. Tests to Modify (remove artifact references, not delete)
 
 | File | What to Remove |
-|------|---------------|
+| --- | --- |
 | `tests/hooks/test_hooks_manager.py` | Artifact hook test cases |
 | `tests/workflows/test_state_manager_orchestration.py` | Artifact state tests |
 | `tests/orchestration/test_review_retry_worktree.py` | Artifact references |
@@ -165,7 +167,7 @@ These files import or register artifact modules. Failure to update them causes i
 Remove artifact references from these guides. Leave completed plan docs as historical record.
 
 | File | What to Remove |
-|------|---------------|
+| --- | --- |
 | `docs/guides/configuration.md` | Artifact config documentation |
 | `docs/guides/mcp-tools.md` | Artifact MCP tools section |
 | `docs/guides/workflows.md` | Artifact workflow references |
@@ -233,6 +235,7 @@ Note: Drop `artifact_tags` first (references `session_artifacts`), then FTS, the
 ### schema_dump.sql
 
 Remove from `schema_dump.sql`:
+
 - `CREATE TABLE session_artifacts (...)` block
 - `CREATE TABLE artifact_tags (...)` block
 - `CREATE VIRTUAL TABLE session_artifacts_fts (...)` block
@@ -246,7 +249,7 @@ Remove from `schema_dump.sql`:
 Execute in this order to minimize intermediate breakage:
 
 | Step | Action | Fixes |
-|------|--------|-------|
+| --- | --- | --- |
 | 1 | Delete 25 artifact-only files | Removes dead code |
 | 2 | Update registration/wiring files (Phase 2a) | Fixes import errors from step 1 |
 | 3 | Update config files (Phase 2b) | Removes config references |
@@ -272,7 +275,7 @@ After step 12: `grep -r "artifact" docs/guides/` should only show historical pla
 ## Risks and Mitigations
 
 | Risk | Mitigation |
-|------|-----------|
+| --- | --- |
 | Missed references cause runtime errors | Grep audit + ruff check + pytest after each phase |
 | Database migration breaks existing installs | `DROP IF EXISTS` is safe; tables may not exist on fresh installs |
 | Web build breaks | Remove imports before route references; test with `npm run build` |
@@ -292,7 +295,7 @@ After step 12: `grep -r "artifact" docs/guides/` should only show historical pla
 ## File Count Summary
 
 | Category | Delete | Modify |
-|----------|--------|--------|
+| --- | --- | --- |
 | Source (src/) | 8 | ~25 |
 | Web (web/) | 4 | 1 |
 | Tests (tests/) | 12 | 15 |
