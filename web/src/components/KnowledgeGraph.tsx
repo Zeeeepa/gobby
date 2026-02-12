@@ -212,14 +212,19 @@ export function KnowledgeGraph({ fetchKnowledgeGraph, fetchEntityNeighbors }: Kn
 
   const linkLabel = useCallback((link: any) => link.type as string, []) // eslint-disable-line @typescript-eslint/no-explicit-any
 
-  // Node breathing effect when animating
+  // Node breathing effect when animating (always pass callback to avoid prop change re-renders)
+  const animateRef = useRef(animateIdle)
+  animateRef.current = animateIdle
   const nodePositionUpdate = useCallback((obj: any) => { // eslint-disable-line @typescript-eslint/no-explicit-any
-    if (!animateIdle) return
+    if (!animateRef.current) {
+      obj.scale.set(1, 1, 1)
+      return
+    }
     const t = performance.now() * 0.001
     const offset = (obj.id % 100) * 0.1
     const scale = 1 + Math.sin(t * 1.5 + offset) * 0.06
     obj.scale.set(scale, scale, scale)
-  }, [animateIdle])
+  }, [])
 
   // Legend types
   const legendTypes = useMemo(() => {
@@ -284,7 +289,7 @@ export function KnowledgeGraph({ fetchKnowledgeGraph, fetchEntityNeighbors }: Kn
         linkDirectionalParticleSpeed={0.004}
         linkDirectionalParticleWidth={0.8}
         linkDirectionalParticleColor={linkColor}
-        nodePositionUpdate={animateIdle ? nodePositionUpdate : undefined}
+        nodePositionUpdate={nodePositionUpdate}
         backgroundColor="rgba(0,0,0,0)"
         showNavInfo={false}
         enableNodeDrag={true}

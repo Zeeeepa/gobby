@@ -67,15 +67,30 @@ export function MemoryPage() {
   } = useMemory()
   const neo4jStatus = useNeo4jStatus()
 
-  const [viewMode, setViewMode] = useState<ViewMode>('graph')
+  const [viewMode, setViewMode] = useState<ViewMode>(() => {
+    try {
+      const saved = localStorage.getItem('gobby-memory-view')
+      if (saved === 'knowledge' || saved === 'graph' || saved === 'list') return saved
+    } catch { /* noop */ }
+    return 'graph'
+  })
   const [showForm, setShowForm] = useState(false)
 
-  // Default to knowledge view when Neo4j status loads and is configured
+  // Default to knowledge view when Neo4j is configured and no saved preference
   useEffect(() => {
     if (neo4jStatus?.configured && viewMode === 'graph') {
-      setViewMode('knowledge')
+      try {
+        if (!localStorage.getItem('gobby-memory-view')) setViewMode('knowledge')
+      } catch {
+        setViewMode('knowledge')
+      }
     }
   }, [neo4jStatus?.configured]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Persist view mode
+  useEffect(() => {
+    try { localStorage.setItem('gobby-memory-view', viewMode) } catch { /* noop */ }
+  }, [viewMode])
   const [editMemory, setEditMemory] = useState<GobbyMemory | null>(null)
   const [selectedMemory, setSelectedMemory] = useState<GobbyMemory | null>(null)
   const [overviewFilter, setOverviewFilter] = useState<OverviewFilter>(null)
