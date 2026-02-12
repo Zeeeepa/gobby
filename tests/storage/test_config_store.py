@@ -1,0 +1,158 @@
+"""Tests for ConfigStore CRUD operations and flatten/unflatten utilities."""
+
+import pytest
+
+from gobby.storage.config_store import (
+    ConfigStore,
+    flatten_config,
+    unflatten_config,
+)
+from gobby.storage.database import LocalDatabase
+from gobby.storage.migrations import run_migrations
+
+pytestmark = pytest.mark.unit
+
+
+@pytest.fixture
+def db(tmp_path):
+    """Create a test database with migrations applied."""
+    db_path = tmp_path / "test.db"
+    database = LocalDatabase(db_path)
+    run_migrations(database)
+    return database
+
+
+@pytest.fixture
+def store(db):
+    return ConfigStore(db)
+
+
+# =============================================================================
+# flatten / unflatten
+# =============================================================================
+
+
+class TestFlatten:
+    def test_flat_dict(self):
+        assert flatten_config({"a": 1, "b": "x"}) == {"a": 1, "b": "x"}
+
+    def test_nested_dict(self):
+        result = flatten_config({"llm": {"claude": {"enabled": True}}})
+        assert result == {"llm.claude.enabled": True}
+
+    def test_mixed(self):
+        result = flatten_config({"port": 8080, "llm": {"key": "abc"}})
+        assert result == {"port": 8080, "llm.key": "abc"}
+
+    def test_list_preserved(self):
+        result = flatten_config({"tags": ["a", "b"]})
+        assert result == {"tags": ["a", "b"]}
+
+    def test_empty_dict(self):
+        assert flatten_config({}) == {}
+
+    def test_prefix(self):
+        result = flatten_config({"key": "val"}, prefix="root")
+        assert result == {"root.key": "val"}
+
+
+class TestUnflatten:
+    def test_simple(self):
+        assert unflatten_config({"a": 1}) == {"a": 1}
+
+    def test_nested(self):
+        result = unflatten_config({"llm.claude.enabled": True})
+        assert result == {"llm": {"claude": {"enabled": True}}}
+
+    def test_roundtrip(self):
+        original = {"llm": {"claude": {"enabled": True, "model": "opus"}}, "port": 8080}
+        assert unflatten_config(flatten_config(original)) == original
+
+    def test_empty(self):
+        assert unflatten_config({}) == {}
+
+    def test_sibling_keys(self):
+        result = unflatten_config({"a.b": 1, "a.c": 2})
+        assert result == {"a": {"b": 1, "c": 2}}
+
+
+# =============================================================================
+# ConfigStore CRUD
+# =============================================================================
+
+
+class TestConfigStore:
+    def test_set_and_get(self, store: ConfigStore):
+        store.set("daemon_port", 9000)
+        assert store.get("daemon_port") == 9000
+
+    def test_get_nonexistent(self, store: ConfigStore):
+        assert store.get("nonexistent") is None
+
+    def test_get_all_empty(self, store: ConfigStore):
+        assert store.get_all() == {}
+
+    def test_get_all(self, store: ConfigStore):
+        store.set("a", 1)
+        store.set("b", "hello")
+        result = store.get_all()
+        assert result == {"a": 1, "b": "hello"}
+
+    def test_set_upsert(self, store: ConfigStore):
+        store.set("key", "old")
+        store.set("key", "new")
+        assert store.get("key") == "new"
+
+    def test_set_many(self, store: ConfigStore):
+        count = store.set_many({"a": 1, "b": True, "c": "str"})
+        assert count == 3
+        assert store.get("a") == 1
+        assert store.get("b") is True
+        assert store.get("c") == "str"
+
+    def test_delete_existing(self, store: ConfigStore):
+        store.set("key", "val")
+        assert store.delete("key") is True
+        assert store.get("key") is None
+
+    def test_delete_nonexistent(self, store: ConfigStore):
+        assert store.delete("nonexistent") is False
+
+    def test_delete_all(self, store: ConfigStore):
+        store.set_many({"a": 1, "b": 2, "c": 3})
+        count = store.delete_all()
+        assert count == 3
+        assert store.get_all() == {}
+
+    def test_delete_all_empty(self, store: ConfigStore):
+        assert store.delete_all() == 0
+
+    def test_list_keys(self, store: ConfigStore):
+        store.set_many({"z": 1, "a": 2, "m": 3})
+        keys = store.list_keys()
+        assert keys == ["a", "m", "z"]  # sorted
+
+    def test_list_keys_with_prefix(self, store: ConfigStore):
+        store.set_many({"llm.a": 1, "llm.b": 2, "port": 3})
+        keys = store.list_keys(prefix="llm.")
+        assert keys == ["llm.a", "llm.b"]
+
+    def test_source_tracking(self, store: ConfigStore):
+        store.set("key", "val", source="migrated")
+        row = store.db.fetchone("SELECT source FROM config_store WHERE key = ?", ("key",))
+        assert row["source"] == "migrated"
+
+    def test_preserves_types(self, store: ConfigStore):
+        store.set("bool_val", True)
+        store.set("int_val", 42)
+        store.set("float_val", 3.14)
+        store.set("str_val", "hello")
+        store.set("list_val", [1, 2, 3])
+        store.set("null_val", None)
+
+        assert store.get("bool_val") is True
+        assert store.get("int_val") == 42
+        assert store.get("float_val") == 3.14
+        assert store.get("str_val") == "hello"
+        assert store.get("list_val") == [1, 2, 3]
+        assert store.get("null_val") is None

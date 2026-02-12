@@ -78,6 +78,7 @@ __all__ = [
     # Local definitions only - no re-exports
     "ConductorConfig",
     "DaemonConfig",
+    "deep_merge",
     "expand_env_vars",
     "load_yaml",
     "apply_cli_overrides",
@@ -548,20 +549,50 @@ def generate_default_config(config_file: str) -> None:
     config_path.chmod(0o600)
 
 
+def deep_merge(base: dict[str, Any], updates: dict[str, Any]) -> None:
+    """Deep-merge updates into base dict (in-place)."""
+    for key, value in updates.items():
+        if key in base and isinstance(base[key], dict) and isinstance(value, dict):
+            deep_merge(base[key], value)
+        else:
+            base[key] = value
+
+
+def _resolve_config_values(
+    d: dict[str, Any],
+    secret_resolver: Callable[[str], str | None] | None = None,
+) -> dict[str, Any]:
+    """Walk a config dict and resolve $secret:NAME / ${VAR} patterns in string values."""
+    result: dict[str, Any] = {}
+    for key, value in d.items():
+        if isinstance(value, dict):
+            result[key] = _resolve_config_values(value, secret_resolver)
+        elif isinstance(value, str):
+            result[key] = expand_env_vars(value, secret_resolver=secret_resolver)
+        else:
+            result[key] = value
+    return result
+
+
 def load_config(
     config_file: str | None = None,
     cli_overrides: dict[str, Any] | None = None,
     create_default: bool = False,
     secret_resolver: Callable[[str], str | None] | None = None,
+    config_store: Any | None = None,
 ) -> DaemonConfig:
     """
-    Load configuration with hierarchy: CLI > YAML > Defaults.
+    Load configuration with hierarchy: CLI > DB/YAML > Defaults.
+
+    When config_store is provided (Phase 2), config is loaded from the database.
+    Otherwise falls back to YAML (Phase 1 bootstrap for database_path).
 
     Args:
         config_file: Path to YAML config file (default: ~/.gobby/config.yaml)
         cli_overrides: Dictionary of CLI argument overrides
         create_default: Create default config file if it doesn't exist
         secret_resolver: Optional callable for resolving secrets (checked before env vars)
+        config_store: Optional ConfigStore instance for DB-first resolution
 
     Returns:
         Validated DaemonConfig instance
@@ -569,17 +600,31 @@ def load_config(
     Raises:
         ValueError: If configuration is invalid or required fields are missing
     """
-    if config_file is None:
-        config_file = "~/.gobby/config.yaml"
+    if config_store is not None:
+        # Phase 2: DB-first resolution
+        from gobby.storage.config_store import unflatten_config
 
-    config_path = Path(config_file).expanduser()
+        flat_db = config_store.get_all()
+        config_dict = unflatten_config(flat_db) if flat_db else {}
+        # Resolve $secret:NAME and ${VAR} patterns in stored values
+        if secret_resolver is not None or any(
+            isinstance(v, str) and ("$secret:" in v or "${" in v)
+            for v in flat_db.values()
+        ):
+            config_dict = _resolve_config_values(config_dict, secret_resolver)
+    else:
+        # Phase 1: YAML bootstrap (for database_path)
+        if config_file is None:
+            config_file = "~/.gobby/config.yaml"
 
-    # Create default config if requested and file doesn't exist
-    if create_default and not config_path.exists():
-        generate_default_config(config_file)
+        config_path = Path(config_file).expanduser()
 
-    # Load YAML configuration
-    config_dict = load_yaml(config_file, secret_resolver=secret_resolver)
+        # Create default config if requested and file doesn't exist
+        if create_default and not config_path.exists():
+            generate_default_config(config_file)
+
+        # Load YAML configuration
+        config_dict = load_yaml(config_file, secret_resolver=secret_resolver)
 
     # Apply CLI argument overrides
     config_dict = apply_cli_overrides(config_dict, cli_overrides)
@@ -607,9 +652,10 @@ def load_config(
         config = DaemonConfig(**config_dict)
         return config
     except Exception as e:
+        source = "database" if config_store is not None else (config_file or "~/.gobby/config.yaml")
         raise ValueError(
             f"Configuration validation failed: {e}\n"
-            f"Please check your configuration file at {config_file}"
+            f"Please check your configuration source: {source}"
         ) from e
 
 

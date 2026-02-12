@@ -11,10 +11,10 @@ from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import pytest
-import yaml
 from starlette.testclient import TestClient
 
 from gobby.config.app import DaemonConfig
+from gobby.storage.config_store import ConfigStore
 from gobby.storage.secrets import SecretStore
 from gobby.storage.tasks import LocalTaskManager
 from tests.servers.conftest import create_http_server
@@ -171,23 +171,23 @@ class TestValidateConfig:
 
 
 class TestResetConfig:
-    def test_reset_success(self, client: TestClient, tmp_path: Path) -> None:
-        """Reset generates a default config file."""
-        config_file = str(tmp_path / "config.yaml")
-        with patch(
-            "gobby.servers.routes.configuration._resolve_config_path",
-            return_value=Path(config_file),
-        ):
-            response = client.post("/api/config/values/reset")
+    def test_reset_success(self, client: TestClient, temp_db) -> None:
+        """Reset clears config_store and sets in-memory config to defaults."""
+        # Seed some config in DB
+        store = ConfigStore(temp_db)
+        store.set("daemon_port", 9999)
+        response = client.post("/api/config/values/reset")
         assert response.status_code == 200
         data = response.json()
         assert data["ok"] is True
         assert data["requires_restart"] is True
+        # Verify DB was cleared
+        assert store.get_all() == {}
 
     def test_reset_failure(self, client: TestClient) -> None:
         """Reset failure returns 500."""
         with patch(
-            "gobby.servers.routes.configuration.generate_default_config",
+            "gobby.servers.routes.configuration.ConfigStore.delete_all",
             side_effect=OSError("Permission denied"),
         ):
             response = client.post("/api/config/values/reset")
@@ -196,65 +196,58 @@ class TestResetConfig:
 
 
 # ---------------------------------------------------------------------------
-# GET /api/config/yaml
+# GET /api/config/template
 # ---------------------------------------------------------------------------
 
 
-class TestGetRawYaml:
-    def test_returns_yaml_content(self, client: TestClient, tmp_path: Path) -> None:
-        config_file = str(tmp_path / "config.yaml")
-        yaml_content = "daemon_port: 60887\nbind_host: localhost\n"
-        Path(config_file).write_text(yaml_content, encoding="utf-8")
-        with patch("gobby.servers.routes.configuration._resolve_config_path", return_value=Path(config_file)):
-            response = client.get("/api/config/yaml")
+class TestGetTemplate:
+    def test_returns_yaml_with_defaults(self, client: TestClient) -> None:
+        response = client.get("/api/config/template")
         assert response.status_code == 200
-        assert "daemon_port: 60887" in response.json()["content"]
+        content = response.json()["content"]
+        assert "daemon_port" in content
+        assert isinstance(content, str)
 
-    def test_returns_empty_when_no_file(self, client: TestClient, tmp_path: Path) -> None:
-        config_file = str(tmp_path / "nonexistent.yaml")
-        with patch("gobby.servers.routes.configuration._resolve_config_path", return_value=Path(config_file)):
-            response = client.get("/api/config/yaml")
+    def test_includes_db_overrides(self, client: TestClient, temp_db) -> None:
+        """DB overrides are merged into the template."""
+        store = ConfigStore(temp_db)
+        store.set("daemon_port", 9999)
+        response = client.get("/api/config/template")
         assert response.status_code == 200
-        assert response.json()["content"] == ""
+        assert "9999" in response.json()["content"]
 
 
 # ---------------------------------------------------------------------------
-# PUT /api/config/yaml
+# PUT /api/config/template
 # ---------------------------------------------------------------------------
 
 
-class TestSaveRawYaml:
-    def test_save_valid_yaml(self, client: TestClient, tmp_path: Path) -> None:
-        config_file = str(tmp_path / "config.yaml")
-        yaml_content = "daemon_port: 9999\n"
-        with patch("gobby.servers.routes.configuration._resolve_config_path", return_value=Path(config_file)):
-            response = client.put(
-                "/api/config/yaml",
-                json={"content": yaml_content},
-            )
+class TestSaveTemplate:
+    def test_save_valid_yaml(self, client: TestClient, temp_db) -> None:
+        response = client.put(
+            "/api/config/template",
+            json={"content": "daemon_port: 9999\n"},
+        )
         assert response.status_code == 200
         data = response.json()
         assert data["ok"] is True
         assert data["requires_restart"] is True
-        # Verify the file was actually written
-        assert Path(config_file).read_text(encoding="utf-8") == yaml_content
+        # Verify the DB has the non-default value
+        store = ConfigStore(temp_db)
+        assert store.get("daemon_port") == 9999
 
-    def test_save_empty_yaml_treated_as_empty_dict(
-        self, client: TestClient, tmp_path: Path
-    ) -> None:
+    def test_save_empty_yaml_treated_as_empty_dict(self, client: TestClient) -> None:
         """Empty YAML (parsed as None) is treated as empty dict."""
-        config_file = str(tmp_path / "config.yaml")
-        with patch("gobby.servers.routes.configuration._resolve_config_path", return_value=Path(config_file)):
-            response = client.put(
-                "/api/config/yaml",
-                json={"content": ""},
-            )
+        response = client.put(
+            "/api/config/template",
+            json={"content": ""},
+        )
         assert response.status_code == 200
         assert response.json()["ok"] is True
 
     def test_save_invalid_yaml_syntax(self, client: TestClient) -> None:
         response = client.put(
-            "/api/config/yaml",
+            "/api/config/template",
             json={"content": ":\n  :\n    - [invalid"},
         )
         assert response.status_code == 400
@@ -262,7 +255,7 @@ class TestSaveRawYaml:
 
     def test_save_yaml_not_a_dict(self, client: TestClient) -> None:
         response = client.put(
-            "/api/config/yaml",
+            "/api/config/template",
             json={"content": "- item1\n- item2\n"},
         )
         assert response.status_code == 400
@@ -271,10 +264,24 @@ class TestSaveRawYaml:
     def test_save_yaml_invalid_config(self, client: TestClient) -> None:
         """Valid YAML but invalid DaemonConfig values."""
         response = client.put(
-            "/api/config/yaml",
+            "/api/config/template",
             json={"content": "ui:\n  port: 99999\n  mode: invalid\n"},
         )
         assert response.status_code == 400
+
+    def test_only_stores_non_defaults(self, client: TestClient, temp_db) -> None:
+        """Template save should only store values that differ from defaults."""
+        # Save with all defaults except one change
+        response = client.put(
+            "/api/config/template",
+            json={"content": "daemon_port: 7777\nbind_host: localhost\n"},
+        )
+        assert response.status_code == 200
+        store = ConfigStore(temp_db)
+        keys = store.list_keys()
+        # Only daemon_port should be stored (bind_host is default)
+        assert "daemon_port" in keys
+        assert "bind_host" not in keys
 
 
 # ---------------------------------------------------------------------------
@@ -534,9 +541,9 @@ class TestExportImport:
             response = client.post("/api/config/export")
         assert response.status_code == 200
         data = response.json()
-        assert data["version"] == 1
         assert "exported_at" in data
-        assert "config" in data
+        assert "config_store" in data
+        assert isinstance(data["config_store"], dict)
         assert isinstance(data["prompts"], dict)
         assert isinstance(data["secrets"], list)
 
@@ -554,21 +561,32 @@ class TestExportImport:
         assert "expansion/system.md" in data["prompts"]
         assert data["prompts"]["expansion/system.md"] == "# Custom"
 
-    def test_import_config_with_config(self, client: TestClient, tmp_path: Path) -> None:
-        config_file = str(tmp_path / "config.yaml")
-        with patch("gobby.servers.routes.configuration._resolve_config_path", return_value=Path(config_file)):
-            response = client.post(
-                "/api/config/import",
-                json={"config": {"daemon_port": 9999}},
-            )
+    def test_import_config_store(self, client: TestClient, temp_db) -> None:
+        """Import flat config_store dict writes to DB."""
+        response = client.post(
+            "/api/config/import",
+            json={"config_store": {"daemon_port": 9999}},
+        )
         assert response.status_code == 200
         data = response.json()
         assert data["success"] is True
         assert "config restored" in data["summary"]
         assert data["requires_restart"] is True
-        # Verify the file was actually written
-        written = yaml.safe_load(Path(config_file).read_text())
-        assert written["daemon_port"] == 9999
+        # Verify DB
+        store = ConfigStore(temp_db)
+        assert store.get("daemon_port") == 9999
+
+    def test_import_legacy_config(self, client: TestClient, temp_db) -> None:
+        """Legacy nested config dict is flattened and stored to DB."""
+        response = client.post(
+            "/api/config/import",
+            json={"config": {"daemon_port": 8888}},
+        )
+        assert response.status_code == 200
+        data = response.json()
+        assert data["success"] is True
+        assert "config restored" in data["summary"]
+        assert data["requires_restart"] is True
 
     def test_import_config_with_prompts(self, client: TestClient, tmp_path: Path) -> None:
         prompts_dir = tmp_path / "prompts"
@@ -606,16 +624,14 @@ class TestExportImport:
     def test_import_config_and_prompts_together(
         self, client: TestClient, tmp_path: Path
     ) -> None:
-        config_file = str(tmp_path / "config.yaml")
         prompts_dir = tmp_path / "prompts"
-        with (
-            patch("gobby.servers.routes.configuration._resolve_config_path", return_value=Path(config_file)),
-            patch("gobby.servers.routes.configuration.GLOBAL_PROMPTS_DIR", prompts_dir),
+        with patch(
+            "gobby.servers.routes.configuration.GLOBAL_PROMPTS_DIR", prompts_dir
         ):
             response = client.post(
                 "/api/config/import",
                 json={
-                    "config": {"daemon_port": 7777},
+                    "config_store": {"daemon_port": 7777},
                     "prompts": {"test/foo.md": "# Foo"},
                 },
             )
@@ -633,32 +649,32 @@ class TestExportImport:
 
 class TestDeepMerge:
     def test_deep_merge_basic(self) -> None:
-        from gobby.servers.routes.configuration import _deep_merge
+        from gobby.config.app import deep_merge
 
         base = {"a": 1, "b": {"c": 2, "d": 3}}
         updates = {"b": {"c": 99, "e": 5}, "f": 6}
-        _deep_merge(base, updates)
+        deep_merge(base, updates)
         assert base == {"a": 1, "b": {"c": 99, "d": 3, "e": 5}, "f": 6}
 
     def test_deep_merge_replace_non_dict(self) -> None:
-        from gobby.servers.routes.configuration import _deep_merge
+        from gobby.config.app import deep_merge
 
         base = {"a": {"b": 1}}
         updates = {"a": "string"}
-        _deep_merge(base, updates)
+        deep_merge(base, updates)
         assert base == {"a": "string"}
 
     def test_deep_merge_empty_updates(self) -> None:
-        from gobby.servers.routes.configuration import _deep_merge
+        from gobby.config.app import deep_merge
 
         base = {"a": 1}
-        _deep_merge(base, {})
+        deep_merge(base, {})
         assert base == {"a": 1}
 
     def test_deep_merge_nested_three_levels(self) -> None:
-        from gobby.servers.routes.configuration import _deep_merge
+        from gobby.config.app import deep_merge
 
         base = {"a": {"b": {"c": 1, "d": 2}}}
         updates = {"a": {"b": {"c": 99}}}
-        _deep_merge(base, updates)
+        deep_merge(base, updates)
         assert base == {"a": {"b": {"c": 99, "d": 2}}}

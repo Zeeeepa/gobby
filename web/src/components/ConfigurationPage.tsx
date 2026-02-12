@@ -8,7 +8,7 @@ import './ConfigurationPage.css'
 // Types
 // =============================================================================
 
-type TabId = 'config' | 'secrets' | 'prompts' | 'yaml'
+type TabId = 'config' | 'secrets' | 'prompts' | 'template'
 
 // =============================================================================
 // Helpers
@@ -631,16 +631,16 @@ function PromptsTab({ prompts, categories, onGetDetail, onSaveOverride, onDelete
 }
 
 // =============================================================================
-// RawYamlTab
+// TemplateTab
 // =============================================================================
 
-interface RawYamlTabProps {
+interface TemplateTabProps {
   content: string
   onFetch: () => Promise<void>
   onSave: (content: string) => Promise<{ ok: boolean; errors?: string[] }>
 }
 
-function RawYamlTab({ content, onFetch, onSave }: RawYamlTabProps) {
+function TemplateTab({ content, onFetch, onSave }: TemplateTabProps) {
   const [localContent, setLocalContent] = useState(content)
   const [errors, setErrors] = useState<string[]>([])
   const [saving, setSaving] = useState(false)
@@ -670,7 +670,7 @@ function RawYamlTab({ content, onFetch, onSave }: RawYamlTabProps) {
     <div className="config-yaml">
       {showRestart && (
         <div className="config-restart-banner">
-          <span>YAML saved. Restart the daemon to apply changes.</span>
+          <span>Configuration saved to database. Restart the daemon to apply changes.</span>
           <button onClick={() => fetch('/api/admin/restart', { method: 'POST' }).then(() => setShowRestart(false))}>
             Restart Now
           </button>
@@ -689,7 +689,7 @@ function RawYamlTab({ content, onFetch, onSave }: RawYamlTabProps) {
           {errors.map((e, i) => <span key={i}>{e}</span>)}
         </div>
         <button className="config-toolbar-btn primary" onClick={handleSave} disabled={saving}>
-          {saving ? 'Saving...' : 'Save YAML'}
+          {saving ? 'Saving...' : 'Save Template'}
         </button>
       </div>
     </div>
@@ -735,7 +735,8 @@ export function ConfigurationPage() {
         const text = await file.text()
         const bundle = JSON.parse(text)
         const result = await config.importConfig({
-          config: bundle.config,
+          config_store: bundle.config_store,
+          config: bundle.config,  // Legacy support
           prompts: bundle.prompts,
         })
         if (result.success) {
@@ -756,7 +757,7 @@ export function ConfigurationPage() {
     { id: 'config', label: 'Configuration' },
     { id: 'secrets', label: 'Secrets' },
     { id: 'prompts', label: 'Prompts' },
-    { id: 'yaml', label: 'Raw YAML' },
+    { id: 'template', label: 'Template' },
   ]
 
   return (
@@ -808,11 +809,11 @@ export function ConfigurationPage() {
             onDeleteOverride={config.deletePromptOverride}
           />
         )}
-        {activeTab === 'yaml' && (
-          <RawYamlTab
-            content={config.yamlContent}
-            onFetch={config.fetchYaml}
-            onSave={config.saveYaml}
+        {activeTab === 'template' && (
+          <TemplateTab
+            content={config.templateContent}
+            onFetch={config.fetchTemplate}
+            onSave={config.saveTemplate}
           />
         )}
       </div>

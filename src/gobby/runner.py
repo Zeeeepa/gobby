@@ -84,14 +84,20 @@ class GobbyRunner:
         # Initialize local storage with dual-write if in project context
         self.database = self._init_database()
 
-        # Phase 2: Reload config with secrets store (secrets > env vars)
+        # Phase 2: Reload config from DB (secrets > env vars)
         # Phase 1 (above) used env vars only to bootstrap the database path.
-        # Now that the DB is available, re-expand with secrets taking priority.
+        # Now that the DB is available, load config from config_store with secrets.
+        from gobby.storage.config_store import ConfigStore
         from gobby.storage.secrets import SecretStore
 
         assert isinstance(self.database, LocalDatabase)
         self.secret_store = SecretStore(self.database)
-        self.config = load_config(config_file, secret_resolver=self.secret_store.get)
+        self.config_store = ConfigStore(self.database)
+        self._maybe_import_yaml_to_db(config_file)
+        self.config = load_config(
+            secret_resolver=self.secret_store.get,
+            config_store=self.config_store,
+        )
 
         self.session_manager = LocalSessionManager(self.database)
         self.message_manager = LocalSessionMessageManager(self.database)
@@ -377,6 +383,7 @@ class GobbyRunner:
             cron_scheduler=self.cron_scheduler,
             skill_manager=self.skill_manager,
             hub_manager=self.hub_manager,
+            config_store=self.config_store,
         )
 
         self.http_server = HTTPServer(
@@ -425,6 +432,39 @@ class GobbyRunner:
 
             # Register pipeline event callback for WebSocket broadcasting
             self._setup_pipeline_event_broadcasting()
+
+    def _maybe_import_yaml_to_db(self, config_file: str | None) -> None:
+        """One-time import of config.yaml into config_store DB table.
+
+        Skips if already imported (tracked via _meta.yaml_imported key).
+        Stores raw values including $secret: refs so they resolve at load time.
+        Filters out database_path (bootstrapped from yaml/env before DB exists).
+        """
+        from gobby.config.app import load_yaml
+        from gobby.storage.config_store import flatten_config
+
+        # Check if already imported
+        if self.config_store.get("_meta.yaml_imported"):
+            return
+
+        yaml_file = config_file or "~/.gobby/config.yaml"
+        try:
+            # Load raw yaml without secret resolution — store $secret: refs as-is
+            config_dict = load_yaml(yaml_file)
+        except Exception as e:
+            logger.warning(f"Could not read config yaml for DB import: {e}")
+            config_dict = {}
+
+        if config_dict:
+            flat = flatten_config(config_dict)
+            # Filter out database_path — it's bootstrapped before DB exists
+            flat.pop("database_path", None)
+            if flat:
+                count = self.config_store.set_many(flat, source="migrated")
+                logger.info(f"Imported {count} config keys from yaml to DB")
+
+        # Mark as imported so we don't repeat
+        self.config_store.set("_meta.yaml_imported", True, source="migrated")
 
     def _init_database(self) -> DatabaseProtocol:
         """Initialize hub database."""

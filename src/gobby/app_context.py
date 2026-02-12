@@ -70,6 +70,9 @@ class ServiceContainer:
     skill_manager: Any | None = None  # LocalSkillManager
     hub_manager: Any | None = None  # HubManager
 
+    # Config
+    config_store: Any | None = None  # ConfigStore
+
     # Context
     project_id: str | None = None
     websocket_server: Any | None = None

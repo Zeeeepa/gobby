@@ -747,6 +747,14 @@ CREATE INDEX idx_rules_name ON rules(name);
 CREATE INDEX idx_rules_tier ON rules(tier);
 CREATE INDEX idx_rules_project ON rules(project_id);
 CREATE UNIQUE INDEX idx_rules_name_tier_project ON rules(name, tier, COALESCE(project_id, ''));
+
+CREATE TABLE config_store (
+    key TEXT PRIMARY KEY,
+    value TEXT NOT NULL,
+    source TEXT NOT NULL DEFAULT 'user',
+    updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX idx_config_store_source ON config_store(source);
 """
 
 # Future migrations (v61+)
@@ -1216,6 +1224,20 @@ MIGRATIONS: list[tuple[int, str, MigrationAction]] = [
         );
         CREATE INDEX IF NOT EXISTS idx_session_skills_session ON session_skills(session_id);
         CREATE UNIQUE INDEX IF NOT EXISTS idx_session_skills_unique ON session_skills(session_id, skill_name);
+        """,
+    ),
+    # DB-first config: Store config key-value pairs in database
+    (
+        98,
+        "Add config_store table",
+        """
+        CREATE TABLE IF NOT EXISTS config_store (
+            key TEXT PRIMARY KEY,
+            value TEXT NOT NULL,
+            source TEXT NOT NULL DEFAULT 'user',
+            updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+        );
+        CREATE INDEX IF NOT EXISTS idx_config_store_source ON config_store(source);
         """,
     ),
 ]
