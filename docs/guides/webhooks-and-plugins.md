@@ -484,7 +484,7 @@ async def handler(
 
 The `ActionContext` provides:
 - `context.session_id` - Current session ID
-- `context.state` - Workflow state (variables, artifacts)
+- `context.state` - Workflow state (variables, observations)
 - `context.config` - Daemon configuration
 
 ### Complete Plugin Example

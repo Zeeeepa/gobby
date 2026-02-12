@@ -277,16 +277,6 @@ session_lifecycle:
   transcript_processing_batch_size: 10
 ```
 
-#### Artifact Handoff
-
-```yaml
-artifact_handoff:
-  max_artifacts_in_handoff: 10
-  max_context_size: 50000        # bytes
-  include_parent_artifacts: true
-  max_lineage_depth: 3
-```
-
 #### Compact Handoff
 
 ```yaml

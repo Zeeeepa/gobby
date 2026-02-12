@@ -145,30 +145,6 @@ Generates a short title for the session based on the transcript.
   when: "session.title == null"
 ```
 
-## Artifacts & Files
-
-### `capture_artifact`
-
-Captures the path of a generated file into workflow state.
-**Usage:** `on_exit`, `on_tool_result`
-
-```yaml
-- action: capture_artifact
-  pattern: "**/*.plan.md"
-  as: current_plan
-```
-
-### `read_artifact`
-
-Reads the content of a captured artifact into a variable.
-**Usage:** `on_enter`
-
-```yaml
-- action: read_artifact
-  pattern: "{{ current_plan }}"
-  as: plan_content
-```
-
 ## Tasks (Beta)
 
 ### `persist_tasks`

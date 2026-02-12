@@ -38,7 +38,7 @@ Legend:
 
 - ✅ Session tracking + local persistence
 - ✅ `/clear`, `/compact`, auto-compact: enhanced handoff context + injection
-- ✅ Summaries/artifacts persisted locally
+- ✅ Summaries persisted locally
 
 ### Hooks (determinism layer)
 
@@ -212,11 +212,7 @@ Goal: a developer installs Gobby and immediately understands the value in minute
 - 🗺️ Coordinator integration
 - 🗺️ Task-ops agent
 
-### 3) Artifact system removal + git integration
-
-- 🗺️ Remove ~30 files, modify ~50 files
-- 🗺️ DB migration to drop artifact tables
-- 🗺️ Tighter git-native integration to replace artifacts
+### ~~3) Artifact system removal~~ ✅ Done (0.2.15)
 
 ### 4) CLI auto-detection
 

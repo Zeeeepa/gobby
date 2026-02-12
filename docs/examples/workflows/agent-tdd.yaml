@@ -50,13 +50,12 @@ steps:
           DO NOT write any code yet.
 
     exit_conditions:
-      - type: artifact_exists
-        name: requirements_understood
-        prompt: "Have you fully understood the requirements?"
+      - type: variable_set
+        variable: requirements_understood
 
     transitions:
       - to: write_tests
-        when: artifact_exists("requirements_understood")
+        when: "state.variables.get('requirements_understood')"
 
   - name: write_tests
     description: Write failing tests first
@@ -93,12 +92,12 @@ steps:
         message: "Write tests before implementation. Create test files first."
 
     exit_conditions:
-      - type: artifact_exists
-        name: tests_written
+      - type: variable_set
+        variable: tests_written
 
     transitions:
       - to: implement
-        when: artifact_exists("tests_written")
+        when: "state.variables.get('tests_written')"
 
   - name: implement
     description: Implement to make tests pass
@@ -126,12 +125,12 @@ steps:
         message: "Remember to run tests frequently"
 
     exit_conditions:
-      - type: artifact_exists
-        name: tests_passing
+      - type: variable_set
+        variable: tests_passing
 
     transitions:
       - to: refactor
-        when: artifact_exists("tests_passing")
+        when: "state.variables.get('tests_passing')"
 
   - name: refactor
     description: Refactor while keeping tests green

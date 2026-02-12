@@ -20,10 +20,6 @@ steps:
           Looking for a plan file matching: {{ plan_pattern }}
           Will break it into atomic, sequential tasks stored in Gobby.
 
-      - action: read_artifact
-        pattern: "{{ plan_pattern }}"
-        as: current_plan
-
       - action: call_llm
         prompt: |
           Break this plan into atomic, sequential tasks.

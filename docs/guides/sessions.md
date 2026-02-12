@@ -81,7 +81,6 @@ Each session maintains:
 - **Messages**: Full conversation transcript
 - **Tasks**: Tasks created or touched during the session
 - **Commits**: Git commits made during the session timeframe
-- **Artifacts**: Code snippets, diffs, errors captured
 - **Workflow state**: Active workflow and current step
 
 ## CLI Commands

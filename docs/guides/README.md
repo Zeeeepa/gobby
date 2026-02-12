@@ -28,7 +28,6 @@ Documentation guides for using Gobby's features.
 | [mcp-tools.md](mcp-tools.md) | Complete MCP tool reference (145+ tools) |
 | [cli-commands.md](cli-commands.md) | Full CLI command reference |
 | [configuration.md](configuration.md) | Full configuration reference (config.yaml, project.json) |
-| [artifacts.md](artifacts.md) | Session artifacts (code, diffs, errors) |
 
 ## Integrations
 

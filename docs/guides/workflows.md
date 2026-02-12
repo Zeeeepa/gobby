@@ -141,16 +141,8 @@ steps:
 
     # Conditions that must be met to exit step
     exit_conditions:
-      - type: artifact_exists
-        pattern: "{{ plan_file_pattern }}"
       - type: user_approval
         prompt: "Plan complete. Ready to implement?"
-
-    # Actions executed when exiting this step
-    on_exit:
-      - action: capture_artifact
-        pattern: "{{ plan_file_pattern }}"
-        as: current_plan
 
 # Required for lifecycle: Trigger definitions
 triggers:
@@ -229,8 +221,6 @@ steps:
           - action: ...
 
     exit_conditions:           # All must be met (AND logic)
-      - type: artifact_exists
-        pattern: "*.plan.md"
       - type: user_approval
         prompt: "Ready to proceed?"
       - type: variable_set
@@ -244,7 +234,6 @@ steps:
 
 | Type | Description | Parameters |
 |------|-------------|------------|
-| `artifact_exists` | File matching pattern exists | `pattern` |
 | `user_approval` | User must approve | `prompt`, `timeout` (optional) |
 | `variable_set` | Variable has a value | `variable` |
 | `action_count` | Min actions taken | `min_count` |
@@ -256,8 +245,6 @@ steps:
 | `inject_message` | Inject text into next prompt |
 | `inject_context` | Inject context from source |
 | `switch_mode` | Switch Claude Code mode (plan/normal) |
-| `capture_artifact` | Save file content to artifact |
-| `read_artifact` | Load artifact into variable |
 | `set_variable` | Set workflow variable |
 | `increment_variable` | Increment numeric variable |
 | `enter_step` | Transition to a step |
@@ -362,7 +349,7 @@ gobby workflows set <name> [--session ID] [--step INITIAL_STEP]
 gobby workflows status [--session ID] [--json]
 ```
 
-Shows current step, action counts, artifacts, and pending tasks.
+Shows current step, action counts, and pending tasks.
 
 ### Clear/Deactivate Workflow
 
@@ -377,12 +364,6 @@ gobby workflows step <step-name> [--session ID] [--force]
 ```
 
 Skips normal exit conditions. Use when stuck.
-
-### Mark Artifact Complete
-
-```bash
-gobby workflows artifact <type> <file-path> [--session ID]
-```
 
 ### Import Workflow
 
@@ -417,7 +398,6 @@ call_tool("gobby", "activate_workflow", {"name": "plan-act-reflect"})
 | `get_workflow_status` | Get current step and state |
 | `request_step_transition` | Request transition to different step |
 | `create_handoff` | Create handoff for next session |
-| `mark_artifact_complete` | Register artifact as complete |
 
 ### Tool Filtering
 
@@ -578,7 +558,6 @@ This separation means you can have different behavior per workflow without modif
 
 - **Workflow state** is stored in SQLite per session
 - **Tasks** persist across sessions in the task system
-- **Artifacts** are captured file paths/content
 
 ### What Resets
 

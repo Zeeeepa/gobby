@@ -6,6 +6,23 @@ description: |
 version: "1.0"
 type: step
 
+imports: [worker-safety]
+
+rule_definitions:
+  no_agent_spawn:
+    mcp_tools:
+      - gobby-agents:spawn_agent
+    reason: "Spawning agents is not allowed in developer workflow."
+    action: block
+
+  no_task_management:
+    mcp_tools:
+      - gobby-tasks:create_task
+      - gobby-tasks:close_task
+      - gobby-tasks:approve_task
+    reason: "Task creation, closing, and approval are not allowed. Let the parent handle task management."
+    action: block
+
 variables:
   assigned_task_id: null
   task_claimed: false
@@ -87,17 +104,7 @@ steps:
         action: warn
         message: "RED PHASE: Focus on writing test files first. Implementation comes in the green phase."
 
-    blocked_mcp_tools:
-      - gobby-agents:spawn_agent
-      - gobby-tasks:create_task
-      - gobby-tasks:close_task
-      - gobby-tasks:approve_task
-
-    blocked_commands:
-      - pattern: "git push"
-        reason: "Push is blocked. The parent orchestrator handles merging."
-      - pattern: "git push *"
-        reason: "Push is blocked. The parent orchestrator handles merging."
+    check_rules: [no_push, no_agent_spawn, no_task_management]
 
     transitions:
       - to: green
@@ -124,17 +131,7 @@ steps:
         action: warn
         message: "GREEN PHASE: You've made 3+ edits without running tests. Run tests now."
 
-    blocked_mcp_tools:
-      - gobby-agents:spawn_agent
-      - gobby-tasks:create_task
-      - gobby-tasks:close_task
-      - gobby-tasks:approve_task
-
-    blocked_commands:
-      - pattern: "git push"
-        reason: "Push is blocked. The parent orchestrator handles merging."
-      - pattern: "git push *"
-        reason: "Push is blocked. The parent orchestrator handles merging."
+    check_rules: [no_push, no_agent_spawn, no_task_management]
 
     transitions:
       - to: blue
@@ -155,17 +152,7 @@ steps:
 
     allowed_tools: all
 
-    blocked_mcp_tools:
-      - gobby-agents:spawn_agent
-      - gobby-tasks:create_task
-      - gobby-tasks:close_task
-      - gobby-tasks:approve_task
-
-    blocked_commands:
-      - pattern: "git push"
-        reason: "Push is blocked. The parent orchestrator handles merging."
-      - pattern: "git push *"
-        reason: "Push is blocked. The parent orchestrator handles merging."
+    check_rules: [no_push, no_agent_spawn, no_task_management]
 
     transitions:
       - to: reflect
@@ -230,11 +217,7 @@ steps:
       - gobby-tasks:mark_task_for_review
       - gobby-tasks:link_commit
 
-    blocked_commands:
-      - pattern: "git push"
-        reason: "Push is blocked. The parent orchestrator handles merging."
-      - pattern: "git push *"
-        reason: "Push is blocked. The parent orchestrator handles merging."
+    check_rules: [no_push]
 
     on_mcp_success:
       - server: gobby-tasks
