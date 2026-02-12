@@ -401,17 +401,14 @@ class TestTmuxSpawnerDetection:
         """Test spawning when tmux is not available."""
         spawner = TmuxSpawner()
 
-        with patch.object(spawner, "is_available", return_value=False):
+        with patch.object(spawner._session_manager, "is_available", return_value=False):
             result = spawner.spawn(
                 command=["echo", "test"],
                 cwd="/tmp",
             )
 
-            # TmuxSpawner.spawn delegates to _async_spawn which calls
-            # session_manager.create_session → require_available, but
-            # the is_available check is on the session_manager, not the
-            # spawner directly. Just verify it's a SpawnResult.
-            assert isinstance(result, SpawnResult)
+            assert result.success is False
+            assert result.error is not None
 
 
 class TestHeadlessSpawner:

@@ -639,7 +639,7 @@ class TestInstallProviderHooks:
             result = _install_provider_hooks("gemini", tmp_path)
             assert result is True
 
-    def test_gemini_hooks_failure(self, tmp_path) -> None:
+    def test_gemini_hooks_failure(self, tmp_path, caplog) -> None:
         """Test Gemini hooks installation failure."""
         from gobby.cli.installers import gemini as gemini_mod
 
@@ -647,6 +647,7 @@ class TestInstallProviderHooks:
             mock_install.return_value = {"success": False, "error": "Failed"}
             result = _install_provider_hooks("gemini", tmp_path)
             assert result is False
+            assert "Failed" in caplog.text
 
     def test_antigravity_hooks_success(self, tmp_path) -> None:
         """Test Antigravity hooks installation success."""

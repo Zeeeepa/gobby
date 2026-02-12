@@ -94,7 +94,7 @@ class TestTaskTreeComplete:
         ev = _build_evaluator(ctx, task_manager=mock_task_manager)
         assert ev.evaluate("task_tree_complete('task-123')") is False
 
-    def test_no_task_manager_returns_false(self) -> None:
+    def test_no_task_manager_returns_true(self) -> None:
         ctx: dict[str, Any] = {"variables": {}}
         ev = _build_evaluator(ctx, task_manager=None)
         # Without task_manager, should return True (no-op, matches ConditionEvaluator behavior)
@@ -370,7 +370,7 @@ class TestCombinedExpressions:
 
         ctx: dict[str, Any] = {"a": "hello", "b": ""}
         ev = SafeExpressionEvaluator(ctx, {})
-        assert ev.evaluate("a and b") is False  # b is falsy empty string
+        assert ev.evaluate("a and b") is False  # b is falsy empty string; evaluate() returns bool
 
     def test_chained_or_default_pattern(self) -> None:
         """Test the (dict.get('key') or {}).get('nested') pattern from lifecycle YAML."""
@@ -382,7 +382,7 @@ class TestCombinedExpressions:
         result = ev.evaluate(
             "((event.data.get('tool_input') or {}).get('arguments') or {}).get('commit_sha')"
         )
-        assert result is True  # "abc" is truthy
+        assert result is True  # evaluate() wraps result in bool(); "abc" is truthy
 
     def test_string_strip_method(self) -> None:
         """Test .strip() on strings — used in lifecycle title synthesis."""

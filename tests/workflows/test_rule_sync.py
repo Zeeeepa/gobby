@@ -40,7 +40,7 @@ def _write_rule_file(directory: Path, name: str, definitions: dict) -> Path:
 class TestSyncBundledRules:
     def test_sync_loads_rules(self, temp_db: LocalDatabase, rules_dir: Path) -> None:
         """Sync should load all rule files and insert them into the DB."""
-        from gobby.workflows.rule_sync import sync_bundled_rules
+        from gobby.workflows.rule_sync import sync_bundled_rules_sync as sync_bundled_rules
 
         _write_rule_file(rules_dir, "safety", {
             "no_push": {
@@ -72,7 +72,7 @@ class TestSyncBundledRules:
 
     def test_sync_upserts_existing(self, temp_db: LocalDatabase, rules_dir: Path) -> None:
         """Syncing again should update existing rules, not duplicate them."""
-        from gobby.workflows.rule_sync import sync_bundled_rules
+        from gobby.workflows.rule_sync import sync_bundled_rules_sync as sync_bundled_rules
 
         _write_rule_file(rules_dir, "safety", {
             "no_push": {"tools": ["Bash"], "reason": "old reason", "action": "block"},
@@ -101,7 +101,7 @@ class TestSyncBundledRules:
 
     def test_sync_removes_stale_rules(self, temp_db: LocalDatabase, rules_dir: Path) -> None:
         """Rules whose source files no longer exist should be removed."""
-        from gobby.workflows.rule_sync import sync_bundled_rules
+        from gobby.workflows.rule_sync import sync_bundled_rules_sync as sync_bundled_rules
 
         _write_rule_file(rules_dir, "safety", {
             "no_push": {"tools": ["Bash"], "reason": "test", "action": "block"},
@@ -124,7 +124,7 @@ class TestSyncBundledRules:
 
     def test_sync_empty_directory(self, temp_db: LocalDatabase, rules_dir: Path) -> None:
         """Empty rules directory should succeed with zero counts."""
-        from gobby.workflows.rule_sync import sync_bundled_rules
+        from gobby.workflows.rule_sync import sync_bundled_rules_sync as sync_bundled_rules
 
         result = sync_bundled_rules(temp_db, rules_dir=rules_dir)
         assert result["success"] is True
@@ -132,7 +132,7 @@ class TestSyncBundledRules:
 
     def test_sync_missing_directory(self, temp_db: LocalDatabase, tmp_path: Path) -> None:
         """Nonexistent directory should succeed gracefully."""
-        from gobby.workflows.rule_sync import sync_bundled_rules
+        from gobby.workflows.rule_sync import sync_bundled_rules_sync as sync_bundled_rules
 
         result = sync_bundled_rules(temp_db, rules_dir=tmp_path / "nonexistent")
         assert result["success"] is True
@@ -140,7 +140,7 @@ class TestSyncBundledRules:
 
     def test_sync_malformed_yaml(self, temp_db: LocalDatabase, rules_dir: Path) -> None:
         """Malformed YAML should be skipped with error, not crash the sync."""
-        from gobby.workflows.rule_sync import sync_bundled_rules
+        from gobby.workflows.rule_sync import sync_bundled_rules_sync as sync_bundled_rules
 
         # Write a valid file
         _write_rule_file(rules_dir, "good", {
@@ -156,7 +156,7 @@ class TestSyncBundledRules:
 
     def test_sync_multiple_files(self, temp_db: LocalDatabase, rules_dir: Path) -> None:
         """Multiple rule files should all be synced."""
-        from gobby.workflows.rule_sync import sync_bundled_rules
+        from gobby.workflows.rule_sync import sync_bundled_rules_sync as sync_bundled_rules
 
         _write_rule_file(rules_dir, "safety", {
             "no_push": {"tools": ["Bash"], "reason": "safety", "action": "block"},
@@ -176,7 +176,7 @@ class TestSyncBundledRules:
 
     def test_sync_records_source_file(self, temp_db: LocalDatabase, rules_dir: Path) -> None:
         """Synced rules should record the source file path."""
-        from gobby.workflows.rule_sync import sync_bundled_rules
+        from gobby.workflows.rule_sync import sync_bundled_rules_sync as sync_bundled_rules
 
         _write_rule_file(rules_dir, "safety", {
             "no_push": {"tools": ["Bash"], "reason": "test", "action": "block"},
@@ -194,7 +194,7 @@ class TestSyncBundledRules:
 
     def test_sync_skips_unchanged(self, temp_db: LocalDatabase, rules_dir: Path) -> None:
         """Syncing identical content should report skipped, not updated."""
-        from gobby.workflows.rule_sync import sync_bundled_rules
+        from gobby.workflows.rule_sync import sync_bundled_rules_sync as sync_bundled_rules
 
         _write_rule_file(rules_dir, "safety", {
             "no_push": {"tools": ["Bash"], "reason": "test", "action": "block"},

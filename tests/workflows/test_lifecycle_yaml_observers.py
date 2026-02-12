@@ -31,7 +31,7 @@ LIFECYCLE_YAML = (
 @pytest.fixture
 def lifecycle_data() -> dict:
     """Load and return the raw YAML data from session-lifecycle.yaml."""
-    with open(LIFECYCLE_YAML) as f:
+    with open(LIFECYCLE_YAML, encoding="utf-8") as f:
         return yaml.safe_load(f)
 
 

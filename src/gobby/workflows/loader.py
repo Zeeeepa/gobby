@@ -50,7 +50,6 @@ class _CachedDiscovery:
 
 
 _BUNDLED_WORKFLOWS_DIR = Path(__file__).parent.parent / "install" / "shared" / "workflows"
-_BUNDLED_RULES_DIR = Path(__file__).parent.parent / "install" / "shared" / "rules"
 
 
 class WorkflowLoader:

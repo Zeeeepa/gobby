@@ -62,6 +62,12 @@ class GobbyRunner:
     def __init__(self, config_path: Path | None = None, verbose: bool = False):
         setup_file_logging(verbose=verbose)
 
+        if config_path is not None and not config_path.exists():
+            raise FileNotFoundError(
+                f"Config file not found: {config_path}. "
+                f"Use 'gobby init' to create a default config, "
+                f"or omit --config to use the default path (~/.gobby/config.yaml)."
+            )
         config_file = str(config_path) if config_path else None
         self.config = load_config(config_file)
         self.verbose = verbose
@@ -123,10 +129,10 @@ class GobbyRunner:
             logger.warning(f"Failed to sync bundled skills: {e}")
 
         # Sync bundled rules to database
-        from gobby.workflows.rule_sync import sync_bundled_rules
+        from gobby.workflows.rule_sync import sync_bundled_rules_sync
 
         try:
-            rule_result = sync_bundled_rules(self.database)
+            rule_result = sync_bundled_rules_sync(self.database)
             if rule_result["synced"] > 0:
                 logger.info(f"Synced {rule_result['synced']} bundled rules to database")
         except Exception as e:

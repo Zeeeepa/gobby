@@ -14,7 +14,7 @@ pytestmark = pytest.mark.unit
 
 
 @pytest.fixture
-def db(tmp_path):
+def db(tmp_path) -> LocalDatabase:
     """Create a test database with migrations applied."""
     db_path = tmp_path / "test.db"
     database = LocalDatabase(db_path)
@@ -23,7 +23,7 @@ def db(tmp_path):
 
 
 @pytest.fixture
-def store(db):
+def store(db) -> ConfigStore:
     return ConfigStore(db)
 
 

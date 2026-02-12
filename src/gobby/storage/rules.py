@@ -102,6 +102,8 @@ class RuleStore:
             Rule dict or None if not found.
         """
         if tier:
+            if tier == "project" and not project_id:
+                return None
             # Specific tier requested
             params: tuple[Any, ...] = (name, tier)
             sql = "SELECT * FROM rules WHERE name = ? AND tier = ?"

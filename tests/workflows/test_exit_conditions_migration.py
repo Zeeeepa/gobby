@@ -30,7 +30,7 @@ def _make_state(**variables: Any) -> WorkflowState:
 
 def _load_yaml(filename: str) -> dict[str, Any]:
     path = EXAMPLES_DIR / filename
-    with open(path) as f:
+    with open(path, encoding="utf-8") as f:
         return yaml.safe_load(f)
 
 
@@ -51,13 +51,16 @@ def _get_approval_id(condition: dict[str, Any]) -> str:
     """Compute the approval condition ID the same way the evaluator does.
 
     When no explicit 'id' is provided, the evaluator normalizes the condition
-    and uses hash(str(normalized)) % 10000.
+    and uses SHA-256 of the JSON-serialized normalized dict.
     """
     if "id" in condition:
         return condition["id"]
-    # Normalize the same way _normalize_condition does
+    import hashlib
+    import json
+
     normalized = ConditionEvaluator._normalize_condition(condition)
-    return f"approval_{hash(str(normalized)) % 10000}"
+    digest = hashlib.sha256(json.dumps(normalized, sort_keys=True).encode()).hexdigest()[:12]
+    return f"approval_{digest}"
 
 
 class TestAgentTddExitConditions:

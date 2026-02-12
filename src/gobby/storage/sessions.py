@@ -5,6 +5,7 @@ from __future__ import annotations
 import builtins
 import json
 import logging
+import sqlite3
 import uuid
 from datetime import UTC, datetime
 from typing import Any
@@ -734,6 +735,6 @@ class LocalSessionManager:
                 )
                 if cursor.rowcount == 1:
                     count += 1
-            except Exception:
-                pass  # UNIQUE constraint or missing table — skip silently
+            except sqlite3.IntegrityError:
+                continue  # UNIQUE constraint violation — idempotent
         return count

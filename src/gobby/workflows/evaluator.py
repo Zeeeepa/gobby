@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import hashlib
+import json
 import logging
 from dataclasses import dataclass
 from datetime import UTC, datetime
@@ -176,6 +178,12 @@ def check_approval_response(user_input: str) -> str | None:
     return None
 
 
+def _stable_condition_id(prefix: str, obj: dict[str, Any]) -> str:
+    """Generate a stable condition ID using SHA-256 to avoid hash collisions."""
+    digest = hashlib.sha256(json.dumps(obj, sort_keys=True).encode()).hexdigest()[:12]
+    return f"{prefix}_{digest}"
+
+
 class ConditionEvaluator:
     """
     Evaluates 'when' conditions in workflows using SafeExpressionEvaluator (AST-based).
@@ -339,7 +347,7 @@ class ConditionEvaluator:
 
             elif cond_type == "user_approval":
                 condition_id = normalized.get(
-                    "id", f"approval_{hash(str(normalized)) % 10000}"
+                    "id", _stable_condition_id("approval", normalized)
                 )
                 approved_var = f"_approval_{condition_id}_granted"
                 if not state.variables.get(approved_var, False):
@@ -352,7 +360,7 @@ class ConditionEvaluator:
 
             elif cond_type == "webhook":
                 condition_id = normalized.get(
-                    "id", f"webhook_{hash(str(normalized)) % 10000}"
+                    "id", _stable_condition_id("webhook", normalized)
                 )
                 result_var = f"_webhook_{condition_id}_result"
                 webhook_result = state.variables.get(result_var)
@@ -488,7 +496,8 @@ class ConditionEvaluator:
             if condition.get("type") != "user_approval":
                 continue
 
-            condition_id = condition.get("id", f"approval_{hash(str(condition)) % 10000}")
+            normalized = self._normalize_condition(condition)
+            condition_id = normalized.get("id", _stable_condition_id("approval", normalized))
             approved_var = f"_approval_{condition_id}_granted"
             rejected_var = f"_approval_{condition_id}_rejected"
 
@@ -575,7 +584,8 @@ class ConditionEvaluator:
             if condition.get("type") != "webhook":
                 continue
 
-            condition_id = condition.get("id", f"webhook_{hash(str(condition)) % 10000}")
+            normalized = self._normalize_condition(condition)
+            condition_id = normalized.get("id", _stable_condition_id("webhook", normalized))
 
             try:
                 # Execute the webhook

@@ -10,7 +10,7 @@ import logging
 from collections.abc import Callable, Coroutine
 from typing import TYPE_CHECKING, Any
 
-from jinja2 import Environment
+from jinja2.sandbox import SandboxedEnvironment
 
 from gobby.workflows.definitions import Observer, WorkflowState
 
@@ -20,7 +20,7 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 # Shared Jinja2 environment for evaluating set expressions
-_jinja_env = Environment()
+_jinja_env = SandboxedEnvironment()
 
 # Type for behavior callables: async (event, state, **kwargs) -> None
 BehaviorFn = Callable[..., Coroutine[Any, Any, None]]
@@ -269,6 +269,7 @@ async def _task_claim_tracking(
 
     Wraps the existing detect_task_claim function from detection_helpers.
     """
+    # Note: async to satisfy BehaviorFn interface; wrapped function is sync.
     if event is None:
         return
 
@@ -293,6 +294,7 @@ async def _detect_plan_mode(
 
     Wraps the existing detect_plan_mode_from_context function.
     """
+    # Note: async to satisfy BehaviorFn interface; wrapped function is sync.
     if event is None or not event.data:
         return
 
@@ -311,6 +313,7 @@ async def _mcp_call_tracking(
 
     Wraps the existing detect_mcp_call function.
     """
+    # Note: async to satisfy BehaviorFn interface; wrapped function is sync.
     if event is None:
         return
 
