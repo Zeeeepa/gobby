@@ -161,7 +161,12 @@ class HTTPServer:
             # Create semantic search instance if db available
             semantic_search = None
             if services.mcp_db_manager:
-                semantic_search = SemanticToolSearch(db=services.mcp_db_manager.db)
+                openai_api_key = None
+                if services.config and services.config.llm_providers and services.config.llm_providers.api_keys:
+                    openai_api_key = services.config.llm_providers.api_keys.get("OPENAI_API_KEY")
+                semantic_search = SemanticToolSearch(
+                    db=services.mcp_db_manager.db, openai_api_key=openai_api_key
+                )
                 logger.debug("Semantic tool search initialized")
 
             # Create tool filter for workflow phase restrictions

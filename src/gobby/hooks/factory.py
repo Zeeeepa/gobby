@@ -329,7 +329,10 @@ class HookManagerFactory:
             from gobby.config.persistence import MemoryConfig
 
             memory_config = MemoryConfig()
-        return MemoryManager(database, memory_config)
+        embedding_api_key = None
+        if config and hasattr(config, "llm_providers") and config.llm_providers and config.llm_providers.api_keys:
+            embedding_api_key = config.llm_providers.api_keys.get("OPENAI_API_KEY")
+        return MemoryManager(database, memory_config, embedding_api_key=embedding_api_key)
 
     @staticmethod
     def _create_webhooks(config: Any | None) -> WebhookDispatcher:

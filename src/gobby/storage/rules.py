@@ -10,7 +10,7 @@ import uuid
 from datetime import UTC, datetime
 from typing import Any
 
-from gobby.storage.database import LocalDatabase
+from gobby.storage.database import DatabaseProtocol
 
 logger = logging.getLogger(__name__)
 
@@ -23,7 +23,7 @@ TIER_PRECEDENCE = ["project", "user", "bundled"]
 class RuleStore:
     """CRUD operations for the three-tier rule registry."""
 
-    def __init__(self, db: LocalDatabase) -> None:
+    def __init__(self, db: DatabaseProtocol) -> None:
         self.db = db
 
     def save_rule(

@@ -158,9 +158,13 @@ class GobbyRunner:
         self.memory_manager: MemoryManager | None = None
         if hasattr(self.config, "memory"):
             try:
+                embedding_api_key = None
+                if self.config.llm_providers and self.config.llm_providers.api_keys:
+                    embedding_api_key = self.config.llm_providers.api_keys.get("OPENAI_API_KEY")
                 self.memory_manager = MemoryManager(
                     self.database,
                     self.config.memory,
+                    embedding_api_key=embedding_api_key,
                 )
             except Exception as e:
                 logger.error(f"Failed to initialize MemoryManager: {e}")
