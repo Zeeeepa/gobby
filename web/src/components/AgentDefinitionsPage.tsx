@@ -116,6 +116,7 @@ export function AgentDefinitionsPage() {
   const [filterSource, setFilterSource] = useState<string>('all')
   const [filterProvider, setFilterProvider] = useState<string>('all')
   const [showCreateForm, setShowCreateForm] = useState(false)
+  const [editingId, setEditingId] = useState<string | null>(null)
   const [importingName, setImportingName] = useState<string | null>(null)
   const [importResult, setImportResult] = useState<{ name: string; ok: boolean } | null>(null)
   const [createForm, setCreateForm] = useState<CreateFormData>({
@@ -194,6 +195,68 @@ export function AgentDefinitionsPage() {
     }
   }
 
+  const handleEdit = (item: AgentDefInfo) => {
+    const d = item.definition
+    setCreateForm({
+      name: d.name,
+      description: d.description || '',
+      role: d.role || '',
+      goal: d.goal || '',
+      personality: d.personality || '',
+      instructions: d.instructions || '',
+      provider: d.provider,
+      model: d.model || '',
+      mode: d.mode,
+      terminal: d.terminal,
+      isolation: d.isolation || '',
+      base_branch: d.base_branch,
+      timeout: d.timeout,
+      max_turns: d.max_turns,
+    })
+    setEditingId(item.db_id)
+    setShowCreateForm(true)
+  }
+
+  const handleUpdate = async () => {
+    if (!editingId) return
+    try {
+      const body: Record<string, unknown> = {
+        name: createForm.name,
+        description: createForm.description || null,
+        role: createForm.role || null,
+        goal: createForm.goal || null,
+        personality: createForm.personality || null,
+        instructions: createForm.instructions || null,
+        provider: createForm.provider,
+        model: createForm.model || null,
+        mode: createForm.mode,
+        terminal: createForm.terminal,
+        isolation: createForm.isolation || null,
+        base_branch: createForm.base_branch,
+        timeout: createForm.timeout,
+        max_turns: createForm.max_turns,
+      }
+
+      const res = await fetch(`${getBaseUrl()}/api/agents/definitions/${editingId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      })
+      if (res.ok) {
+        setShowCreateForm(false)
+        setEditingId(null)
+        setCreateForm({
+          name: '', description: '', role: '', goal: '', personality: '', instructions: '',
+          provider: 'claude', model: '', mode: 'headless', terminal: 'auto', isolation: '',
+          base_branch: 'main', timeout: 120, max_turns: 10,
+        })
+        fetchDefinitions()
+      }
+    } catch (e) {
+      console.error('Failed to update agent definition:', e)
+    }
+  }
+
   const handleDelete = async (dbId: string) => {
     if (!confirm('Delete this agent definition?')) return
     try {
@@ -262,7 +325,15 @@ export function AgentDefinitionsPage() {
           </button>
           <button
             className="agent-defs-btn agent-defs-btn--primary"
-            onClick={() => setShowCreateForm(!showCreateForm)}
+            onClick={() => {
+              setEditingId(null)
+              setCreateForm({
+                name: '', description: '', role: '', goal: '', personality: '', instructions: '',
+                provider: 'claude', model: '', mode: 'headless', terminal: 'auto', isolation: '',
+                base_branch: 'main', timeout: 120, max_turns: 10,
+              })
+              setShowCreateForm(!showCreateForm)
+            }}
           >
             + New
           </button>
@@ -396,13 +467,13 @@ export function AgentDefinitionsPage() {
             </label>
           </div>
           <div className="agent-defs-form-actions">
-            <button className="agent-defs-btn" onClick={() => setShowCreateForm(false)}>Cancel</button>
+            <button className="agent-defs-btn" onClick={() => { setShowCreateForm(false); setEditingId(null) }}>Cancel</button>
             <button
               className="agent-defs-btn agent-defs-btn--primary"
-              onClick={handleCreate}
+              onClick={editingId ? handleUpdate : handleCreate}
               disabled={!createForm.name.trim()}
             >
-              Create
+              {editingId ? 'Save' : 'Create'}
             </button>
           </div>
         </div>
@@ -590,12 +661,20 @@ export function AgentDefinitionsPage() {
                         Export YAML
                       </button>
                       {isDb && item.db_id && (
-                        <button
-                          className="agent-defs-btn agent-defs-btn--danger"
-                          onClick={() => handleDelete(item.db_id!)}
-                        >
-                          Delete
-                        </button>
+                        <>
+                          <button
+                            className="agent-defs-btn"
+                            onClick={() => handleEdit(item)}
+                          >
+                            Edit
+                          </button>
+                          <button
+                            className="agent-defs-btn agent-defs-btn--danger"
+                            onClick={() => handleDelete(item.db_id!)}
+                          >
+                            Delete
+                          </button>
+                        </>
                       )}
                       {!isDb && (
                         <>
