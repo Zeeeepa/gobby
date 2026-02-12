@@ -712,3 +712,27 @@ class LocalSessionManager:
 
         self.db.safe_update("sessions", values, "id = ?", (session_id,))
         return self.get(session_id)
+
+    def record_skills_used(self, session_id: str, skill_names: list[str]) -> int:
+        """Record skills used in a session (idempotent via UNIQUE constraint).
+
+        Args:
+            session_id: Session ID
+            skill_names: List of skill names that were injected
+
+        Returns:
+            Number of new skills recorded
+        """
+        now = datetime.now(UTC).isoformat()
+        count = 0
+        for name in skill_names:
+            try:
+                self.db.execute(
+                    "INSERT OR IGNORE INTO session_skills (session_id, skill_name, created_at) "
+                    "VALUES (?, ?, ?)",
+                    (session_id, name, now),
+                )
+                count += 1
+            except Exception:
+                pass  # UNIQUE constraint or missing table — skip silently
+        return count

@@ -585,6 +585,15 @@ def _inject_context_aware_skills(
         f"context_aware: selected {len(selected)}/{len(skills)} skills for "
         f"agent_type={context.agent_type}, depth={context.agent_depth}"
     )
+
+    # Track which skills were injected for this session
+    if session_id and session_manager and selected:
+        try:
+            skill_names = [skill.name for skill, _fmt in selected]
+            session_manager.record_skills_used(session_id, skill_names)
+        except Exception as e:
+            logger.debug(f"Failed to record skills used: {e}")
+
     return _format_skills_with_formats(selected)
 
 

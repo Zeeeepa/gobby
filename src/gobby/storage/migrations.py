@@ -1204,6 +1204,20 @@ MIGRATIONS: list[tuple[int, str, MigrationAction]] = [
         CREATE UNIQUE INDEX IF NOT EXISTS idx_rules_name_tier_project ON rules(name, tier, COALESCE(project_id, ''));
         """,
     ),
+    (
+        97,
+        "Add session_skills tracking table",
+        """
+        CREATE TABLE IF NOT EXISTS session_skills (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            session_id TEXT NOT NULL REFERENCES sessions(id) ON DELETE CASCADE,
+            skill_name TEXT NOT NULL,
+            created_at TEXT NOT NULL DEFAULT (datetime('now'))
+        );
+        CREATE INDEX IF NOT EXISTS idx_session_skills_session ON session_skills(session_id);
+        CREATE UNIQUE INDEX IF NOT EXISTS idx_session_skills_unique ON session_skills(session_id, skill_name);
+        """,
+    ),
 ]
 
 

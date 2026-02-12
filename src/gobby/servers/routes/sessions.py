@@ -57,6 +57,16 @@ def _get_session_stats(db: "DatabaseProtocol", session: Any) -> dict[str, int]:
     # Commits made during session timeframe
     stats["commit_count"] = _get_commit_count(db, session)
 
+    # Skills injected in this session
+    try:
+        row = db.fetchone(
+            "SELECT COUNT(DISTINCT skill_name) FROM session_skills WHERE session_id = ?",
+            (session.id,),
+        )
+        stats["skills_used"] = row[0] if row else 0
+    except Exception:
+        stats["skills_used"] = 0
+
     return stats
 
 
