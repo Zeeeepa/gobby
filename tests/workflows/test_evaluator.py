@@ -81,6 +81,95 @@ class TestConditionEvaluator:
         ]
         assert evaluator.check_exit_conditions(conditions, mock_state) is False
 
+    def test_boolean_and_expression(self, evaluator) -> None:
+        """Boolean 'and' with variable access — used in workflow when clauses."""
+        context = {"task_claimed": True, "plan_mode": False}
+        assert evaluator.evaluate("task_claimed and not plan_mode", context) is True
+        assert evaluator.evaluate("task_claimed and plan_mode", context) is False
+
+    def test_boolean_or_expression(self, evaluator) -> None:
+        context = {"a": False, "b": True}
+        assert evaluator.evaluate("a or b", context) is True
+        assert evaluator.evaluate("a or False", context) is False
+
+    def test_comparison_expression(self, evaluator) -> None:
+        context = {"step_action_count": 5}
+        assert evaluator.evaluate("step_action_count > 3", context) is True
+        assert evaluator.evaluate("step_action_count == 5", context) is True
+        assert evaluator.evaluate("step_action_count > 10", context) is False
+
+    def test_yaml_boolean_aliases(self, evaluator) -> None:
+        """YAML uses lowercase true/false — evaluator must handle them."""
+        context = {"x": True}
+        assert evaluator.evaluate("x == true", context) is True
+        assert evaluator.evaluate("x == false", context) is False
+
+    def test_dict_get_method_call(self, evaluator) -> None:
+        """Test .get() on dict — used in variables.get('key', default)."""
+        context = {"variables": {"task_claimed": True}}
+        assert evaluator.evaluate("variables.get('task_claimed', False)", context) is True
+        assert evaluator.evaluate("variables.get('missing_key', False)", context) is False
+
+    def test_mcp_called_helper(self, evaluator) -> None:
+        """Test mcp_called() function — used in workflow gates."""
+        context = {
+            "variables": {"mcp_calls": {"gobby-tasks": ["create_task", "close_task"]}}
+        }
+        assert evaluator.evaluate("mcp_called('gobby-tasks', 'close_task')", context) is True
+        assert evaluator.evaluate("mcp_called('gobby-tasks', 'unknown')", context) is False
+
+    def test_mcp_result_is_null_helper(self, evaluator) -> None:
+        context = {
+            "variables": {"mcp_results": {"gobby-tasks": {"suggest": None}}}
+        }
+        assert evaluator.evaluate("mcp_result_is_null('gobby-tasks', 'suggest')", context) is True
+
+    def test_mcp_failed_helper(self, evaluator) -> None:
+        context = {
+            "variables": {
+                "mcp_results": {"gobby-tasks": {"close_task": {"success": False, "error": "err"}}}
+            }
+        }
+        assert evaluator.evaluate("mcp_failed('gobby-tasks', 'close_task')", context) is True
+
+    def test_mcp_result_has_helper(self, evaluator) -> None:
+        context = {
+            "variables": {
+                "mcp_results": {"gobby-tasks": {"wait": {"timed_out": True}}}
+            }
+        }
+        assert evaluator.evaluate("mcp_result_has('gobby-tasks', 'wait', 'timed_out', True)", context) is True
+
+    def test_task_tree_complete_with_manager(self) -> None:
+        """Test task_tree_complete() with registered task manager."""
+        ev = ConditionEvaluator()
+        tm = MagicMock()
+        task = MagicMock()
+        task.status = "closed"
+        tm.get_task.return_value = task
+        tm.list_tasks.return_value = []
+        ev.register_task_manager(tm)
+
+        context = {}
+        assert ev.evaluate("task_tree_complete('task-123')", context) is True
+
+    def test_has_stop_signal_with_registry(self) -> None:
+        """Test has_stop_signal() with registered stop registry."""
+        ev = ConditionEvaluator()
+        sr = MagicMock()
+        sr.has_pending_signal.return_value = True
+        ev.register_stop_registry(sr)
+
+        context = {}
+        assert ev.evaluate("has_stop_signal('session-abc')", context) is True
+
+    def test_empty_condition_returns_true(self, evaluator) -> None:
+        assert evaluator.evaluate("", {}) is True
+
+    def test_none_constant(self, evaluator) -> None:
+        context = {"x": None}
+        assert evaluator.evaluate("x == None", context) is True
+
     def test_check_exit_conditions_user_approval_not_granted(self, evaluator, mock_state) -> None:
         """User approval condition returns False when not yet granted."""
         conditions = [{"type": "user_approval", "id": "test_approval"}]
