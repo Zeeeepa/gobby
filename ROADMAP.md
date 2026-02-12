@@ -44,7 +44,7 @@ Legend:
 
 - ✅ Claude Code hook integration
 - ✅ Gemini CLI hook integration
-- 🧪 Codex CLI: approval handler, context injection, app-server mode routing (0.2.13)
+- ✅ Codex CLI: approval handler, context injection, app-server mode routing (0.2.13)
 
 ### Tasks + TDD expansion (red/green/blue)
 
@@ -54,6 +54,7 @@ Legend:
 - ✅ TDD expansion v2: integrated pipeline (context → expand → embedded TDD steps)
 - ✅ TF-IDF task search with MCP and CLI interfaces
 - ✅ Claude Code Task Interop: transparent sync between CC TaskCreate/TaskUpdate and Gobby tasks
+- ✅ Task status simplification (8 → 6 statuses) (0.2.14)
 - 🧪 Publish comparisons + guidance: "Gobby tasks vs Beads vs Task Master"
   - Beads is dependency-graph-first for agent planning/memory  [oai_citation:2‡GitHub](https://github.com/steveyegge/beads?utm_source=chatgpt.com)
 
@@ -61,6 +62,8 @@ Legend:
 
 - ✅ Workflow engine (phases, tool restrictions, exit conditions)
 - ✅ Autonomous orchestration: inter-agent messaging, review gates, conductor daemon
+- ✅ Skill slash command system rework (0.2.14)
+- ✅ Agent-type-aware skill discovery and injection (0.2.14)
 
 ### Pipeline system
 
@@ -94,7 +97,16 @@ Legend:
 - ✅ Terminal panel with xterm.js
 - ✅ Syntax highlighting, streaming, chat history persistence
 - ✅ Auto-start with daemon
-- 🗺️ Task graph visualization
+- ✅ Tasks page: kanban board, tree view, dependency graph, Gantt chart, detail panel, creation form, comments, handoff, assignee management, audit log, oversight views (0.2.14)
+- ✅ Memory page: table, filters, graph view, Neo4j 3D knowledge graph, mem0 status indicator (0.2.14)
+- ✅ Sessions page: lineage tree, transcript viewer, AI summary generation (0.2.14)
+- ✅ Chat: Claude SDK backend, model switching, AskUserQuestion interactive UI, voice chat (0.2.14)
+- ✅ Cron Jobs page with two-panel layout (0.2.14)
+- ✅ Configuration page with secrets, prompts, raw YAML (0.2.14)
+- ✅ Skills page with CRUD, hub browsing, safety scanning (0.2.14)
+- ✅ Unified Projects page (0.2.14)
+- ✅ DB-backed agent registry + configuration catalog UI (0.2.14)
+- ✅ File browser/viewer/editor (0.2.14)
 - 🗺️ Hook inspector
 
 ### Worktrees
@@ -107,12 +119,15 @@ Legend:
 
 - ✅ `gobby-memory` MCP: lightweight, local, user-initiated memory (TF-IDF search)
 - ✅ Memory v3: backend abstraction layer (SQLite, MemU, Mem0, OpenMemory)
+- ✅ Memory v4: embedding persistence, lifecycle hooks, reindex CLI, automated capture (0.2.14)
+- ✅ Mem0 integration with Docker-compose bundle (0.2.14)
 
 ### Integrations + extensibility
 
 - ✅ GitHub integration
 - ✅ Linear integration
 - ✅ Plugin architecture (extensible domains/tools)
+- ✅ Gobby-plugins internal MCP server (0.2.14)
 
 ### Skills system
 
@@ -122,39 +137,60 @@ Legend:
 - ✅ TF-IDF search for skill discovery
 - ✅ Install from GitHub, local paths, ZIP archives
 - ✅ Project-scoped and global skill management
+- ✅ Skill profile replaced with typed SkillProfileConfig model (0.2.14)
 
-### Orchestration (beta - needs testing)
+### Orchestration
 
+- ✅ Coordinator pipeline + developer/QA step workflows (0.2.14)
+- ✅ Atomic slot reservation and partial failure recovery (0.2.14)
 - 🧪 Conductor daemon: persistent monitoring, TARS-style haiku status
 - 🧪 Inter-agent messaging: parent↔child message passing during execution
 - 🧪 Token budget tracking: aggregation, pricing, throttling
 - 🧪 Review gates: `review` status, blocking wait tools
 - 🧪 Callme alerts: plumbing ready, needs MCP client wiring
 
+### Agent spawning
+
+- ✅ Unified `spawn_agent` API with `isolation`: current, worktree, clone
+- ✅ Model passthrough and terminal override
+- ✅ Tmux promoted to first-class agent spawning module (0.2.14)
+- ✅ Auto terminal detection prefers tmux when installed (0.2.14)
+- ✅ Automatic interactive/autonomous mode via tmux focus (0.2.14)
+- ✅ DB-backed agent registry with prompt fields and YAML export (0.2.14)
+
+### Cron scheduler (0.2.14)
+
+- ✅ Storage foundation and config
+- ✅ Scheduler engine with executor and runner integration
+- ✅ CLI, HTTP, and MCP interfaces
+
+### Code decomposition
+
+- ✅ Round 1: mcp/tools.py, workflows/actions.py, event_handlers.py, adapters/codex.py
+- ✅ Round 2: websocket.py, claude.py, skills.py, sessions.py, hook_manager.py (0.2.14)
+- ✅ Orchestration tools extracted to standalone gobby-orchestration server (0.2.14)
+
+### Personal workspace (0.2.14)
+
+- ✅ Project-optional tasks with personal workspace fallbacks + project filter
+
+### Project management v2
+
+- ✅ Rename, delete, update, repair CLI commands
+
 ---
 
 ## Current work (in progress)
 
-### Skill enhancements
+### Coordinator finalization
 
-- ✅ Unified `/gobby` router skill (routes to skills and MCP servers)
-- ✅ Add `category` and top-level `alwaysApply` support
-- 🚧 Remove `gobby-` prefix from skill names
+- 🚧 Production-ready orchestration with review/merge cycles
+- 🚧 Finalizing coordinator workflow end-to-end
 
-### Agent spawning v2
+### Web UI buildout
 
-- ✅ Consolidate `start_agent`, `spawn_agent_in_worktree`, `spawn_agent_in_clone` into unified `spawn_agent` API
-- ✅ Add `isolation` parameter: `current`, `worktree`, `clone`
-- ✅ Model passthrough and terminal override
-- 🚧 Auto-generate branch names from task titles
-
-### Code decomposition (strangler fig)
-
-- ✅ Break up `mcp/tools.py` into domain-specific endpoints
-- ✅ Break up `workflows/actions.py` into action handlers
-- ✅ Break up `event_handlers.py` into domain-specific modules
-- ✅ Break up `adapters/codex.py` into `codex_impl/` package (types/client/adapter)
-- 🚧 Break up `mcp_proxy/tools/worktrees.py` into granular toolsets
+- 🚧 Wiring remaining web UI pages to existing backend APIs
+- 🚧 Polish and UX improvements across all pages
 
 ---
 
@@ -162,38 +198,53 @@ Legend:
 
 Goal: a developer installs Gobby and immediately understands the value in minutes.
 
-### 1) Security posture for tool access (must-have for "1000 MCP servers")
+### 1) Workflow engine simplification
+
+- 🗺️ Unify evaluators and named rule definitions
+- 🗺️ tool_rules shorthand syntax
+- 🗺️ Hybrid observer registry
+- 🗺️ Simplify exit conditions
+
+### 2) Task expansion into workflows
+
+- 🗺️ Research agent for context gathering
+- 🗺️ Expansion workflow with validation workflow
+- 🗺️ Coordinator integration
+- 🗺️ Task-ops agent
+
+### 3) Artifact system removal + git integration
+
+- 🗺️ Remove ~30 files, modify ~50 files
+- 🗺️ DB migration to drop artifact tables
+- 🗺️ Tighter git-native integration to replace artifacts
+
+### 4) CLI auto-detection
+
+- 🗺️ Auto-discover CLIs, auth modes, models at daemon startup
+- 🗺️ Replace manual llm_providers config
+
+### 5) Security posture for tool access (must-have for "1000 MCP servers")
 
 - 🗺️ MCP server allow/deny lists
 - 🗺️ Quarantine unknown servers until approved
 - 🗺️ Per-tool risk levels + confirmation gates (filesystem write, shell, network, etc.)
 - 🗺️ Audit log for tool calls (who/what/when/args summary)
 
-### 2) Observability + OpenTelemetry
-
-- 🗺️ Tool call tracing (latency, success/error, payload size)
-- 🗺️ Session timeline view (event stream: hooks fired, tools invoked, compactions, files changed)
-- 🗺️ Replace custom logging/metrics with OpenTelemetry
-- 🗺️ OTLP export + console fallback for local dev
-- 🗺️ Exportable run reports (for PR descriptions / team sharing)
-
-### 3) Production-ready workflows
-
-- 🗺️ Automated code review pipelines
-- 🗺️ Retry logic and error recovery
-- 🗺️ Parallel worker execution
-
-### 4) SWE-bench evaluation
+### 6) SWE-bench evaluation
 
 - 🗺️ Evaluation infrastructure for SWE-bench Lite/Verified/Live
 - 🗺️ Track scores over time, A/B test Gobby features
 - 🗺️ Leaderboard submission when ready to show off
 
-### 5) Flagship demos (distribution)
+### 7) Flagship demos (distribution)
 
 - 🗺️ "MCP at scale without token tax" demo (progressive discovery)
 - 🗺️ "Spec → tasks → TDD red/green/blue → validated PR" demo
 - 🗺️ "Hooks enforce discipline" demo pack (format/lint/test gates)
+
+### 8) Bug fix sprint
+
+- 🗺️ Stabilization pass across the platform
 
 ---
 
@@ -221,33 +272,21 @@ Goal: reduce cognitive load; make the daemon's behavior legible.
 - 🗺️ Tailscale integration for secure remote access
 - 🗺️ SSH tunneling support
 
-### 4) Memory v4
+### 4) Production-ready workflows
 
-- 🗺️ Extraction improvements
-- 🗺️ Embedding-based deduplication
+- 🗺️ Automated code review pipelines
+- 🗺️ Retry logic and error recovery
+- 🗺️ Parallel worker execution
 
-### 6) Plugin ecosystem v2
+### 5) Plugin ecosystem v2
 
 - 🗺️ Dedicated MCP server for plugin management
 - 🗺️ Plugin registry conventions + compatibility checks
 
-### 7) Project management v2
-
-- 🗺️ Rename, delete, update, repair CLI commands
-
-### 8) Code decomposition round 2
-
-- 🗺️ `websocket.py`, `claude.py`, `skills.py`, `sessions.py`, `hook_manager.py`
-
-### 9) Multi-agent orchestration improvements
+### 6) Multi-agent orchestration improvements
 
 - 🗺️ P2P mailboxes for agent communication
 - 🗺️ Agent checkpointing and resume
-- 🗺️ Coordinator role for task distribution
-
-### 10) Personal workspace
-
-- 🗺️ Project-optional tasks (personal backlog without a project)
 
 ---
 
@@ -255,19 +294,27 @@ Goal: reduce cognitive load; make the daemon's behavior legible.
 
 Goal: make Gobby the obvious substrate for serious local agentic coding.
 
-### 1) Memory adapters + open Memory API
+### 1) Observability + OpenTelemetry
+
+- 🗺️ Tool call tracing (latency, success/error, payload size)
+- 🗺️ Session timeline view (event stream: hooks fired, tools invoked, compactions, files changed)
+- 🗺️ Replace custom logging/metrics with OpenTelemetry
+- 🗺️ OTLP export + console fallback for local dev
+- 🗺️ Exportable run reports (for PR descriptions / team sharing)
+
+### 2) Memory adapters + open Memory API
 
 - 🗺️ Stable Memory API (store/retrieve/summarize/evict)
 - 🗺️ Adapters for popular memory systems (vector DBs, knowledge graphs, etc.)
 - 🗺️ Clear guidance: baseline local memory vs advanced backends
 
-### 2) Plugin ecosystem + templates
+### 3) Plugin ecosystem + templates
 
-- 🗺️ Curated “starter packs” (hooks + workflows + tasks) by stack (Python/Node/Go/etc.)
+- 🗺️ Curated "starter packs" (hooks + workflows + tasks) by stack (Python/Node/Go/etc.)
 - 🗺️ Plugin registry conventions + compatibility checks
 - 🗺️ Community examples: integrations, workflows, hook packs
 
-### 3) Team workflows (still local-first)
+### 4) Team workflows (still local-first)
 
 - 🗺️ Optional shared artifacts (sanitized session summaries, workflow outcomes)
 - 🗺️ Multi-dev coordination patterns without centralizing code/data
@@ -279,6 +326,6 @@ Goal: make Gobby the obvious substrate for serious local agentic coding.
 
 - Moving core execution to a hosted SaaS
 - Forcing a single agent framework
-- Hiding behavior behind “magic prompts”
+- Hiding behavior behind "magic prompts"
 
 Gobby wins by being the **boring, reliable system layer** under your AI tools.

@@ -138,10 +138,12 @@ gobby skills search "testing coverage"
 
 Gobby ships a built-in web interface that auto-starts with the daemon:
 
-- Chat interface with MCP tool support
-- Terminal panel with xterm.js
-- Syntax highlighting and streaming
-- Settings panel with font size control
+- **Chat** with MCP tool support, voice chat, model switching, slash commands
+- **Tasks** — kanban board, tree view, dependency graph, Gantt chart, detail panel
+- **Memory** — table view, Neo4j 3D knowledge graph, mem0 status
+- **Sessions** — lineage tree, transcript viewer, AI summary generation
+- **Cron Jobs**, **Configuration**, **Skills**, **Projects**, **Agent Registry** pages
+- File browser/editor, terminal panel with xterm.js
 
 Access at `http://localhost:60887` when the daemon is running.
 
@@ -369,9 +371,6 @@ Gobby exposes tools via MCP that your AI coding assistant can use:
 **Clones** (`gobby-clones`)
 `create_clone`, `list_clones`, `delete_clone`, `merge_clone_to_target`
 
-**Artifacts** (`gobby-artifacts`)
-`save_artifact`, `get_artifact`, `list_artifacts` — capture and retrieve session artifacts
-
 **Pipelines** (`gobby-pipelines`)
 `list_pipelines`, `run_pipeline`, `approve_pipeline`, `reject_pipeline`, `get_pipeline_status`
 
@@ -389,11 +388,11 @@ Gobby exposes tools via MCP that your AI coding assistant can use:
 
 See [ROADMAP.md](ROADMAP.md) for the full plan, but highlights:
 
-**Shipped:** Task system v2, TDD expansion, workflow engine, MCP proxy with progressive discovery, session handoffs, memory v3, hooks for all CLIs, unified agent spawning, worktree and clone orchestration, skills system, artifacts, web UI, pipeline system, shell actions, async workflow loader, inject_context, prompt loader, proactive memory, Codex adapter enhancements (approval handling, context injection, app-server routing)
+**Shipped:** Task system v2, TDD expansion, workflow engine, MCP proxy with progressive discovery, session handoffs, memory v4 with embeddings, hooks for all CLIs, unified agent spawning, worktree and clone orchestration, skills system, pipeline system, cron scheduler, coordinator pipeline, mem0 integration, web UI (tasks kanban/tree/Gantt/graph, memory with Neo4j knowledge graph, sessions with transcripts, chat with voice and model switching, cron jobs, configuration, skills, projects, agent registry, file browser), tmux first-class support, personal workspace, code decomposition, DB-backed agent registry
 
 **Beta:** Autonomous orchestration (conductor daemon, inter-agent messaging, token budget tracking, review gates)
 
-**Next:** Security posture for MCP (allow/deny lists, audit logging), observability with OpenTelemetry, SWE-bench evaluation, production-ready workflows, remote access
+**Next:** Workflow engine simplification, task expansion workflows, artifact removal + git integration, CLI auto-detection, coordinator finalization, web UI buildout, security posture for MCP, SWE-bench evaluation, bug fix sprint
 
 **Vision:** Always local first, but Pro cloud features to keep the lights on: Fleet management, Plugin ecosystem, Team workflows, Enterprise hardening
 
