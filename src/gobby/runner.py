@@ -83,6 +83,16 @@ class GobbyRunner:
 
         # Initialize local storage with dual-write if in project context
         self.database = self._init_database()
+
+        # Phase 2: Reload config with secrets store (secrets > env vars)
+        # Phase 1 (above) used env vars only to bootstrap the database path.
+        # Now that the DB is available, re-expand with secrets taking priority.
+        from gobby.storage.secrets import SecretStore
+
+        assert isinstance(self.database, LocalDatabase)
+        self.secret_store = SecretStore(self.database)
+        self.config = load_config(config_file, secret_resolver=self.secret_store.get)
+
         self.session_manager = LocalSessionManager(self.database)
         self.message_manager = LocalSessionMessageManager(self.database)
         self.task_manager = LocalTaskManager(self.database)

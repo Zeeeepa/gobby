@@ -7,8 +7,10 @@ configuration hierarchy (CLI > YAML > Defaults), and validation.
 
 from __future__ import annotations
 
+import logging
 import os
 import re
+from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
@@ -84,6 +86,8 @@ __all__ = [
     "save_config",
 ]
 
+logger = logging.getLogger(__name__)
+
 # Pattern for environment variable substitution:
 # ${VAR} - simple substitution
 # ${VAR:-default} - with default value if VAR is unset or empty
@@ -121,34 +125,61 @@ class ConductorConfig(BaseModel):
     )
 
 
-def expand_env_vars(content: str) -> str:
+def expand_env_vars(
+    content: str,
+    secret_resolver: Callable[[str], str | None] | None = None,
+) -> str:
     """
     Expand environment variables in configuration content.
 
+    Resolution order for each ${VAR} reference:
+    1. Secret store (if secret_resolver provided)
+    2. Environment variable
+    3. Default value (if ${VAR:-default} syntax)
+    4. Left unchanged with warning
+
     Supports two syntaxes:
-    - ${VAR} - replaced with the value of VAR, or left unchanged if unset
-    - ${VAR:-default} - replaced with VAR's value, or 'default' if unset/empty
+    - ${VAR} - replaced with resolved value, or left unchanged if unresolved
+    - ${VAR:-default} - replaced with resolved value, or 'default' if unresolved
 
     Args:
         content: Configuration file content as string
+        secret_resolver: Optional callable that takes a variable name and returns
+            the decrypted secret value, or None if not found. Checked before
+            environment variables.
 
     Returns:
-        Content with environment variables expanded
+        Content with variables expanded
     """
 
     def replace_match(match: re.Match[str]) -> str:
         var_name = match.group(1)
         default_value = match.group(2)  # None if no default specified
 
-        env_value = os.environ.get(var_name)
+        # 1. Try secret store first
+        if secret_resolver is not None:
+            try:
+                secret_value = secret_resolver(var_name)
+                if secret_value is not None and secret_value != "":
+                    return secret_value
+            except Exception as e:
+                logger.debug(f"Secret resolver failed for '{var_name}': {e}")
 
+        # 2. Try environment variable
+        env_value = os.environ.get(var_name)
         if env_value is not None and env_value != "":
             return env_value
-        elif default_value is not None:
+
+        # 3. Use default if provided
+        if default_value is not None:
             return default_value
-        else:
-            # Leave unchanged if no value and no default
-            return match.group(0)
+
+        # 4. Unresolved — warn and leave unchanged
+        logger.warning(
+            f"Unresolved variable '${{{var_name}}}' in config "
+            f"— not found in secrets store or environment"
+        )
+        return match.group(0)
 
     return ENV_VAR_PATTERN.sub(replace_match, content)
 
@@ -378,12 +409,16 @@ class DaemonConfig(BaseModel):
         return v
 
 
-def load_yaml(config_file: str) -> dict[str, Any]:
+def load_yaml(
+    config_file: str,
+    secret_resolver: Callable[[str], str | None] | None = None,
+) -> dict[str, Any]:
     """
     Load YAML or JSON configuration file.
 
     Args:
         config_file: Path to YAML or JSON configuration file
+        secret_resolver: Optional callable for resolving secrets (checked before env vars)
 
     Returns:
         Dictionary with parsed YAML/JSON content
@@ -410,8 +445,8 @@ def load_yaml(config_file: str) -> dict[str, Any]:
         with open(config_path) as f:
             content = f.read()
 
-        # Expand environment variables before parsing
-        content = expand_env_vars(content)
+        # Expand variables (secrets first if resolver provided, then env vars)
+        content = expand_env_vars(content, secret_resolver=secret_resolver)
 
         # Handle JSON files
         if file_ext == ".json":
@@ -486,6 +521,7 @@ def load_config(
     config_file: str | None = None,
     cli_overrides: dict[str, Any] | None = None,
     create_default: bool = False,
+    secret_resolver: Callable[[str], str | None] | None = None,
 ) -> DaemonConfig:
     """
     Load configuration with hierarchy: CLI > YAML > Defaults.
@@ -494,6 +530,7 @@ def load_config(
         config_file: Path to YAML config file (default: ~/.gobby/config.yaml)
         cli_overrides: Dictionary of CLI argument overrides
         create_default: Create default config file if it doesn't exist
+        secret_resolver: Optional callable for resolving secrets (checked before env vars)
 
     Returns:
         Validated DaemonConfig instance
@@ -511,7 +548,7 @@ def load_config(
         generate_default_config(config_file)
 
     # Load YAML configuration
-    config_dict = load_yaml(config_file)
+    config_dict = load_yaml(config_file, secret_resolver=secret_resolver)
 
     # Apply CLI argument overrides
     config_dict = apply_cli_overrides(config_dict, cli_overrides)

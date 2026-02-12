@@ -111,6 +111,61 @@ class TestExpandEnvVars:
             result = expand_env_vars("value: ${UNSET_VAR:-}")
             assert result == "value: "
 
+    def test_secret_resolver_takes_priority_over_env(self) -> None:
+        """Test that secret_resolver is checked before env vars."""
+        resolver = lambda name: "secret_value" if name == "MY_KEY" else None  # noqa: E731
+        with patch.dict(os.environ, {"MY_KEY": "env_value"}):
+            result = expand_env_vars("key: ${MY_KEY}", secret_resolver=resolver)
+            assert result == "key: secret_value"
+
+    def test_secret_resolver_fallback_to_env(self) -> None:
+        """Test that env var is used when secret_resolver returns None."""
+        resolver = lambda name: None  # noqa: E731
+        with patch.dict(os.environ, {"MY_KEY": "env_value"}):
+            result = expand_env_vars("key: ${MY_KEY}", secret_resolver=resolver)
+            assert result == "key: env_value"
+
+    def test_secret_resolver_fallback_to_default(self) -> None:
+        """Test that default is used when both resolver and env return nothing."""
+        resolver = lambda name: None  # noqa: E731
+        env = os.environ.copy()
+        env.pop("UNSET_VAR", None)
+        with patch.dict(os.environ, env, clear=True):
+            result = expand_env_vars("key: ${UNSET_VAR:-fallback}", secret_resolver=resolver)
+            assert result == "key: fallback"
+
+    def test_secret_resolver_unresolved_warns(self) -> None:
+        """Test that unresolved vars log a warning."""
+        resolver = lambda name: None  # noqa: E731
+        env = os.environ.copy()
+        env.pop("MISSING_VAR", None)
+        with patch.dict(os.environ, env, clear=True):
+            with patch("gobby.config.app.logger") as mock_logger:
+                result = expand_env_vars("key: ${MISSING_VAR}", secret_resolver=resolver)
+                assert result == "key: ${MISSING_VAR}"
+                mock_logger.warning.assert_called_once()
+                assert "MISSING_VAR" in mock_logger.warning.call_args[0][0]
+
+    def test_secret_resolver_exception_falls_through(self) -> None:
+        """Test that secret_resolver exceptions are caught and fall through to env."""
+
+        def bad_resolver(name: str) -> str | None:
+            raise RuntimeError("DB unavailable")
+
+        with patch.dict(os.environ, {"MY_KEY": "env_value"}):
+            result = expand_env_vars("key: ${MY_KEY}", secret_resolver=bad_resolver)
+            assert result == "key: env_value"
+
+    def test_unresolved_var_warns_without_resolver(self) -> None:
+        """Test that unresolved vars warn even without a secret_resolver."""
+        env = os.environ.copy()
+        env.pop("NOPE", None)
+        with patch.dict(os.environ, env, clear=True):
+            with patch("gobby.config.app.logger") as mock_logger:
+                result = expand_env_vars("key: ${NOPE}")
+                assert result == "key: ${NOPE}"
+                mock_logger.warning.assert_called_once()
+
 
 class TestWebSocketSettings:
     """Tests for WebSocketSettings configuration."""
