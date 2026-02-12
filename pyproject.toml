@@ -50,11 +50,12 @@ dependencies = [
     "protobuf>=6.33.5",
     # cryptography <46.0.5 has CVE-2026-26007
     "cryptography>=46.0.5",
+    # faster-whisper for voice STT
+    "faster-whisper>=1.0.0",
 ]
 
 [project.optional-dependencies]
 mem0 = ["mem0ai"]
-voice = ["faster-whisper>=1.0.0"]
 
 [project.scripts]
 gobby = "gobby.cli:cli"

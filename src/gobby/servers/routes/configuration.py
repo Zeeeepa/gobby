@@ -134,7 +134,13 @@ def create_configuration_router(server: "HTTPServer") -> APIRouter:
             new_config = DaemonConfig(**current)
 
             # Save to disk
+            config_path = Path(CONFIG_FILE).expanduser()
+            logger.info(f"Saving config to {config_path}")
             save_config(new_config, CONFIG_FILE)
+            logger.info(f"Config saved to {config_path} (size={config_path.stat().st_size})")
+
+            # Update in-memory config so subsequent reads reflect the change
+            server.services.config = new_config
 
             return JSONResponse(
                 content={
@@ -143,7 +149,7 @@ def create_configuration_router(server: "HTTPServer") -> APIRouter:
                 }
             )
         except Exception as e:
-            logger.error(f"Config save failed: {e}")
+            logger.error(f"Config save failed: {e}", exc_info=True)
             raise HTTPException(status_code=400, detail=str(e)) from e
 
     @router.post("/values/validate")

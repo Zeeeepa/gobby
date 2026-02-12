@@ -45,6 +45,7 @@ export interface ProjectProps {
 
 export interface VoiceProps {
   voiceMode?: boolean
+  voiceAvailable?: boolean
   isRecording?: boolean
   isTranscribing?: boolean
   isSpeaking?: boolean
@@ -92,6 +93,7 @@ export function ChatPage({ chat, conversations, terminal, project, voice }: Chat
             selectedProjectId={project.selectedProjectId}
             onProjectChange={project.onProjectChange}
             voiceMode={voice.voiceMode}
+            voiceAvailable={voice.voiceAvailable}
             isRecording={voice.isRecording}
             isTranscribing={voice.isTranscribing}
             isSpeaking={voice.isSpeaking}

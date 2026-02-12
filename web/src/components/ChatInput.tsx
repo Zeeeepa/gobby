@@ -27,6 +27,7 @@ interface ChatInputProps {
   onProjectChange?: (projectId: string) => void
   // Voice props
   voiceMode?: boolean
+  voiceAvailable?: boolean
   isRecording?: boolean
   isTranscribing?: boolean
   isSpeaking?: boolean
@@ -49,6 +50,7 @@ export function ChatInput({
   selectedProjectId,
   onProjectChange,
   voiceMode = false,
+  voiceAvailable = false,
   isRecording = false,
   isTranscribing = false,
   isSpeaking = false,
@@ -200,7 +202,7 @@ export function ChatInput({
         >
           <PaperclipIcon />
         </button>
-        {onToggleVoice && (
+        {onToggleVoice && voiceAvailable && (
           <button
             className={`chat-toolbar-btn${voiceMode ? ' voice-active' : ''}`}
             onClick={onToggleVoice}
