@@ -7820,6 +7820,10 @@ body {
   color: var(--accent);
 }
 
+.task-overview-card--review .task-overview-count {
+  color: #f59e0b;
+}
+
 .task-overview-card--stuck .task-overview-count {
   color: #ef4444;
 }
