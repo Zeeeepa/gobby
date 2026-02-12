@@ -6,6 +6,37 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator
 # --- Workflow Definition Models (YAML) ---
 
 
+class RuleDefinition(BaseModel):
+    """Named rule definition for block_tools format.
+
+    Can be defined at workflow level (rule_definitions) or in shared rule files.
+    Referenced by name via check_rules on WorkflowStep.
+    """
+
+    tools: list[str] = Field(default_factory=list)
+    mcp_tools: list[str] = Field(default_factory=list)
+    when: str | None = None
+    reason: str
+    action: Literal["block", "allow", "warn"] = "block"
+    command_pattern: str | None = None
+    command_not_pattern: str | None = None
+
+    def to_block_rule(self) -> dict[str, Any]:
+        """Convert to block_tools rule dict format."""
+        rule: dict[str, Any] = {"reason": self.reason}
+        if self.tools:
+            rule["tools"] = self.tools
+        if self.mcp_tools:
+            rule["mcp_tools"] = self.mcp_tools
+        if self.when:
+            rule["when"] = self.when
+        if self.command_pattern:
+            rule["command_pattern"] = self.command_pattern
+        if self.command_not_pattern:
+            rule["command_not_pattern"] = self.command_not_pattern
+        return rule
+
+
 class WorkflowRule(BaseModel):
     name: str | None = None
     when: str
@@ -57,6 +88,7 @@ class WorkflowStep(BaseModel):
     blocked_mcp_tools: list[str] = Field(default_factory=list)
 
     rules: list[WorkflowRule] = Field(default_factory=list)
+    check_rules: list[str] = Field(default_factory=list)  # Named rule references
     transitions: list[WorkflowTransition] = Field(default_factory=list)
     exit_conditions: list[dict[str, Any]] = Field(default_factory=list)  # flexible for now
 
@@ -85,6 +117,11 @@ class WorkflowDefinition(BaseModel):
 
     settings: dict[str, Any] = Field(default_factory=dict)
     variables: dict[str, Any] = Field(default_factory=dict)
+
+    # Named rule definitions (file-local, referenced by check_rules on steps)
+    rule_definitions: dict[str, RuleDefinition] = Field(default_factory=dict)
+    # Cross-file rule imports (e.g., ["worker-safety"])
+    imports: list[str] = Field(default_factory=list)
 
     steps: list[WorkflowStep] = Field(default_factory=list)
 
