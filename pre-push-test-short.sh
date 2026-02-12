@@ -7,6 +7,7 @@ set -uo pipefail
 TIMESTAMP=$(date +%s)
 REPORTS_DIR="./reports"
 mkdir -p "$REPORTS_DIR"
+find "$REPORTS_DIR" -type f -mmin +1440 -delete 2>/dev/null || true
 
 echo "=== Pre-push Test Suite ==="
 echo "Timestamp: $TIMESTAMP"
