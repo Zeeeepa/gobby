@@ -314,12 +314,6 @@ Goal: make Gobby the obvious substrate for serious local agentic coding.
 - 🗺️ Plugin registry conventions + compatibility checks
 - 🗺️ Community examples: integrations, workflows, hook packs
 
-### 4) Team workflows (still local-first)
-
-- 🗺️ Optional shared artifacts (sanitized session summaries, workflow outcomes)
-- 🗺️ Multi-dev coordination patterns without centralizing code/data
-- 🗺️ Policy packs (security/logging/compliance defaults)
-
 ---
 
 ## Explicit non-goals (unless proven necessary)

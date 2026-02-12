@@ -1,3 +1,6 @@
+<!-- markdownlint-disable MD024 -->
+
+
 # Changelog
 
 All notable changes to Gobby are documented in this file.
@@ -10,6 +13,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Major Features
 
 #### Web UI — Tasks Page
+
 - Kanban board with 6-column status mapping, drag-and-drop between columns, swimlanes, priority board (#7548, #7551, #7573, #7572, #7574, #7553, #7552)
 - Task tree view with react-arborist, search filtering, expand/collapse controls, drag-and-drop re-parenting (#7555, #7557, #7558, #7593)
 - Dependency graph visualization using SVG and dagre layout (#7595)
@@ -29,8 +33,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Shared TaskBadges components (#7540)
 
 #### Web UI — Memory Page
+
 - Memory page with table, filters, form, detail components (#7481-#7486)
-- Mem0 status indicator (#7487)
 - Knowledge graph visualization — Neo4j 3D force-directed graph (#7952, #7955)
 - Memory correction UI with inline edit and pin toggle (#7582)
 - Learning-from-feedback confirmation preview (#7584)
@@ -38,6 +42,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Reorder memory views — knowledge first, list last (#7954)
 
 #### Web UI — Sessions & Chat
+
 - Session lineage tree view (#7457)
 - On-demand AI summary generation (#7456)
 - Rich session transcript component (#7455)
@@ -50,6 +55,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Session list sidebar (#7440)
 
 #### Web UI — Other Pages
+
 - Cron Jobs page with two-panel layout (#7634-#7638)
 - Configuration page with secrets, prompts, raw YAML (#7985)
 - Skills page with CRUD, hub browsing, safety scanning (#7984)
@@ -60,6 +66,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Tmux terminal session management with PTY relay (#7357)
 
 #### Mem0 Integration
+
 - Async Mem0 REST client (#7468)
 - Docker-compose bundle for mem0 services (#7470)
 - CLI install/uninstall --mem0 commands (#7471)
@@ -69,6 +76,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Remove old Mem0Backend, OpenMemory backend, SQLite backend in favor of StorageAdapter (#7476-#7478)
 
 #### Memory Enhancements
+
 - Memory embedding persistence layer and table migration (#7462, #7464)
 - Hook embedding generation into CRUD lifecycle (#7466)
 - Wire UnifiedSearcher into SearchCoordinator (#7465)
@@ -77,11 +85,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Automated memory capture & retrieval in lifecycle workflows (#7962)
 
 #### Cron Scheduler
+
 - Storage foundation and config (#7618-#7624)
 - Scheduler engine with executor and runner integration (#7625-#7627)
 - CLI, HTTP, and MCP interfaces (#7628-#7633)
 
 #### Coordinator Pipeline & Orchestration
+
 - Coordinator pipeline + developer/QA step workflows (#7412)
 - Dry-run parameter for orchestrate_ready_tasks (#7393, #7394)
 - Sequential and parallel orchestrator integration tests (#7390, #7391)
@@ -93,6 +103,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Pre-register agent in RunningAgentRegistry before spawn (#7386)
 
 #### Agent & Workflow Enhancements
+
 - DB-backed agent registry with prompt fields and YAML export (#7959, #8008)
 - Automatic interactive/autonomous mode via tmux focus (#7685)
 - Auto terminal detection prefers tmux when installed (#7353)
@@ -106,6 +117,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Skill profile replaced with typed SkillProfileConfig model (#7701)
 
 #### Artifact System Enhancements (deprecated in 0.2.15)
+
 - ArtifactsPage with sidebar and detail layout (#7610)
 - Artifact type icons and badge styling (#7611)
 - useArtifacts React hook (#7609)
@@ -116,6 +128,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Diff and plan artifact types in classifier (#7604)
 
 #### Code Decomposition (Strangler Fig Round 2)
+
 - websocket.py to websocket/ package (auth, chat, handlers, broadcast) (#7100-#7104)
 - claude.py to claude_models.py, claude_cli.py, claude_streaming.py (#7096-#7099)
 - skills.py to metadata.py, scaffold.py, formatting.py (#7091-#7093)
@@ -204,6 +217,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Major Features
 
 #### Codex Adapter Enhancements
+
 - Add approval handler to CodexAppServerClient (#6882)
 - Add handle_approval_request to CodexAdapter (#6883)
 - Add app-server mode routing for Codex hooks (#6885)
@@ -211,6 +225,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Extend translate_from_hook_response with context injection for Codex (#6888)
 
 #### Web UI
+
 - Scaffold web chat UI with React + Vite (#6776)
 - Add MCP tool support to web chat + reorganize frontend (#6781)
 - Add terminal panel with xterm.js (#6782)
@@ -223,6 +238,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Fix SPA catch-all to exclude bare path segments (#7127)
 
 #### Pipeline System
+
 - Create PipelineExecutor with exec, prompt, and invoke step types (#6742, #6743, #6744, #6745)
 - Add approval gate handling with approve/reject methods (#6746, #6747)
 - Add pipeline CLI commands: list, show, run, status, approve, reject, history (#6754-#6758)
@@ -237,33 +253,40 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Replace eval() with SafeExpressionEvaluator in pipeline conditions (#6795)
 
 #### Async WorkflowLoader
+
 - Make WorkflowLoader async with aiofiles (#7196)
 - Add mtime-based cache invalidation to WorkflowLoader (#7122)
 
 #### Shell Action for Workflows
+
 - Add shell/run action to workflow system (#7020)
 - Rename bash action to shell for cross-platform accuracy (#7041)
 - Enrich shell action render context with session & project (#7166)
 
 #### Inject Context Action
+
 - Add multi-source inject_context action: skills, task_context, memories (#6642-#6645)
 - Support array syntax for multi-source injection (#6646)
 
 #### Handoff Improvements
+
 - Feed structured HandoffContext into LLM summary path (#7171)
 - Add get_git_diff_summary for actual code change context (#7170)
 - Remove SummaryFileGenerator and add write_file support to generate_handoff (#7184)
 - Enhance compact handoff with detailed activity and fixed paths (#6787)
 
 #### Prompt Loader
+
 - Migrate prompts from config.yaml to file-based PromptLoader (#6972)
 
 #### Meeseeks-Box Workflow Redesign
+
 - Redesign meeseeks-box workflow: unify merge/cleanup, remove wait_for_workers (#7269)
 - Replace squash merge with regular merge to preserve worker commits (#7275)
 - Restore merge_strategy variable with default 'merge' (#7276)
 
 #### Workflow Engine Enhancements
+
 - Add `when` conditional support to `on_enter` actions (#7261)
 - Add `status_message` to WorkflowStep for user-visible transition output (#7284)
 - Route workflow `call_mcp_tool` through ToolProxyService (#7279)
@@ -271,13 +294,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Add `internal` flag to WorkflowSpec for spawn_agent enforcement (#6908)
 
 #### Agent/Workflow Dry-Run Evaluator
+
 - Add dry-run evaluator for agents and workflows (#7280)
 
 #### Transcript Capture for Non-Claude CLIs
+
 - Add hook-based transcript assembly for Windsurf & Copilot (#7251)
 - Fix session transcript capture for non-Claude CLIs (#7248)
 
 #### Progressive Disclosure Enforcement
+
 - Enforce progressive disclosure flow for MCP tool discovery (#7255)
 - Merge discovering-tools skill into MCP instructions (#7254)
 
@@ -345,7 +371,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Fix CVE-2026-0994 protobuf vulnerability (#7048)
 - Fix lifecycle evaluator state race condition with atomic merge_variables (#7162)
 - Fix _render_arguments to recursively render dict items in lists (#7160)
-- Fix _handle_self_mode to allow lifecycle workflow coexistence (#7129)
+- Fix `_handle_self_mode` to allow lifecycle workflow coexistence (#7129)
 - Block stop deterministically after tool block (#7131)
 - Fix stop hook enforcement fail-open bugs (#7176)
 - Fix lifecycle workflow appearing as step workflow in display (#7151)
@@ -425,7 +451,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Fix CodeRabbit review suggestions across 7 batches (#7232)
 - Set CodeRabbit review profile to assertive (#7230)
-- Remove redundant workflow_loader guard in _handle_self_mode (#7226)
+- Remove redundant workflow_loader guard in `_handle_self_mode` (#7226)
 - Fix 41 code quality nitpicks across source, tests, and config (#7220)
 - Remove deprecated parameters, legacy shims, and stale references (#7219)
 - Fix stale use_semantic assertion in memory recall test (#7218)
@@ -454,6 +480,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Major Features
 
 #### Daemon Watchdog
+
 - Add daemon watchdog for automatic restart on failure (#7034)
 
 ### Improvements
@@ -516,6 +543,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Major Features
 
 #### Multi-CLI Adapter Support
+
 - Add Cursor, Windsurf, and Copilot session support (#6140)
 - Implement proper Copilot, Windsurf, and Cursor adapters (#6857-#6860)
 - Add auto-installation for Cursor, Windsurf, Copilot (#6867)
@@ -523,11 +551,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Centralize `machine_id` in base adapter (#6842)
 
 #### Pipeline System
+
 - Add WebSocket streaming for pipeline execution (#6798)
 - Register gobby-pipelines MCP server in daemon (#6797)
 - Implement template rendering in pipeline `_render_step` (#6796)
 
 #### Agent Improvements
+
 - Add unified agent file with named workflows (#6847)
 - Auto-detect current branch as `base_branch` (#6852)
 - Load and persist inline workflows from agent definitions (#6849, #6850)
@@ -682,6 +712,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Major Features
 
 #### Unified Spawn Agent API
+
 - New unified `spawn_agent` MCP tool replacing legacy spawn tools
 - `IsolationHandler` abstraction with `CurrentIsolationHandler`, `WorktreeIsolationHandler`, and `CloneIsolationHandler`
 - `SpawnExecutor` for unified spawn dispatch across all isolation modes
@@ -689,6 +720,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Deprecation warnings added to `spawn_agent_in_worktree`, `spawn_agent_in_clone`, and `start_agent`
 
 #### Agent Sandboxing
+
 - `SandboxConfig` models for agent spawning with network and filesystem controls
 - Sandbox resolvers for CLI-specific configuration (Claude, Gemini, Codex)
 - Sandbox params in `spawn_agent` MCP tool and `build_cli_command`
@@ -696,12 +728,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Integration and unit tests for sandbox functionality
 
 #### Project-Scoped Session References
+
 - Database schema for project-scoped session sequential numbers
 - CLI integration for displaying `#N` style session refs
 - MCP tools and display updates for session refs
 - Migration 77 for session seq_num backfill
 
 #### Database Migration V2 Baseline
+
 - Flattened baseline schema (BASELINE_SCHEMA_V2) for fresh installs
 - `use_flattened_baseline` config option (defaults to True)
 - `schema_dump.sql` for schema documentation
@@ -710,28 +744,33 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Architecture Refactoring
 
 #### Memory Module Decomposition
+
 - New `ingestion/` package for memory ingestion pipeline
 - New `services/` package with `CrossrefService`
 - New `search/` package with `SearchCoordinator`
 - `MemoryManager` updated as facade for extracted components
 
 #### Session Tools Decomposition
+
 - New `sessions/` package under `mcp_proxy/tools/`
 - Extracted `_messages.py`, `_handoff.py`, `_crud.py`, `_commits.py` modules
 - Created `_factory.py` for tool registry construction
 - Deleted monolithic `session_messages.py`
 
 #### Task Enforcement Decomposition
+
 - New `enforcement/` package under `workflows/`
 - Extracted `blocking.py`, `commit_policy.py`, `task_policy.py`, `handlers.py`
 - Removed facade pattern in favor of direct imports
 
 #### Codex Adapter Decomposition
+
 - New `codex_impl/` package under `adapters/`
 - Extracted `adapter.py`, `client.py`, `types.py`, `protocol.py`
 - Removed `codex.py` facade
 
 #### Other Refactoring
+
 - Endpoints decomposition for `tools.py` (discovery, server, execution, registry)
 - `ActionExecutor.register_defaults` refactored to use external handlers
 - `safe_evaluator.py` module for workflow evaluation
@@ -782,6 +821,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Major Features
 
 #### Skills System (Complete Overhaul)
+
 - New `gobby-skills` MCP server with full CRUD operations (`list_skills`, `get_skill`, `search_skills`, `install_skill`, `remove_skill`, `update_skill`)
 - `SkillLoader` supporting filesystem, GitHub repos, and ZIP archive imports
 - `SkillManager` coordinator with change notification pattern
@@ -795,6 +835,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Skill hints in hook error messages
 
 #### Clone-Based Parallel Orchestration
+
 - New `gobby-clones` MCP server for isolated parallel development
 - `CloneGitManager` for git clone operations
 - `spawn_agent_in_clone` tool for running agents in isolated clones
@@ -804,6 +845,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Updated `parallel-orchestrator` and `sequential-orchestrator` workflows
 
 #### Conductor System (Autonomous Orchestration)
+
 - `ConductorLoop` main daemon for autonomous task orchestration
 - `TaskMonitor` for stale/blocked task detection
 - `AgentWatcher` for stuck agent detection
@@ -815,6 +857,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `TokenTracker` using LiteLLM pricing utilities
 
 #### Inter-Agent Communication
+
 - Inter-agent messaging MCP tools
 - Blocking wait tools for task completion (`wait_for_task`, `wait_for_tasks`)
 - `approve_and_cleanup` orchestration tool
@@ -822,6 +865,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Session memory extraction workflow action
 
 #### Task System Improvements
+
 - Skill-based task expansion via `/gobby-expand` skill
 - New expansion MCP tools replacing legacy `expand_task`
 - `expansion_status` field in Task model
@@ -833,6 +877,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Lazy evaluation for `session_has_dirty_files` and `task_has_commits`
 
 #### Unified Search
+
 - Unified search abstraction with TF-IDF fallback
 - Hybrid search combining TF-IDF and embeddings
 - Semantic tool search via `search_tools`
@@ -840,10 +885,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Breaking Changes
 
-- **Default ports changed** from 8765/8766 to 60887/60888 (GOBBY leetspeak)
-- **Removed `no_commit_needed`** escape hatch from `close_task` - commits are now required for tracked file changes
-- **Legacy task expansion system removed** - use skill-based expansion via `/gobby-expand`
-- **Deprecated parameters removed** from `SkillSearch`
+- __Default ports changed__ from 8765/8766 to 60887/60888 (GOBBY leetspeak)
+- __Removed `no_commit_needed`__ escape hatch from `close_task` - commits are now required for tracked file changes
+- __Legacy task expansion system removed__ - use skill-based expansion via `/gobby-expand`
+- __Deprecated parameters removed__ from `SkillSearch`
 
 ### Improvements
 
