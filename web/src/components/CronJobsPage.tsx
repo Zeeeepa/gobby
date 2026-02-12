@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useMemo } from 'react'
 import { useCronJobs } from '../hooks/useCronJobs'
 import type { CronJob, CronRun, CreateCronJobRequest } from '../hooks/useCronJobs'
 import './CronJobsPage.css'
@@ -70,16 +70,16 @@ function CreateJobDialog({ onSubmit, onClose }: CreateDialogProps) {
   const [timezone, setTimezone] = useState('UTC')
   const [description, setDescription] = useState('')
 
-  const isFormValid = (() => {
+  const isFormValid = useMemo(() => {
     if (!name.trim()) return false
     try { JSON.parse(actionConfigStr) } catch { return false }
     if (scheduleType === 'cron' && !cronExpr.trim()) return false
     if (scheduleType === 'interval') {
       const parsed = parseInt(intervalSeconds, 10)
-      if (isNaN(parsed) || parsed <= 0) return false
+      if (isNaN(parsed) || parsed < 10) return false
     }
     return true
-  })()
+  }, [name, actionConfigStr, scheduleType, cronExpr, intervalSeconds])
 
   const handleSubmit = () => {
     if (!isFormValid) return

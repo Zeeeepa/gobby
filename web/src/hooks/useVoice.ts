@@ -113,7 +113,7 @@ export function useVoice(
           setVoiceAvailable(true)
         }
       })
-      .catch(() => {})
+      .catch((err) => { console.error('Voice status check failed:', err); setVoiceAvailable(false) })
   }, [])
 
   // Track speaking state from playback queue

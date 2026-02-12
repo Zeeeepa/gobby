@@ -334,22 +334,22 @@ class TestObserverTypeCoercion:
         assert state.variables["is_active"] is True
 
     @pytest.mark.asyncio
-    async def test_case_insensitive_coercion(self) -> None:
-        """'True', 'TRUE', 'True' should all coerce to bool True."""
+    @pytest.mark.parametrize("val", ["True", "TRUE", " true "])
+    async def test_case_insensitive_coercion(self, val: str) -> None:
+        """'True', 'TRUE', ' true ' should all coerce to bool True."""
         from gobby.workflows.observers import ObserverEngine
 
-        for val in ("True", "TRUE", " true "):
-            obs = Observer(
-                name="set_flag",
-                on="after_tool",
-                set={"flag": val},
-            )
-            state = _make_state()
+        obs = Observer(
+            name="set_flag",
+            on="after_tool",
+            set={"flag": val},
+        )
+        state = _make_state()
 
-            engine = ObserverEngine()
-            await engine.evaluate_observers([obs], "after_tool", _make_event_data(), state)
+        engine = ObserverEngine()
+        await engine.evaluate_observers([obs], "after_tool", _make_event_data(), state)
 
-            assert state.variables["flag"] is True, f"Expected True for {val!r}"
+        assert state.variables["flag"] is True, f"Expected True for {val!r}"
 
 
 class TestObserverEventTypeFilter:

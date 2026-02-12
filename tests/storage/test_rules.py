@@ -13,6 +13,7 @@ import uuid
 import pytest
 
 from gobby.storage.database import LocalDatabase
+from gobby.storage.rules import RuleStore
 
 pytestmark = pytest.mark.unit
 
@@ -23,10 +24,8 @@ pytestmark = pytest.mark.unit
 
 
 @pytest.fixture
-def rule_store(temp_db: LocalDatabase):
+def rule_store(temp_db: LocalDatabase) -> RuleStore:
     """Create a RuleStore backed by the temp database."""
-    from gobby.storage.rules import RuleStore
-
     return RuleStore(temp_db)
 
 

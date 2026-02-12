@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 
 export interface RunningAgent {
   run_id: string
@@ -39,34 +39,35 @@ export function useAgentRuns() {
   const [running, setRunning] = useState<RunningAgent[]>([])
   const [recentRuns, setRecentRuns] = useState<AgentRun[]>([])
   const [isLoading, setIsLoading] = useState(true)
-  const pollRef = useRef<number | null>(null)
 
-  const fetchRunning = useCallback(async () => {
+  const fetchRunning = useCallback(async (signal?: AbortSignal) => {
     try {
-      const res = await fetch('/api/agents/running')
+      const res = await fetch('/api/agents/running', { signal })
       if (res.ok) {
         const data = await res.json()
         setRunning(data.agents || [])
       }
     } catch (e) {
+      if (e instanceof DOMException && e.name === 'AbortError') return
       console.error('Failed to fetch running agents:', e)
     }
   }, [])
 
-  const fetchRecentRuns = useCallback(async () => {
+  const fetchRecentRuns = useCallback(async (signal?: AbortSignal) => {
     try {
-      const res = await fetch('/api/agents/runs?limit=30')
+      const res = await fetch('/api/agents/runs?limit=30', { signal })
       if (res.ok) {
         const data = await res.json()
         setRecentRuns(data.runs || [])
       }
     } catch (e) {
+      if (e instanceof DOMException && e.name === 'AbortError') return
       console.error('Failed to fetch agent runs:', e)
     }
   }, [])
 
-  const fetchAll = useCallback(async () => {
-    await Promise.all([fetchRunning(), fetchRecentRuns()])
+  const fetchAll = useCallback(async (signal?: AbortSignal) => {
+    await Promise.all([fetchRunning(signal), fetchRecentRuns(signal)])
     setIsLoading(false)
   }, [fetchRunning, fetchRecentRuns])
 
@@ -76,7 +77,7 @@ export function useAgentRuns() {
         method: 'POST',
       })
       if (res.ok) {
-        fetchAll()
+        await fetchAll()
         return true
       }
     } catch (e) {
@@ -86,13 +87,12 @@ export function useAgentRuns() {
   }, [fetchAll])
 
   useEffect(() => {
-    fetchAll()
-  }, [fetchAll])
-
-  useEffect(() => {
-    pollRef.current = window.setInterval(fetchAll, POLL_INTERVAL_MS)
+    const controller = new AbortController()
+    fetchAll(controller.signal)
+    const interval = window.setInterval(() => fetchAll(controller.signal), POLL_INTERVAL_MS)
     return () => {
-      if (pollRef.current) window.clearInterval(pollRef.current)
+      controller.abort()
+      window.clearInterval(interval)
     }
   }, [fetchAll])
 

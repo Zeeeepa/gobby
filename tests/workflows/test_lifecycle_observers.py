@@ -7,7 +7,6 @@ state changes persist, non-matching events are skipped.
 
 from __future__ import annotations
 
-import copy
 from datetime import UTC, datetime
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock

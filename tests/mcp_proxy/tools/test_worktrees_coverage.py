@@ -628,6 +628,7 @@ class TestInstallProviderHooks:
             mock_install.return_value = {"success": False, "error": "Install failed"}
             result = _install_provider_hooks("claude", tmp_path)
             assert result is False
+            assert "Install failed" in caplog.text
 
     def test_gemini_hooks_success(self, tmp_path) -> None:
         """Test Gemini hooks installation success."""
@@ -656,6 +657,16 @@ class TestInstallProviderHooks:
             result = _install_provider_hooks("antigravity", tmp_path)
             assert result is True
 
+    def test_antigravity_hooks_failure(self, tmp_path, caplog) -> None:
+        """Test Antigravity hooks installation failure."""
+        from gobby.cli.installers import antigravity as antigravity_mod
+
+        with patch.object(antigravity_mod, "install_antigravity") as mock_install:
+            mock_install.return_value = {"success": False, "error": "Install failed"}
+            result = _install_provider_hooks("antigravity", tmp_path)
+            assert result is False
+            assert "Install failed" in caplog.text
+
     def test_hooks_install_exception(self, tmp_path, caplog) -> None:
         """Test hooks installation handles exceptions."""
         from gobby.cli.installers import claude as claude_mod
@@ -664,6 +675,7 @@ class TestInstallProviderHooks:
             mock_install.side_effect = Exception("Import error")
             result = _install_provider_hooks("claude", tmp_path)
             assert result is False
+            assert "Import error" in caplog.text
 
 
 # ========== Additional tool tests for coverage ==========

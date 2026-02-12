@@ -252,7 +252,7 @@
   transition: background 0.15s;
 }
 
-.cron-btn:hover {
+.cron-btn:not(:disabled):hover {
   background: var(--bg-hover);
 }
 
@@ -262,7 +262,7 @@
   border-color: var(--accent-color);
 }
 
-.cron-btn.primary:hover {
+.cron-btn.primary:not(:disabled):hover {
   opacity: 0.9;
 }
 
@@ -276,7 +276,7 @@
   border-color: #f44336;
 }
 
-.cron-btn.danger:hover {
+.cron-btn.danger:not(:disabled):hover {
   background: rgba(244, 67, 54, 0.1);
 }
 

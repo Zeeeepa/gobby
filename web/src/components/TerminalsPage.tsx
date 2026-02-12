@@ -48,6 +48,23 @@ export function TerminalsPage({
   const [isInteractive, setIsInteractive] = useState(false)
   const [terminalNames, setTerminalNames] = useState<Record<string, string>>(loadTerminalNames)
 
+  // Prune orphaned terminal names when sessions change
+  useEffect(() => {
+    if (sessions.length === 0) return
+    const activeKeys = new Set(sessions.map(s => `${s.socket}:${s.name}`))
+    setTerminalNames(prev => {
+      const pruned: Record<string, string> = {}
+      for (const [key, name] of Object.entries(prev)) {
+        if (activeKeys.has(key)) pruned[key] = name
+      }
+      if (Object.keys(pruned).length !== Object.keys(prev).length) {
+        saveTerminalNames(pruned)
+        return pruned
+      }
+      return prev
+    })
+  }, [sessions])
+
   const handleRename = useCallback((key: string, newName: string) => {
     setTerminalNames(prev => {
       const next = { ...prev }
@@ -226,6 +243,7 @@ interface SessionGroupProps {
 function SessionGroup({ label, sessions, attachedSession, streamingId, terminalNames, onAttach, onRename }: SessionGroupProps) {
   const [editingKey, setEditingKey] = useState<string | null>(null)
   const [editValue, setEditValue] = useState('')
+  const saveOnBlurRef = useRef(true)
 
   return (
     <div className="session-group">
@@ -250,27 +268,41 @@ function SessionGroup({ label, sessions, attachedSession, streamingId, terminalN
                   value={editValue}
                   onChange={e => setEditValue(e.target.value)}
                   onBlur={() => {
-                    onRename(nameKey, editValue)
+                    if (saveOnBlurRef.current) {
+                      onRename(nameKey, editValue)
+                    }
+                    saveOnBlurRef.current = true
                     setEditingKey(null)
                   }}
                   onKeyDown={e => {
                     if (e.key === 'Enter') {
+                      saveOnBlurRef.current = true
                       onRename(nameKey, editValue)
                       setEditingKey(null)
                     } else if (e.key === 'Escape') {
+                      saveOnBlurRef.current = false
                       setEditingKey(null)
                     }
                   }}
                   onClick={e => e.stopPropagation()}
+                  aria-label="Rename session"
                   autoFocus
                 />
               ) : (
                 <span
                   className="session-name"
+                  tabIndex={0}
                   onDoubleClick={e => {
                     e.stopPropagation()
                     setEditingKey(nameKey)
                     setEditValue(displayName)
+                  }}
+                  onKeyDown={e => {
+                    if (e.key === 'F2' || e.key === 'Enter') {
+                      e.stopPropagation()
+                      setEditingKey(nameKey)
+                      setEditValue(displayName)
+                    }
                   }}
                   title="Double-click to rename"
                 >

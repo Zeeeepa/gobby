@@ -186,6 +186,17 @@ export function AgentDefinitionsPage() {
 
   useEffect(() => { fetchDefinitions() }, [fetchDefinitions])
 
+  const [providerModels, setProviderModels] = useState(PROVIDER_MODELS)
+
+  useEffect(() => {
+    fetch(`${getBaseUrl()}/admin/models`)
+      .then(res => res.ok ? res.json() : null)
+      .then(data => {
+        if (data) setProviderModels(prev => ({ ...prev, ...data }))
+      })
+      .catch(e => console.error('Failed to fetch model list:', e))
+  }, [])
+
   const filtered = useMemo(() => definitions.filter(d => {
     if (filterSource !== 'all' && d.source !== filterSource) return false
     if (filterProvider !== 'all' && d.definition.provider !== filterProvider) return false
@@ -402,7 +413,7 @@ export function AgentDefinitionsPage() {
                 value={createForm.provider}
                 onChange={e => {
                   const newProvider = e.target.value
-                  const newModels = PROVIDER_MODELS[newProvider]
+                  const newModels = providerModels[newProvider]
                   const modelValid = newModels?.some(m => m.value === createForm.model)
                   setCustomModelInput(false)
                   setCreateForm(f => ({
@@ -431,48 +442,13 @@ export function AgentDefinitionsPage() {
             </label>
             <label>
               <span>Model</span>
-              {(() => {
-                const models = PROVIDER_MODELS[createForm.provider]
-                const isKnown = models?.some(m => m.value === createForm.model)
-                const showCustom = customModelInput || !models || (!isKnown && createForm.model !== '')
-                return showCustom ? (
-                  <div className="agent-defs-model-field">
-                    <input
-                      value={createForm.model}
-                      onChange={e => setCreateForm(f => ({ ...f, model: e.target.value }))}
-                      placeholder="e.g. claude-sonnet-4-5-20250929"
-                      autoFocus={customModelInput}
-                    />
-                    {models && (
-                      <button
-                        type="button"
-                        className="agent-defs-model-toggle"
-                        onClick={() => { setCustomModelInput(false); setCreateForm(f => ({ ...f, model: '' })) }}
-                        title="Switch to preset list"
-                      >
-                        &times;
-                      </button>
-                    )}
-                  </div>
-                ) : (
-                  <select
-                    value={createForm.model}
-                    onChange={e => {
-                      if (e.target.value === '__custom__') {
-                        setCustomModelInput(true)
-                        setCreateForm(f => ({ ...f, model: '' }))
-                      } else {
-                        setCreateForm(f => ({ ...f, model: e.target.value }))
-                      }
-                    }}
-                  >
-                    {models?.map(m => (
-                      <option key={m.value} value={m.value}>{m.label}</option>
-                    ))}
-                    <option value="__custom__">Custom...</option>
-                  </select>
-                )
-              })()}
+              <ModelSelector
+                model={createForm.model}
+                models={providerModels[createForm.provider]}
+                customModelInput={customModelInput}
+                setCustomModelInput={setCustomModelInput}
+                setCreateForm={setCreateForm}
+              />
             </label>
             <label>
               <span>Isolation</span>
@@ -853,6 +829,65 @@ export function AgentDefinitionsPage() {
 // =============================================================================
 // Sub-components
 // =============================================================================
+
+function ModelSelector({
+  model,
+  models,
+  customModelInput,
+  setCustomModelInput,
+  setCreateForm,
+}: {
+  model: string
+  models: { value: string; label: string }[] | undefined
+  customModelInput: boolean
+  setCustomModelInput: (v: boolean) => void
+  setCreateForm: React.Dispatch<React.SetStateAction<CreateFormData>>
+}) {
+  const isKnown = models?.some(m => m.value === model)
+  const showCustom = customModelInput || !models || (!isKnown && model !== '')
+
+  if (showCustom) {
+    return (
+      <div className="agent-defs-model-field">
+        <input
+          value={model}
+          onChange={e => setCreateForm(f => ({ ...f, model: e.target.value }))}
+          placeholder="e.g. claude-sonnet-4-5-20250929"
+          autoFocus={customModelInput}
+        />
+        {models && (
+          <button
+            type="button"
+            className="agent-defs-model-toggle"
+            onClick={() => { setCustomModelInput(false); setCreateForm(f => ({ ...f, model: '' })) }}
+            title="Switch to preset list"
+          >
+            &times;
+          </button>
+        )}
+      </div>
+    )
+  }
+
+  return (
+    <select
+      value={model}
+      onChange={e => {
+        if (e.target.value === '__custom__') {
+          setCustomModelInput(true)
+          setCreateForm(f => ({ ...f, model: '' }))
+        } else {
+          setCreateForm(f => ({ ...f, model: e.target.value }))
+        }
+      }}
+    >
+      {models?.map(m => (
+        <option key={m.value} value={m.value}>{m.label}</option>
+      ))}
+      <option value="__custom__">Custom...</option>
+    </select>
+  )
+}
 
 function PropRow({ label, value }: { label: string; value: string }) {
   return (

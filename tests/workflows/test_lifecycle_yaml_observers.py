@@ -12,7 +12,7 @@ from pathlib import Path
 import pytest
 import yaml
 
-from gobby.workflows.definitions import Observer, WorkflowDefinition
+from gobby.workflows.definitions import WorkflowDefinition
 
 pytestmark = pytest.mark.unit
 
@@ -28,50 +28,46 @@ LIFECYCLE_YAML = (
 )
 
 
+@pytest.fixture
+def lifecycle_data() -> dict:
+    """Load and return the raw YAML data from session-lifecycle.yaml."""
+    with open(LIFECYCLE_YAML) as f:
+        return yaml.safe_load(f)
+
+
+@pytest.fixture
+def lifecycle_workflow(lifecycle_data: dict) -> WorkflowDefinition:
+    """Parse session-lifecycle.yaml into a WorkflowDefinition."""
+    return WorkflowDefinition(**lifecycle_data)
+
+
 class TestSessionLifecycleObservers:
-    def test_yaml_loads_with_observers(self) -> None:
+    def test_yaml_loads_with_observers(self, lifecycle_data: dict) -> None:
         """session-lifecycle.yaml should parse and include an observers field."""
-        with open(LIFECYCLE_YAML) as f:
-            data = yaml.safe_load(f)
-        assert "observers" in data, "session-lifecycle.yaml should have an 'observers' field"
-        assert len(data["observers"]) == 3
+        assert "observers" in lifecycle_data, "session-lifecycle.yaml should have an 'observers' field"
+        assert len(lifecycle_data["observers"]) == 3
 
-    def test_workflow_definition_parses_observers(self) -> None:
+    def test_workflow_definition_parses_observers(self, lifecycle_workflow: WorkflowDefinition) -> None:
         """WorkflowDefinition should parse observers from session-lifecycle.yaml."""
-        with open(LIFECYCLE_YAML) as f:
-            data = yaml.safe_load(f)
-        wf = WorkflowDefinition(**data)
-        assert len(wf.observers) == 3
+        assert len(lifecycle_workflow.observers) == 3
 
-    def test_task_claim_tracking_observer_declared(self) -> None:
+    def test_task_claim_tracking_observer_declared(self, lifecycle_workflow: WorkflowDefinition) -> None:
         """task_claim_tracking behavior should be declared as an observer."""
-        with open(LIFECYCLE_YAML) as f:
-            data = yaml.safe_load(f)
-        wf = WorkflowDefinition(**data)
-        behaviors = {obs.behavior for obs in wf.observers if obs.behavior}
+        behaviors = {obs.behavior for obs in lifecycle_workflow.observers if obs.behavior}
         assert "task_claim_tracking" in behaviors
 
-    def test_detect_plan_mode_observer_declared(self) -> None:
+    def test_detect_plan_mode_observer_declared(self, lifecycle_workflow: WorkflowDefinition) -> None:
         """detect_plan_mode behavior should be declared as an observer."""
-        with open(LIFECYCLE_YAML) as f:
-            data = yaml.safe_load(f)
-        wf = WorkflowDefinition(**data)
-        behaviors = {obs.behavior for obs in wf.observers if obs.behavior}
+        behaviors = {obs.behavior for obs in lifecycle_workflow.observers if obs.behavior}
         assert "detect_plan_mode" in behaviors
 
-    def test_mcp_call_tracking_observer_declared(self) -> None:
+    def test_mcp_call_tracking_observer_declared(self, lifecycle_workflow: WorkflowDefinition) -> None:
         """mcp_call_tracking behavior should be declared as an observer."""
-        with open(LIFECYCLE_YAML) as f:
-            data = yaml.safe_load(f)
-        wf = WorkflowDefinition(**data)
-        behaviors = {obs.behavior for obs in wf.observers if obs.behavior}
+        behaviors = {obs.behavior for obs in lifecycle_workflow.observers if obs.behavior}
         assert "mcp_call_tracking" in behaviors
 
-    def test_no_detect_plan_mode_trigger_action(self) -> None:
+    def test_no_detect_plan_mode_trigger_action(self, lifecycle_data: dict) -> None:
         """detect_plan_mode_from_context trigger action should be removed (replaced by observer)."""
-        with open(LIFECYCLE_YAML) as f:
-            data = yaml.safe_load(f)
-        # Check on_before_agent triggers don't contain detect_plan_mode_from_context
-        before_agent_triggers = data.get("triggers", {}).get("on_before_agent", [])
+        before_agent_triggers = lifecycle_data.get("triggers", {}).get("on_before_agent", [])
         actions = [t.get("action") for t in before_agent_triggers]
         assert "detect_plan_mode_from_context" not in actions

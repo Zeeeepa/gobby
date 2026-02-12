@@ -327,9 +327,11 @@ export function useFiles() {
 
   const toggleEditing = useCallback((index: number) => {
     setOpenFiles(prev =>
-      prev.map((f, i) =>
-        i === index ? { ...f, editing: !f.editing, editContent: f.content, dirty: false } : f
-      )
+      prev.map((f, i) => {
+        if (i !== index) return f
+        if (f.editing && f.dirty) return f
+        return { ...f, editing: !f.editing, editContent: f.content, dirty: false }
+      })
     )
   }, [])
 

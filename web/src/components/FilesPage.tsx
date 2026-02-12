@@ -71,8 +71,11 @@ export function FilesPage({
   const [showCancelConfirm, setShowCancelConfirm] = useState(false)
   const editorViewRef = useRef<EditorView | null>(null)
 
+  const cancelIndexRef = useRef(activeFileIndex)
+
   const handleCancel = useCallback(() => {
     if (activeFile?.dirty) {
+      cancelIndexRef.current = activeFileIndex
       setShowCancelConfirm(true)
     } else {
       onCancelEditing(activeFileIndex)
@@ -82,9 +85,9 @@ export function FilesPage({
 
   const confirmCancel = useCallback(() => {
     setShowCancelConfirm(false)
-    onCancelEditing(activeFileIndex)
+    onCancelEditing(cancelIndexRef.current)
     setShowDiff(false)
-  }, [activeFileIndex, onCancelEditing])
+  }, [onCancelEditing])
 
   const handleUndo = useCallback(() => {
     if (editorViewRef.current) undo(editorViewRef.current)
@@ -253,9 +256,9 @@ export function FilesPage({
 
         {showCancelConfirm && (
           <div className="files-confirm-overlay" onClick={() => setShowCancelConfirm(false)}>
-            <div className="files-confirm-dialog" onClick={e => e.stopPropagation()}>
-              <p className="files-confirm-title">Discard unsaved changes?</p>
-              <p className="files-confirm-message">Your changes to this file will be lost.</p>
+            <div className="files-confirm-dialog" role="dialog" aria-modal="true" aria-labelledby="cancel-dialog-title" aria-describedby="cancel-dialog-desc" onClick={e => e.stopPropagation()}>
+              <p className="files-confirm-title" id="cancel-dialog-title">Discard unsaved changes?</p>
+              <p className="files-confirm-message" id="cancel-dialog-desc">Your changes to this file will be lost.</p>
               <div className="files-confirm-actions">
                 <button className="files-confirm-keep" onClick={() => setShowCancelConfirm(false)}>
                   Keep Editing

@@ -68,7 +68,7 @@ def _make_event(
     """Create a HookEvent (defaults to BEFORE_TOOL)."""
     return HookEvent(
         event_type=event_type,
-        session_id="ext-session-123",
+        session_id=session_id,
         source=SessionSource.CLAUDE,
         timestamp=datetime.now(UTC),
         data={
