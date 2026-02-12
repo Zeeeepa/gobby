@@ -268,33 +268,6 @@ CREATE TABLE session_message_state (
     updated_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
-CREATE TABLE session_artifacts (
-    id TEXT PRIMARY KEY,
-    session_id TEXT NOT NULL REFERENCES sessions(id) ON DELETE CASCADE,
-    artifact_type TEXT NOT NULL,
-    content TEXT NOT NULL,
-    metadata_json TEXT,
-    source_file TEXT,
-    line_start INTEGER,
-    line_end INTEGER,
-    title TEXT,
-    task_id TEXT,
-    created_at TEXT NOT NULL DEFAULT (datetime('now'))
-);
-CREATE INDEX idx_session_artifacts_session ON session_artifacts(session_id);
-CREATE INDEX idx_session_artifacts_type ON session_artifacts(artifact_type);
-CREATE INDEX idx_session_artifacts_created ON session_artifacts(created_at);
-CREATE INDEX idx_session_artifacts_task ON session_artifacts(task_id);
-CREATE VIRTUAL TABLE session_artifacts_fts USING fts5(id UNINDEXED, content);
-
-CREATE TABLE artifact_tags (
-    artifact_id TEXT NOT NULL REFERENCES session_artifacts(id) ON DELETE CASCADE,
-    tag TEXT NOT NULL,
-    created_at TEXT NOT NULL DEFAULT (datetime('now')),
-    PRIMARY KEY (artifact_id, tag)
-);
-CREATE INDEX idx_artifact_tags_tag ON artifact_tags(tag);
-
 CREATE TABLE session_stop_signals (
     session_id TEXT PRIMARY KEY REFERENCES sessions(id) ON DELETE CASCADE,
     source TEXT NOT NULL,
@@ -433,7 +406,6 @@ CREATE TABLE workflow_states (
     step_entered_at TEXT,
     step_action_count INTEGER DEFAULT 0,
     total_action_count INTEGER DEFAULT 0,
-    artifacts TEXT,
     observations TEXT,
     reflection_pending INTEGER DEFAULT 0,
     context_injected INTEGER DEFAULT 0,
@@ -760,6 +732,21 @@ CREATE TABLE secrets (
     updated_at TEXT NOT NULL
 );
 CREATE INDEX idx_secrets_category ON secrets(category);
+
+CREATE TABLE rules (
+    id TEXT PRIMARY KEY,
+    name TEXT NOT NULL,
+    tier TEXT NOT NULL CHECK(tier IN ('bundled', 'user', 'project')),
+    project_id TEXT REFERENCES projects(id) ON DELETE CASCADE,
+    definition TEXT NOT NULL,
+    source_file TEXT,
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX idx_rules_name ON rules(name);
+CREATE INDEX idx_rules_tier ON rules(tier);
+CREATE INDEX idx_rules_project ON rules(project_id);
+CREATE UNIQUE INDEX idx_rules_name_tier_project ON rules(name, tier, COALESCE(project_id, ''));
 """
 
 # Future migrations (v61+)
@@ -887,7 +874,11 @@ def _migrate_add_deleted_at_to_projects(db: LocalDatabase) -> None:
 
 def _migrate_add_title_task_id_to_artifacts(db: LocalDatabase) -> None:
     """Add title and task_id columns to session_artifacts (idempotent)."""
-    # Check existing columns to avoid duplicate column errors
+    # Skip if table doesn't exist (removed in migration 95)
+    tables = {row["name"] for row in db.fetchall("SELECT name FROM sqlite_master WHERE type='table'")}
+    if "session_artifacts" not in tables:
+        logger.debug("session_artifacts table not found, skipping migration 87")
+        return
     columns = {row["name"] for row in db.fetchall("PRAGMA table_info(session_artifacts)")}
     with db.transaction() as conn:
         if "title" not in columns:
@@ -1181,6 +1172,37 @@ MIGRATIONS: list[tuple[int, str, MigrationAction]] = [
         94,
         "Add role, goal, personality, instructions columns to agent_definitions",
         _migrate_agent_definition_prompt_fields,
+    ),
+    # Artifact system removal: Drop all artifact tables
+    (
+        95,
+        "Drop artifact tables (session_artifacts, artifact_tags, session_artifacts_fts)",
+        """
+        DROP TABLE IF EXISTS artifact_tags;
+        DROP TABLE IF EXISTS session_artifacts_fts;
+        DROP TABLE IF EXISTS session_artifacts;
+        """,
+    ),
+    # Rules registry: Three-tier rule storage (bundled, user, project)
+    (
+        96,
+        "Add rules table",
+        """
+        CREATE TABLE IF NOT EXISTS rules (
+            id TEXT PRIMARY KEY,
+            name TEXT NOT NULL,
+            tier TEXT NOT NULL CHECK(tier IN ('bundled', 'user', 'project')),
+            project_id TEXT REFERENCES projects(id) ON DELETE CASCADE,
+            definition TEXT NOT NULL,
+            source_file TEXT,
+            created_at TEXT NOT NULL DEFAULT (datetime('now')),
+            updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+        );
+        CREATE INDEX IF NOT EXISTS idx_rules_name ON rules(name);
+        CREATE INDEX IF NOT EXISTS idx_rules_tier ON rules(tier);
+        CREATE INDEX IF NOT EXISTS idx_rules_project ON rules(project_id);
+        CREATE UNIQUE INDEX IF NOT EXISTS idx_rules_name_tier_project ON rules(name, tier, COALESCE(project_id, ''));
+        """,
     ),
 ]
 

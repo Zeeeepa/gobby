@@ -211,7 +211,6 @@ CREATE TABLE IF NOT EXISTS "workflow_states" (
             step_entered_at TEXT,
             step_action_count INTEGER DEFAULT 0,
             total_action_count INTEGER DEFAULT 0,
-            artifacts TEXT,
             observations TEXT,
             reflection_pending INTEGER DEFAULT 0,
             context_injected INTEGER DEFAULT 0,
@@ -385,21 +384,6 @@ CREATE INDEX idx_task_selection_session
             ON task_selection_history(session_id, selected_at DESC);
 CREATE INDEX idx_task_selection_task
             ON task_selection_history(session_id, task_id, selected_at DESC);
-CREATE TABLE session_artifacts (
-            id TEXT PRIMARY KEY,
-            session_id TEXT NOT NULL REFERENCES sessions(id) ON DELETE CASCADE,
-            artifact_type TEXT NOT NULL,
-            content TEXT NOT NULL,
-            metadata_json TEXT,
-            source_file TEXT,
-            line_start INTEGER,
-            line_end INTEGER,
-            created_at TEXT NOT NULL DEFAULT (datetime('now'))
-        );
-CREATE INDEX idx_session_artifacts_session ON session_artifacts(session_id);
-CREATE INDEX idx_session_artifacts_type ON session_artifacts(artifact_type);
-CREATE INDEX idx_session_artifacts_created ON session_artifacts(created_at);
-CREATE VIRTUAL TABLE session_artifacts_fts USING fts5(id UNINDEXED, content);
 CREATE TABLE merge_resolutions (
             id TEXT PRIMARY KEY,
             worktree_id TEXT NOT NULL REFERENCES worktrees(id) ON DELETE CASCADE,
