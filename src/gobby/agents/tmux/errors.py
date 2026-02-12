@@ -21,9 +21,7 @@ class TmuxNotFoundError(RuntimeError):
 
     def __init__(self, command: str = "tmux") -> None:
         hint = _install_hint()
-        super().__init__(
-            f"tmux binary '{command}' not found. {hint}"
-        )
+        super().__init__(f"tmux binary '{command}' not found. {hint}")
         self.command = command
 
 

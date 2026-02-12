@@ -32,9 +32,7 @@ class ConfigStore:
 
         Returns None if key doesn't exist.
         """
-        row = self.db.fetchone(
-            "SELECT value FROM config_store WHERE key = ?", (key,)
-        )
+        row = self.db.fetchone("SELECT value FROM config_store WHERE key = ?", (key,))
         if not row:
             return None
         return json.loads(row["value"])
@@ -94,9 +92,7 @@ class ConfigStore:
                 (f"{prefix}%",),
             )
         else:
-            rows = self.db.fetchall(
-                "SELECT key FROM config_store ORDER BY key"
-            )
+            rows = self.db.fetchall("SELECT key FROM config_store ORDER BY key")
         return [row["key"] for row in rows]
 
 

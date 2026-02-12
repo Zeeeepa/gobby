@@ -750,7 +750,11 @@ class WorkflowEngine:
         rule_store = self.rule_store
 
         # Lazy-create RuleStore from action_executor.db if no explicit store
-        if rule_store is None and self.action_executor and getattr(self.action_executor, "db", None):
+        if (
+            rule_store is None
+            and self.action_executor
+            and getattr(self.action_executor, "db", None)
+        ):
             from gobby.storage.rules import RuleStore
 
             rule_store = RuleStore(self.action_executor.db)

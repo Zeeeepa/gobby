@@ -295,15 +295,30 @@ class TmuxSessionManager:
             True on success.
         """
         rc, _stdout, stderr = await self._run(
-            "set-option", "-g", "set-titles", "on", ";",
-            "set-option", "-g", "set-titles-string", "#W", ";",
-            "rename-window", "-t", target, title, ";",
-            "set-option", "-w", "-t", target, "automatic-rename", "off",
+            "set-option",
+            "-g",
+            "set-titles",
+            "on",
+            ";",
+            "set-option",
+            "-g",
+            "set-titles-string",
+            "#W",
+            ";",
+            "rename-window",
+            "-t",
+            target,
+            title,
+            ";",
+            "set-option",
+            "-w",
+            "-t",
+            target,
+            "automatic-rename",
+            "off",
         )
         if rc != 0:
-            logger.warning(
-                f"Failed to rename tmux window for '{target}': {stderr.strip()}"
-            )
+            logger.warning(f"Failed to rename tmux window for '{target}': {stderr.strip()}")
             return False
         return True
 

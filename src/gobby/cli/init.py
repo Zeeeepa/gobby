@@ -43,8 +43,7 @@ def init(ctx: click.Context, name: str | None, github_url: str | None) -> None:
         if needs_wsl():
             if not shutil.which("wsl"):
                 click.echo(
-                    "  Warning: WSL not found. Install: wsl --install, "
-                    "then: sudo apt install tmux"
+                    "  Warning: WSL not found. Install: wsl --install, then: sudo apt install tmux"
                 )
             else:
                 # WSL available — check if tmux is installed inside it

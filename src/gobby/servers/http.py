@@ -162,7 +162,11 @@ class HTTPServer:
             semantic_search = None
             if services.mcp_db_manager:
                 openai_api_key = None
-                if services.config and services.config.llm_providers and services.config.llm_providers.api_keys:
+                if (
+                    services.config
+                    and services.config.llm_providers
+                    and services.config.llm_providers.api_keys
+                ):
                     openai_api_key = services.config.llm_providers.api_keys.get("OPENAI_API_KEY")
                 semantic_search = SemanticToolSearch(
                     db=services.mcp_db_manager.db, openai_api_key=openai_api_key
@@ -566,7 +570,9 @@ class HTTPServer:
             # Don't intercept API, admin, MCP, or WebSocket paths
             # Normalize with trailing slash so both "api" and "api/..." are excluded
             path_check = path if path.endswith("/") else path + "/"
-            if path_check.startswith(("api/", "admin/", "mcp/", "hooks/", "sessions/", "ws/", "health/")):
+            if path_check.startswith(
+                ("api/", "admin/", "mcp/", "hooks/", "sessions/", "ws/", "health/")
+            ):
                 raise HTTPException(status_code=404)
             # Serve static file if it exists
             static_file = dist_dir / path

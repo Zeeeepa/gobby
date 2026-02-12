@@ -121,4 +121,3 @@ class ToolEventHandlerMixin(EventHandlersBase):
             self.logger.debug("BEFORE_TOOL_SELECTION")
 
         return HookResponse(decision="allow")
-

@@ -883,7 +883,9 @@ def _migrate_add_deleted_at_to_projects(db: LocalDatabase) -> None:
 def _migrate_add_title_task_id_to_artifacts(db: LocalDatabase) -> None:
     """Add title and task_id columns to session_artifacts (idempotent)."""
     # Skip if table doesn't exist (removed in migration 95)
-    tables = {row["name"] for row in db.fetchall("SELECT name FROM sqlite_master WHERE type='table'")}
+    tables = {
+        row["name"] for row in db.fetchall("SELECT name FROM sqlite_master WHERE type='table'")
+    }
     if "session_artifacts" not in tables:
         logger.debug("session_artifacts table not found, skipping migration 87")
         return

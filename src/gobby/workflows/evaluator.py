@@ -346,9 +346,7 @@ class ConditionEvaluator:
                     return False
 
             elif cond_type == "user_approval":
-                condition_id = normalized.get(
-                    "id", _stable_condition_id("approval", normalized)
-                )
+                condition_id = normalized.get("id", _stable_condition_id("approval", normalized))
                 approved_var = f"_approval_{condition_id}_granted"
                 if not state.variables.get(approved_var, False):
                     return False
@@ -359,9 +357,7 @@ class ConditionEvaluator:
                     return False
 
             elif cond_type == "webhook":
-                condition_id = normalized.get(
-                    "id", _stable_condition_id("webhook", normalized)
-                )
+                condition_id = normalized.get("id", _stable_condition_id("webhook", normalized))
                 result_var = f"_webhook_{condition_id}_result"
                 webhook_result = state.variables.get(result_var)
                 if webhook_result is None:

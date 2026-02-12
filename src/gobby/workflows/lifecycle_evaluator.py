@@ -156,9 +156,8 @@ async def evaluate_workflow_triggers(
                     break
 
     # Evaluate top-level tool_rules on BEFORE_TOOL events (before triggers)
-    has_tool_rules = (
-        event.event_type == HookEventType.BEFORE_TOOL
-        and getattr(workflow, "tool_rules", None)
+    has_tool_rules = event.event_type == HookEventType.BEFORE_TOOL and getattr(
+        workflow, "tool_rules", None
     )
 
     if not triggers and not has_tool_rules:

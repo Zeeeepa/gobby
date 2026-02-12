@@ -230,7 +230,11 @@ def create_configuration_router(server: "HTTPServer") -> APIRouter:
                 DaemonConfig().model_dump(mode="json", exclude_none=True)
             )
             parsed_flat = flatten_config(parsed)
-            diff = {k: v for k, v in parsed_flat.items() if k not in defaults_flat or defaults_flat[k] != v}
+            diff = {
+                k: v
+                for k, v in parsed_flat.items()
+                if k not in defaults_flat or defaults_flat[k] != v
+            }
 
             config_store = _get_config_store()
             with config_store.db.transaction():
@@ -511,7 +515,9 @@ def create_configuration_router(server: "HTTPServer") -> APIRouter:
                 defaults_flat = flatten_config(
                     DaemonConfig().model_dump(mode="json", exclude_none=True)
                 )
-                diff = {k: v for k, v in flat.items() if k not in defaults_flat or defaults_flat[k] != v}
+                diff = {
+                    k: v for k, v in flat.items() if k not in defaults_flat or defaults_flat[k] != v
+                }
                 with config_store.db.transaction():
                     config_store.delete_all()
                     count = config_store.set_many(diff, source="import") if diff else 0

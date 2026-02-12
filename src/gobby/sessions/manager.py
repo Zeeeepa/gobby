@@ -388,4 +388,3 @@ class SessionManager:
                 "parent_session_id": session.parent_session_id,
             }
         return None
-

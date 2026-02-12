@@ -167,9 +167,7 @@ class TmuxPaneMonitor:
             try:
                 self._callback(event)
             except Exception:
-                logger.exception(
-                    "TmuxPaneMonitor: callback error for session %s", agent.session_id
-                )
+                logger.exception("TmuxPaneMonitor: callback error for session %s", agent.session_id)
 
             self._recently_ended[agent.session_id] = now
 

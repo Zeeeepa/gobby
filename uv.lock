@@ -960,7 +960,7 @@ wheels = [
 
 [[package]]
 name = "gobby"
-version = "0.2.14"
+version = "0.2.15"
 source = { editable = "." }
 dependencies = [
     { name = "aiofiles" },
@@ -970,6 +970,7 @@ dependencies = [
     { name = "croniter" },
     { name = "cryptography" },
     { name = "fastapi" },
+    { name = "faster-whisper" },
     { name = "fastmcp" },
     { name = "gitingest" },
     { name = "httpx" },
@@ -993,9 +994,6 @@ dependencies = [
 [package.optional-dependencies]
 mem0 = [
     { name = "mem0ai" },
-]
-voice = [
-    { name = "faster-whisper" },
 ]
 
 [package.dev-dependencies]
@@ -1024,7 +1022,7 @@ requires-dist = [
     { name = "croniter", specifier = ">=2.0.0" },
     { name = "cryptography", specifier = ">=46.0.5" },
     { name = "fastapi", specifier = ">=0.115.0" },
-    { name = "faster-whisper", marker = "extra == 'voice'", specifier = ">=1.0.0" },
+    { name = "faster-whisper", specifier = ">=1.0.0" },
     { name = "fastmcp", specifier = ">=2.14.0" },
     { name = "gitingest", specifier = ">=0.3.1" },
     { name = "httpx", specifier = ">=0.27.0" },
@@ -1045,7 +1043,7 @@ requires-dist = [
     { name = "wcwidth", specifier = ">=0.2.14" },
     { name = "websockets", specifier = ">=15.0" },
 ]
-provides-extras = ["mem0", "voice"]
+provides-extras = ["mem0"]
 
 [package.metadata.requires-dev]
 dev = [

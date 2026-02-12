@@ -53,9 +53,7 @@ class BehaviorRegistry:
                 f"Cannot register plugin behavior '{name}': conflicts with built-in behavior"
             )
         if name in self._behaviors:
-            raise ValueError(
-                f"Cannot register plugin behavior '{name}': already registered"
-            )
+            raise ValueError(f"Cannot register plugin behavior '{name}': already registered")
         self._behaviors[name] = fn
 
     @property
@@ -200,8 +198,7 @@ class ObserverEngine:
                 state.variables[var_name] = value
             except Exception as e:
                 logger.warning(
-                    f"Observer '{obs.name}' failed to evaluate set expression "
-                    f"for '{var_name}': {e}"
+                    f"Observer '{obs.name}' failed to evaluate set expression for '{var_name}': {e}"
                 )
 
     def _evaluate_expression(

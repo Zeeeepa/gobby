@@ -162,7 +162,9 @@ def expand_env_vars(
                     return value
             except Exception as e:
                 logger.debug(f"Secret resolver failed for '$secret:{name}': {e}")
-            logger.warning(f"Unresolved secret '$secret:{name}' in config — not found in secrets store")
+            logger.warning(
+                f"Unresolved secret '$secret:{name}' in config — not found in secrets store"
+            )
             return match.group(0)
 
         content = SECRET_REF_PATTERN.sub(replace_secret, content)
@@ -569,8 +571,10 @@ def _resolve_config_values(
             result[key] = _resolve_config_values(value, secret_resolver)
         elif isinstance(value, list):
             result[key] = [
-                expand_env_vars(item, secret_resolver=secret_resolver) if isinstance(item, str)
-                else _resolve_config_values(item, secret_resolver) if isinstance(item, dict)
+                expand_env_vars(item, secret_resolver=secret_resolver)
+                if isinstance(item, str)
+                else _resolve_config_values(item, secret_resolver)
+                if isinstance(item, dict)
                 else item
                 for item in value
             ]
@@ -615,8 +619,7 @@ def load_config(
         config_dict = unflatten_config(flat_db) if flat_db else {}
         # Resolve $secret:NAME and ${VAR} patterns in stored values
         if secret_resolver is not None or any(
-            isinstance(v, str) and ("$secret:" in v or "${" in v)
-            for v in flat_db.values()
+            isinstance(v, str) and ("$secret:" in v or "${" in v) for v in flat_db.values()
         ):
             config_dict = _resolve_config_values(config_dict, secret_resolver)
     else:

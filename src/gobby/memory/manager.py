@@ -146,7 +146,9 @@ class MemoryManager:
         Failures are logged but never propagated — CRUD operations must not
         be blocked by embedding generation errors.
         """
-        if not is_embedding_available(model=self.config.embedding_model, api_key=self._embedding_api_key):
+        if not is_embedding_available(
+            model=self.config.embedding_model, api_key=self._embedding_api_key
+        ):
             return
 
         try:
@@ -179,7 +181,9 @@ class MemoryManager:
         self, memory_id: str, content: str, project_id: str | None
     ) -> None:
         """Generate and store an embedding for a memory (async, non-blocking)."""
-        if not is_embedding_available(model=self.config.embedding_model, api_key=self._embedding_api_key):
+        if not is_embedding_available(
+            model=self.config.embedding_model, api_key=self._embedding_api_key
+        ):
             return
 
         try:
@@ -201,7 +205,9 @@ class MemoryManager:
         Returns:
             Dict with success status, total_memories, embeddings_generated.
         """
-        if not is_embedding_available(model=self.config.embedding_model, api_key=self._embedding_api_key):
+        if not is_embedding_available(
+            model=self.config.embedding_model, api_key=self._embedding_api_key
+        ):
             return {
                 "success": False,
                 "error": "Embedding unavailable — no API key configured",
