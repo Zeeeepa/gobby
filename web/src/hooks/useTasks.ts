@@ -145,7 +145,7 @@ export function useTasks() {
     try {
       const baseUrl = getBaseUrl()
       const params = new URLSearchParams({ limit: '200' })
-      if (filters.status === 'recently_done') params.set('status', 'closed,approved')
+      if (filters.status === 'recently_done') params.set('status', 'closed')
       else if (filters.status) params.set('status', filters.status)
       if (filters.priority !== null) params.set('priority', String(filters.priority))
       if (filters.taskType) params.set('task_type', filters.taskType)

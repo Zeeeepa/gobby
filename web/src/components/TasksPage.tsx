@@ -249,7 +249,7 @@ export function TasksPage({ projectFilter }: TasksPageProps = {}) {
   const displayTasks = useMemo(() => {
     if (filters.status !== 'recently_done') return scopedTasks
     const cutoff = Date.now() - 24 * 60 * 60 * 1000
-    const completed = new Set(['closed', 'approved'])
+    const completed = new Set(['closed'])
     return scopedTasks.filter(
       t => completed.has(t.status) && new Date(t.updated_at).getTime() > cutoff
     )
