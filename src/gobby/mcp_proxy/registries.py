@@ -70,7 +70,7 @@ def setup_internal_registries(
         _session_manager: Session manager (reserved for future use)
         memory_manager: Memory manager for memory operations
         task_manager: Task storage manager
-        db: Database connection for registries that only need storage (skills, artifacts)
+        db: Database connection for registries that only need storage (skills)
         sync_manager: Task sync manager for git sync
         task_validator: Task validator for validation
         message_manager: Message storage manager

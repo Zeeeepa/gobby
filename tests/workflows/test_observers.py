@@ -58,7 +58,7 @@ class TestObserverMatchByTool:
         engine = ObserverEngine()
         await engine.evaluate_observers([obs], "after_tool", event_data, state)
 
-        assert state.variables["edited"] == "true"
+        assert state.variables["edited"] is True
 
     @pytest.mark.asyncio
     async def test_non_matching_tool_skipped(self) -> None:
@@ -101,7 +101,7 @@ class TestObserverMatchByMCP:
         engine = ObserverEngine()
         await engine.evaluate_observers([obs], "after_tool", event_data, state)
 
-        assert state.variables["task_claimed"] == "true"
+        assert state.variables["task_claimed"] is True
 
     @pytest.mark.asyncio
     async def test_mcp_server_mismatch_skipped(self) -> None:
@@ -168,30 +168,30 @@ class TestObserverNoMatch:
         engine = ObserverEngine()
         await engine.evaluate_observers([obs], "after_tool", event_data, state)
 
-        assert state.variables["tool_used"] == "true"
+        assert state.variables["tool_used"] is True
 
 
 class TestObserverSetExpressions:
     @pytest.mark.asyncio
-    async def test_literal_value(self) -> None:
-        """Set expression with literal value."""
+    async def test_literal_string_value(self) -> None:
+        """Set expression with a plain string literal stays as string."""
         from gobby.workflows.observers import ObserverEngine
 
         obs = Observer(
-            name="set_flag",
+            name="set_name",
             on="after_tool",
-            set={"flag": "true"},
+            set={"name": "hello"},
         )
         state = _make_state()
 
         engine = ObserverEngine()
         await engine.evaluate_observers([obs], "after_tool", _make_event_data(), state)
 
-        assert state.variables["flag"] == "true"
+        assert state.variables["name"] == "hello"
 
     @pytest.mark.asyncio
     async def test_arithmetic_expression(self) -> None:
-        """Set expression with Jinja2 arithmetic template."""
+        """Set expression with Jinja2 arithmetic template coerces to int."""
         from gobby.workflows.observers import ObserverEngine
 
         obs = Observer(
@@ -205,7 +205,151 @@ class TestObserverSetExpressions:
         engine = ObserverEngine()
         await engine.evaluate_observers([obs], "after_tool", _make_event_data("Edit"), state)
 
-        assert state.variables["edit_count"] == "6"
+        assert state.variables["edit_count"] == 6
+        assert isinstance(state.variables["edit_count"], int)
+
+
+class TestObserverTypeCoercion:
+    """Tests for _coerce_value: YAML observer set values are coerced to native types."""
+
+    @pytest.mark.asyncio
+    async def test_true_coerced_to_bool(self) -> None:
+        """Literal 'true' should be coerced to Python True."""
+        from gobby.workflows.observers import ObserverEngine
+
+        obs = Observer(
+            name="set_flag",
+            on="after_tool",
+            set={"task_claimed": "true"},
+        )
+        state = _make_state()
+
+        engine = ObserverEngine()
+        await engine.evaluate_observers([obs], "after_tool", _make_event_data(), state)
+
+        assert state.variables["task_claimed"] is True
+
+    @pytest.mark.asyncio
+    async def test_false_coerced_to_bool(self) -> None:
+        """Literal 'false' should be coerced to Python False."""
+        from gobby.workflows.observers import ObserverEngine
+
+        obs = Observer(
+            name="clear_flag",
+            on="after_tool",
+            set={"task_claimed": "false"},
+        )
+        state = _make_state(task_claimed=True)
+
+        engine = ObserverEngine()
+        await engine.evaluate_observers([obs], "after_tool", _make_event_data(), state)
+
+        assert state.variables["task_claimed"] is False
+
+    @pytest.mark.asyncio
+    async def test_null_coerced_to_none(self) -> None:
+        """Literal 'null' should be coerced to Python None."""
+        from gobby.workflows.observers import ObserverEngine
+
+        obs = Observer(
+            name="clear_value",
+            on="after_tool",
+            set={"session_task": "null"},
+        )
+        state = _make_state(session_task="#123")
+
+        engine = ObserverEngine()
+        await engine.evaluate_observers([obs], "after_tool", _make_event_data(), state)
+
+        assert state.variables["session_task"] is None
+
+    @pytest.mark.asyncio
+    async def test_none_coerced_to_none(self) -> None:
+        """Literal 'none' should be coerced to Python None."""
+        from gobby.workflows.observers import ObserverEngine
+
+        obs = Observer(
+            name="clear_value",
+            on="after_tool",
+            set={"val": "none"},
+        )
+        state = _make_state()
+
+        engine = ObserverEngine()
+        await engine.evaluate_observers([obs], "after_tool", _make_event_data(), state)
+
+        assert state.variables["val"] is None
+
+    @pytest.mark.asyncio
+    async def test_integer_coerced(self) -> None:
+        """Literal '42' should be coerced to int 42."""
+        from gobby.workflows.observers import ObserverEngine
+
+        obs = Observer(
+            name="set_count",
+            on="after_tool",
+            set={"count": "42"},
+        )
+        state = _make_state()
+
+        engine = ObserverEngine()
+        await engine.evaluate_observers([obs], "after_tool", _make_event_data(), state)
+
+        assert state.variables["count"] == 42
+        assert isinstance(state.variables["count"], int)
+
+    @pytest.mark.asyncio
+    async def test_float_coerced(self) -> None:
+        """Literal '3.14' should be coerced to float 3.14."""
+        from gobby.workflows.observers import ObserverEngine
+
+        obs = Observer(
+            name="set_ratio",
+            on="after_tool",
+            set={"ratio": "3.14"},
+        )
+        state = _make_state()
+
+        engine = ObserverEngine()
+        await engine.evaluate_observers([obs], "after_tool", _make_event_data(), state)
+
+        assert state.variables["ratio"] == 3.14
+        assert isinstance(state.variables["ratio"], float)
+
+    @pytest.mark.asyncio
+    async def test_jinja2_true_result_coerced(self) -> None:
+        """Jinja2 template rendering 'True' should be coerced to bool True."""
+        from gobby.workflows.observers import ObserverEngine
+
+        obs = Observer(
+            name="check_flag",
+            on="after_tool",
+            set={"is_active": "{{ 'true' if variables.count else 'false' }}"},
+        )
+        state = _make_state(count=5)
+
+        engine = ObserverEngine()
+        await engine.evaluate_observers([obs], "after_tool", _make_event_data(), state)
+
+        assert state.variables["is_active"] is True
+
+    @pytest.mark.asyncio
+    async def test_case_insensitive_coercion(self) -> None:
+        """'True', 'TRUE', 'True' should all coerce to bool True."""
+        from gobby.workflows.observers import ObserverEngine
+
+        for val in ("True", "TRUE", " true "):
+            obs = Observer(
+                name="set_flag",
+                on="after_tool",
+                set={"flag": val},
+            )
+            state = _make_state()
+
+            engine = ObserverEngine()
+            await engine.evaluate_observers([obs], "after_tool", _make_event_data(), state)
+
+            assert state.variables["flag"] is True, f"Expected True for {val!r}"
 
 
 class TestObserverEventTypeFilter:
@@ -250,8 +394,8 @@ class TestMultipleObservers:
             [obs1, obs2], "after_tool", _make_event_data(), state
         )
 
-        assert state.variables["tool_tracked"] == "true"
-        assert state.variables["tool_counted"] == "true"
+        assert state.variables["tool_tracked"] is True
+        assert state.variables["tool_counted"] is True
 
 
 class TestBehaviorObserverSkipped:

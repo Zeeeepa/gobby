@@ -123,6 +123,12 @@ class WorkflowEngine:
         self.audit_manager = audit_manager
         self.rule_store = rule_store
 
+        # Cache the behavior registry so plugin behaviors registered once
+        # persist across all evaluate_all_lifecycle_workflows calls.
+        from gobby.workflows.observers import get_default_registry
+
+        self._behavior_registry = get_default_registry()
+
     # Maps canonical trigger names to their legacy aliases for backward compatibility.
     TRIGGER_ALIASES: dict[str, list[str]] = {
         "on_before_agent": ["on_prompt_submit"],
@@ -856,9 +862,9 @@ class WorkflowEngine:
         self, event: HookEvent, context_data: dict[str, Any] | None = None
     ) -> HookResponse:
         """Discover and evaluate all lifecycle workflows for the given event."""
-        from gobby.workflows.observers import ObserverEngine, get_default_registry
+        from gobby.workflows.observers import ObserverEngine
 
-        observer_engine = ObserverEngine(behavior_registry=get_default_registry())
+        observer_engine = ObserverEngine(behavior_registry=self._behavior_registry)
         return await _evaluate_all_lifecycle_workflows(
             event=event,
             loader=self.loader,

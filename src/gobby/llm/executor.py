@@ -243,7 +243,7 @@ class AgentExecutor(ABC):
             name="complete",
             description=(
                 "Signal that you have completed the task. Call this when you are done "
-                "with all work. Provide a summary of what was accomplished, any artifacts "
+                "with all work. Provide a summary of what was accomplished, any outputs "
                 "produced, and suggested next steps."
             ),
             input_schema={

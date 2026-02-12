@@ -209,10 +209,11 @@ class ObserverEngine:
         expression: str,
         event_data: dict[str, Any],
         state: WorkflowState,
-    ) -> str:
+    ) -> Any:
         """Evaluate a set expression (Jinja2 template or literal).
 
-        Returns the rendered string value.
+        Returns the coerced value — booleans, None, numbers are converted
+        from their string representations to native Python types.
         """
         # If it contains Jinja2 template markers, render as template
         if "{{" in expression:
@@ -221,10 +222,37 @@ class ObserverEngine:
                 "variables": state.variables,
                 "event_data": event_data,
             }
-            return template.render(**context)
+            raw = template.render(**context)
+        else:
+            # Otherwise treat as literal value
+            raw = expression
 
-        # Otherwise treat as literal value
-        return expression
+        return self._coerce_value(raw)
+
+    @staticmethod
+    def _coerce_value(raw: str) -> Any:
+        """Coerce string literals to native Python types.
+
+        Converts "true"/"false" to bool, "null"/"none" to None,
+        and numeric strings to int/float. Unrecognized strings
+        pass through unchanged.
+        """
+        lower = raw.strip().lower()
+        if lower == "true":
+            return True
+        if lower == "false":
+            return False
+        if lower in ("null", "none"):
+            return None
+        try:
+            return int(raw)
+        except ValueError:
+            pass
+        try:
+            return float(raw)
+        except ValueError:
+            pass
+        return raw
 
 
 # =============================================================================

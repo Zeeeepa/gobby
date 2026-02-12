@@ -144,7 +144,7 @@ class TestObserverEvaluationInLifecycle:
 
         assert response.decision == "allow"
         # Variable should be set on the state
-        assert state.variables.get("edit_tracked") == "true"
+        assert state.variables.get("edit_tracked") is True
 
     @pytest.mark.asyncio
     async def test_observer_not_fired_on_non_matching_event(self) -> None:
