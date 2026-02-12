@@ -71,6 +71,7 @@ class MemoryManager:
             self._mem0_client: Mem0Client | None = Mem0Client(
                 base_url=config.mem0_url,
                 api_key=config.mem0_api_key,
+                timeout=config.mem0_timeout,
             )
         else:
             self._mem0_client = None

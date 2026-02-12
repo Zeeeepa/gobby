@@ -90,6 +90,10 @@ class MemoryConfig(BaseModel):
             "Supports ${ENV_VAR} pattern for env var expansion at load time."
         ),
     )
+    mem0_timeout: float = Field(
+        default=60.0,
+        description="Timeout in seconds for mem0 API requests (includes embedding generation).",
+    )
     neo4j_url: str | None = Field(
         default=None,
         description=(
