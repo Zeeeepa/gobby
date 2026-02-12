@@ -247,6 +247,17 @@ async def evaluate_workflow_triggers(
     if action_executor.session_manager:
         session = action_executor.session_manager.get(session_id)
 
+    # Compute task_has_commits for condition evaluation (same logic as blocking.py)
+    task_has_commits = False
+    if action_executor.task_manager and state:
+        claimed_task_id = state.variables.get("claimed_task_id")
+        if claimed_task_id:
+            try:
+                task = action_executor.task_manager.get_task(claimed_task_id)
+                task_has_commits = bool(task and task.commits)
+            except Exception:
+                pass
+
     for trigger in triggers:
         # Check 'when' condition if present
         when_condition = trigger.get("when")
@@ -257,6 +268,7 @@ async def evaluate_workflow_triggers(
                 "handoff": context_data,
                 "variables": state.variables,
                 "session": session,
+                "task_has_commits": task_has_commits,
             }
             eval_ctx.update(context_data)
             eval_result = evaluator.evaluate(when_condition, eval_ctx)
@@ -448,6 +460,17 @@ async def evaluate_lifecycle_triggers(
     if action_executor.session_manager:
         session = action_executor.session_manager.get(session_id)
 
+    # Compute task_has_commits for condition evaluation (same logic as blocking.py)
+    task_has_commits = False
+    if action_executor.task_manager and state:
+        claimed_task_id = state.variables.get("claimed_task_id")
+        if claimed_task_id:
+            try:
+                task = action_executor.task_manager.get_task(claimed_task_id)
+                task_has_commits = bool(task and task.commits)
+            except Exception:
+                pass
+
     for trigger in triggers:
         # Check 'when' condition if present
         when_condition = trigger.get("when")
@@ -458,6 +481,7 @@ async def evaluate_lifecycle_triggers(
                 "handoff": context_data or {},
                 "variables": state.variables,
                 "session": session,
+                "task_has_commits": task_has_commits,
             }
             if context_data:
                 eval_ctx.update(context_data)

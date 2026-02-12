@@ -40,6 +40,11 @@ from gobby.worktrees.git import WorktreeGitManager
 
 os.environ["TOKENIZERS_PARALLELISM"] = "false"
 
+# Suppress litellm's never-awaited coroutine warnings (upstream bug in LoggingWorker)
+import warnings
+
+warnings.filterwarnings("ignore", message="coroutine.*async_success_handler.*was never awaited")
+
 # Type hints for pipeline components (imported lazily at runtime)
 if TYPE_CHECKING:
     from gobby.scheduler.scheduler import CronScheduler

@@ -111,7 +111,7 @@ class DaemonClient:
                 return False, None  # None means daemon not running
             else:
                 # Other errors (timeout, DNS, etc.)
-                self.logger.error(f"Daemon health check error: {e}")
+                self.logger.warning(f"Daemon health check error: {e}")
                 return False, error_msg
 
     def check_status(self) -> tuple[bool, str | None, str, str | None]:

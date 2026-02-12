@@ -78,6 +78,7 @@ def mock_action_executor():
     executor.memory_sync_manager = Mock()
     executor.task_sync_manager = Mock()
     executor.session_task_manager = Mock()
+    executor.task_manager = Mock()
     executor.skill_manager = Mock()
     executor.pipeline_executor = Mock()
     executor.workflow_loader = Mock()
