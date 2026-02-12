@@ -17,7 +17,7 @@ export function MemoryOverview({ memories, stats, activeFilter, onFilter }: Memo
   )
 
   const needsReviewCount = useMemo(
-    () => memories.filter(m => m.importance < 0.3).length,
+    () => memories.filter(m => m.importance < 0.7).length,
     [memories]
   )
 

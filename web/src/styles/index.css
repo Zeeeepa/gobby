@@ -2688,6 +2688,20 @@ body {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  cursor: default;
+}
+
+.session-name-input {
+  font-size: calc(var(--font-size-base) * 0.85);
+  font-family: var(--font-mono);
+  color: var(--text-primary);
+  background: var(--bg-primary);
+  border: 1px solid var(--accent);
+  border-radius: 3px;
+  padding: 0 4px;
+  outline: none;
+  width: 100%;
+  min-width: 0;
 }
 
 .session-badge {

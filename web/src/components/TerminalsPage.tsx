@@ -19,6 +19,18 @@ interface TerminalsPageProps {
   onOutput: (callback: (runId: string, data: string) => void) => void
 }
 
+const TERMINAL_NAMES_KEY = 'gobby-terminal-names'
+
+function loadTerminalNames(): Record<string, string> {
+  try {
+    return JSON.parse(localStorage.getItem(TERMINAL_NAMES_KEY) || '{}')
+  } catch { return {} }
+}
+
+function saveTerminalNames(names: Record<string, string>) {
+  localStorage.setItem(TERMINAL_NAMES_KEY, JSON.stringify(names))
+}
+
 export function TerminalsPage({
   sessions,
   attachedSession,
@@ -34,6 +46,20 @@ export function TerminalsPage({
 }: TerminalsPageProps) {
   const [sidebarOpen, setSidebarOpen] = useState(true)
   const [isInteractive, setIsInteractive] = useState(false)
+  const [terminalNames, setTerminalNames] = useState<Record<string, string>>(loadTerminalNames)
+
+  const handleRename = useCallback((key: string, newName: string) => {
+    setTerminalNames(prev => {
+      const next = { ...prev }
+      if (newName.trim()) {
+        next[key] = newName.trim()
+      } else {
+        delete next[key]
+      }
+      saveTerminalNames(next)
+      return next
+    })
+  }, [])
 
   // Reset interactive mode when switching sessions
   useEffect(() => {
@@ -103,7 +129,9 @@ export function TerminalsPage({
                 sessions={defaultSessions}
                 attachedSession={attachedSession}
                 streamingId={streamingId}
+                terminalNames={terminalNames}
                 onAttach={handleAttach}
+                onRename={handleRename}
               />
             )}
 
@@ -113,7 +141,9 @@ export function TerminalsPage({
                 sessions={gobbySessions}
                 attachedSession={attachedSession}
                 streamingId={streamingId}
+                terminalNames={terminalNames}
                 onAttach={handleAttach}
+                onRename={handleRename}
               />
             )}
           </div>
@@ -126,6 +156,7 @@ export function TerminalsPage({
           <TerminalView
             streamingId={streamingId}
             sessionName={attachedSession}
+            displayName={attachedSession ? (terminalNames[`${attachedSocketRef.current}:${attachedSession}`] || attachedSession) : null}
             isInteractive={isInteractive}
             sidebarOpen={sidebarOpen}
             onSetInteractive={setIsInteractive}
@@ -187,24 +218,65 @@ interface SessionGroupProps {
   sessions: TmuxSession[]
   attachedSession: string | null
   streamingId: string | null
+  terminalNames: Record<string, string>
   onAttach: (name: string, socket: string) => void
+  onRename: (key: string, newName: string) => void
 }
 
-function SessionGroup({ label, sessions, attachedSession, streamingId, onAttach }: SessionGroupProps) {
+function SessionGroup({ label, sessions, attachedSession, streamingId, terminalNames, onAttach, onRename }: SessionGroupProps) {
+  const [editingKey, setEditingKey] = useState<string | null>(null)
+  const [editValue, setEditValue] = useState('')
+
   return (
     <div className="session-group">
       <div className="session-group-label">{label}</div>
       {sessions.map((session) => {
         const isAttached = attachedSession === session.name && streamingId !== null
+        const nameKey = `${session.socket}:${session.name}`
+        const displayName = terminalNames[nameKey] || session.name
+        const isEditing = editingKey === nameKey
+
         return (
           <div
             key={`${session.socket}-${session.name}`}
             className={`session-item ${isAttached ? 'attached' : ''}`}
-            onClick={() => onAttach(session.name, session.socket)}
+            onClick={() => !isEditing && onAttach(session.name, session.socket)}
           >
             <div className="session-item-main">
               <span className={`session-dot ${session.socket === 'gobby' ? 'agent' : 'user'}`} />
-              <span className="session-name">{session.name}</span>
+              {isEditing ? (
+                <input
+                  className="session-name-input"
+                  value={editValue}
+                  onChange={e => setEditValue(e.target.value)}
+                  onBlur={() => {
+                    onRename(nameKey, editValue)
+                    setEditingKey(null)
+                  }}
+                  onKeyDown={e => {
+                    if (e.key === 'Enter') {
+                      onRename(nameKey, editValue)
+                      setEditingKey(null)
+                    } else if (e.key === 'Escape') {
+                      setEditingKey(null)
+                    }
+                  }}
+                  onClick={e => e.stopPropagation()}
+                  autoFocus
+                />
+              ) : (
+                <span
+                  className="session-name"
+                  onDoubleClick={e => {
+                    e.stopPropagation()
+                    setEditingKey(nameKey)
+                    setEditValue(displayName)
+                  }}
+                  title="Double-click to rename"
+                >
+                  {displayName}
+                </span>
+              )}
               {session.agent_managed && (
                 <span className="session-badge agent-badge">agent</span>
               )}
@@ -224,6 +296,7 @@ function SessionGroup({ label, sessions, attachedSession, streamingId, onAttach 
 interface TerminalViewProps {
   streamingId: string
   sessionName: string | null
+  displayName: string | null
   isInteractive: boolean
   sidebarOpen: boolean
   onSetInteractive: (interactive: boolean) => void
@@ -237,6 +310,7 @@ interface TerminalViewProps {
 function TerminalView({
   streamingId,
   sessionName,
+  displayName,
   isInteractive,
   sidebarOpen,
   onSetInteractive,
@@ -403,7 +477,7 @@ function TerminalView({
             </button>
           )}
           <TerminalIcon size={14} />
-          {sessionName || 'Terminal'}
+          {displayName || sessionName || 'Terminal'}
           {!isInteractive && (
             <span className="read-only-badge">read-only</span>
           )}
