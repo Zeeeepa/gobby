@@ -40,6 +40,8 @@ const PRIORITY_OPTIONS = [
   { value: 4, label: 'Backlog' },
 ]
 
+const RECENTLY_DONE_CUTOFF_MS = 24 * 60 * 60 * 1000
+
 // =============================================================================
 // View toggle icons
 // =============================================================================
@@ -248,7 +250,7 @@ export function TasksPage({ projectFilter }: TasksPageProps = {}) {
   // task list matches the overview card count (which uses the same cutoff).
   const displayTasks = useMemo(() => {
     if (filters.status !== 'recently_done') return scopedTasks
-    const cutoff = Date.now() - 24 * 60 * 60 * 1000
+    const cutoff = Date.now() - RECENTLY_DONE_CUTOFF_MS
     const completed = new Set(['closed'])
     return scopedTasks.filter(
       t => completed.has(t.status) && new Date(t.updated_at).getTime() > cutoff

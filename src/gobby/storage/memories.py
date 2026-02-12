@@ -160,6 +160,19 @@ class LocalMemoryManager:
         if existing_row:
             return self.get_memory(memory_id)
 
+        # source_id proximity dedup: if the same session created a very similar
+        # memory within the last 60 seconds, treat it as a duplicate
+        if source_session_id:
+            recent = self.db.fetchone(
+                """SELECT id, content FROM memories
+                   WHERE source_session_id = ?
+                     AND created_at > datetime('now', '-60 seconds')
+                   ORDER BY created_at DESC LIMIT 1""",
+                (source_session_id,),
+            )
+            if recent and normalized_content[:100] == str(recent["content"]).strip()[:100]:
+                return self.get_memory(recent["id"])
+
         tags_json = json.dumps(tags) if tags else None
 
         with self.db.transaction() as conn:

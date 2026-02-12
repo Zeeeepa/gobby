@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef } from 'react'
+import { useState, useCallback, useRef, useEffect } from 'react'
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter'
 import { oneDark } from 'react-syntax-highlighter/dist/esm/styles/prism'
 import { CodeMirrorEditor } from './CodeMirrorEditor'
@@ -88,6 +88,39 @@ export function FilesPage({
     onCancelEditing(cancelIndexRef.current)
     setShowDiff(false)
   }, [onCancelEditing])
+
+  // Keyboard accessibility for cancel confirmation dialog
+  const previousFocusRef = useRef<Element | null>(null)
+  useEffect(() => {
+    if (!showCancelConfirm) return
+    previousFocusRef.current = document.activeElement
+    const dialog = document.querySelector('.files-confirm-dialog') as HTMLElement | null
+    dialog?.focus()
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        setShowCancelConfirm(false)
+      } else if (e.key === 'Tab' && dialog) {
+        const focusable = dialog.querySelectorAll<HTMLElement>('button, [tabindex]')
+        if (focusable.length === 0) return
+        const first = focusable[0]
+        const last = focusable[focusable.length - 1]
+        if (e.shiftKey && document.activeElement === first) {
+          e.preventDefault()
+          last.focus()
+        } else if (!e.shiftKey && document.activeElement === last) {
+          e.preventDefault()
+          first.focus()
+        }
+      }
+    }
+    document.addEventListener('keydown', handleKeyDown)
+    return () => {
+      document.removeEventListener('keydown', handleKeyDown)
+      if (previousFocusRef.current instanceof HTMLElement) {
+        previousFocusRef.current.focus()
+      }
+    }
+  }, [showCancelConfirm])
 
   const handleUndo = useCallback(() => {
     if (editorViewRef.current) undo(editorViewRef.current)
@@ -256,7 +289,7 @@ export function FilesPage({
 
         {showCancelConfirm && (
           <div className="files-confirm-overlay" onClick={() => setShowCancelConfirm(false)}>
-            <div className="files-confirm-dialog" role="dialog" aria-modal="true" aria-labelledby="cancel-dialog-title" aria-describedby="cancel-dialog-desc" onClick={e => e.stopPropagation()}>
+            <div className="files-confirm-dialog" role="dialog" aria-modal="true" aria-labelledby="cancel-dialog-title" aria-describedby="cancel-dialog-desc" tabIndex={-1} onClick={e => e.stopPropagation()}>
               <p className="files-confirm-title" id="cancel-dialog-title">Discard unsaved changes?</p>
               <p className="files-confirm-message" id="cancel-dialog-desc">Your changes to this file will be lost.</p>
               <div className="files-confirm-actions">

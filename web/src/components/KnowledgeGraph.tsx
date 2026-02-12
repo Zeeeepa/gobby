@@ -8,6 +8,14 @@ interface KnowledgeGraphProps {
   fetchEntityNeighbors: (name: string) => Promise<KnowledgeGraphData | null>
 }
 
+function numericId(id: unknown): number {
+  if (typeof id === 'number') return id
+  const s = String(id)
+  let h = 5381
+  for (let i = 0; i < s.length; i++) h = ((h << 5) + h + s.charCodeAt(i)) | 0
+  return Math.abs(h)
+}
+
 interface GraphNode {
   id: string
   name: string
@@ -239,7 +247,7 @@ export function KnowledgeGraph({ fetchKnowledgeGraph, fetchEntityNeighbors }: Kn
       obj.__origScale = obj.scale.clone()
     }
     const t = performance.now() * 0.001
-    const offset = (obj.id % 100) * 0.1
+    const offset = numericId(obj.id) % 100 * 0.1
     const factor = 1 + Math.sin(t * 1.5 + offset) * 0.06
     obj.scale.set(
       obj.__origScale.x * factor,

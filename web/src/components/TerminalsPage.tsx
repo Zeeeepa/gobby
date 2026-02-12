@@ -28,7 +28,11 @@ function loadTerminalNames(): Record<string, string> {
 }
 
 function saveTerminalNames(names: Record<string, string>) {
-  localStorage.setItem(TERMINAL_NAMES_KEY, JSON.stringify(names))
+  try {
+    localStorage.setItem(TERMINAL_NAMES_KEY, JSON.stringify(names))
+  } catch (e) {
+    console.error('Failed to save terminal names:', e)
+  }
 }
 
 export function TerminalsPage({
@@ -276,7 +280,7 @@ function SessionGroup({ label, sessions, attachedSession, streamingId, terminalN
                   }}
                   onKeyDown={e => {
                     if (e.key === 'Enter') {
-                      saveOnBlurRef.current = true
+                      saveOnBlurRef.current = false
                       onRename(nameKey, editValue)
                       setEditingKey(null)
                     } else if (e.key === 'Escape') {

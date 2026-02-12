@@ -163,6 +163,13 @@ export function AgentDefinitionsPage() {
   const [editingId, setEditingId] = useState<string | null>(null)
   const [importingName, setImportingName] = useState<string | null>(null)
   const [importResult, setImportResult] = useState<{ name: string; ok: boolean } | null>(null)
+  const [toastMessage, setToastMessage] = useState<{ text: string; type: 'success' | 'error' } | null>(null)
+
+  const showToast = useCallback((text: string, type: 'success' | 'error') => {
+    setToastMessage({ text, type })
+    setTimeout(() => setToastMessage(null), 4000)
+  }, [])
+
   const [createForm, setCreateForm] = useState<CreateFormData>({
     name: '', description: '', role: '', goal: '', personality: '', instructions: '',
     provider: 'claude', model: '', mode: 'headless', terminal: 'auto', isolation: '',
@@ -244,9 +251,13 @@ export function AgentDefinitionsPage() {
           base_branch: 'main', timeout: 120, max_turns: 10,
         })
         fetchDefinitions()
+        showToast(`Agent "${createForm.name}" created`, 'success')
+      } else {
+        showToast('Failed to create agent definition', 'error')
       }
     } catch (e) {
       console.error('Failed to create agent definition:', e)
+      showToast('Failed to create agent definition', 'error')
     }
   }
 
@@ -306,9 +317,13 @@ export function AgentDefinitionsPage() {
           base_branch: 'main', timeout: 120, max_turns: 10,
         })
         fetchDefinitions()
+        showToast(`Agent "${createForm.name}" updated`, 'success')
+      } else {
+        showToast('Failed to update agent definition', 'error')
       }
     } catch (e) {
       console.error('Failed to update agent definition:', e)
+      showToast('Failed to update agent definition', 'error')
     }
   }
 
@@ -318,9 +333,15 @@ export function AgentDefinitionsPage() {
       const res = await fetch(`${getBaseUrl()}/api/agents/definitions/${dbId}`, {
         method: 'DELETE',
       })
-      if (res.ok) fetchDefinitions()
+      if (res.ok) {
+        fetchDefinitions()
+        showToast('Agent definition deleted', 'success')
+      } else {
+        showToast('Failed to delete agent definition', 'error')
+      }
     } catch (e) {
       console.error('Failed to delete agent definition:', e)
+      showToast('Failed to delete agent definition', 'error')
     }
   }
 
@@ -348,6 +369,15 @@ export function AgentDefinitionsPage() {
 
   return (
     <main className="agent-defs-page">
+      {toastMessage && (
+        <div
+          className={`agent-defs-toast ${toastMessage.type === 'success' ? 'agent-defs-toast--success' : ''}`}
+          onClick={() => setToastMessage(null)}
+        >
+          {toastMessage.text}
+        </div>
+      )}
+
       {/* Toolbar */}
       <div className="agent-defs-toolbar">
         <div className="agent-defs-toolbar-left">
@@ -901,6 +931,7 @@ function PropRow({ label, value }: { label: string; value: string }) {
 function formatDuration(startIso: string, endIso?: string | null): string {
   const start = new Date(startIso).getTime()
   const end = endIso ? new Date(endIso).getTime() : Date.now()
+  if (isNaN(start) || isNaN(end)) return '\u2014'
   const seconds = Math.floor((end - start) / 1000)
   if (seconds < 60) return `${seconds}s`
   const minutes = Math.floor(seconds / 60)
@@ -912,6 +943,7 @@ function formatDuration(startIso: string, endIso?: string | null): string {
 
 function formatTimeAgo(iso: string): string {
   const diff = Date.now() - new Date(iso).getTime()
+  if (isNaN(diff)) return '\u2014'
   const minutes = Math.floor(diff / 60000)
   if (minutes < 1) return 'just now'
   if (minutes < 60) return `${minutes}m ago`

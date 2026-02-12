@@ -1,4 +1,4 @@
-import { useState, useCallback, useMemo, useEffect } from 'react'
+import { useState, useCallback, useMemo, useEffect, useRef } from 'react'
 import { useMemory, useNeo4jStatus } from '../hooks/useMemory'
 import type { GobbyMemory } from '../hooks/useMemory'
 import { MemoryOverview } from './MemoryOverview'
@@ -77,15 +77,17 @@ export function MemoryPage() {
   const [showForm, setShowForm] = useState(false)
 
   // Default to knowledge view when Neo4j is configured and no saved preference
+  const autoSwitchedRef = useRef(false)
   useEffect(() => {
-    if (neo4jStatus?.configured && viewMode === 'graph') {
+    if (neo4jStatus?.configured && viewMode === 'graph' && !autoSwitchedRef.current) {
       try {
         if (!localStorage.getItem('gobby-memory-view')) setViewMode('knowledge')
       } catch {
         setViewMode('knowledge')
       }
+      autoSwitchedRef.current = true
     }
-  }, [neo4jStatus?.configured]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [neo4jStatus?.configured, viewMode])
 
   // Persist view mode
   useEffect(() => {
