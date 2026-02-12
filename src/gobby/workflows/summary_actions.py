@@ -294,9 +294,15 @@ async def _rename_tmux_window(session: Any, title: str) -> None:
             mgr = get_tmux_session_manager()
             await mgr.rename_window(pane, title)
         else:
-            # User session — rename on the default tmux server
+            # User session — rename on the default tmux server.
+            # Chain: enable set-titles (propagates to terminal emulator),
+            # rename the window, then disable automatic-rename so tmux
+            # doesn't overwrite our title on the next command.
             proc = await asyncio.create_subprocess_exec(
-                "tmux", "rename-window", "-t", pane, title,
+                "tmux",
+                "set-option", "-g", "set-titles", "on", ";",
+                "rename-window", "-t", pane, title, ";",
+                "set-option", "-w", "-t", pane, "automatic-rename", "off",
                 stdout=asyncio.subprocess.DEVNULL,
                 stderr=asyncio.subprocess.PIPE,
             )

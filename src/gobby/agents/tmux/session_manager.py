@@ -283,6 +283,10 @@ class TmuxSessionManager:
     async def rename_window(self, target: str, title: str) -> bool:
         """Rename the tmux window containing *target*.
 
+        Also enables ``set-titles`` so the name propagates to the outer
+        terminal emulator, and disables ``automatic-rename`` to prevent
+        tmux from overwriting it.
+
         Args:
             target: A tmux target (session name, pane ID like ``%42``, etc.).
             title: New window title.
@@ -290,7 +294,11 @@ class TmuxSessionManager:
         Returns:
             True on success.
         """
-        rc, _stdout, stderr = await self._run("rename-window", "-t", target, title)
+        rc, _stdout, stderr = await self._run(
+            "set-option", "-g", "set-titles", "on", ";",
+            "rename-window", "-t", target, title, ";",
+            "set-option", "-w", "-t", target, "automatic-rename", "off",
+        )
         if rc != 0:
             logger.warning(
                 f"Failed to rename tmux window for '{target}': {stderr.strip()}"

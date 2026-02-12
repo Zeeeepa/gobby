@@ -725,7 +725,10 @@ class TestRenameTmuxWindow:
             await _rename_tmux_window(session, "My Title")
 
             mock_exec.assert_called_once_with(
-                "tmux", "rename-window", "-t", "%42", "My Title",
+                "tmux",
+                "set-option", "-g", "set-titles", "on", ";",
+                "rename-window", "-t", "%42", "My Title", ";",
+                "set-option", "-w", "-t", "%42", "automatic-rename", "off",
                 stdout=asyncio.subprocess.DEVNULL,
                 stderr=asyncio.subprocess.PIPE,
             )

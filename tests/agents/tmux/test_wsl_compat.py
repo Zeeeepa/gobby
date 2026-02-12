@@ -85,8 +85,18 @@ class TestSessionManagerWslIntegration:
 
     @patch("gobby.agents.tmux.wsl_compat.platform.system", return_value="Windows")
     @patch("shutil.which", return_value="/usr/bin/wsl")
-    def test_is_available_windows_with_wsl(self, _which: object, _sys: object) -> None:
+    @patch("subprocess.run")
+    def test_is_available_windows_with_wsl(
+        self, mock_run: object, _which: object, _sys: object
+    ) -> None:
+        from unittest.mock import MagicMock
+
         from gobby.agents.tmux.session_manager import TmuxSessionManager
+
+        result = MagicMock()
+        result.returncode = 0
+        assert isinstance(mock_run, MagicMock)
+        mock_run.return_value = result
 
         mgr = TmuxSessionManager()
         assert mgr.is_available() is True

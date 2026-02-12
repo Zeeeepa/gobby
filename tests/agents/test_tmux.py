@@ -230,7 +230,11 @@ class TestTmuxSessionManager:
         with patch.object(mgr, "_run", new_callable=AsyncMock) as mock_run:
             mock_run.return_value = (0, "", "")
             assert await mgr.rename_window("%42", "My Title") is True
-            mock_run.assert_called_once_with("rename-window", "-t", "%42", "My Title")
+            mock_run.assert_called_once_with(
+                "set-option", "-g", "set-titles", "on", ";",
+                "rename-window", "-t", "%42", "My Title", ";",
+                "set-option", "-w", "-t", "%42", "automatic-rename", "off",
+            )
 
     @pytest.mark.asyncio
     async def test_rename_window_failure(self) -> None:
