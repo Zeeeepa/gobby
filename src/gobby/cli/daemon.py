@@ -343,6 +343,18 @@ def start(
             rich_status = fetch_rich_status(http_port, timeout=2.0)
             status_kwargs.update(rich_status)
 
+            # Check mem0 status
+            from gobby.cli.services import get_mem0_status
+
+            mem0_status = asyncio.run(
+                get_mem0_status(
+                    mem0_url=getattr(config.memory, "mem0_url", None),
+                )
+            )
+            status_kwargs["mem0_installed"] = mem0_status["installed"]
+            status_kwargs["mem0_healthy"] = mem0_status["healthy"]
+            status_kwargs["mem0_url"] = mem0_status["url"]
+
         message = format_status_message(**status_kwargs)
         click.echo("")
         click.echo(message)
