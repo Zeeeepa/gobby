@@ -1,7 +1,9 @@
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useRef } from 'react'
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter'
 import { oneDark } from 'react-syntax-highlighter/dist/esm/styles/prism'
 import { CodeMirrorEditor } from './CodeMirrorEditor'
+import { undo, redo } from '@codemirror/commands'
+import type { EditorView } from '@codemirror/view'
 import type { FileEntry, OpenFile, Project, GitStatus } from '../hooks/useFiles'
 
 // Custom theme matching the app
@@ -36,6 +38,7 @@ interface FilesPageProps {
   onSetActiveFile: (index: number) => void
   getImageUrl: (projectId: string, path: string) => string
   onToggleEditing: (index: number) => void
+  onCancelEditing: (index: number) => void
   onUpdateEditContent: (index: number, content: string) => void
   onSaveFile: (index: number) => void
   gitStatuses: Map<string, GitStatus>
@@ -56,6 +59,7 @@ export function FilesPage({
   onSetActiveFile,
   getImageUrl,
   onToggleEditing,
+  onCancelEditing,
   onUpdateEditContent,
   onSaveFile,
   gitStatuses,
@@ -64,6 +68,31 @@ export function FilesPage({
   const activeFile = activeFileIndex >= 0 ? openFiles[activeFileIndex] : null
   const [diffContent, setDiffContent] = useState<string | null>(null)
   const [showDiff, setShowDiff] = useState(false)
+  const [showCancelConfirm, setShowCancelConfirm] = useState(false)
+  const editorViewRef = useRef<EditorView | null>(null)
+
+  const handleCancel = useCallback(() => {
+    if (activeFile?.dirty) {
+      setShowCancelConfirm(true)
+    } else {
+      onCancelEditing(activeFileIndex)
+      setShowDiff(false)
+    }
+  }, [activeFile, activeFileIndex, onCancelEditing])
+
+  const confirmCancel = useCallback(() => {
+    setShowCancelConfirm(false)
+    onCancelEditing(activeFileIndex)
+    setShowDiff(false)
+  }, [activeFileIndex, onCancelEditing])
+
+  const handleUndo = useCallback(() => {
+    if (editorViewRef.current) undo(editorViewRef.current)
+  }, [])
+
+  const handleRedo = useCallback(() => {
+    if (editorViewRef.current) redo(editorViewRef.current)
+  }, [])
 
   const handleShowDiff = useCallback(async () => {
     if (!activeFile) return
@@ -137,15 +166,6 @@ export function FilesPage({
           <div className="files-toolbar">
             <span className="files-toolbar-path">{activeFile.path}</span>
             <div className="files-toolbar-actions">
-              {activeFile.editing && activeFile.dirty && (
-                <button
-                  className="files-save-btn"
-                  onClick={() => onSaveFile(activeFileIndex)}
-                  disabled={activeFile.saving}
-                >
-                  {activeFile.saving ? 'Saving...' : 'Save'}
-                </button>
-              )}
               {activeFileGitStatus && (
                 <button
                   className={`files-diff-btn ${showDiff ? 'active' : ''}`}
@@ -154,15 +174,39 @@ export function FilesPage({
                   Diff
                 </button>
               )}
-              <button
-                className={`files-edit-toggle ${activeFile.editing ? 'active' : ''}`}
-                onClick={() => {
-                  onToggleEditing(activeFileIndex)
-                  setShowDiff(false)
-                }}
-              >
-                {activeFile.editing ? 'View' : 'Edit'}
-              </button>
+              {activeFile.editing ? (
+                <>
+                  <button className="files-undo-btn" onClick={handleUndo} title="Undo (Cmd+Z)">
+                    <UndoIcon />
+                  </button>
+                  <button className="files-redo-btn" onClick={handleRedo} title="Redo (Cmd+Shift+Z)">
+                    <RedoIcon />
+                  </button>
+                  <button
+                    className="files-cancel-btn"
+                    onClick={handleCancel}
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    className="files-save-btn"
+                    onClick={() => onSaveFile(activeFileIndex)}
+                    disabled={activeFile.saving || !activeFile.dirty}
+                  >
+                    {activeFile.saving ? 'Saving...' : 'Save'}
+                  </button>
+                </>
+              ) : (
+                <button
+                  className="files-edit-toggle"
+                  onClick={() => {
+                    onToggleEditing(activeFileIndex)
+                    setShowDiff(false)
+                  }}
+                >
+                  Edit
+                </button>
+              )}
             </div>
           </div>
         )}
@@ -197,6 +241,7 @@ export function FilesPage({
               getImageUrl={getImageUrl}
               onContentChange={(content) => onUpdateEditContent(activeFileIndex, content)}
               onSave={() => onSaveFile(activeFileIndex)}
+              editorViewRef={editorViewRef}
             />
           ) : (
             <div className="files-empty-viewer">
@@ -205,6 +250,23 @@ export function FilesPage({
             </div>
           )}
         </div>
+
+        {showCancelConfirm && (
+          <div className="files-confirm-overlay" onClick={() => setShowCancelConfirm(false)}>
+            <div className="files-confirm-dialog" onClick={e => e.stopPropagation()}>
+              <p className="files-confirm-title">Discard unsaved changes?</p>
+              <p className="files-confirm-message">Your changes to this file will be lost.</p>
+              <div className="files-confirm-actions">
+                <button className="files-confirm-keep" onClick={() => setShowCancelConfirm(false)}>
+                  Keep Editing
+                </button>
+                <button className="files-confirm-discard" onClick={confirmCancel}>
+                  Discard
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   )
@@ -347,11 +409,12 @@ function TreeEntry({ entry, projectId, depth, expandedDirs, loadingDirs, gitFile
 
 // -- File Viewer --
 
-function FileContent({ file, getImageUrl, onContentChange, onSave }: {
+function FileContent({ file, getImageUrl, onContentChange, onSave, editorViewRef }: {
   file: OpenFile
   getImageUrl: (projectId: string, path: string) => string
   onContentChange: (content: string) => void
   onSave: () => void
+  editorViewRef?: React.MutableRefObject<EditorView | null>
 }) {
   if (file.loading) {
     return <div className="files-viewer-status">Loading...</div>
@@ -399,6 +462,7 @@ function FileContent({ file, getImageUrl, onContentChange, onSave }: {
           readOnly={false}
           onChange={onContentChange}
           onSave={onSave}
+          editorViewRef={editorViewRef}
         />
       </div>
     )
@@ -427,6 +491,26 @@ function FileContent({ file, getImageUrl, onContentChange, onSave }: {
         {file.content}
       </SyntaxHighlighter>
     </div>
+  )
+}
+
+// -- Undo/Redo Icons --
+
+function UndoIcon() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <polyline points="1 4 1 10 7 10" />
+      <path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10" />
+    </svg>
+  )
+}
+
+function RedoIcon() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <polyline points="23 4 23 10 17 10" />
+      <path d="M20.49 15a9 9 0 1 1-2.13-9.36L23 10" />
+    </svg>
   )
 }
 

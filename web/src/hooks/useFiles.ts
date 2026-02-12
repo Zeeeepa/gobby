@@ -328,7 +328,17 @@ export function useFiles() {
   const toggleEditing = useCallback((index: number) => {
     setOpenFiles(prev =>
       prev.map((f, i) =>
-        i === index ? { ...f, editing: !f.editing, editContent: f.content } : f
+        i === index ? { ...f, editing: !f.editing, editContent: f.content, dirty: false } : f
+      )
+    )
+  }, [])
+
+  const cancelEditing = useCallback((index: number) => {
+    setOpenFiles(prev =>
+      prev.map((f, i) =>
+        i === index
+          ? { ...f, editing: false, editContent: f.originalContent, dirty: false }
+          : f
       )
     )
   }, [])
@@ -431,6 +441,7 @@ export function useFiles() {
     setActiveFileIndex,
     getImageUrl,
     toggleEditing,
+    cancelEditing,
     updateEditContent,
     saveFile,
     fetchGitStatus,
