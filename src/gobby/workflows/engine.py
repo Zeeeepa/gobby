@@ -471,7 +471,11 @@ class WorkflowEngine:
 
         # Check exit conditions
         logger.debug("Checking exit conditions")
-        if self.evaluator.check_exit_conditions(current_step.exit_conditions, state):
+        if self.evaluator.check_exit_conditions(
+            current_step.exit_conditions,
+            state,
+            exit_when=getattr(current_step, "exit_when", None),
+        ):
             # TODO: Determine next step or completion logic
             # For now, simplistic 'next step' if linear, or rely on transitions
             pass

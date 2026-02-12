@@ -122,7 +122,8 @@ class WorkflowStep(BaseModel):
     rules: list[WorkflowRule] = Field(default_factory=list)
     check_rules: list[str] = Field(default_factory=list)  # Named rule references
     transitions: list[WorkflowTransition] = Field(default_factory=list)
-    exit_conditions: list[dict[str, Any]] = Field(default_factory=list)  # flexible for now
+    exit_when: str | None = None  # Expression shorthand AND-ed with exit_conditions
+    exit_conditions: list[dict[str, Any] | str] = Field(default_factory=list)
 
     on_exit: list[dict[str, Any]] = Field(default_factory=list)
 

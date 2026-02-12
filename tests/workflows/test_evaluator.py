@@ -183,6 +183,91 @@ class TestConditionEvaluator:
         assert evaluator.check_exit_conditions(conditions, mock_state) is True
 
 
+class TestExitWhenAndShorthand:
+    """Tests for exit_when field and exit_conditions shorthand syntax."""
+
+    def test_exit_when_expression_evaluates(self, evaluator, mock_state) -> None:
+        """exit_when string evaluates as an expression condition."""
+        result = evaluator.check_exit_conditions(
+            [], mock_state, exit_when="step_action_count == 5"
+        )
+        assert result is True
+
+    def test_exit_when_expression_fails(self, evaluator, mock_state) -> None:
+        """exit_when returns False when expression doesn't match."""
+        result = evaluator.check_exit_conditions(
+            [], mock_state, exit_when="step_action_count > 100"
+        )
+        assert result is False
+
+    def test_exit_when_anded_with_conditions(self, evaluator, mock_state) -> None:
+        """exit_when is AND-ed with exit_conditions - both must pass."""
+        conditions = [{"type": "variable_set", "variable": "foo"}]
+        # Both pass
+        assert evaluator.check_exit_conditions(
+            conditions, mock_state, exit_when="count == 10"
+        ) is True
+        # exit_when fails
+        assert evaluator.check_exit_conditions(
+            conditions, mock_state, exit_when="count == 999"
+        ) is False
+
+    def test_string_item_as_expression(self, evaluator, mock_state) -> None:
+        """String items in exit_conditions are treated as expression shorthand."""
+        conditions = ["step_action_count == 5"]
+        assert evaluator.check_exit_conditions(conditions, mock_state) is True
+
+    def test_string_item_fails(self, evaluator, mock_state) -> None:
+        """String expression shorthand returns False when not met."""
+        conditions = ["step_action_count > 100"]
+        assert evaluator.check_exit_conditions(conditions, mock_state) is False
+
+    def test_approval_sugar(self, evaluator, mock_state) -> None:
+        """Dict with 'approval' key maps to user_approval type."""
+        mock_state.variables = {"_approval_deploy_check_granted": True}
+        conditions = [{"approval": "Deploy?", "id": "deploy_check"}]
+        assert evaluator.check_exit_conditions(conditions, mock_state) is True
+
+    def test_approval_sugar_not_granted(self, evaluator, mock_state) -> None:
+        """Approval sugar returns False when not granted."""
+        mock_state.variables = {}
+        conditions = [{"approval": "Deploy?", "id": "deploy_check"}]
+        assert evaluator.check_exit_conditions(conditions, mock_state) is False
+
+    def test_webhook_sugar(self, evaluator, mock_state) -> None:
+        """Dict with 'webhook' key maps to webhook type."""
+        mock_state.variables = {
+            "_webhook_ci_check_result": {"success": True, "status_code": 200},
+        }
+        conditions = [
+            {"webhook": {"url": "https://ci.example.com/status"}, "id": "ci_check"},
+        ]
+        assert evaluator.check_exit_conditions(conditions, mock_state) is True
+
+    def test_old_dict_format_still_works(self, evaluator, mock_state) -> None:
+        """Old dict-based exit_conditions format remains functional."""
+        conditions = [
+            {"type": "variable_set", "variable": "foo"},
+            {"type": "expression", "expression": "count == 10"},
+        ]
+        assert evaluator.check_exit_conditions(conditions, mock_state) is True
+
+    def test_mixed_old_and_new_format(self, evaluator, mock_state) -> None:
+        """Mix of old dict format, string shorthand, and sugar works together."""
+        conditions = [
+            {"type": "variable_set", "variable": "foo"},
+            "count == 10",  # string shorthand
+        ]
+        assert evaluator.check_exit_conditions(conditions, mock_state) is True
+
+    def test_exit_when_on_workflow_step(self) -> None:
+        """WorkflowStep accepts exit_when field."""
+        from gobby.workflows.definitions import WorkflowStep
+
+        step = WorkflowStep(name="test", exit_when="task_complete")
+        assert step.exit_when == "task_complete"
+
+
 class TestApprovalResponse:
     """Tests for check_approval_response function."""
 

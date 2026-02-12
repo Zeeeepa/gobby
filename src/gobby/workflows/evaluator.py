@@ -289,9 +289,21 @@ class ConditionEvaluator:
             logger.warning(f"Condition evaluation failed: '{condition}'. Error: {e}")
             return False
 
-    def check_exit_conditions(self, conditions: list[dict[str, Any]], state: WorkflowState) -> bool:
+    def check_exit_conditions(
+        self,
+        conditions: list[dict[str, Any] | str],
+        state: WorkflowState,
+        exit_when: str | None = None,
+    ) -> bool:
         """
         Check if all exit conditions are met. (AND logic)
+
+        Supports:
+        - exit_when: expression string AND-ed with conditions
+        - String items in conditions: treated as expression shorthand
+        - {approval: prompt}: sugar for {type: user_approval, prompt: prompt}
+        - {webhook: {url: ...}}: sugar for {type: webhook, url: ...}
+        - Old dict format: {type: variable_set/expression/user_approval/webhook, ...}
         """
         context = {
             "workflow_state": state,
@@ -305,56 +317,88 @@ class ConditionEvaluator:
         # Add variables safely to avoid shadowing internal context keys
         for key, value in state.variables.items():
             if key in context:
-                # Log warning or namespace? For now just skip or simple duplicate warn
                 logger.debug(
                     f"Variable '{key}' shadows internal context key, skipping direct merge"
                 )
                 continue
             context[key] = value
 
+        # Evaluate exit_when first (AND-ed with conditions)
+        if exit_when and not self.evaluate(exit_when, context):
+            return False
+
         for condition in conditions:
-            cond_type = condition.get("type")
+            normalized = self._normalize_condition(condition)
+
+            cond_type = normalized.get("type")
 
             if cond_type == "variable_set":
-                var_name = condition.get("variable")
+                var_name = normalized.get("variable")
                 if not var_name or var_name not in state.variables:
                     return False
 
             elif cond_type == "user_approval":
-                # User approval condition - check if approval has been granted
-                condition_id = condition.get("id", f"approval_{hash(str(condition)) % 10000}")
+                condition_id = normalized.get(
+                    "id", f"approval_{hash(str(normalized)) % 10000}"
+                )
                 approved_var = f"_approval_{condition_id}_granted"
-
-                # Check if this specific approval has been granted
                 if not state.variables.get(approved_var, False):
                     return False
 
             elif cond_type == "expression":
-                expr = condition.get("expression")
+                expr = normalized.get("expression")
                 if expr and not self.evaluate(expr, context):
                     return False
 
             elif cond_type == "webhook":
-                # Webhook condition - check pre-evaluated result stored in variables
-                # The async evaluate_webhook_conditions method must be called first
-                condition_id = condition.get("id", f"webhook_{hash(str(condition)) % 10000}")
+                condition_id = normalized.get(
+                    "id", f"webhook_{hash(str(normalized)) % 10000}"
+                )
                 result_var = f"_webhook_{condition_id}_result"
-
-                # Get pre-evaluated webhook result from state
                 webhook_result = state.variables.get(result_var)
                 if webhook_result is None:
-                    # Webhook hasn't been evaluated yet
                     logger.warning(
                         f"Webhook condition '{condition_id}' not pre-evaluated. "
                         "Call evaluate_webhook_conditions() first."
                     )
                     return False
-
-                # Check based on configured criteria
-                if not self._check_webhook_result(condition, webhook_result):
+                if not self._check_webhook_result(normalized, webhook_result):
                     return False
 
         return True
+
+    @staticmethod
+    def _normalize_condition(condition: dict[str, Any] | str) -> dict[str, Any]:
+        """Normalize a condition to canonical dict format.
+
+        Handles:
+        - String: expression shorthand
+        - {approval: prompt}: user_approval sugar
+        - {webhook: {...}}: webhook sugar
+        - Dict with 'type': pass through as-is
+        """
+        if isinstance(condition, str):
+            return {"type": "expression", "expression": condition}
+
+        if "approval" in condition:
+            result: dict[str, Any] = {
+                "type": "user_approval",
+                "prompt": condition["approval"],
+            }
+            if "id" in condition:
+                result["id"] = condition["id"]
+            return result
+
+        if "webhook" in condition:
+            webhook_config = condition["webhook"]
+            result = {"type": "webhook"}
+            if isinstance(webhook_config, dict):
+                result.update(webhook_config)
+            if "id" in condition:
+                result["id"] = condition["id"]
+            return result
+
+        return condition
 
     def _check_webhook_result(self, condition: dict[str, Any], result: dict[str, Any]) -> bool:
         """Check if webhook result matches the condition criteria.
