@@ -61,6 +61,23 @@ class GobbyRunner:
         self.config = load_config(config_file)
         self.verbose = verbose
         self.machine_id = get_machine_id()
+
+        # Check tmux availability (agent spawning requires it)
+        import shutil
+
+        from gobby.agents.tmux.wsl_compat import needs_wsl
+
+        if needs_wsl():
+            if not shutil.which("wsl"):
+                logger.warning(
+                    "WSL is not installed. Agent spawning in terminal mode will not work. "
+                    "Install: wsl --install"
+                )
+        elif not shutil.which("tmux"):
+            logger.warning(
+                "tmux is not installed. Agent spawning in terminal mode will not work. "
+                "Install: brew install tmux (macOS), apt install tmux (Linux)"
+            )
         self._shutdown_requested = False
         self._metrics_cleanup_task: asyncio.Task[None] | None = None
 

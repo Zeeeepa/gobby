@@ -53,6 +53,14 @@ class TestTmuxConfig:
         assert config.session_prefix == "myprefix"
         assert config.history_limit == 5000
 
+    def test_wsl_distribution_default(self) -> None:
+        config = TmuxConfig()
+        assert config.wsl_distribution is None
+
+    def test_wsl_distribution_custom(self) -> None:
+        config = TmuxConfig(wsl_distribution="Ubuntu")
+        assert config.wsl_distribution == "Ubuntu"
+
     def test_history_limit_minimum(self) -> None:
         with pytest.raises(ValueError, match="greater than or equal to 100"):
             TmuxConfig(history_limit=50)
@@ -73,7 +81,14 @@ class TestTmuxErrors:
     def test_not_found_error_default(self) -> None:
         err = TmuxNotFoundError()
         assert "tmux" in str(err)
+        assert "not found" in str(err)
         assert err.command == "tmux"
+
+    def test_not_found_error_has_install_hint(self) -> None:
+        err = TmuxNotFoundError()
+        msg = str(err)
+        # Should contain platform-specific install instructions
+        assert "Install" in msg or "install" in msg
 
     def test_not_found_error_custom_command(self) -> None:
         err = TmuxNotFoundError("/opt/tmux")

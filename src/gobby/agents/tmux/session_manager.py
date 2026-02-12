@@ -47,8 +47,20 @@ class TmuxSessionManager:
     # ------------------------------------------------------------------
 
     def _base_args(self) -> list[str]:
-        """Return the common tmux prefix args (binary + socket + config)."""
-        args = [self._config.command]
+        """Return the common tmux prefix args (binary + socket + config).
+
+        On Windows the command is prefixed with ``wsl`` (and optionally
+        ``-d <distro>``) so that tmux runs inside WSL.
+        """
+        from gobby.agents.tmux.wsl_compat import needs_wsl
+
+        args: list[str] = []
+        if needs_wsl():
+            args.append("wsl")
+            if self._config.wsl_distribution:
+                args.extend(["-d", self._config.wsl_distribution])
+
+        args.append(self._config.command)
         if self._config.socket_name:
             args.extend(["-L", self._config.socket_name])
         if self._config.config_file:
@@ -84,7 +96,11 @@ class TmuxSessionManager:
     # ------------------------------------------------------------------
 
     def is_available(self) -> bool:
-        """Check whether the tmux binary is on PATH."""
+        """Check whether tmux (or WSL on Windows) is available."""
+        from gobby.agents.tmux.wsl_compat import needs_wsl
+
+        if needs_wsl():
+            return shutil.which("wsl") is not None
         return shutil.which(self._config.command) is not None
 
     def require_available(self) -> None:
@@ -114,6 +130,12 @@ class TmuxSessionManager:
             TmuxSessionError: If session creation fails.
         """
         self.require_available()
+
+        # Convert Windows paths to WSL format when needed
+        from gobby.agents.tmux.wsl_compat import convert_windows_path_to_wsl, needs_wsl
+
+        if needs_wsl() and cwd:
+            cwd = convert_windows_path_to_wsl(cwd)
 
         # Sanitise name (tmux dislikes dots and colons)
         safe_name = "".join(c if c.isalnum() or c in "-_" else "-" for c in name)

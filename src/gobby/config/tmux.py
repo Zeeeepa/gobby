@@ -38,3 +38,7 @@ class TmuxConfig(BaseModel):
         ge=100,
         description="Scrollback buffer size for spawned sessions.",
     )
+    wsl_distribution: str | None = Field(
+        default=None,
+        description="WSL distribution for Windows (e.g., 'Ubuntu'). None uses default.",
+    )

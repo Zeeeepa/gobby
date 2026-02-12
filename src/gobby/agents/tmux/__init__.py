@@ -24,6 +24,7 @@ from gobby.agents.tmux.pane_monitor import TmuxPaneMonitor
 from gobby.agents.tmux.pty_bridge import TmuxPTYBridge
 from gobby.agents.tmux.session_manager import TmuxSessionManager
 from gobby.agents.tmux.spawner import TmuxSpawner
+from gobby.agents.tmux.wsl_compat import convert_windows_path_to_wsl, needs_wsl
 
 __all__ = [
     "TmuxConfig",
@@ -34,9 +35,11 @@ __all__ = [
     "TmuxSessionError",
     "TmuxSessionManager",
     "TmuxSpawner",
+    "convert_windows_path_to_wsl",
     "get_tmux_output_reader",
     "get_tmux_pane_monitor",
     "get_tmux_session_manager",
+    "needs_wsl",
     "set_tmux_pane_monitor",
 ]
 

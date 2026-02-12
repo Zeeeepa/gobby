@@ -494,7 +494,7 @@ class TestWorktreeCreationFailure:
             ),
             patch("gobby.mcp_proxy.tools.worktrees._copy_project_json_to_worktree"),
             patch("gobby.mcp_proxy.tools.worktrees._install_provider_hooks"),
-            patch("gobby.agents.spawn.TerminalSpawner") as MockSpawner,
+            patch("gobby.agents.tmux.spawner.TmuxSpawner") as MockSpawner,
         ):
             MockSpawner.return_value.spawn_agent.return_value = MagicMock(
                 success=False, error="tmux session not found", pid=None
@@ -588,7 +588,7 @@ class TestWorktreeCreationFailure:
                 "gobby.workflows.loader.WorkflowLoader.validate_workflow_for_agent_sync",
                 return_value=(True, None),
             ),
-            patch("gobby.agents.spawn.TerminalSpawner") as MockSpawner,
+            patch("gobby.agents.tmux.spawner.TmuxSpawner") as MockSpawner,
             patch("gobby.mcp_proxy.tools.worktrees._copy_project_json_to_worktree"),
             patch("gobby.mcp_proxy.tools.worktrees._install_provider_hooks"),
         ):

@@ -197,7 +197,7 @@ class TestExecuteSpawn:
                 return_value=mock_spawn_context,
             ),
             patch(
-                "gobby.agents.spawn_executor.TerminalSpawner",
+                "gobby.agents.spawn_executor.TmuxSpawner",
                 return_value=mock_spawner,
             ),
         ):
@@ -311,7 +311,7 @@ class TestExecuteSpawn:
                 return_value=mock_spawn_context,
             ),
             patch(
-                "gobby.agents.spawn_executor.TerminalSpawner",
+                "gobby.agents.spawn_executor.TmuxSpawner",
                 return_value=mock_spawner,
             ),
         ):
@@ -357,7 +357,7 @@ class TestExecuteSpawn:
                 return_value=mock_spawn_context,
             ) as mock_prepare,
             patch(
-                "gobby.agents.spawn_executor.TerminalSpawner",
+                "gobby.agents.spawn_executor.TmuxSpawner",
                 return_value=mock_spawner,
             ),
         ):
@@ -413,7 +413,7 @@ class TestExecuteSpawn:
                 return_value=["gemini", "--approval-mode", "yolo", "-i", "prompt"],
             ),
             patch(
-                "gobby.agents.spawn_executor.TerminalSpawner",
+                "gobby.agents.spawn_executor.TmuxSpawner",
                 return_value=mock_spawner,
             ),
         ):
@@ -469,7 +469,7 @@ class TestExecuteSpawn:
                 return_value=["codex", "--resume"],
             ),
             patch(
-                "gobby.agents.spawn_executor.TerminalSpawner",
+                "gobby.agents.spawn_executor.TmuxSpawner",
                 return_value=mock_spawner,
             ),
         ):
@@ -563,7 +563,7 @@ class TestExecuteSpawn:
                 return_value=["gemini", "--approval-mode", "yolo", "-i", "prompt"],
             ),
             patch(
-                "gobby.agents.spawn_executor.TerminalSpawner",
+                "gobby.agents.spawn_executor.TmuxSpawner",
                 return_value=mock_spawner,
             ),
         ):
@@ -621,7 +621,7 @@ class TestExecuteSpawnSandbox:
                 return_value=mock_spawn_context,
             ),
             patch(
-                "gobby.agents.spawn_executor.TerminalSpawner",
+                "gobby.agents.spawn_executor.TmuxSpawner",
                 return_value=mock_spawner,
             ),
             patch(
@@ -679,7 +679,7 @@ class TestExecuteSpawnSandbox:
                 return_value=mock_spawn_context,
             ),
             patch(
-                "gobby.agents.spawn_executor.TerminalSpawner",
+                "gobby.agents.spawn_executor.TmuxSpawner",
                 return_value=mock_spawner,
             ),
         ):
@@ -807,7 +807,7 @@ class TestExecuteSpawnSandbox:
                 return_value=mock_spawn_context,
             ),
             patch(
-                "gobby.agents.spawn_executor.TerminalSpawner",
+                "gobby.agents.spawn_executor.TmuxSpawner",
                 return_value=mock_spawner,
             ),
         ):
@@ -862,7 +862,7 @@ class TestExecuteSpawnSandbox:
                 return_value=["gemini", "--approval-mode", "yolo", "-i", "prompt"],
             ),
             patch(
-                "gobby.agents.spawn_executor.TerminalSpawner",
+                "gobby.agents.spawn_executor.TmuxSpawner",
                 return_value=mock_spawner,
             ),
         ):

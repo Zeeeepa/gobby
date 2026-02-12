@@ -306,7 +306,8 @@ def register_orchestrator(
             Returns spawn info dict on success, or None on failure
             (appends to ``skipped`` as a side effect).
             """
-            from gobby.agents.spawn import EmbeddedSpawner, HeadlessSpawner, TerminalSpawner
+            from gobby.agents.spawn import EmbeddedSpawner, HeadlessSpawner
+            from gobby.agents.tmux.spawner import TmuxSpawner
             from gobby.agents.spawners.base import EmbeddedPTYResult, HeadlessResult, SpawnResult
 
             # Ensure agent_runner is available (checked in orchestrate_ready_tasks)
@@ -329,7 +330,7 @@ def register_orchestrator(
             result: SpawnResult | EmbeddedPTYResult | HeadlessResult
             if mode == "terminal":
                 common_kwargs["terminal"] = effective_terminal
-                result = TerminalSpawner().spawn_agent(**common_kwargs)
+                result = TmuxSpawner().spawn_agent(**common_kwargs)
             elif mode == "embedded":
                 result = EmbeddedSpawner().spawn_agent(**common_kwargs)
             else:

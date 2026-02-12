@@ -35,6 +35,28 @@ def init(ctx: click.Context, name: str | None, github_url: str | None) -> None:
         click.echo(f"  Project ID: {result.project_id}")
         click.echo(f"  Config: {cwd / '.gobby' / 'project.json'}")
 
+        # Check tmux availability
+        import shutil
+
+        from gobby.agents.tmux.wsl_compat import needs_wsl
+
+        if needs_wsl():
+            if not shutil.which("wsl"):
+                click.echo(
+                    "  Warning: WSL not found. Install: wsl --install, "
+                    "then: sudo apt install tmux"
+                )
+        elif not shutil.which("tmux"):
+            import platform as _platform
+
+            if _platform.system() == "Darwin":
+                click.echo("  Warning: tmux not found. Install: brew install tmux")
+            else:
+                click.echo(
+                    "  Warning: tmux not found. Install: sudo apt install tmux "
+                    "(or sudo dnf install tmux)"
+                )
+
         # Show detected verification commands
         if result.verification:
             verification_dict = result.verification.to_dict()

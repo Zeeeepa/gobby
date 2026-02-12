@@ -187,9 +187,9 @@ def register_reviewer(
 
         # Spawn the review agent
         if mode == "terminal":
-            from gobby.agents.spawn import TerminalSpawner
+            from gobby.agents.tmux.spawner import TmuxSpawner
 
-            spawner = TerminalSpawner()
+            spawner = TmuxSpawner()
             spawn_result = spawner.spawn_agent(
                 cli=review_provider,
                 cwd=worktree.worktree_path,

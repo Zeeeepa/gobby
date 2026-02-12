@@ -21,29 +21,15 @@ class SpawnMode(str, Enum):
 
 
 class TerminalType(str, Enum):
-    """Supported terminal types."""
+    """Supported terminal types.
 
-    # macOS
-    GHOSTTY = "ghostty"
-    ITERM = "iterm"
-    TERMINAL_APP = "terminal.app"
-    KITTY = "kitty"
-    ALACRITTY = "alacritty"
+    Since Gobby uses tmux as the sole terminal spawning backend,
+    only ``TMUX`` and ``AUTO`` remain.  Historical string values
+    (e.g. ``"ghostty"``) stored in databases are plain strings and
+    do not cause enum lookup errors.
+    """
 
-    # Linux
-    GNOME_TERMINAL = "gnome-terminal"
-    KONSOLE = "konsole"
-
-    # Windows
-    WINDOWS_TERMINAL = "windows-terminal"
-    CMD = "cmd"
-    POWERSHELL = "powershell"
-    WSL = "wsl"
-
-    # Cross-platform multiplexer
     TMUX = "tmux"
-
-    # Auto-detect
     AUTO = "auto"
 
 
@@ -128,22 +114,10 @@ def make_spawn_env(env: dict[str, str] | None = None) -> dict[str, str]:
     # "VIRTUAL_ENV=/path/to/.venv does not match project environment"
     spawn_env.pop("VIRTUAL_ENV", None)
     spawn_env.pop("VIRTUAL_ENV_PROMPT", None)
-    # Clear parent terminal identity vars so child sessions don't inherit them.
-    # Without this, kill_agent can kill the parent's terminal instead of the child's
-    # (e.g., Ghostty child inherits TMUX_PANE → kill_agent runs tmux kill-pane
-    # on the parent's pane).
-    for var in (
-        "TMUX",
-        "TMUX_PANE",
-        "ITERM_SESSION_ID",
-        "KITTY_WINDOW_ID",
-        "ALACRITTY_SOCKET",
-        "TERM_SESSION_ID",
-        "WEZTERM_PANE",
-        "WEZTERM_UNIX_SOCKET",
-        "KONSOLE_DBUS_SESSION",
-        "GNOME_TERMINAL_SCREEN",
-    ):
+    # Clear parent tmux identity vars so child sessions don't inherit them.
+    # Without this, kill_agent can kill the parent's tmux pane instead of
+    # the child's.
+    for var in ("TMUX", "TMUX_PANE"):
         spawn_env.pop(var, None)
     return spawn_env
 
