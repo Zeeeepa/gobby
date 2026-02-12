@@ -371,7 +371,6 @@ triggers:
     # Uses external prompt from prompts collection: handoff/session_end.md
     - action: generate_handoff
       include:
-        - artifacts
         - pending_tasks
       prompt: handoff/session_end
       write_file: true

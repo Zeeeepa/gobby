@@ -45,7 +45,7 @@ def inject_context(
         state: WorkflowState instance
         template_engine: Template engine for rendering
         source: Source type(s). Can be a string or list of strings.
-                Supported: previous_session_summary, handoff, artifacts, skills, task_context, memories, etc.
+                Supported: previous_session_summary, handoff, skills, task_context, memories, etc.
         template: Optional template for rendering
         require: If True, block session when no content found (default: False)
         skill_manager: HookSkillManager instance (required for source='skills')
@@ -110,7 +110,6 @@ def inject_context(
                 render_context: dict[str, Any] = {
                     "session": session_manager.get(session_id),
                     "state": state,
-                    "artifacts": state.artifacts if state else {},
                     "observations": state.observations if state else {},
                     "combined_content": content,
                     "source_contents": source_contents,
@@ -186,22 +185,15 @@ def inject_context(
                             except Exception as e:
                                 logger.warning(f"Failed to read failback file {summary_file}: {e}")
 
-    elif source == "artifacts":
-        if state.artifacts:
-            lines = ["## Captured Artifacts"]
-            for name, path in state.artifacts.items():
-                lines.append(f"- {name}: {path}")
-            content = "\n".join(lines)
-
     elif source == "observations":
         if state.observations:
             content = "## Observations\n" + json.dumps(state.observations, indent=2)
 
     elif source == "workflow_state":
         try:
-            state_dict = state.model_dump(exclude={"observations", "artifacts"})
+            state_dict = state.model_dump(exclude={"observations"})
         except AttributeError:
-            state_dict = state.dict(exclude={"observations", "artifacts"})
+            state_dict = state.dict(exclude={"observations"})
         content = "## Workflow State\n" + json.dumps(state_dict, indent=2, default=str)
 
     elif source == "compact_handoff":
@@ -292,15 +284,12 @@ def inject_context(
             render_context = {
                 "session": session_manager.get(session_id),
                 "state": state,
-                "artifacts": state.artifacts,
                 "observations": state.observations,
             }
 
             if source in ["previous_session_summary", "handoff"]:
                 render_context["summary"] = content
                 render_context["handoff"] = {"notes": content}
-            elif source == "artifacts":
-                render_context["artifacts_list"] = content
             elif source == "observations":
                 render_context["observations_text"] = content
             elif source == "workflow_state":
@@ -356,7 +345,6 @@ def inject_message(
     render_context: dict[str, Any] = {
         "session": session_manager.get(session_id),
         "state": state,
-        "artifacts": state.artifacts,
         "step_action_count": state.step_action_count,
         "variables": state.variables or {},
     }

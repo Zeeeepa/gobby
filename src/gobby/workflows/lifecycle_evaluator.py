@@ -176,7 +176,6 @@ async def evaluate_workflow_triggers(
         step_entered_at=datetime.now(UTC),
         step_action_count=0,
         total_action_count=0,
-        artifacts=event.data.get("artifacts", {}) if event.data else {},
         observations=[],
         reflection_pending=False,
         context_injected=False,
@@ -378,7 +377,6 @@ async def evaluate_lifecycle_triggers(
 
     # Create a temporary/ephemeral context for execution
     # Create a dummy state for context - lifecycle workflows shouldn't depend on step state
-    # but actions might need access to 'state.artifacts' or similar if provided
     session_id = event.metadata.get("_platform_session_id") or "global"
 
     state = WorkflowState(
@@ -388,7 +386,6 @@ async def evaluate_lifecycle_triggers(
         step_entered_at=datetime.now(UTC),
         step_action_count=0,
         total_action_count=0,
-        artifacts=event.data.get("artifacts", {}),  # Pass artifacts if available
         observations=[],
         reflection_pending=False,
         context_injected=False,

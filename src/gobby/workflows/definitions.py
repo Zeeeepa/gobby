@@ -243,7 +243,6 @@ class WorkflowState(BaseModel):
     step_action_count: int = 0
     total_action_count: int = 0
 
-    artifacts: dict[str, str] = Field(default_factory=dict)
     observations: list[dict[str, Any]] = Field(default_factory=list)
 
     reflection_pending: bool = False

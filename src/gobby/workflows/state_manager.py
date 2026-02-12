@@ -35,7 +35,6 @@ class WorkflowStateManager:
                 ),
                 step_action_count=row["step_action_count"],
                 total_action_count=row["total_action_count"],
-                artifacts=json.loads(row["artifacts"]) if row["artifacts"] else {},
                 observations=json.loads(row["observations"]) if row["observations"] else [],
                 reflection_pending=bool(row["reflection_pending"]),
                 context_injected=bool(row["context_injected"]),
@@ -89,7 +88,7 @@ class WorkflowStateManager:
                 state.step_entered_at.isoformat(),
                 state.step_action_count,
                 state.total_action_count,
-                json.dumps(state.artifacts),
+                "{}",  # artifacts column (deprecated, kept for DB compat)
                 json.dumps(state.observations),
                 1 if state.reflection_pending else 0,
                 1 if state.context_injected else 0,

@@ -190,7 +190,7 @@ def get_workflow_status(
         session_id: Session reference (accepts #N, N, UUID, or prefix) - required to prevent cross-session bleed
 
     Returns:
-        Workflow state including step, action counts, artifacts
+        Workflow state including step, action counts, variables
     """
     # Require explicit session_id to prevent cross-session bleed
     if not session_id:
@@ -219,7 +219,6 @@ def get_workflow_status(
         "step_action_count": state.step_action_count,
         "total_action_count": state.total_action_count,
         "reflection_pending": state.reflection_pending,
-        "artifacts": list(state.artifacts.keys()) if state.artifacts else [],
         "variables": state.variables,
         "task_progress": (
             f"{state.current_task_index + 1}/{len(state.task_list)}" if state.task_list else None

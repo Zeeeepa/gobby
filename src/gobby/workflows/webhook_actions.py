@@ -32,7 +32,7 @@ async def execute_webhook(
 
     Args:
         template_engine: Template engine for interpolation
-        state: WorkflowState for variables/artifacts access
+        state: WorkflowState for variables access
         config: Daemon config for webhook_secrets
         url: Target URL for the request
         webhook_id: ID of a pre-configured webhook (alternative to url)
@@ -78,8 +78,6 @@ async def execute_webhook(
     interpolation_context: dict[str, Any] = {}
     if state.variables:
         interpolation_context["state"] = {"variables": state.variables}
-    if state.artifacts:
-        interpolation_context["artifacts"] = state.artifacts
 
     # Get secrets from config if available
     secrets: dict[str, str] = {}
