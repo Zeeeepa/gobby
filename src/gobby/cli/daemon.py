@@ -45,7 +45,7 @@ def _mem0_start(gobby_home: Path) -> None:
     if not compose_file.exists():
         return
 
-    # Build subprocess env with secrets resolved from the store
+    # Build subprocess env with secrets and config resolved from the store
     env = dict(os.environ)
     try:
         from gobby.config.app import load_config
@@ -55,9 +55,17 @@ def _mem0_start(gobby_home: Path) -> None:
         config = load_config(create_default=False)
         db = LocalDatabase(Path(config.database_path).expanduser())
         secret_store = SecretStore(db)
+
+        # Resolve API key from secret store
         api_key = secret_store.get("OPENAI_API_KEY")
         if api_key:
             env["OPENAI_API_KEY"] = api_key
+
+        # Inject neo4j auth from config (format: "user:password")
+        if config.memory.neo4j_auth:
+            parts = config.memory.neo4j_auth.split(":", 1)
+            if len(parts) == 2:
+                env["GOBBY_MEM0_NEO4J_PASSWORD"] = parts[1]
     except Exception as e:
         logger.warning(f"Could not resolve secrets for mem0: {e}")
 
