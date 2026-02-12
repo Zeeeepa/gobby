@@ -166,6 +166,44 @@ class TestExpandEnvVars:
                 assert result == "key: ${NOPE}"
                 mock_logger.warning.assert_called_once()
 
+    def test_secret_ref_resolved(self) -> None:
+        """Test $secret:NAME resolves from secrets store only."""
+        resolver = lambda name: "my_secret" if name == "API_KEY" else None  # noqa: E731
+        result = expand_env_vars("key: $secret:API_KEY", secret_resolver=resolver)
+        assert result == "key: my_secret"
+
+    def test_secret_ref_no_env_fallback(self) -> None:
+        """Test $secret:NAME does NOT fall back to env vars."""
+        resolver = lambda name: None  # noqa: E731
+        with patch.dict(os.environ, {"API_KEY": "env_value"}):
+            with patch("gobby.config.app.logger"):
+                result = expand_env_vars("key: $secret:API_KEY", secret_resolver=resolver)
+                assert result == "key: $secret:API_KEY"  # Left unchanged, no env fallback
+
+    def test_secret_ref_without_resolver_unchanged(self) -> None:
+        """Test $secret:NAME is left unchanged when no resolver provided."""
+        result = expand_env_vars("key: $secret:API_KEY")
+        assert result == "key: $secret:API_KEY"
+
+    def test_secret_ref_warns_on_missing(self) -> None:
+        """Test $secret:NAME logs warning when not found."""
+        resolver = lambda name: None  # noqa: E731
+        with patch("gobby.config.app.logger") as mock_logger:
+            result = expand_env_vars("key: $secret:MISSING", secret_resolver=resolver)
+            assert result == "key: $secret:MISSING"
+            mock_logger.warning.assert_called_once()
+            assert "MISSING" in mock_logger.warning.call_args[0][0]
+
+    def test_mixed_secret_ref_and_env_var(self) -> None:
+        """Test $secret:NAME and ${VAR} in same content."""
+        resolver = lambda name: "secret_val" if name == "SECRET_KEY" else None  # noqa: E731
+        with patch.dict(os.environ, {"ENV_KEY": "env_val"}):
+            result = expand_env_vars(
+                "a: $secret:SECRET_KEY, b: ${ENV_KEY}",
+                secret_resolver=resolver,
+            )
+            assert result == "a: secret_val, b: env_val"
+
 
 class TestWebSocketSettings:
     """Tests for WebSocketSettings configuration."""

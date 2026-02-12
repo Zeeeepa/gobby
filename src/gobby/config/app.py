@@ -93,6 +93,10 @@ logger = logging.getLogger(__name__)
 # ${VAR:-default} - with default value if VAR is unset or empty
 ENV_VAR_PATTERN = re.compile(r"\$\{([A-Za-z_][A-Za-z0-9_]*)(?::-([^}]*))?\}")
 
+# Pattern for secret references (secrets-store-only, no env fallback):
+# $secret:NAME - resolved from encrypted secrets store
+SECRET_REF_PATTERN = re.compile(r"\$secret:([A-Za-z_][A-Za-z0-9_]*)")
+
 
 class ConductorConfig(BaseModel):
     """
@@ -130,29 +134,40 @@ def expand_env_vars(
     secret_resolver: Callable[[str], str | None] | None = None,
 ) -> str:
     """
-    Expand environment variables in configuration content.
+    Expand variable references in configuration content.
 
-    Resolution order for each ${VAR} reference:
-    1. Secret store (if secret_resolver provided)
-    2. Environment variable
-    3. Default value (if ${VAR:-default} syntax)
-    4. Left unchanged with warning
-
-    Supports two syntaxes:
-    - ${VAR} - replaced with resolved value, or left unchanged if unresolved
-    - ${VAR:-default} - replaced with resolved value, or 'default' if unresolved
+    Supports three syntaxes:
+    - $secret:NAME — resolved exclusively from encrypted secrets store
+    - ${VAR} — secrets store first (if resolver provided), then env var
+    - ${VAR:-default} — same as above, with fallback default
 
     Args:
         content: Configuration file content as string
         secret_resolver: Optional callable that takes a variable name and returns
-            the decrypted secret value, or None if not found. Checked before
-            environment variables.
+            the decrypted secret value, or None if not found.
 
     Returns:
         Content with variables expanded
     """
 
-    def replace_match(match: re.Match[str]) -> str:
+    # Pass 1: Resolve $secret:NAME references (secrets-store-only)
+    if secret_resolver is not None:
+
+        def replace_secret(match: re.Match[str]) -> str:
+            name = match.group(1)
+            try:
+                value = secret_resolver(name)
+                if value is not None:
+                    return value
+            except Exception as e:
+                logger.debug(f"Secret resolver failed for '$secret:{name}': {e}")
+            logger.warning(f"Unresolved secret '$secret:{name}' in config — not found in secrets store")
+            return match.group(0)
+
+        content = SECRET_REF_PATTERN.sub(replace_secret, content)
+
+    # Pass 2: Resolve ${VAR} references (secrets first, then env vars)
+    def replace_env(match: re.Match[str]) -> str:
         var_name = match.group(1)
         default_value = match.group(2)  # None if no default specified
 
@@ -181,7 +196,7 @@ def expand_env_vars(
         )
         return match.group(0)
 
-    return ENV_VAR_PATTERN.sub(replace_match, content)
+    return ENV_VAR_PATTERN.sub(replace_env, content)
 
 
 class DaemonConfig(BaseModel):
@@ -502,8 +517,24 @@ def generate_default_config(config_file: str) -> None:
 
     Args:
         config_file: Path where to create the config file
+
+    Raises:
+        RuntimeError: If called with production path during tests (GOBBY_TEST_PROTECT=1)
     """
     config_path = Path(config_file).expanduser()
+
+    # Block writes to production config during tests
+    if os.environ.get("GOBBY_TEST_PROTECT") == "1":
+        real_gobby_home = Path("~/.gobby").expanduser().resolve()
+        try:
+            if config_path.resolve().is_relative_to(real_gobby_home):
+                raise RuntimeError(
+                    f"generate_default_config() would write to production path "
+                    f"{config_path} during tests."
+                )
+        except (ValueError, OSError):
+            pass
+
     config_path.parent.mkdir(parents=True, exist_ok=True)
 
     # Use Pydantic model defaults as source of truth
@@ -592,17 +623,23 @@ def save_config(config: DaemonConfig, config_file: str | None = None) -> None:
 
     Raises:
         OSError: If file operations fail
-        RuntimeError: If called with default path during tests (GOBBY_TEST_PROTECT=1)
+        RuntimeError: If called with production path during tests (GOBBY_TEST_PROTECT=1)
     """
     if config_file is None:
-        if os.environ.get("GOBBY_TEST_PROTECT") == "1":
-            raise RuntimeError(
-                "save_config() called with default path during tests. "
-                "Pass an explicit config_file path or mock save_config."
-            )
         config_file = "~/.gobby/config.yaml"
 
     config_path = Path(config_file).expanduser()
+
+    # Block writes to production config during tests
+    if os.environ.get("GOBBY_TEST_PROTECT") == "1":
+        real_gobby_home = Path("~/.gobby").expanduser().resolve()
+        try:
+            if config_path.resolve().is_relative_to(real_gobby_home):
+                raise RuntimeError(
+                    f"save_config() would write to production path {config_path} during tests."
+                )
+        except (ValueError, OSError):
+            pass
 
     # Ensure directory exists
     config_path.parent.mkdir(parents=True, exist_ok=True)
