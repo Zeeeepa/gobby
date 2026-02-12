@@ -27,14 +27,41 @@ BehaviorFn = Callable[..., Coroutine[Any, Any, None]]
 
 
 class BehaviorRegistry:
-    """Registry mapping behavior names to async Python callables."""
+    """Registry mapping behavior names to async Python callables.
+
+    Tracks built-in behaviors separately from plugin-registered ones.
+    Built-in behaviors cannot be overridden by plugins.
+    """
 
     def __init__(self) -> None:
         self._behaviors: dict[str, BehaviorFn] = {}
+        self._builtin_names: set[str] = set()
 
     def register(self, name: str, fn: BehaviorFn) -> None:
-        """Register a behavior by name."""
+        """Register a built-in behavior by name."""
         self._behaviors[name] = fn
+        self._builtin_names.add(name)
+
+    def register_plugin_behavior(self, name: str, fn: BehaviorFn) -> None:
+        """Register a plugin-provided behavior.
+
+        Raises ValueError if the name conflicts with a built-in behavior
+        or is already registered by another plugin.
+        """
+        if name in self._builtin_names:
+            raise ValueError(
+                f"Cannot register plugin behavior '{name}': conflicts with built-in behavior"
+            )
+        if name in self._behaviors:
+            raise ValueError(
+                f"Cannot register plugin behavior '{name}': already registered"
+            )
+        self._behaviors[name] = fn
+
+    @property
+    def builtin_names(self) -> set[str]:
+        """Set of built-in behavior names (protected from plugin override)."""
+        return set(self._builtin_names)
 
     def get(self, name: str) -> BehaviorFn | None:
         """Get a behavior by name, or None if not found."""

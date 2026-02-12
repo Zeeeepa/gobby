@@ -256,3 +256,101 @@ class TestObserverEngineWithBehaviors:
         await engine.evaluate_observers([obs], "after_tool", event.data, state, event=event)
 
         assert len(state.variables) == 0
+
+
+# =============================================================================
+# Plugin behavior registration
+# =============================================================================
+
+
+class TestPluginBehaviorRegistration:
+    """Tests for register_plugin_behavior and built-in protection."""
+
+    def test_register_plugin_behavior_adds_to_registry(self) -> None:
+        """register_plugin_behavior adds a custom behavior to the registry."""
+        from gobby.workflows.observers import get_default_registry
+
+        registry = get_default_registry()
+
+        async def custom_behavior(event: Any, state: Any, **kwargs: Any) -> None:
+            state.variables["custom_fired"] = True
+
+        registry.register_plugin_behavior("my_plugin_behavior", custom_behavior)
+        assert registry.has("my_plugin_behavior")
+        assert registry.get("my_plugin_behavior") is custom_behavior
+
+    def test_plugin_behavior_listed(self) -> None:
+        """Plugin behaviors appear in list() alongside built-ins."""
+        from gobby.workflows.observers import get_default_registry
+
+        registry = get_default_registry()
+
+        async def custom(event: Any, state: Any, **kwargs: Any) -> None:
+            pass
+
+        registry.register_plugin_behavior("custom_plugin", custom)
+        names = registry.list()
+        assert "custom_plugin" in names
+        assert "task_claim_tracking" in names  # built-in still present
+
+    def test_override_builtin_raises_error(self) -> None:
+        """Registering a plugin behavior with a built-in name raises ValueError."""
+        from gobby.workflows.observers import get_default_registry
+
+        registry = get_default_registry()
+
+        async def override_fn(event: Any, state: Any, **kwargs: Any) -> None:
+            pass
+
+        with pytest.raises(ValueError, match="built-in"):
+            registry.register_plugin_behavior("task_claim_tracking", override_fn)
+
+    def test_duplicate_plugin_behavior_raises_error(self) -> None:
+        """Registering two plugin behaviors with the same name raises ValueError."""
+        from gobby.workflows.observers import get_default_registry
+
+        registry = get_default_registry()
+
+        async def plugin_a(event: Any, state: Any, **kwargs: Any) -> None:
+            pass
+
+        async def plugin_b(event: Any, state: Any, **kwargs: Any) -> None:
+            pass
+
+        registry.register_plugin_behavior("unique_plugin", plugin_a)
+        with pytest.raises(ValueError, match="already registered"):
+            registry.register_plugin_behavior("unique_plugin", plugin_b)
+
+    @pytest.mark.asyncio
+    async def test_plugin_behavior_callable_from_observer(self) -> None:
+        """Plugin behavior is invoked via ObserverEngine when observer references it."""
+        from gobby.workflows.observers import ObserverEngine, get_default_registry
+
+        registry = get_default_registry()
+        call_log: list[str] = []
+
+        async def tracking_behavior(event: Any, state: Any, **kwargs: Any) -> None:
+            call_log.append("called")
+            state.variables["plugin_ran"] = True
+
+        registry.register_plugin_behavior("tracking_plugin", tracking_behavior)
+
+        obs = Observer(name="plugin_obs", behavior="tracking_plugin")
+        state = _make_state()
+        event = _make_event()
+
+        engine = ObserverEngine(behavior_registry=registry)
+        await engine.evaluate_observers([obs], "after_tool", event.data, state, event=event)
+
+        assert call_log == ["called"]
+        assert state.variables.get("plugin_ran") is True
+
+    def test_builtin_names_property(self) -> None:
+        """Registry exposes set of built-in behavior names."""
+        from gobby.workflows.observers import get_default_registry
+
+        registry = get_default_registry()
+        builtins = registry.builtin_names
+        assert "task_claim_tracking" in builtins
+        assert "detect_plan_mode" in builtins
+        assert "mcp_call_tracking" in builtins
