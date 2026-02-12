@@ -1,4 +1,6 @@
 import { useState, useEffect, useCallback, useMemo } from 'react'
+import { useAgentRuns } from '../hooks/useAgentRuns'
+import type { RunningAgent, AgentRun } from '../hooks/useAgentRuns'
 
 // =============================================================================
 // Types
@@ -95,6 +97,15 @@ const MODE_COLORS: Record<string, string> = {
   self: '#ec4899',
 }
 
+const STATUS_COLORS: Record<string, string> = {
+  running: '#3b82f6',
+  pending: '#f59e0b',
+  success: '#10b981',
+  error: '#ef4444',
+  timeout: '#f97316',
+  cancelled: '#6b7280',
+}
+
 const ISOLATION_COLORS: Record<string, string> = {
   clone: '#ef4444',
   worktree: '#eab308',
@@ -110,8 +121,10 @@ function getBaseUrl(): string {
 // =============================================================================
 
 export function AgentDefinitionsPage() {
+  const { running, recentRuns, cancelAgent } = useAgentRuns()
   const [definitions, setDefinitions] = useState<AgentDefInfo[]>([])
   const [loading, setLoading] = useState(true)
+  const [showRecentRuns, setShowRecentRuns] = useState(false)
   const [expandedName, setExpandedName] = useState<string | null>(null)
   const [filterSource, setFilterSource] = useState<string>('all')
   const [filterProvider, setFilterProvider] = useState<string>('all')
@@ -479,6 +492,60 @@ export function AgentDefinitionsPage() {
         </div>
       )}
 
+      {/* Running agents */}
+      {(running.length > 0 || recentRuns.length > 0) && (
+        <div className="agent-runs-section">
+          <div className="agent-runs-header">
+            <h3 className="agent-runs-title">
+              Running Agents
+              {running.length > 0 && (
+                <span className="agent-runs-count agent-runs-count--active">{running.length}</span>
+              )}
+            </h3>
+            {recentRuns.length > 0 && (
+              <button
+                className="agent-defs-btn"
+                onClick={() => setShowRecentRuns(!showRecentRuns)}
+              >
+                {showRecentRuns ? 'Hide history' : `History (${recentRuns.length})`}
+              </button>
+            )}
+          </div>
+
+          {running.length > 0 ? (
+            <div className="agent-runs-list">
+              {running.map(agent => (
+                <RunningAgentCard key={agent.run_id} agent={agent} onCancel={cancelAgent} />
+              ))}
+            </div>
+          ) : (
+            <div className="agent-runs-empty">No agents currently running</div>
+          )}
+
+          {showRecentRuns && recentRuns.length > 0 && (
+            <div className="agent-runs-history">
+              <table className="agent-runs-table">
+                <thead>
+                  <tr>
+                    <th>Status</th>
+                    <th>Provider</th>
+                    <th>Prompt</th>
+                    <th>Turns</th>
+                    <th>Duration</th>
+                    <th>Started</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {recentRuns.map(run => (
+                    <AgentRunRow key={run.id} run={run} />
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      )}
+
       {/* Card grid */}
       {loading ? (
         <div className="agent-defs-empty">Loading agent definitions...</div>
@@ -715,6 +782,100 @@ function PropRow({ label, value }: { label: string; value: string }) {
       <span className="agent-def-prop-label">{label}</span>
       <span className="agent-def-prop-value">{value}</span>
     </div>
+  )
+}
+
+function formatDuration(startIso: string, endIso?: string | null): string {
+  const start = new Date(startIso).getTime()
+  const end = endIso ? new Date(endIso).getTime() : Date.now()
+  const seconds = Math.floor((end - start) / 1000)
+  if (seconds < 60) return `${seconds}s`
+  const minutes = Math.floor(seconds / 60)
+  const secs = seconds % 60
+  if (minutes < 60) return `${minutes}m ${secs}s`
+  const hours = Math.floor(minutes / 60)
+  return `${hours}h ${minutes % 60}m`
+}
+
+function formatTimeAgo(iso: string): string {
+  const diff = Date.now() - new Date(iso).getTime()
+  const minutes = Math.floor(diff / 60000)
+  if (minutes < 1) return 'just now'
+  if (minutes < 60) return `${minutes}m ago`
+  const hours = Math.floor(minutes / 60)
+  if (hours < 24) return `${hours}h ago`
+  return `${Math.floor(hours / 24)}d ago`
+}
+
+function RunningAgentCard({ agent, onCancel }: { agent: RunningAgent; onCancel: (id: string) => void }) {
+  return (
+    <div className="agent-run-card agent-run-card--running">
+      <div className="agent-run-card-top">
+        <span className="agent-run-pulse" />
+        <span className="agent-run-id">{agent.run_id}</span>
+        <span
+          className="agent-def-badge agent-def-badge--filled"
+          style={{ background: PROVIDER_COLORS[agent.provider] || '#666' }}
+        >
+          {agent.provider}
+        </span>
+        <span
+          className="agent-def-badge agent-def-badge--filled"
+          style={{ background: MODE_COLORS[agent.mode] || '#666' }}
+        >
+          {agent.mode}
+        </span>
+        {agent.workflow_name && (
+          <span className="agent-def-badge agent-def-badge--dim">{agent.workflow_name}</span>
+        )}
+      </div>
+      <div className="agent-run-card-bottom">
+        <span className="agent-run-duration">{formatDuration(agent.started_at)}</span>
+        {agent.pid && <span className="agent-run-meta">PID {agent.pid}</span>}
+        <span className="agent-run-session">{agent.session_id.slice(0, 8)}</span>
+        <button
+          className="agent-defs-btn agent-defs-btn--danger agent-run-cancel"
+          onClick={() => onCancel(agent.run_id)}
+        >
+          Cancel
+        </button>
+      </div>
+    </div>
+  )
+}
+
+function AgentRunRow({ run }: { run: AgentRun }) {
+  const duration = run.started_at
+    ? formatDuration(run.started_at, run.completed_at)
+    : '—'
+
+  return (
+    <tr className="agent-run-row">
+      <td>
+        <span
+          className="agent-run-status"
+          style={{ color: STATUS_COLORS[run.status] || '#888' }}
+        >
+          {run.status}
+        </span>
+      </td>
+      <td>
+        <span
+          className="agent-def-badge agent-def-badge--filled"
+          style={{ background: PROVIDER_COLORS[run.provider] || '#666' }}
+        >
+          {run.provider}
+        </span>
+      </td>
+      <td className="agent-run-prompt-cell">
+        <span className="agent-run-prompt" title={run.prompt}>
+          {run.prompt.slice(0, 80)}{run.prompt.length > 80 ? '...' : ''}
+        </span>
+      </td>
+      <td>{run.turns_used}</td>
+      <td>{duration}</td>
+      <td>{run.started_at ? formatTimeAgo(run.started_at) : '—'}</td>
+    </tr>
   )
 }
 
