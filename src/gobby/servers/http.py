@@ -561,7 +561,7 @@ class HTTPServer:
             # Don't intercept API, admin, MCP, or WebSocket paths
             # Normalize with trailing slash so both "api" and "api/..." are excluded
             path_check = path if path.endswith("/") else path + "/"
-            if path_check.startswith(("api/", "admin/", "mcp/", "hooks/", "sessions/", "ws/")):
+            if path_check.startswith(("api/", "admin/", "mcp/", "hooks/", "sessions/", "ws/", "health/")):
                 raise HTTPException(status_code=404)
             # Serve static file if it exists
             static_file = dist_dir / path

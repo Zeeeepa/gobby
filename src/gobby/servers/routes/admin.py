@@ -78,6 +78,11 @@ def create_admin_router(server: "HTTPServer") -> APIRouter:
     """
     router = APIRouter(prefix="/admin", tags=["admin"])
 
+    @router.get("/health")
+    async def health_check() -> dict[str, str]:
+        """Lightweight health check for startup probing. No I/O."""
+        return {"status": "ok"}
+
     @router.get("/status")
     async def status_check() -> dict[str, Any]:
         """

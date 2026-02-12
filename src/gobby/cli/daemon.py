@@ -254,7 +254,7 @@ def start(
 
         while (time.time() - start_time) < max_wait:
             try:
-                response = httpx.get(f"http://localhost:{http_port}/admin/status", timeout=1.0)
+                response = httpx.get(f"http://localhost:{http_port}/admin/health", timeout=1.0)
                 if response.status_code == 200:
                     daemon_healthy = True
                     break

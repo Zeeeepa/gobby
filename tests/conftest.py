@@ -193,9 +193,11 @@ def protect_production_resources(
     safe_log_mcp_client = safe_logs_dir / "mcp-client.log"
 
     # Set environment variables as a first line of defense
+    safe_config_file = safe_logs_dir / "config-test.yaml"
     env_vars = {
         "GOBBY_TEST_PROTECT": "1",  # Enable safety switch in app.py and database.py
         "GOBBY_DATABASE_PATH": str(safe_db_path),
+        "GOBBY_CONFIG_FILE": str(safe_config_file),  # Redirect config reads/writes
         "GOBBY_LOGGING_CLIENT": str(safe_log_client),
         "GOBBY_LOGGING_CLIENT_ERROR": str(safe_log_error),
         "GOBBY_LOGGING_MCP_SERVER": str(safe_log_mcp_server),
@@ -255,7 +257,16 @@ def protect_production_resources(
             """Redirect save_config to safe temp path during tests."""
             assert _real_save_config is not None
             if config_file is None:
-                config_file = str(safe_logs_dir / "config-test.yaml")
+                config_file = str(safe_config_file)
+            else:
+                # Redirect production paths to safe location
+                resolved = Path(config_file).expanduser().resolve()
+                real_gobby_home = Path("~/.gobby").expanduser().resolve()
+                try:
+                    if resolved.is_relative_to(real_gobby_home):
+                        config_file = str(safe_config_file)
+                except (ValueError, OSError):
+                    pass
             _real_save_config(config, config_file=config_file)
 
         # 1. Standard patch for the definitions (covers future imports)

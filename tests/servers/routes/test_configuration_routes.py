@@ -175,7 +175,8 @@ class TestResetConfig:
         """Reset generates a default config file."""
         config_file = str(tmp_path / "config.yaml")
         with patch(
-            "gobby.servers.routes.configuration.CONFIG_FILE", config_file
+            "gobby.servers.routes.configuration._resolve_config_path",
+            return_value=Path(config_file),
         ):
             response = client.post("/api/config/values/reset")
         assert response.status_code == 200
@@ -204,14 +205,14 @@ class TestGetRawYaml:
         config_file = str(tmp_path / "config.yaml")
         yaml_content = "daemon_port: 60887\nbind_host: localhost\n"
         Path(config_file).write_text(yaml_content, encoding="utf-8")
-        with patch("gobby.servers.routes.configuration.CONFIG_FILE", config_file):
+        with patch("gobby.servers.routes.configuration._resolve_config_path", return_value=Path(config_file)):
             response = client.get("/api/config/yaml")
         assert response.status_code == 200
         assert "daemon_port: 60887" in response.json()["content"]
 
     def test_returns_empty_when_no_file(self, client: TestClient, tmp_path: Path) -> None:
         config_file = str(tmp_path / "nonexistent.yaml")
-        with patch("gobby.servers.routes.configuration.CONFIG_FILE", config_file):
+        with patch("gobby.servers.routes.configuration._resolve_config_path", return_value=Path(config_file)):
             response = client.get("/api/config/yaml")
         assert response.status_code == 200
         assert response.json()["content"] == ""
@@ -226,7 +227,7 @@ class TestSaveRawYaml:
     def test_save_valid_yaml(self, client: TestClient, tmp_path: Path) -> None:
         config_file = str(tmp_path / "config.yaml")
         yaml_content = "daemon_port: 9999\n"
-        with patch("gobby.servers.routes.configuration.CONFIG_FILE", config_file):
+        with patch("gobby.servers.routes.configuration._resolve_config_path", return_value=Path(config_file)):
             response = client.put(
                 "/api/config/yaml",
                 json={"content": yaml_content},
@@ -243,7 +244,7 @@ class TestSaveRawYaml:
     ) -> None:
         """Empty YAML (parsed as None) is treated as empty dict."""
         config_file = str(tmp_path / "config.yaml")
-        with patch("gobby.servers.routes.configuration.CONFIG_FILE", config_file):
+        with patch("gobby.servers.routes.configuration._resolve_config_path", return_value=Path(config_file)):
             response = client.put(
                 "/api/config/yaml",
                 json={"content": ""},
@@ -555,7 +556,7 @@ class TestExportImport:
 
     def test_import_config_with_config(self, client: TestClient, tmp_path: Path) -> None:
         config_file = str(tmp_path / "config.yaml")
-        with patch("gobby.servers.routes.configuration.CONFIG_FILE", config_file):
+        with patch("gobby.servers.routes.configuration._resolve_config_path", return_value=Path(config_file)):
             response = client.post(
                 "/api/config/import",
                 json={"config": {"daemon_port": 9999}},
@@ -608,7 +609,7 @@ class TestExportImport:
         config_file = str(tmp_path / "config.yaml")
         prompts_dir = tmp_path / "prompts"
         with (
-            patch("gobby.servers.routes.configuration.CONFIG_FILE", config_file),
+            patch("gobby.servers.routes.configuration._resolve_config_path", return_value=Path(config_file)),
             patch("gobby.servers.routes.configuration.GLOBAL_PROMPTS_DIR", prompts_dir),
         ):
             response = client.post(

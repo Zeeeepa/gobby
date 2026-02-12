@@ -10,6 +10,7 @@ Provides endpoints for:
 """
 
 import logging
+import os
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
@@ -33,8 +34,29 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
-CONFIG_FILE = "~/.gobby/config.yaml"
 GLOBAL_PROMPTS_DIR = Path("~/.gobby/prompts").expanduser()
+
+
+def _resolve_config_path() -> Path:
+    """Resolve config file path. Checks GOBBY_CONFIG_FILE env override for test isolation."""
+    config_file = os.environ.get("GOBBY_CONFIG_FILE", "~/.gobby/config.yaml")
+    return Path(config_file).expanduser()
+
+
+def _write_config_file(config_path: Path, content: str) -> None:
+    """Write config content to file with test protection."""
+    if os.environ.get("GOBBY_TEST_PROTECT") == "1":
+        real_gobby_home = Path("~/.gobby").expanduser().resolve()
+        try:
+            if config_path.resolve().is_relative_to(real_gobby_home):
+                raise RuntimeError(
+                    f"Config write to production path {config_path} blocked during tests."
+                )
+        except (ValueError, OSError):
+            pass
+    config_path.parent.mkdir(parents=True, exist_ok=True)
+    config_path.write_text(content, encoding="utf-8")
+    config_path.chmod(0o600)
 
 
 # =============================================================================
@@ -134,9 +156,9 @@ def create_configuration_router(server: "HTTPServer") -> APIRouter:
             new_config = DaemonConfig(**current)
 
             # Save to disk
-            config_path = Path(CONFIG_FILE).expanduser()
+            config_path = _resolve_config_path()
             logger.info(f"Saving config to {config_path}")
-            save_config(new_config, CONFIG_FILE)
+            save_config(new_config, str(config_path))
             logger.info(f"Config saved to {config_path} (size={config_path.stat().st_size})")
 
             # Update in-memory config so subsequent reads reflect the change
@@ -169,7 +191,7 @@ def create_configuration_router(server: "HTTPServer") -> APIRouter:
         """Reset config to defaults."""
         metrics.inc_counter("http_requests_total")
         try:
-            generate_default_config(CONFIG_FILE)
+            generate_default_config(str(_resolve_config_path()))
             return JSONResponse(content={"ok": True, "requires_restart": True})
         except Exception as e:
             logger.error(f"Config reset failed: {e}")
@@ -183,7 +205,7 @@ def create_configuration_router(server: "HTTPServer") -> APIRouter:
     async def get_raw_yaml() -> JSONResponse:
         """Return raw config.yaml content as string."""
         metrics.inc_counter("http_requests_total")
-        config_path = Path(CONFIG_FILE).expanduser()
+        config_path = _resolve_config_path()
         if not config_path.exists():
             return JSONResponse(content={"content": ""})
         content = config_path.read_text(encoding="utf-8")
@@ -205,10 +227,8 @@ def create_configuration_router(server: "HTTPServer") -> APIRouter:
             DaemonConfig(**parsed)
 
             # Write directly
-            config_path = Path(CONFIG_FILE).expanduser()
-            config_path.parent.mkdir(parents=True, exist_ok=True)
-            config_path.write_text(request.content, encoding="utf-8")
-            config_path.chmod(0o600)
+            config_path = _resolve_config_path()
+            _write_config_file(config_path, request.content)
 
             return JSONResponse(content={"ok": True, "requires_restart": True})
         except yaml.YAMLError as e:
@@ -457,11 +477,11 @@ def create_configuration_router(server: "HTTPServer") -> APIRouter:
             # Import config
             if request.config:
                 DaemonConfig(**request.config)  # Validate first
-                config_path = Path(CONFIG_FILE).expanduser()
-                config_path.parent.mkdir(parents=True, exist_ok=True)
-                with open(config_path, "w") as f:
-                    yaml.safe_dump(request.config, f, default_flow_style=False, sort_keys=False)
-                config_path.chmod(0o600)
+                config_path = _resolve_config_path()
+                content = yaml.safe_dump(
+                    request.config, default_flow_style=False, sort_keys=False
+                )
+                _write_config_file(config_path, content)
                 summary_parts.append("config restored")
 
             # Import prompt overrides
