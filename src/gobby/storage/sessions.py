@@ -727,12 +727,13 @@ class LocalSessionManager:
         count = 0
         for name in skill_names:
             try:
-                self.db.execute(
+                cursor = self.db.execute(
                     "INSERT OR IGNORE INTO session_skills (session_id, skill_name, created_at) "
                     "VALUES (?, ?, ?)",
                     (session_id, name, now),
                 )
-                count += 1
+                if cursor.rowcount == 1:
+                    count += 1
             except Exception:
                 pass  # UNIQUE constraint or missing table — skip silently
         return count

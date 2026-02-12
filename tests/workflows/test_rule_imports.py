@@ -7,7 +7,6 @@ missing import file raises clear error, circular import detection.
 
 from __future__ import annotations
 
-import tempfile
 from pathlib import Path
 
 import pytest
@@ -122,7 +121,8 @@ class TestFindRuleFile:
 
 
 class TestLoadRuleDefinitions:
-    def test_load_valid_rule_file(self, rule_dirs: dict[str, Path]) -> None:
+    @pytest.mark.asyncio
+    async def test_load_valid_rule_file(self, rule_dirs: dict[str, Path]) -> None:
         """Loading a rule file should return the rule_definitions dict."""
         _write_yaml(rule_dirs["bundled"] / "safety.yaml", {
             "rule_definitions": {
@@ -141,16 +141,17 @@ class TestLoadRuleDefinitions:
         })
         loader = _make_loader(rule_dirs)
         path = rule_dirs["bundled"] / "safety.yaml"
-        defs = loader._load_rule_definitions(path)
+        defs = await loader._load_rule_definitions(path)
         assert "no_push" in defs
         assert "require_task" in defs
         assert defs["no_push"]["action"] == "block"
 
-    def test_load_empty_file_returns_empty(self, rule_dirs: dict[str, Path]) -> None:
+    @pytest.mark.asyncio
+    async def test_load_empty_file_returns_empty(self, rule_dirs: dict[str, Path]) -> None:
         """Empty/no rule_definitions in file should return empty dict."""
         _write_yaml(rule_dirs["bundled"] / "empty.yaml", {"description": "no rules here"})
         loader = _make_loader(rule_dirs)
-        defs = loader._load_rule_definitions(rule_dirs["bundled"] / "empty.yaml")
+        defs = await loader._load_rule_definitions(rule_dirs["bundled"] / "empty.yaml")
         assert defs == {}
 
 

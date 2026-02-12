@@ -10,7 +10,7 @@ rule_definitions:
 
   no_force_push:
     tools: [Bash]
-    command_pattern: "git\\s+push\\s+.*--force"
+    command_pattern: "git\\s+push\\s+.*(?:--force(?:-with-lease|-if-includes)?|-f)(?:\\s|$)"
     reason: "Force pushing is never allowed."
     action: block
 

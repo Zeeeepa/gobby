@@ -414,7 +414,8 @@ CREATE TABLE workflow_instances (
     context_injected INTEGER DEFAULT 0,
     created_at TEXT NOT NULL DEFAULT (datetime('now')),
     updated_at TEXT NOT NULL DEFAULT (datetime('now')),
-    UNIQUE(session_id, workflow_name)
+    UNIQUE(session_id, workflow_name),
+    FOREIGN KEY(session_id) REFERENCES sessions(id) ON DELETE CASCADE
 );
 CREATE INDEX idx_workflow_instances_session ON workflow_instances(session_id);
 CREATE INDEX idx_workflow_instances_enabled ON workflow_instances(session_id, enabled);
@@ -853,65 +854,67 @@ if self._workflow_handler:
 def _migrate_v98(db: LocalDatabase) -> None:
     """Migrate workflow_states to workflow_instances + session_variables."""
 
-    # 1. Create new tables
-    db.execute("""
-        CREATE TABLE workflow_instances (
-            id TEXT PRIMARY KEY,
-            session_id TEXT NOT NULL,
-            workflow_name TEXT NOT NULL,
-            enabled INTEGER NOT NULL DEFAULT 1,
-            priority INTEGER NOT NULL DEFAULT 100,
-            current_step TEXT,
-            step_entered_at TEXT,
-            step_action_count INTEGER DEFAULT 0,
-            total_action_count INTEGER DEFAULT 0,
-            variables TEXT DEFAULT '{}',
-            context_injected INTEGER DEFAULT 0,
-            created_at TEXT NOT NULL DEFAULT (datetime('now')),
-            updated_at TEXT NOT NULL DEFAULT (datetime('now')),
-            UNIQUE(session_id, workflow_name)
-        )
-    """)
-    db.execute("CREATE INDEX idx_wi_session ON workflow_instances(session_id)")
-    db.execute("CREATE INDEX idx_wi_enabled ON workflow_instances(session_id, enabled)")
-
-    db.execute("""
-        CREATE TABLE session_variables (
-            session_id TEXT PRIMARY KEY,
-            variables TEXT DEFAULT '{}',
-            updated_at TEXT NOT NULL DEFAULT (datetime('now'))
-        )
-    """)
-
-    # 2. Migrate existing data
-    rows = db.fetchall("SELECT * FROM workflow_states")
-    for row in rows:
-        session_id = row["session_id"]
-        workflow_name = row["workflow_name"]
-        variables = json.loads(row["variables"]) if row["variables"] else {}
-
-        # All existing variables become session variables (backward compat)
-        db.execute(
-            "INSERT OR IGNORE INTO session_variables (session_id, variables, updated_at) VALUES (?, ?, ?)",
-            (session_id, json.dumps(variables), row["updated_at"]),
-        )
-
-        # Create workflow instance for active step workflows
-        if workflow_name not in ("__lifecycle__", "__ended__"):
-            import uuid
-            db.execute(
-                """INSERT OR IGNORE INTO workflow_instances
-                   (id, session_id, workflow_name, enabled, current_step,
-                    step_entered_at, step_action_count, total_action_count,
-                    variables, context_injected, updated_at)
-                   VALUES (?, ?, ?, 1, ?, ?, ?, ?, '{}', ?, ?)""",
-                (
-                    str(uuid.uuid4()), session_id, workflow_name,
-                    row["step"], row["step_entered_at"],
-                    row["step_action_count"], row["total_action_count"],
-                    row["context_injected"], row["updated_at"],
-                ),
+    with db.transaction():
+        # 1. Create new tables
+        db.execute("""
+            CREATE TABLE workflow_instances (
+                id TEXT PRIMARY KEY,
+                session_id TEXT NOT NULL,
+                workflow_name TEXT NOT NULL,
+                enabled INTEGER NOT NULL DEFAULT 1,
+                priority INTEGER NOT NULL DEFAULT 100,
+                current_step TEXT,
+                step_entered_at TEXT,
+                step_action_count INTEGER DEFAULT 0,
+                total_action_count INTEGER DEFAULT 0,
+                variables TEXT DEFAULT '{}',
+                context_injected INTEGER DEFAULT 0,
+                created_at TEXT NOT NULL DEFAULT (datetime('now')),
+                updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+                UNIQUE(session_id, workflow_name),
+                FOREIGN KEY(session_id) REFERENCES sessions(id) ON DELETE CASCADE
             )
+        """)
+        db.execute("CREATE INDEX idx_wi_session ON workflow_instances(session_id)")
+        db.execute("CREATE INDEX idx_wi_enabled ON workflow_instances(session_id, enabled)")
+
+        db.execute("""
+            CREATE TABLE session_variables (
+                session_id TEXT PRIMARY KEY,
+                variables TEXT DEFAULT '{}',
+                updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+            )
+        """)
+
+        # 2. Migrate existing data
+        rows = db.fetchall("SELECT * FROM workflow_states")
+        for row in rows:
+            session_id = row["session_id"]
+            workflow_name = row["workflow_name"]
+            variables = json.loads(row["variables"]) if row["variables"] else {}
+
+            # All existing variables become session variables (backward compat)
+            db.execute(
+                "INSERT OR IGNORE INTO session_variables (session_id, variables, updated_at) VALUES (?, ?, ?)",
+                (session_id, json.dumps(variables), row["updated_at"]),
+            )
+
+            # Create workflow instance for active step workflows
+            if workflow_name not in ("__lifecycle__", "__ended__"):
+                import uuid
+                db.execute(
+                    """INSERT OR IGNORE INTO workflow_instances
+                       (id, session_id, workflow_name, enabled, current_step,
+                        step_entered_at, step_action_count, total_action_count,
+                        variables, context_injected, updated_at)
+                       VALUES (?, ?, ?, 1, ?, ?, ?, ?, '{}', ?, ?)""",
+                    (
+                        str(uuid.uuid4()), session_id, workflow_name,
+                        row["step"], row["step_entered_at"],
+                        row["step_action_count"], row["total_action_count"],
+                        row["context_injected"], row["updated_at"],
+                    ),
+                )
 ```
 
 ### YAML migration rules

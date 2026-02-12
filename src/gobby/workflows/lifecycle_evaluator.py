@@ -17,6 +17,7 @@ if TYPE_CHECKING:
     from .actions import ActionExecutor
     from .evaluator import ConditionEvaluator
     from .loader import WorkflowLoader
+    from .observers import ObserverEngine
     from .state_manager import WorkflowStateManager
 
 logger = logging.getLogger(__name__)
@@ -519,7 +520,7 @@ async def evaluate_all_lifecycle_workflows(
     evaluator: "ConditionEvaluator",
     check_premature_stop_fn: Any,
     context_data: dict[str, Any] | None = None,
-    observer_engine: Any | None = None,
+    observer_engine: "ObserverEngine | None" = None,
 ) -> HookResponse:
     """
     Discover and evaluate all lifecycle workflows for the given event.

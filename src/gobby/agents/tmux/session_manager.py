@@ -100,7 +100,19 @@ class TmuxSessionManager:
         from gobby.agents.tmux.wsl_compat import needs_wsl
 
         if needs_wsl():
-            return shutil.which("wsl") is not None
+            if not shutil.which("wsl"):
+                return False
+            import subprocess
+
+            try:
+                result = subprocess.run(
+                    ["wsl", "--exec", "which", self._config.command],
+                    capture_output=True,
+                    timeout=5,
+                )
+                return result.returncode == 0
+            except (subprocess.TimeoutExpired, OSError):
+                return False
         return shutil.which(self._config.command) is not None
 
     def require_available(self) -> None:

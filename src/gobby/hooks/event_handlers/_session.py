@@ -373,8 +373,8 @@ class SessionEventHandlerMixin(EventHandlersBase):
                 monitor = get_tmux_pane_monitor()
                 if monitor:
                     monitor.mark_recently_ended(session_id)
-            except Exception:
-                pass
+            except Exception as e:
+                self.logger.debug(f"Failed to notify pane monitor for session {session_id}: {e}")
 
         return HookResponse(decision="allow")
 

@@ -284,20 +284,19 @@ def create_agents_router(server: "HTTPServer") -> APIRouter:
             if status == "running":
                 runs = manager.list_running(limit=limit)
             else:
-                # Get recent runs across all sessions
-                rows = server.services.database.fetchall(
-                    """
-                    SELECT * FROM agent_runs
-                    ORDER BY created_at DESC
-                    LIMIT ?
-                    """,
-                    (limit,),
-                )
                 from gobby.storage.agents import AgentRun
 
-                runs = [AgentRun.from_row(row) for row in rows]
                 if status:
-                    runs = [r for r in runs if r.status == status]
+                    rows = server.services.database.fetchall(
+                        "SELECT * FROM agent_runs WHERE status = ? ORDER BY created_at DESC LIMIT ?",
+                        (status, limit),
+                    )
+                else:
+                    rows = server.services.database.fetchall(
+                        "SELECT * FROM agent_runs ORDER BY created_at DESC LIMIT ?",
+                        (limit,),
+                    )
+                runs = [AgentRun.from_row(row) for row in rows]
             return {
                 "status": "success",
                 "runs": [r.to_dict() for r in runs],
@@ -321,11 +320,21 @@ def create_agents_router(server: "HTTPServer") -> APIRouter:
 
             result = await registry.kill(run_id)
 
-            # Also update DB status
-            from gobby.storage.agents import LocalAgentRunManager
+            # Also update DB status — kill first since DB cancel is recoverable
+            try:
+                from gobby.storage.agents import LocalAgentRunManager
 
-            db_manager = LocalAgentRunManager(server.services.database)
-            db_manager.cancel(run_id)
+                db_manager = LocalAgentRunManager(server.services.database)
+                db_manager.cancel(run_id)
+            except Exception as e:
+                logger.error(
+                    f"Agent {run_id} killed in registry but DB cancel failed: {e}",
+                    exc_info=True,
+                )
+                raise HTTPException(
+                    status_code=500,
+                    detail=f"Agent killed but DB update failed: {e}",
+                ) from e
 
             return {"status": "success", "result": result}
         except HTTPException:

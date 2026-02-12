@@ -190,7 +190,7 @@ class WorkflowLoader:
 
             # 4. Resolve rule imports (before creating definition)
             if data.get("imports"):
-                data = self._resolve_imports(data, project_path)
+                data = await self._resolve_imports(data, project_path)
 
             # 5. Auto-detect pipeline type
             if data.get("type") == "pipeline":
@@ -352,7 +352,7 @@ class WorkflowLoader:
 
         return None
 
-    def _load_rule_definitions(self, path: Path) -> dict[str, Any]:
+    async def _load_rule_definitions(self, path: Path) -> dict[str, Any]:
         """Load rule_definitions from a YAML rule file.
 
         Args:
@@ -361,13 +361,14 @@ class WorkflowLoader:
         Returns:
             Dict of rule_name -> rule definition dict.
         """
-        with open(path) as f:
-            data = yaml.safe_load(f)
+        async with aiofiles.open(path) as f:
+            content = await f.read()
+        data = yaml.safe_load(content)
         if not data or not isinstance(data, dict):
             return {}
         return data.get("rule_definitions", {})
 
-    def _resolve_imports(
+    async def _resolve_imports(
         self,
         data: dict[str, Any],
         project_path: Path | str | None = None,
@@ -400,7 +401,7 @@ class WorkflowLoader:
                     f"Imported rule file '{import_name}' not found. "
                     f"Searched in project, user, and bundled rule directories."
                 )
-            imported = self._load_rule_definitions(path)
+            imported = await self._load_rule_definitions(path)
             # Later imports override earlier imports
             merged_rules.update(imported)
 

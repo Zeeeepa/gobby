@@ -3,15 +3,16 @@
 from __future__ import annotations
 
 import time
-from datetime import UTC, datetime
 from unittest.mock import MagicMock, patch
 
 import pytest
 
 from gobby.agents.registry import RunningAgent
-from gobby.agents.tmux.pane_monitor import TmuxPaneMonitor, _RECENTLY_ENDED_TTL
+from gobby.agents.tmux.pane_monitor import _RECENTLY_ENDED_TTL, TmuxPaneMonitor
 from gobby.agents.tmux.session_manager import TmuxSessionInfo
 from gobby.hooks.events import HookEvent, HookEventType
+
+pytestmark = pytest.mark.unit
 
 
 def _make_agent(

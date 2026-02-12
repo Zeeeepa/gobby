@@ -307,8 +307,8 @@ def register_orchestrator(
             (appends to ``skipped`` as a side effect).
             """
             from gobby.agents.spawn import EmbeddedSpawner, HeadlessSpawner
-            from gobby.agents.tmux.spawner import TmuxSpawner
             from gobby.agents.spawners.base import EmbeddedPTYResult, HeadlessResult, SpawnResult
+            from gobby.agents.tmux.spawner import TmuxSpawner
 
             # Ensure agent_runner is available (checked in orchestrate_ready_tasks)
             if agent_runner is None:

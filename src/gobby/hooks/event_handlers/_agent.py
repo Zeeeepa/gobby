@@ -82,12 +82,15 @@ class AgentEventHandlerMixin(EventHandlersBase):
         args = (match.group(2) or "").strip()
 
         # Support space syntax: /gobby expand → treat first word of args as skill name
+        resolved = None
         if not skill_name and args and self._skill_manager:
             parts = args.split(None, 1)
             first_word = parts[0]
-            if first_word.lower() != "help" and self._skill_manager.resolve_skill_name(first_word):
-                skill_name = first_word
-                args = parts[1] if len(parts) > 1 else ""
+            if first_word.lower() != "help":
+                resolved = self._skill_manager.resolve_skill_name(first_word)
+                if resolved:
+                    skill_name = first_word
+                    args = parts[1] if len(parts) > 1 else ""
 
         # /gobby or /gobby help → generate help
         if not skill_name or skill_name.lower() == "help":
@@ -96,7 +99,7 @@ class AgentEventHandlerMixin(EventHandlersBase):
         # /gobby:skillname → resolve and inject
         if self._skill_manager is None:
             raise RuntimeError("skill_manager not initialized")
-        skill = self._skill_manager.resolve_skill_name(skill_name)
+        skill = resolved if resolved else self._skill_manager.resolve_skill_name(skill_name)
 
         if not skill:
             return self._skill_not_found_context(skill_name)

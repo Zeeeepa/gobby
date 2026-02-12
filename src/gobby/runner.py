@@ -90,7 +90,11 @@ class GobbyRunner:
         from gobby.storage.config_store import ConfigStore
         from gobby.storage.secrets import SecretStore
 
-        assert isinstance(self.database, LocalDatabase)
+        if not isinstance(self.database, LocalDatabase):
+            raise RuntimeError(
+                f"Expected LocalDatabase for config store initialization, "
+                f"got {type(self.database).__name__}"
+            )
         self.secret_store = SecretStore(self.database)
         self.config_store = ConfigStore(self.database)
         self._maybe_import_yaml_to_db(config_file)

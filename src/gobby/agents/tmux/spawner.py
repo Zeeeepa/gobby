@@ -16,12 +16,16 @@ import tempfile
 import time
 from pathlib import Path
 
+from gobby.agents.constants import get_terminal_env_vars
+from gobby.agents.sandbox import compute_sandbox_paths, get_sandbox_resolver
 from gobby.agents.spawners.base import (
     SpawnResult,
     TerminalSpawnerBase,
     TerminalType,
     make_spawn_env,
 )
+from gobby.agents.spawners.command_builder import build_cli_command
+from gobby.agents.spawners.prompt_manager import MAX_ENV_PROMPT_LENGTH, create_prompt_file
 from gobby.agents.tmux.config import TmuxConfig
 from gobby.agents.tmux.session_manager import TmuxSessionManager
 
@@ -172,11 +176,6 @@ class TmuxSpawner(TerminalSpawnerBase):
         Returns:
             SpawnResult with success status.
         """
-        from gobby.agents.constants import get_terminal_env_vars
-        from gobby.agents.sandbox import compute_sandbox_paths, get_sandbox_resolver
-        from gobby.agents.spawners.command_builder import build_cli_command
-        from gobby.agents.spawners.prompt_manager import MAX_ENV_PROMPT_LENGTH, create_prompt_file
-
         # Resolve sandbox configuration if enabled
         sandbox_args: list[str] | None = None
         sandbox_env: dict[str, str] = {}

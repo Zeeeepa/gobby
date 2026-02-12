@@ -589,10 +589,18 @@ def _inject_context_aware_skills(
     # Track which skills were injected for this session
     if session_id and session_manager and selected:
         try:
-            skill_names = [skill.name for skill, _fmt in selected]
-            session_manager.record_skills_used(session_id, skill_names)
-        except Exception as e:
-            logger.debug(f"Failed to record skills used: {e}")
+            if not hasattr(session_manager, "record_skills_used"):
+                logger.warning(
+                    f"session_manager missing record_skills_used for session {session_id}"
+                )
+            else:
+                skill_names = [skill.name for skill, _fmt in selected]
+                session_manager.record_skills_used(session_id, skill_names)
+        except (AttributeError, TypeError, ValueError) as e:
+            logger.debug(
+                f"Failed to record skills used for session {session_id}: {e}",
+                exc_info=True,
+            )
 
     return _format_skills_with_formats(selected)
 
