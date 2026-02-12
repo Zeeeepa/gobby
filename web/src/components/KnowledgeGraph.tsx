@@ -138,12 +138,22 @@ export function KnowledgeGraph({ fetchKnowledgeGraph, fetchEntityNeighbors }: Kn
     })
   }, [])
 
-  // Auto-rotation via OrbitControls
+  // Manual auto-rotation (TrackballControls lacks autoRotate)
   useEffect(() => {
-    const controls = fgRef.current?.controls() as any // eslint-disable-line @typescript-eslint/no-explicit-any
-    if (!controls) return
-    controls.autoRotate = animateIdle
-    controls.autoRotateSpeed = 0.4
+    if (!animateIdle) return
+    let raf: number
+    const rotate = () => {
+      const fg = fgRef.current
+      if (fg) {
+        const pos = fg.cameraPosition()
+        const dist = Math.sqrt(pos.x * pos.x + pos.z * pos.z)
+        const angle = Math.atan2(pos.z, pos.x) + 0.002
+        fg.cameraPosition({ x: dist * Math.cos(angle), y: pos.y, z: dist * Math.sin(angle) })
+      }
+      raf = requestAnimationFrame(rotate)
+    }
+    raf = requestAnimationFrame(rotate)
+    return () => cancelAnimationFrame(raf)
   }, [animateIdle])
 
   // Initial data fetch
