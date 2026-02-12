@@ -365,6 +365,17 @@ class SessionEventHandlerMixin(EventHandlersBase):
             except Exception as e:
                 self.logger.warning(f"Failed to unregister session from message processor: {e}")
 
+        # Notify pane monitor to prevent double-fire
+        if session_id:
+            try:
+                from gobby.agents.tmux import get_tmux_pane_monitor
+
+                monitor = get_tmux_pane_monitor()
+                if monitor:
+                    monitor.mark_recently_ended(session_id)
+            except Exception:
+                pass
+
         return HookResponse(decision="allow")
 
     def _handle_pre_created_session(

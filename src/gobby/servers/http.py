@@ -432,6 +432,23 @@ class HTTPServer:
                     except Exception as e:
                         logger.warning(f"Failed to sync existing Codex sessions: {e}")
 
+            # Start TmuxPaneMonitor if tmux is enabled
+            if self.services.config and self.services.config.tmux.enabled:
+                try:
+                    from gobby.agents.tmux import set_tmux_pane_monitor
+                    from gobby.agents.tmux.pane_monitor import TmuxPaneMonitor
+
+                    monitor = TmuxPaneMonitor(
+                        session_end_callback=app.state.hook_manager._event_handlers.handle_session_end,
+                        config=self.services.config.tmux,
+                        session_storage=app.state.hook_manager._session_storage,
+                    )
+                    set_tmux_pane_monitor(monitor)
+                    await monitor.start()
+                    logger.debug("TmuxPaneMonitor started")
+                except Exception as e:
+                    logger.warning(f"Failed to start TmuxPaneMonitor: {e}")
+
             # If MCP app exists, wrap its lifespan
             if mcp_app is not None:
                 # Use router.lifespan_context for stable FastMCP version
@@ -449,6 +466,18 @@ class HTTPServer:
             if hasattr(app.state, "codex_adapter") and app.state.codex_adapter:
                 app.state.codex_adapter.detach_from_client()
                 logger.debug("CodexAdapter detached")
+
+            # Stop TmuxPaneMonitor
+            try:
+                from gobby.agents.tmux import get_tmux_pane_monitor, set_tmux_pane_monitor
+
+                pane_monitor = get_tmux_pane_monitor()
+                if pane_monitor:
+                    await pane_monitor.stop()
+                    set_tmux_pane_monitor(None)
+                    logger.debug("TmuxPaneMonitor stopped")
+            except Exception as e:
+                logger.warning(f"Failed to stop TmuxPaneMonitor: {e}")
 
             # Cleanup HookManager
             if hasattr(app.state, "hook_manager"):
