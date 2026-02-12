@@ -108,24 +108,29 @@ def prepare_daemon_env(base_env: dict[str, str] | None = None) -> dict[str, str]
 
 
 def find_free_port(max_retries: int = 5) -> int:
-    """Find an available port on localhost with verification.
+    """Find an available port that won't collide with any running daemon.
 
-    Uses multiple retries to handle race conditions when ports are
-    being released by other processes.
+    Avoids SO_REUSEADDR so the OS rejects ports already bound on any
+    address (e.g. production daemon on 0.0.0.0:60887). Also excludes
+    known gobby ports as defense-in-depth.
     """
+    EXCLUDED_PORTS = {60887, 60888}  # default gobby daemon + websocket ports
     for attempt in range(max_retries):
         with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-            s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
             s.bind(("localhost", 0))
             port = s.getsockname()[1]
 
-        # Verify port is actually available by trying to bind again
+        if port in EXCLUDED_PORTS:
+            continue
+
+        # Verify port is actually available on both localhost and all interfaces
         time.sleep(0.1)  # Brief delay to let OS release the port
         try:
-            with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as verify_sock:
-                verify_sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-                verify_sock.bind(("localhost", port))
-                return port
+            with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as v:
+                v.bind(("localhost", port))
+            with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as v:
+                v.bind(("0.0.0.0", port))
+            return port
         except OSError:
             if attempt < max_retries - 1:
                 time.sleep(0.2)  # Wait before retry

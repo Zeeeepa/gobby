@@ -646,9 +646,35 @@ class GobbyRunner:
         for sig in (signal.SIGTERM, signal.SIGINT):
             loop.add_signal_handler(sig, handle_shutdown)
 
+    def _clear_port(self, port: int) -> None:
+        """Kill any process listening on the given port (except ourselves)."""
+        import subprocess
+
+        try:
+            result = subprocess.run(
+                ["lsof", "-ti", f":{port}"],
+                capture_output=True,
+                text=True,
+                timeout=5,
+            )
+            if result.stdout.strip():
+                my_pid = os.getpid()
+                for pid_str in result.stdout.strip().split("\n"):
+                    pid = int(pid_str)
+                    if pid != my_pid:
+                        logger.warning(f"Killing stale process {pid} on port {port}")
+                        os.kill(pid, signal.SIGTERM)
+        except Exception as e:
+            logger.debug(f"Port cleanup for {port} failed: {e}")
+
     async def run(self) -> None:
         try:
             self._setup_signal_handlers()
+
+            # Clear stale processes on our ports
+            self._clear_port(self.config.daemon_port)
+            if self.config.websocket and self.config.websocket.enabled:
+                self._clear_port(self.config.websocket.port)
 
             # Connect MCP servers
             try:
