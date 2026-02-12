@@ -212,14 +212,11 @@ export function KnowledgeGraph({ fetchKnowledgeGraph, fetchEntityNeighbors }: Kn
 
   const linkLabel = useCallback((link: any) => link.type as string, []) // eslint-disable-line @typescript-eslint/no-explicit-any
 
-  // Node breathing effect when animating (always pass callback to avoid prop change re-renders)
+  // Node breathing effect — use ref to avoid prop changes that trigger graph rebuilds
   const animateRef = useRef(animateIdle)
   animateRef.current = animateIdle
   const nodePositionUpdate = useCallback((obj: any) => { // eslint-disable-line @typescript-eslint/no-explicit-any
-    if (!animateRef.current) {
-      obj.scale.set(1, 1, 1)
-      return
-    }
+    if (!animateRef.current) return
     const t = performance.now() * 0.001
     const offset = (obj.id % 100) * 0.1
     const scale = 1 + Math.sin(t * 1.5 + offset) * 0.06
@@ -285,7 +282,7 @@ export function KnowledgeGraph({ fetchKnowledgeGraph, fetchEntityNeighbors }: Kn
         linkOpacity={0.6}
         linkDirectionalArrowLength={3}
         linkDirectionalArrowRelPos={1}
-        linkDirectionalParticles={animateIdle ? 2 : 0}
+        linkDirectionalParticles={2}
         linkDirectionalParticleSpeed={0.004}
         linkDirectionalParticleWidth={0.8}
         linkDirectionalParticleColor={linkColor}
