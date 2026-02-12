@@ -268,6 +268,49 @@ async def _write_summary_file(
         return None
 
 
+async def _rename_tmux_window(session: Any, title: str) -> None:
+    """Rename the tmux window for a session after title synthesis.
+
+    For user sessions (agent_depth 0), renames on the default tmux server.
+    For spawned agents, renames on Gobby's isolated ``-L gobby`` socket.
+    Failures are logged but never propagated.
+    """
+    import asyncio
+
+    tc = getattr(session, "terminal_context", None)
+    if not tc:
+        return
+    pane = tc.get("tmux_pane")
+    if not pane:
+        return
+
+    agent_depth = getattr(session, "agent_depth", 0) or 0
+
+    try:
+        if agent_depth > 0:
+            # Spawned agent — rename on Gobby's isolated socket
+            from gobby.agents.tmux import get_tmux_session_manager
+
+            mgr = get_tmux_session_manager()
+            await mgr.rename_window(pane, title)
+        else:
+            # User session — rename on the default tmux server
+            proc = await asyncio.create_subprocess_exec(
+                "tmux", "rename-window", "-t", pane, title,
+                stdout=asyncio.subprocess.DEVNULL,
+                stderr=asyncio.subprocess.PIPE,
+            )
+            _, stderr = await asyncio.wait_for(proc.communicate(), timeout=5.0)
+            if proc.returncode != 0:
+                logger.debug(
+                    "tmux rename-window failed for pane %s: %s",
+                    pane,
+                    (stderr or b"").decode().strip(),
+                )
+    except Exception as e:
+        logger.debug(f"_rename_tmux_window: {e}")
+
+
 async def synthesize_title(
     session_manager: Any,
     session_id: str,
@@ -344,6 +387,10 @@ async def synthesize_title(
         title = title.strip().strip('"').strip("'")
 
         session_manager.update_title(session_id, title)
+
+        # Rename tmux window to match synthesized title
+        await _rename_tmux_window(current_session, title)
+
         return {"title_synthesized": title}
 
     except Exception as e:

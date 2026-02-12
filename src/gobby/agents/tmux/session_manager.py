@@ -280,6 +280,24 @@ class TmuxSessionManager:
         except ValueError:
             return None
 
+    async def rename_window(self, target: str, title: str) -> bool:
+        """Rename the tmux window containing *target*.
+
+        Args:
+            target: A tmux target (session name, pane ID like ``%42``, etc.).
+            title: New window title.
+
+        Returns:
+            True on success.
+        """
+        rc, _stdout, stderr = await self._run("rename-window", "-t", target, title)
+        if rc != 0:
+            logger.warning(
+                f"Failed to rename tmux window for '{target}': {stderr.strip()}"
+            )
+            return False
+        return True
+
     async def send_keys(self, session_name: str, keys: str) -> bool:
         """Send raw keys to a tmux session (for web UI input forwarding).
 
