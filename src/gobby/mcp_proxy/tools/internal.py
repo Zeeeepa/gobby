@@ -186,7 +186,7 @@ class InternalToolRegistry:
         return decorator
 
     @staticmethod
-    def _coerce_args(args: dict[str, Any], schema: dict[str, Any]) -> dict[str, Any]:
+    def _coerce_arguments(arguments: dict[str, Any], schema: dict[str, Any]) -> dict[str, Any]:
         """Coerce string arguments to their declared schema types.
 
         MCP arguments may arrive as strings even when the schema declares
@@ -195,7 +195,7 @@ class InternalToolRegistry:
         """
         properties = schema.get("properties", {})
         coerced = {}
-        for key, value in args.items():
+        for key, value in arguments.items():
             prop = properties.get(key, {})
             declared_type = prop.get("type")
 
@@ -224,13 +224,13 @@ class InternalToolRegistry:
 
         return coerced
 
-    async def call(self, name: str, args: dict[str, Any]) -> Any:
+    async def call(self, name: str, arguments: dict[str, Any]) -> Any:
         """
         Call a tool by name with the given arguments.
 
         Args:
             name: Tool name
-            args: Tool arguments
+            arguments: Tool arguments
 
         Returns:
             Tool execution result
@@ -245,12 +245,12 @@ class InternalToolRegistry:
             raise ValueError(f"Tool '{name}' not found on '{self.name}'. Available: {available}")
 
         # Coerce string arguments to declared schema types
-        coerced_args = self._coerce_args(args, tool.input_schema)
+        coerced_arguments = self._coerce_arguments(arguments, tool.input_schema)
 
         # Call the function (handle both sync and async)
         if inspect.iscoroutinefunction(tool.func):
-            return await tool.func(**coerced_args)
-        return tool.func(**coerced_args)
+            return await tool.func(**coerced_arguments)
+        return tool.func(**coerced_arguments)
 
     def list_tools(self) -> list[dict[str, str]]:
         """

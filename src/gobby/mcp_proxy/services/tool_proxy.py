@@ -280,7 +280,7 @@ class ToolProxyService:
         tool is not blocked by the current workflow step's blocked_tools setting.
 
         """
-        args = arguments or {}
+        arguments = arguments or {}
 
         # Handle proxy namespace: auto-resolve to the real server
         if self._is_proxy_namespace(server_name):
@@ -308,12 +308,12 @@ class ToolProxyService:
                 }
 
         # Pre-validate arguments if enabled
-        if self._validate_arguments and args:
+        if self._validate_arguments and arguments:
             schema_result = await self.get_tool_schema(server_name, tool_name)
             if schema_result.get("success"):
                 input_schema = schema_result.get("tool", {}).get("inputSchema", {})
                 if input_schema:
-                    validation_errors = self._check_arguments(args, input_schema)
+                    validation_errors = self._check_arguments(arguments, input_schema)
                     if validation_errors:
                         return {
                             "success": False,
@@ -329,7 +329,7 @@ class ToolProxyService:
             if self._internal_manager and self._internal_manager.is_internal(server_name):
                 registry = self._internal_manager.get_registry(server_name)
                 if registry:
-                    return await registry.call(tool_name, args)
+                    return await registry.call(tool_name, arguments)
                 raise MCPError(f"Internal server '{server_name}' not found")
 
             # Use MCP manager for external servers

@@ -487,7 +487,7 @@ async def mcp_proxy(
     try:
         # Parse request body as tool arguments
         try:
-            args = await request.json()
+            arguments = await request.json()
         except (json.JSONDecodeError, ValueError) as e:
             raise HTTPException(
                 status_code=400,
@@ -496,7 +496,7 @@ async def mcp_proxy(
 
         # Route through ToolProxyService for consistent error enrichment
         if server.tool_proxy:
-            result = await server.tool_proxy.call_tool(server_name, tool_name, args)
+            result = await server.tool_proxy.call_tool(server_name, tool_name, arguments)
             response_time_ms = (time.perf_counter() - start_time) * 1000
             return _process_tool_proxy_result(result, server_name, tool_name, response_time_ms)
 
@@ -505,7 +505,9 @@ async def mcp_proxy(
         if server._internal_manager and server._internal_manager.is_internal(server_name):
             registry = server._internal_manager.get_registry(server_name)
             if registry:
-                return await _call_internal_tool(registry, server_name, tool_name, args, start_time)
+                return await _call_internal_tool(
+                    registry, server_name, tool_name, arguments, start_time
+                )
             raise HTTPException(
                 status_code=404,
                 detail={
@@ -522,7 +524,7 @@ async def mcp_proxy(
 
         # Call MCP tool
         try:
-            result = await server.mcp_manager.call_tool(server_name, tool_name, args)
+            result = await server.mcp_manager.call_tool(server_name, tool_name, arguments)
 
             response_time_ms = (time.perf_counter() - start_time) * 1000
 
