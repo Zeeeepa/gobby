@@ -15,7 +15,12 @@ from typing import Any
 
 from gobby.cli.utils import get_install_dir
 
-from .shared import _install_file, _is_dev_mode, install_shared_content
+from .shared import (
+    _install_file,
+    _is_dev_mode,
+    configure_ide_terminal_title,
+    install_shared_content,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -175,6 +180,10 @@ def install_windsurf(project_path: Path) -> dict[str, Any]:
                 logger.error(f"Failed to restore from backup: {restore_error}")
         result["error"] = f"Failed to write hooks.json: {e}"
         return result
+
+    # Configure terminal tab title so tmux set-titles propagates to IDE
+    terminal_result = configure_ide_terminal_title("Windsurf")
+    result["terminal_configured"] = terminal_result.get("added", False)
 
     result["success"] = True
     return result

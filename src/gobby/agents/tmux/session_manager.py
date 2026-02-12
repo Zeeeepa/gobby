@@ -296,6 +296,7 @@ class TmuxSessionManager:
         """
         rc, _stdout, stderr = await self._run(
             "set-option", "-g", "set-titles", "on", ";",
+            "set-option", "-g", "set-titles-string", "#W", ";",
             "rename-window", "-t", target, title, ";",
             "set-option", "-w", "-t", target, "automatic-rename", "off",
         )

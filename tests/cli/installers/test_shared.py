@@ -10,12 +10,15 @@ Tests cover:
 """
 
 import json
+import os
 from pathlib import Path
 from unittest.mock import patch
 
 import pytest
 
 from gobby.cli.installers.shared import (
+    _get_ide_config_dir,
+    configure_ide_terminal_title,
     configure_mcp_server_json,
     configure_mcp_server_toml,
     install_cli_content,
@@ -991,3 +994,136 @@ class TestEdgeCases:
         assert "valid.yaml" in result["workflows"]
         assert "lifecycle/" in result["workflows"]
         assert (target_path / "workflows" / "lifecycle" / "session.yaml").exists()
+
+
+class TestGetIdeConfigDir:
+    """Tests for _get_ide_config_dir cross-platform resolution."""
+
+    def test_macos_path(self) -> None:
+        with patch("gobby.cli.installers.shared.sys") as mock_sys:
+            mock_sys.platform = "darwin"
+            path = _get_ide_config_dir("Cursor")
+        assert path == Path.home() / "Library" / "Application Support" / "Cursor"
+
+    def test_linux_path(self) -> None:
+        with patch("gobby.cli.installers.shared.sys") as mock_sys:
+            mock_sys.platform = "linux"
+            path = _get_ide_config_dir("Cursor")
+        assert path == Path.home() / ".config" / "Cursor"
+
+    def test_windows_path(self) -> None:
+        with (
+            patch("gobby.cli.installers.shared.sys") as mock_sys,
+            patch.dict(os.environ, {"APPDATA": "C:\\Users\\test\\AppData\\Roaming"}),
+        ):
+            mock_sys.platform = "win32"
+            path = _get_ide_config_dir("Cursor")
+        assert path == Path("C:\\Users\\test\\AppData\\Roaming") / "Cursor"
+
+
+class TestConfigureIdeTerminalTitle:
+    """Tests for configure_ide_terminal_title function."""
+
+    def test_skip_when_ide_not_installed(self, temp_dir: Path) -> None:
+        """IDE config dir doesn't exist — skip silently."""
+        with patch("gobby.cli.installers.shared._get_ide_config_dir") as mock_dir:
+            mock_dir.return_value = temp_dir / "NonExistent"
+            result = configure_ide_terminal_title("NonExistent")
+
+        assert result["success"] is True
+        assert result["skipped"] is True
+        assert result["added"] is False
+
+    def test_create_settings_from_scratch(self, temp_dir: Path) -> None:
+        """Config dir exists but no settings.json — creates it."""
+        config_dir = temp_dir / "Cursor"
+        config_dir.mkdir()
+
+        with patch("gobby.cli.installers.shared._get_ide_config_dir") as mock_dir:
+            mock_dir.return_value = config_dir
+            result = configure_ide_terminal_title("Cursor")
+
+        assert result["success"] is True
+        assert result["added"] is True
+        assert result["backup_path"] is None  # No backup for new file
+
+        settings_path = config_dir / "User" / "settings.json"
+        assert settings_path.exists()
+        settings = json.loads(settings_path.read_text())
+        assert settings["terminal.integrated.tabs.title"] == "${sequence}"
+
+    def test_add_to_existing_settings(self, temp_dir: Path) -> None:
+        """Existing settings.json without the setting — adds it with backup."""
+        config_dir = temp_dir / "Windsurf"
+        user_dir = config_dir / "User"
+        user_dir.mkdir(parents=True)
+        settings_path = user_dir / "settings.json"
+        settings_path.write_text(json.dumps({"editor.fontSize": 14}))
+
+        with patch("gobby.cli.installers.shared._get_ide_config_dir") as mock_dir:
+            mock_dir.return_value = config_dir
+            result = configure_ide_terminal_title("Windsurf")
+
+        assert result["success"] is True
+        assert result["added"] is True
+        assert result["backup_path"] is not None
+
+        settings = json.loads(settings_path.read_text())
+        assert settings["editor.fontSize"] == 14
+        assert settings["terminal.integrated.tabs.title"] == "${sequence}"
+
+        # Verify backup exists and has original content
+        backup = json.loads(Path(result["backup_path"]).read_text())
+        assert "terminal.integrated.tabs.title" not in backup
+
+    def test_noop_when_already_configured(self, temp_dir: Path) -> None:
+        """Setting already present — no-op, no backup."""
+        config_dir = temp_dir / "Antigravity"
+        user_dir = config_dir / "User"
+        user_dir.mkdir(parents=True)
+        settings_path = user_dir / "settings.json"
+        settings_path.write_text(
+            json.dumps({"terminal.integrated.tabs.title": "${process} - ${sequence}"})
+        )
+
+        with patch("gobby.cli.installers.shared._get_ide_config_dir") as mock_dir:
+            mock_dir.return_value = config_dir
+            result = configure_ide_terminal_title("Antigravity")
+
+        assert result["success"] is True
+        assert result["already_configured"] is True
+        assert result["added"] is False
+        assert result["backup_path"] is None
+
+    def test_invalid_json_in_settings(self, temp_dir: Path) -> None:
+        """Existing settings.json with invalid JSON — returns error."""
+        config_dir = temp_dir / "Cursor"
+        user_dir = config_dir / "User"
+        user_dir.mkdir(parents=True)
+        (user_dir / "settings.json").write_text("{ broken json }")
+
+        with patch("gobby.cli.installers.shared._get_ide_config_dir") as mock_dir:
+            mock_dir.return_value = config_dir
+            result = configure_ide_terminal_title("Cursor")
+
+        assert result["success"] is False
+        assert result["error"] is not None
+        assert "Failed to parse" in result["error"]
+
+    def test_backup_failure(self, temp_dir: Path) -> None:
+        """Backup creation fails — returns error without modifying file."""
+        config_dir = temp_dir / "Cursor"
+        user_dir = config_dir / "User"
+        user_dir.mkdir(parents=True)
+        (user_dir / "settings.json").write_text("{}")
+
+        with (
+            patch("gobby.cli.installers.shared._get_ide_config_dir") as mock_dir,
+            patch("gobby.cli.installers.shared.copy2") as mock_copy,
+        ):
+            mock_dir.return_value = config_dir
+            mock_copy.side_effect = OSError("Disk full")
+            result = configure_ide_terminal_title("Cursor")
+
+        assert result["success"] is False
+        assert "Failed to create backup" in result["error"]
