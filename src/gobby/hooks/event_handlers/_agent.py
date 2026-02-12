@@ -72,13 +72,22 @@ class AgentEventHandlerMixin(EventHandlersBase):
         """Intercept /gobby and /gobby:skillname commands.
 
         Returns context string to inject, or None if not a /gobby command.
+        Supports both colon syntax (/gobby:expand) and space syntax (/gobby expand).
         """
         match = _GOBBY_CMD_PATTERN.match(prompt)
         if not match:
             return None
 
-        skill_name = match.group(1)  # None for bare /gobby
+        skill_name = match.group(1)  # None for bare /gobby or space syntax
         args = (match.group(2) or "").strip()
+
+        # Support space syntax: /gobby expand → treat first word of args as skill name
+        if not skill_name and args and self._skill_manager:
+            parts = args.split(None, 1)
+            first_word = parts[0]
+            if first_word.lower() != "help" and self._skill_manager.resolve_skill_name(first_word):
+                skill_name = first_word
+                args = parts[1] if len(parts) > 1 else ""
 
         # /gobby or /gobby help → generate help
         if not skill_name or skill_name.lower() == "help":
