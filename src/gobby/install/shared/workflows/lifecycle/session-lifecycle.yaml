@@ -48,6 +48,14 @@ variables:
   stop_attempts: 0
   max_stop_attempts: 3
 
+observers:
+  - name: task_lifecycle
+    behavior: task_claim_tracking
+  - name: plan_mode
+    behavior: detect_plan_mode
+  - name: mcp_call_history
+    behavior: mcp_call_tracking
+
 triggers:
   on_stop:
     # Increment stop attempts counter
@@ -210,9 +218,6 @@ triggers:
     - action: set_variable
       name: pre_existing_errors_triaged
       value: false
-
-    # Detect plan mode from system reminders (Claude Code UI-based plan mode)
-    - action: detect_plan_mode_from_context
 
     # Title synthesis on first prompt
     - action: synthesize_title

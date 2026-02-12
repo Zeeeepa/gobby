@@ -202,6 +202,7 @@ class TestWorkflowEngineExtended:
             ],
             "on_tool_call": [],  # Empty
         }
+        wf.observers = []
 
         container = MagicMock()
         container.definition = wf
@@ -247,6 +248,7 @@ class TestWorkflowEngineExtended:
         wf.name = "blocker"
         wf.variables = {}
         wf.triggers = {"on_session_start": [{"action": "block_action"}]}
+        wf.observers = []
 
         container = MagicMock()
         container.definition = wf
@@ -347,6 +349,7 @@ class TestWorkflowEngineExtended:
         wf.name = "sys_msg_wf"
         wf.variables = {}
         wf.triggers = {"on_session_start": [{"action": "act1"}]}
+        wf.observers = []
 
         container = MagicMock()
         container.definition = wf
@@ -380,6 +383,7 @@ class TestWorkflowEngineExtended:
         wf.name = "allow_wf"
         wf.variables = {}
         wf.triggers = {"on_session_start": [{"action": "normal_action"}]}
+        wf.observers = []
 
         container = MagicMock()
         container.definition = wf
@@ -415,6 +419,7 @@ class TestWorkflowEngineExtended:
         wf.variables = {}
         # Condition that evals to False
         wf.triggers = {"on_session_start": [{"action": "act", "when": "skip_me"}]}
+        wf.observers = []
 
         container = MagicMock()
         container.definition = wf
@@ -444,6 +449,7 @@ class TestWorkflowEngineExtended:
         wf.name = "error_wf"
         wf.variables = {}
         wf.triggers = {"on_session_start": [{"action": "act1"}]}
+        wf.observers = []
 
         container = MagicMock()
         container.definition = wf
@@ -492,6 +498,7 @@ class TestWorkflowEngineExtended:
         # The map is `trigger_name` -> list of triggers.
         # So yes, a list of triggers.
         wf.triggers = {"on_session_start": [{"action": "act1"}, {"action": "act2"}]}
+        wf.observers = []
 
         container = MagicMock()
         container.definition = wf
@@ -547,12 +554,14 @@ class TestWorkflowEngineExtended:
         # Triggers:
         # wf1: on_before_tool -> action1
         wf1.triggers = {"on_before_tool": [{"action": "act1", "param": "p1"}]}
+        wf1.observers = []
 
         wf2 = MagicMock(spec=WorkflowDefinition)
         wf2.name = "wf2"
         wf2.variables = {}
         # wf2: on_before_tool -> action2
         wf2.triggers = {"on_before_tool": [{"action": "act2", "param": "p2"}]}
+        wf2.observers = []
 
         # discover_lifecycle_workflows returns a container with .definition
         container1 = MagicMock()

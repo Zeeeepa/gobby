@@ -18,6 +18,7 @@ from gobby.hooks.events import HookEvent, HookEventType, SessionSource
 from gobby.storage.workflow_audit import WorkflowAuditManager
 from gobby.workflows.actions import ActionExecutor
 from gobby.workflows.definitions import (
+    Observer,
     PrematureStopHandler,
     WorkflowDefinition,
     WorkflowState,
@@ -655,6 +656,7 @@ class TestCheckPrematureStop:
         lifecycle_wf.name = "lifecycle_wf"
         lifecycle_wf.variables = {}
         lifecycle_wf.triggers = {"on_stop": []}  # Empty triggers - just need workflow present
+        lifecycle_wf.observers = []
 
         container = MagicMock()
         container.definition = lifecycle_wf
@@ -920,11 +922,14 @@ class TestLifecycleWorkflowAfterToolTaskDetection:
         self, workflow_engine, mock_state_manager, mock_loader
     ):
         """AFTER_TOOL event creates lifecycle state if none exists for task detection."""
-        # Need at least one lifecycle workflow to not return early
+        # Need at least one lifecycle workflow with task_claim_tracking observer
         lifecycle_wf = MagicMock(spec=WorkflowDefinition)
         lifecycle_wf.name = "lifecycle_wf"
         lifecycle_wf.variables = {}
         lifecycle_wf.triggers = {"on_after_tool": []}  # Empty triggers
+        lifecycle_wf.observers = [
+            Observer(name="task_lifecycle", behavior="task_claim_tracking"),
+        ]
 
         container = MagicMock()
         container.definition = lifecycle_wf
@@ -955,7 +960,7 @@ class TestLifecycleWorkflowAfterToolTaskDetection:
         # save_state should be called with a new lifecycle state
         mock_state_manager.save_state.assert_called()
         saved_state = mock_state_manager.save_state.call_args[0][0]
-        assert saved_state.workflow_name == "__lifecycle__"
+        assert saved_state.workflow_name == "lifecycle_wf"
         assert saved_state.variables.get("task_claimed") is True
         assert saved_state.variables.get("claimed_task_id") == "gt-456"
 

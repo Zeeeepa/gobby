@@ -852,15 +852,18 @@ class WorkflowEngine:
         self, event: HookEvent, context_data: dict[str, Any] | None = None
     ) -> HookResponse:
         """Discover and evaluate all lifecycle workflows for the given event."""
+        from gobby.workflows.observers import ObserverEngine, get_default_registry
+
+        observer_engine = ObserverEngine(behavior_registry=get_default_registry())
         return await _evaluate_all_lifecycle_workflows(
             event=event,
             loader=self.loader,
             state_manager=self.state_manager,
             action_executor=self.action_executor,
             evaluator=self.evaluator,
-            detect_task_claim_fn=self._detect_task_claim,
             check_premature_stop_fn=self._check_premature_stop,
             context_data=context_data,
+            observer_engine=observer_engine,
         )
 
     def _process_action_result(

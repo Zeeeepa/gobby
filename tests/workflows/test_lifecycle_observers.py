@@ -137,7 +137,7 @@ class TestObserverEvaluationInLifecycle:
             state_manager=state_mgr,
             action_executor=_mock_action_executor(),
             evaluator=_mock_evaluator(),
-            detect_task_claim_fn=MagicMock(),
+
             check_premature_stop_fn=AsyncMock(return_value=None),
             observer_engine=ObserverEngine(),
         )
@@ -181,7 +181,7 @@ class TestObserverEvaluationInLifecycle:
             state_manager=state_mgr,
             action_executor=_mock_action_executor(),
             evaluator=_mock_evaluator(),
-            detect_task_claim_fn=MagicMock(),
+
             check_premature_stop_fn=AsyncMock(return_value=None),
             observer_engine=ObserverEngine(),
         )
@@ -224,7 +224,7 @@ class TestObserverEvaluationInLifecycle:
             state_manager=state_mgr,
             action_executor=_mock_action_executor(),
             evaluator=_mock_evaluator(),
-            detect_task_claim_fn=MagicMock(),
+
             check_premature_stop_fn=AsyncMock(return_value=None),
             observer_engine=ObserverEngine(behavior_registry=registry),
         )
@@ -265,7 +265,7 @@ class TestObserverEvaluationInLifecycle:
             state_manager=state_mgr,
             action_executor=_mock_action_executor(),
             evaluator=_mock_evaluator(),
-            detect_task_claim_fn=MagicMock(),
+
             check_premature_stop_fn=AsyncMock(return_value=None),
             observer_engine=ObserverEngine(),
         )
@@ -302,7 +302,7 @@ class TestObserverEvaluationInLifecycle:
             state_manager=state_mgr,
             action_executor=_mock_action_executor(),
             evaluator=_mock_evaluator(),
-            detect_task_claim_fn=MagicMock(),
+
             check_premature_stop_fn=AsyncMock(return_value=None),
         )
 

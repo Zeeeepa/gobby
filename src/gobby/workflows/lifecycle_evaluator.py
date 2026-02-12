@@ -511,34 +511,12 @@ async def evaluate_lifecycle_triggers(
     )
 
 
-def _detect_and_persist(
-    session_id: str,
-    event: HookEvent,
-    state_manager: "WorkflowStateManager",
-    detect_fns: list[Any],
-    persist_fn: Any,
-) -> None:
-    """Run detection functions and persist any state changes."""
-    existing = state_manager.get_state(session_id)
-    state_was_created = existing is None
-    state = existing or WorkflowState(
-        session_id=session_id,
-        workflow_name="__lifecycle__",
-        step="",
-    )
-    vars_snapshot = copy.deepcopy(state.variables) if not state_was_created else None
-    for fn in detect_fns:
-        fn(event, state)
-    persist_fn(session_id, state, state_was_created, vars_snapshot, state_manager)
-
-
 async def evaluate_all_lifecycle_workflows(
     event: HookEvent,
     loader: "WorkflowLoader",
     state_manager: "WorkflowStateManager",
     action_executor: "ActionExecutor",
     evaluator: "ConditionEvaluator",
-    detect_task_claim_fn: Any,
     check_premature_stop_fn: Any,
     context_data: dict[str, Any] | None = None,
     observer_engine: Any | None = None,
@@ -555,9 +533,9 @@ async def evaluate_all_lifecycle_workflows(
         state_manager: Workflow state manager
         action_executor: Action executor for running actions
         evaluator: Condition evaluator
-        detect_task_claim_fn: Function to detect task claims
         check_premature_stop_fn: Async function to check premature stop
         context_data: Optional context data passed between actions
+        observer_engine: Optional ObserverEngine for evaluating YAML/behavior observers
 
     Returns:
         Merged HookResponse with combined context and first non-allow decision.
@@ -723,23 +701,12 @@ async def evaluate_all_lifecycle_workflows(
                 event_data=event.data or {},
                 state=state,
                 event=event,
+                task_manager=getattr(action_executor, "task_manager", None),
+                session_task_manager=getattr(action_executor, "session_task_manager", None),
             )
 
             _persist_state_changes(
                 obs_session_id, state, state_was_created, vars_snapshot, state_manager
-            )
-
-    # Detect task claims for AFTER_TOOL events (session-scoped enforcement)
-    # This enables require_task_before_edit to work with lifecycle workflows
-    if event.event_type == HookEventType.AFTER_TOOL:
-        session_id = event.metadata.get("_platform_session_id")
-        if session_id:
-            _detect_and_persist(
-                session_id,
-                event,
-                state_manager,
-                [detect_task_claim_fn],
-                _persist_state_changes,
             )
 
     # Check for premature stop in active step workflows on STOP events
