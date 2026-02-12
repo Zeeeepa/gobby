@@ -15,7 +15,7 @@ from .audit_helpers import (
     log_tool_call,
     log_transition,
 )
-from .definitions import WorkflowDefinition, WorkflowState, WorkflowTransition
+from .definitions import RuleDefinition, WorkflowDefinition, WorkflowState, WorkflowTransition
 from .detection_helpers import (
     detect_mcp_call,
     detect_task_claim,
@@ -39,6 +39,8 @@ from .premature_stop import check_premature_stop
 from .state_manager import WorkflowStateManager
 
 if TYPE_CHECKING:
+    from gobby.storage.rules import RuleStore
+
     from .actions import ActionExecutor
 
 logger = logging.getLogger(__name__)
@@ -112,12 +114,14 @@ class WorkflowEngine:
         action_executor: "ActionExecutor",
         evaluator: ConditionEvaluator | None = None,
         audit_manager: WorkflowAuditManager | None = None,
+        rule_store: "RuleStore | None" = None,
     ):
         self.loader = loader
         self.state_manager = state_manager
         self.action_executor = action_executor
         self.evaluator = evaluator or ConditionEvaluator()
         self.audit_manager = audit_manager
+        self.rule_store = rule_store
 
     # Maps canonical trigger names to their legacy aliases for backward compatibility.
     TRIGGER_ALIASES: dict[str, list[str]] = {
@@ -365,6 +369,39 @@ class WorkflowEngine:
                         )
                         return HookResponse(decision="block", reason=reason)
                     # Handle other actions like warn, require_approval
+
+            # Check named rules (check_rules)
+            if current_step.check_rules:
+                project_id = project_info.get("id") or None
+                resolved_rules = self._resolve_check_rules(
+                    current_step.check_rules, workflow, project_id=project_id
+                )
+                # Only evaluate block-action rules via block_tools
+                block_rules = [r for r in resolved_rules if r.action == "block"]
+                if block_rules:
+                    from gobby.workflows.enforcement.blocking import block_tools
+
+                    block_rule_dicts = [r.to_block_rule() for r in block_rules]
+                    project_path_str = str(project_path) if project_path else None
+                    task_manager = (
+                        getattr(self.action_executor, "task_manager", None)
+                        if self.action_executor
+                        else None
+                    )
+                    block_result = await block_tools(
+                        rules=block_rule_dicts,
+                        event_data=event.data,
+                        workflow_state=state,
+                        project_path=project_path_str,
+                        task_manager=task_manager,
+                        source=event.source.value if event.source else None,
+                    )
+                    if block_result and block_result.get("decision") == "block":
+                        reason = block_result.get("reason", "Blocked by named rule.")
+                        self._log_rule_eval(
+                            session_id, state.step, "check_rules", "", "block", reason
+                        )
+                        return HookResponse(decision="block", reason=reason)
 
             # Log successful tool allow
             self._log_tool_call(session_id, state.step, tool_name, "allow")
@@ -684,6 +721,50 @@ class WorkflowEngine:
             # instead of requiring "variables.task_claimed"
             **state.variables,
         }
+
+    def _resolve_check_rules(
+        self,
+        check_rules: list[str],
+        workflow: WorkflowDefinition,
+        project_id: str | None = None,
+    ) -> list[RuleDefinition]:
+        """Resolve check_rules names to RuleDefinition objects.
+
+        Resolution order:
+        1. Workflow's rule_definitions (includes file-local + imported)
+        2. DB rules via RuleStore (project > user > bundled tiers)
+
+        Unknown names are logged and skipped.
+        """
+        resolved: list[RuleDefinition] = []
+        rule_store = self.rule_store
+
+        # Lazy-create RuleStore from action_executor.db if no explicit store
+        if rule_store is None and self.action_executor and getattr(self.action_executor, "db", None):
+            from gobby.storage.rules import RuleStore
+
+            rule_store = RuleStore(self.action_executor.db)
+
+        for name in check_rules:
+            # 1. Check workflow's rule_definitions (file-local + imported)
+            if name in workflow.rule_definitions:
+                resolved.append(workflow.rule_definitions[name])
+                continue
+
+            # 2. Check DB via RuleStore (handles tier precedence)
+            if rule_store:
+                rule_row = rule_store.get_rule(name, project_id=project_id)
+                if rule_row:
+                    try:
+                        rule_def = RuleDefinition(**rule_row["definition"])
+                        resolved.append(rule_def)
+                        continue
+                    except Exception as e:
+                        logger.warning(f"Invalid rule definition for '{name}' from DB: {e}")
+
+            logger.warning(f"check_rules: rule '{name}' not found, skipping")
+
+        return resolved
 
     async def _auto_transition_chain(
         self,
