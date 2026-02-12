@@ -81,6 +81,16 @@ class GobbyRunner:
         except Exception as e:
             logger.warning(f"Failed to sync bundled skills: {e}")
 
+        # Sync bundled rules to database
+        from gobby.workflows.rule_sync import sync_bundled_rules
+
+        try:
+            rule_result = sync_bundled_rules(self.database)
+            if rule_result["synced"] > 0:
+                logger.info(f"Synced {rule_result['synced']} bundled rules to database")
+        except Exception as e:
+            logger.warning(f"Failed to sync bundled rules: {e}")
+
         # Initialize Skill Manager and Hub Manager
         from gobby.storage.skills import LocalSkillManager
 
