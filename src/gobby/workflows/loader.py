@@ -50,6 +50,7 @@ class _CachedDiscovery:
 
 
 _BUNDLED_WORKFLOWS_DIR = Path(__file__).parent.parent / "install" / "shared" / "workflows"
+_BUNDLED_RULES_DIR = Path(__file__).parent.parent / "install" / "shared" / "rules"
 
 
 class WorkflowLoader:
@@ -187,7 +188,11 @@ class WorkflowLoader:
                 else:
                     logger.error(f"Parent workflow '{parent_name}' not found for '{name}'")
 
-            # 4. Auto-detect pipeline type
+            # 4. Resolve rule imports (before creating definition)
+            if data.get("imports"):
+                data = self._resolve_imports(data, project_path)
+
+            # 5. Auto-detect pipeline type
             if data.get("type") == "pipeline":
                 # Validate step references for pipelines
                 self._validate_pipeline_references(data)
@@ -305,6 +310,106 @@ class WorkflowLoader:
         except Exception as e:
             logger.error(f"Failed to load pipeline '{name}' from {path}: {e}", exc_info=True)
             return None
+
+    def _find_rule_file(
+        self,
+        name: str,
+        project_path: Path | str | None = None,
+    ) -> Path | None:
+        """Find a rule definition file by name across search paths.
+
+        Search order (first match wins):
+        1. Project: {project_path}/.gobby/rules/
+        2. User: ~/.gobby/rules/ (from global_dirs parent)
+        3. Bundled: install/shared/rules/
+
+        Args:
+            name: Rule file name (without .yaml extension).
+            project_path: Optional project directory.
+
+        Returns:
+            Path to the YAML file, or None if not found.
+        """
+        search_dirs: list[Path] = []
+
+        # Project rules (highest priority)
+        if project_path:
+            search_dirs.append(Path(project_path) / ".gobby" / "rules")
+
+        # User rules (from global workflow dirs, sibling rules/ dir)
+        for gdir in self.global_dirs:
+            search_dirs.append(gdir.parent / "rules")
+
+        # Bundled rules (lowest priority)
+        if self._bundled_dir is not None:
+            search_dirs.append(self._bundled_dir.parent / "rules")
+
+        filename = f"{name}.yaml"
+        for d in search_dirs:
+            candidate = d / filename
+            if candidate.exists():
+                return candidate
+
+        return None
+
+    def _load_rule_definitions(self, path: Path) -> dict[str, Any]:
+        """Load rule_definitions from a YAML rule file.
+
+        Args:
+            path: Path to the rule YAML file.
+
+        Returns:
+            Dict of rule_name -> rule definition dict.
+        """
+        with open(path) as f:
+            data = yaml.safe_load(f)
+        if not data or not isinstance(data, dict):
+            return {}
+        return data.get("rule_definitions", {})
+
+    def _resolve_imports(
+        self,
+        data: dict[str, Any],
+        project_path: Path | str | None = None,
+    ) -> dict[str, Any]:
+        """Resolve the 'imports' field by loading and merging rule definitions.
+
+        Imported rules are merged first, then file-local rule_definitions
+        override any imported rules with the same name.
+
+        Args:
+            data: Parsed workflow YAML data dict.
+            project_path: Optional project directory for rule file search.
+
+        Returns:
+            The data dict with rule_definitions merged from imports.
+
+        Raises:
+            ValueError: If an imported rule file is not found.
+        """
+        imports = data.get("imports", [])
+        if not imports:
+            return data
+
+        merged_rules: dict[str, Any] = {}
+
+        for import_name in imports:
+            path = self._find_rule_file(import_name, project_path)
+            if path is None:
+                raise ValueError(
+                    f"Imported rule file '{import_name}' not found. "
+                    f"Searched in project, user, and bundled rule directories."
+                )
+            imported = self._load_rule_definitions(path)
+            # Later imports override earlier imports
+            merged_rules.update(imported)
+
+        # File-local rule_definitions override imported
+        local_rules = data.get("rule_definitions", {})
+        merged_rules.update(local_rules)
+
+        data["rule_definitions"] = merged_rules
+        return data
 
     def _find_workflow_file(self, name: str, search_dirs: list[Path]) -> Path | None:
         # Try both the original name and converted name (for inline workflows)
