@@ -1,24 +1,59 @@
-"""Observer engine for YAML observer matching and variable setting.
+"""Observer engine for YAML observer matching, variable setting, and behavior registry.
 
 Evaluates Observer definitions against hook events and updates workflow
-state variables when matches occur.
+state variables when matches occur. Supports two observer variants:
+- YAML observers: inline on/match/set definitions
+- Behavior observers: delegate to registered Python callables
 """
 
 import logging
-from typing import Any
+from collections.abc import Callable, Coroutine
+from typing import TYPE_CHECKING, Any
 
 from jinja2 import Environment
 
 from gobby.workflows.definitions import Observer, WorkflowState
+
+if TYPE_CHECKING:
+    from gobby.hooks.events import HookEvent
 
 logger = logging.getLogger(__name__)
 
 # Shared Jinja2 environment for evaluating set expressions
 _jinja_env = Environment()
 
+# Type for behavior callables: async (event, state, **kwargs) -> None
+BehaviorFn = Callable[..., Coroutine[Any, Any, None]]
+
+
+class BehaviorRegistry:
+    """Registry mapping behavior names to async Python callables."""
+
+    def __init__(self) -> None:
+        self._behaviors: dict[str, BehaviorFn] = {}
+
+    def register(self, name: str, fn: BehaviorFn) -> None:
+        """Register a behavior by name."""
+        self._behaviors[name] = fn
+
+    def get(self, name: str) -> BehaviorFn | None:
+        """Get a behavior by name, or None if not found."""
+        return self._behaviors.get(name)
+
+    def has(self, name: str) -> bool:
+        """Check if a behavior is registered."""
+        return name in self._behaviors
+
+    def list(self) -> list[str]:
+        """List all registered behavior names."""
+        return list(self._behaviors.keys())
+
 
 class ObserverEngine:
-    """Evaluates YAML observers against events and sets variables."""
+    """Evaluates YAML observers and behavior observers against events."""
+
+    def __init__(self, behavior_registry: BehaviorRegistry | None = None) -> None:
+        self._behavior_registry = behavior_registry
 
     async def evaluate_observers(
         self,
@@ -26,6 +61,8 @@ class ObserverEngine:
         event_type: str,
         event_data: dict[str, Any],
         state: WorkflowState,
+        event: "HookEvent | None" = None,
+        **kwargs: Any,
     ) -> None:
         """Evaluate all observers against an event, updating state variables.
 
@@ -34,23 +71,60 @@ class ObserverEngine:
             event_type: The event type string (e.g., "after_tool", "before_tool")
             event_data: Hook event data dict (tool_name, tool_input, etc.)
             state: Workflow state to update on match
+            event: Full HookEvent (passed to behavior callables)
+            **kwargs: Additional context passed to behavior callables
         """
         for obs in observers:
-            # Skip behavior refs — handled by separate behavior registry
             if obs.behavior is not None:
-                continue
+                # Behavior observer — delegate to registry
+                await self._evaluate_behavior(obs, event, state, **kwargs)
+            else:
+                # YAML observer — match and set
+                self._evaluate_yaml_observer(obs, event_type, event_data, state)
 
-            # Check event type matches
-            if obs.on != event_type:
-                continue
+    async def _evaluate_behavior(
+        self,
+        obs: Observer,
+        event: "HookEvent | None",
+        state: WorkflowState,
+        **kwargs: Any,
+    ) -> None:
+        """Evaluate a behavior observer by delegating to the registry."""
+        if self._behavior_registry is None:
+            logger.debug(f"Observer '{obs.name}': no behavior registry, skipping")
+            return
 
-            # Check match criteria (AND logic)
-            if not self._matches(obs, event_data):
-                continue
+        fn = self._behavior_registry.get(obs.behavior or "")
+        if fn is None:
+            logger.warning(
+                f"Observer '{obs.name}': behavior '{obs.behavior}' not found in registry"
+            )
+            return
 
-            # Apply set expressions
-            if obs.set:
-                self._apply_set(obs, event_data, state)
+        try:
+            await fn(event, state, **kwargs)
+        except Exception as e:
+            logger.error(
+                f"Observer '{obs.name}': behavior '{obs.behavior}' failed: {e}",
+                exc_info=True,
+            )
+
+    def _evaluate_yaml_observer(
+        self,
+        obs: Observer,
+        event_type: str,
+        event_data: dict[str, Any],
+        state: WorkflowState,
+    ) -> None:
+        """Evaluate a YAML observer (on/match/set)."""
+        if obs.on != event_type:
+            return
+
+        if not self._matches(obs, event_data):
+            return
+
+        if obs.set:
+            self._apply_set(obs, event_data, state)
 
     def _matches(self, obs: Observer, event_data: dict[str, Any]) -> bool:
         """Check if observer match criteria are satisfied.
@@ -124,3 +198,39 @@ class ObserverEngine:
 
         # Otherwise treat as literal value
         return expression
+
+
+# =============================================================================
+# Built-in behaviors
+# =============================================================================
+
+
+async def _task_claim_tracking(
+    event: "HookEvent | None",
+    state: WorkflowState,
+    **kwargs: Any,
+) -> None:
+    """Behavior: track task claims/releases via detect_task_claim.
+
+    Wraps the existing detect_task_claim function from detection_helpers.
+    """
+    if event is None:
+        return
+
+    from gobby.workflows.detection_helpers import detect_task_claim
+
+    task_manager = kwargs.get("task_manager")
+    session_task_manager = kwargs.get("session_task_manager")
+    detect_task_claim(
+        event=event,
+        state=state,
+        session_task_manager=session_task_manager,
+        task_manager=task_manager,
+    )
+
+
+def get_default_registry() -> BehaviorRegistry:
+    """Create a BehaviorRegistry with all built-in behaviors registered."""
+    registry = BehaviorRegistry()
+    registry.register("task_claim_tracking", _task_claim_tracking)
+    return registry
