@@ -44,8 +44,7 @@ steps:
           DO NOT edit files in this phase. Focus on research and planning.
 
     exit_conditions:
-      - type: user_approval
-        prompt: "Plan complete. Ready to spawn agents for subtasks?"
+      - approval: "Plan complete. Ready to spawn agents for subtasks?"
 
     transitions:
       - to: delegate
@@ -115,8 +114,7 @@ steps:
           You may now edit files to make final adjustments.
 
     exit_conditions:
-      - type: user_approval
-        prompt: "Integration complete. Ready to finalize?"
+      - approval: "Integration complete. Ready to finalize?"
 
     transitions:
       - to: complete

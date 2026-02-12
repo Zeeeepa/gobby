@@ -49,9 +49,7 @@ steps:
           Research the codebase and existing patterns.
           DO NOT write any code yet.
 
-    exit_conditions:
-      - type: variable_set
-        variable: requirements_understood
+    exit_when: "requirements_understood"
 
     transitions:
       - to: write_tests
@@ -91,9 +89,7 @@ steps:
         action: block
         message: "Write tests before implementation. Create test files first."
 
-    exit_conditions:
-      - type: variable_set
-        variable: tests_written
+    exit_when: "tests_written"
 
     transitions:
       - to: implement
@@ -124,9 +120,7 @@ steps:
         action: warn
         message: "Remember to run tests frequently"
 
-    exit_conditions:
-      - type: variable_set
-        variable: tests_passing
+    exit_when: "tests_passing"
 
     transitions:
       - to: refactor
@@ -160,8 +154,7 @@ steps:
         message: "Tests are failing. Revert last change and try again."
 
     exit_conditions:
-      - type: user_approval
-        prompt: "Refactoring complete. Ready to finalize?"
+      - approval: "Refactoring complete. Ready to finalize?"
 
     transitions:
       - to: complete

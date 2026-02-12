@@ -53,11 +53,9 @@ steps:
       - Write
       - Bash
 
+    exit_when: "variables.get('task_list')"
     exit_conditions:
-      - type: variable_set
-        variable: task_list
-      - type: user_approval
-        prompt: "Proceed with these tasks?"
+      - approval: "Proceed with these tasks?"
 
   - name: execute
     description: "Work through tasks sequentially"

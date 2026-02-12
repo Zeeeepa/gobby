@@ -122,8 +122,7 @@ phases:
           All phase actions tested successfully.
 
     exit_conditions:
-      - type: user_approval
-        prompt: "Phase action tests complete. Finish?"
+      - approval: "Phase action tests complete. Finish?"
 
 triggers:
   on_session_start:

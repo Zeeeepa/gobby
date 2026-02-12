@@ -68,9 +68,7 @@ steps:
       - Bash
       - NotebookEdit
 
-    exit_conditions:
-      - type: variable_set
-        variable: design_doc
+    exit_when: "design_doc"
 
     transitions:
       - to: implement
