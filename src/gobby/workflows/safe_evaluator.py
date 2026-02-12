@@ -7,11 +7,14 @@ and lazy boolean evaluation for deferred computation.
 from __future__ import annotations
 
 import ast
+import logging
 import operator
 from collections.abc import Callable
 from typing import Any
 
-__all__ = ["LazyBool", "SafeExpressionEvaluator"]
+__all__ = ["LazyBool", "SafeExpressionEvaluator", "build_condition_helpers"]
+
+logger = logging.getLogger(__name__)
 
 
 class LazyBool:
@@ -189,3 +192,133 @@ class SafeExpressionEvaluator(ast.NodeVisitor):
     def generic_visit(self, node: ast.AST) -> Any:
         """Reject any unsupported AST nodes."""
         raise ValueError(f"Unsupported expression type: {type(node).__name__}")
+
+
+def _get_variables(context: dict[str, Any]) -> dict[str, Any]:
+    """Extract variables dict from context, handling both dict and SimpleNamespace."""
+    variables = context.get("variables", {})
+    if isinstance(variables, dict):
+        return variables
+    # SimpleNamespace from workflow engine
+    return getattr(variables, "__dict__", {})
+
+
+def build_condition_helpers(
+    task_manager: Any = None,
+    stop_registry: Any = None,
+    plugin_conditions: dict[str, Any] | None = None,
+    context: dict[str, Any] | None = None,
+) -> dict[str, Callable[..., Any]]:
+    """Build allowed_funcs dict with workflow condition helpers for SafeExpressionEvaluator.
+
+    Creates closures that bind task_manager, stop_registry, and context
+    so helper functions can be called from AST-based expressions.
+
+    Args:
+        task_manager: LocalTaskManager instance (enables task_tree_complete, task_needs_user_review)
+        stop_registry: StopRegistry instance (enables has_stop_signal)
+        plugin_conditions: Dict of plugin condition name -> callable
+        context: Evaluation context dict (needed for mcp_* helpers to access variables)
+
+    Returns:
+        Dict of function_name -> callable, ready to pass as allowed_funcs.
+    """
+    from .evaluator import task_needs_user_review, task_tree_complete
+
+    ctx = context or {}
+    funcs: dict[str, Callable[..., Any]] = {
+        "len": len,
+        "bool": bool,
+        "str": str,
+        "int": int,
+        "list": list,
+        "dict": dict,
+    }
+
+    # --- Task helpers ---
+
+    if task_manager:
+        funcs["task_tree_complete"] = lambda task_id: task_tree_complete(task_manager, task_id)
+        funcs["task_needs_user_review"] = lambda task_id: task_needs_user_review(
+            task_manager, task_id
+        )
+    else:
+        funcs["task_tree_complete"] = lambda task_id: True
+        funcs["task_needs_user_review"] = lambda task_id: False
+
+    # --- Stop signal helper ---
+
+    if stop_registry:
+        funcs["has_stop_signal"] = lambda session_id: stop_registry.has_pending_signal(session_id)
+    else:
+        funcs["has_stop_signal"] = lambda session_id: False
+
+    # --- MCP call tracking helpers ---
+
+    def _mcp_called(server: str, tool: str | None = None) -> bool:
+        """Check if MCP tool was called successfully."""
+        variables = _get_variables(ctx)
+        mcp_calls = variables.get("mcp_calls", {})
+        if not isinstance(mcp_calls, dict):
+            return False
+        if tool:
+            return tool in mcp_calls.get(server, [])
+        return bool(mcp_calls.get(server))
+
+    def _mcp_result_is_null(server: str, tool: str) -> bool:
+        """Check if MCP tool result is null/missing."""
+        variables = _get_variables(ctx)
+        mcp_results = variables.get("mcp_results", {})
+        if not isinstance(mcp_results, dict):
+            return True
+        server_results = mcp_results.get(server, {})
+        if not isinstance(server_results, dict):
+            return True
+        return server_results.get(tool) is None
+
+    def _mcp_failed(server: str, tool: str) -> bool:
+        """Check if MCP tool call failed."""
+        variables = _get_variables(ctx)
+        mcp_results = variables.get("mcp_results", {})
+        if not isinstance(mcp_results, dict):
+            return False
+        server_results = mcp_results.get(server, {})
+        if not isinstance(server_results, dict):
+            return False
+        result = server_results.get(tool)
+        if result is None:
+            return False
+        if isinstance(result, dict):
+            if result.get("success") is False:
+                return True
+            if result.get("error"):
+                return True
+            if result.get("status") == "failed":
+                return True
+        return False
+
+    def _mcp_result_has(server: str, tool: str, field: str, value: Any) -> bool:
+        """Check if MCP tool result has a specific field value."""
+        variables = _get_variables(ctx)
+        mcp_results = variables.get("mcp_results", {})
+        if not isinstance(mcp_results, dict):
+            return False
+        server_results = mcp_results.get(server, {})
+        if not isinstance(server_results, dict):
+            return False
+        result = server_results.get(tool)
+        if not isinstance(result, dict):
+            return False
+        return bool(result.get(field) == value)
+
+    funcs["mcp_called"] = _mcp_called
+    funcs["mcp_result_is_null"] = _mcp_result_is_null
+    funcs["mcp_failed"] = _mcp_failed
+    funcs["mcp_result_has"] = _mcp_result_has
+
+    # --- Plugin conditions ---
+
+    if plugin_conditions:
+        funcs.update(plugin_conditions)
+
+    return funcs
