@@ -424,6 +424,7 @@ class ActionExecutor:
             name = kw.get("name")
             inputs = kw.get("inputs") or {}
             await_completion = kw.get("await_completion", False)
+            result_variable = kw.get("result_variable")
 
             if not name:
                 return {"error": "Pipeline name is required"}
@@ -456,11 +457,17 @@ class ActionExecutor:
                     project_id=variables.get("project_id", ""),
                 )
 
-                return {
+                result = {
                     "status": execution.status.value,
                     "execution_id": execution.id,
                     "pipeline_name": execution.pipeline_name,
                 }
+
+                # Store result in workflow variable if requested
+                if result_variable:
+                    context.state.variables[result_variable] = result
+
+                return result
 
             except ApprovalRequired as e:
                 # Store pending pipeline in state if await_completion is True
@@ -474,6 +481,15 @@ class ActionExecutor:
                     "token": e.token,
                     "message": e.message,
                 }
+
+            except Exception as e:
+                error_result: dict[str, Any] = {
+                    "error": str(e),
+                    "failed": True,
+                }
+                if result_variable:
+                    context.state.variables[result_variable] = error_result
+                return error_result
 
         self.register("run_pipeline", run_pipeline)
 

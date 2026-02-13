@@ -284,3 +284,78 @@ class TestRunPipelineActionExecution:
         call_kwargs = mock_pipeline_executor.execute.call_args
         passed_inputs = call_kwargs.kwargs.get("inputs", {})
         assert passed_inputs.get("env") == "staging"
+
+    @pytest.mark.asyncio
+    async def test_run_pipeline_stores_result_in_variable(
+        self, action_executor, action_context, mock_pipeline_executor, mock_workflow_loader
+    ) -> None:
+        """Verify run_pipeline stores outputs in result_variable when specified."""
+        from gobby.workflows.definitions import PipelineDefinition, PipelineStep
+        from gobby.workflows.pipeline_state import ExecutionStatus, PipelineExecution
+
+        mock_pipeline = PipelineDefinition(
+            name="build",
+            description="Build project",
+            steps=[PipelineStep(id="compile", exec="make build")],
+        )
+        mock_workflow_loader.load_pipeline.return_value = mock_pipeline
+
+        mock_execution = PipelineExecution(
+            id="pe-build-1",
+            pipeline_name="build",
+            project_id="proj-1",
+            status=ExecutionStatus.COMPLETED,
+            created_at="2026-01-01T00:00:00Z",
+            updated_at="2026-01-01T00:01:00Z",
+        )
+        mock_pipeline_executor.execute = AsyncMock(return_value=mock_execution)
+
+        result = await action_executor.execute(
+            "run_pipeline",
+            action_context,
+            name="build",
+            inputs={},
+            result_variable="build_result",
+        )
+
+        assert result is not None
+        assert result["status"] == "completed"
+        # Verify result stored in workflow variable
+        assert "build_result" in action_context.state.variables
+        stored = action_context.state.variables["build_result"]
+        assert stored["status"] == "completed"
+        assert stored["execution_id"] == "pe-build-1"
+
+    @pytest.mark.asyncio
+    async def test_run_pipeline_failure_sets_error_in_result_variable(
+        self, action_executor, action_context, mock_pipeline_executor, mock_workflow_loader
+    ) -> None:
+        """Verify pipeline failure stores {error, failed: true} in result_variable."""
+        from gobby.workflows.definitions import PipelineDefinition, PipelineStep
+
+        mock_pipeline = PipelineDefinition(
+            name="deploy",
+            description="Deploy to production",
+            steps=[PipelineStep(id="deploy", exec="deploy.sh")],
+        )
+        mock_workflow_loader.load_pipeline.return_value = mock_pipeline
+
+        mock_pipeline_executor.execute = AsyncMock(
+            side_effect=RuntimeError("Connection timed out")
+        )
+
+        result = await action_executor.execute(
+            "run_pipeline",
+            action_context,
+            name="deploy",
+            inputs={},
+            result_variable="deploy_result",
+        )
+
+        assert result is not None
+        assert "error" in result
+        # Verify error stored in workflow variable
+        assert "deploy_result" in action_context.state.variables
+        stored = action_context.state.variables["deploy_result"]
+        assert stored["failed"] is True
+        assert "Connection timed out" in stored["error"]
