@@ -1,12 +1,10 @@
 name: headless-lifecycle
 description: "Lifecycle for headless/SDK clients without session_start/session_end hooks"
 type: lifecycle
+priority: 10
 sources: [claude_sdk]
 
-settings:
-  priority: 10
-
-# Session-scoped variables (mirrors session-lifecycle)
+# Workflow-scoped variables (behavior settings)
 variables:
   # First-run guard — set to true after init actions run
   _session_initialized: false
@@ -26,6 +24,12 @@ variables:
 
   # Progressive tool discovery
   enforce_tool_schema_check: true
+
+  # Max stop attempts before escape hatch
+  max_stop_attempts: 3
+
+# Session-scoped shared variables (visible to all workflows in the session)
+session_variables:
   unlocked_tools: []
   servers_listed: false
   listed_servers: []
@@ -35,7 +39,6 @@ variables:
 
   # Stop attempt counter for escape hatch
   stop_attempts: 0
-  max_stop_attempts: 3
 
 triggers:
   on_before_agent:

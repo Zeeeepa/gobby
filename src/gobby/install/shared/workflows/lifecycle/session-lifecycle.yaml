@@ -1,13 +1,10 @@
 name: session-lifecycle
 description: "Unified session lifecycle and behavior enforcement"
 type: lifecycle
+priority: 10 # Run first - critical for handoff before other LLM calls
 sources: [claude, gemini, codex, antigravity, cursor, windsurf, copilot]
 
-settings:
-  priority: 10 # Run first - critical for handoff before other LLM calls
-
-# Session-scoped variables (can be overridden per session)
-# These provide runtime control over behavior settings
+# Workflow-scoped variables (behavior settings)
 variables:
   # Debug: echo additionalContext to system_message for terminal visibility
   debug_echo_context: true
@@ -16,10 +13,10 @@ variables:
   require_task_before_edit: true
 
   # Task lifecycle policies
-  
+
   # Block close_task until a commit is linked to the task
   require_commit_before_close: true
-  
+
   # Clear task_claimed variable on successful close_task
   clear_task_on_close: true
 
@@ -30,12 +27,16 @@ variables:
   # Set to false to disable this enforcement
   enforce_tool_schema_check: true
 
+  # Max stop attempts before escape hatch
+  max_stop_attempts: 3
+
+# Session-scoped shared variables (visible to all workflows in the session)
+# Reset on compact/clear since context is lost
+session_variables:
   # List of server:tool combos that have been unlocked via get_tool_schema
-  # Reset on compact/clear since context is lost
   unlocked_tools: []
 
   # Progressive disclosure gates - track which discovery steps have occurred
-  # Reset on compact/clear since context is lost
   servers_listed: false
   listed_servers: []
 
@@ -46,7 +47,6 @@ variables:
   # Stop attempt counter for escape hatch
   # After 3 consecutive failed stops, allow force-stop
   stop_attempts: 0
-  max_stop_attempts: 3
 
 observers:
   - name: task_lifecycle
