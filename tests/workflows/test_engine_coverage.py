@@ -666,6 +666,7 @@ class TestCheckPrematureStop:
         # (function returns early if no lifecycle workflows discovered)
         lifecycle_wf = MagicMock(spec=WorkflowDefinition)
         lifecycle_wf.name = "lifecycle_wf"
+        lifecycle_wf.enabled = True
         lifecycle_wf.variables = {}
         lifecycle_wf.triggers = {"on_stop": []}  # Empty triggers - just need workflow present
         lifecycle_wf.observers = []
@@ -940,6 +941,7 @@ class TestLifecycleWorkflowAfterToolTaskDetection:
         # Need at least one lifecycle workflow with task_claim_tracking observer
         lifecycle_wf = MagicMock(spec=WorkflowDefinition)
         lifecycle_wf.name = "lifecycle_wf"
+        lifecycle_wf.enabled = True
         lifecycle_wf.variables = {}
         lifecycle_wf.triggers = {"on_after_tool": []}  # Empty triggers
         lifecycle_wf.observers = [
@@ -1170,7 +1172,7 @@ class TestAutoTransitionDepthLimitLogging:
 
         with (
             _patch.object(workflow_engine, "transition_to", side_effect=fake_transition),
-            _patch("gobby.workflows.engine.logger") as mock_logger,
+            _patch("gobby.workflows.engine_transitions.logger") as mock_logger,
         ):
             await workflow_engine._auto_transition_chain(
                 state=state,
@@ -1230,7 +1232,7 @@ class TestAutoTransitionDepthLimitLogging:
 
         with (
             _patch.object(workflow_engine, "transition_to", side_effect=fake_transition),
-            _patch("gobby.workflows.engine.logger") as mock_logger,
+            _patch("gobby.workflows.engine_transitions.logger") as mock_logger,
         ):
             await workflow_engine._auto_transition_chain(
                 state=state,

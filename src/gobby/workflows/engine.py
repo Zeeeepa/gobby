@@ -29,6 +29,18 @@ from .engine_context import (
     _resolve_session_and_project as _resolve_session_and_project_fn,
 )
 from .engine_models import DotDict, TransitionResult
+from .engine_transitions import (
+    _auto_transition_chain as _auto_transition_chain_fn,
+)
+from .engine_transitions import (
+    _execute_actions as _execute_actions_fn,
+)
+from .engine_transitions import (
+    _render_status_message as _render_status_message_fn,
+)
+from .engine_transitions import (
+    transition_to as _transition_to_fn,
+)
 from .evaluator import ConditionEvaluator
 from .lifecycle_evaluator import (
     evaluate_all_lifecycle_workflows as _evaluate_all_lifecycle_workflows,
@@ -458,168 +470,18 @@ class WorkflowEngine:
         workflow: WorkflowDefinition,
         transition: WorkflowTransition | None = None,
     ) -> TransitionResult:
-        """
-        Execute transition logic.
-
-        Args:
-            state: Current workflow state
-            new_step_name: Name of the step to transition to
-            workflow: Workflow definition
-            transition: Optional transition object containing on_transition actions
-
-        Returns:
-            TransitionResult with injected messages (LLM context) and system messages (user-visible)
-        """
-        old_step = workflow.get_step(state.step)
-        new_step = workflow.get_step(new_step_name)
-
-        if not new_step:
-            logger.error(f"Cannot transition to unknown step '{new_step_name}'")
-            return TransitionResult()
-
-        logger.info(
-            f"Transitioning session {state.session_id} from '{state.step}' to '{new_step_name}'"
-        )
-
-        # Log the transition
-        self._log_transition(state.session_id, state.step, new_step_name)
-
-        try:
-            # Execute on_exit of old step
-            if old_step:
-                await self._execute_actions(old_step.on_exit, state)
-
-            # Execute on_transition actions if defined
-            if (
-                transition
-                and isinstance(transition, WorkflowTransition)
-                and transition.on_transition
-            ):
-                await self._execute_actions(transition.on_transition, state)
-
-            # Update state
-            state.step = new_step_name
-            state.step_entered_at = datetime.now(UTC)
-            state.step_action_count = 0
-            state.context_injected = False  # Reset for new step context
-            # Clear per-step MCP tracking so stale results from the previous step
-            # don't trigger transitions in the new step (e.g., auto_transition_chain
-            # looping back through a step that checks mcp_result_has).
-            state.variables.pop("mcp_results", None)
-            state.variables.pop("mcp_calls", None)
-
-            self.state_manager.save_state(state)
-
-            # Execute on_enter of new step and capture injected messages
-            injected_messages = await self._execute_actions(new_step.on_enter, state)
-
-            if injected_messages:
-                state.context_injected = True
-                self.state_manager.save_state(state)
-
-            # Render status_message for user visibility (after on_enter so variables are populated)
-            system_messages: list[str] = []
-            status_msg = self._render_status_message(new_step, state)
-            if status_msg:
-                system_messages.append(status_msg)
-
-            return TransitionResult(
-                injected_messages=injected_messages, system_messages=system_messages
-            )
-        except Exception as e:
-            logger.error(
-                f"Transition failed from '{state.step}' to '{new_step_name}': {e}", exc_info=True
-            )
-            # Re-raise to ensure the caller knows the transition failed,
-            # or handle gracefully (but state might be inconsistent if we don't bail)
-            raise
+        """Execute transition logic."""
+        return await _transition_to_fn(self, state, new_step_name, workflow, transition)
 
     async def _execute_actions(
         self, actions: list[dict[str, Any]], state: WorkflowState
     ) -> list[str]:
-        """
-        Execute a list of actions.
-
-        Returns:
-            List of injected messages from inject_message/inject_context actions.
-        """
-        from .actions import ActionContext
-
-        context = ActionContext(
-            session_id=state.session_id,
-            state=state,
-            db=self.action_executor.db,
-            session_manager=self.action_executor.session_manager,
-            template_engine=self.action_executor.template_engine,
-            llm_service=self.action_executor.llm_service,
-            transcript_processor=self.action_executor.transcript_processor,
-            config=self.action_executor.config,
-            tool_proxy_getter=self.action_executor.tool_proxy_getter,
-            memory_manager=self.action_executor.memory_manager,
-            memory_sync_manager=self.action_executor.memory_sync_manager,
-            task_sync_manager=self.action_executor.task_sync_manager,
-            session_task_manager=self.action_executor.session_task_manager,
-            pipeline_executor=self.action_executor.pipeline_executor,
-            workflow_loader=self.action_executor.workflow_loader,
-            skill_manager=self.action_executor.skill_manager,
-        )
-
-        injected_messages: list[str] = []
-
-        for action_def in actions:
-            action_type = action_def.get("action")
-            if not action_type:
-                continue
-
-            # Support conditional actions via `when` field
-            when = action_def.get("when")
-            if when is not None:
-                eval_ctx = {"variables": DotDict(state.variables), **state.variables}
-                if not self.evaluator.evaluate(when, eval_ctx):
-                    logger.debug(f"Skipping action '{action_type}': when condition false: {when}")
-                    continue
-
-            result = await self.action_executor.execute(action_type, context, **action_def)
-
-            if result:
-                # Capture injected messages to return to caller
-                if "inject_message" in result:
-                    msg = result["inject_message"]
-                    injected_messages.append(msg)
-                    logger.info(f"Message injected: {msg[:50]}...")
-                elif "inject_context" in result:
-                    msg = result["inject_context"]
-                    injected_messages.append(msg)
-                    logger.info(f"Context injected: {msg[:50]}...")
-
-        return injected_messages
+        """Execute a list of actions."""
+        return await _execute_actions_fn(self, actions, state)
 
     def _render_status_message(self, step: Any, state: WorkflowState) -> str | None:
-        """Render a step's status_message template if defined.
-
-        Called after on_enter actions so that variables set during on_enter
-        are available for template rendering. Returns the rendered string
-        for inclusion as a user-visible system_message on HookResponse.
-        """
-        status_message = getattr(step, "status_message", None)
-        if not isinstance(status_message, str):
-            return None
-
-        template_engine = getattr(self.action_executor, "template_engine", None)
-        if not template_engine:
-            return None
-
-        template_context: dict[str, Any] = {
-            "variables": state.variables,
-            "state": state,
-            "session_id": state.session_id,
-        }
-        try:
-            rendered = template_engine.render(status_message, template_context)
-            return rendered if isinstance(rendered, str) else None
-        except Exception as e:
-            logger.warning(f"Failed to render status_message for step '{step.name}': {e}")
-            return None
+        """Render a step's status_message template if defined."""
+        return _render_status_message_fn(self, step, state)
 
     def _resolve_session_and_project(
         self, event: HookEvent
@@ -658,66 +520,10 @@ class WorkflowEngine:
         initial_result: TransitionResult,
         max_depth: int = 10,
     ) -> TransitionResult:
-        """Follow automatic transitions after on_enter actions.
-
-        If on_enter actions set variables that satisfy a transition condition,
-        execute the transition immediately and repeat. This chains deterministic
-        steps without waiting for the next hook event.
-
-        Args:
-            state: Current workflow state
-            workflow: Workflow definition
-            session_info: Session info for eval context
-            project_info: Project info for eval context
-            event: Original hook event
-            initial_result: Messages accumulated so far from the triggering transition
-            max_depth: Safety limit to prevent infinite loops
-
-        Returns:
-            Accumulated TransitionResult from all chained transitions
-        """
-        result = TransitionResult(
-            injected_messages=list(initial_result.injected_messages),
-            system_messages=list(initial_result.system_messages),
+        """Follow automatic transitions after on_enter actions."""
+        return await _auto_transition_chain_fn(
+            self, state, workflow, session_info, project_info, event, initial_result, max_depth
         )
-
-        visited_steps: list[str] = [state.step]
-
-        for _ in range(max_depth):
-            # Rebuild eval context with updated variables after on_enter actions
-            eval_context = self._build_eval_context(event, state, session_info, project_info)
-
-            current_step = workflow.get_step(state.step)
-            if not current_step:
-                break
-
-            # Check transitions on the current step
-            transitioned = False
-            for transition in current_step.transitions:
-                if self.evaluator.evaluate(transition.when, eval_context):
-                    logger.info(
-                        f"Auto-transition: {state.step} → {transition.to} "
-                        f"(condition: {transition.when})"
-                    )
-                    transition_result = await self.transition_to(
-                        state, transition.to, workflow, transition=transition
-                    )
-                    result.extend(transition_result)
-                    visited_steps.append(transition.to)
-                    transitioned = True
-                    break  # Only follow first matching transition
-
-            if not transitioned:
-                break
-        else:
-            # Loop exhausted max_depth without a non-transitioning step
-            logger.error(
-                f"Auto-transition chain truncated at max_depth={max_depth} "
-                f"for workflow '{workflow.name}' session={state.session_id} "
-                f"chain: {' → '.join(visited_steps)}"
-            )
-
-        return result
 
     def _handle_approval_response(
         self,
