@@ -532,14 +532,9 @@
   color: #22c55e;
 }
 
-.config-prompt-badge.user {
+.config-prompt-badge.overridden {
   background: #f59e0b15;
   color: #f59e0b;
-}
-
-.config-prompt-badge.project {
-  background: #8b5cf615;
-  color: #8b5cf6;
 }
 
 /* Prompt detail / editor */
