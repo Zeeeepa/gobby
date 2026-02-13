@@ -60,6 +60,7 @@ def test_migrations_fresh_db(tmp_path) -> None:
         "tool_embeddings",
         "memory_embeddings",
         "task_validation_history",
+        "workflow_definitions",
     ]
     for table in tables:
         # Check if table exists in sqlite_master
@@ -1810,3 +1811,230 @@ def test_memory_embeddings_insert_and_query(tmp_path) -> None:
     assert row["text_hash"] == "sha256hash"
     assert row["created_at"] is not None
     assert row["updated_at"] is not None
+
+
+# =============================================================================
+# Workflow UI: workflow_definitions table migration (v102)
+# =============================================================================
+
+
+def test_workflow_definitions_table_exists(tmp_path) -> None:
+    """Test that workflow_definitions table is created after migration."""
+    db_path = tmp_path / "workflow_defs.db"
+    db = LocalDatabase(db_path)
+
+    run_migrations(db)
+
+    row = db.fetchone(
+        "SELECT name FROM sqlite_master WHERE type='table' AND name='workflow_definitions'"
+    )
+    assert row is not None, "workflow_definitions table not created"
+
+
+def test_workflow_definitions_schema(tmp_path) -> None:
+    """Test that workflow_definitions has correct columns."""
+    db_path = tmp_path / "workflow_defs_schema.db"
+    db = LocalDatabase(db_path)
+
+    run_migrations(db)
+
+    rows = db.fetchall("PRAGMA table_info(workflow_definitions)")
+    columns = {row["name"] for row in rows}
+
+    expected_columns = {
+        "id",
+        "project_id",
+        "name",
+        "description",
+        "workflow_type",
+        "version",
+        "enabled",
+        "priority",
+        "sources",
+        "definition_json",
+        "canvas_json",
+        "source",
+        "tags",
+        "created_at",
+        "updated_at",
+    }
+    for col in expected_columns:
+        assert col in columns, f"Column {col} missing from workflow_definitions"
+
+
+def test_workflow_definitions_indexes(tmp_path) -> None:
+    """Test that workflow_definitions has proper indexes."""
+    db_path = tmp_path / "workflow_defs_idx.db"
+    db = LocalDatabase(db_path)
+
+    run_migrations(db)
+
+    rows = db.fetchall(
+        "SELECT name FROM sqlite_master WHERE type='index' AND tbl_name='workflow_definitions'"
+    )
+    index_names = {row["name"] for row in rows}
+
+    assert "idx_wf_defs_project" in index_names, "idx_wf_defs_project missing"
+    assert "idx_wf_defs_name" in index_names, "idx_wf_defs_name missing"
+    assert "idx_wf_defs_type" in index_names, "idx_wf_defs_type missing"
+    assert "idx_wf_defs_enabled" in index_names, "idx_wf_defs_enabled missing"
+
+
+def test_workflow_definitions_unique_constraint(tmp_path) -> None:
+    """Test that UNIQUE index on (name, COALESCE(project_id, '__global__')) exists."""
+    db_path = tmp_path / "workflow_defs_unique.db"
+    db = LocalDatabase(db_path)
+
+    run_migrations(db)
+
+    rows = db.fetchall(
+        "SELECT name, sql FROM sqlite_master WHERE type='index' AND tbl_name='workflow_definitions'"
+    )
+    index_names = {row["name"] for row in rows}
+    assert "idx_wf_defs_name_project" in index_names, "idx_wf_defs_name_project unique index missing"
+
+    # Verify it's unique
+    for row in rows:
+        if row["name"] == "idx_wf_defs_name_project":
+            assert "UNIQUE" in row["sql"].upper(), "idx_wf_defs_name_project should be UNIQUE"
+
+
+def test_workflow_definitions_bundled_import(tmp_path) -> None:
+    """Test that bundled YAML workflows are imported with source='bundled'."""
+    db_path = tmp_path / "workflow_defs_import.db"
+    db = LocalDatabase(db_path)
+
+    run_migrations(db)
+
+    # Check that bundled workflows were imported
+    rows = db.fetchall(
+        "SELECT name, source, workflow_type FROM workflow_definitions WHERE source = 'bundled'"
+    )
+    assert len(rows) > 0, "No bundled workflows imported"
+
+    # Check that well-known workflows are present
+    names = {row["name"] for row in rows}
+    assert "auto-task" in names, "auto-task workflow not imported"
+    assert "session-lifecycle" in names, "session-lifecycle workflow not imported"
+
+
+def test_workflow_definitions_type_mapping(tmp_path) -> None:
+    """Test that workflow_type is correctly mapped from YAML type field.
+
+    Constraint 5: pipeline -> pipeline, step/lifecycle/unset -> workflow.
+    """
+    db_path = tmp_path / "workflow_defs_type.db"
+    db = LocalDatabase(db_path)
+
+    run_migrations(db)
+
+    # coordinator.yaml has type: pipeline
+    row = db.fetchone(
+        "SELECT workflow_type FROM workflow_definitions WHERE name = 'coordinator'"
+    )
+    if row:
+        assert row["workflow_type"] == "pipeline", "coordinator should be pipeline type"
+
+    # auto-task has no explicit type -> should be 'workflow'
+    row = db.fetchone(
+        "SELECT workflow_type FROM workflow_definitions WHERE name = 'auto-task'"
+    )
+    if row:
+        assert row["workflow_type"] == "workflow", "auto-task should be workflow type"
+
+
+def test_workflow_definitions_definition_json_populated(tmp_path) -> None:
+    """Test that definition_json contains the full YAML content as JSON."""
+    import json
+
+    db_path = tmp_path / "workflow_defs_json.db"
+    db = LocalDatabase(db_path)
+
+    run_migrations(db)
+
+    row = db.fetchone(
+        "SELECT definition_json FROM workflow_definitions WHERE name = 'auto-task'"
+    )
+    assert row is not None, "auto-task not found"
+    assert row["definition_json"] is not None, "definition_json is NULL"
+
+    # Should be valid JSON
+    parsed = json.loads(row["definition_json"])
+    assert isinstance(parsed, dict)
+    assert parsed.get("name") == "auto-task"
+
+
+def test_workflow_definitions_insert_or_ignore_idempotent(tmp_path) -> None:
+    """Test that INSERT OR IGNORE handles re-runs without error."""
+    db_path = tmp_path / "workflow_defs_rerun.db"
+    db = LocalDatabase(db_path)
+
+    run_migrations(db)
+
+    # Count initial rows
+    count1 = db.fetchone("SELECT COUNT(*) as cnt FROM workflow_definitions")
+
+    # Running migrations again should not fail or duplicate
+    applied = run_migrations(db)
+    assert applied == 0
+
+    count2 = db.fetchone("SELECT COUNT(*) as cnt FROM workflow_definitions")
+    assert count2["cnt"] == count1["cnt"], "Re-run should not duplicate workflows"
+
+
+def test_workflow_definitions_defaults(tmp_path) -> None:
+    """Test that workflow_definitions columns have correct defaults."""
+    db_path = tmp_path / "workflow_defs_defaults.db"
+    db = LocalDatabase(db_path)
+
+    run_migrations(db)
+
+    import json
+    import uuid
+
+    def_id = str(uuid.uuid4())
+    db.execute(
+        """INSERT INTO workflow_definitions (id, name, definition_json)
+           VALUES (?, ?, ?)""",
+        (def_id, "test-workflow", json.dumps({"name": "test-workflow"})),
+    )
+
+    row = db.fetchone("SELECT * FROM workflow_definitions WHERE id = ?", (def_id,))
+    assert row is not None
+    assert row["workflow_type"] == "workflow", "workflow_type should default to 'workflow'"
+    assert row["version"] == "1.0", "version should default to '1.0'"
+    assert row["enabled"] == 1, "enabled should default to 1"
+    assert row["priority"] == 100, "priority should default to 100"
+    assert row["source"] == "custom", "source should default to 'custom'"
+    assert row["project_id"] is None, "project_id should default to NULL"
+    assert row["canvas_json"] is None, "canvas_json should default to NULL"
+
+
+def test_workflow_definitions_project_fk(tmp_path) -> None:
+    """Test that workflow_definitions has FK to projects(id) with ON DELETE CASCADE."""
+    db_path = tmp_path / "workflow_defs_fk.db"
+    db = LocalDatabase(db_path)
+
+    run_migrations(db)
+
+    row = db.fetchone(
+        "SELECT sql FROM sqlite_master WHERE type='table' AND name='workflow_definitions'"
+    )
+    assert row is not None
+    sql_lower = row["sql"].lower()
+    assert "references projects(id)" in sql_lower, "FK to projects(id) missing"
+    assert "on delete cascade" in sql_lower, "ON DELETE CASCADE missing"
+
+
+def test_workflow_definitions_global_null_project(tmp_path) -> None:
+    """Test that bundled workflows have NULL project_id (global scope)."""
+    db_path = tmp_path / "workflow_defs_global.db"
+    db = LocalDatabase(db_path)
+
+    run_migrations(db)
+
+    rows = db.fetchall(
+        "SELECT project_id FROM workflow_definitions WHERE source = 'bundled'"
+    )
+    for row in rows:
+        assert row["project_id"] is None, "Bundled workflows should have NULL project_id"
