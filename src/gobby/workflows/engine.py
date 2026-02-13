@@ -628,7 +628,7 @@ class WorkflowEngine:
             self.audit_manager, session_id, step, rule_id, condition, result, reason, context
         )
 
-    def _log_transition(
+    def log_transition(
         self,
         session_id: str,
         from_step: str,
@@ -638,6 +638,9 @@ class WorkflowEngine:
     ) -> None:
         """Log a step transition to the audit log."""
         log_transition(self.audit_manager, session_id, from_step, to_step, reason, context)
+
+    # Backward-compat alias for internal callers
+    _log_transition = log_transition
 
     def _log_approval(
         self,

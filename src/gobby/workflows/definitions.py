@@ -380,12 +380,20 @@ class WorkflowInstance(BaseModel):
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> "WorkflowInstance":
-        """Deserialize from a dictionary, parsing ISO datetime strings."""
+        """Deserialize from a dictionary, parsing ISO datetime strings.
+
+        Naive datetimes (no tzinfo) are assumed UTC for backward compatibility.
+        """
         parsed = dict(data)
         for field in ("step_entered_at", "created_at", "updated_at"):
             val = parsed.get(field)
             if isinstance(val, str):
-                parsed[field] = datetime.fromisoformat(val)
+                dt = datetime.fromisoformat(val)
+                if dt.tzinfo is None:
+                    dt = dt.replace(tzinfo=UTC)
+                parsed[field] = dt
+            elif isinstance(val, datetime) and val.tzinfo is None:
+                parsed[field] = val.replace(tzinfo=UTC)
         return cls(**parsed)
 
 

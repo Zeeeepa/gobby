@@ -50,7 +50,7 @@ async def transition_to(
     )
 
     # Log the transition
-    engine._log_transition(state.session_id, state.step, new_step_name)
+    engine.log_transition(state.session_id, state.step, new_step_name)
 
     try:
         # Execute on_exit of old step

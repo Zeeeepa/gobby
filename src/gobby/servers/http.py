@@ -571,8 +571,11 @@ class HTTPServer:
                     async def client_to_backend() -> None:
                         try:
                             while True:
-                                data = await websocket.receive_text()
-                                await backend.send(data)
+                                msg = await websocket.receive()
+                                if "text" in msg:
+                                    await backend.send(msg["text"])
+                                elif "bytes" in msg and msg["bytes"] is not None:
+                                    await backend.send(msg["bytes"])
                         except WebSocketDisconnect:
                             await backend.close()
 

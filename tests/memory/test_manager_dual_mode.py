@@ -185,7 +185,7 @@ class TestRecallDualMode:
 
     @pytest.mark.asyncio
     async def test_recall_queries_mem0(self, tmp_path) -> None:
-        """recall() should search Mem0 when configured and reachable."""
+        """_search_mem0_async should search Mem0 when configured and reachable."""
         manager, db = _setup(tmp_path, mem0_url="http://localhost:8888", mem0_api_key="test-key")
         mock_client = _mock_mem0_client()
         manager._mem0_client = mock_client
@@ -211,19 +211,23 @@ class TestRecallDualMode:
             }
         )
 
-        results = manager.recall(query="dark mode", project_id="test-project")
+        # Use async search path (sync recall skips Mem0 in async contexts)
+        results = await manager._search_mem0_async(
+            query="dark mode", project_id="test-project", limit=10
+        )
 
         # Mem0 search should have been called
         mock_client.search.assert_called_once()
 
         # Should return local memories enriched by mem0 results
+        assert results is not None
         assert len(results) >= 1
 
     @pytest.mark.asyncio
     async def test_recall_mem0_unreachable_falls_back(
         self, tmp_path, enable_log_propagation, caplog
     ) -> None:
-        """When Mem0 is unreachable, recall() should fall back to local search."""
+        """When Mem0 is unreachable, async search should return None (fall back)."""
         manager, _ = _setup(tmp_path, mem0_url="http://localhost:8888", mem0_api_key="test-key")
         mock_client = _mock_mem0_client()
         mock_client.search = AsyncMock(side_effect=Mem0ConnectionError("Connection refused"))
@@ -238,15 +242,15 @@ class TestRecallDualMode:
 
         import logging
 
-        with caplog.at_level(logging.WARNING, logger="gobby.memory.manager"):
-            results = manager.recall(
-                query="dark mode", project_id="test-project", min_importance=0.0
+        with caplog.at_level(logging.WARNING, logger="gobby.memory.services.mem0_sync"):
+            results = await manager._search_mem0_async(
+                query="dark mode", project_id="test-project", limit=10
             )
 
-        # Should fall back to local search and still return results
-        assert len(results) >= 1
+        # Should return None to signal fall-back to local search
+        assert results is None
 
-        # Should log a warning (once)
+        # Should log a warning about unreachable Mem0
         assert any("Mem0" in record.message for record in caplog.records)
 
 
