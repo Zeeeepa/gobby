@@ -30,15 +30,11 @@ class ToolEventHandlerMixin(EventHandlersBase):
         context_parts = []
 
         # Execute lifecycle workflow triggers
-        if self._workflow_handler:
-            try:
-                wf_response = self._workflow_handler.handle_all_lifecycles(event)
-                if wf_response.context:
-                    context_parts.append(wf_response.context)
-                if wf_response.decision != "allow":
-                    return wf_response
-            except Exception as e:
-                self.logger.error(f"Failed to execute lifecycle workflows: {e}", exc_info=True)
+        wf_response = self._evaluate_workflows(event)
+        if wf_response.context:
+            context_parts.append(wf_response.context)
+        if wf_response.decision != "allow":
+            return wf_response
 
         return HookResponse(
             decision="allow",
@@ -99,15 +95,11 @@ class ToolEventHandlerMixin(EventHandlersBase):
             self.logger.debug(f"AFTER_TOOL [{status}]: {tool_name}")
 
         # Execute lifecycle workflow triggers
-        if self._workflow_handler:
-            try:
-                wf_response = self._workflow_handler.handle_all_lifecycles(event)
-                if wf_response.decision != "allow":
-                    return wf_response
-                if wf_response.context:
-                    return wf_response
-            except Exception as e:
-                self.logger.error(f"Failed to execute lifecycle workflows: {e}", exc_info=True)
+        wf_response = self._evaluate_workflows(event)
+        if wf_response.decision != "allow":
+            return wf_response
+        if wf_response.context:
+            return wf_response
 
         return HookResponse(decision="allow")
 

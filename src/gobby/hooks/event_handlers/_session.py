@@ -258,12 +258,7 @@ class SessionEventHandlerMixin(EventHandlersBase):
                 self.logger.warning(f"Failed to register session with message processor: {e}")
 
         # Step 6: Execute lifecycle workflows
-        wf_response = HookResponse(decision="allow", context="")
-        if self._workflow_handler:
-            try:
-                wf_response = self._workflow_handler.handle_all_lifecycles(event)
-            except Exception as e:
-                self.logger.warning(f"Workflow error: {e}")
+        wf_response = self._evaluate_workflows(event)
 
         # Build additional context (task context)
         # Note: Skill injection is now handled by workflows via inject_context action
@@ -323,11 +318,7 @@ class SessionEventHandlerMixin(EventHandlersBase):
             event.metadata["_platform_session_id"] = session_id
 
         # Execute lifecycle workflow triggers
-        if self._workflow_handler:
-            try:
-                self._workflow_handler.handle_all_lifecycles(event)
-            except Exception as e:
-                self.logger.error(f"Failed to execute lifecycle workflows: {e}", exc_info=True)
+        self._evaluate_workflows(event)
 
         # Auto-link commits made during this session to tasks
         if session_id and self._session_storage and self._task_manager:
@@ -455,12 +446,7 @@ class SessionEventHandlerMixin(EventHandlersBase):
                 self.logger.warning(f"Failed to register with message processor: {e}")
 
         # Execute lifecycle workflows
-        wf_response = HookResponse(decision="allow", context="")
-        if self._workflow_handler:
-            try:
-                wf_response = self._workflow_handler.handle_all_lifecycles(event)
-            except Exception as e:
-                self.logger.warning(f"Workflow error: {e}")
+        wf_response = self._evaluate_workflows(event)
 
         return self._compose_session_response(
             session=existing_session,
