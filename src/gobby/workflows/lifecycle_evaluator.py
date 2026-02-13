@@ -203,6 +203,12 @@ async def evaluate_workflow_triggers(
     if context_data:
         state.variables = {**context_data, **state.variables}
 
+    # Session variables (from session_variables table, written by MCP set_variable)
+    # must override workflow_states.variables since MCP is the agent-facing API.
+    _sv_override = context_data.get("_session_variables_override") if context_data else None
+    if _sv_override:
+        state.variables.update(_sv_override)
+
     action_ctx = ActionContext(
         session_id=session_id,
         state=state,
@@ -626,9 +632,11 @@ async def evaluate_all_lifecycle_workflows(
                 f"for {session_id}: {list(lifecycle_state.variables.keys())}"
             )
 
-        # Also merge session_variables table (written by MCP set_variable tool).
-        # Session variables take priority over workflow_states.variables because
-        # the MCP tool is the agent-facing API and should be authoritative.
+        # Also load session_variables table (written by MCP set_variable tool).
+        # These must override workflow_states.variables because the MCP tool is
+        # the agent-facing API and should be authoritative. We store them in a
+        # special key so evaluate_workflow_triggers can apply them after the
+        # state merge (which otherwise gives workflow_states priority).
         try:
             from gobby.workflows.state_manager import SessionVariableManager
 
@@ -636,8 +644,9 @@ async def evaluate_all_lifecycle_workflows(
             session_vars = session_var_mgr.get_variables(session_id)
             if session_vars:
                 context_data.update(session_vars)
+                context_data["_session_variables_override"] = session_vars
                 logger.debug(
-                    f"Merged {len(session_vars)} session_variables for {session_id}: "
+                    f"Loaded {len(session_vars)} session_variables for {session_id}: "
                     f"{list(session_vars.keys())}"
                 )
         except Exception as e:
