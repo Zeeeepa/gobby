@@ -13,13 +13,12 @@ from typing import Any
 
 from gobby.cli.utils import get_install_dir
 
+from .mcp_config import configure_mcp_server_toml, remove_mcp_server_toml
 from .shared import (
     _install_file,
     _is_dev_mode,
-    configure_mcp_server_toml,
     install_cli_content,
     install_shared_content,
-    remove_mcp_server_toml,
 )
 
 logger = logging.getLogger(__name__)

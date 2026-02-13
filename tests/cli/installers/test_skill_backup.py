@@ -4,7 +4,7 @@ from pathlib import Path
 
 import pytest
 
-from gobby.cli.installers.shared import backup_gobby_skills
+from gobby.cli.installers.skill_install import backup_gobby_skills
 
 pytestmark = pytest.mark.unit
 
@@ -21,7 +21,7 @@ class TestBackupGobbySkills:
 
     def test_backup_function_exists(self) -> None:
         """Verify backup_gobby_skills function can be imported."""
-        from gobby.cli.installers.shared import backup_gobby_skills
+        from gobby.cli.installers.skill_install import backup_gobby_skills
 
         assert callable(backup_gobby_skills)
 

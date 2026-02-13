@@ -207,17 +207,6 @@ def _copy_docs(source: Path, target: Path, installed: dict[str, list[str]]) -> N
             installed["docs"].append(doc_file.name)
 
 
-# --- Skill installation functions (delegated to skill_install.py) ---
-# Re-exported for backward compatibility
-from .skill_install import backup_gobby_skills as backup_gobby_skills  # noqa: E402
-from .skill_install import (  # noqa: E402
-    install_router_skills_as_commands as install_router_skills_as_commands,
-)
-from .skill_install import (  # noqa: E402
-    install_router_skills_as_gemini_skills as install_router_skills_as_gemini_skills,
-)
-from .skill_install import install_shared_skills as install_shared_skills  # noqa: E402
-
 
 def install_cli_content(cli_name: str, target_path: Path) -> dict[str, list[str]]:
     """Install CLI-specific workflows/commands (layered on top of shared).
@@ -272,19 +261,3 @@ def install_cli_content(cli_name: str, target_path: Path) -> dict[str, list[str]
                     installed["commands"].append(item.name)
 
     return installed
-
-
-# --- MCP config functions (delegated to mcp_config.py) ---
-# Re-exported for backward compatibility
-# --- IDE config functions (delegated to ide_config.py) ---
-# Re-exported for backward compatibility
-from .ide_config import _get_ide_config_dir as _get_ide_config_dir  # noqa: E402
-from .ide_config import configure_ide_terminal_title as configure_ide_terminal_title  # noqa: E402
-from .mcp_config import DEFAULT_MCP_SERVERS as DEFAULT_MCP_SERVERS  # noqa: E402
-from .mcp_config import configure_mcp_server_json as configure_mcp_server_json  # noqa: E402
-from .mcp_config import configure_mcp_server_toml as configure_mcp_server_toml  # noqa: E402
-from .mcp_config import configure_project_mcp_server as configure_project_mcp_server  # noqa: E402
-from .mcp_config import install_default_mcp_servers as install_default_mcp_servers  # noqa: E402
-from .mcp_config import remove_mcp_server_json as remove_mcp_server_json  # noqa: E402
-from .mcp_config import remove_mcp_server_toml as remove_mcp_server_toml  # noqa: E402
-from .mcp_config import remove_project_mcp_server as remove_project_mcp_server  # noqa: E402

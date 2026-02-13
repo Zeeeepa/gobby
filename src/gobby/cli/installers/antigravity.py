@@ -12,7 +12,8 @@ import logging
 from pathlib import Path
 from typing import Any
 
-from .shared import configure_ide_terminal_title, configure_mcp_server_json
+from .ide_config import configure_ide_terminal_title
+from .mcp_config import configure_mcp_server_json
 
 logger = logging.getLogger(__name__)
 

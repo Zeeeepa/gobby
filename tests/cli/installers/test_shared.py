@@ -16,15 +16,19 @@ from unittest.mock import patch
 
 import pytest
 
-from gobby.cli.installers.shared import (
+from gobby.cli.installers.ide_config import (
     _get_ide_config_dir,
     configure_ide_terminal_title,
+)
+from gobby.cli.installers.mcp_config import (
     configure_mcp_server_json,
     configure_mcp_server_toml,
-    install_cli_content,
-    install_shared_content,
     remove_mcp_server_json,
     remove_mcp_server_toml,
+)
+from gobby.cli.installers.shared import (
+    install_cli_content,
+    install_shared_content,
 )
 
 pytestmark = pytest.mark.unit

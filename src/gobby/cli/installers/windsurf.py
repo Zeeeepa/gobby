@@ -15,10 +15,10 @@ from typing import Any
 
 from gobby.cli.utils import get_install_dir
 
+from .ide_config import configure_ide_terminal_title
 from .shared import (
     _install_file,
     _is_dev_mode,
-    configure_ide_terminal_title,
     install_shared_content,
 )
 

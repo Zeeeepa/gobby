@@ -12,10 +12,10 @@ from .copilot import install_copilot, uninstall_copilot
 from .cursor import install_cursor, uninstall_cursor
 from .gemini import install_gemini, uninstall_gemini
 from .git_hooks import install_git_hooks
+from .mcp_config import install_default_mcp_servers
 from .mem0 import install_mem0, uninstall_mem0
 from .shared import (
     install_cli_content,
-    install_default_mcp_servers,
     install_shared_content,
 )
 from .windsurf import install_windsurf, uninstall_windsurf
