@@ -105,16 +105,3 @@ class ThinkingEvent:
 ChatEvent = TextChunk | ToolCallEvent | ToolResultEvent | DoneEvent | ThinkingEvent
 
 
-# Model alias resolution - the Anthropic API requires full dated model IDs.
-# NOTE: Only add aliases here when the dated ID is confirmed to exist.
-# The Claude CLI accepts short aliases directly (e.g., "claude-opus-4-6"),
-# so do NOT add speculative dated IDs that may not exist.
-MODEL_ALIASES: dict[str, str] = {
-    "claude-haiku-4-5": "claude-haiku-4-5-20251001",
-    "claude-sonnet-4-5": "claude-sonnet-4-5-20250929",
-}
-
-
-def resolve_model_id(model: str) -> str:
-    """Resolve model alias to full dated API model ID."""
-    return MODEL_ALIASES.get(model, model)
