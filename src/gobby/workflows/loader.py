@@ -2,6 +2,7 @@ import asyncio
 import concurrent.futures
 import logging
 import threading
+import warnings
 from collections.abc import Coroutine
 from dataclasses import dataclass
 from pathlib import Path
@@ -696,12 +697,13 @@ class WorkflowLoader:
 
         return list(parent_map.values())
 
-    async def discover_lifecycle_workflows(
+    async def discover_workflows(
         self, project_path: Path | str | None = None
     ) -> list[DiscoveredWorkflow]:
         """
-        Discover all lifecycle workflows from project and global directories.
+        Discover all workflows from project and global directories.
 
+        Scans both root workflow directories and lifecycle/ subdirectories.
         Returns workflows sorted by:
         1. Project workflows first (is_project=True), then global
         2. Within each group: by priority (ascending), then alphabetically by name
@@ -715,7 +717,7 @@ class WorkflowLoader:
         Returns:
             List of DiscoveredWorkflow objects, sorted and deduplicated.
         """
-        cache_key = str(project_path) if project_path else "global"
+        cache_key = f"unified:{project_path}" if project_path else "unified:global"
 
         # Check cache
         if cache_key in self._discovery_cache:
@@ -729,8 +731,15 @@ class WorkflowLoader:
         file_mtimes: dict[str, float] = {}
         dir_mtimes: dict[str, float] = {}
 
-        # 1. Scan bundled lifecycle directory first (lowest priority, shadowed by all)
+        # 1. Scan bundled directories first (lowest priority, shadowed by all)
         if self._bundled_dir is not None and self._bundled_dir.is_dir():
+            await self._scan_directory(
+                self._bundled_dir,
+                is_project=False,
+                discovered=discovered,
+                file_mtimes=file_mtimes,
+                dir_mtimes=dir_mtimes,
+            )
             await self._scan_directory(
                 self._bundled_dir / "lifecycle",
                 is_project=False,
@@ -739,8 +748,15 @@ class WorkflowLoader:
                 dir_mtimes=dir_mtimes,
             )
 
-        # 2. Scan global lifecycle directory (shadows bundled)
+        # 2. Scan global directories (shadows bundled)
         for global_dir in self.global_dirs:
+            await self._scan_directory(
+                global_dir,
+                is_project=False,
+                discovered=discovered,
+                file_mtimes=file_mtimes,
+                dir_mtimes=dir_mtimes,
+            )
             await self._scan_directory(
                 global_dir / "lifecycle",
                 is_project=False,
@@ -749,11 +765,19 @@ class WorkflowLoader:
                 dir_mtimes=dir_mtimes,
             )
 
-        # 3. Scan project lifecycle directory (shadows global)
+        # 3. Scan project directories (shadows global)
         if project_path:
-            project_dir = Path(project_path) / ".gobby" / "workflows" / "lifecycle"
+            project_wf_dir = Path(project_path) / ".gobby" / "workflows"
             await self._scan_directory(
-                project_dir,
+                project_wf_dir,
+                is_project=True,
+                discovered=discovered,
+                failed=failed,
+                file_mtimes=file_mtimes,
+                dir_mtimes=dir_mtimes,
+            )
+            await self._scan_directory(
+                project_wf_dir / "lifecycle",
                 is_project=True,
                 discovered=discovered,
                 failed=failed,
@@ -768,12 +792,9 @@ class WorkflowLoader:
                         f"Project workflow '{name}' failed to load, using global instead: {error}"
                     )
 
-        # 3. Filter to lifecycle workflows only
-        lifecycle_workflows = [w for w in discovered.values() if w.definition.type == "lifecycle"]
-
         # 4. Sort: project first, then by priority (asc), then by name (alpha)
         sorted_workflows = sorted(
-            lifecycle_workflows,
+            discovered.values(),
             key=lambda w: (
                 0 if w.is_project else 1,  # Project first
                 w.priority,  # Lower priority = runs first
@@ -786,6 +807,21 @@ class WorkflowLoader:
             results=sorted_workflows, file_mtimes=file_mtimes, dir_mtimes=dir_mtimes
         )
         return sorted_workflows
+
+    async def discover_lifecycle_workflows(
+        self, project_path: Path | str | None = None
+    ) -> list[DiscoveredWorkflow]:
+        """Deprecated: use discover_workflows() instead.
+
+        This is a backward-compatible alias that returns the same results
+        as discover_workflows().
+        """
+        warnings.warn(
+            "discover_lifecycle_workflows() is deprecated, use discover_workflows() instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        return await self.discover_workflows(project_path)
 
     async def discover_pipeline_workflows(
         self, project_path: Path | str | None = None
@@ -1037,11 +1073,22 @@ class WorkflowLoader:
                             failed[name] = str(e)
                         continue
 
+                # Emit deprecation warning when YAML has a 'type' field
+                if "type" in data:
+                    warnings.warn(
+                        f"Workflow '{name}' uses deprecated 'type: {data['type']}' field. "
+                        f"Migrate to 'enabled' instead "
+                        f"(type: lifecycle → enabled: true, type: step → enabled: false).",
+                        DeprecationWarning,
+                        stacklevel=2,
+                    )
+
                 definition = WorkflowDefinition(**data)
 
-                # Get priority from workflow settings or default to 100
-                priority = 100
-                if definition.settings and "priority" in definition.settings:
+                # Use definition.priority directly; fall back to settings.priority
+                # for backward compat with YAMLs not yet migrated to top-level priority.
+                priority = definition.priority
+                if priority == 100 and definition.settings.get("priority") is not None:
                     priority = definition.settings["priority"]
 
                 # Log successful shadowing when project workflow overrides global
@@ -1229,6 +1276,11 @@ class WorkflowLoader:
         _inheritance_chain: list[str] | None = None,
     ) -> PipelineDefinition | None:
         return self._run_sync(self.load_pipeline(name, project_path, _inheritance_chain))
+
+    def discover_workflows_sync(
+        self, project_path: Path | str | None = None
+    ) -> list[DiscoveredWorkflow]:
+        return self._run_sync(self.discover_workflows(project_path))
 
     def discover_lifecycle_workflows_sync(
         self, project_path: Path | str | None = None

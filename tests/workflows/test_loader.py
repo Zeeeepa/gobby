@@ -835,8 +835,8 @@ settings:
         assert names == ["b_workflow", "c_workflow", "a_workflow"]
 
     @pytest.mark.asyncio
-    async def test_discover_filters_non_lifecycle(self, temp_workflow_dir) -> None:
-        """Test that non-lifecycle workflows are filtered out."""
+    async def test_discover_returns_all_workflow_types(self, temp_workflow_dir) -> None:
+        """Test that discover_lifecycle_workflows (deprecated alias) returns all types."""
         global_dir = temp_workflow_dir / "global" / "workflows"
         (global_dir / "lifecycle").mkdir(parents=True)
 
@@ -854,10 +854,19 @@ type: step
         (global_dir / "lifecycle" / "step_wf.yaml").write_text(step_yaml)
 
         loader = WorkflowLoader(workflow_dirs=[global_dir])
-        discovered = await loader.discover_lifecycle_workflows()
 
-        assert len(discovered) == 1
-        assert discovered[0].name == "lifecycle_wf"
+        import warnings
+
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", DeprecationWarning)
+            discovered = await loader.discover_lifecycle_workflows()
+
+        # discover_lifecycle_workflows is now an alias for discover_workflows
+        # and no longer filters by type
+        assert len(discovered) == 2
+        names = [w.name for w in discovered]
+        assert "lifecycle_wf" in names
+        assert "step_wf" in names
 
     @pytest.mark.asyncio
     async def test_discover_caching(self, temp_workflow_dir) -> None:
@@ -1665,3 +1674,153 @@ class TestBundledFallback:
         discovered = await loader.discover_pipeline_workflows()
         names = [w.name for w in discovered]
         assert "bundled-pipe" in names
+
+
+class TestDiscoverWorkflows:
+    """Tests for the unified discover_workflows method."""
+
+    @pytest.mark.asyncio
+    async def test_discover_from_both_root_and_lifecycle(self, temp_workflow_dir) -> None:
+        """discover_workflows() finds workflows in both root and lifecycle/ dirs."""
+        global_dir = temp_workflow_dir / "global" / "workflows"
+        lifecycle_dir = global_dir / "lifecycle"
+        lifecycle_dir.mkdir(parents=True)
+
+        # Workflow in root directory
+        (global_dir / "auto-task.yaml").write_text(
+            "name: auto-task\nversion: '1.0'\npriority: 25\n"
+        )
+        # Workflow in lifecycle/ subdirectory
+        (lifecycle_dir / "session-lifecycle.yaml").write_text(
+            "name: session-lifecycle\nversion: '1.0'\npriority: 10\n"
+        )
+
+        loader = WorkflowLoader(workflow_dirs=[global_dir])
+        discovered = await loader.discover_workflows()
+
+        names = [w.name for w in discovered]
+        assert "auto-task" in names
+        assert "session-lifecycle" in names
+
+    @pytest.mark.asyncio
+    async def test_discover_sorted_by_priority(self, temp_workflow_dir) -> None:
+        """Workflows are sorted by priority (lower first), then alphabetically."""
+        global_dir = temp_workflow_dir / "global" / "workflows"
+        global_dir.mkdir(parents=True)
+
+        (global_dir / "high.yaml").write_text("name: high\nversion: '1.0'\npriority: 100\n")
+        (global_dir / "low.yaml").write_text("name: low\nversion: '1.0'\npriority: 10\n")
+        (global_dir / "mid.yaml").write_text("name: mid\nversion: '1.0'\npriority: 50\n")
+
+        loader = WorkflowLoader(workflow_dirs=[global_dir])
+        discovered = await loader.discover_workflows()
+
+        names = [w.name for w in discovered]
+        assert names == ["low", "mid", "high"]
+
+    @pytest.mark.asyncio
+    async def test_discover_source_filtering_preserved(self, temp_workflow_dir) -> None:
+        """Source filtering field is preserved on loaded definitions."""
+        global_dir = temp_workflow_dir / "global" / "workflows"
+        global_dir.mkdir(parents=True)
+
+        (global_dir / "claude-only.yaml").write_text(
+            "name: claude-only\nversion: '1.0'\nsources:\n  - claude\n"
+        )
+
+        loader = WorkflowLoader(workflow_dirs=[global_dir])
+        discovered = await loader.discover_workflows()
+
+        assert len(discovered) == 1
+        assert discovered[0].definition.sources == ["claude"]
+
+    @pytest.mark.asyncio
+    async def test_discover_lifecycle_is_deprecated_alias(self, temp_workflow_dir) -> None:
+        """discover_lifecycle_workflows() returns same results as discover_workflows()."""
+        global_dir = temp_workflow_dir / "global" / "workflows"
+        lifecycle_dir = global_dir / "lifecycle"
+        lifecycle_dir.mkdir(parents=True)
+
+        (lifecycle_dir / "test.yaml").write_text("name: test\nversion: '1.0'\npriority: 10\n")
+        (global_dir / "root-wf.yaml").write_text("name: root-wf\nversion: '1.0'\npriority: 20\n")
+
+        loader = WorkflowLoader(workflow_dirs=[global_dir])
+
+        unified = await loader.discover_workflows()
+        # Clear discovery cache so the deprecated alias runs fresh
+        loader._discovery_cache.clear()
+        deprecated = await loader.discover_lifecycle_workflows()
+
+        assert [w.name for w in unified] == [w.name for w in deprecated]
+
+    @pytest.mark.asyncio
+    async def test_discover_project_shadows_global(self, temp_workflow_dir) -> None:
+        """Project workflows shadow global ones with the same name."""
+        global_dir = temp_workflow_dir / "global" / "workflows"
+        global_dir.mkdir(parents=True)
+        project_dir = temp_workflow_dir / "project" / ".gobby" / "workflows"
+        project_dir.mkdir(parents=True)
+
+        (global_dir / "shared.yaml").write_text("name: shared\nversion: '1.0'\npriority: 100\n")
+        (project_dir / "shared.yaml").write_text("name: shared\nversion: '2.0'\npriority: 50\n")
+
+        loader = WorkflowLoader(workflow_dirs=[global_dir])
+        discovered = await loader.discover_workflows(
+            project_path=temp_workflow_dir / "project"
+        )
+
+        assert len(discovered) == 1
+        assert discovered[0].is_project is True
+        assert discovered[0].priority == 50
+
+    @pytest.mark.asyncio
+    async def test_discover_emits_deprecation_warning_for_type(self, temp_workflow_dir) -> None:
+        """DeprecationWarning is emitted when YAML has a 'type' field."""
+        global_dir = temp_workflow_dir / "global" / "workflows"
+        global_dir.mkdir(parents=True)
+
+        (global_dir / "old-style.yaml").write_text(
+            "name: old-style\nversion: '1.0'\ntype: lifecycle\n"
+        )
+
+        loader = WorkflowLoader(workflow_dirs=[global_dir])
+
+        with pytest.warns(DeprecationWarning, match="type"):
+            await loader.discover_workflows()
+
+    @pytest.mark.asyncio
+    async def test_discover_uses_definition_priority(self, temp_workflow_dir) -> None:
+        """Priority comes from definition.priority, not settings.priority."""
+        global_dir = temp_workflow_dir / "global" / "workflows"
+        global_dir.mkdir(parents=True)
+
+        (global_dir / "new-style.yaml").write_text(
+            "name: new-style\nversion: '1.0'\npriority: 25\n"
+        )
+
+        loader = WorkflowLoader(workflow_dirs=[global_dir])
+        discovered = await loader.discover_workflows()
+
+        assert len(discovered) == 1
+        assert discovered[0].priority == 25
+
+    @pytest.mark.asyncio
+    async def test_discover_settings_priority_fallback(self, temp_workflow_dir) -> None:
+        """settings.priority is used as fallback for backward compat."""
+        global_dir = temp_workflow_dir / "global" / "workflows"
+        global_dir.mkdir(parents=True)
+
+        (global_dir / "legacy.yaml").write_text(
+            "name: legacy\nversion: '1.0'\ntype: lifecycle\nsettings:\n  priority: 15\n"
+        )
+
+        loader = WorkflowLoader(workflow_dirs=[global_dir])
+
+        import warnings
+
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", DeprecationWarning)
+            discovered = await loader.discover_workflows()
+
+        assert len(discovered) == 1
+        assert discovered[0].priority == 15
