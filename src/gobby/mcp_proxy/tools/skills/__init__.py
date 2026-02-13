@@ -24,6 +24,7 @@ from gobby.skills.hubs.manager import HubManager
 from gobby.skills.loader import SkillLoader, SkillLoadError
 from gobby.skills.search import SearchFilters, SkillSearch
 from gobby.skills.updater import SkillUpdater
+from gobby.storage.sessions import LocalSessionManager
 from gobby.storage.skills import ChangeEvent, LocalSkillManager, SkillChangeNotifier
 
 if TYPE_CHECKING:
@@ -130,6 +131,9 @@ def create_skills_registry(
 
     # --- get_skill tool ---
 
+    # Session manager for skill usage tracking
+    session_manager = LocalSessionManager(db)
+
     @registry.tool(
         name="get_skill",
         description="Get full skill content by name or ID. Returns complete skill including content, allowed_tools, etc.",
@@ -137,6 +141,7 @@ def create_skills_registry(
     async def get_skill(
         name: str | None = None,
         skill_id: str | None = None,
+        session_id: str | None = None,
     ) -> dict[str, Any]:
         """
         Get a skill by name or ID with full content.
@@ -147,6 +152,7 @@ def create_skills_registry(
         Args:
             name: Skill name (used if skill_id not provided)
             skill_id: Skill ID (takes precedence over name)
+            session_id: Optional session ID (accepts #N, N, UUID, or prefix) to record skill usage
 
         Returns:
             Dict with success status and full skill data
@@ -169,6 +175,16 @@ def create_skills_registry(
 
             if skill is None:
                 return {"success": False, "error": f"Skill not found: {skill_id or name}"}
+
+            # Record skill usage when session_id is provided
+            if session_id:
+                try:
+                    resolved_id = session_manager.resolve_session_reference(
+                        session_id, project_id=project_id
+                    )
+                    session_manager.record_skills_used(resolved_id, [skill.name])
+                except Exception:
+                    pass  # Best-effort tracking; don't fail the skill lookup
 
             # Return full skill data
             return {
