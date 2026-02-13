@@ -263,7 +263,7 @@ def inject_context(
             project_id = getattr(session, "project_id", None)
 
         try:
-            memories = memory_manager.recall(
+            memories = memory_manager.search_memories(
                 query=prompt_text or "",
                 project_id=project_id,
                 limit=limit,

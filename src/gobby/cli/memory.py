@@ -40,7 +40,7 @@ def create(
     project_id = resolve_project_ref(project_ref) if project_ref else None
     manager = get_memory_manager(ctx)
     memory = asyncio.run(
-        manager.remember(
+        manager.create_memory(
             content=content,
             memory_type=memory_type,
             importance=importance,
@@ -77,7 +77,7 @@ def recall(
     tags_any_list = [t.strip() for t in tags_any.split(",") if t.strip()] if tags_any else None
     tags_none_list = [t.strip() for t in tags_none.split(",") if t.strip()] if tags_none else None
 
-    memories = manager.recall(
+    memories = manager.search_memories(
         query=query,
         project_id=project_id,
         limit=limit,
@@ -101,7 +101,7 @@ def delete(ctx: click.Context, memory_ref: str) -> None:
     """Delete a memory by ID (UUID or prefix)."""
     manager = get_memory_manager(ctx)
     memory_id = resolve_memory_id(manager, memory_ref)
-    success = asyncio.run(manager.forget(memory_id))
+    success = asyncio.run(manager.delete_memory(memory_id))
     if success:
         click.echo(f"Deleted memory: {memory_id}")
     else:
@@ -346,7 +346,7 @@ def dedupe_memories(ctx: click.Context, dry_run: bool) -> None:
         # Delete duplicates
         deleted = 0
         for memory_id in duplicates_to_delete:
-            if asyncio.run(manager.forget(memory_id)):
+            if asyncio.run(manager.delete_memory(memory_id)):
                 deleted += 1
 
         click.echo(f"Deleted {deleted} duplicate memories.")

@@ -83,7 +83,7 @@ def create_memory_router(server: "HTTPServer") -> APIRouter:
         """Create a new memory."""
         metrics.inc_counter("http_requests_total")
         try:
-            memory = await server.memory_manager.remember(
+            memory = await server.memory_manager.create_memory(
                 content=request_data.content,
                 memory_type=request_data.memory_type,
                 importance=request_data.importance,
@@ -109,7 +109,7 @@ def create_memory_router(server: "HTTPServer") -> APIRouter:
         """Search memories by query."""
         metrics.inc_counter("http_requests_total")
         try:
-            results = server.memory_manager.recall(
+            results = server.memory_manager.search_memories(
                 query=q,
                 project_id=project_id,
                 limit=limit,
@@ -265,7 +265,7 @@ def create_memory_router(server: "HTTPServer") -> APIRouter:
         """Delete a memory."""
         metrics.inc_counter("http_requests_total")
         try:
-            result = await server.memory_manager.forget(memory_id)
+            result = await server.memory_manager.delete_memory(memory_id)
         except Exception as e:
             logger.error(f"Failed to delete memory {memory_id}: {e}")
             raise HTTPException(status_code=500, detail=str(e)) from e

@@ -477,7 +477,7 @@ class SessionMemoryExtractor:
 
         for candidate in candidates:
             try:
-                await self.memory_manager.remember(
+                await self.memory_manager.create_memory(
                     content=candidate.content,
                     memory_type=candidate.memory_type,
                     importance=candidate.importance,

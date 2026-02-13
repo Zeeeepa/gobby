@@ -115,7 +115,7 @@ async def memory_save(
             logger.debug("save_memory: Skipping duplicate: %s...", content[:50])
             return {"saved": False, "reason": "duplicate"}
 
-        memory = await memory_manager.remember(
+        memory = await memory_manager.create_memory(
             content=content,
             memory_type=memory_type,
             importance=importance,
@@ -192,7 +192,7 @@ async def memory_recall_relevant(
         injected_ids = set(variables.get("_injected_memory_ids", []))
 
     try:
-        memories = memory_manager.recall(
+        memories = memory_manager.search_memories(
             query=prompt_text,
             project_id=project_id,
             limit=limit,
