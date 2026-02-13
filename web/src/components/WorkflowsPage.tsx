@@ -1,6 +1,7 @@
 import { useState, useCallback, useMemo } from 'react'
 import { useWorkflows } from '../hooks/useWorkflows'
 import type { WorkflowDetail } from '../hooks/useWorkflows'
+import { WorkflowBuilder } from './WorkflowBuilder'
 import './WorkflowsPage.css'
 
 type OverviewFilter = 'total' | 'workflows' | 'pipelines' | 'active' | null
@@ -54,6 +55,7 @@ export function WorkflowsPage() {
   const [showCreateModal, setShowCreateModal] = useState(false)
   const [createType, setCreateType] = useState<'workflow' | 'pipeline'>('workflow')
   const [showImportModal, setShowImportModal] = useState(false)
+  const [editingWorkflow, setEditingWorkflow] = useState<WorkflowDetail | null>(null)
 
   // Unique sources for filter chips
   const sources = useMemo(() => {
@@ -139,6 +141,18 @@ export function WorkflowsPage() {
       return 0
     }
   }, [])
+
+  if (editingWorkflow) {
+    return (
+      <WorkflowBuilder
+        workflowId={editingWorkflow.id}
+        workflowName={editingWorkflow.name}
+        workflowType={(editingWorkflow.workflow_type as 'workflow' | 'pipeline') || 'workflow'}
+        onBack={() => setEditingWorkflow(null)}
+        onExport={() => handleExport(editingWorkflow)}
+      />
+    )
+  }
 
   return (
     <main className="workflows-page">
@@ -310,6 +324,13 @@ export function WorkflowsPage() {
                   </div>
 
                   <div className="workflows-card-actions">
+                    <button
+                      className="workflows-action-btn"
+                      onClick={() => setEditingWorkflow(wf)}
+                      title="Edit in visual builder"
+                    >
+                      Edit
+                    </button>
                     <button
                       className="workflows-action-btn"
                       onClick={() => handleDuplicate(wf)}
