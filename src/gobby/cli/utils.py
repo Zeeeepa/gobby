@@ -557,7 +557,14 @@ def _kill_port_holder(port: int) -> None:
             continue
 
 
-def spawn_ui_server(host: str, port: int, web_dir: Path, log_file: Path) -> int | None:
+def spawn_ui_server(
+    host: str,
+    port: int,
+    web_dir: Path,
+    log_file: Path,
+    daemon_port: int = 60887,
+    ws_port: int = 60888,
+) -> int | None:
     """Spawn the UI dev server as a detached subprocess.
 
     Args:
@@ -565,6 +572,8 @@ def spawn_ui_server(host: str, port: int, web_dir: Path, log_file: Path) -> int 
         port: Port for dev server
         web_dir: Path to web/ directory
         log_file: Path to UI log file
+        daemon_port: Gobby HTTP daemon port (passed to Vite as GOBBY_DAEMON_PORT)
+        ws_port: Gobby WebSocket server port (passed to Vite as GOBBY_WS_PORT)
 
     Returns:
         Process PID, or None on failure
@@ -610,6 +619,9 @@ def spawn_ui_server(host: str, port: int, web_dir: Path, log_file: Path) -> int 
 
         log_f = open(log_file, "a")  # noqa: SIM115
         try:
+            env = os.environ.copy()
+            env["GOBBY_DAEMON_PORT"] = str(daemon_port)
+            env["GOBBY_WS_PORT"] = str(ws_port)
             process = subprocess.Popen(  # nosec B603 B607
                 cmd,
                 cwd=web_dir,
@@ -617,7 +629,7 @@ def spawn_ui_server(host: str, port: int, web_dir: Path, log_file: Path) -> int 
                 stderr=subprocess.STDOUT,
                 stdin=subprocess.DEVNULL,
                 start_new_session=True,
-                env=os.environ.copy(),
+                env=env,
             )
         except Exception:
             log_f.close()

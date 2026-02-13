@@ -12,7 +12,7 @@ from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 from typing import TYPE_CHECKING, Any
 
-from fastapi import FastAPI, HTTPException, Request
+from fastapi import FastAPI, HTTPException, Request, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
@@ -527,6 +527,9 @@ class HTTPServer:
             app.mount("/mcp", mcp_app)
             logger.debug("MCP server mounted at /mcp")
 
+        # Mount WebSocket proxy (before production UI catch-all)
+        self._mount_ws_proxy(app)
+
         # Mount static files for production UI mode
         if (
             self.services.config
@@ -536,6 +539,67 @@ class HTTPServer:
             self._mount_production_ui(app)
 
         return app
+
+    def _mount_ws_proxy(self, app: FastAPI) -> None:
+        """Mount a WebSocket proxy that forwards /ws/* to the standalone WebSocket server.
+
+        In production mode the frontend connects WebSocket to the HTTP server's
+        host (window.location.host), but the actual WebSocket server runs on a
+        separate port.  This proxy bridges the two so that clients only need to
+        know about the HTTP port.
+        """
+        ws_port = 60888
+        cfg = self.services.config
+        if cfg and hasattr(cfg, "websocket") and cfg.websocket:
+            ws_port = cfg.websocket.port
+
+        @app.websocket("/ws/{path:path}")
+        async def ws_proxy(websocket: WebSocket, path: str) -> None:
+            await websocket.accept()
+
+            # Build target URL preserving sub-path and query string
+            query = str(websocket.query_params) if websocket.query_params else ""
+            target = f"ws://localhost:{ws_port}/{path}"
+            if query:
+                target += f"?{query}"
+
+            import websockets
+
+            try:
+                async with websockets.connect(target) as backend:
+
+                    async def client_to_backend() -> None:
+                        try:
+                            while True:
+                                data = await websocket.receive_text()
+                                await backend.send(data)
+                        except WebSocketDisconnect:
+                            await backend.close()
+
+                    async def backend_to_client() -> None:
+                        try:
+                            async for message in backend:
+                                if isinstance(message, str):
+                                    await websocket.send_text(message)
+                                else:
+                                    await websocket.send_bytes(message)
+                        except websockets.exceptions.ConnectionClosed:
+                            await websocket.close()
+
+                    await asyncio.gather(client_to_backend(), backend_to_client())
+            except Exception as e:
+                logger.debug(f"WebSocket proxy error: {e}")
+                try:
+                    await websocket.close(code=1011)
+                except Exception:
+                    pass
+
+        # Also handle bare /ws (no trailing path)
+        @app.websocket("/ws")
+        async def ws_proxy_root(websocket: WebSocket) -> None:
+            await ws_proxy(websocket, "")
+
+        logger.debug(f"WebSocket proxy mounted at /ws -> localhost:{ws_port}")
 
     def _mount_production_ui(self, app: FastAPI) -> None:
         """Mount static files and SPA catch-all for production UI mode."""

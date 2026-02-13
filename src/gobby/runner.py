@@ -713,13 +713,23 @@ class GobbyRunner:
                 web_dir = find_web_dir(self.config)
                 if web_dir:
                     ui_log = Path(self.config.logging.client).expanduser().parent / "ui.log"
+                    # Inherit bind_host so the Vite dev server is reachable
+                    # over the network (e.g. Tailscale) when bind_host != localhost
+                    ui_host = self.config.ui.host
+                    if self.config.bind_host != "localhost" and ui_host == "localhost":
+                        ui_host = self.config.bind_host
                     ui_pid = spawn_ui_server(
-                        self.config.ui.host, self.config.ui.port, web_dir, ui_log
+                        ui_host,
+                        self.config.ui.port,
+                        web_dir,
+                        ui_log,
+                        daemon_port=self.config.daemon_port,
+                        ws_port=self.config.websocket.port if self.config.websocket else 60888,
                     )
                     if ui_pid:
                         logger.info(
                             f"UI dev server started (PID: {ui_pid}) "
-                            f"at http://{self.config.ui.host}:{self.config.ui.port}"
+                            f"at http://{ui_host}:{self.config.ui.port}"
                         )
                     else:
                         logger.warning("Failed to start UI dev server")
