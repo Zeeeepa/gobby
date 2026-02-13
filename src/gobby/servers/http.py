@@ -727,6 +727,7 @@ class HTTPServer:
             create_tasks_router,
             create_voice_router,
             create_webhooks_router,
+            create_workflows_router,
         )
 
         # Include all routers
@@ -746,6 +747,7 @@ class HTTPServer:
         app.include_router(create_skills_router(self))
         app.include_router(create_voice_router(self))
         app.include_router(create_configuration_router(self))
+        app.include_router(create_workflows_router(self))
 
     async def _process_shutdown(self) -> None:
         """

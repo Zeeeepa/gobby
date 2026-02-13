@@ -22,6 +22,7 @@ from gobby.servers.routes.sessions import create_sessions_router
 from gobby.servers.routes.skills import create_skills_router
 from gobby.servers.routes.tasks import create_tasks_router
 from gobby.servers.routes.voice import create_voice_router
+from gobby.servers.routes.workflows import create_workflows_router
 
 __all__ = [
     "create_admin_router",
@@ -40,4 +41,5 @@ __all__ = [
     "create_tasks_router",
     "create_voice_router",
     "create_webhooks_router",
+    "create_workflows_router",
 ]
