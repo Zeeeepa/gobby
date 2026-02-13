@@ -57,7 +57,7 @@ echo ""
 
 # Bandit - security linting
 echo ">>> Running bandit..."
-if uv run bandit -r src/ -q 2>&1 | tee "$REPORTS_DIR/bandit-$TIMESTAMP.txt"; then
+if uv run bandit -c pyproject.toml -r src/ -q 2>&1 | tee "$REPORTS_DIR/bandit-$TIMESTAMP.txt"; then
     echo "✓ Bandit passed"
 else
     echo "✗ Bandit failed"
