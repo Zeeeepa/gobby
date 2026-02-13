@@ -103,5 +103,3 @@ class ThinkingEvent:
 
 # Union type for all streaming events
 ChatEvent = TextChunk | ToolCallEvent | ToolResultEvent | DoneEvent | ThinkingEvent
-
-

@@ -234,7 +234,8 @@ class ObserverEngine:
         and numeric strings to int/float. Unrecognized strings
         pass through unchanged.
         """
-        lower = raw.strip().lower()
+        stripped = raw.strip()
+        lower = stripped.lower()
         if lower == "true":
             return True
         if lower == "false":
@@ -242,14 +243,14 @@ class ObserverEngine:
         if lower in ("null", "none"):
             return None
         try:
-            return int(raw)
+            return int(stripped)
         except ValueError:
             pass
         try:
-            return float(raw)
+            return float(stripped)
         except ValueError:
             pass
-        return raw
+        return stripped
 
 
 # =============================================================================

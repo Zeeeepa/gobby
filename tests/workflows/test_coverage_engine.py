@@ -263,6 +263,7 @@ async def test_evaluate_lifecycle_full(engine, mock_components):
 
     wf = MagicMock(spec=WorkflowDefinition)
     wf.type = "lifecycle"
+    wf.enabled = True
     wf.steps = []
     wf.variables = {}
     wf.name = "lifecycle_wf"
@@ -291,6 +292,7 @@ async def test_evaluate_lifecycle_alias(engine, mock_components):
     loader, _, action_executor, evaluator, _ = mock_components
     wf = MagicMock(spec=WorkflowDefinition)
     wf.type = "lifecycle"
+    wf.enabled = True
     wf.steps = []
     wf.variables = {}
     wf.name = "alias_wf"

@@ -506,6 +506,11 @@ class WorkflowEngine:
         project_id: str | None = None,
     ) -> list[RuleDefinition]:
         """Resolve check_rules names to RuleDefinition objects."""
+        # Lazy-create and cache the RuleStore on first use
+        if self.rule_store is None and self.action_executor and getattr(self.action_executor, "db", None):
+            from gobby.storage.rules import RuleStore
+
+            self.rule_store = RuleStore(self.action_executor.db)
         return _resolve_check_rules_fn(
             check_rules, workflow, self.rule_store, self.action_executor, project_id
         )

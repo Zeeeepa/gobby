@@ -58,7 +58,7 @@ def _get_approval_id(condition: dict[str, Any]) -> str:
     import hashlib
     import json
 
-    normalized = ConditionEvaluator._normalize_condition(condition)
+    normalized = ConditionEvaluator.normalize_condition(condition)
     digest = hashlib.sha256(json.dumps(normalized, sort_keys=True).encode()).hexdigest()[:12]
     return f"approval_{digest}"
 

@@ -254,12 +254,14 @@ class TmuxSessionManager:
                 pid = int(pid_str) if pid_str.isdigit() else None
                 window_name = parts[2] if len(parts) > 2 and parts[2] else None
                 pane_title = parts[3] if len(parts) > 3 and parts[3] else None
-                results.append(TmuxSessionInfo(
-                    name=name,
-                    pane_pid=pid,
-                    window_name=window_name,
-                    pane_title=pane_title,
-                ))
+                results.append(
+                    TmuxSessionInfo(
+                        name=name,
+                        pane_pid=pid,
+                        window_name=window_name,
+                        pane_title=pane_title,
+                    )
+                )
         return results
 
     async def has_session(self, name: str) -> bool:

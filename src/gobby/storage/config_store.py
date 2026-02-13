@@ -60,18 +60,19 @@ class ConfigStore:
         """Bulk upsert config entries. Returns count of entries written."""
         now = datetime.now(UTC).isoformat()
         count = 0
-        for key, value in entries.items():
-            json_value = json.dumps(value)
-            self.db.execute(
-                """INSERT INTO config_store (key, value, source, updated_at)
-                   VALUES (?, ?, ?, ?)
-                   ON CONFLICT(key) DO UPDATE SET
-                       value = excluded.value,
-                       source = excluded.source,
-                       updated_at = excluded.updated_at""",
-                (key, json_value, source, now),
-            )
-            count += 1
+        with self.db.transaction():
+            for key, value in entries.items():
+                json_value = json.dumps(value)
+                self.db.execute(
+                    """INSERT INTO config_store (key, value, source, updated_at)
+                       VALUES (?, ?, ?, ?)
+                       ON CONFLICT(key) DO UPDATE SET
+                           value = excluded.value,
+                           source = excluded.source,
+                           updated_at = excluded.updated_at""",
+                    (key, json_value, source, now),
+                )
+                count += 1
         return count
 
     def delete(self, key: str) -> bool:
@@ -126,14 +127,29 @@ def unflatten_config(flat_dict: dict[str, Any]) -> dict[str, Any]:
     Example:
         {"llm_providers.claude.enabled": True}
         → {"llm_providers": {"claude": {"enabled": True}}}
+
+    Raises:
+        ValueError: If keys conflict (e.g., "a.b" and "a.b.c" both present).
     """
     result: dict[str, Any] = {}
     for key, value in flat_dict.items():
         parts = key.split(".")
         current = result
-        for part in parts[:-1]:
+        for i, part in enumerate(parts[:-1]):
             if part not in current:
                 current[part] = {}
+            elif not isinstance(current[part], dict):
+                conflict_path = ".".join(parts[: i + 1])
+                raise ValueError(
+                    f"Key conflict: '{conflict_path}' is a leaf value but "
+                    f"'{key}' requires it to be a dict"
+                )
             current = current[part]
-        current[parts[-1]] = value
+        final_key = parts[-1]
+        if final_key in current and isinstance(current[final_key], dict):
+            raise ValueError(
+                f"Key conflict: '{key}' would overwrite an existing dict at "
+                f"'{'.'.join(parts)}'"
+            )
+        current[final_key] = value
     return result

@@ -74,9 +74,7 @@ class Mem0SyncProcessor:
             return
 
         self._running = True
-        self._sync_task = asyncio.create_task(
-            self._sync_loop(), name="mem0-sync"
-        )
+        self._sync_task = asyncio.create_task(self._sync_loop(), name="mem0-sync")
         logger.info(
             f"Mem0SyncProcessor started (interval={self.sync_interval}s, "
             f"max_backoff={self.max_backoff}s)"

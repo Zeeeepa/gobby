@@ -401,7 +401,7 @@ class TestTmuxSpawnerDetection:
         """Test spawning when tmux is not available."""
         spawner = TmuxSpawner()
 
-        with patch.object(spawner._session_manager, "is_available", return_value=False):
+        with patch.object(spawner.session_manager, "create_session", side_effect=RuntimeError("tmux not available")):
             result = spawner.spawn(
                 command=["echo", "test"],
                 cwd="/tmp",

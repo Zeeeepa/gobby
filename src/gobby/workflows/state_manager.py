@@ -100,9 +100,7 @@ class WorkflowInstanceManager:
             priority=row["priority"],
             current_step=row["current_step"],
             step_entered_at=(
-                datetime.fromisoformat(row["step_entered_at"])
-                if row["step_entered_at"]
-                else None
+                datetime.fromisoformat(row["step_entered_at"]) if row["step_entered_at"] else None
             ),
             step_action_count=row["step_action_count"],
             total_action_count=row["total_action_count"],

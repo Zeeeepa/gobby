@@ -219,8 +219,13 @@ class RuleStore:
         return True
 
 
-def _row_to_dict(row: Any) -> dict[str, Any]:
-    """Convert a sqlite3.Row to a dict with parsed definition."""
+def _row_to_dict(row: Any | None) -> dict[str, Any] | None:
+    """Convert a sqlite3.Row to a dict with parsed definition.
+
+    Returns None if row is None/falsy.
+    """
+    if not row:
+        return None
     d = dict(row)
     if "definition" in d and isinstance(d["definition"], str):
         d["definition"] = json.loads(d["definition"])

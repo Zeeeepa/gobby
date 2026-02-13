@@ -253,7 +253,7 @@ def create_agents_router(server: "HTTPServer") -> APIRouter:
     # -------------------------------------------------------------------------
 
     @router.get("/running")
-    async def list_running_agents() -> dict[str, Any]:
+    def list_running_agents() -> dict[str, Any]:
         """List all currently running agents from the in-memory registry."""
         metrics.inc_counter("http_requests_total")
         try:
@@ -271,7 +271,7 @@ def create_agents_router(server: "HTTPServer") -> APIRouter:
             raise HTTPException(status_code=500, detail=str(e)) from e
 
     @router.get("/runs")
-    async def list_agent_runs(
+    def list_agent_runs(
         status: str | None = Query(None),
         limit: int = Query(50, ge=1, le=200),
     ) -> dict[str, Any]:
