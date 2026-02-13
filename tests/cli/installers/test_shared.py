@@ -424,7 +424,7 @@ class TestConfigureMcpServerJson:
         settings_path = temp_dir / "settings.json"
         settings_path.write_text('{"existing": true}')
 
-        with patch("gobby.cli.installers.shared.time") as mock_time:
+        with patch("gobby.cli.installers.mcp_config.time") as mock_time:
             mock_time.time.return_value = 1234567890
             result = configure_mcp_server_json(settings_path)
 
@@ -539,7 +539,7 @@ class TestRemoveMcpServerJson:
         existing = {"mcpServers": {"gobby": {"command": "uv"}}}
         settings_path.write_text(json.dumps(existing))
 
-        with patch("gobby.cli.installers.shared.time") as mock_time:
+        with patch("gobby.cli.installers.mcp_config.time") as mock_time:
             mock_time.time.return_value = 9876543210
             result = remove_mcp_server_json(settings_path)
 
@@ -619,7 +619,7 @@ class TestConfigureMcpServerToml:
         config_path = temp_dir / "config.toml"
         config_path.write_text('existing = "value"\n')
 
-        with patch("gobby.cli.installers.shared.time") as mock_time:
+        with patch("gobby.cli.installers.mcp_config.time") as mock_time:
             mock_time.time.return_value = 1111111111
             result = configure_mcp_server_toml(config_path)
 
@@ -762,7 +762,7 @@ command = "uv"
 """
         config_path.write_text(content)
 
-        with patch("gobby.cli.installers.shared.time") as mock_time:
+        with patch("gobby.cli.installers.mcp_config.time") as mock_time:
             mock_time.time.return_value = 2222222222
             result = remove_mcp_server_toml(config_path)
 
@@ -820,7 +820,7 @@ class TestEdgeCases:
                 raise OSError("Permission denied")
             return original_open(path, mode, *args, **kwargs)
 
-        with patch("gobby.cli.installers.shared.copy2"):  # Skip actual backup
+        with patch("gobby.cli.installers.mcp_config.copy2"):  # Skip actual backup
             with patch("builtins.open", mock_open_fn):
                 result = remove_mcp_server_json(settings_path)
 
@@ -859,7 +859,7 @@ class TestEdgeCases:
         settings_path = temp_dir / "settings.json"
         settings_path.write_text('{"existing": true}')
 
-        with patch("gobby.cli.installers.shared.copy2") as mock_copy:
+        with patch("gobby.cli.installers.mcp_config.copy2") as mock_copy:
             mock_copy.side_effect = OSError("Disk full")
             result = configure_mcp_server_json(settings_path)
 
@@ -873,7 +873,7 @@ class TestEdgeCases:
         existing = {"mcpServers": {"gobby": {"command": "uv"}}}
         settings_path.write_text(json.dumps(existing))
 
-        with patch("gobby.cli.installers.shared.copy2") as mock_copy:
+        with patch("gobby.cli.installers.mcp_config.copy2") as mock_copy:
             mock_copy.side_effect = OSError("Disk full")
             result = remove_mcp_server_json(settings_path)
 
