@@ -532,7 +532,7 @@ function PromptsTab({ prompts, categories, onGetDetail, onSaveOverride, onDelete
     const ok = await onSaveOverride(selectedPrompt.path, editContent)
     setSaving(false)
     if (ok) {
-      setSelectedPrompt({ ...selectedPrompt, source: 'overridden', has_override: true })
+      setSelectedPrompt({ ...selectedPrompt, source: 'user', has_override: true })
     }
   }
 

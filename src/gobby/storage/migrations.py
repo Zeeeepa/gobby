@@ -34,7 +34,7 @@ MigrationAction = str | Callable[[LocalDatabase], None]
 # Baseline version - the schema state that is applied for new databases directly.
 # Must be bumped when BASELINE_SCHEMA is updated with columns from new migrations,
 # so that fresh databases don't re-run migrations already baked into the baseline.
-BASELINE_VERSION = 101
+BASELINE_VERSION = 102
 
 # Minimum migration version - databases older than this cannot be upgraded
 # because legacy migrations (pre-v76) have been removed.
@@ -815,6 +815,25 @@ CREATE TABLE config_store (
     updated_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 CREATE INDEX idx_config_store_source ON config_store(source);
+
+CREATE TABLE prompts (
+    id TEXT PRIMARY KEY,
+    path TEXT NOT NULL,
+    name TEXT,
+    description TEXT DEFAULT '',
+    version TEXT DEFAULT '1.0',
+    category TEXT NOT NULL,
+    content TEXT NOT NULL,
+    variables TEXT,
+    tier TEXT NOT NULL CHECK(tier IN ('bundled', 'user', 'project')),
+    project_id TEXT,
+    source_file TEXT,
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE UNIQUE INDEX idx_prompts_path_tier_project
+    ON prompts(path, tier, COALESCE(project_id, ''));
+CREATE INDEX idx_prompts_category ON prompts(category);
 """
 
 # Future migrations (v61+)
@@ -1029,6 +1048,8 @@ def _migrate_add_workflow_instances_and_session_variables(db: LocalDatabase) -> 
             session_id = row["session_id"]
             workflow_name = row["workflow_name"]
             variables = row["variables"] if row["variables"] else "{}"
+            # Unix epoch sentinel for rows with NULL updated_at — a safe
+            # default that sorts before any real timestamp.
             updated_at = row["updated_at"] or "1970-01-01T00:00:00"
 
             # All existing variables become session variables (backward compat)
@@ -1408,6 +1429,31 @@ MIGRATIONS: list[tuple[int, str, MigrationAction]] = [
         101,
         "Add workflow_instances and session_variables tables",
         _migrate_add_workflow_instances_and_session_variables,
+    ),
+    # Database-backed prompt storage: three-tier prompt registry
+    (
+        102,
+        "Add prompts table",
+        """
+        CREATE TABLE IF NOT EXISTS prompts (
+            id TEXT PRIMARY KEY,
+            path TEXT NOT NULL,
+            name TEXT,
+            description TEXT DEFAULT '',
+            version TEXT DEFAULT '1.0',
+            category TEXT NOT NULL,
+            content TEXT NOT NULL,
+            variables TEXT,
+            tier TEXT NOT NULL CHECK(tier IN ('bundled', 'user', 'project')),
+            project_id TEXT,
+            source_file TEXT,
+            created_at TEXT NOT NULL DEFAULT (datetime('now')),
+            updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+        );
+        CREATE UNIQUE INDEX IF NOT EXISTS idx_prompts_path_tier_project
+            ON prompts(path, tier, COALESCE(project_id, ''));
+        CREATE INDEX IF NOT EXISTS idx_prompts_category ON prompts(category);
+        """,
     ),
 ]
 

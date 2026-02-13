@@ -17,7 +17,7 @@ export interface PromptInfo {
   path: string
   description: string
   category: string
-  source: 'bundled' | 'overridden'
+  source: 'bundled' | 'user' | 'project'
   has_override: boolean
 }
 
@@ -25,7 +25,7 @@ export interface PromptDetail {
   path: string
   description: string
   content: string
-  source: 'bundled' | 'overridden'
+  source: 'bundled' | 'user' | 'project'
   has_override: boolean
   bundled_content: string | null
   variables: Record<string, { type: string; required: boolean; default: unknown }>

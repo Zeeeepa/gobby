@@ -140,6 +140,30 @@ class GobbyRunner:
         except Exception as e:
             logger.warning(f"Failed to sync bundled rules: {e}")
 
+        # Sync bundled prompts to database
+        from gobby.prompts.sync import sync_bundled_prompts
+
+        try:
+            prompt_result = sync_bundled_prompts(self.database)
+            if prompt_result["synced"] > 0:
+                logger.info(f"Synced {prompt_result['synced']} bundled prompts to database")
+        except Exception as e:
+            logger.warning(f"Failed to sync bundled prompts: {e}")
+
+        # One-time migration of file-based prompt overrides
+        if (Path.home() / ".gobby" / "prompts").exists():
+            from gobby.prompts.sync import migrate_file_overrides_to_db
+
+            try:
+                migrate_file_overrides_to_db(self.database)
+            except Exception as e:
+                logger.warning(f"Failed to migrate prompt overrides: {e}")
+
+        # Configure default prompt loader to use DB
+        from gobby.prompts.loader import configure_default_loader
+
+        configure_default_loader(self.database)
+
         # Initialize Skill Manager and Hub Manager
         from gobby.storage.skills import LocalSkillManager
 
@@ -193,7 +217,7 @@ class GobbyRunner:
 
         # Mem0 Background Sync Processor
         self.mem0_sync: Mem0SyncProcessor | None = None
-        if self.memory_manager and self.memory_manager._mem0_client:
+        if self.memory_manager and self.memory_manager.mem0_enabled:
             self.mem0_sync = Mem0SyncProcessor(
                 memory_manager=self.memory_manager,
                 sync_interval=self.config.memory.mem0_sync_interval,
