@@ -132,6 +132,8 @@ class TmuxMixin:
                             "name": s.name,
                             "socket": socket_name,
                             "pane_pid": s.pane_pid,
+                            "pane_title": s.pane_title,
+                            "window_name": s.window_name,
                             "agent_managed": agent_managed,
                             "agent_run_id": agent_run_id,
                             "attached_bridge": attached_bridge,

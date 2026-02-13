@@ -26,6 +26,7 @@ class TmuxSessionInfo:
     created_at: float = field(default_factory=time.time)
     pane_pid: int | None = None
     window_name: str | None = None
+    pane_title: str | None = None
 
 
 class TmuxSessionManager:
@@ -232,11 +233,11 @@ class TmuxSessionManager:
 
     async def list_sessions(self) -> list[TmuxSessionInfo]:
         """List all Gobby tmux sessions on the isolated socket."""
-        # Fetch name and pid in one go to avoid N+1 process spawns
+        # Fetch name, pid, window name, and pane title in one go
         rc, stdout, _stderr = await self._run(
             "list-sessions",
             "-F",
-            "#{session_name}\t#{pane_pid}",
+            "#{session_name}\t#{pane_pid}\t#{window_name}\t#{pane_title}",
         )
         if rc != 0:
             # No server running is rc=1 with "no server running"
@@ -251,7 +252,14 @@ class TmuxSessionManager:
                 name = parts[0]
                 pid_str = parts[1]
                 pid = int(pid_str) if pid_str.isdigit() else None
-                results.append(TmuxSessionInfo(name=name, pane_pid=pid))
+                window_name = parts[2] if len(parts) > 2 and parts[2] else None
+                pane_title = parts[3] if len(parts) > 3 and parts[3] else None
+                results.append(TmuxSessionInfo(
+                    name=name,
+                    pane_pid=pid,
+                    window_name=window_name,
+                    pane_title=pane_title,
+                ))
         return results
 
     async def has_session(self, name: str) -> bool:
