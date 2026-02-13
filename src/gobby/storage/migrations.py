@@ -34,7 +34,7 @@ MigrationAction = str | Callable[[LocalDatabase], None]
 # Baseline version - the schema state that is applied for new databases directly.
 # Must be bumped when BASELINE_SCHEMA is updated with columns from new migrations,
 # so that fresh databases don't re-run migrations already baked into the baseline.
-BASELINE_VERSION = 100
+BASELINE_VERSION = 101
 
 # Minimum migration version - databases older than this cannot be upgraded
 # because legacy migrations (pre-v76) have been removed.
@@ -445,6 +445,32 @@ CREATE INDEX idx_audit_session ON workflow_audit_log(session_id);
 CREATE INDEX idx_audit_timestamp ON workflow_audit_log(timestamp);
 CREATE INDEX idx_audit_event_type ON workflow_audit_log(event_type);
 CREATE INDEX idx_audit_result ON workflow_audit_log(result);
+
+CREATE TABLE workflow_instances (
+    id TEXT PRIMARY KEY,
+    session_id TEXT NOT NULL,
+    workflow_name TEXT NOT NULL,
+    enabled INTEGER NOT NULL DEFAULT 1,
+    priority INTEGER NOT NULL DEFAULT 100,
+    current_step TEXT,
+    step_entered_at TEXT,
+    step_action_count INTEGER DEFAULT 0,
+    total_action_count INTEGER DEFAULT 0,
+    variables TEXT DEFAULT '{}',
+    context_injected INTEGER DEFAULT 0,
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+    UNIQUE(session_id, workflow_name),
+    FOREIGN KEY(session_id) REFERENCES sessions(id) ON DELETE CASCADE
+);
+CREATE INDEX idx_workflow_instances_session ON workflow_instances(session_id);
+CREATE INDEX idx_workflow_instances_enabled ON workflow_instances(session_id, enabled);
+
+CREATE TABLE session_variables (
+    session_id TEXT PRIMARY KEY,
+    variables TEXT DEFAULT '{}',
+    updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
 
 CREATE TABLE memories (
     id TEXT PRIMARY KEY,
@@ -950,6 +976,92 @@ def _migrate_agent_definition_prompt_fields(db: LocalDatabase) -> None:
     logger.info("Added role, goal, personality, instructions columns to agent_definitions")
 
 
+def _migrate_add_workflow_instances_and_session_variables(db: LocalDatabase) -> None:
+    """Add workflow_instances and session_variables tables for unified workflow architecture.
+
+    Creates new tables for multi-workflow support per session with isolated variable storage.
+    Migrates existing data from workflow_states table.
+    """
+    import uuid
+
+    with db.transaction() as conn:
+        # 1. Create workflow_instances table
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS workflow_instances (
+                id TEXT PRIMARY KEY,
+                session_id TEXT NOT NULL,
+                workflow_name TEXT NOT NULL,
+                enabled INTEGER NOT NULL DEFAULT 1,
+                priority INTEGER NOT NULL DEFAULT 100,
+                current_step TEXT,
+                step_entered_at TEXT,
+                step_action_count INTEGER DEFAULT 0,
+                total_action_count INTEGER DEFAULT 0,
+                variables TEXT DEFAULT '{}',
+                context_injected INTEGER DEFAULT 0,
+                created_at TEXT NOT NULL DEFAULT (datetime('now')),
+                updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+                UNIQUE(session_id, workflow_name),
+                FOREIGN KEY(session_id) REFERENCES sessions(id) ON DELETE CASCADE
+            )
+        """)
+        conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_workflow_instances_session "
+            "ON workflow_instances(session_id)"
+        )
+        conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_workflow_instances_enabled "
+            "ON workflow_instances(session_id, enabled)"
+        )
+
+        # 2. Create session_variables table
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS session_variables (
+                session_id TEXT PRIMARY KEY,
+                variables TEXT DEFAULT '{}',
+                updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+            )
+        """)
+
+        # 3. Migrate existing data from workflow_states
+        rows = conn.execute("SELECT * FROM workflow_states").fetchall()
+        for row in rows:
+            session_id = row["session_id"]
+            workflow_name = row["workflow_name"]
+            variables = row["variables"] if row["variables"] else "{}"
+            updated_at = row["updated_at"] or "1970-01-01T00:00:00"
+
+            # All existing variables become session variables (backward compat)
+            conn.execute(
+                "INSERT OR IGNORE INTO session_variables (session_id, variables, updated_at) "
+                "VALUES (?, ?, ?)",
+                (session_id, variables, updated_at),
+            )
+
+            # Create workflow instance for active step workflows only
+            if workflow_name not in ("__lifecycle__", "__ended__"):
+                conn.execute(
+                    """INSERT OR IGNORE INTO workflow_instances
+                       (id, session_id, workflow_name, enabled, current_step,
+                        step_entered_at, step_action_count, total_action_count,
+                        variables, context_injected, updated_at)
+                       VALUES (?, ?, ?, 1, ?, ?, ?, ?, '{}', ?, ?)""",
+                    (
+                        str(uuid.uuid4()),
+                        session_id,
+                        workflow_name,
+                        row["step"],
+                        row["step_entered_at"],
+                        row["step_action_count"],
+                        row["total_action_count"],
+                        row["context_injected"],
+                        updated_at,
+                    ),
+                )
+
+    logger.info("Added workflow_instances and session_variables tables with data migration")
+
+
 MIGRATIONS: list[tuple[int, str, MigrationAction]] = [
     # Project-scoped session refs: Change seq_num index from global to project-scoped
     (76, "Make sessions.seq_num project-scoped", _migrate_session_seq_num_project_scoped),
@@ -1290,6 +1402,12 @@ MIGRATIONS: list[tuple[int, str, MigrationAction]] = [
         ALTER TABLE tasks ADD COLUMN start_date TEXT;
         ALTER TABLE tasks ADD COLUMN due_date TEXT;
         """,
+    ),
+    # Unified workflow architecture: workflow_instances + session_variables tables
+    (
+        101,
+        "Add workflow_instances and session_variables tables",
+        _migrate_add_workflow_instances_and_session_variables,
     ),
 ]
 
