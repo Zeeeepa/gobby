@@ -127,8 +127,12 @@ class TestDeveloperWorkflow:
         assert developer_yaml is not None
 
     def test_is_step_type(self, developer_yaml: dict) -> None:
-        """Test that developer workflow is step type (implicit default)."""
-        assert developer_yaml.get("type", "step") == "step"
+        """Test that developer workflow is step type (explicit or default)."""
+        # If 'type' is declared, it must be 'step'; if omitted, the parser defaults to 'step'
+        wf_type = developer_yaml.get("type")
+        assert wf_type is None or wf_type == "step", (
+            f"Expected type to be 'step' or omitted, got '{wf_type}'"
+        )
 
     def test_has_tdd_phases(self, developer_yaml: dict) -> None:
         """Test that developer workflow has TDD red/green/blue phases."""
@@ -215,8 +219,12 @@ class TestQAReviewerWorkflow:
         assert qa_yaml is not None
 
     def test_is_step_type(self, qa_yaml: dict) -> None:
-        """Test that QA workflow is step type (implicit default)."""
-        assert qa_yaml.get("type", "step") == "step"
+        """Test that QA workflow is step type (explicit or default)."""
+        # If 'type' is declared, it must be 'step'; if omitted, the parser defaults to 'step'
+        wf_type = qa_yaml.get("type")
+        assert wf_type is None or wf_type == "step", (
+            f"Expected type to be 'step' or omitted, got '{wf_type}'"
+        )
 
     def test_has_review_phases(self, qa_yaml: dict) -> None:
         """Test that QA workflow has review/fix/verify/approve phases."""
