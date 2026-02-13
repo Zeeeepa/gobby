@@ -26,12 +26,6 @@ class DotDict(dict[str, Any]):
     def __setattr__(self, key: str, value: Any) -> None:
         self[key] = value
 
-    def __delattr__(self, key: str) -> None:
-        try:
-            del self[key]
-        except KeyError:
-            raise AttributeError(key) from None
-
 
 @dataclass
 class TransitionResult:

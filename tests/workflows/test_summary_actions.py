@@ -689,7 +689,7 @@ class TestRenameTmuxWindow:
     """Tests for _rename_tmux_window helper."""
 
     @pytest.mark.asyncio
-    async def test_skips_when_no_terminal_context(self) -> None:
+    async def test_skips_when_no_terminal_context(self):
         """No-op when session has no terminal_context."""
         from gobby.workflows.summary_actions import _rename_tmux_window
 
@@ -699,7 +699,7 @@ class TestRenameTmuxWindow:
         await _rename_tmux_window(session, "Title")
 
     @pytest.mark.asyncio
-    async def test_skips_when_no_tmux_pane(self) -> None:
+    async def test_skips_when_no_tmux_pane(self):
         """No-op when terminal_context has no tmux_pane."""
         from gobby.workflows.summary_actions import _rename_tmux_window
 
@@ -708,7 +708,7 @@ class TestRenameTmuxWindow:
         await _rename_tmux_window(session, "Title")
 
     @pytest.mark.asyncio
-    async def test_user_session_renames_on_default_server(self) -> None:
+    async def test_user_session_renames_on_default_server(self):
         """User session (depth 0) calls tmux rename-window on default server."""
         from gobby.workflows.summary_actions import _rename_tmux_window
 
@@ -734,7 +734,7 @@ class TestRenameTmuxWindow:
             )
 
     @pytest.mark.asyncio
-    async def test_spawned_agent_renames_on_gobby_socket(self) -> None:
+    async def test_spawned_agent_renames_on_gobby_socket(self):
         """Spawned agent (depth > 0) uses TmuxSessionManager."""
         from gobby.workflows.summary_actions import _rename_tmux_window
 
@@ -753,7 +753,7 @@ class TestRenameTmuxWindow:
             mock_mgr.rename_window.assert_called_once_with("%0", "Agent Title")
 
     @pytest.mark.asyncio
-    async def test_failure_does_not_propagate(self) -> None:
+    async def test_failure_does_not_propagate(self):
         """Rename failures are swallowed, never propagated."""
         from gobby.workflows.summary_actions import _rename_tmux_window
 

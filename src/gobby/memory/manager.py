@@ -777,20 +777,8 @@ class MemoryManager:
         await self._mem0_service._delete_from_mem0(memory_id)
 
     def _search_mem0(self, query: str, project_id: str | None, limit: int) -> list[Memory] | None:
-        """Search Mem0 and return local memories enriched by results (sync).
-
-        Delegates to ``Mem0Service._search_mem0`` which uses ``asyncio.run()``
-        when no event loop is running, or returns ``None`` when called from
-        within a running loop (falling back to local search).
-        Async callers should use ``_search_mem0_async`` instead.
-        """
+        """Search Mem0 and return local memories enriched by results."""
         return self._mem0_service._search_mem0(query, project_id, limit)
-
-    async def _search_mem0_async(
-        self, query: str, project_id: str | None, limit: int
-    ) -> list[Memory] | None:
-        """Search Mem0 asynchronously. Preferred over sync ``_search_mem0``."""
-        return await self._mem0_service._search_mem0_async(query, project_id, limit)
 
     def _get_unsynced_memories(
         self, query: str, project_id: str | None, limit: int
@@ -800,23 +788,6 @@ class MemoryManager:
 
     async def _lazy_sync(self) -> int:
         """Sync memories that have mem0_id IS NULL to Mem0."""
-        return await self._mem0_service._lazy_sync()
-
-    @property
-    def mem0_enabled(self) -> bool:
-        """Whether a Mem0 client is configured and available."""
-        return self._mem0_client is not None
-
-    @property
-    def mem0_client(self) -> Mem0Client | None:
-        """Public accessor for the Mem0 client instance."""
-        return self._mem0_client
-
-    async def lazy_sync(self) -> int:
-        """Public API: sync memories with mem0_id IS NULL to Mem0.
-
-        Returns the number of memories successfully synced.
-        """
         return await self._mem0_service._lazy_sync()
 
     def export_markdown(

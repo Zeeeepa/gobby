@@ -36,7 +36,6 @@ def backup_gobby_skills(skills_dir: Path) -> dict[str, Any]:
     result: dict[str, Any] = {
         "success": True,
         "backed_up": 0,
-        "backup_failed": 0,
     }
 
     if not skills_dir.exists():
@@ -56,15 +55,11 @@ def backup_gobby_skills(skills_dir: Path) -> dict[str, Any]:
     # Move each gobby skill to backup
     for skill_dir in gobby_skills:
         target = backup_dir / skill_dir.name
-        try:
-            # If already exists in backup, remove it first (replace with newer)
-            if target.exists():
-                shutil.rmtree(target)
-            shutil.move(str(skill_dir), str(target))
-            result["backed_up"] += 1
-        except OSError as e:
-            logger.error(f"Failed to backup skill {skill_dir.name}: {e}")
-            result["backup_failed"] += 1
+        # If already exists in backup, remove it first (replace with newer)
+        if target.exists():
+            shutil.rmtree(target)
+        shutil.move(str(skill_dir), str(target))
+        result["backed_up"] += 1
 
     return result
 

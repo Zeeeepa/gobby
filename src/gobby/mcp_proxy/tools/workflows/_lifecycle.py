@@ -184,7 +184,9 @@ async def activate_workflow(
 
     # Merge session_variables declarations into shared session variables
     if session_var_manager and definition.session_variables:
-        session_var_manager.merge_variables(resolved_session_id, definition.session_variables)
+        session_var_manager.merge_variables(
+            resolved_session_id, definition.session_variables
+        )
 
     return {
         "success": True,

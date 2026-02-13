@@ -7,7 +7,7 @@ from dataclasses import dataclass
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Any
 
-from .definitions import ExitCondition, WorkflowState
+from .definitions import WorkflowState
 
 if TYPE_CHECKING:
     from .webhook_executor import WebhookExecutor
@@ -299,7 +299,7 @@ class ConditionEvaluator:
 
     def check_exit_conditions(
         self,
-        conditions: list[ExitCondition],
+        conditions: list[dict[str, Any] | str],
         state: WorkflowState,
         exit_when: str | None = None,
     ) -> bool:
@@ -336,7 +336,7 @@ class ConditionEvaluator:
             return False
 
         for condition in conditions:
-            normalized = self.normalize_condition(condition)
+            normalized = self._normalize_condition(condition)
 
             cond_type = normalized.get("type")
 
@@ -372,7 +372,7 @@ class ConditionEvaluator:
         return True
 
     @staticmethod
-    def normalize_condition(condition: dict[str, Any] | str) -> dict[str, Any]:
+    def _normalize_condition(condition: dict[str, Any] | str) -> dict[str, Any]:
         """Normalize a condition to canonical dict format.
 
         Handles:
@@ -492,7 +492,7 @@ class ConditionEvaluator:
             if condition.get("type") != "user_approval":
                 continue
 
-            normalized = self.normalize_condition(condition)
+            normalized = self._normalize_condition(condition)
             condition_id = normalized.get("id", _stable_condition_id("approval", normalized))
             approved_var = f"_approval_{condition_id}_granted"
             rejected_var = f"_approval_{condition_id}_rejected"
@@ -580,7 +580,7 @@ class ConditionEvaluator:
             if condition.get("type") != "webhook":
                 continue
 
-            normalized = self.normalize_condition(condition)
+            normalized = self._normalize_condition(condition)
             condition_id = normalized.get("id", _stable_condition_id("webhook", normalized))
 
             try:

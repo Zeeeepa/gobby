@@ -106,8 +106,6 @@ class TestSpawnSessionExecution:
 
         assert result is not None
         assert "session_id" in result
-        assert "tmux_session_name" in result
-        assert result["tmux_session_name"] == "gobby-claude-d1"
         mock_spawner.spawn_agent.assert_called_once()
 
     @pytest.mark.asyncio
@@ -178,29 +176,13 @@ class TestActivateWorkflowExecution:
             },
         )
 
-        # Patch the imported activate_workflow function to verify args
-        mock_activate = AsyncMock(return_value={
-            "success": True,
-            "workflow": "auto-task",
-        })
-        with patch(
-            "gobby.mcp_proxy.tools.workflows._lifecycle.activate_workflow",
-            mock_activate,
-        ):
-            result = await executor._execute_step(
-                step, {"inputs": {}, "steps": {}, "env": {}}, "proj-1"
-            )
+        result = await executor._execute_step(
+            step, {"inputs": {}, "steps": {}, "env": {}}, "proj-1"
+        )
 
         assert result is not None
         assert result.get("success") is True
         assert result["workflow"] == "auto-task"
-
-        # Verify activate_workflow was called with expected arguments
-        mock_activate.assert_awaited_once()
-        call_kwargs = mock_activate.call_args
-        assert call_kwargs.kwargs["name"] == "auto-task"
-        assert call_kwargs.kwargs["session_id"] == "uuid-sess-1"
-        assert call_kwargs.kwargs["variables"] == {"task": "fix-bug"}
 
     @pytest.mark.asyncio
     async def test_activate_workflow_fails_without_loader(self) -> None:

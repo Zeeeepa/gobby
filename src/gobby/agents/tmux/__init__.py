@@ -73,24 +73,13 @@ def get_tmux_output_reader(config: TmuxConfig | None = None) -> TmuxOutputReader
 
 
 def get_tmux_pane_monitor() -> TmuxPaneMonitor | None:
-    """Return the global :class:`TmuxPaneMonitor`, or ``None`` if not started.
-
-    Unlike the other singletons in this module, the pane monitor uses
-    explicit lifecycle management (``set_tmux_pane_monitor``) rather
-    than lazy initialisation, because it requires an async ``start()``
-    call and a callback that is only available after the daemon boots.
-    """
+    """Return the global :class:`TmuxPaneMonitor`, or ``None`` if not started."""
     with _lock:
         return _pane_monitor
 
 
 def set_tmux_pane_monitor(monitor: TmuxPaneMonitor | None) -> None:
-    """Set (or clear) the global :class:`TmuxPaneMonitor` singleton.
-
-    Uses explicit lifecycle management instead of lazy-init because
-    the monitor requires an async start and a daemon-provided callback.
-    Pass ``None`` to clear the singleton during shutdown.
-    """
+    """Set (or clear) the global :class:`TmuxPaneMonitor` singleton."""
     global _pane_monitor
     with _lock:
         _pane_monitor = monitor

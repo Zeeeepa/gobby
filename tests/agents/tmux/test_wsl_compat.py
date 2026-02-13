@@ -95,6 +95,7 @@ class TestSessionManagerWslIntegration:
 
         result = MagicMock()
         result.returncode = 0
+        assert isinstance(mock_run, MagicMock)
         mock_run.return_value = result
 
         mgr = TmuxSessionManager()

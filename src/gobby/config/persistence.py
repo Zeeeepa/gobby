@@ -137,14 +137,6 @@ class MemoryConfig(BaseModel):
         description="Maximum backoff seconds on Mem0 connection failure",
     )
 
-    @field_validator("mem0_sync_interval")
-    @classmethod
-    def validate_sync_interval(cls, v: float) -> float:
-        """Validate mem0_sync_interval is positive."""
-        if v <= 0:
-            raise ValueError("mem0_sync_interval must be greater than 0")
-        return v
-
     @field_validator(
         "importance_threshold",
         "decay_rate",
@@ -166,14 +158,6 @@ class MemoryConfig(BaseModel):
         """Validate crossref_max_links is positive."""
         if v < 1:
             raise ValueError("crossref_max_links must be at least 1")
-        return v
-
-    @field_validator("mem0_timeout")
-    @classmethod
-    def validate_mem0_timeout(cls, v: float) -> float:
-        """Validate mem0_timeout is positive."""
-        if v <= 0:
-            raise ValueError("mem0_timeout must be greater than 0")
         return v
 
     @field_validator("search_backend")
@@ -207,16 +191,6 @@ class MemoryConfig(BaseModel):
             logger.warning(
                 f"embedding_weight ({self.embedding_weight}) + tfidf_weight ({self.tfidf_weight}) "
                 f"= {total}, expected ~1.0"
-            )
-        return self
-
-    @model_validator(mode="after")
-    def validate_sync_backoff(self) -> "MemoryConfig":
-        """Validate mem0_sync_max_backoff >= mem0_sync_interval."""
-        if self.mem0_sync_max_backoff < self.mem0_sync_interval:
-            raise ValueError(
-                f"mem0_sync_max_backoff ({self.mem0_sync_max_backoff}) must be >= "
-                f"mem0_sync_interval ({self.mem0_sync_interval})"
             )
         return self
 

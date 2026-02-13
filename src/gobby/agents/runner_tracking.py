@@ -115,24 +115,23 @@ class RunTracker:
 
         Thread-safe operation using a lock.
 
+        Note: The registry's RunningAgent is lightweight and doesn't track
+        turns_used, tool_calls_count, or last_activity. These are tracked
+        in the database AgentRun record instead. This method verifies the
+        agent exists but doesn't modify it.
+
         Args:
             run_id: The agent run ID.
-            turns_used: Updated turns count.
-            tool_calls_count: Updated tool calls count.
+            turns_used: Updated turns count (logged but not stored in-memory).
+            tool_calls_count: Updated tool calls count (logged but not stored in-memory).
 
         Returns:
             The RunningAgent if found, None otherwise.
         """
-        from datetime import UTC, datetime
-
+        _ = turns_used  # Tracked in database AgentRun record
+        _ = tool_calls_count  # Tracked in database AgentRun record
         with self._lock:
             agent = self._running_agents.get(run_id)
-            if agent is not None:
-                if turns_used is not None:
-                    agent.turns_used = turns_used
-                if tool_calls_count is not None:
-                    agent.tool_calls_count = tool_calls_count
-                agent.last_activity = datetime.now(UTC)
 
         return agent
 

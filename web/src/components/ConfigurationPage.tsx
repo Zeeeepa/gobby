@@ -337,7 +337,7 @@ function ConfigFormTab({ schema, values: initialValues, onSave, onReset }: Confi
       </div>
       <div className="config-form-footer">
         <button className="config-toolbar-btn danger" onClick={handleReset}>Reset to Defaults</button>
-        <button type="button" className="config-toolbar-btn primary" onClick={handleSave} disabled={saving}>
+        <button className="config-toolbar-btn primary" onClick={handleSave} disabled={saving}>
           {saving ? 'Saving...' : 'Save Configuration'}
         </button>
       </div>
@@ -590,7 +590,7 @@ function PromptsTab({ prompts, categories, onGetDetail, onSaveOverride, onDelete
                 {selectedPrompt.has_override && (
                   <button className="config-toolbar-btn danger" onClick={handleRevert}>Revert</button>
                 )}
-                <button type="button" className="config-toolbar-btn primary" onClick={handleSaveOverride} disabled={saving}>
+                <button className="config-toolbar-btn primary" onClick={handleSaveOverride} disabled={saving}>
                   {saving ? 'Saving...' : 'Save Override'}
                 </button>
               </div>
@@ -688,7 +688,7 @@ function TemplateTab({ content, onFetch, onSave }: TemplateTabProps) {
         <div className="config-yaml-errors">
           {errors.map((e, i) => <span key={i}>{e}</span>)}
         </div>
-        <button type="button" className="config-toolbar-btn primary" onClick={handleSave} disabled={saving}>
+        <button className="config-toolbar-btn primary" onClick={handleSave} disabled={saving}>
           {saving ? 'Saving...' : 'Save Template'}
         </button>
       </div>

@@ -8,7 +8,6 @@ resolved rules block tools correctly, check_rules + inline rules both apply.
 from __future__ import annotations
 
 from datetime import UTC, datetime
-from typing import Any
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
@@ -110,7 +109,7 @@ def engine(
 # =============================================================================
 
 
-def _make_event(tool_name: str = "Edit", **data_overrides: Any) -> HookEvent:
+def _make_event(tool_name: str = "Edit", **data_overrides) -> HookEvent:
     """Create a BEFORE_TOOL event."""
     data: dict = {"tool_name": tool_name}
     data.update(data_overrides)
@@ -127,7 +126,7 @@ def _make_event(tool_name: str = "Edit", **data_overrides: Any) -> HookEvent:
 def _make_step(
     check_rules: list[str] | None = None,
     rules: list[WorkflowRule] | None = None,
-    **kwargs: Any,
+    **kwargs,
 ) -> MagicMock:
     """Create a mock WorkflowStep with sensible defaults."""
     step = MagicMock(spec=WorkflowStep)

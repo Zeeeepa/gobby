@@ -65,7 +65,6 @@ function CreateJobDialog({ onSubmit, onClose }: CreateDialogProps) {
   const [scheduleType, setScheduleType] = useState('cron')
   const [cronExpr, setCronExpr] = useState('0 7 * * *')
   const [intervalSeconds, setIntervalSeconds] = useState('300')
-  const [runAt, setRunAt] = useState('')
   const [actionType, setActionType] = useState('shell')
   const [actionConfigStr, setActionConfigStr] = useState('{\n  "command": "echo",\n  "args": ["hello"]\n}')
   const [timezone, setTimezone] = useState('UTC')
@@ -79,12 +78,8 @@ function CreateJobDialog({ onSubmit, onClose }: CreateDialogProps) {
       const parsed = parseInt(intervalSeconds, 10)
       if (isNaN(parsed) || parsed < 10) return false
     }
-    if (scheduleType === 'once') {
-      if (!runAt) return false
-      if (new Date(runAt).getTime() <= Date.now()) return false
-    }
     return true
-  }, [name, actionConfigStr, scheduleType, cronExpr, intervalSeconds, runAt])
+  }, [name, actionConfigStr, scheduleType, cronExpr, intervalSeconds])
 
   const handleSubmit = () => {
     if (!isFormValid) return
@@ -103,9 +98,6 @@ function CreateJobDialog({ onSubmit, onClose }: CreateDialogProps) {
     }
     if (scheduleType === 'interval') {
       req.interval_seconds = parseInt(intervalSeconds, 10)
-    }
-    if (scheduleType === 'once') {
-      req.run_at = new Date(runAt).toISOString()
     }
 
     onSubmit(req)
@@ -171,18 +163,6 @@ function CreateJobDialog({ onSubmit, onClose }: CreateDialogProps) {
               value={intervalSeconds}
               onChange={e => setIntervalSeconds(e.target.value)}
               min="10"
-            />
-          </div>
-        )}
-
-        {scheduleType === 'once' && (
-          <div className="cron-form-group">
-            <label className="cron-form-label">Run At</label>
-            <input
-              className="cron-form-input"
-              type="datetime-local"
-              value={runAt}
-              onChange={e => setRunAt(e.target.value)}
             />
           </div>
         )}

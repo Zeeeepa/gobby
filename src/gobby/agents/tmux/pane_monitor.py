@@ -50,7 +50,6 @@ class TmuxPaneMonitor:
         self._config = config or TmuxConfig()
         self._poll_interval = poll_interval
         self._session_storage = session_storage
-        self._tmux_mgr = TmuxSessionManager(self._config)
         self._task: asyncio.Task[None] | None = None
         # session_id -> timestamp when it was marked ended
         self._recently_ended: dict[str, float] = {}
@@ -114,8 +113,9 @@ class TmuxPaneMonitor:
             del self._recently_ended[sid]
 
         # 2. Get live tmux session names
+        mgr = TmuxSessionManager(self._config)
         try:
-            live_sessions = await self._tmux_mgr.list_sessions()
+            live_sessions = await mgr.list_sessions()
         except Exception:
             logger.warning("TmuxPaneMonitor: failed to list tmux sessions", exc_info=True)
             return

@@ -21,6 +21,8 @@ class TestBackupGobbySkills:
 
     def test_backup_function_exists(self) -> None:
         """Verify backup_gobby_skills function can be imported."""
+        from gobby.cli.installers.skill_install import backup_gobby_skills
+
         assert callable(backup_gobby_skills)
 
     def test_backup_moves_gobby_skill_dirs(self, tmp_path: Path, skills_dir: Path) -> None:

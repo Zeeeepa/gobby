@@ -3,16 +3,6 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
-# Exit condition: either a string expression or a dict with a discriminator.
-# Allowed dict shapes (ConditionEvaluator.normalize_condition handles sugar):
-#   - {"type": "variable_set", "variable": str, ...}
-#   - {"type": "expression", "expression": str, ...}
-#   - {"type": "user_approval", "prompt": str, ...}
-#   - {"type": "webhook", "url": str, ...}
-#   - {"approval": str}         → sugar for user_approval
-#   - {"webhook": {"url": str}} → sugar for webhook
-ExitCondition = str | dict[str, Any]
-
 # --- Workflow Definition Models (YAML) ---
 
 
@@ -133,7 +123,7 @@ class WorkflowStep(BaseModel):
     check_rules: list[str] = Field(default_factory=list)  # Named rule references
     transitions: list[WorkflowTransition] = Field(default_factory=list)
     exit_when: str | None = None  # Expression shorthand AND-ed with exit_conditions
-    exit_conditions: list[ExitCondition] = Field(default_factory=list)
+    exit_conditions: list[dict[str, Any] | str] = Field(default_factory=list)
 
     on_exit: list[dict[str, Any]] = Field(default_factory=list)
 
@@ -261,12 +251,8 @@ class PipelineStep(BaseModel):
     def model_post_init(self, __context: Any) -> None:
         """Validate that exactly one execution type is specified."""
         exec_types = [
-            self.exec,
-            self.prompt,
-            self.invoke_pipeline,
-            self.mcp,
-            self.spawn_session,
-            self.activate_workflow,
+            self.exec, self.prompt, self.invoke_pipeline, self.mcp,
+            self.spawn_session, self.activate_workflow,
         ]
         specified = [t for t in exec_types if t is not None]
 
@@ -380,20 +366,12 @@ class WorkflowInstance(BaseModel):
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> "WorkflowInstance":
-        """Deserialize from a dictionary, parsing ISO datetime strings.
-
-        Naive datetimes (no tzinfo) are assumed UTC for backward compatibility.
-        """
+        """Deserialize from a dictionary, parsing ISO datetime strings."""
         parsed = dict(data)
         for field in ("step_entered_at", "created_at", "updated_at"):
             val = parsed.get(field)
             if isinstance(val, str):
-                dt = datetime.fromisoformat(val)
-                if dt.tzinfo is None:
-                    dt = dt.replace(tzinfo=UTC)
-                parsed[field] = dt
-            elif isinstance(val, datetime) and val.tzinfo is None:
-                parsed[field] = val.replace(tzinfo=UTC)
+                parsed[field] = datetime.fromisoformat(val)
         return cls(**parsed)
 
 

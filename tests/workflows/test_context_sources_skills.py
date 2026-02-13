@@ -51,7 +51,7 @@ def base_args():
     }
 
 
-def test_inject_context_skills_happy_path(base_args, mock_skill_manager) -> None:
+def test_inject_context_skills_happy_path(base_args, mock_skill_manager):
     """inject_context with source='skills' (no filter) returns formatted skills."""
     result = inject_context(
         **base_args,
@@ -68,7 +68,7 @@ def test_inject_context_skills_happy_path(base_args, mock_skill_manager) -> None
     mock_skill_manager.discover_core_skills.assert_called_once()
 
 
-def test_inject_context_skills_context_aware_returns_empty(base_args, mock_skill_manager) -> None:
+def test_inject_context_skills_context_aware_returns_empty(base_args, mock_skill_manager):
     """inject_context with filter='context_aware' returns None (discovery guide is now a skill)."""
     result = inject_context(
         **base_args,
@@ -81,7 +81,7 @@ def test_inject_context_skills_context_aware_returns_empty(base_args, mock_skill
     assert result is None
 
 
-def test_inject_context_skills_none_skill_manager(base_args) -> None:
+def test_inject_context_skills_none_skill_manager(base_args):
     """inject_context with source='skills' returns None when skill_manager is None."""
     result = inject_context(
         **base_args,

@@ -210,11 +210,8 @@ def _evaluate_step_tool_rules(
                     matched = evaluator.evaluate(rule.when)
                 if matched:
                     return "block", rule.message or f"Blocked by rule in step '{step.name}'"
-            except (ValueError, SyntaxError, TypeError, NameError):
+            except (ValueError, Exception):
                 logger.debug("Failed to evaluate rule condition: %s", rule.when, exc_info=True)
-            except Exception:
-                logger.exception("Unexpected error evaluating rule condition: %s", rule.when)
-                raise
 
     return "allow", None
 
@@ -247,15 +244,10 @@ def _evaluate_step_transitions(
                 matched = evaluator.evaluate(transition.when)
             if matched:
                 return transition.to
-        except (ValueError, SyntaxError, TypeError, NameError):
+        except (ValueError, Exception):
             logger.debug(
                 "Failed to evaluate transition condition: %s", transition.when, exc_info=True
             )
-        except Exception:
-            logger.exception(
-                "Unexpected error evaluating transition condition: %s", transition.when
-            )
-            raise
     return None
 
 
@@ -314,12 +306,9 @@ def _evaluate_triggers(
                     matched = evaluator.evaluate(when)
                 if not matched:
                     continue
-            except (ValueError, SyntaxError, TypeError, NameError):
+            except (ValueError, Exception):
                 logger.debug("Failed to evaluate trigger condition: %s", when, exc_info=True)
                 continue
-            except Exception:
-                logger.exception("Unexpected error evaluating trigger condition: %s", when)
-                raise
 
         content = action.get("content", "")
         if content:

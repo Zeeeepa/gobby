@@ -649,18 +649,10 @@ async def evaluate_all_lifecycle_workflows(
                     f"Loaded {len(session_vars)} session_variables for {session_id}: "
                     f"{list(session_vars.keys())}"
                 )
-        except (ImportError, KeyError, AttributeError) as e:
-            # Recoverable: module not available, session not found, or
-            # state_manager.db missing — skip session variable loading.
-            logger.debug(f"Could not load session_variables: {e}")
         except Exception as e:
-            logger.warning(
-                f"Unexpected error loading session_variables for {session_id}: {e}",
-                exc_info=True,
-            )
+            logger.debug(f"Could not load session_variables: {e}")
 
-        missing_lifecycle_vars = not lifecycle_state or not lifecycle_state.variables
-        if missing_lifecycle_vars and event.event_type == HookEventType.SESSION_START:
+        if not (lifecycle_state and lifecycle_state.variables) and event.event_type == HookEventType.SESSION_START:
             # New session - check if we should inherit from parent
             parent_id = event.metadata.get("_parent_session_id")
             if parent_id:

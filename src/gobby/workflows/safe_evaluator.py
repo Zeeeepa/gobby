@@ -7,11 +7,14 @@ and lazy boolean evaluation for deferred computation.
 from __future__ import annotations
 
 import ast
+import logging
 import operator
 from collections.abc import Callable
 from typing import Any
 
 __all__ = ["LazyBool", "SafeExpressionEvaluator", "build_condition_helpers"]
+
+logger = logging.getLogger(__name__)
 
 
 class LazyBool:

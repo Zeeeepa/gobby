@@ -506,11 +506,6 @@ class WorkflowEngine:
         project_id: str | None = None,
     ) -> list[RuleDefinition]:
         """Resolve check_rules names to RuleDefinition objects."""
-        # Lazy-create and cache the RuleStore on first use
-        if self.rule_store is None and self.action_executor and getattr(self.action_executor, "db", None):
-            from gobby.storage.rules import RuleStore
-
-            self.rule_store = RuleStore(self.action_executor.db)
         return _resolve_check_rules_fn(
             check_rules, workflow, self.rule_store, self.action_executor, project_id
         )
@@ -628,7 +623,7 @@ class WorkflowEngine:
             self.audit_manager, session_id, step, rule_id, condition, result, reason, context
         )
 
-    def log_transition(
+    def _log_transition(
         self,
         session_id: str,
         from_step: str,
@@ -638,9 +633,6 @@ class WorkflowEngine:
     ) -> None:
         """Log a step transition to the audit log."""
         log_transition(self.audit_manager, session_id, from_step, to_step, reason, context)
-
-    # Backward-compat alias for internal callers
-    _log_transition = log_transition
 
     def _log_approval(
         self,

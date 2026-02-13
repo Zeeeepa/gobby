@@ -60,7 +60,5 @@ def install_antigravity(project_path: Path) -> dict[str, Any]:
     # Configure terminal tab title so tmux set-titles propagates to IDE
     terminal_result = configure_ide_terminal_title("Antigravity")
     result["terminal_configured"] = terminal_result.get("added", False)
-    if not terminal_result.get("success", True):
-        logger.warning("Terminal title config failed for Antigravity: %s", terminal_result.get("error"))
 
     return result

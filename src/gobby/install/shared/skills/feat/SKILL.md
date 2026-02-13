@@ -16,14 +16,14 @@ Create a new feature task with the provided title and optional description.
 
 ## Usage
 
-```text
+```
 /gobby:feat <title>
 /gobby:feat <title> - <description>
 ```
 
 ## Examples
 
-```text
+```
 /gobby:feat Add dark mode toggle
 /gobby:feat User profile avatars - Allow users to upload custom profile pictures with cropping support
 ```

@@ -17,10 +17,8 @@ from gobby.workflows.pipeline_state import (
 from gobby.workflows.safe_evaluator import SafeExpressionEvaluator
 
 if TYPE_CHECKING:
-    from gobby.agents.tmux.spawner import TmuxSpawner
     from gobby.storage.database import DatabaseProtocol
     from gobby.storage.pipelines import LocalPipelineExecutionManager
-    from gobby.storage.sessions import LocalSessionManager
     from gobby.workflows.definitions import PipelineDefinition
     from gobby.workflows.templates import TemplateEngine
 
@@ -53,8 +51,8 @@ class PipelineExecutor:
         loader: Any | None = None,
         event_callback: PipelineEventCallback | None = None,
         tool_proxy_getter: Any | None = None,
-        spawner: "TmuxSpawner | None" = None,
-        session_manager: "LocalSessionManager | None" = None,
+        spawner: Any | None = None,
+        session_manager: Any | None = None,
     ):
         """Initialize the pipeline executor.
 
@@ -500,14 +498,10 @@ class PipelineExecutor:
         """
         config = rendered_step.spawn_session
         if not self.spawner:
-            raise RuntimeError(
-                f"spawn_session step {rendered_step.id} requires a tmux spawner but none configured"
-            )
+            return {"error": "spawn_session requires a tmux spawner but none configured"}
 
         if not self.session_manager:
-            raise RuntimeError(
-                f"spawn_session step {rendered_step.id} requires session_manager but none configured"
-            )
+            return {"error": "spawn_session requires session_manager but none configured"}
 
         cli = config.get("cli", "claude")
         prompt = config.get("prompt")
@@ -539,7 +533,7 @@ class PipelineExecutor:
                 "tmux_session_name": getattr(result, "tmux_session_name", ""),
             }
         except Exception as e:
-            raise RuntimeError(f"spawn_session step {rendered_step.id} failed: {e}") from e
+            return {"error": f"Failed to spawn session: {e}"}
 
     async def _execute_activate_workflow_step(
         self, rendered_step: Any, context: dict[str, Any]
@@ -555,26 +549,18 @@ class PipelineExecutor:
         """
         config = rendered_step.activate_workflow
         if not self.loader:
-            raise RuntimeError(
-                f"activate_workflow step {rendered_step.id} requires workflow loader but none configured"
-            )
+            return {"error": "activate_workflow requires workflow loader but none configured"}
 
         workflow_name = config.get("name")
         session_id = config.get("session_id")
         variables = config.get("variables") or {}
 
         if not workflow_name:
-            raise RuntimeError(
-                f"activate_workflow step {rendered_step.id} requires 'name' field"
-            )
+            return {"error": "activate_workflow requires 'name' field"}
         if not session_id:
-            raise RuntimeError(
-                f"activate_workflow step {rendered_step.id} requires 'session_id' field"
-            )
+            return {"error": "activate_workflow requires 'session_id' field"}
         if not self.session_manager:
-            raise RuntimeError(
-                f"activate_workflow step {rendered_step.id} requires session_manager but none configured"
-            )
+            return {"error": "activate_workflow requires session_manager but none configured"}
 
         try:
             from gobby.mcp_proxy.tools.workflows._lifecycle import activate_workflow
@@ -593,9 +579,7 @@ class PipelineExecutor:
             )
             return result
         except Exception as e:
-            raise RuntimeError(
-                f"activate_workflow step {rendered_step.id} failed: {e}"
-            ) from e
+            return {"error": f"Failed to activate workflow: {e}"}
 
     def _should_run_step(self, step: Any, context: dict[str, Any]) -> bool:
         """Check if a step should run based on its condition.

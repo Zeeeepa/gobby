@@ -372,11 +372,7 @@ export function AgentDefinitionsPage() {
       {toastMessage && (
         <div
           className={`agent-defs-toast ${toastMessage.type === 'success' ? 'agent-defs-toast--success' : ''}`}
-          role="status"
-          aria-live="polite"
-          tabIndex={0}
           onClick={() => setToastMessage(null)}
-          onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ' || e.key === 'Escape') setToastMessage(null) }}
         >
           {toastMessage.text}
         </div>
@@ -568,9 +564,8 @@ export function AgentDefinitionsPage() {
             </label>
           </div>
           <div className="agent-defs-form-actions">
-            <button type="button" className="agent-defs-btn" onClick={() => { setShowCreateForm(false); setEditingId(null) }}>Cancel</button>
+            <button className="agent-defs-btn" onClick={() => { setShowCreateForm(false); setEditingId(null) }}>Cancel</button>
             <button
-              type="button"
               className="agent-defs-btn agent-defs-btn--primary"
               onClick={editingId ? handleUpdate : handleCreate}
               disabled={!createForm.name.trim()}

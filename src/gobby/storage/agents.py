@@ -313,7 +313,7 @@ class LocalAgentRunManager:
 
     def list_by_status(
         self,
-        status: AgentRunStatus | None = None,
+        status: str | None = None,
         limit: int = 100,
     ) -> list[AgentRun]:
         """

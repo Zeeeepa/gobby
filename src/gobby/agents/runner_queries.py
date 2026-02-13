@@ -7,9 +7,7 @@ Extracted from runner.py as part of Strangler Fig decomposition (Wave 2).
 from __future__ import annotations
 
 import logging
-from typing import TYPE_CHECKING
-
-from gobby.storage.agents import AgentRun, AgentRunStatus
+from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
     from gobby.agents.runner import AgentRunner
@@ -17,7 +15,7 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
-def get_run(runner: AgentRunner, run_id: str) -> AgentRun | None:
+def get_run(runner: AgentRunner, run_id: str) -> Any | None:
     """Get an agent run by ID."""
     return runner._run_storage.get(run_id)
 
@@ -45,43 +43,34 @@ def get_run_id_by_session(runner: AgentRunner, session_id: str) -> str | None:
 def list_runs(
     runner: AgentRunner,
     parent_session_id: str,
-    status: AgentRunStatus | None = None,
+    status: str | None = None,
     limit: int = 100,
-) -> list[AgentRun]:
+) -> list[Any]:
     """List agent runs for a session."""
     return runner._run_storage.list_by_session(
         parent_session_id,
-        status=status,
+        status=status,  # type: ignore
         limit=limit,
     )
 
 
 def cancel_run(runner: AgentRunner, run_id: str) -> bool:
     """Cancel a running agent."""
-    with runner.db.transaction_immediate() as conn:
-        row = conn.execute("SELECT * FROM agent_runs WHERE id = ?", (run_id,)).fetchone()
-        if not row:
-            return False
+    run = runner._run_storage.get(run_id)
+    if not run:
+        return False
+    if run.status != "running":
+        return False
 
-        run = AgentRun.from_row(row)
-        if run.status != "running":
-            return False
+    runner._run_storage.cancel(run_id)
 
-        from datetime import UTC, datetime
+    # Also mark session as cancelled
+    if run.child_session_id:
+        runner._session_storage.update_status(run.child_session_id, "cancelled")
 
-        now = datetime.now(UTC).isoformat()
-        conn.execute(
-            "UPDATE agent_runs SET status = 'cancelled', completed_at = ?, updated_at = ? WHERE id = ?",
-            (now, now, run_id),
-        )
+    runner.logger.info(f"Cancelled agent run {run_id}")
 
-        # Also mark session as cancelled
-        if run.child_session_id:
-            runner._session_storage.update_status(run.child_session_id, "cancelled")
-
-    runner.logger.info("Cancelled agent run %s", run_id)
-
-    # Remove from in-memory tracking (after transaction completes)
+    # Remove from in-memory tracking
     runner._tracker.untrack(run_id)
 
     return True

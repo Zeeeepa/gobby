@@ -207,6 +207,7 @@ def _copy_docs(source: Path, target: Path, installed: dict[str, list[str]]) -> N
             installed["docs"].append(doc_file.name)
 
 
+
 def install_cli_content(cli_name: str, target_path: Path) -> dict[str, list[str]]:
     """Install CLI-specific workflows/commands (layered on top of shared).
 

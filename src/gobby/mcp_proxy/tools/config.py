@@ -79,7 +79,9 @@ def create_config_registry(
         # Filter keys matching the prefix (exact prefix + '.' boundary)
         section_prefix = prefix + "."
         filtered = {
-            k[len(section_prefix) :]: v for k, v in flat.items() if k.startswith(section_prefix)
+            k[len(section_prefix):]: v
+            for k, v in flat.items()
+            if k.startswith(section_prefix)
         }
         # Also include exact match
         if prefix in flat:
@@ -144,8 +146,7 @@ def create_config_registry(
             # Filter to the requested section
             section_prefix = section + "."
             section_defaults = {
-                k: v
-                for k, v in defaults_flat.items()
+                k: v for k, v in defaults_flat.items()
                 if k.startswith(section_prefix) or k == section
             }
 

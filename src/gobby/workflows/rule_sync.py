@@ -101,7 +101,7 @@ async def sync_bundled_rules(
                 seen_rule_names.add(rule_name)
 
                 # Check if rule already exists
-                existing = await asyncio.to_thread(store.get_rule, rule_name, tier="bundled")
+                existing = store.get_rule(rule_name, tier="bundled")
 
                 if existing:
                     # Compare definitions to detect changes
@@ -112,8 +112,7 @@ async def sync_bundled_rules(
                         continue
 
                     # Update existing rule
-                    await asyncio.to_thread(
-                        store.save_rule,
+                    store.save_rule(
                         name=rule_name,
                         tier="bundled",
                         definition=rule_def,
@@ -123,8 +122,7 @@ async def sync_bundled_rules(
                     logger.debug(f"Updated bundled rule: {rule_name}")
                 else:
                     # Create new rule
-                    await asyncio.to_thread(
-                        store.save_rule,
+                    store.save_rule(
                         name=rule_name,
                         tier="bundled",
                         definition=rule_def,
@@ -139,10 +137,10 @@ async def sync_bundled_rules(
             result["errors"].append(error_msg)
 
     # Remove stale bundled rules (exist in DB but not on disk)
-    existing_bundled = await asyncio.to_thread(store.list_rules, tier="bundled")
+    existing_bundled = store.list_rules(tier="bundled")
     for rule in existing_bundled:
         if rule["name"] not in seen_rule_names:
-            await asyncio.to_thread(store.delete_rule, rule["id"])
+            store.delete_rule(rule["id"])
             result["removed"] += 1
             logger.info(f"Removed stale bundled rule: {rule['name']}")
 

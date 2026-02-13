@@ -5,6 +5,7 @@ from __future__ import annotations
 import builtins
 import json
 import logging
+import sqlite3
 import uuid
 from datetime import UTC, datetime
 from typing import Any
@@ -726,11 +727,14 @@ class LocalSessionManager:
         now = datetime.now(UTC).isoformat()
         count = 0
         for name in skill_names:
-            cursor = self.db.execute(
-                "INSERT OR IGNORE INTO session_skills (session_id, skill_name, created_at) "
-                "VALUES (?, ?, ?)",
-                (session_id, name, now),
-            )
-            if cursor.rowcount == 1:
-                count += 1
+            try:
+                cursor = self.db.execute(
+                    "INSERT OR IGNORE INTO session_skills (session_id, skill_name, created_at) "
+                    "VALUES (?, ?, ?)",
+                    (session_id, name, now),
+                )
+                if cursor.rowcount == 1:
+                    count += 1
+            except sqlite3.IntegrityError:
+                continue  # UNIQUE constraint violation — idempotent
         return count

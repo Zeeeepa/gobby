@@ -159,7 +159,7 @@ class TestCreateMemory:
                 return_value={"id": "proj-1"},
             ),
             patch(
-                "gobby.mcp_proxy.tools.memory.resolve_session_reference",
+                "gobby.storage.session_resolution.resolve_session_reference",
                 return_value=resolved_uuid,
             ) as mock_resolve,
         ):
@@ -185,7 +185,7 @@ class TestCreateMemory:
                 return_value={"id": "proj-1"},
             ),
             patch(
-                "gobby.mcp_proxy.tools.memory.resolve_session_reference",
+                "gobby.storage.session_resolution.resolve_session_reference",
                 side_effect=ValueError("Session not found"),
             ),
         ):

@@ -322,19 +322,12 @@ async def _rename_tmux_window(session: Any, title: str) -> None:
             _, stderr = await asyncio.wait_for(proc.communicate(), timeout=5.0)
             if proc.returncode != 0:
                 logger.debug(
-                    "tmux rename-window failed",
-                    extra={
-                        "pane": pane,
-                        "stderr": (stderr or b"").decode().strip(),
-                        "agent_depth": agent_depth,
-                    },
+                    "tmux rename-window failed for pane %s: %s",
+                    pane,
+                    (stderr or b"").decode().strip(),
                 )
-    except Exception:
-        logger.debug(
-            "error renaming tmux window",
-            extra={"pane": pane, "agent_depth": agent_depth},
-            exc_info=True,
-        )
+    except Exception as e:
+        logger.debug(f"_rename_tmux_window: {e}")
 
 
 async def synthesize_title(

@@ -621,61 +621,27 @@ class TestAgentRunnerGetAndListRuns:
         )
 
 
-def _mock_agent_row(
-    run_id: str = "run-1",
-    status: str = "running",
-    child_session_id: str | None = "sess-child",
-) -> dict[str, object]:
-    """Build a dict that behaves like a sqlite3.Row for AgentRun.from_row."""
-    return {
-        "id": run_id,
-        "parent_session_id": "parent-sess",
-        "child_session_id": child_session_id,
-        "workflow_name": None,
-        "provider": "claude",
-        "model": None,
-        "status": status,
-        "prompt": "test",
-        "result": None,
-        "error": None,
-        "tool_calls_count": 0,
-        "turns_used": 0,
-        "started_at": None,
-        "completed_at": None,
-        "created_at": "2025-01-01T00:00:00",
-        "updated_at": "2025-01-01T00:00:00",
-    }
-
-
-def _setup_cancel_mock(runner, row_data: dict[str, object] | None) -> MagicMock:
-    """Configure runner.db.transaction_immediate to return a mock conn."""
-    mock_conn = MagicMock()
-    mock_cursor = MagicMock()
-    mock_cursor.fetchone.return_value = row_data
-    mock_conn.execute.return_value = mock_cursor
-    runner.db.transaction_immediate.return_value.__enter__ = MagicMock(return_value=mock_conn)
-    runner.db.transaction_immediate.return_value.__exit__ = MagicMock(return_value=False)
-    return mock_conn
-
-
 class TestAgentRunnerCancelRun:
     """Tests for AgentRunner.cancel_run()."""
 
     def test_cancel_run_success(self, runner, mock_session_storage) -> None:
         """cancel_run cancels a running agent."""
-        row = _mock_agent_row(run_id="run-cancel", status="running", child_session_id="sess-child")
-        mock_conn = _setup_cancel_mock(runner, row)
+        mock_run = MagicMock()
+        mock_run.id = "run-cancel"
+        mock_run.status = "running"
+        mock_run.child_session_id = "sess-child"
+        runner._run_storage.get = MagicMock(return_value=mock_run)
+        runner._run_storage.cancel = MagicMock()
 
         result = runner.cancel_run("run-cancel")
 
         assert result is True
-        # Verify UPDATE was executed (second call after SELECT)
-        assert mock_conn.execute.call_count == 2
+        runner._run_storage.cancel.assert_called_once_with("run-cancel")
         mock_session_storage.update_status.assert_called_once_with("sess-child", "cancelled")
 
     def test_cancel_run_not_found(self, runner) -> None:
         """cancel_run returns False when run not found."""
-        _setup_cancel_mock(runner, None)
+        runner._run_storage.get = MagicMock(return_value=None)
 
         result = runner.cancel_run("nonexistent")
 
@@ -683,8 +649,10 @@ class TestAgentRunnerCancelRun:
 
     def test_cancel_run_not_running(self, runner) -> None:
         """cancel_run returns False when run is not in running status."""
-        row = _mock_agent_row(run_id="run-done", status="success")
-        _setup_cancel_mock(runner, row)
+        mock_run = MagicMock()
+        mock_run.id = "run-done"
+        mock_run.status = "success"  # Not running
+        runner._run_storage.get = MagicMock(return_value=mock_run)
 
         result = runner.cancel_run("run-done")
 
@@ -692,8 +660,12 @@ class TestAgentRunnerCancelRun:
 
     def test_cancel_run_removes_from_tracking(self, runner, mock_session_storage) -> None:
         """cancel_run removes agent from in-memory tracking."""
-        row = _mock_agent_row(run_id="run-tracked", status="running", child_session_id="sess-child")
-        _setup_cancel_mock(runner, row)
+        mock_run = MagicMock()
+        mock_run.id = "run-tracked"
+        mock_run.status = "running"
+        mock_run.child_session_id = "sess-child"
+        runner._run_storage.get = MagicMock(return_value=mock_run)
+        runner._run_storage.cancel = MagicMock()
 
         # Add to tracking first
         runner._tracker._running_agents["run-tracked"] = MagicMock()
@@ -706,14 +678,17 @@ class TestAgentRunnerCancelRun:
 
     def test_cancel_run_no_child_session(self, runner) -> None:
         """cancel_run handles case where run has no child_session_id."""
-        row = _mock_agent_row(run_id="run-no-child", status="running", child_session_id=None)
-        mock_conn = _setup_cancel_mock(runner, row)
+        mock_run = MagicMock()
+        mock_run.id = "run-no-child"
+        mock_run.status = "running"
+        mock_run.child_session_id = None
+        runner._run_storage.get = MagicMock(return_value=mock_run)
+        runner._run_storage.cancel = MagicMock()
 
         result = runner.cancel_run("run-no-child")
 
         assert result is True
-        # Verify UPDATE was executed (second call after SELECT)
-        assert mock_conn.execute.call_count == 2
+        runner._run_storage.cancel.assert_called_once_with("run-no-child")
 
 
 class TestAgentRunnerRegisterExecutor:

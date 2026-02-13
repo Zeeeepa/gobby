@@ -91,16 +91,6 @@ class RunningAgent:
     worktree_id: str | None = None
     """Associated worktree, if any."""
 
-    # Progress tracking
-    turns_used: int = 0
-    """Number of turns used so far."""
-
-    tool_calls_count: int = 0
-    """Number of tool calls made so far."""
-
-    last_activity: datetime | None = None
-    """Timestamp of last activity update."""
-
     # In-process agent tracking
     task: Any | None = None
     """Async task object for in-process agents (asyncio.Task)."""
@@ -123,9 +113,6 @@ class RunningAgent:
             "provider": self.provider,
             "workflow_name": self.workflow_name,
             "worktree_id": self.worktree_id,
-            "turns_used": self.turns_used,
-            "tool_calls_count": self.tool_calls_count,
-            "last_activity": self.last_activity.isoformat() if self.last_activity else None,
             "has_task": self.task is not None,
         }
 

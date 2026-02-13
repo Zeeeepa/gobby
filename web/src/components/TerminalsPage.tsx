@@ -24,7 +24,7 @@ const TERMINAL_NAMES_KEY = 'gobby-terminal-names'
 function loadTerminalNames(): Record<string, string> {
   try {
     return JSON.parse(localStorage.getItem(TERMINAL_NAMES_KEY) || '{}')
-  } catch (e) { console.error('Failed to parse terminal names:', e); return {} }
+  } catch { return {} }
 }
 
 function saveTerminalNames(names: Record<string, string>) {
@@ -262,10 +262,7 @@ function SessionGroup({ label, sessions, attachedSession, streamingId, terminalN
           <div
             key={`${session.socket}-${session.name}`}
             className={`session-item ${isAttached ? 'attached' : ''}`}
-            role="button"
-            tabIndex={0}
             onClick={() => !isEditing && onAttach(session.name, session.socket)}
-            onKeyDown={e => { if ((e.key === 'Enter' || e.key === ' ') && !isEditing) { e.preventDefault(); onAttach(session.name, session.socket) } }}
           >
             <div className="session-item-main">
               <span className={`session-dot ${session.socket === 'gobby' ? 'agent' : 'user'}`} />
@@ -298,8 +295,6 @@ function SessionGroup({ label, sessions, attachedSession, streamingId, terminalN
               ) : (
                 <span
                   className="session-name"
-                  role="button"
-                  aria-label="Rename session"
                   tabIndex={0}
                   onDoubleClick={e => {
                     e.stopPropagation()
@@ -307,8 +302,7 @@ function SessionGroup({ label, sessions, attachedSession, streamingId, terminalN
                     setEditValue(displayName)
                   }}
                   onKeyDown={e => {
-                    if (e.key === 'F2' || e.key === 'Enter' || e.key === ' ') {
-                      e.preventDefault()
+                    if (e.key === 'F2' || e.key === 'Enter') {
                       e.stopPropagation()
                       setEditingKey(nameKey)
                       setEditValue(displayName)

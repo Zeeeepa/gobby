@@ -19,7 +19,7 @@ from gobby.agents.runner_models import AgentConfig, AgentRunContext
 from gobby.agents.runner_tracking import RunTracker
 from gobby.agents.session import ChildSessionConfig, ChildSessionManager
 from gobby.llm.executor import AgentExecutor, AgentResult, ToolHandler, ToolResult
-from gobby.storage.agents import AgentRun, AgentRunStatus, LocalAgentRunManager
+from gobby.storage.agents import LocalAgentRunManager
 from gobby.workflows.definitions import WorkflowDefinition, WorkflowState
 from gobby.workflows.loader import WorkflowLoader
 from gobby.workflows.state_manager import WorkflowStateManager
@@ -584,7 +584,7 @@ class AgentRunner:
         context = result
         return await self.execute_run(context, config, tool_handler)
 
-    def get_run(self, run_id: str) -> AgentRun | None:
+    def get_run(self, run_id: str) -> Any | None:
         """Get an agent run by ID. Delegates to runner_queries."""
         return _queries.get_run(self, run_id)
 
@@ -595,9 +595,9 @@ class AgentRunner:
     def list_runs(
         self,
         parent_session_id: str,
-        status: AgentRunStatus | None = None,
+        status: str | None = None,
         limit: int = 100,
-    ) -> list[AgentRun]:
+    ) -> list[Any]:
         """List agent runs for a session. Delegates to runner_queries."""
         return _queries.list_runs(self, parent_session_id, status=status, limit=limit)
 

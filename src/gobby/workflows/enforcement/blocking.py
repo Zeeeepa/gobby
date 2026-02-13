@@ -444,12 +444,9 @@ async def block_tools(
                     if re.search(cmd_not_pattern, command):
                         continue  # Exclusion pattern matched — skip this rule
             except re.error as e:
+                pattern_info = cmd_pattern or cmd_not_pattern
                 logger.warning(
-                    "Invalid regex in blocking rule: "
-                    "cmd_pattern=%r, cmd_not_pattern=%r, error=%s",
-                    cmd_pattern,
-                    cmd_not_pattern,
-                    e,
+                    f"Invalid regex in blocking rule: pattern={pattern_info!r}, error={e}"
                 )
                 continue  # Skip this rule on regex error
 

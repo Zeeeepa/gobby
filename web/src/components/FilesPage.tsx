@@ -204,7 +204,6 @@ export function FilesPage({
             <div className="files-toolbar-actions">
               {activeFileGitStatus && (
                 <button
-                  type="button"
                   className={`files-diff-btn ${showDiff ? 'active' : ''}`}
                   onClick={handleShowDiff}
                 >
@@ -213,21 +212,19 @@ export function FilesPage({
               )}
               {activeFile.editing ? (
                 <>
-                  <button type="button" className="files-undo-btn" onClick={handleUndo} title="Undo (Cmd+Z)">
+                  <button className="files-undo-btn" onClick={handleUndo} title="Undo (Cmd+Z)">
                     <UndoIcon />
                   </button>
-                  <button type="button" className="files-redo-btn" onClick={handleRedo} title="Redo (Cmd+Shift+Z)">
+                  <button className="files-redo-btn" onClick={handleRedo} title="Redo (Cmd+Shift+Z)">
                     <RedoIcon />
                   </button>
                   <button
-                    type="button"
                     className="files-cancel-btn"
                     onClick={handleCancel}
                   >
                     Cancel
                   </button>
                   <button
-                    type="button"
                     className="files-save-btn"
                     onClick={() => onSaveFile(activeFileIndex)}
                     disabled={activeFile.saving || !activeFile.dirty}
@@ -237,7 +234,6 @@ export function FilesPage({
                 </>
               ) : (
                 <button
-                  type="button"
                   className="files-edit-toggle"
                   onClick={() => {
                     onToggleEditing(activeFileIndex)
@@ -292,15 +288,15 @@ export function FilesPage({
         </div>
 
         {showCancelConfirm && (
-          <div className="files-confirm-overlay" role="presentation" onClick={() => setShowCancelConfirm(false)}>
+          <div className="files-confirm-overlay" onClick={() => setShowCancelConfirm(false)}>
             <div className="files-confirm-dialog" role="dialog" aria-modal="true" aria-labelledby="cancel-dialog-title" aria-describedby="cancel-dialog-desc" tabIndex={-1} onClick={e => e.stopPropagation()}>
               <p className="files-confirm-title" id="cancel-dialog-title">Discard unsaved changes?</p>
               <p className="files-confirm-message" id="cancel-dialog-desc">Your changes to this file will be lost.</p>
               <div className="files-confirm-actions">
-                <button type="button" className="files-confirm-keep" onClick={() => setShowCancelConfirm(false)}>
+                <button className="files-confirm-keep" onClick={() => setShowCancelConfirm(false)}>
                   Keep Editing
                 </button>
-                <button type="button" className="files-confirm-discard" onClick={confirmCancel}>
+                <button className="files-confirm-discard" onClick={confirmCancel}>
                   Discard
                 </button>
               </div>
@@ -538,7 +534,7 @@ function FileContent({ file, getImageUrl, onContentChange, onSave, editorViewRef
 
 function UndoIcon() {
   return (
-    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" focusable="false">
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
       <polyline points="1 4 1 10 7 10" />
       <path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10" />
     </svg>
@@ -547,7 +543,7 @@ function UndoIcon() {
 
 function RedoIcon() {
   return (
-    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" focusable="false">
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
       <polyline points="23 4 23 10 17 10" />
       <path d="M20.49 15a9 9 0 1 1-2.13-9.36L23 10" />
     </svg>

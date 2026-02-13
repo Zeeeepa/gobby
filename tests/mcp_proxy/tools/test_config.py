@@ -10,7 +10,6 @@ import pytest
 
 from gobby.config.app import DaemonConfig
 from gobby.mcp_proxy.tools.config import create_config_registry
-from gobby.mcp_proxy.tools.internal import InternalToolRegistry
 from gobby.storage.config_store import ConfigStore
 from gobby.storage.database import LocalDatabase
 from gobby.storage.migrations import run_migrations
@@ -40,7 +39,7 @@ def config_state() -> dict[str, DaemonConfig]:
 
 
 @pytest.fixture
-def config_registry(config_store: ConfigStore, config_state: dict[str, DaemonConfig]) -> InternalToolRegistry:
+def config_registry(config_store: ConfigStore, config_state: dict[str, DaemonConfig]):
     """Create a config registry with test fixtures."""
     return create_config_registry(
         config=config_state["config"],

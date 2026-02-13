@@ -77,9 +77,6 @@ def _build_eval_context(
     Flattens variables to top level for simpler conditions like "task_claimed".
     """
     return {
-        # Flatten variables first so explicit keys below always take precedence
-        # and prevent variable names from colliding with reserved context keys.
-        **state.variables,
         "event": event,
         "workflow_state": state,
         "variables": DotDict(state.variables),
@@ -91,6 +88,9 @@ def _build_eval_context(
         "step_action_count": state.step_action_count,
         "total_action_count": state.total_action_count,
         "step": state.step,
+        # Flatten variables to top level for simpler conditions like "task_claimed"
+        # instead of requiring "variables.task_claimed"
+        **state.variables,
     }
 
 
@@ -127,20 +127,8 @@ def _resolve_check_rules(
         if rule_store:
             rule_row = rule_store.get_rule(name, project_id=project_id)
             if rule_row:
-                defn = rule_row.get("definition")
-                if not isinstance(defn, dict):
-                    logger.warning(
-                        f"Rule '{name}' has non-dict definition "
-                        f"(type={type(defn).__name__}), skipping"
-                    )
-                    continue
-                if "reason" not in defn:
-                    logger.warning(
-                        f"Rule '{name}' missing required 'reason' field, skipping"
-                    )
-                    continue
                 try:
-                    rule_def = RuleDefinition(**defn)
+                    rule_def = RuleDefinition(**rule_row["definition"])
                     resolved.append(rule_def)
                     continue
                 except Exception as e:

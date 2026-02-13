@@ -6,6 +6,7 @@ Extracted from manager.py as part of Strangler Fig decomposition (Wave 2).
 from __future__ import annotations
 
 import asyncio
+import concurrent.futures
 import logging
 from collections.abc import Callable
 from typing import TYPE_CHECKING, Any
@@ -59,16 +60,9 @@ class Mem0Service:
                     (mem0_id, memory_id),
                 )
         except Mem0ConnectionError as e:
-            logger.warning(
-                "Mem0 unreachable during index",
-                extra={"memory_id": memory_id, "error": str(e)},
-            )
+            logger.warning(f"Mem0 unreachable during index for {memory_id}: {e}")
         except Exception as e:
-            logger.warning(
-                "Failed to index memory in Mem0",
-                extra={"memory_id": memory_id, "error": str(e)},
-                exc_info=True,
-            )
+            logger.warning(f"Failed to index memory {memory_id} in Mem0: {e}")
 
     @staticmethod
     def _extract_mem0_id(response: Any) -> str | None:
@@ -84,50 +78,21 @@ class Mem0Service:
         memory = self._get_memory(memory_id)
         if not memory or not memory.mem0_id:
             return
-        if not self._mem0_client:
-            return
 
         try:
-            await self._mem0_client.delete(memory.mem0_id)
+            await self._mem0_client.delete(memory.mem0_id)  # type: ignore[union-attr]
         except Mem0ConnectionError as e:
             logger.warning(f"Mem0 unreachable during delete for {memory_id}: {e}")
         except Exception as e:
             logger.warning(f"Failed to delete memory {memory_id} from Mem0: {e}")
 
-    async def _search_mem0_async(
-        self, query: str, project_id: str | None, limit: int
-    ) -> list[Memory] | None:
-        """Search Mem0 asynchronously and return local memories enriched by results.
-
-        Preferred over the sync ``_search_mem0`` wrapper.  Calls the Mem0 client
-        directly without creating thread pools or extra event loops.
-
-        Returns None if Mem0 is unavailable (caller should fall back to local search).
-        """
-        if self._mem0_client is None:
-            raise RuntimeError("Mem0 client is not initialized")
-
-        try:
-            result = await self._mem0_client.search(
-                query=query, project_id=project_id, limit=limit
-            )
-        except Mem0ConnectionError as e:
-            logger.warning("Mem0 unreachable during search, falling back to local: %s", e)
-            return None
-        except Exception as e:
-            logger.warning("Mem0 search failed, falling back to local: %s", e)
-            return None
-
-        return self._enrich_mem0_results(result)
-
     def _search_mem0(self, query: str, project_id: str | None, limit: int) -> list[Memory] | None:
-        """Sync wrapper for Mem0 search — for callers outside an event loop.
-
-        When no event loop is running, delegates to ``_search_mem0_async`` via
-        ``asyncio.run()``.  Callers in async contexts should use
-        ``_search_mem0_async`` directly instead of this method.
+        """Search Mem0 and return local memories enriched by results.
 
         Returns None if Mem0 is unavailable (caller should fall back to local search).
+
+        Warning: This method blocks the calling thread. When called from an
+        async context, it spawns a thread pool to run the async Mem0 search.
         """
         if self._mem0_client is None:
             raise RuntimeError("Mem0 client is not initialized")
@@ -137,16 +102,25 @@ class Mem0Service:
         except RuntimeError:
             loop = None
 
-        if loop and loop.is_running():
-            # Cannot safely call async from sync in a running loop.
-            # Return None to fall back to local search.
-            logger.debug("Skipping Mem0 search from sync context in running event loop")
+        try:
+            if loop and loop.is_running():
+                with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
+                    result = pool.submit(
+                        asyncio.run,
+                        self._mem0_client.search(query=query, project_id=project_id, limit=limit),
+                    ).result()
+            else:
+                result = asyncio.run(
+                    self._mem0_client.search(query=query, project_id=project_id, limit=limit)
+                )
+        except Mem0ConnectionError as e:
+            logger.warning(f"Mem0 unreachable during search, falling back to local: {e}")
+            return None
+        except Exception as e:
+            logger.warning(f"Mem0 search failed, falling back to local: {e}")
             return None
 
-        return asyncio.run(self._search_mem0_async(query, project_id, limit))
-
-    def _enrich_mem0_results(self, result: dict[str, Any]) -> list[Memory]:
-        """Enrich Mem0 search results with local memory data."""
+        # Enrich mem0 results with local memory data
         memories: list[Memory] = []
         for item in result.get("results", []):
             gobby_id = (item.get("metadata") or {}).get("gobby_id")
@@ -154,6 +128,7 @@ class Mem0Service:
                 local = self._get_memory(gobby_id)
                 if local:
                     memories.append(local)
+
         return memories
 
     def _get_unsynced_memories(
