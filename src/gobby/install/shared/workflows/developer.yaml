@@ -4,7 +4,6 @@ description: |
   Developer marks task needs_review, does NOT close it.
 
 version: "1.0"
-type: step
 enabled: false
 priority: 20
 

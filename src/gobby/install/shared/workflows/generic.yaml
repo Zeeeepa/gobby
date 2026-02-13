@@ -6,7 +6,6 @@ description: |
   Used when no specific workflow is specified for spawn_agent.
 
 version: "1.0"
-type: step
 enabled: false
 
 steps:

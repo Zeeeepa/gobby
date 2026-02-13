@@ -34,6 +34,17 @@ class TestStepWorkflowsLoadWithoutError:
         definition = await loader.load_workflow(workflow_name)
         assert definition is not None, f"{workflow_name} failed to load"
 
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("workflow_name", STEP_WORKFLOWS)
+    async def test_step_workflow_type_defaults_to_step(self, workflow_name: str) -> None:
+        """Step workflows use default type='step' without explicit field."""
+        from gobby.workflows.loader import WorkflowLoader
+
+        loader = WorkflowLoader(workflow_dirs=[WORKFLOW_DIR])
+        definition = await loader.load_workflow(workflow_name)
+        assert definition is not None
+        assert definition.type == "step"
+
 
 class TestStepWorkflowsEnabledFalse:
     """Step workflows should default to enabled=false (activated on demand)."""

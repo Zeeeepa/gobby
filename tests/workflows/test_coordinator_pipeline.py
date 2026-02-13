@@ -127,8 +127,8 @@ class TestDeveloperWorkflow:
         assert developer_yaml is not None
 
     def test_is_step_type(self, developer_yaml: dict) -> None:
-        """Test that developer workflow is step type."""
-        assert developer_yaml.get("type") == "step"
+        """Test that developer workflow is step type (implicit default)."""
+        assert developer_yaml.get("type", "step") == "step"
 
     def test_has_tdd_phases(self, developer_yaml: dict) -> None:
         """Test that developer workflow has TDD red/green/blue phases."""
@@ -215,8 +215,8 @@ class TestQAReviewerWorkflow:
         assert qa_yaml is not None
 
     def test_is_step_type(self, qa_yaml: dict) -> None:
-        """Test that QA workflow is step type."""
-        assert qa_yaml.get("type") == "step"
+        """Test that QA workflow is step type (implicit default)."""
+        assert qa_yaml.get("type", "step") == "step"
 
     def test_has_review_phases(self, qa_yaml: dict) -> None:
         """Test that QA workflow has review/fix/verify/approve phases."""
