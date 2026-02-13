@@ -11,13 +11,50 @@ import concurrent.futures
 import threading
 from collections.abc import Coroutine
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, TypeVar
+from typing import TYPE_CHECKING, Any, Protocol, TypeVar, runtime_checkable
 
 if TYPE_CHECKING:
     from .definitions import PipelineDefinition, WorkflowDefinition
     from .loader_cache import DiscoveredWorkflow
 
 _T = TypeVar("_T")
+
+
+@runtime_checkable
+class _WorkflowLoaderProtocol(Protocol):
+    """Protocol declaring async methods that WorkflowLoaderSyncMixin wraps."""
+
+    async def load_workflow(
+        self,
+        name: str,
+        project_path: Path | str | None = None,
+        _inheritance_chain: list[str] | None = None,
+    ) -> WorkflowDefinition | PipelineDefinition | None: ...
+
+    async def load_pipeline(
+        self,
+        name: str,
+        project_path: Path | str | None = None,
+        _inheritance_chain: list[str] | None = None,
+    ) -> PipelineDefinition | None: ...
+
+    async def discover_workflows(
+        self, project_path: Path | str | None = None
+    ) -> list[DiscoveredWorkflow]: ...
+
+    async def discover_lifecycle_workflows(
+        self, project_path: Path | str | None = None
+    ) -> list[DiscoveredWorkflow]: ...
+
+    async def discover_pipeline_workflows(
+        self, project_path: Path | str | None = None
+    ) -> list[DiscoveredWorkflow]: ...
+
+    async def validate_workflow_for_agent(
+        self,
+        workflow_name: str,
+        project_path: Path | str | None = None,
+    ) -> tuple[bool, str | None]: ...
 
 
 class WorkflowLoaderSyncMixin:
@@ -64,13 +101,18 @@ class WorkflowLoaderSyncMixin:
         future = asyncio.run_coroutine_threadsafe(coro, loop)
         return future.result()
 
+    @property
+    def _async_self(self) -> _WorkflowLoaderProtocol:
+        """Cast self to the protocol so mypy knows the async methods exist."""
+        return self  # type: ignore[return-value]
+
     def load_workflow_sync(
         self,
         name: str,
         project_path: Path | str | None = None,
         _inheritance_chain: list[str] | None = None,
     ) -> WorkflowDefinition | PipelineDefinition | None:
-        return self._run_sync(self.load_workflow(name, project_path, _inheritance_chain))  # type: ignore[attr-defined]
+        return self._run_sync(self._async_self.load_workflow(name, project_path, _inheritance_chain))
 
     def load_pipeline_sync(
         self,
@@ -78,26 +120,26 @@ class WorkflowLoaderSyncMixin:
         project_path: Path | str | None = None,
         _inheritance_chain: list[str] | None = None,
     ) -> PipelineDefinition | None:
-        return self._run_sync(self.load_pipeline(name, project_path, _inheritance_chain))  # type: ignore[attr-defined]
+        return self._run_sync(self._async_self.load_pipeline(name, project_path, _inheritance_chain))
 
     def discover_workflows_sync(
         self, project_path: Path | str | None = None
     ) -> list[DiscoveredWorkflow]:
-        return self._run_sync(self.discover_workflows(project_path))  # type: ignore[attr-defined]
+        return self._run_sync(self._async_self.discover_workflows(project_path))
 
     def discover_lifecycle_workflows_sync(
         self, project_path: Path | str | None = None
     ) -> list[DiscoveredWorkflow]:
-        return self._run_sync(self.discover_lifecycle_workflows(project_path))  # type: ignore[attr-defined]
+        return self._run_sync(self._async_self.discover_lifecycle_workflows(project_path))
 
     def discover_pipeline_workflows_sync(
         self, project_path: Path | str | None = None
     ) -> list[DiscoveredWorkflow]:
-        return self._run_sync(self.discover_pipeline_workflows(project_path))  # type: ignore[attr-defined]
+        return self._run_sync(self._async_self.discover_pipeline_workflows(project_path))
 
     def validate_workflow_for_agent_sync(
         self,
         workflow_name: str,
         project_path: Path | str | None = None,
     ) -> tuple[bool, str | None]:
-        return self._run_sync(self.validate_workflow_for_agent(workflow_name, project_path))  # type: ignore[attr-defined]
+        return self._run_sync(self._async_self.validate_workflow_for_agent(workflow_name, project_path))
