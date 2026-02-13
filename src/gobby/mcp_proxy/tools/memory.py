@@ -21,6 +21,7 @@ from typing import TYPE_CHECKING, Any
 
 from gobby.mcp_proxy.tools.internal import InternalToolRegistry
 from gobby.memory.manager import MemoryManager
+from gobby.storage.session_resolution import resolve_session_reference
 
 if TYPE_CHECKING:
     from gobby.llm.service import LLMService
@@ -87,13 +88,11 @@ def create_memory_registry(
             resolved_session_id: str | None = None
             if session_id:
                 try:
-                    from gobby.storage.session_resolution import resolve_session_reference
-
                     resolved_session_id = resolve_session_reference(
                         memory_manager.db, session_id, project_id
                     )
-                except Exception as e:
-                    logger.warning(f"Could not resolve session_id '{session_id}': {e}")
+                except ValueError as e:
+                    logger.warning("Could not resolve session_id %r: %s", session_id, e)
 
             memory = await memory_manager.remember(
                 content=content,

@@ -7,6 +7,7 @@ Extracted from HookManager.handle() as part of the Strangler Fig decomposition.
 
 from __future__ import annotations
 
+import sqlite3
 from typing import Any
 
 from gobby.hooks.events import HookEvent, HookResponse
@@ -67,7 +68,7 @@ class EventEnricher:
             if self._session_storage:
                 try:
                     session_obj = self._session_storage.get(platform_session_id)
-                except Exception:
+                except (sqlite3.Error, OSError):
                     session_obj = None
                 if session_obj and session_obj.seq_num:
                     response.metadata["session_ref"] = f"#{session_obj.seq_num}"

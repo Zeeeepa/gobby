@@ -160,7 +160,7 @@ def expand_env_vars(
                 value = secret_resolver(name)
                 if value is not None:
                     return value
-            except Exception as e:
+            except (ValueError, KeyError, LookupError, OSError) as e:
                 logger.debug(f"Secret resolver failed for '$secret:{name}': {e}")
             logger.warning(
                 f"Unresolved secret '$secret:{name}' in config — not found in secrets store"
@@ -180,7 +180,7 @@ def expand_env_vars(
                 secret_value = secret_resolver(var_name)
                 if secret_value is not None and secret_value != "":
                     return secret_value
-            except Exception as e:
+            except (ValueError, KeyError, LookupError, OSError) as e:
                 logger.debug(f"Secret resolver failed for '{var_name}': {e}")
 
         # 2. Try environment variable
@@ -535,8 +535,8 @@ def generate_default_config(config_file: str) -> None:
                     f"generate_default_config() would write to production path "
                     f"{config_path} during tests."
                 )
-        except (ValueError, OSError):
-            pass
+        except (ValueError, OSError) as e:
+            logger.debug("Test protection path check failed: %s", e)
 
     config_path.parent.mkdir(parents=True, exist_ok=True)
 
@@ -705,8 +705,8 @@ def save_config(config: DaemonConfig, config_file: str | None = None) -> None:
                 raise RuntimeError(
                     f"save_config() would write to production path {config_path} during tests."
                 )
-        except (ValueError, OSError):
-            pass
+        except (ValueError, OSError) as e:
+            logger.debug("Test protection path check failed: %s", e)
 
     # Ensure directory exists
     config_path.parent.mkdir(parents=True, exist_ok=True)

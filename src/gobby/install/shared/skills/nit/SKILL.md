@@ -14,14 +14,14 @@ Create a minor cleanup or nitpick task with the provided title and optional desc
 
 ## Usage
 
-```
+```text
 /gobby:nit <title>
 /gobby:nit <title> - <description>
 ```
 
 ## Examples
 
-```
+```text
 /gobby:nit Rename confusing variable
 /gobby:nit Fix typo in error message - "authentification" should be "authentication"
 /gobby:nit Remove unused import in utils.py
