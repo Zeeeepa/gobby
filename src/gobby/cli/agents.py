@@ -229,7 +229,9 @@ def list_agents(
             session_id = resolve_session_id(session_id)
         except click.ClickException as e:
             raise SystemExit(1) from e
-        runs = manager.list_by_session(session_id, status=cast(AgentRunStatus | None, status), limit=limit)
+        runs = manager.list_by_session(
+            session_id, status=cast(AgentRunStatus | None, status), limit=limit
+        )
     elif status == "running":
         runs = manager.list_running(limit=limit)
     else:

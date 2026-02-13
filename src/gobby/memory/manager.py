@@ -147,7 +147,9 @@ class MemoryManager:
         """Convert a MemoryRecord from the backend to a Memory for downstream compatibility."""
         return Memory(
             id=record.id,
-            memory_type=cast(Literal["fact", "preference", "pattern", "context"], record.memory_type),
+            memory_type=cast(
+                Literal["fact", "preference", "pattern", "context"], record.memory_type
+            ),
             content=record.content,
             created_at=record.created_at.isoformat() if record.created_at else "",
             updated_at=record.updated_at.isoformat() if record.updated_at else "",
