@@ -22,6 +22,10 @@ Each step (list_mcp_servers, list_tools, get_tool_schema, call_tool) is a separa
 Load each via ToolSearch before first use.
 Do NOT try to call one step through another (e.g., don't use call_tool to invoke get_tool_schema).
 
+## DO NOT RUN THE FULL PYTEST SUITE
+
+The repo has over 11,000 tests. Running the full suite takes over 30 minutes. Do not run the full suite unless explicitly asked to do so.
+
 ## Plan Mode
 
 Task management MCP calls (gobby-tasks) are allowed during plan mode. Planning includes organizing work, not just designing it.
