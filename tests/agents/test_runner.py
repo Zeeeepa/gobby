@@ -4,7 +4,9 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-from gobby.agents.runner import AgentConfig, AgentRunContext, AgentRunner, RunningAgent
+from gobby.agents.registry import RunningAgent
+from gobby.agents.runner import AgentRunner
+from gobby.agents.runner_models import AgentConfig, AgentRunContext
 from gobby.llm.executor import AgentResult
 
 pytestmark = pytest.mark.unit

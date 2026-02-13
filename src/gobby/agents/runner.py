@@ -24,8 +24,7 @@ from gobby.workflows.definitions import WorkflowDefinition, WorkflowState
 from gobby.workflows.loader import WorkflowLoader
 from gobby.workflows.state_manager import WorkflowStateManager
 
-# Re-export for backward compatibility
-__all__ = ["AgentConfig", "AgentRunContext", "AgentRunner"]
+__all__ = ["AgentRunner"]
 
 if TYPE_CHECKING:
     from gobby.storage.database import DatabaseProtocol

@@ -512,7 +512,7 @@ def register_orchestrator(
                     continue
 
                 # Prepare agent run
-                from gobby.agents.runner import AgentConfig
+                from gobby.agents.runner_models import AgentConfig
                 from gobby.llm.executor import AgentResult
                 from gobby.utils.machine_id import get_machine_id
 

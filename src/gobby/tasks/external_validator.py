@@ -264,7 +264,7 @@ async def _run_agent_validation(
         )
 
     try:
-        from gobby.agents.runner import AgentConfig
+        from gobby.agents.runner_models import AgentConfig
 
         # Build prompt for validation agent
         prompt = _build_agent_validation_prompt(task, changes_context)
