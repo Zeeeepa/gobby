@@ -616,12 +616,23 @@ def load_config(
         from gobby.storage.config_store import unflatten_config
 
         flat_db = config_store.get_all()
-        config_dict = unflatten_config(flat_db) if flat_db else {}
-        # Resolve $secret:NAME and ${VAR} patterns in stored values
-        if secret_resolver is not None or any(
-            isinstance(v, str) and ("$secret:" in v or "${" in v) for v in flat_db.values()
-        ):
-            config_dict = _resolve_config_values(config_dict, secret_resolver)
+        if flat_db:
+            config_dict = unflatten_config(flat_db)
+            # Resolve $secret:NAME and ${VAR} patterns in stored values
+            if secret_resolver is not None or any(
+                isinstance(v, str) and ("$secret:" in v or "${" in v) for v in flat_db.values()
+            ):
+                config_dict = _resolve_config_values(config_dict, secret_resolver)
+        else:
+            # DB config_store is empty — fall back to YAML so we don't
+            # lose settings from the config file (e.g. daemon_port, database_path).
+            if config_file is None:
+                config_file = "~/.gobby/config.yaml"
+            config_path_fb = Path(config_file).expanduser()
+            if config_path_fb.exists():
+                config_dict = load_yaml(config_file, secret_resolver=secret_resolver)
+            else:
+                config_dict = {}
     else:
         # Phase 1: YAML bootstrap (for database_path)
         if config_file is None:

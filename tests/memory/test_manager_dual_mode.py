@@ -83,6 +83,7 @@ class TestDualModeInit:
             MockClient.assert_called_once_with(
                 base_url="http://localhost:8888",
                 api_key="test-key",
+                timeout=90.0,
             )
 
 

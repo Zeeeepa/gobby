@@ -68,8 +68,8 @@ class GobbyRunner:
                 f"Use 'gobby init' to create a default config, "
                 f"or omit --config to use the default path (~/.gobby/config.yaml)."
             )
-        config_file = str(config_path) if config_path else None
-        self.config = load_config(config_file)
+        self._config_file = str(config_path) if config_path else None
+        self.config = load_config(self._config_file)
         self.verbose = verbose
         self.machine_id = get_machine_id()
 
@@ -101,14 +101,10 @@ class GobbyRunner:
         from gobby.storage.config_store import ConfigStore
         from gobby.storage.secrets import SecretStore
 
-        if not isinstance(self.database, LocalDatabase):
-            raise RuntimeError(
-                f"Expected LocalDatabase for config store initialization, "
-                f"got {type(self.database).__name__}"
-            )
         self.secret_store = SecretStore(self.database)
         self.config_store = ConfigStore(self.database)
         self.config = load_config(
+            config_file=self._config_file,
             secret_resolver=self.secret_store.get,
             config_store=self.config_store,
         )

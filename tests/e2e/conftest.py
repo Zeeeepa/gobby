@@ -94,10 +94,12 @@ def prepare_daemon_env(base_env: dict[str, str] | None = None) -> dict[str, str]
     current_pythonpath = env.get("PYTHONPATH", "")
     env["PYTHONPATH"] = f"{src_dir}:{current_pythonpath}" if current_pythonpath else str(src_dir)
 
-    # Remove GOBBY_DATABASE_PATH so daemon uses config file's database_path
-    # (protect_production_resources sets this for test process, but we don't want
-    # the daemon subprocess to inherit it - it should use its own isolated DB)
+    # Remove test-process env vars so daemon uses its own isolated config/DB
+    # (protect_production_resources sets these for the test process, but we don't
+    # want the daemon subprocess to inherit them)
     env.pop("GOBBY_DATABASE_PATH", None)
+    env.pop("GOBBY_TEST_PROTECT", None)
+    env.pop("GOBBY_CONFIG_FILE", None)
 
     # Disable any LLM providers to avoid external calls
     env["ANTHROPIC_API_KEY"] = ""
@@ -354,10 +356,12 @@ def daemon_instance(
     env = os.environ.copy()
     env["GOBBY_CONFIG"] = str(config_path)
     env["GOBBY_HOME"] = str(gobby_home)
-    # Remove GOBBY_DATABASE_PATH so daemon uses config file's database_path
-    # (protect_production_resources sets this for test process, but we don't want
-    # the daemon subprocess to inherit it - it should use its own isolated DB)
+    # Remove test-process env vars so daemon uses its own isolated config/DB
+    # (protect_production_resources sets these for the test process, but we don't
+    # want the daemon subprocess to inherit them)
     env.pop("GOBBY_DATABASE_PATH", None)
+    env.pop("GOBBY_TEST_PROTECT", None)
+    env.pop("GOBBY_CONFIG_FILE", None)
     # Disable any LLM providers to avoid external calls
     env["ANTHROPIC_API_KEY"] = ""
     env["OPENAI_API_KEY"] = ""

@@ -87,6 +87,8 @@ def create_base_patches(
         patch("gobby.runner.create_llm_service", return_value=None),
         patch("gobby.runner.MemoryManager", return_value=None),
         patch("gobby.runner.HTTPServer", return_value=mock_http),
+        patch("gobby.storage.secrets.SecretStore"),
+        patch("gobby.storage.config_store.ConfigStore"),
     ]
 
     # Add config patch
@@ -111,12 +113,16 @@ class TestGobbyRunnerInit:
         """Test that init creates all required components."""
         patches = create_base_patches(mock_config=mock_config_with_websocket)
 
+        # Create the config file so the existence check passes
+        config_file = tmp_path / "config.yaml"
+        config_file.write_text("")
+
         with ExitStack() as stack:
             mocks = [stack.enter_context(p) for p in patches]
-            mock_http_cls = mocks[-2]
+            mock_http_cls = mocks[-4]
             mock_ws_cls = mocks[-1]
 
-            runner = GobbyRunner(config_path=tmp_path / "config.yaml", verbose=True)
+            runner = GobbyRunner(config_path=config_file, verbose=True)
 
             assert runner.config == mock_config_with_websocket
             assert runner.verbose is True
