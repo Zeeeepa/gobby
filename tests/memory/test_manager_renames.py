@@ -39,15 +39,17 @@ async def test_create_memory_exists(manager: MemoryManager) -> None:
     assert memory.content == "test fact"
 
 
-def test_search_memories_exists(manager: MemoryManager) -> None:
+@pytest.mark.asyncio
+async def test_search_memories_exists(manager: MemoryManager) -> None:
     """search_memories() should exist and be callable."""
-    results = manager.search_memories(query=None, project_id="proj-1", limit=5)
+    results = await manager.search_memories(query=None, project_id="proj-1", limit=5)
     assert isinstance(results, list)
 
 
-def test_search_memories_as_context_exists(manager: MemoryManager) -> None:
+@pytest.mark.asyncio
+async def test_search_memories_as_context_exists(manager: MemoryManager) -> None:
     """search_memories_as_context() should exist and return a string."""
-    result = manager.search_memories_as_context(project_id="proj-1")
+    result = await manager.search_memories_as_context(project_id="proj-1")
     assert isinstance(result, str)
 
 
