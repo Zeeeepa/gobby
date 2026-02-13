@@ -4,7 +4,6 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 from gobby.hooks.events import HookEvent, HookEventType, HookResponse
-from gobby.storage.projects import LocalProjectManager
 from gobby.storage.workflow_audit import WorkflowAuditManager
 
 from .approval_flow import handle_approval_response
@@ -19,6 +18,15 @@ from .detection_helpers import (
     detect_mcp_call,
     detect_task_claim,
     process_mcp_handlers,
+)
+from .engine_context import (
+    _build_eval_context as _build_eval_context_fn,
+)
+from .engine_context import (
+    _resolve_check_rules as _resolve_check_rules_fn,
+)
+from .engine_context import (
+    _resolve_session_and_project as _resolve_session_and_project_fn,
 )
 from .engine_models import DotDict, TransitionResult
 from .evaluator import ConditionEvaluator
@@ -616,42 +624,8 @@ class WorkflowEngine:
     def _resolve_session_and_project(
         self, event: HookEvent
     ) -> tuple[dict[str, Any], dict[str, Any]]:
-        """Look up session and project info for eval context.
-
-        Returns:
-            Tuple of (session_info dict, project_info dict)
-        """
-        session_info: dict[str, Any] = {}
-        if (
-            self.action_executor
-            and self.action_executor.session_manager
-            and event.machine_id
-            and event.project_id
-        ):
-            session = self.action_executor.session_manager.find_by_external_id(
-                external_id=event.session_id,
-                machine_id=event.machine_id,
-                project_id=event.project_id,
-                source=event.source.value,
-            )
-            if session:
-                session_info = {
-                    "id": session.id,
-                    "external_id": session.external_id,
-                    "project_id": session.project_id,
-                    "status": session.status,
-                    "git_branch": session.git_branch,
-                    "source": session.source,
-                }
-
-        project_info: dict[str, Any] = {"name": "", "id": ""}
-        if event.project_id and self.action_executor and self.action_executor.db:
-            project_mgr = LocalProjectManager(self.action_executor.db)
-            project = project_mgr.get(event.project_id)
-            if project:
-                project_info = {"name": project.name, "id": project.id}
-
-        return session_info, project_info
+        """Look up session and project info for eval context."""
+        return _resolve_session_and_project_fn(self.action_executor, event)
 
     def _build_eval_context(
         self,
@@ -660,28 +634,8 @@ class WorkflowEngine:
         session_info: dict[str, Any],
         project_info: dict[str, Any],
     ) -> dict[str, Any]:
-        """Build evaluation context dict for condition checking.
-
-        Uses DotDict for variables so both dot notation (variables.session_task)
-        and .get() access (variables.get('key')) work in transition conditions.
-        Flattens variables to top level for simpler conditions like "task_claimed".
-        """
-        return {
-            "event": event,
-            "workflow_state": state,
-            "variables": DotDict(state.variables),
-            "session": DotDict(session_info),
-            "project": DotDict(project_info),
-            "tool_name": event.data.get("tool_name") if event.data else None,
-            "tool_args": event.data.get("tool_args", {}) if event.data else {},
-            # State attributes for transition conditions
-            "step_action_count": state.step_action_count,
-            "total_action_count": state.total_action_count,
-            "step": state.step,
-            # Flatten variables to top level for simpler conditions like "task_claimed"
-            # instead of requiring "variables.task_claimed"
-            **state.variables,
-        }
+        """Build evaluation context dict for condition checking."""
+        return _build_eval_context_fn(event, state, session_info, project_info)
 
     def _resolve_check_rules(
         self,
@@ -689,47 +643,10 @@ class WorkflowEngine:
         workflow: WorkflowDefinition,
         project_id: str | None = None,
     ) -> list[RuleDefinition]:
-        """Resolve check_rules names to RuleDefinition objects.
-
-        Resolution order:
-        1. Workflow's rule_definitions (includes file-local + imported)
-        2. DB rules via RuleStore (project > user > bundled tiers)
-
-        Unknown names are logged and skipped.
-        """
-        resolved: list[RuleDefinition] = []
-        rule_store = self.rule_store
-
-        # Lazy-create RuleStore from action_executor.db if no explicit store
-        if (
-            rule_store is None
-            and self.action_executor
-            and getattr(self.action_executor, "db", None)
-        ):
-            from gobby.storage.rules import RuleStore
-
-            rule_store = RuleStore(self.action_executor.db)
-
-        for name in check_rules:
-            # 1. Check workflow's rule_definitions (file-local + imported)
-            if name in workflow.rule_definitions:
-                resolved.append(workflow.rule_definitions[name])
-                continue
-
-            # 2. Check DB via RuleStore (handles tier precedence)
-            if rule_store:
-                rule_row = rule_store.get_rule(name, project_id=project_id)
-                if rule_row:
-                    try:
-                        rule_def = RuleDefinition(**rule_row["definition"])
-                        resolved.append(rule_def)
-                        continue
-                    except Exception as e:
-                        logger.warning(f"Invalid rule definition for '{name}' from DB: {e}")
-
-            logger.warning(f"check_rules: rule '{name}' not found, skipping")
-
-        return resolved
+        """Resolve check_rules names to RuleDefinition objects."""
+        return _resolve_check_rules_fn(
+            check_rules, workflow, self.rule_store, self.action_executor, project_id
+        )
 
     async def _auto_transition_chain(
         self,
