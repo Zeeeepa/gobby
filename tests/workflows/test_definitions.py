@@ -1,10 +1,101 @@
-"""Tests for WorkflowInstance model in definitions.py."""
+"""Tests for WorkflowInstance and WorkflowDefinition models in definitions.py."""
 
 from datetime import UTC, datetime
 
 import pytest
 
 pytestmark = pytest.mark.unit
+
+
+# --- WorkflowDefinition tests ---
+
+
+def test_workflow_definition_defaults() -> None:
+    """Test that WorkflowDefinition has correct defaults for new fields."""
+    from gobby.workflows.definitions import WorkflowDefinition
+
+    wf = WorkflowDefinition(name="test-wf")
+
+    assert wf.enabled is True
+    assert wf.priority == 100
+    assert wf.session_variables == {}
+
+
+def test_workflow_definition_with_new_fields() -> None:
+    """Test that WorkflowDefinition accepts enabled, priority, session_variables."""
+    from gobby.workflows.definitions import WorkflowDefinition
+
+    wf = WorkflowDefinition(
+        name="custom-wf",
+        enabled=False,
+        priority=25,
+        session_variables={"task_claimed": "false", "stop_attempts": "0"},
+    )
+
+    assert wf.enabled is False
+    assert wf.priority == 25
+    assert wf.session_variables == {"task_claimed": "false", "stop_attempts": "0"}
+
+
+def test_workflow_definition_type_lifecycle_compat() -> None:
+    """Test that YAML with type: lifecycle still parses without error."""
+    from gobby.workflows.definitions import WorkflowDefinition
+
+    wf = WorkflowDefinition(name="session-lifecycle", type="lifecycle")
+    assert wf.type == "lifecycle"
+
+
+def test_workflow_definition_type_step_compat() -> None:
+    """Test that YAML with type: step still parses without error."""
+    from gobby.workflows.definitions import WorkflowDefinition
+
+    wf = WorkflowDefinition(name="auto-task", type="step")
+    assert wf.type == "step"
+
+
+def test_workflow_definition_type_default() -> None:
+    """Test that type defaults to 'step' when not specified."""
+    from gobby.workflows.definitions import WorkflowDefinition
+
+    wf = WorkflowDefinition(name="test-wf")
+    assert wf.type == "step"
+
+
+def test_workflow_definition_all_new_fields_with_type() -> None:
+    """Test that new fields coexist with existing type field."""
+    from gobby.workflows.definitions import WorkflowDefinition
+
+    wf = WorkflowDefinition(
+        name="full-wf",
+        type="lifecycle",
+        enabled=True,
+        priority=10,
+        session_variables={"unlocked_tools": "[]"},
+        variables={"internal_var": "default"},
+    )
+
+    assert wf.type == "lifecycle"
+    assert wf.enabled is True
+    assert wf.priority == 10
+    assert wf.session_variables == {"unlocked_tools": "[]"}
+    assert wf.variables == {"internal_var": "default"}
+
+
+def test_workflow_definition_session_variables_vs_variables() -> None:
+    """Test that session_variables and variables are independent."""
+    from gobby.workflows.definitions import WorkflowDefinition
+
+    wf = WorkflowDefinition(
+        name="test-wf",
+        variables={"workflow_scoped": True},
+        session_variables={"session_shared": True},
+    )
+
+    assert wf.variables == {"workflow_scoped": True}
+    assert wf.session_variables == {"session_shared": True}
+
+
+# --- WorkflowInstance tests ---
 
 
 def test_workflow_instance_required_fields() -> None:

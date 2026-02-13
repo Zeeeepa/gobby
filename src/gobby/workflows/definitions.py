@@ -140,6 +140,10 @@ class WorkflowDefinition(BaseModel):
     type: Literal["lifecycle", "step"] = "step"
     extends: str | None = None
 
+    # Instance defaults: control whether workflow starts enabled and its evaluation priority
+    enabled: bool = True
+    priority: int = 100
+
     @field_validator("version", mode="before")
     @classmethod
     def coerce_version_to_string(cls, v: Any) -> str:
@@ -150,6 +154,8 @@ class WorkflowDefinition(BaseModel):
 
     settings: dict[str, Any] = Field(default_factory=dict)
     variables: dict[str, Any] = Field(default_factory=dict)
+    # Session-scoped shared variables (visible to all workflows in the session)
+    session_variables: dict[str, Any] = Field(default_factory=dict)
 
     # Named rule definitions (file-local, referenced by check_rules on steps)
     rule_definitions: dict[str, RuleDefinition] = Field(default_factory=dict)
