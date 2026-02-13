@@ -1,11 +1,11 @@
-import { useState, useCallback, useMemo, useEffect, useRef } from 'react'
+import { useState, useCallback, useMemo, useEffect, useRef, lazy, Suspense } from 'react'
 import { useMemory, useNeo4jStatus } from '../hooks/useMemory'
 import type { GobbyMemory } from '../hooks/useMemory'
 import { MemoryOverview } from './MemoryOverview'
 import { MemoryFilters } from './MemoryFilters'
 import { MemoryTable } from './MemoryTable'
 import { MemoryGraph } from './MemoryGraph'
-import { KnowledgeGraph } from './KnowledgeGraph'
+const KnowledgeGraph = lazy(() => import('./KnowledgeGraph').then(m => ({ default: m.KnowledgeGraph })))
 import { MemoryForm } from './MemoryForm'
 import type { MemoryFormData } from './MemoryForm'
 import { MemoryDetail } from './MemoryDetail'
@@ -268,10 +268,12 @@ export function MemoryPage() {
       {/* Content area */}
       <div className="memory-content">
         {viewMode === 'knowledge' ? (
-          <KnowledgeGraph
-            fetchKnowledgeGraph={fetchKnowledgeGraph}
-            fetchEntityNeighbors={fetchEntityNeighbors}
-          />
+          <Suspense fallback={<div style={{ padding: '2rem', color: 'var(--text-secondary)' }}>Loading 3D graph...</div>}>
+            <KnowledgeGraph
+              fetchKnowledgeGraph={fetchKnowledgeGraph}
+              fetchEntityNeighbors={fetchEntityNeighbors}
+            />
+          </Suspense>
         ) : viewMode === 'graph' ? (
           <MemoryGraph
             memories={filteredMemories}
