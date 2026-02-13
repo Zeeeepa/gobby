@@ -41,6 +41,11 @@ from gobby.worktrees.git import WorktreeGitManager
 
 os.environ["TOKENIZERS_PARALLELISM"] = "false"
 
+# Strip Claude Code session marker so SDK subprocess calls don't fail with
+# "cannot be launched inside another Claude Code session" when the daemon
+# was started/restarted from within a Claude Code session.
+os.environ.pop("CLAUDECODE", None)
+
 # Suppress litellm's never-awaited coroutine warnings (upstream bug in LoggingWorker)
 import warnings
 

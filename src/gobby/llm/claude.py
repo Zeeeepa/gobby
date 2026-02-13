@@ -434,7 +434,7 @@ class ClaudeLLMProvider(LLMProvider):
         options = ClaudeAgentOptions(
             system_prompt=system_prompt or "You are a helpful assistant.",
             max_turns=1,
-            model=resolve_model_id(model or "claude-haiku-4-5"),
+            model=resolve_model_id(model or "claude-sonnet-4-5"),
             tools=[],  # Explicitly disable all tools
             allowed_tools=[],
             permission_mode="default",
