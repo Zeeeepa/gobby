@@ -622,6 +622,7 @@ def spawn_ui_server(
             env = os.environ.copy()
             env["GOBBY_DAEMON_PORT"] = str(daemon_port)
             env["GOBBY_WS_PORT"] = str(ws_port)
+            env["GOBBY_UI_HOST"] = host
             process = subprocess.Popen(  # nosec B603 B607
                 cmd,
                 cwd=web_dir,
