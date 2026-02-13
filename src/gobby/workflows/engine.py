@@ -1,5 +1,4 @@
 import logging
-from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
@@ -21,6 +20,7 @@ from .detection_helpers import (
     detect_task_claim,
     process_mcp_handlers,
 )
+from .engine_models import DotDict, TransitionResult
 from .evaluator import ConditionEvaluator
 from .lifecycle_evaluator import (
     evaluate_all_lifecycle_workflows as _evaluate_all_lifecycle_workflows,
@@ -42,30 +42,15 @@ from .unified_evaluator import (
     _evaluate_step_transitions,
 )
 
+# Re-export for backward compatibility
+__all__ = ["DotDict", "EXEMPT_TOOLS", "TransitionResult", "WorkflowEngine"]
+
 if TYPE_CHECKING:
     from gobby.storage.rules import RuleStore
 
     from .actions import ActionExecutor
 
 logger = logging.getLogger(__name__)
-
-
-class DotDict(dict[str, Any]):
-    """Dict subclass that supports both dot-notation and .get() access.
-
-    SimpleNamespace supports dot-notation but not .get(), which breaks
-    workflow transition conditions that use ``variables.get('key')``.
-    DotDict supports both patterns.
-    """
-
-    def __getattr__(self, key: str) -> Any:
-        try:
-            return self[key]
-        except KeyError:
-            raise AttributeError(key) from None
-
-    def __setattr__(self, key: str, value: Any) -> None:
-        self[key] = value
 
 
 # Read-only MCP discovery tools that are always allowed regardless of workflow step restrictions.
@@ -87,23 +72,6 @@ EXEMPT_TOOLS = frozenset(
         "mcp__gobby__search_tools",
     }
 )
-
-
-@dataclass
-class TransitionResult:
-    """Result of a workflow step transition.
-
-    Carries both LLM-facing context (injected_messages) and user-visible
-    output (system_messages) through transition chains.
-    """
-
-    injected_messages: list[str] = field(default_factory=list)
-    system_messages: list[str] = field(default_factory=list)
-
-    def extend(self, other: "TransitionResult") -> None:
-        """Accumulate messages from another transition result."""
-        self.injected_messages.extend(other.injected_messages)
-        self.system_messages.extend(other.system_messages)
 
 
 class WorkflowEngine:
@@ -315,7 +283,9 @@ class WorkflowEngine:
             # Delegate basic tool restriction checks to unified evaluator.
             # Handles: exempt tools, blocked_tools, allowed_tools, inline rules.
             tool_decision, tool_reason = _evaluate_step_tool_rules(
-                tool_name, current_step, eval_context,
+                tool_name,
+                current_step,
+                eval_context,
                 condition_evaluator=self.evaluator.evaluate,
             )
             if tool_decision == "block":
@@ -453,12 +423,8 @@ class WorkflowEngine:
             else:
                 context = f"Transitioning to step: {target_step}"
 
-            system_message = (
-                "\n".join(result.system_messages) if result.system_messages else None
-            )
-            return HookResponse(
-                decision="modify", context=context, system_message=system_message
-            )
+            system_message = "\n".join(result.system_messages) if result.system_messages else None
+            return HookResponse(decision="modify", context=context, system_message=system_message)
 
         # Check exit conditions
         logger.debug("Checking exit conditions")
