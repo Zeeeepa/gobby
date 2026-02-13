@@ -1,3 +1,4 @@
+import json
 import logging
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
@@ -32,6 +33,8 @@ __all__ = ["WorkflowLoader"]
 
 if TYPE_CHECKING:
     from gobby.agents.definitions import WorkflowSpec
+    from gobby.storage.database import DatabaseProtocol
+    from gobby.storage.workflow_definitions import LocalWorkflowDefinitionManager
 
 logger = logging.getLogger(__name__)
 
@@ -44,6 +47,7 @@ class WorkflowLoader(WorkflowLoaderSyncMixin):
         self,
         workflow_dirs: list[Path] | None = None,
         bundled_dir: Path | None = None,
+        db: "DatabaseProtocol | None" = None,
     ):
         # Default global workflow directory
         self.global_dirs = workflow_dirs or [Path.home() / ".gobby" / "workflows"]
@@ -60,6 +64,44 @@ class WorkflowLoader(WorkflowLoaderSyncMixin):
         self._cache: dict[str, _CachedEntry] = {}
         # Cache for discovered workflows per project path
         self._discovery_cache: dict[str, _CachedDiscovery] = {}
+        # Optional database for DB-first workflow lookup
+        self.db: DatabaseProtocol | None = db
+        self._def_manager: LocalWorkflowDefinitionManager | None = None
+
+    @property
+    def def_manager(self) -> "LocalWorkflowDefinitionManager | None":
+        """Lazy-init the workflow definition manager."""
+        if self._def_manager is None and self.db is not None:
+            from gobby.storage.workflow_definitions import LocalWorkflowDefinitionManager
+
+            self._def_manager = LocalWorkflowDefinitionManager(self.db)
+        return self._def_manager
+
+    def _load_from_db(
+        self, name: str, project_id: str | None = None
+    ) -> WorkflowDefinition | PipelineDefinition | None:
+        """Try to load a workflow definition from the database.
+
+        Returns the parsed definition if found in DB, None otherwise.
+        """
+        mgr = self.def_manager
+        if mgr is None:
+            return None
+        row = mgr.get_by_name(name, project_id=project_id)
+        if row is None:
+            return None
+        try:
+            data = json.loads(row.definition_json)
+            if row.workflow_type == "pipeline" or data.get("type") == "pipeline":
+                self._validate_pipeline_references(data)
+                return PipelineDefinition(**data)
+            else:
+                if "type" in data and "enabled" not in data:
+                    data["enabled"] = data["type"] == "lifecycle"
+                return WorkflowDefinition(**data)
+        except Exception as e:
+            logger.error(f"Failed to parse DB workflow '{name}': {e}", exc_info=True)
+            return None
 
     def _is_stale(self, entry: _CachedEntry) -> bool:
         """Check if a cached workflow entry is stale (file changed on disk)."""
@@ -120,6 +162,15 @@ class WorkflowLoader(WorkflowLoaderSyncMixin):
                 return agent_workflow
             # Fall through to file-based lookup (for backwards compatibility with
             # persisted inline workflows like meeseeks-worker.yaml)
+
+        # DB-first lookup: check database before filesystem
+        project_id = str(project_path) if project_path else None
+        db_definition = self._load_from_db(name, project_id=project_id)
+        if db_definition is not None:
+            self._cache[cache_key] = _CachedEntry(
+                definition=db_definition, path=None, mtime=0.0
+            )
+            return db_definition
 
         # Build search directories: project-specific first, then global, then bundled
         search_dirs = list(self.global_dirs)

@@ -5,6 +5,7 @@ Extracted from loader.py as part of Strangler Fig decomposition (Wave 2).
 
 from __future__ import annotations
 
+import json
 import logging
 import warnings
 from pathlib import Path
@@ -20,6 +21,81 @@ if TYPE_CHECKING:
     from .loader import WorkflowLoader
 
 logger = logging.getLogger(__name__)
+
+
+def _merge_db_workflows(
+    loader: WorkflowLoader,
+    discovered: dict[str, DiscoveredWorkflow],
+    project_id: str | None = None,
+) -> None:
+    """Merge DB workflow definitions into discovered dict (DB shadows filesystem)."""
+    mgr = loader.def_manager
+    if mgr is None:
+        return
+
+    try:
+        db_rows = mgr.list_all(project_id=project_id, workflow_type="workflow")
+    except Exception as e:
+        logger.warning(f"Failed to list DB workflow definitions: {e}")
+        return
+
+    for row in db_rows:
+        try:
+            data = json.loads(row.definition_json)
+            if "type" in data and "enabled" not in data:
+                data["enabled"] = data["type"] == "lifecycle"
+            definition = WorkflowDefinition(**data)
+
+            # Use DB row priority (authoritative), fall back to definition
+            priority = row.priority
+
+            is_project = row.project_id is not None
+            discovered[row.name] = DiscoveredWorkflow(
+                name=row.name,
+                definition=definition,
+                priority=priority,
+                is_project=is_project,
+                path=Path(f"db://{row.id}"),
+            )
+        except Exception as e:
+            logger.warning(f"Failed to parse DB workflow '{row.name}': {e}")
+
+
+def _merge_db_pipelines(
+    loader: WorkflowLoader,
+    discovered: dict[str, DiscoveredWorkflow],
+    project_id: str | None = None,
+) -> None:
+    """Merge DB pipeline definitions into discovered dict (DB shadows filesystem)."""
+    mgr = loader.def_manager
+    if mgr is None:
+        return
+
+    try:
+        db_rows = mgr.list_all(project_id=project_id, workflow_type="pipeline")
+    except Exception as e:
+        logger.warning(f"Failed to list DB pipeline definitions: {e}")
+        return
+
+    for row in db_rows:
+        try:
+            data = json.loads(row.definition_json)
+            loader._validate_pipeline_references(data)
+            definition = PipelineDefinition(**data)
+
+            # Use DB row priority (authoritative)
+            priority = row.priority
+
+            is_project = row.project_id is not None
+            discovered[row.name] = DiscoveredWorkflow(
+                name=row.name,
+                definition=definition,
+                priority=priority,
+                is_project=is_project,
+                path=Path(f"db://{row.id}"),
+            )
+        except Exception as e:
+            logger.warning(f"Failed to parse DB pipeline '{row.name}': {e}")
 
 
 async def discover_workflows(
@@ -91,7 +167,11 @@ async def discover_workflows(
                     f"Project workflow '{name}' failed to load, using global instead: {error}"
                 )
 
-    # 4. Sort: project first, then by priority (asc), then by name (alpha)
+    # 4. Merge DB definitions (shadows filesystem entries with same name)
+    db_project_id = str(project_path) if project_path else None
+    _merge_db_workflows(loader, discovered, project_id=db_project_id)
+
+    # 5. Sort: project first, then by priority (asc), then by name (alpha)
     sorted_workflows = sorted(
         discovered.values(),
         key=lambda w: (
@@ -188,7 +268,11 @@ async def discover_pipeline_workflows(
                     f"Project pipeline '{name}' failed to load, using global instead: {error}"
                 )
 
-    # 3. Sort: project first, then by priority (asc), then by name (alpha)
+    # 4. Merge DB definitions (shadows filesystem entries with same name)
+    db_project_id = str(project_path) if project_path else None
+    _merge_db_pipelines(loader, discovered, project_id=db_project_id)
+
+    # 5. Sort: project first, then by priority (asc), then by name (alpha)
     sorted_pipelines = sorted(
         discovered.values(),
         key=lambda w: (

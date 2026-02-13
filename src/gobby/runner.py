@@ -302,7 +302,7 @@ class GobbyRunner:
             from gobby.workflows.loader import WorkflowLoader
             from gobby.workflows.pipeline_executor import PipelineExecutor
 
-            self.workflow_loader = WorkflowLoader()
+            self.workflow_loader = WorkflowLoader(db=self.database)
             if self.project_id:
                 self.pipeline_execution_manager = LocalPipelineExecutionManager(
                     db=self.database,
