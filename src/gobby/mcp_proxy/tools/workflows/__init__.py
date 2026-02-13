@@ -33,6 +33,7 @@ from gobby.mcp_proxy.tools.workflows._query import (
 )
 from gobby.mcp_proxy.tools.workflows._variables import (
     get_variable,
+    set_session_variable,
     set_variable,
 )
 from gobby.storage.database import DatabaseProtocol
@@ -208,28 +209,67 @@ def create_workflows_registry(
 
     @registry.tool(
         name="set_variable",
-        description="Set a workflow variable for the current session (session-scoped, not persisted to YAML). Accepts #N, N, UUID, or prefix for session_id.",
+        description="Set a variable scoped to a workflow instance or session. Use workflow param for workflow-scoped. Accepts #N, N, UUID, or prefix for session_id.",
     )
     def _set_variable(
         name: str,
         value: str | int | float | bool | None,
         session_id: str | None = None,
+        workflow: str | None = None,
     ) -> dict[str, Any]:
         if _state_manager is None or _session_manager is None or _db is None:
             return {"error": "Workflow tools require database connection"}
-        return set_variable(_state_manager, _session_manager, _db, name, value, session_id)
+        return set_variable(
+            _state_manager,
+            _session_manager,
+            _db,
+            name,
+            value,
+            session_id,
+            workflow=workflow,
+            instance_manager=_instance_manager,
+            session_var_manager=_session_var_manager,
+        )
 
     @registry.tool(
         name="get_variable",
-        description="Get workflow variable(s) for the current session. Accepts #N, N, UUID, or prefix for session_id.",
+        description="Get variable(s) scoped to a workflow instance or session. Use workflow param for workflow-scoped. Accepts #N, N, UUID, or prefix for session_id.",
     )
     def _get_variable(
         name: str | None = None,
         session_id: str | None = None,
+        workflow: str | None = None,
     ) -> dict[str, Any]:
         if _state_manager is None or _session_manager is None:
             return {"error": "Workflow tools require database connection"}
-        return get_variable(_state_manager, _session_manager, name, session_id)
+        return get_variable(
+            _state_manager,
+            _session_manager,
+            name,
+            session_id,
+            workflow=workflow,
+            instance_manager=_instance_manager,
+            session_var_manager=_session_var_manager,
+        )
+
+    @registry.tool(
+        name="set_session_variable",
+        description="Set a session-scoped shared variable (visible to all workflows). Accepts #N, N, UUID, or prefix for session_id.",
+    )
+    def _set_session_variable(
+        name: str,
+        value: str | int | float | bool | None,
+        session_id: str | None = None,
+    ) -> dict[str, Any]:
+        if _session_manager is None or _session_var_manager is None:
+            return {"error": "Workflow tools require database connection"}
+        return set_session_variable(
+            _session_manager,
+            _session_var_manager,
+            name,
+            value,
+            session_id,
+        )
 
     @registry.tool(
         name="evaluate_workflow",
