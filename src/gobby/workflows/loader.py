@@ -28,8 +28,7 @@ from .loader_validation import (
     _validate_pipeline_references,
 )
 
-# Re-export for backward compatibility
-__all__ = ["DiscoveredWorkflow", "WorkflowLoader"]
+__all__ = ["WorkflowLoader"]
 
 if TYPE_CHECKING:
     from gobby.agents.definitions import WorkflowSpec

@@ -8,7 +8,7 @@ from unittest.mock import AsyncMock, MagicMock
 import pytest
 
 from gobby.workflows.definitions import PipelineDefinition, PipelineStep
-from gobby.workflows.loader import DiscoveredWorkflow
+from gobby.workflows.loader_cache import DiscoveredWorkflow
 
 pytestmark = pytest.mark.unit
 

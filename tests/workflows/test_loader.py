@@ -11,7 +11,8 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 
 from gobby.workflows.definitions import WorkflowDefinition
-from gobby.workflows.loader import DiscoveredWorkflow, WorkflowLoader
+from gobby.workflows.loader import WorkflowLoader
+from gobby.workflows.loader_cache import DiscoveredWorkflow
 
 pytestmark = pytest.mark.unit
 
@@ -1768,19 +1769,24 @@ class TestDiscoverWorkflows:
         assert discovered[0].priority == 50
 
     @pytest.mark.asyncio
-    async def test_discover_emits_deprecation_warning_for_type(self, temp_workflow_dir) -> None:
-        """DeprecationWarning is emitted when YAML has a 'type' field."""
+    async def test_discover_derives_enabled_from_type(self, temp_workflow_dir) -> None:
+        """When YAML has 'type' but no 'enabled', enabled is derived from type."""
         global_dir = temp_workflow_dir / "global" / "workflows"
         global_dir.mkdir(parents=True)
 
-        (global_dir / "old-style.yaml").write_text(
-            "name: old-style\nversion: '1.0'\ntype: lifecycle\n"
+        (global_dir / "lifecycle-style.yaml").write_text(
+            "name: lifecycle-style\nversion: '1.0'\ntype: lifecycle\n"
+        )
+        (global_dir / "step-style.yaml").write_text(
+            "name: step-style\nversion: '1.0'\ntype: step\n"
         )
 
         loader = WorkflowLoader(workflow_dirs=[global_dir])
+        discovered = await loader.discover_workflows()
 
-        with pytest.warns(DeprecationWarning, match="type"):
-            await loader.discover_workflows()
+        by_name = {w.name: w for w in discovered}
+        assert by_name["lifecycle-style"].definition.enabled is True
+        assert by_name["step-style"].definition.enabled is False
 
     @pytest.mark.asyncio
     async def test_discover_uses_definition_priority(self, temp_workflow_dir) -> None:
