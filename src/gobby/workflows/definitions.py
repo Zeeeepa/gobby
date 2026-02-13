@@ -238,6 +238,8 @@ class PipelineStep(BaseModel):
     prompt: str | None = None  # LLM prompt template
     invoke_pipeline: str | dict[str, Any] | None = None  # Name of pipeline to invoke
     mcp: MCPStepConfig | None = None  # Call MCP tool directly
+    spawn_session: dict[str, Any] | None = None  # Spawn CLI session via tmux
+    activate_workflow: dict[str, Any] | None = None  # Activate workflow on a session
 
     # Optional fields
     condition: str | None = None  # Condition for step execution
@@ -247,18 +249,21 @@ class PipelineStep(BaseModel):
 
     def model_post_init(self, __context: Any) -> None:
         """Validate that exactly one execution type is specified."""
-        exec_types = [self.exec, self.prompt, self.invoke_pipeline, self.mcp]
+        exec_types = [
+            self.exec, self.prompt, self.invoke_pipeline, self.mcp,
+            self.spawn_session, self.activate_workflow,
+        ]
         specified = [t for t in exec_types if t is not None]
 
         if len(specified) == 0:
             raise ValueError(
                 "PipelineStep requires at least one execution type: "
-                "exec, prompt, invoke_pipeline, or mcp"
+                "exec, prompt, invoke_pipeline, mcp, spawn_session, or activate_workflow"
             )
         if len(specified) > 1:
             raise ValueError(
-                "PipelineStep exec, prompt, invoke_pipeline, and mcp are mutually exclusive "
-                "- only one allowed"
+                "PipelineStep exec, prompt, invoke_pipeline, mcp, spawn_session, "
+                "and activate_workflow are mutually exclusive - only one allowed"
             )
 
 

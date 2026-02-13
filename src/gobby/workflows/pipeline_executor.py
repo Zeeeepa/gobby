@@ -51,6 +51,8 @@ class PipelineExecutor:
         loader: Any | None = None,
         event_callback: PipelineEventCallback | None = None,
         tool_proxy_getter: Any | None = None,
+        spawner: Any | None = None,
+        session_manager: Any | None = None,
     ):
         """Initialize the pipeline executor.
 
@@ -64,6 +66,8 @@ class PipelineExecutor:
             event_callback: Optional async callback for broadcasting events.
                            Signature: async def callback(event: str, execution_id: str, **kwargs)
             tool_proxy_getter: Optional callable returning ToolProxyService for MCP steps
+            spawner: Optional TmuxSpawner for spawn_session steps
+            session_manager: Optional LocalSessionManager for session creation
         """
         self.db = db
         self.execution_manager = execution_manager
@@ -73,6 +77,8 @@ class PipelineExecutor:
         self.loader = loader
         self.event_callback = event_callback
         self.tool_proxy_getter = tool_proxy_getter
+        self.spawner = spawner
+        self.session_manager = session_manager
 
     async def _emit_event(self, event: str, execution_id: str, **kwargs: Any) -> None:
         """Emit a pipeline event via the callback if configured.
@@ -323,6 +329,12 @@ class PipelineExecutor:
         elif step.mcp:
             # Execute MCP tool call
             return await self._execute_mcp_step(rendered_step, context)
+        elif step.spawn_session:
+            # Spawn a CLI session via tmux
+            return await self._execute_spawn_session_step(rendered_step, context, project_id)
+        elif step.activate_workflow:
+            # Activate a workflow on a session
+            return await self._execute_activate_workflow_step(rendered_step, context)
         else:
             logger.warning(f"Step {step.id} has no action defined")
             return None
@@ -470,6 +482,104 @@ class PipelineExecutor:
             )
 
         return result
+
+    async def _execute_spawn_session_step(
+        self, rendered_step: Any, context: dict[str, Any], project_id: str
+    ) -> dict[str, Any]:
+        """Execute a spawn_session step — spawn a CLI session via tmux.
+
+        Args:
+            rendered_step: The rendered step with spawn_session config
+            context: Execution context
+            project_id: Project ID for the session
+
+        Returns:
+            Dict with session_id and tmux_session_name
+        """
+        config = rendered_step.spawn_session
+        if not self.spawner:
+            return {"error": "spawn_session requires a tmux spawner but none configured"}
+
+        if not self.session_manager:
+            return {"error": "spawn_session requires session_manager but none configured"}
+
+        cli = config.get("cli", "claude")
+        prompt = config.get("prompt")
+        cwd = config.get("cwd")
+        workflow_name = config.get("workflow_name")
+        agent_depth = config.get("agent_depth", 1)
+
+        # Create a gobby session record
+        session = self.session_manager.create_session(
+            platform=cli,
+            project_id=project_id,
+        )
+        session_id = session.id if hasattr(session, "id") else str(session)
+
+        try:
+            result = self.spawner.spawn_agent(
+                cli=cli,
+                cwd=cwd or ".",
+                session_id=session_id,
+                parent_session_id="",
+                agent_run_id=session_id,
+                project_id=project_id,
+                workflow_name=workflow_name,
+                agent_depth=agent_depth,
+                prompt=prompt,
+            )
+            return {
+                "session_id": session_id,
+                "tmux_session_name": getattr(result, "tmux_session_name", ""),
+            }
+        except Exception as e:
+            return {"error": f"Failed to spawn session: {e}"}
+
+    async def _execute_activate_workflow_step(
+        self, rendered_step: Any, context: dict[str, Any]
+    ) -> dict[str, Any]:
+        """Execute an activate_workflow step — activate a workflow on a session.
+
+        Args:
+            rendered_step: The rendered step with activate_workflow config
+            context: Execution context
+
+        Returns:
+            Dict with workflow activation result
+        """
+        config = rendered_step.activate_workflow
+        if not self.loader:
+            return {"error": "activate_workflow requires workflow loader but none configured"}
+
+        workflow_name = config.get("name")
+        session_id = config.get("session_id")
+        variables = config.get("variables") or {}
+
+        if not workflow_name:
+            return {"error": "activate_workflow requires 'name' field"}
+        if not session_id:
+            return {"error": "activate_workflow requires 'session_id' field"}
+        if not self.session_manager:
+            return {"error": "activate_workflow requires session_manager but none configured"}
+
+        try:
+            from gobby.mcp_proxy.tools.workflows._lifecycle import activate_workflow
+            from gobby.workflows.state_manager import WorkflowStateManager
+
+            state_manager = WorkflowStateManager(self.db)
+
+            result = await activate_workflow(
+                loader=self.loader,
+                state_manager=state_manager,
+                session_manager=self.session_manager,
+                db=self.db,
+                name=workflow_name,
+                session_id=session_id,
+                variables=variables,
+            )
+            return result
+        except Exception as e:
+            return {"error": f"Failed to activate workflow: {e}"}
 
     def _should_run_step(self, step: Any, context: dict[str, Any]) -> bool:
         """Check if a step should run based on its condition.
