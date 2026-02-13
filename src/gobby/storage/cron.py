@@ -8,10 +8,10 @@ from __future__ import annotations
 import json
 import logging
 from datetime import UTC, datetime, timedelta
-from typing import Any, Literal, cast
+from typing import Any, Literal
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
-from croniter import croniter  # type: ignore[import-untyped]
+from croniter import croniter
 
 from gobby.storage.cron_models import CronJob, CronRun
 from gobby.storage.database import DatabaseProtocol
@@ -44,7 +44,7 @@ def compute_next_run(job: CronJob) -> datetime | None:
             return None
         try:
             cron = croniter(job.cron_expr, now)
-            next_dt = cast(datetime, cron.get_next(datetime))
+            next_dt = cron.get_next(datetime)
             return next_dt.astimezone(ZoneInfo("UTC"))
         except (ValueError, KeyError):
             # Invalid cron expression

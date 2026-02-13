@@ -12,8 +12,8 @@ import concurrent.futures
 import json
 import logging
 import shutil
-from collections.abc import Callable
-from typing import Any, Literal
+from collections.abc import Callable, Coroutine
+from typing import Any, Literal, cast
 
 from gobby.llm.executor import (
     AgentExecutor,
@@ -178,9 +178,12 @@ class ClaudeExecutor(AgentExecutor):
 
                 if loop is not None:
                     # We're in an async context, use run_coroutine_threadsafe
-                    coro = tool_handler(tool_schema.name, kwargs)
+                    coro = cast(
+                        Coroutine[Any, Any, ToolResult],
+                        tool_handler(tool_schema.name, kwargs),
+                    )
                     future: concurrent.futures.Future[ToolResult] = (
-                        asyncio.run_coroutine_threadsafe(coro, loop)  # type: ignore[arg-type]
+                        asyncio.run_coroutine_threadsafe(coro, loop)
                     )
                     try:
                         result = future.result(timeout=30)
@@ -190,8 +193,11 @@ class ClaudeExecutor(AgentExecutor):
                         return json.dumps({"error": str(e)})
                 else:
                     # No running loop, use asyncio.run
-                    coro = tool_handler(tool_schema.name, kwargs)
-                    result = asyncio.run(coro)  # type: ignore[arg-type]
+                    coro = cast(
+                        Coroutine[Any, Any, ToolResult],
+                        tool_handler(tool_schema.name, kwargs),
+                    )
+                    result = asyncio.run(coro)
 
                 # Record the call
                 record = ToolCallRecord(
@@ -217,7 +223,7 @@ class ClaudeExecutor(AgentExecutor):
         # Create MCP server config with our tools
         mcp_server = create_sdk_mcp_server(
             name="gobby-executor",
-            tools=tool_functions,  # type: ignore[arg-type]
+            tools=cast(Any, tool_functions),
         )
         mcp_servers: dict[str, Any] = {"gobby-executor": mcp_server}
 

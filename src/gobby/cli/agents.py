@@ -11,13 +11,13 @@ Commands for managing subagent runs:
 """
 
 import json
-from typing import Any
+from typing import Any, cast
 
 import click
 import httpx
 
 from gobby.cli.utils import resolve_session_id
-from gobby.storage.agents import LocalAgentRunManager
+from gobby.storage.agents import AgentRunStatus, LocalAgentRunManager
 from gobby.storage.database import LocalDatabase
 
 
@@ -229,7 +229,7 @@ def list_agents(
             session_id = resolve_session_id(session_id)
         except click.ClickException as e:
             raise SystemExit(1) from e
-        runs = manager.list_by_session(session_id, status=status, limit=limit)  # type: ignore
+        runs = manager.list_by_session(session_id, status=cast(AgentRunStatus | None, status), limit=limit)
     elif status == "running":
         runs = manager.list_running(limit=limit)
     else:

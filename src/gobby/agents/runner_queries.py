@@ -7,7 +7,9 @@ Extracted from runner.py as part of Strangler Fig decomposition (Wave 2).
 from __future__ import annotations
 
 import logging
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, cast
+
+from gobby.storage.agents import AgentRunStatus
 
 if TYPE_CHECKING:
     from gobby.agents.runner import AgentRunner
@@ -49,7 +51,7 @@ def list_runs(
     """List agent runs for a session."""
     return runner._run_storage.list_by_session(
         parent_session_id,
-        status=status,  # type: ignore
+        status=cast(AgentRunStatus | None, status),
         limit=limit,
     )
 

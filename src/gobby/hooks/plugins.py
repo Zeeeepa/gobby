@@ -91,7 +91,7 @@ def _check_type(value: Any, expected_type: str) -> bool:
     if expected_type in ("integer", "number") and isinstance(value, bool):
         return False
 
-    type_map = {
+    type_map: dict[str, type | tuple[type, ...]] = {
         "string": str,
         "number": (int, float),
         "integer": int,
@@ -105,7 +105,7 @@ def _check_type(value: Any, expected_type: str) -> bool:
     if expected is None:
         return True  # Unknown type, skip validation
 
-    return isinstance(value, expected)  # type: ignore[arg-type]
+    return isinstance(value, expected)
 
 
 # =============================================================================
@@ -161,9 +161,10 @@ def hook_handler(
     """
 
     def decorator(func: Callable[..., Any]) -> Callable[..., Any]:
-        # Store metadata on the function
-        func._hook_event_type = event_type  # type: ignore[attr-defined]
-        func._hook_priority = priority  # type: ignore[attr-defined]
+        # Store metadata on the function for handler discovery
+        f: Any = func
+        f._hook_event_type = event_type
+        f._hook_priority = priority
         return func
 
     return decorator
@@ -603,7 +604,8 @@ class PluginLoader:
                 and obj.name  # Must have a non-empty name
             ):
                 # Store source path on the class for reload tracking
-                obj._gobby_source_path = path  # type: ignore[attr-defined]
+                o: Any = obj
+                o._gobby_source_path = path
                 plugin_classes.append(obj)
 
         return plugin_classes

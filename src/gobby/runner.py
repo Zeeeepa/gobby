@@ -524,9 +524,10 @@ class GobbyRunner:
             if event_type == "agent_started":
                 agent = registry.get(run_id)
                 if agent and agent.tmux_session_name:
+                    session_name = agent.tmux_session_name
 
                     async def start_tmux_reader() -> None:
-                        await tmux_reader.start_reader(run_id, agent.tmux_session_name)  # type: ignore[arg-type]
+                        await tmux_reader.start_reader(run_id, session_name)
 
                     task = asyncio.create_task(start_tmux_reader())
                     task.add_done_callback(_log_broadcast_exception)

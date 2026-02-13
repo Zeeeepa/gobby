@@ -10,11 +10,11 @@ This provider replaces direct google-generativeai SDK usage with LiteLLM routing
 
 import json
 import logging
-from typing import Any, Literal
+from typing import Any, Literal, cast
 
 from gobby.config.app import DaemonConfig
 from gobby.llm.base import AuthMode, LLMProvider
-from gobby.llm.litellm_executor import get_litellm_model, setup_provider_env
+from gobby.llm.litellm_executor import AuthModeType, get_litellm_model, setup_provider_env
 
 logger = logging.getLogger(__name__)
 
@@ -53,7 +53,7 @@ class GeminiProvider(LLMProvider):
             self._auth_mode = config.llm_providers.gemini.auth_mode
 
         # Set up environment for provider/auth_mode
-        setup_provider_env("gemini", self._auth_mode)  # type: ignore[arg-type]
+        setup_provider_env("gemini", cast(AuthModeType, self._auth_mode))
 
         try:
             import litellm
@@ -70,7 +70,7 @@ class GeminiProvider(LLMProvider):
 
     def _get_model(self, base_model: str) -> str:
         """Get the LiteLLM-formatted model name with appropriate prefix."""
-        return get_litellm_model(base_model, "gemini", self._auth_mode)  # type: ignore[arg-type]
+        return get_litellm_model(base_model, "gemini", cast(AuthModeType, self._auth_mode))
 
     @property
     def provider_name(self) -> str:

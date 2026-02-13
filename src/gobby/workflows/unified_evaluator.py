@@ -11,7 +11,7 @@ architecture (replacing the dual lifecycle/step evaluation paths).
 import logging
 from collections.abc import Callable
 from dataclasses import dataclass, field
-from typing import Any
+from typing import Any, Literal
 
 from gobby.hooks.events import HookEvent, HookEventType, HookResponse
 from gobby.workflows.definitions import WorkflowDefinition, WorkflowInstance, WorkflowStep
@@ -60,7 +60,7 @@ class DotDict(dict[str, Any]):
 class EvaluationResult:
     """Result of evaluating an event across all workflow instances."""
 
-    decision: str = "allow"
+    decision: Literal["allow", "deny", "ask", "block", "modify"] = "allow"
     context_parts: list[str] = field(default_factory=list)
     system_messages: list[str] = field(default_factory=list)
     reason: str | None = None
@@ -70,7 +70,7 @@ class EvaluationResult:
     def to_hook_response(self) -> HookResponse:
         """Convert to a HookResponse for the hook system."""
         return HookResponse(
-            decision=self.decision,  # type: ignore[arg-type]
+            decision=self.decision,
             context="\n\n".join(self.context_parts) if self.context_parts else None,
             system_message="\n".join(self.system_messages) if self.system_messages else None,
             reason=self.reason,

@@ -588,7 +588,8 @@ def import_pipeline(ctx: click.Context, path: str, output_path: str | None) -> N
         dest_path.parent.mkdir(parents=True, exist_ok=True)
     else:
         # Save to project workflows directory
-        workflows_dir = project_path / ".gobby" / "workflows"  # type: ignore
+        assert project_path is not None  # guarded by check on line 570
+        workflows_dir = project_path / ".gobby" / "workflows"
         workflows_dir.mkdir(parents=True, exist_ok=True)
         dest_path = workflows_dir / f"{pipeline.name}.yaml"
 

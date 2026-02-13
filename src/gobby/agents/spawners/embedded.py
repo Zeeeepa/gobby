@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import os
 import platform
+import types
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -12,10 +13,11 @@ from gobby.agents.sandbox import SandboxConfig, compute_sandbox_paths, get_sandb
 from gobby.agents.spawners.base import EmbeddedPTYResult, make_spawn_env
 
 # pty is only available on Unix-like systems
+pty: types.ModuleType | None
 try:
     import pty
 except ImportError:
-    pty = None  # type: ignore[assignment]
+    pty = None
 
 if TYPE_CHECKING:
     from collections.abc import Callable

@@ -3,7 +3,7 @@ from __future__ import annotations
 import asyncio
 import logging
 from datetime import UTC, datetime
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, Literal, cast
 
 from gobby.config.persistence import MemoryConfig
 from gobby.memory.backends.storage_adapter import StorageAdapter
@@ -147,12 +147,12 @@ class MemoryManager:
         """Convert a MemoryRecord from the backend to a Memory for downstream compatibility."""
         return Memory(
             id=record.id,
-            memory_type=record.memory_type,  # type: ignore[arg-type]  # MemoryRecord uses str, Memory uses Literal
+            memory_type=cast(Literal["fact", "preference", "pattern", "context"], record.memory_type),
             content=record.content,
             created_at=record.created_at.isoformat() if record.created_at else "",
             updated_at=record.updated_at.isoformat() if record.updated_at else "",
             project_id=record.project_id,
-            source_type=record.source_type,  # type: ignore[arg-type]  # MemoryRecord uses str, Memory uses Literal
+            source_type=cast(Literal["user", "session", "inferred"] | None, record.source_type),
             source_session_id=record.source_session_id,
             importance=record.importance,
             access_count=record.access_count,

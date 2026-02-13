@@ -75,12 +75,15 @@ class Mem0Service:
 
     async def _delete_from_mem0(self, memory_id: str) -> None:
         """Delete a memory from Mem0 if it has a mem0_id. Non-blocking on failure."""
+        if not self._mem0_client:
+            return
+
         memory = self._get_memory(memory_id)
         if not memory or not memory.mem0_id:
             return
 
         try:
-            await self._mem0_client.delete(memory.mem0_id)  # type: ignore[union-attr]
+            await self._mem0_client.delete(memory.mem0_id)
         except Mem0ConnectionError as e:
             logger.warning(f"Mem0 unreachable during delete for {memory_id}: {e}")
         except Exception as e:

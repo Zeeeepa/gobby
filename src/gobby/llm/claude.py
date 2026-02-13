@@ -86,7 +86,9 @@ class ClaudeLLMProvider(LLMProvider):
         if auth_mode:
             self._auth_mode = auth_mode
         elif config.llm_providers and config.llm_providers.claude:
-            self._auth_mode = config.llm_providers.claude.auth_mode  # type: ignore[assignment]
+            config_auth = config.llm_providers.claude.auth_mode
+            if config_auth in ("subscription", "api_key"):
+                self._auth_mode = cast(AuthMode, config_auth)
 
         # Set up based on auth mode
         if self._auth_mode == "subscription":
