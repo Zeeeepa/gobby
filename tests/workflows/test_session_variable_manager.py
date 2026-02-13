@@ -1,0 +1,207 @@
+"""Tests for SessionVariableManager CRUD operations."""
+
+from __future__ import annotations
+
+import pytest
+
+from gobby.storage.database import LocalDatabase
+from gobby.storage.migrations import run_migrations
+
+pytestmark = pytest.mark.unit
+
+
+@pytest.fixture
+def db(tmp_path):
+    database = LocalDatabase(tmp_path / "test.db")
+    run_migrations(database)
+    database.execute(
+        "INSERT INTO projects (id, name) VALUES (?, ?)",
+        ("proj1", "test-project"),
+    )
+    yield database
+    database.close()
+
+
+def _ensure_session(db, session_id: str) -> None:
+    db.execute(
+        "INSERT OR IGNORE INTO sessions (id, external_id, machine_id, source, project_id, "
+        "created_at, updated_at) VALUES (?, ?, ?, ?, ?, datetime('now'), datetime('now'))",
+        (session_id, f"ext-{session_id}", "machine-1", "claude", "proj1"),
+    )
+
+
+def test_get_variables_empty(db) -> None:
+    """Test get_variables returns empty dict for new/unknown session."""
+    from gobby.workflows.state_manager import SessionVariableManager
+
+    mgr = SessionVariableManager(db)
+    result = mgr.get_variables("nonexistent")
+    assert result == {}
+
+
+def test_set_variable(db) -> None:
+    """Test set_variable writes a single variable."""
+    from gobby.workflows.state_manager import SessionVariableManager
+
+    mgr = SessionVariableManager(db)
+
+    mgr.set_variable("s1", "task_claimed", True)
+
+    result = mgr.get_variables("s1")
+    assert result["task_claimed"] is True
+
+
+def test_set_variable_multiple(db) -> None:
+    """Test set_variable can set multiple variables incrementally."""
+    from gobby.workflows.state_manager import SessionVariableManager
+
+    mgr = SessionVariableManager(db)
+
+    mgr.set_variable("s1", "task_claimed", True)
+    mgr.set_variable("s1", "servers_listed", False)
+    mgr.set_variable("s1", "stop_attempts", 0)
+
+    result = mgr.get_variables("s1")
+    assert result["task_claimed"] is True
+    assert result["servers_listed"] is False
+    assert result["stop_attempts"] == 0
+
+
+def test_set_variable_overwrite(db) -> None:
+    """Test set_variable overwrites an existing variable."""
+    from gobby.workflows.state_manager import SessionVariableManager
+
+    mgr = SessionVariableManager(db)
+
+    mgr.set_variable("s1", "stop_attempts", 0)
+    mgr.set_variable("s1", "stop_attempts", 3)
+
+    result = mgr.get_variables("s1")
+    assert result["stop_attempts"] == 3
+
+
+def test_merge_variables(db) -> None:
+    """Test merge_variables atomically merges updates."""
+    from gobby.workflows.state_manager import SessionVariableManager
+
+    mgr = SessionVariableManager(db)
+
+    # Set initial state
+    mgr.set_variable("s1", "a", 1)
+    mgr.set_variable("s1", "b", 2)
+
+    # Merge new values (add c, update a, leave b)
+    result = mgr.merge_variables("s1", {"a": 10, "c": 3})
+    assert result is True
+
+    variables = mgr.get_variables("s1")
+    assert variables["a"] == 10  # Updated
+    assert variables["b"] == 2  # Unchanged
+    assert variables["c"] == 3  # Added
+
+
+def test_merge_variables_creates_row(db) -> None:
+    """Test merge_variables creates a row if one doesn't exist."""
+    from gobby.workflows.state_manager import SessionVariableManager
+
+    mgr = SessionVariableManager(db)
+
+    result = mgr.merge_variables("s1", {"key": "value"})
+    assert result is True
+
+    variables = mgr.get_variables("s1")
+    assert variables["key"] == "value"
+
+
+def test_merge_variables_empty_updates(db) -> None:
+    """Test merge_variables with empty dict is a no-op."""
+    from gobby.workflows.state_manager import SessionVariableManager
+
+    mgr = SessionVariableManager(db)
+
+    result = mgr.merge_variables("s1", {})
+    assert result is True
+
+
+def test_delete_variables(db) -> None:
+    """Test delete_variables removes all variables for a session."""
+    from gobby.workflows.state_manager import SessionVariableManager
+
+    mgr = SessionVariableManager(db)
+
+    mgr.set_variable("s1", "a", 1)
+    mgr.set_variable("s1", "b", 2)
+
+    mgr.delete_variables("s1")
+
+    result = mgr.get_variables("s1")
+    assert result == {}
+
+
+def test_delete_variables_nonexistent(db) -> None:
+    """Test delete_variables on non-existent session doesn't raise."""
+    from gobby.workflows.state_manager import SessionVariableManager
+
+    mgr = SessionVariableManager(db)
+    # Should not raise
+    mgr.delete_variables("nonexistent")
+
+
+def test_variables_persist_across_workflow_changes(db) -> None:
+    """Test that session variables persist when workflows are enabled/disabled.
+
+    Session variables live in their own table, independent of workflow instances.
+    Enabling/disabling a workflow should not affect session variables.
+    """
+    from gobby.workflows.definitions import WorkflowInstance
+    from gobby.workflows.state_manager import SessionVariableManager, WorkflowInstanceManager
+
+    _ensure_session(db, "s1")
+    sv_mgr = SessionVariableManager(db)
+    wi_mgr = WorkflowInstanceManager(db)
+
+    # Set session variables
+    sv_mgr.set_variable("s1", "task_claimed", True)
+    sv_mgr.set_variable("s1", "unlocked_tools", ["Read", "Write"])
+
+    # Create and then delete a workflow instance
+    wi_mgr.save_instance(WorkflowInstance(
+        id="inst-1", session_id="s1", workflow_name="auto-task",
+    ))
+    wi_mgr.delete_instance("s1", "auto-task")
+
+    # Session variables should be unaffected
+    result = sv_mgr.get_variables("s1")
+    assert result["task_claimed"] is True
+    assert result["unlocked_tools"] == ["Read", "Write"]
+
+
+def test_sessions_isolated(db) -> None:
+    """Test that variables from different sessions are isolated."""
+    from gobby.workflows.state_manager import SessionVariableManager
+
+    mgr = SessionVariableManager(db)
+
+    mgr.set_variable("s1", "key", "session1")
+    mgr.set_variable("s2", "key", "session2")
+
+    assert mgr.get_variables("s1")["key"] == "session1"
+    assert mgr.get_variables("s2")["key"] == "session2"
+
+
+def test_complex_variable_types(db) -> None:
+    """Test that variables support complex JSON types."""
+    from gobby.workflows.state_manager import SessionVariableManager
+
+    mgr = SessionVariableManager(db)
+
+    mgr.set_variable("s1", "list_val", [1, 2, 3])
+    mgr.set_variable("s1", "dict_val", {"nested": {"deep": True}})
+    mgr.set_variable("s1", "null_val", None)
+    mgr.set_variable("s1", "bool_val", False)
+
+    result = mgr.get_variables("s1")
+    assert result["list_val"] == [1, 2, 3]
+    assert result["dict_val"] == {"nested": {"deep": True}}
+    assert result["null_val"] is None
+    assert result["bool_val"] is False
