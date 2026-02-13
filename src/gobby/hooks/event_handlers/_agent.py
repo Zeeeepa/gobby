@@ -95,7 +95,7 @@ class AgentEventHandlerMixin(EventHandlersBase):
         # /gobby:skillname → resolve and inject
         if self._skill_manager is None:
             raise RuntimeError("skill_manager not initialized")
-        skill = resolved or self._skill_manager.resolve_skill_name(skill_name)
+        skill = resolved if resolved else self._skill_manager.resolve_skill_name(skill_name)
 
         if not skill:
             return self._skill_not_found_context(skill_name)
