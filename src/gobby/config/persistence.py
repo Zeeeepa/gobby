@@ -24,6 +24,8 @@ __all__ = [
 class MemoryConfig(BaseModel):
     """Memory system configuration."""
 
+    model_config = {"extra": "ignore"}
+
     enabled: bool = Field(
         default=True,
         description="Enable persistent memory system",
@@ -36,44 +38,32 @@ class MemoryConfig(BaseModel):
             "'null' (no persistence, for testing)"
         ),
     )
-    importance_threshold: float = Field(
-        default=0.7,
-        description="Minimum importance score for memory injection",
-    )
-    decay_enabled: bool = Field(
-        default=True,
-        description="Enable memory importance decay over time",
-    )
-    decay_rate: float = Field(
-        default=0.05,
-        description="Importance decay rate per month",
-    )
-    decay_floor: float = Field(
-        default=0.1,
-        description="Minimum importance score after decay",
-    )
-    search_backend: str = Field(
-        default="auto",
-        description=(
-            "Search backend for memory recall. Options: "
-            "'auto' (default, tries embeddings then falls back to TF-IDF), "
-            "'tfidf' (zero-dependency local search), "
-            "'text' (simple substring matching), "
-            "'embedding' (semantic search via embeddings), "
-            "'hybrid' (combined TF-IDF + embedding scores)"
-        ),
-    )
     embedding_model: str = Field(
         default="text-embedding-3-small",
-        description="Embedding model for semantic search (used in auto/embedding/hybrid modes)",
+        description="Embedding model for semantic search",
     )
-    embedding_weight: float = Field(
-        default=0.6,
-        description="Weight for embedding score in hybrid search (0.0-1.0)",
+    qdrant_path: str | None = Field(
+        default=None,
+        description=(
+            "Directory path for embedded Qdrant storage (on-disk, zero Docker). "
+            "Mutually exclusive with qdrant_url. "
+            "Default set by runner to ~/.gobby/qdrant/"
+        ),
     )
-    tfidf_weight: float = Field(
-        default=0.4,
-        description="Weight for TF-IDF score in hybrid search (0.0-1.0)",
+    qdrant_url: str | None = Field(
+        default=None,
+        description=(
+            "URL for remote Qdrant server. "
+            "Mutually exclusive with qdrant_path. "
+            "Example: 'http://localhost:6333'"
+        ),
+    )
+    qdrant_api_key: str | None = Field(
+        default=None,
+        description=(
+            "API key for remote Qdrant server. "
+            "Supports ${ENV_VAR} pattern for env var expansion at load time."
+        ),
     )
     mem0_url: str | None = Field(
         default=None,
@@ -137,14 +127,7 @@ class MemoryConfig(BaseModel):
         description="Maximum backoff seconds on Mem0 connection failure",
     )
 
-    @field_validator(
-        "importance_threshold",
-        "decay_rate",
-        "decay_floor",
-        "crossref_threshold",
-        "embedding_weight",
-        "tfidf_weight",
-    )
+    @field_validator("crossref_threshold")
     @classmethod
     def validate_probability(cls, v: float) -> float:
         """Validate value is between 0.0 and 1.0."""
@@ -160,17 +143,6 @@ class MemoryConfig(BaseModel):
             raise ValueError("crossref_max_links must be at least 1")
         return v
 
-    @field_validator("search_backend")
-    @classmethod
-    def validate_search_backend(cls, v: str) -> str:
-        """Validate search_backend is a supported option."""
-        valid_backends = {"tfidf", "text", "embedding", "auto", "hybrid"}
-        if v not in valid_backends:
-            raise ValueError(
-                f"Invalid search_backend '{v}'. Must be one of: {sorted(valid_backends)}"
-            )
-        return v
-
     @field_validator("backend")
     @classmethod
     def validate_backend(cls, v: str) -> str:
@@ -184,13 +156,12 @@ class MemoryConfig(BaseModel):
         return v
 
     @model_validator(mode="after")
-    def validate_hybrid_weights(self) -> "MemoryConfig":
-        """Warn if embedding_weight + tfidf_weight don't sum to ~1.0."""
-        total = self.embedding_weight + self.tfidf_weight
-        if abs(total - 1.0) > 0.01:
-            logger.warning(
-                f"embedding_weight ({self.embedding_weight}) + tfidf_weight ({self.tfidf_weight}) "
-                f"= {total}, expected ~1.0"
+    def validate_qdrant_exclusivity(self) -> "MemoryConfig":
+        """Validate qdrant_path and qdrant_url are mutually exclusive."""
+        if self.qdrant_path and self.qdrant_url:
+            raise ValueError(
+                "qdrant_path and qdrant_url are mutually exclusive. "
+                "Use qdrant_path for embedded mode or qdrant_url for remote mode."
             )
         return self
 
