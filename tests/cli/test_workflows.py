@@ -13,6 +13,7 @@ MOCK_WORKFLOW = WorkflowDefinition(
     name="test-workflow",
     description="A test workflow",
     type="step",
+    enabled=False,
     version="1.0",
     steps=[
         WorkflowStep(name="step1", description="First step"),
@@ -78,7 +79,7 @@ def test_list_workflows_found(mock_open, mock_yaml, mock_project_path, mock_load
 
     assert result.exit_code == 0
     assert "test-workflow" in result.output
-    assert "(step)" in result.output
+    assert "(enabled)" in result.output
     # [global] tag is not shown for global workflows
     assert "desc" in result.output
 

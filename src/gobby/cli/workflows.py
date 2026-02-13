@@ -119,8 +119,8 @@ def list_workflows(
     click.echo(f"Found {len(workflows)} workflow(s):\n")
     for wf in workflows:
         source_tag = f"[{wf['source']}]" if wf["source"] == "project" else ""
-        type_tag = f"({wf['type']})"
-        click.echo(f"  {wf['name']} {type_tag} {source_tag}")
+        enabled_tag = "(enabled)" if wf["enabled"] else "(on-demand)"
+        click.echo(f"  {wf['name']} {enabled_tag} {source_tag}")
         if wf["description"]:
             click.echo(f"    {wf['description'][:80]}")
 

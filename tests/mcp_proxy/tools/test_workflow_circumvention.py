@@ -6,7 +6,7 @@ These tests verify that agents cannot bypass workflow controls:
 """
 
 from typing import Any
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
@@ -53,13 +53,20 @@ def mock_loader():
 
 @pytest.fixture
 def registry(mock_loader, mock_state_manager, mock_session_manager, mock_db):
-    """Create workflow registry for testing."""
-    return create_workflows_registry(
-        loader=mock_loader,
-        state_manager=mock_state_manager,
-        session_manager=mock_session_manager,
-        db=mock_db,
-    )
+    """Create workflow registry for testing.
+
+    Patch out WorkflowInstanceManager and SessionVariableManager so the
+    registry uses the backward-compat code path (no session_var_manager).
+    """
+    with patch(
+        "gobby.mcp_proxy.tools.workflows.WorkflowInstanceManager", return_value=None
+    ), patch("gobby.mcp_proxy.tools.workflows.SessionVariableManager", return_value=None):
+        return create_workflows_registry(
+            loader=mock_loader,
+            state_manager=mock_state_manager,
+            session_manager=mock_session_manager,
+            db=mock_db,
+        )
 
 
 def call_tool(registry: Any, tool_name: str, **kwargs: Any) -> Any:

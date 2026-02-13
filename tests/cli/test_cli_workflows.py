@@ -51,7 +51,7 @@ def test_list_workflows_found(cli_runner, mock_loader, tmp_path) -> None:
 
             assert result.exit_code == 0
             assert "test_wf" in result.output
-            assert "(step)" in result.output
+            assert "(enabled)" in result.output
 
 
 def test_show_workflow(cli_runner, mock_loader) -> None:
@@ -110,8 +110,10 @@ def test_set_workflow(cli_runner, mock_loader, mock_state_manager) -> None:
         with patch("gobby.cli.workflows.get_state_manager", return_value=mock_state_manager):
             with patch("gobby.cli.workflows.get_project_path", return_value=None):
                 with patch("gobby.cli.workflows.resolve_session_id", return_value="sess1"):
-                    # Mock definition
-                    defi = WorkflowDefinition(name="new_wf", steps=[WorkflowStep(name="start")])
+                    # Mock definition (enabled=False for on-demand activation)
+                    defi = WorkflowDefinition(
+                        name="new_wf", enabled=False, steps=[WorkflowStep(name="start")]
+                    )
                     mock_loader.load_workflow_sync.return_value = defi
 
                     # Mock no existing state
@@ -173,6 +175,7 @@ def test_list_workflows_with_all_flag(cli_runner, mock_loader, tmp_path) -> None
 
             assert result.exit_code == 0
             assert "lifecycle_wf" in result.output
+            assert "(enabled)" in result.output
 
 
 # ==============================================================================
@@ -303,12 +306,12 @@ def test_status_disabled_workflow(cli_runner, mock_state_manager) -> None:
 
 
 def test_set_workflow_lifecycle_rejected(cli_runner, mock_loader, mock_state_manager) -> None:
-    """Test that lifecycle workflows cannot be manually set."""
+    """Test that always-on (enabled) workflows cannot be manually set."""
     with patch("gobby.cli.workflows.get_workflow_loader", return_value=mock_loader):
         with patch("gobby.cli.workflows.get_state_manager", return_value=mock_state_manager):
             with patch("gobby.cli.workflows.get_project_path", return_value=None):
                 with patch("gobby.cli.workflows.resolve_session_id", return_value="sess1"):
-                    defi = WorkflowDefinition(name="lifecycle_wf", type="lifecycle")
+                    defi = WorkflowDefinition(name="lifecycle_wf", enabled=True)
                     mock_loader.load_workflow_sync.return_value = defi
 
                     result = cli_runner.invoke(
@@ -316,7 +319,7 @@ def test_set_workflow_lifecycle_rejected(cli_runner, mock_loader, mock_state_man
                     )
 
                     assert result.exit_code == 1
-                    assert "lifecycle workflow" in result.output
+                    assert "always-on" in result.output
 
 
 def test_set_workflow_already_active(cli_runner, mock_loader, mock_state_manager) -> None:
@@ -325,7 +328,9 @@ def test_set_workflow_already_active(cli_runner, mock_loader, mock_state_manager
         with patch("gobby.cli.workflows.get_state_manager", return_value=mock_state_manager):
             with patch("gobby.cli.workflows.get_project_path", return_value=None):
                 with patch("gobby.cli.workflows.resolve_session_id", return_value="sess1"):
-                    defi = WorkflowDefinition(name="new_wf", steps=[WorkflowStep(name="start")])
+                    defi = WorkflowDefinition(
+                        name="new_wf", enabled=False, steps=[WorkflowStep(name="start")]
+                    )
                     mock_loader.load_workflow_sync.return_value = defi
 
                     existing_state = MagicMock(spec=WorkflowState)
@@ -346,6 +351,7 @@ def test_set_workflow_with_initial_step(cli_runner, mock_loader, mock_state_mana
                 with patch("gobby.cli.workflows.resolve_session_id", return_value="sess1"):
                     defi = WorkflowDefinition(
                         name="multi_step",
+                        enabled=False,
                         steps=[
                             WorkflowStep(name="plan"),
                             WorkflowStep(name="implement"),

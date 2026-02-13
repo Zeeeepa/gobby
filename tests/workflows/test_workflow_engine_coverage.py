@@ -277,6 +277,7 @@ async def test_evaluate_lifecycle_workflows_blocked(
 
     workflow = Mock(spec=WorkflowDefinition)
     workflow.name = "block-wf"
+    workflow.enabled = True
     workflow.triggers = {"on_before_tool": [{"action": "block_action"}]}
     workflow.variables = {}
     workflow.observers = []
