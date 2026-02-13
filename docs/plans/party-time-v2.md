@@ -311,7 +311,8 @@ CREATE INDEX idx_pag_token ON party_approval_gates(token) WHERE token IS NOT NUL
 ### Executor Logic
 
 Modified DAG advancement (pseudocode):
-```
+
+```text
 on role_completed(role_name):
   for dependent_role in get_dependents(role_name):
     gate = get_gate(party_id, role_name, dependent_role)
@@ -401,7 +402,7 @@ This snapshot is passed as `step_variables` to the recovery workflow. The new le
 
 ### Recovery Trigger Flow
 
-```
+```text
 leader crashes
   -> on_crash: restart attempted up to retry_attempts times (v1 recovery)
   -> all retries exhausted

@@ -270,7 +270,7 @@ export function useWorkflows() {
 
 **Pattern:** Follow `McpPage.tsx` layout.
 
-```
+```text
 WorkflowsPage
 ├── Toolbar
 │   ├── Title + count badge
@@ -322,7 +322,7 @@ This phase is large enough for its own epic. Broken into sub-phases below.
 
 #### React Flow Canvas Architecture
 
-```
+```text
 WorkflowBuilder
 ├── Toolbar
 │   ├── Back button (return to list)

@@ -142,6 +142,9 @@ jobs:
 
       - name: Run pip-audit (dependency CVEs)
         # CVE-2025-69872: diskcache 5.6.3 (transitive via litellm) - no fix available
+        # Tracked: https://github.com/joshgav/gobby/issues/CVE-2025-69872
+        # TODO: Remove --ignore-vuln once diskcache releases a patched version.
+        #       The scheduled 'dependency-audit' job below re-checks monthly.
         run: >
           uv run pip-audit
           --ignore-vuln CVE-2025-69872

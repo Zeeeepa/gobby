@@ -65,7 +65,7 @@ A **Party** is a heterogeneous group of agents with different roles, orchestrate
 
 ### Example Party Definition (conceptual)
 
-```
+```yaml
 name: feature-development
 description: "Leader plans, developers implement, QA reviews, merger lands"
 
@@ -113,7 +113,8 @@ recovery:                        # party-wide defaults (roles override)
 The `flow` field is a dependency graph. The executor topologically sorts it and spawns roles when all dependencies are met.
 
 **Parallel execution with count > 1:**
-```
+
+```text
 leader (1 agent)
        ↓ completes
 developer-0  developer-1     (2 agents, parallel — isolation per agent def)
@@ -220,7 +221,7 @@ CREATE INDEX idx_party_members_session ON party_members(session_id);
 
 ### Party Executor — DAG Lifecycle
 
-```
+```text
 1. LAUNCH
    - Validate definition (agents exist, flow is valid DAG — no cycles)
    - Create parties record (status=pending)
@@ -309,31 +310,37 @@ The leader is a party role with `is_leader: true`. Gets elevated MCP tools via a
 ## Implementation Phases
 
 ### Phase 1: P2P Messaging (foundation)
+
 - Migration 102, `p2p_messaging.py`, extend `InterSessionMessageManager`
 - Tests: `tests/mcp_proxy/tools/test_p2p_messaging.py`
 
 ### Phase 2: Party Definitions + Storage
+
 - `parties/definitions.py` (Pydantic models), `storage/parties.py` (CRUD)
 - Migration 103 (all 3 tables)
 - Definition CRUD via MCP tools
 - Tests: `tests/parties/test_definitions.py`, `tests/storage/test_parties.py`
 
 ### Phase 3: Party Executor
+
 - `parties/executor.py` — DAG scheduling, spawn via `spawn_agent_impl`, monitor via registry events
 - Recovery strategy execution (restart/pause/abort)
 - Extend `RunningAgent` with `party_id`
 - Tests: `tests/parties/test_executor.py`
 
 ### Phase 4: Party MCP Tools + Leader
+
 - `mcp_proxy/tools/party.py` with `gobby-party` registry
 - Wire into `setup_internal_registries()`
 - Tests: `tests/mcp_proxy/tools/test_party.py`
 
 ### Phase 5: Built-in Example + Integration Test
+
 - Create a `feature-development` party definition via MCP tool
 - E2E test: launch party, verify DAG execution, recovery on simulated crash
 
 ### Future (not v1)
+
 - On-demand spawn mode (1 QA per completed developer branch)
 - Work-claiming queue (agents claim from shared pool)
 - Approval gates for blocking HITL decisions (reuse pipeline approval system)

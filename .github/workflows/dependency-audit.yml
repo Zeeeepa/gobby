@@ -1,0 +1,38 @@
+name: Dependency Audit
+
+on:
+  schedule:
+    - cron: '0 9 1 * *'  # Monthly on the 1st at 09:00 UTC
+  workflow_dispatch:  # Manual trigger
+
+jobs:
+  audit:
+    name: Check Dependency CVEs
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v4
+        with:
+          enable-cache: true
+
+      - name: Set up Python
+        run: uv python install 3.13
+
+      - name: Install dependencies
+        run: uv sync --dev
+
+      - name: Run pip-audit (no ignores)
+        # Run without --ignore-vuln to detect when fixes become available.
+        # If this passes, the --ignore-vuln flag in ci.yml can be removed.
+        run: uv run pip-audit
+        continue-on-error: true
+        id: audit
+
+      - name: Report results
+        if: steps.audit.outcome == 'failure'
+        run: |
+          echo "::warning::pip-audit found vulnerabilities. Review output above."
+          echo "If CVE-2025-69872 (diskcache) is the only failure, no action needed yet."
+          echo "If CVE-2025-69872 is gone, remove --ignore-vuln from .github/workflows/ci.yml"
