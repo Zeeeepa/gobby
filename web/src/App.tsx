@@ -20,6 +20,7 @@ import { McpPage } from './components/McpPage'
 import { CronJobsPage } from './components/CronJobsPage'
 import { AgentDefinitionsPage } from './components/AgentDefinitionsPage'
 import { ConfigurationPage } from './components/ConfigurationPage'
+import { WorkflowsPage } from './components/WorkflowsPage'
 import { QuickCaptureTask } from './components/tasks/QuickCaptureTask'
 import type { GobbySession } from './hooks/useSessions'
 
@@ -37,7 +38,9 @@ export default function App() {
   const [terminalOpen, setTerminalOpen] = useState(true)
   const [activeTab, setActiveTab] = useState<string>('chat')
   const [sidebarOpen, setSidebarOpen] = useState(false)
-  const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null)
+  const [selectedProjectId, setSelectedProjectId] = useState<string | null>(() => {
+    try { return localStorage.getItem('gobby-chat-project') } catch { return null }
+  })
   const [quickCaptureOpen, setQuickCaptureOpen] = useState(false)
 
   // Global keyboard chord: Cmd+K → t opens quick capture task creation
@@ -96,6 +99,14 @@ export default function App() {
   }, [projectOptions])
 
   const effectiveProjectId = selectedProjectId ?? defaultProjectId
+
+  // Persist project selection
+  useEffect(() => {
+    try {
+      if (selectedProjectId) localStorage.setItem('gobby-chat-project', selectedProjectId)
+      else localStorage.removeItem('gobby-chat-project')
+    } catch { /* noop */ }
+  }, [selectedProjectId])
 
   // Web-chat sessions only (for ConversationPicker in ChatPage)
   const webChatSessions = useMemo(
@@ -304,6 +315,8 @@ export default function App() {
         <AgentDefinitionsPage />
       ) : activeTab === 'skills' ? (
         <SkillsPage />
+      ) : activeTab === 'workflows' ? (
+        <WorkflowsPage />
       ) : activeTab === 'mcp' ? (
         <McpPage />
       ) : activeTab === 'configuration' ? (
