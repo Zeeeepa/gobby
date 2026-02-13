@@ -15,6 +15,13 @@ These are enforced by hooks and workflows.
 7. **No stopping until done.** Task must be closed or marked needs_review before stopping.
 8. **Triage what you find.** Create tasks for unrelated errors or issues you discover.
 
+## Progressive Tool Disclosure Enforced by Hooks
+
+Gobby uses an MCP proxy with progressive disclosure. This means that you can't just call any tool you want.
+Each step (list_mcp_servers, list_tools, get_tool_schema, call_tool) is a separate top-level tool (e.g., mcp__gobby__list_mcp_servers). 
+Load each via ToolSearch before first use.
+Do NOT try to call one step through another (e.g., don't use call_tool to invoke get_tool_schema).
+
 ## Plan Mode
 
 Task management MCP calls (gobby-tasks) are allowed during plan mode. Planning includes organizing work, not just designing it.
