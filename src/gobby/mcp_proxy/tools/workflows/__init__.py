@@ -176,12 +176,18 @@ def create_workflows_registry(
 
     @registry.tool(
         name="get_workflow_status",
-        description="Get current workflow step and state. Accepts #N, N, UUID, or prefix for session_id.",
+        description="Get workflow status for a session. Shows all active workflow instances and session variables. Accepts #N, N, UUID, or prefix for session_id.",
     )
     def _get_workflow_status(session_id: str | None = None) -> dict[str, Any]:
         if _state_manager is None or _session_manager is None:
             return {"error": "Workflow tools require database connection"}
-        return get_workflow_status(_state_manager, _session_manager, session_id)
+        return get_workflow_status(
+            _state_manager,
+            _session_manager,
+            session_id,
+            instance_manager=_instance_manager,
+            session_var_manager=_session_var_manager,
+        )
 
     @registry.tool(
         name="request_step_transition",
