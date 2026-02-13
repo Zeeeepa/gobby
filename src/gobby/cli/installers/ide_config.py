@@ -25,6 +25,8 @@ def _get_ide_config_dir(ide_name: str) -> Path:
         return Path.home() / "Library" / "Application Support" / ide_name
     elif sys.platform == "win32":
         appdata = os.environ.get("APPDATA", "")
+        if not appdata:
+            appdata = str(Path.home() / "AppData" / "Roaming")
         return Path(appdata) / ide_name
     else:
         return Path.home() / ".config" / ide_name

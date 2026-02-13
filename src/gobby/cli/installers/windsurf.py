@@ -184,6 +184,8 @@ def install_windsurf(project_path: Path) -> dict[str, Any]:
     # Configure terminal tab title so tmux set-titles propagates to IDE
     terminal_result = configure_ide_terminal_title("Windsurf")
     result["terminal_configured"] = terminal_result.get("added", False)
+    if not terminal_result.get("success", True):
+        logger.warning("Terminal title config failed for Windsurf: %s", terminal_result.get("error"))
 
     result["success"] = True
     return result

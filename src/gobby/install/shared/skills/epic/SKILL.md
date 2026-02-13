@@ -14,14 +14,14 @@ Create an epic task - a parent container for a large feature or initiative that 
 
 ## Usage
 
-```
+```text
 /gobby:epic <title>
 /gobby:epic <title> - <description>
 ```
 
 ## Examples
 
-```
+```text
 /gobby:epic User authentication system
 /gobby:epic API v2 migration - Migrate all endpoints from REST to GraphQL with backwards compatibility
 /gobby:epic Performance optimization sprint

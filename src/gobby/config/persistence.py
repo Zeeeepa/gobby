@@ -160,6 +160,14 @@ class MemoryConfig(BaseModel):
             raise ValueError("crossref_max_links must be at least 1")
         return v
 
+    @field_validator("mem0_timeout")
+    @classmethod
+    def validate_mem0_timeout(cls, v: float) -> float:
+        """Validate mem0_timeout is positive."""
+        if v <= 0:
+            raise ValueError("mem0_timeout must be greater than 0")
+        return v
+
     @field_validator("search_backend")
     @classmethod
     def validate_search_backend(cls, v: str) -> str:

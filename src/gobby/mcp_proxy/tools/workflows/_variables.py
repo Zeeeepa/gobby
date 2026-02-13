@@ -31,6 +31,8 @@ def _coerce_value(value: str | int | float | bool | None) -> str | int | float |
     """
     if isinstance(value, str):
         stripped = value.strip().lower()
+        if stripped == "":
+            return None
         if stripped in ("true", "false"):
             return stripped == "true"
         if stripped in ("null", "none"):
@@ -99,7 +101,10 @@ def set_variable(
             value = resolve_session_task_value(value, resolved_session_id, session_manager, db)
         except (ValueError, KeyError) as e:
             logger.warning(
-                f"Failed to resolve session_task value '{value}' for session {resolved_session_id}: {e}"
+                "Failed to resolve session_task value %r for session %s: %s",
+                value,
+                resolved_session_id,
+                e,
             )
             return {
                 "ok": False,
