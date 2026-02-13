@@ -18,6 +18,7 @@ def _make_definition(
     variables: dict | None = None,
     session_variables: dict | None = None,
     steps: list | None = None,
+    enabled: bool = False,
 ) -> WorkflowDefinition:
     """Create a minimal WorkflowDefinition for testing."""
     from gobby.workflows.definitions import WorkflowStep
@@ -25,6 +26,7 @@ def _make_definition(
     return WorkflowDefinition(
         name=name,
         type=wf_type,
+        enabled=enabled,
         variables=variables or {},
         session_variables=session_variables or {},
         steps=steps or [WorkflowStep(name="start"), WorkflowStep(name="work")],

@@ -167,10 +167,9 @@ async def evaluate_workflow(
         )
         return result
 
-    result.workflow_type = definition.type
-
     # Pipeline definitions get basic info only
     if isinstance(definition, PipelineDefinition):
+        result.workflow_type = "pipeline"
         result.items.append(
             EvaluationItem(
                 layer="structure",
@@ -181,14 +180,16 @@ async def evaluate_workflow(
         )
         return result
 
-    # Lifecycle workflows get info notice
-    if definition.type == "lifecycle":
+    result.workflow_type = "enabled" if definition.enabled else "on-demand"
+
+    # Always-on workflows get info notice
+    if definition.enabled:
         result.items.append(
             EvaluationItem(
                 layer="structure",
                 level="info",
-                code="LIFECYCLE_TYPE",
-                message=f"'{name}' is a lifecycle workflow — runs automatically on events",
+                code="ALWAYS_ON",
+                message=f"'{name}' is an always-on workflow (enabled: true) — runs automatically on events",
             )
         )
 

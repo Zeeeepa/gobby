@@ -156,6 +156,7 @@ def _make_workflow(
     """Create a mock WorkflowDefinition with rule_definitions."""
     workflow = MagicMock(spec=WorkflowDefinition)
     workflow.type = "step"
+    workflow.steps = [MagicMock()]
     workflow.name = "test-workflow"
     workflow.rule_definitions = rule_definitions or {}
     workflow.get_step.return_value = step

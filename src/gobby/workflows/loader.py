@@ -703,7 +703,7 @@ class WorkflowLoader:
         """
         Discover all workflows from project and global directories.
 
-        Scans both root workflow directories and lifecycle/ subdirectories.
+        Scans root workflow directories.
         Returns workflows sorted by:
         1. Project workflows first (is_project=True), then global
         2. Within each group: by priority (ascending), then alphabetically by name
@@ -740,25 +740,11 @@ class WorkflowLoader:
                 file_mtimes=file_mtimes,
                 dir_mtimes=dir_mtimes,
             )
-            await self._scan_directory(
-                self._bundled_dir / "lifecycle",
-                is_project=False,
-                discovered=discovered,
-                file_mtimes=file_mtimes,
-                dir_mtimes=dir_mtimes,
-            )
 
         # 2. Scan global directories (shadows bundled)
         for global_dir in self.global_dirs:
             await self._scan_directory(
                 global_dir,
-                is_project=False,
-                discovered=discovered,
-                file_mtimes=file_mtimes,
-                dir_mtimes=dir_mtimes,
-            )
-            await self._scan_directory(
-                global_dir / "lifecycle",
                 is_project=False,
                 discovered=discovered,
                 file_mtimes=file_mtimes,
@@ -770,14 +756,6 @@ class WorkflowLoader:
             project_wf_dir = Path(project_path) / ".gobby" / "workflows"
             await self._scan_directory(
                 project_wf_dir,
-                is_project=True,
-                discovered=discovered,
-                failed=failed,
-                file_mtimes=file_mtimes,
-                dir_mtimes=dir_mtimes,
-            )
-            await self._scan_directory(
-                project_wf_dir / "lifecycle",
                 is_project=True,
                 discovered=discovered,
                 failed=failed,
@@ -1207,11 +1185,11 @@ class WorkflowLoader:
             # Workflow not found - let the caller decide if this is an error
             return True, None
 
-        if workflow.type == "lifecycle":
+        if isinstance(workflow, WorkflowDefinition) and workflow.enabled:
             return False, (
-                f"Cannot use lifecycle workflow '{workflow_name}' for agent spawning. "
-                f"Lifecycle workflows run automatically on events. "
-                f"Use a step workflow like 'plan-execute' instead."
+                f"Cannot use always-on workflow '{workflow_name}' for agent spawning. "
+                f"Always-on workflows run automatically on events. "
+                f"Use an on-demand workflow (enabled: false) instead."
             )
 
         return True, None

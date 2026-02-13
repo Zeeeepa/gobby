@@ -55,7 +55,7 @@ async def get_workflow(
         return {
             "success": True,
             "name": definition.name,
-            "type": definition.type,
+            "enabled": definition.enabled,
             "description": definition.description,
             "version": definition.version,
             "steps": (
@@ -83,7 +83,7 @@ async def get_workflow(
         return {
             "success": True,
             "name": definition.name,
-            "type": definition.type,
+            "type": "pipeline",
             "description": definition.description,
             "version": definition.version,
             "steps": (

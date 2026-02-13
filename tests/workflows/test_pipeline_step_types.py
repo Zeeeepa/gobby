@@ -148,7 +148,7 @@ class TestActivateWorkflowExecution:
 
         definition = WorkflowDefinition(
             name="auto-task",
-            type="step",
+            enabled=False,
             steps=[WorkflowStep(name="start"), WorkflowStep(name="work")],
             variables={},
             session_variables={},

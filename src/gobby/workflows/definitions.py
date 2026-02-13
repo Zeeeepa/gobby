@@ -137,6 +137,7 @@ class WorkflowDefinition(BaseModel):
     name: str
     description: str | None = None
     version: str = "1.0"
+    # Deprecated: use `enabled` instead. Kept for backward-compat YAML loading.
     type: Literal["lifecycle", "step"] = "step"
     extends: str | None = None
 

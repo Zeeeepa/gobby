@@ -23,7 +23,6 @@ LIFECYCLE_YAML = (
     / "install"
     / "shared"
     / "workflows"
-    / "lifecycle"
     / "session-lifecycle.yaml"
 )
 

@@ -69,10 +69,10 @@ async def activate_workflow(
     if not definition:
         return {"success": False, "error": f"Workflow '{name}' not found"}
 
-    if definition.type == "lifecycle":
+    if isinstance(definition, WorkflowDefinition) and definition.enabled:
         return {
             "success": False,
-            "error": f"Workflow '{name}' is lifecycle type (auto-runs on events, not manually activated)",
+            "error": f"Workflow '{name}' is already enabled (auto-runs on events, not manually activated)",
         }
 
     # This function only supports step-based workflows (WorkflowDefinition)

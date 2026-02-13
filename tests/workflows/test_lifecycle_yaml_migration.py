@@ -105,14 +105,14 @@ class TestHeadlessLifecycleUnifiedFormat:
 
 
 class TestLifecycleBackwardCompat:
-    """Tests for backward compatibility of lifecycle directory."""
+    """Tests for backward compatibility — lifecycle workflows now use enabled=True."""
 
     @pytest.mark.asyncio
-    async def test_lifecycle_subdir_still_discovered(self) -> None:
-        """Workflows in lifecycle/ subdirectory are still discovered."""
+    async def test_lifecycle_workflow_is_enabled(self) -> None:
+        """Lifecycle workflows are discovered and have enabled=True."""
         from gobby.workflows.loader import WorkflowLoader
 
         loader = WorkflowLoader(workflow_dirs=[WORKFLOW_DIR])
         definition = await loader.load_workflow("session-lifecycle")
         assert definition is not None
-        assert definition.type == "lifecycle"
+        assert definition.enabled is True

@@ -217,10 +217,10 @@ class WorkflowEngine:
             logger.error(f"Workflow '{state.workflow_name}' not found for session {session_id}")
             return HookResponse(decision="allow")
 
-        # Skip step handling for lifecycle workflows - they only use triggers
-        if workflow.type == "lifecycle":
+        # Skip step handling for workflows without steps (triggers-only)
+        if not workflow.steps:
             logger.debug(
-                f"Skipping step workflow handling for lifecycle workflow '{workflow.name}' "
+                f"Skipping step handling for triggers-only workflow '{workflow.name}' "
                 f"in session {session_id}"
             )
             return HookResponse(decision="allow")
@@ -1032,13 +1032,6 @@ class WorkflowEngine:
             logger.warning(f"Workflow '{workflow_name}' not found for auto-activation")
             return {"success": False, "error": f"Workflow '{workflow_name}' not found"}
 
-        if definition.type == "lifecycle":
-            logger.debug(f"Skipping auto-activation of lifecycle workflow '{workflow_name}'")
-            return {
-                "success": False,
-                "error": f"Workflow '{workflow_name}' is lifecycle type (auto-runs on events)",
-            }
-
         # Only WorkflowDefinition can be activated as step workflows
         if not isinstance(definition, WorkflowDefinition):
             logger.debug(f"Workflow '{workflow_name}' is a pipeline, not a step workflow")
@@ -1047,12 +1040,19 @@ class WorkflowEngine:
                 "error": f"'{workflow_name}' is a pipeline. Use pipeline execution instead.",
             }
 
+        if definition.enabled:
+            logger.debug(f"Skipping activation of always-on workflow '{workflow_name}'")
+            return {
+                "success": False,
+                "error": f"Workflow '{workflow_name}' is already enabled (auto-runs on events)",
+            }
+
         # Check for existing step workflow
         existing = self.state_manager.get_state(session_id)
         if existing and existing.workflow_name not in ("__lifecycle__", "__ended__"):
-            # Check if existing is lifecycle type
+            # Check if existing is an always-on workflow (can coexist)
             existing_def = await self.loader.load_workflow(existing.workflow_name, project_path)
-            if not existing_def or existing_def.type != "lifecycle":
+            if not existing_def or not getattr(existing_def, "enabled", False):
                 logger.warning(
                     f"Session {session_id} already has workflow '{existing.workflow_name}' active"
                 )

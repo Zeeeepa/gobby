@@ -1,6 +1,6 @@
 name: headless-lifecycle
 description: "Lifecycle for headless/SDK clients without session_start/session_end hooks"
-type: lifecycle
+enabled: true
 priority: 10
 sources: [claude_sdk]
 
