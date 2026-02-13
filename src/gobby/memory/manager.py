@@ -325,8 +325,7 @@ class MemoryManager:
         # Generate and store embedding (non-blocking)
         await self._store_embedding_async(memory.id, content, project_id)
 
-        # Mem0 dual-mode: index in Mem0 after local storage
-        await self._index_in_mem0(memory.id, content, project_id)
+        # Mem0 sync handled by background Mem0SyncProcessor (mem0_id IS NULL queue)
 
         # Auto cross-reference if enabled
         if getattr(self.config, "auto_crossref", False):
@@ -531,7 +530,15 @@ class MemoryManager:
             )
 
             if mem0_results is not None:
-                memories = mem0_results
+                # Merge unsynced local memories (mem0_id IS NULL) so freshly-created
+                # memories appear in results even before Mem0 sync completes.
+                seen_ids = {m.id for m in mem0_results}
+                unsynced = self._get_unsynced_memories(query, project_id, limit)
+                for m in unsynced:
+                    if m.id not in seen_ids:
+                        mem0_results.append(m)
+                        seen_ids.add(m.id)
+                memories = mem0_results[:limit]
             else:
                 memories = self._recall_with_search(
                     query=query,
@@ -846,12 +853,25 @@ class MemoryManager:
             by_type[m.memory_type] = by_type.get(m.memory_type, 0) + 1
             total_importance += m.importance
 
-        return {
+        stats: dict[str, Any] = {
             "total_count": len(memories),
             "by_type": by_type,
             "avg_importance": round(total_importance / len(memories), 3),
             "project_id": project_id,
         }
+
+        # Mem0 sync observability
+        if self._mem0_client:
+            try:
+                rows = self.db.fetchall(
+                    "SELECT COUNT(*) as cnt FROM memories WHERE mem0_id IS NULL", ()
+                )
+                pending = rows[0]["cnt"] if rows else 0
+                stats["mem0_sync"] = {"pending": pending}
+            except Exception:
+                stats["mem0_sync"] = {"pending": -1}
+
+        return stats
 
     def decay_memories(self) -> int:
         """
@@ -1053,6 +1073,31 @@ class MemoryManager:
                     memories.append(local)
 
         return memories
+
+    def _get_unsynced_memories(
+        self, query: str, project_id: str | None, limit: int
+    ) -> list[Memory]:
+        """Get local memories not yet synced to Mem0 that match the query.
+
+        Uses the local search backend for ranking rather than raw SQL LIKE,
+        filtering results to only those with mem0_id IS NULL.
+        """
+        # Use local search to find matching memories
+        local_results = self._recall_with_search(
+            query=query, project_id=project_id, limit=limit * 2
+        )
+        # Filter to only unsynced ones
+        unsynced_ids: set[str] = set()
+        try:
+            rows = self.db.fetchall(
+                "SELECT id FROM memories WHERE mem0_id IS NULL", ()
+            )
+            unsynced_ids = {row["id"] for row in rows}
+        except Exception as e:
+            logger.warning(f"Failed to query unsynced memories: {e}")
+            return []
+
+        return [m for m in local_results if m.id in unsynced_ids][:limit]
 
     async def _lazy_sync(self) -> int:
         """Sync memories that have mem0_id IS NULL to Mem0.

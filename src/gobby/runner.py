@@ -17,6 +17,7 @@ from gobby.llm import LLMService, create_llm_service
 from gobby.llm.resolver import ExecutorRegistry
 from gobby.mcp_proxy.manager import MCPClientManager
 from gobby.memory.manager import MemoryManager
+from gobby.memory.mem0_sync import Mem0SyncProcessor
 from gobby.servers.http import HTTPServer
 from gobby.servers.websocket.models import WebSocketConfig
 from gobby.servers.websocket.server import WebSocketServer
@@ -184,6 +185,15 @@ class GobbyRunner:
                 )
             except Exception as e:
                 logger.error(f"Failed to initialize MemoryManager: {e}")
+
+        # Mem0 Background Sync Processor
+        self.mem0_sync: Mem0SyncProcessor | None = None
+        if self.memory_manager and self.memory_manager._mem0_client:
+            self.mem0_sync = Mem0SyncProcessor(
+                memory_manager=self.memory_manager,
+                sync_interval=self.config.memory.mem0_sync_interval,
+                max_backoff=self.config.memory.mem0_sync_max_backoff,
+            )
 
         # MCP Proxy Manager - Initialize early for tool access
         # LocalMCPManager handles server/tool storage in SQLite
@@ -669,6 +679,10 @@ class GobbyRunner:
             if self.message_processor:
                 await self.message_processor.start()
 
+            # Start Mem0 Background Sync
+            if self.mem0_sync:
+                await self.mem0_sync.start()
+
             # Start Session Lifecycle Manager
             await self.lifecycle_manager.start()
 
@@ -769,6 +783,13 @@ class GobbyRunner:
                 from gobby.cli.utils import stop_ui_server
 
                 stop_ui_server(quiet=True)
+
+            # Stop Mem0 background sync (before memory backup)
+            if self.mem0_sync:
+                try:
+                    await asyncio.wait_for(self.mem0_sync.stop(), timeout=5.0)
+                except TimeoutError:
+                    logger.warning("Mem0 sync processor shutdown timed out")
 
             # Export memories to JSONL backup on shutdown
             if self.memory_sync_manager:

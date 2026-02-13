@@ -40,16 +40,10 @@ def _mock_mem0_client() -> MagicMock:
         return_value={"results": [{"id": "mem0-abc-123", "memory": "test content"}]}
     )
     client.search = AsyncMock(
-        return_value={
-            "results": [
-                {"id": "mem0-abc-123", "memory": "test content", "score": 0.95}
-            ]
-        }
+        return_value={"results": [{"id": "mem0-abc-123", "memory": "test content", "score": 0.95}]}
     )
     client.delete = AsyncMock(return_value=True)
-    client.update = AsyncMock(
-        return_value={"id": "mem0-abc-123", "memory": "updated content"}
-    )
+    client.update = AsyncMock(return_value={"id": "mem0-abc-123", "memory": "updated content"})
     client.close = AsyncMock()
     return client
 
@@ -69,17 +63,13 @@ class TestDualModeInit:
 
     def test_dual_mode_creates_mem0_client(self, tmp_path) -> None:
         """When mem0_url is set, _mem0_client should be initialized."""
-        manager, _ = _setup(
-            tmp_path, mem0_url="http://localhost:8888", mem0_api_key="test-key"
-        )
+        manager, _ = _setup(tmp_path, mem0_url="http://localhost:8888", mem0_api_key="test-key")
         assert manager._mem0_client is not None
 
     def test_dual_mode_passes_config_to_client(self, tmp_path) -> None:
         """Mem0Client should receive url and api_key from config."""
         with patch("gobby.memory.manager.Mem0Client") as MockClient:
-            manager, _ = _setup(
-                tmp_path, mem0_url="http://localhost:8888", mem0_api_key="test-key"
-            )
+            manager, _ = _setup(tmp_path, mem0_url="http://localhost:8888", mem0_api_key="test-key")
             MockClient.assert_called_once_with(
                 base_url="http://localhost:8888",
                 api_key="test-key",
@@ -96,11 +86,9 @@ class TestRememberDualMode:
     """Test remember() stores in SQLite then indexes in Mem0."""
 
     @pytest.mark.asyncio
-    async def test_remember_indexes_in_mem0(self, tmp_path) -> None:
-        """remember() should store locally then call mem0.create()."""
-        manager, db = _setup(
-            tmp_path, mem0_url="http://localhost:8888", mem0_api_key="test-key"
-        )
+    async def test_remember_stores_locally_without_blocking_mem0(self, tmp_path) -> None:
+        """remember() should store locally without blocking on Mem0 (async queue)."""
+        manager, db = _setup(tmp_path, mem0_url="http://localhost:8888", mem0_api_key="test-key")
         mock_client = _mock_mem0_client()
         manager._mem0_client = mock_client
 
@@ -115,19 +103,17 @@ class TestRememberDualMode:
         local = manager.get_memory(memory.id)
         assert local is not None
 
-        # Mem0 create should have been called
-        mock_client.create.assert_called_once_with(
-            content="User prefers dark mode",
-            project_id="test-project",
-            metadata={"gobby_id": memory.id},
-        )
+        # Mem0 create should NOT have been called (deferred to background sync)
+        mock_client.create.assert_not_called()
+
+        # mem0_id should be NULL (pending sync)
+        row = db.fetchone("SELECT mem0_id FROM memories WHERE id = ?", (memory.id,))
+        assert row["mem0_id"] is None
 
     @pytest.mark.asyncio
-    async def test_remember_stores_mem0_id(self, tmp_path) -> None:
-        """remember() should store the mem0_id returned by Mem0."""
-        manager, db = _setup(
-            tmp_path, mem0_url="http://localhost:8888", mem0_api_key="test-key"
-        )
+    async def test_remember_then_lazy_sync_stores_mem0_id(self, tmp_path) -> None:
+        """remember() leaves mem0_id NULL; _lazy_sync() populates it."""
+        manager, db = _setup(tmp_path, mem0_url="http://localhost:8888", mem0_api_key="test-key")
         mock_client = _mock_mem0_client()
         manager._mem0_client = mock_client
 
@@ -137,7 +123,15 @@ class TestRememberDualMode:
                 project_id="test-project",
             )
 
-        # Check mem0_id was stored in the database
+        # mem0_id should be NULL immediately after remember()
+        row = db.fetchone("SELECT mem0_id FROM memories WHERE id = ?", (memory.id,))
+        assert row is not None
+        assert row["mem0_id"] is None
+
+        # Now run lazy sync — should populate mem0_id
+        synced = await manager._lazy_sync()
+        assert synced == 1
+
         row = db.fetchone("SELECT mem0_id FROM memories WHERE id = ?", (memory.id,))
         assert row is not None
         assert row["mem0_id"] == "mem0-abc-123"
@@ -145,13 +139,9 @@ class TestRememberDualMode:
     @pytest.mark.asyncio
     async def test_remember_mem0_unreachable_stores_locally(self, tmp_path) -> None:
         """When Mem0 is unreachable, remember() should still store in SQLite."""
-        manager, db = _setup(
-            tmp_path, mem0_url="http://localhost:8888", mem0_api_key="test-key"
-        )
+        manager, db = _setup(tmp_path, mem0_url="http://localhost:8888", mem0_api_key="test-key")
         mock_client = _mock_mem0_client()
-        mock_client.create = AsyncMock(
-            side_effect=Mem0ConnectionError("Connection refused")
-        )
+        mock_client.create = AsyncMock(side_effect=Mem0ConnectionError("Connection refused"))
         manager._mem0_client = mock_client
 
         with patch("gobby.memory.manager.is_embedding_available", return_value=False):
@@ -196,9 +186,7 @@ class TestRecallDualMode:
     @pytest.mark.asyncio
     async def test_recall_queries_mem0(self, tmp_path) -> None:
         """recall() should search Mem0 when configured and reachable."""
-        manager, db = _setup(
-            tmp_path, mem0_url="http://localhost:8888", mem0_api_key="test-key"
-        )
+        manager, db = _setup(tmp_path, mem0_url="http://localhost:8888", mem0_api_key="test-key")
         mock_client = _mock_mem0_client()
         manager._mem0_client = mock_client
 
@@ -236,13 +224,9 @@ class TestRecallDualMode:
         self, tmp_path, enable_log_propagation, caplog
     ) -> None:
         """When Mem0 is unreachable, recall() should fall back to local search."""
-        manager, _ = _setup(
-            tmp_path, mem0_url="http://localhost:8888", mem0_api_key="test-key"
-        )
+        manager, _ = _setup(tmp_path, mem0_url="http://localhost:8888", mem0_api_key="test-key")
         mock_client = _mock_mem0_client()
-        mock_client.search = AsyncMock(
-            side_effect=Mem0ConnectionError("Connection refused")
-        )
+        mock_client.search = AsyncMock(side_effect=Mem0ConnectionError("Connection refused"))
         manager._mem0_client = mock_client
 
         # Create a memory locally
@@ -277,9 +261,7 @@ class TestForgetDualMode:
     @pytest.mark.asyncio
     async def test_forget_deletes_from_mem0(self, tmp_path) -> None:
         """forget() should delete from Mem0 when memory has mem0_id."""
-        manager, db = _setup(
-            tmp_path, mem0_url="http://localhost:8888", mem0_api_key="test-key"
-        )
+        manager, db = _setup(tmp_path, mem0_url="http://localhost:8888", mem0_api_key="test-key")
         mock_client = _mock_mem0_client()
         manager._mem0_client = mock_client
 
@@ -288,6 +270,12 @@ class TestForgetDualMode:
                 content="User prefers dark mode",
                 project_id="test-project",
             )
+
+        # Simulate background sync having already populated mem0_id
+        db.execute(
+            "UPDATE memories SET mem0_id = ? WHERE id = ?",
+            ("mem0-abc-123", memory.id),
+        )
 
         result = await manager.forget(memory.id)
         assert result is True
@@ -298,13 +286,9 @@ class TestForgetDualMode:
     @pytest.mark.asyncio
     async def test_forget_without_mem0_id_skips_mem0(self, tmp_path) -> None:
         """forget() should skip Mem0 deletion when memory has no mem0_id."""
-        manager, db = _setup(
-            tmp_path, mem0_url="http://localhost:8888", mem0_api_key="test-key"
-        )
+        manager, db = _setup(tmp_path, mem0_url="http://localhost:8888", mem0_api_key="test-key")
         mock_client = _mock_mem0_client()
-        mock_client.create = AsyncMock(
-            side_effect=Mem0ConnectionError("Connection refused")
-        )
+        mock_client.create = AsyncMock(side_effect=Mem0ConnectionError("Connection refused"))
         manager._mem0_client = mock_client
 
         with patch("gobby.memory.manager.is_embedding_available", return_value=False):
@@ -332,14 +316,10 @@ class TestLazySync:
     @pytest.mark.asyncio
     async def test_lazy_sync_indexes_unsynced(self, tmp_path) -> None:
         """_lazy_sync() should index memories with mem0_id IS NULL."""
-        manager, db = _setup(
-            tmp_path, mem0_url="http://localhost:8888", mem0_api_key="test-key"
-        )
+        manager, db = _setup(tmp_path, mem0_url="http://localhost:8888", mem0_api_key="test-key")
         mock_client = _mock_mem0_client()
         # First call fails (connection refused), second succeeds
-        mock_client.create = AsyncMock(
-            side_effect=Mem0ConnectionError("Connection refused")
-        )
+        mock_client.create = AsyncMock(side_effect=Mem0ConnectionError("Connection refused"))
         manager._mem0_client = mock_client
 
         with patch("gobby.memory.manager.is_embedding_available", return_value=False):
@@ -354,9 +334,7 @@ class TestLazySync:
 
         # Now make mem0 reachable
         mock_client.create = AsyncMock(
-            return_value={
-                "results": [{"id": "mem0-synced-456", "memory": "Unsynced memory"}]
-            }
+            return_value={"results": [{"id": "mem0-synced-456", "memory": "Unsynced memory"}]}
         )
 
         synced = await manager._lazy_sync()
@@ -376,14 +354,10 @@ class TestLazySync:
     @pytest.mark.asyncio
     async def test_lazy_sync_handles_partial_failure(self, tmp_path) -> None:
         """_lazy_sync() should continue even if some memories fail to sync."""
-        manager, db = _setup(
-            tmp_path, mem0_url="http://localhost:8888", mem0_api_key="test-key"
-        )
+        manager, db = _setup(tmp_path, mem0_url="http://localhost:8888", mem0_api_key="test-key")
         mock_client = _mock_mem0_client()
         # All creates fail initially
-        mock_client.create = AsyncMock(
-            side_effect=Mem0ConnectionError("Connection refused")
-        )
+        mock_client.create = AsyncMock(side_effect=Mem0ConnectionError("Connection refused"))
         manager._mem0_client = mock_client
 
         with patch("gobby.memory.manager.is_embedding_available", return_value=False):
