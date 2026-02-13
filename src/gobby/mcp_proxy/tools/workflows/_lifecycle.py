@@ -13,9 +13,13 @@ from gobby.mcp_proxy.tools.workflows._resolution import (
 from gobby.storage.database import DatabaseProtocol
 from gobby.storage.sessions import LocalSessionManager
 from gobby.utils.project_context import get_workflow_project_path
-from gobby.workflows.definitions import WorkflowDefinition, WorkflowState
+from gobby.workflows.definitions import WorkflowDefinition, WorkflowInstance, WorkflowState
 from gobby.workflows.loader import WorkflowLoader
-from gobby.workflows.state_manager import WorkflowStateManager
+from gobby.workflows.state_manager import (
+    SessionVariableManager,
+    WorkflowInstanceManager,
+    WorkflowStateManager,
+)
 
 
 async def activate_workflow(
@@ -29,6 +33,8 @@ async def activate_workflow(
     variables: dict[str, Any] | None = None,
     project_path: str | None = None,
     resume: bool = False,
+    instance_manager: WorkflowInstanceManager | None = None,
+    session_var_manager: SessionVariableManager | None = None,
 ) -> dict[str, Any]:
     """
     Activate a step-based workflow for the current session.
@@ -44,6 +50,8 @@ async def activate_workflow(
         variables: Optional initial variables to set (merged with workflow defaults)
         project_path: Project directory path. Auto-discovered from cwd if not provided.
         resume: If True, resume existing workflow if active (idempotent). Defaults to False.
+        instance_manager: Optional WorkflowInstanceManager for multi-workflow tracking.
+        session_var_manager: Optional SessionVariableManager for shared session variables.
 
     Returns:
         Success status, workflow info, and current step.
@@ -87,44 +95,25 @@ async def activate_workflow(
     except ValueError as e:
         return {"success": False, "error": str(e)}
 
-    # Check for existing workflow
-    # Allow if:
-    # - No existing state
-    # - Existing is __lifecycle__ placeholder
-    # - Existing is __ended__ (step workflow was ended, variables preserved)
-    # - Existing is a lifecycle-type workflow (they run concurrently with step workflows)
-    # - resume=True and existing matches requested workflow
+    # Check for existing workflow — allow multi-workflow activation
     existing = state_manager.get_state(resolved_session_id)
-    if existing and existing.workflow_name not in ("__lifecycle__", "__ended__"):
-        # Check if existing workflow is a lifecycle type
-        existing_def = await loader.load_workflow(existing.workflow_name, proj)
-        # Only allow if we can confirm it's a lifecycle workflow
-        # If definition not found or it's a step workflow, block activation
-        if not existing_def or existing_def.type != "lifecycle":
-            # It's a step workflow (or unknown) - can only have one active
 
-            # Check for resume
-            if resume and existing.workflow_name == name:
-                # Merge variables if provided
-                if variables:
-                    existing.variables.update(variables)
-                    state_manager.save_state(existing)
+    # Check for resume of same workflow
+    if existing and existing.workflow_name == name and resume:
+        # Merge variables if provided
+        if variables:
+            existing.variables.update(variables)
+            state_manager.save_state(existing)
 
-                return {
-                    "success": True,
-                    "session_id": resolved_session_id,
-                    "workflow": existing.workflow_name,
-                    "step": existing.step,
-                    "steps": [s.name for s in definition.steps],
-                    "variables": existing.variables,
-                    "resumed": True,
-                }
-
-            return {
-                "success": False,
-                "error": f"Session already has step workflow '{existing.workflow_name}' active. Use end_workflow first.",
-            }
-        # Existing is a lifecycle workflow - allow step workflow to activate alongside it
+        return {
+            "success": True,
+            "session_id": resolved_session_id,
+            "workflow": existing.workflow_name,
+            "step": existing.step,
+            "steps": [s.name for s in definition.steps],
+            "variables": existing.variables,
+            "resumed": True,
+        }
 
     # Determine initial step
     if initial_step:
@@ -178,6 +167,27 @@ async def activate_workflow(
 
     state_manager.save_state(state)
 
+    # Create workflow instance for multi-workflow tracking
+    if instance_manager:
+        import uuid
+
+        instance = WorkflowInstance(
+            id=str(uuid.uuid4()),
+            session_id=resolved_session_id,
+            workflow_name=name,
+            enabled=True,
+            priority=definition.priority,
+            current_step=step,
+            variables=merged_variables,
+        )
+        instance_manager.save_instance(instance)
+
+    # Merge session_variables declarations into shared session variables
+    if session_var_manager and definition.session_variables:
+        session_var_manager.merge_variables(
+            resolved_session_id, definition.session_variables
+        )
+
     return {
         "success": True,
         "session_id": resolved_session_id,
@@ -195,6 +205,8 @@ async def end_workflow(
     session_id: str | None = None,
     reason: str | None = None,
     project_path: str | None = None,
+    workflow: str | None = None,
+    instance_manager: WorkflowInstanceManager | None = None,
 ) -> dict[str, Any]:
     """
     End the currently active step-based workflow.
@@ -209,6 +221,8 @@ async def end_workflow(
         session_id: Session reference (accepts #N, N, UUID, or prefix) - required to prevent cross-session bleed
         reason: Optional reason for ending
         project_path: Project directory path. Auto-discovered from cwd if not provided.
+        workflow: Optional workflow name to end. Defaults to current active workflow.
+        instance_manager: Optional WorkflowInstanceManager for multi-workflow tracking.
 
     Returns:
         Success status
@@ -230,6 +244,9 @@ async def end_workflow(
     if not state:
         return {"success": False, "error": "No workflow active for session"}
 
+    # Determine which workflow to end
+    target_workflow = workflow or state.workflow_name
+
     # Check if this is a lifecycle workflow - those cannot be ended manually
     # Auto-discover project path if not provided
     if not project_path:
@@ -238,13 +255,13 @@ async def end_workflow(
             project_path = str(discovered)
 
     proj = Path(project_path) if project_path else None
-    definition = await loader.load_workflow(state.workflow_name, proj)
+    definition = await loader.load_workflow(target_workflow, proj)
 
     # If definition exists and is lifecycle type, block manual ending
     if definition and definition.type == "lifecycle":
         return {
             "success": False,
-            "error": f"Workflow '{state.workflow_name}' is lifecycle type (auto-runs on events, cannot be manually ended).",
+            "error": f"Workflow '{target_workflow}' is lifecycle type (auto-runs on events, cannot be manually ended).",
         }
 
     # Clear workflow-specific variables before ending
@@ -260,7 +277,11 @@ async def end_workflow(
     state_manager.save_state(state)
     state_manager.delete_state(resolved_session_id)
 
-    return {"success": True, "workflow": state.workflow_name, "reason": reason}
+    # Disable the workflow instance in multi-workflow tracking
+    if instance_manager:
+        instance_manager.set_enabled(resolved_session_id, target_workflow, False)
+
+    return {"success": True, "workflow": target_workflow, "reason": reason}
 
 
 async def request_step_transition(

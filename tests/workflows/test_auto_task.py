@@ -460,8 +460,8 @@ class TestActivateWorkflowWithVariables:
         assert result["variables"]["session_task"] == "gt-abc123"
 
     @pytest.mark.asyncio
-    async def test_rejects_existing_step_workflow(self, temp_db, session_id) -> None:
-        """Tool rejects activation if step workflow already active."""
+    async def test_allows_multiple_workflows_same_session(self, temp_db, session_id) -> None:
+        """Multi-workflow: activating a second workflow succeeds (overwrites state)."""
         from gobby.mcp_proxy.tools.workflows import create_workflows_registry
         from gobby.storage.sessions import LocalSessionManager
         from gobby.workflows.loader import WorkflowLoader
@@ -492,8 +492,8 @@ class TestActivateWorkflowWithVariables:
             session_id=session_id,
         )
 
-        assert result["success"] is False
-        assert "already has step workflow" in result["error"]
+        assert result["success"] is True
+        assert result["workflow"] == "auto-task"
 
     @pytest.mark.asyncio
     async def test_preserves_lifecycle_variables_when_activating(self, temp_db, session_id) -> None:

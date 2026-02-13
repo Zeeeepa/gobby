@@ -39,7 +39,11 @@ from gobby.storage.database import DatabaseProtocol
 from gobby.storage.sessions import LocalSessionManager
 from gobby.utils.project_context import get_workflow_project_path
 from gobby.workflows.loader import WorkflowLoader
-from gobby.workflows.state_manager import WorkflowStateManager
+from gobby.workflows.state_manager import (
+    SessionVariableManager,
+    WorkflowInstanceManager,
+    WorkflowStateManager,
+)
 
 __all__ = [
     "create_workflows_registry",
@@ -86,6 +90,10 @@ def create_workflows_registry(
         _session_manager = LocalSessionManager(_db)
     else:
         _session_manager = None
+
+    # Create multi-workflow managers
+    _instance_manager = WorkflowInstanceManager(_db) if _db is not None else None
+    _session_var_manager = SessionVariableManager(_db) if _db is not None else None
 
     registry = InternalToolRegistry(
         name="gobby-workflows",
@@ -138,21 +146,31 @@ def create_workflows_registry(
             variables,
             project_path,
             resume,
+            instance_manager=_instance_manager,
+            session_var_manager=_session_var_manager,
         )
 
     @registry.tool(
         name="end_workflow",
-        description="End the currently active step-based workflow. Accepts #N, N, UUID, or prefix for session_id.",
+        description="End a step-based workflow. Specify workflow name or defaults to current. Accepts #N, N, UUID, or prefix for session_id.",
     )
     async def _end_workflow(
         session_id: str | None = None,
         reason: str | None = None,
         project_path: str | None = None,
+        workflow: str | None = None,
     ) -> dict[str, Any]:
         if _state_manager is None or _session_manager is None:
             return {"error": "Workflow tools require database connection"}
         return await end_workflow(
-            _loader, _state_manager, _session_manager, session_id, reason, project_path
+            _loader,
+            _state_manager,
+            _session_manager,
+            session_id,
+            reason,
+            project_path,
+            workflow=workflow,
+            instance_manager=_instance_manager,
         )
 
     @registry.tool(
