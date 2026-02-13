@@ -255,8 +255,8 @@ async def evaluate_workflow_triggers(
             try:
                 task = action_executor.task_manager.get_task(claimed_task_id)
                 task_has_commits = bool(task and task.commits)
-            except Exception:
-                pass
+            except (KeyError, AttributeError, ValueError) as e:
+                logger.debug("Failed to check commits for task %s: %s", claimed_task_id, e)
 
     for trigger in triggers:
         # Check 'when' condition if present
@@ -468,8 +468,8 @@ async def evaluate_lifecycle_triggers(
             try:
                 task = action_executor.task_manager.get_task(claimed_task_id)
                 task_has_commits = bool(task and task.commits)
-            except Exception:
-                pass
+            except (KeyError, AttributeError, ValueError) as e:
+                logger.debug("Failed to check commits for task %s: %s", claimed_task_id, e)
 
     for trigger in triggers:
         # Check 'when' condition if present
@@ -589,6 +589,13 @@ async def evaluate_all_lifecycle_workflows(
             or source_val in srcs
         ]
 
+    # Filter out disabled (on-demand) workflows - they only activate manually
+    workflows = [
+        w
+        for w in workflows
+        if not isinstance(w.definition, WorkflowDefinition) or w.definition.enabled
+    ]
+
     logger.debug(
         f"Discovered {len(workflows)} lifecycle workflow(s): {[w.name for w in workflows]}"
     )
@@ -618,7 +625,25 @@ async def evaluate_all_lifecycle_workflows(
                 f"Loaded {len(lifecycle_state.variables)} session variable(s) "
                 f"for {session_id}: {list(lifecycle_state.variables.keys())}"
             )
-        elif event.event_type == HookEventType.SESSION_START:
+
+        # Also merge session_variables table (written by MCP set_variable tool).
+        # Session variables take priority over workflow_states.variables because
+        # the MCP tool is the agent-facing API and should be authoritative.
+        try:
+            from gobby.workflows.state_manager import SessionVariableManager
+
+            session_var_mgr = SessionVariableManager(state_manager.db)
+            session_vars = session_var_mgr.get_variables(session_id)
+            if session_vars:
+                context_data.update(session_vars)
+                logger.debug(
+                    f"Merged {len(session_vars)} session_variables for {session_id}: "
+                    f"{list(session_vars.keys())}"
+                )
+        except Exception as e:
+            logger.debug(f"Could not load session_variables: {e}")
+
+        if not (lifecycle_state and lifecycle_state.variables) and event.event_type == HookEventType.SESSION_START:
             # New session - check if we should inherit from parent
             parent_id = event.metadata.get("_parent_session_id")
             if parent_id:
