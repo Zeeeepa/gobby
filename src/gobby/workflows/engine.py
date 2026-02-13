@@ -1,11 +1,9 @@
 import logging
-from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 from gobby.hooks.events import HookEvent, HookEventType, HookResponse
-from gobby.storage.projects import LocalProjectManager
 from gobby.storage.workflow_audit import WorkflowAuditManager
 
 from .approval_flow import handle_approval_response
@@ -20,6 +18,29 @@ from .detection_helpers import (
     detect_mcp_call,
     detect_task_claim,
     process_mcp_handlers,
+)
+from .engine_activation import activate_workflow as _activate_workflow_fn
+from .engine_context import (
+    _build_eval_context as _build_eval_context_fn,
+)
+from .engine_context import (
+    _resolve_check_rules as _resolve_check_rules_fn,
+)
+from .engine_context import (
+    _resolve_session_and_project as _resolve_session_and_project_fn,
+)
+from .engine_models import DotDict, TransitionResult
+from .engine_transitions import (
+    _auto_transition_chain as _auto_transition_chain_fn,
+)
+from .engine_transitions import (
+    _execute_actions as _execute_actions_fn,
+)
+from .engine_transitions import (
+    _render_status_message as _render_status_message_fn,
+)
+from .engine_transitions import (
+    transition_to as _transition_to_fn,
 )
 from .evaluator import ConditionEvaluator
 from .lifecycle_evaluator import (
@@ -37,6 +58,12 @@ from .lifecycle_evaluator import (
 from .loader import WorkflowLoader
 from .premature_stop import check_premature_stop
 from .state_manager import WorkflowStateManager
+from .unified_evaluator import (
+    _evaluate_step_tool_rules,
+    _evaluate_step_transitions,
+)
+
+__all__ = ["EXEMPT_TOOLS", "WorkflowEngine"]
 
 if TYPE_CHECKING:
     from gobby.storage.rules import RuleStore
@@ -44,24 +71,6 @@ if TYPE_CHECKING:
     from .actions import ActionExecutor
 
 logger = logging.getLogger(__name__)
-
-
-class DotDict(dict[str, Any]):
-    """Dict subclass that supports both dot-notation and .get() access.
-
-    SimpleNamespace supports dot-notation but not .get(), which breaks
-    workflow transition conditions that use ``variables.get('key')``.
-    DotDict supports both patterns.
-    """
-
-    def __getattr__(self, key: str) -> Any:
-        try:
-            return self[key]
-        except KeyError:
-            raise AttributeError(key) from None
-
-    def __setattr__(self, key: str, value: Any) -> None:
-        self[key] = value
 
 
 # Read-only MCP discovery tools that are always allowed regardless of workflow step restrictions.
@@ -83,23 +92,6 @@ EXEMPT_TOOLS = frozenset(
         "mcp__gobby__search_tools",
     }
 )
-
-
-@dataclass
-class TransitionResult:
-    """Result of a workflow step transition.
-
-    Carries both LLM-facing context (injected_messages) and user-visible
-    output (system_messages) through transition chains.
-    """
-
-    injected_messages: list[str] = field(default_factory=list)
-    system_messages: list[str] = field(default_factory=list)
-
-    def extend(self, other: "TransitionResult") -> None:
-        """Accumulate messages from another transition result."""
-        self.injected_messages.extend(other.injected_messages)
-        self.system_messages.extend(other.system_messages)
 
 
 class WorkflowEngine:
@@ -213,10 +205,10 @@ class WorkflowEngine:
             logger.error(f"Workflow '{state.workflow_name}' not found for session {session_id}")
             return HookResponse(decision="allow")
 
-        # Skip step handling for lifecycle workflows - they only use triggers
-        if workflow.type == "lifecycle":
+        # Skip step handling for workflows without steps (triggers-only)
+        if not workflow.steps:
             logger.debug(
-                f"Skipping step workflow handling for lifecycle workflow '{workflow.name}' "
+                f"Skipping step handling for triggers-only workflow '{workflow.name}' "
                 f"in session {session_id}"
             )
             return HookResponse(decision="allow")
@@ -308,25 +300,19 @@ class WorkflowEngine:
             raw_tool_name = eval_context.get("tool_name")
             tool_name = str(raw_tool_name) if raw_tool_name is not None else ""
 
-            # Allow exempt tools (MCP discovery tools) regardless of step restrictions
-            if tool_name in EXEMPT_TOOLS:
-                self._log_tool_call(session_id, state.step, tool_name, "allow", "exempt tool")
-                return HookResponse(decision="allow")
+            # Delegate basic tool restriction checks to unified evaluator.
+            # Handles: exempt tools, blocked_tools, allowed_tools, inline rules.
+            tool_decision, tool_reason = _evaluate_step_tool_rules(
+                tool_name,
+                current_step,
+                eval_context,
+                condition_evaluator=self.evaluator.evaluate,
+            )
+            if tool_decision == "block":
+                self._log_tool_call(session_id, state.step, tool_name, "block", tool_reason)
+                return HookResponse(decision="block", reason=tool_reason)
 
-            # Check blocked list
-            if tool_name in current_step.blocked_tools:
-                reason = f"Tool '{tool_name}' is blocked in step '{state.step}'."
-                self._log_tool_call(session_id, state.step, tool_name, "block", reason)
-                return HookResponse(decision="block", reason=reason)
-
-            # Check allowed list (if not "all")
-            if current_step.allowed_tools != "all":
-                if tool_name not in current_step.allowed_tools:
-                    reason = f"Tool '{tool_name}' is not in allowed list for step '{state.step}'."
-                    self._log_tool_call(session_id, state.step, tool_name, "block", reason)
-                    return HookResponse(decision="block", reason=reason)
-
-            # Check MCP-level tool restrictions for call_tool/get_tool_schema
+            # Engine-specific: MCP-level tool restrictions for call_tool/get_tool_schema
             # Adapters normalize mcp_server/mcp_tool from tool_input for these calls
             if tool_name in (
                 "call_tool",
@@ -360,23 +346,7 @@ class WorkflowEngine:
                             self._log_tool_call(session_id, state.step, mcp_key, "block", reason)
                             return HookResponse(decision="block", reason=reason)
 
-            # Check rules
-            for rule in current_step.rules:
-                if self.evaluator.evaluate(rule.when, eval_context):
-                    if rule.action == "block":
-                        reason = rule.message or "Blocked by workflow rule."
-                        self._log_rule_eval(
-                            session_id,
-                            state.step,
-                            rule.name or "unnamed",
-                            rule.when,
-                            "block",
-                            reason,
-                        )
-                        return HookResponse(decision="block", reason=reason)
-                    # Handle other actions like warn, require_approval
-
-            # Check named rules (check_rules)
+            # Engine-specific: Check named rules via DB (check_rules)
             if current_step.check_rules:
                 project_id = project_info.get("id") or None
                 resolved_rules = self._resolve_check_rules(
@@ -439,41 +409,42 @@ class WorkflowEngine:
                 )
                 return premature_response
 
-        # Check transitions
+        # Check transitions (delegated to unified evaluator)
         logger.debug("Checking transitions")
-        for transition in current_step.transitions:
-            if self.evaluator.evaluate(transition.when, eval_context):
-                # Transition!
-                transition_result = await self.transition_to(
-                    state, transition.to, workflow, transition=transition
-                )
+        target_step = _evaluate_step_transitions(
+            current_step, eval_context, condition_evaluator=self.evaluator.evaluate
+        )
+        if target_step:
+            # Find the matching transition object for on_transition actions
+            matching_transition = next(
+                (t for t in current_step.transitions if t.to == target_step), None
+            )
+            transition_result = await self.transition_to(
+                state, target_step, workflow, transition=matching_transition
+            )
 
-                # Auto-transition chain after the transition's on_enter
-                result = await self._auto_transition_chain(
-                    state,
-                    workflow,
-                    session_info,
-                    project_info,
-                    event,
-                    transition_result,
-                )
+            # Auto-transition chain after the transition's on_enter
+            result = await self._auto_transition_chain(
+                state,
+                workflow,
+                session_info,
+                project_info,
+                event,
+                transition_result,
+            )
 
-                # Save state after transition
-                if event.event_type == HookEventType.AFTER_TOOL:
-                    self.state_manager.save_state(state)
+            # Save state after transition
+            if event.event_type == HookEventType.AFTER_TOOL:
+                self.state_manager.save_state(state)
 
-                # Build context with on_enter messages if any were injected
-                if result.injected_messages:
-                    context = "\n\n".join(result.injected_messages)
-                else:
-                    context = f"Transitioning to step: {transition.to}"
+            # Build context with on_enter messages if any were injected
+            if result.injected_messages:
+                context = "\n\n".join(result.injected_messages)
+            else:
+                context = f"Transitioning to step: {target_step}"
 
-                system_message = (
-                    "\n".join(result.system_messages) if result.system_messages else None
-                )
-                return HookResponse(
-                    decision="modify", context=context, system_message=system_message
-                )
+            system_message = "\n".join(result.system_messages) if result.system_messages else None
+            return HookResponse(decision="modify", context=context, system_message=system_message)
 
         # Check exit conditions
         logger.debug("Checking exit conditions")
@@ -499,208 +470,24 @@ class WorkflowEngine:
         workflow: WorkflowDefinition,
         transition: WorkflowTransition | None = None,
     ) -> TransitionResult:
-        """
-        Execute transition logic.
-
-        Args:
-            state: Current workflow state
-            new_step_name: Name of the step to transition to
-            workflow: Workflow definition
-            transition: Optional transition object containing on_transition actions
-
-        Returns:
-            TransitionResult with injected messages (LLM context) and system messages (user-visible)
-        """
-        old_step = workflow.get_step(state.step)
-        new_step = workflow.get_step(new_step_name)
-
-        if not new_step:
-            logger.error(f"Cannot transition to unknown step '{new_step_name}'")
-            return TransitionResult()
-
-        logger.info(
-            f"Transitioning session {state.session_id} from '{state.step}' to '{new_step_name}'"
-        )
-
-        # Log the transition
-        self._log_transition(state.session_id, state.step, new_step_name)
-
-        try:
-            # Execute on_exit of old step
-            if old_step:
-                await self._execute_actions(old_step.on_exit, state)
-
-            # Execute on_transition actions if defined
-            if (
-                transition
-                and isinstance(transition, WorkflowTransition)
-                and transition.on_transition
-            ):
-                await self._execute_actions(transition.on_transition, state)
-
-            # Update state
-            state.step = new_step_name
-            state.step_entered_at = datetime.now(UTC)
-            state.step_action_count = 0
-            state.context_injected = False  # Reset for new step context
-            # Clear per-step MCP tracking so stale results from the previous step
-            # don't trigger transitions in the new step (e.g., auto_transition_chain
-            # looping back through a step that checks mcp_result_has).
-            state.variables.pop("mcp_results", None)
-            state.variables.pop("mcp_calls", None)
-
-            self.state_manager.save_state(state)
-
-            # Execute on_enter of new step and capture injected messages
-            injected_messages = await self._execute_actions(new_step.on_enter, state)
-
-            if injected_messages:
-                state.context_injected = True
-                self.state_manager.save_state(state)
-
-            # Render status_message for user visibility (after on_enter so variables are populated)
-            system_messages: list[str] = []
-            status_msg = self._render_status_message(new_step, state)
-            if status_msg:
-                system_messages.append(status_msg)
-
-            return TransitionResult(
-                injected_messages=injected_messages, system_messages=system_messages
-            )
-        except Exception as e:
-            logger.error(
-                f"Transition failed from '{state.step}' to '{new_step_name}': {e}", exc_info=True
-            )
-            # Re-raise to ensure the caller knows the transition failed,
-            # or handle gracefully (but state might be inconsistent if we don't bail)
-            raise
+        """Execute transition logic."""
+        return await _transition_to_fn(self, state, new_step_name, workflow, transition)
 
     async def _execute_actions(
         self, actions: list[dict[str, Any]], state: WorkflowState
     ) -> list[str]:
-        """
-        Execute a list of actions.
-
-        Returns:
-            List of injected messages from inject_message/inject_context actions.
-        """
-        from .actions import ActionContext
-
-        context = ActionContext(
-            session_id=state.session_id,
-            state=state,
-            db=self.action_executor.db,
-            session_manager=self.action_executor.session_manager,
-            template_engine=self.action_executor.template_engine,
-            llm_service=self.action_executor.llm_service,
-            transcript_processor=self.action_executor.transcript_processor,
-            config=self.action_executor.config,
-            tool_proxy_getter=self.action_executor.tool_proxy_getter,
-            memory_manager=self.action_executor.memory_manager,
-            memory_sync_manager=self.action_executor.memory_sync_manager,
-            task_sync_manager=self.action_executor.task_sync_manager,
-            session_task_manager=self.action_executor.session_task_manager,
-            pipeline_executor=self.action_executor.pipeline_executor,
-            workflow_loader=self.action_executor.workflow_loader,
-            skill_manager=self.action_executor.skill_manager,
-        )
-
-        injected_messages: list[str] = []
-
-        for action_def in actions:
-            action_type = action_def.get("action")
-            if not action_type:
-                continue
-
-            # Support conditional actions via `when` field
-            when = action_def.get("when")
-            if when is not None:
-                eval_ctx = {"variables": DotDict(state.variables), **state.variables}
-                if not self.evaluator.evaluate(when, eval_ctx):
-                    logger.debug(f"Skipping action '{action_type}': when condition false: {when}")
-                    continue
-
-            result = await self.action_executor.execute(action_type, context, **action_def)
-
-            if result:
-                # Capture injected messages to return to caller
-                if "inject_message" in result:
-                    msg = result["inject_message"]
-                    injected_messages.append(msg)
-                    logger.info(f"Message injected: {msg[:50]}...")
-                elif "inject_context" in result:
-                    msg = result["inject_context"]
-                    injected_messages.append(msg)
-                    logger.info(f"Context injected: {msg[:50]}...")
-
-        return injected_messages
+        """Execute a list of actions."""
+        return await _execute_actions_fn(self, actions, state)
 
     def _render_status_message(self, step: Any, state: WorkflowState) -> str | None:
-        """Render a step's status_message template if defined.
-
-        Called after on_enter actions so that variables set during on_enter
-        are available for template rendering. Returns the rendered string
-        for inclusion as a user-visible system_message on HookResponse.
-        """
-        status_message = getattr(step, "status_message", None)
-        if not isinstance(status_message, str):
-            return None
-
-        template_engine = getattr(self.action_executor, "template_engine", None)
-        if not template_engine:
-            return None
-
-        template_context: dict[str, Any] = {
-            "variables": state.variables,
-            "state": state,
-            "session_id": state.session_id,
-        }
-        try:
-            rendered = template_engine.render(status_message, template_context)
-            return rendered if isinstance(rendered, str) else None
-        except Exception as e:
-            logger.warning(f"Failed to render status_message for step '{step.name}': {e}")
-            return None
+        """Render a step's status_message template if defined."""
+        return _render_status_message_fn(self, step, state)
 
     def _resolve_session_and_project(
         self, event: HookEvent
     ) -> tuple[dict[str, Any], dict[str, Any]]:
-        """Look up session and project info for eval context.
-
-        Returns:
-            Tuple of (session_info dict, project_info dict)
-        """
-        session_info: dict[str, Any] = {}
-        if (
-            self.action_executor
-            and self.action_executor.session_manager
-            and event.machine_id
-            and event.project_id
-        ):
-            session = self.action_executor.session_manager.find_by_external_id(
-                external_id=event.session_id,
-                machine_id=event.machine_id,
-                project_id=event.project_id,
-                source=event.source.value,
-            )
-            if session:
-                session_info = {
-                    "id": session.id,
-                    "external_id": session.external_id,
-                    "project_id": session.project_id,
-                    "status": session.status,
-                    "git_branch": session.git_branch,
-                    "source": session.source,
-                }
-
-        project_info: dict[str, Any] = {"name": "", "id": ""}
-        if event.project_id and self.action_executor and self.action_executor.db:
-            project_mgr = LocalProjectManager(self.action_executor.db)
-            project = project_mgr.get(event.project_id)
-            if project:
-                project_info = {"name": project.name, "id": project.id}
-
-        return session_info, project_info
+        """Look up session and project info for eval context."""
+        return _resolve_session_and_project_fn(self.action_executor, event)
 
     def _build_eval_context(
         self,
@@ -709,28 +496,8 @@ class WorkflowEngine:
         session_info: dict[str, Any],
         project_info: dict[str, Any],
     ) -> dict[str, Any]:
-        """Build evaluation context dict for condition checking.
-
-        Uses DotDict for variables so both dot notation (variables.session_task)
-        and .get() access (variables.get('key')) work in transition conditions.
-        Flattens variables to top level for simpler conditions like "task_claimed".
-        """
-        return {
-            "event": event,
-            "workflow_state": state,
-            "variables": DotDict(state.variables),
-            "session": DotDict(session_info),
-            "project": DotDict(project_info),
-            "tool_name": event.data.get("tool_name") if event.data else None,
-            "tool_args": event.data.get("tool_args", {}) if event.data else {},
-            # State attributes for transition conditions
-            "step_action_count": state.step_action_count,
-            "total_action_count": state.total_action_count,
-            "step": state.step,
-            # Flatten variables to top level for simpler conditions like "task_claimed"
-            # instead of requiring "variables.task_claimed"
-            **state.variables,
-        }
+        """Build evaluation context dict for condition checking."""
+        return _build_eval_context_fn(event, state, session_info, project_info)
 
     def _resolve_check_rules(
         self,
@@ -738,47 +505,10 @@ class WorkflowEngine:
         workflow: WorkflowDefinition,
         project_id: str | None = None,
     ) -> list[RuleDefinition]:
-        """Resolve check_rules names to RuleDefinition objects.
-
-        Resolution order:
-        1. Workflow's rule_definitions (includes file-local + imported)
-        2. DB rules via RuleStore (project > user > bundled tiers)
-
-        Unknown names are logged and skipped.
-        """
-        resolved: list[RuleDefinition] = []
-        rule_store = self.rule_store
-
-        # Lazy-create RuleStore from action_executor.db if no explicit store
-        if (
-            rule_store is None
-            and self.action_executor
-            and getattr(self.action_executor, "db", None)
-        ):
-            from gobby.storage.rules import RuleStore
-
-            rule_store = RuleStore(self.action_executor.db)
-
-        for name in check_rules:
-            # 1. Check workflow's rule_definitions (file-local + imported)
-            if name in workflow.rule_definitions:
-                resolved.append(workflow.rule_definitions[name])
-                continue
-
-            # 2. Check DB via RuleStore (handles tier precedence)
-            if rule_store:
-                rule_row = rule_store.get_rule(name, project_id=project_id)
-                if rule_row:
-                    try:
-                        rule_def = RuleDefinition(**rule_row["definition"])
-                        resolved.append(rule_def)
-                        continue
-                    except Exception as e:
-                        logger.warning(f"Invalid rule definition for '{name}' from DB: {e}")
-
-            logger.warning(f"check_rules: rule '{name}' not found, skipping")
-
-        return resolved
+        """Resolve check_rules names to RuleDefinition objects."""
+        return _resolve_check_rules_fn(
+            check_rules, workflow, self.rule_store, self.action_executor, project_id
+        )
 
     async def _auto_transition_chain(
         self,
@@ -790,66 +520,10 @@ class WorkflowEngine:
         initial_result: TransitionResult,
         max_depth: int = 10,
     ) -> TransitionResult:
-        """Follow automatic transitions after on_enter actions.
-
-        If on_enter actions set variables that satisfy a transition condition,
-        execute the transition immediately and repeat. This chains deterministic
-        steps without waiting for the next hook event.
-
-        Args:
-            state: Current workflow state
-            workflow: Workflow definition
-            session_info: Session info for eval context
-            project_info: Project info for eval context
-            event: Original hook event
-            initial_result: Messages accumulated so far from the triggering transition
-            max_depth: Safety limit to prevent infinite loops
-
-        Returns:
-            Accumulated TransitionResult from all chained transitions
-        """
-        result = TransitionResult(
-            injected_messages=list(initial_result.injected_messages),
-            system_messages=list(initial_result.system_messages),
+        """Follow automatic transitions after on_enter actions."""
+        return await _auto_transition_chain_fn(
+            self, state, workflow, session_info, project_info, event, initial_result, max_depth
         )
-
-        visited_steps: list[str] = [state.step]
-
-        for _ in range(max_depth):
-            # Rebuild eval context with updated variables after on_enter actions
-            eval_context = self._build_eval_context(event, state, session_info, project_info)
-
-            current_step = workflow.get_step(state.step)
-            if not current_step:
-                break
-
-            # Check transitions on the current step
-            transitioned = False
-            for transition in current_step.transitions:
-                if self.evaluator.evaluate(transition.when, eval_context):
-                    logger.info(
-                        f"Auto-transition: {state.step} → {transition.to} "
-                        f"(condition: {transition.when})"
-                    )
-                    transition_result = await self.transition_to(
-                        state, transition.to, workflow, transition=transition
-                    )
-                    result.extend(transition_result)
-                    visited_steps.append(transition.to)
-                    transitioned = True
-                    break  # Only follow first matching transition
-
-            if not transitioned:
-                break
-        else:
-            # Loop exhausted max_depth without a non-transitioning step
-            logger.error(
-                f"Auto-transition chain truncated at max_depth={max_depth} "
-                f"for workflow '{workflow.name}' session={state.session_id} "
-                f"chain: {' → '.join(visited_steps)}"
-            )
-
-        return result
 
     def _handle_approval_response(
         self,
@@ -1026,98 +700,5 @@ class WorkflowEngine:
         project_path: Path | None = None,
         variables: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
-        """
-        Activate a step-based workflow for a session.
-
-        This is used internally during session startup for terminal-mode agents
-        that have a workflow_name set. It creates the initial workflow state.
-
-        Args:
-            workflow_name: Name of the workflow to activate
-            session_id: Session ID to activate for
-            project_path: Optional project path for workflow discovery
-            variables: Optional initial variables to merge with workflow defaults
-
-        Returns:
-            Dict with success status and workflow info
-        """
-        # Load workflow
-        definition = await self.loader.load_workflow(workflow_name, project_path)
-        if not definition:
-            logger.warning(f"Workflow '{workflow_name}' not found for auto-activation")
-            return {"success": False, "error": f"Workflow '{workflow_name}' not found"}
-
-        if definition.type == "lifecycle":
-            logger.debug(f"Skipping auto-activation of lifecycle workflow '{workflow_name}'")
-            return {
-                "success": False,
-                "error": f"Workflow '{workflow_name}' is lifecycle type (auto-runs on events)",
-            }
-
-        # Only WorkflowDefinition can be activated as step workflows
-        if not isinstance(definition, WorkflowDefinition):
-            logger.debug(f"Workflow '{workflow_name}' is a pipeline, not a step workflow")
-            return {
-                "success": False,
-                "error": f"'{workflow_name}' is a pipeline. Use pipeline execution instead.",
-            }
-
-        # Check for existing step workflow
-        existing = self.state_manager.get_state(session_id)
-        if existing and existing.workflow_name not in ("__lifecycle__", "__ended__"):
-            # Check if existing is lifecycle type
-            existing_def = await self.loader.load_workflow(existing.workflow_name, project_path)
-            if not existing_def or existing_def.type != "lifecycle":
-                logger.warning(
-                    f"Session {session_id} already has workflow '{existing.workflow_name}' active"
-                )
-                return {
-                    "success": False,
-                    "error": f"Session already has workflow '{existing.workflow_name}' active",
-                }
-
-        # Determine initial step - fail fast if no steps defined
-        if not definition.steps:
-            logger.error(f"Workflow '{workflow_name}' has no steps defined")
-            return {
-                "success": False,
-                "error": f"Workflow '{workflow_name}' has no steps defined",
-            }
-        step = definition.steps[0].name
-
-        # Merge variables: preserve existing lifecycle variables, then apply workflow declarations
-        # Priority: existing state < workflow defaults < passed-in variables
-        # This preserves lifecycle variables (like unlocked_tools) that the step workflow doesn't declare
-        merged_variables = dict(existing.variables) if existing else {}
-        merged_variables.update(definition.variables)  # Override with workflow-declared defaults
-        if variables:
-            merged_variables.update(variables)  # Override with passed-in values
-
-        # Create state
-        state = WorkflowState(
-            session_id=session_id,
-            workflow_name=workflow_name,
-            step=step,
-            step_entered_at=datetime.now(UTC),
-            step_action_count=0,
-            total_action_count=0,
-            observations=[],
-            reflection_pending=False,
-            context_injected=False,
-            variables=merged_variables,
-            task_list=None,
-            current_task_index=0,
-            files_modified_this_task=0,
-        )
-
-        self.state_manager.save_state(state)
-        logger.info(f"Auto-activated workflow '{workflow_name}' for session {session_id}")
-
-        return {
-            "success": True,
-            "session_id": session_id,
-            "workflow": workflow_name,
-            "step": step,
-            "steps": [s.name for s in definition.steps],
-            "variables": merged_variables,
-        }
+        """Activate a step-based workflow for a session."""
+        return await _activate_workflow_fn(self, workflow_name, session_id, project_path, variables)

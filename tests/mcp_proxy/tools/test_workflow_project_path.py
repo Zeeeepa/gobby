@@ -53,12 +53,15 @@ def mock_loader():
 @pytest.fixture
 def registry(mock_loader, mock_state_manager, mock_session_manager, mock_db):
     """Create workflow registry for testing."""
-    return create_workflows_registry(
-        loader=mock_loader,
-        state_manager=mock_state_manager,
-        session_manager=mock_session_manager,
-        db=mock_db,
-    )
+    with patch(
+        "gobby.mcp_proxy.tools.workflows.WorkflowInstanceManager", return_value=None
+    ), patch("gobby.mcp_proxy.tools.workflows.SessionVariableManager", return_value=None):
+        return create_workflows_registry(
+            loader=mock_loader,
+            state_manager=mock_state_manager,
+            session_manager=mock_session_manager,
+            db=mock_db,
+        )
 
 
 def call_tool(registry, tool_name: str, **kwargs) -> Any:
@@ -192,9 +195,10 @@ class TestActivateWorkflowWithProjectPath:
         self, registry, mock_loader, mock_state_manager, tmp_path
     ) -> None:
         """Verify activate_workflow works with explicit project_path."""
-        # Setup mock workflow
+        # Setup mock workflow (enabled=False for on-demand activation)
         workflow = WorkflowDefinition(
             name="plan-execute",
+            enabled=False,
             steps=[WorkflowStep(name="plan")],
         )
         mock_loader.load_workflow.return_value = workflow
@@ -218,6 +222,7 @@ class TestActivateWorkflowWithProjectPath:
         """Verify activate_workflow uses auto-discovery when project_path not provided."""
         workflow = WorkflowDefinition(
             name="auto-task",
+            enabled=False,
             steps=[WorkflowStep(name="work")],
         )
         mock_loader.load_workflow.return_value = workflow

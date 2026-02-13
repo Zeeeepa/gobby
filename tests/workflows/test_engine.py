@@ -5,7 +5,8 @@ import pytest
 
 from gobby.hooks.events import HookEvent, HookEventType, SessionSource
 from gobby.workflows.definitions import WorkflowDefinition, WorkflowState, WorkflowStep
-from gobby.workflows.engine import TransitionResult, WorkflowEngine
+from gobby.workflows.engine import WorkflowEngine
+from gobby.workflows.engine_models import TransitionResult
 from gobby.workflows.loader import WorkflowLoader
 from gobby.workflows.state_manager import WorkflowStateManager
 
@@ -93,6 +94,7 @@ class TestWorkflowEngine:
         # Setup workflow with reflect step
         workflow = MagicMock(spec=WorkflowDefinition)
         workflow.type = "step"
+        workflow.steps = [MagicMock(), MagicMock()]  # Has steps (step-based workflow)
 
         # side_effect for get_step
         def get_step_side_effect(name):
@@ -131,6 +133,7 @@ class TestWorkflowEngine:
         mock_state_manager.get_state.return_value = state
 
         step1 = MagicMock(spec=WorkflowStep)
+        step1.name = "step1"
         step1.on_enter = []
         step1.blocked_tools = ["forbidden_tool"]
         step1.allowed_tools = "all"
@@ -141,6 +144,7 @@ class TestWorkflowEngine:
 
         workflow = MagicMock(spec=WorkflowDefinition)
         workflow.type = "step"
+        workflow.steps = [MagicMock()]
         workflow.get_step.return_value = step1
         mock_loader.load_workflow.return_value = workflow
 
@@ -165,6 +169,7 @@ class TestWorkflowEngine:
         trigger = {"action": "test_action", "arg1": "val1"}
         workflow = MagicMock(spec=WorkflowDefinition)
         workflow.type = "lifecycle"
+        workflow.steps = []
         workflow.triggers = {"on_session_start": [trigger]}
         workflow.name = "lifecycle_wf"
 
@@ -213,6 +218,7 @@ class TestWorkflowEngine:
 
         workflow = MagicMock(spec=WorkflowDefinition)
         workflow.type = "step"
+        workflow.steps = [MagicMock()]
         workflow.get_step.return_value = step1
         mock_loader.load_workflow.return_value = workflow
 
@@ -242,6 +248,7 @@ class TestWorkflowEngine:
         mock_state_manager.get_state.return_value = state
 
         step1 = MagicMock(spec=WorkflowStep)
+        step1.name = "step1"
         step1.on_enter = []
         step1.blocked_tools = []
         step1.allowed_tools = ["Read", "Glob", "Grep"]  # Specific list
@@ -252,6 +259,7 @@ class TestWorkflowEngine:
 
         workflow = MagicMock(spec=WorkflowDefinition)
         workflow.type = "step"
+        workflow.steps = [MagicMock()]
         workflow.get_step.return_value = step1
         mock_loader.load_workflow.return_value = workflow
 
@@ -295,6 +303,7 @@ class TestWorkflowEngine:
 
         workflow = MagicMock(spec=WorkflowDefinition)
         workflow.type = "step"
+        workflow.steps = [MagicMock()]
         workflow.get_step.return_value = step1
         mock_loader.load_workflow.return_value = workflow
 
@@ -363,6 +372,7 @@ class TestWorkflowEngine:
 
         workflow = MagicMock(spec=WorkflowDefinition)
         workflow.type = "step"
+        workflow.steps = [MagicMock()]
         workflow.get_step.return_value = step1
         mock_loader.load_workflow.return_value = workflow
 
@@ -392,6 +402,7 @@ class TestWorkflowEngine:
         mock_state_manager.get_state.return_value = state
 
         step1 = MagicMock(spec=WorkflowStep)
+        step1.name = "step1"
         step1.on_enter = []
         step1.blocked_tools = ["Bash", "Edit", "Write"]  # Dangerous tools
         step1.allowed_tools = "all"  # All others allowed
@@ -402,6 +413,7 @@ class TestWorkflowEngine:
 
         workflow = MagicMock(spec=WorkflowDefinition)
         workflow.type = "step"
+        workflow.steps = [MagicMock()]
         workflow.get_step.return_value = step1
         mock_loader.load_workflow.return_value = workflow
 
@@ -444,6 +456,7 @@ class TestWorkflowEngine:
 
         workflow = MagicMock(spec=WorkflowDefinition)
         workflow.type = "step"
+        workflow.steps = [MagicMock()]
         workflow.get_step.return_value = step1
         mock_loader.load_workflow.return_value = workflow
 
@@ -491,6 +504,7 @@ class TestWorkflowEngine:
 
         workflow = MagicMock(spec=WorkflowDefinition)
         workflow.type = "step"
+        workflow.steps = [MagicMock()]
         workflow.get_step.return_value = step1
         mock_loader.load_workflow.return_value = workflow
 
@@ -538,6 +552,7 @@ class TestWorkflowEngine:
 
         workflow = MagicMock(spec=WorkflowDefinition)
         workflow.type = "step"
+        workflow.steps = [MagicMock()]
         workflow.get_step.return_value = step1
         mock_loader.load_workflow.return_value = workflow
 
@@ -583,6 +598,7 @@ class TestWorkflowEngine:
 
         workflow = MagicMock(spec=WorkflowDefinition)
         workflow.type = "step"
+        workflow.steps = [MagicMock()]
         workflow.get_step.return_value = step1
         mock_loader.load_workflow.return_value = workflow
 
@@ -633,6 +649,7 @@ class TestDetectTaskClaim:
 
         workflow = MagicMock(spec=WorkflowDefinition)
         workflow.type = "step"
+        workflow.steps = [MagicMock()]
         workflow.get_step.return_value = step1
         mock_loader.load_workflow.return_value = workflow
 
@@ -687,6 +704,7 @@ class TestDetectTaskClaim:
 
         workflow = MagicMock(spec=WorkflowDefinition)
         workflow.type = "step"
+        workflow.steps = [MagicMock()]
         workflow.get_step.return_value = step1
         mock_loader.load_workflow.return_value = workflow
 
@@ -737,6 +755,7 @@ class TestDetectTaskClaim:
 
         workflow = MagicMock(spec=WorkflowDefinition)
         workflow.type = "step"
+        workflow.steps = [MagicMock()]
         workflow.get_step.return_value = step1
         mock_loader.load_workflow.return_value = workflow
 
@@ -794,6 +813,7 @@ class TestDetectTaskClaim:
 
         workflow = MagicMock(spec=WorkflowDefinition)
         workflow.type = "step"
+        workflow.steps = [MagicMock()]
         workflow.get_step.return_value = step1
         mock_loader.load_workflow.return_value = workflow
 
@@ -842,6 +862,7 @@ class TestDetectTaskClaim:
 
         workflow = MagicMock(spec=WorkflowDefinition)
         workflow.type = "step"
+        workflow.steps = [MagicMock()]
         workflow.get_step.return_value = step1
         mock_loader.load_workflow.return_value = workflow
 
@@ -890,6 +911,7 @@ class TestDetectTaskClaim:
 
         workflow = MagicMock(spec=WorkflowDefinition)
         workflow.type = "step"
+        workflow.steps = [MagicMock()]
         workflow.get_step.return_value = step1
         mock_loader.load_workflow.return_value = workflow
 
@@ -938,6 +960,7 @@ class TestDetectTaskClaim:
 
         workflow = MagicMock(spec=WorkflowDefinition)
         workflow.type = "step"
+        workflow.steps = [MagicMock()]
         workflow.get_step.return_value = step1
         mock_loader.load_workflow.return_value = workflow
 
@@ -986,6 +1009,7 @@ class TestDetectTaskClaim:
 
         workflow = MagicMock(spec=WorkflowDefinition)
         workflow.type = "step"
+        workflow.steps = [MagicMock()]
         workflow.get_step.return_value = step1
         mock_loader.load_workflow.return_value = workflow
 
@@ -1026,6 +1050,7 @@ class TestDetectTaskClaim:
 
         workflow = MagicMock(spec=WorkflowDefinition)
         workflow.type = "step"
+        workflow.steps = [MagicMock()]
 
         def get_step(name: str) -> WorkflowStep | None:
             return {"step1": step1, "step2": step2}.get(name)
@@ -1064,6 +1089,7 @@ class TestDetectTaskClaim:
 
         workflow = MagicMock(spec=WorkflowDefinition)
         workflow.type = "step"
+        workflow.steps = [MagicMock()]
 
         def get_step(name: str) -> WorkflowStep | None:
             return {"step1": step1, "step2": step2}.get(name)
@@ -1104,6 +1130,7 @@ class TestDetectTaskClaim:
 
         workflow = MagicMock(spec=WorkflowDefinition)
         workflow.type = "step"
+        workflow.steps = [MagicMock()]
 
         def get_step(name: str) -> WorkflowStep | None:
             return {"step_a": step_a, "step_b": step_b}.get(name)
@@ -1155,6 +1182,7 @@ class TestDetectTaskClaim:
         workflow = MagicMock(spec=WorkflowDefinition)
         workflow.name = "default"
         workflow.type = "step"
+        workflow.steps = [MagicMock()]
         workflow.get_step.return_value = loop_step
 
         mock_action_executor.execute.return_value = None
@@ -1202,6 +1230,7 @@ class TestDetectTaskClaim:
 
         workflow = MagicMock(spec=WorkflowDefinition)
         workflow.type = "step"
+        workflow.steps = [MagicMock()]
         workflow.get_step.return_value = wait_step
 
         event = HookEvent(
@@ -1250,6 +1279,7 @@ class TestDetectTaskClaim:
 
         workflow = MagicMock(spec=WorkflowDefinition)
         workflow.type = "step"
+        workflow.steps = [MagicMock()]
         workflow.get_step.return_value = step1
         mock_loader.load_workflow.return_value = workflow
 
@@ -1302,6 +1332,7 @@ class TestConditionalActions:
 
         workflow = MagicMock(spec=WorkflowDefinition)
         workflow.type = "step"
+        workflow.steps = [MagicMock()]
 
         def get_step(name: str) -> WorkflowStep | None:
             return {"step1": step1, "step2": step2}.get(name)
@@ -1340,6 +1371,7 @@ class TestConditionalActions:
 
         workflow = MagicMock(spec=WorkflowDefinition)
         workflow.type = "step"
+        workflow.steps = [MagicMock()]
 
         def get_step(name: str) -> WorkflowStep | None:
             return {"step1": step1, "step2": step2}.get(name)
@@ -1381,6 +1413,7 @@ class TestConditionalActions:
 
         workflow = MagicMock(spec=WorkflowDefinition)
         workflow.type = "step"
+        workflow.steps = [MagicMock()]
 
         def get_step(name: str) -> WorkflowStep | None:
             return {"step1": step1, "step2": step2}.get(name)
@@ -1423,6 +1456,7 @@ class TestStatusMessage:
 
         workflow = MagicMock(spec=WorkflowDefinition)
         workflow.type = "step"
+        workflow.steps = [MagicMock()]
 
         def get_step(name: str) -> WorkflowStep | None:
             return {"step1": step1, "step2": step2}.get(name)
@@ -1461,6 +1495,7 @@ class TestStatusMessage:
 
         workflow = MagicMock(spec=WorkflowDefinition)
         workflow.type = "step"
+        workflow.steps = [MagicMock()]
 
         def get_step(name: str) -> WorkflowStep | None:
             return {"step1": step1, "step2": step2}.get(name)
@@ -1493,6 +1528,7 @@ class TestStatusMessage:
 
         workflow = MagicMock(spec=WorkflowDefinition)
         workflow.type = "step"
+        workflow.steps = [MagicMock()]
 
         def get_step(name: str) -> WorkflowStep | None:
             return {"step1": step1, "step2": step2}.get(name)
@@ -1539,6 +1575,7 @@ class TestStatusMessage:
 
         workflow = MagicMock(spec=WorkflowDefinition)
         workflow.type = "step"
+        workflow.steps = [MagicMock()]
         workflow.name = "test"
 
         def get_step(name: str) -> WorkflowStep | None:
@@ -1608,6 +1645,7 @@ class TestStatusMessage:
 
         workflow = MagicMock(spec=WorkflowDefinition)
         workflow.type = "step"
+        workflow.steps = [MagicMock()]
         workflow.name = "default"
 
         def get_step(name: str) -> WorkflowStep | None:
@@ -1634,3 +1672,206 @@ class TestStatusMessage:
         assert response.decision == "modify"
         assert response.system_message == "Now in step 2"
         assert "In step 2" in response.context
+
+
+@pytest.mark.asyncio
+class TestUnifiedEvaluatorDelegation:
+    """Tests verifying engine delegates core evaluation to unified_evaluator."""
+
+    def test_tool_check_function_imported(self) -> None:
+        """engine.py imports _evaluate_step_tool_rules from unified_evaluator."""
+        import gobby.workflows.engine as engine_module
+
+        assert hasattr(engine_module, "_evaluate_step_tool_rules"), (
+            "engine.py should import _evaluate_step_tool_rules from unified_evaluator"
+        )
+
+    def test_transition_check_function_imported(self) -> None:
+        """engine.py imports _evaluate_step_transitions from unified_evaluator."""
+        import gobby.workflows.engine as engine_module
+
+        assert hasattr(engine_module, "_evaluate_step_transitions"), (
+            "engine.py should import _evaluate_step_transitions from unified_evaluator"
+        )
+
+    async def test_tool_block_delegates_to_unified_evaluator(
+        self, workflow_engine, mock_state_manager, mock_loader
+    ):
+        """handle_event delegates basic tool restriction checks to unified evaluator."""
+        from unittest.mock import patch
+
+        state = WorkflowState(
+            session_id="sess1",
+            workflow_name="default",
+            step="step1",
+            step_entered_at=datetime.now(UTC),
+        )
+        mock_state_manager.get_state.return_value = state
+
+        step1 = WorkflowStep(name="step1", blocked_tools=["Write"])
+
+        workflow = MagicMock(spec=WorkflowDefinition)
+        workflow.type = "step"
+        workflow.steps = [MagicMock()]
+        workflow.get_step.return_value = step1
+        mock_loader.load_workflow.return_value = workflow
+
+        event = HookEvent(
+            event_type=HookEventType.BEFORE_TOOL,
+            session_id="sess1",
+            source=SessionSource.CLAUDE,
+            timestamp=datetime.now(UTC),
+            data={"tool_name": "Write"},
+            metadata={"_platform_session_id": "sess1"},
+        )
+
+        with patch("gobby.workflows.engine._evaluate_step_tool_rules") as mock_eval:
+            mock_eval.return_value = ("block", "Tool 'Write' is blocked in step 'step1'.")
+            response = await workflow_engine.handle_event(event)
+            mock_eval.assert_called_once()
+            assert response.decision == "block"
+
+    async def test_transition_delegates_to_unified_evaluator(
+        self, workflow_engine, mock_state_manager, mock_loader, mock_action_executor
+    ):
+        """handle_event delegates transition detection to unified evaluator."""
+        from unittest.mock import patch
+
+        state = WorkflowState(
+            session_id="sess1",
+            workflow_name="default",
+            step="step1",
+            step_entered_at=datetime.now(UTC),
+            step_action_count=1,
+            total_action_count=1,
+            variables={"ready": True},
+        )
+        mock_state_manager.get_state.return_value = state
+
+        step1 = MagicMock(spec=WorkflowStep)
+        step1.on_enter = []
+        step1.on_exit = []
+        step1.blocked_tools = []
+        step1.allowed_tools = "all"
+        step1.allowed_mcp_tools = "all"
+        step1.blocked_mcp_tools = []
+        step1.rules = []
+        step1.check_rules = []
+        step1.exit_conditions = []
+        step1.status_message = None
+        step1.on_mcp_success = []
+        step1.on_mcp_error = []
+        transition = MagicMock(when="ready", to="step2", on_transition=None)
+        step1.transitions = [transition]
+
+        step2 = MagicMock(spec=WorkflowStep)
+        step2.on_enter = []
+        step2.on_exit = []
+        step2.status_message = None
+        step2.transitions = []
+
+        workflow = MagicMock(spec=WorkflowDefinition)
+        workflow.type = "step"
+        workflow.steps = [MagicMock()]
+        workflow.name = "default"
+
+        def get_step(name: str) -> WorkflowStep | None:
+            return {"step1": step1, "step2": step2}.get(name)
+
+        workflow.get_step.side_effect = get_step
+        mock_loader.load_workflow.return_value = workflow
+        mock_action_executor.execute.return_value = None
+        mock_action_executor.session_manager = MagicMock()
+
+        event = HookEvent(
+            event_type=HookEventType.AFTER_TOOL,
+            session_id="sess1",
+            source=SessionSource.CLAUDE,
+            timestamp=datetime.now(UTC),
+            data={"tool_name": "Read", "tool_input": {}, "tool_output": {}},
+            metadata={"_platform_session_id": "sess1"},
+        )
+
+        with patch("gobby.workflows.engine._evaluate_step_transitions") as mock_eval:
+            mock_eval.return_value = "step2"
+            response = await workflow_engine.handle_event(event)
+            mock_eval.assert_called_once()
+            assert response.decision == "modify"
+
+    async def test_tool_check_equivalence_blocked(
+        self, workflow_engine, mock_state_manager, mock_loader
+    ):
+        """Blocked tool via engine produces same result as unified evaluator."""
+        from gobby.workflows.unified_evaluator import _evaluate_step_tool_rules
+
+        step = WorkflowStep(name="restricted", blocked_tools=["Write"])
+
+        # Unified evaluator directly
+        decision, reason = _evaluate_step_tool_rules("Write", step, {})
+        assert decision == "block"
+
+        # Through engine (same behavior expected)
+        state = WorkflowState(
+            session_id="sess1",
+            workflow_name="default",
+            step="restricted",
+            step_entered_at=datetime.now(UTC),
+        )
+        mock_state_manager.get_state.return_value = state
+
+        workflow = MagicMock(spec=WorkflowDefinition)
+        workflow.type = "step"
+        workflow.steps = [MagicMock()]
+        workflow.get_step.return_value = step
+        mock_loader.load_workflow.return_value = workflow
+
+        event = HookEvent(
+            event_type=HookEventType.BEFORE_TOOL,
+            session_id="sess1",
+            source=SessionSource.CLAUDE,
+            timestamp=datetime.now(UTC),
+            data={"tool_name": "Write"},
+            metadata={"_platform_session_id": "sess1"},
+        )
+
+        response = await workflow_engine.handle_event(event)
+        assert response.decision == "block"
+
+    async def test_exempt_tool_equivalence(
+        self, workflow_engine, mock_state_manager, mock_loader
+    ):
+        """Exempt tools pass through both unified evaluator and engine identically."""
+        from gobby.workflows.unified_evaluator import _evaluate_step_tool_rules
+
+        step = WorkflowStep(name="locked", allowed_tools=["Read"])
+
+        # Unified evaluator directly
+        decision, _ = _evaluate_step_tool_rules("list_mcp_servers", step, {})
+        assert decision == "allow"
+
+        # Through engine
+        state = WorkflowState(
+            session_id="sess1",
+            workflow_name="default",
+            step="locked",
+            step_entered_at=datetime.now(UTC),
+        )
+        mock_state_manager.get_state.return_value = state
+
+        workflow = MagicMock(spec=WorkflowDefinition)
+        workflow.type = "step"
+        workflow.steps = [MagicMock()]
+        workflow.get_step.return_value = step
+        mock_loader.load_workflow.return_value = workflow
+
+        event = HookEvent(
+            event_type=HookEventType.BEFORE_TOOL,
+            session_id="sess1",
+            source=SessionSource.CLAUDE,
+            timestamp=datetime.now(UTC),
+            data={"tool_name": "list_mcp_servers"},
+            metadata={"_platform_session_id": "sess1"},
+        )
+
+        response = await workflow_engine.handle_event(event)
+        assert response.decision == "allow"

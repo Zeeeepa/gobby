@@ -115,6 +115,7 @@ async def test_handle_event_stuck_workflow(engine, mock_components):
 
     wf = MagicMock(spec=WorkflowDefinition)
     wf.type = "step"
+    wf.steps = [MagicMock()]
     wf.name = "test_wf"
     reflect_step = MagicMock()
     reflect_step.on_enter = []
@@ -159,6 +160,7 @@ async def test_handle_event_step_not_found(engine, mock_components):
 
     wf = MagicMock(spec=WorkflowDefinition)
     wf.type = "step"
+    wf.steps = [MagicMock()]
     wf.name = "exists"
     wf.get_step.return_value = None
     loader.load_workflow.return_value = wf
@@ -189,6 +191,7 @@ async def test_handle_event_tool_blocking(engine, mock_components):
 
     wf = MagicMock(spec=WorkflowDefinition)
     wf.type = "step"
+    wf.steps = [MagicMock()]
     wf.get_step.return_value = step
     loader.load_workflow.return_value = wf
 
@@ -241,6 +244,7 @@ async def test_handle_event_exit_conditions(engine, mock_components):
 
     wf = MagicMock(spec=WorkflowDefinition)
     wf.type = "step"
+    wf.steps = [MagicMock()]
     wf.get_step.return_value = step
     loader.load_workflow.return_value = wf
 
@@ -259,6 +263,8 @@ async def test_evaluate_lifecycle_full(engine, mock_components):
 
     wf = MagicMock(spec=WorkflowDefinition)
     wf.type = "lifecycle"
+    wf.enabled = True
+    wf.steps = []
     wf.variables = {}
     wf.name = "lifecycle_wf"
     wf.sources = None  # No source filter — applies to all sessions
@@ -286,6 +292,8 @@ async def test_evaluate_lifecycle_alias(engine, mock_components):
     loader, _, action_executor, evaluator, _ = mock_components
     wf = MagicMock(spec=WorkflowDefinition)
     wf.type = "lifecycle"
+    wf.enabled = True
+    wf.steps = []
     wf.variables = {}
     wf.name = "alias_wf"
     wf.sources = None
@@ -319,6 +327,7 @@ async def test_transition_execution(engine, mock_components):
 
     wf = MagicMock(spec=WorkflowDefinition)
     wf.type = "step"
+    wf.steps = [MagicMock()]
 
     step1 = MagicMock()
     step1.on_exit = [{"action": "log_exit"}]
@@ -367,6 +376,7 @@ async def test_approval_flow_rejected(engine, mock_components):
     step1.rules = [WorkflowRule(when="True", action="require_approval", name="check")]
     wf = MagicMock(spec=WorkflowDefinition)
     wf.type = "step"
+    wf.steps = [MagicMock()]
     wf.get_step.return_value = step1
     loader.load_workflow.return_value = wf
 
@@ -396,6 +406,7 @@ async def test_approval_flow_approved(engine, mock_components):
     step1.rules = []
     wf = MagicMock(spec=WorkflowDefinition)
     wf.type = "step"
+    wf.steps = [MagicMock()]
     wf.get_step.return_value = step1
     loader.load_workflow.return_value = wf
 
@@ -441,6 +452,7 @@ async def test_lifecycle_trigger_alias_loop(engine, mock_components):
     loader, _, action_executor, _, _ = mock_components
     wf = MagicMock(spec=WorkflowDefinition)
     wf.type = "lifecycle"
+    wf.steps = []
     wf.triggers = {"on_alias_event": [{"action": "act1"}]}
     loader.load_workflow.return_value = wf
 
@@ -459,6 +471,7 @@ async def test_lifecycle_when_condition_false(engine, mock_components):
     loader, _, action_executor, evaluator, _ = mock_components
     wf = MagicMock(spec=WorkflowDefinition)
     wf.type = "lifecycle"
+    wf.steps = []
     wf.triggers = {"on_before_agent": [{"action": "act1", "when": "False"}]}
     loader.load_workflow.return_value = wf
 
@@ -475,6 +488,7 @@ async def test_lifecycle_action_exception(engine, mock_components):
     loader, _, action_executor, _, _ = mock_components
     wf = MagicMock(spec=WorkflowDefinition)
     wf.type = "lifecycle"
+    wf.steps = []
     wf.triggers = {"on_before_agent": [{"action": "boom"}]}
     loader.load_workflow.return_value = wf
 
@@ -505,6 +519,7 @@ async def test_lifecycle_context_none(engine, mock_components):
     loader, _, action_executor, _, _ = mock_components
     wf = MagicMock(spec=WorkflowDefinition)
     wf.type = "lifecycle"
+    wf.steps = []
     wf.triggers = {"on_before_agent": [{"action": "act1"}]}
     loader.load_workflow.return_value = wf
 
@@ -536,6 +551,7 @@ async def test_approval_request_trigger(engine, mock_components):
     step1.exit_conditions = ["check"]
     wf = MagicMock(spec=WorkflowDefinition)
     wf.type = "step"
+    wf.steps = [MagicMock()]
     wf.get_step.return_value = step1
     loader.load_workflow.return_value = wf
 
@@ -575,6 +591,7 @@ async def test_approval_timeout(engine, mock_components):
     step1.exit_conditions = ["check"]
     wf = MagicMock(spec=WorkflowDefinition)
     wf.type = "step"
+    wf.steps = [MagicMock()]
     wf.get_step.return_value = step1
     loader.load_workflow.return_value = wf
 

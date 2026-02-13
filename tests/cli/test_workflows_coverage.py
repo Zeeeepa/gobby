@@ -78,15 +78,19 @@ def test_set_workflow_lifecycle_error(
     # Mock that no workflow is currently active
     mock_state_manager.get_state.return_value = None
 
-    definition = Mock()
-    definition.type = "lifecycle"
-    definition.name = "life-wf"
+    # Pipeline definitions (not WorkflowDefinition) are rejected
+    from gobby.workflows.definitions import PipelineDefinition, PipelineStep
+
+    definition = PipelineDefinition(
+        name="life-wf",
+        steps=[PipelineStep(id="s1", exec="echo test")],
+    )
     mock_loader.load_workflow_sync.return_value = definition
 
     with patch("gobby.cli.workflows.get_project_path", return_value=None):
         result = runner.invoke(workflows, ["set", "life-wf"])
         assert result.exit_code == 1
-        assert "is a lifecycle workflow" in result.output
+        assert "is a pipeline" in result.output
 
 
 def test_reload_workflows_success(runner) -> None:

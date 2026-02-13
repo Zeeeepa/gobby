@@ -51,7 +51,7 @@ def mock_dependencies() -> dict[str, Any]:
     """Create mock dependencies for EventHandlers."""
     # Configure workflow_handler to return a proper HookResponse
     workflow_handler = MagicMock()
-    workflow_handler.handle_all_lifecycles.return_value = HookResponse(decision="allow", context="")
+    workflow_handler.evaluate.return_value = HookResponse(decision="allow", context="")
     return {
         "session_manager": MagicMock(),
         "workflow_handler": workflow_handler,
@@ -234,7 +234,7 @@ class TestErrorIsolation:
         self, event_handlers: EventHandlers, mock_dependencies: dict
     ) -> None:
         """Test workflow errors are handled gracefully."""
-        mock_dependencies["workflow_handler"].handle_all_lifecycles.side_effect = Exception(
+        mock_dependencies["workflow_handler"].evaluate.side_effect = Exception(
             "Workflow error"
         )
         event = make_event(HookEventType.BEFORE_AGENT, data={"prompt": "Hello"})
@@ -469,7 +469,7 @@ class TestSessionStartPreCreatedSession:
         mock_session.agent_run_id = None
 
         mock_dependencies["session_storage"].get.return_value = mock_session
-        mock_dependencies["workflow_handler"].handle_all_lifecycles.return_value = HookResponse(
+        mock_dependencies["workflow_handler"].evaluate.return_value = HookResponse(
             decision="allow",
             context="Workflow context here",
             system_message="Workflow system message",
@@ -497,7 +497,7 @@ class TestSessionStartPreCreatedSession:
         mock_session.agent_run_id = None
 
         mock_dependencies["session_storage"].get.return_value = mock_session
-        mock_dependencies["workflow_handler"].handle_all_lifecycles.side_effect = Exception(
+        mock_dependencies["workflow_handler"].evaluate.side_effect = Exception(
             "Workflow error"
         )
 
@@ -675,7 +675,7 @@ class TestSessionStartNewSession:
         """Test new session merges workflow context."""
         mock_dependencies["session_storage"].get.return_value = None
         mock_dependencies["session_manager"].register_session.return_value = "new-sess-456"
-        mock_dependencies["workflow_handler"].handle_all_lifecycles.return_value = HookResponse(
+        mock_dependencies["workflow_handler"].evaluate.return_value = HookResponse(
             decision="allow",
             context="Workflow context",
             system_message="System message",
@@ -697,7 +697,7 @@ class TestSessionStartNewSession:
         """Test workflow error during new session is handled."""
         mock_dependencies["session_storage"].get.return_value = None
         mock_dependencies["session_manager"].register_session.return_value = "new-sess-456"
-        mock_dependencies["workflow_handler"].handle_all_lifecycles.side_effect = Exception(
+        mock_dependencies["workflow_handler"].evaluate.side_effect = Exception(
             "Workflow error"
         )
 
@@ -762,7 +762,7 @@ class TestSessionEndHandling:
 
     def test_session_end_workflow_error(self, mock_dependencies: dict) -> None:
         """Test workflow error during session end is handled."""
-        mock_dependencies["workflow_handler"].handle_all_lifecycles.side_effect = Exception(
+        mock_dependencies["workflow_handler"].evaluate.side_effect = Exception(
             "Workflow error"
         )
 
@@ -997,7 +997,7 @@ class TestBeforeAgentHandling:
 
     def test_before_agent_workflow_deny(self, mock_dependencies: dict) -> None:
         """Test BEFORE_AGENT returns workflow deny response."""
-        mock_dependencies["workflow_handler"].handle_all_lifecycles.return_value = HookResponse(
+        mock_dependencies["workflow_handler"].evaluate.return_value = HookResponse(
             decision="deny", reason="Not allowed"
         )
 
@@ -1014,7 +1014,7 @@ class TestBeforeAgentHandling:
 
     def test_before_agent_workflow_context(self, mock_dependencies: dict) -> None:
         """Test BEFORE_AGENT merges workflow context."""
-        mock_dependencies["workflow_handler"].handle_all_lifecycles.return_value = HookResponse(
+        mock_dependencies["workflow_handler"].evaluate.return_value = HookResponse(
             decision="allow", context="Some context"
         )
 
@@ -1078,7 +1078,7 @@ class TestAfterAgentHandling:
 
     def test_after_agent_workflow_deny(self, mock_dependencies: dict) -> None:
         """Test AFTER_AGENT returns workflow deny response."""
-        mock_dependencies["workflow_handler"].handle_all_lifecycles.return_value = HookResponse(
+        mock_dependencies["workflow_handler"].evaluate.return_value = HookResponse(
             decision="deny", reason="Not allowed"
         )
 
@@ -1091,7 +1091,7 @@ class TestAfterAgentHandling:
 
     def test_after_agent_workflow_context(self, mock_dependencies: dict) -> None:
         """Test AFTER_AGENT returns workflow context response."""
-        mock_dependencies["workflow_handler"].handle_all_lifecycles.return_value = HookResponse(
+        mock_dependencies["workflow_handler"].evaluate.return_value = HookResponse(
             decision="allow", context="Context from workflow"
         )
 
@@ -1121,7 +1121,7 @@ class TestToolHandlerEdgeCases:
 
     def test_before_tool_workflow_deny(self, mock_dependencies: dict) -> None:
         """Test BEFORE_TOOL returns workflow deny response."""
-        mock_dependencies["workflow_handler"].handle_all_lifecycles.return_value = HookResponse(
+        mock_dependencies["workflow_handler"].evaluate.return_value = HookResponse(
             decision="deny", reason="Tool blocked"
         )
 
@@ -1138,7 +1138,7 @@ class TestToolHandlerEdgeCases:
 
     def test_before_tool_workflow_context(self, mock_dependencies: dict) -> None:
         """Test BEFORE_TOOL merges workflow context."""
-        mock_dependencies["workflow_handler"].handle_all_lifecycles.return_value = HookResponse(
+        mock_dependencies["workflow_handler"].evaluate.return_value = HookResponse(
             decision="allow", context="Tool context"
         )
 
@@ -1180,7 +1180,7 @@ class TestToolHandlerEdgeCases:
 
     def test_after_tool_workflow_deny(self, mock_dependencies: dict) -> None:
         """Test AFTER_TOOL returns workflow deny response."""
-        mock_dependencies["workflow_handler"].handle_all_lifecycles.return_value = HookResponse(
+        mock_dependencies["workflow_handler"].evaluate.return_value = HookResponse(
             decision="deny", reason="Blocked"
         )
 
@@ -1196,7 +1196,7 @@ class TestToolHandlerEdgeCases:
 
     def test_after_tool_workflow_context(self, mock_dependencies: dict) -> None:
         """Test AFTER_TOOL merges workflow context."""
-        mock_dependencies["workflow_handler"].handle_all_lifecycles.return_value = HookResponse(
+        mock_dependencies["workflow_handler"].evaluate.return_value = HookResponse(
             decision="allow", context="After tool context"
         )
 
@@ -1286,7 +1286,7 @@ class TestStopHandlerEdgeCases:
 
     def test_stop_workflow_deny(self, mock_dependencies: dict) -> None:
         """Test STOP returns workflow deny response."""
-        mock_dependencies["workflow_handler"].handle_all_lifecycles.return_value = HookResponse(
+        mock_dependencies["workflow_handler"].evaluate.return_value = HookResponse(
             decision="deny", reason="Cannot stop"
         )
 
@@ -1299,7 +1299,7 @@ class TestStopHandlerEdgeCases:
 
     def test_stop_workflow_context(self, mock_dependencies: dict) -> None:
         """Test STOP returns workflow context response."""
-        mock_dependencies["workflow_handler"].handle_all_lifecycles.return_value = HookResponse(
+        mock_dependencies["workflow_handler"].evaluate.return_value = HookResponse(
             decision="allow", context="Stop context"
         )
 
@@ -1345,7 +1345,7 @@ class TestPreCompactHandlerEdgeCases:
 
     def test_pre_compact_workflow_response(self, mock_dependencies: dict) -> None:
         """Test PRE_COMPACT returns workflow response."""
-        mock_dependencies["workflow_handler"].handle_all_lifecycles.return_value = HookResponse(
+        mock_dependencies["workflow_handler"].evaluate.return_value = HookResponse(
             decision="allow", context="Compact context"
         )
 
@@ -1376,7 +1376,7 @@ class TestPreCompactHandlerEdgeCases:
         # Should NOT update session status for Gemini
         mock_dependencies["session_manager"].update_session_status.assert_not_called()
         # Should NOT execute workflow handler for Gemini
-        mock_dependencies["workflow_handler"].handle_all_lifecycles.assert_not_called()
+        mock_dependencies["workflow_handler"].evaluate.assert_not_called()
 
 
 class TestSubagentHandlerEdgeCases:
@@ -1617,7 +1617,7 @@ class TestWorkflowErrorHandling:
 
     def test_after_agent_workflow_error(self, mock_dependencies: dict) -> None:
         """Test AFTER_AGENT handles workflow errors gracefully."""
-        mock_dependencies["workflow_handler"].handle_all_lifecycles.side_effect = Exception(
+        mock_dependencies["workflow_handler"].evaluate.side_effect = Exception(
             "Workflow error"
         )
 
@@ -1631,7 +1631,7 @@ class TestWorkflowErrorHandling:
 
     def test_before_tool_workflow_error(self, mock_dependencies: dict) -> None:
         """Test BEFORE_TOOL handles workflow errors gracefully."""
-        mock_dependencies["workflow_handler"].handle_all_lifecycles.side_effect = Exception(
+        mock_dependencies["workflow_handler"].evaluate.side_effect = Exception(
             "Workflow error"
         )
 
@@ -1648,7 +1648,7 @@ class TestWorkflowErrorHandling:
 
     def test_after_tool_workflow_error(self, mock_dependencies: dict) -> None:
         """Test AFTER_TOOL handles workflow errors gracefully."""
-        mock_dependencies["workflow_handler"].handle_all_lifecycles.side_effect = Exception(
+        mock_dependencies["workflow_handler"].evaluate.side_effect = Exception(
             "Workflow error"
         )
 
@@ -1665,7 +1665,7 @@ class TestWorkflowErrorHandling:
 
     def test_stop_workflow_error(self, mock_dependencies: dict) -> None:
         """Test STOP handles workflow errors gracefully."""
-        mock_dependencies["workflow_handler"].handle_all_lifecycles.side_effect = Exception(
+        mock_dependencies["workflow_handler"].evaluate.side_effect = Exception(
             "Workflow error"
         )
 
@@ -1679,7 +1679,7 @@ class TestWorkflowErrorHandling:
 
     def test_pre_compact_workflow_error(self, mock_dependencies: dict) -> None:
         """Test PRE_COMPACT handles workflow errors gracefully."""
-        mock_dependencies["workflow_handler"].handle_all_lifecycles.side_effect = Exception(
+        mock_dependencies["workflow_handler"].evaluate.side_effect = Exception(
             "Workflow error"
         )
 
@@ -1955,3 +1955,75 @@ class TestTranscriptPathDerivation:
 
         response = handlers.handle_session_start(event)
         assert response.decision == "allow"
+
+
+class TestEvaluateWorkflowsHelper:
+    """Tests for the _evaluate_workflows() consolidated helper on EventHandlersBase."""
+
+    def test_evaluate_workflows_returns_allow_when_no_handler(self) -> None:
+        """_evaluate_workflows returns allow when _workflow_handler is None."""
+        handlers = EventHandlers()
+        event = make_event(HookEventType.BEFORE_TOOL, data={"tool_name": "Read"})
+
+        result = handlers._evaluate_workflows(event)
+
+        assert result.decision == "allow"
+
+    def test_evaluate_workflows_delegates_to_handler(self, mock_dependencies: dict) -> None:
+        """_evaluate_workflows delegates to workflow_handler.evaluate()."""
+        expected = HookResponse(decision="block", reason="test block")
+        mock_dependencies["workflow_handler"].evaluate.return_value = expected
+
+        handlers = EventHandlers(**mock_dependencies)
+        event = make_event(HookEventType.BEFORE_TOOL, data={"tool_name": "Read"})
+
+        result = handlers._evaluate_workflows(event)
+
+        assert result.decision == "block"
+        assert result.reason == "test block"
+        mock_dependencies["workflow_handler"].evaluate.assert_called_once_with(event)
+
+    def test_evaluate_workflows_returns_allow_on_error(self, mock_dependencies: dict) -> None:
+        """_evaluate_workflows returns allow on exception."""
+        mock_dependencies["workflow_handler"].evaluate.side_effect = Exception("boom")
+
+        handlers = EventHandlers(**mock_dependencies)
+        event = make_event(HookEventType.BEFORE_TOOL, data={"tool_name": "Read"})
+
+        result = handlers._evaluate_workflows(event)
+
+        assert result.decision == "allow"
+
+    def test_evaluate_workflows_passes_context_through(self, mock_dependencies: dict) -> None:
+        """_evaluate_workflows returns context from workflow response."""
+        mock_dependencies["workflow_handler"].evaluate.return_value = HookResponse(
+            decision="allow", context="workflow context here"
+        )
+
+        handlers = EventHandlers(**mock_dependencies)
+        event = make_event(HookEventType.BEFORE_AGENT, data={"prompt": "hi"})
+
+        result = handlers._evaluate_workflows(event)
+
+        assert result.context == "workflow context here"
+
+    def test_all_handler_call_sites_use_evaluate_workflows(self) -> None:
+        """Verify _evaluate_workflows is used (no direct handle_all_lifecycles calls)."""
+        import inspect
+
+        from gobby.hooks.event_handlers._agent import AgentEventHandlerMixin
+        from gobby.hooks.event_handlers._session import SessionEventHandlerMixin
+        from gobby.hooks.event_handlers._tool import ToolEventHandlerMixin
+
+        for cls in [AgentEventHandlerMixin, SessionEventHandlerMixin, ToolEventHandlerMixin]:
+            source = inspect.getsource(cls)
+            assert "handle_all_lifecycles" not in source, (
+                f"{cls.__name__} still calls handle_all_lifecycles directly"
+            )
+
+    def test_evaluate_workflows_helper_exists_on_base(self) -> None:
+        """_evaluate_workflows is defined on EventHandlersBase."""
+        from gobby.hooks.event_handlers._base import EventHandlersBase
+
+        assert hasattr(EventHandlersBase, "_evaluate_workflows")
+        assert callable(getattr(EventHandlersBase, "_evaluate_workflows"))

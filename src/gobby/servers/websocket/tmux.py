@@ -10,7 +10,7 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
-from typing import TYPE_CHECKING, Any, NamedTuple
+from typing import TYPE_CHECKING, Any, NamedTuple, cast
 from uuid import uuid4
 
 from gobby.agents.registry import get_running_agent_registry
@@ -132,6 +132,8 @@ class TmuxMixin:
                             "name": s.name,
                             "socket": socket_name,
                             "pane_pid": s.pane_pid,
+                            "pane_title": s.pane_title,
+                            "window_name": s.window_name,
                             "agent_managed": agent_managed,
                             "agent_run_id": agent_run_id,
                             "attached_bridge": attached_bridge,
@@ -188,7 +190,7 @@ class TmuxMixin:
                 run_id: str
                 master_fd: int
 
-            await reader.start_reader(_BridgeAgent(streaming_id, master_fd))  # type: ignore[arg-type]
+            await reader.start_reader(cast(Any, _BridgeAgent(streaming_id, master_fd)))
 
             # Track ownership for cleanup
             if websocket not in self._tmux_client_bridges:

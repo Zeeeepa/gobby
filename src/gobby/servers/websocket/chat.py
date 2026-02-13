@@ -169,10 +169,8 @@ class ChatMixin:
         )
 
         try:
-            # WorkflowHookHandler.handle_all_lifecycles is sync (bridges to async internally)
-            response: HookResponse = await asyncio.to_thread(
-                workflow_handler.handle_all_lifecycles, event
-            )
+            # WorkflowHookHandler.evaluate is sync (bridges to async internally)
+            response: HookResponse = await asyncio.to_thread(workflow_handler.evaluate, event)
             return {
                 "decision": response.decision,
                 "context": response.context,
@@ -259,7 +257,7 @@ class ChatMixin:
         task.add_done_callback(self._on_chat_task_done)
         self._active_chat_tasks[conversation_id] = task
 
-    def _on_chat_task_done(self, task: asyncio.Task) -> None:  # type: ignore[type-arg]
+    def _on_chat_task_done(self, task: asyncio.Task[None]) -> None:
         """Log unhandled exceptions from chat tasks."""
         if task.cancelled():
             return

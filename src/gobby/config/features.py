@@ -38,7 +38,7 @@ class ToolSummarizerConfig(BaseModel):
         description="LLM provider to use for summarization",
     )
     model: str = Field(
-        default="claude-haiku-4-5-20251001",
+        default="claude-haiku-4-5",
         description="Model to use for summarization (fast/cheap recommended)",
     )
 
@@ -79,7 +79,7 @@ class TaskDescriptionConfig(BaseModel):
         description="LLM provider to use for description generation",
     )
     model: str = Field(
-        default="claude-haiku-4-5-20251001",
+        default="claude-haiku-4-5",
         description="Model to use for description generation (fast/cheap recommended)",
     )
     min_structured_length: int = Field(
@@ -150,7 +150,7 @@ class ImportMCPServerConfig(BaseModel):
         description="LLM provider to use for config extraction",
     )
     model: str = Field(
-        default="claude-haiku-4-5-20251001",
+        default="claude-haiku-4-5",
         description="Model to use for config extraction",
     )
 

@@ -4,7 +4,9 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-from gobby.agents.runner import AgentConfig, AgentRunContext, AgentRunner, RunningAgent
+from gobby.agents.registry import RunningAgent
+from gobby.agents.runner import AgentRunner
+from gobby.agents.runner_models import AgentConfig, AgentRunContext
 from gobby.llm.executor import AgentResult
 
 pytestmark = pytest.mark.unit
@@ -666,13 +668,13 @@ class TestAgentRunnerCancelRun:
         runner._run_storage.cancel = MagicMock()
 
         # Add to tracking first
-        runner._running_agents["run-tracked"] = MagicMock()
-        assert "run-tracked" in runner._running_agents
+        runner._tracker._running_agents["run-tracked"] = MagicMock()
+        assert runner.is_agent_running("run-tracked")
 
         result = runner.cancel_run("run-tracked")
 
         assert result is True
-        assert "run-tracked" not in runner._running_agents
+        assert not runner.is_agent_running("run-tracked")
 
     def test_cancel_run_no_child_session(self, runner) -> None:
         """cancel_run handles case where run has no child_session_id."""
@@ -726,8 +728,8 @@ class TestAgentRunnerInMemoryTracking:
         )
 
         assert agent.run_id == "run-123"
-        assert "run-123" in runner._running_agents
-        assert runner._running_agents["run-123"] is agent
+        assert runner.is_agent_running("run-123")
+        assert runner.get_running_agent("run-123") is agent
 
     def test_untrack_running_agent(self, runner) -> None:
         """_untrack_running_agent removes agent from dict."""
@@ -743,7 +745,7 @@ class TestAgentRunnerInMemoryTracking:
 
         assert removed is not None
         assert removed.run_id == "run-456"
-        assert "run-456" not in runner._running_agents
+        assert not runner.is_agent_running("run-456")
 
     def test_untrack_nonexistent_returns_none(self, runner) -> None:
         """_untrack_running_agent returns None for missing agent."""
@@ -1018,7 +1020,7 @@ class TestAgentRunnerExecuteRunStatusHandling:
         await runner.execute_run(context, config)
 
         # Verify not in tracking after exception
-        assert "run-exc-track" not in runner._running_agents
+        assert not runner.is_agent_running("run-exc-track")
 
 
 class TestAgentRunnerPrepareRunWorkflows:

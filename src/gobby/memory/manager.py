@@ -1,21 +1,30 @@
 from __future__ import annotations
 
 import asyncio
-import hashlib
 import logging
 from datetime import UTC, datetime
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, Literal, cast
 
 from gobby.config.persistence import MemoryConfig
 from gobby.memory.backends.storage_adapter import StorageAdapter
 from gobby.memory.components.ingestion import IngestionService
 from gobby.memory.components.search import SearchService
 from gobby.memory.context import build_memory_context
-from gobby.memory.mem0_client import Mem0Client, Mem0ConnectionError
+from gobby.memory.mem0_client import Mem0Client
 from gobby.memory.neo4j_client import Neo4jClient
-from gobby.memory.neo4j_client import Neo4jConnectionError as _Neo4jConnError
 from gobby.memory.protocol import MemoryBackendProtocol, MemoryRecord
-from gobby.search.embeddings import generate_embedding, generate_embeddings, is_embedding_available
+from gobby.memory.services.embeddings import EmbeddingService
+from gobby.memory.services.graph import GraphService
+from gobby.memory.services.maintenance import (
+    decay_memories as _decay_memories,
+)
+from gobby.memory.services.maintenance import (
+    export_markdown as _export_markdown,
+)
+from gobby.memory.services.maintenance import (
+    get_stats as _get_stats,
+)
+from gobby.memory.services.mem0_sync import Mem0Service
 from gobby.storage.database import DatabaseProtocol
 from gobby.storage.memories import LocalMemoryManager, Memory
 from gobby.storage.memory_embeddings import MemoryEmbeddingManager
@@ -66,6 +75,18 @@ class MemoryManager:
         # Embedding manager for memory CRUD lifecycle
         self._embedding_mgr = MemoryEmbeddingManager(db)
 
+        # Track background tasks to prevent GC and surface exceptions
+        self._background_tasks: set[asyncio.Task[Any]] = set()
+
+        # Embedding service (extracted from manager)
+        self._embedding_service = EmbeddingService(
+            config=config,
+            embedding_mgr=self._embedding_mgr,
+            storage=self.storage,
+            embedding_api_key=embedding_api_key,
+            background_tasks=self._background_tasks,
+        )
+
         # Mem0 dual-mode: initialize client when mem0_url is configured
         if config.mem0_url:
             self._mem0_client: Mem0Client | None = Mem0Client(
@@ -76,8 +97,13 @@ class MemoryManager:
         else:
             self._mem0_client = None
 
-        # Track background tasks to prevent GC and surface exceptions
-        self._background_tasks: set[asyncio.Task[Any]] = set()
+        # Mem0 sync service (extracted from manager)
+        self._mem0_service = Mem0Service(
+            get_mem0_client=lambda: self._mem0_client,
+            db=self.db,
+            get_memory_fn=self.get_memory,
+            recall_with_search_fn=self._recall_with_search,
+        )
 
         # Neo4j knowledge graph: initialize client when neo4j_url is configured
         if config.neo4j_url:
@@ -88,6 +114,11 @@ class MemoryManager:
             )
         else:
             self._neo4j_client = None
+
+        # Graph service (extracted from manager)
+        self._graph_service = GraphService(
+            get_neo4j_client=lambda: self._neo4j_client,
+        )
 
     @property
     def llm_service(self) -> LLMService | None:
@@ -116,12 +147,12 @@ class MemoryManager:
         """Convert a MemoryRecord from the backend to a Memory for downstream compatibility."""
         return Memory(
             id=record.id,
-            memory_type=record.memory_type,  # type: ignore[arg-type]  # MemoryRecord uses str, Memory uses Literal
+            memory_type=cast(Literal["fact", "preference", "pattern", "context"], record.memory_type),
             content=record.content,
             created_at=record.created_at.isoformat() if record.created_at else "",
             updated_at=record.updated_at.isoformat() if record.updated_at else "",
             project_id=record.project_id,
-            source_type=record.source_type,  # type: ignore[arg-type]  # MemoryRecord uses str, Memory uses Literal
+            source_type=cast(Literal["user", "session", "inferred"] | None, record.source_type),
             source_session_id=record.source_session_id,
             importance=record.importance,
             access_count=record.access_count,
@@ -141,125 +172,18 @@ class MemoryManager:
         self._search_service.mark_refit_needed()
 
     def _store_embedding_sync(self, memory_id: str, content: str, project_id: str | None) -> None:
-        """Generate and store an embedding for a memory (sync, non-blocking).
-
-        Failures are logged but never propagated — CRUD operations must not
-        be blocked by embedding generation errors.
-        """
-        if not is_embedding_available(
-            model=self.config.embedding_model, api_key=self._embedding_api_key
-        ):
-            return
-
-        try:
-            loop = asyncio.get_running_loop()
-        except RuntimeError:
-            loop = None
-
-        if loop and loop.is_running():
-            # We are in an event loop. Schedule as background task to avoid blocking/crashing.
-            task = loop.create_task(self._store_embedding_async(memory_id, content, project_id))
-            self._background_tasks.add(task)
-            task.add_done_callback(self._background_tasks.discard)
-            return
-
-        try:
-            embedding = asyncio.run(generate_embedding(content, model=self.config.embedding_model))
-
-            text_hash = hashlib.sha256(content.encode()).hexdigest()
-            self._embedding_mgr.store_embedding(
-                memory_id=memory_id,
-                project_id=project_id,
-                embedding=embedding,
-                embedding_model=self.config.embedding_model,
-                text_hash=text_hash,
-            )
-        except Exception as e:
-            logger.warning(f"Failed to generate embedding for memory {memory_id}: {e}")
+        """Generate and store an embedding for a memory (sync, non-blocking)."""
+        self._embedding_service._store_embedding_sync(memory_id, content, project_id)
 
     async def _store_embedding_async(
         self, memory_id: str, content: str, project_id: str | None
     ) -> None:
         """Generate and store an embedding for a memory (async, non-blocking)."""
-        if not is_embedding_available(
-            model=self.config.embedding_model, api_key=self._embedding_api_key
-        ):
-            return
-
-        try:
-            embedding = await generate_embedding(content, model=self.config.embedding_model)
-            text_hash = hashlib.sha256(content.encode()).hexdigest()
-            self._embedding_mgr.store_embedding(
-                memory_id=memory_id,
-                project_id=project_id,
-                embedding=embedding,
-                embedding_model=self.config.embedding_model,
-                text_hash=text_hash,
-            )
-        except Exception as e:
-            logger.warning(f"Failed to generate embedding for memory {memory_id}: {e}")
+        await self._embedding_service._store_embedding_async(memory_id, content, project_id)
 
     async def reindex_embeddings(self) -> dict[str, Any]:
-        """Generate embeddings for all memories in batch.
-
-        Returns:
-            Dict with success status, total_memories, embeddings_generated.
-        """
-        if not is_embedding_available(
-            model=self.config.embedding_model, api_key=self._embedding_api_key
-        ):
-            return {
-                "success": False,
-                "error": "Embedding unavailable — no API key configured",
-            }
-
-        batch_size = 500
-        total_memories = 0
-        total_generated = 0
-        offset = 0
-        truncated = False
-
-        while True:
-            memories = self.storage.list_memories(limit=batch_size, offset=offset)
-            if not memories:
-                break
-
-            total_memories += len(memories)
-            if total_memories > 10000:
-                truncated = True
-                break
-
-            texts = [m.content for m in memories]
-            try:
-                embeddings = await generate_embeddings(texts, model=self.config.embedding_model)
-            except Exception as e:
-                logger.error(f"Batch embedding generation failed at offset {offset}: {e}")
-                return {"success": False, "error": str(e)}
-
-            items = []
-            for memory, embedding in zip(memories, embeddings, strict=True):
-                items.append(
-                    {
-                        "memory_id": memory.id,
-                        "project_id": memory.project_id,
-                        "embedding": embedding,
-                        "embedding_model": self.config.embedding_model,
-                        "text_hash": hashlib.sha256(memory.content.encode()).hexdigest(),
-                    }
-                )
-
-            total_generated += self._embedding_mgr.batch_store_embeddings(items)
-            offset += batch_size
-
-            if len(memories) < batch_size:
-                break
-
-        return {
-            "success": True,
-            "total_memories": total_memories,
-            "embeddings_generated": total_generated,
-            "truncated": truncated,
-        }
+        """Generate embeddings for all memories in batch."""
+        return await self._embedding_service.reindex_embeddings()
 
     def reindex_search(self) -> dict[str, Any]:
         """
@@ -325,8 +249,7 @@ class MemoryManager:
         # Generate and store embedding (non-blocking)
         await self._store_embedding_async(memory.id, content, project_id)
 
-        # Mem0 dual-mode: index in Mem0 after local storage
-        await self._index_in_mem0(memory.id, content, project_id)
+        # Mem0 sync handled by background Mem0SyncProcessor (mem0_id IS NULL queue)
 
         # Auto cross-reference if enabled
         if getattr(self.config, "auto_crossref", False):
@@ -531,7 +454,15 @@ class MemoryManager:
             )
 
             if mem0_results is not None:
-                memories = mem0_results
+                # Merge unsynced local memories (mem0_id IS NULL) so freshly-created
+                # memories appear in results even before Mem0 sync completes.
+                seen_ids = {m.id for m in mem0_results}
+                unsynced = self._get_unsynced_memories(query, project_id, limit)
+                for m in unsynced:
+                    if m.id not in seen_ids:
+                        mem0_results.append(m)
+                        seen_ids.add(m.id)
+                memories = mem0_results[:limit]
             else:
                 memories = self._recall_with_search(
                     query=query,
@@ -818,285 +749,46 @@ class MemoryManager:
         return memory
 
     def get_stats(self, project_id: str | None = None) -> dict[str, Any]:
-        """
-        Get statistics about stored memories.
-
-        Args:
-            project_id: Optional project to filter stats by
-
-        Returns:
-            Dictionary with memory statistics
-        """
-        # Get all memories (use large limit)
-        memories = self.storage.list_memories(project_id=project_id, limit=10000)
-
-        if not memories:
-            return {
-                "total_count": 0,
-                "by_type": {},
-                "avg_importance": 0.0,
-                "project_id": project_id,
-            }
-
-        # Count by type
-        by_type: dict[str, int] = {}
-        total_importance = 0.0
-
-        for m in memories:
-            by_type[m.memory_type] = by_type.get(m.memory_type, 0) + 1
-            total_importance += m.importance
-
-        return {
-            "total_count": len(memories),
-            "by_type": by_type,
-            "avg_importance": round(total_importance / len(memories), 3),
-            "project_id": project_id,
-        }
+        """Get statistics about stored memories."""
+        return _get_stats(self.storage, self.db, self._mem0_client, project_id)
 
     def decay_memories(self) -> int:
-        """
-        Apply importance decay to all memories.
-
-        Returns:
-            Number of memories updated.
-        """
-        if not self.config.decay_enabled:
-            return 0
-
-        rate = self.config.decay_rate
-        floor = self.config.decay_floor
-
-        # This is a potentially expensive operation if there are many memories.
-        # Ideally we'd do this in the database with SQL, but SQLite math functions
-        # might be limited or we want Python control.
-        # Or we only decay memories accessed > X days ago.
-
-        # Simple implementation: fetch all > floor, decay them, update if changed.
-        # Optimization: Only process a batch or do it entirely in SQL.
-
-        # Let's do a SQL-based update for efficiency if possible, but
-        # LocalMemoryManager doesn't expose a raw execute.
-        # Let's iterate for now (simplest, robust), but limit to 100 at a time maybe?
-        # Or better: Add a `decay_all` method to storage layer?
-
-        # For now, let's just implement the logic here iterating over ALL memories
-        # which is fine for < 1000 memories.
-
-        # Use snapshot-based iteration to avoid pagination issues during updates
-        count = 0
-
-        # Note: listing all memories (limit=10000) to avoid pagination drift when modifying them.
-        # If dataset grows larger, we should implement a cursor-based approach or add list_memories_ids.
-        memories = self.storage.list_memories(min_importance=floor + 0.001, limit=10000)
-
-        for memory in memories:
-            # Calculate simple linear decay since last update
-            last_update = datetime.fromisoformat(memory.updated_at)
-            # Ensure last_update is timezone-aware for subtraction
-            if last_update.tzinfo is None:
-                last_update = last_update.replace(tzinfo=UTC)
-            hours_since = (datetime.now(UTC) - last_update).total_seconds() / 3600
-
-            # If it's been less than 24h, skip to avoid over-decaying if called frequently
-            if hours_since < 24:
-                continue
-
-            # Decay factor: rate * (days since) / 30
-            # Linear decay
-            months_passed = hours_since / (24 * 30)
-            decay_amount = rate * months_passed
-
-            if decay_amount < 0.001:
-                continue
-
-            new_importance = max(floor, memory.importance - decay_amount)
-
-            if new_importance != memory.importance:
-                self.storage.update_memory(
-                    memory.id,
-                    importance=new_importance,
-                )
-                count += 1
-
-        return count
+        """Apply importance decay to all memories."""
+        return _decay_memories(self.config, self.storage)
 
     # =========================================================================
-    # Neo4j knowledge graph
+    # Neo4j knowledge graph (delegated to GraphService)
     # =========================================================================
 
     async def get_entity_graph(self, limit: int = 500) -> dict[str, Any] | None:
-        """Get the Neo4j entity graph for visualization.
-
-        Returns None if Neo4j is not configured or unreachable.
-        """
-        if not self._neo4j_client:
-            return None
-        try:
-            return await self._neo4j_client.get_entity_graph(limit=limit)
-        except _Neo4jConnError as e:
-            logger.warning(f"Neo4j unreachable: {e}")
-            return None
-        except Exception as e:
-            logger.warning(f"Neo4j query failed: {e}")
-            return None
+        """Get the Neo4j entity graph for visualization."""
+        return await self._graph_service.get_entity_graph(limit=limit)
 
     async def get_entity_neighbors(self, name: str) -> dict[str, Any] | None:
-        """Get neighbors for a single Neo4j entity.
-
-        Returns None if Neo4j is not configured or unreachable.
-        """
-        if not self._neo4j_client:
-            return None
-        try:
-            return await self._neo4j_client.get_entity_neighbors(name)
-        except _Neo4jConnError as e:
-            logger.warning(f"Neo4j unreachable: {e}")
-            return None
-        except Exception as e:
-            logger.warning(f"Neo4j query failed: {e}")
-            return None
+        """Get neighbors for a single Neo4j entity."""
+        return await self._graph_service.get_entity_neighbors(name)
 
     # =========================================================================
-    # Mem0 dual-mode helpers
+    # Mem0 dual-mode helpers (delegated to Mem0Service)
     # =========================================================================
-
-    async def _index_in_mem0(self, memory_id: str, content: str, project_id: str | None) -> None:
-        """Index a memory in Mem0 after local storage. Non-blocking on failure."""
-        if not self._mem0_client:
-            return
-
-        try:
-            result = await self._mem0_client.create(
-                content=content,
-                project_id=project_id,
-                metadata={"gobby_id": memory_id},
-            )
-            # Extract mem0_id from response and store it
-            mem0_id = self._extract_mem0_id(result)
-            if mem0_id:
-                self.db.execute(
-                    "UPDATE memories SET mem0_id = ? WHERE id = ?",
-                    (mem0_id, memory_id),
-                )
-        except Mem0ConnectionError as e:
-            logger.warning(f"Mem0 unreachable during index for {memory_id}: {e}")
-        except Exception as e:
-            logger.warning(f"Failed to index memory {memory_id} in Mem0: {e}")
-
-    @staticmethod
-    def _extract_mem0_id(response: Any) -> str | None:
-        """Extract the mem0 memory ID from a create response."""
-        if isinstance(response, dict):
-            results = response.get("results", [])
-            if results and isinstance(results[0], dict):
-                return results[0].get("id")
-        return None
 
     async def _delete_from_mem0(self, memory_id: str) -> None:
         """Delete a memory from Mem0 if it has a mem0_id. Non-blocking on failure."""
-        memory = self.get_memory(memory_id)
-        if not memory or not memory.mem0_id:
-            return
-
-        try:
-            await self._mem0_client.delete(memory.mem0_id)  # type: ignore[union-attr]
-        except Mem0ConnectionError as e:
-            logger.warning(f"Mem0 unreachable during delete for {memory_id}: {e}")
-        except Exception as e:
-            logger.warning(f"Failed to delete memory {memory_id} from Mem0: {e}")
+        await self._mem0_service._delete_from_mem0(memory_id)
 
     def _search_mem0(self, query: str, project_id: str | None, limit: int) -> list[Memory] | None:
-        """Search Mem0 and return local memories enriched by results.
+        """Search Mem0 and return local memories enriched by results."""
+        return self._mem0_service._search_mem0(query, project_id, limit)
 
-        Returns None if Mem0 is unavailable (caller should fall back to local search).
-
-        Warning: This method blocks the calling thread. When called from an
-        async context, it spawns a thread pool to run the async Mem0 search.
-        """
-        if self._mem0_client is None:
-            raise RuntimeError("Mem0 client is not initialized")
-
-        import asyncio
-
-        try:
-            loop = asyncio.get_running_loop()
-        except RuntimeError:
-            loop = None
-
-        try:
-            if loop and loop.is_running():
-                import concurrent.futures
-
-                with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
-                    result = pool.submit(
-                        asyncio.run,
-                        self._mem0_client.search(query=query, project_id=project_id, limit=limit),
-                    ).result()
-            else:
-                result = asyncio.run(
-                    self._mem0_client.search(query=query, project_id=project_id, limit=limit)
-                )
-        except Mem0ConnectionError as e:
-            logger.warning(f"Mem0 unreachable during search, falling back to local: {e}")
-            return None
-        except Exception as e:
-            logger.warning(f"Mem0 search failed, falling back to local: {e}")
-            return None
-
-        # Enrich mem0 results with local memory data
-        memories: list[Memory] = []
-        for item in result.get("results", []):
-            gobby_id = (item.get("metadata") or {}).get("gobby_id")
-            if gobby_id:
-                local = self.get_memory(gobby_id)
-                if local:
-                    memories.append(local)
-
-        return memories
+    def _get_unsynced_memories(
+        self, query: str, project_id: str | None, limit: int
+    ) -> list[Memory]:
+        """Get local memories not yet synced to Mem0 that match the query."""
+        return self._mem0_service._get_unsynced_memories(query, project_id, limit)
 
     async def _lazy_sync(self) -> int:
-        """Sync memories that have mem0_id IS NULL to Mem0.
-
-        Returns the number of memories successfully synced.
-        """
-        if not self._mem0_client:
-            return 0
-
-        batch_size = 100
-        synced = 0
-        offset = 0
-
-        while True:
-            rows = self.db.fetchall(
-                "SELECT id, content, project_id FROM memories WHERE mem0_id IS NULL LIMIT ? OFFSET ?",
-                (batch_size, offset),
-            )
-            if not rows:
-                break
-
-            for row in rows:
-                try:
-                    result = await self._mem0_client.create(
-                        content=row["content"],
-                        project_id=row["project_id"],
-                        metadata={"gobby_id": row["id"]},
-                    )
-                    mem0_id = self._extract_mem0_id(result)
-                    if mem0_id:
-                        self.db.execute(
-                            "UPDATE memories SET mem0_id = ? WHERE id = ?",
-                            (mem0_id, row["id"]),
-                        )
-                        synced += 1
-                except Mem0ConnectionError as e:
-                    logger.warning(f"Mem0 unreachable during lazy sync for {row['id']}: {e}")
-                    return synced  # Stop on connection errors
-                except Exception as e:
-                    logger.warning(f"Failed to sync memory {row['id']} to Mem0: {e}")
-
-            offset += batch_size
-
-        return synced
+        """Sync memories that have mem0_id IS NULL to Mem0."""
+        return await self._mem0_service._lazy_sync()
 
     def export_markdown(
         self,
@@ -1104,102 +796,5 @@ class MemoryManager:
         include_metadata: bool = True,
         include_stats: bool = True,
     ) -> str:
-        """
-        Export memories as a formatted markdown document.
-
-        Creates a human-readable markdown export of memories, suitable for
-        backup, documentation, or sharing.
-
-        Args:
-            project_id: Filter by project ID (None for all memories)
-            include_metadata: Include memory metadata (type, importance, tags)
-            include_stats: Include summary statistics at the top
-
-        Returns:
-            Formatted markdown string with all memories
-
-        Example output:
-            # Memory Export
-
-            **Exported:** 2026-01-19 12:34:56 UTC
-            **Total memories:** 42
-
-            ---
-
-            ## Memory: abc123
-
-            User prefers dark mode for all applications.
-
-            - **Type:** preference
-            - **Importance:** 0.8
-            - **Tags:** ui, settings
-            - **Created:** 2026-01-15 10:00:00
-        """
-        memories = self.storage.list_memories(project_id=project_id, limit=10000)
-
-        lines: list[str] = []
-
-        # Header
-        lines.append("# Memory Export")
-        lines.append("")
-
-        # Stats section
-        if include_stats:
-            now = datetime.now(UTC)
-            lines.append(f"**Exported:** {now.strftime('%Y-%m-%d %H:%M:%S')} UTC")
-            lines.append(f"**Total memories:** {len(memories)}")
-            if project_id:
-                lines.append(f"**Project:** {project_id}")
-
-            # Type breakdown
-            if memories:
-                by_type: dict[str, int] = {}
-                for m in memories:
-                    by_type[m.memory_type] = by_type.get(m.memory_type, 0) + 1
-                type_str = ", ".join(f"{k}: {v}" for k, v in sorted(by_type.items()))
-                lines.append(f"**By type:** {type_str}")
-
-            lines.append("")
-            lines.append("---")
-            lines.append("")
-
-        # Individual memories
-        for memory in memories:
-            # Memory header with short ID
-            short_id = memory.id[:8] if len(memory.id) > 8 else memory.id
-            lines.append(f"## Memory: {short_id}")
-            lines.append("")
-
-            # Content
-            lines.append(memory.content)
-            lines.append("")
-
-            # Metadata
-            if include_metadata:
-                lines.append(f"- **Type:** {memory.memory_type}")
-                lines.append(f"- **Importance:** {memory.importance}")
-
-                if memory.tags:
-                    tags_str = ", ".join(memory.tags)
-                    lines.append(f"- **Tags:** {tags_str}")
-
-                if memory.source_type:
-                    lines.append(f"- **Source:** {memory.source_type}")
-
-                # Parse and format created_at
-                try:
-                    created = datetime.fromisoformat(memory.created_at)
-                    created_str = created.strftime("%Y-%m-%d %H:%M:%S")
-                except (ValueError, TypeError):
-                    created_str = memory.created_at
-                lines.append(f"- **Created:** {created_str}")
-
-                if memory.access_count > 0:
-                    lines.append(f"- **Accessed:** {memory.access_count} times")
-
-                lines.append("")
-
-            lines.append("---")
-            lines.append("")
-
-        return "\n".join(lines)
+        """Export memories as a formatted markdown document."""
+        return _export_markdown(self.storage, project_id, include_metadata, include_stats)

@@ -18,6 +18,7 @@ if TYPE_CHECKING:
     from gobby.memory.manager import MemoryManager
     from gobby.sessions.manager import SessionManager
     from gobby.storage.clones import LocalCloneManager
+    from gobby.storage.config_store import ConfigStore
     from gobby.storage.database import DatabaseProtocol
     from gobby.storage.inter_session_messages import InterSessionMessageManager
     from gobby.storage.merge_resolutions import MergeResolutionManager
@@ -61,6 +62,8 @@ def setup_internal_registries(
     workflow_loader: WorkflowLoader | None = None,
     pipeline_execution_manager: LocalPipelineExecutionManager | None = None,
     hook_manager_resolver: Callable[[], HookManager | None] | None = None,
+    config_store: ConfigStore | None = None,
+    config_setter: Callable[[DaemonConfig], None] | None = None,
 ) -> InternalRegistryManager:
     """
     Setup internal MCP registries (tasks, messages, memory, metrics, agents, worktrees).
@@ -309,6 +312,18 @@ def setup_internal_registries(
         hub_registry = create_hub_registry(hub_db_path=hub_db_path)
         manager.add_registry(hub_registry)
         logger.debug("Hub registry initialized")
+
+    # Initialize config registry if config_store is available
+    if _config is not None and config_store is not None and config_setter is not None:
+        from gobby.mcp_proxy.tools.config import create_config_registry
+
+        config_registry = create_config_registry(
+            config=_config,
+            config_store=config_store,
+            config_setter=config_setter,
+        )
+        manager.add_registry(config_registry)
+        logger.debug("Config registry initialized")
 
     # Initialize skills registry if database is available
     if db is not None:

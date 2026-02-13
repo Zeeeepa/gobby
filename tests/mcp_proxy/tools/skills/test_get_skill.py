@@ -7,6 +7,8 @@ import pytest
 
 from gobby.storage.database import LocalDatabase
 from gobby.storage.migrations import run_migrations
+from gobby.storage.projects import LocalProjectManager
+from gobby.storage.sessions import LocalSessionManager
 from gobby.storage.skills import LocalSkillManager
 
 pytestmark = pytest.mark.unit
@@ -20,6 +22,14 @@ def db(tmp_path: Path) -> Iterator[LocalDatabase]:
     run_migrations(database)
     yield database
     database.close()
+
+
+@pytest.fixture
+def project_id(db: LocalDatabase) -> str:
+    """Create a test project and return its ID."""
+    project_mgr = LocalProjectManager(db)
+    project = project_mgr.create(name="test-project", repo_path="/tmp/test-skills")
+    return project.id
 
 
 @pytest.fixture
@@ -211,3 +221,89 @@ class TestGetSkillTool:
         assert skill["license"] is None
         assert skill["compatibility"] is None
         assert skill["allowed_tools"] is None
+
+    @pytest.mark.asyncio
+    async def test_get_skill_records_usage_with_session_id(self, populated_db, project_id):
+        """Test that passing session_id records skill usage in session_skills."""
+        from gobby.mcp_proxy.tools.skills import create_skills_registry
+
+        # Create a session to track against
+        session_mgr = LocalSessionManager(populated_db)
+        session = session_mgr.register(
+            external_id="test-ext-id",
+            machine_id="test-machine",
+            source="claude",
+            project_id=project_id,
+        )
+
+        registry = create_skills_registry(populated_db)
+        tool = registry.get_tool("get_skill")
+
+        result = await tool(name="git-commit", session_id=session.id)
+
+        assert result["success"] is True
+
+        # Verify skill usage was recorded
+        row = populated_db.fetchone(
+            "SELECT skill_name FROM session_skills WHERE session_id = ?",
+            (session.id,),
+        )
+        assert row is not None
+        assert row[0] == "git-commit"
+
+    @pytest.mark.asyncio
+    async def test_get_skill_without_session_id_skips_tracking(self, populated_db):
+        """Test that omitting session_id does not record skill usage."""
+        from gobby.mcp_proxy.tools.skills import create_skills_registry
+
+        registry = create_skills_registry(populated_db)
+        tool = registry.get_tool("get_skill")
+
+        result = await tool(name="git-commit")
+
+        assert result["success"] is True
+
+        # No usage should be recorded
+        row = populated_db.fetchone(
+            "SELECT COUNT(*) FROM session_skills", ()
+        )
+        assert row[0] == 0
+
+    @pytest.mark.asyncio
+    async def test_get_skill_tracking_is_idempotent(self, populated_db, project_id):
+        """Test that calling get_skill twice with same session records only one row."""
+        from gobby.mcp_proxy.tools.skills import create_skills_registry
+
+        session_mgr = LocalSessionManager(populated_db)
+        session = session_mgr.register(
+            external_id="test-ext-id",
+            machine_id="test-machine",
+            source="claude",
+            project_id=project_id,
+        )
+
+        registry = create_skills_registry(populated_db)
+        tool = registry.get_tool("get_skill")
+
+        await tool(name="git-commit", session_id=session.id)
+        await tool(name="git-commit", session_id=session.id)
+
+        row = populated_db.fetchone(
+            "SELECT COUNT(*) FROM session_skills WHERE session_id = ?",
+            (session.id,),
+        )
+        assert row[0] == 1
+
+    @pytest.mark.asyncio
+    async def test_get_skill_tracking_bad_session_does_not_fail(self, populated_db):
+        """Test that an invalid session_id doesn't break the skill lookup."""
+        from gobby.mcp_proxy.tools.skills import create_skills_registry
+
+        registry = create_skills_registry(populated_db)
+        tool = registry.get_tool("get_skill")
+
+        result = await tool(name="git-commit", session_id="nonexistent-session")
+
+        # Skill lookup should still succeed
+        assert result["success"] is True
+        assert result["skill"]["name"] == "git-commit"

@@ -1308,6 +1308,469 @@ def test_memory_embeddings_cascade_delete_from_memory(tmp_path) -> None:
     assert row is None, "memory_embeddings not cascade deleted when memory deleted"
 
 
+# =============================================================================
+# Unified Workflow Architecture: workflow_instances + session_variables tables
+# =============================================================================
+
+
+def test_workflow_instances_table_exists(tmp_path) -> None:
+    """Test that workflow_instances table is created after migration."""
+    db_path = tmp_path / "workflow_instances.db"
+    db = LocalDatabase(db_path)
+
+    run_migrations(db)
+
+    row = db.fetchone(
+        "SELECT name FROM sqlite_master WHERE type='table' AND name='workflow_instances'"
+    )
+    assert row is not None, "workflow_instances table not created"
+
+
+def test_workflow_instances_schema(tmp_path) -> None:
+    """Test that workflow_instances has correct columns."""
+    db_path = tmp_path / "workflow_instances_schema.db"
+    db = LocalDatabase(db_path)
+
+    run_migrations(db)
+
+    rows = db.fetchall("PRAGMA table_info(workflow_instances)")
+    columns = {row["name"] for row in rows}
+
+    expected_columns = {
+        "id",
+        "session_id",
+        "workflow_name",
+        "enabled",
+        "priority",
+        "current_step",
+        "step_entered_at",
+        "step_action_count",
+        "total_action_count",
+        "variables",
+        "context_injected",
+        "created_at",
+        "updated_at",
+    }
+    for col in expected_columns:
+        assert col in columns, f"Column {col} missing from workflow_instances"
+
+
+def test_workflow_instances_unique_constraint(tmp_path) -> None:
+    """Test that UNIQUE(session_id, workflow_name) constraint is enforced."""
+    db_path = tmp_path / "workflow_instances_unique.db"
+    db = LocalDatabase(db_path)
+
+    run_migrations(db)
+
+    row = db.fetchone(
+        "SELECT sql FROM sqlite_master WHERE type='table' AND name='workflow_instances'"
+    )
+    assert row is not None
+    sql_lower = row["sql"].lower()
+    assert "unique(session_id, workflow_name)" in sql_lower, (
+        "UNIQUE(session_id, workflow_name) constraint missing"
+    )
+
+
+def test_workflow_instances_foreign_key(tmp_path) -> None:
+    """Test that workflow_instances has FK to sessions(id) with ON DELETE CASCADE."""
+    db_path = tmp_path / "workflow_instances_fk.db"
+    db = LocalDatabase(db_path)
+
+    run_migrations(db)
+
+    row = db.fetchone(
+        "SELECT sql FROM sqlite_master WHERE type='table' AND name='workflow_instances'"
+    )
+    assert row is not None
+    sql_lower = row["sql"].lower()
+    assert "references sessions(id)" in sql_lower, "FK to sessions(id) missing"
+    assert "on delete cascade" in sql_lower, "ON DELETE CASCADE missing"
+
+
+def test_workflow_instances_indexes(tmp_path) -> None:
+    """Test that workflow_instances has proper indexes."""
+    db_path = tmp_path / "workflow_instances_idx.db"
+    db = LocalDatabase(db_path)
+
+    run_migrations(db)
+
+    rows = db.fetchall(
+        "SELECT name FROM sqlite_master WHERE type='index' AND tbl_name='workflow_instances'"
+    )
+    index_names = {row["name"] for row in rows}
+
+    assert "idx_workflow_instances_session" in index_names, (
+        "idx_workflow_instances_session missing"
+    )
+    assert "idx_workflow_instances_enabled" in index_names, (
+        "idx_workflow_instances_enabled missing"
+    )
+
+
+def test_workflow_instances_defaults(tmp_path) -> None:
+    """Test that workflow_instances columns have correct defaults."""
+    db_path = tmp_path / "workflow_instances_defaults.db"
+    db = LocalDatabase(db_path)
+
+    run_migrations(db)
+
+    # Create project and session
+    db.execute(
+        "INSERT INTO projects (id, name, created_at, updated_at) "
+        "VALUES (?, ?, datetime('now'), datetime('now'))",
+        ("test-project", "Test Project"),
+    )
+    db.execute(
+        "INSERT INTO sessions (id, external_id, machine_id, source, project_id, created_at, updated_at) "
+        "VALUES (?, ?, ?, ?, ?, datetime('now'), datetime('now'))",
+        ("session-1", "ext-1", "machine-1", "claude", "test-project"),
+    )
+
+    import uuid
+
+    instance_id = str(uuid.uuid4())
+    db.execute(
+        """INSERT INTO workflow_instances (id, session_id, workflow_name)
+           VALUES (?, ?, ?)""",
+        (instance_id, "session-1", "auto-task"),
+    )
+
+    row = db.fetchone("SELECT * FROM workflow_instances WHERE id = ?", (instance_id,))
+    assert row is not None
+    assert row["enabled"] == 1, "enabled should default to 1"
+    assert row["priority"] == 100, "priority should default to 100"
+    assert row["current_step"] is None, "current_step should default to NULL"
+    assert row["step_action_count"] == 0, "step_action_count should default to 0"
+    assert row["total_action_count"] == 0, "total_action_count should default to 0"
+    assert row["variables"] == "{}", "variables should default to '{}'"
+    assert row["context_injected"] == 0, "context_injected should default to 0"
+
+
+def test_workflow_instances_unique_prevents_duplicates(tmp_path) -> None:
+    """Test that the UNIQUE constraint prevents duplicate (session_id, workflow_name)."""
+    import sqlite3
+    import uuid
+
+    db_path = tmp_path / "workflow_instances_dup.db"
+    db = LocalDatabase(db_path)
+
+    run_migrations(db)
+
+    # Create project and session
+    db.execute(
+        "INSERT INTO projects (id, name, created_at, updated_at) "
+        "VALUES (?, ?, datetime('now'), datetime('now'))",
+        ("test-project", "Test Project"),
+    )
+    db.execute(
+        "INSERT INTO sessions (id, external_id, machine_id, source, project_id, created_at, updated_at) "
+        "VALUES (?, ?, ?, ?, ?, datetime('now'), datetime('now'))",
+        ("session-1", "ext-1", "machine-1", "claude", "test-project"),
+    )
+
+    # Insert first instance
+    db.execute(
+        "INSERT INTO workflow_instances (id, session_id, workflow_name) VALUES (?, ?, ?)",
+        (str(uuid.uuid4()), "session-1", "auto-task"),
+    )
+
+    # Insert duplicate should fail
+    with pytest.raises(sqlite3.IntegrityError):
+        db.execute(
+            "INSERT INTO workflow_instances (id, session_id, workflow_name) VALUES (?, ?, ?)",
+            (str(uuid.uuid4()), "session-1", "auto-task"),
+        )
+
+
+def test_workflow_instances_multiple_per_session(tmp_path) -> None:
+    """Test that multiple workflow instances can exist per session."""
+    import uuid
+
+    db_path = tmp_path / "workflow_instances_multi.db"
+    db = LocalDatabase(db_path)
+
+    run_migrations(db)
+
+    # Create project and session
+    db.execute(
+        "INSERT INTO projects (id, name, created_at, updated_at) "
+        "VALUES (?, ?, datetime('now'), datetime('now'))",
+        ("test-project", "Test Project"),
+    )
+    db.execute(
+        "INSERT INTO sessions (id, external_id, machine_id, source, project_id, created_at, updated_at) "
+        "VALUES (?, ?, ?, ?, ?, datetime('now'), datetime('now'))",
+        ("session-1", "ext-1", "machine-1", "claude", "test-project"),
+    )
+
+    # Insert multiple workflows for the same session
+    db.execute(
+        "INSERT INTO workflow_instances (id, session_id, workflow_name, priority) VALUES (?, ?, ?, ?)",
+        (str(uuid.uuid4()), "session-1", "session-lifecycle", 10),
+    )
+    db.execute(
+        "INSERT INTO workflow_instances (id, session_id, workflow_name, priority) VALUES (?, ?, ?, ?)",
+        (str(uuid.uuid4()), "session-1", "auto-task", 25),
+    )
+    db.execute(
+        "INSERT INTO workflow_instances (id, session_id, workflow_name, priority) VALUES (?, ?, ?, ?)",
+        (str(uuid.uuid4()), "session-1", "developer", 20),
+    )
+
+    # Verify all three exist
+    rows = db.fetchall(
+        "SELECT workflow_name, priority FROM workflow_instances WHERE session_id = ? ORDER BY priority",
+        ("session-1",),
+    )
+    assert len(rows) == 3
+    assert rows[0]["workflow_name"] == "session-lifecycle"
+    assert rows[0]["priority"] == 10
+    assert rows[1]["workflow_name"] == "developer"
+    assert rows[1]["priority"] == 20
+    assert rows[2]["workflow_name"] == "auto-task"
+    assert rows[2]["priority"] == 25
+
+
+def test_workflow_instances_cascade_delete(tmp_path) -> None:
+    """Test that deleting a session cascades to workflow_instances."""
+    import uuid
+
+    db_path = tmp_path / "workflow_instances_cascade.db"
+    db = LocalDatabase(db_path)
+
+    run_migrations(db)
+    db.execute("PRAGMA foreign_keys = ON")
+
+    # Create project and session
+    db.execute(
+        "INSERT INTO projects (id, name, created_at, updated_at) "
+        "VALUES (?, ?, datetime('now'), datetime('now'))",
+        ("test-project", "Test Project"),
+    )
+    db.execute(
+        "INSERT INTO sessions (id, external_id, machine_id, source, project_id, created_at, updated_at) "
+        "VALUES (?, ?, ?, ?, ?, datetime('now'), datetime('now'))",
+        ("session-1", "ext-1", "machine-1", "claude", "test-project"),
+    )
+
+    instance_id = str(uuid.uuid4())
+    db.execute(
+        "INSERT INTO workflow_instances (id, session_id, workflow_name) VALUES (?, ?, ?)",
+        (instance_id, "session-1", "auto-task"),
+    )
+
+    # Verify it exists
+    row = db.fetchone("SELECT * FROM workflow_instances WHERE id = ?", (instance_id,))
+    assert row is not None
+
+    # Delete the session
+    db.execute("DELETE FROM sessions WHERE id = ?", ("session-1",))
+
+    # Verify cascade delete
+    row = db.fetchone("SELECT * FROM workflow_instances WHERE id = ?", (instance_id,))
+    assert row is None, "workflow_instances should cascade delete with session"
+
+
+def test_session_variables_table_exists(tmp_path) -> None:
+    """Test that session_variables table is created after migration."""
+    db_path = tmp_path / "session_variables.db"
+    db = LocalDatabase(db_path)
+
+    run_migrations(db)
+
+    row = db.fetchone(
+        "SELECT name FROM sqlite_master WHERE type='table' AND name='session_variables'"
+    )
+    assert row is not None, "session_variables table not created"
+
+
+def test_session_variables_schema(tmp_path) -> None:
+    """Test that session_variables has correct columns."""
+    db_path = tmp_path / "session_variables_schema.db"
+    db = LocalDatabase(db_path)
+
+    run_migrations(db)
+
+    rows = db.fetchall("PRAGMA table_info(session_variables)")
+    columns = {row["name"] for row in rows}
+
+    expected_columns = {"session_id", "variables", "updated_at"}
+    for col in expected_columns:
+        assert col in columns, f"Column {col} missing from session_variables"
+
+
+def test_session_variables_primary_key(tmp_path) -> None:
+    """Test that session_variables has session_id as PRIMARY KEY."""
+    db_path = tmp_path / "session_variables_pk.db"
+    db = LocalDatabase(db_path)
+
+    run_migrations(db)
+
+    rows = db.fetchall("PRAGMA table_info(session_variables)")
+    pk_cols = [row for row in rows if row["pk"] > 0]
+    assert len(pk_cols) == 1
+    assert pk_cols[0]["name"] == "session_id"
+
+
+def test_session_variables_defaults(tmp_path) -> None:
+    """Test that session_variables columns have correct defaults."""
+    db_path = tmp_path / "session_variables_defaults.db"
+    db = LocalDatabase(db_path)
+
+    run_migrations(db)
+
+    db.execute(
+        "INSERT INTO session_variables (session_id) VALUES (?)",
+        ("session-1",),
+    )
+
+    row = db.fetchone("SELECT * FROM session_variables WHERE session_id = ?", ("session-1",))
+    assert row is not None
+    assert row["variables"] == "{}", "variables should default to '{}'"
+    assert row["updated_at"] is not None, "updated_at should have a default"
+
+
+def test_session_variables_stores_json(tmp_path) -> None:
+    """Test that session_variables can store and retrieve JSON data."""
+    import json
+
+    db_path = tmp_path / "session_variables_json.db"
+    db = LocalDatabase(db_path)
+
+    run_migrations(db)
+
+    variables = json.dumps({
+        "unlocked_tools": ["Read", "Write"],
+        "task_claimed": True,
+        "stop_attempts": 2,
+    })
+    db.execute(
+        "INSERT INTO session_variables (session_id, variables, updated_at) VALUES (?, ?, datetime('now'))",
+        ("session-1", variables),
+    )
+
+    row = db.fetchone("SELECT variables FROM session_variables WHERE session_id = ?", ("session-1",))
+    assert row is not None
+    parsed = json.loads(row["variables"])
+    assert parsed["unlocked_tools"] == ["Read", "Write"]
+    assert parsed["task_claimed"] is True
+    assert parsed["stop_attempts"] == 2
+
+
+def test_workflow_data_migration_from_workflow_states(tmp_path) -> None:
+    """Test that existing workflow_states data is migrated correctly.
+
+    When upgrading from v100 to v101:
+    - All workflow_states rows should get session_variables entries
+    - Active step workflows should get workflow_instances entries
+    - __lifecycle__ and __ended__ workflows should NOT get instances
+    """
+    import json
+
+    db_path = tmp_path / "workflow_data_migration.db"
+    db = LocalDatabase(db_path)
+
+    # Apply baseline (v100) which includes workflow_states table
+    run_migrations(db)
+
+    # Manually insert workflow_states rows to simulate pre-migration data
+    # 1. A lifecycle workflow (just variables, no step workflow)
+    db.execute(
+        "INSERT INTO projects (id, name, created_at, updated_at) "
+        "VALUES (?, ?, datetime('now'), datetime('now'))",
+        ("test-project", "Test Project"),
+    )
+    db.execute(
+        "INSERT INTO sessions (id, external_id, machine_id, source, project_id, created_at, updated_at) "
+        "VALUES (?, ?, ?, ?, ?, datetime('now'), datetime('now'))",
+        ("session-1", "ext-1", "machine-1", "claude", "test-project"),
+    )
+    db.execute(
+        "INSERT INTO sessions (id, external_id, machine_id, source, project_id, created_at, updated_at) "
+        "VALUES (?, ?, ?, ?, ?, datetime('now'), datetime('now'))",
+        ("session-2", "ext-2", "machine-1", "claude", "test-project"),
+    )
+    db.execute(
+        "INSERT INTO sessions (id, external_id, machine_id, source, project_id, created_at, updated_at) "
+        "VALUES (?, ?, ?, ?, ?, datetime('now'), datetime('now'))",
+        ("session-3", "ext-3", "machine-1", "claude", "test-project"),
+    )
+
+    lifecycle_vars = json.dumps({"unlocked_tools": [], "task_claimed": False})
+    db.execute(
+        """INSERT INTO workflow_states
+           (session_id, workflow_name, step, step_action_count, total_action_count,
+            context_injected, variables, updated_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?, datetime('now'))""",
+        ("session-1", "__lifecycle__", "__lifecycle__", 0, 0, 0, lifecycle_vars),
+    )
+
+    # 2. An active step workflow
+    step_vars = json.dumps({"session_task": "task-123", "context_injected": True})
+    db.execute(
+        """INSERT INTO workflow_states
+           (session_id, workflow_name, step, step_entered_at, step_action_count,
+            total_action_count, context_injected, variables, updated_at)
+           VALUES (?, ?, ?, datetime('now'), ?, ?, ?, ?, datetime('now'))""",
+        ("session-2", "auto-task", "work", 5, 12, 1, step_vars),
+    )
+
+    # 3. An ended step workflow
+    ended_vars = json.dumps({"session_task": "task-456"})
+    db.execute(
+        """INSERT INTO workflow_states
+           (session_id, workflow_name, step, step_action_count, total_action_count,
+            context_injected, variables, updated_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?, datetime('now'))""",
+        ("session-3", "__ended__", "__ended__", 0, 0, 0, ended_vars),
+    )
+
+    # Verify the data was inserted
+    count = db.fetchone("SELECT COUNT(*) as cnt FROM workflow_states")
+    assert count["cnt"] == 3
+
+    # Now the tables already exist from baseline. Verify session_variables has the data
+    # For fresh DBs, the migration is baked into baseline so data migration won't run.
+    # This test verifies the tables and schema exist and can handle the expected data patterns.
+    # For the actual upgrade path, see test_workflow_data_migration_upgrade_path.
+
+    # Verify we can insert into the new tables with migrated data patterns
+    db.execute(
+        "INSERT OR IGNORE INTO session_variables (session_id, variables, updated_at) VALUES (?, ?, datetime('now'))",
+        ("session-1", lifecycle_vars),
+    )
+    db.execute(
+        "INSERT OR IGNORE INTO session_variables (session_id, variables, updated_at) VALUES (?, ?, datetime('now'))",
+        ("session-2", step_vars),
+    )
+    db.execute(
+        "INSERT OR IGNORE INTO session_variables (session_id, variables, updated_at) VALUES (?, ?, datetime('now'))",
+        ("session-3", ended_vars),
+    )
+
+    # Verify session_variables
+    rows = db.fetchall("SELECT * FROM session_variables ORDER BY session_id")
+    assert len(rows) == 3
+
+    # Verify active step workflow can get an instance
+    import uuid
+
+    db.execute(
+        """INSERT INTO workflow_instances
+           (id, session_id, workflow_name, enabled, current_step,
+            step_action_count, total_action_count, context_injected)
+           VALUES (?, ?, ?, 1, ?, ?, ?, ?)""",
+        (str(uuid.uuid4()), "session-2", "auto-task", "work", 5, 12, 1),
+    )
+
+    instances = db.fetchall("SELECT * FROM workflow_instances WHERE session_id = ?", ("session-2",))
+    assert len(instances) == 1
+    assert instances[0]["workflow_name"] == "auto-task"
+    assert instances[0]["current_step"] == "work"
+    assert instances[0]["step_action_count"] == 5
+
+
 def test_memory_embeddings_insert_and_query(tmp_path) -> None:
     """Test that memory_embeddings can store and retrieve embedding data."""
     db_path = tmp_path / "memory_embeddings_insert.db"

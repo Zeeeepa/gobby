@@ -11,7 +11,7 @@ from click.testing import CliRunner
 
 from gobby.cli import cli
 from gobby.workflows.definitions import PipelineDefinition, PipelineStep
-from gobby.workflows.loader import DiscoveredWorkflow
+from gobby.workflows.loader_cache import DiscoveredWorkflow
 
 pytestmark = pytest.mark.unit
 

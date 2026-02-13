@@ -14,15 +14,14 @@ from typing import Any
 
 from gobby.cli.utils import get_install_dir
 
+from .mcp_config import configure_mcp_server_json, remove_mcp_server_json
 from .shared import (
     _install_file,
     _is_dev_mode,
-    configure_mcp_server_json,
     install_cli_content,
-    install_router_skills_as_gemini_skills,
     install_shared_content,
-    remove_mcp_server_json,
 )
+from .skill_install import install_router_skills_as_gemini_skills
 
 logger = logging.getLogger(__name__)
 

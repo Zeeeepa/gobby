@@ -14,7 +14,7 @@ from collections.abc import AsyncIterator, Awaitable, Callable
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 from claude_agent_sdk import (
     AssistantMessage,
@@ -263,7 +263,7 @@ class ChatSession:
             cli_path=cli_path,
             mcp_servers=mcp_config if mcp_config is not None else {},
             cwd=cwd,
-            hooks=sdk_hooks if sdk_hooks else None,  # type: ignore[arg-type]
+            hooks=cast(Any, sdk_hooks) if sdk_hooks else None,
         )
 
         self._client = ClaudeSDKClient(options=options)

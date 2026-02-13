@@ -4,7 +4,7 @@ description: |
   QA marks task approved — the coordinator closes it after merge.
 
 version: "1.0"
-type: step
+enabled: false
 
 variables:
   assigned_task_id: null

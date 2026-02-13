@@ -13,7 +13,7 @@ Provides validation, executor factory, and error handling.
 import logging
 import re
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Literal
+from typing import TYPE_CHECKING, Literal, cast
 
 from gobby.llm.executor import AgentExecutor
 
@@ -403,7 +403,7 @@ def _create_litellm_executor_for_provider(
     - Gemini (adc) -> vertex_ai/model
     - Codex/OpenAI (api_key) -> model (no prefix)
     """
-    from gobby.llm.litellm_executor import LiteLLMExecutor
+    from gobby.llm.litellm_executor import AuthModeType, LiteLLMExecutor, ProviderType
 
     # Default models per provider
     default_models = {
@@ -437,8 +437,8 @@ def _create_litellm_executor_for_provider(
         default_model=model or default_model,
         api_base=api_base,
         api_keys=api_keys,
-        provider=provider,  # type: ignore[arg-type]
-        auth_mode=litellm_auth_mode,  # type: ignore[arg-type]
+        provider=cast(ProviderType, provider),
+        auth_mode=cast(AuthModeType, litellm_auth_mode),
     )
 
 
@@ -460,7 +460,7 @@ def _create_codex_executor(
         model: Optional model override.
         auth_mode: Authentication mode - "subscription" or "cli".
     """
-    from gobby.llm.codex_executor import CodexExecutor
+    from gobby.llm.codex_executor import CodexAuthMode, CodexExecutor
 
     # CLI/subscription mode only - api_key mode routes through LiteLLM
     default_model = "gpt-4o"
@@ -473,7 +473,7 @@ def _create_codex_executor(
                 default_model = models[0]
 
     return CodexExecutor(
-        auth_mode=auth_mode,  # type: ignore[arg-type]
+        auth_mode=cast(CodexAuthMode, auth_mode),
         default_model=model or default_model,
     )
 

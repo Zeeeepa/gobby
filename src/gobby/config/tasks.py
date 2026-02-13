@@ -203,7 +203,7 @@ class TaskValidationConfig(BaseModel):
         description="LLM provider to use for validation",
     )
     model: str = Field(
-        default="claude-opus-4-5",
+        default="claude-sonnet-4-5",
         description="Model to use for validation",
     )
     system_prompt: str = Field(

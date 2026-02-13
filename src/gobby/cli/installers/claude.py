@@ -16,16 +16,14 @@ from typing import Any
 
 from gobby.cli.utils import get_install_dir
 
+from .mcp_config import configure_mcp_server_json, remove_mcp_server_json
 from .shared import (
     _install_file,
     _is_dev_mode,
-    backup_gobby_skills,
-    configure_mcp_server_json,
     install_cli_content,
-    install_router_skills_as_commands,
     install_shared_content,
-    remove_mcp_server_json,
 )
+from .skill_install import backup_gobby_skills, install_router_skills_as_commands
 
 logger = logging.getLogger(__name__)
 

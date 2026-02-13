@@ -38,6 +38,21 @@ class EventHandlersBase:
     logger: logging.Logger
     _handler_map: dict[HookEventType, Callable[[HookEvent], HookResponse]]
 
+    def _evaluate_workflows(self, event: HookEvent) -> HookResponse:
+        """Evaluate lifecycle workflows for an event.
+
+        Consolidates the try/except workflow handler pattern used across
+        all event handler call sites. Returns allow-default when no handler
+        is configured or on error.
+        """
+        if not self._workflow_handler:
+            return HookResponse(decision="allow")
+        try:
+            return self._workflow_handler.evaluate(event)
+        except Exception as e:
+            self.logger.error(f"Failed to evaluate workflows: {e}", exc_info=True)
+            return HookResponse(decision="allow")
+
     def _auto_activate_workflow(
         self,
         workflow_name: str,

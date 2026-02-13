@@ -86,17 +86,17 @@ def list_workflows(
                 if not data:
                     continue
 
-                wf_type = data.get("type", "step")
+                wf_enabled = data.get("enabled", True)
                 description = data.get("description", "")
 
                 # Filter by type unless --all
-                if not show_all and wf_type != "lifecycle":
+                if not show_all and not wf_enabled:
                     pass  # Show all by default now
 
                 workflows.append(
                     {
                         "name": name,
-                        "type": wf_type,
+                        "enabled": wf_enabled,
                         "description": description,
                         "source": "project" if is_project else "global",
                         "path": str(yaml_path),
@@ -119,8 +119,8 @@ def list_workflows(
     click.echo(f"Found {len(workflows)} workflow(s):\n")
     for wf in workflows:
         source_tag = f"[{wf['source']}]" if wf["source"] == "project" else ""
-        type_tag = f"({wf['type']})"
-        click.echo(f"  {wf['name']} {type_tag} {source_tag}")
+        enabled_tag = "(enabled)" if wf["enabled"] else "(on-demand)"
+        click.echo(f"  {wf['name']} {enabled_tag} {source_tag}")
         if wf["description"]:
             click.echo(f"    {wf['description'][:80]}")
 
@@ -230,7 +230,7 @@ def show_workflow(ctx: click.Context, name: str, json_format: bool) -> None:
         return
 
     click.echo(f"Workflow: {definition.name}")
-    click.echo(f"Type: {definition.type}")
+    click.echo(f"Enabled: {getattr(definition, 'enabled', False)}")
     if definition.description:
         click.echo(f"Description: {definition.description}")
     if definition.version:
@@ -360,14 +360,14 @@ def set_workflow(
         click.echo(f"Workflow '{name}' not found.", err=True)
         raise SystemExit(1)
 
-    if definition.type == "lifecycle":
-        click.echo(f"Workflow '{name}' is a lifecycle workflow (auto-runs on events).", err=True)
-        click.echo("Use 'gobby workflows set' only for step-based workflows.", err=True)
-        raise SystemExit(1)
-
     if not isinstance(definition, WorkflowDefinition):
         click.echo(f"'{name}' is a pipeline, not a step-based workflow.", err=True)
         click.echo("Use 'gobby pipelines run' for pipelines.", err=True)
+        raise SystemExit(1)
+
+    if definition.enabled:
+        click.echo(f"Workflow '{name}' is always-on (auto-runs on events).", err=True)
+        click.echo("Use 'gobby workflows set' only for on-demand workflows.", err=True)
         raise SystemExit(1)
 
     # Get session

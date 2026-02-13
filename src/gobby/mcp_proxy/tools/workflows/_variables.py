@@ -13,9 +13,36 @@ from gobby.mcp_proxy.tools.workflows._resolution import (
 from gobby.storage.database import DatabaseProtocol
 from gobby.storage.sessions import LocalSessionManager
 from gobby.workflows.definitions import WorkflowState
-from gobby.workflows.state_manager import WorkflowStateManager
+from gobby.workflows.state_manager import (
+    SessionVariableManager,
+    WorkflowInstanceManager,
+    WorkflowStateManager,
+)
 
 logger = logging.getLogger(__name__)
+
+
+def _coerce_value(value: str | int | float | bool | None) -> str | int | float | bool | None:
+    """Coerce string representations of booleans/null/numbers to native types.
+
+    MCP schema collapses union types (str|int|float|bool|None) to "string",
+    so agents send "true"/"false" as strings. Without coercion, "false" is
+    truthy and breaks workflow gate conditions like pending_memory_review.
+    """
+    if isinstance(value, str):
+        stripped = value.strip().lower()
+        if stripped in ("true", "false"):
+            return stripped == "true"
+        if stripped in ("null", "none"):
+            return None
+        try:
+            return int(value)
+        except ValueError:
+            try:
+                return float(value)
+            except ValueError:
+                pass
+    return value
 
 
 def set_variable(
@@ -25,17 +52,16 @@ def set_variable(
     name: str,
     value: str | int | float | bool | None,
     session_id: str | None = None,
+    workflow: str | None = None,
+    instance_manager: WorkflowInstanceManager | None = None,
+    session_var_manager: SessionVariableManager | None = None,
 ) -> dict[str, Any]:
     """
-    Set a workflow variable for the current session.
+    Set a variable scoped to a workflow instance or session.
 
-    Variables set this way are session-scoped - they persist in the database
-    for the duration of the session but do not modify the workflow YAML file.
-
-    This is useful for:
-    - Setting session_epic to enforce epic completion before stopping
-    - Setting is_worktree to mark a session as a worktree agent
-    - Dynamic configuration without modifying workflow definitions
+    When `workflow` is provided, writes to that workflow instance's variables.
+    When `workflow` is not provided, writes to session-scoped shared variables
+    (via SessionVariableManager), falling back to workflow_states for backward compat.
 
     Args:
         state_manager: WorkflowStateManager instance
@@ -43,7 +69,10 @@ def set_variable(
         db: LocalDatabase instance
         name: Variable name (e.g., "session_epic", "is_worktree")
         value: Variable value (string, number, boolean, or null)
-        session_id: Session reference (accepts #N, N, UUID, or prefix) - required to prevent cross-session bleed
+        session_id: Session reference (accepts #N, N, UUID, or prefix)
+        workflow: Optional workflow name to scope the variable to
+        instance_manager: Optional WorkflowInstanceManager for workflow-scoped writes
+        session_var_manager: Optional SessionVariableManager for session-scoped writes
 
     Returns:
         Success status and updated variables
@@ -61,34 +90,10 @@ def set_variable(
     except ValueError as e:
         return {"ok": False, "error": str(e)}
 
-    # Get or create state
-    state = state_manager.get_state(resolved_session_id)
-    if not state:
-        # Create a minimal lifecycle state for variable storage
-        state = WorkflowState(
-            session_id=resolved_session_id,
-            workflow_name="__lifecycle__",
-            step="",
-            step_entered_at=datetime.now(UTC),
-            variables={},
-        )
-
-    # Block modification of session_task when a real workflow is active
-    # This prevents circumventing workflows by changing the tracked task
-    if name == "session_task" and state.workflow_name not in ("__lifecycle__", "__ended__"):
-        current_value = state.variables.get("session_task")
-        if current_value is not None and value != current_value:
-            return {
-                "ok": False,
-                "error": (
-                    f"Cannot modify session_task while workflow '{state.workflow_name}' is active. "
-                    f"Current value: {current_value}. "
-                    f"Use end_workflow() first if you need to change the tracked task."
-                ),
-            }
+    # Coerce value types
+    value = _coerce_value(value)
 
     # Resolve session_task references (#N or N) to UUIDs upfront
-    # This prevents repeated resolution failures in condition evaluation
     if name == "session_task" and isinstance(value, str):
         try:
             value = resolve_session_task_value(value, resolved_session_id, session_manager, db)
@@ -101,30 +106,52 @@ def set_variable(
                 "error": f"Failed to resolve session_task value '{value}': {e}",
             }
 
-    # Coerce string representations of booleans/null/numbers to native types.
-    # MCP schema collapses union types (str|int|float|bool|None) to "string",
-    # so agents send "true"/"false" as strings. Without coercion, "false" is
-    # truthy and breaks workflow gate conditions like pending_memory_review.
-    if isinstance(value, str):
-        stripped = value.strip().lower()
-        if stripped in ("true", "false"):
-            value = stripped == "true"
-        elif stripped in ("null", "none"):
-            value = None
-        else:
-            try:
-                value = int(value)
-            except ValueError:
-                try:
-                    value = float(value)
-                except ValueError:
-                    pass  # Keep as string
+    # Workflow-scoped: write to workflow_instances.variables
+    if workflow:
+        if not instance_manager:
+            return {"ok": False, "error": "Workflow-scoped variables require instance_manager"}
+        instance = instance_manager.get_instance(resolved_session_id, workflow)
+        if not instance:
+            return {
+                "ok": False,
+                "error": f"No workflow instance '{workflow}' found for session",
+            }
+        instance.variables[name] = value
+        instance_manager.save_instance(instance)
+        return {"ok": True, "value": value, "scope": "workflow", "workflow": workflow}
 
-    # Set the variable
+    # Session-scoped: write to session_variables table
+    if session_var_manager:
+        session_var_manager.set_variable(resolved_session_id, name, value)
+        return {"ok": True, "value": value, "scope": "session"}
+
+    # Backward compat: write to workflow_states.variables
+    state = state_manager.get_state(resolved_session_id)
+    if not state:
+        state = WorkflowState(
+            session_id=resolved_session_id,
+            workflow_name="__lifecycle__",
+            step="",
+            step_entered_at=datetime.now(UTC),
+            variables={},
+        )
+
+    # Block modification of session_task when a real workflow is active
+    if name == "session_task" and state.workflow_name not in ("__lifecycle__", "__ended__"):
+        current_value = state.variables.get("session_task")
+        if current_value is not None and value != current_value:
+            return {
+                "ok": False,
+                "error": (
+                    f"Cannot modify session_task while workflow '{state.workflow_name}' is active. "
+                    f"Current value: {current_value}. "
+                    f"Use end_workflow() first if you need to change the tracked task."
+                ),
+            }
+
     state.variables[name] = value
     state_manager.save_state(state)
 
-    # Add deprecation warning for session_task on __lifecycle__ workflow
     if name == "session_task" and state.workflow_name == "__lifecycle__":
         return {
             "ok": True,
@@ -143,15 +170,25 @@ def get_variable(
     session_manager: LocalSessionManager,
     name: str | None = None,
     session_id: str | None = None,
+    workflow: str | None = None,
+    instance_manager: WorkflowInstanceManager | None = None,
+    session_var_manager: SessionVariableManager | None = None,
 ) -> dict[str, Any]:
     """
-    Get workflow variable(s) for the current session.
+    Get variable(s) scoped to a workflow instance or session.
+
+    When `workflow` is provided, reads from that workflow instance's variables.
+    When `workflow` is not provided, reads from session-scoped shared variables,
+    falling back to workflow_states for backward compat.
 
     Args:
         state_manager: WorkflowStateManager instance
         session_manager: LocalSessionManager instance
         name: Variable name to get (if None, returns all variables)
-        session_id: Session reference (accepts #N, N, UUID, or prefix) - required to prevent cross-session bleed
+        session_id: Session reference (accepts #N, N, UUID, or prefix)
+        workflow: Optional workflow name to scope the read to
+        instance_manager: Optional WorkflowInstanceManager for workflow-scoped reads
+        session_var_manager: Optional SessionVariableManager for session-scoped reads
 
     Returns:
         Variable value(s) and session info
@@ -169,6 +206,55 @@ def get_variable(
     except ValueError as e:
         return {"ok": False, "error": str(e)}
 
+    # Workflow-scoped: read from workflow_instances.variables
+    if workflow:
+        if not instance_manager:
+            return {"ok": False, "error": "Workflow-scoped variables require instance_manager"}
+        instance = instance_manager.get_instance(resolved_session_id, workflow)
+        if not instance:
+            return {
+                "ok": False,
+                "error": f"No workflow instance '{workflow}' found for session",
+            }
+        variables = instance.variables
+        if name:
+            return {
+                "ok": True,
+                "session_id": resolved_session_id,
+                "variable": name,
+                "value": variables.get(name),
+                "exists": name in variables,
+                "scope": "workflow",
+                "workflow": workflow,
+            }
+        return {
+            "ok": True,
+            "session_id": resolved_session_id,
+            "variables": variables,
+            "scope": "workflow",
+            "workflow": workflow,
+        }
+
+    # Session-scoped: read from session_variables table
+    if session_var_manager:
+        variables = session_var_manager.get_variables(resolved_session_id)
+        if name:
+            return {
+                "ok": True,
+                "session_id": resolved_session_id,
+                "variable": name,
+                "value": variables.get(name),
+                "exists": name in variables,
+                "scope": "session",
+            }
+        return {
+            "ok": True,
+            "session_id": resolved_session_id,
+            "variables": variables,
+            "scope": "session",
+        }
+
+    # Backward compat: read from workflow_states.variables
     state = state_manager.get_state(resolved_session_id)
     if not state:
         if name:
@@ -200,3 +286,39 @@ def get_variable(
         "session_id": resolved_session_id,
         "variables": state.variables,
     }
+
+
+def set_session_variable(
+    session_manager: LocalSessionManager,
+    session_var_manager: SessionVariableManager,
+    name: str,
+    value: str | int | float | bool | None,
+    session_id: str | None = None,
+) -> dict[str, Any]:
+    """
+    Set a session-scoped shared variable (visible to all workflows).
+
+    Args:
+        session_manager: LocalSessionManager instance
+        session_var_manager: SessionVariableManager instance
+        name: Variable name
+        value: Variable value
+        session_id: Session reference (accepts #N, N, UUID, or prefix)
+
+    Returns:
+        Success status
+    """
+    if not session_id:
+        return {
+            "ok": False,
+            "error": "session_id is required.",
+        }
+
+    try:
+        resolved_session_id = resolve_session_id(session_manager, session_id)
+    except ValueError as e:
+        return {"ok": False, "error": str(e)}
+
+    value = _coerce_value(value)
+    session_var_manager.set_variable(resolved_session_id, name, value)
+    return {"ok": True, "value": value, "scope": "session"}

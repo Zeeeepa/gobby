@@ -128,6 +128,14 @@ class MemoryConfig(BaseModel):
         default=60,
         description="Minimum seconds between access stat updates for the same memory",
     )
+    mem0_sync_interval: float = Field(
+        default=10.0,
+        description="Seconds between Mem0 background sync attempts",
+    )
+    mem0_sync_max_backoff: float = Field(
+        default=300.0,
+        description="Maximum backoff seconds on Mem0 connection failure",
+    )
 
     @field_validator(
         "importance_threshold",

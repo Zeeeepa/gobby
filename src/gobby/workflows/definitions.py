@@ -137,8 +137,13 @@ class WorkflowDefinition(BaseModel):
     name: str
     description: str | None = None
     version: str = "1.0"
+    # Deprecated: use `enabled` instead. Kept for backward-compat YAML loading.
     type: Literal["lifecycle", "step"] = "step"
     extends: str | None = None
+
+    # Instance defaults: control whether workflow starts enabled and its evaluation priority
+    enabled: bool = True
+    priority: int = 100
 
     @field_validator("version", mode="before")
     @classmethod
@@ -150,6 +155,8 @@ class WorkflowDefinition(BaseModel):
 
     settings: dict[str, Any] = Field(default_factory=dict)
     variables: dict[str, Any] = Field(default_factory=dict)
+    # Session-scoped shared variables (visible to all workflows in the session)
+    session_variables: dict[str, Any] = Field(default_factory=dict)
 
     # Named rule definitions (file-local, referenced by check_rules on steps)
     rule_definitions: dict[str, RuleDefinition] = Field(default_factory=dict)
@@ -232,6 +239,8 @@ class PipelineStep(BaseModel):
     prompt: str | None = None  # LLM prompt template
     invoke_pipeline: str | dict[str, Any] | None = None  # Name of pipeline to invoke
     mcp: MCPStepConfig | None = None  # Call MCP tool directly
+    spawn_session: dict[str, Any] | None = None  # Spawn CLI session via tmux
+    activate_workflow: dict[str, Any] | None = None  # Activate workflow on a session
 
     # Optional fields
     condition: str | None = None  # Condition for step execution
@@ -241,18 +250,25 @@ class PipelineStep(BaseModel):
 
     def model_post_init(self, __context: Any) -> None:
         """Validate that exactly one execution type is specified."""
-        exec_types = [self.exec, self.prompt, self.invoke_pipeline, self.mcp]
+        exec_types = [
+            self.exec,
+            self.prompt,
+            self.invoke_pipeline,
+            self.mcp,
+            self.spawn_session,
+            self.activate_workflow,
+        ]
         specified = [t for t in exec_types if t is not None]
 
         if len(specified) == 0:
             raise ValueError(
                 "PipelineStep requires at least one execution type: "
-                "exec, prompt, invoke_pipeline, or mcp"
+                "exec, prompt, invoke_pipeline, mcp, spawn_session, or activate_workflow"
             )
         if len(specified) > 1:
             raise ValueError(
-                "PipelineStep exec, prompt, invoke_pipeline, and mcp are mutually exclusive "
-                "- only one allowed"
+                "PipelineStep exec, prompt, invoke_pipeline, mcp, spawn_session, "
+                "and activate_workflow are mutually exclusive - only one allowed"
             )
 
 
@@ -310,6 +326,57 @@ class PipelineDefinition(BaseModel):
 
 
 # --- Workflow State Models (Runtime) ---
+
+
+class WorkflowInstance(BaseModel):
+    """Represents a single workflow instance bound to a session.
+
+    Supports multiple concurrent workflows per session. Each instance
+    has its own scoped variables and step state, keyed by
+    UNIQUE(session_id, workflow_name).
+    """
+
+    id: str
+    session_id: str
+    workflow_name: str
+    enabled: bool = True
+    priority: int = 100
+    current_step: str | None = None
+    step_entered_at: datetime | None = None
+    step_action_count: int = 0
+    total_action_count: int = 0
+    variables: dict[str, Any] = Field(default_factory=dict)
+    context_injected: bool = False
+    created_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
+    updated_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
+
+    def to_dict(self) -> dict[str, Any]:
+        """Serialize to a dictionary with ISO-formatted datetimes."""
+        return {
+            "id": self.id,
+            "session_id": self.session_id,
+            "workflow_name": self.workflow_name,
+            "enabled": self.enabled,
+            "priority": self.priority,
+            "current_step": self.current_step,
+            "step_entered_at": self.step_entered_at.isoformat() if self.step_entered_at else None,
+            "step_action_count": self.step_action_count,
+            "total_action_count": self.total_action_count,
+            "variables": self.variables,
+            "context_injected": self.context_injected,
+            "created_at": self.created_at.isoformat(),
+            "updated_at": self.updated_at.isoformat(),
+        }
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> "WorkflowInstance":
+        """Deserialize from a dictionary, parsing ISO datetime strings."""
+        parsed = dict(data)
+        for field in ("step_entered_at", "created_at", "updated_at"):
+            val = parsed.get(field)
+            if isinstance(val, str):
+                parsed[field] = datetime.fromisoformat(val)
+        return cls(**parsed)
 
 
 class WorkflowState(BaseModel):

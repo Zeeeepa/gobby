@@ -125,7 +125,7 @@ class AgentDefinition(BaseModel):
 
     # Execution parameters
     model: str | None = None
-    mode: str = "headless"  # Default to headless for stability
+    mode: Literal["terminal", "embedded", "headless", "self"] = "headless"
     provider: str = "claude"  # Provider: claude, gemini, codex, cursor, windsurf, copilot
     terminal: Literal["auto", "tmux"] = "auto"  # Terminal: auto, tmux
 
@@ -239,7 +239,7 @@ class AgentDefinition(BaseModel):
             return spec.mode
 
         # Fall back to agent-level mode
-        return self.mode  # type: ignore[return-value]
+        return self.mode
 
     def get_orchestrator_workflow(self) -> str | None:
         """

@@ -504,10 +504,11 @@ class WorktreeGitManager:
             for line in result.stdout.split("\n"):
                 if not line:
                     if current:
+                        branch_val = current.get("branch")
                         worktrees.append(
                             WorktreeInfo(
                                 path=str(current.get("worktree", "")),
-                                branch=current.get("branch"),  # type: ignore
+                                branch=branch_val if isinstance(branch_val, str) else None,
                                 commit=str(current.get("HEAD", "")),
                                 is_bare=bool(current.get("bare")),
                                 is_detached=bool(current.get("detached")),
@@ -540,10 +541,11 @@ class WorktreeGitManager:
 
             # Handle last entry
             if current:
+                branch_val = current.get("branch")
                 worktrees.append(
                     WorktreeInfo(
                         path=str(current.get("worktree", "")),
-                        branch=current.get("branch"),  # type: ignore
+                        branch=branch_val if isinstance(branch_val, str) else None,
                         commit=str(current.get("HEAD", "")),
                         is_bare=bool(current.get("bare")),
                         is_detached=bool(current.get("detached")),

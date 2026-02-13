@@ -9,13 +9,15 @@ See: https://docs.litellm.ai/docs/completion/token_usage
 from __future__ import annotations
 
 import logging
+import types
 from dataclasses import dataclass, field
 from typing import Any
 
+litellm: types.ModuleType | None
 try:
     import litellm
 except ImportError:
-    litellm = None  # type: ignore[assignment]
+    litellm = None
 
 logger = logging.getLogger(__name__)
 
@@ -125,7 +127,7 @@ class TokenTracker:
                     # If cache pricing lookup fails, skip cache cost calculation
                     pass
 
-            return total
+            return float(total)
 
         except Exception as e:
             # Model not found in LiteLLM pricing data
@@ -149,7 +151,7 @@ class TokenTracker:
             return 0.0
 
         try:
-            return litellm.completion_cost(response)
+            return float(litellm.completion_cost(response))
         except Exception as e:
             logger.debug(f"Could not calculate cost from response: {e}")
             return 0.0

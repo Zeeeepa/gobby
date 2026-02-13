@@ -48,13 +48,11 @@ class WorkflowHookHandler:
             )
         return HookResponse(decision="allow")
 
-    def handle_all_lifecycles(self, event: HookEvent) -> HookResponse:
-        """
-        Handle a hook event by discovering and evaluating all lifecycle workflows.
+    def evaluate(self, event: HookEvent) -> HookResponse:
+        """Evaluate all lifecycle workflows for a hook event.
 
-        This is the preferred method - it automatically discovers all lifecycle
-        workflows and evaluates them in priority order. Replaces the need to
-        call handle_lifecycle() with a specific workflow name.
+        Discovers and evaluates all lifecycle workflows in priority order.
+        This is the primary entry point for workflow evaluation.
 
         Args:
             event: The hook event to handle
@@ -90,6 +88,9 @@ class WorkflowHookHandler:
         except Exception as e:
             logger.error(f"Error handling all lifecycle workflows: {e}", exc_info=True)
             return HookResponse(decision="allow")
+
+    # Backward-compatible alias
+    handle_all_lifecycles = evaluate
 
     def handle(self, event: HookEvent) -> HookResponse:
         """

@@ -7,7 +7,8 @@ from unittest.mock import MagicMock
 import pytest
 
 from gobby.agents.definitions import AgentDefinition
-from gobby.agents.runner import AgentConfig, AgentRunner
+from gobby.agents.runner import AgentRunner
+from gobby.agents.runner_models import AgentConfig
 
 pytestmark = pytest.mark.unit
 

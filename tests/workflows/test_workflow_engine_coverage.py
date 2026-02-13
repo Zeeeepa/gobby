@@ -177,6 +177,7 @@ async def test_handle_event_lifecycle_workflow_type(engine, mock_state_manager, 
 
     workflow = Mock(spec=WorkflowDefinition)
     workflow.type = "lifecycle"
+    workflow.steps = []
     workflow.name = "lifecycle-wf"
     mock_loader.load_workflow.return_value = workflow
 
@@ -197,6 +198,7 @@ async def test_handle_event_step_not_found(engine, mock_state_manager, mock_load
 
     workflow = Mock(spec=WorkflowDefinition)
     workflow.type = "step"
+    workflow.steps = [MagicMock()]
     workflow.name = "test-wf"
     workflow.get_step.return_value = None
     mock_loader.load_workflow.return_value = workflow
@@ -224,6 +226,7 @@ async def test_handle_event_handle_approval(engine, mock_state_manager, mock_loa
 
     workflow = Mock(spec=WorkflowDefinition)
     workflow.type = "step"
+    workflow.steps = [MagicMock()]
     step = Mock(spec=WorkflowStep)
     step.blocked_tools = []
     step.allowed_tools = "all"
@@ -274,6 +277,7 @@ async def test_evaluate_lifecycle_workflows_blocked(
 
     workflow = Mock(spec=WorkflowDefinition)
     workflow.name = "block-wf"
+    workflow.enabled = True
     workflow.triggers = {"on_before_tool": [{"action": "block_action"}]}
     workflow.variables = {}
     workflow.observers = []

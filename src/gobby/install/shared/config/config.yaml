@@ -111,7 +111,7 @@ workflow:
 import_mcp_server:
   enabled: true
   provider: claude
-  model: claude-haiku-4-5-20251001
+  model: claude-haiku-4-5
   github_fetch_prompt: |
     Fetch the README from this GitHub repository and extract MCP server configuration:
 
@@ -145,7 +145,7 @@ compact_handoff:
 session_summary:
   enabled: false
   provider: claude
-  model: claude-haiku-4-5-20251001
+  model: claude-haiku-4-5
   summary_file_path: ~/.gobby/session_summaries/
   prompt: 'Analyze this session transcript and create a comprehensive
     session summary.
@@ -239,7 +239,7 @@ session_summary:
 title_synthesis:
   enabled: true
   provider: claude
-  model: claude-haiku-4-5-20251001
+  model: claude-haiku-4-5
   prompt: "Generate a concise 3-6 word title summarizing the user's intent.
 
     Use title case. Be specific and descriptive. Focus on the task/goal.
@@ -354,7 +354,7 @@ recommend_tools:
 tool_summarizer:
   enabled: true
   provider: claude
-  model: claude-haiku-4-5-20251001
+  model: claude-haiku-4-5
   prompt: |
     Summarize this MCP tool description in 180 characters or less.
     Keep it to three sentences or less. Be concise and preserve the key functionality.

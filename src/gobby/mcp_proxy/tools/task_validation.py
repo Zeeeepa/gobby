@@ -659,7 +659,7 @@ Focus on fixing ONLY the listed issues. Do not make unrelated changes.
 """
 
         try:
-            from gobby.agents.runner import AgentConfig
+            from gobby.agents.runner_models import AgentConfig
 
             config = AgentConfig(
                 prompt=fix_prompt,

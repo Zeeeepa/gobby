@@ -17,6 +17,7 @@ from gobby.llm import LLMService, create_llm_service
 from gobby.llm.resolver import ExecutorRegistry
 from gobby.mcp_proxy.manager import MCPClientManager
 from gobby.memory.manager import MemoryManager
+from gobby.memory.mem0_sync import Mem0SyncProcessor
 from gobby.servers.http import HTTPServer
 from gobby.servers.websocket.models import WebSocketConfig
 from gobby.servers.websocket.server import WebSocketServer
@@ -39,6 +40,11 @@ from gobby.utils.machine_id import get_machine_id
 from gobby.worktrees.git import WorktreeGitManager
 
 os.environ["TOKENIZERS_PARALLELISM"] = "false"
+
+# Strip Claude Code session marker so SDK subprocess calls don't fail with
+# "cannot be launched inside another Claude Code session" when the daemon
+# was started/restarted from within a Claude Code session.
+os.environ.pop("CLAUDECODE", None)
 
 # Suppress litellm's never-awaited coroutine warnings (upstream bug in LoggingWorker)
 import warnings
@@ -184,6 +190,15 @@ class GobbyRunner:
                 )
             except Exception as e:
                 logger.error(f"Failed to initialize MemoryManager: {e}")
+
+        # Mem0 Background Sync Processor
+        self.mem0_sync: Mem0SyncProcessor | None = None
+        if self.memory_manager and self.memory_manager._mem0_client:
+            self.mem0_sync = Mem0SyncProcessor(
+                memory_manager=self.memory_manager,
+                sync_interval=self.config.memory.mem0_sync_interval,
+                max_backoff=self.config.memory.mem0_sync_max_backoff,
+            )
 
         # MCP Proxy Manager - Initialize early for tool access
         # LocalMCPManager handles server/tool storage in SQLite
@@ -509,9 +524,10 @@ class GobbyRunner:
             if event_type == "agent_started":
                 agent = registry.get(run_id)
                 if agent and agent.tmux_session_name:
+                    session_name = agent.tmux_session_name
 
                     async def start_tmux_reader() -> None:
-                        await tmux_reader.start_reader(run_id, agent.tmux_session_name)  # type: ignore[arg-type]
+                        await tmux_reader.start_reader(run_id, session_name)
 
                     task = asyncio.create_task(start_tmux_reader())
                     task.add_done_callback(_log_broadcast_exception)
@@ -669,6 +685,10 @@ class GobbyRunner:
             if self.message_processor:
                 await self.message_processor.start()
 
+            # Start Mem0 Background Sync
+            if self.mem0_sync:
+                await self.mem0_sync.start()
+
             # Start Session Lifecycle Manager
             await self.lifecycle_manager.start()
 
@@ -694,13 +714,23 @@ class GobbyRunner:
                 web_dir = find_web_dir(self.config)
                 if web_dir:
                     ui_log = Path(self.config.logging.client).expanduser().parent / "ui.log"
+                    # Inherit bind_host so the Vite dev server is reachable
+                    # over the network (e.g. Tailscale) when bind_host != localhost
+                    ui_host = self.config.ui.host
+                    if self.config.bind_host != "localhost" and ui_host == "localhost":
+                        ui_host = self.config.bind_host
                     ui_pid = spawn_ui_server(
-                        self.config.ui.host, self.config.ui.port, web_dir, ui_log
+                        ui_host,
+                        self.config.ui.port,
+                        web_dir,
+                        ui_log,
+                        daemon_port=self.config.daemon_port,
+                        ws_port=self.config.websocket.port if self.config.websocket else 60888,
                     )
                     if ui_pid:
                         logger.info(
                             f"UI dev server started (PID: {ui_pid}) "
-                            f"at http://{self.config.ui.host}:{self.config.ui.port}"
+                            f"at http://{ui_host}:{self.config.ui.port}"
                         )
                     else:
                         logger.warning("Failed to start UI dev server")
@@ -769,6 +799,13 @@ class GobbyRunner:
                 from gobby.cli.utils import stop_ui_server
 
                 stop_ui_server(quiet=True)
+
+            # Stop Mem0 background sync (before memory backup)
+            if self.mem0_sync:
+                try:
+                    await asyncio.wait_for(self.mem0_sync.stop(), timeout=5.0)
+                except TimeoutError:
+                    logger.warning("Mem0 sync processor shutdown timed out")
 
             # Export memories to JSONL backup on shutdown
             if self.memory_sync_manager:

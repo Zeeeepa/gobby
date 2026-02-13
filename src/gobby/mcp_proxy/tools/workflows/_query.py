@@ -13,7 +13,11 @@ from gobby.storage.sessions import LocalSessionManager
 from gobby.utils.project_context import get_workflow_project_path
 from gobby.workflows.definitions import WorkflowDefinition
 from gobby.workflows.loader import WorkflowLoader
-from gobby.workflows.state_manager import WorkflowStateManager
+from gobby.workflows.state_manager import (
+    SessionVariableManager,
+    WorkflowInstanceManager,
+    WorkflowStateManager,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -51,7 +55,7 @@ async def get_workflow(
         return {
             "success": True,
             "name": definition.name,
-            "type": definition.type,
+            "enabled": definition.enabled,
             "description": definition.description,
             "version": definition.version,
             "steps": (
@@ -79,7 +83,7 @@ async def get_workflow(
         return {
             "success": True,
             "name": definition.name,
-            "type": definition.type,
+            "type": "pipeline",
             "description": definition.description,
             "version": definition.version,
             "steps": (
@@ -180,17 +184,25 @@ def get_workflow_status(
     state_manager: WorkflowStateManager,
     session_manager: LocalSessionManager,
     session_id: str | None = None,
+    instance_manager: WorkflowInstanceManager | None = None,
+    session_var_manager: SessionVariableManager | None = None,
 ) -> dict[str, Any]:
     """
-    Get current workflow step and state.
+    Get current workflow status for a session.
+
+    When instance_manager is provided, returns all active workflow instances
+    with per-workflow variables and session variables separately.
+    Falls back to legacy single-workflow response otherwise.
 
     Args:
         state_manager: WorkflowStateManager instance
         session_manager: LocalSessionManager instance
-        session_id: Session reference (accepts #N, N, UUID, or prefix) - required to prevent cross-session bleed
+        session_id: Session reference (accepts #N, N, UUID, or prefix)
+        instance_manager: Optional WorkflowInstanceManager for multi-workflow status
+        session_var_manager: Optional SessionVariableManager for session variables
 
     Returns:
-        Workflow state including step, action counts, variables
+        Workflow state including per-instance details and session variables
     """
     # Require explicit session_id to prevent cross-session bleed
     if not session_id:
@@ -206,6 +218,33 @@ def get_workflow_status(
     except ValueError as e:
         return {"success": False, "has_workflow": False, "error": str(e)}
 
+    # Multi-workflow path: return all active instances
+    if instance_manager:
+        instances = instance_manager.get_active_instances(resolved_session_id)
+        session_vars = (
+            session_var_manager.get_variables(resolved_session_id) if session_var_manager else {}
+        )
+
+        workflows = [
+            {
+                "workflow_name": inst.workflow_name,
+                "enabled": inst.enabled,
+                "priority": inst.priority,
+                "current_step": inst.current_step,
+                "variables": inst.variables,
+            }
+            for inst in instances
+        ]
+
+        return {
+            "success": True,
+            "has_workflow": len(workflows) > 0,
+            "session_id": resolved_session_id,
+            "workflows": workflows,
+            "session_variables": session_vars,
+        }
+
+    # Legacy single-workflow fallback
     state = state_manager.get_state(resolved_session_id)
     if not state:
         return {"success": True, "has_workflow": False, "session_id": resolved_session_id}

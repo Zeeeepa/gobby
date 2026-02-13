@@ -53,15 +53,11 @@ class AgentEventHandlerMixin(EventHandlersBase):
                 self.logger.error(f"Failed skill interception: {e}", exc_info=True)
 
         # Execute lifecycle workflow triggers
-        if self._workflow_handler:
-            try:
-                wf_response = self._workflow_handler.handle_all_lifecycles(event)
-                if wf_response.context:
-                    context_parts.append(wf_response.context)
-                if wf_response.decision != "allow":
-                    return wf_response
-            except Exception as e:
-                self.logger.error(f"Failed to execute lifecycle workflows: {e}", exc_info=True)
+        wf_response = self._evaluate_workflows(event)
+        if wf_response.context:
+            context_parts.append(wf_response.context)
+        if wf_response.decision != "allow":
+            return wf_response
 
         return HookResponse(
             decision="allow",
@@ -211,15 +207,11 @@ class AgentEventHandlerMixin(EventHandlersBase):
             self.logger.debug(f"AFTER_AGENT: cli={cli_source}")
 
         # Execute lifecycle workflow triggers
-        if self._workflow_handler:
-            try:
-                wf_response = self._workflow_handler.handle_all_lifecycles(event)
-                if wf_response.context:
-                    context_parts.append(wf_response.context)
-                if wf_response.decision != "allow":
-                    return wf_response
-            except Exception as e:
-                self.logger.error(f"Failed to execute lifecycle workflows: {e}", exc_info=True)
+        wf_response = self._evaluate_workflows(event)
+        if wf_response.context:
+            context_parts.append(wf_response.context)
+        if wf_response.decision != "allow":
+            return wf_response
 
         return HookResponse(
             decision="allow",
@@ -243,15 +235,11 @@ class AgentEventHandlerMixin(EventHandlersBase):
             self.logger.debug("STOP")
 
         # Execute lifecycle workflow triggers
-        if self._workflow_handler:
-            try:
-                wf_response = self._workflow_handler.handle_all_lifecycles(event)
-                if wf_response.context:
-                    context_parts.append(wf_response.context)
-                if wf_response.decision != "allow":
-                    return wf_response
-            except Exception as e:
-                self.logger.error(f"Failed to execute lifecycle workflows: {e}", exc_info=True)
+        wf_response = self._evaluate_workflows(event)
+        if wf_response.context:
+            context_parts.append(wf_response.context)
+        if wf_response.decision != "allow":
+            return wf_response
 
         return HookResponse(
             decision="allow",
@@ -283,13 +271,7 @@ class AgentEventHandlerMixin(EventHandlersBase):
             self.logger.debug(f"PRE_COMPACT ({trigger})")
 
         # Execute lifecycle workflows
-        if self._workflow_handler:
-            try:
-                return self._workflow_handler.handle_all_lifecycles(event)
-            except Exception as e:
-                self.logger.error(f"Failed to execute lifecycle workflows: {e}", exc_info=True)
-
-        return HookResponse(decision="allow")
+        return self._evaluate_workflows(event)
 
     def handle_subagent_start(self, event: HookEvent) -> HookResponse:
         """Handle SUBAGENT_START event."""

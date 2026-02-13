@@ -16,15 +16,19 @@ from unittest.mock import patch
 
 import pytest
 
-from gobby.cli.installers.shared import (
+from gobby.cli.installers.ide_config import (
     _get_ide_config_dir,
     configure_ide_terminal_title,
+)
+from gobby.cli.installers.mcp_config import (
     configure_mcp_server_json,
     configure_mcp_server_toml,
-    install_cli_content,
-    install_shared_content,
     remove_mcp_server_json,
     remove_mcp_server_toml,
+)
+from gobby.cli.installers.shared import (
+    install_cli_content,
+    install_shared_content,
 )
 
 pytestmark = pytest.mark.unit
@@ -424,7 +428,7 @@ class TestConfigureMcpServerJson:
         settings_path = temp_dir / "settings.json"
         settings_path.write_text('{"existing": true}')
 
-        with patch("gobby.cli.installers.shared.time") as mock_time:
+        with patch("gobby.cli.installers.mcp_config.time") as mock_time:
             mock_time.time.return_value = 1234567890
             result = configure_mcp_server_json(settings_path)
 
@@ -539,7 +543,7 @@ class TestRemoveMcpServerJson:
         existing = {"mcpServers": {"gobby": {"command": "uv"}}}
         settings_path.write_text(json.dumps(existing))
 
-        with patch("gobby.cli.installers.shared.time") as mock_time:
+        with patch("gobby.cli.installers.mcp_config.time") as mock_time:
             mock_time.time.return_value = 9876543210
             result = remove_mcp_server_json(settings_path)
 
@@ -619,7 +623,7 @@ class TestConfigureMcpServerToml:
         config_path = temp_dir / "config.toml"
         config_path.write_text('existing = "value"\n')
 
-        with patch("gobby.cli.installers.shared.time") as mock_time:
+        with patch("gobby.cli.installers.mcp_config.time") as mock_time:
             mock_time.time.return_value = 1111111111
             result = configure_mcp_server_toml(config_path)
 
@@ -762,7 +766,7 @@ command = "uv"
 """
         config_path.write_text(content)
 
-        with patch("gobby.cli.installers.shared.time") as mock_time:
+        with patch("gobby.cli.installers.mcp_config.time") as mock_time:
             mock_time.time.return_value = 2222222222
             result = remove_mcp_server_toml(config_path)
 
@@ -820,7 +824,7 @@ class TestEdgeCases:
                 raise OSError("Permission denied")
             return original_open(path, mode, *args, **kwargs)
 
-        with patch("gobby.cli.installers.shared.copy2"):  # Skip actual backup
+        with patch("gobby.cli.installers.mcp_config.copy2"):  # Skip actual backup
             with patch("builtins.open", mock_open_fn):
                 result = remove_mcp_server_json(settings_path)
 
@@ -859,7 +863,7 @@ class TestEdgeCases:
         settings_path = temp_dir / "settings.json"
         settings_path.write_text('{"existing": true}')
 
-        with patch("gobby.cli.installers.shared.copy2") as mock_copy:
+        with patch("gobby.cli.installers.mcp_config.copy2") as mock_copy:
             mock_copy.side_effect = OSError("Disk full")
             result = configure_mcp_server_json(settings_path)
 
@@ -873,7 +877,7 @@ class TestEdgeCases:
         existing = {"mcpServers": {"gobby": {"command": "uv"}}}
         settings_path.write_text(json.dumps(existing))
 
-        with patch("gobby.cli.installers.shared.copy2") as mock_copy:
+        with patch("gobby.cli.installers.mcp_config.copy2") as mock_copy:
             mock_copy.side_effect = OSError("Disk full")
             result = remove_mcp_server_json(settings_path)
 
@@ -1000,20 +1004,20 @@ class TestGetIdeConfigDir:
     """Tests for _get_ide_config_dir cross-platform resolution."""
 
     def test_macos_path(self) -> None:
-        with patch("gobby.cli.installers.shared.sys") as mock_sys:
+        with patch("gobby.cli.installers.ide_config.sys") as mock_sys:
             mock_sys.platform = "darwin"
             path = _get_ide_config_dir("Cursor")
         assert path == Path.home() / "Library" / "Application Support" / "Cursor"
 
     def test_linux_path(self) -> None:
-        with patch("gobby.cli.installers.shared.sys") as mock_sys:
+        with patch("gobby.cli.installers.ide_config.sys") as mock_sys:
             mock_sys.platform = "linux"
             path = _get_ide_config_dir("Cursor")
         assert path == Path.home() / ".config" / "Cursor"
 
     def test_windows_path(self) -> None:
         with (
-            patch("gobby.cli.installers.shared.sys") as mock_sys,
+            patch("gobby.cli.installers.ide_config.sys") as mock_sys,
             patch.dict(os.environ, {"APPDATA": "C:\\Users\\test\\AppData\\Roaming"}),
         ):
             mock_sys.platform = "win32"
@@ -1026,7 +1030,7 @@ class TestConfigureIdeTerminalTitle:
 
     def test_skip_when_ide_not_installed(self, temp_dir: Path) -> None:
         """IDE config dir doesn't exist — skip silently."""
-        with patch("gobby.cli.installers.shared._get_ide_config_dir") as mock_dir:
+        with patch("gobby.cli.installers.ide_config._get_ide_config_dir") as mock_dir:
             mock_dir.return_value = temp_dir / "NonExistent"
             result = configure_ide_terminal_title("NonExistent")
 
@@ -1039,7 +1043,7 @@ class TestConfigureIdeTerminalTitle:
         config_dir = temp_dir / "Cursor"
         config_dir.mkdir()
 
-        with patch("gobby.cli.installers.shared._get_ide_config_dir") as mock_dir:
+        with patch("gobby.cli.installers.ide_config._get_ide_config_dir") as mock_dir:
             mock_dir.return_value = config_dir
             result = configure_ide_terminal_title("Cursor")
 
@@ -1060,7 +1064,7 @@ class TestConfigureIdeTerminalTitle:
         settings_path = user_dir / "settings.json"
         settings_path.write_text(json.dumps({"editor.fontSize": 14}))
 
-        with patch("gobby.cli.installers.shared._get_ide_config_dir") as mock_dir:
+        with patch("gobby.cli.installers.ide_config._get_ide_config_dir") as mock_dir:
             mock_dir.return_value = config_dir
             result = configure_ide_terminal_title("Windsurf")
 
@@ -1086,7 +1090,7 @@ class TestConfigureIdeTerminalTitle:
             json.dumps({"terminal.integrated.tabs.title": "${process} - ${sequence}"})
         )
 
-        with patch("gobby.cli.installers.shared._get_ide_config_dir") as mock_dir:
+        with patch("gobby.cli.installers.ide_config._get_ide_config_dir") as mock_dir:
             mock_dir.return_value = config_dir
             result = configure_ide_terminal_title("Antigravity")
 
@@ -1102,7 +1106,7 @@ class TestConfigureIdeTerminalTitle:
         user_dir.mkdir(parents=True)
         (user_dir / "settings.json").write_text("{ broken json }")
 
-        with patch("gobby.cli.installers.shared._get_ide_config_dir") as mock_dir:
+        with patch("gobby.cli.installers.ide_config._get_ide_config_dir") as mock_dir:
             mock_dir.return_value = config_dir
             result = configure_ide_terminal_title("Cursor")
 
@@ -1118,8 +1122,8 @@ class TestConfigureIdeTerminalTitle:
         (user_dir / "settings.json").write_text("{}")
 
         with (
-            patch("gobby.cli.installers.shared._get_ide_config_dir") as mock_dir,
-            patch("gobby.cli.installers.shared.copy2") as mock_copy,
+            patch("gobby.cli.installers.ide_config._get_ide_config_dir") as mock_dir,
+            patch("gobby.cli.installers.ide_config.copy2") as mock_copy,
         ):
             mock_dir.return_value = config_dir
             mock_copy.side_effect = OSError("Disk full")

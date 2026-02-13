@@ -404,7 +404,7 @@ class TestGenerateWithMcpToolsWithCli:
                 model="claude-haiku-4-5",
             )
 
-            assert captured_options[0].kwargs["model"] == "claude-haiku-4-5-20251001"
+            assert captured_options[0].kwargs["model"] == "claude-haiku-4-5"
 
     @pytest.mark.asyncio
     async def test_uses_custom_max_turns(self, claude_config: DaemonConfig):

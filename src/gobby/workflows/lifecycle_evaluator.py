@@ -12,6 +12,7 @@ from typing import TYPE_CHECKING, Any, Literal
 
 from gobby.hooks.events import HookEvent, HookEventType, HookResponse
 from gobby.workflows.definitions import WorkflowDefinition, WorkflowState
+from gobby.workflows.unified_evaluator import _TRIGGER_KEY_MAP
 
 if TYPE_CHECKING:
     from .actions import ActionExecutor
@@ -142,7 +143,7 @@ async def evaluate_workflow_triggers(
     from .definitions import WorkflowState
 
     # Map hook event to trigger name
-    trigger_name = f"on_{event.event_type.name.lower()}"
+    trigger_name = _TRIGGER_KEY_MAP.get(event.event_type, f"on_{event.event_type.name.lower()}")
 
     # Look up triggers - try canonical name first, then aliases
     triggers = []
@@ -202,6 +203,12 @@ async def evaluate_workflow_triggers(
     if context_data:
         state.variables = {**context_data, **state.variables}
 
+    # Session variables (from session_variables table, written by MCP set_variable)
+    # must override workflow_states.variables since MCP is the agent-facing API.
+    _sv_override = context_data.get("_session_variables_override") if context_data else None
+    if _sv_override:
+        state.variables.update(_sv_override)
+
     action_ctx = ActionContext(
         session_id=session_id,
         state=state,
@@ -254,8 +261,8 @@ async def evaluate_workflow_triggers(
             try:
                 task = action_executor.task_manager.get_task(claimed_task_id)
                 task_has_commits = bool(task and task.commits)
-            except Exception:
-                pass
+            except (KeyError, AttributeError, ValueError) as e:
+                logger.debug("Failed to check commits for task %s: %s", claimed_task_id, e)
 
     for trigger in triggers:
         # Check 'when' condition if present
@@ -390,7 +397,7 @@ async def evaluate_lifecycle_triggers(
     )
 
     # Map hook event to trigger name (canonical name based on HookEventType)
-    trigger_name = f"on_{event.event_type.name.lower()}"  # e.g. on_session_start, on_before_agent
+    trigger_name = _TRIGGER_KEY_MAP.get(event.event_type, f"on_{event.event_type.name.lower()}")
 
     # Look up triggers - try canonical name first, then aliases
     triggers = []
@@ -467,8 +474,8 @@ async def evaluate_lifecycle_triggers(
             try:
                 task = action_executor.task_manager.get_task(claimed_task_id)
                 task_has_commits = bool(task and task.commits)
-            except Exception:
-                pass
+            except (KeyError, AttributeError, ValueError) as e:
+                logger.debug("Failed to check commits for task %s: %s", claimed_task_id, e)
 
     for trigger in triggers:
         # Check 'when' condition if present
@@ -588,6 +595,13 @@ async def evaluate_all_lifecycle_workflows(
             or source_val in srcs
         ]
 
+    # Filter out disabled (on-demand) workflows - they only activate manually
+    workflows = [
+        w
+        for w in workflows
+        if not isinstance(w.definition, WorkflowDefinition) or w.definition.enabled
+    ]
+
     logger.debug(
         f"Discovered {len(workflows)} lifecycle workflow(s): {[w.name for w in workflows]}"
     )
@@ -617,7 +631,31 @@ async def evaluate_all_lifecycle_workflows(
                 f"Loaded {len(lifecycle_state.variables)} session variable(s) "
                 f"for {session_id}: {list(lifecycle_state.variables.keys())}"
             )
-        elif event.event_type == HookEventType.SESSION_START:
+
+        # Also load session_variables table (written by MCP set_variable tool).
+        # These must override workflow_states.variables because the MCP tool is
+        # the agent-facing API and should be authoritative. We store them in a
+        # special key so evaluate_workflow_triggers can apply them after the
+        # state merge (which otherwise gives workflow_states priority).
+        try:
+            from gobby.workflows.state_manager import SessionVariableManager
+
+            session_var_mgr = SessionVariableManager(state_manager.db)
+            session_vars = session_var_mgr.get_variables(session_id)
+            if session_vars:
+                context_data.update(session_vars)
+                context_data["_session_variables_override"] = session_vars
+                logger.debug(
+                    f"Loaded {len(session_vars)} session_variables for {session_id}: "
+                    f"{list(session_vars.keys())}"
+                )
+        except Exception as e:
+            logger.debug(f"Could not load session_variables: {e}")
+
+        if (
+            not (lifecycle_state and lifecycle_state.variables)
+            and event.event_type == HookEventType.SESSION_START
+        ):
             # New session - check if we should inherit from parent
             parent_id = event.metadata.get("_parent_session_id")
             if parent_id:
@@ -636,7 +674,7 @@ async def evaluate_all_lifecycle_workflows(
     # Track which workflow+trigger combinations have already been processed
     # to prevent duplicate execution of the same trigger
     processed_triggers: set[tuple[str, str]] = set()
-    trigger_name = f"on_{event.event_type.name.lower()}"
+    trigger_name = _TRIGGER_KEY_MAP.get(event.event_type, f"on_{event.event_type.name.lower()}")
 
     # Loop until no triggers fire (or max iterations)
     for iteration in range(MAX_TRIGGER_ITERATIONS):

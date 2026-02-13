@@ -103,6 +103,7 @@ export function useVoice(
   const chunksRef = useRef<Blob[]>([])
   const streamRef = useRef<MediaStream | null>(null)
   const playbackQueueRef = useRef(new AudioPlaybackQueue())
+  const recordingStartTimeRef = useRef<number>(0)
 
   // Check voice availability on mount
   useEffect(() => {
@@ -207,6 +208,7 @@ export function useVoice(
       }
 
       recorder.start()
+      recordingStartTimeRef.current = Date.now()
       setIsRecording(true)
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'Microphone access denied'
@@ -216,7 +218,23 @@ export function useVoice(
   }, [voiceMode, wsRef, conversationId])
 
   const stopRecording = useCallback(() => {
+    const MIN_RECORDING_MS = 300
     if (mediaRecorderRef.current?.state === 'recording') {
+      const elapsed = Date.now() - recordingStartTimeRef.current
+      if (elapsed < MIN_RECORDING_MS) {
+        // Too short — discard without sending to avoid EOF errors
+        mediaRecorderRef.current.ondataavailable = null
+        mediaRecorderRef.current.onstop = () => {
+          if (streamRef.current) {
+            streamRef.current.getTracks().forEach(t => t.stop())
+            streamRef.current = null
+          }
+        }
+        mediaRecorderRef.current.stop()
+        chunksRef.current = []
+        setIsRecording(false)
+        return
+      }
       mediaRecorderRef.current.stop()
     }
     setIsRecording(false)

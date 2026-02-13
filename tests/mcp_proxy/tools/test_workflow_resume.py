@@ -8,7 +8,7 @@ These tests verify that activate_workflow supports the resume=True flag to:
 """
 
 from typing import Any
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
@@ -51,12 +51,15 @@ def mock_loader():
 @pytest.fixture
 def registry(mock_loader, mock_state_manager, mock_session_manager, mock_db):
     """Create workflow registry for testing."""
-    return create_workflows_registry(
-        loader=mock_loader,
-        state_manager=mock_state_manager,
-        session_manager=mock_session_manager,
-        db=mock_db,
-    )
+    with patch(
+        "gobby.mcp_proxy.tools.workflows.WorkflowInstanceManager", return_value=None
+    ), patch("gobby.mcp_proxy.tools.workflows.SessionVariableManager", return_value=None):
+        return create_workflows_registry(
+            loader=mock_loader,
+            state_manager=mock_state_manager,
+            session_manager=mock_session_manager,
+            db=mock_db,
+        )
 
 
 async def call_tool(registry, tool_name: str, **kwargs) -> Any:
@@ -82,9 +85,10 @@ class TestActivateWorkflowResume:
 
     @pytest.fixture
     def workflow_def(self):
-        """Create a mock workflow definition."""
+        """Create a mock workflow definition (enabled=False for on-demand)."""
         return WorkflowDefinition(
             name="test-workflow",
+            enabled=False,
             steps=[WorkflowStep(name="start"), WorkflowStep(name="work")],
             variables={"default_var": "default"},
         )
@@ -143,14 +147,14 @@ class TestActivateWorkflowResume:
         mock_state_manager.save_state.assert_called_with(active_workflow_state)
 
     @pytest.mark.asyncio
-    async def test_resume_false_errors_on_active(
+    async def test_resume_false_reactivates(
         self, registry, mock_loader, mock_state_manager, active_workflow_state, workflow_def
     ) -> None:
-        """Verify resume=False (default) errors when workflow is active."""
+        """Verify resume=False (default) re-initializes workflow when already active."""
         mock_state_manager.get_state.return_value = active_workflow_state
         mock_loader.load_workflow.return_value = workflow_def
 
-        # Without resume=True
+        # Without resume=True, workflow is re-initialized at first step
         result = await call_tool(
             registry,
             "activate_workflow",
@@ -158,28 +162,30 @@ class TestActivateWorkflowResume:
             session_id="test-session",
         )
 
-        assert result["success"] is False
-        assert "already has step workflow" in result["error"]
+        assert result["success"] is True
+        assert result["step"] == "start"  # Reset to first step
+        mock_state_manager.save_state.assert_called_once()
 
     @pytest.mark.asyncio
-    async def test_resume_mismatch_workflow_errors(
+    async def test_resume_mismatch_activates_new(
         self, registry, mock_loader, mock_state_manager, active_workflow_state, workflow_def
     ) -> None:
-        """Verify resume=True errors if active workflow name mismatches."""
+        """Verify resume=True with different workflow name activates the new workflow."""
         mock_state_manager.get_state.return_value = active_workflow_state
         mock_loader.load_workflow.return_value = workflow_def
 
         result = await call_tool(
             registry,
             "activate_workflow",
-            name="other-workflow", # Mismatch
+            name="other-workflow",  # Mismatch - different name
             session_id="test-session",
             resume=True,
         )
 
-        # Should behave like standard activation attempt on active session -> Error
-        assert result["success"] is False
-        assert "already has step workflow 'test-workflow' active" in result["error"]
+        # Mismatch doesn't resume, but still activates the new workflow
+        assert result["success"] is True
+        assert result["workflow"] == "other-workflow"
+        mock_state_manager.save_state.assert_called_once()
 
     @pytest.mark.asyncio
     async def test_resume_no_active_starts_fresh(

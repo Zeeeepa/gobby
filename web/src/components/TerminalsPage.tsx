@@ -255,7 +255,7 @@ function SessionGroup({ label, sessions, attachedSession, streamingId, terminalN
       {sessions.map((session) => {
         const isAttached = attachedSession === session.name && streamingId !== null
         const nameKey = `${session.socket}:${session.name}`
-        const displayName = terminalNames[nameKey] || session.name
+        const displayName = terminalNames[nameKey] || session.pane_title || session.window_name || session.name
         const isEditing = editingKey === nameKey
 
         return (

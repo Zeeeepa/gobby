@@ -103,16 +103,3 @@ class ThinkingEvent:
 
 # Union type for all streaming events
 ChatEvent = TextChunk | ToolCallEvent | ToolResultEvent | DoneEvent | ThinkingEvent
-
-
-# Model alias resolution - the Anthropic API requires full dated model IDs
-MODEL_ALIASES: dict[str, str] = {
-    "claude-haiku-4-5": "claude-haiku-4-5-20251001",
-    "claude-sonnet-4-5": "claude-sonnet-4-5-20250929",
-    "claude-opus-4-6": "claude-opus-4-6-20250826",
-}
-
-
-def resolve_model_id(model: str) -> str:
-    """Resolve model alias to full dated API model ID."""
-    return MODEL_ALIASES.get(model, model)

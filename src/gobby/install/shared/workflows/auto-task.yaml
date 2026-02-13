@@ -15,13 +15,16 @@ description: |
     4. Workflow exits when task tree is complete
 
 version: "1.1"
-type: step
+enabled: false
 
-# Session-scoped variables (set on activation)
+# Workflow-scoped variables
 variables:
-  session_task: null  # Task ID(s) to complete before exit
   # Failsafe: force allow stop after N blocked attempts (resets on user prompt)
   premature_stop_max_attempts: 3
+
+# Session-scoped shared variables (set on activation)
+session_variables:
+  session_task: null  # Task ID(s) to complete before exit
 
 steps:
   - name: work

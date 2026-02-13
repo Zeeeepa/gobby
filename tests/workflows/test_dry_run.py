@@ -93,16 +93,17 @@ class TestWorkflowNotFound:
 class TestLifecycleType:
     @pytest.mark.asyncio
     async def test_lifecycle_type_info(self, mock_loader: MagicMock) -> None:
-        """Lifecycle workflows get info-level type notice."""
-        definition = _make_definition(
-            wf_type="lifecycle",
+        """Always-on workflows get info-level type notice."""
+        definition = WorkflowDefinition(
+            name="lifecycle-wf",
+            enabled=True,
             steps=[_make_step("init")],
         )
         mock_loader.load_workflow.return_value = definition
 
         result = await evaluate_workflow("lifecycle-wf", mock_loader)
 
-        info_items = [i for i in result.items if i.code == "LIFECYCLE_TYPE"]
+        info_items = [i for i in result.items if i.code == "ALWAYS_ON"]
         assert len(info_items) == 1
         assert info_items[0].level == "info"
 

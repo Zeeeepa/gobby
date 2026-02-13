@@ -12,7 +12,7 @@ description: |
   3. Optionally delete the feature branch (worktree mode)
 
 version: "1.0"
-type: step
+enabled: false
 
 variables:
   isolation_mode: "worktree"       # "clone" or "worktree"
