@@ -8,6 +8,7 @@ Handles configuring VS Code-family IDE settings (Cursor, Windsurf, Antigravity).
 import json
 import os
 import sys
+import tempfile
 import time
 from pathlib import Path
 from shutil import copy2
@@ -104,10 +105,24 @@ def configure_ide_terminal_title(ide_name: str) -> dict[str, Any]:
     # Ensure User/ directory exists
     settings_path.parent.mkdir(parents=True, exist_ok=True)
 
-    # Write updated settings
+    # Write updated settings atomically (temp file + rename)
     try:
-        with open(settings_path, "w") as f:
-            json.dump(existing_settings, f, indent=2)
+        fd, tmp_path = tempfile.mkstemp(
+            dir=str(settings_path.parent), suffix=".tmp"
+        )
+        try:
+            with os.fdopen(fd, "w") as f:
+                json.dump(existing_settings, f, indent=2)
+                f.flush()
+                os.fsync(f.fileno())
+            os.replace(tmp_path, settings_path)
+        except BaseException:
+            # Clean up temp file on any failure
+            try:
+                os.unlink(tmp_path)
+            except OSError:
+                pass
+            raise
     except OSError as e:
         result["error"] = f"Failed to write {settings_path}: {e}"
         return result

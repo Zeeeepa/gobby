@@ -318,7 +318,9 @@ class SessionEventHandlerMixin(EventHandlersBase):
             event.metadata["_platform_session_id"] = session_id
 
         # Execute lifecycle workflow triggers
-        self._evaluate_workflows(event)
+        wf_response = self._evaluate_workflows(event)
+        if wf_response.decision != "allow":
+            return wf_response
 
         # Auto-link commits made during this session to tasks
         if session_id and self._session_storage and self._task_manager:

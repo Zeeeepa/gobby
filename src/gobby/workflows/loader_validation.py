@@ -77,7 +77,7 @@ def _extract_step_refs(text: str) -> set[str]:
     """
     # Match $step_id.output or $step_id.output.field patterns
     # Exclude $inputs.* which are input references, not step references
-    pattern = r"\$([a-zA-Z_][a-zA-Z0-9_]*)\.(output|approved)"
+    pattern = r"\$([a-zA-Z_][a-zA-Z0-9_]*)\.(output|approved|status)"
     matches = re.findall(pattern, text)
     # Filter out 'inputs' which is a special reference
     return {m[0] for m in matches if m[0] != "inputs"}

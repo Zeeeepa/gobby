@@ -133,15 +133,25 @@ class TestMem0SyncProcessorSync:
         row = db.fetchone("SELECT mem0_id FROM memories WHERE id = ?", (memory.id,))
         assert row["mem0_id"] is None
 
-        # Run the processor briefly
+        # Run the processor and poll until sync completes (avoids flaky fixed sleep)
         proc = Mem0SyncProcessor(manager, sync_interval=0.05, max_backoff=1.0)
         await proc.start()
-        await asyncio.sleep(0.2)  # Let one sync cycle run
+
+        # Poll until mem0_id is set or timeout
+        timeout = 2.0
+        elapsed = 0.0
+        row = None
+        while elapsed < timeout:
+            row = db.fetchone("SELECT mem0_id FROM memories WHERE id = ?", (memory.id,))
+            if row and row["mem0_id"] is not None:
+                break
+            await asyncio.sleep(0.01)
+            elapsed += 0.01
+
         await proc.stop()
 
         # Memory should now have mem0_id
-        row = db.fetchone("SELECT mem0_id FROM memories WHERE id = ?", (memory.id,))
-        assert row["mem0_id"] == "mem0-abc-123"
+        assert row is not None and row["mem0_id"] == "mem0-abc-123"
 
     @pytest.mark.asyncio
     async def test_sync_loop_backoff_on_connection_error(self, tmp_path) -> None:

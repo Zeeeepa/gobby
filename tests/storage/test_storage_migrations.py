@@ -1408,14 +1408,16 @@ def test_workflow_instances_indexes(tmp_path) -> None:
     )
 
 
-def test_workflow_instances_defaults(tmp_path) -> None:
-    """Test that workflow_instances columns have correct defaults."""
-    db_path = tmp_path / "workflow_instances_defaults.db"
-    db = LocalDatabase(db_path)
+@pytest.fixture
+def project_session_db(tmp_path) -> tuple[LocalDatabase, str]:
+    """Create a migrated database with a project and session pre-inserted.
 
+    Returns (db, session_id) for tests that need workflow_instances scaffolding.
+    """
+    db_path = tmp_path / "workflow_instances.db"
+    db = LocalDatabase(db_path)
     run_migrations(db)
 
-    # Create project and session
     db.execute(
         "INSERT INTO projects (id, name, created_at, updated_at) "
         "VALUES (?, ?, datetime('now'), datetime('now'))",
@@ -1426,14 +1428,20 @@ def test_workflow_instances_defaults(tmp_path) -> None:
         "VALUES (?, ?, ?, ?, ?, datetime('now'), datetime('now'))",
         ("session-1", "ext-1", "machine-1", "claude", "test-project"),
     )
+    return db, "session-1"
 
+
+def test_workflow_instances_defaults(project_session_db: tuple[LocalDatabase, str]) -> None:
+    """Test that workflow_instances columns have correct defaults."""
     import uuid
+
+    db, session_id = project_session_db
 
     instance_id = str(uuid.uuid4())
     db.execute(
         """INSERT INTO workflow_instances (id, session_id, workflow_name)
            VALUES (?, ?, ?)""",
-        (instance_id, "session-1", "auto-task"),
+        (instance_id, session_id, "auto-task"),
     )
 
     row = db.fetchone("SELECT * FROM workflow_instances WHERE id = ?", (instance_id,))
@@ -1447,81 +1455,51 @@ def test_workflow_instances_defaults(tmp_path) -> None:
     assert row["context_injected"] == 0, "context_injected should default to 0"
 
 
-def test_workflow_instances_unique_prevents_duplicates(tmp_path) -> None:
+def test_workflow_instances_unique_prevents_duplicates(project_session_db: tuple[LocalDatabase, str]) -> None:
     """Test that the UNIQUE constraint prevents duplicate (session_id, workflow_name)."""
     import sqlite3
     import uuid
 
-    db_path = tmp_path / "workflow_instances_dup.db"
-    db = LocalDatabase(db_path)
-
-    run_migrations(db)
-
-    # Create project and session
-    db.execute(
-        "INSERT INTO projects (id, name, created_at, updated_at) "
-        "VALUES (?, ?, datetime('now'), datetime('now'))",
-        ("test-project", "Test Project"),
-    )
-    db.execute(
-        "INSERT INTO sessions (id, external_id, machine_id, source, project_id, created_at, updated_at) "
-        "VALUES (?, ?, ?, ?, ?, datetime('now'), datetime('now'))",
-        ("session-1", "ext-1", "machine-1", "claude", "test-project"),
-    )
+    db, session_id = project_session_db
 
     # Insert first instance
     db.execute(
         "INSERT INTO workflow_instances (id, session_id, workflow_name) VALUES (?, ?, ?)",
-        (str(uuid.uuid4()), "session-1", "auto-task"),
+        (str(uuid.uuid4()), session_id, "auto-task"),
     )
 
     # Insert duplicate should fail
     with pytest.raises(sqlite3.IntegrityError):
         db.execute(
             "INSERT INTO workflow_instances (id, session_id, workflow_name) VALUES (?, ?, ?)",
-            (str(uuid.uuid4()), "session-1", "auto-task"),
+            (str(uuid.uuid4()), session_id, "auto-task"),
         )
 
 
-def test_workflow_instances_multiple_per_session(tmp_path) -> None:
+def test_workflow_instances_multiple_per_session(project_session_db: tuple[LocalDatabase, str]) -> None:
     """Test that multiple workflow instances can exist per session."""
     import uuid
 
-    db_path = tmp_path / "workflow_instances_multi.db"
-    db = LocalDatabase(db_path)
-
-    run_migrations(db)
-
-    # Create project and session
-    db.execute(
-        "INSERT INTO projects (id, name, created_at, updated_at) "
-        "VALUES (?, ?, datetime('now'), datetime('now'))",
-        ("test-project", "Test Project"),
-    )
-    db.execute(
-        "INSERT INTO sessions (id, external_id, machine_id, source, project_id, created_at, updated_at) "
-        "VALUES (?, ?, ?, ?, ?, datetime('now'), datetime('now'))",
-        ("session-1", "ext-1", "machine-1", "claude", "test-project"),
-    )
+    db, session_id = project_session_db
 
     # Insert multiple workflows for the same session
     db.execute(
         "INSERT INTO workflow_instances (id, session_id, workflow_name, priority) VALUES (?, ?, ?, ?)",
-        (str(uuid.uuid4()), "session-1", "session-lifecycle", 10),
+        (str(uuid.uuid4()), session_id, "session-lifecycle", 10),
     )
     db.execute(
         "INSERT INTO workflow_instances (id, session_id, workflow_name, priority) VALUES (?, ?, ?, ?)",
-        (str(uuid.uuid4()), "session-1", "auto-task", 25),
+        (str(uuid.uuid4()), session_id, "auto-task", 25),
     )
     db.execute(
         "INSERT INTO workflow_instances (id, session_id, workflow_name, priority) VALUES (?, ?, ?, ?)",
-        (str(uuid.uuid4()), "session-1", "developer", 20),
+        (str(uuid.uuid4()), session_id, "developer", 20),
     )
 
     # Verify all three exist
     rows = db.fetchall(
         "SELECT workflow_name, priority FROM workflow_instances WHERE session_id = ? ORDER BY priority",
-        ("session-1",),
+        (session_id,),
     )
     assert len(rows) == 3
     assert rows[0]["workflow_name"] == "session-lifecycle"
@@ -1532,32 +1510,17 @@ def test_workflow_instances_multiple_per_session(tmp_path) -> None:
     assert rows[2]["priority"] == 25
 
 
-def test_workflow_instances_cascade_delete(tmp_path) -> None:
+def test_workflow_instances_cascade_delete(project_session_db: tuple[LocalDatabase, str]) -> None:
     """Test that deleting a session cascades to workflow_instances."""
     import uuid
 
-    db_path = tmp_path / "workflow_instances_cascade.db"
-    db = LocalDatabase(db_path)
-
-    run_migrations(db)
+    db, session_id = project_session_db
     db.execute("PRAGMA foreign_keys = ON")
-
-    # Create project and session
-    db.execute(
-        "INSERT INTO projects (id, name, created_at, updated_at) "
-        "VALUES (?, ?, datetime('now'), datetime('now'))",
-        ("test-project", "Test Project"),
-    )
-    db.execute(
-        "INSERT INTO sessions (id, external_id, machine_id, source, project_id, created_at, updated_at) "
-        "VALUES (?, ?, ?, ?, ?, datetime('now'), datetime('now'))",
-        ("session-1", "ext-1", "machine-1", "claude", "test-project"),
-    )
 
     instance_id = str(uuid.uuid4())
     db.execute(
         "INSERT INTO workflow_instances (id, session_id, workflow_name) VALUES (?, ?, ?)",
-        (instance_id, "session-1", "auto-task"),
+        (instance_id, session_id, "auto-task"),
     )
 
     # Verify it exists
@@ -1565,7 +1528,7 @@ def test_workflow_instances_cascade_delete(tmp_path) -> None:
     assert row is not None
 
     # Delete the session
-    db.execute("DELETE FROM sessions WHERE id = ?", ("session-1",))
+    db.execute("DELETE FROM sessions WHERE id = ?", (session_id,))
 
     # Verify cascade delete
     row = db.fetchone("SELECT * FROM workflow_instances WHERE id = ?", (instance_id,))

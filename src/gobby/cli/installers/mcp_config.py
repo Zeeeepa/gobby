@@ -163,6 +163,14 @@ def remove_project_mcp_server(project_path: Path, server_name: str = "gobby") ->
     # Remove the server
     del mcp_servers[server_name]
 
+    # Clean up empty nested structures
+    if not mcp_servers:
+        del project_settings["mcpServers"]
+    if not project_settings:
+        del projects[abs_project_path]
+    if not projects:
+        del settings["projects"]
+
     # Write updated settings
     try:
         with open(settings_path, "w") as f:
@@ -418,11 +426,11 @@ def remove_mcp_server_toml(config_path: Path, server_name: str = "gobby") -> dic
         result["success"] = True
         return result
 
-    # Read existing TOML file
+    # Read existing TOML file (single read for both backup and parsing)
     try:
-        existing_text = config_path.read_text(encoding="utf-8")
-        with open(config_path, "rb") as f:
-            config = tomllib.load(f)
+        raw = config_path.read_bytes()
+        existing_text = raw.decode("utf-8")
+        config = tomllib.loads(existing_text)
     except tomllib.TOMLDecodeError as e:
         result["error"] = f"Failed to parse TOML {config_path}: {e}"
         return result
@@ -590,8 +598,8 @@ def install_default_mcp_servers() -> dict[str, Any]:
         imported = mcp_db.import_from_mcp_json(mcp_config_path, project_id="global")
         if imported:
             logger.info(f"Synced {imported} MCP servers to database")
-    except Exception as e:
-        logger.warning(f"Failed to sync MCP servers to database: {e}")
+    except (OSError, ValueError, RuntimeError) as e:
+        logger.warning(f"Failed to sync MCP servers to database ({type(e).__name__}): {e}", exc_info=True)
 
     result["success"] = True
     return result

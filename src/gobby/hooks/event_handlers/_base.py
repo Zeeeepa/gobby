@@ -50,7 +50,7 @@ class EventHandlersBase:
         try:
             return self._workflow_handler.evaluate(event)
         except Exception as e:
-            self.logger.error(f"Failed to evaluate workflows: {e}", exc_info=True)
+            self.logger.error("Failed to evaluate workflows", exc_info=True, extra={"error": str(e)})
             return HookResponse(decision="allow")
 
     def _auto_activate_workflow(

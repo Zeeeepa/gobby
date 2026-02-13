@@ -88,7 +88,13 @@ async def discover_workflows(
         for name, error in failed.items():
             if name in discovered and not discovered[name].is_project:
                 logger.error(
-                    f"Project workflow '{name}' failed to load, using global instead: {error}"
+                    "Project workflow failed to load, using global instead",
+                    extra={
+                        "workflow": name,
+                        "path": str(discovered[name].path),
+                        "is_project": discovered[name].is_project,
+                        "error": error,
+                    },
                 )
 
     # 4. Sort: project first, then by priority (asc), then by name (alpha)
@@ -185,7 +191,13 @@ async def discover_pipeline_workflows(
         for name, error in failed.items():
             if name in discovered and not discovered[name].is_project:
                 logger.error(
-                    f"Project pipeline '{name}' failed to load, using global instead: {error}"
+                    "Project pipeline failed to load, using global instead",
+                    extra={
+                        "workflow": name,
+                        "path": str(discovered[name].path),
+                        "is_project": discovered[name].is_project,
+                        "error": error,
+                    },
                 )
 
     # 3. Sort: project first, then by priority (asc), then by name (alpha)
@@ -258,7 +270,10 @@ async def _scan_pipeline_directory(
                     if parent:
                         data = loader._merge_workflows(parent.model_dump(), data)
                 except ValueError as e:
-                    logger.warning(f"Skipping pipeline {name}: {e}")
+                    logger.warning(
+                        "Skipping pipeline due to inheritance error",
+                        extra={"workflow": name, "error": str(e)},
+                    )
                     if failed is not None:
                         failed[name] = str(e)
                     continue
@@ -290,7 +305,10 @@ async def _scan_pipeline_directory(
             )
 
         except Exception as e:
-            logger.warning(f"Failed to load pipeline from {yaml_path}: {e}")
+            logger.warning(
+                "Failed to load pipeline",
+                extra={"workflow": name, "path": str(yaml_path), "error": str(e)},
+            )
             if failed is not None:
                 failed[name] = str(e)
 
@@ -332,6 +350,10 @@ async def _scan_directory(
             if not data:
                 continue
 
+            # Skip pipeline-type files — they are handled by _scan_pipeline_directory
+            if data.get("type") == "pipeline":
+                continue
+
             # Handle inheritance with cycle detection
             if "extends" in data:
                 parent_name = data["extends"]
@@ -343,7 +365,10 @@ async def _scan_directory(
                     if parent:
                         data = loader._merge_workflows(parent.model_dump(), data)
                 except ValueError as e:
-                    logger.warning(f"Skipping workflow {name}: {e}")
+                    logger.warning(
+                        "Skipping workflow due to inheritance error",
+                        extra={"workflow": name, "error": str(e)},
+                    )
                     if failed is not None:
                         failed[name] = str(e)
                     continue
@@ -375,6 +400,9 @@ async def _scan_directory(
             )
 
         except Exception as e:
-            logger.warning(f"Failed to load workflow from {yaml_path}: {e}")
+            logger.warning(
+                "Failed to load workflow",
+                extra={"workflow": name, "path": str(yaml_path), "error": str(e)},
+            )
             if failed is not None:
                 failed[name] = str(e)
