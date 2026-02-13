@@ -37,6 +37,10 @@ from .lifecycle_evaluator import (
 from .loader import WorkflowLoader
 from .premature_stop import check_premature_stop
 from .state_manager import WorkflowStateManager
+from .unified_evaluator import (
+    _evaluate_step_tool_rules,
+    _evaluate_step_transitions,
+)
 
 if TYPE_CHECKING:
     from gobby.storage.rules import RuleStore
@@ -308,25 +312,17 @@ class WorkflowEngine:
             raw_tool_name = eval_context.get("tool_name")
             tool_name = str(raw_tool_name) if raw_tool_name is not None else ""
 
-            # Allow exempt tools (MCP discovery tools) regardless of step restrictions
-            if tool_name in EXEMPT_TOOLS:
-                self._log_tool_call(session_id, state.step, tool_name, "allow", "exempt tool")
-                return HookResponse(decision="allow")
+            # Delegate basic tool restriction checks to unified evaluator.
+            # Handles: exempt tools, blocked_tools, allowed_tools, inline rules.
+            tool_decision, tool_reason = _evaluate_step_tool_rules(
+                tool_name, current_step, eval_context,
+                condition_evaluator=self.evaluator.evaluate,
+            )
+            if tool_decision == "block":
+                self._log_tool_call(session_id, state.step, tool_name, "block", tool_reason)
+                return HookResponse(decision="block", reason=tool_reason)
 
-            # Check blocked list
-            if tool_name in current_step.blocked_tools:
-                reason = f"Tool '{tool_name}' is blocked in step '{state.step}'."
-                self._log_tool_call(session_id, state.step, tool_name, "block", reason)
-                return HookResponse(decision="block", reason=reason)
-
-            # Check allowed list (if not "all")
-            if current_step.allowed_tools != "all":
-                if tool_name not in current_step.allowed_tools:
-                    reason = f"Tool '{tool_name}' is not in allowed list for step '{state.step}'."
-                    self._log_tool_call(session_id, state.step, tool_name, "block", reason)
-                    return HookResponse(decision="block", reason=reason)
-
-            # Check MCP-level tool restrictions for call_tool/get_tool_schema
+            # Engine-specific: MCP-level tool restrictions for call_tool/get_tool_schema
             # Adapters normalize mcp_server/mcp_tool from tool_input for these calls
             if tool_name in (
                 "call_tool",
@@ -360,23 +356,7 @@ class WorkflowEngine:
                             self._log_tool_call(session_id, state.step, mcp_key, "block", reason)
                             return HookResponse(decision="block", reason=reason)
 
-            # Check rules
-            for rule in current_step.rules:
-                if self.evaluator.evaluate(rule.when, eval_context):
-                    if rule.action == "block":
-                        reason = rule.message or "Blocked by workflow rule."
-                        self._log_rule_eval(
-                            session_id,
-                            state.step,
-                            rule.name or "unnamed",
-                            rule.when,
-                            "block",
-                            reason,
-                        )
-                        return HookResponse(decision="block", reason=reason)
-                    # Handle other actions like warn, require_approval
-
-            # Check named rules (check_rules)
+            # Engine-specific: Check named rules via DB (check_rules)
             if current_step.check_rules:
                 project_id = project_info.get("id") or None
                 resolved_rules = self._resolve_check_rules(
@@ -439,41 +419,46 @@ class WorkflowEngine:
                 )
                 return premature_response
 
-        # Check transitions
+        # Check transitions (delegated to unified evaluator)
         logger.debug("Checking transitions")
-        for transition in current_step.transitions:
-            if self.evaluator.evaluate(transition.when, eval_context):
-                # Transition!
-                transition_result = await self.transition_to(
-                    state, transition.to, workflow, transition=transition
-                )
+        target_step = _evaluate_step_transitions(
+            current_step, eval_context, condition_evaluator=self.evaluator.evaluate
+        )
+        if target_step:
+            # Find the matching transition object for on_transition actions
+            matching_transition = next(
+                (t for t in current_step.transitions if t.to == target_step), None
+            )
+            transition_result = await self.transition_to(
+                state, target_step, workflow, transition=matching_transition
+            )
 
-                # Auto-transition chain after the transition's on_enter
-                result = await self._auto_transition_chain(
-                    state,
-                    workflow,
-                    session_info,
-                    project_info,
-                    event,
-                    transition_result,
-                )
+            # Auto-transition chain after the transition's on_enter
+            result = await self._auto_transition_chain(
+                state,
+                workflow,
+                session_info,
+                project_info,
+                event,
+                transition_result,
+            )
 
-                # Save state after transition
-                if event.event_type == HookEventType.AFTER_TOOL:
-                    self.state_manager.save_state(state)
+            # Save state after transition
+            if event.event_type == HookEventType.AFTER_TOOL:
+                self.state_manager.save_state(state)
 
-                # Build context with on_enter messages if any were injected
-                if result.injected_messages:
-                    context = "\n\n".join(result.injected_messages)
-                else:
-                    context = f"Transitioning to step: {transition.to}"
+            # Build context with on_enter messages if any were injected
+            if result.injected_messages:
+                context = "\n\n".join(result.injected_messages)
+            else:
+                context = f"Transitioning to step: {target_step}"
 
-                system_message = (
-                    "\n".join(result.system_messages) if result.system_messages else None
-                )
-                return HookResponse(
-                    decision="modify", context=context, system_message=system_message
-                )
+            system_message = (
+                "\n".join(result.system_messages) if result.system_messages else None
+            )
+            return HookResponse(
+                decision="modify", context=context, system_message=system_message
+            )
 
         # Check exit conditions
         logger.debug("Checking exit conditions")

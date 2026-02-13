@@ -9,12 +9,17 @@ architecture (replacing the dual lifecycle/step evaluation paths).
 """
 
 import logging
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from typing import Any
 
 from gobby.hooks.events import HookEvent, HookEventType, HookResponse
 from gobby.workflows.definitions import WorkflowDefinition, WorkflowInstance, WorkflowStep
 from gobby.workflows.safe_evaluator import SafeExpressionEvaluator
+
+# Type alias for pluggable condition evaluator functions.
+# Matches ConditionEvaluator.evaluate(condition, context) signature.
+ConditionEvaluatorFn = Callable[[str, dict[str, Any]], bool]
 
 logger = logging.getLogger(__name__)
 
@@ -77,6 +82,7 @@ def evaluate_event(
     instances: list[WorkflowInstance],
     definitions: dict[str, WorkflowDefinition],
     session_variables: dict[str, Any] | None = None,
+    condition_evaluator: ConditionEvaluatorFn | None = None,
 ) -> EvaluationResult:
     """Evaluate an event across all active workflow instances.
 
@@ -115,7 +121,9 @@ def evaluate_event(
             tool_name = event.data.get("tool_name", "")
             step = definition.get_step(instance.current_step) if instance.current_step else None
             if step:
-                decision, reason = _evaluate_step_tool_rules(tool_name, step, eval_ctx)
+                decision, reason = _evaluate_step_tool_rules(
+                    tool_name, step, eval_ctx, condition_evaluator
+                )
                 if decision == "block":
                     result.decision = "block"
                     result.reason = reason
@@ -126,7 +134,7 @@ def evaluate_event(
         if instance.current_step:
             step = definition.get_step(instance.current_step)
             if step:
-                new_step = _evaluate_step_transitions(step, eval_ctx)
+                new_step = _evaluate_step_transitions(step, eval_ctx, condition_evaluator)
                 if new_step:
                     # Follow auto-transition chain
                     visited = {instance.current_step, new_step}
@@ -135,7 +143,9 @@ def evaluate_event(
                         next_step_def = definition.get_step(new_step)
                         if not next_step_def:
                             break
-                        chain_target = _evaluate_step_transitions(next_step_def, eval_ctx)
+                        chain_target = _evaluate_step_transitions(
+                            next_step_def, eval_ctx, condition_evaluator
+                        )
                         if chain_target and chain_target not in visited:
                             visited.add(chain_target)
                             new_step = chain_target
@@ -150,7 +160,7 @@ def evaluate_event(
                         result.context_parts.append(target_step.status_message)
 
         # Evaluate workflow triggers for context injection
-        trigger_context = _evaluate_triggers(event, definition, eval_ctx)
+        trigger_context = _evaluate_triggers(event, definition, eval_ctx, condition_evaluator)
         result.context_parts.extend(trigger_context)
 
     return result
@@ -160,6 +170,7 @@ def _evaluate_step_tool_rules(
     tool_name: str,
     step: WorkflowStep,
     eval_context: dict[str, Any],
+    condition_evaluator: ConditionEvaluatorFn | None = None,
 ) -> tuple[str, str | None]:
     """Evaluate step-level tool restrictions.
 
@@ -169,6 +180,14 @@ def _evaluate_step_tool_rules(
     3. allowed_tools whitelist (unless "all").
     4. Named rules with conditions.
 
+    Args:
+        tool_name: Name of the tool being checked.
+        step: The current workflow step definition.
+        eval_context: Variables available for condition evaluation.
+        condition_evaluator: Optional pluggable evaluator matching
+            ConditionEvaluator.evaluate(condition, context) signature.
+            Falls back to SafeExpressionEvaluator when None.
+
     Returns:
         Tuple of (decision, reason). Decision is "allow" or "block".
     """
@@ -176,16 +195,20 @@ def _evaluate_step_tool_rules(
         return "allow", None
 
     if tool_name in step.blocked_tools:
-        return "block", f"Tool '{tool_name}' is blocked in step '{step.name}'"
+        return "block", f"Tool '{tool_name}' is blocked in step '{step.name}'."
 
     if step.allowed_tools != "all" and tool_name not in step.allowed_tools:
-        return "block", f"Tool '{tool_name}' is not in allowed tools for step '{step.name}'"
+        return "block", f"Tool '{tool_name}' is not in allowed list for step '{step.name}'."
 
     for rule in step.rules:
         if rule.when and rule.action == "block":
             try:
-                evaluator = SafeExpressionEvaluator(eval_context, {})
-                if evaluator.evaluate(rule.when):
+                if condition_evaluator:
+                    matched = condition_evaluator(rule.when, eval_context)
+                else:
+                    evaluator = SafeExpressionEvaluator(eval_context, {})
+                    matched = evaluator.evaluate(rule.when)
+                if matched:
                     return "block", rule.message or f"Blocked by rule in step '{step.name}'"
             except (ValueError, Exception):
                 logger.debug("Failed to evaluate rule condition: %s", rule.when, exc_info=True)
@@ -196,18 +219,30 @@ def _evaluate_step_tool_rules(
 def _evaluate_step_transitions(
     step: WorkflowStep,
     eval_context: dict[str, Any],
+    condition_evaluator: ConditionEvaluatorFn | None = None,
 ) -> str | None:
     """Evaluate step transitions and return target step name if any fires.
 
     Transitions are evaluated in order; first match wins.
+
+    Args:
+        step: The current workflow step definition.
+        eval_context: Variables available for condition evaluation.
+        condition_evaluator: Optional pluggable evaluator matching
+            ConditionEvaluator.evaluate(condition, context) signature.
+            Falls back to SafeExpressionEvaluator when None.
 
     Returns:
         Name of the target step, or None if no transition fires.
     """
     for transition in step.transitions:
         try:
-            evaluator = SafeExpressionEvaluator(eval_context, {})
-            if evaluator.evaluate(transition.when):
+            if condition_evaluator:
+                matched = condition_evaluator(transition.when, eval_context)
+            else:
+                evaluator = SafeExpressionEvaluator(eval_context, {})
+                matched = evaluator.evaluate(transition.when)
+            if matched:
                 return transition.to
         except (ValueError, Exception):
             logger.debug(
@@ -233,12 +268,20 @@ def _evaluate_triggers(
     event: HookEvent,
     definition: WorkflowDefinition,
     eval_context: dict[str, Any],
+    condition_evaluator: ConditionEvaluatorFn | None = None,
 ) -> list[str]:
     """Evaluate workflow-level triggers for the given event.
 
     Currently processes inject_context actions only. Other action types
-    (set_variable, block_tools, etc.) require the full action engine
-    and will be wired in during integration (task #8085).
+    (set_variable, block_tools, etc.) require the full action engine.
+
+    Args:
+        event: The hook event being evaluated.
+        definition: Workflow definition containing triggers.
+        eval_context: Variables available for condition evaluation.
+        condition_evaluator: Optional pluggable evaluator matching
+            ConditionEvaluator.evaluate(condition, context) signature.
+            Falls back to SafeExpressionEvaluator when None.
 
     Returns:
         List of context messages from matching triggers.
@@ -256,8 +299,12 @@ def _evaluate_triggers(
         when = action.get("when")
         if when:
             try:
-                evaluator = SafeExpressionEvaluator(eval_context, {})
-                if not evaluator.evaluate(when):
+                if condition_evaluator:
+                    matched = condition_evaluator(when, eval_context)
+                else:
+                    evaluator = SafeExpressionEvaluator(eval_context, {})
+                    matched = evaluator.evaluate(when)
+                if not matched:
                     continue
             except (ValueError, Exception):
                 logger.debug("Failed to evaluate trigger condition: %s", when, exc_info=True)

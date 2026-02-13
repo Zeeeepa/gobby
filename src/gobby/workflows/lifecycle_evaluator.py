@@ -12,6 +12,7 @@ from typing import TYPE_CHECKING, Any, Literal
 
 from gobby.hooks.events import HookEvent, HookEventType, HookResponse
 from gobby.workflows.definitions import WorkflowDefinition, WorkflowState
+from gobby.workflows.unified_evaluator import _TRIGGER_KEY_MAP
 
 if TYPE_CHECKING:
     from .actions import ActionExecutor
@@ -142,7 +143,7 @@ async def evaluate_workflow_triggers(
     from .definitions import WorkflowState
 
     # Map hook event to trigger name
-    trigger_name = f"on_{event.event_type.name.lower()}"
+    trigger_name = _TRIGGER_KEY_MAP.get(event.event_type, f"on_{event.event_type.name.lower()}")
 
     # Look up triggers - try canonical name first, then aliases
     triggers = []
@@ -390,7 +391,7 @@ async def evaluate_lifecycle_triggers(
     )
 
     # Map hook event to trigger name (canonical name based on HookEventType)
-    trigger_name = f"on_{event.event_type.name.lower()}"  # e.g. on_session_start, on_before_agent
+    trigger_name = _TRIGGER_KEY_MAP.get(event.event_type, f"on_{event.event_type.name.lower()}")
 
     # Look up triggers - try canonical name first, then aliases
     triggers = []
@@ -636,7 +637,7 @@ async def evaluate_all_lifecycle_workflows(
     # Track which workflow+trigger combinations have already been processed
     # to prevent duplicate execution of the same trigger
     processed_triggers: set[tuple[str, str]] = set()
-    trigger_name = f"on_{event.event_type.name.lower()}"
+    trigger_name = _TRIGGER_KEY_MAP.get(event.event_type, f"on_{event.event_type.name.lower()}")
 
     # Loop until no triggers fire (or max iterations)
     for iteration in range(MAX_TRIGGER_ITERATIONS):
