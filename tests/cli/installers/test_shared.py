@@ -1000,20 +1000,20 @@ class TestGetIdeConfigDir:
     """Tests for _get_ide_config_dir cross-platform resolution."""
 
     def test_macos_path(self) -> None:
-        with patch("gobby.cli.installers.shared.sys") as mock_sys:
+        with patch("gobby.cli.installers.ide_config.sys") as mock_sys:
             mock_sys.platform = "darwin"
             path = _get_ide_config_dir("Cursor")
         assert path == Path.home() / "Library" / "Application Support" / "Cursor"
 
     def test_linux_path(self) -> None:
-        with patch("gobby.cli.installers.shared.sys") as mock_sys:
+        with patch("gobby.cli.installers.ide_config.sys") as mock_sys:
             mock_sys.platform = "linux"
             path = _get_ide_config_dir("Cursor")
         assert path == Path.home() / ".config" / "Cursor"
 
     def test_windows_path(self) -> None:
         with (
-            patch("gobby.cli.installers.shared.sys") as mock_sys,
+            patch("gobby.cli.installers.ide_config.sys") as mock_sys,
             patch.dict(os.environ, {"APPDATA": "C:\\Users\\test\\AppData\\Roaming"}),
         ):
             mock_sys.platform = "win32"
@@ -1026,7 +1026,7 @@ class TestConfigureIdeTerminalTitle:
 
     def test_skip_when_ide_not_installed(self, temp_dir: Path) -> None:
         """IDE config dir doesn't exist — skip silently."""
-        with patch("gobby.cli.installers.shared._get_ide_config_dir") as mock_dir:
+        with patch("gobby.cli.installers.ide_config._get_ide_config_dir") as mock_dir:
             mock_dir.return_value = temp_dir / "NonExistent"
             result = configure_ide_terminal_title("NonExistent")
 
@@ -1039,7 +1039,7 @@ class TestConfigureIdeTerminalTitle:
         config_dir = temp_dir / "Cursor"
         config_dir.mkdir()
 
-        with patch("gobby.cli.installers.shared._get_ide_config_dir") as mock_dir:
+        with patch("gobby.cli.installers.ide_config._get_ide_config_dir") as mock_dir:
             mock_dir.return_value = config_dir
             result = configure_ide_terminal_title("Cursor")
 
@@ -1060,7 +1060,7 @@ class TestConfigureIdeTerminalTitle:
         settings_path = user_dir / "settings.json"
         settings_path.write_text(json.dumps({"editor.fontSize": 14}))
 
-        with patch("gobby.cli.installers.shared._get_ide_config_dir") as mock_dir:
+        with patch("gobby.cli.installers.ide_config._get_ide_config_dir") as mock_dir:
             mock_dir.return_value = config_dir
             result = configure_ide_terminal_title("Windsurf")
 
@@ -1086,7 +1086,7 @@ class TestConfigureIdeTerminalTitle:
             json.dumps({"terminal.integrated.tabs.title": "${process} - ${sequence}"})
         )
 
-        with patch("gobby.cli.installers.shared._get_ide_config_dir") as mock_dir:
+        with patch("gobby.cli.installers.ide_config._get_ide_config_dir") as mock_dir:
             mock_dir.return_value = config_dir
             result = configure_ide_terminal_title("Antigravity")
 
@@ -1102,7 +1102,7 @@ class TestConfigureIdeTerminalTitle:
         user_dir.mkdir(parents=True)
         (user_dir / "settings.json").write_text("{ broken json }")
 
-        with patch("gobby.cli.installers.shared._get_ide_config_dir") as mock_dir:
+        with patch("gobby.cli.installers.ide_config._get_ide_config_dir") as mock_dir:
             mock_dir.return_value = config_dir
             result = configure_ide_terminal_title("Cursor")
 
@@ -1118,8 +1118,8 @@ class TestConfigureIdeTerminalTitle:
         (user_dir / "settings.json").write_text("{}")
 
         with (
-            patch("gobby.cli.installers.shared._get_ide_config_dir") as mock_dir,
-            patch("gobby.cli.installers.shared.copy2") as mock_copy,
+            patch("gobby.cli.installers.ide_config._get_ide_config_dir") as mock_dir,
+            patch("gobby.cli.installers.ide_config.copy2") as mock_copy,
         ):
             mock_dir.return_value = config_dir
             mock_copy.side_effect = OSError("Disk full")

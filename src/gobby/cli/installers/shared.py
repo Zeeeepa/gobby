@@ -5,15 +5,11 @@ This module handles installing shared workflows and plugins
 that are used across all CLI integrations (Claude, Gemini, Codex, etc.).
 """
 
-import json
 import logging
 import os
 import shutil
-import sys
-import time
 from pathlib import Path
 from shutil import copy2, copytree
-from typing import Any
 
 from gobby.cli.utils import get_install_dir
 
@@ -280,6 +276,10 @@ def install_cli_content(cli_name: str, target_path: Path) -> dict[str, list[str]
 
 # --- MCP config functions (delegated to mcp_config.py) ---
 # Re-exported for backward compatibility
+# --- IDE config functions (delegated to ide_config.py) ---
+# Re-exported for backward compatibility
+from .ide_config import _get_ide_config_dir as _get_ide_config_dir  # noqa: E402
+from .ide_config import configure_ide_terminal_title as configure_ide_terminal_title  # noqa: E402
 from .mcp_config import DEFAULT_MCP_SERVERS as DEFAULT_MCP_SERVERS  # noqa: E402
 from .mcp_config import configure_mcp_server_json as configure_mcp_server_json  # noqa: E402
 from .mcp_config import configure_mcp_server_toml as configure_mcp_server_toml  # noqa: E402
@@ -288,104 +288,3 @@ from .mcp_config import install_default_mcp_servers as install_default_mcp_serve
 from .mcp_config import remove_mcp_server_json as remove_mcp_server_json  # noqa: E402
 from .mcp_config import remove_mcp_server_toml as remove_mcp_server_toml  # noqa: E402
 from .mcp_config import remove_project_mcp_server as remove_project_mcp_server  # noqa: E402
-
-
-def _get_ide_config_dir(ide_name: str) -> Path:
-    """Get the IDE's config root directory (cross-platform).
-
-    macOS:   ~/Library/Application Support/<ide_name>/
-    Linux:   ~/.config/<ide_name>/
-    Windows: %APPDATA%/<ide_name>/
-    """
-    if sys.platform == "darwin":
-        return Path.home() / "Library" / "Application Support" / ide_name
-    elif sys.platform == "win32":
-        appdata = os.environ.get("APPDATA", "")
-        return Path(appdata) / ide_name
-    else:
-        return Path.home() / ".config" / ide_name
-
-
-def configure_ide_terminal_title(ide_name: str) -> dict[str, Any]:
-    """Configure terminal.integrated.tabs.title for a VS Code-family IDE.
-
-    Adds ``${sequence}`` so tmux ``set-titles`` OSC escapes propagate to
-    tab/sidebar labels. Uses backup + atomic write pattern. No-op if
-    already configured.
-
-    Skips silently if the IDE is not installed (config dir doesn't exist).
-
-    Args:
-        ide_name: IDE name matching the Application Support / config dir
-                  (e.g. "Cursor", "Windsurf", "Antigravity").
-
-    Returns:
-        Dict with 'success', 'added', 'already_configured', 'skipped',
-        'backup_path', and 'error' keys.
-    """
-    result: dict[str, Any] = {
-        "success": False,
-        "added": False,
-        "already_configured": False,
-        "skipped": False,
-        "backup_path": None,
-        "error": None,
-    }
-
-    config_dir = _get_ide_config_dir(ide_name)
-    if not config_dir.exists():
-        # IDE not installed — skip silently
-        result["success"] = True
-        result["skipped"] = True
-        return result
-
-    settings_path = config_dir / "User" / "settings.json"
-
-    # Load existing settings or start with empty dict
-    existing_settings: dict[str, Any] = {}
-    if settings_path.exists():
-        try:
-            with open(settings_path) as f:
-                existing_settings = json.load(f)
-        except json.JSONDecodeError as e:
-            result["error"] = f"Failed to parse {settings_path}: {e}"
-            return result
-        except OSError as e:
-            result["error"] = f"Failed to read {settings_path}: {e}"
-            return result
-
-    # Check if already configured
-    setting_key = "terminal.integrated.tabs.title"
-    if setting_key in existing_settings:
-        result["success"] = True
-        result["already_configured"] = True
-        return result
-
-    # Create backup if file exists
-    if settings_path.exists():
-        timestamp = int(time.time())
-        backup_path = settings_path.parent / f"settings.json.{timestamp}.backup"
-        try:
-            copy2(settings_path, backup_path)
-            result["backup_path"] = str(backup_path)
-        except OSError as e:
-            result["error"] = f"Failed to create backup: {e}"
-            return result
-
-    # Add the setting
-    existing_settings[setting_key] = "${sequence}"
-
-    # Ensure User/ directory exists
-    settings_path.parent.mkdir(parents=True, exist_ok=True)
-
-    # Write updated settings
-    try:
-        with open(settings_path, "w") as f:
-            json.dump(existing_settings, f, indent=2)
-    except OSError as e:
-        result["error"] = f"Failed to write {settings_path}: {e}"
-        return result
-
-    result["success"] = True
-    result["added"] = True
-    return result
