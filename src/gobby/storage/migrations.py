@@ -31,10 +31,14 @@ class MigrationUnsupportedError(Exception):
 # Migration can be SQL string or a callable that takes LocalDatabase
 MigrationAction = str | Callable[[LocalDatabase], None]
 
-# Baseline version - the schema state at v81 (flattened)
-# This is applied for new databases directly
-# Note: Migrations >= BASELINE_VERSION still run for existing databases
+# Baseline version - the schema state that is applied for new databases directly.
+# Must be bumped when BASELINE_SCHEMA is updated with columns from new migrations,
+# so that fresh databases don't re-run migrations already baked into the baseline.
 BASELINE_VERSION = 100
+
+# Minimum migration version - databases older than this cannot be upgraded
+# because legacy migrations (pre-v76) have been removed.
+_MIN_MIGRATION_VERSION = 76
 
 # Baseline schema - flattened from v81 production state, includes all migrations
 # This is applied for new databases directly
@@ -52,6 +56,7 @@ CREATE TABLE projects (
     github_url TEXT,
     github_repo TEXT,
     linear_team_id TEXT,
+    deleted_at TEXT,
     created_at TEXT NOT NULL DEFAULT (datetime('now')),
     updated_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
@@ -62,6 +67,8 @@ INSERT INTO projects (id, name, repo_path, created_at, updated_at)
 VALUES ('00000000-0000-0000-0000-000000000000', '_orphaned', NULL, datetime('now'), datetime('now'));
 INSERT INTO projects (id, name, repo_path, created_at, updated_at)
 VALUES ('00000000-0000-0000-0000-000000000001', '_migrated', NULL, datetime('now'), datetime('now'));
+INSERT INTO projects (id, name, repo_path, created_at, updated_at)
+VALUES ('00000000-0000-0000-0000-000000060887', '_personal', NULL, datetime('now'), datetime('now'));
 
 CREATE TABLE mcp_servers (
     id TEXT PRIMARY KEY,
@@ -451,12 +458,14 @@ CREATE TABLE memories (
     last_accessed_at TEXT,
     tags TEXT,
     media TEXT,
+    mem0_id TEXT,
     created_at TEXT NOT NULL,
     updated_at TEXT NOT NULL
 );
 CREATE INDEX idx_memories_project ON memories(project_id);
 CREATE INDEX idx_memories_type ON memories(memory_type);
 CREATE INDEX idx_memories_importance ON memories(importance DESC);
+CREATE INDEX idx_memories_mem0_id ON memories(mem0_id);
 
 CREATE TABLE memory_embeddings (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -749,6 +758,29 @@ CREATE INDEX idx_rules_name ON rules(name);
 CREATE INDEX idx_rules_tier ON rules(tier);
 CREATE INDEX idx_rules_project ON rules(project_id);
 CREATE UNIQUE INDEX idx_rules_name_tier_project ON rules(name, tier, COALESCE(project_id, ''));
+
+CREATE TABLE task_comments (
+    id TEXT PRIMARY KEY,
+    task_id TEXT NOT NULL REFERENCES tasks(id) ON DELETE CASCADE,
+    parent_comment_id TEXT REFERENCES task_comments(id) ON DELETE CASCADE,
+    author TEXT NOT NULL,
+    author_type TEXT NOT NULL DEFAULT 'session',
+    body TEXT NOT NULL,
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX idx_task_comments_task ON task_comments(task_id);
+CREATE INDEX idx_task_comments_parent ON task_comments(parent_comment_id);
+CREATE INDEX idx_task_comments_created ON task_comments(task_id, created_at);
+
+CREATE TABLE session_skills (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    session_id TEXT NOT NULL REFERENCES sessions(id) ON DELETE CASCADE,
+    skill_name TEXT NOT NULL,
+    created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX idx_session_skills_session ON session_skills(session_id);
+CREATE UNIQUE INDEX idx_session_skills_unique ON session_skills(session_id, skill_name);
 
 CREATE TABLE config_store (
     key TEXT PRIMARY KEY,
@@ -1365,12 +1397,13 @@ def run_migrations(db: LocalDatabase) -> int:
         _apply_baseline(db)
         total_applied = 1
         current_version = BASELINE_VERSION
-    elif current_version < BASELINE_VERSION:
-        # Unsupported: Pre-v75 database without local migrations
-        # Since we removed legacy migrations, we can't upgrade.
+    elif current_version < _MIN_MIGRATION_VERSION:
+        # Unsupported: Pre-v76 database without legacy migrations
+        # Since we removed legacy migrations (v1-v75), we can't upgrade.
         msg = (
-            f"Database version {current_version} is older than baseline "
-            f"{BASELINE_VERSION}. Upgrade not supported without legacy migrations."
+            f"Database version {current_version} is older than minimum "
+            f"migration version {_MIN_MIGRATION_VERSION}. "
+            f"Upgrade not supported without legacy migrations."
         )
         logger.error(msg)
         raise MigrationUnsupportedError(msg)
