@@ -18,7 +18,7 @@ pytestmark = pytest.mark.unit
 # Paths to the files that construct ActionContext from ActionExecutor
 SRC_ROOT = Path(__file__).resolve().parents[2] / "src" / "gobby" / "workflows"
 ACTION_CONTEXT_SITES = [
-    SRC_ROOT / "engine.py",
+    SRC_ROOT / "engine_transitions.py",
     SRC_ROOT / "lifecycle_evaluator.py",
 ]
 

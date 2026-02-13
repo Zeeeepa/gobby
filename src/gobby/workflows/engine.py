@@ -63,8 +63,7 @@ from .unified_evaluator import (
     _evaluate_step_transitions,
 )
 
-# Re-export for backward compatibility
-__all__ = ["DotDict", "EXEMPT_TOOLS", "TransitionResult", "WorkflowEngine"]
+__all__ = ["EXEMPT_TOOLS", "WorkflowEngine"]
 
 if TYPE_CHECKING:
     from gobby.storage.rules import RuleStore

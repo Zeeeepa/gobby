@@ -5,7 +5,7 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-from gobby.workflows.engine import DotDict
+from gobby.workflows.engine_models import DotDict
 
 pytestmark = pytest.mark.unit
 

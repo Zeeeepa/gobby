@@ -25,7 +25,8 @@ from gobby.workflows.definitions import (
     WorkflowStep,
     WorkflowTransition,
 )
-from gobby.workflows.engine import TransitionResult, WorkflowEngine
+from gobby.workflows.engine import WorkflowEngine
+from gobby.workflows.engine_models import TransitionResult
 from gobby.workflows.evaluator import ConditionEvaluator
 from gobby.workflows.loader import WorkflowLoader
 from gobby.workflows.state_manager import WorkflowStateManager

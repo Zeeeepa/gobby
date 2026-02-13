@@ -5,7 +5,8 @@ import pytest
 
 from gobby.hooks.events import HookEvent, HookEventType, SessionSource
 from gobby.workflows.definitions import WorkflowDefinition, WorkflowState, WorkflowStep
-from gobby.workflows.engine import TransitionResult, WorkflowEngine
+from gobby.workflows.engine import WorkflowEngine
+from gobby.workflows.engine_models import TransitionResult
 from gobby.workflows.loader import WorkflowLoader
 from gobby.workflows.state_manager import WorkflowStateManager
 
