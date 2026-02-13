@@ -126,7 +126,7 @@ class TestOrchestrateReadyTasks:
                 mock_agent_runner.prepare_run.return_value = prepare_result
 
                 # Mock spawner
-                with patch("gobby.agents.spawn.TerminalSpawner") as MockSpawner:
+                with patch("gobby.agents.tmux.spawner.TmuxSpawner") as MockSpawner:
                     spawner_instance = MockSpawner.return_value
                     spawner_instance.spawn_agent.return_value = MagicMock(
                         success=True, pid=123, terminal_type="mock"

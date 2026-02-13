@@ -248,6 +248,91 @@ def create_agents_router(server: "HTTPServer") -> APIRouter:
             logger.error(f"Error deleting agent definition: {e}", exc_info=True)
             raise HTTPException(status_code=500, detail=str(e)) from e
 
+    # -------------------------------------------------------------------------
+    # Running agents and agent runs
+    # -------------------------------------------------------------------------
+
+    @router.get("/running")
+    async def list_running_agents() -> dict[str, Any]:
+        """List all currently running agents from the in-memory registry."""
+        metrics.inc_counter("http_requests_total")
+        try:
+            from gobby.agents.registry import get_running_agent_registry
+
+            registry = get_running_agent_registry()
+            agents = registry.list_all()
+            return {
+                "status": "success",
+                "agents": [a.to_dict() for a in agents],
+                "count": len(agents),
+            }
+        except Exception as e:
+            logger.error(f"Error listing running agents: {e}", exc_info=True)
+            raise HTTPException(status_code=500, detail=str(e)) from e
+
+    @router.get("/runs")
+    async def list_agent_runs(
+        status: str | None = Query(None),
+        limit: int = Query(50, ge=1, le=200),
+    ) -> dict[str, Any]:
+        """List recent agent runs from the database."""
+        metrics.inc_counter("http_requests_total")
+        try:
+            from gobby.storage.agents import LocalAgentRunManager
+
+            manager = LocalAgentRunManager(server.services.database)
+            runs = manager.list_by_status(status=status, limit=limit)
+            return {
+                "status": "success",
+                "runs": [r.to_dict() for r in runs],
+                "count": len(runs),
+            }
+        except Exception as e:
+            logger.error(f"Error listing agent runs: {e}", exc_info=True)
+            raise HTTPException(status_code=500, detail=str(e)) from e
+
+    @router.post("/runs/{run_id}/cancel")
+    async def cancel_agent_run(run_id: str) -> dict[str, Any]:
+        """Cancel a running agent."""
+        metrics.inc_counter("http_requests_total")
+        try:
+            from gobby.agents.registry import get_running_agent_registry
+
+            registry = get_running_agent_registry()
+            agent = registry.get(run_id)
+            if not agent:
+                raise HTTPException(status_code=404, detail=f"Running agent '{run_id}' not found")
+
+            result = await registry.kill(run_id)
+
+            # Also update DB status — kill first since DB cancel is recoverable
+            try:
+                from gobby.storage.agents import LocalAgentRunManager
+
+                db_manager = LocalAgentRunManager(server.services.database)
+                db_manager.cancel(run_id)
+            except Exception as e:
+                logger.error(
+                    f"Agent {run_id} killed in registry but DB cancel failed: {e}",
+                    exc_info=True,
+                )
+                raise HTTPException(
+                    status_code=500,
+                    detail=(
+                        f"Agent '{run_id}' was killed in the process registry but "
+                        f"the database status update failed: {e}. "
+                        f"The DB record may still show 'running'. "
+                        f"This will be auto-corrected by cleanup_stale_runs."
+                    ),
+                ) from e
+
+            return {"status": "success", "result": result}
+        except HTTPException:
+            raise
+        except Exception as e:
+            logger.error(f"Error cancelling agent run '{run_id}': {e}", exc_info=True)
+            raise HTTPException(status_code=500, detail=str(e)) from e
+
     @router.post("/definitions/import/{name}")
     async def import_definition(
         name: str,

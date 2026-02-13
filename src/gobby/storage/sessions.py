@@ -5,6 +5,7 @@ from __future__ import annotations
 import builtins
 import json
 import logging
+import sqlite3
 import uuid
 from datetime import UTC, datetime
 from typing import Any
@@ -712,3 +713,28 @@ class LocalSessionManager:
 
         self.db.safe_update("sessions", values, "id = ?", (session_id,))
         return self.get(session_id)
+
+    def record_skills_used(self, session_id: str, skill_names: builtins.list[str]) -> int:
+        """Record skills used in a session (idempotent via UNIQUE constraint).
+
+        Args:
+            session_id: Session ID
+            skill_names: List of skill names that were injected
+
+        Returns:
+            Number of new skills recorded
+        """
+        now = datetime.now(UTC).isoformat()
+        count = 0
+        for name in skill_names:
+            try:
+                cursor = self.db.execute(
+                    "INSERT OR IGNORE INTO session_skills (session_id, skill_name, created_at) "
+                    "VALUES (?, ?, ?)",
+                    (session_id, name, now),
+                )
+                if cursor.rowcount == 1:
+                    count += 1
+            except sqlite3.IntegrityError:
+                continue  # UNIQUE constraint violation — idempotent
+        return count

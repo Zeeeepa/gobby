@@ -1,4 +1,6 @@
 import { useState, useEffect, useCallback, useMemo } from 'react'
+import { useAgentRuns } from '../hooks/useAgentRuns'
+import type { RunningAgent, AgentRun } from '../hooks/useAgentRuns'
 
 // =============================================================================
 // Types
@@ -95,10 +97,49 @@ const MODE_COLORS: Record<string, string> = {
   self: '#ec4899',
 }
 
+const STATUS_COLORS: Record<string, string> = {
+  running: '#3b82f6',
+  pending: '#f59e0b',
+  success: '#10b981',
+  error: '#ef4444',
+  timeout: '#f97316',
+  cancelled: '#6b7280',
+}
+
 const ISOLATION_COLORS: Record<string, string> = {
   clone: '#ef4444',
   worktree: '#eab308',
   current: '#6b7280',
+}
+
+const PROVIDER_MODELS: Record<string, { value: string; label: string }[]> = {
+  claude: [
+    { value: '', label: '(default)' },
+    { value: 'claude-sonnet-4-5', label: 'Sonnet 4.5' },
+    { value: 'claude-opus-4-6', label: 'Opus 4.6' },
+    { value: 'claude-haiku-4-5', label: 'Haiku 4.5' },
+  ],
+  gemini: [
+    { value: '', label: '(default)' },
+    { value: 'gemini-2.5-pro', label: 'Gemini 2.5 Pro' },
+    { value: 'gemini-2.5-flash', label: 'Gemini 2.5 Flash' },
+    { value: 'gemini-2.0-flash', label: 'Gemini 2.0 Flash' },
+  ],
+  codex: [
+    { value: '', label: '(default)' },
+    { value: 'gpt-4o', label: 'GPT-4o' },
+    { value: 'o3', label: 'o3' },
+    { value: 'o4-mini', label: 'o4-mini' },
+  ],
+  cursor: [
+    { value: '', label: '(default)' },
+  ],
+  windsurf: [
+    { value: '', label: '(default)' },
+  ],
+  copilot: [
+    { value: '', label: '(default)' },
+  ],
 }
 
 function getBaseUrl(): string {
@@ -110,14 +151,25 @@ function getBaseUrl(): string {
 // =============================================================================
 
 export function AgentDefinitionsPage() {
+  const { running, recentRuns, cancelAgent } = useAgentRuns()
   const [definitions, setDefinitions] = useState<AgentDefInfo[]>([])
   const [loading, setLoading] = useState(true)
+  const [showRecentRuns, setShowRecentRuns] = useState(false)
+  const [customModelInput, setCustomModelInput] = useState(false)
   const [expandedName, setExpandedName] = useState<string | null>(null)
   const [filterSource, setFilterSource] = useState<string>('all')
   const [filterProvider, setFilterProvider] = useState<string>('all')
   const [showCreateForm, setShowCreateForm] = useState(false)
+  const [editingId, setEditingId] = useState<string | null>(null)
   const [importingName, setImportingName] = useState<string | null>(null)
   const [importResult, setImportResult] = useState<{ name: string; ok: boolean } | null>(null)
+  const [toastMessage, setToastMessage] = useState<{ text: string; type: 'success' | 'error' } | null>(null)
+
+  const showToast = useCallback((text: string, type: 'success' | 'error') => {
+    setToastMessage({ text, type })
+    setTimeout(() => setToastMessage(null), 4000)
+  }, [])
+
   const [createForm, setCreateForm] = useState<CreateFormData>({
     name: '', description: '', role: '', goal: '', personality: '', instructions: '',
     provider: 'claude', model: '', mode: 'headless', terminal: 'auto', isolation: '',
@@ -140,6 +192,17 @@ export function AgentDefinitionsPage() {
   }, [])
 
   useEffect(() => { fetchDefinitions() }, [fetchDefinitions])
+
+  const [providerModels, setProviderModels] = useState(PROVIDER_MODELS)
+
+  useEffect(() => {
+    fetch(`${getBaseUrl()}/admin/models`)
+      .then(res => res.ok ? res.json() : null)
+      .then(data => {
+        if (data) setProviderModels(prev => ({ ...prev, ...data }))
+      })
+      .catch(e => console.error('Failed to fetch model list:', e))
+  }, [])
 
   const filtered = useMemo(() => definitions.filter(d => {
     if (filterSource !== 'all' && d.source !== filterSource) return false
@@ -188,9 +251,79 @@ export function AgentDefinitionsPage() {
           base_branch: 'main', timeout: 120, max_turns: 10,
         })
         fetchDefinitions()
+        showToast(`Agent "${createForm.name}" created`, 'success')
+      } else {
+        showToast('Failed to create agent definition', 'error')
       }
     } catch (e) {
       console.error('Failed to create agent definition:', e)
+      showToast('Failed to create agent definition', 'error')
+    }
+  }
+
+  const handleEdit = (item: AgentDefInfo) => {
+    const d = item.definition
+    setCreateForm({
+      name: d.name,
+      description: d.description || '',
+      role: d.role || '',
+      goal: d.goal || '',
+      personality: d.personality || '',
+      instructions: d.instructions || '',
+      provider: d.provider,
+      model: d.model || '',
+      mode: d.mode,
+      terminal: d.terminal,
+      isolation: d.isolation || '',
+      base_branch: d.base_branch,
+      timeout: d.timeout,
+      max_turns: d.max_turns,
+    })
+    setEditingId(item.db_id)
+    setShowCreateForm(true)
+  }
+
+  const handleUpdate = async () => {
+    if (!editingId) return
+    try {
+      const body: Record<string, unknown> = {
+        name: createForm.name,
+        description: createForm.description || null,
+        role: createForm.role || null,
+        goal: createForm.goal || null,
+        personality: createForm.personality || null,
+        instructions: createForm.instructions || null,
+        provider: createForm.provider,
+        model: createForm.model || null,
+        mode: createForm.mode,
+        terminal: createForm.terminal,
+        isolation: createForm.isolation || null,
+        base_branch: createForm.base_branch,
+        timeout: createForm.timeout,
+        max_turns: createForm.max_turns,
+      }
+
+      const res = await fetch(`${getBaseUrl()}/api/agents/definitions/${editingId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      })
+      if (res.ok) {
+        setShowCreateForm(false)
+        setEditingId(null)
+        setCreateForm({
+          name: '', description: '', role: '', goal: '', personality: '', instructions: '',
+          provider: 'claude', model: '', mode: 'headless', terminal: 'auto', isolation: '',
+          base_branch: 'main', timeout: 120, max_turns: 10,
+        })
+        fetchDefinitions()
+        showToast(`Agent "${createForm.name}" updated`, 'success')
+      } else {
+        showToast('Failed to update agent definition', 'error')
+      }
+    } catch (e) {
+      console.error('Failed to update agent definition:', e)
+      showToast('Failed to update agent definition', 'error')
     }
   }
 
@@ -200,9 +333,15 @@ export function AgentDefinitionsPage() {
       const res = await fetch(`${getBaseUrl()}/api/agents/definitions/${dbId}`, {
         method: 'DELETE',
       })
-      if (res.ok) fetchDefinitions()
+      if (res.ok) {
+        fetchDefinitions()
+        showToast('Agent definition deleted', 'success')
+      } else {
+        showToast('Failed to delete agent definition', 'error')
+      }
     } catch (e) {
       console.error('Failed to delete agent definition:', e)
+      showToast('Failed to delete agent definition', 'error')
     }
   }
 
@@ -230,6 +369,15 @@ export function AgentDefinitionsPage() {
 
   return (
     <main className="agent-defs-page">
+      {toastMessage && (
+        <div
+          className={`agent-defs-toast ${toastMessage.type === 'success' ? 'agent-defs-toast--success' : ''}`}
+          onClick={() => setToastMessage(null)}
+        >
+          {toastMessage.text}
+        </div>
+      )}
+
       {/* Toolbar */}
       <div className="agent-defs-toolbar">
         <div className="agent-defs-toolbar-left">
@@ -262,7 +410,15 @@ export function AgentDefinitionsPage() {
           </button>
           <button
             className="agent-defs-btn agent-defs-btn--primary"
-            onClick={() => setShowCreateForm(!showCreateForm)}
+            onClick={() => {
+              setEditingId(null)
+              setCreateForm({
+                name: '', description: '', role: '', goal: '', personality: '', instructions: '',
+                provider: 'claude', model: '', mode: 'headless', terminal: 'auto', isolation: '',
+                base_branch: 'main', timeout: 120, max_turns: 10,
+              })
+              setShowCreateForm(!showCreateForm)
+            }}
           >
             + New
           </button>
@@ -285,7 +441,17 @@ export function AgentDefinitionsPage() {
               <span>Provider</span>
               <select
                 value={createForm.provider}
-                onChange={e => setCreateForm(f => ({ ...f, provider: e.target.value }))}
+                onChange={e => {
+                  const newProvider = e.target.value
+                  const newModels = providerModels[newProvider]
+                  const modelValid = newModels?.some(m => m.value === createForm.model)
+                  setCustomModelInput(false)
+                  setCreateForm(f => ({
+                    ...f,
+                    provider: newProvider,
+                    model: modelValid ? f.model : '',
+                  }))
+                }}
               >
                 <option value="claude">claude</option>
                 <option value="gemini">gemini</option>
@@ -306,10 +472,12 @@ export function AgentDefinitionsPage() {
             </label>
             <label>
               <span>Model</span>
-              <input
-                value={createForm.model}
-                onChange={e => setCreateForm(f => ({ ...f, model: e.target.value }))}
-                placeholder="e.g. claude-sonnet-4-5-20250929"
+              <ModelSelector
+                model={createForm.model}
+                models={providerModels[createForm.provider]}
+                customModelInput={customModelInput}
+                setCustomModelInput={setCustomModelInput}
+                setCreateForm={setCreateForm}
               />
             </label>
             <label>
@@ -396,15 +564,69 @@ export function AgentDefinitionsPage() {
             </label>
           </div>
           <div className="agent-defs-form-actions">
-            <button className="agent-defs-btn" onClick={() => setShowCreateForm(false)}>Cancel</button>
+            <button className="agent-defs-btn" onClick={() => { setShowCreateForm(false); setEditingId(null) }}>Cancel</button>
             <button
               className="agent-defs-btn agent-defs-btn--primary"
-              onClick={handleCreate}
+              onClick={editingId ? handleUpdate : handleCreate}
               disabled={!createForm.name.trim()}
             >
-              Create
+              {editingId ? 'Save' : 'Create'}
             </button>
           </div>
+        </div>
+      )}
+
+      {/* Running agents */}
+      {(running.length > 0 || recentRuns.length > 0) && (
+        <div className="agent-runs-section">
+          <div className="agent-runs-header">
+            <h3 className="agent-runs-title">
+              Running Agents
+              {running.length > 0 && (
+                <span className="agent-runs-count agent-runs-count--active">{running.length}</span>
+              )}
+            </h3>
+            {recentRuns.length > 0 && (
+              <button
+                className="agent-defs-btn"
+                onClick={() => setShowRecentRuns(!showRecentRuns)}
+              >
+                {showRecentRuns ? 'Hide history' : `History (${recentRuns.length})`}
+              </button>
+            )}
+          </div>
+
+          {running.length > 0 ? (
+            <div className="agent-runs-list">
+              {running.map(agent => (
+                <RunningAgentCard key={agent.run_id} agent={agent} onCancel={cancelAgent} />
+              ))}
+            </div>
+          ) : (
+            <div className="agent-runs-empty">No agents currently running</div>
+          )}
+
+          {showRecentRuns && recentRuns.length > 0 && (
+            <div className="agent-runs-history">
+              <table className="agent-runs-table">
+                <thead>
+                  <tr>
+                    <th>Status</th>
+                    <th>Provider</th>
+                    <th>Prompt</th>
+                    <th>Turns</th>
+                    <th>Duration</th>
+                    <th>Started</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {recentRuns.map(run => (
+                    <AgentRunRow key={run.id} run={run} />
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
         </div>
       )}
 
@@ -590,12 +812,20 @@ export function AgentDefinitionsPage() {
                         Export YAML
                       </button>
                       {isDb && item.db_id && (
-                        <button
-                          className="agent-defs-btn agent-defs-btn--danger"
-                          onClick={() => handleDelete(item.db_id!)}
-                        >
-                          Delete
-                        </button>
+                        <>
+                          <button
+                            className="agent-defs-btn"
+                            onClick={() => handleEdit(item)}
+                          >
+                            Edit
+                          </button>
+                          <button
+                            className="agent-defs-btn agent-defs-btn--danger"
+                            onClick={() => handleDelete(item.db_id!)}
+                          >
+                            Delete
+                          </button>
+                        </>
                       )}
                       {!isDb && (
                         <>
@@ -630,12 +860,167 @@ export function AgentDefinitionsPage() {
 // Sub-components
 // =============================================================================
 
+function ModelSelector({
+  model,
+  models,
+  customModelInput,
+  setCustomModelInput,
+  setCreateForm,
+}: {
+  model: string
+  models: { value: string; label: string }[] | undefined
+  customModelInput: boolean
+  setCustomModelInput: (v: boolean) => void
+  setCreateForm: React.Dispatch<React.SetStateAction<CreateFormData>>
+}) {
+  const isKnown = models?.some(m => m.value === model)
+  const showCustom = customModelInput || !models || (!isKnown && model !== '')
+
+  if (showCustom) {
+    return (
+      <div className="agent-defs-model-field">
+        <input
+          value={model}
+          onChange={e => setCreateForm(f => ({ ...f, model: e.target.value }))}
+          placeholder="e.g. claude-sonnet-4-5-20250929"
+          autoFocus={customModelInput}
+        />
+        {models && (
+          <button
+            type="button"
+            className="agent-defs-model-toggle"
+            onClick={() => { setCustomModelInput(false); setCreateForm(f => ({ ...f, model: '' })) }}
+            title="Switch to preset list"
+          >
+            &times;
+          </button>
+        )}
+      </div>
+    )
+  }
+
+  return (
+    <select
+      value={model}
+      onChange={e => {
+        if (e.target.value === '__custom__') {
+          setCustomModelInput(true)
+          setCreateForm(f => ({ ...f, model: '' }))
+        } else {
+          setCreateForm(f => ({ ...f, model: e.target.value }))
+        }
+      }}
+    >
+      {models?.map(m => (
+        <option key={m.value} value={m.value}>{m.label}</option>
+      ))}
+      <option value="__custom__">Custom...</option>
+    </select>
+  )
+}
+
 function PropRow({ label, value }: { label: string; value: string }) {
   return (
     <div className="agent-def-prop-row">
       <span className="agent-def-prop-label">{label}</span>
       <span className="agent-def-prop-value">{value}</span>
     </div>
+  )
+}
+
+function formatDuration(startIso: string, endIso?: string | null): string {
+  const start = new Date(startIso).getTime()
+  const end = endIso ? new Date(endIso).getTime() : Date.now()
+  if (isNaN(start) || isNaN(end)) return '\u2014'
+  const seconds = Math.floor((end - start) / 1000)
+  if (seconds < 60) return `${seconds}s`
+  const minutes = Math.floor(seconds / 60)
+  const secs = seconds % 60
+  if (minutes < 60) return `${minutes}m ${secs}s`
+  const hours = Math.floor(minutes / 60)
+  return `${hours}h ${minutes % 60}m`
+}
+
+function formatTimeAgo(iso: string): string {
+  const diff = Date.now() - new Date(iso).getTime()
+  if (isNaN(diff)) return '\u2014'
+  const minutes = Math.floor(diff / 60000)
+  if (minutes < 1) return 'just now'
+  if (minutes < 60) return `${minutes}m ago`
+  const hours = Math.floor(minutes / 60)
+  if (hours < 24) return `${hours}h ago`
+  return `${Math.floor(hours / 24)}d ago`
+}
+
+function RunningAgentCard({ agent, onCancel }: { agent: RunningAgent; onCancel: (id: string) => void }) {
+  return (
+    <div className="agent-run-card agent-run-card--running">
+      <div className="agent-run-card-top">
+        <span className="agent-run-pulse" />
+        <span className="agent-run-id">{agent.run_id}</span>
+        <span
+          className="agent-def-badge agent-def-badge--filled"
+          style={{ background: PROVIDER_COLORS[agent.provider] || '#666' }}
+        >
+          {agent.provider}
+        </span>
+        <span
+          className="agent-def-badge agent-def-badge--filled"
+          style={{ background: MODE_COLORS[agent.mode] || '#666' }}
+        >
+          {agent.mode}
+        </span>
+        {agent.workflow_name && (
+          <span className="agent-def-badge agent-def-badge--dim">{agent.workflow_name}</span>
+        )}
+      </div>
+      <div className="agent-run-card-bottom">
+        <span className="agent-run-duration">{formatDuration(agent.started_at)}</span>
+        {agent.pid && <span className="agent-run-meta">PID {agent.pid}</span>}
+        <span className="agent-run-session">{agent.session_id.slice(0, 8)}</span>
+        <button
+          className="agent-defs-btn agent-defs-btn--danger agent-run-cancel"
+          onClick={() => onCancel(agent.run_id)}
+        >
+          Cancel
+        </button>
+      </div>
+    </div>
+  )
+}
+
+function AgentRunRow({ run }: { run: AgentRun }) {
+  const duration = run.started_at
+    ? formatDuration(run.started_at, run.completed_at)
+    : '—'
+
+  return (
+    <tr className="agent-run-row">
+      <td>
+        <span
+          className="agent-run-status"
+          style={{ color: STATUS_COLORS[run.status] || '#888' }}
+        >
+          {run.status}
+        </span>
+      </td>
+      <td>
+        <span
+          className="agent-def-badge agent-def-badge--filled"
+          style={{ background: PROVIDER_COLORS[run.provider] || '#666' }}
+        >
+          {run.provider}
+        </span>
+      </td>
+      <td className="agent-run-prompt-cell">
+        <span className="agent-run-prompt" title={run.prompt}>
+          {run.prompt.slice(0, 80)}{run.prompt.length > 80 ? '...' : ''}
+        </span>
+      </td>
+      <td>{run.turns_used}</td>
+      <td>{duration}</td>
+      <td>{run.started_at ? formatTimeAgo(run.started_at) : '—'}</td>
+    </tr>
   )
 }
 

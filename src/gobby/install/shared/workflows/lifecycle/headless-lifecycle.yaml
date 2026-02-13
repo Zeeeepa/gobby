@@ -51,18 +51,13 @@ triggers:
     - action: memory_sync_import
       when: "not variables.get('_session_initialized')"
 
-    - action: memory_inject_project_context
-      when: "not variables.get('_session_initialized')"
-      limit: 10
-      min_importance: 0.7
-
     - action: task_sync_import
       when: "not variables.get('_session_initialized')"
 
     - action: inject_context
       when: "not variables.get('_session_initialized')"
       source: skills
-      filter: context_aware
+      filter: always_apply
       template: |
         {{ skills_list }}
 

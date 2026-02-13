@@ -40,6 +40,11 @@ from gobby.worktrees.git import WorktreeGitManager
 
 os.environ["TOKENIZERS_PARALLELISM"] = "false"
 
+# Suppress litellm's never-awaited coroutine warnings (upstream bug in LoggingWorker)
+import warnings
+
+warnings.filterwarnings("ignore", message="coroutine.*async_success_handler.*was never awaited")
+
 # Type hints for pipeline components (imported lazily at runtime)
 if TYPE_CHECKING:
     from gobby.scheduler.scheduler import CronScheduler
@@ -57,15 +62,53 @@ class GobbyRunner:
     def __init__(self, config_path: Path | None = None, verbose: bool = False):
         setup_file_logging(verbose=verbose)
 
-        config_file = str(config_path) if config_path else None
-        self.config = load_config(config_file)
+        if config_path is not None and not config_path.exists():
+            raise FileNotFoundError(
+                f"Config file not found: {config_path}. "
+                f"Use 'gobby init' to create a default config, "
+                f"or omit --config to use the default path (~/.gobby/config.yaml)."
+            )
+        self._config_file = str(config_path) if config_path else None
+        self.config = load_config(self._config_file)
         self.verbose = verbose
         self.machine_id = get_machine_id()
+
+        # Check tmux availability (agent spawning requires it)
+        import shutil
+
+        from gobby.agents.tmux.wsl_compat import needs_wsl
+
+        if needs_wsl():
+            if not shutil.which("wsl"):
+                logger.warning(
+                    "WSL is not installed. Agent spawning in terminal mode will not work. "
+                    "Install: wsl --install"
+                )
+        elif not shutil.which("tmux"):
+            logger.warning(
+                "tmux is not installed. Agent spawning in terminal mode will not work. "
+                "Install: brew install tmux (macOS), apt install tmux (Linux)"
+            )
         self._shutdown_requested = False
         self._metrics_cleanup_task: asyncio.Task[None] | None = None
 
         # Initialize local storage with dual-write if in project context
         self.database = self._init_database()
+
+        # Phase 2: Reload config from DB (secrets > env vars)
+        # Phase 1 (above) used env vars only to bootstrap the database path.
+        # Now that the DB is available, load config from config_store with secrets.
+        from gobby.storage.config_store import ConfigStore
+        from gobby.storage.secrets import SecretStore
+
+        self.secret_store = SecretStore(self.database)
+        self.config_store = ConfigStore(self.database)
+        self.config = load_config(
+            config_file=self._config_file,
+            secret_resolver=self.secret_store.get,
+            config_store=self.config_store,
+        )
+
         self.session_manager = LocalSessionManager(self.database)
         self.message_manager = LocalSessionMessageManager(self.database)
         self.task_manager = LocalTaskManager(self.database)
@@ -80,6 +123,16 @@ class GobbyRunner:
                 logger.info(f"Synced {skill_result['synced']} bundled skills to database")
         except Exception as e:
             logger.warning(f"Failed to sync bundled skills: {e}")
+
+        # Sync bundled rules to database
+        from gobby.workflows.rule_sync import sync_bundled_rules_sync
+
+        try:
+            rule_result = sync_bundled_rules_sync(self.database)
+            if rule_result["synced"] > 0:
+                logger.info(f"Synced {rule_result['synced']} bundled rules to database")
+        except Exception as e:
+            logger.warning(f"Failed to sync bundled rules: {e}")
 
         # Initialize Skill Manager and Hub Manager
         from gobby.storage.skills import LocalSkillManager
@@ -121,9 +174,13 @@ class GobbyRunner:
         self.memory_manager: MemoryManager | None = None
         if hasattr(self.config, "memory"):
             try:
+                embedding_api_key = None
+                if self.config.llm_providers and self.config.llm_providers.api_keys:
+                    embedding_api_key = self.config.llm_providers.api_keys.get("OPENAI_API_KEY")
                 self.memory_manager = MemoryManager(
                     self.database,
                     self.config.memory,
+                    embedding_api_key=embedding_api_key,
                 )
             except Exception as e:
                 logger.error(f"Failed to initialize MemoryManager: {e}")
@@ -336,6 +393,7 @@ class GobbyRunner:
             cron_scheduler=self.cron_scheduler,
             skill_manager=self.skill_manager,
             hub_manager=self.hub_manager,
+            config_store=self.config_store,
         )
 
         self.http_server = HTTPServer(
@@ -629,6 +687,26 @@ class GobbyRunner:
             if self.websocket_server:
                 websocket_task = asyncio.create_task(self.websocket_server.start())
 
+            # Auto-start UI dev server if configured
+            if self.config.ui.enabled and self.config.ui.mode == "dev":
+                from gobby.cli.utils import find_web_dir, spawn_ui_server
+
+                web_dir = find_web_dir(self.config)
+                if web_dir:
+                    ui_log = Path(self.config.logging.client).expanduser().parent / "ui.log"
+                    ui_pid = spawn_ui_server(
+                        self.config.ui.host, self.config.ui.port, web_dir, ui_log
+                    )
+                    if ui_pid:
+                        logger.info(
+                            f"UI dev server started (PID: {ui_pid}) "
+                            f"at http://{self.config.ui.host}:{self.config.ui.port}"
+                        )
+                    else:
+                        logger.warning("Failed to start UI dev server")
+                else:
+                    logger.warning("UI dev mode enabled but web/ directory not found")
+
             # Start HTTP server
             graceful_shutdown_timeout = 15
             config = uvicorn.Config(
@@ -685,6 +763,12 @@ class GobbyRunner:
                     await asyncio.wait_for(self._metrics_cleanup_task, timeout=2.0)
                 except (asyncio.CancelledError, TimeoutError):
                     pass
+
+            # Stop UI dev server if we started it
+            if self.config.ui.enabled and self.config.ui.mode == "dev":
+                from gobby.cli.utils import stop_ui_server
+
+                stop_ui_server(quiet=True)
 
             # Export memories to JSONL backup on shutdown
             if self.memory_sync_manager:

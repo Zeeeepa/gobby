@@ -1,6 +1,6 @@
 ---
 name: ref
-description: "Quickly create a refactoring task. Usage: /ref <title> [description]"
+description: "Quickly create a refactoring task. Usage: /gobby:ref <title> [description]"
 category: core
 metadata:
   gobby:
@@ -9,23 +9,23 @@ metadata:
       autonomous: full
 ---
 
-# /ref - Create Refactoring Task
+# /gobby:ref - Create Refactoring Task
 
 Create a refactoring task with the provided title and optional description. For code improvements that don't change behavior.
 
 ## Usage
 
 ```
-/ref <title>
-/ref <title> - <description>
+/gobby:ref <title>
+/gobby:ref <title> - <description>
 ```
 
 ## Examples
 
 ```
-/ref Extract database logic into repository class
-/ref Simplify authentication middleware - Current implementation has too many nested conditionals
-/ref Convert callbacks to async/await in file handlers
+/gobby:ref Extract database logic into repository class
+/gobby:ref Simplify authentication middleware - Current implementation has too many nested conditionals
+/gobby:ref Convert callbacks to async/await in file handlers
 ```
 
 ## Tool Schema Reminder

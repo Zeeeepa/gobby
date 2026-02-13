@@ -19,6 +19,7 @@ interface CodeMirrorEditorProps {
   readOnly?: boolean
   onChange?: (content: string) => void
   onSave?: () => void
+  editorViewRef?: React.MutableRefObject<EditorView | null>
 }
 
 function getLanguageExtension(lang: string) {
@@ -50,7 +51,7 @@ function getLanguageExtension(lang: string) {
   }
 }
 
-export function CodeMirrorEditor({ content, language, readOnly = false, onChange, onSave }: CodeMirrorEditorProps) {
+export function CodeMirrorEditor({ content, language, readOnly = false, onChange, onSave, editorViewRef }: CodeMirrorEditorProps) {
   const containerRef = useRef<HTMLDivElement>(null)
   const viewRef = useRef<EditorView | null>(null)
   const onChangeRef = useRef(onChange)
@@ -135,10 +136,12 @@ export function CodeMirrorEditor({ content, language, readOnly = false, onChange
     })
 
     viewRef.current = view
+    if (editorViewRef) editorViewRef.current = view
 
     return () => {
       view.destroy()
       viewRef.current = null
+      if (editorViewRef) editorViewRef.current = null
     }
   }, [language, readOnly, handleSave]) // Recreate on language/readOnly change
 

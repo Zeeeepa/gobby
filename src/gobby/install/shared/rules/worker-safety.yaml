@@ -1,0 +1,27 @@
+# Worker safety rules - common rules for agent workflows.
+# Referenced via imports: [worker-safety] in workflow YAML files.
+
+rule_definitions:
+  no_push:
+    tools: [Bash]
+    command_pattern: "git\\s+push"
+    reason: "Do not push to remote. Let the parent session handle pushing."
+    action: block
+
+  no_force_push:
+    tools: [Bash]
+    command_pattern: "git\\s+push\\s+.*(?:--force(?:-with-lease|-if-includes)?|-f)(?:\\s|$)"
+    reason: "Force pushing is never allowed."
+    action: block
+
+  require_task:
+    tools: [Edit, Write, NotebookEdit]
+    when: "not task_claimed and not plan_mode"
+    reason: "Claim a task before editing files. Use claim_task() on gobby-tasks."
+    action: block
+
+  no_destructive_git:
+    tools: [Bash]
+    command_pattern: "git\\s+(reset\\s+--hard|clean\\s+-f|checkout\\s+(--\\s+)?\\.|restore\\s+\\.)"
+    reason: "Destructive git operations are not allowed without explicit approval."
+    action: block

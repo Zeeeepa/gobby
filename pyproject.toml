@@ -1,6 +1,6 @@
 [project]
 name = "gobby"
-version = "0.2.14"
+version = "0.2.15"
 description = "A local-first daemon to unify your AI coding tools. Session tracking and handoffs across Claude Code, Gemini CLI, and Codex. An MCP proxy that discovers tools without flooding context. Task management with dependencies, validation, and TDD expansion. Agent spawning and worktree orchestration. Persistent memory, extensible workflows, and hooks."
 readme = "README.md"
 license = "MIT"
@@ -50,11 +50,12 @@ dependencies = [
     "protobuf>=6.33.5",
     # cryptography <46.0.5 has CVE-2026-26007
     "cryptography>=46.0.5",
+    # faster-whisper for voice STT
+    "faster-whisper>=1.0.0",
 ]
 
 [project.optional-dependencies]
 mem0 = ["mem0ai"]
-voice = ["faster-whisper>=1.0.0"]
 
 [project.scripts]
 gobby = "gobby.cli:cli"
@@ -176,12 +177,13 @@ exclude_dirs = ["tests", ".venv", "build", "examples"]
 # B101: assert_used (internal invariants and type checking)
 # B104: hardcoded_bind_all_interfaces (intentional for local daemon)
 # B108: hardcoded_tmp_directory (temp file handling)
+# B105: hardcoded_password_string (false positive on empty-string guards)
 # B110, B112: try_except_pass/continue (cleanup/fallback code)
 # B307: eval (workflow condition evaluator with controlled globals)
 # B404, B602, B603, B606, B607: subprocess/exec usage expected for CLI tool
 # B608: sql_expressions (local SQLite with parameterized queries)
 # B701: jinja2 autoescape (not used for HTML)
-skips = ["B101", "B104", "B108", "B110", "B112", "B307", "B404", "B602", "B603", "B606", "B607", "B608", "B701"]
+skips = ["B101", "B104", "B105", "B108", "B110", "B112", "B307", "B404", "B602", "B603", "B606", "B607", "B608", "B701"]
 
 [tool.black]
 line-length = 100

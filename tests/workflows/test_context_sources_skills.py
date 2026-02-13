@@ -52,7 +52,7 @@ def base_args():
 
 
 def test_inject_context_skills_happy_path(base_args, mock_skill_manager):
-    """inject_context with source='skills' returns formatted skills."""
+    """inject_context with source='skills' (no filter) returns formatted skills."""
     result = inject_context(
         **base_args,
         source="skills",
@@ -66,6 +66,19 @@ def test_inject_context_skills_happy_path(base_args, mock_skill_manager):
     assert "Create git commits" in content
     assert "review-pr" in content
     mock_skill_manager.discover_core_skills.assert_called_once()
+
+
+def test_inject_context_skills_context_aware_returns_empty(base_args, mock_skill_manager):
+    """inject_context with filter='context_aware' returns None (discovery guide is now a skill)."""
+    result = inject_context(
+        **base_args,
+        source="skills",
+        skill_manager=mock_skill_manager,
+        filter="context_aware",
+    )
+
+    # context_aware now returns empty string -> no content -> None
+    assert result is None
 
 
 def test_inject_context_skills_none_skill_manager(base_args):

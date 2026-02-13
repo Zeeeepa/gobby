@@ -161,7 +161,16 @@ class HTTPServer:
             # Create semantic search instance if db available
             semantic_search = None
             if services.mcp_db_manager:
-                semantic_search = SemanticToolSearch(db=services.mcp_db_manager.db)
+                openai_api_key = None
+                if (
+                    services.config
+                    and services.config.llm_providers
+                    and services.config.llm_providers.api_keys
+                ):
+                    openai_api_key = services.config.llm_providers.api_keys.get("OPENAI_API_KEY")
+                semantic_search = SemanticToolSearch(
+                    db=services.mcp_db_manager.db, openai_api_key=openai_api_key
+                )
                 logger.debug("Semantic tool search initialized")
 
             # Create tool filter for workflow phase restrictions
@@ -432,6 +441,23 @@ class HTTPServer:
                     except Exception as e:
                         logger.warning(f"Failed to sync existing Codex sessions: {e}")
 
+            # Start TmuxPaneMonitor if tmux is enabled
+            if self.services.config and self.services.config.tmux.enabled:
+                try:
+                    from gobby.agents.tmux import set_tmux_pane_monitor
+                    from gobby.agents.tmux.pane_monitor import TmuxPaneMonitor
+
+                    monitor = TmuxPaneMonitor(
+                        session_end_callback=app.state.hook_manager._event_handlers.handle_session_end,
+                        config=self.services.config.tmux,
+                        session_storage=app.state.hook_manager._session_storage,
+                    )
+                    set_tmux_pane_monitor(monitor)
+                    await monitor.start()
+                    logger.debug("TmuxPaneMonitor started")
+                except Exception as e:
+                    logger.warning(f"Failed to start TmuxPaneMonitor: {e}")
+
             # If MCP app exists, wrap its lifespan
             if mcp_app is not None:
                 # Use router.lifespan_context for stable FastMCP version
@@ -449,6 +475,18 @@ class HTTPServer:
             if hasattr(app.state, "codex_adapter") and app.state.codex_adapter:
                 app.state.codex_adapter.detach_from_client()
                 logger.debug("CodexAdapter detached")
+
+            # Stop TmuxPaneMonitor
+            try:
+                from gobby.agents.tmux import get_tmux_pane_monitor, set_tmux_pane_monitor
+
+                pane_monitor = get_tmux_pane_monitor()
+                if pane_monitor:
+                    await pane_monitor.stop()
+                    set_tmux_pane_monitor(None)
+                    logger.debug("TmuxPaneMonitor stopped")
+            except Exception as e:
+                logger.warning(f"Failed to stop TmuxPaneMonitor: {e}")
 
             # Cleanup HookManager
             if hasattr(app.state, "hook_manager"):
@@ -532,7 +570,9 @@ class HTTPServer:
             # Don't intercept API, admin, MCP, or WebSocket paths
             # Normalize with trailing slash so both "api" and "api/..." are excluded
             path_check = path if path.endswith("/") else path + "/"
-            if path_check.startswith(("api/", "admin/", "mcp/", "hooks/", "sessions/", "ws/")):
+            if path_check.startswith(
+                ("api/", "admin/", "mcp/", "hooks/", "sessions/", "ws/", "health/")
+            ):
                 raise HTTPException(status_code=404)
             # Serve static file if it exists
             static_file = dist_dir / path
@@ -607,7 +647,6 @@ class HTTPServer:
         from gobby.servers.routes import (
             create_admin_router,
             create_agents_router,
-            create_artifacts_router,
             create_configuration_router,
             create_cron_router,
             create_files_router,
@@ -630,7 +669,6 @@ class HTTPServer:
         app.include_router(create_sessions_router(self))
         app.include_router(create_memory_router(self))
         app.include_router(create_tasks_router(self))
-        app.include_router(create_artifacts_router(self))
         app.include_router(create_cron_router(self))
         app.include_router(create_mcp_router())
         app.include_router(create_hooks_router(self))

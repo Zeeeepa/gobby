@@ -23,7 +23,7 @@ const COLUMNS: KanbanColumnDef[] = [
   { key: 'in_progress', label: 'In Progress', statuses: ['in_progress'],         targetStatus: 'in_progress' },
   { key: 'review',      label: 'Review',      statuses: ['needs_review'],        targetStatus: 'needs_review' },
   { key: 'blocked',     label: 'Blocked',     statuses: ['escalated'],           targetStatus: 'escalated' },
-  { key: 'approved',    label: 'Approved',    statuses: ['approved'],            targetStatus: 'approved' },
+  { key: 'approved',    label: 'Ready',       statuses: ['review_approved'],     targetStatus: 'review_approved' },
   { key: 'closed',      label: 'Closed',      statuses: ['closed'],              targetStatus: 'closed' },
 ]
 
@@ -31,8 +31,8 @@ const COLUMNS: KanbanColumnDef[] = [
 const NEXT_STATUS: Record<string, string> = {
   open: 'in_progress',
   in_progress: 'needs_review',
-  needs_review: 'approved',
-  approved: 'closed',
+  needs_review: 'review_approved',
+  review_approved: 'closed',
 }
 
 const BLOCKED_STATUSES = new Set(['escalated'])

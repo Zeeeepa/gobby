@@ -4,18 +4,25 @@
 
 services:
   mem0:
-    image: mem0ai/mem0:0.1.29
+    build:
+      context: .
+      dockerfile: Dockerfile.mem0
     ports:
-      - "8888:8080"
+      - "8888:8000"
     environment:
-      - MEM0_STORE=postgres
-      - MEM0_POSTGRES_URL=postgresql://mem0:mem0@postgres:5432/mem0
-      - MEM0_GRAPH_STORE=neo4j
-      - MEM0_NEO4J_URL=bolt://neo4j:7687
-      - MEM0_NEO4J_USERNAME=neo4j
-      - MEM0_NEO4J_PASSWORD=mem0graph
+      - POSTGRES_HOST=postgres
+      - POSTGRES_PORT=5432
+      - POSTGRES_DB=${GOBBY_MEM0_PG_DB:-mem0}
+      - POSTGRES_USER=${GOBBY_MEM0_PG_USER:-mem0}
+      - POSTGRES_PASSWORD=${GOBBY_MEM0_PG_PASSWORD:-mem0}
+      - NEO4J_URI=bolt://neo4j:7687
+      - NEO4J_USERNAME=neo4j
+      - NEO4J_PASSWORD=${GOBBY_MEM0_NEO4J_PASSWORD:-mem0graph}
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+    volumes:
+      - mem0_history:/app/history
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8080/v1/health"]
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/')"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -61,5 +68,6 @@ services:
     restart: unless-stopped
 
 volumes:
+  mem0_history:
   mem0_pgdata:
   mem0_neo4j_data:

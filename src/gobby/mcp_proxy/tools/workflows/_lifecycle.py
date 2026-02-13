@@ -167,7 +167,6 @@ async def activate_workflow(
         step_entered_at=datetime.now(UTC),
         step_action_count=0,
         total_action_count=0,
-        artifacts={},
         observations=[],
         reflection_pending=False,
         context_injected=False,

@@ -63,8 +63,12 @@ class EventEnricher:
             response.metadata["session_id"] = platform_session_id
 
             # Look up seq_num for session_ref (#N format)
+            # Guard with try/except: during shutdown the DB may already be closed
             if self._session_storage:
-                session_obj = self._session_storage.get(platform_session_id)
+                try:
+                    session_obj = self._session_storage.get(platform_session_id)
+                except Exception:
+                    session_obj = None
                 if session_obj and session_obj.seq_num:
                     response.metadata["session_ref"] = f"#{session_obj.seq_num}"
 

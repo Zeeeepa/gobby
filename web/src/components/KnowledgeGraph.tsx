@@ -8,6 +8,14 @@ interface KnowledgeGraphProps {
   fetchEntityNeighbors: (name: string) => Promise<KnowledgeGraphData | null>
 }
 
+function numericId(id: unknown): number {
+  if (typeof id === 'number') return id
+  const s = String(id)
+  let h = 5381
+  for (let i = 0; i < s.length; i++) h = ((h << 5) + h + s.charCodeAt(i)) | 0
+  return Math.abs(h)
+}
+
 interface GraphNode {
   id: string
   name: string
@@ -138,12 +146,22 @@ export function KnowledgeGraph({ fetchKnowledgeGraph, fetchEntityNeighbors }: Kn
     })
   }, [])
 
-  // Auto-rotation via OrbitControls
+  // Manual auto-rotation (TrackballControls lacks autoRotate)
   useEffect(() => {
-    const controls = fgRef.current?.controls() as any // eslint-disable-line @typescript-eslint/no-explicit-any
-    if (!controls) return
-    controls.autoRotate = animateIdle
-    controls.autoRotateSpeed = 0.4
+    if (!animateIdle) return
+    let raf: number
+    const rotate = () => {
+      const fg = fgRef.current
+      if (fg) {
+        const pos = fg.cameraPosition()
+        const dist = Math.sqrt(pos.x * pos.x + pos.z * pos.z)
+        const angle = Math.atan2(pos.z, pos.x) + 0.002
+        fg.cameraPosition({ x: dist * Math.cos(angle), y: pos.y, z: dist * Math.sin(angle) })
+      }
+      raf = requestAnimationFrame(rotate)
+    }
+    raf = requestAnimationFrame(rotate)
+    return () => cancelAnimationFrame(raf)
   }, [animateIdle])
 
   // Initial data fetch
@@ -212,14 +230,31 @@ export function KnowledgeGraph({ fetchKnowledgeGraph, fetchEntityNeighbors }: Kn
 
   const linkLabel = useCallback((link: any) => link.type as string, []) // eslint-disable-line @typescript-eslint/no-explicit-any
 
-  // Node breathing effect when animating
+  // Node breathing effect — use ref to avoid prop changes that trigger graph rebuilds
+  const animateRef = useRef(animateIdle)
+  animateRef.current = animateIdle
   const nodePositionUpdate = useCallback((obj: any) => { // eslint-disable-line @typescript-eslint/no-explicit-any
-    if (!animateIdle) return
+    if (!animateRef.current) {
+      // Restore original scale when animation stops
+      if (obj.__origScale) {
+        obj.scale.copy(obj.__origScale)
+        delete obj.__origScale
+      }
+      return
+    }
+    // Capture SpriteText's dimensional scale on first animated frame
+    if (!obj.__origScale) {
+      obj.__origScale = obj.scale.clone()
+    }
     const t = performance.now() * 0.001
-    const offset = (obj.id % 100) * 0.1
-    const scale = 1 + Math.sin(t * 1.5 + offset) * 0.06
-    obj.scale.set(scale, scale, scale)
-  }, [animateIdle])
+    const offset = numericId(obj.id) % 100 * 0.1
+    const factor = 1 + Math.sin(t * 1.5 + offset) * 0.06
+    obj.scale.set(
+      obj.__origScale.x * factor,
+      obj.__origScale.y * factor,
+      obj.__origScale.z * factor
+    )
+  }, [])
 
   // Legend types
   const legendTypes = useMemo(() => {
@@ -280,11 +315,11 @@ export function KnowledgeGraph({ fetchKnowledgeGraph, fetchEntityNeighbors }: Kn
         linkOpacity={0.6}
         linkDirectionalArrowLength={3}
         linkDirectionalArrowRelPos={1}
-        linkDirectionalParticles={animateIdle ? 2 : 0}
+        linkDirectionalParticles={2}
         linkDirectionalParticleSpeed={0.004}
         linkDirectionalParticleWidth={0.8}
         linkDirectionalParticleColor={linkColor}
-        nodePositionUpdate={animateIdle ? nodePositionUpdate : undefined}
+        nodePositionUpdate={nodePositionUpdate}
         backgroundColor="rgba(0,0,0,0)"
         showNavInfo={false}
         enableNodeDrag={true}

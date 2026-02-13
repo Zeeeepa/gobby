@@ -257,10 +257,27 @@ class MemoryBackupManager:
         """Replace user home directories with ~ for privacy.
 
         Prevents absolute user paths like /Users/josh from being
-        committed to version control.
+        committed to version control. Also strips the project path
+        prefix to produce project-relative paths.
         """
         home = os.path.expanduser("~")
-        return content.replace(home, "~")
+        content = content.replace(home, "~")
+
+        # Strip project path prefix to produce project-relative paths
+        try:
+            from gobby.utils.project_context import get_project_context
+
+            project_ctx = get_project_context()
+            if project_ctx and project_ctx.get("project_path"):
+                repo_path = project_ctx["project_path"]
+                # Normalize ~/Projects/foo/ form (after home replacement)
+                tilde_path = repo_path.replace(home, "~")
+                for prefix in (tilde_path + "/", tilde_path):
+                    content = content.replace(prefix, "")
+        except Exception:
+            pass  # nosec B110 - best-effort sanitization
+
+        return content
 
     def _deduplicate_memories(self, memories: list[Any]) -> list[Any]:
         """Deduplicate memories by normalized content, keeping earliest.

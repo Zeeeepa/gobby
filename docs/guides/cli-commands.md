@@ -17,7 +17,6 @@ gobby [--config PATH] <command>
 | Group | Description |
 |-------|-------------|
 | `agents` | Manage subagent runs |
-| `artifacts` | Manage session artifacts (code, diffs, errors) |
 | `clones` | Manage git clones for parallel development |
 | `conductor` | Manage the conductor orchestration loop |
 | `github` | GitHub integration commands |
@@ -761,14 +760,6 @@ Reload workflow definitions from disk.
 gobby workflows reload
 ```
 
-### `gobby workflows artifact`
-
-Mark an artifact as complete (plan, spec, test, etc.).
-
-```bash
-gobby workflows artifact TYPE FILE_PATH [--session ID]
-```
-
 ### `gobby workflows import`
 
 Import a workflow from a file or URL.
@@ -1090,48 +1081,6 @@ Manage skill metadata fields.
 ```bash
 gobby skills meta NAME --set KEY=VALUE
 gobby skills meta NAME --get KEY
-```
-
----
-
-## Artifact Management
-
-### `gobby artifacts list`
-
-List artifacts with optional filters.
-
-```bash
-gobby artifacts list [OPTIONS]
-```
-
-| Option | Description |
-|--------|-------------|
-| `--session` | Filter by session |
-| `--type` | Filter by type (code, diff, error, plan) |
-| `--limit N` | Max results |
-
-### `gobby artifacts show`
-
-Display a single artifact by ID.
-
-```bash
-gobby artifacts show ARTIFACT_ID
-```
-
-### `gobby artifacts search`
-
-Search artifacts by content.
-
-```bash
-gobby artifacts search QUERY [OPTIONS]
-```
-
-### `gobby artifacts timeline`
-
-Show artifacts for a session in chronological order.
-
-```bash
-gobby artifacts timeline SESSION_ID
 ```
 
 ---

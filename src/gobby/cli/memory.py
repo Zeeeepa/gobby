@@ -13,7 +13,10 @@ def get_memory_manager(ctx: click.Context) -> MemoryManager:
     config: DaemonConfig = ctx.obj["config"]
     db = LocalDatabase()
 
-    return MemoryManager(db, config.memory)
+    embedding_api_key = None
+    if config.llm_providers and config.llm_providers.api_keys:
+        embedding_api_key = config.llm_providers.api_keys.get("OPENAI_API_KEY")
+    return MemoryManager(db, config.memory, embedding_api_key=embedding_api_key)
 
 
 @click.group()

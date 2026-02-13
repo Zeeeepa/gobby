@@ -6,10 +6,6 @@ from typing import Any, Protocol
 
 from gobby.storage.database import DatabaseProtocol
 from gobby.storage.sessions import LocalSessionManager
-from gobby.workflows.artifact_actions import (
-    handle_capture_artifact,
-    handle_read_artifact,
-)
 from gobby.workflows.autonomous_actions import (
     detect_stuck,
     detect_task_loop,
@@ -216,10 +212,6 @@ class ActionExecutor:
 
         # --- Detection actions ---
         self.register("detect_plan_mode_from_context", handle_detect_plan_mode_from_context)
-
-        # --- Artifact actions ---
-        self.register("capture_artifact", handle_capture_artifact)
-        self.register("read_artifact", handle_read_artifact)
 
         # --- State actions ---
         self.register("load_workflow_state", handle_load_workflow_state)

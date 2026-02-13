@@ -36,16 +36,46 @@ logger = logging.getLogger(__name__)
 
 
 def _mem0_start(gobby_home: Path) -> None:
-    """Start mem0 Docker containers if installed."""
+    """Start mem0 Docker containers if installed.
+
+    Resolves OPENAI_API_KEY from the secret store and passes it
+    to the Docker subprocess environment so mem0 can use it for embeddings.
+    """
     compose_file = gobby_home / "services" / "mem0" / "docker-compose.yml"
     if not compose_file.exists():
         return
+
+    # Build subprocess env with secrets and config resolved from the store
+    env = dict(os.environ)
+    try:
+        from gobby.config.app import load_config
+        from gobby.storage.database import LocalDatabase
+        from gobby.storage.secrets import SecretStore
+
+        config = load_config(create_default=False)
+        db = LocalDatabase(Path(config.database_path).expanduser())
+        secret_store = SecretStore(db)
+
+        # Resolve API key from secret store
+        api_key = secret_store.get("OPENAI_API_KEY")
+        if api_key:
+            env["OPENAI_API_KEY"] = api_key
+
+        # Inject neo4j auth from config (format: "user:password")
+        if config.memory.neo4j_auth:
+            parts = config.memory.neo4j_auth.split(":", 1)
+            if len(parts) == 2:
+                env["GOBBY_MEM0_NEO4J_PASSWORD"] = parts[1]
+    except Exception as e:
+        logger.warning(f"Could not resolve secrets for mem0: {e}")
+
     try:
         result = subprocess.run(  # nosec B603 B607 - hardcoded docker command
             ["docker", "compose", "-f", str(compose_file), "up", "-d"],
             capture_output=True,
             text=True,
             timeout=120,
+            env=env,
         )
         if result.returncode != 0:
             logger.warning(f"Failed to start mem0 containers: {result.stderr or result.stdout}")
@@ -254,7 +284,7 @@ def start(
 
         while (time.time() - start_time) < max_wait:
             try:
-                response = httpx.get(f"http://localhost:{http_port}/admin/status", timeout=1.0)
+                response = httpx.get(f"http://localhost:{http_port}/admin/health", timeout=1.0)
                 if response.status_code == 200:
                     daemon_healthy = True
                     break
@@ -312,6 +342,18 @@ def start(
             time.sleep(1.0)
             rich_status = fetch_rich_status(http_port, timeout=2.0)
             status_kwargs.update(rich_status)
+
+            # Check mem0 status
+            from gobby.cli.services import get_mem0_status
+
+            mem0_status = asyncio.run(
+                get_mem0_status(
+                    mem0_url=getattr(config.memory, "mem0_url", None),
+                )
+            )
+            status_kwargs["mem0_installed"] = mem0_status["installed"]
+            status_kwargs["mem0_healthy"] = mem0_status["healthy"]
+            status_kwargs["mem0_url"] = mem0_status["url"]
 
         message = format_status_message(**status_kwargs)
         click.echo("")

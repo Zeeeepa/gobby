@@ -12,7 +12,7 @@ import logging
 from pathlib import Path
 from typing import Any
 
-from .shared import configure_mcp_server_json
+from .shared import configure_ide_terminal_title, configure_mcp_server_json
 
 logger = logging.getLogger(__name__)
 
@@ -55,5 +55,9 @@ def install_antigravity(project_path: Path) -> dict[str, Any]:
     else:
         result["error"] = mcp_result.get("error", "Unknown error configuring MCP")
         logger.error(f"Failed to configure MCP server: {result['error']}")
+
+    # Configure terminal tab title so tmux set-titles propagates to IDE
+    terminal_result = configure_ide_terminal_title("Antigravity")
+    result["terminal_configured"] = terminal_result.get("added", False)
 
     return result

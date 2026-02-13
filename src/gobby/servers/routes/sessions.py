@@ -23,14 +23,14 @@ logger = logging.getLogger(__name__)
 
 
 def _get_session_stats(db: "DatabaseProtocol", session: Any) -> dict[str, int]:
-    """Get activity stats for a session (tasks closed, memories, artifacts, commits).
+    """Get activity stats for a session (tasks closed, memories, commits).
 
     Args:
         db: Database connection
         session: Session object with id, created_at, updated_at, jsonl_path
 
     Returns:
-        Dict with tasks_closed, memories_created, artifacts_count, commit_count
+        Dict with tasks_closed, memories_created, commit_count
     """
     stats: dict[str, int] = {}
 
@@ -54,18 +54,18 @@ def _get_session_stats(db: "DatabaseProtocol", session: Any) -> dict[str, int]:
     except Exception:
         stats["memories_created"] = 0
 
-    # Artifacts generated in this session
-    try:
-        row = db.fetchone(
-            "SELECT COUNT(*) FROM session_artifacts WHERE session_id = ?",
-            (session.id,),
-        )
-        stats["artifacts_count"] = row[0] if row else 0
-    except Exception:
-        stats["artifacts_count"] = 0
-
     # Commits made during session timeframe
     stats["commit_count"] = _get_commit_count(db, session)
+
+    # Skills injected in this session
+    try:
+        row = db.fetchone(
+            "SELECT COUNT(DISTINCT skill_name) FROM session_skills WHERE session_id = ?",
+            (session.id,),
+        )
+        stats["skills_used"] = row[0] if row else 0
+    except Exception:
+        stats["skills_used"] = 0
 
     return stats
 

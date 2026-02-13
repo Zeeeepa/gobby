@@ -6,6 +6,69 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator
 # --- Workflow Definition Models (YAML) ---
 
 
+class RuleDefinition(BaseModel):
+    """Named rule definition for block_tools format.
+
+    Can be defined at workflow level (rule_definitions) or in shared rule files.
+    Referenced by name via check_rules on WorkflowStep.
+    """
+
+    tools: list[str] = Field(default_factory=list)
+    mcp_tools: list[str] = Field(default_factory=list)
+    when: str | None = None
+    reason: str
+    action: Literal["block", "allow", "warn"] = "block"
+    command_pattern: str | None = None
+    command_not_pattern: str | None = None
+
+    def to_block_rule(self) -> dict[str, Any]:
+        """Convert to block_tools rule dict format."""
+        rule: dict[str, Any] = {"reason": self.reason}
+        if self.tools:
+            rule["tools"] = self.tools
+        if self.mcp_tools:
+            rule["mcp_tools"] = self.mcp_tools
+        if self.when:
+            rule["when"] = self.when
+        if self.command_pattern:
+            rule["command_pattern"] = self.command_pattern
+        if self.command_not_pattern:
+            rule["command_not_pattern"] = self.command_not_pattern
+        return rule
+
+
+class Observer(BaseModel):
+    """Observer that watches events and sets variables.
+
+    Two variants (exactly one must be specified):
+    1. YAML observer: on + set (match optional) — inline event/variable mapping
+    2. Behavior ref: behavior — references a registered behavior by name
+    """
+
+    name: str
+    # YAML observer fields
+    on: str | None = None  # Event type to observe (e.g., "after_tool")
+    match: dict[str, str] | None = None  # Optional filter (tool, mcp_server, mcp_tool)
+    set: dict[str, str] | None = None  # Variable assignments (name -> expression)
+    # Behavior ref field
+    behavior: str | None = None  # Registered behavior name
+
+    def model_post_init(self, __context: Any) -> None:
+        """Validate that exactly one variant is specified."""
+        is_yaml = self.on is not None or self.match is not None or self.set is not None
+        is_behavior = self.behavior is not None
+        if is_yaml and is_behavior:
+            raise ValueError(
+                "Observer must specify exactly one variant: "
+                "YAML observer (on/match/set) or behavior ref (behavior), not both."
+            )
+        if not is_yaml and not is_behavior:
+            raise ValueError(
+                "Observer must specify exactly one variant: "
+                "YAML observer (on/match/set) or behavior ref (behavior)."
+            )
+
+
 class WorkflowRule(BaseModel):
     name: str | None = None
     when: str
@@ -57,8 +120,10 @@ class WorkflowStep(BaseModel):
     blocked_mcp_tools: list[str] = Field(default_factory=list)
 
     rules: list[WorkflowRule] = Field(default_factory=list)
+    check_rules: list[str] = Field(default_factory=list)  # Named rule references
     transitions: list[WorkflowTransition] = Field(default_factory=list)
-    exit_conditions: list[dict[str, Any]] = Field(default_factory=list)  # flexible for now
+    exit_when: str | None = None  # Expression shorthand AND-ed with exit_conditions
+    exit_conditions: list[dict[str, Any] | str] = Field(default_factory=list)
 
     on_exit: list[dict[str, Any]] = Field(default_factory=list)
 
@@ -85,6 +150,18 @@ class WorkflowDefinition(BaseModel):
 
     settings: dict[str, Any] = Field(default_factory=dict)
     variables: dict[str, Any] = Field(default_factory=dict)
+
+    # Named rule definitions (file-local, referenced by check_rules on steps)
+    rule_definitions: dict[str, RuleDefinition] = Field(default_factory=dict)
+    # Cross-file rule imports (e.g., ["worker-safety"])
+    imports: list[str] = Field(default_factory=list)
+
+    # Top-level tool blocking rules (same format as block_tools action rules).
+    # Evaluated on BEFORE_TOOL events before trigger-based block_tools actions.
+    tool_rules: list[dict[str, Any]] = Field(default_factory=list)
+
+    # Observers: watch events and set variables or invoke registered behaviors
+    observers: list[Observer] = Field(default_factory=list)
 
     steps: list[WorkflowStep] = Field(default_factory=list)
 
@@ -243,7 +320,6 @@ class WorkflowState(BaseModel):
     step_action_count: int = 0
     total_action_count: int = 0
 
-    artifacts: dict[str, str] = Field(default_factory=dict)
     observations: list[dict[str, Any]] = Field(default_factory=list)
 
     reflection_pending: bool = False

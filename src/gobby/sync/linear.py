@@ -277,7 +277,7 @@ class LinearSyncService:
             "open": "Todo",
             "in_progress": "In Progress",
             "needs_review": "In Review",
-            "approved": "Done",
+            "review_approved": "Done",
             "closed": "Done",
             "escalated": "Canceled",
         }

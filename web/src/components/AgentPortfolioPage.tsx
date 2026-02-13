@@ -356,7 +356,7 @@ export function AgentPortfolioPage() {
       // Tasks assigned to sessions of this agent
       const assigned = tasks.filter(t => t.assignee && sessionIds.has(t.assignee))
       const closed = tasks.filter(
-        t => t.closed_in_session_id && sessionIds.has(t.closed_in_session_id) && (t.status === 'closed' || t.status === 'approved')
+        t => t.closed_in_session_id && sessionIds.has(t.closed_in_session_id) && (t.status === 'closed' || t.status === 'review_approved')
       )
       const escalated = tasks.filter(
         t => (t.assignee && sessionIds.has(t.assignee)) && t.escalated_at !== null

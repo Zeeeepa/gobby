@@ -42,8 +42,7 @@ phases:
       - Bash
 
     exit_conditions:
-      - type: user_approval
-        prompt: "Understanding complete. Ready to implement?"
+      - approval: "Understanding complete. Ready to implement?"
 
   - name: implement
     description: "Implement with awareness of project patterns"

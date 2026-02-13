@@ -94,5 +94,5 @@ See the [Workflow Engine documentation](../../guides/workflows.md) for:
 Key concepts:
 - **Steps** define phases with tool restrictions
 - **Transitions** move between steps based on conditions
-- **Actions** execute on step enter/exit (inject context, capture artifacts)
+- **Actions** execute on step enter/exit (inject context, set variables)
 - **Variables** customize workflow behavior

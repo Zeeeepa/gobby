@@ -496,17 +496,16 @@ async def evaluate_spawn(
     # Terminal availability check
     if eff_mode in ("terminal", "embedded") and eff_terminal == "auto":
         try:
-            from gobby.agents.spawn import TerminalSpawner
+            from gobby.agents.tmux.spawner import TmuxSpawner
 
-            spawner = TerminalSpawner()
-            available = spawner.get_available_terminals()
-            if not available:
+            spawner = TmuxSpawner()
+            if not spawner.is_available():
                 result.items.append(
                     EvaluationItem(
                         layer="runtime",
                         level="warning",
                         code="NO_TERMINALS_AVAILABLE",
-                        message="No terminal emulators detected — agent may fail to spawn",
+                        message="tmux is not available — agent may fail to spawn",
                     )
                 )
             else:
@@ -515,7 +514,7 @@ async def evaluate_spawn(
                         layer="runtime",
                         level="info",
                         code="TERMINALS_AVAILABLE",
-                        message=f"Available terminals: {[t.value if hasattr(t, 'value') else str(t) for t in available]}",
+                        message="Available terminals: ['tmux']",
                     )
                 )
         except Exception:

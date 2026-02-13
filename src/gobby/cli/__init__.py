@@ -7,7 +7,6 @@ import click
 from gobby.config.app import load_config
 
 from .agents import agents
-from .artifacts import artifacts
 from .clones import clones
 from .conductor import conductor
 from .cron import cron
@@ -66,7 +65,6 @@ cli.add_command(projects)
 cli.add_command(workflows)
 cli.add_command(merge)
 cli.add_command(pipelines)
-cli.add_command(artifacts)
 cli.add_command(github)
 cli.add_command(linear)
 cli.add_command(clones)

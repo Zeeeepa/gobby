@@ -143,7 +143,7 @@ def ui_status(ctx: click.Context) -> None:
 
 
 @ui.command()
-@click.option("--port", "-p", default=5173, help="Dev server port")
+@click.option("--port", "-p", default=60889, help="Dev server port")
 @click.option("--host", "-h", default="localhost", help="Dev server host")
 def dev(port: int, host: str) -> None:
     """Start the web UI development server with hot-reload (foreground)."""

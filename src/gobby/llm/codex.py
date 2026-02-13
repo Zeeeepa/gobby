@@ -117,7 +117,12 @@ class CodexProvider(LLMProvider):
             )
             return None
         else:
-            # API key mode - read from environment
+            # API key mode - read from config first, then environment
+            if self.config.llm_providers and self.config.llm_providers.api_keys:
+                config_key = self.config.llm_providers.api_keys.get("OPENAI_API_KEY")
+                if config_key:
+                    self.logger.debug("Using OPENAI_API_KEY from config")
+                    return config_key
             env_api_key: str | None = os.environ.get("OPENAI_API_KEY")
             if env_api_key:
                 self.logger.debug("Using OPENAI_API_KEY from environment")

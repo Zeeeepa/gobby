@@ -184,19 +184,6 @@ call_tool(server_name="gobby-skills", tool_name="search_skills", arguments={
 })
 ```
 
-### Artifact Search
-
-Search session artifacts:
-
-```python
-call_tool(server_name="gobby-sessions", tool_name="search_artifacts", arguments={
-    "query": "authentication",
-    "session_id": "#42",                 # Optional: filter by session
-    "artifact_type": "code",             # Filter by type
-    "limit": 20
-})
-```
-
 ## CLI Commands
 
 ### Memory Search

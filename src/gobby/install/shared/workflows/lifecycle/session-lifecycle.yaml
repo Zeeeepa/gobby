@@ -48,6 +48,14 @@ variables:
   stop_attempts: 0
   max_stop_attempts: 3
 
+observers:
+  - name: task_lifecycle
+    behavior: task_claim_tracking
+  - name: plan_mode
+    behavior: detect_plan_mode
+  - name: mcp_call_history
+    behavior: mcp_call_tracking
+
 triggers:
   on_stop:
     # Increment stop attempts counter
@@ -153,22 +161,16 @@ triggers:
     # Memory sync - import from JSONL for Git persistence
     - action: memory_sync_import
 
-    # Project memory injection — baseline context for new/cleared sessions
-    - action: memory_inject_project_context
-      when: "event.data.get('source') in ['startup', 'clear']"
-      limit: 10
-      min_importance: 0.7
-
     # Task sync - import from JSONL for Git persistence
     - action: task_sync_import
 
-    # Skill and task context injection - inject context-aware skills for all session starts
+    # Skill discovery guide injection - inject always-apply skills for all session starts
     # Skip on resume - conversation already has this context from original startup
-    # context_aware filter uses SkillInjector to select skills based on agent depth/type
+    # always_apply filter injects the discovery guide (and any other alwaysApply skills)
     - action: inject_context
       when: "event.data.get('source') != 'resume'"
       source: skills
-      filter: context_aware
+      filter: always_apply
       template: |
         {{ skills_list }}
 
@@ -210,9 +212,6 @@ triggers:
     - action: set_variable
       name: pre_existing_errors_triaged
       value: false
-
-    # Detect plan mode from system reminders (Claude Code UI-based plan mode)
-    - action: detect_plan_mode_from_context
 
     # Title synthesis on first prompt
     - action: synthesize_title
@@ -371,7 +370,6 @@ triggers:
     # Uses external prompt from prompts collection: handoff/session_end.md
     - action: generate_handoff
       include:
-        - artifacts
         - pending_tasks
       prompt: handoff/session_end
       write_file: true

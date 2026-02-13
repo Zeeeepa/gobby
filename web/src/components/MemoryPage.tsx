@@ -1,4 +1,4 @@
-import { useState, useCallback, useMemo, useEffect } from 'react'
+import { useState, useCallback, useMemo, useEffect, useRef } from 'react'
 import { useMemory, useNeo4jStatus } from '../hooks/useMemory'
 import type { GobbyMemory } from '../hooks/useMemory'
 import { MemoryOverview } from './MemoryOverview'
@@ -48,7 +48,7 @@ function KnowledgeIcon() {
 }
 
 type ViewMode = 'list' | 'graph' | 'knowledge'
-type OverviewFilter = 'total' | 'important' | 'recent' | null
+type OverviewFilter = 'total' | 'important' | 'needs_review' | 'recent' | null
 
 export function MemoryPage() {
   const {
@@ -67,15 +67,32 @@ export function MemoryPage() {
   } = useMemory()
   const neo4jStatus = useNeo4jStatus()
 
-  const [viewMode, setViewMode] = useState<ViewMode>('graph')
+  const [viewMode, setViewMode] = useState<ViewMode>(() => {
+    try {
+      const saved = localStorage.getItem('gobby-memory-view')
+      if (saved === 'knowledge' || saved === 'graph' || saved === 'list') return saved
+    } catch { /* noop */ }
+    return 'graph'
+  })
   const [showForm, setShowForm] = useState(false)
 
-  // Default to knowledge view when Neo4j status loads and is configured
+  // Default to knowledge view when Neo4j is configured and no saved preference
+  const autoSwitchedRef = useRef(false)
   useEffect(() => {
-    if (neo4jStatus?.configured && viewMode === 'graph') {
-      setViewMode('knowledge')
+    if (neo4jStatus?.configured && viewMode === 'graph' && !autoSwitchedRef.current) {
+      try {
+        if (!localStorage.getItem('gobby-memory-view')) setViewMode('knowledge')
+      } catch {
+        setViewMode('knowledge')
+      }
+      autoSwitchedRef.current = true
     }
-  }, [neo4jStatus?.configured]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [neo4jStatus?.configured, viewMode])
+
+  // Persist view mode
+  useEffect(() => {
+    try { localStorage.setItem('gobby-memory-view', viewMode) } catch { /* noop */ }
+  }, [viewMode])
   const [editMemory, setEditMemory] = useState<GobbyMemory | null>(null)
   const [selectedMemory, setSelectedMemory] = useState<GobbyMemory | null>(null)
   const [overviewFilter, setOverviewFilter] = useState<OverviewFilter>(null)
@@ -93,6 +110,8 @@ export function MemoryPage() {
 
     if (overviewFilter === 'important') {
       result = result.filter(m => m.importance >= 0.7)
+    } else if (overviewFilter === 'needs_review') {
+      result = result.filter(m => m.importance < 0.7)
     } else if (overviewFilter === 'recent') {
       const cutoff = Date.now() - TWENTY_FOUR_HOURS_MS
       result = result.filter(m => new Date(m.created_at).getTime() > cutoff)

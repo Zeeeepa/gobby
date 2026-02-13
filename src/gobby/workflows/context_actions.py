@@ -45,7 +45,7 @@ def inject_context(
         state: WorkflowState instance
         template_engine: Template engine for rendering
         source: Source type(s). Can be a string or list of strings.
-                Supported: previous_session_summary, handoff, artifacts, skills, task_context, memories, etc.
+                Supported: previous_session_summary, handoff, skills, task_context, memories, etc.
         template: Optional template for rendering
         require: If True, block session when no content found (default: False)
         skill_manager: HookSkillManager instance (required for source='skills')
@@ -110,7 +110,6 @@ def inject_context(
                 render_context: dict[str, Any] = {
                     "session": session_manager.get(session_id),
                     "state": state,
-                    "artifacts": state.artifacts if state else {},
                     "observations": state.observations if state else {},
                     "combined_content": content,
                     "source_contents": source_contents,
@@ -147,7 +146,6 @@ def inject_context(
         render_context = {
             "session": session_manager.get(session_id),
             "state": state,
-            "artifacts": state.artifacts if state else {},
             "observations": state.observations if state else {},
         }
         rendered = template_engine.render(template, render_context)
@@ -186,22 +184,15 @@ def inject_context(
                             except Exception as e:
                                 logger.warning(f"Failed to read failback file {summary_file}: {e}")
 
-    elif source == "artifacts":
-        if state.artifacts:
-            lines = ["## Captured Artifacts"]
-            for name, path in state.artifacts.items():
-                lines.append(f"- {name}: {path}")
-            content = "\n".join(lines)
-
     elif source == "observations":
         if state.observations:
             content = "## Observations\n" + json.dumps(state.observations, indent=2)
 
     elif source == "workflow_state":
         try:
-            state_dict = state.model_dump(exclude={"observations", "artifacts"})
+            state_dict = state.model_dump(exclude={"observations"})
         except AttributeError:
-            state_dict = state.dict(exclude={"observations", "artifacts"})
+            state_dict = state.dict(exclude={"observations"})
         content = "## Workflow State\n" + json.dumps(state_dict, indent=2, default=str)
 
     elif source == "compact_handoff":
@@ -292,15 +283,12 @@ def inject_context(
             render_context = {
                 "session": session_manager.get(session_id),
                 "state": state,
-                "artifacts": state.artifacts,
                 "observations": state.observations,
             }
 
             if source in ["previous_session_summary", "handoff"]:
                 render_context["summary"] = content
                 render_context["handoff"] = {"notes": content}
-            elif source == "artifacts":
-                render_context["artifacts_list"] = content
             elif source == "observations":
                 render_context["observations_text"] = content
             elif source == "workflow_state":
@@ -356,7 +344,6 @@ def inject_message(
     render_context: dict[str, Any] = {
         "session": session_manager.get(session_id),
         "state": state,
-        "artifacts": state.artifacts,
         "step_action_count": state.step_action_count,
         "variables": state.variables or {},
     }
@@ -555,50 +542,22 @@ def _inject_context_aware_skills(
     session_id: str,
     state: Any,
 ) -> str:
-    """Select and format skills using agent-type-aware injection.
+    """Return empty string — skill discovery is now handled by the
+    ``discovery`` always-apply skill injected via lifecycle workflows.
 
-    Builds an AgentContext from the session and workflow state, then uses
-    SkillInjector to select relevant skills and resolve per-skill formats.
+    The full skill list is available on-demand via ``list_skills()`` /
+    ``get_skill(name)`` on the ``gobby-skills`` MCP server.
 
     Args:
-        skills: All discovered core skills
-        session_manager: Session manager for looking up session
-        session_id: Current session ID
-        state: WorkflowState instance
+        skills: All discovered core skills (unused, kept for API compat)
+        session_manager: Session manager (unused, kept for API compat)
+        session_id: Current session ID (unused, kept for API compat)
+        state: WorkflowState instance (unused, kept for API compat)
 
     Returns:
-        Formatted markdown string with context-appropriate skills
+        Empty string (discovery guide injected via always-apply skill)
     """
-    from gobby.skills.injector import AgentContext, SkillInjector, SkillProfile
-
-    # Build agent context from session + workflow state
-    session = session_manager.get(session_id) if session_manager else None
-    context = (
-        AgentContext.from_session(session, workflow_state=state) if session else AgentContext()
-    )
-
-    # Check for skill profile in workflow variables
-    profile: SkillProfile | None = None
-    if state and hasattr(state, "variables") and state.variables:
-        profile_data = state.variables.get("_skill_profile")
-        if isinstance(profile_data, dict):
-            profile = SkillProfile.from_dict(profile_data)
-
-    injector = SkillInjector()
-    selected = injector.select_skills(skills, context, profile)
-
-    if not selected:
-        logger.debug(
-            f"context_aware: no skills selected for agent_type={context.agent_type}, "
-            f"depth={context.agent_depth}"
-        )
-        return ""
-
-    logger.debug(
-        f"context_aware: selected {len(selected)}/{len(skills)} skills for "
-        f"agent_type={context.agent_type}, depth={context.agent_depth}"
-    )
-    return _format_skills_with_formats(selected)
+    return ""
 
 
 def _format_skills_with_formats(skills_with_formats: list[tuple[Any, str]]) -> str:

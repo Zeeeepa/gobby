@@ -52,29 +52,6 @@ async def test_inject_context_previous_session_summary(mock_context):
 
 
 @pytest.mark.asyncio
-async def test_inject_context_artifacts(mock_context):
-    executor = ActionExecutor(
-        db=MagicMock(),
-        session_manager=mock_context.session_manager,
-        template_engine=mock_context.template_engine,
-    )
-
-    # Setup artifacts in state
-    mock_context.state.artifacts = {
-        "plan.md": "/abs/path/to/plan.md",
-        "spec.md": "/abs/path/to/spec.md",
-    }
-
-    result = await executor.execute("inject_context", mock_context, source="artifacts")
-
-    expected_content = (
-        "## Captured Artifacts\n- plan.md: /abs/path/to/plan.md\n- spec.md: /abs/path/to/spec.md"
-    )
-    assert result is not None
-    assert result["inject_context"] == expected_content
-
-
-@pytest.mark.asyncio
 async def test_inject_context_observations(mock_context):
     executor = ActionExecutor(
         db=MagicMock(),

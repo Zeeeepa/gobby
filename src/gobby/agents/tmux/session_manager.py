@@ -47,8 +47,20 @@ class TmuxSessionManager:
     # ------------------------------------------------------------------
 
     def _base_args(self) -> list[str]:
-        """Return the common tmux prefix args (binary + socket + config)."""
-        args = [self._config.command]
+        """Return the common tmux prefix args (binary + socket + config).
+
+        On Windows the command is prefixed with ``wsl`` (and optionally
+        ``-d <distro>``) so that tmux runs inside WSL.
+        """
+        from gobby.agents.tmux.wsl_compat import needs_wsl
+
+        args: list[str] = []
+        if needs_wsl():
+            args.append("wsl")
+            if self._config.wsl_distribution:
+                args.extend(["-d", self._config.wsl_distribution])
+
+        args.append(self._config.command)
         if self._config.socket_name:
             args.extend(["-L", self._config.socket_name])
         if self._config.config_file:
@@ -84,7 +96,23 @@ class TmuxSessionManager:
     # ------------------------------------------------------------------
 
     def is_available(self) -> bool:
-        """Check whether the tmux binary is on PATH."""
+        """Check whether tmux (or WSL on Windows) is available."""
+        from gobby.agents.tmux.wsl_compat import needs_wsl
+
+        if needs_wsl():
+            if not shutil.which("wsl"):
+                return False
+            import subprocess
+
+            try:
+                result = subprocess.run(
+                    ["wsl", "--exec", "which", self._config.command],
+                    capture_output=True,
+                    timeout=5,
+                )
+                return result.returncode == 0
+            except (subprocess.TimeoutExpired, OSError):
+                return False
         return shutil.which(self._config.command) is not None
 
     def require_available(self) -> None:
@@ -114,6 +142,12 @@ class TmuxSessionManager:
             TmuxSessionError: If session creation fails.
         """
         self.require_available()
+
+        # Convert Windows paths to WSL format when needed
+        from gobby.agents.tmux.wsl_compat import convert_windows_path_to_wsl, needs_wsl
+
+        if needs_wsl() and cwd:
+            cwd = convert_windows_path_to_wsl(cwd)
 
         # Sanitise name (tmux dislikes dots and colons)
         safe_name = "".join(c if c.isalnum() or c in "-_" else "-" for c in name)
@@ -245,6 +279,48 @@ class TmuxSessionManager:
             return int(stdout.strip())
         except ValueError:
             return None
+
+    async def rename_window(self, target: str, title: str) -> bool:
+        """Rename the tmux window containing *target*.
+
+        Also enables ``set-titles`` so the name propagates to the outer
+        terminal emulator, and disables ``automatic-rename`` to prevent
+        tmux from overwriting it.
+
+        Args:
+            target: A tmux target (session name, pane ID like ``%42``, etc.).
+            title: New window title.
+
+        Returns:
+            True on success.
+        """
+        rc, _stdout, stderr = await self._run(
+            "set-option",
+            "-g",
+            "set-titles",
+            "on",
+            ";",
+            "set-option",
+            "-g",
+            "set-titles-string",
+            "#W",
+            ";",
+            "rename-window",
+            "-t",
+            target,
+            title,
+            ";",
+            "set-option",
+            "-w",
+            "-t",
+            target,
+            "automatic-rename",
+            "off",
+        )
+        if rc != 0:
+            logger.warning(f"Failed to rename tmux window for '{target}': {stderr.strip()}")
+            return False
+        return True
 
     async def send_keys(self, session_name: str, keys: str) -> bool:
         """Send raw keys to a tmux session (for web UI input forwarding).

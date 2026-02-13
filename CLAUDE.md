@@ -2,10 +2,6 @@
 
 This file provides guidance for developing the Gobby codebase.
 
-**For using Gobby's tools**: Use progressive disclosure via `list_mcp_servers()` → `list_tools(server)` → `get_tool_schema()`. The MCP server includes instructions.
-
-**For skills and workflows**: Use `list_skills()` to discover available skills, then `get_skill(name)` for details.
-
 ## Guiding Principles
 
 These are enforced by hooks and workflows.

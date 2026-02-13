@@ -31,10 +31,14 @@ class MigrationUnsupportedError(Exception):
 # Migration can be SQL string or a callable that takes LocalDatabase
 MigrationAction = str | Callable[[LocalDatabase], None]
 
-# Baseline version - the schema state at v81 (flattened)
-# This is applied for new databases directly
-# Note: Migrations >= BASELINE_VERSION still run for existing databases
-BASELINE_VERSION = 81
+# Baseline version - the schema state that is applied for new databases directly.
+# Must be bumped when BASELINE_SCHEMA is updated with columns from new migrations,
+# so that fresh databases don't re-run migrations already baked into the baseline.
+BASELINE_VERSION = 100
+
+# Minimum migration version - databases older than this cannot be upgraded
+# because legacy migrations (pre-v76) have been removed.
+_MIN_MIGRATION_VERSION = 76
 
 # Baseline schema - flattened from v81 production state, includes all migrations
 # This is applied for new databases directly
@@ -52,6 +56,7 @@ CREATE TABLE projects (
     github_url TEXT,
     github_repo TEXT,
     linear_team_id TEXT,
+    deleted_at TEXT,
     created_at TEXT NOT NULL DEFAULT (datetime('now')),
     updated_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
@@ -62,6 +67,8 @@ INSERT INTO projects (id, name, repo_path, created_at, updated_at)
 VALUES ('00000000-0000-0000-0000-000000000000', '_orphaned', NULL, datetime('now'), datetime('now'));
 INSERT INTO projects (id, name, repo_path, created_at, updated_at)
 VALUES ('00000000-0000-0000-0000-000000000001', '_migrated', NULL, datetime('now'), datetime('now'));
+INSERT INTO projects (id, name, repo_path, created_at, updated_at)
+VALUES ('00000000-0000-0000-0000-000000060887', '_personal', NULL, datetime('now'), datetime('now'));
 
 CREATE TABLE mcp_servers (
     id TEXT PRIMARY KEY,
@@ -268,33 +275,6 @@ CREATE TABLE session_message_state (
     updated_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
-CREATE TABLE session_artifacts (
-    id TEXT PRIMARY KEY,
-    session_id TEXT NOT NULL REFERENCES sessions(id) ON DELETE CASCADE,
-    artifact_type TEXT NOT NULL,
-    content TEXT NOT NULL,
-    metadata_json TEXT,
-    source_file TEXT,
-    line_start INTEGER,
-    line_end INTEGER,
-    title TEXT,
-    task_id TEXT,
-    created_at TEXT NOT NULL DEFAULT (datetime('now'))
-);
-CREATE INDEX idx_session_artifacts_session ON session_artifacts(session_id);
-CREATE INDEX idx_session_artifacts_type ON session_artifacts(artifact_type);
-CREATE INDEX idx_session_artifacts_created ON session_artifacts(created_at);
-CREATE INDEX idx_session_artifacts_task ON session_artifacts(task_id);
-CREATE VIRTUAL TABLE session_artifacts_fts USING fts5(id UNINDEXED, content);
-
-CREATE TABLE artifact_tags (
-    artifact_id TEXT NOT NULL REFERENCES session_artifacts(id) ON DELETE CASCADE,
-    tag TEXT NOT NULL,
-    created_at TEXT NOT NULL DEFAULT (datetime('now')),
-    PRIMARY KEY (artifact_id, tag)
-);
-CREATE INDEX idx_artifact_tags_tag ON artifact_tags(tag);
-
 CREATE TABLE session_stop_signals (
     session_id TEXT PRIMARY KEY REFERENCES sessions(id) ON DELETE CASCADE,
     source TEXT NOT NULL,
@@ -367,6 +347,8 @@ CREATE TABLE tasks (
     expansion_status TEXT DEFAULT 'none',
     requires_user_review INTEGER DEFAULT 0,
     accepted_by_user INTEGER DEFAULT 0,
+    start_date TEXT,
+    due_date TEXT,
     created_at TEXT NOT NULL,
     updated_at TEXT NOT NULL
 );
@@ -433,7 +415,6 @@ CREATE TABLE workflow_states (
     step_entered_at TEXT,
     step_action_count INTEGER DEFAULT 0,
     total_action_count INTEGER DEFAULT 0,
-    artifacts TEXT,
     observations TEXT,
     reflection_pending INTEGER DEFAULT 0,
     context_injected INTEGER DEFAULT 0,
@@ -477,12 +458,14 @@ CREATE TABLE memories (
     last_accessed_at TEXT,
     tags TEXT,
     media TEXT,
+    mem0_id TEXT,
     created_at TEXT NOT NULL,
     updated_at TEXT NOT NULL
 );
 CREATE INDEX idx_memories_project ON memories(project_id);
 CREATE INDEX idx_memories_type ON memories(memory_type);
 CREATE INDEX idx_memories_importance ON memories(importance DESC);
+CREATE INDEX idx_memories_mem0_id ON memories(mem0_id);
 
 CREATE TABLE memory_embeddings (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -760,6 +743,52 @@ CREATE TABLE secrets (
     updated_at TEXT NOT NULL
 );
 CREATE INDEX idx_secrets_category ON secrets(category);
+
+CREATE TABLE rules (
+    id TEXT PRIMARY KEY,
+    name TEXT NOT NULL,
+    tier TEXT NOT NULL CHECK(tier IN ('bundled', 'user', 'project')),
+    project_id TEXT REFERENCES projects(id) ON DELETE CASCADE,
+    definition TEXT NOT NULL,
+    source_file TEXT,
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX idx_rules_name ON rules(name);
+CREATE INDEX idx_rules_tier ON rules(tier);
+CREATE INDEX idx_rules_project ON rules(project_id);
+CREATE UNIQUE INDEX idx_rules_name_tier_project ON rules(name, tier, COALESCE(project_id, ''));
+
+CREATE TABLE task_comments (
+    id TEXT PRIMARY KEY,
+    task_id TEXT NOT NULL REFERENCES tasks(id) ON DELETE CASCADE,
+    parent_comment_id TEXT REFERENCES task_comments(id) ON DELETE CASCADE,
+    author TEXT NOT NULL,
+    author_type TEXT NOT NULL DEFAULT 'session',
+    body TEXT NOT NULL,
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX idx_task_comments_task ON task_comments(task_id);
+CREATE INDEX idx_task_comments_parent ON task_comments(parent_comment_id);
+CREATE INDEX idx_task_comments_created ON task_comments(task_id, created_at);
+
+CREATE TABLE session_skills (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    session_id TEXT NOT NULL REFERENCES sessions(id) ON DELETE CASCADE,
+    skill_name TEXT NOT NULL,
+    created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX idx_session_skills_session ON session_skills(session_id);
+CREATE UNIQUE INDEX idx_session_skills_unique ON session_skills(session_id, skill_name);
+
+CREATE TABLE config_store (
+    key TEXT PRIMARY KEY,
+    value TEXT NOT NULL,
+    source TEXT NOT NULL DEFAULT 'user',
+    updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX idx_config_store_source ON config_store(source);
 """
 
 # Future migrations (v61+)
@@ -887,7 +916,13 @@ def _migrate_add_deleted_at_to_projects(db: LocalDatabase) -> None:
 
 def _migrate_add_title_task_id_to_artifacts(db: LocalDatabase) -> None:
     """Add title and task_id columns to session_artifacts (idempotent)."""
-    # Check existing columns to avoid duplicate column errors
+    # Skip if table doesn't exist (removed in migration 95)
+    tables = {
+        row["name"] for row in db.fetchall("SELECT name FROM sqlite_master WHERE type='table'")
+    }
+    if "session_artifacts" not in tables:
+        logger.debug("session_artifacts table not found, skipping migration 87")
+        return
     columns = {row["name"] for row in db.fetchall("PRAGMA table_info(session_artifacts)")}
     with db.transaction() as conn:
         if "title" not in columns:
@@ -1182,6 +1217,80 @@ MIGRATIONS: list[tuple[int, str, MigrationAction]] = [
         "Add role, goal, personality, instructions columns to agent_definitions",
         _migrate_agent_definition_prompt_fields,
     ),
+    # Artifact system removal: Drop all artifact tables
+    (
+        95,
+        "Drop artifact tables (session_artifacts, artifact_tags, session_artifacts_fts)",
+        """
+        DROP TABLE IF EXISTS artifact_tags;
+        DROP TABLE IF EXISTS session_artifacts_fts;
+        DROP TABLE IF EXISTS session_artifacts;
+        """,
+    ),
+    # Rules registry: Three-tier rule storage (bundled, user, project)
+    (
+        96,
+        "Add rules table",
+        """
+        CREATE TABLE IF NOT EXISTS rules (
+            id TEXT PRIMARY KEY,
+            name TEXT NOT NULL,
+            tier TEXT NOT NULL CHECK(tier IN ('bundled', 'user', 'project')),
+            project_id TEXT REFERENCES projects(id) ON DELETE CASCADE,
+            definition TEXT NOT NULL,
+            source_file TEXT,
+            created_at TEXT NOT NULL DEFAULT (datetime('now')),
+            updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+        );
+        CREATE INDEX IF NOT EXISTS idx_rules_name ON rules(name);
+        CREATE INDEX IF NOT EXISTS idx_rules_tier ON rules(tier);
+        CREATE INDEX IF NOT EXISTS idx_rules_project ON rules(project_id);
+        CREATE UNIQUE INDEX IF NOT EXISTS idx_rules_name_tier_project ON rules(name, tier, COALESCE(project_id, ''));
+        """,
+    ),
+    (
+        97,
+        "Add session_skills tracking table",
+        """
+        CREATE TABLE IF NOT EXISTS session_skills (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            session_id TEXT NOT NULL REFERENCES sessions(id) ON DELETE CASCADE,
+            skill_name TEXT NOT NULL,
+            created_at TEXT NOT NULL DEFAULT (datetime('now'))
+        );
+        CREATE INDEX IF NOT EXISTS idx_session_skills_session ON session_skills(session_id);
+        CREATE UNIQUE INDEX IF NOT EXISTS idx_session_skills_unique ON session_skills(session_id, skill_name);
+        """,
+    ),
+    # DB-first config: Store config key-value pairs in database
+    (
+        98,
+        "Add config_store table",
+        """
+        CREATE TABLE IF NOT EXISTS config_store (
+            key TEXT PRIMARY KEY,
+            value TEXT NOT NULL,
+            source TEXT NOT NULL DEFAULT 'user',
+            updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+        );
+        CREATE INDEX IF NOT EXISTS idx_config_store_source ON config_store(source);
+        """,
+    ),
+    # Rename task status 'approved' to 'review_approved' for clarity
+    (
+        99,
+        "Rename task status 'approved' to 'review_approved'",
+        "UPDATE tasks SET status = 'review_approved' WHERE status = 'approved'",
+    ),
+    # Add scheduling fields for Gantt chart
+    (
+        100,
+        "Add start_date and due_date to tasks",
+        """
+        ALTER TABLE tasks ADD COLUMN start_date TEXT;
+        ALTER TABLE tasks ADD COLUMN due_date TEXT;
+        """,
+    ),
 ]
 
 
@@ -1288,12 +1397,13 @@ def run_migrations(db: LocalDatabase) -> int:
         _apply_baseline(db)
         total_applied = 1
         current_version = BASELINE_VERSION
-    elif current_version < BASELINE_VERSION:
-        # Unsupported: Pre-v75 database without local migrations
-        # Since we removed legacy migrations, we can't upgrade.
+    elif current_version < _MIN_MIGRATION_VERSION:
+        # Unsupported: Pre-v76 database without legacy migrations
+        # Since we removed legacy migrations (v1-v75), we can't upgrade.
         msg = (
-            f"Database version {current_version} is older than baseline "
-            f"{BASELINE_VERSION}. Upgrade not supported without legacy migrations."
+            f"Database version {current_version} is older than minimum "
+            f"migration version {_MIN_MIGRATION_VERSION}. "
+            f"Upgrade not supported without legacy migrations."
         )
         logger.error(msg)
         raise MigrationUnsupportedError(msg)

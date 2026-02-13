@@ -102,7 +102,7 @@ export function TaskDetail({ taskId, getTask, getDependencies, getSubtasks, acti
   const blockingIds = deps?.blocking?.map(b => b.id) || []
 
   // Subtask progress
-  const closedCount = subtasks.filter(t => t.status === 'closed' || t.status === 'approved').length
+  const closedCount = subtasks.filter(t => t.status === 'closed' || t.status === 'review_approved').length
   const progressPct = subtasks.length > 0 ? Math.round((closedCount / subtasks.length) * 100) : 0
 
   return (
@@ -490,10 +490,10 @@ function getActionsForStatus(
       ]
     case 'needs_review':
       return [
-        { label: 'Approve', variant: 'primary', onClick: () => actions.updateTask(id, { status: 'approved' }) },
+        { label: 'Approve', variant: 'primary', onClick: () => actions.updateTask(id, { status: 'review_approved' }) },
         { label: 'Reopen', variant: 'default', onClick: () => actions.reopenTask(id) },
       ]
-    case 'approved':
+    case 'review_approved':
       return [
         { label: 'Close', variant: 'primary', onClick: () => actions.closeTask(id) },
         { label: 'Reopen', variant: 'default', onClick: () => actions.reopenTask(id) },

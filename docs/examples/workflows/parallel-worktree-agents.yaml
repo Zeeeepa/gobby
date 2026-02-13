@@ -47,8 +47,7 @@ steps:
           - How many can run simultaneously?
 
     exit_conditions:
-      - type: user_approval
-        prompt: "Ready to create worktrees and spawn agents?"
+      - approval: "Ready to create worktrees and spawn agents?"
 
     transitions:
       - to: spawn_worktrees
@@ -190,8 +189,7 @@ steps:
           {% endif %}
 
     exit_conditions:
-      - type: user_approval
-        prompt: "All branches merged and cleaned up?"
+      - approval: "All branches merged and cleaned up?"
 
     transitions:
       - to: complete

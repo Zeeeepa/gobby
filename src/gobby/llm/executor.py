@@ -89,9 +89,6 @@ class AgentResult:
     tool_calls: list[ToolCallRecord] = field(default_factory=list)
     """List of all tool calls made during execution."""
 
-    artifacts: dict[str, Any] = field(default_factory=dict)
-    """Structured artifacts produced by the agent (via complete() tool)."""
-
     files_modified: list[str] = field(default_factory=list)
     """List of files modified during execution."""
 
@@ -246,7 +243,7 @@ class AgentExecutor(ABC):
             name="complete",
             description=(
                 "Signal that you have completed the task. Call this when you are done "
-                "with all work. Provide a summary of what was accomplished, any artifacts "
+                "with all work. Provide a summary of what was accomplished, any outputs "
                 "produced, and suggested next steps."
             ),
             input_schema={
@@ -261,11 +258,6 @@ class AgentExecutor(ABC):
                         "enum": ["success", "partial", "blocked"],
                         "default": "success",
                         "description": "Completion status.",
-                    },
-                    "artifacts": {
-                        "type": "object",
-                        "description": "Structured outputs from the task.",
-                        "default": {},
                     },
                     "files_modified": {
                         "type": "array",
@@ -302,7 +294,6 @@ class AgentExecutor(ABC):
                 completion_result = AgentResult(
                     output=arguments.get("output", ""),
                     status=validated_status,
-                    artifacts=arguments.get("artifacts", {}),
                     files_modified=arguments.get("files_modified", []),
                     next_steps=arguments.get("next_steps", []),
                 )

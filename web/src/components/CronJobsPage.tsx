@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useMemo } from 'react'
 import { useCronJobs } from '../hooks/useCronJobs'
 import type { CronJob, CronRun, CreateCronJobRequest } from '../hooks/useCronJobs'
 import './CronJobsPage.css'
@@ -70,15 +70,20 @@ function CreateJobDialog({ onSubmit, onClose }: CreateDialogProps) {
   const [timezone, setTimezone] = useState('UTC')
   const [description, setDescription] = useState('')
 
-  const handleSubmit = () => {
-    if (!name.trim()) return
-    let actionConfig: Record<string, unknown>
-    try {
-      actionConfig = JSON.parse(actionConfigStr)
-    } catch {
-      alert('Invalid JSON in action config')
-      return
+  const isFormValid = useMemo(() => {
+    if (!name.trim()) return false
+    try { JSON.parse(actionConfigStr) } catch { return false }
+    if (scheduleType === 'cron' && !cronExpr.trim()) return false
+    if (scheduleType === 'interval') {
+      const parsed = parseInt(intervalSeconds, 10)
+      if (isNaN(parsed) || parsed < 10) return false
     }
+    return true
+  }, [name, actionConfigStr, scheduleType, cronExpr, intervalSeconds])
+
+  const handleSubmit = () => {
+    if (!isFormValid) return
+    const actionConfig = JSON.parse(actionConfigStr) as Record<string, unknown>
 
     const req: CreateCronJobRequest = {
       name: name.trim(),
@@ -89,13 +94,10 @@ function CreateJobDialog({ onSubmit, onClose }: CreateDialogProps) {
     }
     if (description.trim()) req.description = description.trim()
     if (scheduleType === 'cron') {
-      if (!cronExpr.trim()) return
       req.cron_expr = cronExpr
     }
     if (scheduleType === 'interval') {
-      const parsed = parseInt(intervalSeconds, 10)
-      if (isNaN(parsed) || parsed <= 0) return
-      req.interval_seconds = parsed
+      req.interval_seconds = parseInt(intervalSeconds, 10)
     }
 
     onSubmit(req)
@@ -209,7 +211,7 @@ function CreateJobDialog({ onSubmit, onClose }: CreateDialogProps) {
 
         <div className="cron-dialog-actions">
           <button className="cron-btn" onClick={onClose}>Cancel</button>
-          <button className="cron-btn primary" onClick={handleSubmit} disabled={!name.trim()}>
+          <button className="cron-btn primary" onClick={handleSubmit} disabled={!isFormValid}>
             Create Job
           </button>
         </div>

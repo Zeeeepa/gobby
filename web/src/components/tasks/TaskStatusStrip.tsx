@@ -10,7 +10,7 @@ const STEP_LABELS: Record<string, string> = {
   open: 'Waiting',
   in_progress: 'Working',
   needs_review: 'In Review',
-  approved: 'Approved',
+  review_approved: 'Ready',
   closed: 'Done',
   escalated: 'Escalated',
 }

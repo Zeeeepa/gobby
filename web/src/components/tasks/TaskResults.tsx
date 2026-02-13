@@ -54,7 +54,7 @@ function formatDate(iso: string): string {
 }
 
 function outcomeLabel(reason: string | null, status: string): { text: string; color: string } {
-  if (status === 'approved') return { text: 'Approved', color: '#22c55e' }
+  if (status === 'review_approved') return { text: 'Approved', color: '#22c55e' }
   if (status === 'closed') {
     switch (reason) {
       case 'completed': return { text: 'Completed', color: '#22c55e' }
@@ -90,7 +90,7 @@ export function TaskResults({ task }: TaskResultsProps) {
     const result: ResultSection[] = []
 
     // Outcome summary
-    const isDone = ['closed', 'approved'].includes(task.status)
+    const isDone = ['closed', 'review_approved'].includes(task.status)
     if (isDone) {
       const outcome = outcomeLabel(task.closed_reason, task.status)
       result.push({

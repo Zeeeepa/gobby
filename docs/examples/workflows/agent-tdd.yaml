@@ -49,14 +49,11 @@ steps:
           Research the codebase and existing patterns.
           DO NOT write any code yet.
 
-    exit_conditions:
-      - type: artifact_exists
-        name: requirements_understood
-        prompt: "Have you fully understood the requirements?"
+    exit_when: "requirements_understood"
 
     transitions:
       - to: write_tests
-        when: artifact_exists("requirements_understood")
+        when: "state.variables.get('requirements_understood')"
 
   - name: write_tests
     description: Write failing tests first
@@ -92,13 +89,11 @@ steps:
         action: block
         message: "Write tests before implementation. Create test files first."
 
-    exit_conditions:
-      - type: artifact_exists
-        name: tests_written
+    exit_when: "tests_written"
 
     transitions:
       - to: implement
-        when: artifact_exists("tests_written")
+        when: "state.variables.get('tests_written')"
 
   - name: implement
     description: Implement to make tests pass
@@ -125,13 +120,11 @@ steps:
         action: warn
         message: "Remember to run tests frequently"
 
-    exit_conditions:
-      - type: artifact_exists
-        name: tests_passing
+    exit_when: "tests_passing"
 
     transitions:
       - to: refactor
-        when: artifact_exists("tests_passing")
+        when: "state.variables.get('tests_passing')"
 
   - name: refactor
     description: Refactor while keeping tests green
@@ -161,8 +154,7 @@ steps:
         message: "Tests are failing. Revert last change and try again."
 
     exit_conditions:
-      - type: user_approval
-        prompt: "Refactoring complete. Ready to finalize?"
+      - approval: "Refactoring complete. Ready to finalize?"
 
     transitions:
       - to: complete

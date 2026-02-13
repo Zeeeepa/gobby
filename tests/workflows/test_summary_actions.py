@@ -8,6 +8,7 @@ Tests cover:
 - generate_handoff: Combined summary + status update
 """
 
+import asyncio
 import json
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -677,6 +678,92 @@ class TestSynthesizeTitle:
 
         assert result is not None
         assert "title_synthesized" in result
+
+
+# =============================================================================
+# Tests for _rename_tmux_window
+# =============================================================================
+
+
+class TestRenameTmuxWindow:
+    """Tests for _rename_tmux_window helper."""
+
+    @pytest.mark.asyncio
+    async def test_skips_when_no_terminal_context(self):
+        """No-op when session has no terminal_context."""
+        from gobby.workflows.summary_actions import _rename_tmux_window
+
+        session = MagicMock()
+        session.terminal_context = None
+        # Should not raise
+        await _rename_tmux_window(session, "Title")
+
+    @pytest.mark.asyncio
+    async def test_skips_when_no_tmux_pane(self):
+        """No-op when terminal_context has no tmux_pane."""
+        from gobby.workflows.summary_actions import _rename_tmux_window
+
+        session = MagicMock()
+        session.terminal_context = {"parent_pid": 123}
+        await _rename_tmux_window(session, "Title")
+
+    @pytest.mark.asyncio
+    async def test_user_session_renames_on_default_server(self):
+        """User session (depth 0) calls tmux rename-window on default server."""
+        from gobby.workflows.summary_actions import _rename_tmux_window
+
+        session = MagicMock()
+        session.terminal_context = {"tmux_pane": "%42"}
+        session.agent_depth = 0
+
+        with patch("asyncio.create_subprocess_exec", new_callable=AsyncMock) as mock_exec:
+            mock_proc = AsyncMock()
+            mock_proc.communicate.return_value = (b"", b"")
+            mock_proc.returncode = 0
+            mock_exec.return_value = mock_proc
+
+            await _rename_tmux_window(session, "My Title")
+
+            mock_exec.assert_called_once_with(
+                "tmux",
+                "set-option", "-g", "set-titles", "on", ";",
+                "rename-window", "-t", "%42", "My Title", ";",
+                "set-option", "-w", "-t", "%42", "automatic-rename", "off",
+                stdout=asyncio.subprocess.DEVNULL,
+                stderr=asyncio.subprocess.PIPE,
+            )
+
+    @pytest.mark.asyncio
+    async def test_spawned_agent_renames_on_gobby_socket(self):
+        """Spawned agent (depth > 0) uses TmuxSessionManager."""
+        from gobby.workflows.summary_actions import _rename_tmux_window
+
+        session = MagicMock()
+        session.terminal_context = {"tmux_pane": "%0"}
+        session.agent_depth = 1
+
+        mock_mgr = AsyncMock()
+        mock_mgr.rename_window.return_value = True
+
+        with patch(
+            "gobby.agents.tmux.get_tmux_session_manager",
+            return_value=mock_mgr,
+        ):
+            await _rename_tmux_window(session, "Agent Title")
+            mock_mgr.rename_window.assert_called_once_with("%0", "Agent Title")
+
+    @pytest.mark.asyncio
+    async def test_failure_does_not_propagate(self):
+        """Rename failures are swallowed, never propagated."""
+        from gobby.workflows.summary_actions import _rename_tmux_window
+
+        session = MagicMock()
+        session.terminal_context = {"tmux_pane": "%42"}
+        session.agent_depth = 0
+
+        with patch("asyncio.create_subprocess_exec", side_effect=OSError("no tmux")):
+            # Should not raise
+            await _rename_tmux_window(session, "Title")
 
 
 # =============================================================================

@@ -49,7 +49,6 @@ def workflow_state():
         session_id="test-session-id",
         workflow_name="test-workflow",
         step="test-step",
-        artifacts={"plan": "/path/to/plan.md"},
         observations=[{"type": "user_action", "data": "clicked button"}],
         variables={"key": "value"},
     )
@@ -318,51 +317,6 @@ class TestInjectContext:
         assert result["inject_context"] == "# Recovered Summary\nRecovered from failback file."
         assert workflow_state.context_injected is True
 
-    def test_artifacts_source_with_artifacts(
-        self, mock_session_manager, mock_template_engine
-    ) -> None:
-        """Should format artifacts as markdown when source is artifacts."""
-        state = WorkflowState(
-            session_id="test-session",
-            workflow_name="test",
-            step="test",
-            artifacts={"plan": "/path/plan.md", "report": "/path/report.txt"},
-        )
-
-        result = inject_context(
-            session_manager=mock_session_manager,
-            session_id="test-session",
-            state=state,
-            template_engine=mock_template_engine,
-            source="artifacts",
-        )
-
-        assert result is not None
-        assert "## Captured Artifacts" in result["inject_context"]
-        assert "- plan: /path/plan.md" in result["inject_context"]
-        assert "- report: /path/report.txt" in result["inject_context"]
-
-    def test_artifacts_source_with_empty_artifacts(
-        self, mock_session_manager, mock_template_engine
-    ) -> None:
-        """Should return None when artifacts is empty."""
-        state = WorkflowState(
-            session_id="test-session",
-            workflow_name="test",
-            step="test",
-            artifacts={},
-        )
-
-        result = inject_context(
-            session_manager=mock_session_manager,
-            session_id="test-session",
-            state=state,
-            template_engine=mock_template_engine,
-            source="artifacts",
-        )
-
-        assert result is None
-
     def test_observations_source_with_observations(
         self, mock_session_manager, mock_template_engine
     ) -> None:
@@ -437,7 +391,6 @@ class TestInjectContext:
         # Create a concrete helper class that has dict() but not model_dump
         class TestState:
             def __init__(self):
-                self.artifacts = {}
                 self.observations = []
                 self.dict_called = False
 
@@ -535,31 +488,6 @@ class TestInjectContext:
         assert call_args[0][0] == "## Context\n{{ summary }}"
         assert "summary" in call_args[0][1]
         assert "handoff" in call_args[0][1]
-
-    def test_with_template_rendering_for_artifacts(self, mock_session_manager) -> None:
-        """Should render template with artifacts_list for artifacts source."""
-        state = WorkflowState(
-            session_id="test-session",
-            workflow_name="test",
-            step="test",
-            artifacts={"plan": "/path/plan.md"},
-        )
-        template_engine = MagicMock()
-        template_engine.render.return_value = "Rendered artifacts"
-
-        result = inject_context(
-            session_manager=mock_session_manager,
-            session_id="test-session",
-            state=state,
-            template_engine=template_engine,
-            source="artifacts",
-            template="Artifacts: {{ artifacts_list }}",
-        )
-
-        assert result is not None
-        assert result["inject_context"] == "Rendered artifacts"
-        call_args = template_engine.render.call_args
-        assert "artifacts_list" in call_args[0][1]
 
     def test_with_template_rendering_for_observations(self, mock_session_manager) -> None:
         """Should render template with observations_text for observations source."""
@@ -676,7 +604,6 @@ class TestInjectContext:
             session_id="test-session",
             workflow_name="test",
             step="test",
-            artifacts={},
         )
 
         result = inject_context(
@@ -684,7 +611,7 @@ class TestInjectContext:
             session_id="test-session",
             state=state,
             template_engine=mock_template_engine,
-            source="artifacts",
+            source="unknown_source",
             require=True,
         )
 
@@ -700,7 +627,6 @@ class TestInjectContext:
             session_id="test-session",
             workflow_name="test",
             step="test",
-            artifacts={},
         )
 
         result = inject_context(
@@ -708,7 +634,7 @@ class TestInjectContext:
             session_id="test-session",
             state=state,
             template_engine=mock_template_engine,
-            source="artifacts",
+            source="unknown_source",
             require=False,
         )
 
@@ -803,7 +729,6 @@ class TestInjectMessage:
         call_args = mock_template_engine.render.call_args[0][1]
         assert "session" in call_args
         assert "state" in call_args
-        assert "artifacts" in call_args
         assert "step_action_count" in call_args
         assert "variables" in call_args
 

@@ -21,10 +21,10 @@ from pydantic import BaseModel
 
 from gobby.config.app import (
     DaemonConfig,
-    generate_default_config,
-    save_config,
+    deep_merge,
 )
 from gobby.prompts.loader import DEFAULTS_DIR, PromptLoader
+from gobby.storage.config_store import ConfigStore, flatten_config, unflatten_config
 from gobby.storage.secrets import VALID_CATEGORIES, SecretStore
 from gobby.utils.metrics import get_metrics_collector
 
@@ -33,7 +33,6 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
-CONFIG_FILE = "~/.gobby/config.yaml"
 GLOBAL_PROMPTS_DIR = Path("~/.gobby/prompts").expanduser()
 
 
@@ -48,8 +47,8 @@ class SaveConfigRequest(BaseModel):
     values: dict[str, Any]
 
 
-class SaveYamlRequest(BaseModel):
-    """Request body for PUT /api/config/yaml."""
+class SaveTemplateRequest(BaseModel):
+    """Request body for PUT /api/config/template."""
 
     content: str
 
@@ -72,7 +71,8 @@ class SavePromptOverrideRequest(BaseModel):
 class ImportConfigRequest(BaseModel):
     """Request body for POST /api/config/import."""
 
-    config: dict[str, Any] | None = None
+    config_store: dict[str, Any] | None = None
+    config: dict[str, Any] | None = None  # Legacy: nested config dict (flattened on import)
     prompts: dict[str, str] | None = None
 
 
@@ -93,6 +93,17 @@ def create_configuration_router(server: "HTTPServer") -> APIRouter:
         if not isinstance(db, LocalDatabase):
             raise HTTPException(status_code=503, detail="Database not available")
         return SecretStore(db)
+
+    def _get_config_store() -> ConfigStore:
+        store = getattr(server.services, "config_store", None)
+        if store is None:
+            from gobby.storage.database import LocalDatabase
+
+            db = server.services.database
+            if not isinstance(db, LocalDatabase):
+                raise HTTPException(status_code=503, detail="Database not available")
+            store = ConfigStore(db)
+        return store
 
     def _get_prompt_loader() -> PromptLoader:
         return PromptLoader(global_dir=Path.home() / ".gobby")
@@ -118,7 +129,7 @@ def create_configuration_router(server: "HTTPServer") -> APIRouter:
 
     @router.put("/values")
     async def save_config_values(request: SaveConfigRequest) -> JSONResponse:
-        """Validate partial update, merge with existing, save.
+        """Validate partial update, merge with existing, persist to DB.
 
         Returns {ok: true, requires_restart: true} on success.
         """
@@ -128,13 +139,19 @@ def create_configuration_router(server: "HTTPServer") -> APIRouter:
             current = server.services.config.model_dump(mode="json", exclude_none=True)
 
             # Deep merge: update current with new values
-            _deep_merge(current, request.values)
+            deep_merge(current, request.values)
 
             # Validate the merged config
             new_config = DaemonConfig(**current)
 
-            # Save to disk
-            save_config(new_config, CONFIG_FILE)
+            # Persist to DB: flatten the incoming partial update and store
+            config_store = _get_config_store()
+            flat_updates = flatten_config(request.values)
+            count = config_store.set_many(flat_updates, source="user")
+            logger.info(f"Config saved to DB ({count} keys)")
+
+            # Update in-memory config so subsequent reads reflect the change
+            server.services.config = new_config
 
             return JSONResponse(
                 content={
@@ -143,7 +160,7 @@ def create_configuration_router(server: "HTTPServer") -> APIRouter:
                 }
             )
         except Exception as e:
-            logger.error(f"Config save failed: {e}")
+            logger.error(f"Config save failed: {e}", exc_info=True)
             raise HTTPException(status_code=400, detail=str(e)) from e
 
     @router.post("/values/validate")
@@ -152,7 +169,7 @@ def create_configuration_router(server: "HTTPServer") -> APIRouter:
         metrics.inc_counter("http_requests_total")
         try:
             current = server.services.config.model_dump(mode="json", exclude_none=True)
-            _deep_merge(current, request.values)
+            deep_merge(current, request.values)
             DaemonConfig(**current)
             return JSONResponse(content={"valid": True, "errors": []})
         except Exception as e:
@@ -160,35 +177,45 @@ def create_configuration_router(server: "HTTPServer") -> APIRouter:
 
     @router.post("/values/reset")
     async def reset_config() -> JSONResponse:
-        """Reset config to defaults."""
+        """Reset config to defaults (clear DB config_store)."""
         metrics.inc_counter("http_requests_total")
         try:
-            generate_default_config(CONFIG_FILE)
+            config_store = _get_config_store()
+            deleted = config_store.delete_all()
+            logger.info(f"Config reset: deleted {deleted} keys from config_store")
+            server.services.config = DaemonConfig()
             return JSONResponse(content={"ok": True, "requires_restart": True})
         except Exception as e:
             logger.error(f"Config reset failed: {e}")
             raise HTTPException(status_code=500, detail=str(e)) from e
 
     # =========================================================================
-    # Raw YAML
+    # Template (full defaults + DB overrides as YAML)
     # =========================================================================
 
-    @router.get("/yaml")
-    async def get_raw_yaml() -> JSONResponse:
-        """Return raw config.yaml content as string."""
-        metrics.inc_counter("http_requests_total")
-        config_path = Path(CONFIG_FILE).expanduser()
-        if not config_path.exists():
-            return JSONResponse(content={"content": ""})
-        content = config_path.read_text(encoding="utf-8")
-        return JSONResponse(content={"content": content})
+    @router.get("/template")
+    async def get_config_template() -> JSONResponse:
+        """Return full Pydantic defaults merged with current DB overrides as YAML.
 
-    @router.put("/yaml")
-    async def save_raw_yaml(request: SaveYamlRequest) -> JSONResponse:
-        """Validate YAML, parse, validate as DaemonConfig, save."""
+        Shows every available config option with current values highlighted.
+        """
         metrics.inc_counter("http_requests_total")
         try:
-            # Parse YAML
+            defaults = DaemonConfig().model_dump(mode="json", exclude_none=True)
+            config_store = _get_config_store()
+            db_overrides = unflatten_config(config_store.get_all())
+            deep_merge(defaults, db_overrides)
+            content = yaml.safe_dump(defaults, default_flow_style=False, sort_keys=False)
+            return JSONResponse(content={"content": content})
+        except Exception as e:
+            logger.error(f"Failed to generate config template: {e}")
+            raise HTTPException(status_code=500, detail=str(e)) from e
+
+    @router.put("/template")
+    async def save_config_template(request: SaveTemplateRequest) -> JSONResponse:
+        """Accept YAML, diff against defaults, store only non-default values to DB."""
+        metrics.inc_counter("http_requests_total")
+        try:
             parsed = yaml.safe_load(request.content)
             if parsed is None:
                 parsed = {}
@@ -196,13 +223,26 @@ def create_configuration_router(server: "HTTPServer") -> APIRouter:
                 raise ValueError("YAML must be a mapping (dict), not a scalar or list")
 
             # Validate as DaemonConfig
-            DaemonConfig(**parsed)
+            new_config = DaemonConfig(**parsed)
 
-            # Write directly
-            config_path = Path(CONFIG_FILE).expanduser()
-            config_path.parent.mkdir(parents=True, exist_ok=True)
-            config_path.write_text(request.content, encoding="utf-8")
-            config_path.chmod(0o600)
+            # Diff against defaults: only store non-default values
+            defaults_flat = flatten_config(
+                DaemonConfig().model_dump(mode="json", exclude_none=True)
+            )
+            parsed_flat = flatten_config(parsed)
+            diff = {
+                k: v
+                for k, v in parsed_flat.items()
+                if k not in defaults_flat or defaults_flat[k] != v
+            }
+
+            config_store = _get_config_store()
+            with config_store.db.transaction():
+                config_store.delete_all()
+                count = config_store.set_many(diff, source="user") if diff else 0
+            logger.info(f"Template saved: {count} non-default keys stored")
+
+            server.services.config = new_config
 
             return JSONResponse(content={"ok": True, "requires_restart": True})
         except yaml.YAMLError as e:
@@ -412,11 +452,12 @@ def create_configuration_router(server: "HTTPServer") -> APIRouter:
 
     @router.post("/export")
     async def export_config() -> JSONResponse:
-        """Bundle config + prompt overrides + secret names (not values)."""
+        """Bundle config_store + prompt overrides + secret names (not values)."""
         metrics.inc_counter("http_requests_total")
         try:
-            # Config
-            config = server.services.config.model_dump(mode="json", exclude_none=True)
+            # Config from DB (flat key-value pairs)
+            config_store = _get_config_store()
+            flat_config = config_store.get_all()
 
             # Prompt overrides
             prompt_overrides: dict[str, str] = {}
@@ -431,9 +472,8 @@ def create_configuration_router(server: "HTTPServer") -> APIRouter:
 
             return JSONResponse(
                 content={
-                    "version": 1,
                     "exported_at": datetime.now(UTC).isoformat(),
-                    "config": config,
+                    "config_store": flat_config,
                     "prompts": prompt_overrides,
                     "secrets": secret_names,  # Names and metadata only, never values
                 }
@@ -444,19 +484,45 @@ def create_configuration_router(server: "HTTPServer") -> APIRouter:
 
     @router.post("/import")
     async def import_config(request: ImportConfigRequest) -> JSONResponse:
-        """Import config bundle (config + prompts, secrets must be re-entered)."""
+        """Import config bundle (config_store + prompts, secrets must be re-entered).
+
+        Accepts either:
+        - config_store: flat key-value dict (preferred, from export)
+        - config: nested config dict (legacy, flattened on import)
+        """
         metrics.inc_counter("http_requests_total")
         summary_parts: list[str] = []
+        config_imported = False
         try:
-            # Import config
-            if request.config:
+            config_store = _get_config_store()
+
+            # Import flat config_store (preferred)
+            if request.config_store:
+                # Validate by unflattening and creating DaemonConfig
+                nested = unflatten_config(request.config_store)
+                DaemonConfig(**nested)
+                with config_store.db.transaction():
+                    config_store.delete_all()
+                    count = config_store.set_many(request.config_store, source="import")
+                summary_parts.append(f"config restored ({count} keys)")
+                config_imported = True
+
+            # Legacy: import nested config dict
+            elif request.config:
                 DaemonConfig(**request.config)  # Validate first
-                config_path = Path(CONFIG_FILE).expanduser()
-                config_path.parent.mkdir(parents=True, exist_ok=True)
-                with open(config_path, "w") as f:
-                    yaml.safe_dump(request.config, f, default_flow_style=False, sort_keys=False)
-                config_path.chmod(0o600)
-                summary_parts.append("config restored")
+                flat = flatten_config(request.config)
+                # Diff against defaults so we only store overrides
+                defaults_flat = flatten_config(
+                    DaemonConfig().model_dump(mode="json", exclude_none=True)
+                )
+                diff = {
+                    k: v for k, v in flat.items() if k not in defaults_flat or defaults_flat[k] != v
+                }
+                with config_store.db.transaction():
+                    config_store.delete_all()
+                    count = config_store.set_many(diff, source="import") if diff else 0
+                summary_parts.append(f"config restored ({count} keys)")
+                config_imported = True
 
             # Import prompt overrides
             if request.prompts:
@@ -470,7 +536,7 @@ def create_configuration_router(server: "HTTPServer") -> APIRouter:
                 content={
                     "success": True,
                     "summary": ", ".join(summary_parts) if summary_parts else "nothing to import",
-                    "requires_restart": bool(request.config),
+                    "requires_restart": config_imported,
                 }
             )
         except Exception as e:
@@ -478,17 +544,3 @@ def create_configuration_router(server: "HTTPServer") -> APIRouter:
             raise HTTPException(status_code=400, detail=str(e)) from e
 
     return router
-
-
-# =============================================================================
-# Helpers
-# =============================================================================
-
-
-def _deep_merge(base: dict[str, Any], updates: dict[str, Any]) -> None:
-    """Deep-merge updates into base dict (in-place)."""
-    for key, value in updates.items():
-        if key in base and isinstance(base[key], dict) and isinstance(value, dict):
-            _deep_merge(base[key], value)
-        else:
-            base[key] = value

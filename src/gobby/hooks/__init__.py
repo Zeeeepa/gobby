@@ -42,8 +42,6 @@ Example:
 """
 
 # Core coordinator and components
-# Artifact capture hook
-from gobby.hooks.artifact_capture import ArtifactCaptureHook
 from gobby.hooks.event_handlers import EventHandlers
 from gobby.hooks.events import (
     EVENT_TYPE_CLI_SUPPORT,
@@ -73,8 +71,6 @@ __all__ = [
     "SessionCoordinator",
     "HealthMonitor",
     "WebhookDispatcher",
-    # Artifact capture
-    "ArtifactCaptureHook",
     # Unified hook event models
     "HookEventType",
     "SessionSource",

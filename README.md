@@ -392,7 +392,7 @@ See [ROADMAP.md](ROADMAP.md) for the full plan, but highlights:
 
 **Beta:** Autonomous orchestration (conductor daemon, inter-agent messaging, token budget tracking, review gates)
 
-**Next:** Workflow engine simplification, task expansion workflows, artifact removal + git integration, CLI auto-detection, coordinator finalization, web UI buildout, security posture for MCP, SWE-bench evaluation, bug fix sprint
+**Next:** Workflow engine simplification, task expansion workflows, CLI auto-detection, coordinator finalization, web UI buildout, security posture for MCP, SWE-bench evaluation, bug fix sprint
 
 **Vision:** Always local first, but Pro cloud features to keep the lights on: Fleet management, Plugin ecosystem, Team workflows, Enterprise hardening
 

@@ -69,11 +69,14 @@ class LiteLLMProvider(LLMProvider):
             self._litellm = litellm
 
             # Set API keys in litellm's environment
-            # LiteLLM reads from os.environ, so we set them there
+            # LiteLLM reads from os.environ, so we set them there.
+            # Config values are the source of truth (already resolved from
+            # secrets store + env vars), so they override any pre-existing
+            # env vars to ensure secrets-store priority.
             import os
 
             for key, value in self._api_keys.items():
-                if value and key not in os.environ:
+                if value:
                     os.environ[key] = value
                     self.logger.debug(f"Set {key} from config")
 

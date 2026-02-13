@@ -526,7 +526,6 @@ call_tool("gobby-memory", "search_memories", {
 | `end_workflow` | End active workflow |
 | `get_workflow_status` | Get current step and state |
 | `request_step_transition` | Request transition to different step |
-| `mark_artifact_complete` | Register artifact as complete |
 | `set_variable` | Set session-scoped workflow variable |
 | `get_variable` | Get workflow variable(s) |
 | `import_workflow` | Import workflow from file |

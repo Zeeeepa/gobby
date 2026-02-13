@@ -1,6 +1,6 @@
 ---
 name: chore
-description: "Quickly create a chore/maintenance task. Usage: /chore <title> [description]"
+description: "Quickly create a chore/maintenance task. Usage: /gobby:chore <title> [description]"
 category: core
 metadata:
   gobby:
@@ -9,24 +9,24 @@ metadata:
       autonomous: full
 ---
 
-# /chore - Create Chore Task
+# /gobby:chore - Create Chore Task
 
 Create a maintenance or housekeeping task with the provided title and optional description. For tasks that keep the codebase healthy but aren't features or bugs.
 
 ## Usage
 
 ```
-/chore <title>
-/chore <title> - <description>
+/gobby:chore <title>
+/gobby:chore <title> - <description>
 ```
 
 ## Examples
 
 ```
-/chore Update dependencies
-/chore Clean up CI pipeline - Remove deprecated jobs and consolidate test stages
-/chore Add missing type hints to utils module
-/chore Rotate API keys
+/gobby:chore Update dependencies
+/gobby:chore Clean up CI pipeline - Remove deprecated jobs and consolidate test stages
+/gobby:chore Add missing type hints to utils module
+/gobby:chore Rotate API keys
 ```
 
 ## Tool Schema Reminder

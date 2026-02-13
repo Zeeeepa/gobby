@@ -14,8 +14,10 @@ import httpx
 
 logger = logging.getLogger(__name__)
 
-# Bundled compose file location (inside package)
-_COMPOSE_SRC = Path(__file__).resolve().parents[2] / "data" / "docker-compose.mem0.yml"
+# Bundled file locations (inside package)
+_DATA_DIR = Path(__file__).resolve().parents[2] / "data"
+_COMPOSE_SRC = _DATA_DIR / "docker-compose.mem0.yml"
+_DOCKERFILE_SRC = _DATA_DIR / "Dockerfile.mem0"
 
 DEFAULT_MEM0_URL = "http://localhost:8888"
 
@@ -49,11 +51,12 @@ def _install_local(home: Path, api_key: str | None) -> dict[str, Any]:
     if not shutil.which("docker"):
         return {"success": False, "error": "Docker not found. Install Docker to use local mem0."}
 
-    # Copy compose file
+    # Copy compose file and Dockerfile
     svc_dir = home / "services" / "mem0"
     svc_dir.mkdir(parents=True, exist_ok=True)
     dest = svc_dir / "docker-compose.yml"
     shutil.copy2(_COMPOSE_SRC, dest)
+    shutil.copy2(_DOCKERFILE_SRC, svc_dir / "Dockerfile.mem0")
 
     # Run docker compose up -d
     try:

@@ -15,7 +15,7 @@ interface TimelinePhase {
   summary: string | null
 }
 
-const STATUS_ORDER = ['open', 'in_progress', 'needs_review', 'approved', 'closed']
+const STATUS_ORDER = ['open', 'in_progress', 'needs_review', 'review_approved', 'closed']
 
 function derivePhases(task: GobbyTaskDetail): TimelinePhase[] {
   const statusIdx = STATUS_ORDER.indexOf(task.status)

@@ -15,6 +15,7 @@ fi
 TIMESTAMP=$(date +%s)
 REPORTS_DIR="./reports"
 mkdir -p "$REPORTS_DIR"
+find "$REPORTS_DIR" -type f -mmin +1440 -delete 2>/dev/null || true
 
 echo "=== Pre-push Test Suite ==="
 echo "Timestamp: $TIMESTAMP"
@@ -56,7 +57,7 @@ echo ""
 
 # Bandit - security linting
 echo ">>> Running bandit..."
-if uv run bandit -r src/ -q 2>&1 | tee "$REPORTS_DIR/bandit-$TIMESTAMP.txt"; then
+if uv run bandit -c pyproject.toml -r src/ -q 2>&1 | tee "$REPORTS_DIR/bandit-$TIMESTAMP.txt"; then
     echo "✓ Bandit passed"
 else
     echo "✗ Bandit failed"

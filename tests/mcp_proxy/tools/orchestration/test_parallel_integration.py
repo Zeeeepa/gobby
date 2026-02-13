@@ -219,7 +219,7 @@ class TestParallelOrchestration:
                 "gobby.workflows.loader.WorkflowLoader.validate_workflow_for_agent_sync",
                 return_value=(True, None),
             ),
-            patch("gobby.agents.spawn.TerminalSpawner") as MockSpawner,
+            patch("gobby.agents.tmux.spawner.TmuxSpawner") as MockSpawner,
             patch("gobby.mcp_proxy.tools.worktrees._copy_project_json_to_worktree"),
             patch("gobby.mcp_proxy.tools.worktrees._install_provider_hooks"),
         ):
@@ -472,7 +472,7 @@ class TestParallelOrchestration:
                 "gobby.workflows.loader.WorkflowLoader.validate_workflow_for_agent_sync",
                 return_value=(True, None),
             ),
-            patch("gobby.agents.spawn.TerminalSpawner") as MockSpawner,
+            patch("gobby.agents.tmux.spawner.TmuxSpawner") as MockSpawner,
             patch("gobby.mcp_proxy.tools.worktrees._copy_project_json_to_worktree"),
             patch("gobby.mcp_proxy.tools.worktrees._install_provider_hooks"),
         ):
@@ -542,7 +542,7 @@ class TestParallelOrchestration:
                 "gobby.workflows.loader.WorkflowLoader.validate_workflow_for_agent_sync",
                 return_value=(True, None),
             ),
-            patch("gobby.agents.spawn.TerminalSpawner") as MockSpawner2,
+            patch("gobby.agents.tmux.spawner.TmuxSpawner") as MockSpawner2,
             patch("gobby.mcp_proxy.tools.worktrees._copy_project_json_to_worktree"),
             patch("gobby.mcp_proxy.tools.worktrees._install_provider_hooks"),
         ):

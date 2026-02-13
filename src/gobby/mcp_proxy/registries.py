@@ -70,7 +70,7 @@ def setup_internal_registries(
         _session_manager: Session manager (reserved for future use)
         memory_manager: Memory manager for memory operations
         task_manager: Task storage manager
-        db: Database connection for registries that only need storage (skills, artifacts)
+        db: Database connection for registries that only need storage (skills)
         sync_manager: Task sync manager for git sync
         task_validator: Task validator for validation
         message_manager: Message storage manager
@@ -343,19 +343,6 @@ def setup_internal_registries(
         logger.debug("Skills registry initialized")
     else:
         logger.debug("Skills registry not initialized: db is None")
-
-    # Initialize artifacts registry if database is available
-    if db is not None:
-        from gobby.mcp_proxy.tools.artifacts import create_artifacts_registry
-
-        artifacts_registry = create_artifacts_registry(
-            db=db,
-            session_manager=local_session_manager,
-        )
-        manager.add_registry(artifacts_registry)
-        logger.debug("Artifacts registry initialized")
-    else:
-        logger.debug("Artifacts registry not initialized: db is None")
 
     # Initialize pipelines registry if pipeline_executor is available
     if pipeline_executor is not None:

@@ -135,6 +135,7 @@ class TestWorkflowEngine:
         step1.blocked_tools = ["forbidden_tool"]
         step1.allowed_tools = "all"
         step1.rules = []
+        step1.check_rules = []
         step1.transitions = []
         step1.exit_conditions = []
 
@@ -206,6 +207,7 @@ class TestWorkflowEngine:
         step1.blocked_tools = []
         step1.allowed_tools = ["Read", "Glob", "Grep"]  # Specific list
         step1.rules = []
+        step1.check_rules = []
         step1.transitions = []
         step1.exit_conditions = []
 
@@ -244,6 +246,7 @@ class TestWorkflowEngine:
         step1.blocked_tools = []
         step1.allowed_tools = ["Read", "Glob", "Grep"]  # Specific list
         step1.rules = []
+        step1.check_rules = []
         step1.transitions = []
         step1.exit_conditions = []
 
@@ -286,6 +289,7 @@ class TestWorkflowEngine:
         step1.blocked_tools = []
         step1.allowed_tools = "all"
         step1.rules = []
+        step1.check_rules = []
         step1.transitions = []
         step1.exit_conditions = []
 
@@ -353,6 +357,7 @@ class TestWorkflowEngine:
         step1.blocked_tools = []
         step1.allowed_tools = "all"
         step1.rules = []
+        step1.check_rules = []
         step1.transitions = []
         step1.exit_conditions = []
 
@@ -391,6 +396,7 @@ class TestWorkflowEngine:
         step1.blocked_tools = ["Bash", "Edit", "Write"]  # Dangerous tools
         step1.allowed_tools = "all"  # All others allowed
         step1.rules = []
+        step1.check_rules = []
         step1.transitions = []
         step1.exit_conditions = []
 
@@ -432,6 +438,7 @@ class TestWorkflowEngine:
         step1.blocked_mcp_tools = ["gobby-tasks:list_tasks", "gobby-tasks:create_task"]
         step1.allowed_mcp_tools = "all"
         step1.rules = []
+        step1.check_rules = []
         step1.transitions = []
         step1.exit_conditions = []
 
@@ -478,6 +485,7 @@ class TestWorkflowEngine:
         step1.blocked_mcp_tools = []
         step1.allowed_mcp_tools = ["gobby-tasks:claim_task", "gobby-tasks:get_task"]
         step1.rules = []
+        step1.check_rules = []
         step1.transitions = []
         step1.exit_conditions = []
 
@@ -524,6 +532,7 @@ class TestWorkflowEngine:
         step1.blocked_mcp_tools = []
         step1.allowed_mcp_tools = ["gobby-tasks:claim_task", "gobby-tasks:get_task"]
         step1.rules = []
+        step1.check_rules = []
         step1.transitions = []
         step1.exit_conditions = []
 
@@ -568,6 +577,7 @@ class TestWorkflowEngine:
         step1.blocked_mcp_tools = ["gobby-workflows:*"]  # Block all workflow tools
         step1.allowed_mcp_tools = "all"
         step1.rules = []
+        step1.check_rules = []
         step1.transitions = []
         step1.exit_conditions = []
 
@@ -617,6 +627,7 @@ class TestDetectTaskClaim:
         step1.blocked_tools = []
         step1.allowed_tools = "all"
         step1.rules = []
+        step1.check_rules = []
         step1.transitions = []
         step1.exit_conditions = []
 
@@ -670,6 +681,7 @@ class TestDetectTaskClaim:
         step1.blocked_tools = []
         step1.allowed_tools = "all"
         step1.rules = []
+        step1.check_rules = []
         step1.transitions = []
         step1.exit_conditions = []
 
@@ -719,6 +731,7 @@ class TestDetectTaskClaim:
         step1.blocked_tools = []
         step1.allowed_tools = "all"
         step1.rules = []
+        step1.check_rules = []
         step1.transitions = []
         step1.exit_conditions = []
 
@@ -775,6 +788,7 @@ class TestDetectTaskClaim:
         step1.blocked_tools = []
         step1.allowed_tools = "all"
         step1.rules = []
+        step1.check_rules = []
         step1.transitions = []
         step1.exit_conditions = []
 
@@ -822,6 +836,7 @@ class TestDetectTaskClaim:
         step1.blocked_tools = []
         step1.allowed_tools = "all"
         step1.rules = []
+        step1.check_rules = []
         step1.transitions = []
         step1.exit_conditions = []
 
@@ -869,6 +884,7 @@ class TestDetectTaskClaim:
         step1.blocked_tools = []
         step1.allowed_tools = "all"
         step1.rules = []
+        step1.check_rules = []
         step1.transitions = []
         step1.exit_conditions = []
 
@@ -916,6 +932,7 @@ class TestDetectTaskClaim:
         step1.blocked_tools = []
         step1.allowed_tools = "all"
         step1.rules = []
+        step1.check_rules = []
         step1.transitions = []
         step1.exit_conditions = []
 
@@ -963,6 +980,7 @@ class TestDetectTaskClaim:
         step1.blocked_tools = []
         step1.allowed_tools = "all"
         step1.rules = []
+        step1.check_rules = []
         step1.transitions = []
         step1.exit_conditions = []
 
@@ -1226,6 +1244,7 @@ class TestDetectTaskClaim:
         step1.blocked_tools = []
         step1.allowed_tools = "all"
         step1.rules = []
+        step1.check_rules = []
         step1.transitions = []
         step1.exit_conditions = []
 

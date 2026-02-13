@@ -1,46 +1,29 @@
 """Terminal spawning for agent execution.
 
-This module provides the TerminalSpawner orchestrator and PreparedSpawn helpers
-for spawning CLI agents in terminal windows.
+This module provides PreparedSpawn helpers and preflight functions for
+spawning CLI agents.  The actual terminal spawning is handled by
+:class:`TmuxSpawner` (re-exported here for backward compatibility).
 
 Implementation is split across submodules:
 - spawners/prompt_manager.py: Prompt file creation and cleanup
 - spawners/command_builder.py: CLI command construction
-- spawners/: Platform-specific terminal spawners
+- agents/tmux/spawner.py: TmuxSpawner (sole terminal backend)
 """
 
 from __future__ import annotations
 
 import logging
-import shlex
-import tempfile
 from dataclasses import dataclass
-from pathlib import Path
 from typing import Any
 
 from gobby.agents.constants import get_terminal_env_vars
-from gobby.agents.sandbox import SandboxConfig, compute_sandbox_paths, get_sandbox_resolver
 from gobby.agents.session import ChildSessionConfig, ChildSessionManager
 from gobby.agents.spawners import (
     MAX_ENV_PROMPT_LENGTH,
-    AlacrittySpawner,
-    CmdSpawner,
-    EmbeddedSpawner,
-    GhosttySpawner,
-    GnomeTerminalSpawner,
-    HeadlessSpawner,
-    ITermSpawner,
-    KittySpawner,
-    KonsoleSpawner,
-    PowerShellSpawner,
     SpawnMode,
     SpawnResult,
-    TerminalAppSpawner,
     TerminalSpawnerBase,
     TerminalType,
-    TmuxSpawner,
-    WindowsTerminalSpawner,
-    WSLSpawner,
     build_cli_command,
     build_codex_command_with_resume,
     build_gemini_command_with_resume,
@@ -48,9 +31,14 @@ from gobby.agents.spawners import (
     read_prompt_from_env,
 )
 from gobby.agents.spawners.base import EmbeddedPTYResult, HeadlessResult
-from gobby.agents.tty_config import get_tty_config
+from gobby.agents.spawners.embedded import EmbeddedSpawner
+from gobby.agents.spawners.headless import HeadlessSpawner
+from gobby.agents.tmux.spawner import TmuxSpawner
 
-# Re-export for backward compatibility - these types moved to spawners/ package
+# Re-export TmuxSpawner under the old name for callers that still
+# reference ``TerminalSpawner`` in patch targets or imports.
+TerminalSpawner = TmuxSpawner
+
 __all__ = [
     # Enums
     "SpawnMode",
@@ -61,21 +49,10 @@ __all__ = [
     "HeadlessResult",
     # Base class
     "TerminalSpawnerBase",
-    # Orchestrator
-    "TerminalSpawner",
-    # Spawner implementations
-    "GhosttySpawner",
-    "ITermSpawner",
-    "TerminalAppSpawner",
-    "KittySpawner",
-    "AlacrittySpawner",
-    "GnomeTerminalSpawner",
-    "KonsoleSpawner",
-    "WindowsTerminalSpawner",
-    "CmdSpawner",
-    "PowerShellSpawner",
-    "WSLSpawner",
+    # Spawner (tmux-only)
     "TmuxSpawner",
+    "TerminalSpawner",  # backward compat alias
+    # Embedded/Headless
     "EmbeddedSpawner",
     "HeadlessSpawner",
     # Helpers
@@ -92,266 +69,6 @@ __all__ = [
 ]
 
 logger = logging.getLogger(__name__)
-
-
-class TerminalSpawner:
-    """
-    Main terminal spawner that auto-detects and uses available terminals.
-
-    Provides a unified interface for spawning terminal processes across
-    different platforms and terminal emulators. Terminal preferences and
-    configurations are loaded from ~/.gobby/tty_config.yaml.
-    """
-
-    # Map terminal names to spawner classes
-    SPAWNER_CLASSES: dict[str, type[TerminalSpawnerBase]] = {
-        "ghostty": GhosttySpawner,
-        "iterm": ITermSpawner,
-        "terminal.app": TerminalAppSpawner,
-        "kitty": KittySpawner,
-        "alacritty": AlacrittySpawner,
-        "gnome-terminal": GnomeTerminalSpawner,
-        "konsole": KonsoleSpawner,
-        "windows-terminal": WindowsTerminalSpawner,
-        "cmd": CmdSpawner,
-        "powershell": PowerShellSpawner,
-        "wsl": WSLSpawner,
-        "tmux": TmuxSpawner,
-    }
-
-    def __init__(self) -> None:
-        """Initialize with platform-specific terminal preferences."""
-        self._spawners: dict[TerminalType, TerminalSpawnerBase] = {}
-        self._register_spawners()
-
-    def _register_spawners(self) -> None:
-        """Register all available spawners."""
-        all_spawners = [
-            GhosttySpawner(),
-            ITermSpawner(),
-            TerminalAppSpawner(),
-            KittySpawner(),
-            AlacrittySpawner(),
-            GnomeTerminalSpawner(),
-            KonsoleSpawner(),
-            WindowsTerminalSpawner(),
-            CmdSpawner(),
-            PowerShellSpawner(),
-            WSLSpawner(),
-            TmuxSpawner(),
-        ]
-
-        for spawner in all_spawners:
-            self._spawners[spawner.terminal_type] = spawner
-
-    def get_available_terminals(self) -> list[TerminalType]:
-        """Get list of available terminals on this system."""
-        return [
-            term_type for term_type, spawner in self._spawners.items() if spawner.is_available()
-        ]
-
-    def get_preferred_terminal(self) -> TerminalType | None:
-        """Get the preferred available terminal for this platform.
-
-        Prefers tmux when available (cross-platform, web-streamable),
-        then falls back to platform-specific terminals from tty_config.
-        """
-        # Prefer tmux — it's cross-platform and supports web UI streaming
-        tmux_spawner = self._spawners.get(TerminalType("tmux"))
-        if tmux_spawner and tmux_spawner.is_available():
-            return tmux_spawner.terminal_type
-
-        # Fall back to platform-specific terminals
-        config = get_tty_config()
-        preferences = config.get_preferences()
-
-        for terminal_name in preferences:
-            spawner_cls = self.SPAWNER_CLASSES.get(terminal_name)
-            if spawner_cls is None:
-                continue
-            spawner = spawner_cls()
-            if spawner.is_available():
-                return spawner.terminal_type
-
-        return None
-
-    def spawn(
-        self,
-        command: list[str],
-        cwd: str | Path,
-        terminal: TerminalType | str = TerminalType.AUTO,
-        env: dict[str, str] | None = None,
-        title: str | None = None,
-    ) -> SpawnResult:
-        """
-        Spawn a command in a new terminal window.
-
-        Args:
-            command: Command to run
-            cwd: Working directory
-            terminal: Terminal type or "auto" for auto-detection
-            env: Environment variables to set
-            title: Optional window title
-
-        Returns:
-            SpawnResult with success status
-        """
-        # Convert string to enum if needed
-        if isinstance(terminal, str):
-            try:
-                terminal = TerminalType(terminal)
-            except ValueError:
-                return SpawnResult(
-                    success=False,
-                    message=f"Unknown terminal type: {terminal}",
-                )
-
-        # Auto-detect if requested
-        if terminal == TerminalType.AUTO:
-            preferred = self.get_preferred_terminal()
-            if preferred is None:
-                return SpawnResult(
-                    success=False,
-                    message="No supported terminal found on this system",
-                )
-            terminal = preferred
-
-        # Get spawner
-        spawner = self._spawners.get(terminal)
-        if spawner is None:
-            return SpawnResult(
-                success=False,
-                message=f"No spawner registered for terminal: {terminal}",
-            )
-
-        if not spawner.is_available():
-            return SpawnResult(
-                success=False,
-                message=f"Terminal {terminal.value} is not available on this system",
-            )
-
-        # Spawn the terminal
-        return spawner.spawn(command, cwd, env, title)
-
-    def spawn_agent(
-        self,
-        cli: str,
-        cwd: str | Path,
-        session_id: str,
-        parent_session_id: str,
-        agent_run_id: str,
-        project_id: str,
-        workflow_name: str | None = None,
-        agent_depth: int = 1,
-        max_agent_depth: int = 3,
-        terminal: TerminalType | str = TerminalType.AUTO,
-        prompt: str | None = None,
-        sandbox_config: SandboxConfig | None = None,
-    ) -> SpawnResult:
-        """
-        Spawn a CLI agent in a new terminal with Gobby environment variables.
-
-        Args:
-            cli: CLI to run (e.g., "claude", "gemini", "codex", "cursor", "windsurf", "copilot")
-            cwd: Working directory (usually project root or worktree)
-            session_id: Pre-created child session ID
-            parent_session_id: Parent session for context resolution
-            agent_run_id: Agent run record ID
-            project_id: Project ID
-            workflow_name: Optional workflow to activate
-            agent_depth: Current nesting depth
-            max_agent_depth: Maximum allowed depth
-            terminal: Terminal type or "auto"
-            prompt: Optional initial prompt
-            sandbox_config: Optional sandbox configuration
-
-        Returns:
-            SpawnResult with success status
-        """
-        # Resolve sandbox configuration if enabled
-        sandbox_args: list[str] | None = None
-        sandbox_env: dict[str, str] = {}
-
-        if sandbox_config and sandbox_config.enabled:
-            # Compute sandbox paths based on cwd (workspace)
-            resolved_paths = compute_sandbox_paths(sandbox_config, str(cwd))
-            # Get CLI-specific resolver and generate args/env
-            resolver = get_sandbox_resolver(cli)
-            sandbox_args, sandbox_env = resolver.resolve(sandbox_config, resolved_paths)
-
-        # Build command with prompt as CLI argument and auto-approve for autonomous work
-        command = build_cli_command(
-            cli,
-            prompt=prompt,
-            session_id=session_id,
-            auto_approve=True,  # Subagents need to work autonomously
-            working_directory=str(cwd) if cli == "codex" else None,
-            mode="terminal",  # Interactive terminal mode
-            sandbox_args=sandbox_args,
-        )
-
-        # Handle prompt for environment variables (backup for hooks/context)
-        prompt_env: str | None = None
-        prompt_file: str | None = None
-
-        if prompt:
-            if len(prompt) <= MAX_ENV_PROMPT_LENGTH:
-                prompt_env = prompt
-            else:
-                prompt_file = self._write_prompt_file(prompt, session_id)
-
-        # Build environment
-        env = get_terminal_env_vars(
-            session_id=session_id,
-            parent_session_id=parent_session_id,
-            agent_run_id=agent_run_id,
-            project_id=project_id,
-            workflow_name=workflow_name,
-            agent_depth=agent_depth,
-            max_agent_depth=max_agent_depth,
-            prompt=prompt_env,
-            prompt_file=prompt_file,
-        )
-
-        # Merge sandbox environment variables if present
-        if sandbox_env:
-            env.update(sandbox_env)
-
-        # For Cursor, set up NDJSON capture via tee
-        if cli == "cursor":
-            capture_path = f"{tempfile.gettempdir()}/gobby-cursor-{session_id}.ndjson"
-            env["GOBBY_CURSOR_CAPTURE_PATH"] = capture_path
-            # Wrap command to pipe stdout through tee for transcript capture
-            # The --output stream-json flag is already added by build_cli_command
-            cmd_str = shlex.join(command)
-            command = ["bash", "-c", f"{cmd_str} | tee {shlex.quote(capture_path)}"]
-
-        # Set title (avoid colons/parentheses which Ghostty interprets as config syntax)
-        title = f"gobby-{cli}-d{agent_depth}"
-
-        return self.spawn(
-            command=command,
-            cwd=cwd,
-            terminal=terminal,
-            env=env,
-            title=title,
-        )
-
-    def _write_prompt_file(self, prompt: str, session_id: str) -> str:
-        """
-        Write prompt to a temp file for passing to spawned agent.
-
-        Delegates to the create_prompt_file helper which handles
-        secure permissions and cleanup tracking.
-
-        Args:
-            prompt: The prompt content
-            session_id: Session ID for naming the file
-
-        Returns:
-            Path to the created temp file
-        """
-        return create_prompt_file(prompt, session_id)
 
 
 @dataclass

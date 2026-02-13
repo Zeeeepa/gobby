@@ -19,7 +19,6 @@ from gobby.agents.sandbox import (
 if TYPE_CHECKING:
     from gobby.agents.session import ChildSessionManager
 from gobby.agents.spawn import (
-    TerminalSpawner,
     build_cli_command,
     build_codex_command_with_resume,
     prepare_codex_spawn_with_preflight,
@@ -27,6 +26,7 @@ from gobby.agents.spawn import (
 )
 from gobby.agents.spawners.embedded import EmbeddedSpawner
 from gobby.agents.spawners.headless import HeadlessSpawner
+from gobby.agents.tmux.spawner import TmuxSpawner
 
 logger = logging.getLogger(__name__)
 
@@ -179,11 +179,10 @@ async def _spawn_claude_terminal(request: SpawnRequest) -> SpawnResult:
         env["GOBBY_MACHINE_ID"] = request.machine_id
 
     # Spawn in terminal with env vars
-    terminal_spawner = TerminalSpawner()
+    terminal_spawner = TmuxSpawner()
     terminal_result = terminal_spawner.spawn(
         command=cmd,
         cwd=request.cwd,
-        terminal=request.terminal,
         env=env,
     )
 
@@ -353,11 +352,10 @@ async def _spawn_gemini_terminal(request: SpawnRequest) -> SpawnResult:
         env["GOBBY_MACHINE_ID"] = request.machine_id
 
     # Spawn in terminal with env vars
-    terminal_spawner = TerminalSpawner()
+    terminal_spawner = TmuxSpawner()
     terminal_result = terminal_spawner.spawn(
         command=cmd,
         cwd=request.cwd,
-        terminal=request.terminal,
         env=env,
     )
 
@@ -441,11 +439,10 @@ async def _spawn_codex_terminal(request: SpawnRequest) -> SpawnResult:
     )
 
     # Spawn in terminal
-    terminal_spawner = TerminalSpawner()
+    terminal_spawner = TmuxSpawner()
     terminal_result = terminal_spawner.spawn(
         command=cmd,
         cwd=request.cwd,
-        terminal=request.terminal,
     )
 
     if not terminal_result.success:

@@ -2,6 +2,7 @@ import { useState, useCallback, useRef, useEffect } from 'react'
 
 interface VoiceState {
   voiceMode: boolean
+  voiceAvailable: boolean
   isRecording: boolean
   isTranscribing: boolean
   isSpeaking: boolean
@@ -92,6 +93,7 @@ export function useVoice(
   conversationId: string,
 ): UseVoiceReturn {
   const [voiceMode, setVoiceMode] = useState(false)
+  const [voiceAvailable, setVoiceAvailable] = useState(false)
   const [isRecording, setIsRecording] = useState(false)
   const [isTranscribing, setIsTranscribing] = useState(false)
   const [isSpeaking, setIsSpeaking] = useState(false)
@@ -101,6 +103,18 @@ export function useVoice(
   const chunksRef = useRef<Blob[]>([])
   const streamRef = useRef<MediaStream | null>(null)
   const playbackQueueRef = useRef(new AudioPlaybackQueue())
+
+  // Check voice availability on mount
+  useEffect(() => {
+    fetch('/api/voice/status')
+      .then(res => res.ok ? res.json() : null)
+      .then(data => {
+        if (data?.enabled && data?.stt_available) {
+          setVoiceAvailable(true)
+        }
+      })
+      .catch((err) => { console.error('Voice status check failed:', err); setVoiceAvailable(false) })
+  }, [])
 
   // Track speaking state from playback queue
   useEffect(() => {
@@ -246,6 +260,7 @@ export function useVoice(
 
   return {
     voiceMode,
+    voiceAvailable,
     isRecording,
     isTranscribing,
     isSpeaking,

@@ -251,11 +251,11 @@ class TestQAReviewerWorkflow:
         assert claim_action is not None, "Should have claim_task MCP action"
         assert claim_action.get("arguments", {}).get("force") is True
 
-    def test_approve_step_uses_approve_task(self, qa_yaml: dict) -> None:
-        """Test that approve step uses approve_task MCP tool."""
+    def test_approve_step_uses_mark_task_review_approved(self, qa_yaml: dict) -> None:
+        """Test that approve step uses mark_task_review_approved MCP tool."""
         approve = next(s for s in qa_yaml["steps"] if s["name"] == "approve")
         allowed_mcp = approve.get("allowed_mcp_tools", [])
-        assert "gobby-tasks:approve_task" in allowed_mcp
+        assert "gobby-tasks:mark_task_review_approved" in allowed_mcp
 
     def test_has_shutdown_and_complete(self, qa_yaml: dict) -> None:
         """Test that workflow has shutdown and complete steps."""

@@ -17,6 +17,7 @@ if TYPE_CHECKING:
     from .actions import ActionExecutor
     from .evaluator import ConditionEvaluator
     from .loader import WorkflowLoader
+    from .observers import ObserverEngine
     from .state_manager import WorkflowStateManager
 
 logger = logging.getLogger(__name__)
@@ -154,11 +155,18 @@ async def evaluate_workflow_triggers(
                 if triggers:
                     break
 
-    if not triggers:
+    # Evaluate top-level tool_rules on BEFORE_TOOL events (before triggers)
+    has_tool_rules = event.event_type == HookEventType.BEFORE_TOOL and getattr(
+        workflow, "tool_rules", None
+    )
+
+    if not triggers and not has_tool_rules:
         return HookResponse(decision="allow")
 
     logger.debug(
-        f"Evaluating {len(triggers)} trigger(s) for '{trigger_name}' in workflow '{workflow.name}'"
+        f"Evaluating workflow '{workflow.name}': "
+        f"{len(triggers)} trigger(s) for '{trigger_name}', "
+        f"{len(workflow.tool_rules) if has_tool_rules else 0} tool_rule(s)"
     )
 
     # Get or create persisted state for action execution
@@ -176,7 +184,6 @@ async def evaluate_workflow_triggers(
         step_entered_at=datetime.now(UTC),
         step_action_count=0,
         total_action_count=0,
-        artifacts=event.data.get("artifacts", {}) if event.data else {},
         observations=[],
         reflection_pending=False,
         context_injected=False,
@@ -216,10 +223,39 @@ async def evaluate_workflow_triggers(
     injected_context: list[str] = []
     system_message: str | None = None
 
+    # Evaluate tool_rules before triggers (runs block_tools directly)
+    if has_tool_rules:
+        from gobby.workflows.enforcement.blocking import block_tools
+
+        block_result = await block_tools(
+            rules=workflow.tool_rules,
+            event_data=event.data,
+            workflow_state=state,
+        )
+        if block_result and block_result.get("decision") == "block":
+            _persist_state_changes(
+                session_id, state, state_was_created, vars_snapshot, state_manager, workflow
+            )
+            return HookResponse(
+                decision="block",
+                reason=block_result.get("reason", "Blocked by tool_rules"),
+            )
+
     # Fetch session for condition evaluation (enables session.title checks)
     session = None
     if action_executor.session_manager:
         session = action_executor.session_manager.get(session_id)
+
+    # Compute task_has_commits for condition evaluation (same logic as blocking.py)
+    task_has_commits = False
+    if action_executor.task_manager and state:
+        claimed_task_id = state.variables.get("claimed_task_id")
+        if claimed_task_id:
+            try:
+                task = action_executor.task_manager.get_task(claimed_task_id)
+                task_has_commits = bool(task and task.commits)
+            except Exception:
+                pass
 
     for trigger in triggers:
         # Check 'when' condition if present
@@ -231,6 +267,7 @@ async def evaluate_workflow_triggers(
                 "handoff": context_data,
                 "variables": state.variables,
                 "session": session,
+                "task_has_commits": task_has_commits,
             }
             eval_ctx.update(context_data)
             eval_result = evaluator.evaluate(when_condition, eval_ctx)
@@ -378,7 +415,6 @@ async def evaluate_lifecycle_triggers(
 
     # Create a temporary/ephemeral context for execution
     # Create a dummy state for context - lifecycle workflows shouldn't depend on step state
-    # but actions might need access to 'state.artifacts' or similar if provided
     session_id = event.metadata.get("_platform_session_id") or "global"
 
     state = WorkflowState(
@@ -388,7 +424,6 @@ async def evaluate_lifecycle_triggers(
         step_entered_at=datetime.now(UTC),
         step_action_count=0,
         total_action_count=0,
-        artifacts=event.data.get("artifacts", {}),  # Pass artifacts if available
         observations=[],
         reflection_pending=False,
         context_injected=False,
@@ -424,6 +459,17 @@ async def evaluate_lifecycle_triggers(
     if action_executor.session_manager:
         session = action_executor.session_manager.get(session_id)
 
+    # Compute task_has_commits for condition evaluation (same logic as blocking.py)
+    task_has_commits = False
+    if action_executor.task_manager and state:
+        claimed_task_id = state.variables.get("claimed_task_id")
+        if claimed_task_id:
+            try:
+                task = action_executor.task_manager.get_task(claimed_task_id)
+                task_has_commits = bool(task and task.commits)
+            except Exception:
+                pass
+
     for trigger in triggers:
         # Check 'when' condition if present
         when_condition = trigger.get("when")
@@ -434,6 +480,7 @@ async def evaluate_lifecycle_triggers(
                 "handoff": context_data or {},
                 "variables": state.variables,
                 "session": session,
+                "task_has_commits": task_has_commits,
             }
             if context_data:
                 eval_ctx.update(context_data)
@@ -488,36 +535,15 @@ async def evaluate_lifecycle_triggers(
     )
 
 
-def _detect_and_persist(
-    session_id: str,
-    event: HookEvent,
-    state_manager: "WorkflowStateManager",
-    detect_fns: list[Any],
-    persist_fn: Any,
-) -> None:
-    """Run detection functions and persist any state changes."""
-    existing = state_manager.get_state(session_id)
-    state_was_created = existing is None
-    state = existing or WorkflowState(
-        session_id=session_id,
-        workflow_name="__lifecycle__",
-        step="",
-    )
-    vars_snapshot = copy.deepcopy(state.variables) if not state_was_created else None
-    for fn in detect_fns:
-        fn(event, state)
-    persist_fn(session_id, state, state_was_created, vars_snapshot, state_manager)
-
-
 async def evaluate_all_lifecycle_workflows(
     event: HookEvent,
     loader: "WorkflowLoader",
     state_manager: "WorkflowStateManager",
     action_executor: "ActionExecutor",
     evaluator: "ConditionEvaluator",
-    detect_task_claim_fn: Any,
     check_premature_stop_fn: Any,
     context_data: dict[str, Any] | None = None,
+    observer_engine: "ObserverEngine | None" = None,
 ) -> HookResponse:
     """
     Discover and evaluate all lifecycle workflows for the given event.
@@ -531,9 +557,9 @@ async def evaluate_all_lifecycle_workflows(
         state_manager: Workflow state manager
         action_executor: Action executor for running actions
         evaluator: Condition evaluator
-        detect_task_claim_fn: Function to detect task claims
         check_premature_stop_fn: Async function to check premature stop
         context_data: Optional context data passed between actions
+        observer_engine: Optional ObserverEngine for evaluating YAML/behavior observers
 
     Returns:
         Merged HookResponse with combined context and first non-allow decision.
@@ -670,17 +696,41 @@ async def evaluate_all_lifecycle_workflows(
 
         logger.debug(f"Triggers fired in iteration {iteration + 1}, continuing")
 
-    # Detect task claims for AFTER_TOOL events (session-scoped enforcement)
-    # This enables require_task_before_edit to work with lifecycle workflows
-    if event.event_type == HookEventType.AFTER_TOOL:
-        session_id = event.metadata.get("_platform_session_id")
-        if session_id:
-            _detect_and_persist(
-                session_id,
-                event,
-                state_manager,
-                [detect_task_claim_fn],
-                _persist_state_changes,
+    # Evaluate observers for all lifecycle workflows
+    if observer_engine is not None:
+        event_type_str = event.event_type.name.lower()
+        for discovered in workflows:
+            workflow = discovered.definition
+            if not isinstance(workflow, WorkflowDefinition):
+                continue
+            if not workflow.observers:
+                continue
+
+            obs_session_id = event.metadata.get("_platform_session_id")
+            if not obs_session_id:
+                continue
+
+            existing_state = state_manager.get_state(obs_session_id)
+            state_was_created = existing_state is None
+            state = existing_state or WorkflowState(
+                session_id=obs_session_id,
+                workflow_name=workflow.name,
+                step="global",
+            )
+            vars_snapshot = copy.deepcopy(state.variables) if not state_was_created else None
+
+            await observer_engine.evaluate_observers(
+                observers=workflow.observers,
+                event_type=event_type_str,
+                event_data=event.data or {},
+                state=state,
+                event=event,
+                task_manager=getattr(action_executor, "task_manager", None),
+                session_task_manager=getattr(action_executor, "session_task_manager", None),
+            )
+
+            _persist_state_changes(
+                obs_session_id, state, state_was_created, vars_snapshot, state_manager
             )
 
     # Check for premature stop in active step workflows on STOP events

@@ -69,12 +69,6 @@ src/gobby/
 | `.gobby/project.json` | Project metadata |
 | `.gobby/tasks.jsonl` | Task sync file |
 
-## MCP Tool Discovery
-
-Gobby uses progressive disclosure for MCP tools. Use `list_mcp_servers()` to discover available servers, then `list_tools(server_name="...")` for lightweight metadata, and `get_tool_schema(server_name, tool_name)` only when you need the full schema.
-
-**Never load all schemas upfront** - it wastes your context window.
-
 ## Task Management
 
 Before using Edit, Write, or NotebookEdit tools, create or claim a task:

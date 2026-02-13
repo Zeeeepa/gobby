@@ -46,6 +46,8 @@ def create_crud_registry(ctx: RegistryContext) -> InternalToolRegistry:
         validation_criteria: str | None = None,
         claim: bool = False,
         project: str | None = None,
+        start_date: str | None = None,
+        due_date: str | None = None,
     ) -> dict[str, Any]:
         """Create a single task in the current project.
 
@@ -119,6 +121,17 @@ def create_crud_registry(ctx: RegistryContext) -> InternalToolRegistry:
         )
 
         task = ctx.task_manager.get_task(create_result["task"]["id"])
+
+        # Set scheduling fields if provided (post-create update)
+        schedule_kwargs: dict[str, Any] = {}
+        if start_date is not None:
+            schedule_kwargs["start_date"] = start_date
+        if due_date is not None:
+            schedule_kwargs["due_date"] = due_date
+        if schedule_kwargs:
+            updated = ctx.task_manager.update_task(task.id, **schedule_kwargs)
+            if updated:
+                task = updated
 
         # Link task to session (best-effort) - tracks which session created the task
         try:
@@ -275,6 +288,16 @@ def create_crud_registry(ctx: RegistryContext) -> InternalToolRegistry:
                     "description": "Target project name or UUID (e.g., '_personal'). Defaults to current project context.",
                     "default": None,
                 },
+                "start_date": {
+                    "type": "string",
+                    "description": "Planned start date (ISO 8601, e.g. '2025-03-01'). Optional.",
+                    "default": None,
+                },
+                "due_date": {
+                    "type": "string",
+                    "description": "Expected completion date (ISO 8601, e.g. '2025-03-15'). Optional.",
+                    "default": None,
+                },
             },
             "required": ["title", "session_id"],
         },
@@ -338,6 +361,8 @@ def create_crud_registry(ctx: RegistryContext) -> InternalToolRegistry:
         workflow_name: str | None = None,
         verification: str | None = None,
         sequence_order: int | None = None,
+        start_date: str | None = None,
+        due_date: str | None = None,
     ) -> dict[str, Any]:
         """Update task fields."""
         # Resolve task reference (supports #N, path, UUID formats)
@@ -374,18 +399,18 @@ def create_crud_registry(ctx: RegistryContext) -> InternalToolRegistry:
                 "Use reopen_task(task_id, reason='...') to properly reopen tasks with metadata cleanup."
             }
 
-        # Block needs_review status via update_task - must use mark_task_for_review for proper workflow
+        # Block needs_review status via update_task - must use mark_task_needs_review for proper workflow
         if status is not None and status.lower() in ("review", "needs_review"):
             return {
                 "error": "Cannot set status to 'needs_review' via update_task. "
-                "Use mark_task_for_review(task_id, session_id='...') to properly route tasks for review."
+                "Use mark_task_needs_review(task_id, session_id='...') to properly route tasks for review."
             }
 
-        # Block approved status via update_task - must use approve_task for proper workflow
-        if status is not None and status.lower() == "approved":
+        # Block review_approved status via update_task - must use mark_task_review_approved for proper workflow
+        if status is not None and status.lower() in ("approved", "review_approved"):
             return {
-                "error": "Cannot set status to 'approved' via update_task. "
-                "Use approve_task(task_id, session_id='...') to properly approve tasks after QA review."
+                "error": "Cannot set status to 'review_approved' via update_task. "
+                "Use mark_task_review_approved(task_id, session_id='...') to properly approve tasks after QA review."
             }
 
         # Build kwargs only for non-None values to avoid overwriting with NULL
@@ -420,6 +445,10 @@ def create_crud_registry(ctx: RegistryContext) -> InternalToolRegistry:
             kwargs["verification"] = verification
         if sequence_order is not None:
             kwargs["sequence_order"] = sequence_order
+        if start_date is not None:
+            kwargs["start_date"] = start_date
+        if due_date is not None:
+            kwargs["due_date"] = due_date
 
         task = ctx.task_manager.update_task(resolved_id, **kwargs)
         if not task:
@@ -444,7 +473,7 @@ def create_crud_registry(ctx: RegistryContext) -> InternalToolRegistry:
                 },
                 "status": {
                     "type": "string",
-                    "description": "BLOCKED: Use claim_task (in_progress), close_task (closed), reopen_task (open), or mark_task_for_review (needs_review) instead.",
+                    "description": "BLOCKED: Use claim_task (in_progress), close_task (closed), reopen_task (open), or mark_task_needs_review (needs_review) instead.",
                     "default": None,
                 },
                 "priority": {"type": "integer", "description": "New priority", "default": None},
@@ -484,6 +513,16 @@ def create_crud_registry(ctx: RegistryContext) -> InternalToolRegistry:
                 "sequence_order": {
                     "type": "integer",
                     "description": "Order in a sequence of tasks",
+                    "default": None,
+                },
+                "start_date": {
+                    "type": "string",
+                    "description": "Planned start date (ISO 8601, e.g. '2025-03-01'). Optional.",
+                    "default": None,
+                },
+                "due_date": {
+                    "type": "string",
+                    "description": "Expected completion date (ISO 8601, e.g. '2025-03-15'). Optional.",
                     "default": None,
                 },
             },

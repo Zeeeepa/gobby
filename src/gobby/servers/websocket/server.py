@@ -169,7 +169,7 @@ class WebSocketServer(VoiceMixin, TmuxMixin, ChatMixin, HandlerMixin, AuthMixin,
                     await self._send_error(websocket, "Internal server error")
 
         except ConnectionClosedError as e:
-            logger.warning(f"Client {client_id} connection error: {e}")
+            logger.debug(f"Client {client_id} connection closed abnormally: {e}")
 
         except ConnectionClosed:
             logger.debug(f"Client {client_id} disconnected normally")

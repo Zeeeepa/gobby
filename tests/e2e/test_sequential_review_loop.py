@@ -629,10 +629,10 @@ class TestReviewStepE2E:
         result = unwrap_result(raw_result)
         task_id = result["id"]
 
-        # Set to needs_review status via mark_task_for_review
+        # Set to needs_review status via mark_task_needs_review
         mcp_client.call_tool(
             server_name="gobby-tasks",
-            tool_name="mark_task_for_review",
+            tool_name="mark_task_needs_review",
             arguments={"task_id": task_id, "session_id": session_id},
         )
 

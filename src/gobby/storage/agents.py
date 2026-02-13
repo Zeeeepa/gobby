@@ -311,6 +311,42 @@ class LocalAgentRunManager:
             )
         return [AgentRun.from_row(row) for row in rows]
 
+    def list_by_status(
+        self,
+        status: str | None = None,
+        limit: int = 100,
+    ) -> list[AgentRun]:
+        """
+        List agent runs, optionally filtered by status.
+
+        Args:
+            status: Optional status filter.
+            limit: Maximum number of results.
+
+        Returns:
+            List of AgentRun objects.
+        """
+        if status:
+            rows = self.db.fetchall(
+                """
+                SELECT * FROM agent_runs
+                WHERE status = ?
+                ORDER BY created_at DESC
+                LIMIT ?
+                """,
+                (status, limit),
+            )
+        else:
+            rows = self.db.fetchall(
+                """
+                SELECT * FROM agent_runs
+                ORDER BY created_at DESC
+                LIMIT ?
+                """,
+                (limit,),
+            )
+        return [AgentRun.from_row(row) for row in rows]
+
     def list_running(self, limit: int = 100) -> list[AgentRun]:
         """List all currently running agent runs."""
         rows = self.db.fetchall(

@@ -612,7 +612,9 @@ class TestInstallProviderHooks:
 
     def test_claude_hooks_success(self, tmp_path) -> None:
         """Test Claude hooks installation success."""
-        with patch("gobby.cli.installers.claude.install_claude") as mock_install:
+        from gobby.cli.installers import claude as claude_mod
+
+        with patch.object(claude_mod, "install_claude") as mock_install:
             mock_install.return_value = {"success": True}
             result = _install_provider_hooks("claude", tmp_path)
             assert result is True
@@ -620,38 +622,61 @@ class TestInstallProviderHooks:
 
     def test_claude_hooks_failure(self, tmp_path, caplog) -> None:
         """Test Claude hooks installation failure."""
-        with patch("gobby.cli.installers.claude.install_claude") as mock_install:
+        from gobby.cli.installers import claude as claude_mod
+
+        with patch.object(claude_mod, "install_claude") as mock_install:
             mock_install.return_value = {"success": False, "error": "Install failed"}
             result = _install_provider_hooks("claude", tmp_path)
             assert result is False
+            assert "Install failed" in caplog.text
 
     def test_gemini_hooks_success(self, tmp_path) -> None:
         """Test Gemini hooks installation success."""
-        with patch("gobby.cli.installers.gemini.install_gemini") as mock_install:
+        from gobby.cli.installers import gemini as gemini_mod
+
+        with patch.object(gemini_mod, "install_gemini") as mock_install:
             mock_install.return_value = {"success": True}
             result = _install_provider_hooks("gemini", tmp_path)
             assert result is True
 
-    def test_gemini_hooks_failure(self, tmp_path) -> None:
+    def test_gemini_hooks_failure(self, tmp_path, caplog) -> None:
         """Test Gemini hooks installation failure."""
-        with patch("gobby.cli.installers.gemini.install_gemini") as mock_install:
+        from gobby.cli.installers import gemini as gemini_mod
+
+        with patch.object(gemini_mod, "install_gemini") as mock_install:
             mock_install.return_value = {"success": False, "error": "Failed"}
             result = _install_provider_hooks("gemini", tmp_path)
             assert result is False
+            assert "Failed" in caplog.text
 
     def test_antigravity_hooks_success(self, tmp_path) -> None:
         """Test Antigravity hooks installation success."""
-        with patch("gobby.cli.installers.antigravity.install_antigravity") as mock_install:
+        from gobby.cli.installers import antigravity as antigravity_mod
+
+        with patch.object(antigravity_mod, "install_antigravity") as mock_install:
             mock_install.return_value = {"success": True}
             result = _install_provider_hooks("antigravity", tmp_path)
             assert result is True
 
+    def test_antigravity_hooks_failure(self, tmp_path, caplog) -> None:
+        """Test Antigravity hooks installation failure."""
+        from gobby.cli.installers import antigravity as antigravity_mod
+
+        with patch.object(antigravity_mod, "install_antigravity") as mock_install:
+            mock_install.return_value = {"success": False, "error": "Install failed"}
+            result = _install_provider_hooks("antigravity", tmp_path)
+            assert result is False
+            assert "Install failed" in caplog.text
+
     def test_hooks_install_exception(self, tmp_path, caplog) -> None:
         """Test hooks installation handles exceptions."""
-        with patch("gobby.cli.installers.claude.install_claude") as mock_install:
+        from gobby.cli.installers import claude as claude_mod
+
+        with patch.object(claude_mod, "install_claude") as mock_install:
             mock_install.side_effect = Exception("Import error")
             result = _install_provider_hooks("claude", tmp_path)
             assert result is False
+            assert "Import error" in caplog.text
 
 
 # ========== Additional tool tests for coverage ==========

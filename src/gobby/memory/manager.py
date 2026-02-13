@@ -37,10 +37,12 @@ class MemoryManager:
         db: DatabaseProtocol,
         config: MemoryConfig,
         llm_service: LLMService | None = None,
+        embedding_api_key: str | None = None,
     ):
         self.db = db
         self.config = config
         self._llm_service = llm_service
+        self._embedding_api_key = embedding_api_key
 
         # Primary storage layer — always SQLite via LocalMemoryManager
         self.storage = LocalMemoryManager(db)
@@ -69,6 +71,7 @@ class MemoryManager:
             self._mem0_client: Mem0Client | None = Mem0Client(
                 base_url=config.mem0_url,
                 api_key=config.mem0_api_key,
+                timeout=config.mem0_timeout,
             )
         else:
             self._mem0_client = None
@@ -143,7 +146,9 @@ class MemoryManager:
         Failures are logged but never propagated — CRUD operations must not
         be blocked by embedding generation errors.
         """
-        if not is_embedding_available(model=self.config.embedding_model):
+        if not is_embedding_available(
+            model=self.config.embedding_model, api_key=self._embedding_api_key
+        ):
             return
 
         try:
@@ -176,7 +181,9 @@ class MemoryManager:
         self, memory_id: str, content: str, project_id: str | None
     ) -> None:
         """Generate and store an embedding for a memory (async, non-blocking)."""
-        if not is_embedding_available(model=self.config.embedding_model):
+        if not is_embedding_available(
+            model=self.config.embedding_model, api_key=self._embedding_api_key
+        ):
             return
 
         try:
@@ -198,7 +205,9 @@ class MemoryManager:
         Returns:
             Dict with success status, total_memories, embeddings_generated.
         """
-        if not is_embedding_available(model=self.config.embedding_model):
+        if not is_embedding_available(
+            model=self.config.embedding_model, api_key=self._embedding_api_key
+        ):
             return {
                 "success": False,
                 "error": "Embedding unavailable — no API key configured",

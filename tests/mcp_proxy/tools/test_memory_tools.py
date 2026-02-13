@@ -149,19 +149,53 @@ class TestCreateMemory:
 
     @pytest.mark.asyncio
     async def test_create_memory_with_session_id(self, memory_registry, mock_memory_manager):
-        """Test memory creation passes source_session_id."""
+        """Test memory creation resolves and passes source_session_id."""
         mock_memory_manager.recall.return_value = []
+        resolved_uuid = "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee"
 
-        with patch(
-            "gobby.utils.project_context.get_project_context", return_value={"id": "proj-1"}
+        with (
+            patch(
+                "gobby.utils.project_context.get_project_context",
+                return_value={"id": "proj-1"},
+            ),
+            patch(
+                "gobby.storage.session_resolution.resolve_session_reference",
+                return_value=resolved_uuid,
+            ) as mock_resolve,
         ):
             result = await memory_registry.call(
                 "create_memory", {"content": "Test", "session_id": "#42"}
             )
 
         assert result["success"] is True
+        mock_resolve.assert_called_once_with(mock_memory_manager.db, "#42", "proj-1")
         call_kwargs = mock_memory_manager.remember.call_args.kwargs
-        assert call_kwargs["source_session_id"] == "#42"
+        assert call_kwargs["source_session_id"] == resolved_uuid
+
+    @pytest.mark.asyncio
+    async def test_create_memory_session_resolution_failure(
+        self, memory_registry, mock_memory_manager
+    ):
+        """Test memory creation falls back to None when session resolution fails."""
+        mock_memory_manager.recall.return_value = []
+
+        with (
+            patch(
+                "gobby.utils.project_context.get_project_context",
+                return_value={"id": "proj-1"},
+            ),
+            patch(
+                "gobby.storage.session_resolution.resolve_session_reference",
+                side_effect=ValueError("Session not found"),
+            ),
+        ):
+            result = await memory_registry.call(
+                "create_memory", {"content": "Test", "session_id": "#999"}
+            )
+
+        assert result["success"] is True
+        call_kwargs = mock_memory_manager.remember.call_args.kwargs
+        assert call_kwargs["source_session_id"] is None
 
     @pytest.mark.asyncio
     async def test_create_memory_default_importance(self, memory_registry, mock_memory_manager):

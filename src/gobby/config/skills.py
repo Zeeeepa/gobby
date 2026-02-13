@@ -81,6 +81,13 @@ class SkillsConfig(BaseModel):
                 type="claude-plugins",
                 base_url="https://claude-plugins.dev",
             ),
+            "clawdhub": HubConfig(
+                type="clawdhub",
+            ),
+            "skillhub": HubConfig(
+                type="skillhub",
+                base_url="https://www.skillhub.club/api/v1",
+            ),
         },
         description="Configured skill hubs keyed by hub name",
     )

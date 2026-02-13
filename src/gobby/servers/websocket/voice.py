@@ -135,13 +135,21 @@ class VoiceMixin:
 
         stt = self._get_stt()
         if not stt:
+            voice_config = self._get_voice_config()
+            if not voice_config or not voice_config.enabled:
+                error_msg = "Voice is not enabled. Enable it in Settings > Voice."
+            else:
+                error_msg = (
+                    "Speech-to-text requires the faster-whisper package. "
+                    "Install it with: pip install faster-whisper"
+                )
             await websocket.send(
                 json.dumps(
                     {
                         "type": "voice_status",
                         "conversation_id": conversation_id,
                         "status": "error",
-                        "error": "STT not available (voice not enabled or faster-whisper not installed)",
+                        "error": error_msg,
                     }
                 )
             )

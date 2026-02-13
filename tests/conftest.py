@@ -12,6 +12,19 @@ from filelock import FileLock
 
 tracemalloc.start()
 
+
+def pytest_collection_modifyitems(items: list[pytest.Item]) -> None:
+    """Sort e2e tests to run last, reducing port collision risk with production daemon."""
+    non_e2e = []
+    e2e = []
+    for item in items:
+        if item.get_closest_marker("e2e") or "tests/e2e" in str(item.fspath):
+            e2e.append(item)
+        else:
+            non_e2e.append(item)
+    items[:] = non_e2e + e2e
+
+
 if TYPE_CHECKING:
     from gobby.config.app import DaemonConfig
     from gobby.storage.database import LocalDatabase
@@ -193,9 +206,11 @@ def protect_production_resources(
     safe_log_mcp_client = safe_logs_dir / "mcp-client.log"
 
     # Set environment variables as a first line of defense
+    safe_config_file = safe_logs_dir / "config-test.yaml"
     env_vars = {
         "GOBBY_TEST_PROTECT": "1",  # Enable safety switch in app.py and database.py
         "GOBBY_DATABASE_PATH": str(safe_db_path),
+        "GOBBY_CONFIG_FILE": str(safe_config_file),  # Redirect config reads/writes
         "GOBBY_LOGGING_CLIENT": str(safe_log_client),
         "GOBBY_LOGGING_CLIENT_ERROR": str(safe_log_error),
         "GOBBY_LOGGING_MCP_SERVER": str(safe_log_mcp_server),
@@ -255,7 +270,16 @@ def protect_production_resources(
             """Redirect save_config to safe temp path during tests."""
             assert _real_save_config is not None
             if config_file is None:
-                config_file = str(safe_logs_dir / "config-test.yaml")
+                config_file = str(safe_config_file)
+            else:
+                # Redirect production paths to safe location
+                resolved = Path(config_file).expanduser().resolve()
+                real_gobby_home = Path("~/.gobby").expanduser().resolve()
+                try:
+                    if resolved.is_relative_to(real_gobby_home):
+                        config_file = str(safe_config_file)
+                except (ValueError, OSError):
+                    pass
             _real_save_config(config, config_file=config_file)
 
         # 1. Standard patch for the definitions (covers future imports)

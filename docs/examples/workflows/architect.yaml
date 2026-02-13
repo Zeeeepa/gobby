@@ -68,18 +68,11 @@ steps:
       - Bash
       - NotebookEdit
 
-    exit_conditions:
-      - type: artifact_exists
-        pattern: "**/*.plan.md"
+    exit_when: "design_doc"
 
     transitions:
       - to: implement
         when: "user_says('implement') or user_says('ready to implement')"
-
-    on_exit:
-      - action: capture_artifact
-        pattern: "**/*.plan.md"
-        as: design_doc
 
   - name: implement
     description: "Implement the design"
@@ -87,8 +80,6 @@ steps:
     on_enter:
       - action: switch_mode
         mode: act
-      - action: inject_context
-        source: artifacts
       - action: inject_message
         content: |
           IMPLEMENTATION PHASE

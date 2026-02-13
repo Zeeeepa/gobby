@@ -97,16 +97,7 @@ class StateModifyingPlugin(HookPlugin):
     name = "state-modifier"
 
     def on_load(self, config: dict) -> None:
-        self.register_action("set_artifact", self._set_artifact)
         self.register_action("add_observation", self._add_observation)
-
-    async def _set_artifact(self, context: ActionContext, **kwargs) -> dict:
-        """Set an artifact in workflow state."""
-        name = kwargs.get("name", "test_artifact")
-        path = kwargs.get("path", "/test/path")
-        if context.state:
-            context.state.artifacts[name] = path
-        return {"artifact_set": name}
 
     async def _add_observation(self, context: ActionContext, **kwargs) -> dict:
         """Add an observation to workflow state."""
@@ -348,41 +339,6 @@ class TestPluginActionStateModification:
         )
 
         assert workflow_state.variables["counter"] == 2
-
-    @pytest.mark.asyncio
-    async def test_plugin_action_modifies_artifacts(
-        self, mock_db, mock_session_manager, mock_template_engine, workflow_state
-    ):
-        """Plugin action should be able to modify workflow artifacts."""
-        # Register state-modifier plugin
-        registry = PluginRegistry()
-        plugin = StateModifyingPlugin()
-        plugin.on_load({})
-        registry.register_plugin(plugin)
-
-        executor = ActionExecutor(
-            db=mock_db,
-            session_manager=mock_session_manager,
-            template_engine=mock_template_engine,
-        )
-        executor.register_plugin_actions(registry)
-
-        context = ActionContext(
-            session_id=workflow_state.session_id,
-            state=workflow_state,
-            db=mock_db,
-            session_manager=mock_session_manager,
-            template_engine=mock_template_engine,
-        )
-
-        await executor.execute(
-            "plugin:state-modifier:set_artifact",
-            context,
-            name="output_file",
-            path="/tmp/output.txt",
-        )
-
-        assert workflow_state.artifacts["output_file"] == "/tmp/output.txt"
 
     @pytest.mark.asyncio
     async def test_plugin_action_modifies_observations(

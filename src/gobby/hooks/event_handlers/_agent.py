@@ -72,13 +72,25 @@ class AgentEventHandlerMixin(EventHandlersBase):
         """Intercept /gobby and /gobby:skillname commands.
 
         Returns context string to inject, or None if not a /gobby command.
+        Supports both colon syntax (/gobby:expand) and space syntax (/gobby expand).
         """
         match = _GOBBY_CMD_PATTERN.match(prompt)
         if not match:
             return None
 
-        skill_name = match.group(1)  # None for bare /gobby
+        skill_name = match.group(1)  # None for bare /gobby or space syntax
         args = (match.group(2) or "").strip()
+
+        # Support space syntax: /gobby expand → treat first word of args as skill name
+        resolved = None
+        if not skill_name and args and self._skill_manager:
+            parts = args.split(None, 1)
+            first_word = parts[0]
+            if first_word.lower() != "help":
+                skill_name = first_word
+                resolved = self._skill_manager.resolve_skill_name(first_word)
+                if resolved:
+                    args = parts[1] if len(parts) > 1 else ""
 
         # /gobby or /gobby help → generate help
         if not skill_name or skill_name.lower() == "help":
@@ -87,7 +99,7 @@ class AgentEventHandlerMixin(EventHandlersBase):
         # /gobby:skillname → resolve and inject
         if self._skill_manager is None:
             raise RuntimeError("skill_manager not initialized")
-        skill = self._skill_manager.resolve_skill_name(skill_name)
+        skill = resolved if resolved else self._skill_manager.resolve_skill_name(skill_name)
 
         if not skill:
             return self._skill_not_found_context(skill_name)
@@ -120,10 +132,7 @@ class AgentEventHandlerMixin(EventHandlersBase):
             return None
 
         skill, score = matches[0]
-        return (
-            f"Relevant gobby skill: **{skill.name}** — {skill.description}. "
-            f'Load with get_skill(name="{skill.name}") on gobby-skills server.'
-        )
+        return f'Relevant skill available: `get_skill(name="{skill.name}")` on `gobby-skills`'
 
     def _generate_help_content(self) -> str:
         """Generate help content listing all available skills."""
@@ -151,7 +160,9 @@ class AgentEventHandlerMixin(EventHandlersBase):
         lines.extend(
             [
                 "",
-                "Run `list_mcp_servers()` for MCP tool discovery.",
+                "**MCP access**: `list_skills()` / `get_skill(name)` on `gobby-skills`.",
+                "**Hub search**: `search_hub(query)` on `gobby-skills`.",
+                "**MCP tools**: `list_mcp_servers()` for tool discovery.",
             ]
         )
 

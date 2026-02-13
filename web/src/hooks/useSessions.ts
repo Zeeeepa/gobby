@@ -23,7 +23,6 @@ export interface GobbySession {
   parent_session_id: string | null
   tasks_closed?: number
   memories_created?: number
-  artifacts_count?: number
   commit_count?: number
 }
 

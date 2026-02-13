@@ -33,8 +33,7 @@ steps:
       - NotebookEdit
 
     exit_conditions:
-      - type: user_approval
-        prompt: "Plan complete. Ready to implement?"
+      - approval: "Plan complete. Ready to implement?"
 
   - name: act
     description: "Implement the plan"

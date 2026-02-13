@@ -5,7 +5,7 @@ import type { GobbyTask, TaskStats } from '../../hooks/useTasks'
 // Constants
 // =============================================================================
 
-const COMPLETED_STATUSES = new Set(['closed', 'approved'])
+const COMPLETED_STATUSES = new Set(['closed'])
 const TWENTY_FOUR_HOURS_MS = 24 * 60 * 60 * 1000
 
 // =============================================================================
@@ -22,6 +22,7 @@ interface TaskOverviewProps {
 export function TaskOverview({ tasks, stats, activeFilter, onFilterStatus }: TaskOverviewProps) {
   const nowCount = stats['in_progress'] || 0
   const stuckCount = (stats['escalated'] || 0)
+  const reviewCount = (stats['needs_review'] || 0) + (stats['review_approved'] || 0)
   const recentlyCompleted = useMemo(() => {
     const cutoff = Date.now() - TWENTY_FOUR_HOURS_MS
     return tasks.filter(
@@ -38,6 +39,13 @@ export function TaskOverview({ tasks, stats, activeFilter, onFilterStatus }: Tas
       className: 'task-overview-card--now',
     },
     {
+      key: 'review',
+      label: 'In Review',
+      count: reviewCount,
+      filterStatus: 'in_review',
+      className: 'task-overview-card--review',
+    },
+    {
       key: 'stuck',
       label: 'Stuck',
       count: stuckCount,
@@ -48,7 +56,7 @@ export function TaskOverview({ tasks, stats, activeFilter, onFilterStatus }: Tas
       key: 'recent',
       label: 'Recently Done',
       count: recentlyCompleted,
-      filterStatus: 'closed,approved',
+      filterStatus: 'recently_done',
       className: 'task-overview-card--recent',
     },
   ]

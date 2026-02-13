@@ -106,6 +106,7 @@ export function ProjectsPage() {
         onSetActiveFile={files.setActiveFileIndex}
         getImageUrl={files.getImageUrl}
         onToggleEditing={files.toggleEditing}
+        onCancelEditing={files.cancelEditing}
         onUpdateEditContent={files.updateEditContent}
         onSaveFile={files.saveFile}
         onFetchDiff={files.fetchDiff}

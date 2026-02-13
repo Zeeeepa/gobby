@@ -7,8 +7,10 @@ configuration hierarchy (CLI > YAML > Defaults), and validation.
 
 from __future__ import annotations
 
+import logging
 import os
 import re
+from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
@@ -32,7 +34,6 @@ from gobby.config.persistence import MemoryConfig, MemorySyncConfig
 from gobby.config.search import SearchConfig
 from gobby.config.servers import MCPClientProxyConfig, WebSocketSettings
 from gobby.config.sessions import (
-    ArtifactHandoffConfig,
     ContextInjectionConfig,
     MessageTrackingConfig,
     SessionLifecycleConfig,
@@ -51,7 +52,7 @@ class UIConfig(BaseModel):
 
     enabled: bool = Field(default=False, description="Enable web UI serving")
     mode: str = Field(default="production", description="'production' or 'dev'")
-    port: int = Field(default=5173, description="Dev server port (dev mode only)")
+    port: int = Field(default=60889, description="Dev server port (dev mode only)")
     host: str = Field(default="localhost", description="Dev server host (dev mode only)")
     web_dir: str | None = Field(
         default=None, description="Path to web/ dir (auto-detected if None)"
@@ -77,6 +78,7 @@ __all__ = [
     # Local definitions only - no re-exports
     "ConductorConfig",
     "DaemonConfig",
+    "deep_merge",
     "expand_env_vars",
     "load_yaml",
     "apply_cli_overrides",
@@ -85,10 +87,16 @@ __all__ = [
     "save_config",
 ]
 
+logger = logging.getLogger(__name__)
+
 # Pattern for environment variable substitution:
 # ${VAR} - simple substitution
 # ${VAR:-default} - with default value if VAR is unset or empty
 ENV_VAR_PATTERN = re.compile(r"\$\{([A-Za-z_][A-Za-z0-9_]*)(?::-([^}]*))?\}")
+
+# Pattern for secret references (secrets-store-only, no env fallback):
+# $secret:NAME - resolved from encrypted secrets store
+SECRET_REF_PATTERN = re.compile(r"\$secret:([A-Za-z_][A-Za-z0-9_]*)")
 
 
 class ConductorConfig(BaseModel):
@@ -122,36 +130,76 @@ class ConductorConfig(BaseModel):
     )
 
 
-def expand_env_vars(content: str) -> str:
+def expand_env_vars(
+    content: str,
+    secret_resolver: Callable[[str], str | None] | None = None,
+) -> str:
     """
-    Expand environment variables in configuration content.
+    Expand variable references in configuration content.
 
-    Supports two syntaxes:
-    - ${VAR} - replaced with the value of VAR, or left unchanged if unset
-    - ${VAR:-default} - replaced with VAR's value, or 'default' if unset/empty
+    Supports three syntaxes:
+    - $secret:NAME — resolved exclusively from encrypted secrets store
+    - ${VAR} — secrets store first (if resolver provided), then env var
+    - ${VAR:-default} — same as above, with fallback default
 
     Args:
         content: Configuration file content as string
+        secret_resolver: Optional callable that takes a variable name and returns
+            the decrypted secret value, or None if not found.
 
     Returns:
-        Content with environment variables expanded
+        Content with variables expanded
     """
 
-    def replace_match(match: re.Match[str]) -> str:
+    # Pass 1: Resolve $secret:NAME references (secrets-store-only)
+    if secret_resolver is not None:
+
+        def replace_secret(match: re.Match[str]) -> str:
+            name = match.group(1)
+            try:
+                value = secret_resolver(name)
+                if value is not None:
+                    return value
+            except Exception as e:
+                logger.debug(f"Secret resolver failed for '$secret:{name}': {e}")
+            logger.warning(
+                f"Unresolved secret '$secret:{name}' in config — not found in secrets store"
+            )
+            return match.group(0)
+
+        content = SECRET_REF_PATTERN.sub(replace_secret, content)
+
+    # Pass 2: Resolve ${VAR} references (secrets first, then env vars)
+    def replace_env(match: re.Match[str]) -> str:
         var_name = match.group(1)
         default_value = match.group(2)  # None if no default specified
 
-        env_value = os.environ.get(var_name)
+        # 1. Try secret store first
+        if secret_resolver is not None:
+            try:
+                secret_value = secret_resolver(var_name)
+                if secret_value is not None and secret_value != "":
+                    return secret_value
+            except Exception as e:
+                logger.debug(f"Secret resolver failed for '{var_name}': {e}")
 
+        # 2. Try environment variable
+        env_value = os.environ.get(var_name)
         if env_value is not None and env_value != "":
             return env_value
-        elif default_value is not None:
-            return default_value
-        else:
-            # Leave unchanged if no value and no default
-            return match.group(0)
 
-    return ENV_VAR_PATTERN.sub(replace_match, content)
+        # 3. Use default if provided
+        if default_value is not None:
+            return default_value
+
+        # 4. Unresolved — warn and leave unchanged
+        logger.warning(
+            f"Unresolved variable '${{{var_name}}}' in config "
+            f"— not found in secrets store or environment"
+        )
+        return match.group(0)
+
+    return ENV_VAR_PATTERN.sub(replace_env, content)
 
 
 class DaemonConfig(BaseModel):
@@ -212,10 +260,6 @@ class DaemonConfig(BaseModel):
     context_injection: ContextInjectionConfig = Field(
         default_factory=ContextInjectionConfig,
         description="Context injection configuration for subagent spawning",
-    )
-    artifact_handoff: ArtifactHandoffConfig = Field(
-        default_factory=ArtifactHandoffConfig,
-        description="Artifact inclusion in handoff context configuration",
     )
     mcp_client_proxy: MCPClientProxyConfig = Field(
         default_factory=MCPClientProxyConfig,
@@ -383,12 +427,16 @@ class DaemonConfig(BaseModel):
         return v
 
 
-def load_yaml(config_file: str) -> dict[str, Any]:
+def load_yaml(
+    config_file: str,
+    secret_resolver: Callable[[str], str | None] | None = None,
+) -> dict[str, Any]:
     """
     Load YAML or JSON configuration file.
 
     Args:
         config_file: Path to YAML or JSON configuration file
+        secret_resolver: Optional callable for resolving secrets (checked before env vars)
 
     Returns:
         Dictionary with parsed YAML/JSON content
@@ -415,8 +463,8 @@ def load_yaml(config_file: str) -> dict[str, Any]:
         with open(config_path) as f:
             content = f.read()
 
-        # Expand environment variables before parsing
-        content = expand_env_vars(content)
+        # Expand variables (secrets first if resolver provided, then env vars)
+        content = expand_env_vars(content, secret_resolver=secret_resolver)
 
         # Handle JSON files
         if file_ext == ".json":
@@ -472,8 +520,24 @@ def generate_default_config(config_file: str) -> None:
 
     Args:
         config_file: Path where to create the config file
+
+    Raises:
+        RuntimeError: If called with production path during tests (GOBBY_TEST_PROTECT=1)
     """
     config_path = Path(config_file).expanduser()
+
+    # Block writes to production config during tests
+    if os.environ.get("GOBBY_TEST_PROTECT") == "1":
+        real_gobby_home = Path("~/.gobby").expanduser().resolve()
+        try:
+            if config_path.resolve().is_relative_to(real_gobby_home):
+                raise RuntimeError(
+                    f"generate_default_config() would write to production path "
+                    f"{config_path} during tests."
+                )
+        except (ValueError, OSError):
+            pass
+
     config_path.parent.mkdir(parents=True, exist_ok=True)
 
     # Use Pydantic model defaults as source of truth
@@ -487,18 +551,59 @@ def generate_default_config(config_file: str) -> None:
     config_path.chmod(0o600)
 
 
+def deep_merge(base: dict[str, Any], updates: dict[str, Any]) -> None:
+    """Deep-merge updates into base dict (in-place)."""
+    for key, value in updates.items():
+        if key in base and isinstance(base[key], dict) and isinstance(value, dict):
+            deep_merge(base[key], value)
+        else:
+            base[key] = value
+
+
+def _resolve_config_values(
+    d: dict[str, Any],
+    secret_resolver: Callable[[str], str | None] | None = None,
+) -> dict[str, Any]:
+    """Walk a config dict and resolve $secret:NAME / ${VAR} patterns in string values."""
+    result: dict[str, Any] = {}
+    for key, value in d.items():
+        if isinstance(value, dict):
+            result[key] = _resolve_config_values(value, secret_resolver)
+        elif isinstance(value, list):
+            result[key] = [
+                expand_env_vars(item, secret_resolver=secret_resolver)
+                if isinstance(item, str)
+                else _resolve_config_values(item, secret_resolver)
+                if isinstance(item, dict)
+                else item
+                for item in value
+            ]
+        elif isinstance(value, str):
+            result[key] = expand_env_vars(value, secret_resolver=secret_resolver)
+        else:
+            result[key] = value
+    return result
+
+
 def load_config(
     config_file: str | None = None,
     cli_overrides: dict[str, Any] | None = None,
     create_default: bool = False,
+    secret_resolver: Callable[[str], str | None] | None = None,
+    config_store: Any | None = None,
 ) -> DaemonConfig:
     """
-    Load configuration with hierarchy: CLI > YAML > Defaults.
+    Load configuration with hierarchy: CLI > DB/YAML > Defaults.
+
+    When config_store is provided (Phase 2), config is loaded from the database.
+    Otherwise falls back to YAML (Phase 1 bootstrap for database_path).
 
     Args:
         config_file: Path to YAML config file (default: ~/.gobby/config.yaml)
         cli_overrides: Dictionary of CLI argument overrides
         create_default: Create default config file if it doesn't exist
+        secret_resolver: Optional callable for resolving secrets (checked before env vars)
+        config_store: Optional ConfigStore instance for DB-first resolution
 
     Returns:
         Validated DaemonConfig instance
@@ -506,17 +611,41 @@ def load_config(
     Raises:
         ValueError: If configuration is invalid or required fields are missing
     """
-    if config_file is None:
-        config_file = "~/.gobby/config.yaml"
+    if config_store is not None:
+        # Phase 2: DB-first resolution
+        from gobby.storage.config_store import unflatten_config
 
-    config_path = Path(config_file).expanduser()
+        flat_db = config_store.get_all()
+        if flat_db:
+            config_dict = unflatten_config(flat_db)
+            # Resolve $secret:NAME and ${VAR} patterns in stored values
+            if secret_resolver is not None or any(
+                isinstance(v, str) and ("$secret:" in v or "${" in v) for v in flat_db.values()
+            ):
+                config_dict = _resolve_config_values(config_dict, secret_resolver)
+        else:
+            # DB config_store is empty — fall back to YAML so we don't
+            # lose settings from the config file (e.g. daemon_port, database_path).
+            if config_file is None:
+                config_file = "~/.gobby/config.yaml"
+            config_path_fb = Path(config_file).expanduser()
+            if config_path_fb.exists():
+                config_dict = load_yaml(config_file, secret_resolver=secret_resolver)
+            else:
+                config_dict = {}
+    else:
+        # Phase 1: YAML bootstrap (for database_path)
+        if config_file is None:
+            config_file = "~/.gobby/config.yaml"
 
-    # Create default config if requested and file doesn't exist
-    if create_default and not config_path.exists():
-        generate_default_config(config_file)
+        config_path = Path(config_file).expanduser()
 
-    # Load YAML configuration
-    config_dict = load_yaml(config_file)
+        # Create default config if requested and file doesn't exist
+        if create_default and not config_path.exists():
+            generate_default_config(config_file)
+
+        # Load YAML configuration
+        config_dict = load_yaml(config_file, secret_resolver=secret_resolver)
 
     # Apply CLI argument overrides
     config_dict = apply_cli_overrides(config_dict, cli_overrides)
@@ -544,9 +673,10 @@ def load_config(
         config = DaemonConfig(**config_dict)
         return config
     except Exception as e:
+        source = "database" if config_store is not None else (config_file or "~/.gobby/config.yaml")
         raise ValueError(
             f"Configuration validation failed: {e}\n"
-            f"Please check your configuration file at {config_file}"
+            f"Please check your configuration source: {source}"
         ) from e
 
 
@@ -560,17 +690,23 @@ def save_config(config: DaemonConfig, config_file: str | None = None) -> None:
 
     Raises:
         OSError: If file operations fail
-        RuntimeError: If called with default path during tests (GOBBY_TEST_PROTECT=1)
+        RuntimeError: If called with production path during tests (GOBBY_TEST_PROTECT=1)
     """
     if config_file is None:
-        if os.environ.get("GOBBY_TEST_PROTECT") == "1":
-            raise RuntimeError(
-                "save_config() called with default path during tests. "
-                "Pass an explicit config_file path or mock save_config."
-            )
         config_file = "~/.gobby/config.yaml"
 
     config_path = Path(config_file).expanduser()
+
+    # Block writes to production config during tests
+    if os.environ.get("GOBBY_TEST_PROTECT") == "1":
+        real_gobby_home = Path("~/.gobby").expanduser().resolve()
+        try:
+            if config_path.resolve().is_relative_to(real_gobby_home):
+                raise RuntimeError(
+                    f"save_config() would write to production path {config_path} during tests."
+                )
+        except (ValueError, OSError):
+            pass
 
     # Ensure directory exists
     config_path.parent.mkdir(parents=True, exist_ok=True)

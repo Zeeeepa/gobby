@@ -163,8 +163,6 @@ class HookManager:
         self._task_manager = components.task_manager
         self._agent_run_manager = components.agent_run_manager
         self._worktree_manager = components.worktree_manager
-        self._artifact_manager = components.artifact_manager
-        self._artifact_capture_hook = components.artifact_capture_hook
         self._stop_registry = components.stop_registry
         self._progress_tracker = components.progress_tracker
         self._stuck_detector = components.stuck_detector

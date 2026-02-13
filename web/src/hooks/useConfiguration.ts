@@ -32,9 +32,8 @@ export interface PromptDetail {
 }
 
 export interface ConfigExportBundle {
-  version: number
   exported_at: string
-  config: Record<string, unknown>
+  config_store: Record<string, unknown>
   prompts: Record<string, string>
   secrets: SecretInfo[]
 }
@@ -49,8 +48,8 @@ export function useConfiguration() {
   const [configValues, setConfigValues] = useState<Record<string, unknown>>({})
   const [isLoading, setIsLoading] = useState(false)
 
-  // Raw YAML
-  const [yamlContent, setYamlContent] = useState('')
+  // Template (full defaults + DB overrides as YAML)
+  const [templateContent, setTemplateContent] = useState('')
 
   // Secrets
   const [secrets, setSecrets] = useState<SecretInfo[]>([])
@@ -136,24 +135,24 @@ export function useConfiguration() {
   }, [])
 
   // =========================================================================
-  // Raw YAML
+  // Template (full defaults + DB overrides as YAML)
   // =========================================================================
 
-  const fetchYaml = useCallback(async () => {
+  const fetchTemplate = useCallback(async () => {
     try {
-      const res = await fetch('/api/config/yaml')
+      const res = await fetch('/api/config/template')
       if (res.ok) {
         const data = await res.json()
-        setYamlContent(data.content || '')
+        setTemplateContent(data.content || '')
       }
     } catch (e) {
-      console.error('Failed to fetch YAML:', e)
+      console.error('Failed to fetch template:', e)
     }
   }, [])
 
-  const saveYaml = useCallback(async (content: string): Promise<{ ok: boolean; errors?: string[] }> => {
+  const saveTemplate = useCallback(async (content: string): Promise<{ ok: boolean; errors?: string[] }> => {
     try {
-      const res = await fetch('/api/config/yaml', {
+      const res = await fetch('/api/config/template', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ content }),
@@ -293,7 +292,7 @@ export function useConfiguration() {
     return null
   }, [])
 
-  const importConfig = useCallback(async (bundle: { config?: Record<string, unknown>; prompts?: Record<string, string> }): Promise<{ success: boolean; summary: string }> => {
+  const importConfig = useCallback(async (bundle: { config_store?: Record<string, unknown>; config?: Record<string, unknown>; prompts?: Record<string, string> }): Promise<{ success: boolean; summary: string }> => {
     try {
       const res = await fetch('/api/config/import', {
         method: 'POST',
@@ -317,10 +316,10 @@ export function useConfiguration() {
     validateConfig,
     resetToDefaults,
 
-    // Raw YAML
-    yamlContent,
-    fetchYaml,
-    saveYaml,
+    // Template (full defaults + DB overrides as YAML)
+    templateContent,
+    fetchTemplate,
+    saveTemplate,
 
     // Secrets
     secrets,

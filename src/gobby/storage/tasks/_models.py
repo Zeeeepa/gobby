@@ -85,7 +85,7 @@ class Task:
         "open",
         "in_progress",
         "needs_review",
-        "approved",
+        "review_approved",
         "closed",
         "escalated",
     ]
@@ -143,6 +143,9 @@ class Task:
     # Review status fields (HITL support)
     requires_user_review: bool = False  # Task requires user sign-off before closing
     accepted_by_user: bool = False  # Set True when user moves review → closed
+    # Scheduling fields (Gantt chart)
+    start_date: str | None = None
+    due_date: str | None = None
     # Dependency fields (populated on demand, not stored in tasks table)
     blocked_by: set[str] = field(default_factory=set)
 
@@ -230,6 +233,8 @@ class Task:
             accepted_by_user=(
                 bool(row["accepted_by_user"]) if "accepted_by_user" in keys else False
             ),
+            start_date=row["start_date"] if "start_date" in keys else None,
+            due_date=row["due_date"] if "due_date" in keys else None,
         )
 
     def to_dict(self) -> dict[str, Any]:
@@ -281,6 +286,8 @@ class Task:
             "expansion_status": self.expansion_status,
             "requires_user_review": self.requires_user_review,
             "accepted_by_user": self.accepted_by_user,
+            "start_date": self.start_date,
+            "due_date": self.due_date,
             "id": self.id,  # UUID at end for backwards compat
         }
 
@@ -314,5 +321,7 @@ class Task:
             "validation_fail_count": self.validation_fail_count,
             "escalated_at": self.escalated_at,
             "sequence_order": self.sequence_order,
+            "start_date": self.start_date,
+            "due_date": self.due_date,
             "id": self.id,  # UUID at end for backwards compat
         }

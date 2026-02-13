@@ -28,7 +28,7 @@ const STATUS_COLORS: Record<string, string> = {
   open: '#737373',
   in_progress: '#3b82f6',
   needs_review: '#f59e0b',
-  approved: '#22c55e',
+  review_approved: '#22c55e',
   closed: '#16a34a',
   escalated: '#f97316',
 }
@@ -85,10 +85,11 @@ function buildBars(tasks: GobbyTask[]): TaskBar[] {
   )
 
   return sorted.map((task, i) => {
-    const startDate = startOfDay(new Date(task.created_at))
-    const updatedDate = startOfDay(new Date(task.updated_at))
-    // If task has no duration (created == updated), show at least 1 day
-    const endDate = updatedDate > startDate ? updatedDate : addDays(startDate, 1)
+    const startDate = startOfDay(new Date(task.start_date ?? task.created_at))
+    const rawEnd = task.due_date ?? task.updated_at
+    const endDate_ = startOfDay(new Date(rawEnd))
+    // If task has no duration (start == end), show at least 1 day
+    const endDate = endDate_ > startDate ? endDate_ : addDays(startDate, 1)
     const isMilestone = task.type === 'epic'
 
     return { task, startDate, endDate, row: i, isMilestone }
@@ -381,7 +382,7 @@ export function GanttChart({ tasks, onSelectTask, onReschedule }: GanttChartProp
                   fill={color}
                   className={`gantt-bar ${isDragging ? 'gantt-bar--dragging' : ''}`}
                 />
-                {(bar.task.status === 'closed' || bar.task.status === 'approved') && (
+                {(bar.task.status === 'closed' || bar.task.status === 'review_approved') && (
                   <rect
                     x={x} y={y + 4} width={w} height={ROW_HEIGHT - 8}
                     rx={3} ry={3}

@@ -325,10 +325,24 @@ export function useFiles() {
     return `${baseUrl}/api/files/image?project_id=${encodeURIComponent(projectId)}&path=${encodeURIComponent(path)}`
   }, [baseUrl])
 
+  /** Toggle edit mode for a file tab. No-op when already editing with unsaved
+   *  changes — the user must explicitly save or cancel first. */
   const toggleEditing = useCallback((index: number) => {
     setOpenFiles(prev =>
+      prev.map((f, i) => {
+        if (i !== index) return f
+        if (f.editing && f.dirty) return f
+        return { ...f, editing: !f.editing, editContent: f.originalContent, dirty: false }
+      })
+    )
+  }, [])
+
+  const cancelEditing = useCallback((index: number) => {
+    setOpenFiles(prev =>
       prev.map((f, i) =>
-        i === index ? { ...f, editing: !f.editing, editContent: f.content } : f
+        i === index
+          ? { ...f, editing: false, editContent: f.originalContent, dirty: false }
+          : f
       )
     )
   }, [])
@@ -431,6 +445,7 @@ export function useFiles() {
     setActiveFileIndex,
     getImageUrl,
     toggleEditing,
+    cancelEditing,
     updateEditContent,
     saveFile,
     fetchGitStatus,

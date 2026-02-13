@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import hashlib
+import json
 import logging
 from dataclasses import dataclass
 from datetime import UTC, datetime
@@ -176,10 +178,16 @@ def check_approval_response(user_input: str) -> str | None:
     return None
 
 
+def _stable_condition_id(prefix: str, obj: dict[str, Any]) -> str:
+    """Generate a stable condition ID using SHA-256 to avoid hash collisions."""
+    digest = hashlib.sha256(json.dumps(obj, sort_keys=True).encode()).hexdigest()[:12]
+    return f"{prefix}_{digest}"
+
+
 class ConditionEvaluator:
     """
-    Evaluates 'when' conditions in workflows.
-    Supports simple boolean logic and variable access.
+    Evaluates 'when' conditions in workflows using SafeExpressionEvaluator (AST-based).
+    Supports boolean logic, comparisons, function calls, and variable access.
     """
 
     def __init__(self) -> None:
@@ -253,9 +261,11 @@ class ConditionEvaluator:
         """
         Evaluate a condition string against a context dictionary.
 
+        Uses SafeExpressionEvaluator (AST-based) instead of eval() for security.
+
         Args:
             condition: The condition string (e.g., "phase_action_count > 5")
-            context: Dictionary containing Available variables (state, event, etc.)
+            context: Dictionary containing available variables (state, event, etc.)
 
         Returns:
             Boolean result of the evaluation.
@@ -264,212 +274,44 @@ class ConditionEvaluator:
             return True
 
         try:
-            # SAFETY: Using eval() is risky but standard for this type of flexibility until
-            # we implement a proper expression parser. We restrict globals to builtins logic.
-            # In a production environment, we should use a safer parser like `simpleeval` or `jinja2`.
-            # For this MVP, we rely on the context being controlled.
+            from .safe_evaluator import SafeExpressionEvaluator, build_condition_helpers
 
-            # Simple sanitization/safety check could go here
+            # Build allowed functions with all helpers
+            allowed_funcs = build_condition_helpers(
+                task_manager=self._task_manager,
+                stop_registry=self._stop_registry,
+                plugin_conditions=self._plugin_conditions,
+                context=context,
+            )
 
-            # Allow common helpers
-            allowed_globals = {
-                "__builtins__": {},
-                "len": len,
-                "bool": bool,
-                "str": str,
-                "int": int,
-                "list": list,
-                "dict": dict,
-                "None": None,
-                "True": True,
-                "False": False,
-                # YAML/JSON use lowercase booleans
+            # Add YAML/JSON lowercase boolean aliases to context
+            eval_context = {
                 "true": True,
                 "false": False,
             }
+            eval_context.update(context)
 
-            # Add plugin conditions as callable functions
-            allowed_globals.update(self._plugin_conditions)
-
-            # Add task-related helpers (bind task_manager via closure)
-            if self._task_manager:
-
-                def _task_tree_complete_wrapper(task_id: str | list[str] | None) -> bool:
-                    # Helper wrapper to match types
-                    return task_tree_complete(self._task_manager, task_id)
-
-                allowed_globals["task_tree_complete"] = _task_tree_complete_wrapper
-
-                def _task_needs_user_review_wrapper(task_id: str | None) -> bool:
-                    # Helper wrapper for HITL check
-                    return task_needs_user_review(self._task_manager, task_id)
-
-                allowed_globals["task_needs_user_review"] = _task_needs_user_review_wrapper
-            else:
-                # Provide no-ops when no task_manager
-                allowed_globals["task_tree_complete"] = lambda task_id: True
-                allowed_globals["task_needs_user_review"] = lambda task_id: False
-
-            # Add stop signal helpers (bind stop_registry via closure)
-            if self._stop_registry:
-                allowed_globals["has_stop_signal"] = lambda session_id: (
-                    self._stop_registry.has_pending_signal(session_id)
-                )
-            else:
-                # Provide a no-op that returns False when no stop_registry
-                allowed_globals["has_stop_signal"] = lambda session_id: False
-
-            # Add MCP call tracking helper (for meeseeks workflow gates)
-            def _mcp_called(server: str, tool: str | None = None) -> bool:
-                """Check if MCP tool was called successfully.
-
-                Used in workflow conditions like:
-                    when: "mcp_called('gobby-memory', 'recall')"
-                    when: "mcp_called('context7')"  # Any tool on server
-
-                Args:
-                    server: MCP server name (e.g., "gobby-memory", "context7")
-                    tool: Optional specific tool name (e.g., "recall", "remember")
-
-                Returns:
-                    True if the server (and optionally tool) was called.
-                """
-                variables = context.get("variables", {})
-                if isinstance(variables, dict):
-                    mcp_calls = variables.get("mcp_calls", {})
-                else:
-                    # SimpleNamespace from workflow engine
-                    mcp_calls = getattr(variables, "mcp_calls", {})
-
-                # Ensure mcp_calls is a dict (could be None or other type)
-                if not isinstance(mcp_calls, dict):
-                    mcp_calls = {}
-
-                if tool:
-                    return tool in mcp_calls.get(server, [])
-                return bool(mcp_calls.get(server))
-
-            allowed_globals["mcp_called"] = _mcp_called
-
-            def _mcp_result_is_null(server: str, tool: str) -> bool:
-                """Check if MCP tool result is null/missing.
-
-                Used in workflow conditions like:
-                    when: "mcp_result_is_null('gobby-tasks', 'suggest_next_task')"
-
-                Args:
-                    server: MCP server name
-                    tool: Tool name
-
-                Returns:
-                    True if the result is null/missing, False if result exists.
-                """
-                variables = context.get("variables", {})
-                if isinstance(variables, dict):
-                    mcp_results = variables.get("mcp_results", {})
-                else:
-                    mcp_results = getattr(variables, "mcp_results", {})
-
-                if not isinstance(mcp_results, dict):
-                    return True  # No results means null
-
-                server_results = mcp_results.get(server, {})
-                if not isinstance(server_results, dict):
-                    return True
-
-                result = server_results.get(tool)
-                return result is None
-
-            allowed_globals["mcp_result_is_null"] = _mcp_result_is_null
-
-            def _mcp_failed(server: str, tool: str) -> bool:
-                """Check if MCP tool call failed.
-
-                Used in workflow conditions like:
-                    when: "mcp_failed('gobby-agents', 'spawn_agent')"
-
-                Args:
-                    server: MCP server name
-                    tool: Tool name
-
-                Returns:
-                    True if the result exists and indicates failure.
-                """
-                variables = context.get("variables", {})
-                if isinstance(variables, dict):
-                    mcp_results = variables.get("mcp_results", {})
-                else:
-                    mcp_results = getattr(variables, "mcp_results", {})
-
-                if not isinstance(mcp_results, dict):
-                    return False  # No results means we can't determine failure
-
-                server_results = mcp_results.get(server, {})
-                if not isinstance(server_results, dict):
-                    return False
-
-                result = server_results.get(tool)
-                if result is None:
-                    return False
-
-                # Check for failure indicators
-                if isinstance(result, dict):
-                    if result.get("success") is False:
-                        return True
-                    if result.get("error"):
-                        return True
-                    if result.get("status") == "failed":
-                        return True
-                return False
-
-            allowed_globals["mcp_failed"] = _mcp_failed
-
-            def _mcp_result_has(server: str, tool: str, field: str, value: Any) -> bool:
-                """Check if MCP tool result has a specific field value.
-
-                Used in workflow conditions like:
-                    when: "mcp_result_has('gobby-tasks', 'wait_for_task', 'timed_out', True)"
-
-                Args:
-                    server: MCP server name
-                    tool: Tool name
-                    field: Field name to check
-                    value: Expected value (supports bool, str, int, float)
-
-                Returns:
-                    True if the field equals the expected value.
-                """
-                variables = context.get("variables", {})
-                if isinstance(variables, dict):
-                    mcp_results = variables.get("mcp_results", {})
-                else:
-                    mcp_results = getattr(variables, "mcp_results", {})
-
-                if not isinstance(mcp_results, dict):
-                    return False
-
-                server_results = mcp_results.get(server, {})
-                if not isinstance(server_results, dict):
-                    return False
-
-                result = server_results.get(tool)
-                if not isinstance(result, dict):
-                    return False
-
-                actual_value = result.get(field)
-                return bool(actual_value == value)
-
-            allowed_globals["mcp_result_has"] = _mcp_result_has
-
-            # eval used with restricted allowed_globals for workflow conditions
-            return bool(eval(condition, allowed_globals, context))  # nosec B307
+            evaluator = SafeExpressionEvaluator(eval_context, allowed_funcs)
+            return evaluator.evaluate(condition)
         except Exception as e:
             logger.warning(f"Condition evaluation failed: '{condition}'. Error: {e}")
             return False
 
-    def check_exit_conditions(self, conditions: list[dict[str, Any]], state: WorkflowState) -> bool:
+    def check_exit_conditions(
+        self,
+        conditions: list[dict[str, Any] | str],
+        state: WorkflowState,
+        exit_when: str | None = None,
+    ) -> bool:
         """
         Check if all exit conditions are met. (AND logic)
+
+        Supports:
+        - exit_when: expression string AND-ed with conditions
+        - String items in conditions: treated as expression shorthand
+        - {approval: prompt}: sugar for {type: user_approval, prompt: prompt}
+        - {webhook: {url: ...}}: sugar for {type: webhook, url: ...}
+        - Old dict format: {type: variable_set/expression/user_approval/webhook, ...}
         """
         context = {
             "workflow_state": state,
@@ -483,56 +325,84 @@ class ConditionEvaluator:
         # Add variables safely to avoid shadowing internal context keys
         for key, value in state.variables.items():
             if key in context:
-                # Log warning or namespace? For now just skip or simple duplicate warn
                 logger.debug(
                     f"Variable '{key}' shadows internal context key, skipping direct merge"
                 )
                 continue
             context[key] = value
 
+        # Evaluate exit_when first (AND-ed with conditions)
+        if exit_when and not self.evaluate(exit_when, context):
+            return False
+
         for condition in conditions:
-            cond_type = condition.get("type")
+            normalized = self._normalize_condition(condition)
+
+            cond_type = normalized.get("type")
 
             if cond_type == "variable_set":
-                var_name = condition.get("variable")
+                var_name = normalized.get("variable")
                 if not var_name or var_name not in state.variables:
                     return False
 
             elif cond_type == "user_approval":
-                # User approval condition - check if approval has been granted
-                condition_id = condition.get("id", f"approval_{hash(str(condition)) % 10000}")
+                condition_id = normalized.get("id", _stable_condition_id("approval", normalized))
                 approved_var = f"_approval_{condition_id}_granted"
-
-                # Check if this specific approval has been granted
                 if not state.variables.get(approved_var, False):
                     return False
 
             elif cond_type == "expression":
-                expr = condition.get("expression")
+                expr = normalized.get("expression")
                 if expr and not self.evaluate(expr, context):
                     return False
 
             elif cond_type == "webhook":
-                # Webhook condition - check pre-evaluated result stored in variables
-                # The async evaluate_webhook_conditions method must be called first
-                condition_id = condition.get("id", f"webhook_{hash(str(condition)) % 10000}")
+                condition_id = normalized.get("id", _stable_condition_id("webhook", normalized))
                 result_var = f"_webhook_{condition_id}_result"
-
-                # Get pre-evaluated webhook result from state
                 webhook_result = state.variables.get(result_var)
                 if webhook_result is None:
-                    # Webhook hasn't been evaluated yet
                     logger.warning(
                         f"Webhook condition '{condition_id}' not pre-evaluated. "
                         "Call evaluate_webhook_conditions() first."
                     )
                     return False
-
-                # Check based on configured criteria
-                if not self._check_webhook_result(condition, webhook_result):
+                if not self._check_webhook_result(normalized, webhook_result):
                     return False
 
         return True
+
+    @staticmethod
+    def _normalize_condition(condition: dict[str, Any] | str) -> dict[str, Any]:
+        """Normalize a condition to canonical dict format.
+
+        Handles:
+        - String: expression shorthand
+        - {approval: prompt}: user_approval sugar
+        - {webhook: {...}}: webhook sugar
+        - Dict with 'type': pass through as-is
+        """
+        if isinstance(condition, str):
+            return {"type": "expression", "expression": condition}
+
+        if "approval" in condition:
+            result: dict[str, Any] = {
+                "type": "user_approval",
+                "prompt": condition["approval"],
+            }
+            if "id" in condition:
+                result["id"] = condition["id"]
+            return result
+
+        if "webhook" in condition:
+            webhook_config = condition["webhook"]
+            result = {"type": "webhook"}
+            if isinstance(webhook_config, dict):
+                result.update(webhook_config)
+            if "id" in condition:
+                result["id"] = condition["id"]
+            return result
+
+        return condition
 
     def _check_webhook_result(self, condition: dict[str, Any], result: dict[str, Any]) -> bool:
         """Check if webhook result matches the condition criteria.
@@ -622,7 +492,8 @@ class ConditionEvaluator:
             if condition.get("type") != "user_approval":
                 continue
 
-            condition_id = condition.get("id", f"approval_{hash(str(condition)) % 10000}")
+            normalized = self._normalize_condition(condition)
+            condition_id = normalized.get("id", _stable_condition_id("approval", normalized))
             approved_var = f"_approval_{condition_id}_granted"
             rejected_var = f"_approval_{condition_id}_rejected"
 
@@ -709,7 +580,8 @@ class ConditionEvaluator:
             if condition.get("type") != "webhook":
                 continue
 
-            condition_id = condition.get("id", f"webhook_{hash(str(condition)) % 10000}")
+            normalized = self._normalize_condition(condition)
+            condition_id = normalized.get("id", _stable_condition_id("webhook", normalized))
 
             try:
                 # Execute the webhook

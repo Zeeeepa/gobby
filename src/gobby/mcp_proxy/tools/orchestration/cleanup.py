@@ -37,7 +37,7 @@ def register_cleanup(
         force: bool = False,
     ) -> dict[str, Any]:
         """
-        Approve a reviewed task and clean up its worktree.
+        Close a reviewed task and clean up its worktree.
 
         This tool transitions a task from "needs_review" to "closed" status
         and optionally deletes the associated worktree.
@@ -137,13 +137,13 @@ def register_cleanup(
             "task_status": "closed",
             "worktree_deleted": worktree_deleted,
             "branch_pushed": branch_pushed,
-            "message": f"Task {task_id} approved and marked as closed",
+            "message": f"Task {task_id} closed after review",
         }
 
     registry.register(
         name="approve_and_cleanup",
         description=(
-            "Approve a reviewed task and clean up its worktree. "
+            "Close a reviewed task and clean up its worktree. "
             "Transitions task from 'needs_review' to 'closed' status and deletes worktree."
         ),
         input_schema={

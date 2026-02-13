@@ -1,6 +1,6 @@
 ---
 name: epic
-description: "Quickly create an epic (parent task for large features). Usage: /epic <title> [description]"
+description: "Quickly create an epic (parent task for large features). Usage: /gobby:epic <title> [description]"
 category: core
 metadata:
   gobby:
@@ -8,23 +8,23 @@ metadata:
     depth: [0, 1]
 ---
 
-# /epic - Create Epic Task
+# /gobby:epic - Create Epic Task
 
 Create an epic task - a parent container for a large feature or initiative that will be broken down into subtasks.
 
 ## Usage
 
 ```
-/epic <title>
-/epic <title> - <description>
+/gobby:epic <title>
+/gobby:epic <title> - <description>
 ```
 
 ## Examples
 
 ```
-/epic User authentication system
-/epic API v2 migration - Migrate all endpoints from REST to GraphQL with backwards compatibility
-/epic Performance optimization sprint
+/gobby:epic User authentication system
+/gobby:epic API v2 migration - Migrate all endpoints from REST to GraphQL with backwards compatibility
+/gobby:epic Performance optimization sprint
 ```
 
 ## Tool Schema Reminder

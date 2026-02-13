@@ -111,6 +111,99 @@ class TestExpandEnvVars:
             result = expand_env_vars("value: ${UNSET_VAR:-}")
             assert result == "value: "
 
+    def test_secret_resolver_takes_priority_over_env(self) -> None:
+        """Test that secret_resolver is checked before env vars."""
+        resolver = lambda name: "secret_value" if name == "MY_KEY" else None  # noqa: E731
+        with patch.dict(os.environ, {"MY_KEY": "env_value"}):
+            result = expand_env_vars("key: ${MY_KEY}", secret_resolver=resolver)
+            assert result == "key: secret_value"
+
+    def test_secret_resolver_fallback_to_env(self) -> None:
+        """Test that env var is used when secret_resolver returns None."""
+        resolver = lambda name: None  # noqa: E731
+        with patch.dict(os.environ, {"MY_KEY": "env_value"}):
+            result = expand_env_vars("key: ${MY_KEY}", secret_resolver=resolver)
+            assert result == "key: env_value"
+
+    def test_secret_resolver_fallback_to_default(self) -> None:
+        """Test that default is used when both resolver and env return nothing."""
+        resolver = lambda name: None  # noqa: E731
+        env = os.environ.copy()
+        env.pop("UNSET_VAR", None)
+        with patch.dict(os.environ, env, clear=True):
+            result = expand_env_vars("key: ${UNSET_VAR:-fallback}", secret_resolver=resolver)
+            assert result == "key: fallback"
+
+    def test_secret_resolver_unresolved_warns(self) -> None:
+        """Test that unresolved vars log a warning."""
+        resolver = lambda name: None  # noqa: E731
+        env = os.environ.copy()
+        env.pop("MISSING_VAR", None)
+        with patch.dict(os.environ, env, clear=True):
+            with patch("gobby.config.app.logger") as mock_logger:
+                result = expand_env_vars("key: ${MISSING_VAR}", secret_resolver=resolver)
+                assert result == "key: ${MISSING_VAR}"
+                mock_logger.warning.assert_called_once()
+                assert "MISSING_VAR" in mock_logger.warning.call_args[0][0]
+
+    def test_secret_resolver_exception_falls_through(self) -> None:
+        """Test that secret_resolver exceptions are caught and fall through to env."""
+
+        def bad_resolver(name: str) -> str | None:
+            raise RuntimeError("DB unavailable")
+
+        with patch.dict(os.environ, {"MY_KEY": "env_value"}):
+            result = expand_env_vars("key: ${MY_KEY}", secret_resolver=bad_resolver)
+            assert result == "key: env_value"
+
+    def test_unresolved_var_warns_without_resolver(self) -> None:
+        """Test that unresolved vars warn even without a secret_resolver."""
+        env = os.environ.copy()
+        env.pop("NOPE", None)
+        with patch.dict(os.environ, env, clear=True):
+            with patch("gobby.config.app.logger") as mock_logger:
+                result = expand_env_vars("key: ${NOPE}")
+                assert result == "key: ${NOPE}"
+                mock_logger.warning.assert_called_once()
+
+    def test_secret_ref_resolved(self) -> None:
+        """Test $secret:NAME resolves from secrets store only."""
+        resolver = lambda name: "my_secret" if name == "API_KEY" else None  # noqa: E731
+        result = expand_env_vars("key: $secret:API_KEY", secret_resolver=resolver)
+        assert result == "key: my_secret"
+
+    def test_secret_ref_no_env_fallback(self) -> None:
+        """Test $secret:NAME does NOT fall back to env vars."""
+        resolver = lambda name: None  # noqa: E731
+        with patch.dict(os.environ, {"API_KEY": "env_value"}):
+            with patch("gobby.config.app.logger"):
+                result = expand_env_vars("key: $secret:API_KEY", secret_resolver=resolver)
+                assert result == "key: $secret:API_KEY"  # Left unchanged, no env fallback
+
+    def test_secret_ref_without_resolver_unchanged(self) -> None:
+        """Test $secret:NAME is left unchanged when no resolver provided."""
+        result = expand_env_vars("key: $secret:API_KEY")
+        assert result == "key: $secret:API_KEY"
+
+    def test_secret_ref_warns_on_missing(self) -> None:
+        """Test $secret:NAME logs warning when not found."""
+        resolver = lambda name: None  # noqa: E731
+        with patch("gobby.config.app.logger") as mock_logger:
+            result = expand_env_vars("key: $secret:MISSING", secret_resolver=resolver)
+            assert result == "key: $secret:MISSING"
+            mock_logger.warning.assert_called_once()
+            assert "MISSING" in mock_logger.warning.call_args[0][0]
+
+    def test_mixed_secret_ref_and_env_var(self) -> None:
+        """Test $secret:NAME and ${VAR} in same content."""
+        resolver = lambda name: "secret_val" if name == "SECRET_KEY" else None  # noqa: E731
+        with patch.dict(os.environ, {"ENV_KEY": "env_val"}):
+            result = expand_env_vars(
+                "a: $secret:SECRET_KEY, b: ${ENV_KEY}",
+                secret_resolver=resolver,
+            )
+            assert result == "a: secret_val, b: env_val"
+
 
 class TestWebSocketSettings:
     """Tests for WebSocketSettings configuration."""
@@ -593,7 +686,7 @@ class TestSaveConfigTestGuard:
         """save_config raises RuntimeError when GOBBY_TEST_PROTECT=1 and config_file is None."""
         monkeypatch.setenv("GOBBY_TEST_PROTECT", "1")
 
-        with pytest.raises(RuntimeError, match="save_config.*called with default path during tests"):
+        with pytest.raises(RuntimeError, match="save_config.*would write to production path.*during tests"):
             save_config(default_config, config_file=None)
 
     def test_no_error_with_explicit_path(
