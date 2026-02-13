@@ -202,7 +202,7 @@ class MemoryManager:
         """
         return self._search_service.reindex()
 
-    async def remember(
+    async def create_memory(
         self,
         content: str,
         memory_type: str = "fact",
@@ -416,7 +416,7 @@ class MemoryManager:
             min_similarity=min_similarity,
         )
 
-    def recall(
+    def search_memories(
         self,
         query: str | None = None,
         project_id: str | None = None,
@@ -445,9 +445,7 @@ class MemoryManager:
             tags_any: Memory must have at least ONE of these tags
             tags_none: Memory must have NONE of these tags
         """
-        threshold = (
-            min_importance if min_importance is not None else self.config.importance_threshold
-        )
+        threshold = min_importance
 
         if query:
             # Mem0 dual-mode: try Mem0 search first if configured
@@ -521,7 +519,7 @@ class MemoryManager:
             tags_none=tags_none,
         )
 
-    def recall_as_context(
+    def search_memories_as_context(
         self,
         project_id: str | None = None,
         limit: int = 10,
@@ -530,7 +528,7 @@ class MemoryManager:
         """
         Retrieve memories and format them as context for LLM prompts.
 
-        Convenience method that combines recall() with build_memory_context().
+        Convenience method that combines search_memories() with build_memory_context().
 
         Args:
             project_id: Filter by project
@@ -541,7 +539,7 @@ class MemoryManager:
             Formatted markdown string wrapped in <project-memory> tags,
             or empty string if no memories found
         """
-        memories = self.recall(
+        memories = self.search_memories(
             project_id=project_id,
             limit=limit,
             min_importance=min_importance,
@@ -583,8 +581,8 @@ class MemoryManager:
             except Exception as e:
                 logger.warning(f"Failed to update access stats for {memory.id}: {e}")
 
-    async def forget(self, memory_id: str) -> bool:
-        """Forget a memory."""
+    async def delete_memory(self, memory_id: str) -> bool:
+        """Delete a memory."""
         # Mem0 dual-mode: delete from Mem0 if memory has mem0_id
         if self._mem0_client:
             await self._delete_from_mem0(memory_id)
@@ -595,8 +593,8 @@ class MemoryManager:
             self.mark_search_refit_needed()
         return result
 
-    async def aforget(self, memory_id: str) -> bool:
-        """Forget a memory (async version)."""
+    async def adelete_memory(self, memory_id: str) -> bool:
+        """Delete a memory (async version)."""
         result = await self._backend.delete(memory_id)
         if result:
             self.mark_search_refit_needed()
