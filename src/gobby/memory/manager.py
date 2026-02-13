@@ -15,6 +15,15 @@ from gobby.memory.neo4j_client import Neo4jClient
 from gobby.memory.protocol import MemoryBackendProtocol, MemoryRecord
 from gobby.memory.services.embeddings import EmbeddingService
 from gobby.memory.services.graph import GraphService
+from gobby.memory.services.maintenance import (
+    decay_memories as _decay_memories,
+)
+from gobby.memory.services.maintenance import (
+    export_markdown as _export_markdown,
+)
+from gobby.memory.services.maintenance import (
+    get_stats as _get_stats,
+)
 from gobby.memory.services.mem0_sync import Mem0Service
 from gobby.storage.database import DatabaseProtocol
 from gobby.storage.memories import LocalMemoryManager, Memory
@@ -740,120 +749,12 @@ class MemoryManager:
         return memory
 
     def get_stats(self, project_id: str | None = None) -> dict[str, Any]:
-        """
-        Get statistics about stored memories.
-
-        Args:
-            project_id: Optional project to filter stats by
-
-        Returns:
-            Dictionary with memory statistics
-        """
-        # Get all memories (use large limit)
-        memories = self.storage.list_memories(project_id=project_id, limit=10000)
-
-        if not memories:
-            return {
-                "total_count": 0,
-                "by_type": {},
-                "avg_importance": 0.0,
-                "project_id": project_id,
-            }
-
-        # Count by type
-        by_type: dict[str, int] = {}
-        total_importance = 0.0
-
-        for m in memories:
-            by_type[m.memory_type] = by_type.get(m.memory_type, 0) + 1
-            total_importance += m.importance
-
-        stats: dict[str, Any] = {
-            "total_count": len(memories),
-            "by_type": by_type,
-            "avg_importance": round(total_importance / len(memories), 3),
-            "project_id": project_id,
-        }
-
-        # Mem0 sync observability
-        if self._mem0_client:
-            try:
-                rows = self.db.fetchall(
-                    "SELECT COUNT(*) as cnt FROM memories WHERE mem0_id IS NULL", ()
-                )
-                pending = rows[0]["cnt"] if rows else 0
-                stats["mem0_sync"] = {"pending": pending}
-            except Exception:
-                stats["mem0_sync"] = {"pending": -1}
-
-        return stats
+        """Get statistics about stored memories."""
+        return _get_stats(self.storage, self.db, self._mem0_client, project_id)
 
     def decay_memories(self) -> int:
-        """
-        Apply importance decay to all memories.
-
-        Returns:
-            Number of memories updated.
-        """
-        if not self.config.decay_enabled:
-            return 0
-
-        rate = self.config.decay_rate
-        floor = self.config.decay_floor
-
-        # This is a potentially expensive operation if there are many memories.
-        # Ideally we'd do this in the database with SQL, but SQLite math functions
-        # might be limited or we want Python control.
-        # Or we only decay memories accessed > X days ago.
-
-        # Simple implementation: fetch all > floor, decay them, update if changed.
-        # Optimization: Only process a batch or do it entirely in SQL.
-
-        # Let's do a SQL-based update for efficiency if possible, but
-        # LocalMemoryManager doesn't expose a raw execute.
-        # Let's iterate for now (simplest, robust), but limit to 100 at a time maybe?
-        # Or better: Add a `decay_all` method to storage layer?
-
-        # For now, let's just implement the logic here iterating over ALL memories
-        # which is fine for < 1000 memories.
-
-        # Use snapshot-based iteration to avoid pagination issues during updates
-        count = 0
-
-        # Note: listing all memories (limit=10000) to avoid pagination drift when modifying them.
-        # If dataset grows larger, we should implement a cursor-based approach or add list_memories_ids.
-        memories = self.storage.list_memories(min_importance=floor + 0.001, limit=10000)
-
-        for memory in memories:
-            # Calculate simple linear decay since last update
-            last_update = datetime.fromisoformat(memory.updated_at)
-            # Ensure last_update is timezone-aware for subtraction
-            if last_update.tzinfo is None:
-                last_update = last_update.replace(tzinfo=UTC)
-            hours_since = (datetime.now(UTC) - last_update).total_seconds() / 3600
-
-            # If it's been less than 24h, skip to avoid over-decaying if called frequently
-            if hours_since < 24:
-                continue
-
-            # Decay factor: rate * (days since) / 30
-            # Linear decay
-            months_passed = hours_since / (24 * 30)
-            decay_amount = rate * months_passed
-
-            if decay_amount < 0.001:
-                continue
-
-            new_importance = max(floor, memory.importance - decay_amount)
-
-            if new_importance != memory.importance:
-                self.storage.update_memory(
-                    memory.id,
-                    importance=new_importance,
-                )
-                count += 1
-
-        return count
+        """Apply importance decay to all memories."""
+        return _decay_memories(self.config, self.storage)
 
     # =========================================================================
     # Neo4j knowledge graph (delegated to GraphService)
@@ -895,102 +796,5 @@ class MemoryManager:
         include_metadata: bool = True,
         include_stats: bool = True,
     ) -> str:
-        """
-        Export memories as a formatted markdown document.
-
-        Creates a human-readable markdown export of memories, suitable for
-        backup, documentation, or sharing.
-
-        Args:
-            project_id: Filter by project ID (None for all memories)
-            include_metadata: Include memory metadata (type, importance, tags)
-            include_stats: Include summary statistics at the top
-
-        Returns:
-            Formatted markdown string with all memories
-
-        Example output:
-            # Memory Export
-
-            **Exported:** 2026-01-19 12:34:56 UTC
-            **Total memories:** 42
-
-            ---
-
-            ## Memory: abc123
-
-            User prefers dark mode for all applications.
-
-            - **Type:** preference
-            - **Importance:** 0.8
-            - **Tags:** ui, settings
-            - **Created:** 2026-01-15 10:00:00
-        """
-        memories = self.storage.list_memories(project_id=project_id, limit=10000)
-
-        lines: list[str] = []
-
-        # Header
-        lines.append("# Memory Export")
-        lines.append("")
-
-        # Stats section
-        if include_stats:
-            now = datetime.now(UTC)
-            lines.append(f"**Exported:** {now.strftime('%Y-%m-%d %H:%M:%S')} UTC")
-            lines.append(f"**Total memories:** {len(memories)}")
-            if project_id:
-                lines.append(f"**Project:** {project_id}")
-
-            # Type breakdown
-            if memories:
-                by_type: dict[str, int] = {}
-                for m in memories:
-                    by_type[m.memory_type] = by_type.get(m.memory_type, 0) + 1
-                type_str = ", ".join(f"{k}: {v}" for k, v in sorted(by_type.items()))
-                lines.append(f"**By type:** {type_str}")
-
-            lines.append("")
-            lines.append("---")
-            lines.append("")
-
-        # Individual memories
-        for memory in memories:
-            # Memory header with short ID
-            short_id = memory.id[:8] if len(memory.id) > 8 else memory.id
-            lines.append(f"## Memory: {short_id}")
-            lines.append("")
-
-            # Content
-            lines.append(memory.content)
-            lines.append("")
-
-            # Metadata
-            if include_metadata:
-                lines.append(f"- **Type:** {memory.memory_type}")
-                lines.append(f"- **Importance:** {memory.importance}")
-
-                if memory.tags:
-                    tags_str = ", ".join(memory.tags)
-                    lines.append(f"- **Tags:** {tags_str}")
-
-                if memory.source_type:
-                    lines.append(f"- **Source:** {memory.source_type}")
-
-                # Parse and format created_at
-                try:
-                    created = datetime.fromisoformat(memory.created_at)
-                    created_str = created.strftime("%Y-%m-%d %H:%M:%S")
-                except (ValueError, TypeError):
-                    created_str = memory.created_at
-                lines.append(f"- **Created:** {created_str}")
-
-                if memory.access_count > 0:
-                    lines.append(f"- **Accessed:** {memory.access_count} times")
-
-                lines.append("")
-
-            lines.append("---")
-            lines.append("")
-
-        return "\n".join(lines)
+        """Export memories as a formatted markdown document."""
+        return _export_markdown(self.storage, project_id, include_metadata, include_stats)
