@@ -7,6 +7,7 @@ Extracted from HookManager.handle() as part of the Strangler Fig decomposition.
 
 from __future__ import annotations
 
+import sqlite3
 from typing import Any
 
 from gobby.hooks.events import HookEvent, HookResponse
