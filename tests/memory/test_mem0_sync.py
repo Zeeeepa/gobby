@@ -126,7 +126,7 @@ class TestMem0SyncProcessorSync:
         manager._mem0_client = mock_client
 
         # Create a memory (remember() no longer calls Mem0 directly)
-        with patch("gobby.memory.manager.is_embedding_available", return_value=False):
+        with patch("gobby.memory.services.embeddings.is_embedding_available", return_value=False):
             memory = await manager.remember(content="Test memory", project_id="test-project")
 
         # Verify it's unsynced
@@ -151,7 +151,7 @@ class TestMem0SyncProcessorSync:
         manager._mem0_client = mock_client
 
         # Create an unsynced memory
-        with patch("gobby.memory.manager.is_embedding_available", return_value=False):
+        with patch("gobby.memory.services.embeddings.is_embedding_available", return_value=False):
             await manager.remember(content="Test memory", project_id="test-project")
 
         # Make _lazy_sync raise Mem0ConnectionError
@@ -246,7 +246,7 @@ class TestSearchMergeUnsynced:
         manager._mem0_client = mock_client
 
         # Create a memory (stays unsynced since remember() no longer calls Mem0)
-        with patch("gobby.memory.manager.is_embedding_available", return_value=False):
+        with patch("gobby.memory.services.embeddings.is_embedding_available", return_value=False):
             memory = await manager.remember(
                 content="User prefers dark mode",
                 project_id="test-project",
@@ -275,7 +275,7 @@ class TestGetStatsMem0Sync:
         manager, db = _setup(tmp_path, mem0_url="http://localhost:8888", mem0_api_key="test-key")
         manager._mem0_client = _mock_mem0_client()
 
-        with patch("gobby.memory.manager.is_embedding_available", return_value=False):
+        with patch("gobby.memory.services.embeddings.is_embedding_available", return_value=False):
             await manager.remember(content="Test memory", project_id="test-project")
 
         stats = manager.get_stats(project_id="test-project")

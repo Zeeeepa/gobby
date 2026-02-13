@@ -92,7 +92,7 @@ class TestRememberDualMode:
         mock_client = _mock_mem0_client()
         manager._mem0_client = mock_client
 
-        with patch("gobby.memory.manager.is_embedding_available", return_value=False):
+        with patch("gobby.memory.services.embeddings.is_embedding_available", return_value=False):
             memory = await manager.remember(
                 content="User prefers dark mode",
                 project_id="test-project",
@@ -117,7 +117,7 @@ class TestRememberDualMode:
         mock_client = _mock_mem0_client()
         manager._mem0_client = mock_client
 
-        with patch("gobby.memory.manager.is_embedding_available", return_value=False):
+        with patch("gobby.memory.services.embeddings.is_embedding_available", return_value=False):
             memory = await manager.remember(
                 content="User prefers dark mode",
                 project_id="test-project",
@@ -144,7 +144,7 @@ class TestRememberDualMode:
         mock_client.create = AsyncMock(side_effect=Mem0ConnectionError("Connection refused"))
         manager._mem0_client = mock_client
 
-        with patch("gobby.memory.manager.is_embedding_available", return_value=False):
+        with patch("gobby.memory.services.embeddings.is_embedding_available", return_value=False):
             memory = await manager.remember(
                 content="User prefers dark mode",
                 project_id="test-project",
@@ -166,7 +166,7 @@ class TestRememberDualMode:
         manager, _ = _setup(tmp_path)
         assert manager._mem0_client is None
 
-        with patch("gobby.memory.manager.is_embedding_available", return_value=False):
+        with patch("gobby.memory.services.embeddings.is_embedding_available", return_value=False):
             memory = await manager.remember(
                 content="Standalone memory",
                 project_id="test-project",
@@ -191,7 +191,7 @@ class TestRecallDualMode:
         manager._mem0_client = mock_client
 
         # Create a memory locally first (with mem0_id)
-        with patch("gobby.memory.manager.is_embedding_available", return_value=False):
+        with patch("gobby.memory.services.embeddings.is_embedding_available", return_value=False):
             memory = await manager.remember(
                 content="User prefers dark mode",
                 project_id="test-project",
@@ -230,7 +230,7 @@ class TestRecallDualMode:
         manager._mem0_client = mock_client
 
         # Create a memory locally
-        with patch("gobby.memory.manager.is_embedding_available", return_value=False):
+        with patch("gobby.memory.services.embeddings.is_embedding_available", return_value=False):
             await manager.remember(
                 content="User prefers dark mode",
                 project_id="test-project",
@@ -265,7 +265,7 @@ class TestForgetDualMode:
         mock_client = _mock_mem0_client()
         manager._mem0_client = mock_client
 
-        with patch("gobby.memory.manager.is_embedding_available", return_value=False):
+        with patch("gobby.memory.services.embeddings.is_embedding_available", return_value=False):
             memory = await manager.remember(
                 content="User prefers dark mode",
                 project_id="test-project",
@@ -291,7 +291,7 @@ class TestForgetDualMode:
         mock_client.create = AsyncMock(side_effect=Mem0ConnectionError("Connection refused"))
         manager._mem0_client = mock_client
 
-        with patch("gobby.memory.manager.is_embedding_available", return_value=False):
+        with patch("gobby.memory.services.embeddings.is_embedding_available", return_value=False):
             memory = await manager.remember(
                 content="Unsynced memory",
                 project_id="test-project",
@@ -322,7 +322,7 @@ class TestLazySync:
         mock_client.create = AsyncMock(side_effect=Mem0ConnectionError("Connection refused"))
         manager._mem0_client = mock_client
 
-        with patch("gobby.memory.manager.is_embedding_available", return_value=False):
+        with patch("gobby.memory.services.embeddings.is_embedding_available", return_value=False):
             memory = await manager.remember(
                 content="Unsynced memory",
                 project_id="test-project",
@@ -360,7 +360,7 @@ class TestLazySync:
         mock_client.create = AsyncMock(side_effect=Mem0ConnectionError("Connection refused"))
         manager._mem0_client = mock_client
 
-        with patch("gobby.memory.manager.is_embedding_available", return_value=False):
+        with patch("gobby.memory.services.embeddings.is_embedding_available", return_value=False):
             await manager.remember(content="Memory one", project_id="test-project")
             await manager.remember(content="Memory two", project_id="test-project")
 

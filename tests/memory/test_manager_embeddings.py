@@ -51,11 +51,11 @@ class TestRememberGeneratesEmbedding:
         manager, embedding_mgr = _setup(tmp_path)
 
         with patch(
-            "gobby.memory.manager.generate_embedding",
+            "gobby.memory.services.embeddings.generate_embedding",
             new_callable=AsyncMock,
             return_value=FAKE_EMBEDDING,
         ) as mock_gen, patch(
-            "gobby.memory.manager.is_embedding_available", return_value=True
+            "gobby.memory.services.embeddings.is_embedding_available", return_value=True
         ):
             memory = await manager.remember(
                 content="User prefers dark mode",
@@ -80,7 +80,7 @@ class TestRememberGeneratesEmbedding:
         manager, embedding_mgr = _setup(tmp_path)
 
         with patch(
-            "gobby.memory.manager.is_embedding_available", return_value=False
+            "gobby.memory.services.embeddings.is_embedding_available", return_value=False
         ):
             memory = await manager.remember(
                 content="Some fact",
@@ -98,9 +98,9 @@ class TestRememberGeneratesEmbedding:
         manager, embedding_mgr = _setup(tmp_path)
 
         with patch(
-            "gobby.memory.manager.is_embedding_available", return_value=True
+            "gobby.memory.services.embeddings.is_embedding_available", return_value=True
         ), patch(
-            "gobby.memory.manager.generate_embedding",
+            "gobby.memory.services.embeddings.generate_embedding",
             new_callable=AsyncMock,
             side_effect=RuntimeError("API error"),
         ):
@@ -133,11 +133,11 @@ class TestUpdateRegeneratesEmbedding:
         new_embedding = [0.9, 0.8, 0.7, 0.6, 0.5]
 
         with patch(
-            "gobby.memory.manager.generate_embedding",
+            "gobby.memory.services.embeddings.generate_embedding",
             new_callable=AsyncMock,
             return_value=FAKE_EMBEDDING,
         ), patch(
-            "gobby.memory.manager.is_embedding_available", return_value=True
+            "gobby.memory.services.embeddings.is_embedding_available", return_value=True
         ):
             memory = await manager.remember(
                 content="Original content",
@@ -148,11 +148,11 @@ class TestUpdateRegeneratesEmbedding:
 
         # Now update content
         with patch(
-            "gobby.memory.manager.generate_embedding",
+            "gobby.memory.services.embeddings.generate_embedding",
             new_callable=AsyncMock,
             return_value=new_embedding,
         ), patch(
-            "gobby.memory.manager.is_embedding_available", return_value=True
+            "gobby.memory.services.embeddings.is_embedding_available", return_value=True
         ):
             await manager.aupdate_memory(memory.id, content="Updated content")
 
@@ -169,11 +169,11 @@ class TestUpdateRegeneratesEmbedding:
         manager, embedding_mgr = _setup(tmp_path)
 
         with patch(
-            "gobby.memory.manager.generate_embedding",
+            "gobby.memory.services.embeddings.generate_embedding",
             new_callable=AsyncMock,
             return_value=FAKE_EMBEDDING,
         ), patch(
-            "gobby.memory.manager.is_embedding_available", return_value=True
+            "gobby.memory.services.embeddings.is_embedding_available", return_value=True
         ):
             memory = await manager.remember(
                 content="Some content",
@@ -184,10 +184,10 @@ class TestUpdateRegeneratesEmbedding:
 
         # Update only importance — should NOT regenerate embedding
         with patch(
-            "gobby.memory.manager.generate_embedding",
+            "gobby.memory.services.embeddings.generate_embedding",
             new_callable=AsyncMock,
         ) as mock_gen, patch(
-            "gobby.memory.manager.is_embedding_available", return_value=True
+            "gobby.memory.services.embeddings.is_embedding_available", return_value=True
         ):
             manager.update_memory(memory.id, importance=0.9)
             mock_gen.assert_not_called()
@@ -201,11 +201,11 @@ class TestUpdateRegeneratesEmbedding:
         manager, embedding_mgr = _setup(tmp_path)
 
         with patch(
-            "gobby.memory.manager.generate_embedding",
+            "gobby.memory.services.embeddings.generate_embedding",
             new_callable=AsyncMock,
             return_value=FAKE_EMBEDDING,
         ), patch(
-            "gobby.memory.manager.is_embedding_available", return_value=True
+            "gobby.memory.services.embeddings.is_embedding_available", return_value=True
         ):
             memory = await manager.remember(
                 content="Original",
@@ -214,9 +214,9 @@ class TestUpdateRegeneratesEmbedding:
 
         # Update with embedding failure
         with patch(
-            "gobby.memory.manager.is_embedding_available", return_value=True
+            "gobby.memory.services.embeddings.is_embedding_available", return_value=True
         ), patch(
-            "gobby.memory.manager.generate_embedding",
+            "gobby.memory.services.embeddings.generate_embedding",
             new_callable=AsyncMock,
             side_effect=RuntimeError("API down"),
         ):
@@ -240,11 +240,11 @@ class TestForgetCascadesEmbedding:
         manager, embedding_mgr = _setup(tmp_path)
 
         with patch(
-            "gobby.memory.manager.generate_embedding",
+            "gobby.memory.services.embeddings.generate_embedding",
             new_callable=AsyncMock,
             return_value=FAKE_EMBEDDING,
         ), patch(
-            "gobby.memory.manager.is_embedding_available", return_value=True
+            "gobby.memory.services.embeddings.is_embedding_available", return_value=True
         ):
             memory = await manager.remember(
                 content="Temporary fact",
@@ -276,7 +276,7 @@ class TestReindexEmbeddings:
 
         # Create memories without embeddings (embedding unavailable)
         with patch(
-            "gobby.memory.manager.is_embedding_available", return_value=False
+            "gobby.memory.services.embeddings.is_embedding_available", return_value=False
         ):
             m1 = await manager.remember(content="Fact one", project_id="test-project")
             m2 = await manager.remember(content="Fact two", project_id="test-project")
@@ -289,9 +289,9 @@ class TestReindexEmbeddings:
 
         # Reindex with embeddings available
         with patch(
-            "gobby.memory.manager.is_embedding_available", return_value=True
+            "gobby.memory.services.embeddings.is_embedding_available", return_value=True
         ), patch(
-            "gobby.memory.manager.generate_embeddings",
+            "gobby.memory.services.embeddings.generate_embeddings",
             new_callable=AsyncMock,
             return_value=[FAKE_EMBEDDING, FAKE_EMBEDDING, FAKE_EMBEDDING],
         ):
@@ -312,7 +312,7 @@ class TestReindexEmbeddings:
         manager, _ = _setup(tmp_path)
 
         with patch(
-            "gobby.memory.manager.is_embedding_available", return_value=False
+            "gobby.memory.services.embeddings.is_embedding_available", return_value=False
         ):
             result = await manager.reindex_embeddings()
 
