@@ -2,7 +2,6 @@ import asyncio
 import concurrent.futures
 import logging
 import threading
-import warnings
 from collections.abc import Coroutine
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, TypeVar
@@ -18,6 +17,13 @@ from .loader_cache import (
     _is_discovery_stale,
     _is_stale,
     clear_cache,
+)
+from .loader_discovery import (
+    _scan_directory,
+    _scan_pipeline_directory,
+    discover_lifecycle_workflows,
+    discover_pipeline_workflows,
+    discover_workflows,
 )
 from .loader_validation import (
     _check_refs,
@@ -575,197 +581,20 @@ class WorkflowLoader:
     async def discover_workflows(
         self, project_path: Path | str | None = None
     ) -> list[DiscoveredWorkflow]:
-        """
-        Discover all workflows from project and global directories.
-
-        Scans root workflow directories.
-        Returns workflows sorted by:
-        1. Project workflows first (is_project=True), then global
-        2. Within each group: by priority (ascending), then alphabetically by name
-
-        Project workflows shadow global workflows with the same name.
-
-        Args:
-            project_path: Optional project directory. If provided, searches
-                         {project_path}/.gobby/workflows/ first.
-
-        Returns:
-            List of DiscoveredWorkflow objects, sorted and deduplicated.
-        """
-        cache_key = f"unified:{project_path}" if project_path else "unified:global"
-
-        # Check cache
-        if cache_key in self._discovery_cache:
-            cached = self._discovery_cache[cache_key]
-            if not self._is_discovery_stale(cached):
-                return cached.results
-            del self._discovery_cache[cache_key]
-
-        discovered: dict[str, DiscoveredWorkflow] = {}  # name -> workflow (for shadowing)
-        failed: dict[str, str] = {}  # name -> error message for failed workflows
-        file_mtimes: dict[str, float] = {}
-        dir_mtimes: dict[str, float] = {}
-
-        # 1. Scan bundled directories first (lowest priority, shadowed by all)
-        if self._bundled_dir is not None and self._bundled_dir.is_dir():
-            await self._scan_directory(
-                self._bundled_dir,
-                is_project=False,
-                discovered=discovered,
-                file_mtimes=file_mtimes,
-                dir_mtimes=dir_mtimes,
-            )
-
-        # 2. Scan global directories (shadows bundled)
-        for global_dir in self.global_dirs:
-            await self._scan_directory(
-                global_dir,
-                is_project=False,
-                discovered=discovered,
-                file_mtimes=file_mtimes,
-                dir_mtimes=dir_mtimes,
-            )
-
-        # 3. Scan project directories (shadows global)
-        if project_path:
-            project_wf_dir = Path(project_path) / ".gobby" / "workflows"
-            await self._scan_directory(
-                project_wf_dir,
-                is_project=True,
-                discovered=discovered,
-                failed=failed,
-                file_mtimes=file_mtimes,
-                dir_mtimes=dir_mtimes,
-            )
-
-            # Log errors when project workflow fails but global exists (failed shadowing)
-            for name, error in failed.items():
-                if name in discovered and not discovered[name].is_project:
-                    logger.error(
-                        f"Project workflow '{name}' failed to load, using global instead: {error}"
-                    )
-
-        # 4. Sort: project first, then by priority (asc), then by name (alpha)
-        sorted_workflows = sorted(
-            discovered.values(),
-            key=lambda w: (
-                0 if w.is_project else 1,  # Project first
-                w.priority,  # Lower priority = runs first
-                w.name,  # Alphabetical
-            ),
-        )
-
-        # Cache and return
-        self._discovery_cache[cache_key] = _CachedDiscovery(
-            results=sorted_workflows, file_mtimes=file_mtimes, dir_mtimes=dir_mtimes
-        )
-        return sorted_workflows
+        """Discover all workflows from project and global directories."""
+        return await discover_workflows(self, project_path)
 
     async def discover_lifecycle_workflows(
         self, project_path: Path | str | None = None
     ) -> list[DiscoveredWorkflow]:
-        """Deprecated: use discover_workflows() instead.
-
-        This is a backward-compatible alias that returns the same results
-        as discover_workflows().
-        """
-        warnings.warn(
-            "discover_lifecycle_workflows() is deprecated, use discover_workflows() instead.",
-            DeprecationWarning,
-            stacklevel=2,
-        )
-        return await self.discover_workflows(project_path)
+        """Deprecated: use discover_workflows() instead."""
+        return await discover_lifecycle_workflows(self, project_path)
 
     async def discover_pipeline_workflows(
         self, project_path: Path | str | None = None
     ) -> list[DiscoveredWorkflow]:
-        """
-        Discover all pipeline workflows from project and global directories.
-
-        Returns workflows sorted by:
-        1. Project workflows first (is_project=True), then global
-        2. Within each group: by priority (ascending), then alphabetically by name
-
-        Project workflows shadow global workflows with the same name.
-
-        Note: Unlike lifecycle workflows which are in lifecycle/ subdirs,
-        pipelines are in the root workflows/ directory.
-
-        Args:
-            project_path: Optional project directory. If provided, searches
-                         {project_path}/.gobby/workflows/ first.
-
-        Returns:
-            List of DiscoveredWorkflow objects with type='pipeline', sorted and deduplicated.
-        """
-        cache_key = f"pipelines:{project_path}" if project_path else "pipelines:global"
-
-        # Check cache
-        if cache_key in self._discovery_cache:
-            cached = self._discovery_cache[cache_key]
-            if not self._is_discovery_stale(cached):
-                return cached.results
-            del self._discovery_cache[cache_key]
-
-        discovered: dict[str, DiscoveredWorkflow] = {}  # name -> workflow (for shadowing)
-        failed: dict[str, str] = {}  # name -> error message for failed workflows
-        file_mtimes: dict[str, float] = {}
-        dir_mtimes: dict[str, float] = {}
-
-        # 1. Scan bundled workflows directory first (lowest priority, shadowed by all)
-        if self._bundled_dir is not None and self._bundled_dir.is_dir():
-            await self._scan_pipeline_directory(
-                self._bundled_dir,
-                is_project=False,
-                discovered=discovered,
-                file_mtimes=file_mtimes,
-                dir_mtimes=dir_mtimes,
-            )
-
-        # 2. Scan global workflows directory (shadows bundled)
-        for global_dir in self.global_dirs:
-            await self._scan_pipeline_directory(
-                global_dir,
-                is_project=False,
-                discovered=discovered,
-                file_mtimes=file_mtimes,
-                dir_mtimes=dir_mtimes,
-            )
-
-        # 3. Scan project workflows directory (shadows global)
-        if project_path:
-            project_dir = Path(project_path) / ".gobby" / "workflows"
-            await self._scan_pipeline_directory(
-                project_dir,
-                is_project=True,
-                discovered=discovered,
-                failed=failed,
-                file_mtimes=file_mtimes,
-                dir_mtimes=dir_mtimes,
-            )
-
-            # Log errors when project pipeline fails but global exists (failed shadowing)
-            for name, error in failed.items():
-                if name in discovered and not discovered[name].is_project:
-                    logger.error(
-                        f"Project pipeline '{name}' failed to load, using global instead: {error}"
-                    )
-
-        # 3. Sort: project first, then by priority (asc), then by name (alpha)
-        sorted_pipelines = sorted(
-            discovered.values(),
-            key=lambda w: (
-                0 if w.is_project else 1,  # Project first
-                w.priority,  # Lower priority = runs first
-                w.name,  # Alphabetical
-            ),
-        )
-
-        # Cache and return
-        self._discovery_cache[cache_key] = _CachedDiscovery(
-            results=sorted_pipelines, file_mtimes=file_mtimes, dir_mtimes=dir_mtimes
-        )
-        return sorted_pipelines
+        """Discover all pipeline workflows from project and global directories."""
+        return await discover_pipeline_workflows(self, project_path)
 
     async def _scan_pipeline_directory(
         self,
@@ -776,94 +605,10 @@ class WorkflowLoader:
         file_mtimes: dict[str, float] | None = None,
         dir_mtimes: dict[str, float] | None = None,
     ) -> None:
-        """
-        Scan a directory for pipeline YAML files and add to discovered dict.
-
-        Only includes workflows with type='pipeline'.
-
-        Args:
-            directory: Directory to scan
-            is_project: Whether this is a project directory (for shadowing)
-            discovered: Dict to update (name -> DiscoveredWorkflow)
-            failed: Optional dict to track failed pipelines (name -> error message)
-            file_mtimes: Optional dict to record scanned file mtimes for cache invalidation
-            dir_mtimes: Optional dict to record scanned directory mtimes for cache invalidation
-        """
-        if not directory.exists():
-            return
-
-        if dir_mtimes is not None:
-            try:
-                dir_mtimes[str(directory)] = directory.stat().st_mtime
-            except OSError:
-                pass
-
-        for yaml_path in directory.glob("*.yaml"):
-            name = yaml_path.stem
-            try:
-                if file_mtimes is not None:
-                    try:
-                        file_mtimes[str(yaml_path)] = yaml_path.stat().st_mtime
-                    except OSError:
-                        pass
-
-                async with aiofiles.open(yaml_path) as f:
-                    content = await f.read()
-                data = yaml.safe_load(content)
-
-                if not data:
-                    continue
-
-                # Only process pipeline type workflows
-                if data.get("type") != "pipeline":
-                    continue
-
-                # Handle inheritance with cycle detection
-                if "extends" in data:
-                    parent_name = data["extends"]
-                    try:
-                        parent = await self.load_pipeline(
-                            parent_name,
-                            _inheritance_chain=[name],
-                        )
-                        if parent:
-                            data = self._merge_workflows(parent.model_dump(), data)
-                    except ValueError as e:
-                        logger.warning(f"Skipping pipeline {name}: {e}")
-                        if failed is not None:
-                            failed[name] = str(e)
-                        continue
-
-                # Validate references before creating definition
-                self._validate_pipeline_references(data)
-
-                definition = PipelineDefinition(**data)
-
-                # Get priority from data settings or default to 100
-                # (PipelineDefinition doesn't have settings field, use raw data)
-                priority = 100
-                settings = data.get("settings", {})
-                if settings and "priority" in settings:
-                    priority = settings["priority"]
-
-                # Log successful shadowing when project pipeline overrides global
-                if name in discovered and is_project and not discovered[name].is_project:
-                    logger.info(f"Project pipeline '{name}' shadows global pipeline")
-
-                # Project pipelines shadow global (overwrite in dict)
-                # Global is scanned first, so project overwrites
-                discovered[name] = DiscoveredWorkflow(
-                    name=name,
-                    definition=definition,
-                    priority=priority,
-                    is_project=is_project,
-                    path=yaml_path,
-                )
-
-            except Exception as e:
-                logger.warning(f"Failed to load pipeline from {yaml_path}: {e}")
-                if failed is not None:
-                    failed[name] = str(e)
+        """Scan a directory for pipeline YAML files and add to discovered dict."""
+        await _scan_pipeline_directory(
+            self, directory, is_project, discovered, failed, file_mtimes, dir_mtimes
+        )
 
     async def _scan_directory(
         self,
@@ -874,88 +619,10 @@ class WorkflowLoader:
         file_mtimes: dict[str, float] | None = None,
         dir_mtimes: dict[str, float] | None = None,
     ) -> None:
-        """
-        Scan a directory for workflow YAML files and add to discovered dict.
-
-        Args:
-            directory: Directory to scan
-            is_project: Whether this is a project directory (for shadowing)
-            discovered: Dict to update (name -> DiscoveredWorkflow)
-            failed: Optional dict to track failed workflows (name -> error message)
-            file_mtimes: Optional dict to record scanned file mtimes for cache invalidation
-            dir_mtimes: Optional dict to record scanned directory mtimes for cache invalidation
-        """
-        if not directory.exists():
-            return
-
-        if dir_mtimes is not None:
-            try:
-                dir_mtimes[str(directory)] = directory.stat().st_mtime
-            except OSError:
-                pass
-
-        for yaml_path in directory.glob("*.yaml"):
-            name = yaml_path.stem
-            try:
-                if file_mtimes is not None:
-                    try:
-                        file_mtimes[str(yaml_path)] = yaml_path.stat().st_mtime
-                    except OSError:
-                        pass
-
-                async with aiofiles.open(yaml_path) as f:
-                    content = await f.read()
-                data = yaml.safe_load(content)
-
-                if not data:
-                    continue
-
-                # Handle inheritance with cycle detection
-                if "extends" in data:
-                    parent_name = data["extends"]
-                    try:
-                        parent = await self.load_workflow(
-                            parent_name,
-                            _inheritance_chain=[name],
-                        )
-                        if parent:
-                            data = self._merge_workflows(parent.model_dump(), data)
-                    except ValueError as e:
-                        logger.warning(f"Skipping workflow {name}: {e}")
-                        if failed is not None:
-                            failed[name] = str(e)
-                        continue
-
-                # Backward compat: derive enabled from deprecated type field
-                if "type" in data and "enabled" not in data:
-                    data["enabled"] = data["type"] == "lifecycle"
-
-                definition = WorkflowDefinition(**data)
-
-                # Use definition.priority directly; fall back to settings.priority
-                # for backward compat with YAMLs not yet migrated to top-level priority.
-                priority = definition.priority
-                if priority == 100 and definition.settings.get("priority") is not None:
-                    priority = definition.settings["priority"]
-
-                # Log successful shadowing when project workflow overrides global
-                if name in discovered and is_project and not discovered[name].is_project:
-                    logger.info(f"Project workflow '{name}' shadows global workflow")
-
-                # Project workflows shadow global (overwrite in dict)
-                # Global is scanned first, so project overwrites
-                discovered[name] = DiscoveredWorkflow(
-                    name=name,
-                    definition=definition,
-                    priority=priority,
-                    is_project=is_project,
-                    path=yaml_path,
-                )
-
-            except Exception as e:
-                logger.warning(f"Failed to load workflow from {yaml_path}: {e}")
-                if failed is not None:
-                    failed[name] = str(e)
+        """Scan a directory for workflow YAML files and add to discovered dict."""
+        await _scan_directory(
+            self, directory, is_project, discovered, failed, file_mtimes, dir_mtimes
+        )
 
     def clear_cache(self) -> None:
         """
