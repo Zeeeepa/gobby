@@ -13,6 +13,7 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING, Any
 
+from gobby.agents import runner_queries as _queries
 from gobby.agents.registry import RunningAgent
 from gobby.agents.runner_models import AgentConfig, AgentRunContext
 from gobby.agents.runner_tracking import RunTracker
@@ -585,26 +586,12 @@ class AgentRunner:
         return await self.execute_run(context, config, tool_handler)
 
     def get_run(self, run_id: str) -> Any | None:
-        """Get an agent run by ID."""
-        return self._run_storage.get(run_id)
+        """Get an agent run by ID. Delegates to runner_queries."""
+        return _queries.get_run(self, run_id)
 
     def get_run_id_by_session(self, session_id: str) -> str | None:
-        """
-        Get agent run_id by child session_id.
-
-        Looks up the agent_runs table for a run with this child_session_id.
-
-        Args:
-            session_id: The child session ID (UUID format).
-
-        Returns:
-            The run_id if found, None otherwise.
-        """
-        row = self.db.fetchone(
-            "SELECT id FROM agent_runs WHERE child_session_id = ? ORDER BY created_at DESC LIMIT 1",
-            (session_id,),
-        )
-        return row["id"] if row else None
+        """Get agent run_id by child session_id. Delegates to runner_queries."""
+        return _queries.get_run_id_by_session(self, session_id)
 
     def list_runs(
         self,
@@ -612,33 +599,12 @@ class AgentRunner:
         status: str | None = None,
         limit: int = 100,
     ) -> list[Any]:
-        """List agent runs for a session."""
-        return self._run_storage.list_by_session(
-            parent_session_id,
-            status=status,  # type: ignore
-            limit=limit,
-        )
+        """List agent runs for a session. Delegates to runner_queries."""
+        return _queries.list_runs(self, parent_session_id, status=status, limit=limit)
 
     def cancel_run(self, run_id: str) -> bool:
-        """Cancel a running agent."""
-        run = self._run_storage.get(run_id)
-        if not run:
-            return False
-        if run.status != "running":
-            return False
-
-        self._run_storage.cancel(run_id)
-
-        # Also mark session as cancelled
-        if run.child_session_id:
-            self._session_storage.update_status(run.child_session_id, "cancelled")
-
-        self.logger.info(f"Cancelled agent run {run_id}")
-
-        # Remove from in-memory tracking
-        self._tracker.untrack(run_id)
-
-        return True
+        """Cancel a running agent. Delegates to runner_queries."""
+        return _queries.cancel_run(self, run_id)
 
     # -------------------------------------------------------------------------
     # In-memory Running Agents Management (delegated to RunTracker)
