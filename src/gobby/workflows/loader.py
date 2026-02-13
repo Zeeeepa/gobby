@@ -4,7 +4,6 @@ import logging
 import threading
 import warnings
 from collections.abc import Coroutine
-from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, TypeVar
 
@@ -12,6 +11,17 @@ import aiofiles
 import yaml
 
 from .definitions import PipelineDefinition, WorkflowDefinition
+from .loader_cache import (
+    DiscoveredWorkflow,
+    _CachedDiscovery,
+    _CachedEntry,
+    _is_discovery_stale,
+    _is_stale,
+    clear_cache,
+)
+
+# Re-export for backward compatibility
+__all__ = ["DiscoveredWorkflow", "WorkflowLoader"]
 
 if TYPE_CHECKING:
     from gobby.agents.definitions import WorkflowSpec
@@ -19,35 +29,6 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 _T = TypeVar("_T")
-
-
-@dataclass
-class DiscoveredWorkflow:
-    """A discovered workflow with metadata for ordering."""
-
-    name: str
-    definition: WorkflowDefinition | PipelineDefinition
-    priority: int  # Lower = higher priority (runs first)
-    is_project: bool  # True if from project, False if global
-    path: Path
-
-
-@dataclass
-class _CachedEntry:
-    """Cache entry for a single workflow definition with mtime tracking."""
-
-    definition: WorkflowDefinition | PipelineDefinition
-    path: Path | None  # None for inline/agent workflows
-    mtime: float  # os.stat().st_mtime, 0.0 for inline
-
-
-@dataclass
-class _CachedDiscovery:
-    """Cache entry for workflow discovery results with mtime tracking."""
-
-    results: list[DiscoveredWorkflow]
-    file_mtimes: dict[str, float]  # yaml file path -> mtime
-    dir_mtimes: dict[str, float]  # scanned directory path -> mtime
 
 
 _BUNDLED_WORKFLOWS_DIR = Path(__file__).parent.parent / "install" / "shared" / "workflows"
@@ -77,30 +58,11 @@ class WorkflowLoader:
 
     def _is_stale(self, entry: _CachedEntry) -> bool:
         """Check if a cached workflow entry is stale (file changed on disk)."""
-        if entry.path is None:
-            return False  # Inline workflows have no file to check
-        if entry.mtime == 0.0:
-            return False  # Could not stat at cache time; skip check
-        try:
-            return entry.path.stat().st_mtime != entry.mtime
-        except OSError:
-            return True  # File deleted = stale
+        return _is_stale(entry)
 
     def _is_discovery_stale(self, entry: _CachedDiscovery) -> bool:
         """Check if discovery cache is stale (any file/dir changed)."""
-        for dir_path, mtime in entry.dir_mtimes.items():
-            try:
-                if Path(dir_path).stat().st_mtime != mtime:
-                    return True  # Dir changed (file added/removed)
-            except OSError:
-                return True
-        for file_path, mtime in entry.file_mtimes.items():
-            try:
-                if Path(file_path).stat().st_mtime != mtime:
-                    return True  # File content changed
-            except OSError:
-                return True  # File deleted
-        return False
+        return _is_discovery_stale(entry)
 
     async def load_workflow(
         self,
@@ -1093,8 +1055,7 @@ class WorkflowLoader:
         Clear the workflow definitions and discovery cache.
         Call when workflows may have changed on disk.
         """
-        self._cache.clear()
-        self._discovery_cache.clear()
+        clear_cache(self._cache, self._discovery_cache)
 
     def register_inline_workflow(
         self,
