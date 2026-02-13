@@ -107,14 +107,19 @@ export function useVoice(
 
   // Check voice availability on mount
   useEffect(() => {
-    fetch('/api/voice/status')
+    const controller = new AbortController()
+    fetch('/api/voice/status', { signal: controller.signal })
       .then(res => res.ok ? res.json() : null)
       .then(data => {
         if (data?.enabled && data?.stt_available) {
           setVoiceAvailable(true)
         }
       })
-      .catch((err) => { console.error('Voice status check failed:', err); setVoiceAvailable(false) })
+      .catch((err) => {
+        if (err instanceof DOMException && err.name === 'AbortError') return
+        console.error('Voice status check failed:', err); setVoiceAvailable(false)
+      })
+    return () => { controller.abort() }
   }, [])
 
   // Track speaking state from playback queue

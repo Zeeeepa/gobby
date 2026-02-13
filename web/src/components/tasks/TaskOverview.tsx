@@ -5,8 +5,7 @@ import type { GobbyTask, TaskStats } from '../../hooks/useTasks'
 // Constants
 // =============================================================================
 
-const COMPLETED_STATUSES = new Set(['closed'])
-const TWENTY_FOUR_HOURS_MS = 24 * 60 * 60 * 1000
+import { COMPLETED_STATUSES, RECENTLY_DONE_CUTOFF_MS } from './taskConstants'
 
 // =============================================================================
 // TaskOverview
@@ -24,7 +23,7 @@ export function TaskOverview({ tasks, stats, activeFilter, onFilterStatus }: Tas
   const stuckCount = (stats['escalated'] || 0)
   const reviewCount = (stats['needs_review'] || 0) + (stats['review_approved'] || 0)
   const recentlyCompleted = useMemo(() => {
-    const cutoff = Date.now() - TWENTY_FOUR_HOURS_MS
+    const cutoff = Date.now() - RECENTLY_DONE_CUTOFF_MS
     return tasks.filter(
       t => COMPLETED_STATUSES.has(t.status) && new Date(t.updated_at).getTime() > cutoff
     ).length

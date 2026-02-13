@@ -16,21 +16,10 @@ from gobby.workflows.definitions import WorkflowDefinition
 
 pytestmark = pytest.mark.unit
 
-LIFECYCLE_YAML = (
-    Path(__file__).resolve().parents[2]
-    / "src"
-    / "gobby"
-    / "install"
-    / "shared"
-    / "workflows"
-    / "session-lifecycle.yaml"
-)
-
-
 @pytest.fixture
-def lifecycle_data() -> dict:
+def lifecycle_data(lifecycle_yaml_path: Path) -> dict:
     """Load and return the raw YAML data from session-lifecycle.yaml."""
-    with open(LIFECYCLE_YAML, encoding="utf-8") as f:
+    with open(lifecycle_yaml_path, encoding="utf-8") as f:
         return yaml.safe_load(f)
 
 

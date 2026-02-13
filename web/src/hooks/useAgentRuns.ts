@@ -46,6 +46,8 @@ export function useAgentRuns() {
       if (res.ok) {
         const data = await res.json()
         setRunning(data.agents || [])
+      } else {
+        console.error('fetchRunning failed:', res.status, res.statusText)
       }
     } catch (e) {
       if (e instanceof DOMException && e.name === 'AbortError') return
@@ -59,6 +61,8 @@ export function useAgentRuns() {
       if (res.ok) {
         const data = await res.json()
         setRecentRuns(data.runs || [])
+      } else {
+        console.error('fetchRecentRuns failed:', res.status, res.statusText)
       }
     } catch (e) {
       if (e instanceof DOMException && e.name === 'AbortError') return
@@ -71,13 +75,14 @@ export function useAgentRuns() {
     setIsLoading(false)
   }, [fetchRunning, fetchRecentRuns])
 
-  const cancelAgent = useCallback(async (runId: string): Promise<boolean> => {
+  const cancelAgent = useCallback(async (runId: string, signal?: AbortSignal): Promise<boolean> => {
     try {
       const res = await fetch(`/api/agents/runs/${encodeURIComponent(runId)}/cancel`, {
         method: 'POST',
+        signal,
       })
       if (res.ok) {
-        await fetchAll()
+        await fetchAll(signal)
         return true
       }
     } catch (e) {

@@ -233,28 +233,31 @@ export function KnowledgeGraph({ fetchKnowledgeGraph, fetchEntityNeighbors }: Kn
   // Node breathing effect — use ref to avoid prop changes that trigger graph rebuilds
   const animateRef = useRef(animateIdle)
   animateRef.current = animateIdle
+  const origScaleMap = useRef(new WeakMap<object, any>()).current // eslint-disable-line @typescript-eslint/no-explicit-any
   const nodePositionUpdate = useCallback((obj: any) => { // eslint-disable-line @typescript-eslint/no-explicit-any
     if (!animateRef.current) {
       // Restore original scale when animation stops
-      if (obj.__origScale) {
-        obj.scale.copy(obj.__origScale)
-        delete obj.__origScale
+      const orig = origScaleMap.get(obj)
+      if (orig) {
+        obj.scale.copy(orig)
+        origScaleMap.delete(obj)
       }
       return
     }
     // Capture SpriteText's dimensional scale on first animated frame
-    if (!obj.__origScale) {
-      obj.__origScale = obj.scale.clone()
+    if (!origScaleMap.has(obj)) {
+      origScaleMap.set(obj, obj.scale.clone())
     }
+    const orig = origScaleMap.get(obj)
     const t = performance.now() * 0.001
     const offset = numericId(obj.id) % 100 * 0.1
     const factor = 1 + Math.sin(t * 1.5 + offset) * 0.06
     obj.scale.set(
-      obj.__origScale.x * factor,
-      obj.__origScale.y * factor,
-      obj.__origScale.z * factor
+      orig.x * factor,
+      orig.y * factor,
+      orig.z * factor
     )
-  }, [])
+  }, [origScaleMap])
 
   // Legend types
   const legendTypes = useMemo(() => {

@@ -156,6 +156,12 @@ def mock_daemon_config() -> "MagicMock":
     return config
 
 
+@pytest.fixture
+def lifecycle_yaml_path() -> Path:
+    """Return path to the session-lifecycle.yaml workflow file."""
+    return Path(__file__).resolve().parent.parent / "src" / "gobby" / "install" / "shared" / "workflows" / "session-lifecycle.yaml"
+
+
 @pytest.fixture(autouse=True)
 def protect_production_resources(
     request: pytest.FixtureRequest, temp_dir: Path, safe_db_dir: Path

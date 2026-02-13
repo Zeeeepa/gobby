@@ -12,6 +12,7 @@ from typing import Any
 import pytest
 
 from gobby.workflows.definitions import Observer, WorkflowState
+from gobby.workflows.observers import ObserverEngine
 
 pytestmark = pytest.mark.unit
 
@@ -44,8 +45,6 @@ class TestObserverMatchByTool:
     @pytest.mark.asyncio
     async def test_matches_by_tool_name(self) -> None:
         """Observer with match.tool should match event tool_name."""
-        from gobby.workflows.observers import ObserverEngine
-
         obs = Observer(
             name="track_edits",
             on="after_tool",
@@ -63,8 +62,6 @@ class TestObserverMatchByTool:
     @pytest.mark.asyncio
     async def test_non_matching_tool_skipped(self) -> None:
         """Observer should not fire when tool doesn't match."""
-        from gobby.workflows.observers import ObserverEngine
-
         obs = Observer(
             name="track_writes",
             on="after_tool",
@@ -84,8 +81,6 @@ class TestObserverMatchByMCP:
     @pytest.mark.asyncio
     async def test_matches_by_mcp_server_and_tool(self) -> None:
         """Observer with mcp_server+mcp_tool should match MCP call_tool events."""
-        from gobby.workflows.observers import ObserverEngine
-
         obs = Observer(
             name="track_claims",
             on="after_tool",
@@ -106,8 +101,6 @@ class TestObserverMatchByMCP:
     @pytest.mark.asyncio
     async def test_mcp_server_mismatch_skipped(self) -> None:
         """Observer should not fire when mcp_server doesn't match."""
-        from gobby.workflows.observers import ObserverEngine
-
         obs = Observer(
             name="track_claims",
             on="after_tool",
@@ -130,8 +123,6 @@ class TestObserverMatchAND:
     @pytest.mark.asyncio
     async def test_all_match_criteria_must_pass(self) -> None:
         """Multiple match fields use AND logic — all must match."""
-        from gobby.workflows.observers import ObserverEngine
-
         obs = Observer(
             name="track_specific",
             on="after_tool",
@@ -155,8 +146,6 @@ class TestObserverNoMatch:
     @pytest.mark.asyncio
     async def test_no_match_field_matches_all(self) -> None:
         """Observer with no match field matches all events of the right type."""
-        from gobby.workflows.observers import ObserverEngine
-
         obs = Observer(
             name="count_all",
             on="after_tool",
@@ -175,8 +164,6 @@ class TestObserverSetExpressions:
     @pytest.mark.asyncio
     async def test_literal_string_value(self) -> None:
         """Set expression with a plain string literal stays as string."""
-        from gobby.workflows.observers import ObserverEngine
-
         obs = Observer(
             name="set_name",
             on="after_tool",
@@ -192,8 +179,6 @@ class TestObserverSetExpressions:
     @pytest.mark.asyncio
     async def test_arithmetic_expression(self) -> None:
         """Set expression with Jinja2 arithmetic template coerces to int."""
-        from gobby.workflows.observers import ObserverEngine
-
         obs = Observer(
             name="count_edits",
             on="after_tool",
@@ -215,8 +200,6 @@ class TestObserverTypeCoercion:
     @pytest.mark.asyncio
     async def test_true_coerced_to_bool(self) -> None:
         """Literal 'true' should be coerced to Python True."""
-        from gobby.workflows.observers import ObserverEngine
-
         obs = Observer(
             name="set_flag",
             on="after_tool",
@@ -232,8 +215,6 @@ class TestObserverTypeCoercion:
     @pytest.mark.asyncio
     async def test_false_coerced_to_bool(self) -> None:
         """Literal 'false' should be coerced to Python False."""
-        from gobby.workflows.observers import ObserverEngine
-
         obs = Observer(
             name="clear_flag",
             on="after_tool",
@@ -249,8 +230,6 @@ class TestObserverTypeCoercion:
     @pytest.mark.asyncio
     async def test_null_coerced_to_none(self) -> None:
         """Literal 'null' should be coerced to Python None."""
-        from gobby.workflows.observers import ObserverEngine
-
         obs = Observer(
             name="clear_value",
             on="after_tool",
@@ -266,8 +245,6 @@ class TestObserverTypeCoercion:
     @pytest.mark.asyncio
     async def test_none_coerced_to_none(self) -> None:
         """Literal 'none' should be coerced to Python None."""
-        from gobby.workflows.observers import ObserverEngine
-
         obs = Observer(
             name="clear_value",
             on="after_tool",
@@ -283,8 +260,6 @@ class TestObserverTypeCoercion:
     @pytest.mark.asyncio
     async def test_integer_coerced(self) -> None:
         """Literal '42' should be coerced to int 42."""
-        from gobby.workflows.observers import ObserverEngine
-
         obs = Observer(
             name="set_count",
             on="after_tool",
@@ -301,8 +276,6 @@ class TestObserverTypeCoercion:
     @pytest.mark.asyncio
     async def test_float_coerced(self) -> None:
         """Literal '3.14' should be coerced to float 3.14."""
-        from gobby.workflows.observers import ObserverEngine
-
         obs = Observer(
             name="set_ratio",
             on="after_tool",
@@ -319,8 +292,6 @@ class TestObserverTypeCoercion:
     @pytest.mark.asyncio
     async def test_jinja2_true_result_coerced(self) -> None:
         """Jinja2 template rendering 'True' should be coerced to bool True."""
-        from gobby.workflows.observers import ObserverEngine
-
         obs = Observer(
             name="check_flag",
             on="after_tool",
@@ -337,8 +308,6 @@ class TestObserverTypeCoercion:
     @pytest.mark.parametrize("val", ["True", "TRUE", " true "])
     async def test_case_insensitive_coercion(self, val: str) -> None:
         """'True', 'TRUE', ' true ' should all coerce to bool True."""
-        from gobby.workflows.observers import ObserverEngine
-
         obs = Observer(
             name="set_flag",
             on="after_tool",
@@ -356,8 +325,6 @@ class TestObserverEventTypeFilter:
     @pytest.mark.asyncio
     async def test_wrong_event_type_skipped(self) -> None:
         """Observer with on='after_tool' should not fire on 'before_tool'."""
-        from gobby.workflows.observers import ObserverEngine
-
         obs = Observer(
             name="after_only",
             on="after_tool",
@@ -375,8 +342,6 @@ class TestMultipleObservers:
     @pytest.mark.asyncio
     async def test_multiple_observers_fire_on_same_event(self) -> None:
         """Multiple matching observers should all fire."""
-        from gobby.workflows.observers import ObserverEngine
-
         obs1 = Observer(
             name="track_tool",
             on="after_tool",
@@ -402,8 +367,6 @@ class TestBehaviorObserverSkipped:
     @pytest.mark.asyncio
     async def test_behavior_observer_skipped_by_yaml_engine(self) -> None:
         """Behavior observers should be skipped by evaluate_observers (handled elsewhere)."""
-        from gobby.workflows.observers import ObserverEngine
-
         obs = Observer(name="task_tracking", behavior="task_claim_tracking")
         state = _make_state()
 
