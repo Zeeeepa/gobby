@@ -13,6 +13,7 @@ description: |
 
 version: "1.0"
 type: step
+enabled: false
 
 variables:
   isolation_mode: "worktree"       # "clone" or "worktree"

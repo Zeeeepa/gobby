@@ -32,10 +32,15 @@ description: |
 
 version: "1.0"
 type: step
+enabled: false
 
+# Session-scoped shared variables
+session_variables:
+  session_task: null              # Root task ID(s) to complete
+
+# Workflow-scoped variables
 variables:
   agent_name: null                # Set by spawn_agent (e.g., "meeseeks-gemini", "meeseeks-claude")
-  session_task: null              # Root task ID(s) to complete
   isolation_mode: "clone"         # "clone", "worktree", or "current"
   current_worker_id: null         # Active worker run_id
   current_clone_id: null          # Active clone (when isolation_mode=clone)

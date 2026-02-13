@@ -10,6 +10,7 @@ description: |
 
 version: "1.0"
 type: step
+enabled: false
 
 variables:
   worktree_id: null      # Set by parent

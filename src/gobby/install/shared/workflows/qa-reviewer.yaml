@@ -5,6 +5,7 @@ description: |
 
 version: "1.0"
 type: step
+enabled: false
 
 variables:
   assigned_task_id: null

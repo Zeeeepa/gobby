@@ -5,6 +5,8 @@ description: |
 
 version: "1.0"
 type: step
+enabled: false
+priority: 20
 
 imports: [worker-safety]
 
