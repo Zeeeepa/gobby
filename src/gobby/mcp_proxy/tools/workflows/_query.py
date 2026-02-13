@@ -222,9 +222,7 @@ def get_workflow_status(
     if instance_manager:
         instances = instance_manager.get_active_instances(resolved_session_id)
         session_vars = (
-            session_var_manager.get_variables(resolved_session_id)
-            if session_var_manager
-            else {}
+            session_var_manager.get_variables(resolved_session_id) if session_var_manager else {}
         )
 
         workflows = [

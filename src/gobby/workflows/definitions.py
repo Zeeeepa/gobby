@@ -251,8 +251,12 @@ class PipelineStep(BaseModel):
     def model_post_init(self, __context: Any) -> None:
         """Validate that exactly one execution type is specified."""
         exec_types = [
-            self.exec, self.prompt, self.invoke_pipeline, self.mcp,
-            self.spawn_session, self.activate_workflow,
+            self.exec,
+            self.prompt,
+            self.invoke_pipeline,
+            self.mcp,
+            self.spawn_session,
+            self.activate_workflow,
         ]
         specified = [t for t in exec_types if t is not None]
 

@@ -170,9 +170,7 @@ class ChatMixin:
 
         try:
             # WorkflowHookHandler.evaluate is sync (bridges to async internally)
-            response: HookResponse = await asyncio.to_thread(
-                workflow_handler.evaluate, event
-            )
+            response: HookResponse = await asyncio.to_thread(workflow_handler.evaluate, event)
             return {
                 "decision": response.decision,
                 "context": response.context,

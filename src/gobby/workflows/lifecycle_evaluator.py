@@ -652,7 +652,10 @@ async def evaluate_all_lifecycle_workflows(
         except Exception as e:
             logger.debug(f"Could not load session_variables: {e}")
 
-        if not (lifecycle_state and lifecycle_state.variables) and event.event_type == HookEventType.SESSION_START:
+        if (
+            not (lifecycle_state and lifecycle_state.variables)
+            and event.event_type == HookEventType.SESSION_START
+        ):
             # New session - check if we should inherit from parent
             parent_id = event.metadata.get("_parent_session_id")
             if parent_id:
