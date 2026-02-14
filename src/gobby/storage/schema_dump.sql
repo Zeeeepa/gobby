@@ -130,9 +130,8 @@ CREATE TABLE memories (
             tags TEXT,
             created_at TEXT NOT NULL,
             updated_at TEXT NOT NULL
-        , media TEXT, mem0_id TEXT);
+        , media TEXT);
 CREATE INDEX idx_memories_project ON memories(project_id);
-CREATE INDEX idx_memories_mem0_id ON memories(mem0_id);
 CREATE INDEX idx_memories_type ON memories(memory_type);
 CREATE INDEX idx_memories_importance ON memories(importance DESC);
 CREATE TABLE session_memories (

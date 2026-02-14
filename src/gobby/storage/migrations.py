@@ -487,14 +487,12 @@ CREATE TABLE memories (
     last_accessed_at TEXT,
     tags TEXT,
     media TEXT,
-    mem0_id TEXT,
     created_at TEXT NOT NULL,
     updated_at TEXT NOT NULL
 );
 CREATE INDEX idx_memories_project ON memories(project_id);
 CREATE INDEX idx_memories_type ON memories(memory_type);
 CREATE INDEX idx_memories_importance ON memories(importance DESC);
-CREATE INDEX idx_memories_mem0_id ON memories(mem0_id);
 
 CREATE TABLE session_memories (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -1131,6 +1129,18 @@ def _import_bundled_workflows(db: LocalDatabase) -> None:
     logger.info(f"Imported {imported} bundled workflow definitions")
 
 
+def _migrate_drop_mem0_id(db: LocalDatabase) -> None:
+    """Drop mem0_id column from memories table if it exists.
+
+    Conditional because fresh databases (baseline schema) never had this column.
+    """
+    columns = db.fetchall("PRAGMA table_info(memories)")
+    column_names = [c["name"] for c in columns]
+    if "mem0_id" in column_names:
+        db.execute("DROP INDEX IF EXISTS idx_memories_mem0_id")
+        db.execute("ALTER TABLE memories DROP COLUMN mem0_id")
+
+
 def _migrate_add_workflow_definitions(db: LocalDatabase) -> None:
     """Add workflow_definitions table and import bundled YAML workflows.
 
@@ -1540,6 +1550,12 @@ MIGRATIONS: list[tuple[int, str, MigrationAction]] = [
         DROP INDEX IF EXISTS idx_memory_embeddings_hash;
         DROP INDEX IF EXISTS idx_memory_embeddings_project;
         """,
+    ),
+    # Memory V6: drop mem0_id column (mem0 integration removed)
+    (
+        104,
+        "Drop mem0_id column from memories",
+        _migrate_drop_mem0_id,
     ),
 ]
 
