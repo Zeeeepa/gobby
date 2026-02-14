@@ -1,0 +1,24 @@
+# Neo4j knowledge graph for Gobby memory integration
+# Installed via: gobby install neo4j
+# Uses non-standard ports to avoid conflicts with existing services.
+
+services:
+  neo4j:
+    image: neo4j:5.26
+    ports:
+      - "8474:7474"
+      - "8687:7687"
+    environment:
+      - NEO4J_AUTH=neo4j/${GOBBY_NEO4J_PASSWORD:-gobbyneo4j}
+      - NEO4J_PLUGINS=["apoc"]
+    volumes:
+      - gobby_neo4j_data:/data
+    healthcheck:
+      test: ["CMD-SHELL", "cypher-shell -u neo4j -p ${GOBBY_NEO4J_PASSWORD:-gobbyneo4j} 'RETURN 1'"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+volumes:
+  gobby_neo4j_data:
