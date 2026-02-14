@@ -1,7 +1,7 @@
 """Async Neo4j HTTP client.
 
 Provides a direct HTTP client for the Neo4j HTTP Query API v2,
-used to query the knowledge graph built by Mem0's graph store.
+used to query the knowledge graph built by the KnowledgeGraphService.
 """
 
 from __future__ import annotations

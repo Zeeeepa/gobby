@@ -222,20 +222,6 @@ def create_admin_router(server: "HTTPServer") -> APIRouter:
             except Exception as e:
                 logger.warning(f"Failed to get memory stats: {e}")
 
-            # Mem0 dual-mode status
-            try:
-                mem0_client = getattr(server.memory_manager, "_mem0_client", None)
-                if mem0_client is not None:
-                    memory_stats["mem0"] = {
-                        "configured": True,
-                        "url": mem0_client.base_url,
-                    }
-                else:
-                    memory_stats["mem0"] = {"configured": False}
-            except Exception as e:
-                logger.warning(f"Failed to check Mem0 status: {e}")
-                memory_stats["mem0"] = {"configured": False, "error": str(e)}
-
             # Neo4j knowledge graph status
             try:
                 neo4j_client = getattr(server.memory_manager, "_neo4j_client", None)
