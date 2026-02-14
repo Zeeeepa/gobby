@@ -1,3 +1,4 @@
+import { useState, useEffect, useCallback } from 'react'
 import { ConversationPicker } from './ConversationPicker'
 import { ChatMessages } from './ChatMessages'
 import { ChatInput } from './ChatInput'
@@ -6,6 +7,8 @@ import { TerminalPanel } from './Terminal'
 import type { ChatMessage } from './Message'
 import type { GobbySession } from '../hooks/useSessions'
 import type { CommandInfo } from '../hooks/useSlashCommands'
+
+const SIDEBAR_KEY = 'gobby-chat-sidebar'
 
 export interface ChatState {
   messages: ChatMessage[]
@@ -65,6 +68,16 @@ interface ChatPageProps {
 }
 
 export function ChatPage({ chat, conversations, terminal, project, voice }: ChatPageProps) {
+  const [sidebarOpen, setSidebarOpen] = useState(() => {
+    try { return localStorage.getItem(SIDEBAR_KEY) !== 'false' } catch { return true }
+  })
+
+  useEffect(() => {
+    try { localStorage.setItem(SIDEBAR_KEY, String(sidebarOpen)) } catch { /* noop */ }
+  }, [sidebarOpen])
+
+  const toggleSidebar = useCallback(() => setSidebarOpen(prev => !prev), [])
+
   return (
     <div className="chat-page">
       <ConversationPicker
@@ -72,6 +85,8 @@ export function ChatPage({ chat, conversations, terminal, project, voice }: Chat
         activeSessionId={conversations.activeSessionId}
         onNewChat={conversations.onNewChat}
         onSelectSession={conversations.onSelectSession}
+        isOpen={sidebarOpen}
+        onToggle={toggleSidebar}
       />
       <div className="chat-main">
         <main className="chat-container">
