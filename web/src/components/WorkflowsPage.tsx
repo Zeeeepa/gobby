@@ -2,6 +2,8 @@ import { useState, useCallback, useMemo } from 'react'
 import { useWorkflows } from '../hooks/useWorkflows'
 import type { WorkflowDetail } from '../hooks/useWorkflows'
 import { WorkflowBuilder } from './WorkflowBuilder'
+import { definitionToFlow, flowToDefinition, type FlowNode } from './workflowSerialization'
+import type { Node, Edge } from '@xyflow/react'
 import './WorkflowsPage.css'
 
 type OverviewFilter = 'total' | 'workflows' | 'pipelines' | 'active' | null
@@ -40,6 +42,7 @@ export function WorkflowsPage() {
     activeCount,
     fetchWorkflows,
     createWorkflow,
+    updateWorkflow,
     deleteWorkflow,
     duplicateWorkflow,
     toggleEnabled,
@@ -142,13 +145,56 @@ export function WorkflowsPage() {
     }
   }, [])
 
+  const handleSave = useCallback(async (nodes: Node[], edges: Edge[], name: string) => {
+    if (!editingWorkflow) return
+    const isPipeline = editingWorkflow.workflow_type === 'pipeline'
+    const { definition, canvasJson } = flowToDefinition(nodes as FlowNode[], edges, isPipeline)
+    // Merge non-canvas fields from original definition
+    try {
+      const origDef = JSON.parse(editingWorkflow.definition_json)
+      // Preserve top-level fields not managed by the canvas
+      for (const key of ['name', 'description', 'version', 'type', 'enabled', 'priority', 'sources', 'settings', 'variables', 'session_variables', 'imports', 'inputs', 'outputs', 'webhooks', 'expose_as_tool']) {
+        if (key in origDef && !(key in definition)) {
+          definition[key] = origDef[key]
+        }
+      }
+    } catch {
+      // ignore parse errors
+    }
+    definition.name = name
+    await updateWorkflow(editingWorkflow.id, {
+      name,
+      definition_json: JSON.stringify(definition),
+      canvas_json: canvasJson,
+    })
+    // Update local editing state with new data
+    setEditingWorkflow((prev) => prev ? {
+      ...prev,
+      name,
+      definition_json: JSON.stringify(definition),
+      canvas_json: canvasJson,
+    } : null)
+  }, [editingWorkflow, updateWorkflow])
+
   if (editingWorkflow) {
+    const wfType = (editingWorkflow.workflow_type as 'workflow' | 'pipeline') || 'workflow'
+    let initDef: Record<string, unknown> = {}
+    try {
+      initDef = JSON.parse(editingWorkflow.definition_json)
+    } catch {
+      // empty def fallback
+    }
+    const { nodes: initNodes, edges: initEdges } = definitionToFlow(initDef, editingWorkflow.canvas_json)
+
     return (
       <WorkflowBuilder
         workflowId={editingWorkflow.id}
         workflowName={editingWorkflow.name}
-        workflowType={(editingWorkflow.workflow_type as 'workflow' | 'pipeline') || 'workflow'}
-        onBack={() => setEditingWorkflow(null)}
+        workflowType={wfType}
+        initialNodes={initNodes}
+        initialEdges={initEdges}
+        onBack={() => { setEditingWorkflow(null); fetchWorkflows() }}
+        onSave={handleSave}
         onExport={() => handleExport(editingWorkflow)}
       />
     )

@@ -109,6 +109,7 @@ export function useWorkflows() {
       enabled?: boolean
       sources?: string[]
       tags?: string[]
+      canvas_json?: string
     },
   ): Promise<WorkflowDetail | null> => {
     try {
