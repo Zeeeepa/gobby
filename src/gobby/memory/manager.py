@@ -12,7 +12,7 @@ from gobby.memory.components.ingestion import IngestionService
 from gobby.memory.context import build_memory_context
 from gobby.memory.neo4j_client import Neo4jClient
 from gobby.memory.protocol import MemoryBackendProtocol, MemoryRecord
-from gobby.memory.services.graph import GraphService
+from gobby.memory.services.knowledge_graph import KnowledgeGraphService
 from gobby.memory.services.maintenance import (
     export_markdown as _export_markdown,
 )
@@ -81,27 +81,34 @@ class MemoryManager:
         else:
             self._neo4j_client = None
 
-        # Graph service (extracted from manager)
-        self._graph_service = GraphService(
-            get_neo4j_client=lambda: self._neo4j_client,
-        )
-
-        # DedupService: initialized when LLM + VectorStore + embed_fn available
+        # DedupService + KnowledgeGraphService: initialized when LLM + VectorStore + embed_fn available
         self._dedup_service: DedupService | None = None
+        self._kg_service: KnowledgeGraphService | None = None
         if llm_service and vector_store and embed_fn:
             try:
                 from gobby.memory.services.dedup import DedupService as _DedupService
                 from gobby.prompts.loader import PromptLoader
 
                 provider = llm_service.get_default_provider()
+                prompt_loader = PromptLoader()
                 self._dedup_service = _DedupService(
                     llm_provider=provider,
                     vector_store=vector_store,
                     storage=self.storage,
                     embed_fn=embed_fn,
-                    prompt_loader=PromptLoader(),
+                    prompt_loader=prompt_loader,
                 )
                 logger.debug("DedupService initialized")
+
+                # KnowledgeGraphService: requires Neo4j client
+                if self._neo4j_client:
+                    self._kg_service = KnowledgeGraphService(
+                        neo4j_client=self._neo4j_client,
+                        llm_provider=provider,
+                        embed_fn=embed_fn,
+                        prompt_loader=prompt_loader,
+                    )
+                    logger.debug("KnowledgeGraphService initialized")
             except Exception as e:
                 logger.warning(f"Failed to initialize DedupService: {e}")
 
@@ -192,6 +199,25 @@ class MemoryManager:
         self._background_tasks.add(task)
         task.add_done_callback(self._background_tasks.discard)
 
+    def _fire_background_graph(self, content: str) -> None:
+        """Fire a background knowledge graph task (non-blocking).
+
+        Extracts entities and relationships from content and merges
+        them into the Neo4j knowledge graph.
+        """
+
+        async def _run_graph() -> None:
+            try:
+                assert self._kg_service is not None  # noqa: S101
+                await self._kg_service.add_to_graph(content)
+            except Exception as e:
+                logger.warning(f"Background graph extraction failed: {e}")
+
+        task = asyncio.create_task(_run_graph(), name="memory-graph")
+
+        self._background_tasks.add(task)
+        task.add_done_callback(self._background_tasks.discard)
+
     # =========================================================================
     # CRUD operations
     # =========================================================================
@@ -268,6 +294,10 @@ class MemoryManager:
                 source_type=source_type,
                 source_session_id=source_session_id,
             )
+
+        # Fire-and-forget: background knowledge graph task
+        if self._kg_service:
+            self._fire_background_graph(content)
 
         return memory
 
@@ -698,16 +728,20 @@ class MemoryManager:
         return memories
 
     # =========================================================================
-    # Neo4j knowledge graph (delegated to GraphService)
+    # Neo4j knowledge graph (delegated to KnowledgeGraphService)
     # =========================================================================
 
     async def get_entity_graph(self, limit: int = 500) -> dict[str, Any] | None:
         """Get the Neo4j entity graph for visualization."""
-        return await self._graph_service.get_entity_graph(limit=limit)
+        if not self._kg_service:
+            return None
+        return await self._kg_service.get_entity_graph(limit=limit)
 
     async def get_entity_neighbors(self, name: str) -> dict[str, Any] | None:
         """Get neighbors for a single Neo4j entity."""
-        return await self._graph_service.get_entity_neighbors(name)
+        if not self._kg_service:
+            return None
+        return await self._kg_service.get_entity_neighbors(name)
 
     def export_markdown(
         self,
