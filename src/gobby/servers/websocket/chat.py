@@ -59,6 +59,10 @@ class ChatMixin:
 
         Attempts a graceful interrupt first so the SDK can clean up its
         internal task group, then force-cancels if the task is still running.
+        After the task is cancelled, drains any stale response events from
+        the SDK to prevent the off-by-one bug where the next query's
+        ``receive_response()`` returns leftover events from the interrupted
+        turn.
         """
         session = self._chat_sessions.get(conversation_id)
         if session:
@@ -74,6 +78,16 @@ class ChatMixin:
                 await active_task
             except asyncio.CancelledError:
                 pass
+            # Let the SDK settle after interrupt+cancellation.
+            # Without this pause, an immediate query() can get an empty
+            # response because the SDK hasn't finished its internal cleanup.
+            await asyncio.sleep(0.1)
+
+        # Drain any stale response events buffered in the SDK.
+        # Without this, receive_response() on the *next* query returns
+        # leftover events from this interrupted turn (off-by-one bug).
+        if session:
+            await session.drain_pending_response()
 
     async def _handle_stop_chat(self, websocket: Any, data: dict[str, Any] | None = None) -> None:
         """

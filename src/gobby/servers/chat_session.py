@@ -505,6 +505,33 @@ class ChatSession:
             except Exception as e:
                 logger.warning(f"ChatSession {self.conversation_id} interrupt error: {e}")
 
+    async def drain_pending_response(self) -> None:
+        """Drain any buffered response events from the SDK after an interrupt.
+
+        After ``interrupt()`` + task cancellation, the SDK may still have
+        stale response events in its internal buffer.  If not consumed,
+        those events leak into the **next** ``receive_response()`` call,
+        causing the off-by-one bug where the response to message N+1
+        actually contains content generated for message N.
+
+        This method must be called **after** the streaming task has been
+        cancelled and the ``_lock`` has been released.
+        """
+        if not self._client or not self._connected:
+            return
+        try:
+            async with asyncio.timeout(1.0):
+                async for _ in self._client.receive_response():
+                    pass
+        except TimeoutError:
+            logger.debug(
+                f"ChatSession {self.conversation_id}: drain timed out (no stale events)"
+            )
+        except Exception as e:
+            logger.debug(
+                f"ChatSession {self.conversation_id}: drain error (expected): {e}"
+            )
+
     async def stop(self) -> None:
         """Disconnect the ClaudeSDKClient and clean up."""
         if self._client:
