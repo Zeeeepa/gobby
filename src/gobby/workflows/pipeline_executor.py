@@ -473,7 +473,21 @@ class PipelineExecutor:
             mcp_config.arguments or {},
         )
 
-        # Check for MCP-level failure
+        # Convert MCP SDK CallToolResult to a serializable dict
+        if hasattr(result, "content") and hasattr(result, "isError"):
+            texts = []
+            for item in result.content:
+                if hasattr(item, "text"):
+                    texts.append(item.text)
+            output = "\n".join(texts) if texts else ""
+            if getattr(result, "isError", False):
+                raise RuntimeError(
+                    f"MCP step {rendered_step.id} failed: "
+                    f"{mcp_config.server}:{mcp_config.tool} returned error: {output}"
+                )
+            return {"result": output}
+
+        # Check for MCP-level failure (dict responses from internal tools)
         if isinstance(result, dict) and result.get("success") is False:
             error_msg = result.get("error", "Unknown MCP tool error")
             raise RuntimeError(
