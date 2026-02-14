@@ -402,7 +402,6 @@ async def handle_memory_extract_from_session(
         llm_service=context.llm_service,
         transcript_processor=context.transcript_processor,
         session_id=context.session_id,
-        min_importance=kwargs.get("min_importance", 0.7),
         max_memories=kwargs.get("max_memories", 5),
     )
 
@@ -554,7 +553,6 @@ async def memory_extract_from_session(
     llm_service: Any,
     transcript_processor: Any | None,
     session_id: str,
-    min_importance: float = 0.7,
     max_memories: int = 5,
 ) -> dict[str, Any] | None:
     """Extract memories from a session transcript using LLM analysis.
@@ -595,7 +593,6 @@ async def memory_extract_from_session(
 
         candidates = await extractor.extract(
             session_id=session_id,
-            min_importance=min_importance,
             max_memories=max_memories,
         )
 

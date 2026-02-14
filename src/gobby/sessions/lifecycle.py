@@ -221,7 +221,6 @@ class SessionLifecycleManager:
 
             candidates = await extractor.extract(
                 session_id=session_id,
-                min_importance=0.7,
                 max_memories=5,
             )
 

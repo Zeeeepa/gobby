@@ -7,10 +7,8 @@ optional_variables:
   - task_refs
   - files
   - tool_summary
-  - min_importance
   - max_memories
 defaults:
-  min_importance: 0.8
   max_memories: 3
 ---
 Analyze this coding session and extract ONLY memories that would save >5 minutes of future discovery work.
@@ -43,8 +41,8 @@ Analyze this coding session and extract ONLY memories that would save >5 minutes
 
 ## The 5-Minute Rule
 Before including a memory, ask: "Would finding this information take an agent >5 minutes?"
-- YES → Include it (e.g., "Claude Code doesn't return tool_result in post-tool-use hooks")
-- NO → Skip it (e.g., "The project uses pre-commit hooks for formatting")
+- YES -> Include it (e.g., "Claude Code doesn't return tool_result in post-tool-use hooks")
+- NO -> Skip it (e.g., "The project uses pre-commit hooks for formatting")
 
 ## Output Format
 ```json
@@ -52,15 +50,12 @@ Before including a memory, ask: "Would finding this information take an agent >5
   {
     "content": "Specific, actionable knowledge (1-3 sentences with concrete details)",
     "memory_type": "fact | pattern | preference | context",
-    "importance": 0.85,
     "tags": ["relevant", "tags"]
   }
 ]
 ```
 
 Guidelines:
-- Only include memories with importance >= {{ min_importance | default(0.8) }}
 - Maximum {{ max_memories | default(3) }} memories per session
 - Most sessions should return an empty array: []
-- importance: 0.8 = valuable, 0.9 = critical, 1.0 = essential (no 0.7 memories)
 - When in doubt, don't extract - fewer high-quality memories > many low-quality ones
