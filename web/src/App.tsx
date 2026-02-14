@@ -134,7 +134,7 @@ export default function App() {
 
   // Chat page: only web-chat sessions are selectable
   const handleSelectConversation = useCallback((session: GobbySession) => {
-    switchConversation(session.external_id)
+    switchConversation(session.external_id, session.id)
   }, [switchConversation])
 
   /* "Ask Gobby about this session" from Sessions page */

@@ -465,7 +465,7 @@ export function useChat() {
   }, [messages])
 
   // Switch to a different conversation
-  const switchConversation = useCallback((id: string) => {
+  const switchConversation = useCallback((id: string, dbSessionId?: string) => {
     if (!id) return
     // Skip if already on this conversation with messages loaded
     if (id === conversationIdRef.current && messagesRef.current.length > 0) return
@@ -486,12 +486,36 @@ export function useChat() {
 
     // Load messages for the target conversation
     const loaded = loadMessagesForConversation(id)
-    setMessages(loaded.length > 0 ? loaded : [{
-      id: `system-resume-${Date.now()}`,
-      role: 'system' as const,
-      content: 'Resuming session. Send a message to continue.',
-      timestamp: new Date(),
-    }])
+    if (loaded.length > 0) {
+      setMessages(loaded)
+      return
+    }
+
+    // No local messages — fetch from API if we have the DB session ID
+    if (dbSessionId) {
+      setMessages([])
+      const baseUrl = import.meta.env.VITE_API_BASE_URL || ''
+      fetch(`${baseUrl}/sessions/${dbSessionId}/messages?limit=100&offset=0`)
+        .then(res => res.ok ? res.json() : null)
+        .then(data => {
+          if (!data?.messages?.length || conversationIdRef.current !== id) return
+          const mapped: ChatMessage[] = data.messages
+            .filter((m: { role: string }) => m.role === 'user' || m.role === 'assistant')
+            .map((m: { id: string; role: string; content: string; timestamp: string }) => ({
+              id: m.id,
+              role: m.role as 'user' | 'assistant',
+              content: m.content,
+              timestamp: new Date(m.timestamp),
+            }))
+          if (mapped.length > 0) {
+            setMessages(mapped)
+            saveMessagesForConversation(id, mapped)
+          }
+        })
+        .catch(err => console.error('Failed to fetch session messages:', err))
+    } else {
+      setMessages([])
+    }
   }, [])
 
   // Start a new chat conversation
