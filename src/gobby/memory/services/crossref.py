@@ -11,7 +11,7 @@ from gobby.storage.memories import Memory
 
 if TYPE_CHECKING:
     from gobby.config.persistence import MemoryConfig
-    from gobby.memory.search import SearchBackend
+    from gobby.search.protocol import SearchBackend
     from gobby.storage.memories import LocalMemoryManager
 
 logger = logging.getLogger(__name__)
