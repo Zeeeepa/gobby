@@ -1,13 +1,15 @@
-"""Tests for workflow status query with multi-workflow support."""
+"""Tests for workflow query tools — status and list_workflows with DB."""
 
 from __future__ import annotations
 
 from datetime import UTC, datetime
+from pathlib import Path
 from typing import Any
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 
 import pytest
 
+from gobby.storage.workflow_definitions import WorkflowDefinitionRow
 from gobby.workflows.definitions import WorkflowInstance, WorkflowState
 
 pytestmark = pytest.mark.unit
@@ -203,3 +205,161 @@ class TestGetWorkflowStatusMultiWorkflow:
 
         assert result["success"] is True
         assert result["workflows"] == []
+
+
+def _make_db_row(
+    name: str = "test-wf",
+    workflow_type: str = "workflow",
+    description: str = "A test workflow",
+    source: str = "custom",
+    enabled: bool = True,
+    priority: int = 100,
+) -> WorkflowDefinitionRow:
+    """Create a mock WorkflowDefinitionRow."""
+    return WorkflowDefinitionRow(
+        id=f"uuid-{name}",
+        name=name,
+        workflow_type=workflow_type,
+        enabled=enabled,
+        priority=priority,
+        definition_json="{}",
+        source=source,
+        created_at="2026-01-01T00:00:00",
+        updated_at="2026-01-01T00:00:00",
+        description=description,
+    )
+
+
+class TestListWorkflowsDBIntegration:
+    """Tests for list_workflows with DB + filesystem merge."""
+
+    def test_returns_db_stored_definitions(self) -> None:
+        """list_workflows returns DB-stored definitions when DB is available."""
+        from gobby.mcp_proxy.tools.workflows._query import list_workflows
+
+        db = MagicMock()
+        loader = MagicMock()
+        loader.global_dirs = []
+
+        rows = [
+            _make_db_row("my-workflow", "workflow", "Workflow from DB"),
+            _make_db_row("my-pipeline", "pipeline", "Pipeline from DB"),
+        ]
+
+        with patch(
+            "gobby.storage.workflow_definitions.LocalWorkflowDefinitionManager"
+        ) as MockMgr:
+            MockMgr.return_value.list_all.return_value = rows
+            result = list_workflows(loader, project_path="/fake/path", db=db)
+
+        assert result["success"] is True
+        assert result["count"] == 2
+        names = [w["name"] for w in result["workflows"]]
+        assert "my-workflow" in names
+        assert "my-pipeline" in names
+        # DB entries include enabled and priority
+        wf = next(w for w in result["workflows"] if w["name"] == "my-workflow")
+        assert wf["enabled"] is True
+        assert wf["priority"] == 100
+        assert wf["source"] == "custom"
+
+    def test_merges_db_and_filesystem(self, tmp_path: Path) -> None:
+        """list_workflows merges DB + filesystem results, DB takes precedence."""
+        from gobby.mcp_proxy.tools.workflows._query import list_workflows
+
+        db = MagicMock()
+        loader = MagicMock()
+        loader.global_dirs = []
+
+        # DB has one workflow
+        db_rows = [_make_db_row("shared-name", "workflow", "DB version")]
+
+        # Filesystem has a different workflow + same name
+        wf_dir = tmp_path / ".gobby" / "workflows"
+        wf_dir.mkdir(parents=True)
+        (wf_dir / "shared-name.yaml").write_text("name: shared-name\ndescription: FS version\n")
+        (wf_dir / "fs-only.yaml").write_text("name: fs-only\ndescription: Filesystem only\n")
+
+        with patch(
+            "gobby.storage.workflow_definitions.LocalWorkflowDefinitionManager"
+        ) as MockMgr:
+            MockMgr.return_value.list_all.return_value = db_rows
+            result = list_workflows(loader, project_path=str(tmp_path), db=db)
+
+        assert result["success"] is True
+        names = [w["name"] for w in result["workflows"]]
+        # DB version of shared-name wins, fs-only also included
+        assert "shared-name" in names
+        assert "fs-only" in names
+        assert result["count"] == 2
+        # The shared-name entry should be from DB (has source=custom)
+        shared = next(w for w in result["workflows"] if w["name"] == "shared-name")
+        assert shared["source"] == "custom"
+        assert shared["description"] == "DB version"
+
+    def test_falls_back_to_filesystem_when_db_empty(self, tmp_path: Path) -> None:
+        """list_workflows falls back to filesystem when DB has no results."""
+        from gobby.mcp_proxy.tools.workflows._query import list_workflows
+
+        db = MagicMock()
+        loader = MagicMock()
+        loader.global_dirs = []
+
+        # DB returns empty
+        with patch(
+            "gobby.storage.workflow_definitions.LocalWorkflowDefinitionManager"
+        ) as MockMgr:
+            MockMgr.return_value.list_all.return_value = []
+
+            wf_dir = tmp_path / ".gobby" / "workflows"
+            wf_dir.mkdir(parents=True)
+            (wf_dir / "fs-workflow.yaml").write_text(
+                "name: fs-workflow\ndescription: From filesystem\n"
+            )
+
+            result = list_workflows(loader, project_path=str(tmp_path), db=db)
+
+        assert result["success"] is True
+        assert result["count"] == 1
+        assert result["workflows"][0]["name"] == "fs-workflow"
+        assert result["workflows"][0]["source"] == "project"
+
+    def test_falls_back_to_filesystem_when_no_db(self, tmp_path: Path) -> None:
+        """list_workflows works without DB (backward compatible)."""
+        from gobby.mcp_proxy.tools.workflows._query import list_workflows
+
+        loader = MagicMock()
+        loader.global_dirs = []
+
+        wf_dir = tmp_path / ".gobby" / "workflows"
+        wf_dir.mkdir(parents=True)
+        (wf_dir / "legacy.yaml").write_text("name: legacy\ndescription: Legacy workflow\n")
+
+        # No db parameter — pure filesystem
+        result = list_workflows(loader, project_path=str(tmp_path))
+
+        assert result["success"] is True
+        assert result["count"] == 1
+        assert result["workflows"][0]["name"] == "legacy"
+
+    def test_db_error_falls_back_gracefully(self, tmp_path: Path) -> None:
+        """list_workflows handles DB errors gracefully, falling back to filesystem."""
+        from gobby.mcp_proxy.tools.workflows._query import list_workflows
+
+        db = MagicMock()
+        loader = MagicMock()
+        loader.global_dirs = []
+
+        wf_dir = tmp_path / ".gobby" / "workflows"
+        wf_dir.mkdir(parents=True)
+        (wf_dir / "fallback.yaml").write_text("name: fallback\ndescription: Fallback\n")
+
+        with patch(
+            "gobby.storage.workflow_definitions.LocalWorkflowDefinitionManager"
+        ) as MockMgr:
+            MockMgr.return_value.list_all.side_effect = RuntimeError("DB crashed")
+            result = list_workflows(loader, project_path=str(tmp_path), db=db)
+
+        assert result["success"] is True
+        assert result["count"] == 1
+        assert result["workflows"][0]["name"] == "fallback"
