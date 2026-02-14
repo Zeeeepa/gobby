@@ -215,6 +215,46 @@ class GeminiProvider(LLMProvider):
             self.logger.error(f"Failed to generate text with Gemini via LiteLLM: {e}")
             return f"Generation failed: {e}"
 
+    async def generate_json(
+        self,
+        prompt: str,
+        system_prompt: str | None = None,
+        model: str | None = None,
+    ) -> dict[str, Any]:
+        """
+        Generate structured JSON using Gemini via LiteLLM.
+
+        Raises:
+            RuntimeError: If LiteLLM is not initialized
+            ValueError: If response is empty or not valid JSON
+        """
+        if not self._litellm:
+            raise RuntimeError("Generation unavailable (LiteLLM not initialized)")
+
+        model_name = model or "gemini-1.5-flash"
+        litellm_model = self._get_model(model_name)
+
+        try:
+            response = await self._litellm.acompletion(
+                model=litellm_model,
+                messages=[
+                    {
+                        "role": "system",
+                        "content": system_prompt or "You are a helpful assistant. Respond with valid JSON.",
+                    },
+                    {"role": "user", "content": prompt},
+                ],
+                max_tokens=8000,
+                timeout=120,
+                response_format={"type": "json_object"},
+            )
+            content = response.choices[0].message.content
+            if not content:
+                raise ValueError("Empty response from LLM")
+            return json.loads(content)
+        except json.JSONDecodeError as e:
+            raise ValueError(f"Failed to parse LLM response as JSON: {e}") from e
+
     async def describe_image(
         self,
         image_path: str,

@@ -98,6 +98,34 @@ class LLMProvider(ABC):
         pass
 
     @abstractmethod
+    async def generate_json(
+        self,
+        prompt: str,
+        system_prompt: str | None = None,
+        model: str | None = None,
+    ) -> dict[str, Any]:
+        """
+        Generate a JSON response from a prompt.
+
+        Like generate_text() but requests structured JSON output and
+        returns a parsed dictionary. Uses response_format={'type':'json_object'}
+        where supported by the provider.
+
+        Args:
+            prompt: User prompt (should instruct the model to return JSON)
+            system_prompt: Optional system prompt
+            model: Optional model override
+
+        Returns:
+            Parsed JSON response as a dictionary
+
+        Raises:
+            ValueError: If the response is not valid JSON
+            RuntimeError: If the LLM backend is not available
+        """
+        pass
+
+    @abstractmethod
     async def describe_image(
         self,
         image_path: str,
