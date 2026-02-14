@@ -82,6 +82,15 @@ def create_workflows_router(server: "HTTPServer") -> APIRouter:
 
         return LocalWorkflowDefinitionManager(server.services.database)
 
+    @router.get("/templates")
+    async def list_templates() -> dict[str, Any]:
+        """List available workflow templates for the 'New' button."""
+        from gobby.workflows.workflow_templates import get_workflow_templates
+
+        metrics.inc_counter("http_requests_total")
+        templates = get_workflow_templates()
+        return {"status": "success", "templates": templates, "count": len(templates)}
+
     @router.get("")
     async def list_workflows(
         workflow_type: str | None = Query(None),
