@@ -14,6 +14,7 @@ from .gemini import install_gemini, uninstall_gemini
 from .git_hooks import install_git_hooks
 from .mcp_config import install_default_mcp_servers
 from .mem0 import install_mem0, uninstall_mem0
+from .neo4j import install_neo4j, uninstall_neo4j
 from .shared import (
     install_cli_content,
     install_shared_content,
@@ -47,7 +48,10 @@ __all__ = [
     "install_git_hooks",
     # Antigravity
     "install_antigravity",
-    # Mem0
+    # Mem0 (legacy, kept for backward compatibility)
     "install_mem0",
     "uninstall_mem0",
+    # Neo4j
+    "install_neo4j",
+    "uninstall_neo4j",
 ]

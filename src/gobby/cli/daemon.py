@@ -35,39 +35,30 @@ from .utils import (
 logger = logging.getLogger(__name__)
 
 
-def _mem0_start(gobby_home: Path) -> None:
-    """Start mem0 Docker containers if installed.
+def _neo4j_start(gobby_home: Path) -> None:
+    """Start Neo4j Docker containers if installed.
 
-    Resolves OPENAI_API_KEY from the secret store and passes it
-    to the Docker subprocess environment so mem0 can use it for embeddings.
+    Resolves Neo4j auth from config and passes it to the Docker
+    subprocess environment.
     """
-    compose_file = gobby_home / "services" / "mem0" / "docker-compose.yml"
+    compose_file = gobby_home / "services" / "neo4j" / "docker-compose.yml"
     if not compose_file.exists():
         return
 
-    # Build subprocess env with secrets and config resolved from the store
+    # Build subprocess env with config resolved from the store
     env = dict(os.environ)
     try:
         from gobby.config.app import load_config
-        from gobby.storage.database import LocalDatabase
-        from gobby.storage.secrets import SecretStore
 
         config = load_config(create_default=False)
-        db = LocalDatabase(Path(config.database_path).expanduser())
-        secret_store = SecretStore(db)
-
-        # Resolve API key from secret store
-        api_key = secret_store.get("OPENAI_API_KEY")
-        if api_key:
-            env["OPENAI_API_KEY"] = api_key
 
         # Inject neo4j auth from config (format: "user:password")
         if config.memory.neo4j_auth:
             parts = config.memory.neo4j_auth.split(":", 1)
             if len(parts) == 2:
-                env["GOBBY_MEM0_NEO4J_PASSWORD"] = parts[1]
+                env["GOBBY_NEO4J_PASSWORD"] = parts[1]
     except Exception as e:
-        logger.warning(f"Could not resolve secrets for mem0: {e}")
+        logger.warning(f"Could not resolve config for Neo4j: {e}")
 
     try:
         result = subprocess.run(  # nosec B603 B607 - hardcoded docker command
@@ -78,16 +69,16 @@ def _mem0_start(gobby_home: Path) -> None:
             env=env,
         )
         if result.returncode != 0:
-            logger.warning(f"Failed to start mem0 containers: {result.stderr or result.stdout}")
+            logger.warning(f"Failed to start Neo4j containers: {result.stderr or result.stdout}")
     except subprocess.TimeoutExpired:
-        logger.warning("Timed out starting mem0 containers")
+        logger.warning("Timed out starting Neo4j containers")
     except Exception as e:
-        logger.warning(f"Failed to start mem0 containers: {e}")
+        logger.warning(f"Failed to start Neo4j containers: {e}")
 
 
-def _mem0_stop(gobby_home: Path) -> None:
-    """Stop mem0 Docker containers if installed."""
-    compose_file = gobby_home / "services" / "mem0" / "docker-compose.yml"
+def _neo4j_stop(gobby_home: Path) -> None:
+    """Stop Neo4j Docker containers if installed."""
+    compose_file = gobby_home / "services" / "neo4j" / "docker-compose.yml"
     if not compose_file.exists():
         return
     try:
@@ -98,11 +89,11 @@ def _mem0_stop(gobby_home: Path) -> None:
             timeout=60,
         )
         if result.returncode != 0:
-            logger.warning(f"Failed to stop mem0 containers: {result.stderr or result.stdout}")
+            logger.warning(f"Failed to stop Neo4j containers: {result.stderr or result.stdout}")
     except subprocess.TimeoutExpired:
-        logger.warning("Timed out stopping mem0 containers")
+        logger.warning("Timed out stopping Neo4j containers")
     except Exception as e:
-        logger.warning(f"Failed to stop mem0 containers: {e}")
+        logger.warning(f"Failed to stop Neo4j containers: {e}")
 
 
 def spawn_watchdog(daemon_port: int, verbose: bool, log_file: Path) -> int | None:
@@ -160,14 +151,14 @@ def spawn_watchdog(daemon_port: int, verbose: bool, log_file: Path) -> int | Non
     help="Disable auto-starting the web UI",
 )
 @click.option(
-    "--mem0",
-    "mem0_flag",
+    "--neo4j",
+    "neo4j_flag",
     is_flag=True,
-    help="Also start mem0 Docker containers",
+    help="Also start Neo4j Docker containers",
 )
 @click.pass_context
 def start(
-    ctx: click.Context, verbose: bool, no_watchdog: bool, no_ui: bool, mem0_flag: bool
+    ctx: click.Context, verbose: bool, no_watchdog: bool, no_ui: bool, neo4j_flag: bool
 ) -> None:
     """Start the Gobby daemon."""
     # Get config object
@@ -187,10 +178,10 @@ def start(
     click.echo("Initializing local storage...")
     init_local_storage()
 
-    # Start mem0 containers if requested
-    if mem0_flag:
-        click.echo("Starting mem0 containers...")
-        _mem0_start(gobby_dir)
+    # Start Neo4j containers if requested
+    if neo4j_flag:
+        click.echo("Starting Neo4j containers...")
+        _neo4j_start(gobby_dir)
 
     # Check if already running
     if pid_file.exists():
@@ -343,17 +334,17 @@ def start(
             rich_status = fetch_rich_status(http_port, timeout=2.0)
             status_kwargs.update(rich_status)
 
-            # Check mem0 status
-            from gobby.cli.services import get_mem0_status
+            # Check Neo4j status
+            from gobby.cli.services import get_neo4j_status
 
-            mem0_status = asyncio.run(
-                get_mem0_status(
-                    mem0_url=getattr(config.memory, "mem0_url", None),
+            neo4j_status = asyncio.run(
+                get_neo4j_status(
+                    neo4j_url=getattr(config.memory, "neo4j_url", None),
                 )
             )
-            status_kwargs["mem0_installed"] = mem0_status["installed"]
-            status_kwargs["mem0_healthy"] = mem0_status["healthy"]
-            status_kwargs["mem0_url"] = mem0_status["url"]
+            status_kwargs["neo4j_installed"] = neo4j_status["installed"]
+            status_kwargs["neo4j_healthy"] = neo4j_status["healthy"]
+            status_kwargs["neo4j_url"] = neo4j_status["url"]
 
         message = format_status_message(**status_kwargs)
         click.echo("")
@@ -374,20 +365,20 @@ def start(
 
 @click.command()
 @click.option(
-    "--mem0",
-    "mem0_flag",
+    "--neo4j",
+    "neo4j_flag",
     is_flag=True,
-    help="Also stop mem0 Docker containers",
+    help="Also stop Neo4j Docker containers",
 )
 @click.pass_context
-def stop(ctx: click.Context, mem0_flag: bool) -> None:
+def stop(ctx: click.Context, neo4j_flag: bool) -> None:
     """Stop the Gobby daemon."""
     success = stop_daemon_util(quiet=False)
 
-    # Stop mem0 containers if requested
-    if mem0_flag:
-        click.echo("Stopping mem0 containers...")
-        _mem0_stop(get_gobby_home())
+    # Stop Neo4j containers if requested
+    if neo4j_flag:
+        click.echo("Stopping Neo4j containers...")
+        _neo4j_stop(get_gobby_home())
 
     sys.exit(0 if success else 1)
 
@@ -410,24 +401,24 @@ def stop(ctx: click.Context, mem0_flag: bool) -> None:
     help="Disable auto-starting the web UI",
 )
 @click.option(
-    "--mem0",
-    "mem0_flag",
+    "--neo4j",
+    "neo4j_flag",
     is_flag=True,
-    help="Also restart mem0 Docker containers",
+    help="Also restart Neo4j Docker containers",
 )
 @click.pass_context
 def restart(
-    ctx: click.Context, verbose: bool, no_watchdog: bool, no_ui: bool, mem0_flag: bool
+    ctx: click.Context, verbose: bool, no_watchdog: bool, no_ui: bool, neo4j_flag: bool
 ) -> None:
     """Restart the Gobby daemon (stop then start)."""
     setup_logging(verbose)
 
     click.echo("Restarting Gobby daemon...")
 
-    # Stop mem0 containers if requested (before daemon stop)
-    if mem0_flag:
-        click.echo("Stopping mem0 containers...")
-        _mem0_stop(get_gobby_home())
+    # Stop Neo4j containers if requested (before daemon stop)
+    if neo4j_flag:
+        click.echo("Stopping Neo4j containers...")
+        _neo4j_stop(get_gobby_home())
 
     # Stop daemon using helper function (doesn't call sys.exit)
     if not stop_daemon_util(quiet=False):
@@ -437,8 +428,8 @@ def restart(
     # Wait for cleanup and port release (TIME_WAIT state)
     time.sleep(3)
 
-    # Call start command (with mem0 flag forwarded)
-    ctx.invoke(start, verbose=verbose, no_watchdog=no_watchdog, no_ui=no_ui, mem0_flag=mem0_flag)
+    # Call start command (with neo4j flag forwarded)
+    ctx.invoke(start, verbose=verbose, no_watchdog=no_watchdog, no_ui=no_ui, neo4j_flag=neo4j_flag)
 
 
 @click.command()
@@ -517,12 +508,12 @@ def status(ctx: click.Context) -> None:
         elif ui_mode == "production":
             ui_url = f"http://localhost:{http_port}/"
 
-    # Check mem0 status
-    from gobby.cli.services import get_mem0_status
+    # Check Neo4j status
+    from gobby.cli.services import get_neo4j_status
 
-    mem0_status = asyncio.run(
-        get_mem0_status(
-            mem0_url=getattr(config.memory, "mem0_url", None),
+    neo4j_status = asyncio.run(
+        get_neo4j_status(
+            neo4j_url=getattr(config.memory, "neo4j_url", None),
         )
     )
 
@@ -540,9 +531,9 @@ def status(ctx: click.Context) -> None:
         "ui_mode": ui_mode,
         "ui_url": ui_url,
         "ui_pid": ui_pid,
-        "mem0_installed": mem0_status["installed"],
-        "mem0_healthy": mem0_status["healthy"],
-        "mem0_url": mem0_status["url"],
+        "neo4j_installed": neo4j_status["installed"],
+        "neo4j_healthy": neo4j_status["healthy"],
+        "neo4j_url": neo4j_status["url"],
     }
 
     # Fetch rich status from daemon API

@@ -131,10 +131,10 @@ def format_status_message(
     ui_mode: str | None = None,
     ui_url: str | None = None,
     ui_pid: int | None = None,
-    # Mem0 info
-    mem0_installed: bool | None = None,
-    mem0_healthy: bool | None = None,
-    mem0_url: str | None = None,
+    # Neo4j info
+    neo4j_installed: bool | None = None,
+    neo4j_healthy: bool | None = None,
+    neo4j_url: str | None = None,
     **kwargs: Any,
 ) -> str:
     """
@@ -168,9 +168,9 @@ def format_status_message(
         ui_mode: UI mode ('production' or 'dev')
         ui_url: URL where the UI is accessible
         ui_pid: Process ID of the UI dev server (dev mode only)
-        mem0_installed: Whether mem0 is installed
-        mem0_healthy: Whether mem0 service is healthy
-        mem0_url: URL for mem0 service
+        neo4j_installed: Whether Neo4j is installed
+        neo4j_healthy: Whether Neo4j service is healthy
+        neo4j_url: URL for Neo4j service
 
     Returns:
         Formatted status message string
@@ -296,16 +296,16 @@ def format_status_message(
         lines.append(f"  {mem_str}")
         lines.append("")
 
-    # Mem0 section (only show if we have data)
-    if mem0_installed is not None:
-        lines.append("Mem0:")
-        if not mem0_installed:
+    # Neo4j section (only show if we have data)
+    if neo4j_installed is not None:
+        lines.append("Neo4j:")
+        if not neo4j_installed:
             lines.append("  Not installed")
-        elif mem0_healthy:
-            url_str = f" ({mem0_url})" if mem0_url else ""
+        elif neo4j_healthy:
+            url_str = f" ({neo4j_url})" if neo4j_url else ""
             lines.append(f"  Healthy{url_str}")
         else:
-            url_str = f" ({mem0_url})" if mem0_url else ""
+            url_str = f" ({neo4j_url})" if neo4j_url else ""
             lines.append(f"  Not responding{url_str}")
         lines.append("")
 
