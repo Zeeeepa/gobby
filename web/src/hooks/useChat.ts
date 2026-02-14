@@ -501,8 +501,8 @@ export function useChat() {
           if (!data?.messages?.length || conversationIdRef.current !== id) return
           const mapped: ChatMessage[] = data.messages
             .filter((m: { role: string }) => m.role === 'user' || m.role === 'assistant')
-            .map((m: { id: string; role: string; content: string; timestamp: string }) => ({
-              id: m.id,
+            .map((m: { id: string; role: string; content: string; timestamp: string; message_index?: number }, i: number) => ({
+              id: m.id || `msg-${m.message_index ?? i}`,
               role: m.role as 'user' | 'assistant',
               content: m.content,
               timestamp: new Date(m.timestamp),
@@ -576,6 +576,28 @@ export function useChat() {
     conversationIdRef.current = newId
     setConversationId(newId)
     saveConversationId(newId)
+  }, [])
+
+  // Delete a conversation from backend and clean up local state
+  const deleteConversation = useCallback((id: string) => {
+    if (wsRef.current?.readyState === WebSocket.OPEN) {
+      wsRef.current.send(JSON.stringify({
+        type: 'delete_chat',
+        conversation_id: id,
+      }))
+    }
+    localStorage.removeItem(chatStorageKey(id))
+    // If deleting the active conversation, start a new one
+    if (id === conversationIdRef.current) {
+      const newId = uuid()
+      conversationIdRef.current = newId
+      setConversationId(newId)
+      saveConversationId(newId)
+      setMessages([])
+      activeRequestIdRef.current = null
+      setIsStreaming(false)
+      setIsThinking(false)
+    }
   }, [])
 
   // Stop the current streaming response
@@ -722,6 +744,7 @@ export function useChat() {
     sendMessage,
     stopStreaming,
     clearHistory,
+    deleteConversation,
     executeCommand,
     respondToQuestion,
     switchConversation,

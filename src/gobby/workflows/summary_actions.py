@@ -622,7 +622,7 @@ async def handle_synthesize_title(context: ActionContext, **kwargs: Any) -> dict
     # Extract prompt from event data (UserPromptSubmit hook)
     prompt = None
     if context.event_data:
-        prompt = context.event_data.get("prompt")
+        prompt = context.event_data.get("prompt") or context.event_data.get("prompt_text")
 
     return await synthesize_title(
         session_manager=context.session_manager,
