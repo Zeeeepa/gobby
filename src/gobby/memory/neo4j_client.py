@@ -302,6 +302,80 @@ class Neo4jClient:
 
         return {"entities": entities, "relationships": relationships}
 
+    async def merge_node(
+        self,
+        name: str,
+        labels: list[str] | None = None,
+        properties: dict[str, Any] | None = None,
+    ) -> list[dict[str, Any]]:
+        """Merge a node by name, creating or updating it.
+
+        Uses MERGE with ON CREATE SET / ON MATCH SET to upsert.
+
+        Args:
+            name: Node name (used as the merge key)
+            labels: Neo4j labels to apply (e.g. ["Person", "Engineer"])
+            properties: Additional properties to set on the node
+        """
+        props = dict(properties or {})
+        label_clause = ":" + ":".join(labels) if labels else ""
+        cypher = (
+            f"MERGE (n{label_clause} {{name: $name}}) "
+            "ON CREATE SET n += $props "
+            "ON MATCH SET n += $props "
+            "RETURN n.name AS name"
+        )
+        return await self.query(cypher, {"name": name, "props": props})
+
+    async def merge_relationship(
+        self,
+        source: str,
+        target: str,
+        rel_type: str,
+        properties: dict[str, Any] | None = None,
+    ) -> list[dict[str, Any]]:
+        """Merge a relationship between two nodes matched by name.
+
+        Args:
+            source: Source node name
+            target: Target node name
+            rel_type: Relationship type (e.g. "KNOWS")
+            properties: Properties to set on the relationship
+        """
+        props = dict(properties or {})
+        cypher = (
+            "MATCH (a {name: $source_name}), (b {name: $target_name}) "
+            f"MERGE (a)-[r:{rel_type}]->(b) "
+            "ON CREATE SET r += $props "
+            "ON MATCH SET r += $props "
+            "RETURN type(r) AS rel_type"
+        )
+        return await self.query(
+            cypher, {"source_name": source, "target_name": target, "props": props}
+        )
+
+    async def set_node_vector(
+        self,
+        node_name: str,
+        embedding: list[float],
+        property_name: str = "embedding",
+        index_name: str = "entity_embeddings",
+    ) -> list[dict[str, Any]]:
+        """Set a vector property on a node using Neo4j's vector procedure.
+
+        Args:
+            node_name: Name of the node to set the vector on
+            embedding: The embedding vector
+            property_name: Vector property name (default: 'embedding')
+            index_name: Vector index name (default: 'entity_embeddings')
+        """
+        cypher = (
+            "MATCH (n {name: $name}) "
+            f"CALL db.create.setNodeVectorProperty(n, '{property_name}', $embedding) "
+            "RETURN n.name AS name"
+        )
+        return await self.query(cypher, {"name": node_name, "embedding": embedding})
+
     async def ping(self) -> bool:
         """Check if Neo4j is reachable."""
         try:
