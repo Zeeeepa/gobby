@@ -466,7 +466,9 @@ export function useChat() {
 
   // Switch to a different conversation
   const switchConversation = useCallback((id: string) => {
-    if (!id || id === conversationIdRef.current) return
+    if (!id) return
+    // Skip if already on this conversation with messages loaded
+    if (id === conversationIdRef.current && messagesRef.current.length > 0) return
 
     // Stop partial streaming first
     activeRequestIdRef.current = null
@@ -484,7 +486,12 @@ export function useChat() {
 
     // Load messages for the target conversation
     const loaded = loadMessagesForConversation(id)
-    setMessages(loaded)
+    setMessages(loaded.length > 0 ? loaded : [{
+      id: `system-resume-${Date.now()}`,
+      role: 'system' as const,
+      content: 'Resuming session. Send a message to continue.',
+      timestamp: new Date(),
+    }])
   }, [])
 
   // Start a new chat conversation
