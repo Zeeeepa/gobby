@@ -5,6 +5,7 @@
 
 import dagre from '@dagrejs/dagre'
 import type { Node, Edge } from '@xyflow/react'
+import { nodeKindToType } from './workflow-nodes/nodeTypes'
 
 // ---------------------------------------------------------------------------
 // Types
@@ -19,7 +20,7 @@ export interface StepNodeData extends Record<string, unknown> {
   stepData: Record<string, unknown>
 }
 
-export type FlowNode = Node<StepNodeData, 'step'>
+export type FlowNode = Node<StepNodeData, string>
 
 /** Saved canvas positions keyed by node ID. */
 export interface CanvasPositions {
@@ -123,7 +124,7 @@ function workflowToFlow(
 
     nodes.push({
       id: nodeId,
-      type: 'step',
+      type: nodeKindToType('step'),
       position: { x: 0, y: 0 },
       data: {
         label: name,
@@ -141,7 +142,7 @@ function workflowToFlow(
 
     nodes.push({
       id: nodeId,
-      type: 'step',
+      type: nodeKindToType('observer'),
       position: { x: 0, y: 0 },
       data: {
         label: name,
@@ -159,7 +160,7 @@ function workflowToFlow(
 
     nodes.push({
       id: nodeId,
-      type: 'step',
+      type: nodeKindToType('trigger-group'),
       position: { x: 0, y: 0 },
       data: {
         label: key,
@@ -175,7 +176,7 @@ function workflowToFlow(
     const nodeId = 'exit-condition-0'
     nodes.push({
       id: nodeId,
-      type: 'step',
+      type: nodeKindToType('exit-condition'),
       position: { x: 0, y: 0 },
       data: {
         label: 'Exit Condition',
@@ -267,7 +268,7 @@ function pipelineToFlow(
 
     nodes.push({
       id: nodeId,
-      type: 'step',
+      type: nodeKindToType(nodeKind),
       position: { x: 0, y: 0 },
       data: {
         label: id,

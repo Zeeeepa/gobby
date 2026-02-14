@@ -18,7 +18,7 @@ import {
   type OnConnect,
 } from '@xyflow/react'
 import '@xyflow/react/dist/style.css'
-import { nodeTypes, getDefaultData, NODE_KIND_META, type BaseNodeData } from './workflow-nodes/nodeTypes'
+import { nodeTypes, getDefaultData, nodeKindToType, NODE_KIND_META, type BaseNodeData } from './workflow-nodes/nodeTypes'
 import { ExpressionEditor } from './workflow-nodes/ExpressionEditor'
 import { WorkflowPropertyPanel } from './WorkflowPropertyPanel'
 import './WorkflowBuilder.css'
@@ -200,7 +200,7 @@ function WorkflowBuilderInner({
 
       const newNode: Node = {
         id: getNextId(),
-        type: 'step',
+        type: nodeKindToType(kind),
         position,
         data: getDefaultData(kind),
       }

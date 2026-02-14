@@ -5,6 +5,11 @@
 
 import type { NodeTypes } from '@xyflow/react'
 import { StepNode } from './StepNode'
+import { TriggerNode } from './TriggerNode'
+import { ObserverNode } from './ObserverNode'
+import { PipelineStepNode } from './PipelineStepNode'
+import { VariableNode } from './VariableNode'
+import { ExitNode } from './ExitNode'
 
 // ---------------------------------------------------------------------------
 // Node data types
@@ -120,6 +125,30 @@ export const NODE_KIND_META: Record<string, NodeKindMeta> = {
 }
 
 // ---------------------------------------------------------------------------
+// Node kind → React Flow type mapping
+// ---------------------------------------------------------------------------
+
+const NODE_KIND_TO_TYPE: Record<string, string> = {
+  'step': 'step',
+  'trigger-group': 'trigger',
+  'observer': 'observer',
+  'exec': 'pipelineStep',
+  'prompt': 'pipelineStep',
+  'mcp': 'pipelineStep',
+  'pipeline': 'pipelineStep',
+  'spawn-session': 'pipelineStep',
+  'approval': 'pipelineStep',
+  'variable': 'variable',
+  'exit-condition': 'exit',
+  'rule': 'step',
+}
+
+/** Map a nodeKind string to the React Flow node type key. */
+export function nodeKindToType(nodeKind: string): string {
+  return NODE_KIND_TO_TYPE[nodeKind] ?? 'step'
+}
+
+// ---------------------------------------------------------------------------
 // Default data factory
 // ---------------------------------------------------------------------------
 
@@ -183,4 +212,9 @@ export function getDefaultData(nodeKind: string): BaseNodeData {
 
 export const nodeTypes: NodeTypes = {
   step: StepNode,
+  trigger: TriggerNode,
+  observer: ObserverNode,
+  pipelineStep: PipelineStepNode,
+  variable: VariableNode,
+  exit: ExitNode,
 }

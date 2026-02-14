@@ -1,0 +1,242 @@
+/* =============================================================================
+   Shared workflow node styles + per-type sections
+   ============================================================================= */
+
+/* ---------------------------------------------------------------------------
+   Base card (shared by all node types)
+   --------------------------------------------------------------------------- */
+
+.wf-node {
+  min-width: 180px;
+  max-width: 280px;
+  padding: 10px 14px;
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--accent);
+  border-radius: 8px;
+  background: var(--bg-secondary);
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+
+.wf-node:hover {
+  border-color: var(--text-muted);
+}
+
+.wf-node--selected {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.3);
+}
+
+/* Header */
+.wf-node-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 4px;
+}
+
+.wf-node-icon {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0.85;
+}
+
+.wf-node-name {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-primary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  flex: 1;
+}
+
+.wf-node-kind {
+  font-size: 9px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  flex-shrink: 0;
+}
+
+/* Description */
+.wf-node-desc {
+  font-size: 11px;
+  color: var(--text-secondary);
+  line-height: 1.3;
+  margin-bottom: 6px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+}
+
+/* Badges */
+.wf-node-badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.wf-node-badge {
+  font-size: 9px;
+  padding: 1px 5px;
+  border-radius: 3px;
+  background: var(--bg-tertiary);
+  color: var(--text-secondary);
+}
+
+.wf-node-badge--tools {
+  background: #1a2a3a;
+  color: #60a5fa;
+}
+
+.wf-node-badge--blocked {
+  background: #3a1a1a;
+  color: #f87171;
+}
+
+.wf-node-badge--rules {
+  background: #2a2a1a;
+  color: #facc15;
+}
+
+.wf-node-badge--transitions {
+  background: #1a3a2a;
+  color: #4ade80;
+}
+
+/* Handles */
+.wf-node-handle {
+  width: 8px;
+  height: 8px;
+  background: var(--text-secondary);
+  border: 2px solid var(--bg-secondary);
+}
+
+.wf-node-handle:hover {
+  background: var(--accent);
+}
+
+/* ---------------------------------------------------------------------------
+   Trigger node specifics
+   --------------------------------------------------------------------------- */
+
+.trigger-node-event {
+  font-size: 11px;
+  color: #f59e0b;
+  margin-bottom: 4px;
+  font-weight: 500;
+}
+
+/* ---------------------------------------------------------------------------
+   Observer node specifics
+   --------------------------------------------------------------------------- */
+
+.observer-node-event {
+  font-size: 11px;
+  color: #8b5cf6;
+  margin-bottom: 4px;
+  font-weight: 500;
+}
+
+.observer-node-vars {
+  font-size: 10px;
+  color: var(--text-secondary);
+  font-family: monospace;
+  background: var(--bg-primary);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 3px 6px;
+  margin-bottom: 6px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ---------------------------------------------------------------------------
+   Pipeline step node specifics
+   --------------------------------------------------------------------------- */
+
+.pipeline-node-type {
+  font-size: 9px;
+  padding: 1px 5px;
+  border-radius: 3px;
+  background: var(--bg-tertiary);
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+  margin-bottom: 4px;
+  display: inline-block;
+}
+
+.pipeline-node-preview {
+  font-size: 10px;
+  font-family: monospace;
+  color: var(--text-secondary);
+  background: var(--bg-primary);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 3px 6px;
+  margin-bottom: 6px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.pipeline-node-condition {
+  font-size: 10px;
+  color: #f59e0b;
+  margin-bottom: 6px;
+  font-style: italic;
+}
+
+/* ---------------------------------------------------------------------------
+   Variable node specifics
+   --------------------------------------------------------------------------- */
+
+.variable-node-pair {
+  font-size: 11px;
+  font-family: monospace;
+  color: var(--text-secondary);
+  background: var(--bg-primary);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 4px 6px;
+  margin-bottom: 6px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.variable-node-pair .variable-key {
+  color: #10b981;
+  font-weight: 600;
+}
+
+.variable-node-scope {
+  font-size: 9px;
+  padding: 1px 5px;
+  border-radius: 3px;
+  background: #1a2a2a;
+  color: #10b981;
+}
+
+/* ---------------------------------------------------------------------------
+   Exit node specifics
+   --------------------------------------------------------------------------- */
+
+.exit-node-expr {
+  font-size: 11px;
+  font-family: monospace;
+  color: #ef4444;
+  background: var(--bg-primary);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 4px 8px;
+  margin-bottom: 6px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}

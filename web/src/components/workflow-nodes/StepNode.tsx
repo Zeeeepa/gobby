@@ -1,12 +1,13 @@
 /**
- * StepNode — Custom React Flow node for workflow steps, pipeline steps,
- * observers, triggers, and other node kinds.
+ * StepNode — Visual node for workflow steps (nodeKind: 'step' and 'rule').
+ * Shows tool badges, rule count, transition count, description/status_message.
  */
 
 import { memo } from 'react'
 import { Handle, Position, type NodeProps, type Node } from '@xyflow/react'
 import { NODE_KIND_META, type BaseNodeData } from './nodeTypes'
-import './StepNode.css'
+import { StepIcon } from './NodeIcons'
+import './nodes.css'
 
 type StepNodeType = Node<BaseNodeData, 'step'>
 
@@ -15,16 +16,12 @@ function StepNodeInner({ data, selected }: NodeProps<StepNodeType>) {
   const accentColor = meta?.color ?? '#666'
   const step = data.stepData
 
-  // Extract badge info from step data
   const allowedTools = step.allowed_tools
   const blockedTools = step.blocked_tools as string[] | undefined
   const rules = step.rules as unknown[] | undefined
   const transitions = step.transitions as unknown[] | undefined
   const statusMessage = step.status_message as string | undefined
   const description = (step.description as string) ?? null
-  const condition = step.condition as string | undefined
-  const exec = step.exec as string | undefined
-  const prompt = step.prompt as string | undefined
 
   // Tool restriction summary
   let toolBadge: string | null = null
@@ -40,56 +37,46 @@ function StepNodeInner({ data, selected }: NodeProps<StepNodeType>) {
 
   return (
     <div
-      className={`step-node ${selected ? 'step-node--selected' : ''}`}
+      className={`wf-node ${selected ? 'wf-node--selected' : ''}`}
       style={{ borderLeftColor: accentColor }}
     >
-      <Handle type="target" position={Position.Top} className="step-node-handle" />
+      <Handle type="target" position={Position.Top} className="wf-node-handle" />
 
       {/* Header */}
-      <div className="step-node-header">
-        <span className="step-node-name">{data.label}</span>
-        <span className="step-node-kind" style={{ color: accentColor }}>
+      <div className="wf-node-header">
+        <span className="wf-node-icon" style={{ color: accentColor }}>
+          <StepIcon />
+        </span>
+        <span className="wf-node-name">{data.label}</span>
+        <span className="wf-node-kind" style={{ color: accentColor }}>
           {data.nodeKind}
         </span>
       </div>
 
       {/* Description or status message preview */}
       {(description || statusMessage) && (
-        <div className="step-node-desc">
+        <div className="wf-node-desc">
           {description || statusMessage}
         </div>
       )}
 
-      {/* Command preview for exec/prompt steps */}
-      {exec && (
-        <div className="step-node-command">{exec}</div>
-      )}
-      {prompt && !exec && (
-        <div className="step-node-command">{prompt.length > 50 ? prompt.slice(0, 50) + '...' : prompt}</div>
-      )}
-
-      {/* Condition */}
-      {condition && (
-        <div className="step-node-condition">if: {condition}</div>
-      )}
-
       {/* Badges */}
-      <div className="step-node-badges">
+      <div className="wf-node-badges">
         {toolBadge && (
-          <span className="step-node-badge step-node-badge--tools">{toolBadge}</span>
+          <span className="wf-node-badge wf-node-badge--tools">{toolBadge}</span>
         )}
         {blockedCount > 0 && (
-          <span className="step-node-badge step-node-badge--blocked">{blockedCount} blocked</span>
+          <span className="wf-node-badge wf-node-badge--blocked">{blockedCount} blocked</span>
         )}
         {ruleCount > 0 && (
-          <span className="step-node-badge step-node-badge--rules">{ruleCount} rule{ruleCount !== 1 ? 's' : ''}</span>
+          <span className="wf-node-badge wf-node-badge--rules">{ruleCount} rule{ruleCount !== 1 ? 's' : ''}</span>
         )}
         {transitionCount > 0 && (
-          <span className="step-node-badge step-node-badge--transitions">{transitionCount} transition{transitionCount !== 1 ? 's' : ''}</span>
+          <span className="wf-node-badge wf-node-badge--transitions">{transitionCount} transition{transitionCount !== 1 ? 's' : ''}</span>
         )}
       </div>
 
-      <Handle type="source" position={Position.Bottom} className="step-node-handle" />
+      <Handle type="source" position={Position.Bottom} className="wf-node-handle" />
     </div>
   )
 }

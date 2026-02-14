@@ -115,6 +115,20 @@ describe('definitionToFlow - workflow', () => {
     expect(exitNodes).toHaveLength(1)
   })
 
+  it('assigns correct React Flow type per node kind', () => {
+    const { nodes } = definitionToFlow(WORKFLOW_DEF)
+
+    const stepNodes = nodes.filter((n) => n.data.nodeKind === 'step')
+    const observerNodes = nodes.filter((n) => n.data.nodeKind === 'observer')
+    const triggerNodes = nodes.filter((n) => n.data.nodeKind === 'trigger-group')
+    const exitNodes = nodes.filter((n) => n.data.nodeKind === 'exit-condition')
+
+    for (const n of stepNodes) expect(n.type).toBe('step')
+    for (const n of observerNodes) expect(n.type).toBe('observer')
+    for (const n of triggerNodes) expect(n.type).toBe('trigger')
+    for (const n of exitNodes) expect(n.type).toBe('exit')
+  })
+
   it('creates edges from transitions', () => {
     const { edges } = definitionToFlow(WORKFLOW_DEF)
 
@@ -208,6 +222,15 @@ describe('definitionToFlow - pipeline', () => {
     expect(nodes[3].data.nodeKind).toBe('exec') // has exec + approval, exec takes precedence
   })
 
+  it('assigns correct React Flow type for pipeline steps', () => {
+    const { nodes } = definitionToFlow(PIPELINE_DEF)
+
+    // All pipeline steps (exec, prompt) map to pipelineStep type
+    for (const n of nodes) {
+      expect(n.type).toBe('pipelineStep')
+    }
+  })
+
   it('creates sequential edges between pipeline steps', () => {
     const { edges } = definitionToFlow(PIPELINE_DEF)
 
@@ -229,6 +252,7 @@ describe('definitionToFlow - pipeline', () => {
     }
     const { nodes } = definitionToFlow(def)
     expect(nodes[0].data.nodeKind).toBe('approval')
+    expect(nodes[0].type).toBe('pipelineStep')
   })
 })
 
