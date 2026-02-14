@@ -299,6 +299,7 @@ class GobbyRunner:
             from gobby.storage.pipelines import LocalPipelineExecutionManager
             from gobby.workflows.loader import WorkflowLoader
             from gobby.workflows.pipeline_executor import PipelineExecutor
+            from gobby.workflows.templates import TemplateEngine
 
             self.workflow_loader = WorkflowLoader(db=self.database)
             if self.project_id:
@@ -312,6 +313,7 @@ class GobbyRunner:
                         execution_manager=self.pipeline_execution_manager,
                         llm_service=self.llm_service,
                         loader=self.workflow_loader,
+                        template_engine=TemplateEngine(),
                     )
                     logger.debug("Pipeline executor initialized")
                 else:
@@ -439,6 +441,7 @@ class GobbyRunner:
                 config=websocket_config,
                 mcp_manager=self.mcp_proxy,
                 session_manager=self.session_manager,
+                message_manager=self.message_manager,
                 daemon_config=self.config,
             )
             # Pass WebSocket server reference to HTTP server for broadcasting

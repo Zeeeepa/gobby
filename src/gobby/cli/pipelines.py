@@ -49,16 +49,15 @@ def _get_project_id() -> str:
 
 
 def get_pipeline_executor() -> Any:
-    """Get pipeline executor instance.
+    """Get pipeline executor instance for local CLI fallback.
 
-    Returns a mock executor for CLI use. In production, this would be
-    connected to the daemon via HTTP API.
+    Creates a lightweight executor with template rendering support.
+    MCP tool steps require the daemon; use _try_daemon_run() first.
     """
-    # For CLI, we create a lightweight executor
-    # The actual execution happens through the daemon
     from gobby.storage.database import LocalDatabase
     from gobby.storage.pipelines import LocalPipelineExecutionManager
     from gobby.workflows.pipeline_executor import PipelineExecutor
+    from gobby.workflows.templates import TemplateEngine
 
     db = LocalDatabase()
 
@@ -70,7 +69,33 @@ def get_pipeline_executor() -> Any:
         execution_manager=execution_manager,
         llm_service=None,  # Not needed for exec steps
         loader=get_workflow_loader(),
+        template_engine=TemplateEngine(),
     )
+
+
+def _try_daemon_run(name: str, inputs: dict[str, str], project_id: str) -> dict[str, Any] | None:
+    """Try to run pipeline via daemon HTTP API. Returns None if unavailable."""
+    try:
+        from gobby.config.app import load_config
+        from gobby.utils.daemon_client import DaemonClient
+
+        config = load_config()
+        client = DaemonClient(port=config.daemon_port)
+        is_healthy, _ = client.check_health()
+        if not is_healthy:
+            return None
+        response = client.call_http_api(
+            "/api/pipelines/run",
+            method="POST",
+            json_data={"name": name, "inputs": inputs, "project_id": project_id},
+            timeout=300.0,
+        )
+        if response.status_code in (200, 202):
+            result: dict[str, Any] = response.json()
+            return result
+        return None
+    except Exception:
+        return None
 
 
 def parse_input(input_str: str) -> tuple[str, str]:
@@ -264,10 +289,36 @@ def run_pipeline(
             click.echo(str(e), err=True)
             raise SystemExit(1) from None
 
-    # Get executor and run
-    executor = get_pipeline_executor()
-
     project_id = _get_project_id()
+    display_name = name or (pipeline.name if pipeline else None) or "pipeline"
+
+    # Try daemon first (has MCP tool access and LLM service)
+    if name and not lobster_path:
+        daemon_result = _try_daemon_run(name, input_dict, project_id)
+        if daemon_result is not None:
+            status = daemon_result.get("status", "")
+            if status == "waiting_approval":
+                if json_format:
+                    click.echo(json.dumps(daemon_result, indent=2))
+                else:
+                    click.echo(f"⏸ Pipeline '{display_name}' waiting for approval")
+                    click.echo(f"  Execution ID: {daemon_result.get('execution_id', '')}")
+                    click.echo(f"  Step: {daemon_result.get('step_id', '')}")
+                    click.echo(f"  Message: {daemon_result.get('message', '')}")
+                    token = daemon_result.get("token", "")
+                    click.echo(f"\nTo approve: gobby pipelines approve {token}")
+                    click.echo(f"To reject:  gobby pipelines reject {token}")
+                return
+            if json_format:
+                click.echo(json.dumps(daemon_result, indent=2))
+            else:
+                click.echo(f"✓ Pipeline '{display_name}' completed")
+                click.echo(f"  Execution ID: {daemon_result.get('execution_id', '')}")
+                click.echo(f"  Status: {status}")
+            return
+
+    # Fall back to local executor (no MCP tool access)
+    executor = get_pipeline_executor()
 
     try:
         # Run the pipeline
@@ -281,7 +332,7 @@ def run_pipeline(
 
         # Output result
         if json_format:
-            result = {
+            result: dict[str, Any] = {
                 "execution_id": execution.id,
                 "status": execution.status.value,
                 "pipeline_name": execution.pipeline_name,
@@ -293,14 +344,12 @@ def run_pipeline(
                     result["outputs"] = execution.outputs_json
             click.echo(json.dumps(result, indent=2))
         else:
-            display_name = name or pipeline.name or "pipeline"
             click.echo(f"✓ Pipeline '{display_name}' completed")
             click.echo(f"  Execution ID: {execution.id}")
             click.echo(f"  Status: {execution.status.value}")
 
     except ApprovalRequired as e:
         # Pipeline paused for approval
-        display_name = name or (pipeline.name if pipeline else None) or "pipeline"
         if json_format:
             result = {
                 "execution_id": e.execution_id,

@@ -405,6 +405,8 @@ class HookManagerFactory:
                 execution_manager=pipeline_mgr,
                 llm_service=llm_service,
                 loader=loader,
+                template_engine=template_engine,
+                tool_proxy_getter=tool_proxy_getter,
             )
         except Exception as e:
             logger.debug(f"Pipeline executor not available: {e}")
