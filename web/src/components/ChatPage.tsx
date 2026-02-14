@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useCallback } from 'react'
 import { ConversationPicker } from './ConversationPicker'
 import { ChatMessages } from './ChatMessages'
 import { ChatInput } from './ChatInput'
@@ -7,8 +7,6 @@ import { TerminalPanel } from './Terminal'
 import type { ChatMessage } from './Message'
 import type { GobbySession } from '../hooks/useSessions'
 import type { CommandInfo } from '../hooks/useSlashCommands'
-
-const SIDEBAR_KEY = 'gobby-chat-sidebar'
 
 export interface ChatState {
   messages: ChatMessage[]
@@ -67,16 +65,75 @@ interface ChatPageProps {
   voice: VoiceProps
 }
 
+function MobileChatDrawer({ conversations }: { conversations: ConversationState }) {
+  const [isOpen, setIsOpen] = useState(false)
+
+  const handleSelect = useCallback((session: GobbySession) => {
+    conversations.onSelectSession(session)
+    setIsOpen(false)
+  }, [conversations])
+
+  const handleNewChat = useCallback(() => {
+    conversations.onNewChat()
+    setIsOpen(false)
+  }, [conversations])
+
+  return (
+    <div className={`mobile-chat-drawer ${isOpen ? 'open' : 'collapsed'}`}>
+      <div className="mobile-chat-drawer-header" onClick={() => setIsOpen(prev => !prev)}>
+        <span className="mobile-chat-drawer-title">
+          <ChatIcon />
+          Chats
+          <span className="agent-count">{conversations.sessions.length}</span>
+        </span>
+        <button className="terminal-toggle">
+          {isOpen ? '\u25B2' : '\u25BC'}
+        </button>
+      </div>
+      {isOpen && (
+        <div className="mobile-chat-drawer-content">
+          <button className="mobile-chat-drawer-new" onClick={handleNewChat}>
+            + New Chat
+          </button>
+          <div className="mobile-chat-drawer-list">
+            {conversations.sessions.length === 0 && (
+              <div className="terminals-empty-sidebar">No conversations</div>
+            )}
+            {conversations.sessions.map((session) => {
+              const title = session.title || `Chat #${session.ref}`
+              const isActive = session.external_id === conversations.activeSessionId
+              return (
+                <div
+                  key={session.id}
+                  className={`session-item ${isActive ? 'attached' : ''}`}
+                  onClick={() => handleSelect(session)}
+                  role="button"
+                  tabIndex={0}
+                  onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); handleSelect(session) } }}
+                >
+                  <div className="session-item-main">
+                    <span className="session-source-dot web-chat" />
+                    <span className="session-name" title={title}>{title}</span>
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+function ChatIcon() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+    </svg>
+  )
+}
+
 export function ChatPage({ chat, conversations, terminal, project, voice }: ChatPageProps) {
-  const [sidebarOpen, setSidebarOpen] = useState(() => {
-    try { return localStorage.getItem(SIDEBAR_KEY) !== 'false' } catch { return true }
-  })
-
-  useEffect(() => {
-    try { localStorage.setItem(SIDEBAR_KEY, String(sidebarOpen)) } catch { /* noop */ }
-  }, [sidebarOpen])
-
-  const toggleSidebar = useCallback(() => setSidebarOpen(prev => !prev), [])
 
   return (
     <div className="chat-page">
@@ -85,10 +142,9 @@ export function ChatPage({ chat, conversations, terminal, project, voice }: Chat
         activeSessionId={conversations.activeSessionId}
         onNewChat={conversations.onNewChat}
         onSelectSession={conversations.onSelectSession}
-        isOpen={sidebarOpen}
-        onToggle={toggleSidebar}
       />
       <div className="chat-main">
+        <MobileChatDrawer conversations={conversations} />
         <main className="chat-container">
           <ChatMessages
             messages={chat.messages}
