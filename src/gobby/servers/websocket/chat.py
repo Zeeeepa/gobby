@@ -173,9 +173,15 @@ class ChatMixin:
         if not workflow_handler:
             return None
 
+        # Use the database session ID (not the external conversation_id) so that
+        # workflow actions like synthesize_title can look up the session via
+        # session_manager.get(session_id).
+        session = self._chat_sessions.get(conversation_id)
+        db_session_id = getattr(session, "db_session_id", None) or conversation_id
+
         event = HookEvent(
             event_type=event_type,
-            session_id=conversation_id,
+            session_id=db_session_id,
             source=SessionSource.CLAUDE_SDK_WEB_CHAT,
             timestamp=datetime.now(UTC),
             data=data,
