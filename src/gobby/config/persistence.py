@@ -65,25 +65,6 @@ class MemoryConfig(BaseModel):
             "Supports ${ENV_VAR} pattern for env var expansion at load time."
         ),
     )
-    mem0_url: str | None = Field(
-        default=None,
-        description=(
-            "Mem0 REST API URL for cloud-based memory sync. "
-            "None means standalone mode (local-only). "
-            "Example: 'https://api.mem0.ai' or 'http://localhost:8888'"
-        ),
-    )
-    mem0_api_key: str | None = Field(
-        default=None,
-        description=(
-            "Mem0 API key for authentication. "
-            "Supports ${ENV_VAR} pattern for env var expansion at load time."
-        ),
-    )
-    mem0_timeout: float = Field(
-        default=90.0,
-        description="Timeout in seconds for mem0 API requests (includes embedding generation).",
-    )
     neo4j_url: str | None = Field(
         default=None,
         description=(
@@ -117,14 +98,6 @@ class MemoryConfig(BaseModel):
     access_debounce_seconds: int = Field(
         default=60,
         description="Minimum seconds between access stat updates for the same memory",
-    )
-    mem0_sync_interval: float = Field(
-        default=10.0,
-        description="Seconds between Mem0 background sync attempts",
-    )
-    mem0_sync_max_backoff: float = Field(
-        default=300.0,
-        description="Maximum backoff seconds on Mem0 connection failure",
     )
 
     @field_validator("crossref_threshold")
