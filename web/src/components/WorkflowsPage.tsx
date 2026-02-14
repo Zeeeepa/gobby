@@ -1,7 +1,7 @@
 import { useState, useCallback, useMemo } from 'react'
 import { useWorkflows } from '../hooks/useWorkflows'
 import type { WorkflowDetail } from '../hooks/useWorkflows'
-import { WorkflowBuilder, type WorkflowSettings } from './WorkflowBuilder'
+import { WorkflowBuilder, type WorkflowSettings, type WorkflowVariable, type WorkflowRule } from './WorkflowBuilder'
 import { definitionToFlow, flowToDefinition, type FlowNode } from './workflowSerialization'
 import type { Node, Edge } from '@xyflow/react'
 import './WorkflowsPage.css'
@@ -178,11 +178,45 @@ export function WorkflowsPage() {
 
   const handleSettingsSave = useCallback(async (settings: WorkflowSettings) => {
     if (!editingWorkflow) return
+    // Update definition_json with variables, rules, exit_condition
+    let defJson = editingWorkflow.definition_json
+    try {
+      const def = JSON.parse(defJson)
+      // Variables -> object
+      if (settings.variables.length > 0) {
+        const vars: Record<string, string> = {}
+        for (const v of settings.variables) vars[v.key] = v.value
+        def.variables = vars
+      } else {
+        delete def.variables
+      }
+      // Rules
+      if (settings.rules.length > 0) {
+        def.rules = settings.rules.map((r) => ({
+          name: r.name,
+          when: r.when,
+          action: r.action,
+          message: r.message || undefined,
+        }))
+      } else {
+        delete def.rules
+      }
+      // Exit condition
+      if (settings.exitCondition) {
+        def.exit_condition = settings.exitCondition
+      } else {
+        delete def.exit_condition
+      }
+      defJson = JSON.stringify(def)
+    } catch {
+      // ignore parse errors
+    }
     await updateWorkflow(editingWorkflow.id, {
       name: settings.name,
       description: settings.description,
       enabled: settings.enabled,
       sources: settings.sources,
+      definition_json: defJson,
     })
     setEditingWorkflow((prev) => prev ? {
       ...prev,
@@ -191,6 +225,7 @@ export function WorkflowsPage() {
       enabled: settings.enabled,
       priority: settings.priority,
       sources: settings.sources,
+      definition_json: defJson,
     } : null)
   }, [editingWorkflow, updateWorkflow])
 
@@ -204,6 +239,20 @@ export function WorkflowsPage() {
     }
     const { nodes: initNodes, edges: initEdges } = definitionToFlow(initDef, editingWorkflow.canvas_json)
 
+    // Extract variables, rules, exit_condition from definition
+    const defVariables: WorkflowVariable[] = initDef.variables
+      ? Object.entries(initDef.variables as Record<string, string>).map(([key, value]) => ({ key, value: String(value) }))
+      : []
+    const defRules: WorkflowRule[] = Array.isArray(initDef.rules)
+      ? (initDef.rules as Record<string, unknown>[]).map((r) => ({
+          name: (r.name as string) ?? '',
+          when: (r.when as string) ?? '',
+          action: (r.action as string) ?? 'block',
+          message: (r.message as string) ?? '',
+        }))
+      : []
+    const defExitCondition = (initDef.exit_condition as string) ?? ''
+
     return (
       <WorkflowBuilder
         workflowId={editingWorkflow.id}
@@ -213,6 +262,9 @@ export function WorkflowsPage() {
         enabled={editingWorkflow.enabled}
         priority={editingWorkflow.priority}
         sources={editingWorkflow.sources}
+        variables={defVariables}
+        rules={defRules}
+        exitCondition={defExitCondition}
         initialNodes={initNodes}
         initialEdges={initEdges}
         onBack={() => { setEditingWorkflow(null); fetchWorkflows() }}

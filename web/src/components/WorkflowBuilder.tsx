@@ -45,6 +45,18 @@ const COMMON_PALETTE: PaletteItem[] = ['variable', 'rule']
 // Props
 // ---------------------------------------------------------------------------
 
+export interface WorkflowVariable {
+  key: string
+  value: string
+}
+
+export interface WorkflowRule {
+  name: string
+  when: string
+  action: string
+  message: string
+}
+
 export interface WorkflowBuilderProps {
   workflowId?: string
   workflowName?: string
@@ -53,6 +65,9 @@ export interface WorkflowBuilderProps {
   enabled?: boolean
   priority?: number
   sources?: string[] | null
+  variables?: WorkflowVariable[]
+  rules?: WorkflowRule[]
+  exitCondition?: string
   initialNodes?: Node[]
   initialEdges?: Edge[]
   onBack?: () => void
@@ -68,6 +83,9 @@ export interface WorkflowSettings {
   enabled: boolean
   priority: number
   sources: string[]
+  variables: WorkflowVariable[]
+  rules: WorkflowRule[]
+  exitCondition: string
 }
 
 // ---------------------------------------------------------------------------
@@ -86,6 +104,9 @@ function WorkflowBuilderInner({
   enabled: initialEnabled = true,
   priority: initialPriority = 0,
   sources: initialSources = null,
+  variables: initialVariables = [],
+  rules: initialRules = [],
+  exitCondition: initialExitCondition = '',
   initialNodes: initNodes = [],
   initialEdges: initEdges = [],
   onBack,
@@ -108,6 +129,9 @@ function WorkflowBuilderInner({
   const [settingsEnabled, setSettingsEnabled] = useState(initialEnabled)
   const [settingsPriority, setSettingsPriority] = useState(initialPriority)
   const [settingsSources, setSettingsSources] = useState(initialSources?.join(', ') ?? '')
+  const [settingsVariables, setSettingsVariables] = useState<WorkflowVariable[]>(initialVariables)
+  const [settingsRules, setSettingsRules] = useState<WorkflowRule[]>(initialRules)
+  const [settingsExitCondition, setSettingsExitCondition] = useState(initialExitCondition)
 
   // Find the currently selected node
   const selectedNode = useMemo(
@@ -147,9 +171,12 @@ function WorkflowBuilderInner({
       enabled: settingsEnabled,
       priority: settingsPriority,
       sources,
+      variables: settingsVariables.filter((v) => v.key.trim()),
+      rules: settingsRules.filter((r) => r.name.trim()),
+      exitCondition: settingsExitCondition,
     })
     setShowSettings(false)
-  }, [name, settingsDesc, settingsEnabled, settingsPriority, settingsSources, onSettingsSave])
+  }, [name, settingsDesc, settingsEnabled, settingsPriority, settingsSources, settingsVariables, settingsRules, settingsExitCondition, onSettingsSave])
 
   // -- Drag & drop from palette --
 
@@ -359,6 +386,130 @@ function WorkflowBuilderInner({
                 value={settingsSources}
                 onChange={(e) => setSettingsSources(e.target.value)}
                 placeholder="Comma-separated: cli, api, web"
+              />
+            </div>
+
+            {/* Variables editor */}
+            <div className="builder-settings-field">
+              <label>Variables</label>
+              <div className="builder-settings-kv-table">
+                {settingsVariables.map((v, i) => (
+                  <div key={i} className="builder-settings-kv-row">
+                    <input
+                      type="text"
+                      value={v.key}
+                      onChange={(e) => {
+                        const next = [...settingsVariables]
+                        next[i] = { ...next[i], key: e.target.value }
+                        setSettingsVariables(next)
+                      }}
+                      placeholder="key"
+                    />
+                    <input
+                      type="text"
+                      value={v.value}
+                      onChange={(e) => {
+                        const next = [...settingsVariables]
+                        next[i] = { ...next[i], value: e.target.value }
+                        setSettingsVariables(next)
+                      }}
+                      placeholder="value"
+                    />
+                    <button
+                      className="builder-settings-kv-remove"
+                      onClick={() => setSettingsVariables(settingsVariables.filter((_, j) => j !== i))}
+                      title="Remove"
+                    >
+                      &times;
+                    </button>
+                  </div>
+                ))}
+                <button
+                  className="builder-settings-add-btn"
+                  onClick={() => setSettingsVariables([...settingsVariables, { key: '', value: '' }])}
+                >
+                  + Add Variable
+                </button>
+              </div>
+            </div>
+
+            {/* Rules editor */}
+            <div className="builder-settings-field">
+              <label>Rules</label>
+              <div className="builder-settings-rules">
+                {settingsRules.map((r, i) => (
+                  <div key={i} className="builder-settings-rule-card">
+                    <div className="builder-settings-rule-header">
+                      <input
+                        type="text"
+                        value={r.name}
+                        onChange={(e) => {
+                          const next = [...settingsRules]
+                          next[i] = { ...next[i], name: e.target.value }
+                          setSettingsRules(next)
+                        }}
+                        placeholder="Rule name"
+                      />
+                      <button
+                        className="builder-settings-kv-remove"
+                        onClick={() => setSettingsRules(settingsRules.filter((_, j) => j !== i))}
+                        title="Remove rule"
+                      >
+                        &times;
+                      </button>
+                    </div>
+                    <input
+                      type="text"
+                      value={r.when}
+                      onChange={(e) => {
+                        const next = [...settingsRules]
+                        next[i] = { ...next[i], when: e.target.value }
+                        setSettingsRules(next)
+                      }}
+                      placeholder="When condition"
+                    />
+                    <select
+                      value={r.action}
+                      onChange={(e) => {
+                        const next = [...settingsRules]
+                        next[i] = { ...next[i], action: e.target.value }
+                        setSettingsRules(next)
+                      }}
+                    >
+                      <option value="block">Block</option>
+                      <option value="allow">Allow</option>
+                      <option value="warn">Warn</option>
+                      <option value="require_approval">Require Approval</option>
+                    </select>
+                    <input
+                      type="text"
+                      value={r.message}
+                      onChange={(e) => {
+                        const next = [...settingsRules]
+                        next[i] = { ...next[i], message: e.target.value }
+                        setSettingsRules(next)
+                      }}
+                      placeholder="Message"
+                    />
+                  </div>
+                ))}
+                <button
+                  className="builder-settings-add-btn"
+                  onClick={() => setSettingsRules([...settingsRules, { name: '', when: '', action: 'block', message: '' }])}
+                >
+                  + Add Rule
+                </button>
+              </div>
+            </div>
+
+            {/* Exit condition */}
+            <div className="builder-settings-field">
+              <label>Exit Condition</label>
+              <input
+                type="text"
+                value={settingsExitCondition}
+                onChange={(e) => setSettingsExitCondition(e.target.value)}
+                placeholder="Expression, e.g. steps.all_complete"
               />
             </div>
 

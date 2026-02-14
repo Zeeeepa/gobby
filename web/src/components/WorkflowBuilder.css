@@ -420,3 +420,116 @@
   background: var(--accent-hover);
   border-color: var(--accent-hover);
 }
+
+/* Key-value table (variables) */
+.builder-settings-kv-table {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.builder-settings-kv-row {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+
+.builder-settings-kv-row input {
+  flex: 1;
+  padding: 6px 8px;
+  font-size: 12px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  outline: none;
+  box-sizing: border-box;
+}
+
+.builder-settings-kv-row input:focus {
+  border-color: var(--accent);
+}
+
+.builder-settings-kv-remove {
+  padding: 2px 6px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: transparent;
+  color: var(--text-secondary);
+  font-size: 14px;
+  cursor: pointer;
+  line-height: 1;
+  flex-shrink: 0;
+}
+
+.builder-settings-kv-remove:hover {
+  background: #7f1d1d;
+  border-color: #991b1b;
+  color: #fca5a5;
+}
+
+.builder-settings-add-btn {
+  padding: 5px 10px;
+  border: 1px dashed var(--border);
+  border-radius: 4px;
+  background: transparent;
+  color: var(--text-secondary);
+  font-size: 12px;
+  cursor: pointer;
+  text-align: left;
+  margin-top: 2px;
+}
+
+.builder-settings-add-btn:hover {
+  border-color: var(--accent);
+  color: var(--text-primary);
+}
+
+/* Rules editor */
+.builder-settings-rules {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.builder-settings-rule-card {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 8px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg-primary);
+}
+
+.builder-settings-rule-header {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+
+.builder-settings-rule-header input {
+  flex: 1;
+}
+
+.builder-settings-rule-card input,
+.builder-settings-rule-card select {
+  width: 100%;
+  padding: 5px 8px;
+  font-size: 12px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: var(--bg-secondary);
+  color: var(--text-primary);
+  outline: none;
+  box-sizing: border-box;
+}
+
+.builder-settings-rule-card input:focus,
+.builder-settings-rule-card select:focus {
+  border-color: var(--accent);
+}
+
+.builder-settings-rule-card select {
+  cursor: pointer;
+}
