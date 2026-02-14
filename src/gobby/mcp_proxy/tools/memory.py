@@ -512,58 +512,27 @@ def create_memory_registry(
             return {"success": False, "error": str(e)}
 
     @registry.tool(
-        name="export_memory_graph",
-        description="Export memories as an interactive HTML knowledge graph.",
+        name="search_knowledge_graph",
+        description="Search the Neo4j knowledge graph for entities matching a query.",
     )
-    def export_memory_graph_tool(
-        title: str = "Memory Knowledge Graph",
-        output_path: str | None = None,
+    async def search_knowledge_graph(
+        query: str,
+        limit: int = 10,
     ) -> dict[str, Any]:
         """
-        Export memories as an interactive knowledge graph using vis.js.
-
-        Creates a standalone HTML file with visualization showing
-        memories as nodes (colored by type, sized by importance)
-        and cross-references as edges.
+        Search the knowledge graph for entities matching a query.
 
         Args:
-            title: Title for the graph visualization
-            output_path: Optional file path to write the HTML (default: memory_graph.html)
-
-        Returns:
-            Success status and path where graph was written
+            query: Search query string
+            limit: Maximum number of results to return
         """
-        from pathlib import Path
-
-        from gobby.memory.viz import export_memory_graph
-        from gobby.storage.memories import LocalMemoryManager
-
         try:
-            # Get all memories
-            project_id = get_current_project_id()
-            memories = memory_manager.list_memories(project_id=project_id, limit=1000)
-            if not memories:
-                return {"success": False, "error": "No memories found"}
+            kg_service = getattr(memory_manager, "_kg_service", None)
+            if not kg_service:
+                return {"success": True, "results": []}
 
-            # Get cross-references
-            storage = LocalMemoryManager(memory_manager.db)
-            crossrefs = storage.get_all_crossrefs(project_id=project_id, limit=5000)
-
-            # Generate HTML
-            html_content = export_memory_graph(memories, crossrefs, title=title)
-
-            # Write to file
-            if output_path is None:
-                output_path = "memory_graph.html"
-            output_file = Path(output_path)
-            output_file.write_text(html_content)
-
-            return {
-                "success": True,
-                "path": str(output_file.absolute()),
-                "memory_count": len(memories),
-                "crossref_count": len(crossrefs),
-            }
+            results = await kg_service.search_graph(query, limit=limit)
+            return {"success": True, "results": results}
         except Exception as e:
             return {"success": False, "error": str(e)}
 
