@@ -18,7 +18,8 @@ import {
   type OnConnect,
 } from '@xyflow/react'
 import '@xyflow/react/dist/style.css'
-import { nodeTypes, getDefaultData, NODE_KIND_META } from './workflow-nodes/nodeTypes'
+import { nodeTypes, getDefaultData, NODE_KIND_META, type BaseNodeData } from './workflow-nodes/nodeTypes'
+import { WorkflowPropertyPanel } from './WorkflowPropertyPanel'
 import './WorkflowBuilder.css'
 
 // ---------------------------------------------------------------------------
@@ -81,6 +82,23 @@ function WorkflowBuilderInner({
   const [nodes, setNodes, onNodesChange] = useNodesState(initNodes)
   const [edges, setEdges, onEdgesChange] = useEdgesState(initEdges)
   const [name, setName] = useState(initialName)
+  const [panelCollapsed, setPanelCollapsed] = useState(false)
+
+  // Find the currently selected node
+  const selectedNode = useMemo(
+    () => (nodes.find((n) => n.selected) as Node<BaseNodeData> | undefined) ?? null,
+    [nodes],
+  )
+
+  // Update node data from property panel
+  const handleNodeDataChange = useCallback(
+    (nodeId: string, data: BaseNodeData) => {
+      setNodes((nds) =>
+        nds.map((n) => (n.id === nodeId ? { ...n, data } : n)),
+      )
+    },
+    [setNodes],
+  )
 
   const paletteItems = useMemo(() => {
     const items = workflowType === 'pipeline' ? PIPELINE_PALETTE : WORKFLOW_PALETTE
@@ -236,6 +254,14 @@ function WorkflowBuilderInner({
             </Panel>
           </ReactFlow>
         </div>
+
+        {/* Property panel */}
+        <WorkflowPropertyPanel
+          selectedNode={selectedNode}
+          onChange={handleNodeDataChange}
+          collapsed={panelCollapsed}
+          onToggleCollapse={() => setPanelCollapsed((v) => !v)}
+        />
       </div>
     </div>
   )
