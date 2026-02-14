@@ -22,6 +22,9 @@ from gobby.config.cron import CronConfig
 from gobby.config.extensions import HookExtensionsConfig
 from gobby.config.features import (
     ImportMCPServerConfig,
+    MemoryDedupDecisionConfig,
+    MemoryEntityExtractionConfig,
+    MemoryFactExtractionConfig,
     MetricsConfig,
     ProjectVerificationConfig,
     RecommendToolsConfig,
@@ -296,6 +299,18 @@ class DaemonConfig(BaseModel):
     import_mcp_server: ImportMCPServerConfig = Field(
         default_factory=ImportMCPServerConfig,
         description="MCP server import configuration",
+    )
+    memory_fact_extraction: MemoryFactExtractionConfig = Field(
+        default_factory=MemoryFactExtractionConfig,
+        description="Memory fact extraction LLM configuration",
+    )
+    memory_dedup_decision: MemoryDedupDecisionConfig = Field(
+        default_factory=MemoryDedupDecisionConfig,
+        description="Memory dedup decision LLM configuration",
+    )
+    memory_entity_extraction: MemoryEntityExtractionConfig = Field(
+        default_factory=MemoryEntityExtractionConfig,
+        description="Memory entity extraction LLM configuration",
     )
     hook_extensions: HookExtensionsConfig = Field(
         default_factory=HookExtensionsConfig,
