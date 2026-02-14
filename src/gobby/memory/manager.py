@@ -2,8 +2,9 @@ from __future__ import annotations
 
 import asyncio
 import logging
+from collections.abc import Callable
 from datetime import UTC, datetime
-from typing import TYPE_CHECKING, Any, Callable, Literal, cast
+from typing import TYPE_CHECKING, Any, Literal, cast
 
 from gobby.config.persistence import MemoryConfig
 from gobby.memory.backends.storage_adapter import StorageAdapter
@@ -26,6 +27,7 @@ from gobby.storage.memories import LocalMemoryManager, Memory
 
 if TYPE_CHECKING:
     from gobby.llm.service import LLMService
+    from gobby.memory.services.dedup import DedupService
     from gobby.memory.vectorstore import VectorStore
 
 logger = logging.getLogger(__name__)
@@ -87,6 +89,25 @@ class MemoryManager:
             get_neo4j_client=lambda: self._neo4j_client,
         )
 
+        # DedupService: initialized when LLM + VectorStore + embed_fn available
+        self._dedup_service: DedupService | None = None
+        if llm_service and vector_store and embed_fn:
+            try:
+                from gobby.memory.services.dedup import DedupService as _DedupService
+                from gobby.prompts.loader import PromptLoader
+
+                provider = llm_service.get_default_provider()
+                self._dedup_service = _DedupService(
+                    llm_provider=provider,
+                    vector_store=vector_store,
+                    storage=self.storage,
+                    embed_fn=embed_fn,
+                    prompt_loader=PromptLoader(),
+                )
+                logger.debug("DedupService initialized")
+            except Exception as e:
+                logger.warning(f"Failed to initialize DedupService: {e}")
+
     @property
     def llm_service(self) -> LLMService | None:
         """Get the LLM service for image description."""
@@ -139,6 +160,40 @@ class MemoryManager:
             await self._vector_store.upsert(memory_id, embedding, payload or {})
         except Exception as e:
             logger.warning(f"VectorStore upsert failed for {memory_id}: {e}")
+
+    def _fire_background_dedup(
+        self,
+        content: str,
+        project_id: str | None,
+        memory_type: str,
+        tags: list[str] | None,
+        source_type: str,
+        source_session_id: str | None,
+    ) -> None:
+        """Fire a background dedup task (non-blocking).
+
+        The task is tracked in _background_tasks and auto-cleaned via
+        a done callback. Exceptions are logged but never propagated.
+        """
+
+        async def _run_dedup() -> None:
+            try:
+                assert self._dedup_service is not None  # noqa: S101
+                await self._dedup_service.process(
+                    content=content,
+                    project_id=project_id,
+                    memory_type=memory_type,
+                    tags=tags,
+                    source_type=source_type,
+                    source_session_id=source_session_id,
+                )
+            except Exception as e:
+                logger.warning(f"Background dedup failed: {e}")
+
+        task = asyncio.create_task(_run_dedup(), name="memory-dedup")
+
+        self._background_tasks.add(task)
+        task.add_done_callback(self._background_tasks.discard)
 
     # =========================================================================
     # CRUD operations
@@ -205,6 +260,17 @@ class MemoryManager:
             except Exception as e:
                 # Don't fail the create if crossref fails
                 logger.warning(f"Auto-crossref failed for {memory.id}: {e}")
+
+        # Fire-and-forget: background dedup task (when DedupService available)
+        if self._dedup_service:
+            self._fire_background_dedup(
+                content=content,
+                project_id=project_id,
+                memory_type=memory_type,
+                tags=tags,
+                source_type=source_type,
+                source_session_id=source_session_id,
+            )
 
         return memory
 
