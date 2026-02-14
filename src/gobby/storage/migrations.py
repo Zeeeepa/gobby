@@ -37,7 +37,7 @@ MigrationAction = str | Callable[[LocalDatabase], None]
 # Baseline version - the schema state that is applied for new databases directly.
 # Must be bumped when BASELINE_SCHEMA is updated with columns from new migrations,
 # so that fresh databases don't re-run migrations already baked into the baseline.
-BASELINE_VERSION = 102
+BASELINE_VERSION = 103
 
 # Minimum migration version - databases older than this cannot be upgraded
 # because legacy migrations (pre-v76) have been removed.
@@ -495,22 +495,6 @@ CREATE INDEX idx_memories_project ON memories(project_id);
 CREATE INDEX idx_memories_type ON memories(memory_type);
 CREATE INDEX idx_memories_importance ON memories(importance DESC);
 CREATE INDEX idx_memories_mem0_id ON memories(mem0_id);
-
-CREATE TABLE memory_embeddings (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    memory_id TEXT NOT NULL REFERENCES memories(id) ON DELETE CASCADE,
-    project_id TEXT REFERENCES projects(id) ON DELETE CASCADE,
-    embedding BLOB NOT NULL,
-    embedding_model TEXT NOT NULL,
-    embedding_dim INTEGER NOT NULL,
-    text_hash TEXT NOT NULL,
-    created_at TEXT NOT NULL DEFAULT (datetime('now')),
-    updated_at TEXT NOT NULL DEFAULT (datetime('now')),
-    UNIQUE(memory_id)
-);
-CREATE INDEX idx_memory_embeddings_memory ON memory_embeddings(memory_id);
-CREATE INDEX idx_memory_embeddings_hash ON memory_embeddings(text_hash);
-CREATE INDEX idx_memory_embeddings_project ON memory_embeddings(project_id);
 
 CREATE TABLE session_memories (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -1545,6 +1529,17 @@ MIGRATIONS: list[tuple[int, str, MigrationAction]] = [
         102,
         "Add workflow_definitions table",
         _migrate_add_workflow_definitions,
+    ),
+    # Memory V5: drop memory_embeddings (replaced by Qdrant VectorStore)
+    (
+        103,
+        "Drop memory_embeddings table",
+        """
+        DROP TABLE IF EXISTS memory_embeddings;
+        DROP INDEX IF EXISTS idx_memory_embeddings_memory;
+        DROP INDEX IF EXISTS idx_memory_embeddings_hash;
+        DROP INDEX IF EXISTS idx_memory_embeddings_project;
+        """,
     ),
 ]
 
