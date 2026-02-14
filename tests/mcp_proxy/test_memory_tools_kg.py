@@ -95,7 +95,6 @@ class TestMemoryStatsUpdated:
         manager.get_stats = MagicMock(return_value={
             "total_count": 10,
             "by_type": {"fact": 8, "preference": 2},
-            "avg_importance": 0.75,
             "project_id": None,
             "vector_count": 10,
         })

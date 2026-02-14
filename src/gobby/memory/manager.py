@@ -137,7 +137,6 @@ class MemoryManager:
             project_id=record.project_id,
             source_type=cast(Literal["user", "session", "inferred"] | None, record.source_type),
             source_session_id=record.source_session_id,
-            importance=record.importance,
             access_count=record.access_count,
             last_accessed_at=(
                 record.last_accessed_at.isoformat() if record.last_accessed_at else None
@@ -226,7 +225,6 @@ class MemoryManager:
         self,
         content: str,
         memory_type: str = "fact",
-        importance: float = 0.5,
         project_id: str | None = None,
         source_type: str = "user",
         source_session_id: str | None = None,
@@ -238,7 +236,6 @@ class MemoryManager:
         Args:
             content: The memory content
             memory_type: Type of memory (fact, preference, etc)
-            importance: 0.0-1.0 importance score
             project_id: Optional project context
             source_type: Origin of memory
             source_session_id: Origin session
@@ -257,7 +254,6 @@ class MemoryManager:
         record = await self._backend.create(
             content=content,
             memory_type=memory_type,
-            importance=importance,
             project_id=project_id,
             source_type=source_type,
             source_session_id=source_session_id,
@@ -306,7 +302,6 @@ class MemoryManager:
         image_path: str,
         context: str | None = None,
         memory_type: str = "fact",
-        importance: float = 0.5,
         project_id: str | None = None,
         source_type: str = "user",
         source_session_id: str | None = None,
@@ -317,7 +312,6 @@ class MemoryManager:
             image_path=image_path,
             context=context,
             memory_type=memory_type,
-            importance=importance,
             project_id=project_id,
             source_type=source_type,
             source_session_id=source_session_id,
@@ -336,7 +330,6 @@ class MemoryManager:
         screenshot_bytes: bytes,
         context: str | None = None,
         memory_type: str = "observation",
-        importance: float = 0.5,
         project_id: str | None = None,
         source_type: str = "user",
         source_session_id: str | None = None,
@@ -347,7 +340,6 @@ class MemoryManager:
             screenshot_bytes=screenshot_bytes,
             context=context,
             memory_type=memory_type,
-            importance=importance,
             project_id=project_id,
             source_type=source_type,
             source_session_id=source_session_id,
@@ -365,7 +357,6 @@ class MemoryManager:
         query: str | None = None,
         project_id: str | None = None,
         limit: int = 10,
-        min_importance: float | None = None,
         memory_type: str | None = None,
         search_mode: str | None = None,
         tags_all: list[str] | None = None,
@@ -377,13 +368,12 @@ class MemoryManager:
 
         If query is provided and VectorStore is configured, embeds the query
         and searches Qdrant. User-sourced memories receive a 1.2x score boost.
-        If no query, returns memories from SQLite ordered by importance.
+        If no query, returns memories from SQLite ordered by recency.
 
         Args:
             query: Optional search query for vector search
             project_id: Filter by project
             limit: Maximum memories to return
-            min_importance: Minimum importance threshold
             memory_type: Filter by memory type
             search_mode: Ignored (kept for API compatibility)
             tags_all: Memory must have ALL of these tags
@@ -410,8 +400,6 @@ class MemoryManager:
                 mem = self.storage.get_memory(memory_id)
                 if mem is None:
                     continue
-                if min_importance is not None and mem.importance < min_importance:
-                    continue
                 if memory_type and mem.memory_type != memory_type:
                     continue
                 if tags_all and not all(t in (mem.tags or []) for t in tags_all):
@@ -432,7 +420,6 @@ class MemoryManager:
             memories = self.storage.list_memories(
                 project_id=project_id,
                 memory_type=memory_type,
-                min_importance=min_importance,
                 limit=limit,
                 tags_all=tags_all,
                 tags_any=tags_any,
@@ -448,7 +435,6 @@ class MemoryManager:
         self,
         project_id: str | None = None,
         limit: int = 10,
-        min_importance: float | None = None,
     ) -> str:
         """
         Retrieve memories and format them as context for LLM prompts.
@@ -460,7 +446,6 @@ class MemoryManager:
         memories = await self.search_memories(
             project_id=project_id,
             limit=limit,
-            min_importance=min_importance,
         )
         return build_memory_context(memories)
 
@@ -513,7 +498,6 @@ class MemoryManager:
         self,
         project_id: str | None = None,
         memory_type: str | None = None,
-        min_importance: float | None = None,
         limit: int = 50,
         offset: int = 0,
         tags_all: list[str] | None = None,
@@ -524,7 +508,6 @@ class MemoryManager:
         return self.storage.list_memories(
             project_id=project_id,
             memory_type=memory_type,
-            min_importance=min_importance,
             limit=limit,
             offset=offset,
             tags_all=tags_all,
@@ -582,7 +565,6 @@ class MemoryManager:
         self,
         memory_id: str,
         content: str | None = None,
-        importance: float | None = None,
         tags: list[str] | None = None,
     ) -> Memory:
         """
@@ -591,7 +573,6 @@ class MemoryManager:
         Args:
             memory_id: The memory to update
             content: New content (optional)
-            importance: New importance (optional)
             tags: New tags (optional)
 
         Returns:
@@ -603,7 +584,6 @@ class MemoryManager:
         result = self.storage.update_memory(
             memory_id=memory_id,
             content=content,
-            importance=importance,
             tags=tags,
         )
 
@@ -621,14 +601,12 @@ class MemoryManager:
         self,
         memory_id: str,
         content: str | None = None,
-        importance: float | None = None,
         tags: list[str] | None = None,
     ) -> Memory:
         """Update an existing memory (async via backend)."""
         record = await self._backend.update(
             memory_id=memory_id,
             content=content,
-            importance=importance,
             tags=tags,
         )
         memory = self._record_to_memory(record)

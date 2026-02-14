@@ -117,13 +117,11 @@ class TestCreateMemory:
         memory = await memory_manager.create_memory(
             content="Test fact",
             memory_type="fact",
-            importance=0.7,
         )
 
         assert memory.id.startswith("mm-")
         assert memory.content == "Test fact"
         assert memory.memory_type == "fact"
-        assert memory.importance == 0.7
 
     @pytest.mark.asyncio
     async def test_create_memory_with_all_params(self, db, memory_config):
@@ -143,7 +141,6 @@ class TestCreateMemory:
         memory = await manager.create_memory(
             content="User prefers dark theme",
             memory_type="preference",
-            importance=0.8,
             project_id=None,
             source_type="user",
             source_session_id="sess-123",
@@ -152,7 +149,6 @@ class TestCreateMemory:
 
         assert memory.content == "User prefers dark theme"
         assert memory.memory_type == "preference"
-        assert memory.importance == 0.8
         assert memory.source_type == "user"
         assert memory.source_session_id == "sess-123"
         assert memory.tags == ["ui", "theme"]
@@ -163,7 +159,6 @@ class TestCreateMemory:
         memory = await memory_manager.create_memory(content="Simple fact")
 
         assert memory.memory_type == "fact"
-        assert memory.importance == 0.5
         assert memory.source_type == "user"
         assert memory.tags == []
 
@@ -178,15 +173,14 @@ class TestSearchMemories:
 
     @pytest.mark.asyncio
     async def test_search_memories_no_query_returns_top_memories(self, memory_manager):
-        """Test search_memories without query returns top memories by importance."""
-        await memory_manager.create_memory(content="Low importance", importance=0.2)
-        await memory_manager.create_memory(content="High importance", importance=0.9)
-        await memory_manager.create_memory(content="Medium importance", importance=0.5)
+        """Test search_memories without query returns top memories."""
+        await memory_manager.create_memory(content="Low importance")
+        await memory_manager.create_memory(content="High importance")
+        await memory_manager.create_memory(content="Medium importance")
 
         memories = await memory_manager.search_memories(limit=2)
 
         assert len(memories) == 2
-        assert memories[0].importance >= memories[1].importance
 
     @pytest.mark.asyncio
     async def test_search_memories_no_query_all_returned(self, memory_manager):
@@ -199,22 +193,11 @@ class TestSearchMemories:
         assert len(memories) == 2
 
     @pytest.mark.asyncio
-    async def test_search_memories_custom_min_importance(self, memory_manager):
-        """Test search_memories with custom minimum importance."""
-        await memory_manager.create_memory(content="Low", importance=0.3)
-        await memory_manager.create_memory(content="High", importance=0.8)
-
-        memories = await memory_manager.search_memories(min_importance=0.7)
-
-        assert len(memories) == 1
-        assert memories[0].content == "High"
-
-    @pytest.mark.asyncio
     async def test_search_memories_by_memory_type(self, memory_manager):
         """Test search_memories filters by memory type."""
-        await memory_manager.create_memory(content="Fact 1", memory_type="fact", importance=0.5)
+        await memory_manager.create_memory(content="Fact 1", memory_type="fact")
         await memory_manager.create_memory(
-            content="Pref 1", memory_type="preference", importance=0.5
+            content="Pref 1", memory_type="preference"
         )
 
         memories = await memory_manager.search_memories(memory_type="preference")
@@ -226,7 +209,7 @@ class TestSearchMemories:
     async def test_search_memories_limit(self, memory_manager):
         """Test search_memories respects limit parameter."""
         for i in range(5):
-            await memory_manager.create_memory(content=f"Memory {i}", importance=0.5)
+            await memory_manager.create_memory(content=f"Memory {i}")
 
         memories = await memory_manager.search_memories(limit=3)
 
@@ -235,7 +218,7 @@ class TestSearchMemories:
     @pytest.mark.asyncio
     async def test_search_memories_updates_access_stats(self, memory_manager):
         """Test search_memories updates access statistics."""
-        memory = await memory_manager.create_memory(content="Track access", importance=0.5)
+        memory = await memory_manager.create_memory(content="Track access")
         original_count = memory.access_count
 
         _ = await memory_manager.search_memories(limit=10)
@@ -256,7 +239,7 @@ class TestAccessStats:
     @pytest.mark.asyncio
     async def test_update_access_stats_debouncing(self, memory_manager):
         """Test access stats debouncing prevents rapid updates."""
-        memory = await memory_manager.create_memory(content="Debounce test", importance=0.5)
+        memory = await memory_manager.create_memory(content="Debounce test")
 
         # First search - should update
         _ = await memory_manager.search_memories(limit=10)
@@ -289,7 +272,7 @@ class TestAccessStats:
         """Test _update_access_stats handles timestamps without timezone."""
         manager = MemoryManager(db=db, config=memory_config)
 
-        real_memory = manager.storage.create_memory(content="Test timezone", importance=0.5)
+        real_memory = manager.storage.create_memory(content="Test timezone")
 
         memory = MagicMock(spec=Memory)
         memory.id = real_memory.id
@@ -312,7 +295,7 @@ class TestDeleteMemory:
     @pytest.mark.asyncio
     async def test_delete_existing_memory(self, memory_manager):
         """Test deleting an existing memory."""
-        memory = await memory_manager.create_memory(content="To delete", importance=0.5)
+        memory = await memory_manager.create_memory(content="To delete")
 
         result = await memory_manager.delete_memory(memory.id)
 
@@ -337,8 +320,8 @@ class TestListMemories:
     @pytest.mark.asyncio
     async def test_list_memories_basic(self, memory_manager):
         """Test basic memory listing."""
-        await memory_manager.create_memory(content="Memory 1", importance=0.5)
-        await memory_manager.create_memory(content="Memory 2", importance=0.5)
+        await memory_manager.create_memory(content="Memory 1")
+        await memory_manager.create_memory(content="Memory 2")
 
         memories = memory_manager.list_memories()
 
@@ -348,7 +331,7 @@ class TestListMemories:
     async def test_list_memories_with_offset(self, memory_manager):
         """Test memory listing with offset."""
         for i in range(5):
-            await memory_manager.create_memory(content=f"Memory {i}", importance=0.5)
+            await memory_manager.create_memory(content=f"Memory {i}")
 
         memories = memory_manager.list_memories(limit=2, offset=2)
 
@@ -357,9 +340,9 @@ class TestListMemories:
     @pytest.mark.asyncio
     async def test_list_memories_by_type(self, memory_manager):
         """Test memory listing filtered by type."""
-        await memory_manager.create_memory(content="Fact", memory_type="fact", importance=0.5)
+        await memory_manager.create_memory(content="Fact", memory_type="fact")
         await memory_manager.create_memory(
-            content="Preference", memory_type="preference", importance=0.5
+            content="Preference", memory_type="preference"
         )
 
         memories = memory_manager.list_memories(memory_type="fact")
@@ -379,7 +362,7 @@ class TestContentExists:
     @pytest.mark.asyncio
     async def test_content_exists_true(self, memory_manager):
         """Test content_exists returns True for existing content."""
-        await memory_manager.create_memory(content="Existing content", importance=0.5)
+        await memory_manager.create_memory(content="Existing content")
 
         result = memory_manager.content_exists("Existing content")
 
@@ -403,7 +386,7 @@ class TestGetMemory:
     @pytest.mark.asyncio
     async def test_get_memory_exists(self, memory_manager):
         """Test getting an existing memory."""
-        created = await memory_manager.create_memory(content="Get test", importance=0.5)
+        created = await memory_manager.create_memory(content="Get test")
 
         retrieved = memory_manager.get_memory(created.id)
 
@@ -429,25 +412,16 @@ class TestUpdateMemory:
     @pytest.mark.asyncio
     async def test_update_memory_content(self, memory_manager):
         """Test updating memory content."""
-        memory = await memory_manager.create_memory(content="Original", importance=0.5)
+        memory = await memory_manager.create_memory(content="Original")
 
         updated = await memory_manager.update_memory(memory.id, content="Updated")
 
         assert updated.content == "Updated"
 
     @pytest.mark.asyncio
-    async def test_update_memory_importance(self, memory_manager):
-        """Test updating memory importance."""
-        memory = await memory_manager.create_memory(content="Test", importance=0.3)
-
-        updated = await memory_manager.update_memory(memory.id, importance=0.9)
-
-        assert updated.importance == 0.9
-
-    @pytest.mark.asyncio
     async def test_update_memory_tags(self, memory_manager):
         """Test updating memory tags."""
-        memory = await memory_manager.create_memory(content="Test", importance=0.5, tags=["old"])
+        memory = await memory_manager.create_memory(content="Test", tags=["old"])
 
         updated = await memory_manager.update_memory(memory.id, tags=["new", "tags"])
 
@@ -474,15 +448,14 @@ class TestGetStats:
 
         assert stats["total_count"] == 0
         assert stats["by_type"] == {}
-        assert stats["avg_importance"] == 0.0
 
     @pytest.mark.asyncio
     async def test_get_stats_with_memories(self, memory_manager):
         """Test stats with multiple memories."""
-        await memory_manager.create_memory(content="Fact 1", memory_type="fact", importance=0.6)
-        await memory_manager.create_memory(content="Fact 2", memory_type="fact", importance=0.8)
+        await memory_manager.create_memory(content="Fact 1", memory_type="fact")
+        await memory_manager.create_memory(content="Fact 2", memory_type="fact")
         await memory_manager.create_memory(
-            content="Pref 1", memory_type="preference", importance=0.4
+            content="Pref 1", memory_type="preference"
         )
 
         stats = memory_manager.get_stats()
@@ -490,7 +463,6 @@ class TestGetStats:
         assert stats["total_count"] == 3
         assert stats["by_type"]["fact"] == 2
         assert stats["by_type"]["preference"] == 1
-        assert stats["avg_importance"] == pytest.approx(0.6, rel=0.01)
 
 
 
@@ -506,8 +478,8 @@ class TestEdgeCases:
     @pytest.mark.asyncio
     async def test_duplicate_content_handling(self, memory_manager):
         """Test creating memory with duplicate content returns existing."""
-        memory1 = await memory_manager.create_memory(content="Duplicate test", importance=0.5)
-        memory2 = await memory_manager.create_memory(content="Duplicate test", importance=0.9)
+        memory1 = await memory_manager.create_memory(content="Duplicate test")
+        memory2 = await memory_manager.create_memory(content="Duplicate test")
 
         assert memory1.id == memory2.id
 
@@ -546,8 +518,8 @@ class TestSearchMemoriesAsContext:
         """Test search_memories_as_context returns properly formatted context string."""
         manager = MemoryManager(db=db, config=memory_config)
 
-        await manager.create_memory(content="Test preference", memory_type="preference", importance=0.8)
-        await manager.create_memory(content="Test fact", memory_type="fact", importance=0.7)
+        await manager.create_memory(content="Test preference", memory_type="preference")
+        await manager.create_memory(content="Test fact", memory_type="fact")
 
         context = await manager.search_memories_as_context()
 
@@ -572,7 +544,7 @@ class TestSearchMemoriesAsContext:
         manager = MemoryManager(db=db, config=memory_config)
 
         for i in range(10):
-            await manager.create_memory(content=f"Memory {i}", memory_type="fact", importance=0.8)
+            await manager.create_memory(content=f"Memory {i}", memory_type="fact")
 
         context = await manager.search_memories_as_context(limit=3)
 
@@ -584,7 +556,7 @@ class TestSearchMemoriesAsContext:
         """Test search_memories_as_context filters by project_id."""
         manager = MemoryManager(db=db, config=memory_config)
 
-        await manager.create_memory(content="Global memory", importance=0.8)
+        await manager.create_memory(content="Global memory")
 
         context = await manager.search_memories_as_context(project_id="proj-123")
 

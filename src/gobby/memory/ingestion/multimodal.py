@@ -59,7 +59,6 @@ class MultimodalIngestor:
         image_path: str,
         context: str | None = None,
         memory_type: str = "fact",
-        importance: float = 0.5,
         project_id: str | None = None,
         source_type: str = "user",
         source_session_id: str | None = None,
@@ -76,7 +75,6 @@ class MultimodalIngestor:
             image_path: Path to the image file
             context: Optional context to guide the image description
             memory_type: Type of memory (fact, preference, etc)
-            importance: 0.0-1.0 importance score
             project_id: Optional project context
             source_type: Origin of memory
             source_session_id: Origin session
@@ -122,7 +120,6 @@ class MultimodalIngestor:
         record = await self._backend.create(
             content=description,
             memory_type=memory_type,
-            importance=importance,
             project_id=project_id,
             source_type=source_type,
             source_session_id=source_session_id,
@@ -149,7 +146,6 @@ class MultimodalIngestor:
             project_id=record.project_id,
             source_type=record.source_type,
             source_session_id=record.source_session_id,
-            importance=record.importance,
             tags=record.tags,
         )
 
@@ -158,7 +154,6 @@ class MultimodalIngestor:
         screenshot_bytes: bytes,
         context: str | None = None,
         memory_type: str = "observation",
-        importance: float = 0.5,
         project_id: str | None = None,
         source_type: str = "user",
         source_session_id: str | None = None,
@@ -174,7 +169,6 @@ class MultimodalIngestor:
             screenshot_bytes: Raw PNG screenshot bytes (from Playwright/Puppeteer)
             context: Optional context to guide the image description
             memory_type: Type of memory (default: "observation")
-            importance: 0.0-1.0 importance score
             project_id: Optional project context
             source_type: Origin of memory
             source_session_id: Origin session
@@ -213,7 +207,6 @@ class MultimodalIngestor:
             image_path=str(filepath),
             context=context,
             memory_type=memory_type,
-            importance=importance,
             project_id=project_id,
             source_type=source_type,
             source_session_id=source_session_id,

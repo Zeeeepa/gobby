@@ -252,11 +252,9 @@ class TestCrossReferences:
         # Create similar memories
         _mem1 = await manager.create_memory(
             content="Python is a great programming language for data science",
-            importance=0.5,
         )
         mem2 = await manager.create_memory(
             content="Python programming is excellent for machine learning",
-            importance=0.5,
         )
 
         # Check crossrefs were created
@@ -273,15 +271,12 @@ class TestCrossReferences:
         # Create memories that should be linked
         _mem1 = await manager.create_memory(
             content="React is a JavaScript library for building user interfaces",
-            importance=0.5,
         )
         mem2 = await manager.create_memory(
             content="React components use JavaScript and JSX syntax",
-            importance=0.5,
         )
         _mem3 = await manager.create_memory(
             content="Completely unrelated content about cooking recipes",
-            importance=0.5,
         )
 
         # Get related memories for mem2
@@ -304,7 +299,7 @@ class TestCrossReferences:
         )
         manager = MemoryManager(db=db, config=config)
 
-        mem = await manager.create_memory(content="Isolated memory", importance=0.5)
+        mem = await manager.create_memory(content="Isolated memory")
         related = await manager.get_related(mem.id, limit=5)
 
         assert related == []
@@ -324,10 +319,9 @@ class TestCrossReferences:
             vector_store=mock_vector_store_tracking, embed_fn=mock_embed_fn,
         )
 
-        await manager.create_memory(content="First topic about Python", importance=0.5)
+        await manager.create_memory(content="First topic about Python")
         mem2 = await manager.create_memory(
             content="Second topic about JavaScript",
-            importance=0.5,
         )
 
         # With very high threshold (0.99), mock scores of 0.5 shouldn't link
@@ -353,13 +347,11 @@ class TestCrossReferences:
         for i in range(5):
             await manager.create_memory(
                 content=f"Python programming topic number {i}",
-                importance=0.5,
             )
 
         # Create one more that should link to others
         mem = await manager.create_memory(
             content="Python programming language overview",
-            importance=0.5,
         )
 
         crossrefs = manager.storage.get_crossrefs(mem.id, limit=10)

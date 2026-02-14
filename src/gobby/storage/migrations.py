@@ -37,7 +37,7 @@ MigrationAction = str | Callable[[LocalDatabase], None]
 # Baseline version - the schema state that is applied for new databases directly.
 # Must be bumped when BASELINE_SCHEMA is updated with columns from new migrations,
 # so that fresh databases don't re-run migrations already baked into the baseline.
-BASELINE_VERSION = 103
+BASELINE_VERSION = 105
 
 # Minimum migration version - databases older than this cannot be upgraded
 # because legacy migrations (pre-v76) have been removed.
@@ -482,7 +482,6 @@ CREATE TABLE memories (
     content TEXT NOT NULL,
     source_type TEXT,
     source_session_id TEXT REFERENCES sessions(id),
-    importance REAL DEFAULT 0.5,
     access_count INTEGER DEFAULT 0,
     last_accessed_at TEXT,
     tags TEXT,
@@ -492,7 +491,6 @@ CREATE TABLE memories (
 );
 CREATE INDEX idx_memories_project ON memories(project_id);
 CREATE INDEX idx_memories_type ON memories(memory_type);
-CREATE INDEX idx_memories_importance ON memories(importance DESC);
 
 CREATE TABLE session_memories (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -1141,6 +1139,18 @@ def _migrate_drop_mem0_id(db: LocalDatabase) -> None:
         db.execute("ALTER TABLE memories DROP COLUMN mem0_id")
 
 
+def _migrate_drop_importance(db: LocalDatabase) -> None:
+    """Drop importance column from memories table if it exists.
+
+    Conditional because fresh databases (baseline schema) never had this column.
+    """
+    columns = db.fetchall("PRAGMA table_info(memories)")
+    column_names = [c["name"] for c in columns]
+    if "importance" in column_names:
+        db.execute("DROP INDEX IF EXISTS idx_memories_importance")
+        db.execute("ALTER TABLE memories DROP COLUMN importance")
+
+
 def _migrate_add_workflow_definitions(db: LocalDatabase) -> None:
     """Add workflow_definitions table and import bundled YAML workflows.
 
@@ -1556,6 +1566,12 @@ MIGRATIONS: list[tuple[int, str, MigrationAction]] = [
         104,
         "Drop mem0_id column from memories",
         _migrate_drop_mem0_id,
+    ),
+    # Memory V7: drop importance column (importance scoring removed)
+    (
+        105,
+        "Drop importance column from memories",
+        _migrate_drop_importance,
     ),
 ]
 

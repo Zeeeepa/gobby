@@ -65,7 +65,6 @@ async def test_create_memory_upserts_to_qdrant(manager, mock_vector_store, mock_
     memory = await manager.create_memory(
         content="test fact",
         memory_type="fact",
-        importance=0.8,
     )
 
     # Should have called embed_fn

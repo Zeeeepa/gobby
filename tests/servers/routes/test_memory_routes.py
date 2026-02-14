@@ -27,7 +27,6 @@ def _make_memory(**overrides) -> Memory:
         "project_id": "test-project",
         "source_type": "user",
         "source_session_id": None,
-        "importance": 0.8,
         "access_count": 3,
         "last_accessed_at": NOW_ISO,
         "tags": ["ui", "preference"],
@@ -82,7 +81,6 @@ class TestListMemories:
             params={
                 "project_id": "proj-1",
                 "memory_type": "fact",
-                "min_importance": 0.5,
                 "limit": 20,
             },
         )
@@ -90,7 +88,6 @@ class TestListMemories:
         mock_server.memory_manager.list_memories.assert_called_once_with(
             project_id="proj-1",
             memory_type="fact",
-            min_importance=0.5,
             limit=20,
             offset=0,
         )
@@ -119,7 +116,6 @@ class TestCreateMemory:
             json={
                 "content": "User prefers dark mode",
                 "memory_type": "preference",
-                "importance": 0.9,
                 "project_id": "test-project",
                 "tags": ["ui"],
             },
@@ -181,16 +177,15 @@ class TestUpdateMemory:
     def test_update_memory(self, client, mock_server) -> None:
         """PUT /memories/{id} updates and returns memory."""
         mock_server.memory_manager.update_memory.return_value = _make_memory(
-            content="Updated content", importance=0.95
+            content="Updated content"
         )
         response = client.put(
             "/memories/mm-abc123",
-            json={"content": "Updated content", "importance": 0.95},
+            json={"content": "Updated content"},
         )
         assert response.status_code == 200
         data = response.json()
         assert data["content"] == "Updated content"
-        assert data["importance"] == 0.95
 
     def test_update_not_found(self, client, mock_server) -> None:
         """PUT /memories/{id} returns 404 when not found."""
@@ -259,7 +254,6 @@ class TestSearchMemories:
             query="test",
             project_id="proj-1",
             limit=5,
-            min_importance=0.0,
         )
 
 
@@ -276,7 +270,6 @@ class TestMemoryStats:
         mock_server.memory_manager.get_stats.return_value = {
             "total_count": 42,
             "by_type": {"fact": 30, "preference": 12},
-            "avg_importance": 0.65,
             "project_id": None,
         }
         response = client.get("/memories/stats")
@@ -284,14 +277,12 @@ class TestMemoryStats:
         data = response.json()
         assert data["total_count"] == 42
         assert data["by_type"]["fact"] == 30
-        assert data["avg_importance"] == 0.65
 
     def test_stats_with_project_filter(self, client, mock_server) -> None:
         """GET /memories/stats supports project_id filter."""
         mock_server.memory_manager.get_stats.return_value = {
             "total_count": 10,
             "by_type": {"fact": 10},
-            "avg_importance": 0.7,
             "project_id": "proj-1",
         }
         response = client.get("/memories/stats", params={"project_id": "proj-1"})

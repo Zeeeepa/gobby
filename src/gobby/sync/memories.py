@@ -235,7 +235,6 @@ class MemoryBackupManager:
                             content=content,
                             memory_type=data.get("type", "fact"),
                             tags=data.get("tags", []),
-                            importance=data.get("importance", 0.5),
                             source_type=data.get("source", "import"),
                             source_session_id=data.get("source_id"),
                         )
@@ -318,7 +317,6 @@ class MemoryBackupManager:
                         "id": memory.id,
                         "content": self._sanitize_content(memory.content),
                         "type": memory.memory_type,
-                        "importance": memory.importance,
                         "tags": memory.tags,
                         "created_at": memory.created_at,
                         "updated_at": memory.updated_at,

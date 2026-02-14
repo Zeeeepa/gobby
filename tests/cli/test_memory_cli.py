@@ -32,7 +32,6 @@ class TestMemoryShowCommand:
         mock_item.id = "mem-123"
         mock_item.content = "Remember this"
         mock_item.memory_type = "fact"
-        mock_item.importance = 0.5
         mock_item.created_at = "2024-01-01"
         mock_item.updated_at = "2024-01-01"
         mock_item.source_type = "cli"
@@ -107,7 +106,6 @@ class TestMemoryUpdateCommand:
         mock_mem = MagicMock()
         mock_mem.id = "mem-up123"
         mock_mem.content = "New content"
-        mock_mem.importance = 0.5
         mock_manager.update_memory.return_value = mock_mem
 
         mock_get_manager.return_value = mock_manager
@@ -118,7 +116,7 @@ class TestMemoryUpdateCommand:
         assert result.exit_code == 0
         assert "Updated memory: mem-up123" in result.output
         mock_manager.update_memory.assert_called_once_with(
-            memory_id="mem-up123", content="New content", importance=None, tags=None
+            memory_id="mem-up123", content="New content", tags=None
         )
 
     @patch("gobby.cli.memory.resolve_memory_id")
@@ -134,7 +132,6 @@ class TestMemoryUpdateCommand:
         mock_mem = MagicMock()
         mock_mem.id = "mem-up123"
         mock_mem.content = "Content"
-        mock_mem.importance = 0.8
         mock_manager.update_memory.return_value = mock_mem
 
         mock_get_manager.return_value = mock_manager
@@ -146,7 +143,6 @@ class TestMemoryUpdateCommand:
         mock_manager.update_memory.assert_called_once_with(
             memory_id="mem-up123",
             content=None,
-            importance=None,
             tags=["tag1", "tag2", "tag3"],
         )
 
@@ -163,7 +159,6 @@ class TestMemoryUpdateCommand:
         mock_mem = MagicMock()
         mock_mem.id = "mem-up123"
         mock_mem.content = "Content"
-        mock_mem.importance = 0.5
         mock_manager.update_memory.return_value = mock_mem
 
         mock_get_manager.return_value = mock_manager
@@ -174,28 +169,8 @@ class TestMemoryUpdateCommand:
 
         assert result.exit_code == 0
         mock_manager.update_memory.assert_called_once_with(
-            memory_id="mem-up123", content=None, importance=None, tags=None
+            memory_id="mem-up123", content=None, tags=None
         )
-
-    @patch("gobby.cli.memory.resolve_memory_id")
-    @patch("gobby.cli.memory.get_memory_manager")
-    def test_update_error_handling(
-        self,
-        mock_get_manager: MagicMock,
-        mock_resolve: MagicMock,
-        runner: CliRunner,
-    ) -> None:
-        """Test update error handling."""
-        mock_manager = MagicMock()
-        mock_manager.update_memory.side_effect = ValueError("Invalid importance")
-        mock_get_manager.return_value = mock_manager
-        mock_resolve.return_value = "mem-up123"
-
-        result = runner.invoke(cli, ["memory", "update", "mem-up123", "--importance", "0.5"])
-
-        assert result.exit_code == 0  # Click doesn't exit on echo
-        assert "Error: Invalid importance" in result.output
-
 
 class TestMemoryRecallCommand:
     """Tests for gobby memory recall command."""
@@ -225,7 +200,6 @@ class TestMemoryRecallCommand:
         mock_mem = MagicMock()
         mock_mem.id = "mem-123456"
         mock_mem.memory_type = "fact"
-        mock_mem.importance = 0.8
         mock_mem.content = "Test content"
         mock_mem.tags = ["tag1", "tag2"]
         mock_manager.recall.return_value = [mock_mem]
@@ -296,7 +270,6 @@ class TestMemoryListCommand:
         mock_mem = MagicMock()
         mock_mem.id = "mem-123456789"
         mock_mem.memory_type = "preference"
-        mock_mem.importance = 0.75
         mock_mem.content = "x" * 150  # Long content
         mock_mem.tags = []
         mock_manager.list_memories.return_value = [mock_mem]
@@ -316,7 +289,6 @@ class TestMemoryListCommand:
         mock_mem = MagicMock()
         mock_mem.id = "mem-123456789"
         mock_mem.memory_type = "fact"
-        mock_mem.importance = 0.5
         mock_mem.content = "short"
         mock_mem.tags = ["important", "code"]
         mock_manager.list_memories.return_value = [mock_mem]
@@ -341,8 +313,6 @@ class TestMemoryListCommand:
                 "list",
                 "--type",
                 "fact",
-                "--min-importance",
-                "0.7",
                 "--limit",
                 "20",
                 "--tags-all",
@@ -353,7 +323,6 @@ class TestMemoryListCommand:
         assert result.exit_code == 0
         call_kwargs = mock_manager.list_memories.call_args[1]
         assert call_kwargs["memory_type"] == "fact"
-        assert call_kwargs["min_importance"] == 0.7
         assert call_kwargs["limit"] == 20
 
 
@@ -372,7 +341,6 @@ class TestMemoryStatsCommand:
         mock_manager = MagicMock()
         mock_manager.get_stats.return_value = {
             "total_count": 42,
-            "avg_importance": 0.654,
             "by_type": {"fact": 20, "preference": 15, "context": 7},
         }
         mock_get_manager.return_value = mock_manager
@@ -381,7 +349,6 @@ class TestMemoryStatsCommand:
 
         assert result.exit_code == 0
         assert "Total Memories: 42" in result.output
-        assert "Average Importance: 0.654" in result.output
         assert "fact: 20" in result.output
         assert "preference: 15" in result.output
 
@@ -391,7 +358,6 @@ class TestMemoryStatsCommand:
         mock_manager = MagicMock()
         mock_manager.get_stats.return_value = {
             "total_count": 0,
-            "avg_importance": 0.0,
             "by_type": {},
         }
         mock_get_manager.return_value = mock_manager
@@ -536,7 +502,6 @@ class TestMemoryShowNotFound:
         mock_item.id = "mem-123"
         mock_item.content = "Content"
         mock_item.memory_type = "fact"
-        mock_item.importance = 0.5
         mock_item.created_at = "2024-01-01"
         mock_item.updated_at = "2024-01-01"
         mock_item.source_type = "cli"

@@ -16,11 +16,10 @@ def _make_storage(memories=None):
     return storage
 
 
-def _make_memory(memory_type="fact", importance=0.5):
+def _make_memory(memory_type="fact"):
     """Create a mock memory."""
     m = MagicMock()
     m.memory_type = memory_type
-    m.importance = importance
     return m
 
 

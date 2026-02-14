@@ -39,11 +39,11 @@ def test_memories_no_mem0_id_column(db) -> None:
     assert "mem0_id" not in column_names
 
 
-def test_memories_has_importance_column(db) -> None:
-    """memories table should still have importance column (kept, harmless)."""
+def test_memories_no_importance_column(db) -> None:
+    """memories table should not have importance column (removed in migration 105)."""
     columns = db.fetchall("PRAGMA table_info(memories)")
     column_names = [c["name"] for c in columns]
-    assert "importance" in column_names
+    assert "importance" not in column_names
 
 
 def test_memory_embeddings_indexes_dropped(db) -> None:

@@ -40,21 +40,17 @@ def get_stats(
         return {
             "total_count": 0,
             "by_type": {},
-            "avg_importance": 0.0,
             "project_id": project_id,
         }
 
     by_type: dict[str, int] = {}
-    total_importance = 0.0
 
     for m in memories:
         by_type[m.memory_type] = by_type.get(m.memory_type, 0) + 1
-        total_importance += m.importance
 
     stats: dict[str, Any] = {
         "total_count": len(memories),
         "by_type": by_type,
-        "avg_importance": round(total_importance / len(memories), 3),
         "project_id": project_id,
     }
 
@@ -79,7 +75,7 @@ def export_markdown(
     Args:
         storage: Local memory storage manager.
         project_id: Filter by project ID (None for all memories).
-        include_metadata: Include memory metadata (type, importance, tags).
+        include_metadata: Include memory metadata (type, tags).
         include_stats: Include summary statistics at the top.
 
     Returns:
@@ -130,7 +126,6 @@ def export_markdown(
 def _append_metadata(lines: list[str], memory: Memory) -> None:
     """Append memory metadata lines to the export."""
     lines.append(f"- **Type:** {memory.memory_type}")
-    lines.append(f"- **Importance:** {memory.importance}")
 
     if memory.tags:
         tags_str = ", ".join(memory.tags)

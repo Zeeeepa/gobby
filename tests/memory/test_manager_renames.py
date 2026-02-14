@@ -34,7 +34,6 @@ async def test_create_memory_exists(manager: MemoryManager) -> None:
     memory = await manager.create_memory(
         content="test fact",
         memory_type="fact",
-        importance=0.8,
     )
     assert memory.content == "test fact"
 

@@ -97,7 +97,7 @@ class TestBackgroundDedupTask:
         mock_record.project_id = None
         mock_record.source_type = "user"
         mock_record.source_session_id = None
-        mock_record.importance = 0.5
+
         mock_record.access_count = 0
         mock_record.last_accessed_at = None
         mock_record.tags = []
@@ -131,7 +131,7 @@ class TestBackgroundDedupTask:
         mock_record.project_id = None
         mock_record.source_type = "user"
         mock_record.source_session_id = None
-        mock_record.importance = 0.5
+
         mock_record.access_count = 0
         mock_record.last_accessed_at = None
         mock_record.tags = []
@@ -164,7 +164,7 @@ class TestBackgroundDedupTask:
         mock_record.project_id = None
         mock_record.source_type = "user"
         mock_record.source_session_id = None
-        mock_record.importance = 0.5
+
         mock_record.access_count = 0
         mock_record.last_accessed_at = None
         mock_record.tags = []
@@ -190,7 +190,7 @@ class TestBackgroundDedupTask:
         mock_record.project_id = None
         mock_record.source_type = "user"
         mock_record.source_session_id = None
-        mock_record.importance = 0.5
+
         mock_record.access_count = 0
         mock_record.last_accessed_at = None
         mock_record.tags = []
@@ -224,7 +224,7 @@ class TestBackgroundDedupTask:
         mock_record.project_id = None
         mock_record.source_type = "user"
         mock_record.source_session_id = None
-        mock_record.importance = 0.5
+
         mock_record.access_count = 0
         mock_record.last_accessed_at = None
         mock_record.tags = []

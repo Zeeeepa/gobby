@@ -30,7 +30,6 @@ class MockMemory:
         id: str = "mem-123",
         content: str = "Test memory content",
         memory_type: str = "fact",
-        importance: float = 0.5,
         created_at: str = "2024-01-01T00:00:00",
         updated_at: str | None = None,
         project_id: str | None = None,
@@ -43,7 +42,6 @@ class MockMemory:
         self.id = id
         self.content = content
         self.memory_type = memory_type
-        self.importance = importance
         self.created_at = created_at
         self.updated_at = updated_at or created_at
         self.project_id = project_id
@@ -118,7 +116,7 @@ class TestCreateMemory:
         ):
             result = await memory_registry.call(
                 "create_memory",
-                {"content": "Test content", "memory_type": "fact", "importance": 0.8},
+                {"content": "Test content", "memory_type": "fact"},
             )
 
         assert result["success"] is True
@@ -196,19 +194,6 @@ class TestCreateMemory:
         assert result["success"] is True
         call_kwargs = mock_memory_manager.remember.call_args.kwargs
         assert call_kwargs["source_session_id"] is None
-
-    @pytest.mark.asyncio
-    async def test_create_memory_default_importance(self, memory_registry, mock_memory_manager):
-        """Test that default importance is 0.8."""
-        mock_memory_manager.recall.return_value = []
-
-        with patch(
-            "gobby.utils.project_context.get_project_context", return_value={"id": "proj-1"}
-        ):
-            await memory_registry.call("create_memory", {"content": "Test"})
-
-        call_kwargs = mock_memory_manager.remember.call_args.kwargs
-        assert call_kwargs["importance"] == 0.8
 
     @pytest.mark.asyncio
     async def test_create_memory_excludes_self_from_similar(
@@ -289,7 +274,6 @@ class TestSearchMemories:
                 "search_memories",
                 {
                     "query": "test",
-                    "min_importance": 0.5,
                     "tags_all": ["important"],
                     "tags_any": ["work", "personal"],
                     "tags_none": ["archived"],
@@ -298,7 +282,6 @@ class TestSearchMemories:
 
         assert result["success"] is True
         call_kwargs = mock_memory_manager.recall.call_args.kwargs
-        assert call_kwargs["min_importance"] == 0.5
         assert call_kwargs["tags_all"] == ["important"]
         assert call_kwargs["tags_any"] == ["work", "personal"]
         assert call_kwargs["tags_none"] == ["archived"]
@@ -378,7 +361,6 @@ class TestListMemories:
                 "list_memories",
                 {
                     "memory_type": "fact",
-                    "min_importance": 0.7,
                     "limit": 20,
                     "tags_all": ["work"],
                 },
@@ -387,7 +369,6 @@ class TestListMemories:
         assert result["success"] is True
         call_kwargs = mock_memory_manager.list_memories.call_args.kwargs
         assert call_kwargs["memory_type"] == "fact"
-        assert call_kwargs["min_importance"] == 0.7
         assert call_kwargs["limit"] == 20
         assert call_kwargs["tags_all"] == ["work"]
 
@@ -413,7 +394,6 @@ class TestGetMemory:
             id="mem-123",
             content="Test content",
             memory_type="fact",
-            importance=0.8,
             project_id="proj-1",
             access_count=5,
             tags=["tag1"],
@@ -518,7 +498,6 @@ class TestUpdateMemory:
             {
                 "memory_id": "mem-123",
                 "content": "Updated content",
-                "importance": 0.9,
                 "tags": ["new-tag"],
             },
         )
@@ -528,7 +507,6 @@ class TestUpdateMemory:
         mock_memory_manager.update_memory.assert_called_once_with(
             memory_id="mem-123",
             content="Updated content",
-            importance=0.9,
             tags=["new-tag"],
         )
 
@@ -538,15 +516,14 @@ class TestUpdateMemory:
         mock_memory_manager.update_memory.return_value = MockMemory()
 
         result = await memory_registry.call(
-            "update_memory", {"memory_id": "mem-123", "importance": 0.5}
+            "update_memory", {"memory_id": "mem-123", "tags": ["updated"]}
         )
 
         assert result["success"] is True
         mock_memory_manager.update_memory.assert_called_once_with(
             memory_id="mem-123",
             content=None,
-            importance=0.5,
-            tags=None,
+            tags=["updated"],
         )
 
     @pytest.mark.asyncio

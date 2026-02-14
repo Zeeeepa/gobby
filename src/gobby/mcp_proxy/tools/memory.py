@@ -65,7 +65,6 @@ def create_memory_registry(
     async def create_memory(
         content: str,
         memory_type: str = "fact",
-        importance: float = 0.8,
         tags: list[str] | None = None,
         session_id: str | None = None,
     ) -> dict[str, Any]:
@@ -75,7 +74,6 @@ def create_memory_registry(
         Args:
             content: The memory content to store
             memory_type: Type of memory (fact, preference, etc)
-            importance: Importance score (0.0-1.0), defaults to 0.8
             tags: Optional list of tags
             session_id: Session ID that created this memory (accepts #N, N, UUID, or prefix)
         """
@@ -98,7 +96,6 @@ def create_memory_registry(
             memory = await memory_manager.create_memory(
                 content=content,
                 memory_type=memory_type,
-                importance=importance,
                 project_id=project_id,
                 tags=tags,
                 source_type="mcp_tool",
@@ -150,7 +147,6 @@ def create_memory_registry(
     def search_memories(
         query: str | None = None,
         limit: int = 10,
-        min_importance: float | None = None,
         tags_all: list[str] | None = None,
         tags_any: list[str] | None = None,
         tags_none: list[str] | None = None,
@@ -161,7 +157,6 @@ def create_memory_registry(
         Args:
             query: Search query string
             limit: Maximum number of memories to return
-            min_importance: Minimum importance threshold
             tags_all: Memory must have ALL of these tags
             tags_any: Memory must have at least ONE of these tags
             tags_none: Memory must have NONE of these tags
@@ -171,7 +166,6 @@ def create_memory_registry(
                 query=query,
                 project_id=get_current_project_id(),
                 limit=limit,
-                min_importance=min_importance,
                 tags_all=tags_all,
                 tags_any=tags_any,
                 tags_none=tags_none,
@@ -183,7 +177,6 @@ def create_memory_registry(
                         "id": m.id,
                         "content": m.content,
                         "type": m.memory_type,
-                        "importance": m.importance,
                         "created_at": m.created_at,
                         "tags": m.tags,
                         "similarity": getattr(m, "similarity", None),  # Might be added by search
@@ -220,7 +213,6 @@ def create_memory_registry(
     )
     def list_memories(
         memory_type: str | None = None,
-        min_importance: float | None = None,
         limit: int = 50,
         tags_all: list[str] | None = None,
         tags_any: list[str] | None = None,
@@ -231,7 +223,6 @@ def create_memory_registry(
 
         Args:
             memory_type: Filter by memory type (fact, preference, pattern, context)
-            min_importance: Minimum importance threshold (0.0-1.0)
             limit: Maximum number of memories to return
             tags_all: Memory must have ALL of these tags
             tags_any: Memory must have at least ONE of these tags
@@ -241,7 +232,6 @@ def create_memory_registry(
             memories = memory_manager.list_memories(
                 project_id=get_current_project_id(),
                 memory_type=memory_type,
-                min_importance=min_importance,
                 limit=limit,
                 tags_all=tags_all,
                 tags_any=tags_any,
@@ -254,7 +244,6 @@ def create_memory_registry(
                         "id": m.id,
                         "content": m.content,
                         "type": m.memory_type,
-                        "importance": m.importance,
                         "created_at": m.created_at,
                         "tags": m.tags,
                     }
@@ -285,7 +274,6 @@ def create_memory_registry(
                         "id": memory.id,
                         "content": memory.content,
                         "type": memory.memory_type,
-                        "importance": memory.importance,
                         "created_at": memory.created_at,
                         "updated_at": memory.updated_at,
                         "project_id": memory.project_id,
@@ -335,7 +323,6 @@ def create_memory_registry(
                         "id": m.id,
                         "content": m.content,
                         "type": m.memory_type,
-                        "importance": m.importance,
                         "created_at": m.created_at,
                         "tags": m.tags,
                     }
@@ -350,12 +337,11 @@ def create_memory_registry(
 
     @registry.tool(
         name="update_memory",
-        description="Update an existing memory's content, importance, or tags.",
+        description="Update an existing memory's content or tags.",
     )
     def update_memory(
         memory_id: str,
         content: str | None = None,
-        importance: float | None = None,
         tags: list[str] | None = None,
     ) -> dict[str, Any]:
         """
@@ -364,14 +350,12 @@ def create_memory_registry(
         Args:
             memory_id: The ID of the memory to update
             content: New content (optional)
-            importance: New importance score 0.0-1.0 (optional)
             tags: New list of tags (optional)
         """
         try:
             memory = memory_manager.update_memory(
                 memory_id=memory_id,
                 content=content,
-                importance=importance,
                 tags=tags,
             )
             return {
@@ -394,7 +378,6 @@ def create_memory_registry(
         image_path: str,
         context: str | None = None,
         memory_type: str = "fact",
-        importance: float = 0.5,
         tags: list[str] | None = None,
     ) -> dict[str, Any]:
         """
@@ -408,7 +391,6 @@ def create_memory_registry(
             image_path: Path to the image file
             context: Optional context to guide the image description (e.g., "This is a screenshot of an error")
             memory_type: Type of memory (fact, preference, etc)
-            importance: Importance score (0.0-1.0)
             tags: Optional list of tags
         """
         if not llm_service:
@@ -422,7 +404,6 @@ def create_memory_registry(
                 image_path=image_path,
                 context=context,
                 memory_type=memory_type,
-                importance=importance,
                 project_id=get_current_project_id(),
                 tags=tags,
                 source_type="mcp_tool",
@@ -448,7 +429,6 @@ def create_memory_registry(
         screenshot_base64: str,
         context: str | None = None,
         memory_type: str = "observation",
-        importance: float = 0.5,
         tags: list[str] | None = None,
     ) -> dict[str, Any]:
         """
@@ -461,7 +441,6 @@ def create_memory_registry(
             screenshot_base64: Base64-encoded PNG screenshot bytes
             context: Optional context to guide the image description
             memory_type: Type of memory (default: "observation")
-            importance: Importance score (0.0-1.0)
             tags: Optional list of tags
         """
         import base64
@@ -480,7 +459,6 @@ def create_memory_registry(
                 screenshot_bytes=screenshot_bytes,
                 context=context,
                 memory_type=memory_type,
-                importance=importance,
                 project_id=get_current_project_id(),
                 tags=tags,
                 source_type="mcp_tool",

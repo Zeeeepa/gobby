@@ -407,7 +407,6 @@ async def test_memory_recall_relevant(
     # Mock recall returning memories
     mem1 = MagicMock()
     mem1.content = "Relevant memory"
-    mem1.importance = 0.8
     mem1.memory_type = "fact"
     mock_services["memory_manager"].recall.return_value = [mem1]
 

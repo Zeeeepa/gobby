@@ -58,10 +58,8 @@ class MemoryCapability(Enum):
 
     Advanced features:
         TAGS: Tag-based filtering and organization
-        IMPORTANCE: Importance scoring and filtering
         CROSSREF: Cross-referencing between related memories
         MEDIA: Multimodal memory support (images, etc.)
-        DECAY: Time-based importance decay
 
     MCP-aligned operations (aliases for compatibility):
         REMEMBER: Alias for CREATE
@@ -86,10 +84,8 @@ class MemoryCapability(Enum):
 
     # Advanced features
     TAGS = "tags"
-    IMPORTANCE = "importance"
     CROSSREF = "crossref"
     MEDIA = "media"
-    DECAY = "decay"
 
     # MCP-aligned operations (aliases)
     REMEMBER = "remember"
@@ -110,7 +106,6 @@ class MemoryQuery:
         project_id: Filter by project ID
         user_id: Filter by user ID (for multi-tenant backends)
         limit: Maximum number of results to return
-        min_importance: Minimum importance threshold
         memory_type: Filter by memory type (fact, preference, etc.)
         tags_all: Memory must have ALL of these tags
         tags_any: Memory must have at least ONE of these tags
@@ -121,7 +116,6 @@ class MemoryQuery:
         query = MemoryQuery(
             text="authentication",
             project_id="proj-123",
-            min_importance=0.5,
             tags_all=["security"],
             search_mode="semantic"
         )
@@ -131,7 +125,6 @@ class MemoryQuery:
     project_id: str | None = None
     user_id: str | None = None
     limit: int = 10
-    min_importance: float | None = None
     memory_type: str | None = None
     tags_all: list[str] | None = None
     tags_any: list[str] | None = None
@@ -188,7 +181,6 @@ class MemoryRecord:
         updated_at: When the memory was last updated
         project_id: Associated project ID
         user_id: Associated user ID (for multi-tenant backends)
-        importance: Importance score (0.0 to 1.0)
         tags: List of tags for organization
         source_type: Origin of memory (user, session, inferred)
         source_session_id: Session that created the memory
@@ -203,7 +195,6 @@ class MemoryRecord:
             content="User prefers dark mode",
             created_at=datetime.now(UTC),
             memory_type="preference",
-            importance=0.8,
             tags=["ui", "settings"]
         )
     """
@@ -215,7 +206,6 @@ class MemoryRecord:
     updated_at: datetime | None = None
     project_id: str | None = None
     user_id: str | None = None
-    importance: float = 0.5
     tags: list[str] = field(default_factory=list)
     source_type: str | None = None
     source_session_id: str | None = None
@@ -234,7 +224,6 @@ class MemoryRecord:
             "updated_at": self.updated_at.isoformat() if self.updated_at else None,
             "project_id": self.project_id,
             "user_id": self.user_id,
-            "importance": self.importance,
             "tags": self.tags,
             "source_type": self.source_type,
             "source_session_id": self.source_session_id,
@@ -296,7 +285,6 @@ class MemoryRecord:
             updated_at=updated_at,
             project_id=data.get("project_id"),
             user_id=data.get("user_id"),
-            importance=data.get("importance", 0.5),
             tags=data.get("tags", []),
             source_type=data.get("source_type"),
             source_session_id=data.get("source_session_id"),
@@ -344,7 +332,6 @@ class MemoryBackendProtocol(Protocol):
         self,
         content: str,
         memory_type: str = "fact",
-        importance: float = 0.5,
         project_id: str | None = None,
         user_id: str | None = None,
         tags: list[str] | None = None,
@@ -358,7 +345,6 @@ class MemoryBackendProtocol(Protocol):
         Args:
             content: The memory content text
             memory_type: Type of memory (fact, preference, etc.)
-            importance: Importance score (0.0 to 1.0)
             project_id: Associated project ID
             user_id: Associated user ID
             tags: List of tags
@@ -387,7 +373,6 @@ class MemoryBackendProtocol(Protocol):
         self,
         memory_id: str,
         content: str | None = None,
-        importance: float | None = None,
         tags: list[str] | None = None,
     ) -> MemoryRecord:
         """Update an existing memory.
@@ -395,7 +380,6 @@ class MemoryBackendProtocol(Protocol):
         Args:
             memory_id: The memory ID to update
             content: New content (optional)
-            importance: New importance score (optional)
             tags: New tags (optional)
 
         Returns:

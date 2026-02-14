@@ -45,7 +45,7 @@ def test_other_columns_preserved(db) -> None:
     column_names = [c["name"] for c in columns]
     expected = [
         "id", "project_id", "memory_type", "content",
-        "source_type", "source_session_id", "importance",
+        "source_type", "source_session_id",
         "access_count", "last_accessed_at", "tags", "media",
         "created_at", "updated_at",
     ]

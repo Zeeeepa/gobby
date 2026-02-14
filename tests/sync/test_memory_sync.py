@@ -26,7 +26,6 @@ def mock_memory_manager():
                 id="m1",
                 content="test memory",
                 memory_type="fact",
-                importance=0.5,
                 created_at="2023-01-01T00:00:00Z",
                 updated_at="2023-01-01T00:00:00Z",
                 access_count=0,
@@ -101,7 +100,7 @@ async def test_import_from_files(sync_manager, tmp_path):
 
     # Create dummy memory file
     mem_file.write_text(
-        json.dumps({"content": "imported memory", "type": "fact", "importance": 0.8}) + "\n"
+        json.dumps({"content": "imported memory", "type": "fact"}) + "\n"
     )
 
     count = await sync_manager.import_from_files()
@@ -111,7 +110,6 @@ async def test_import_from_files(sync_manager, tmp_path):
     call_args = sync_manager.memory_manager.storage.create_memory.call_args[1]
     assert call_args["content"] == "imported memory"
     assert call_args["memory_type"] == "fact"
-    assert call_args["importance"] == 0.8
     assert count == 1
 
 

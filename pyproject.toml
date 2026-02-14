@@ -40,7 +40,7 @@ dependencies = [
     "gitingest>=0.3.1",
     # croniter for cron expression parsing (scheduler)
     "croniter>=2.0.0",
-    # scikit-learn for TF-IDF memory search (removed in Phase 1 cleanup task)
+    # scikit-learn for TF-IDF search (used by task search and skill search)
     "scikit-learn>=1.0.0",
     "textual>=7.3.0",
     "qdrant-client>=1.12.0",

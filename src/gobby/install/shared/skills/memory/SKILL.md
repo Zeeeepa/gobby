@@ -25,7 +25,6 @@ This skill manages persistent memories via the gobby-memory MCP server. Parse th
 Call `create_memory` with:
 - `content`: (required) The memory content to store
 - `memory_type`: Optional type categorization
-- `importance`: Importance score 0-1 (default 0.5, use higher for critical facts)
 - `tags`: Comma-separated tags (e.g., "testing,security")
 - `project_id`: Optional project scope (defaults to current)
 
@@ -33,13 +32,12 @@ Example: `/gobby memory remember Always use pytest fixtures for test setup`
 → `create_memory(content="Always use pytest fixtures for test setup", tags="testing")`
 
 Example: `/gobby memory remember [critical] Never commit .env files`
-→ `create_memory(content="Never commit .env files", tags="critical,security", importance="0.9")`
+→ `create_memory(content="Never commit .env files", tags="critical,security")`
 
 ### `/gobby memory recall <query>` - Search/recall memories
 Call `search_memories` with:
 - `query`: Search query text
 - `limit`: Max results (default 10)
-- `min_importance`: Minimum importance threshold
 - `tags_all`: Require all these tags (comma-separated)
 - `tags_any`: Match any of these tags
 - `tags_none`: Exclude these tags
@@ -60,7 +58,6 @@ Example: `/gobby memory forget mm-abc123` → `delete_memory(memory_id="mm-abc12
 Call `list_memories` with:
 - `limit`: Max results (default 20)
 - `memory_type`: Filter by type
-- `min_importance`: Minimum importance threshold
 - `tags_all`: Require all these tags
 - `tags_any`: Match any of these tags
 - `tags_none`: Exclude these tags
@@ -75,7 +72,7 @@ Example: `/gobby memory list tag:workflow` → `list_memories(tags_any="workflow
 Call `get_memory` with:
 - `memory_id`: (required) The memory ID to retrieve
 
-Returns full memory details including content, tags, importance, and metadata.
+Returns full memory details including content, tags, and metadata.
 
 Example: `/gobby memory show mm-abc123` → `get_memory(memory_id="mm-abc123")`
 
@@ -83,10 +80,9 @@ Example: `/gobby memory show mm-abc123` → `get_memory(memory_id="mm-abc123")`
 Call `update_memory` with:
 - `memory_id`: (required) The memory ID to update
 - `content`: New content (optional)
-- `importance`: New importance score (optional)
 - `tags`: New tags (optional)
 
-Example: `/gobby memory update mm-abc123 importance=0.9` → `update_memory(memory_id="mm-abc123", importance="0.9")`
+Example: `/gobby memory update mm-abc123 tags=critical,security` → `update_memory(memory_id="mm-abc123", tags="critical,security")`
 
 ### `/gobby memory related <memory-id>` - Get related memories
 Call `get_related_memories` with:
@@ -107,15 +103,14 @@ Call `memory_stats` to retrieve:
 
 Example: `/gobby memory stats` → `memory_stats()`
 
-### `/gobby memory export` - Export memory graph
-Call `export_memory_graph` with:
-- `title`: Optional graph title
-- `output_path`: Optional output file path
-- `project_id`: Optional project scope
+### `/gobby memory graph <query>` - Search knowledge graph
+Call `search_knowledge_graph` with:
+- `query`: (required) Search query string
+- `limit`: Max results (default 10)
 
-Exports memories as an interactive HTML knowledge graph.
+Searches the Neo4j knowledge graph for entities matching the query.
 
-Example: `/gobby memory export` → `export_memory_graph()`
+Example: `/gobby memory graph authentication` → `search_knowledge_graph(query="authentication")`
 
 ## Response Format
 
@@ -128,7 +123,7 @@ After executing the appropriate MCP tool, present the results clearly:
 - For update: Confirm update
 - For related: List related memories with similarity scores
 - For stats: Show statistics in a readable summary
-- For export: Confirm export with file path
+- For graph: Show matching entities and relationships
 
 ## Tag Extraction
 
@@ -142,4 +137,4 @@ When storing memories, extract implicit tags from content:
 ## Error Handling
 
 If the subcommand is not recognized, show available subcommands:
-- remember, recall, forget, list, show, update, related, stats, export
+- remember, recall, forget, list, show, update, related, stats, graph

@@ -1987,13 +1987,11 @@ class TestInjectContextMemoriesSource:
         memory1 = MagicMock()
         memory1.id = "mem-1"
         memory1.content = "User prefers dark mode for all UIs"
-        memory1.importance = 0.8
         memory1.memory_type = "preference"
 
         memory2 = MagicMock()
         memory2.id = "mem-2"
         memory2.content = "Project uses pytest for testing"
-        memory2.importance = 0.7
         memory2.memory_type = "fact"
 
         manager.recall.return_value = [memory1, memory2]
@@ -2128,33 +2126,6 @@ class TestInjectContextMemoriesSource:
         mock_memory_manager.recall.assert_called_once()
         call_kwargs = mock_memory_manager.recall.call_args[1]
         assert call_kwargs["limit"] == 10
-
-    def test_memories_source_uses_min_importance_parameter(
-        self, mock_session_manager, mock_template_engine, mock_memory_manager, mock_session
-    ) -> None:
-        """Should pass min_importance parameter to memory recall."""
-        mock_session_manager.get.return_value = mock_session
-        state = WorkflowState(
-            session_id="test-session",
-            workflow_name="test",
-            step="test",
-        )
-
-        inject_context(
-            session_manager=mock_session_manager,
-            session_id="test-session",
-            state=state,
-            template_engine=mock_template_engine,
-            source="memories",
-            memory_manager=mock_memory_manager,
-            prompt_text="test prompt",
-            min_importance=0.5,
-        )
-
-        # Verify min_importance was passed to recall
-        mock_memory_manager.recall.assert_called_once()
-        call_kwargs = mock_memory_manager.recall.call_args[1]
-        assert call_kwargs["min_importance"] == 0.5
 
     def test_memories_source_with_template_rendering(
         self, mock_session_manager, mock_memory_manager, mock_session

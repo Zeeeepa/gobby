@@ -77,7 +77,6 @@ def fetch_rich_status(http_port: int, timeout: float = 2.0) -> dict[str, Any]:
         memory = data.get("memory", {})
         if memory and memory.get("count", 0) > 0:
             status_kwargs["memories_count"] = memory.get("count", 0)
-            status_kwargs["memories_avg_importance"] = memory.get("avg_importance", 0.0)
 
         # Skills
         skills_data = data.get("skills", {})
@@ -123,7 +122,6 @@ def format_status_message(
     tasks_blocked: int | None = None,
     # Memory
     memories_count: int | None = None,
-    memories_avg_importance: float | None = None,
     # Skills
     skills_total: int | None = None,
     # UI info
@@ -162,7 +160,6 @@ def format_status_message(
         tasks_ready: Number of ready tasks
         tasks_blocked: Number of blocked tasks
         memories_count: Total number of memories
-        memories_avg_importance: Average memory importance
         skills_total: Total number of loaded skills
         ui_enabled: Whether the web UI is enabled
         ui_mode: UI mode ('production' or 'dev')
@@ -290,10 +287,7 @@ def format_status_message(
     # Memory section (only show if we have data)
     if memories_count is not None:
         lines.append("Memory:")
-        mem_str = f"Memories: {memories_count}"
-        if memories_avg_importance is not None:
-            mem_str += f" (avg importance: {memories_avg_importance:.2f})"
-        lines.append(f"  {mem_str}")
+        lines.append(f"  Memories: {memories_count}")
         lines.append("")
 
     # Neo4j section (only show if we have data)

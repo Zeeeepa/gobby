@@ -220,7 +220,6 @@ triggers:
     # Memory recall - inject memories relevant to the user's prompt
     - action: memory_recall_relevant
       limit: 5
-      min_importance: 0.7
 
     # Memory capture nudge - remind agent to save user preferences/facts
     - action: inject_context
@@ -376,7 +375,6 @@ triggers:
 
     # Daemon-side memory extraction — safety net for ungraceful exits
     - action: memory_extract_from_session
-      min_importance: 0.7
       max_memories: 5
 
     # Memory sync - export to JSONL for Git persistence
@@ -408,7 +406,6 @@ triggers:
     # Daemon-side memory extraction — capture before context loss
     - action: memory_extract_from_session
       when: "event.source.value != 'gemini' or event.data.get('trigger') == 'manual'"
-      min_importance: 0.7
       max_memories: 5
 
     # Memory sync - export to JSONL for Git persistence

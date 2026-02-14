@@ -151,8 +151,7 @@ cleanup_tracker = {
 # gobby-memory server:
 create_memory(
     content="__diag__ diagnostic test memory - safe to delete",
-    tags="__diag__,test",
-    importance=0.1
+    tags="__diag__,test"
 )
 ```
 

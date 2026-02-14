@@ -56,7 +56,6 @@ class Memory:
     project_id: str | None = None
     source_type: Literal["user", "session", "inferred"] | None = None
     source_session_id: str | None = None
-    importance: float = 0.5
     access_count: int = 0
     last_accessed_at: str | None = None
     tags: list[str] | None = None
@@ -66,14 +65,6 @@ class Memory:
     def from_row(cls, row: sqlite3.Row) -> "Memory":
         tags_json = row["tags"]
         tags = json.loads(tags_json) if tags_json else []
-
-        # Coerce importance to float (handle legacy string values like "high")
-        importance_raw = row["importance"]
-        if isinstance(importance_raw, str):
-            importance_map = {"high": 0.9, "medium": 0.5, "low": 0.3}
-            importance = importance_map.get(importance_raw.lower(), 0.5)
-        else:
-            importance = float(importance_raw) if importance_raw is not None else 0.5
 
         # Handle media column (may not exist in older databases)
         media = row["media"] if "media" in row.keys() else None
@@ -87,7 +78,6 @@ class Memory:
             project_id=row["project_id"],
             source_type=row["source_type"],
             source_session_id=row["source_session_id"],
-            importance=importance,
             access_count=row["access_count"],
             last_accessed_at=row["last_accessed_at"],
             tags=tags,
@@ -104,7 +94,6 @@ class Memory:
             "project_id": self.project_id,
             "source_type": self.source_type,
             "source_session_id": self.source_session_id,
-            "importance": self.importance,
             "access_count": self.access_count,
             "last_accessed_at": self.last_accessed_at,
             "tags": self.tags,
@@ -134,7 +123,6 @@ class LocalMemoryManager:
         project_id: str | None = None,
         source_type: str = "user",
         source_session_id: str | None = None,
-        importance: float = 0.5,
         tags: list[str] | None = None,
         media: str | None = None,
     ) -> Memory:
@@ -176,9 +164,9 @@ class LocalMemoryManager:
                 """
                 INSERT INTO memories (
                     id, project_id, memory_type, content, source_type,
-                    source_session_id, importance, access_count, tags,
+                    source_session_id, access_count, tags,
                     media, created_at, updated_at
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?, ?)
+                ) VALUES (?, ?, ?, ?, ?, ?, 0, ?, ?, ?, ?)
                 """,
                 (
                     memory_id,
@@ -187,7 +175,6 @@ class LocalMemoryManager:
                     content,
                     source_type,
                     source_session_id,
-                    importance,
                     tags_json,
                     media,
                     now,
@@ -260,7 +247,6 @@ class LocalMemoryManager:
         self,
         memory_id: str,
         content: str | None = None,
-        importance: float | None = None,
         tags: list[str] | None = None,
         media: Any = _UNSET,  # Use sentinel to distinguish None from not-provided
     ) -> Memory:
@@ -270,9 +256,6 @@ class LocalMemoryManager:
         if content is not None:
             updates.append("content = ?")
             params.append(content)
-        if importance is not None:
-            updates.append("importance = ?")
-            params.append(importance)
         if tags is not None:
             updates.append("tags = ?")
             params.append(json.dumps(tags))
@@ -309,7 +292,6 @@ class LocalMemoryManager:
         self,
         project_id: str | None = None,
         memory_type: str | None = None,
-        min_importance: float | None = None,
         limit: int = 50,
         offset: int = 0,
         tags_all: list[str] | None = None,
@@ -322,7 +304,6 @@ class LocalMemoryManager:
         Args:
             project_id: Filter by project ID (or None for global)
             memory_type: Filter by memory type
-            min_importance: Minimum importance threshold
             limit: Maximum number of results
             offset: Number of results to skip
             tags_all: Memory must have ALL of these tags
@@ -343,13 +324,9 @@ class LocalMemoryManager:
             query += " AND memory_type = ?"
             params.append(memory_type)
 
-        if min_importance is not None:
-            query += " AND importance >= ?"
-            params.append(min_importance)
-
         # Fetch more results to allow for tag filtering
         fetch_limit = limit * 3 if (tags_all or tags_any or tags_none) else limit
-        query += " ORDER BY importance DESC, created_at DESC LIMIT ? OFFSET ?"
+        query += " ORDER BY created_at DESC LIMIT ? OFFSET ?"
         params.extend([fetch_limit, offset])
 
         rows = self.db.fetchall(query, tuple(params))
@@ -414,7 +391,7 @@ class LocalMemoryManager:
 
         # Fetch more results than needed to allow for tag filtering
         fetch_limit = limit * 3 if (tags_all or tags_any or tags_none) else limit
-        sql += " ORDER BY importance DESC LIMIT ?"
+        sql += " ORDER BY created_at DESC LIMIT ?"
         params.append(fetch_limit)
 
         rows = self.db.fetchall(sql, tuple(params))

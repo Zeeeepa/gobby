@@ -129,7 +129,6 @@ async def test_memory_save_creates_memory(
         mem_action_context,
         content="User prefers dark mode",
         memory_type="preference",
-        importance=0.8,
         tags=["ui", "settings"],
     )
 
@@ -137,12 +136,10 @@ async def test_memory_save_creates_memory(
     assert result["saved"] is True
     assert result["memory_id"] == "mem-123"
     assert result["memory_type"] == "preference"
-    assert result["importance"] == 0.8
 
     mock_mem_services["memory_manager"].remember.assert_called_once_with(
         content="User prefers dark mode",
         memory_type="preference",
-        importance=0.8,
         project_id=sample_project["id"],
         source_type="workflow",
         source_session_id=session.id,
@@ -223,12 +220,10 @@ async def test_memory_save_uses_defaults(
     assert result is not None
     assert result["saved"] is True
     assert result["memory_type"] == "fact"
-    assert result["importance"] == 0.5
 
     # Verify defaults were used
     call_kwargs = mock_mem_services["memory_manager"].remember.call_args[1]
     assert call_kwargs["memory_type"] == "fact"
-    assert call_kwargs["importance"] == 0.5
     assert call_kwargs["tags"] == []
 
 
@@ -341,7 +336,7 @@ async def test_memory_recall_relevant_no_memories_found(
 async def test_memory_recall_relevant_respects_kwargs(
     mem_action_executor, mem_action_context, session_manager, sample_project, mock_mem_services
 ):
-    """Test memory_recall_relevant uses limit and min_importance kwargs."""
+    """Test memory_recall_relevant uses limit kwarg."""
     session = session_manager.register(
         external_id="recall-kwargs-ext",
         machine_id="test-machine",
@@ -361,7 +356,6 @@ async def test_memory_recall_relevant_respects_kwargs(
         "memory_recall_relevant",
         mem_action_context,
         limit=3,
-        min_importance=0.7,
     )
 
     assert result is not None
@@ -370,7 +364,6 @@ async def test_memory_recall_relevant_respects_kwargs(
     # Verify kwargs were passed
     call_kwargs = mock_mem_services["memory_manager"].recall.call_args[1]
     assert call_kwargs["limit"] == 3
-    assert call_kwargs["min_importance"] == 0.7
 
 
 # =============================================================================
@@ -508,54 +501,6 @@ class TestMemorySaveDirect:
         assert result is not None
         assert result["saved"] is True
         assert result["memory_type"] == "fact"
-
-    @pytest.mark.asyncio
-    async def test_memory_save_normalizes_invalid_importance(self):
-        """Test memory_save normalizes invalid importance to 0.5."""
-        mock_memory_manager = MagicMock()
-        mock_memory_manager.config.enabled = True
-        mock_memory_manager.content_exists.return_value = False
-        mock_memory_manager.remember = AsyncMock()
-        mock_memory = MagicMock()
-        mock_memory.id = "mem-123"
-        mock_memory_manager.remember.return_value = mock_memory
-
-        result = await memory_save(
-            memory_manager=mock_memory_manager,
-            session_manager=MagicMock(),
-            session_id="test-session",
-            content="test content",
-            importance="not a number",
-            project_id="proj-123",
-        )
-
-        assert result is not None
-        assert result["saved"] is True
-        assert result["importance"] == 0.5
-
-    @pytest.mark.asyncio
-    async def test_memory_save_clamps_importance(self):
-        """Test memory_save clamps importance to valid range."""
-        mock_memory_manager = MagicMock()
-        mock_memory_manager.config.enabled = True
-        mock_memory_manager.content_exists.return_value = False
-        mock_memory_manager.remember = AsyncMock()
-        mock_memory = MagicMock()
-        mock_memory.id = "mem-123"
-        mock_memory_manager.remember.return_value = mock_memory
-
-        # Test clamping high value
-        result = await memory_save(
-            memory_manager=mock_memory_manager,
-            session_manager=MagicMock(),
-            session_id="test-session",
-            content="test content",
-            importance=2.0,
-            project_id="proj-123",
-        )
-
-        assert result is not None
-        assert result["importance"] == 1.0
 
     @pytest.mark.asyncio
     async def test_memory_save_normalizes_invalid_tags(self):
@@ -1151,7 +1096,6 @@ class TestMemoryExtractFromSession:
             MemoryCandidate(
                 content="Use uv run for development",
                 memory_type="fact",
-                importance=0.8,
                 tags=["development"],
             ),
         ]
@@ -1290,10 +1234,9 @@ class TestMemoryInjectProjectContext:
         assert result["count"] == 2
         assert "inject_context" in result
 
-        # Verify list_memories was called with project_id and min_importance
+        # Verify list_memories was called with project_id
         mock_mm.list_memories.assert_called_once_with(
             project_id="proj-123",
-            min_importance=0.7,
             limit=10,
         )
 
@@ -1421,28 +1364,3 @@ class TestMemoryInjectProjectContext:
         assert result is not None
         assert "error" in result
 
-    @pytest.mark.asyncio
-    async def test_respects_limit_and_importance(self):
-        """Test custom limit and min_importance are passed through."""
-        mock_mm = MagicMock()
-        mock_mm.config.enabled = True
-        mock_mm.list_memories.return_value = []
-
-        mock_sm = MagicMock()
-        mock_session = MagicMock()
-        mock_session.project_id = "proj-123"
-        mock_sm.get.return_value = mock_session
-
-        await memory_inject_project_context(
-            memory_manager=mock_mm,
-            session_manager=mock_sm,
-            session_id="test-session",
-            limit=5,
-            min_importance=0.9,
-        )
-
-        mock_mm.list_memories.assert_called_once_with(
-            project_id="proj-123",
-            min_importance=0.9,
-            limit=5,
-        )

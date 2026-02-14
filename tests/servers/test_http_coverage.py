@@ -597,7 +597,6 @@ class TestAdminEndpoints:
         mock_memory_manager = MagicMock()
         mock_memory_manager.get_stats.return_value = {
             "total_count": 10,
-            "avg_importance": 0.75,
         }
 
         services = ServiceContainer(
@@ -619,7 +618,6 @@ class TestAdminEndpoints:
         assert response.status_code == 200
         data = response.json()
         assert data["memory"]["count"] == 10
-        assert data["memory"]["avg_importance"] == 0.75
 
     def test_status_check_memory_manager_failure(
         self, session_storage: LocalSessionManager
