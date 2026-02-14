@@ -196,72 +196,13 @@
   padding: 4px 10px;
 }
 
-/* Custom node styling */
-.builder-node {
-  padding: 10px 14px;
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  background: var(--bg-secondary);
-  min-width: 140px;
-  text-align: center;
-  transition: border-color 0.15s;
-}
-
-.builder-node:hover {
-  border-color: var(--text-muted);
-}
-
-.builder-node-kind {
-  font-size: 9px;
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-  color: var(--text-secondary);
-  margin-bottom: 4px;
-}
-
-.builder-node-label {
-  font-size: 13px;
-  font-weight: 500;
-  color: var(--text-primary);
-}
-
-/* Node kind color accents */
-.builder-node--step { border-left: 3px solid #3b82f6; }
-.builder-node--trigger-group { border-left: 3px solid #f59e0b; }
-.builder-node--observer { border-left: 3px solid #8b5cf6; }
-.builder-node--exit-condition { border-left: 3px solid #ef4444; }
-.builder-node--exec { border-left: 3px solid #06b6d4; }
-.builder-node--prompt { border-left: 3px solid #a855f7; }
-.builder-node--mcp { border-left: 3px solid #3b82f6; }
-.builder-node--pipeline { border-left: 3px solid #c084fc; }
-.builder-node--spawn-session { border-left: 3px solid #22d3ee; }
-.builder-node--approval { border-left: 3px solid #f97316; }
-.builder-node--variable { border-left: 3px solid #10b981; }
-.builder-node--rule { border-left: 3px solid #eab308; }
-
 /* Override xyflow dark theme colors for consistency */
-.builder-canvas .react-flow__node.selected .builder-node {
-  border-color: var(--accent);
-  box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.3);
-}
-
 .builder-canvas .react-flow__edge-path {
   stroke: var(--text-muted);
 }
 
 .builder-canvas .react-flow__edge.selected .react-flow__edge-path {
   stroke: var(--accent);
-}
-
-.builder-canvas .react-flow__handle {
-  width: 8px;
-  height: 8px;
-  background: var(--text-secondary);
-  border: 2px solid var(--bg-secondary);
-}
-
-.builder-canvas .react-flow__handle:hover {
-  background: var(--accent);
 }
 
 .builder-canvas .react-flow__controls {

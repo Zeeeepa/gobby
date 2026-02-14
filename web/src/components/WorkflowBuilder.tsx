@@ -9,49 +9,20 @@ import {
   MiniMap,
   Background,
   Panel,
-  Handle,
   addEdge,
   ConnectionLineType,
-  Position,
   BackgroundVariant,
   type Node,
   type Edge,
   type Connection,
-  type NodeTypes,
   type OnConnect,
 } from '@xyflow/react'
 import '@xyflow/react/dist/style.css'
+import { nodeTypes, getDefaultData, NODE_KIND_META } from './workflow-nodes/nodeTypes'
 import './WorkflowBuilder.css'
 
 // ---------------------------------------------------------------------------
-// Custom node component
-// ---------------------------------------------------------------------------
-
-type StepNodeData = {
-  label: string
-  nodeKind: string
-}
-
-type StepNode = Node<StepNodeData, 'step'>
-
-function StepNodeComponent({ data }: { data: StepNodeData }) {
-  return (
-    <div className={`builder-node builder-node--${data.nodeKind}`}>
-      <Handle type="target" position={Position.Top} />
-      <div className="builder-node-kind">{data.nodeKind}</div>
-      <div className="builder-node-label">{data.label}</div>
-      <Handle type="source" position={Position.Bottom} />
-    </div>
-  )
-}
-
-// Register nodeTypes OUTSIDE component to avoid re-renders
-const nodeTypes: NodeTypes = {
-  step: StepNodeComponent,
-}
-
-// ---------------------------------------------------------------------------
-// Palette definitions
+// Palette definitions (derived from node kind metadata)
 // ---------------------------------------------------------------------------
 
 interface PaletteItem {
@@ -60,26 +31,14 @@ interface PaletteItem {
   description: string
 }
 
-const WORKFLOW_PALETTE: PaletteItem[] = [
-  { nodeKind: 'step', label: 'Step', description: 'A workflow step with tool restrictions' },
-  { nodeKind: 'trigger-group', label: 'Trigger Group', description: 'Group of trigger conditions' },
-  { nodeKind: 'observer', label: 'Observer', description: 'Watches for state changes' },
-  { nodeKind: 'exit-condition', label: 'Exit Condition', description: 'Terminates the workflow' },
-]
+const WORKFLOW_PALETTE: PaletteItem[] = ['step', 'trigger-group', 'observer', 'exit-condition']
+  .map((k) => ({ nodeKind: k, label: NODE_KIND_META[k].label, description: NODE_KIND_META[k].description }))
 
-const PIPELINE_PALETTE: PaletteItem[] = [
-  { nodeKind: 'exec', label: 'Exec Step', description: 'Run a shell command' },
-  { nodeKind: 'prompt', label: 'Prompt Step', description: 'LLM prompt execution' },
-  { nodeKind: 'mcp', label: 'MCP Step', description: 'Call an MCP tool' },
-  { nodeKind: 'pipeline', label: 'Pipeline Step', description: 'Nested pipeline' },
-  { nodeKind: 'spawn-session', label: 'Spawn Session', description: 'Launch agent session' },
-  { nodeKind: 'approval', label: 'Approval Gate', description: 'Require human approval' },
-]
+const PIPELINE_PALETTE: PaletteItem[] = ['exec', 'prompt', 'mcp', 'pipeline', 'spawn-session', 'approval']
+  .map((k) => ({ nodeKind: k, label: NODE_KIND_META[k].label, description: NODE_KIND_META[k].description }))
 
-const COMMON_PALETTE: PaletteItem[] = [
-  { nodeKind: 'variable', label: 'Variable', description: 'Define or transform a variable' },
-  { nodeKind: 'rule', label: 'Rule', description: 'Conditional branching rule' },
-]
+const COMMON_PALETTE: PaletteItem[] = ['variable', 'rule']
+  .map((k) => ({ nodeKind: k, label: NODE_KIND_META[k].label, description: NODE_KIND_META[k].description }))
 
 // ---------------------------------------------------------------------------
 // Props
@@ -149,7 +108,6 @@ function WorkflowBuilderInner({
       event.preventDefault()
 
       const kind = event.dataTransfer.getData('application/reactflow-kind')
-      const label = event.dataTransfer.getData('application/reactflow-label')
       if (!kind) return
 
       const position = screenToFlowPosition({
@@ -157,11 +115,11 @@ function WorkflowBuilderInner({
         y: event.clientY,
       })
 
-      const newNode: StepNode = {
+      const newNode: Node = {
         id: getNextId(),
         type: 'step',
         position,
-        data: { label, nodeKind: kind },
+        data: getDefaultData(kind),
       }
 
       setNodes((nds) => [...nds, newNode])
@@ -172,7 +130,6 @@ function WorkflowBuilderInner({
   const onDragStart = useCallback(
     (event: DragEvent<HTMLDivElement>, item: PaletteItem) => {
       event.dataTransfer.setData('application/reactflow-kind', item.nodeKind)
-      event.dataTransfer.setData('application/reactflow-label', item.label)
       event.dataTransfer.effectAllowed = 'move'
     },
     [],
