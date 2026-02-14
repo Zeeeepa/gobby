@@ -889,7 +889,8 @@ class PipelineExecutor:
         logger.info("Executing prompt step")
 
         try:
-            response = await self.llm_service.generate(prompt)
+            provider = self.llm_service.get_default_provider()
+            response = await provider.generate_text(prompt)
             return {
                 "response": response,
             }
