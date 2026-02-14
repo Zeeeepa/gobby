@@ -17,6 +17,7 @@ from gobby.llm import LLMService, create_llm_service
 from gobby.llm.resolver import ExecutorRegistry
 from gobby.mcp_proxy.manager import MCPClientManager
 from gobby.memory.manager import MemoryManager
+from gobby.memory.vectorstore import VectorStore
 from gobby.servers.http import HTTPServer
 from gobby.servers.websocket.models import WebSocketConfig
 from gobby.servers.websocket.server import WebSocketServer
@@ -175,13 +176,24 @@ class GobbyRunner:
         except Exception as e:
             logger.error(f"Failed to initialize LLM service: {e}")
 
-        # Initialize Memory Manager
+        # Initialize VectorStore and Memory Manager
+        self.vector_store: VectorStore | None = None
         self.memory_manager: MemoryManager | None = None
         if hasattr(self.config, "memory"):
             try:
+                # Create VectorStore (async initialize() called during startup)
+                qdrant_path = self.config.memory.qdrant_path or str(
+                    Path.home() / ".gobby" / "qdrant"
+                )
+                self.vector_store = VectorStore(
+                    path=qdrant_path if not self.config.memory.qdrant_url else None,
+                    url=self.config.memory.qdrant_url,
+                    api_key=self.config.memory.qdrant_api_key,
+                )
                 self.memory_manager = MemoryManager(
                     self.database,
                     self.config.memory,
+                    vector_store=self.vector_store,
                 )
             except Exception as e:
                 logger.error(f"Failed to initialize MemoryManager: {e}")
@@ -667,6 +679,32 @@ class GobbyRunner:
             # Check for pending Memory V2 migration
             self._check_memory_v2_migration()
 
+            # Initialize VectorStore (async) and rebuild if needed
+            if self.vector_store:
+                try:
+                    await self.vector_store.initialize()
+                    qdrant_count = await self.vector_store.count()
+                    if qdrant_count == 0 and self.memory_manager:
+                        sqlite_memories = self.memory_manager.storage.list_memories(limit=10000)
+                        if sqlite_memories:
+                            logger.info(
+                                f"Qdrant empty, rebuilding from {len(sqlite_memories)} SQLite memories..."
+                            )
+                            memory_dicts = [
+                                {"id": m.id, "content": m.content}
+                                for m in sqlite_memories
+                            ]
+                            embed_fn = self.memory_manager._embed_fn
+                            if embed_fn:
+                                await self.vector_store.rebuild(memory_dicts, embed_fn)
+                                logger.info("VectorStore rebuild complete")
+                            else:
+                                logger.warning(
+                                    "No embed_fn configured, skipping VectorStore rebuild"
+                                )
+                except Exception as e:
+                    logger.error(f"VectorStore initialization failed: {e}")
+
             # Start Message Processor
             if self.message_processor:
                 await self.message_processor.start()
@@ -781,6 +819,15 @@ class GobbyRunner:
                 from gobby.cli.utils import stop_ui_server
 
                 stop_ui_server(quiet=True)
+
+            # Close VectorStore connection
+            if self.vector_store:
+                try:
+                    await asyncio.wait_for(self.vector_store.close(), timeout=5.0)
+                except TimeoutError:
+                    logger.warning("VectorStore close timed out")
+                except Exception as e:
+                    logger.warning(f"VectorStore close failed: {e}")
 
             # Export memories to JSONL backup on shutdown
             if self.memory_sync_manager:
