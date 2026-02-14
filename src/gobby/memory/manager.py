@@ -589,7 +589,7 @@ class MemoryManager:
             return 0
 
         threshold = threshold or getattr(self.config, "crossref_threshold", 0.7)
-        max_links = max_links or getattr(self.config, "max_crossref_links", 5)
+        max_links = max_links or getattr(self.config, "crossref_max_links", 5)
 
         embedding = await self._embed_fn(memory.content)
         results = await self._vector_store.search(embedding, limit=max_links + 1)

@@ -38,7 +38,7 @@ class TestSessionMemoryExtractor:
         manager = MagicMock()
         manager.config.enabled = True
         manager.content_exists.return_value = False
-        manager.remember = AsyncMock(return_value=MagicMock(id="mem-123"))
+        manager.create_memory = AsyncMock(return_value=MagicMock(id="mem-123"))
         return manager
 
     @pytest.fixture
@@ -217,7 +217,7 @@ class TestSessionMemoryExtractor:
             )
 
             assert len(candidates) == 2
-            mock_memory_manager.remember.assert_not_called()
+            mock_memory_manager.create_memory.assert_not_called()
 
     @pytest.mark.asyncio
     async def test_extract_stores_memories(self, extractor, mock_memory_manager):
@@ -239,7 +239,7 @@ class TestSessionMemoryExtractor:
             )
 
             assert len(candidates) == 2
-            assert mock_memory_manager.remember.call_count == 2
+            assert mock_memory_manager.create_memory.call_count == 2
 
     @pytest.mark.asyncio
     async def test_extract_no_session(self, extractor, mock_session_manager):

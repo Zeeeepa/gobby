@@ -81,11 +81,11 @@ def decay_memories(config: MemoryConfig, storage: LocalMemoryManager) -> int:
     Returns:
         Number of memories updated.
     """
-    if not config.decay_enabled:
+    if not getattr(config, "decay_enabled", False):
         return 0
 
-    rate = config.decay_rate
-    floor = config.decay_floor
+    rate = getattr(config, "decay_rate", 0.05)
+    floor = getattr(config, "decay_floor", 0.1)
 
     count = 0
     memories = storage.list_memories(min_importance=floor + 0.001, limit=10000)

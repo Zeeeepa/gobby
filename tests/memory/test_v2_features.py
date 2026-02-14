@@ -6,10 +6,13 @@ Covers:
 - Knowledge graph visualization export
 """
 
+from unittest.mock import AsyncMock
+
 import pytest
 
 from gobby.config.persistence import MemoryConfig
 from gobby.memory.manager import MemoryManager
+from gobby.memory.vectorstore import VectorStore
 from gobby.memory.viz import export_memory_graph
 from gobby.search import TFIDFSearcher
 from gobby.storage.database import LocalDatabase
@@ -33,13 +36,40 @@ def db(tmp_path):
 
 
 @pytest.fixture
+def mock_vector_store_tracking():
+    """Mock VectorStore that tracks upserts and returns them on search."""
+    vs = AsyncMock(spec=VectorStore)
+    stored: dict[str, list[float]] = {}
+
+    async def _upsert(memory_id: str, embedding: list[float], payload: dict | None = None) -> None:
+        stored[memory_id] = embedding
+
+    async def _search(
+        query_embedding: list[float], limit: int = 10, filters: dict | None = None
+    ) -> list[tuple[str, float]]:
+        return [(mid, 0.5) for mid in stored]
+
+    async def _delete(memory_id: str) -> None:
+        stored.pop(memory_id, None)
+
+    vs.upsert = AsyncMock(side_effect=_upsert)
+    vs.search = AsyncMock(side_effect=_search)
+    vs.delete = AsyncMock(side_effect=_delete)
+    return vs
+
+
+@pytest.fixture
+def mock_embed_fn():
+    """Mock embedding function."""
+    return AsyncMock(return_value=[0.1, 0.2, 0.3, 0.4] * 384)
+
+
+@pytest.fixture
 def memory_config_with_crossref():
     """Create a memory configuration with cross-referencing enabled."""
     return MemoryConfig(
         enabled=True,
-        backend="local",  # Explicitly use SQLite backend
-        importance_threshold=0.0,  # No threshold for tests
-        decay_enabled=False,
+        backend="local",
         access_debounce_seconds=60,
         auto_crossref=True,
         crossref_threshold=0.1,  # Low threshold for tests
@@ -48,9 +78,16 @@ def memory_config_with_crossref():
 
 
 @pytest.fixture
-def memory_manager_with_crossref(db, memory_config_with_crossref):
-    """Create a MemoryManager with cross-referencing enabled."""
-    return MemoryManager(db=db, config=memory_config_with_crossref)
+def memory_manager_with_crossref(
+    db, memory_config_with_crossref, mock_vector_store_tracking, mock_embed_fn
+):
+    """Create a MemoryManager with cross-referencing enabled and VectorStore."""
+    return MemoryManager(
+        db=db,
+        config=memory_config_with_crossref,
+        vector_store=mock_vector_store_tracking,
+        embed_fn=mock_embed_fn,
+    )
 
 
 # =============================================================================
@@ -215,11 +252,11 @@ class TestCrossReferences:
         manager = memory_manager_with_crossref
 
         # Create similar memories
-        _mem1 = await manager.remember(
+        _mem1 = await manager.create_memory(
             content="Python is a great programming language for data science",
             importance=0.5,
         )
-        mem2 = await manager.remember(
+        mem2 = await manager.create_memory(
             content="Python programming is excellent for machine learning",
             importance=0.5,
         )
@@ -236,15 +273,15 @@ class TestCrossReferences:
         manager = memory_manager_with_crossref
 
         # Create memories that should be linked
-        _mem1 = await manager.remember(
+        _mem1 = await manager.create_memory(
             content="React is a JavaScript library for building user interfaces",
             importance=0.5,
         )
-        mem2 = await manager.remember(
+        mem2 = await manager.create_memory(
             content="React components use JavaScript and JSX syntax",
             importance=0.5,
         )
-        _mem3 = await manager.remember(
+        _mem3 = await manager.create_memory(
             content="Completely unrelated content about cooking recipes",
             importance=0.5,
         )
@@ -265,18 +302,17 @@ class TestCrossReferences:
         config = MemoryConfig(
             enabled=True,
             backend="local",
-            auto_crossref=False,  # Disabled
-            importance_threshold=0.0,
+            auto_crossref=False,
         )
         manager = MemoryManager(db=db, config=config)
 
-        mem = await manager.remember(content="Isolated memory", importance=0.5)
+        mem = await manager.create_memory(content="Isolated memory", importance=0.5)
         related = await manager.get_related(mem.id, limit=5)
 
         assert related == []
 
     @pytest.mark.asyncio
-    async def test_crossref_respects_threshold(self, db):
+    async def test_crossref_respects_threshold(self, db, mock_vector_store_tracking, mock_embed_fn):
         """Test that crossrefs respect similarity threshold."""
         config = MemoryConfig(
             enabled=True,
@@ -284,22 +320,24 @@ class TestCrossReferences:
             auto_crossref=True,
             crossref_threshold=0.99,  # Very high threshold
             crossref_max_links=5,
-            importance_threshold=0.0,
         )
-        manager = MemoryManager(db=db, config=config)
+        manager = MemoryManager(
+            db=db, config=config,
+            vector_store=mock_vector_store_tracking, embed_fn=mock_embed_fn,
+        )
 
-        await manager.remember(content="First topic about Python", importance=0.5)
-        mem2 = await manager.remember(
+        await manager.create_memory(content="First topic about Python", importance=0.5)
+        mem2 = await manager.create_memory(
             content="Second topic about JavaScript",
             importance=0.5,
         )
 
-        # With very high threshold, dissimilar content shouldn't link
+        # With very high threshold (0.99), mock scores of 0.5 shouldn't link
         crossrefs = manager.storage.get_crossrefs(mem2.id, limit=10)
         assert len(crossrefs) == 0
 
     @pytest.mark.asyncio
-    async def test_crossref_max_links_limit(self, db):
+    async def test_crossref_max_links_limit(self, db, mock_vector_store_tracking, mock_embed_fn):
         """Test that crossrefs respect max_links limit."""
         config = MemoryConfig(
             enabled=True,
@@ -307,19 +345,21 @@ class TestCrossReferences:
             auto_crossref=True,
             crossref_threshold=0.01,  # Very low threshold
             crossref_max_links=2,
-            importance_threshold=0.0,
         )
-        manager = MemoryManager(db=db, config=config)
+        manager = MemoryManager(
+            db=db, config=config,
+            vector_store=mock_vector_store_tracking, embed_fn=mock_embed_fn,
+        )
 
         # Create many similar memories
         for i in range(5):
-            await manager.remember(
+            await manager.create_memory(
                 content=f"Python programming topic number {i}",
                 importance=0.5,
             )
 
         # Create one more that should link to others
-        mem = await manager.remember(
+        mem = await manager.create_memory(
             content="Python programming language overview",
             importance=0.5,
         )
