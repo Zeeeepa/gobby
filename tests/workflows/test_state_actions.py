@@ -5,13 +5,17 @@ specifically the `variable` key support (alias for `name`).
 """
 
 from datetime import UTC, datetime
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 
 import pytest
 
 from gobby.workflows.actions import ActionContext
 from gobby.workflows.definitions import WorkflowState
-from gobby.workflows.state_actions import handle_increment_variable, handle_set_variable
+from gobby.workflows.state_actions import (
+    handle_end_workflow,
+    handle_increment_variable,
+    handle_set_variable,
+)
 from gobby.workflows.templates import TemplateEngine
 
 pytestmark = pytest.mark.unit
@@ -134,6 +138,41 @@ class TestHandleIncrementVariableVariableKey:
         result = await handle_increment_variable(action_context, amount=1)
 
         assert result is None
+
+
+class TestHandleEndWorkflow:
+    """Tests for handle_end_workflow action."""
+
+    @pytest.mark.asyncio
+    async def test_end_workflow_disables_instance(self, action_context) -> None:
+        """end_workflow calls set_enabled(False) on the workflow instance."""
+        with patch(
+            "gobby.workflows.state_manager.WorkflowInstanceManager"
+        ) as MockInstanceManager:
+            mock_instance_mgr = MagicMock()
+            MockInstanceManager.return_value = mock_instance_mgr
+
+            result = await handle_end_workflow(action_context)
+
+            assert result == {"ended": True, "workflow": "test-workflow"}
+            mock_instance_mgr.set_enabled.assert_called_once_with(
+                "test-session", "test-workflow", enabled=False
+            )
+
+    @pytest.mark.asyncio
+    async def test_end_workflow_handles_exception(self, action_context) -> None:
+        """end_workflow handles errors gracefully without raising."""
+        with patch(
+            "gobby.workflows.state_manager.WorkflowInstanceManager"
+        ) as MockInstanceManager:
+            mock_instance_mgr = MagicMock()
+            mock_instance_mgr.set_enabled.side_effect = Exception("DB error")
+            MockInstanceManager.return_value = mock_instance_mgr
+
+            result = await handle_end_workflow(action_context)
+
+            # Should still return success — the workflow is conceptually ended
+            assert result == {"ended": True, "workflow": "test-workflow"}
 
     @pytest.mark.asyncio
     async def test_name_takes_precedence_over_variable(self, action_context) -> None:

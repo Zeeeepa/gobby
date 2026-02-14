@@ -76,8 +76,10 @@ steps:
         content: |
           Task complete! All subtasks for {{ variables.session_task }} have been closed.
 
-          The auto-task workflow will now exit.
+          The auto-task workflow is now ending.
           You may stop the session or start a new task.
+
+      - action: end_workflow
 
 # Exit condition for entire workflow
 # When this evaluates to true, the workflow can cleanly exit
