@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useEffect, useRef } from 'react'
 import { ConversationPicker } from './ConversationPicker'
 import { ChatMessages } from './ChatMessages'
 import { ChatInput } from './ChatInput'
@@ -67,6 +67,18 @@ interface ChatPageProps {
 
 function MobileChatDrawer({ conversations }: { conversations: ConversationState }) {
   const [isOpen, setIsOpen] = useState(false)
+  const drawerRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    if (!isOpen) return
+    const handleClickOutside = (e: MouseEvent) => {
+      if (drawerRef.current && !drawerRef.current.contains(e.target as Node)) {
+        setIsOpen(false)
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => document.removeEventListener('mousedown', handleClickOutside)
+  }, [isOpen])
 
   const handleSelect = useCallback((session: GobbySession) => {
     conversations.onSelectSession(session)
@@ -79,7 +91,7 @@ function MobileChatDrawer({ conversations }: { conversations: ConversationState 
   }, [conversations])
 
   return (
-    <div className={`mobile-chat-drawer ${isOpen ? 'open' : 'collapsed'}`}>
+    <div ref={drawerRef} className={`mobile-chat-drawer ${isOpen ? 'open' : 'collapsed'}`}>
       <div className="mobile-chat-drawer-header" onClick={() => setIsOpen(prev => !prev)}>
         <span className="mobile-chat-drawer-title">
           <ChatIcon />
