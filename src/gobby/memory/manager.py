@@ -14,9 +14,6 @@ from gobby.memory.neo4j_client import Neo4jClient
 from gobby.memory.protocol import MemoryBackendProtocol, MemoryRecord
 from gobby.memory.services.graph import GraphService
 from gobby.memory.services.maintenance import (
-    decay_memories as _decay_memories,
-)
-from gobby.memory.services.maintenance import (
     export_markdown as _export_markdown,
 )
 from gobby.memory.services.maintenance import (
@@ -615,11 +612,7 @@ class MemoryManager:
 
     def get_stats(self, project_id: str | None = None) -> dict[str, Any]:
         """Get statistics about stored memories."""
-        return _get_stats(self.storage, self.db, None, project_id)
-
-    def decay_memories(self) -> int:
-        """Apply importance decay to all memories."""
-        return _decay_memories(self.config, self.storage)
+        return _get_stats(self.storage, self.db, project_id, vector_store=self._vector_store)
 
     # =========================================================================
     # Cross-references (using VectorStore for similarity search)

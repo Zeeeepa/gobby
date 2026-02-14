@@ -1,4 +1,3 @@
-from datetime import UTC, datetime, timedelta
 
 import pytest
 
@@ -64,47 +63,6 @@ async def test_delete_memory(memory_manager):
     assert await memory_manager.delete_memory(memory.id)
     assert await memory_manager.search_memories(query="To forget") == []
 
-
-@pytest.mark.asyncio
-async def test_decay_memories(db):
-    """Test importance decay with decay_enabled config."""
-    from unittest.mock import MagicMock
-
-    # Create config with decay enabled
-    config = MagicMock()
-    config.enabled = True
-    config.backend = "local"
-    config.decay_enabled = True
-    config.decay_rate = 0.05
-    config.decay_floor = 0.1
-    config.auto_crossref = False
-    config.neo4j_url = None
-
-    manager = MemoryManager(db, config)
-
-    memory = await manager.create_memory("Old memory", importance=0.9)
-
-    # Manually update updated_at to 30 days ago
-    past = datetime.now(UTC) - timedelta(days=30)
-
-    with manager.storage.db.transaction() as conn:
-        conn.execute(
-            "UPDATE memories SET updated_at = ? WHERE id = ?",
-            (past.isoformat(), memory.id),
-        )
-
-    # Verify pre-decay state
-    m_pre = manager.storage.get_memory(memory.id)
-    assert m_pre.importance == 0.9
-
-    # Run decay - expected: 0.05 (1 month * 0.05 rate)
-    count = manager.decay_memories()
-    assert count == 1
-
-    m_post = manager.storage.get_memory(memory.id)
-    assert m_post.importance < 0.9
-    # Should be approx 0.85
-    assert 0.84 < m_post.importance < 0.86
 
 
 @pytest.mark.asyncio

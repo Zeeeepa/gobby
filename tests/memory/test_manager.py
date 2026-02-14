@@ -5,11 +5,10 @@ Tests cover:
 - Memory retrieval (search_memories)
 - Memory deletion (delete_memory)
 - Access statistics and debouncing
-- Memory decay operations
 - Statistics retrieval
 """
 
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, datetime
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -494,84 +493,6 @@ class TestGetStats:
         assert stats["avg_importance"] == pytest.approx(0.6, rel=0.01)
 
 
-# =============================================================================
-# Test: Decay Memories
-# =============================================================================
-
-
-class TestDecayMemories:
-    """Tests for decay_memories method."""
-
-    def test_decay_disabled_by_default(self, db) -> None:
-        """Test decay returns 0 when not configured (default)."""
-        config = MemoryConfig(enabled=True, backend="local")
-        manager = MemoryManager(db=db, config=config)
-
-        count = manager.decay_memories()
-
-        assert count == 0
-
-    @pytest.mark.asyncio
-    async def test_decay_recent_memories_skipped(self, db):
-        """Test decay skips memories updated recently (< 24h)."""
-        config = MagicMock()
-        config.decay_enabled = True
-        config.decay_rate = 0.05
-        config.decay_floor = 0.1
-        config.neo4j_url = None
-        manager = MemoryManager(db=db, config=config)
-
-        await manager.create_memory(content="Recent", importance=0.8)
-
-        count = manager.decay_memories()
-
-        assert count == 0
-
-    def test_decay_old_memories(self, db) -> None:
-        """Test decay applies to old memories."""
-        config = MagicMock()
-        config.decay_enabled = True
-        config.decay_rate = 0.3
-        config.decay_floor = 0.1
-        config.neo4j_url = None
-        manager = MemoryManager(db=db, config=config)
-
-        old_time = (datetime.now(UTC) - timedelta(days=60)).isoformat()
-        memory_id = manager.storage.create_memory(content="Old memory", importance=0.8).id
-
-        db.execute(
-            "UPDATE memories SET updated_at = ? WHERE id = ?",
-            (old_time, memory_id),
-        )
-
-        count = manager.decay_memories()
-
-        assert count == 1
-
-        updated = manager.get_memory(memory_id)
-        assert updated.importance < 0.8
-
-    def test_decay_respects_floor(self, db) -> None:
-        """Test decay doesn't go below floor."""
-        config = MagicMock()
-        config.decay_enabled = True
-        config.decay_rate = 0.9
-        config.decay_floor = 0.2
-        config.neo4j_url = None
-        manager = MemoryManager(db=db, config=config)
-
-        old_time = (datetime.now(UTC) - timedelta(days=365)).isoformat()
-        memory_id = manager.storage.create_memory(content="Very old", importance=0.3).id
-
-        db.execute(
-            "UPDATE memories SET updated_at = ? WHERE id = ?",
-            (old_time, memory_id),
-        )
-
-        manager.decay_memories()
-
-        updated = manager.get_memory(memory_id)
-        assert updated.importance >= 0.2
 
 
 # =============================================================================
@@ -610,25 +531,6 @@ class TestEdgeCases:
 
             manager._update_access_stats([memory])
 
-    def test_decay_memories_handles_timezone_naive_timestamps(self, db) -> None:
-        """Test decay_memories handles timestamps without timezone."""
-        config = MagicMock()
-        config.decay_enabled = True
-        config.decay_rate = 0.3
-        config.decay_floor = 0.1
-        config.neo4j_url = None
-        manager = MemoryManager(db=db, config=config)
-
-        old_time = (datetime.now() - timedelta(days=60)).strftime("%Y-%m-%dT%H:%M:%S")
-        memory_id = manager.storage.create_memory(content="Naive timestamp", importance=0.8).id
-
-        db.execute(
-            "UPDATE memories SET updated_at = ? WHERE id = ?",
-            (old_time, memory_id),
-        )
-
-        count = manager.decay_memories()
-        assert count == 1
 
 
 # =============================================================================

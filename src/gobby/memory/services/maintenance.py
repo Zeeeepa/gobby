@@ -1,4 +1,4 @@
-"""Memory maintenance functions: stats, decay, and export.
+"""Memory maintenance functions: stats and export.
 
 Extracted from manager.py as part of Strangler Fig decomposition (Wave 2).
 """
@@ -10,8 +10,7 @@ from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
-    from gobby.config.persistence import MemoryConfig
-    from gobby.memory.mem0_client import Mem0Client
+    from gobby.memory.vectorstore import VectorStore
     from gobby.storage.database import DatabaseProtocol
     from gobby.storage.memories import LocalMemoryManager, Memory
 
@@ -21,16 +20,16 @@ logger = logging.getLogger(__name__)
 def get_stats(
     storage: LocalMemoryManager,
     db: DatabaseProtocol,
-    mem0_client: Mem0Client | None,
     project_id: str | None = None,
+    vector_store: VectorStore | None = None,
 ) -> dict[str, Any]:
     """Get statistics about stored memories.
 
     Args:
         storage: Local memory storage manager.
-        db: Database connection for mem0 sync queries.
-        mem0_client: Mem0 client (or None if standalone mode).
+        db: Database connection.
         project_id: Optional project to filter stats by.
+        vector_store: Optional VectorStore for vector count stats.
 
     Returns:
         Dictionary with memory statistics.
@@ -59,62 +58,14 @@ def get_stats(
         "project_id": project_id,
     }
 
-    # Mem0 sync observability
-    if mem0_client:
+    # Vector store count
+    if vector_store is not None:
         try:
-            rows = db.fetchall("SELECT COUNT(*) as cnt FROM memories WHERE mem0_id IS NULL", ())
-            pending = rows[0]["cnt"] if rows else 0
-            stats["mem0_sync"] = {"pending": pending}
+            stats["vector_count"] = vector_store.count_sync()
         except Exception:
-            stats["mem0_sync"] = {"pending": -1}
+            stats["vector_count"] = -1
 
     return stats
-
-
-def decay_memories(config: MemoryConfig, storage: LocalMemoryManager) -> int:
-    """Apply importance decay to all memories.
-
-    Args:
-        config: Memory configuration with decay settings.
-        storage: Local memory storage manager.
-
-    Returns:
-        Number of memories updated.
-    """
-    if not getattr(config, "decay_enabled", False):
-        return 0
-
-    rate = getattr(config, "decay_rate", 0.05)
-    floor = getattr(config, "decay_floor", 0.1)
-
-    count = 0
-    memories = storage.list_memories(min_importance=floor + 0.001, limit=10000)
-
-    for memory in memories:
-        last_update = datetime.fromisoformat(memory.updated_at)
-        if last_update.tzinfo is None:
-            last_update = last_update.replace(tzinfo=UTC)
-        hours_since = (datetime.now(UTC) - last_update).total_seconds() / 3600
-
-        if hours_since < 24:
-            continue
-
-        months_passed = hours_since / (24 * 30)
-        decay_amount = rate * months_passed
-
-        if decay_amount < 0.001:
-            continue
-
-        new_importance = max(floor, memory.importance - decay_amount)
-
-        if new_importance != memory.importance:
-            storage.update_memory(
-                memory.id,
-                importance=new_importance,
-            )
-            count += 1
-
-    return count
 
 
 def export_markdown(
