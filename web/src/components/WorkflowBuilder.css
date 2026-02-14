@@ -196,13 +196,53 @@
   padding: 4px 10px;
 }
 
-/* Override xyflow dark theme colors for consistency */
+/* ---------------------------------------------------------------------------
+   Edge styling — three visual types
+   --------------------------------------------------------------------------- */
+
+/* Sequential: animated arrow (default flow) */
 .builder-canvas .react-flow__edge-path {
   stroke: var(--text-muted);
 }
 
+.builder-canvas .react-flow__edge.edge-sequential .react-flow__edge-path {
+  stroke: #6b7280;
+  stroke-width: 2;
+}
+
+/* Transition: solid line with label (explicit transitions) */
+.builder-canvas .react-flow__edge.edge-transition .react-flow__edge-path {
+  stroke: #3b82f6;
+  stroke-width: 2;
+}
+
+.builder-canvas .react-flow__edge.edge-transition .react-flow__edge-text {
+  fill: #93c5fd;
+  font-size: 11px;
+}
+
+/* Conditional: dashed line with condition label */
+.builder-canvas .react-flow__edge.edge-conditional .react-flow__edge-path {
+  stroke: #f59e0b;
+  stroke-width: 2;
+  stroke-dasharray: 6 3;
+}
+
+.builder-canvas .react-flow__edge.edge-conditional .react-flow__edge-text {
+  fill: #fcd34d;
+  font-size: 11px;
+}
+
+/* Selected edge override */
 .builder-canvas .react-flow__edge.selected .react-flow__edge-path {
   stroke: var(--accent);
+}
+
+/* Edge label background */
+.builder-canvas .react-flow__edge .react-flow__edge-textwrapper rect {
+  fill: var(--bg-secondary);
+  rx: 4;
+  ry: 4;
 }
 
 .builder-canvas .react-flow__controls {
@@ -225,4 +265,158 @@
   background: var(--bg-secondary);
   border: 1px solid var(--border);
   border-radius: 6px;
+}
+
+/* ---------------------------------------------------------------------------
+   Settings modal
+   --------------------------------------------------------------------------- */
+
+.builder-settings-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.6);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 100;
+}
+
+.builder-settings-modal {
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 24px;
+  width: 420px;
+  max-width: 90vw;
+  max-height: 80vh;
+  overflow-y: auto;
+}
+
+.builder-settings-modal h3 {
+  margin: 0 0 16px;
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.builder-settings-field {
+  margin-bottom: 14px;
+}
+
+.builder-settings-field label {
+  display: block;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--text-secondary);
+  margin-bottom: 4px;
+}
+
+.builder-settings-field input[type="text"],
+.builder-settings-field input[type="number"],
+.builder-settings-field textarea {
+  width: 100%;
+  padding: 8px 10px;
+  font-size: 13px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  outline: none;
+  box-sizing: border-box;
+}
+
+.builder-settings-field input:focus,
+.builder-settings-field textarea:focus {
+  border-color: var(--accent);
+}
+
+.builder-settings-field textarea {
+  resize: vertical;
+  min-height: 60px;
+  font-family: inherit;
+}
+
+.builder-settings-toggle-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.builder-settings-toggle-track {
+  width: 36px;
+  height: 20px;
+  border-radius: 10px;
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border);
+  cursor: pointer;
+  position: relative;
+  transition: background 0.2s;
+}
+
+.builder-settings-toggle-track--on {
+  background: #166534;
+  border-color: #15803d;
+}
+
+.builder-settings-toggle-knob {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: var(--text-secondary);
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  transition: transform 0.2s;
+}
+
+.builder-settings-toggle-track--on .builder-settings-toggle-knob {
+  transform: translateX(16px);
+  background: #4ade80;
+}
+
+.builder-settings-toggle-label {
+  font-size: 13px;
+  color: var(--text-primary);
+}
+
+.builder-settings-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 20px;
+  padding-top: 16px;
+  border-top: 1px solid var(--border);
+}
+
+.builder-settings-cancel {
+  padding: 7px 16px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text-secondary);
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.builder-settings-cancel:hover {
+  background: var(--bg-tertiary);
+  color: var(--text-primary);
+}
+
+.builder-settings-save {
+  padding: 7px 16px;
+  border: 1px solid var(--accent);
+  border-radius: 6px;
+  background: var(--accent);
+  color: #fff;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.builder-settings-save:hover {
+  background: var(--accent-hover);
+  border-color: var(--accent-hover);
 }

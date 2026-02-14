@@ -1,7 +1,7 @@
 import { useState, useCallback, useMemo } from 'react'
 import { useWorkflows } from '../hooks/useWorkflows'
 import type { WorkflowDetail } from '../hooks/useWorkflows'
-import { WorkflowBuilder } from './WorkflowBuilder'
+import { WorkflowBuilder, type WorkflowSettings } from './WorkflowBuilder'
 import { definitionToFlow, flowToDefinition, type FlowNode } from './workflowSerialization'
 import type { Node, Edge } from '@xyflow/react'
 import './WorkflowsPage.css'
@@ -176,6 +176,24 @@ export function WorkflowsPage() {
     } : null)
   }, [editingWorkflow, updateWorkflow])
 
+  const handleSettingsSave = useCallback(async (settings: WorkflowSettings) => {
+    if (!editingWorkflow) return
+    await updateWorkflow(editingWorkflow.id, {
+      name: settings.name,
+      description: settings.description,
+      enabled: settings.enabled,
+      sources: settings.sources,
+    })
+    setEditingWorkflow((prev) => prev ? {
+      ...prev,
+      name: settings.name,
+      description: settings.description,
+      enabled: settings.enabled,
+      priority: settings.priority,
+      sources: settings.sources,
+    } : null)
+  }, [editingWorkflow, updateWorkflow])
+
   if (editingWorkflow) {
     const wfType = (editingWorkflow.workflow_type as 'workflow' | 'pipeline') || 'workflow'
     let initDef: Record<string, unknown> = {}
@@ -191,11 +209,16 @@ export function WorkflowsPage() {
         workflowId={editingWorkflow.id}
         workflowName={editingWorkflow.name}
         workflowType={wfType}
+        description={editingWorkflow.description ?? ''}
+        enabled={editingWorkflow.enabled}
+        priority={editingWorkflow.priority}
+        sources={editingWorkflow.sources}
         initialNodes={initNodes}
         initialEdges={initEdges}
         onBack={() => { setEditingWorkflow(null); fetchWorkflows() }}
         onSave={handleSave}
         onExport={() => handleExport(editingWorkflow)}
+        onSettingsSave={handleSettingsSave}
       />
     )
   }

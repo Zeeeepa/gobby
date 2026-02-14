@@ -49,12 +49,25 @@ export interface WorkflowBuilderProps {
   workflowId?: string
   workflowName?: string
   workflowType?: 'workflow' | 'pipeline'
+  description?: string
+  enabled?: boolean
+  priority?: number
+  sources?: string[] | null
   initialNodes?: Node[]
   initialEdges?: Edge[]
   onBack?: () => void
   onSave?: (nodes: Node[], edges: Edge[], name: string) => void
   onExport?: () => void
   onRun?: () => void
+  onSettingsSave?: (settings: WorkflowSettings) => void
+}
+
+export interface WorkflowSettings {
+  name: string
+  description: string
+  enabled: boolean
+  priority: number
+  sources: string[]
 }
 
 // ---------------------------------------------------------------------------
@@ -69,12 +82,17 @@ function getNextId() {
 function WorkflowBuilderInner({
   workflowName: initialName = 'Untitled',
   workflowType = 'workflow',
+  description: initialDescription = '',
+  enabled: initialEnabled = true,
+  priority: initialPriority = 0,
+  sources: initialSources = null,
   initialNodes: initNodes = [],
   initialEdges: initEdges = [],
   onBack,
   onSave,
   onExport,
   onRun,
+  onSettingsSave,
 }: WorkflowBuilderProps) {
   const reactFlowWrapper = useRef<HTMLDivElement>(null)
   const { screenToFlowPosition } = useReactFlow()
@@ -83,6 +101,13 @@ function WorkflowBuilderInner({
   const [edges, setEdges, onEdgesChange] = useEdgesState(initEdges)
   const [name, setName] = useState(initialName)
   const [panelCollapsed, setPanelCollapsed] = useState(false)
+  const [showSettings, setShowSettings] = useState(false)
+
+  // Settings state
+  const [settingsDesc, setSettingsDesc] = useState(initialDescription)
+  const [settingsEnabled, setSettingsEnabled] = useState(initialEnabled)
+  const [settingsPriority, setSettingsPriority] = useState(initialPriority)
+  const [settingsSources, setSettingsSources] = useState(initialSources?.join(', ') ?? '')
 
   // Find the currently selected node
   const selectedNode = useMemo(
@@ -108,11 +133,23 @@ function WorkflowBuilderInner({
   const onConnect: OnConnect = useCallback(
     (connection: Connection) => {
       setEdges((eds) =>
-        addEdge({ ...connection, animated: true, type: 'smoothstep' }, eds),
+        addEdge({ ...connection, animated: true, type: 'smoothstep', className: 'edge-transition' }, eds),
       )
     },
     [setEdges],
   )
+
+  const handleSettingsSave = useCallback(() => {
+    const sources = settingsSources.split(',').map((s) => s.trim()).filter(Boolean)
+    onSettingsSave?.({
+      name,
+      description: settingsDesc,
+      enabled: settingsEnabled,
+      priority: settingsPriority,
+      sources,
+    })
+    setShowSettings(false)
+  }, [name, settingsDesc, settingsEnabled, settingsPriority, settingsSources, onSettingsSave])
 
   // -- Drag & drop from palette --
 
@@ -194,7 +231,7 @@ function WorkflowBuilderInner({
               Run
             </button>
           )}
-          <button className="builder-toolbar-btn" title="Settings">
+          <button className="builder-toolbar-btn" title="Settings" onClick={() => setShowSettings(true)}>
             &#x2699;
           </button>
         </div>
@@ -263,6 +300,79 @@ function WorkflowBuilderInner({
           onToggleCollapse={() => setPanelCollapsed((v) => !v)}
         />
       </div>
+
+      {/* Settings modal */}
+      {showSettings && (
+        <div className="builder-settings-overlay" onClick={() => setShowSettings(false)}>
+          <div className="builder-settings-modal" onClick={(e) => e.stopPropagation()}>
+            <h3>Workflow Settings</h3>
+
+            <div className="builder-settings-field">
+              <label>Name</label>
+              <input
+                type="text"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+              />
+            </div>
+
+            <div className="builder-settings-field">
+              <label>Description</label>
+              <textarea
+                value={settingsDesc}
+                onChange={(e) => setSettingsDesc(e.target.value)}
+                rows={3}
+                placeholder="Workflow description..."
+              />
+            </div>
+
+            <div className="builder-settings-field">
+              <label>Enabled</label>
+              <div className="builder-settings-toggle-row">
+                <div
+                  className={`builder-settings-toggle-track ${settingsEnabled ? 'builder-settings-toggle-track--on' : ''}`}
+                  onClick={() => setSettingsEnabled((v) => !v)}
+                >
+                  <div className="builder-settings-toggle-knob" />
+                </div>
+                <span className="builder-settings-toggle-label">
+                  {settingsEnabled ? 'Enabled' : 'Disabled'}
+                </span>
+              </div>
+            </div>
+
+            <div className="builder-settings-field">
+              <label>Priority</label>
+              <input
+                type="number"
+                value={settingsPriority}
+                onChange={(e) => setSettingsPriority(Number(e.target.value))}
+                min={0}
+                max={100}
+              />
+            </div>
+
+            <div className="builder-settings-field">
+              <label>Sources</label>
+              <input
+                type="text"
+                value={settingsSources}
+                onChange={(e) => setSettingsSources(e.target.value)}
+                placeholder="Comma-separated: cli, api, web"
+              />
+            </div>
+
+            <div className="builder-settings-actions">
+              <button className="builder-settings-cancel" onClick={() => setShowSettings(false)}>
+                Cancel
+              </button>
+              <button className="builder-settings-save" onClick={handleSettingsSave}>
+                Apply
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

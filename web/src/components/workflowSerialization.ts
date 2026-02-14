@@ -195,13 +195,16 @@ function workflowToFlow(
       const targetName = tr.to as string
       const targetId = stepIdMap.get(targetName)
       if (targetId) {
+        const hasCondition = !!(tr.when as string)
         edges.push({
           id: `e-${sourceId}-${targetId}-${trIdx}`,
           source: sourceId,
           target: targetId,
-          animated: true,
+          animated: false,
           type: 'smoothstep',
           label: (tr.when as string) || undefined,
+          className: hasCondition ? 'edge-conditional' : 'edge-transition',
+          style: hasCondition ? { strokeDasharray: '6 3' } : undefined,
         })
       }
     })
@@ -215,6 +218,7 @@ function workflowToFlow(
         target: targetId,
         animated: true,
         type: 'smoothstep',
+        className: 'edge-sequential',
       })
     }
   })
@@ -276,12 +280,16 @@ function pipelineToFlow(
     // Sequential edges
     if (index > 0) {
       const prevId = `pipeline-${index - 1}`
+      const hasCondition = !!(step.condition as string)
       edges.push({
         id: `e-${prevId}-${nodeId}`,
         source: prevId,
         target: nodeId,
-        animated: true,
+        animated: !hasCondition,
         type: 'smoothstep',
+        className: hasCondition ? 'edge-conditional' : 'edge-sequential',
+        label: hasCondition ? (step.condition as string) : undefined,
+        style: hasCondition ? { strokeDasharray: '6 3' } : undefined,
       })
     }
   })
