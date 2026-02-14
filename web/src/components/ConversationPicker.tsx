@@ -1,6 +1,6 @@
 import type { GobbySession } from '../hooks/useSessions'
 import { formatRelativeTime } from '../utils/formatTime'
-import { useState } from 'react'
+import { useState, useEffect, useRef } from 'react'
 
 interface ConversationPickerProps {
   sessions: GobbySession[]
@@ -17,6 +17,18 @@ export function ConversationPicker({
 }: ConversationPickerProps) {
   const [search, setSearch] = useState('')
   const [isOpen, setIsOpen] = useState(true)
+  const pickerRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    if (!isOpen) return
+    const handleClickOutside = (e: MouseEvent) => {
+      if (pickerRef.current && !pickerRef.current.contains(e.target as Node)) {
+        setIsOpen(false)
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => document.removeEventListener('mousedown', handleClickOutside)
+  }, [isOpen])
 
   const filtered = search
     ? sessions.filter(
@@ -27,7 +39,7 @@ export function ConversationPicker({
     : sessions
 
   return (
-    <div className={`conversation-picker ${isOpen ? '' : 'collapsed'}`}>
+    <div ref={pickerRef} className={`conversation-picker ${isOpen ? '' : 'collapsed'}`}>
       <div className="conversation-picker-header">
         {isOpen && <span className="conversation-picker-title">Chats</span>}
         <div className="conversation-picker-actions">
