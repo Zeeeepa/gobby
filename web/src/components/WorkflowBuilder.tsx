@@ -19,6 +19,7 @@ import {
 } from '@xyflow/react'
 import '@xyflow/react/dist/style.css'
 import { nodeTypes, getDefaultData, NODE_KIND_META, type BaseNodeData } from './workflow-nodes/nodeTypes'
+import { ExpressionEditor } from './workflow-nodes/ExpressionEditor'
 import { WorkflowPropertyPanel } from './WorkflowPropertyPanel'
 import './WorkflowBuilder.css'
 
@@ -505,10 +506,9 @@ function WorkflowBuilderInner({
             {/* Exit condition */}
             <div className="builder-settings-field">
               <label>Exit Condition</label>
-              <input
-                type="text"
+              <ExpressionEditor
                 value={settingsExitCondition}
-                onChange={(e) => setSettingsExitCondition(e.target.value)}
+                onChange={setSettingsExitCondition}
                 placeholder="Expression, e.g. steps.all_complete"
               />
             </div>

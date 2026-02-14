@@ -7,6 +7,7 @@ import { useState, useCallback } from 'react'
 import type { Node } from '@xyflow/react'
 import type { BaseNodeData } from './workflow-nodes/nodeTypes'
 import { NODE_KIND_META } from './workflow-nodes/nodeTypes'
+import { ExpressionEditor } from './workflow-nodes/ExpressionEditor'
 import './WorkflowPropertyPanel.css'
 
 // ---------------------------------------------------------------------------
@@ -196,10 +197,9 @@ function StepForm({
       </FormSection>
       <FormSection title="Transitions">
         <FormField label="Exit When">
-          <input
-            type="text"
+          <ExpressionEditor
             value={(stepData.exit_when as string) ?? ''}
-            onChange={(e) => onChange('exit_when', e.target.value)}
+            onChange={(v) => onChange('exit_when', v)}
             placeholder="Condition expression"
           />
         </FormField>
@@ -228,21 +228,22 @@ function PipelineStepForm({
       </FormField>
       {nodeKind === 'exec' && (
         <FormField label="Command">
-          <input
-            type="text"
+          <ExpressionEditor
             value={(stepData.exec as string) ?? ''}
-            onChange={(e) => onChange('exec', e.target.value)}
+            onChange={(v) => onChange('exec', v)}
             placeholder="shell command"
+            language="command"
           />
         </FormField>
       )}
       {nodeKind === 'prompt' && (
         <FormField label="Prompt">
-          <textarea
+          <ExpressionEditor
             value={(stepData.prompt as string) ?? ''}
-            onChange={(e) => onChange('prompt', e.target.value)}
-            rows={3}
+            onChange={(v) => onChange('prompt', v)}
             placeholder="LLM prompt text"
+            singleLine={false}
+            language="template"
           />
         </FormField>
       )}
@@ -265,10 +266,9 @@ function PipelineStepForm({
         </>
       )}
       <FormField label="Condition">
-        <input
-          type="text"
+        <ExpressionEditor
           value={(stepData.condition as string) ?? ''}
-          onChange={(e) => onChange('condition', e.target.value)}
+          onChange={(v) => onChange('condition', v)}
           placeholder="Optional condition"
         />
       </FormField>
@@ -335,11 +335,10 @@ function ExitConditionForm({
   return (
     <FormSection title="Exit Condition">
       <FormField label="Condition">
-        <input
-          type="text"
+        <ExpressionEditor
           value={(stepData.exit_condition as string) ?? ''}
-          onChange={(e) => onChange('exit_condition', e.target.value)}
-          placeholder="Expression"
+          onChange={(v) => onChange('exit_condition', v)}
+          placeholder="Expression, e.g. steps.all_complete"
         />
       </FormField>
     </FormSection>
@@ -390,10 +389,9 @@ function RuleForm({
         />
       </FormField>
       <FormField label="When">
-        <input
-          type="text"
+        <ExpressionEditor
           value={(stepData.when as string) ?? ''}
-          onChange={(e) => onChange('when', e.target.value)}
+          onChange={(v) => onChange('when', v)}
           placeholder="Condition expression"
         />
       </FormField>
