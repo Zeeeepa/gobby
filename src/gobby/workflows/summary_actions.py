@@ -691,7 +691,7 @@ async def handle_generate_handoff(context: ActionContext, **kwargs: Any) -> dict
         try:
             from gobby.prompts.loader import PromptLoader
 
-            loader = PromptLoader()
+            loader = PromptLoader(db=context.db)
             prompt_template = loader.load(prompt_path)
             template = prompt_template.content
             logger.debug(f"Loaded prompt template from: {prompt_path}")

@@ -22,7 +22,9 @@ def _is_dev_mode(project_path: Path) -> bool:
     When the project IS the gobby source repo, we use symlinks instead of
     copies so that .gobby/ and install/shared/ stay in sync during development.
     """
-    return (project_path / "src" / "gobby" / "install" / "shared").is_dir()
+    from gobby.utils.dev import is_dev_mode
+
+    return is_dev_mode(project_path)
 
 
 def _install_resource_dir(source: Path, target: Path, dev_mode: bool) -> None:
@@ -77,8 +79,9 @@ def install_shared_content(cli_path: Path, project_path: Path) -> dict[str, list
     Workflows are cross-CLI and go to {project_path}/.gobby/workflows/.
     Agents are cross-CLI and go to {project_path}/.gobby/agents/.
     Plugins are project-scoped and go to {project_path}/.gobby/plugins/.
-    Prompts are project-scoped and go to {project_path}/.gobby/prompts/.
     Docs are project-local and go to {project_path}/.gobby/docs/.
+
+    Note: Prompts are now database-managed via sync_bundled_prompts() on daemon startup.
 
     In dev mode (running inside the gobby source repo), symlinks are created
     instead of copies so that .gobby/ and install/shared/ stay in sync.
@@ -96,7 +99,6 @@ def install_shared_content(cli_path: Path, project_path: Path) -> dict[str, list
         "workflows": [],
         "agents": [],
         "plugins": [],
-        "prompts": [],
         "docs": [],
     }
 
@@ -108,7 +110,6 @@ def install_shared_content(cli_path: Path, project_path: Path) -> dict[str, list
         ("workflows", "workflows", "workflows"),
         ("agents", "agents", "agents"),
         ("plugins", "plugins", "plugins"),
-        ("prompts", "prompts", "prompts"),
         ("docs", "docs", "docs"),
     ]
 
@@ -133,8 +134,6 @@ def install_shared_content(cli_path: Path, project_path: Path) -> dict[str, list
                 _copy_agents(source, target, installed)
             elif type_key == "plugins":
                 _copy_plugins(source, target, installed)
-            elif type_key == "prompts":
-                _copy_prompts(source, target, installed)
             elif type_key == "docs":
                 _copy_docs(source, target, installed)
 
@@ -184,19 +183,6 @@ def _copy_plugins(source: Path, target: Path, installed: dict[str, list[str]]) -
         if plugin_file.is_file() and plugin_file.suffix == ".py":
             copy2(plugin_file, target / plugin_file.name)
             installed["plugins"].append(plugin_file.name)
-
-
-def _copy_prompts(source: Path, target: Path, installed: dict[str, list[str]]) -> None:
-    """Copy prompt files from source to target."""
-    for item in source.iterdir():
-        if item.is_file():
-            copy2(item, target / item.name)
-            installed["prompts"].append(item.name)
-        elif item.is_dir():
-            target_subdir = target / item.name
-            _safe_remove_target(target_subdir)
-            copytree(item, target_subdir)
-            installed["prompts"].append(f"{item.name}/")
 
 
 def _copy_docs(source: Path, target: Path, installed: dict[str, list[str]]) -> None:

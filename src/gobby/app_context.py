@@ -73,6 +73,10 @@ class ServiceContainer:
     # Config
     config_store: Any | None = None  # ConfigStore
 
+    # Prompts
+    prompt_manager: Any | None = None  # LocalPromptManager
+    dev_mode: bool = False
+
     # Context
     project_id: str | None = None
     websocket_server: Any | None = None

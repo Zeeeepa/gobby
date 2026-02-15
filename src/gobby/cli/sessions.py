@@ -521,7 +521,7 @@ def create_handoff(
             try:
                 from gobby.prompts.loader import PromptLoader
 
-                loader = PromptLoader()
+                loader = PromptLoader(db=LocalDatabase())
                 prompt_obj = loader.load("handoff/session_end")
                 prompt_template = prompt_obj.content
             except FileNotFoundError:
@@ -531,8 +531,7 @@ def create_handoff(
 
             if not prompt_template:
                 click.echo(
-                    "Warning: No prompt template found. "
-                    "Add ~/.gobby/prompts/handoff/session_end.md",
+                    "Warning: No prompt template found for handoff/session_end",
                     err=True,
                 )
                 # Only fail if --full was explicitly requested without --compact

@@ -90,7 +90,7 @@ class MemoryManager:
                 from gobby.prompts.loader import PromptLoader
 
                 provider = llm_service.get_default_provider()
-                prompt_loader = PromptLoader()
+                prompt_loader = PromptLoader(db=self.db)
                 self._dedup_service = _DedupService(
                     llm_provider=provider,
                     vector_store=vector_store,

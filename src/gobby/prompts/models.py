@@ -4,9 +4,39 @@ Prompt template data models.
 Contains dataclasses for representing prompt templates with metadata.
 """
 
+import re
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Literal
+
+import yaml
+
+
+def parse_frontmatter(content: str) -> tuple[dict[str, Any], str]:
+    """Parse YAML frontmatter from raw markdown content.
+
+    Splits content at ``---`` delimiters into a metadata dict and body string.
+    This is the low-level split used by both ``PromptTemplate.from_frontmatter()``
+    and ``sync_bundled_prompts()`` (which needs the raw dict for DB columns).
+
+    Args:
+        content: Raw file content (with or without frontmatter)
+
+    Returns:
+        Tuple of (frontmatter dict, body content)
+    """
+    frontmatter_pattern = re.compile(r"^---\s*\n(.*?)\n---\s*\n", re.DOTALL)
+    match = frontmatter_pattern.match(content)
+
+    if match:
+        try:
+            frontmatter = yaml.safe_load(match.group(1)) or {}
+            body = content[match.end():]
+            return frontmatter, body
+        except yaml.YAMLError:
+            return {}, content
+
+    return {}, content
 
 
 @dataclass

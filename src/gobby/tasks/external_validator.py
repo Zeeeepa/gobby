@@ -11,12 +11,12 @@ All modes ensure the validator has no prior knowledge of the implementation.
 import json
 import logging
 from dataclasses import dataclass, field
-from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 from gobby.config.tasks import TaskValidationConfig
 from gobby.llm import LLMService
 from gobby.prompts import PromptLoader
+from gobby.storage.database import DatabaseProtocol
 from gobby.tasks.commits import (
     extract_mentioned_files,
     extract_mentioned_symbols,
@@ -52,11 +52,11 @@ logger = logging.getLogger(__name__)
 _loader: PromptLoader | None = None
 
 
-def _get_loader(project_dir: Path | None = None) -> PromptLoader:
+def _get_loader(db: DatabaseProtocol | None = None) -> PromptLoader:
     """Get or create the module-level PromptLoader."""
     global _loader
     if _loader is None:
-        _loader = PromptLoader(project_dir=project_dir)
+        _loader = PromptLoader(db=db)
 
     return _loader
 

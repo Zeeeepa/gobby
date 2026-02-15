@@ -48,14 +48,7 @@ class MCPServerImporter:
         self.import_config = config.get_import_mcp_server_config()
 
         # Initialize prompt loader
-        project_path = None
-        if current_project_id:
-            if project := self.project_manager.get(current_project_id):
-                project_path = project.repo_path
-
-        from pathlib import Path
-
-        self._loader = PromptLoader(project_dir=Path(project_path) if project_path else None)
+        self._loader = PromptLoader(db=self.db)
 
     async def import_from_project(
         self,

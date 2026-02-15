@@ -23,6 +23,7 @@ from typing import Literal
 from gobby.config.tasks import TaskValidationConfig
 from gobby.llm import LLMService
 from gobby.prompts import PromptLoader
+from gobby.storage.database import DatabaseProtocol
 from gobby.utils.json_helpers import extract_json_object
 
 logger = logging.getLogger(__name__)
@@ -440,10 +441,11 @@ class TaskValidator:
         config: TaskValidationConfig,
         llm_service: LLMService,
         project_dir: Path | None = None,
+        db: DatabaseProtocol | None = None,
     ):
         self.config = config
         self.llm_service = llm_service
-        self._loader = PromptLoader(project_dir=project_dir)
+        self._loader = PromptLoader(db=db)
 
     async def gather_validation_context(self, file_paths: list[str]) -> str:
         """

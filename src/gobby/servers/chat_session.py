@@ -56,16 +56,19 @@ logger = logging.getLogger(__name__)
 _FALLBACK_SYSTEM_PROMPT = "You are Gobby, a helpful AI coding assistant."
 
 
-def _load_chat_system_prompt() -> str:
+def _load_chat_system_prompt(db: Any = None) -> str:
     """Load the chat system prompt from the prompts system.
 
-    Uses PromptLoader with standard override precedence:
-    project .gobby/prompts/ -> global ~/.gobby/prompts/ -> bundled defaults.
+    Uses PromptLoader with database-backed precedence:
+    project -> global -> bundled.
+
+    Args:
+        db: Database connection for prompt loading. Falls back to default if None.
     """
     try:
         from gobby.prompts.loader import PromptLoader
 
-        loader = PromptLoader()
+        loader = PromptLoader(db=db)
         template = loader.load("chat/system")
         return template.content
     except Exception as e:
