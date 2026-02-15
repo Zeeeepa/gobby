@@ -5,6 +5,7 @@ Extracted from engine.py to reduce complexity.
 Handles discovery and evaluation of lifecycle workflows and their triggers.
 """
 
+import asyncio
 import copy
 import logging
 from datetime import UTC, datetime
@@ -15,13 +16,41 @@ from gobby.workflows.definitions import WorkflowDefinition, WorkflowState
 from gobby.workflows.unified_evaluator import _TRIGGER_KEY_MAP
 
 if TYPE_CHECKING:
-    from .actions import ActionExecutor
+    from .actions import ActionContext, ActionExecutor
     from .evaluator import ConditionEvaluator
     from .loader import WorkflowLoader
     from .observers import ObserverEngine
     from .state_manager import WorkflowStateManager
 
 logger = logging.getLogger(__name__)
+
+# Prevent GC of fire-and-forget background action tasks
+_background_actions: set[asyncio.Task[Any]] = set()
+
+
+def _background_action_done(task: asyncio.Task[Any]) -> None:
+    """Done callback for background actions: log errors, discard from set."""
+    _background_actions.discard(task)
+    if task.cancelled():
+        return
+    exc = task.exception()
+    if exc:
+        logger.error(f"Background action failed: {exc}", exc_info=exc)
+
+
+def _dispatch_background_action(
+    action_executor: "ActionExecutor",
+    action_type: str,
+    action_ctx: "ActionContext",
+    kwargs: dict[str, Any],
+) -> None:
+    """Dispatch an action as a fire-and-forget asyncio task."""
+    task = asyncio.create_task(
+        action_executor.execute(action_type, action_ctx, **kwargs),
+        name=f"bg-action-{action_type}",
+    )
+    _background_actions.add(task)
+    task.add_done_callback(_background_action_done)
 
 
 def _compute_variable_diff(before: dict[str, Any] | None, after: dict[str, Any]) -> dict[str, Any]:
@@ -296,6 +325,9 @@ async def evaluate_workflow_triggers(
             kwargs.pop("action", None)
             kwargs.pop("when", None)
 
+            # Extract and remove background flag before passing to executor
+            is_background = kwargs.pop("background", False)
+
             # Debug: log kwargs being passed to action
             if action_type == "inject_context":
                 template_val = kwargs.get("template")
@@ -304,6 +336,11 @@ async def evaluate_workflow_triggers(
                     f"template_present={template_val is not None}, "
                     f"template_len={len(template_val) if template_val else 0}"
                 )
+
+            if is_background:
+                logger.debug(f"Dispatching action '{action_type}' as background task")
+                _dispatch_background_action(action_executor, action_type, action_ctx, kwargs)
+                continue
 
             result = await action_executor.execute(action_type, action_ctx, **kwargs)
             logger.debug(
@@ -509,6 +546,14 @@ async def evaluate_lifecycle_triggers(
             kwargs = trigger.copy()
             kwargs.pop("action", None)
             kwargs.pop("when", None)
+
+            # Extract and remove background flag before passing to executor
+            is_background = kwargs.pop("background", False)
+
+            if is_background:
+                logger.debug(f"Dispatching action '{action_type}' as background task")
+                _dispatch_background_action(action_executor, action_type, action_ctx, kwargs)
+                continue
 
             result = await action_executor.execute(action_type, action_ctx, **kwargs)
             logger.debug(
