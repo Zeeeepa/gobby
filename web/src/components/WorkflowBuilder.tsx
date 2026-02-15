@@ -93,11 +93,6 @@ export interface WorkflowSettings {
 // Inner component (needs ReactFlowProvider ancestor)
 // ---------------------------------------------------------------------------
 
-let nodeId = 0
-function getNextId() {
-  return `node_${++nodeId}`
-}
-
 function WorkflowBuilderInner({
   workflowName: initialName = 'Untitled',
   workflowType = 'workflow',
@@ -117,6 +112,8 @@ function WorkflowBuilderInner({
   onSettingsSave,
 }: WorkflowBuilderProps) {
   const reactFlowWrapper = useRef<HTMLDivElement>(null)
+  const nodeIdRef = useRef(0)
+  const getNextId = useCallback(() => `node_${++nodeIdRef.current}`, [])
   const { screenToFlowPosition } = useReactFlow()
 
   const [nodes, setNodes, onNodesChange] = useNodesState(initNodes)
@@ -228,7 +225,7 @@ function WorkflowBuilderInner({
       <div className="builder-toolbar">
         <div className="builder-toolbar-left">
           {onBack && (
-            <button className="builder-toolbar-btn" onClick={onBack} title="Back to list">
+            <button type="button" className="builder-toolbar-btn" onClick={onBack} title="Back to list">
               &larr;
             </button>
           )}
@@ -245,21 +242,21 @@ function WorkflowBuilderInner({
         </div>
         <div className="builder-toolbar-right">
           {onSave && (
-            <button className="builder-toolbar-btn builder-toolbar-btn--primary" onClick={handleSave}>
+            <button type="button" className="builder-toolbar-btn builder-toolbar-btn--primary" onClick={handleSave}>
               Save
             </button>
           )}
           {onExport && (
-            <button className="builder-toolbar-btn" onClick={onExport}>
+            <button type="button" className="builder-toolbar-btn" onClick={onExport}>
               Export YAML
             </button>
           )}
           {workflowType === 'pipeline' && onRun && (
-            <button className="builder-toolbar-btn builder-toolbar-btn--run" onClick={onRun}>
+            <button type="button" className="builder-toolbar-btn builder-toolbar-btn--run" onClick={onRun}>
               Run
             </button>
           )}
-          <button className="builder-toolbar-btn" title="Settings" onClick={() => setShowSettings(true)}>
+          <button type="button" className="builder-toolbar-btn" title="Settings" onClick={() => setShowSettings(true)}>
             &#x2699;
           </button>
         </div>
@@ -331,7 +328,13 @@ function WorkflowBuilderInner({
 
       {/* Settings modal */}
       {showSettings && (
-        <div className="builder-settings-overlay" onClick={() => setShowSettings(false)}>
+        <div
+          className="builder-settings-overlay"
+          onClick={() => setShowSettings(false)}
+          onKeyDown={(e) => { if (e.key === 'Escape') setShowSettings(false) }}
+          role="dialog"
+          aria-modal="true"
+        >
           <div className="builder-settings-modal" onClick={(e) => e.stopPropagation()}>
             <h3>Workflow Settings</h3>
 
@@ -417,6 +420,7 @@ function WorkflowBuilderInner({
                       placeholder="value"
                     />
                     <button
+                      type="button"
                       className="builder-settings-kv-remove"
                       onClick={() => setSettingsVariables(settingsVariables.filter((_, j) => j !== i))}
                       title="Remove"
@@ -426,6 +430,7 @@ function WorkflowBuilderInner({
                   </div>
                 ))}
                 <button
+                  type="button"
                   className="builder-settings-add-btn"
                   onClick={() => setSettingsVariables([...settingsVariables, { key: '', value: '' }])}
                 >
@@ -452,6 +457,7 @@ function WorkflowBuilderInner({
                         placeholder="Rule name"
                       />
                       <button
+                        type="button"
                         className="builder-settings-kv-remove"
                         onClick={() => setSettingsRules(settingsRules.filter((_, j) => j !== i))}
                         title="Remove rule"
@@ -495,6 +501,7 @@ function WorkflowBuilderInner({
                   </div>
                 ))}
                 <button
+                  type="button"
                   className="builder-settings-add-btn"
                   onClick={() => setSettingsRules([...settingsRules, { name: '', when: '', action: 'block', message: '' }])}
                 >
@@ -514,10 +521,10 @@ function WorkflowBuilderInner({
             </div>
 
             <div className="builder-settings-actions">
-              <button className="builder-settings-cancel" onClick={() => setShowSettings(false)}>
+              <button type="button" className="builder-settings-cancel" onClick={() => setShowSettings(false)}>
                 Cancel
               </button>
-              <button className="builder-settings-save" onClick={handleSettingsSave}>
+              <button type="button" className="builder-settings-save" onClick={handleSettingsSave}>
                 Apply
               </button>
             </div>

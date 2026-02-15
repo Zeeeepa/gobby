@@ -99,9 +99,7 @@ async def test_import_from_files(sync_manager, tmp_path):
     sync_manager.export_path = mem_file
 
     # Create dummy memory file
-    mem_file.write_text(
-        json.dumps({"content": "imported memory", "type": "fact"}) + "\n"
-    )
+    mem_file.write_text(json.dumps({"content": "imported memory", "type": "fact"}) + "\n")
 
     count = await sync_manager.import_from_files()
 

@@ -26,9 +26,7 @@ def test_memory_embeddings_table_dropped(db) -> None:
 
 def test_memories_table_still_exists(db) -> None:
     """memories table should still exist after migration."""
-    tables = db.fetchall(
-        "SELECT name FROM sqlite_master WHERE type='table' AND name='memories'"
-    )
+    tables = db.fetchall("SELECT name FROM sqlite_master WHERE type='table' AND name='memories'")
     assert len(tables) == 1
 
 

@@ -103,11 +103,13 @@ class TestGetStatsBasicBehavior:
 
     def test_counts_by_type(self) -> None:
         """get_stats counts memories by type."""
-        storage = _make_storage([
-            _make_memory("fact"),
-            _make_memory("fact"),
-            _make_memory("preference"),
-        ])
+        storage = _make_storage(
+            [
+                _make_memory("fact"),
+                _make_memory("fact"),
+                _make_memory("preference"),
+            ]
+        )
         db = MagicMock()
 
         stats = get_stats(storage, db, project_id=None)

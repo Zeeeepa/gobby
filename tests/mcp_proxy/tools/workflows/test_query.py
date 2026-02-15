@@ -246,9 +246,7 @@ class TestListWorkflowsDBIntegration:
             _make_db_row("my-pipeline", "pipeline", "Pipeline from DB"),
         ]
 
-        with patch(
-            "gobby.storage.workflow_definitions.LocalWorkflowDefinitionManager"
-        ) as MockMgr:
+        with patch("gobby.storage.workflow_definitions.LocalWorkflowDefinitionManager") as MockMgr:
             MockMgr.return_value.list_all.return_value = rows
             result = list_workflows(loader, project_path="/fake/path", db=db)
 
@@ -280,9 +278,7 @@ class TestListWorkflowsDBIntegration:
         (wf_dir / "shared-name.yaml").write_text("name: shared-name\ndescription: FS version\n")
         (wf_dir / "fs-only.yaml").write_text("name: fs-only\ndescription: Filesystem only\n")
 
-        with patch(
-            "gobby.storage.workflow_definitions.LocalWorkflowDefinitionManager"
-        ) as MockMgr:
+        with patch("gobby.storage.workflow_definitions.LocalWorkflowDefinitionManager") as MockMgr:
             MockMgr.return_value.list_all.return_value = db_rows
             result = list_workflows(loader, project_path=str(tmp_path), db=db)
 
@@ -306,9 +302,7 @@ class TestListWorkflowsDBIntegration:
         loader.global_dirs = []
 
         # DB returns empty
-        with patch(
-            "gobby.storage.workflow_definitions.LocalWorkflowDefinitionManager"
-        ) as MockMgr:
+        with patch("gobby.storage.workflow_definitions.LocalWorkflowDefinitionManager") as MockMgr:
             MockMgr.return_value.list_all.return_value = []
 
             wf_dir = tmp_path / ".gobby" / "workflows"
@@ -354,9 +348,7 @@ class TestListWorkflowsDBIntegration:
         wf_dir.mkdir(parents=True)
         (wf_dir / "fallback.yaml").write_text("name: fallback\ndescription: Fallback\n")
 
-        with patch(
-            "gobby.storage.workflow_definitions.LocalWorkflowDefinitionManager"
-        ) as MockMgr:
+        with patch("gobby.storage.workflow_definitions.LocalWorkflowDefinitionManager") as MockMgr:
             MockMgr.return_value.list_all.side_effect = RuntimeError("DB crashed")
             result = list_workflows(loader, project_path=str(tmp_path), db=db)
 

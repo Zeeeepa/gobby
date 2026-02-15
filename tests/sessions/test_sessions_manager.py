@@ -416,4 +416,3 @@ class TestSessionManagerCaching:
         # All session IDs should be unique
         session_ids = [sid for _, sid in results]
         assert len(set(session_ids)) == 5
-

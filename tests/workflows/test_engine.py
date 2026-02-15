@@ -1327,7 +1327,11 @@ class TestConditionalActions:
         step2 = MagicMock(spec=WorkflowStep)
         step2.on_enter = [
             {"action": "inject_message", "content": "Always runs"},
-            {"action": "inject_message", "content": "Conditional", "when": "variables.get('should_run')"},
+            {
+                "action": "inject_message",
+                "content": "Conditional",
+                "when": "variables.get('should_run')",
+            },
         ]
 
         workflow = MagicMock(spec=WorkflowDefinition)
@@ -1366,7 +1370,11 @@ class TestConditionalActions:
         step2 = MagicMock(spec=WorkflowStep)
         step2.on_enter = [
             {"action": "set_variable", "name": "x", "value": 1},
-            {"action": "inject_message", "content": "Conditional", "when": "variables.get('should_run')"},
+            {
+                "action": "inject_message",
+                "content": "Conditional",
+                "when": "variables.get('should_run')",
+            },
         ]
 
         workflow = MagicMock(spec=WorkflowDefinition)
@@ -1837,9 +1845,7 @@ class TestUnifiedEvaluatorDelegation:
         response = await workflow_engine.handle_event(event)
         assert response.decision == "block"
 
-    async def test_exempt_tool_equivalence(
-        self, workflow_engine, mock_state_manager, mock_loader
-    ):
+    async def test_exempt_tool_equivalence(self, workflow_engine, mock_state_manager, mock_loader):
         """Exempt tools pass through both unified evaluator and engine identically."""
         from gobby.workflows.unified_evaluator import _evaluate_step_tool_rules
 

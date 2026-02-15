@@ -2,9 +2,9 @@
 
 import json
 import logging
-import sqlite3
 from dataclasses import dataclass
 from datetime import UTC, datetime
+from sqlite3 import Row
 from typing import Any
 from uuid import uuid4
 
@@ -34,7 +34,7 @@ class WorkflowDefinitionRow:
     canvas_json: str | None = None
 
     @classmethod
-    def from_row(cls, row: sqlite3.Row) -> "WorkflowDefinitionRow":
+    def from_row(cls, row: Row) -> "WorkflowDefinitionRow":
         def _parse_json_list(val: str | None) -> list[str] | None:
             if val is None:
                 return None

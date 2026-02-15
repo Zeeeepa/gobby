@@ -43,24 +43,34 @@ def lifecycle_workflow(lifecycle_data: dict) -> WorkflowDefinition:
 class TestSessionLifecycleObservers:
     def test_yaml_loads_with_observers(self, lifecycle_data: dict) -> None:
         """session-lifecycle.yaml should parse and include an observers field."""
-        assert "observers" in lifecycle_data, "session-lifecycle.yaml should have an 'observers' field"
+        assert "observers" in lifecycle_data, (
+            "session-lifecycle.yaml should have an 'observers' field"
+        )
         assert len(lifecycle_data["observers"]) == 3
 
-    def test_workflow_definition_parses_observers(self, lifecycle_workflow: WorkflowDefinition) -> None:
+    def test_workflow_definition_parses_observers(
+        self, lifecycle_workflow: WorkflowDefinition
+    ) -> None:
         """WorkflowDefinition should parse observers from session-lifecycle.yaml."""
         assert len(lifecycle_workflow.observers) == 3
 
-    def test_task_claim_tracking_observer_declared(self, lifecycle_workflow: WorkflowDefinition) -> None:
+    def test_task_claim_tracking_observer_declared(
+        self, lifecycle_workflow: WorkflowDefinition
+    ) -> None:
         """task_claim_tracking behavior should be declared as an observer."""
         behaviors = {obs.behavior for obs in lifecycle_workflow.observers if obs.behavior}
         assert "task_claim_tracking" in behaviors
 
-    def test_detect_plan_mode_observer_declared(self, lifecycle_workflow: WorkflowDefinition) -> None:
+    def test_detect_plan_mode_observer_declared(
+        self, lifecycle_workflow: WorkflowDefinition
+    ) -> None:
         """detect_plan_mode behavior should be declared as an observer."""
         behaviors = {obs.behavior for obs in lifecycle_workflow.observers if obs.behavior}
         assert "detect_plan_mode" in behaviors
 
-    def test_mcp_call_tracking_observer_declared(self, lifecycle_workflow: WorkflowDefinition) -> None:
+    def test_mcp_call_tracking_observer_declared(
+        self, lifecycle_workflow: WorkflowDefinition
+    ) -> None:
         """mcp_call_tracking behavior should be declared as an observer."""
         behaviors = {obs.behavior for obs in lifecycle_workflow.observers if obs.behavior}
         assert "mcp_call_tracking" in behaviors

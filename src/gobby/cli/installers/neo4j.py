@@ -4,6 +4,7 @@ Neo4j service installation and uninstallation.
 Handles local Docker-based Neo4j setup for knowledge graph features.
 """
 
+import asyncio
 import logging
 import shutil
 import subprocess  # nosec B404 - subprocess needed for docker compose management
@@ -131,20 +132,17 @@ def uninstall_neo4j(
 
 def _wait_for_health(url: str, retries: int = 30, interval: float = 2.0) -> bool:
     """Synchronous wrapper for health check."""
-    import asyncio
-
     return asyncio.run(_wait_for_health_async(url, retries, interval))
 
 
 async def _wait_for_health_async(url: str, retries: int = 30, interval: float = 2.0) -> bool:
     """Wait for Neo4j to become healthy via async HTTP check."""
-    import asyncio
 
     async with httpx.AsyncClient() as client:
         for _ in range(retries):
             try:
                 resp = await client.get(url, timeout=5)
-                if resp.status_code < 500:
+                if 200 <= resp.status_code < 300:
                     return True
             except httpx.HTTPError:
                 pass

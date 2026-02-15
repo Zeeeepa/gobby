@@ -20,6 +20,14 @@ from gobby.workflows.lifecycle_evaluator import (
 pytestmark = pytest.mark.unit
 
 
+@pytest.fixture(autouse=True)
+def _clear_background_actions() -> None:
+    """Clear background actions between tests to prevent cross-test pollution."""
+    _background_actions.clear()
+    yield  # type: ignore[misc]
+    _background_actions.clear()
+
+
 def _make_action_executor(**overrides: object) -> MagicMock:
     """Create a mock ActionExecutor with required attributes."""
     executor = MagicMock()
@@ -94,9 +102,7 @@ class TestBackgroundActionDispatch:
         await asyncio.sleep(0.05)
 
         # Executor should have been called
-        executor.execute.assert_awaited_once_with(
-            "synthesize_title", ctx, source="transcript"
-        )
+        executor.execute.assert_awaited_once_with("synthesize_title", ctx, source="transcript")
 
         # Task should be cleaned up after completion
         # (done callback discards from set)
@@ -209,9 +215,7 @@ class TestBackgroundActionDispatch:
         state_manager = _make_state_manager()
         evaluator = _make_evaluator(result=False)
 
-        await evaluate_workflow_triggers(
-            workflow, event, {}, state_manager, executor, evaluator
-        )
+        await evaluate_workflow_triggers(workflow, event, {}, state_manager, executor, evaluator)
 
         # Action should NOT have been called (when=False)
         executor.execute.assert_not_awaited()

@@ -315,8 +315,10 @@ class TestCrossReferences:
             crossref_max_links=5,
         )
         manager = MemoryManager(
-            db=db, config=config,
-            vector_store=mock_vector_store_tracking, embed_fn=mock_embed_fn,
+            db=db,
+            config=config,
+            vector_store=mock_vector_store_tracking,
+            embed_fn=mock_embed_fn,
         )
 
         await manager.create_memory(content="First topic about Python")
@@ -339,8 +341,10 @@ class TestCrossReferences:
             crossref_max_links=2,
         )
         manager = MemoryManager(
-            db=db, config=config,
-            vector_store=mock_vector_store_tracking, embed_fn=mock_embed_fn,
+            db=db,
+            config=config,
+            vector_store=mock_vector_store_tracking,
+            embed_fn=mock_embed_fn,
         )
 
         # Create many similar memories
@@ -356,5 +360,3 @@ class TestCrossReferences:
 
         crossrefs = manager.storage.get_crossrefs(mem.id, limit=10)
         assert len(crossrefs) <= 2
-
-

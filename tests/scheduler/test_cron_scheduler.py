@@ -84,9 +84,7 @@ async def test_double_start_is_noop(scheduler: CronScheduler) -> None:
 async def test_disabled_scheduler_does_not_start() -> None:
     """Scheduler doesn't start when config.enabled is False."""
     config = CronConfig(enabled=False)
-    scheduler = CronScheduler(
-        storage=MagicMock(), executor=MagicMock(), config=config
-    )
+    scheduler = CronScheduler(storage=MagicMock(), executor=MagicMock(), config=config)
     await scheduler.start()
     assert scheduler._running is False
     assert scheduler._check_task is None
@@ -131,18 +129,24 @@ async def test_respects_max_concurrent(
 
     # Create a running run to fill the slot
     job1 = cron_storage.create_job(
-        project_id=PROJECT_ID, name="Running",
-        schedule_type="cron", action_type="shell",
-        action_config={"command": "echo"}, cron_expr="0 * * * *",
+        project_id=PROJECT_ID,
+        name="Running",
+        schedule_type="cron",
+        action_type="shell",
+        action_config={"command": "echo"},
+        cron_expr="0 * * * *",
     )
     run = cron_storage.create_run(job1.id)
     cron_storage.update_run(run.id, status="running")
 
     # Create a due job
     job2 = cron_storage.create_job(
-        project_id=PROJECT_ID, name="Waiting",
-        schedule_type="cron", action_type="shell",
-        action_config={"command": "echo"}, cron_expr="0 * * * *",
+        project_id=PROJECT_ID,
+        name="Waiting",
+        schedule_type="cron",
+        action_type="shell",
+        action_config={"command": "echo"},
+        cron_expr="0 * * * *",
     )
     past = (datetime.now(timezone.utc) - timedelta(minutes=5)).isoformat()
     cron_storage.update_job(job2.id, next_run_at=past)
@@ -164,9 +168,12 @@ async def test_backoff_on_consecutive_failures(
     scheduler = CronScheduler(storage=cron_storage, executor=mock_executor, config=config)
 
     job = cron_storage.create_job(
-        project_id=PROJECT_ID, name="Failing",
-        schedule_type="cron", action_type="shell",
-        action_config={"command": "echo"}, cron_expr="0 * * * *",
+        project_id=PROJECT_ID,
+        name="Failing",
+        schedule_type="cron",
+        action_type="shell",
+        action_config={"command": "echo"},
+        cron_expr="0 * * * *",
     )
     # Set it as having failed recently with 2 consecutive failures
     now = datetime.now(timezone.utc).isoformat()
@@ -205,9 +212,12 @@ async def test_run_now(
     scheduler = CronScheduler(storage=cron_storage, executor=mock_executor, config=config)
 
     job = cron_storage.create_job(
-        project_id=PROJECT_ID, name="Manual",
-        schedule_type="cron", action_type="shell",
-        action_config={"command": "echo"}, cron_expr="0 * * * *",
+        project_id=PROJECT_ID,
+        name="Manual",
+        schedule_type="cron",
+        action_type="shell",
+        action_config={"command": "echo"},
+        cron_expr="0 * * * *",
     )
 
     run = await scheduler.run_now(job.id)
@@ -235,9 +245,12 @@ async def test_execute_and_update_success(
     scheduler = CronScheduler(storage=cron_storage, executor=mock_executor, config=config)
 
     job = cron_storage.create_job(
-        project_id=PROJECT_ID, name="Success",
-        schedule_type="cron", action_type="shell",
-        action_config={"command": "echo"}, cron_expr="0 * * * *",
+        project_id=PROJECT_ID,
+        name="Success",
+        schedule_type="cron",
+        action_type="shell",
+        action_config={"command": "echo"},
+        cron_expr="0 * * * *",
     )
     cron_storage.update_job(job.id, consecutive_failures=3)
 

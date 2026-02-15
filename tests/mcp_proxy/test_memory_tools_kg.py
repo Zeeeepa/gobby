@@ -6,7 +6,7 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-pytestmark = pytest.mark.unit
+pytestmark = [pytest.mark.unit, pytest.mark.asyncio]
 
 
 def _make_registry(
@@ -50,9 +50,11 @@ class TestSearchKnowledgeGraphTool:
         from gobby.memory.services.knowledge_graph import KnowledgeGraphService
 
         kg_service = MagicMock(spec=KnowledgeGraphService)
-        kg_service.search_graph = AsyncMock(return_value=[
-            {"name": "Python", "labels": ["Tool"], "props": {}},
-        ])
+        kg_service.search_graph = AsyncMock(
+            return_value=[
+                {"name": "Python", "labels": ["Tool"], "props": {}},
+            ]
+        )
         manager._kg_service = kg_service
 
         tool_fn = registry.get_tool("search_knowledge_graph")
@@ -92,12 +94,14 @@ class TestMemoryStatsUpdated:
         registry, manager = _make_registry()
 
         # Mock get_stats to return a realistic response
-        manager.get_stats = MagicMock(return_value={
-            "total_count": 10,
-            "by_type": {"fact": 8, "preference": 2},
-            "project_id": None,
-            "vector_count": 10,
-        })
+        manager.get_stats = MagicMock(
+            return_value={
+                "total_count": 10,
+                "by_type": {"fact": 8, "preference": 2},
+                "project_id": None,
+                "vector_count": 10,
+            }
+        )
 
         tool_fn = registry.get_tool("memory_stats")
         result = tool_fn()

@@ -663,8 +663,18 @@ class TestProcessJsonSession:
         data = {
             "sessionId": "abc-12345",
             "messages": [
-                {"id": "1", "timestamp": "2024-01-01T10:00:00Z", "type": "user", "content": "Hello"},
-                {"id": "2", "timestamp": "2024-01-01T10:00:01Z", "type": "gemini", "content": "Hi there"},
+                {
+                    "id": "1",
+                    "timestamp": "2024-01-01T10:00:00Z",
+                    "type": "user",
+                    "content": "Hello",
+                },
+                {
+                    "id": "2",
+                    "timestamp": "2024-01-01T10:00:01Z",
+                    "type": "gemini",
+                    "content": "Hi there",
+                },
             ],
         }
         transcript.write_text(json.dumps(data))
@@ -698,9 +708,17 @@ class TestProcessJsonSession:
 
         processor = SessionMessageProcessor(mock_db)
         transcript = tmp_path / "session.json"
-        data = {"sessionId": "abc", "messages": [
-            {"id": "1", "timestamp": "2024-01-01T10:00:00Z", "type": "user", "content": "Hello"},
-        ]}
+        data = {
+            "sessionId": "abc",
+            "messages": [
+                {
+                    "id": "1",
+                    "timestamp": "2024-01-01T10:00:00Z",
+                    "type": "user",
+                    "content": "Hello",
+                },
+            ],
+        }
         transcript.write_text(json.dumps(data))
 
         processor.register_session("session-1", str(transcript), source="gemini")
@@ -724,9 +742,24 @@ class TestProcessJsonSession:
         data = {
             "sessionId": "abc",
             "messages": [
-                {"id": "1", "timestamp": "2024-01-01T10:00:00Z", "type": "user", "content": "First"},
-                {"id": "2", "timestamp": "2024-01-01T10:00:01Z", "type": "gemini", "content": "Second"},
-                {"id": "3", "timestamp": "2024-01-01T10:00:02Z", "type": "user", "content": "Third"},
+                {
+                    "id": "1",
+                    "timestamp": "2024-01-01T10:00:00Z",
+                    "type": "user",
+                    "content": "First",
+                },
+                {
+                    "id": "2",
+                    "timestamp": "2024-01-01T10:00:01Z",
+                    "type": "gemini",
+                    "content": "Second",
+                },
+                {
+                    "id": "3",
+                    "timestamp": "2024-01-01T10:00:02Z",
+                    "type": "user",
+                    "content": "Third",
+                },
             ],
         }
         transcript.write_text(json.dumps(data))
@@ -794,9 +827,17 @@ class TestProcessJsonSession:
 
         processor = SessionMessageProcessor(mock_db)
         transcript = tmp_path / "session.json"
-        data = {"sessionId": "abc", "messages": [
-            {"id": "1", "timestamp": "2024-01-01T10:00:00Z", "type": "user", "content": "Hello"},
-        ]}
+        data = {
+            "sessionId": "abc",
+            "messages": [
+                {
+                    "id": "1",
+                    "timestamp": "2024-01-01T10:00:00Z",
+                    "type": "user",
+                    "content": "Hello",
+                },
+            ],
+        }
         transcript.write_text(json.dumps(data))
 
         processor.register_session("session-1", str(transcript), source="gemini")

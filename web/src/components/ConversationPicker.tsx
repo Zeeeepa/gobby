@@ -47,6 +47,7 @@ export function ConversationPicker({
         <div className="conversation-picker-actions">
           {isOpen && (
             <button
+              type="button"
               className="terminals-action-btn"
               onClick={onNewChat}
               title="New Chat"
@@ -55,6 +56,7 @@ export function ConversationPicker({
             </button>
           )}
           <button
+            type="button"
             className="terminals-sidebar-toggle"
             onClick={() => setIsOpen(!isOpen)}
             title={isOpen ? 'Collapse' : 'Expand'}
@@ -104,6 +106,7 @@ export function ConversationPicker({
                     </span>
                     {onDeleteSession && (
                       <button
+                        type="button"
                         className="session-delete-btn"
                         title="Delete chat"
                         onClick={(e) => { e.stopPropagation(); onDeleteSession(session) }}

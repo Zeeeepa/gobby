@@ -75,7 +75,9 @@ class TestAgentTddExitConditions:
         state_unset = _make_state()
         state_set = _make_state(requirements_understood=True)
 
-        assert evaluator.check_exit_conditions(conditions, state_unset, exit_when=exit_when) is False
+        assert (
+            evaluator.check_exit_conditions(conditions, state_unset, exit_when=exit_when) is False
+        )
         assert evaluator.check_exit_conditions(conditions, state_set, exit_when=exit_when) is True
 
     def test_write_tests_step_variable_set(self) -> None:
@@ -102,14 +104,23 @@ class TestAgentTddExitConditions:
         data = _load_yaml("agent-tdd.yaml")
         conditions, exit_when = _find_step_conditions(data, "refactor")
 
-        approval_cond = next(c for c in conditions if isinstance(c, dict) and (c.get("type") == "user_approval" or "approval" in c))
+        approval_cond = next(
+            c
+            for c in conditions
+            if isinstance(c, dict) and (c.get("type") == "user_approval" or "approval" in c)
+        )
         approval_id = _get_approval_id(approval_cond)
 
         state_not_approved = _make_state()
         state_approved = _make_state(**{f"_approval_{approval_id}_granted": True})
 
-        assert evaluator.check_exit_conditions(conditions, state_not_approved, exit_when=exit_when) is False
-        assert evaluator.check_exit_conditions(conditions, state_approved, exit_when=exit_when) is True
+        assert (
+            evaluator.check_exit_conditions(conditions, state_not_approved, exit_when=exit_when)
+            is False
+        )
+        assert (
+            evaluator.check_exit_conditions(conditions, state_approved, exit_when=exit_when) is True
+        )
 
 
 class TestPlanExecuteExitConditions:
@@ -121,11 +132,17 @@ class TestPlanExecuteExitConditions:
         data = _load_yaml("plan-execute.yaml")
         conditions, exit_when = _find_step_conditions(data, "plan")
 
-        approval_cond = next(c for c in conditions if isinstance(c, dict) and (c.get("type") == "user_approval" or "approval" in c))
+        approval_cond = next(
+            c
+            for c in conditions
+            if isinstance(c, dict) and (c.get("type") == "user_approval" or "approval" in c)
+        )
         approval_id = _get_approval_id(approval_cond)
 
         state_approved = _make_state(**{f"_approval_{approval_id}_granted": True})
-        assert evaluator.check_exit_conditions(conditions, state_approved, exit_when=exit_when) is True
+        assert (
+            evaluator.check_exit_conditions(conditions, state_approved, exit_when=exit_when) is True
+        )
 
 
 class TestArchitectExitConditions:
@@ -141,7 +158,9 @@ class TestArchitectExitConditions:
         assert evaluator.check_exit_conditions(conditions, state, exit_when=exit_when) is True
 
         state_unset = _make_state()
-        assert evaluator.check_exit_conditions(conditions, state_unset, exit_when=exit_when) is False
+        assert (
+            evaluator.check_exit_conditions(conditions, state_unset, exit_when=exit_when) is False
+        )
 
 
 class TestPlanToTasksExitConditions:
@@ -153,7 +172,11 @@ class TestPlanToTasksExitConditions:
         data = _load_yaml("plan-to-tasks.yaml")
         conditions, exit_when = _find_step_conditions(data, "decompose")
 
-        approval_cond = next(c for c in conditions if isinstance(c, dict) and (c.get("type") == "user_approval" or "approval" in c))
+        approval_cond = next(
+            c
+            for c in conditions
+            if isinstance(c, dict) and (c.get("type") == "user_approval" or "approval" in c)
+        )
         approval_id = _get_approval_id(approval_cond)
 
         # Both conditions must be met (AND)
@@ -165,4 +188,7 @@ class TestPlanToTasksExitConditions:
 
         # Only variable set, no approval
         state_var_only = _make_state(task_list=[{"id": 1}])
-        assert evaluator.check_exit_conditions(conditions, state_var_only, exit_when=exit_when) is False
+        assert (
+            evaluator.check_exit_conditions(conditions, state_var_only, exit_when=exit_when)
+            is False
+        )

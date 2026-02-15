@@ -41,18 +41,14 @@ class TestMCPRegistryRoutes:
     # POST /mcp/tools/embed
     # -----------------------------------------------------------------
 
-    def test_embed_no_semantic_search(
-        self, client: TestClient, mock_server: MagicMock
-    ) -> None:
+    def test_embed_no_semantic_search(self, client: TestClient, mock_server: MagicMock) -> None:
         response = client.post("/mcp/tools/embed", json={"cwd": "/tmp/proj"})
         assert response.status_code == 200
         data = response.json()
         assert data["success"] is False
         assert "not configured" in data["error"]
 
-    def test_embed_project_resolve_fail(
-        self, client: TestClient, mock_server: MagicMock
-    ) -> None:
+    def test_embed_project_resolve_fail(self, client: TestClient, mock_server: MagicMock) -> None:
         mock_server.resolve_project_id.side_effect = ValueError("No project")
 
         response = client.post("/mcp/tools/embed", json={"cwd": "/tmp"})
@@ -61,9 +57,7 @@ class TestMCPRegistryRoutes:
         assert data["success"] is False
         assert "No project" in data["error"]
 
-    def test_embed_success(
-        self, client: TestClient, mock_server: MagicMock
-    ) -> None:
+    def test_embed_success(self, client: TestClient, mock_server: MagicMock) -> None:
         semantic_search = MagicMock()
         semantic_search.embed_all_tools = AsyncMock(
             return_value={"tools_embedded": 5, "servers_processed": 2}
@@ -71,17 +65,13 @@ class TestMCPRegistryRoutes:
         mock_server._tools_handler = MagicMock()
         mock_server._tools_handler._semantic_search = semantic_search
 
-        response = client.post(
-            "/mcp/tools/embed", json={"cwd": "/tmp/proj", "force": True}
-        )
+        response = client.post("/mcp/tools/embed", json={"cwd": "/tmp/proj", "force": True})
         assert response.status_code == 200
         data = response.json()
         assert data["success"] is True
         assert data["stats"]["tools_embedded"] == 5
 
-    def test_embed_failure(
-        self, client: TestClient, mock_server: MagicMock
-    ) -> None:
+    def test_embed_failure(self, client: TestClient, mock_server: MagicMock) -> None:
         semantic_search = MagicMock()
         semantic_search.embed_all_tools = AsyncMock(side_effect=RuntimeError("LLM down"))
         mock_server._tools_handler = MagicMock()
@@ -106,9 +96,7 @@ class TestMCPRegistryRoutes:
         assert data["success"] is False
         assert "not configured" in data["error"]
 
-    def test_embed_general_exception(
-        self, client: TestClient, mock_server: MagicMock
-    ) -> None:
+    def test_embed_general_exception(self, client: TestClient, mock_server: MagicMock) -> None:
         """Outer exception handler for embed_mcp_tools."""
         # Make request.json() work but resolve_project_id blow up with non-ValueError
         mock_server.resolve_project_id.side_effect = RuntimeError("catastrophic")
@@ -132,9 +120,7 @@ class TestMCPRegistryRoutes:
         assert data["connected_servers"] == 0
         assert data["cached_tools"] == 0
 
-    def test_status_with_internal_servers(
-        self, client: TestClient, mock_server: MagicMock
-    ) -> None:
+    def test_status_with_internal_servers(self, client: TestClient, mock_server: MagicMock) -> None:
         registry = MagicMock()
         registry.name = "gobby-tasks"
         registry.list_tools.return_value = [
@@ -176,9 +162,7 @@ class TestMCPRegistryRoutes:
         assert data["connected_servers"] == 1
         assert data["server_health"]["github"]["state"] == "connected"
 
-    def test_status_disconnected_external(
-        self, client: TestClient, mock_server: MagicMock
-    ) -> None:
+    def test_status_disconnected_external(self, client: TestClient, mock_server: MagicMock) -> None:
         config = MagicMock()
         config.name = "github"
         health = MagicMock()
@@ -198,9 +182,7 @@ class TestMCPRegistryRoutes:
         assert data["connected_servers"] == 0
         assert data["server_health"]["github"]["failures"] == 3
 
-    def test_status_external_no_health(
-        self, client: TestClient, mock_server: MagicMock
-    ) -> None:
+    def test_status_external_no_health(self, client: TestClient, mock_server: MagicMock) -> None:
         """External server with no health data."""
         config = MagicMock()
         config.name = "unknown-server"
@@ -217,9 +199,7 @@ class TestMCPRegistryRoutes:
         assert data["server_health"]["unknown-server"]["health"] == "unknown"
         assert data["server_health"]["unknown-server"]["failures"] == 0
 
-    def test_status_mixed_servers(
-        self, client: TestClient, mock_server: MagicMock
-    ) -> None:
+    def test_status_mixed_servers(self, client: TestClient, mock_server: MagicMock) -> None:
         """Internal and external servers together."""
         # Internal
         registry = MagicMock()
@@ -247,9 +227,7 @@ class TestMCPRegistryRoutes:
         assert data["connected_servers"] == 2
         assert data["cached_tools"] == 1
 
-    def test_status_error(
-        self, client: TestClient, mock_server: MagicMock
-    ) -> None:
+    def test_status_error(self, client: TestClient, mock_server: MagicMock) -> None:
         mock_server._internal_manager = MagicMock()
         mock_server._internal_manager.get_all_registries.side_effect = RuntimeError("boom")
 
@@ -262,18 +240,14 @@ class TestMCPRegistryRoutes:
     # POST /mcp/refresh
     # -----------------------------------------------------------------
 
-    def test_refresh_no_db_manager(
-        self, client: TestClient, mock_server: MagicMock
-    ) -> None:
+    def test_refresh_no_db_manager(self, client: TestClient, mock_server: MagicMock) -> None:
         response = client.post("/mcp/refresh", json={"cwd": "/tmp"})
         assert response.status_code == 200
         data = response.json()
         assert data["success"] is False
         assert "not configured" in data["error"]
 
-    def test_refresh_project_resolve_fail(
-        self, client: TestClient, mock_server: MagicMock
-    ) -> None:
+    def test_refresh_project_resolve_fail(self, client: TestClient, mock_server: MagicMock) -> None:
         mock_server.resolve_project_id.side_effect = ValueError("No project")
 
         response = client.post("/mcp/refresh", json={"cwd": "/tmp"})
@@ -282,9 +256,7 @@ class TestMCPRegistryRoutes:
         assert data["success"] is False
         assert "No project" in data["error"]
 
-    def test_refresh_no_servers(
-        self, client: TestClient, mock_server: MagicMock
-    ) -> None:
+    def test_refresh_no_servers(self, client: TestClient, mock_server: MagicMock) -> None:
         mock_server._mcp_db_manager = MagicMock()
         mock_server._mcp_db_manager.db = MagicMock()
 
@@ -318,8 +290,10 @@ class TestMCPRegistryRoutes:
         # No semantic search (no embeddings)
         mock_server._tools_handler = None
 
-        with patch("gobby.mcp_proxy.schema_hash.SchemaHashManager") as MockSHM, \
-             patch("gobby.mcp_proxy.schema_hash.compute_schema_hash") as mock_hash:
+        with (
+            patch("gobby.mcp_proxy.schema_hash.SchemaHashManager") as MockSHM,
+            patch("gobby.mcp_proxy.schema_hash.compute_schema_hash") as mock_hash,
+        ):
             mock_shm_instance = MockSHM.return_value
             mock_shm_instance.cleanup_stale_hashes.return_value = 0
             mock_hash.return_value = "abc123"
@@ -362,8 +336,10 @@ class TestMCPRegistryRoutes:
         mock_server._internal_manager.is_internal.return_value = True
         mock_server._internal_manager.get_registry.return_value = registry
 
-        with patch("gobby.mcp_proxy.schema_hash.SchemaHashManager") as MockSHM, \
-             patch("gobby.mcp_proxy.schema_hash.compute_schema_hash") as mock_hash:
+        with (
+            patch("gobby.mcp_proxy.schema_hash.SchemaHashManager") as MockSHM,
+            patch("gobby.mcp_proxy.schema_hash.compute_schema_hash") as mock_hash,
+        ):
             mock_shm_instance = MockSHM.return_value
             mock_shm_instance.check_tools_for_changes.return_value = {
                 "new": ["create_task"],
@@ -387,9 +363,7 @@ class TestMCPRegistryRoutes:
         assert stats["tools_unchanged"] == 1
         assert stats["tools_removed"] == 1
 
-    def test_refresh_with_server_filter(
-        self, client: TestClient, mock_server: MagicMock
-    ) -> None:
+    def test_refresh_with_server_filter(self, client: TestClient, mock_server: MagicMock) -> None:
         """Refresh only processes servers matching the filter."""
         mock_server._mcp_db_manager = MagicMock()
         mock_server._mcp_db_manager.db = MagicMock()
@@ -409,11 +383,15 @@ class TestMCPRegistryRoutes:
         reg1.get_schema.return_value = {}
         mock_server._internal_manager.get_registry.return_value = reg1
 
-        with patch("gobby.mcp_proxy.schema_hash.SchemaHashManager") as MockSHM, \
-             patch("gobby.mcp_proxy.schema_hash.compute_schema_hash"):
+        with (
+            patch("gobby.mcp_proxy.schema_hash.SchemaHashManager") as MockSHM,
+            patch("gobby.mcp_proxy.schema_hash.compute_schema_hash"),
+        ):
             mock_shm_instance = MockSHM.return_value
             mock_shm_instance.check_tools_for_changes.return_value = {
-                "new": [], "changed": [], "unchanged": ["t1"],
+                "new": [],
+                "changed": [],
+                "unchanged": ["t1"],
             }
             mock_shm_instance.cleanup_stale_hashes.return_value = 0
 
@@ -429,9 +407,7 @@ class TestMCPRegistryRoutes:
         assert "gobby-tasks" in stats["by_server"]
         assert "gobby-memory" not in stats["by_server"]
 
-    def test_refresh_external_server(
-        self, client: TestClient, mock_server: MagicMock
-    ) -> None:
+    def test_refresh_external_server(self, client: TestClient, mock_server: MagicMock) -> None:
         """Refresh processes external MCP servers."""
         mock_server._mcp_db_manager = MagicMock()
         mock_server._mcp_db_manager.db = MagicMock()
@@ -453,11 +429,15 @@ class TestMCPRegistryRoutes:
         mock_session.list_tools.return_value = mock_tools_result
         mock_server.mcp_manager.ensure_connected = AsyncMock(return_value=mock_session)
 
-        with patch("gobby.mcp_proxy.schema_hash.SchemaHashManager") as MockSHM, \
-             patch("gobby.mcp_proxy.schema_hash.compute_schema_hash") as mock_hash:
+        with (
+            patch("gobby.mcp_proxy.schema_hash.SchemaHashManager") as MockSHM,
+            patch("gobby.mcp_proxy.schema_hash.compute_schema_hash") as mock_hash,
+        ):
             mock_shm_instance = MockSHM.return_value
             mock_shm_instance.check_tools_for_changes.return_value = {
-                "new": ["list_repos"], "changed": [], "unchanged": [],
+                "new": ["list_repos"],
+                "changed": [],
+                "unchanged": [],
             }
             mock_shm_instance.cleanup_stale_hashes.return_value = 0
             mock_hash.return_value = "hash123"
@@ -485,9 +465,7 @@ class TestMCPRegistryRoutes:
         ext_config.enabled = True
         mock_server.mcp_manager = MagicMock()
         mock_server.mcp_manager.server_configs = [ext_config]
-        mock_server.mcp_manager.ensure_connected = AsyncMock(
-            side_effect=ConnectionError("refused")
-        )
+        mock_server.mcp_manager.ensure_connected = AsyncMock(side_effect=ConnectionError("refused"))
 
         with patch("gobby.mcp_proxy.schema_hash.SchemaHashManager"):
             response = client.post(
@@ -526,11 +504,15 @@ class TestMCPRegistryRoutes:
         mock_server._tools_handler = MagicMock()
         mock_server._tools_handler._semantic_search = semantic_search
 
-        with patch("gobby.mcp_proxy.schema_hash.SchemaHashManager") as MockSHM, \
-             patch("gobby.mcp_proxy.schema_hash.compute_schema_hash") as mock_hash:
+        with (
+            patch("gobby.mcp_proxy.schema_hash.SchemaHashManager") as MockSHM,
+            patch("gobby.mcp_proxy.schema_hash.compute_schema_hash") as mock_hash,
+        ):
             mock_shm_instance = MockSHM.return_value
             mock_shm_instance.check_tools_for_changes.return_value = {
-                "new": ["new_tool"], "changed": [], "unchanged": [],
+                "new": ["new_tool"],
+                "changed": [],
+                "unchanged": [],
             }
             mock_shm_instance.cleanup_stale_hashes.return_value = 0
             mock_hash.return_value = "newhash"
@@ -571,11 +553,15 @@ class TestMCPRegistryRoutes:
         mock_server._tools_handler = MagicMock()
         mock_server._tools_handler._semantic_search = semantic_search
 
-        with patch("gobby.mcp_proxy.schema_hash.SchemaHashManager") as MockSHM, \
-             patch("gobby.mcp_proxy.schema_hash.compute_schema_hash"):
+        with (
+            patch("gobby.mcp_proxy.schema_hash.SchemaHashManager") as MockSHM,
+            patch("gobby.mcp_proxy.schema_hash.compute_schema_hash"),
+        ):
             mock_shm_instance = MockSHM.return_value
             mock_shm_instance.check_tools_for_changes.return_value = {
-                "new": ["tool1"], "changed": [], "unchanged": [],
+                "new": ["tool1"],
+                "changed": [],
+                "unchanged": [],
             }
             mock_shm_instance.cleanup_stale_hashes.return_value = 0
 
@@ -610,8 +596,10 @@ class TestMCPRegistryRoutes:
         mock_server._internal_manager.is_internal.return_value = True
         mock_server._internal_manager.get_registry.return_value = registry
 
-        with patch("gobby.mcp_proxy.schema_hash.SchemaHashManager") as MockSHM, \
-             patch("gobby.mcp_proxy.schema_hash.compute_schema_hash") as mock_hash:
+        with (
+            patch("gobby.mcp_proxy.schema_hash.SchemaHashManager") as MockSHM,
+            patch("gobby.mcp_proxy.schema_hash.compute_schema_hash") as mock_hash,
+        ):
             mock_shm_instance = MockSHM.return_value
             mock_shm_instance.check_tools_for_changes.return_value = {
                 "new": [],
@@ -664,9 +652,7 @@ class TestMCPRegistryRoutes:
         assert "broken-registry" in data["stats"]["by_server"]
         assert "error" in data["stats"]["by_server"]["broken-registry"]
 
-    def test_refresh_general_exception(
-        self, client: TestClient, mock_server: MagicMock
-    ) -> None:
+    def test_refresh_general_exception(self, client: TestClient, mock_server: MagicMock) -> None:
         """Outer exception handler."""
         mock_server._mcp_db_manager = MagicMock()
         mock_server._mcp_db_manager.db = MagicMock()
@@ -722,7 +708,10 @@ class TestMCPRegistryRoutes:
         mock_tool.name = "tool_with_pydantic_schema"
         mock_tool.description = "Has pydantic schema"
         mock_input_schema = MagicMock()
-        mock_input_schema.model_dump.return_value = {"type": "object", "properties": {"x": {"type": "string"}}}
+        mock_input_schema.model_dump.return_value = {
+            "type": "object",
+            "properties": {"x": {"type": "string"}},
+        }
         mock_tool.inputSchema = mock_input_schema
 
         mock_session = AsyncMock()
@@ -731,11 +720,15 @@ class TestMCPRegistryRoutes:
         mock_session.list_tools.return_value = mock_tools_result
         mock_server.mcp_manager.ensure_connected = AsyncMock(return_value=mock_session)
 
-        with patch("gobby.mcp_proxy.schema_hash.SchemaHashManager") as MockSHM, \
-             patch("gobby.mcp_proxy.schema_hash.compute_schema_hash") as mock_hash:
+        with (
+            patch("gobby.mcp_proxy.schema_hash.SchemaHashManager") as MockSHM,
+            patch("gobby.mcp_proxy.schema_hash.compute_schema_hash") as mock_hash,
+        ):
             mock_shm_instance = MockSHM.return_value
             mock_shm_instance.check_tools_for_changes.return_value = {
-                "new": ["tool_with_pydantic_schema"], "changed": [], "unchanged": [],
+                "new": ["tool_with_pydantic_schema"],
+                "changed": [],
+                "unchanged": [],
             }
             mock_shm_instance.cleanup_stale_hashes.return_value = 0
             mock_hash.return_value = "schema_hash"
@@ -775,11 +768,15 @@ class TestMCPRegistryRoutes:
         mock_session.list_tools.return_value = mock_tools_result
         mock_server.mcp_manager.ensure_connected = AsyncMock(return_value=mock_session)
 
-        with patch("gobby.mcp_proxy.schema_hash.SchemaHashManager") as MockSHM, \
-             patch("gobby.mcp_proxy.schema_hash.compute_schema_hash") as mock_hash:
+        with (
+            patch("gobby.mcp_proxy.schema_hash.SchemaHashManager") as MockSHM,
+            patch("gobby.mcp_proxy.schema_hash.compute_schema_hash") as mock_hash,
+        ):
             mock_shm_instance = MockSHM.return_value
             mock_shm_instance.check_tools_for_changes.return_value = {
-                "new": [], "changed": [], "unchanged": ["tool_with_dict_schema"],
+                "new": [],
+                "changed": [],
+                "unchanged": ["tool_with_dict_schema"],
             }
             mock_shm_instance.cleanup_stale_hashes.return_value = 0
             mock_hash.return_value = "dict_hash"

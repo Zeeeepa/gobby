@@ -2,8 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Any
-from unittest.mock import AsyncMock, patch
+from unittest.mock import AsyncMock
 
 import pytest
 
@@ -137,11 +136,7 @@ class TestSetNodeVector:
         cypher = client.query.call_args[0][0]
         assert "custom_vec" in cypher
 
-    async def test_set_node_vector_custom_index(self, client: Neo4jClient) -> None:
-        """set_node_vector accepts custom index name parameter."""
-        client.query = AsyncMock(return_value=[])
-
-        # Should not raise — index_name is accepted as a parameter
-        await client.set_node_vector("Carol", [0.5], index_name="my_index")
-
-        client.query.assert_called_once()
+    async def test_set_node_vector_rejects_invalid_property_name(self, client: Neo4jClient) -> None:
+        """set_node_vector rejects property names with injection characters."""
+        with pytest.raises(ValueError, match="Invalid Cypher property name"):
+            await client.set_node_vector("Carol", [0.5], property_name="bad'; DROP")

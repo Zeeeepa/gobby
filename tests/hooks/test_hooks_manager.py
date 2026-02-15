@@ -1712,4 +1712,3 @@ class TestHookManagerMachineIdFallback:
         with patch("gobby.utils.machine_id.get_machine_id", return_value="my-machine-id"):
             result = manager.get_machine_id()
             assert result == "my-machine-id"
-

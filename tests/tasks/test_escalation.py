@@ -120,7 +120,6 @@ class TestEscalationManager:
         assert result.feedback == "LLM validation failed repeatedly"
 
 
-
 class TestGenerateEscalationSummary:
     """Tests for escalation summary generation."""
 

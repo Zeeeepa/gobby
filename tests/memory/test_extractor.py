@@ -156,9 +156,7 @@ class TestSessionMemoryExtractor:
             MemoryCandidate("New", "fact", []),
             MemoryCandidate("Existing", "fact", []),
         ]
-        filtered = await extractor._filter_and_dedupe(
-            candidates, project_id=None
-        )
+        filtered = await extractor._filter_and_dedupe(candidates, project_id=None)
         assert len(filtered) == 1
         assert filtered[0].content == "New"
 
@@ -169,9 +167,7 @@ class TestSessionMemoryExtractor:
             MemoryCandidate("The project uses pytest for testing", "fact", []),
             MemoryCandidate("The project uses pytest for testing", "fact", []),
         ]
-        filtered = await extractor._filter_and_dedupe(
-            candidates, project_id=None
-        )
+        filtered = await extractor._filter_and_dedupe(candidates, project_id=None)
         assert len(filtered) == 1
         assert "pytest" in filtered[0].content
 

@@ -620,11 +620,7 @@ class ChatMixin:
             message_manager = getattr(self, "message_manager", None)
             try:
                 if message_manager:
-                    await asyncio.to_thread(
-                        message_manager.db.execute,
-                        "DELETE FROM session_messages WHERE session_id = ?",
-                        (db_session_id,),
-                    )
+                    await message_manager.delete(db_session_id)
                 if session_manager:
                     await asyncio.to_thread(session_manager.delete, db_session_id)
             except Exception as e:

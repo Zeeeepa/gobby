@@ -113,7 +113,9 @@ class TestCreateMemory:
 
     def test_create_memory(self, client, mock_server) -> None:
         """POST /memories creates a memory and returns id."""
-        mock_server.memory_manager.create_memory = AsyncMock(return_value=_make_memory(id="mm-new-123"))
+        mock_server.memory_manager.create_memory = AsyncMock(
+            return_value=_make_memory(id="mm-new-123")
+        )
         response = client.post(
             "/memories",
             json={

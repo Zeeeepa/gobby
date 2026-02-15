@@ -48,9 +48,7 @@ def project_id(temp_db: LocalDatabase) -> str:
 class TestRulesTableExists:
     def test_rules_table_created_by_migration(self, temp_db: LocalDatabase) -> None:
         """The rules table should exist after migrations run."""
-        row = temp_db.fetchone(
-            "SELECT name FROM sqlite_master WHERE type='table' AND name='rules'"
-        )
+        row = temp_db.fetchone("SELECT name FROM sqlite_master WHERE type='table' AND name='rules'")
         assert row is not None
         assert row["name"] == "rules"
 
@@ -86,7 +84,11 @@ class TestSaveRule:
         rule = rule_store.save_rule(
             name="require_task",
             tier="bundled",
-            definition={"tools": ["Edit", "Write"], "reason": "Claim a task first", "action": "block"},
+            definition={
+                "tools": ["Edit", "Write"],
+                "reason": "Claim a task first",
+                "action": "block",
+            },
         )
         assert rule["name"] == "require_task"
         assert rule["tier"] == "bundled"
@@ -98,7 +100,12 @@ class TestSaveRule:
         rule = rule_store.save_rule(
             name="no_push",
             tier="user",
-            definition={"tools": ["Bash"], "command_pattern": r"git\s+push", "reason": "No pushing", "action": "block"},
+            definition={
+                "tools": ["Bash"],
+                "command_pattern": r"git\s+push",
+                "reason": "No pushing",
+                "action": "block",
+            },
         )
         assert rule["tier"] == "user"
 
@@ -142,15 +149,19 @@ class TestSaveRule:
     def test_save_same_name_different_tiers(self, rule_store: RuleStore, project_id: str) -> None:
         """Same rule name can exist in different tiers."""
         r_bundled = rule_store.save_rule(
-            name="no_push", tier="bundled",
+            name="no_push",
+            tier="bundled",
             definition={"reason": "bundled reason", "action": "block"},
         )
         r_user = rule_store.save_rule(
-            name="no_push", tier="user",
+            name="no_push",
+            tier="user",
             definition={"reason": "user reason", "action": "warn"},
         )
         r_project = rule_store.save_rule(
-            name="no_push", tier="project", project_id=project_id,
+            name="no_push",
+            tier="project",
+            project_id=project_id,
             definition={"reason": "project reason", "action": "allow"},
         )
         # All three should have different IDs
@@ -160,14 +171,16 @@ class TestSaveRule:
     def test_save_invalid_tier(self, rule_store: RuleStore) -> None:
         with pytest.raises(ValueError, match="Invalid tier"):
             rule_store.save_rule(
-                name="bad", tier="invalid",
+                name="bad",
+                tier="invalid",
                 definition={"reason": "test", "action": "block"},
             )
 
     def test_save_project_tier_requires_project_id(self, rule_store: RuleStore) -> None:
         with pytest.raises(ValueError, match="project_id"):
             rule_store.save_rule(
-                name="bad", tier="project",
+                name="bad",
+                tier="project",
                 definition={"reason": "test", "action": "block"},
             )
 
@@ -180,7 +193,8 @@ class TestSaveRule:
 class TestGetRule:
     def test_get_bundled_rule(self, rule_store: RuleStore) -> None:
         rule_store.save_rule(
-            name="my_rule", tier="bundled",
+            name="my_rule",
+            tier="bundled",
             definition={"reason": "bundled", "action": "block"},
         )
         rule = rule_store.get_rule("my_rule")
@@ -193,11 +207,13 @@ class TestGetRule:
     def test_tier_precedence_user_over_bundled(self, rule_store: RuleStore) -> None:
         """User-tier rule should override bundled-tier rule."""
         rule_store.save_rule(
-            name="rule_x", tier="bundled",
+            name="rule_x",
+            tier="bundled",
             definition={"reason": "bundled", "action": "block"},
         )
         rule_store.save_rule(
-            name="rule_x", tier="user",
+            name="rule_x",
+            tier="user",
             definition={"reason": "user override", "action": "warn"},
         )
         rule = rule_store.get_rule("rule_x")
@@ -205,18 +221,24 @@ class TestGetRule:
         assert rule["tier"] == "user"
         assert rule["definition"]["reason"] == "user override"
 
-    def test_tier_precedence_project_over_user(self, rule_store: RuleStore, project_id: str) -> None:
+    def test_tier_precedence_project_over_user(
+        self, rule_store: RuleStore, project_id: str
+    ) -> None:
         """Project-tier rule should override user-tier rule."""
         rule_store.save_rule(
-            name="rule_y", tier="bundled",
+            name="rule_y",
+            tier="bundled",
             definition={"reason": "bundled", "action": "block"},
         )
         rule_store.save_rule(
-            name="rule_y", tier="user",
+            name="rule_y",
+            tier="user",
             definition={"reason": "user", "action": "warn"},
         )
         rule_store.save_rule(
-            name="rule_y", tier="project", project_id=project_id,
+            name="rule_y",
+            tier="project",
+            project_id=project_id,
             definition={"reason": "project wins", "action": "allow"},
         )
         rule = rule_store.get_rule("rule_y", project_id=project_id)
@@ -224,14 +246,19 @@ class TestGetRule:
         assert rule["tier"] == "project"
         assert rule["definition"]["reason"] == "project wins"
 
-    def test_get_without_project_id_skips_project_tier(self, rule_store: RuleStore, project_id: str) -> None:
+    def test_get_without_project_id_skips_project_tier(
+        self, rule_store: RuleStore, project_id: str
+    ) -> None:
         """Without project_id, project-tier rules are not considered."""
         rule_store.save_rule(
-            name="rule_z", tier="bundled",
+            name="rule_z",
+            tier="bundled",
             definition={"reason": "bundled", "action": "block"},
         )
         rule_store.save_rule(
-            name="rule_z", tier="project", project_id=project_id,
+            name="rule_z",
+            tier="project",
+            project_id=project_id,
             definition={"reason": "project", "action": "allow"},
         )
         # Without project_id, should get bundled
@@ -242,11 +269,13 @@ class TestGetRule:
     def test_get_specific_tier(self, rule_store: RuleStore) -> None:
         """Can request a specific tier explicitly."""
         rule_store.save_rule(
-            name="rule_a", tier="bundled",
+            name="rule_a",
+            tier="bundled",
             definition={"reason": "bundled", "action": "block"},
         )
         rule_store.save_rule(
-            name="rule_a", tier="user",
+            name="rule_a",
+            tier="user",
             definition={"reason": "user", "action": "warn"},
         )
         # Explicitly request bundled tier
@@ -265,15 +294,24 @@ class TestListRules:
         assert rule_store.list_rules() == []
 
     def test_list_all(self, rule_store: RuleStore) -> None:
-        rule_store.save_rule(name="r1", tier="bundled", definition={"reason": "a", "action": "block"})
+        rule_store.save_rule(
+            name="r1", tier="bundled", definition={"reason": "a", "action": "block"}
+        )
         rule_store.save_rule(name="r2", tier="user", definition={"reason": "b", "action": "warn"})
         rules = rule_store.list_rules()
         assert len(rules) == 2
 
     def test_list_by_tier(self, rule_store: RuleStore, project_id: str) -> None:
-        rule_store.save_rule(name="r1", tier="bundled", definition={"reason": "a", "action": "block"})
+        rule_store.save_rule(
+            name="r1", tier="bundled", definition={"reason": "a", "action": "block"}
+        )
         rule_store.save_rule(name="r2", tier="user", definition={"reason": "b", "action": "warn"})
-        rule_store.save_rule(name="r3", tier="project", project_id=project_id, definition={"reason": "c", "action": "allow"})
+        rule_store.save_rule(
+            name="r3",
+            tier="project",
+            project_id=project_id,
+            definition={"reason": "c", "action": "allow"},
+        )
 
         bundled = rule_store.list_rules(tier="bundled")
         assert len(bundled) == 1
@@ -289,22 +327,36 @@ class TestListRules:
 
     def test_list_by_project_id(self, rule_store: RuleStore, project_id: str) -> None:
         pid2 = str(uuid.uuid4())
-        rule_store.save_rule(name="r1", tier="project", project_id=project_id, definition={"reason": "a", "action": "block"})
+        rule_store.save_rule(
+            name="r1",
+            tier="project",
+            project_id=project_id,
+            definition={"reason": "a", "action": "block"},
+        )
 
         # Create second project
         rule_store.db.execute(
             "INSERT INTO projects (id, name, created_at, updated_at) VALUES (?, ?, datetime('now'), datetime('now'))",
             (pid2, f"project-{pid2[:8]}"),
         )
-        rule_store.save_rule(name="r2", tier="project", project_id=pid2, definition={"reason": "b", "action": "block"})
+        rule_store.save_rule(
+            name="r2",
+            tier="project",
+            project_id=pid2,
+            definition={"reason": "b", "action": "block"},
+        )
 
         rules = rule_store.list_rules(project_id=project_id)
         assert len(rules) == 1
         assert rules[0]["name"] == "r1"
 
     def test_list_sorted_by_name(self, rule_store: RuleStore) -> None:
-        rule_store.save_rule(name="zebra", tier="bundled", definition={"reason": "z", "action": "block"})
-        rule_store.save_rule(name="alpha", tier="bundled", definition={"reason": "a", "action": "block"})
+        rule_store.save_rule(
+            name="zebra", tier="bundled", definition={"reason": "z", "action": "block"}
+        )
+        rule_store.save_rule(
+            name="alpha", tier="bundled", definition={"reason": "a", "action": "block"}
+        )
         rules = rule_store.list_rules()
         assert rules[0]["name"] == "alpha"
         assert rules[1]["name"] == "zebra"
@@ -317,8 +369,12 @@ class TestListRules:
 
 class TestGetRulesByTier:
     def test_get_rules_by_tier(self, rule_store: RuleStore) -> None:
-        rule_store.save_rule(name="r1", tier="bundled", definition={"reason": "a", "action": "block"})
-        rule_store.save_rule(name="r2", tier="bundled", definition={"reason": "b", "action": "warn"})
+        rule_store.save_rule(
+            name="r1", tier="bundled", definition={"reason": "a", "action": "block"}
+        )
+        rule_store.save_rule(
+            name="r2", tier="bundled", definition={"reason": "b", "action": "warn"}
+        )
         rule_store.save_rule(name="r3", tier="user", definition={"reason": "c", "action": "block"})
 
         bundled = rule_store.get_rules_by_tier("bundled")
@@ -337,7 +393,9 @@ class TestGetRulesByTier:
 
 class TestDeleteRule:
     def test_delete_existing(self, rule_store: RuleStore) -> None:
-        rule = rule_store.save_rule(name="doomed", tier="bundled", definition={"reason": "test", "action": "block"})
+        rule = rule_store.save_rule(
+            name="doomed", tier="bundled", definition={"reason": "test", "action": "block"}
+        )
         assert rule_store.delete_rule(rule["id"]) is True
         assert rule_store.get_rule("doomed") is None
 
@@ -345,8 +403,12 @@ class TestDeleteRule:
         assert rule_store.delete_rule(str(uuid.uuid4())) is False
 
     def test_delete_by_name_and_tier(self, rule_store: RuleStore) -> None:
-        rule_store.save_rule(name="target", tier="bundled", definition={"reason": "test", "action": "block"})
-        rule_store.save_rule(name="target", tier="user", definition={"reason": "test", "action": "warn"})
+        rule_store.save_rule(
+            name="target", tier="bundled", definition={"reason": "test", "action": "block"}
+        )
+        rule_store.save_rule(
+            name="target", tier="user", definition={"reason": "test", "action": "warn"}
+        )
 
         assert rule_store.delete_rule_by_name("target", tier="bundled") is True
         # User tier should still exist

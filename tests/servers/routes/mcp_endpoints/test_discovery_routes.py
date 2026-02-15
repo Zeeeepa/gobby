@@ -54,9 +54,7 @@ class TestMCPDiscoveryRoutes:
         assert data["tools"] == {}
         assert "response_time_ms" in data
 
-    def test_list_tools_internal_servers(
-        self, client: TestClient, mock_server: MagicMock
-    ) -> None:
+    def test_list_tools_internal_servers(self, client: TestClient, mock_server: MagicMock) -> None:
         registry = MagicMock()
         registry.name = "gobby-tasks"
         registry.list_tools.return_value = [
@@ -263,9 +261,7 @@ class TestMCPDiscoveryRoutes:
         tool = data["tools"]["server-a"][0]
         assert tool["brief"] == ""
 
-    def test_list_tools_with_metrics(
-        self, client: TestClient, mock_server: MagicMock
-    ) -> None:
+    def test_list_tools_with_metrics(self, client: TestClient, mock_server: MagicMock) -> None:
         """Include metrics enrichment when include_metrics=true."""
         registry = MagicMock()
         registry.name = "gobby-tasks"
@@ -351,9 +347,7 @@ class TestMCPDiscoveryRoutes:
         data = response.json()
         assert data["success"] is True
 
-    def test_list_tools_error(
-        self, client: TestClient, mock_server: MagicMock
-    ) -> None:
+    def test_list_tools_error(self, client: TestClient, mock_server: MagicMock) -> None:
         mock_server._internal_manager = MagicMock()
         mock_server._internal_manager.get_all_registries.side_effect = RuntimeError("boom")
 
@@ -381,9 +375,7 @@ class TestMCPDiscoveryRoutes:
         assert data["success"] is False
         assert "not initialized" in data["error"]
 
-    def test_recommend_with_tools_handler(
-        self, client: TestClient, mock_server: MagicMock
-    ) -> None:
+    def test_recommend_with_tools_handler(self, client: TestClient, mock_server: MagicMock) -> None:
         mock_server._tools_handler = MagicMock()
         mock_server._tools_handler.recommend_tools = AsyncMock(
             return_value={
@@ -402,9 +394,7 @@ class TestMCPDiscoveryRoutes:
         assert len(data["recommendations"]) == 1
         assert "response_time_ms" in data
 
-    def test_recommend_with_all_params(
-        self, client: TestClient, mock_server: MagicMock
-    ) -> None:
+    def test_recommend_with_all_params(self, client: TestClient, mock_server: MagicMock) -> None:
         """Pass all optional params to recommend."""
         mock_server._tools_handler = MagicMock()
         mock_server._tools_handler.recommend_tools = AsyncMock(
@@ -476,9 +466,7 @@ class TestMCPDiscoveryRoutes:
         data = response.json()
         assert data["success"] is False
 
-    def test_recommend_general_exception(
-        self, client: TestClient, mock_server: MagicMock
-    ) -> None:
+    def test_recommend_general_exception(self, client: TestClient, mock_server: MagicMock) -> None:
         """Uncaught exception returns error response."""
         mock_server._tools_handler = MagicMock()
         mock_server._tools_handler.recommend_tools = AsyncMock(
@@ -512,9 +500,7 @@ class TestMCPDiscoveryRoutes:
         assert data["success"] is False
         assert "not configured" in data["error"]
 
-    def test_search_project_resolve_fail(
-        self, client: TestClient, mock_server: MagicMock
-    ) -> None:
+    def test_search_project_resolve_fail(self, client: TestClient, mock_server: MagicMock) -> None:
         mock_server.resolve_project_id.side_effect = ValueError("No project")
 
         response = client.post(
@@ -537,9 +523,7 @@ class TestMCPDiscoveryRoutes:
         assert data["success"] is False
         assert "Malformed JSON" in data["error"]
 
-    def test_search_with_results(
-        self, client: TestClient, mock_server: MagicMock
-    ) -> None:
+    def test_search_with_results(self, client: TestClient, mock_server: MagicMock) -> None:
         result_mock = MagicMock()
         result_mock.to_dict.return_value = {"tool": "write_file", "score": 0.85}
 
@@ -560,9 +544,7 @@ class TestMCPDiscoveryRoutes:
         assert data["total_results"] == 1
         assert data["results"][0]["tool"] == "write_file"
 
-    def test_search_with_all_params(
-        self, client: TestClient, mock_server: MagicMock
-    ) -> None:
+    def test_search_with_all_params(self, client: TestClient, mock_server: MagicMock) -> None:
         """Pass all optional params to search."""
         semantic_search = MagicMock()
         semantic_search.get_embeddings_for_project.return_value = ["emb1"]
@@ -632,9 +614,7 @@ class TestMCPDiscoveryRoutes:
         # Should fall through to search_tools since no _mcp_db_manager
         assert data["total_results"] == 0
 
-    def test_search_semantic_error(
-        self, client: TestClient, mock_server: MagicMock
-    ) -> None:
+    def test_search_semantic_error(self, client: TestClient, mock_server: MagicMock) -> None:
         semantic_search = MagicMock()
         semantic_search.get_embeddings_for_project.side_effect = RuntimeError("embed fail")
 
@@ -650,9 +630,7 @@ class TestMCPDiscoveryRoutes:
         assert data["success"] is False
         assert "embed fail" in data["error"]
 
-    def test_search_general_exception(
-        self, client: TestClient, mock_server: MagicMock
-    ) -> None:
+    def test_search_general_exception(self, client: TestClient, mock_server: MagicMock) -> None:
         """Uncaught outer exception handler."""
         # Make resolve_project_id raise a non-ValueError
         mock_server.resolve_project_id.side_effect = RuntimeError("catastrophic failure")

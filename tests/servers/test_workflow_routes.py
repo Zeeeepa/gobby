@@ -13,17 +13,21 @@ from tests.servers.conftest import create_http_server
 
 pytestmark = pytest.mark.unit
 
-SAMPLE_DEFINITION = json.dumps({
-    "name": "test-workflow",
-    "description": "A test workflow",
-    "steps": [{"name": "work", "allowed_tools": "all"}],
-})
+SAMPLE_DEFINITION = json.dumps(
+    {
+        "name": "test-workflow",
+        "description": "A test workflow",
+        "steps": [{"name": "work", "allowed_tools": "all"}],
+    }
+)
 
-SAMPLE_PIPELINE_DEFINITION = json.dumps({
-    "name": "test-pipeline",
-    "type": "pipeline",
-    "steps": [{"id": "build", "exec": "make build"}],
-})
+SAMPLE_PIPELINE_DEFINITION = json.dumps(
+    {
+        "name": "test-pipeline",
+        "type": "pipeline",
+        "steps": [{"id": "build", "exec": "make build"}],
+    }
+)
 
 
 # ============================================================================
@@ -115,9 +119,7 @@ def test_list_workflows_filter_enabled(
 # ============================================================================
 
 
-def test_get_workflow_by_id(
-    client: TestClient, manager: LocalWorkflowDefinitionManager
-) -> None:
+def test_get_workflow_by_id(client: TestClient, manager: LocalWorkflowDefinitionManager) -> None:
     """Test getting a workflow definition by ID."""
     row = manager.create(name="get-test", definition_json=SAMPLE_DEFINITION)
 
@@ -179,9 +181,7 @@ def test_create_pipeline(client: TestClient) -> None:
 # ============================================================================
 
 
-def test_update_workflow(
-    client: TestClient, manager: LocalWorkflowDefinitionManager
-) -> None:
+def test_update_workflow(client: TestClient, manager: LocalWorkflowDefinitionManager) -> None:
     """Test updating a workflow definition."""
     row = manager.create(name="update-test", definition_json=SAMPLE_DEFINITION)
 
@@ -218,9 +218,7 @@ def test_update_workflow_no_fields(
 # ============================================================================
 
 
-def test_delete_workflow(
-    client: TestClient, manager: LocalWorkflowDefinitionManager
-) -> None:
+def test_delete_workflow(client: TestClient, manager: LocalWorkflowDefinitionManager) -> None:
     """Test deleting a workflow definition."""
     row = manager.create(name="delete-test", definition_json=SAMPLE_DEFINITION)
 
@@ -272,9 +270,7 @@ def test_import_yaml_invalid(client: TestClient) -> None:
 # ============================================================================
 
 
-def test_export_yaml(
-    client: TestClient, manager: LocalWorkflowDefinitionManager
-) -> None:
+def test_export_yaml(client: TestClient, manager: LocalWorkflowDefinitionManager) -> None:
     """Test exporting a workflow definition as YAML."""
     row = manager.create(
         name="export-test",
@@ -298,9 +294,7 @@ def test_export_yaml_not_found(client: TestClient) -> None:
 # ============================================================================
 
 
-def test_duplicate_workflow(
-    client: TestClient, manager: LocalWorkflowDefinitionManager
-) -> None:
+def test_duplicate_workflow(client: TestClient, manager: LocalWorkflowDefinitionManager) -> None:
     """Test duplicating a workflow definition."""
     row = manager.create(
         name="original",
@@ -334,13 +328,9 @@ def test_duplicate_not_found(client: TestClient) -> None:
 # ============================================================================
 
 
-def test_toggle_enabled(
-    client: TestClient, manager: LocalWorkflowDefinitionManager
-) -> None:
+def test_toggle_enabled(client: TestClient, manager: LocalWorkflowDefinitionManager) -> None:
     """Test toggling a workflow's enabled status."""
-    row = manager.create(
-        name="toggle-test", definition_json=SAMPLE_DEFINITION, enabled=True
-    )
+    row = manager.create(name="toggle-test", definition_json=SAMPLE_DEFINITION, enabled=True)
 
     resp = client.put(f"/api/workflows/{row.id}/toggle")
     assert resp.status_code == 200

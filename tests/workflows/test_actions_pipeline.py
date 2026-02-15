@@ -340,9 +340,7 @@ class TestRunPipelineActionExecution:
         )
         mock_workflow_loader.load_pipeline.return_value = mock_pipeline
 
-        mock_pipeline_executor.execute = AsyncMock(
-            side_effect=RuntimeError("Connection timed out")
-        )
+        mock_pipeline_executor.execute = AsyncMock(side_effect=RuntimeError("Connection timed out"))
 
         result = await action_executor.execute(
             "run_pipeline",

@@ -15,6 +15,7 @@ from gobby.utils.metrics import get_metrics_collector
 
 if TYPE_CHECKING:
     from gobby.servers.http import HTTPServer
+    from gobby.storage.workflow_definitions import LocalWorkflowDefinitionManager
 
 logger = logging.getLogger(__name__)
 
@@ -77,7 +78,7 @@ def create_workflows_router(server: "HTTPServer") -> APIRouter:
     router = APIRouter(prefix="/api/workflows", tags=["workflows"])
     metrics = get_metrics_collector()
 
-    def _get_manager() -> Any:
+    def _get_manager() -> "LocalWorkflowDefinitionManager":
         from gobby.storage.workflow_definitions import LocalWorkflowDefinitionManager
 
         return LocalWorkflowDefinitionManager(server.services.database)
@@ -112,7 +113,7 @@ def create_workflows_router(server: "HTTPServer") -> APIRouter:
                 "count": len(rows),
             }
         except Exception as e:
-            logger.error(f"Error listing workflow definitions: {e}", exc_info=True)
+            logger.exception("Error listing workflow definitions")
             raise HTTPException(status_code=500, detail=str(e)) from e
 
     @router.get("/{definition_id}/export")

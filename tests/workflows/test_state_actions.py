@@ -146,9 +146,7 @@ class TestHandleEndWorkflow:
     @pytest.mark.asyncio
     async def test_end_workflow_disables_instance(self, action_context) -> None:
         """end_workflow calls set_enabled(False) on the workflow instance."""
-        with patch(
-            "gobby.workflows.state_manager.WorkflowInstanceManager"
-        ) as MockInstanceManager:
+        with patch("gobby.workflows.state_manager.WorkflowInstanceManager") as MockInstanceManager:
             mock_instance_mgr = MagicMock()
             MockInstanceManager.return_value = mock_instance_mgr
 
@@ -162,9 +160,7 @@ class TestHandleEndWorkflow:
     @pytest.mark.asyncio
     async def test_end_workflow_handles_exception(self, action_context) -> None:
         """end_workflow handles errors gracefully without raising."""
-        with patch(
-            "gobby.workflows.state_manager.WorkflowInstanceManager"
-        ) as MockInstanceManager:
+        with patch("gobby.workflows.state_manager.WorkflowInstanceManager") as MockInstanceManager:
             mock_instance_mgr = MagicMock()
             mock_instance_mgr.set_enabled.side_effect = Exception("DB error")
             MockInstanceManager.return_value = mock_instance_mgr

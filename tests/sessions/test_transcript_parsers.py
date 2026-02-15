@@ -962,14 +962,16 @@ class TestGeminiTranscriptParser:
 
     def test_gemini_content_list_with_non_dict_function_call(self, parser) -> None:
         """Test parse_line handles functionCall that is not a dict (e.g. list)."""
-        line = json.dumps({
-            "type": "message",
-            "role": "model",
-            "content": [
-                {"text": "some text"},
-                {"functionCall": [{"name": "tool", "args": {}}]},
-            ],
-        })
+        line = json.dumps(
+            {
+                "type": "message",
+                "role": "model",
+                "content": [
+                    {"text": "some text"},
+                    {"functionCall": [{"name": "tool", "args": {}}]},
+                ],
+            }
+        )
         msg = parser.parse_line(line, 0)
         assert msg is not None
         assert msg.content == "some text"
@@ -1023,9 +1025,7 @@ class TestGeminiTranscriptParser:
                         {
                             "name": "read_file",
                             "args": {"path": "test.txt"},
-                            "result": [
-                                {"functionResponse": {"content": "file contents here"}}
-                            ],
+                            "result": [{"functionResponse": {"content": "file contents here"}}],
                         }
                     ],
                 },
@@ -1052,9 +1052,24 @@ class TestGeminiTranscriptParser:
             "sessionId": "abc-123",
             "messages": [
                 {"id": "1", "timestamp": "2024-01-01T10:00:00Z", "type": "user", "content": "Hi"},
-                {"id": "2", "timestamp": "2024-01-01T10:00:01Z", "type": "info", "content": "Info msg"},
-                {"id": "3", "timestamp": "2024-01-01T10:00:02Z", "type": "warning", "content": "Warn msg"},
-                {"id": "4", "timestamp": "2024-01-01T10:00:03Z", "type": "gemini", "content": "Response"},
+                {
+                    "id": "2",
+                    "timestamp": "2024-01-01T10:00:01Z",
+                    "type": "info",
+                    "content": "Info msg",
+                },
+                {
+                    "id": "3",
+                    "timestamp": "2024-01-01T10:00:02Z",
+                    "type": "warning",
+                    "content": "Warn msg",
+                },
+                {
+                    "id": "4",
+                    "timestamp": "2024-01-01T10:00:03Z",
+                    "type": "gemini",
+                    "content": "Response",
+                },
             ],
         }
 
@@ -1103,7 +1118,12 @@ class TestGeminiTranscriptParser:
         data = {
             "sessionId": "abc-123",
             "messages": [
-                {"id": "1", "timestamp": "2024-01-01T10:00:00Z", "type": "user", "content": "Do it"},
+                {
+                    "id": "1",
+                    "timestamp": "2024-01-01T10:00:00Z",
+                    "type": "user",
+                    "content": "Do it",
+                },
                 {
                     "id": "2",
                     "timestamp": "2024-01-01T10:00:01Z",
@@ -1114,7 +1134,12 @@ class TestGeminiTranscriptParser:
                         {"name": "tool2", "args": {}, "result": [{"functionResponse": "r2"}]},
                     ],
                 },
-                {"id": "3", "timestamp": "2024-01-01T10:00:02Z", "type": "user", "content": "Thanks"},
+                {
+                    "id": "3",
+                    "timestamp": "2024-01-01T10:00:02Z",
+                    "type": "user",
+                    "content": "Thanks",
+                },
             ],
         }
 
@@ -1138,9 +1163,7 @@ class TestGeminiTranscriptParser:
                         {
                             "name": "read_file",
                             "args": {"path": "test.txt"},
-                            "result": {
-                                "functionResponse": {"content": "file contents"}
-                            },
+                            "result": {"functionResponse": {"content": "file contents"}},
                         }
                     ],
                 },
@@ -1163,11 +1186,13 @@ class TestCursorTranscriptParser:
 
     def test_parse_line_user_message(self, parser) -> None:
         """Test parsing user message event."""
-        line = json.dumps({
-            "type": "user",
-            "message": {"role": "user", "content": [{"type": "text", "text": "Hello"}]},
-            "session_id": "abc-123",
-        })
+        line = json.dumps(
+            {
+                "type": "user",
+                "message": {"role": "user", "content": [{"type": "text", "text": "Hello"}]},
+                "session_id": "abc-123",
+            }
+        )
         msg = parser.parse_line(line, 0)
         assert msg is not None
         assert msg.role == "user"
@@ -1177,11 +1202,16 @@ class TestCursorTranscriptParser:
 
     def test_parse_line_assistant_message(self, parser) -> None:
         """Test parsing assistant message event."""
-        line = json.dumps({
-            "type": "assistant",
-            "message": {"role": "assistant", "content": [{"type": "text", "text": "I can help"}]},
-            "session_id": "abc-123",
-        })
+        line = json.dumps(
+            {
+                "type": "assistant",
+                "message": {
+                    "role": "assistant",
+                    "content": [{"type": "text", "text": "I can help"}],
+                },
+                "session_id": "abc-123",
+            }
+        )
         msg = parser.parse_line(line, 1)
         assert msg is not None
         assert msg.role == "assistant"
@@ -1190,15 +1220,17 @@ class TestCursorTranscriptParser:
 
     def test_parse_line_tool_call_started(self, parser) -> None:
         """Test parsing tool_call started event."""
-        line = json.dumps({
-            "type": "tool_call",
-            "subtype": "started",
-            "call_id": "call-001",
-            "tool_call": {
-                "readToolCall": {"args": {"path": "test.txt"}},
-            },
-            "session_id": "abc-123",
-        })
+        line = json.dumps(
+            {
+                "type": "tool_call",
+                "subtype": "started",
+                "call_id": "call-001",
+                "tool_call": {
+                    "readToolCall": {"args": {"path": "test.txt"}},
+                },
+                "session_id": "abc-123",
+            }
+        )
         msg = parser.parse_line(line, 2)
         assert msg is not None
         assert msg.role == "assistant"
@@ -1209,18 +1241,20 @@ class TestCursorTranscriptParser:
 
     def test_parse_line_tool_call_completed(self, parser) -> None:
         """Test parsing tool_call completed event."""
-        line = json.dumps({
-            "type": "tool_call",
-            "subtype": "completed",
-            "call_id": "call-001",
-            "tool_call": {
-                "readToolCall": {
-                    "args": {"path": "test.txt"},
-                    "result": {"success": {"content": "file contents"}},
+        line = json.dumps(
+            {
+                "type": "tool_call",
+                "subtype": "completed",
+                "call_id": "call-001",
+                "tool_call": {
+                    "readToolCall": {
+                        "args": {"path": "test.txt"},
+                        "result": {"success": {"content": "file contents"}},
+                    },
                 },
-            },
-            "session_id": "abc-123",
-        })
+                "session_id": "abc-123",
+            }
+        )
         msg = parser.parse_line(line, 3)
         assert msg is not None
         assert msg.role == "tool"
@@ -1232,14 +1266,16 @@ class TestCursorTranscriptParser:
 
     def test_parse_line_write_tool_call(self, parser) -> None:
         """Test parsing writeToolCall event."""
-        line = json.dumps({
-            "type": "tool_call",
-            "subtype": "started",
-            "call_id": "call-002",
-            "tool_call": {
-                "writeToolCall": {"args": {"path": "out.txt", "content": "data"}},
-            },
-        })
+        line = json.dumps(
+            {
+                "type": "tool_call",
+                "subtype": "started",
+                "call_id": "call-002",
+                "tool_call": {
+                    "writeToolCall": {"args": {"path": "out.txt", "content": "data"}},
+                },
+            }
+        )
         msg = parser.parse_line(line, 0)
         assert msg is not None
         assert msg.tool_name == "writeToolCall"
@@ -1247,14 +1283,16 @@ class TestCursorTranscriptParser:
 
     def test_parse_line_function_tool_call(self, parser) -> None:
         """Test parsing generic function tool call."""
-        line = json.dumps({
-            "type": "tool_call",
-            "subtype": "started",
-            "call_id": "call-003",
-            "tool_call": {
-                "function": {"name": "custom_tool", "args": {"key": "value"}},
-            },
-        })
+        line = json.dumps(
+            {
+                "type": "tool_call",
+                "subtype": "started",
+                "call_id": "call-003",
+                "tool_call": {
+                    "function": {"name": "custom_tool", "args": {"key": "value"}},
+                },
+            }
+        )
         msg = parser.parse_line(line, 0)
         assert msg is not None
         assert msg.tool_name == "custom_tool"
@@ -1262,24 +1300,28 @@ class TestCursorTranscriptParser:
 
     def test_parse_line_system_event_skipped(self, parser) -> None:
         """Test that system init events are skipped."""
-        line = json.dumps({
-            "type": "system",
-            "subtype": "init",
-            "cwd": "/path",
-            "session_id": "abc-123",
-            "model": "Claude 4 Sonnet",
-        })
+        line = json.dumps(
+            {
+                "type": "system",
+                "subtype": "init",
+                "cwd": "/path",
+                "session_id": "abc-123",
+                "model": "Claude 4 Sonnet",
+            }
+        )
         msg = parser.parse_line(line, 0)
         assert msg is None
 
     def test_parse_line_result_event_skipped(self, parser) -> None:
         """Test that result summary events are skipped."""
-        line = json.dumps({
-            "type": "result",
-            "subtype": "success",
-            "duration_ms": 1234,
-            "result": "full text",
-        })
+        line = json.dumps(
+            {
+                "type": "result",
+                "subtype": "success",
+                "duration_ms": 1234,
+                "result": "full text",
+            }
+        )
         msg = parser.parse_line(line, 0)
         assert msg is None
 
@@ -1296,9 +1338,19 @@ class TestCursorTranscriptParser:
     def test_parse_lines_batch(self, parser) -> None:
         """Test batch parsing with parse_lines."""
         lines = [
-            json.dumps({"type": "user", "message": {"role": "user", "content": [{"type": "text", "text": "Q1"}]}}),
+            json.dumps(
+                {
+                    "type": "user",
+                    "message": {"role": "user", "content": [{"type": "text", "text": "Q1"}]},
+                }
+            ),
             json.dumps({"type": "system", "subtype": "init"}),  # Skipped
-            json.dumps({"type": "assistant", "message": {"role": "assistant", "content": [{"type": "text", "text": "A1"}]}}),
+            json.dumps(
+                {
+                    "type": "assistant",
+                    "message": {"role": "assistant", "content": [{"type": "text", "text": "A1"}]},
+                }
+            ),
         ]
         msgs = parser.parse_lines(lines, start_index=5)
         assert len(msgs) == 2
@@ -1339,12 +1391,14 @@ class TestCursorTranscriptParser:
 
     def test_tool_call_unknown_structure(self, parser) -> None:
         """Test tool call with unknown structure falls back to 'unknown'."""
-        line = json.dumps({
-            "type": "tool_call",
-            "subtype": "started",
-            "call_id": "call-x",
-            "tool_call": {"weirdKey": {"data": 42}},
-        })
+        line = json.dumps(
+            {
+                "type": "tool_call",
+                "subtype": "started",
+                "call_id": "call-x",
+                "tool_call": {"weirdKey": {"data": 42}},
+            }
+        )
         msg = parser.parse_line(line, 0)
         assert msg is not None
         assert msg.tool_name == "unknown"

@@ -111,8 +111,9 @@ class TestBackgroundDedupTask:
 
         assert memory.id == "mem-1"
 
-        # Give the background task a chance to run
-        await asyncio.sleep(0.05)
+        # Wait for background tasks to complete
+        if manager._background_tasks:
+            await asyncio.wait(manager._background_tasks, timeout=1.0)
 
         # Verify dedup was fired
         manager._dedup_service.process.assert_called_once()
@@ -145,7 +146,8 @@ class TestBackgroundDedupTask:
         assert len(manager._background_tasks) >= 1
 
         # Wait for completion and cleanup
-        await asyncio.sleep(0.1)
+        if manager._background_tasks:
+            await asyncio.wait(manager._background_tasks, timeout=1.0)
 
         # Task should be cleaned up after completion
         assert len(manager._background_tasks) == 0

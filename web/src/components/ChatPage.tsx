@@ -93,19 +93,26 @@ function MobileChatDrawer({ conversations }: { conversations: ConversationState 
 
   return (
     <div ref={drawerRef} className={`mobile-chat-drawer ${isOpen ? 'open' : 'collapsed'}`}>
-      <div className="mobile-chat-drawer-header" onClick={() => setIsOpen(prev => !prev)}>
+      <div
+        className="mobile-chat-drawer-header"
+        onClick={() => setIsOpen(prev => !prev)}
+        role="button"
+        tabIndex={0}
+        aria-expanded={isOpen}
+        onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setIsOpen(prev => !prev) } }}
+      >
         <span className="mobile-chat-drawer-title">
           <ChatIcon />
           Chats
           <span className="agent-count">{conversations.sessions.length}</span>
         </span>
-        <button className="terminal-toggle">
+        <button type="button" className="terminal-toggle">
           {isOpen ? '\u25B2' : '\u25BC'}
         </button>
       </div>
       {isOpen && (
         <div className="mobile-chat-drawer-content">
-          <button className="mobile-chat-drawer-new" onClick={handleNewChat}>
+          <button type="button" className="mobile-chat-drawer-new" onClick={handleNewChat}>
             + New Chat
           </button>
           <div className="mobile-chat-drawer-list">
@@ -130,6 +137,7 @@ function MobileChatDrawer({ conversations }: { conversations: ConversationState 
                   </div>
                   {conversations.onDeleteSession && (
                     <button
+                      type="button"
                       className="session-delete-btn"
                       title="Delete chat"
                       onClick={(e) => { e.stopPropagation(); conversations.onDeleteSession!(session) }}

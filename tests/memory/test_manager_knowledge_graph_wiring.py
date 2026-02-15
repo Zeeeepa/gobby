@@ -187,8 +187,9 @@ class TestGraphBackgroundTask:
 
         await manager.create_memory(content="Josh uses Python")
 
-        # Allow background tasks to run
-        await asyncio.sleep(0.1)
+        # Wait for background tasks to complete
+        if manager._background_tasks:
+            await asyncio.wait(manager._background_tasks, timeout=1.0)
 
         # Verify graph task was fired
         assert manager._kg_service.add_to_graph.called

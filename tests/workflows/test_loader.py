@@ -1760,9 +1760,7 @@ class TestDiscoverWorkflows:
         (project_dir / "shared.yaml").write_text("name: shared\nversion: '2.0'\npriority: 50\n")
 
         loader = WorkflowLoader(workflow_dirs=[global_dir])
-        discovered = await loader.discover_workflows(
-            project_path=temp_workflow_dir / "project"
-        )
+        discovered = await loader.discover_workflows(project_path=temp_workflow_dir / "project")
 
         assert len(discovered) == 1
         assert discovered[0].is_project is True
@@ -1918,9 +1916,7 @@ class TestDBFirstLookup:
         assert result.name == "db-pipeline"
 
     @pytest.mark.asyncio
-    async def test_load_workflow_db_shadows_filesystem(
-        self, db, def_manager, tmp_path
-    ) -> None:
+    async def test_load_workflow_db_shadows_filesystem(self, db, def_manager, tmp_path) -> None:
         """Test that DB definition shadows filesystem definition with the same name."""
         import json
 
@@ -1953,9 +1949,7 @@ class TestDBFirstLookup:
         assert result.version == "2.0"
 
     @pytest.mark.asyncio
-    async def test_load_workflow_falls_back_to_filesystem(
-        self, db, tmp_path
-    ) -> None:
+    async def test_load_workflow_falls_back_to_filesystem(self, db, tmp_path) -> None:
         """Test that load_workflow falls back to filesystem when DB has no match."""
         wf_dir = tmp_path / "workflows"
         wf_dir.mkdir()
@@ -1972,9 +1966,7 @@ class TestDBFirstLookup:
         assert result.description == "filesystem-only"
 
     @pytest.mark.asyncio
-    async def test_load_workflow_db_disabled_skipped(
-        self, db, def_manager, tmp_path
-    ) -> None:
+    async def test_load_workflow_db_disabled_skipped(self, db, def_manager, tmp_path) -> None:
         """Test that disabled DB definitions are still returned by load_workflow.
 
         Enabled/disabled filtering is done at the engine level, not the loader level.
@@ -2001,9 +1993,7 @@ class TestDBFirstLookup:
         assert result.name == "disabled-wf"
 
     @pytest.mark.asyncio
-    async def test_load_workflow_db_caches_result(
-        self, db, def_manager, tmp_path
-    ) -> None:
+    async def test_load_workflow_db_caches_result(self, db, def_manager, tmp_path) -> None:
         """Test that DB-loaded workflow is cached for subsequent calls."""
         import json
 
@@ -2029,9 +2019,7 @@ class TestDBFirstLookup:
         assert result1.name == result2.name
 
     @pytest.mark.asyncio
-    async def test_discover_workflows_includes_db_entries(
-        self, db, def_manager, tmp_path
-    ) -> None:
+    async def test_discover_workflows_includes_db_entries(self, db, def_manager, tmp_path) -> None:
         """Test that discover_workflows includes DB workflow definitions."""
         import json
 
@@ -2109,8 +2097,7 @@ class TestDBFirstLookup:
         wf_dir = tmp_path / "workflows"
         wf_dir.mkdir()
         (wf_dir / "fs-only.yaml").write_text(
-            "name: fs-only\nversion: '1.0'\n"
-            "steps:\n  - name: work\n    allowed_tools: all\n"
+            "name: fs-only\nversion: '1.0'\nsteps:\n  - name: work\n    allowed_tools: all\n"
         )
 
         loader = WorkflowLoader(workflow_dirs=[wf_dir], db=db)

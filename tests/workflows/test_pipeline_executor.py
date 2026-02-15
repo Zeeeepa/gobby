@@ -492,7 +492,9 @@ class TestExecutePromptStep:
         """Test that prompt step calls the LLM service."""
         from gobby.workflows.pipeline_executor import PipelineExecutor
 
-        mock_llm_service.get_default_provider.return_value.generate_text.return_value = "LLM response text"
+        mock_llm_service.get_default_provider.return_value.generate_text.return_value = (
+            "LLM response text"
+        )
 
         executor = PipelineExecutor(
             db=mock_db,
@@ -512,7 +514,9 @@ class TestExecutePromptStep:
         """Test that prompt step returns the LLM response."""
         from gobby.workflows.pipeline_executor import PipelineExecutor
 
-        mock_llm_service.get_default_provider.return_value.generate_text.return_value = "Generated analysis"
+        mock_llm_service.get_default_provider.return_value.generate_text.return_value = (
+            "Generated analysis"
+        )
 
         executor = PipelineExecutor(
             db=mock_db,
@@ -556,7 +560,9 @@ class TestExecutePromptStep:
         """Test that prompt step handles LLM errors gracefully."""
         from gobby.workflows.pipeline_executor import PipelineExecutor
 
-        mock_llm_service.get_default_provider.return_value.generate_text.side_effect = Exception("LLM API error")
+        mock_llm_service.get_default_provider.return_value.generate_text.side_effect = Exception(
+            "LLM API error"
+        )
 
         executor = PipelineExecutor(
             db=mock_db,
@@ -578,7 +584,9 @@ class TestExecutePromptStep:
         """Test that prompt step returns proper dict structure."""
         from gobby.workflows.pipeline_executor import PipelineExecutor
 
-        mock_llm_service.get_default_provider.return_value.generate_text.return_value = "Test response"
+        mock_llm_service.get_default_provider.return_value.generate_text.return_value = (
+            "Test response"
+        )
 
         executor = PipelineExecutor(
             db=mock_db,

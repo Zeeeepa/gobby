@@ -67,7 +67,6 @@ class TestBuildMemoryContext:
             id="m1",
             content="- Use TypeScript",
             memory_type="preference",
-
             created_at="2024-01-01",
             updated_at="2024-01-01",
         )
@@ -84,7 +83,6 @@ class TestBuildMemoryContext:
                 id="m1",
                 content="- dash item",
                 memory_type="preference",
-    
                 created_at="2024-01-01",
                 updated_at="2024-01-01",
             ),
@@ -92,7 +90,6 @@ class TestBuildMemoryContext:
                 id="m2",
                 content="* asterisk item",
                 memory_type="preference",
-    
                 created_at="2024-01-01",
                 updated_at="2024-01-01",
             ),
@@ -100,7 +97,6 @@ class TestBuildMemoryContext:
                 id="m3",
                 content="• bullet item",
                 memory_type="preference",
-    
                 created_at="2024-01-01",
                 updated_at="2024-01-01",
             ),
@@ -122,7 +118,6 @@ class TestBuildMemoryContext:
                 id="m1",
                 content="This is the project context",
                 memory_type="context",
-    
                 created_at="2024-01-01",
                 updated_at="2024-01-01",
             ),
@@ -130,7 +125,6 @@ class TestBuildMemoryContext:
                 id="m2",
                 content="- Use Python 3.11+",
                 memory_type="preference",
-    
                 created_at="2024-01-01",
                 updated_at="2024-01-01",
             ),
@@ -138,7 +132,6 @@ class TestBuildMemoryContext:
                 id="m3",
                 content="- Follow PEP 8 style",
                 memory_type="pattern",
-    
                 created_at="2024-01-01",
                 updated_at="2024-01-01",
             ),
@@ -146,7 +139,6 @@ class TestBuildMemoryContext:
                 id="m4",
                 content="- Database uses SQLite",
                 memory_type="fact",
-    
                 created_at="2024-01-01",
                 updated_at="2024-01-01",
             ),
@@ -173,7 +165,6 @@ class TestBuildMemoryContext:
             id="m1",
             content="- This is context with dash",
             memory_type="context",
-
             created_at="2024-01-01",
             updated_at="2024-01-01",
         )
@@ -188,7 +179,6 @@ class TestBuildMemoryContext:
                 id="m1",
                 content="fact content",
                 memory_type="fact",
-    
                 created_at="2024-01-01",
                 updated_at="2024-01-01",
             ),
@@ -196,7 +186,6 @@ class TestBuildMemoryContext:
                 id="m2",
                 content="context content",
                 memory_type="context",
-    
                 created_at="2024-01-01",
                 updated_at="2024-01-01",
             ),
@@ -215,7 +204,6 @@ class TestBuildMemoryContext:
                 id="m1",
                 content="- ",  # Only bullet, no content
                 memory_type="preference",
-    
                 created_at="2024-01-01",
                 updated_at="2024-01-01",
             ),
@@ -223,7 +211,6 @@ class TestBuildMemoryContext:
                 id="m2",
                 content="- Valid content",
                 memory_type="preference",
-    
                 created_at="2024-01-01",
                 updated_at="2024-01-01",
             ),

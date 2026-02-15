@@ -2853,6 +2853,11 @@ body {
   background: rgba(248, 113, 113, 0.1);
 }
 
+.session-delete-btn:focus,
+.session-delete-btn:focus-visible {
+  opacity: 1;
+}
+
 /* Terminal main area */
 .terminals-main {
   flex: 1;

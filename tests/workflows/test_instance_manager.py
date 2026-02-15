@@ -104,22 +104,42 @@ def test_get_active_instances(db) -> None:
     mgr = WorkflowInstanceManager(db)
 
     # Create 3 instances with different priorities and enabled states
-    mgr.save_instance(WorkflowInstance(
-        id="inst-1", session_id="s1", workflow_name="session-lifecycle",
-        enabled=True, priority=10,
-    ))
-    mgr.save_instance(WorkflowInstance(
-        id="inst-2", session_id="s1", workflow_name="developer",
-        enabled=True, priority=20,
-    ))
-    mgr.save_instance(WorkflowInstance(
-        id="inst-3", session_id="s1", workflow_name="auto-task",
-        enabled=True, priority=25,
-    ))
-    mgr.save_instance(WorkflowInstance(
-        id="inst-4", session_id="s1", workflow_name="disabled-wf",
-        enabled=False, priority=5,
-    ))
+    mgr.save_instance(
+        WorkflowInstance(
+            id="inst-1",
+            session_id="s1",
+            workflow_name="session-lifecycle",
+            enabled=True,
+            priority=10,
+        )
+    )
+    mgr.save_instance(
+        WorkflowInstance(
+            id="inst-2",
+            session_id="s1",
+            workflow_name="developer",
+            enabled=True,
+            priority=20,
+        )
+    )
+    mgr.save_instance(
+        WorkflowInstance(
+            id="inst-3",
+            session_id="s1",
+            workflow_name="auto-task",
+            enabled=True,
+            priority=25,
+        )
+    )
+    mgr.save_instance(
+        WorkflowInstance(
+            id="inst-4",
+            session_id="s1",
+            workflow_name="disabled-wf",
+            enabled=False,
+            priority=5,
+        )
+    )
 
     active = mgr.get_active_instances("s1")
     assert len(active) == 3  # Disabled one excluded
@@ -145,9 +165,13 @@ def test_delete_instance(db) -> None:
     _ensure_session(db, "s1")
     mgr = WorkflowInstanceManager(db)
 
-    mgr.save_instance(WorkflowInstance(
-        id="inst-1", session_id="s1", workflow_name="auto-task",
-    ))
+    mgr.save_instance(
+        WorkflowInstance(
+            id="inst-1",
+            session_id="s1",
+            workflow_name="auto-task",
+        )
+    )
 
     assert mgr.get_instance("s1", "auto-task") is not None
 
@@ -173,9 +197,14 @@ def test_set_enabled(db) -> None:
     _ensure_session(db, "s1")
     mgr = WorkflowInstanceManager(db)
 
-    mgr.save_instance(WorkflowInstance(
-        id="inst-1", session_id="s1", workflow_name="auto-task", enabled=True,
-    ))
+    mgr.save_instance(
+        WorkflowInstance(
+            id="inst-1",
+            session_id="s1",
+            workflow_name="auto-task",
+            enabled=True,
+        )
+    )
 
     # Disable
     mgr.set_enabled("s1", "auto-task", False)
@@ -208,14 +237,22 @@ def test_multiple_sessions_isolated(db) -> None:
     _ensure_session(db, "s2")
     mgr = WorkflowInstanceManager(db)
 
-    mgr.save_instance(WorkflowInstance(
-        id="inst-1", session_id="s1", workflow_name="auto-task",
-        variables={"key": "session1"},
-    ))
-    mgr.save_instance(WorkflowInstance(
-        id="inst-2", session_id="s2", workflow_name="auto-task",
-        variables={"key": "session2"},
-    ))
+    mgr.save_instance(
+        WorkflowInstance(
+            id="inst-1",
+            session_id="s1",
+            workflow_name="auto-task",
+            variables={"key": "session1"},
+        )
+    )
+    mgr.save_instance(
+        WorkflowInstance(
+            id="inst-2",
+            session_id="s2",
+            workflow_name="auto-task",
+            variables={"key": "session2"},
+        )
+    )
 
     s1_inst = mgr.get_instance("s1", "auto-task")
     s2_inst = mgr.get_instance("s2", "auto-task")
@@ -239,10 +276,14 @@ def test_save_instance_preserves_variables(db) -> None:
         "context_injected": True,
         "nested": {"list": [1, 2, 3], "flag": False},
     }
-    mgr.save_instance(WorkflowInstance(
-        id="inst-1", session_id="s1", workflow_name="auto-task",
-        variables=variables,
-    ))
+    mgr.save_instance(
+        WorkflowInstance(
+            id="inst-1",
+            session_id="s1",
+            workflow_name="auto-task",
+            variables=variables,
+        )
+    )
 
     result = mgr.get_instance("s1", "auto-task")
     assert result is not None

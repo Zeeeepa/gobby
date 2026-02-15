@@ -390,9 +390,7 @@ class TestMultipleObservers:
         state = _make_state()
 
         engine = ObserverEngine()
-        await engine.evaluate_observers(
-            [obs1, obs2], "after_tool", _make_event_data(), state
-        )
+        await engine.evaluate_observers([obs1, obs2], "after_tool", _make_event_data(), state)
 
         assert state.variables["tool_tracked"] is True
         assert state.variables["tool_counted"] is True

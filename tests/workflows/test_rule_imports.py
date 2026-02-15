@@ -75,15 +75,18 @@ def _make_loader(rule_dirs: dict[str, Path]) -> WorkflowLoader:
 class TestFindRuleFile:
     def test_find_bundled_rule_file(self, rule_dirs: dict[str, Path]) -> None:
         """Loader should find rule files in bundled rules directory."""
-        _write_yaml(rule_dirs["bundled"] / "worker-safety.yaml", {
-            "rule_definitions": {
-                "require_task": {
-                    "tools": ["Edit", "Write"],
-                    "reason": "Claim a task first",
-                    "action": "block",
+        _write_yaml(
+            rule_dirs["bundled"] / "worker-safety.yaml",
+            {
+                "rule_definitions": {
+                    "require_task": {
+                        "tools": ["Edit", "Write"],
+                        "reason": "Claim a task first",
+                        "action": "block",
+                    },
                 },
             },
-        })
+        )
         loader = _make_loader(rule_dirs)
         path = loader._find_rule_file("worker-safety", project_path=None)
         assert path is not None
@@ -91,9 +94,14 @@ class TestFindRuleFile:
 
     def test_find_user_rule_file(self, rule_dirs: dict[str, Path]) -> None:
         """Loader should find rule files in user rules directory."""
-        _write_yaml(rule_dirs["user"] / "custom-rules.yaml", {
-            "rule_definitions": {"no_push": {"tools": ["Bash"], "reason": "test", "action": "block"}},
-        })
+        _write_yaml(
+            rule_dirs["user"] / "custom-rules.yaml",
+            {
+                "rule_definitions": {
+                    "no_push": {"tools": ["Bash"], "reason": "test", "action": "block"}
+                },
+            },
+        )
         loader = _make_loader(rule_dirs)
         # User rules dir is at the same level as workflows dir
         path = loader._find_rule_file("custom-rules", project_path=None)
@@ -101,9 +109,14 @@ class TestFindRuleFile:
 
     def test_find_project_rule_file(self, rule_dirs: dict[str, Path], tmp_path: Path) -> None:
         """Loader should find rule files in project rules directory."""
-        _write_yaml(rule_dirs["project"] / "project-rules.yaml", {
-            "rule_definitions": {"test_rule": {"tools": ["Bash"], "reason": "test", "action": "block"}},
-        })
+        _write_yaml(
+            rule_dirs["project"] / "project-rules.yaml",
+            {
+                "rule_definitions": {
+                    "test_rule": {"tools": ["Bash"], "reason": "test", "action": "block"}
+                },
+            },
+        )
         loader = _make_loader(rule_dirs)
         project_path = rule_dirs["project"].parent.parent  # .gobby parent = project root
         path = loader._find_rule_file("project-rules", project_path=project_path)
@@ -124,21 +137,24 @@ class TestLoadRuleDefinitions:
     @pytest.mark.asyncio
     async def test_load_valid_rule_file(self, rule_dirs: dict[str, Path]) -> None:
         """Loading a rule file should return the rule_definitions dict."""
-        _write_yaml(rule_dirs["bundled"] / "safety.yaml", {
-            "rule_definitions": {
-                "no_push": {
-                    "tools": ["Bash"],
-                    "command_pattern": r"git\s+push",
-                    "reason": "No pushing allowed",
-                    "action": "block",
-                },
-                "require_task": {
-                    "tools": ["Edit", "Write"],
-                    "reason": "Claim a task first",
-                    "action": "block",
+        _write_yaml(
+            rule_dirs["bundled"] / "safety.yaml",
+            {
+                "rule_definitions": {
+                    "no_push": {
+                        "tools": ["Bash"],
+                        "command_pattern": r"git\s+push",
+                        "reason": "No pushing allowed",
+                        "action": "block",
+                    },
+                    "require_task": {
+                        "tools": ["Edit", "Write"],
+                        "reason": "Claim a task first",
+                        "action": "block",
+                    },
                 },
             },
-        })
+        )
         loader = _make_loader(rule_dirs)
         path = rule_dirs["bundled"] / "safety.yaml"
         defs = await loader._load_rule_definitions(path)
@@ -165,24 +181,30 @@ class TestImportResolution:
     async def test_imports_merge_into_workflow(self, rule_dirs: dict[str, Path]) -> None:
         """Imported rule_definitions should merge into the workflow."""
         # Create rule file
-        _write_yaml(rule_dirs["bundled"] / "safety.yaml", {
-            "rule_definitions": {
-                "no_push": {
-                    "tools": ["Bash"],
-                    "command_pattern": r"git\s+push",
-                    "reason": "No pushing",
-                    "action": "block",
+        _write_yaml(
+            rule_dirs["bundled"] / "safety.yaml",
+            {
+                "rule_definitions": {
+                    "no_push": {
+                        "tools": ["Bash"],
+                        "command_pattern": r"git\s+push",
+                        "reason": "No pushing",
+                        "action": "block",
+                    },
                 },
             },
-        })
+        )
 
         # Create workflow that imports it
-        _write_yaml(rule_dirs["workflows"] / "my-workflow.yaml", {
-            "name": "my-workflow",
-            "type": "step",
-            "imports": ["safety"],
-            "steps": [{"name": "work", "check_rules": ["no_push"]}],
-        })
+        _write_yaml(
+            rule_dirs["workflows"] / "my-workflow.yaml",
+            {
+                "name": "my-workflow",
+                "type": "step",
+                "imports": ["safety"],
+                "steps": [{"name": "work", "check_rules": ["no_push"]}],
+            },
+        )
 
         loader = _make_loader(rule_dirs)
         defn = await loader.load_workflow("my-workflow")
@@ -193,29 +215,35 @@ class TestImportResolution:
     @pytest.mark.asyncio
     async def test_local_rules_override_imported(self, rule_dirs: dict[str, Path]) -> None:
         """File-local rule_definitions should override imported ones with the same name."""
-        _write_yaml(rule_dirs["bundled"] / "common.yaml", {
-            "rule_definitions": {
-                "no_push": {
-                    "tools": ["Bash"],
-                    "reason": "imported reason",
-                    "action": "block",
+        _write_yaml(
+            rule_dirs["bundled"] / "common.yaml",
+            {
+                "rule_definitions": {
+                    "no_push": {
+                        "tools": ["Bash"],
+                        "reason": "imported reason",
+                        "action": "block",
+                    },
                 },
             },
-        })
+        )
 
-        _write_yaml(rule_dirs["workflows"] / "override-test.yaml", {
-            "name": "override-test",
-            "type": "step",
-            "imports": ["common"],
-            "rule_definitions": {
-                "no_push": {
-                    "tools": ["Bash"],
-                    "reason": "local override",
-                    "action": "warn",
+        _write_yaml(
+            rule_dirs["workflows"] / "override-test.yaml",
+            {
+                "name": "override-test",
+                "type": "step",
+                "imports": ["common"],
+                "rule_definitions": {
+                    "no_push": {
+                        "tools": ["Bash"],
+                        "reason": "local override",
+                        "action": "warn",
+                    },
                 },
+                "steps": [{"name": "work"}],
             },
-            "steps": [{"name": "work"}],
-        })
+        )
 
         loader = _make_loader(rule_dirs)
         defn = await loader.load_workflow("override-test")
@@ -226,23 +254,32 @@ class TestImportResolution:
     @pytest.mark.asyncio
     async def test_multiple_imports(self, rule_dirs: dict[str, Path]) -> None:
         """Multiple imports should all be merged."""
-        _write_yaml(rule_dirs["bundled"] / "safety.yaml", {
-            "rule_definitions": {
-                "no_push": {"tools": ["Bash"], "reason": "safety", "action": "block"},
+        _write_yaml(
+            rule_dirs["bundled"] / "safety.yaml",
+            {
+                "rule_definitions": {
+                    "no_push": {"tools": ["Bash"], "reason": "safety", "action": "block"},
+                },
             },
-        })
-        _write_yaml(rule_dirs["bundled"] / "quality.yaml", {
-            "rule_definitions": {
-                "require_tests": {"tools": ["Bash"], "reason": "quality", "action": "warn"},
+        )
+        _write_yaml(
+            rule_dirs["bundled"] / "quality.yaml",
+            {
+                "rule_definitions": {
+                    "require_tests": {"tools": ["Bash"], "reason": "quality", "action": "warn"},
+                },
             },
-        })
+        )
 
-        _write_yaml(rule_dirs["workflows"] / "multi-import.yaml", {
-            "name": "multi-import",
-            "type": "step",
-            "imports": ["safety", "quality"],
-            "steps": [{"name": "work", "check_rules": ["no_push", "require_tests"]}],
-        })
+        _write_yaml(
+            rule_dirs["workflows"] / "multi-import.yaml",
+            {
+                "name": "multi-import",
+                "type": "step",
+                "imports": ["safety", "quality"],
+                "steps": [{"name": "work", "check_rules": ["no_push", "require_tests"]}],
+            },
+        )
 
         loader = _make_loader(rule_dirs)
         defn = await loader.load_workflow("multi-import")
@@ -253,12 +290,15 @@ class TestImportResolution:
     @pytest.mark.asyncio
     async def test_missing_import_raises_error(self, rule_dirs: dict[str, Path]) -> None:
         """Missing import file should raise ValueError."""
-        _write_yaml(rule_dirs["workflows"] / "bad-import.yaml", {
-            "name": "bad-import",
-            "type": "step",
-            "imports": ["nonexistent-rules"],
-            "steps": [{"name": "work"}],
-        })
+        _write_yaml(
+            rule_dirs["workflows"] / "bad-import.yaml",
+            {
+                "name": "bad-import",
+                "type": "step",
+                "imports": ["nonexistent-rules"],
+                "steps": [{"name": "work"}],
+            },
+        )
 
         loader = _make_loader(rule_dirs)
         with pytest.raises(ValueError, match="nonexistent-rules"):
@@ -267,11 +307,14 @@ class TestImportResolution:
     @pytest.mark.asyncio
     async def test_no_imports_field_works(self, rule_dirs: dict[str, Path]) -> None:
         """Workflow without imports should load normally."""
-        _write_yaml(rule_dirs["workflows"] / "no-imports.yaml", {
-            "name": "no-imports",
-            "type": "step",
-            "steps": [{"name": "work"}],
-        })
+        _write_yaml(
+            rule_dirs["workflows"] / "no-imports.yaml",
+            {
+                "name": "no-imports",
+                "type": "step",
+                "steps": [{"name": "work"}],
+            },
+        )
 
         loader = _make_loader(rule_dirs)
         defn = await loader.load_workflow("no-imports")
@@ -281,23 +324,32 @@ class TestImportResolution:
     @pytest.mark.asyncio
     async def test_later_import_overrides_earlier(self, rule_dirs: dict[str, Path]) -> None:
         """When two imports define the same rule, the later import wins."""
-        _write_yaml(rule_dirs["bundled"] / "first.yaml", {
-            "rule_definitions": {
-                "shared_rule": {"tools": ["Bash"], "reason": "from first", "action": "block"},
+        _write_yaml(
+            rule_dirs["bundled"] / "first.yaml",
+            {
+                "rule_definitions": {
+                    "shared_rule": {"tools": ["Bash"], "reason": "from first", "action": "block"},
+                },
             },
-        })
-        _write_yaml(rule_dirs["bundled"] / "second.yaml", {
-            "rule_definitions": {
-                "shared_rule": {"tools": ["Bash"], "reason": "from second", "action": "warn"},
+        )
+        _write_yaml(
+            rule_dirs["bundled"] / "second.yaml",
+            {
+                "rule_definitions": {
+                    "shared_rule": {"tools": ["Bash"], "reason": "from second", "action": "warn"},
+                },
             },
-        })
+        )
 
-        _write_yaml(rule_dirs["workflows"] / "import-order.yaml", {
-            "name": "import-order",
-            "type": "step",
-            "imports": ["first", "second"],
-            "steps": [{"name": "work"}],
-        })
+        _write_yaml(
+            rule_dirs["workflows"] / "import-order.yaml",
+            {
+                "name": "import-order",
+                "type": "step",
+                "imports": ["first", "second"],
+                "steps": [{"name": "work"}],
+            },
+        )
 
         loader = _make_loader(rule_dirs)
         defn = await loader.load_workflow("import-order")

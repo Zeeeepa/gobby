@@ -1,4 +1,3 @@
-
 import pytest
 
 from gobby.config.persistence import MemoryConfig
@@ -60,7 +59,6 @@ async def test_delete_memory(memory_manager):
     memory = await memory_manager.create_memory("To forget")
     assert await memory_manager.delete_memory(memory.id)
     assert await memory_manager.search_memories(query="To forget") == []
-
 
 
 @pytest.mark.asyncio

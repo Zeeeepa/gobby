@@ -95,9 +95,7 @@ class TestUpdateOrchestrationLists:
 
     def test_replace_spawned(self, state_manager, db) -> None:
         """Replacing spawned_agents replaces the entire list."""
-        _insert_state(
-            db, "sess1", {"spawned_agents": [{"session_id": "a1"}, {"session_id": "a2"}]}
-        )
+        _insert_state(db, "sess1", {"spawned_agents": [{"session_id": "a1"}, {"session_id": "a2"}]})
 
         result = state_manager.update_orchestration_lists(
             "sess1",
@@ -112,9 +110,7 @@ class TestUpdateOrchestrationLists:
 
     def test_replace_takes_precedence_over_remove(self, state_manager, db) -> None:
         """replace_spawned takes precedence over remove_from_spawned."""
-        _insert_state(
-            db, "sess1", {"spawned_agents": [{"session_id": "a1"}, {"session_id": "a2"}]}
-        )
+        _insert_state(db, "sess1", {"spawned_agents": [{"session_id": "a1"}, {"session_id": "a2"}]})
 
         result = state_manager.update_orchestration_lists(
             "sess1",
@@ -275,9 +271,7 @@ class TestCheckAndReserveSlots:
 
     def test_reserve_slots_limited_by_capacity(self, state_manager, db) -> None:
         """Reserves only available slots when requesting more than capacity."""
-        _insert_state(
-            db, "sess1", {"spawned_agents": [{"session_id": "a1"}, {"session_id": "a2"}]}
-        )
+        _insert_state(db, "sess1", {"spawned_agents": [{"session_id": "a1"}, {"session_id": "a2"}]})
 
         reserved = state_manager.check_and_reserve_slots("sess1", max_concurrent=3, requested=5)
 
@@ -314,7 +308,9 @@ class TestCheckAndReserveSlots:
 
     def test_reserve_slots_session_not_found(self, state_manager, db) -> None:
         """Returns 0 for nonexistent session."""
-        reserved = state_manager.check_and_reserve_slots("nonexistent", max_concurrent=5, requested=3)
+        reserved = state_manager.check_and_reserve_slots(
+            "nonexistent", max_concurrent=5, requested=3
+        )
 
         assert reserved == 0
 

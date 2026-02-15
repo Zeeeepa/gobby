@@ -62,7 +62,9 @@ class TestGetNeo4jStatus:
     """Tests for get_neo4j_status()."""
 
     @pytest.mark.asyncio
-    async def test_status_installed_and_healthy(self, tmp_path: Path, mock_async_client: AsyncMock) -> None:
+    async def test_status_installed_and_healthy(
+        self, tmp_path: Path, mock_async_client: AsyncMock
+    ) -> None:
         svc_dir = tmp_path / "services" / "neo4j"
         svc_dir.mkdir(parents=True)
         mock_async_client.get = AsyncMock(return_value=httpx.Response(200))
@@ -80,7 +82,9 @@ class TestGetNeo4jStatus:
         assert status["url"] is None
 
     @pytest.mark.asyncio
-    async def test_status_installed_but_unhealthy(self, tmp_path: Path, mock_async_client: AsyncMock) -> None:
+    async def test_status_installed_but_unhealthy(
+        self, tmp_path: Path, mock_async_client: AsyncMock
+    ) -> None:
         svc_dir = tmp_path / "services" / "neo4j"
         svc_dir.mkdir(parents=True)
         mock_async_client.get = AsyncMock(side_effect=httpx.ConnectError("refused"))

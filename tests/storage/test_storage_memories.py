@@ -310,9 +310,7 @@ def test_search_memories_with_project(memory_manager, db) -> None:
     """Test search_memories with project_id filter."""
     db.execute("INSERT INTO projects (id, name) VALUES ('proj-search', 'Search Project')")
 
-    memory_manager.create_memory(
-        content="Project-specific fox", project_id="proj-search"
-    )
+    memory_manager.create_memory(content="Project-specific fox", project_id="proj-search")
     memory_manager.create_memory(content="Global fox", project_id=None)
 
     # Search with project filter should find both project-specific and global
@@ -410,8 +408,6 @@ def test_list_memories_combined_filters(memory_manager, db) -> None:
     )
 
     # Filter by project and type
-    results = memory_manager.list_memories(
-        project_id="proj-combo", memory_type="fact"
-    )
+    results = memory_manager.list_memories(project_id="proj-combo", memory_type="fact")
     assert len(results) == 2
     assert all(r.memory_type == "fact" for r in results)

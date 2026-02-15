@@ -320,9 +320,11 @@ class TestSemanticValidation:
 
         mcp_manager = MagicMock()
         mcp_manager.get_available_servers.return_value = ["gobby-tasks"]
-        mcp_manager.list_tools = AsyncMock(return_value={
-            "gobby-tasks": [{"name": "create_task"}, {"name": "list_tasks"}],
-        })
+        mcp_manager.list_tools = AsyncMock(
+            return_value={
+                "gobby-tasks": [{"name": "create_task"}, {"name": "list_tasks"}],
+            }
+        )
 
         result = await evaluate_workflow("test", mock_loader, mcp_manager=mcp_manager)
 
@@ -343,9 +345,11 @@ class TestSemanticValidation:
 
         mcp_manager = MagicMock()
         mcp_manager.get_available_servers.return_value = ["gobby-tasks"]
-        mcp_manager.list_tools = AsyncMock(return_value={
-            "gobby-tasks": [{"name": "create_task"}],
-        })
+        mcp_manager.list_tools = AsyncMock(
+            return_value={
+                "gobby-tasks": [{"name": "create_task"}],
+            }
+        )
 
         result = await evaluate_workflow("test", mock_loader, mcp_manager=mcp_manager)
 
@@ -359,7 +363,11 @@ class TestSemanticValidation:
             _make_step(
                 "start",
                 on_enter=[
-                    {"type": "call_mcp_tool", "server_name": "fake-server", "tool_name": "do_stuff"},
+                    {
+                        "type": "call_mcp_tool",
+                        "server_name": "fake-server",
+                        "tool_name": "do_stuff",
+                    },
                 ],
             ),
         ]
@@ -368,9 +376,11 @@ class TestSemanticValidation:
 
         mcp_manager = MagicMock()
         mcp_manager.get_available_servers.return_value = ["gobby-tasks"]
-        mcp_manager.list_tools = AsyncMock(return_value={
-            "gobby-tasks": [{"name": "create_task"}],
-        })
+        mcp_manager.list_tools = AsyncMock(
+            return_value={
+                "gobby-tasks": [{"name": "create_task"}],
+            }
+        )
 
         result = await evaluate_workflow("test", mock_loader, mcp_manager=mcp_manager)
 
@@ -388,13 +398,19 @@ class TestStepTrace:
                 description="Claim a task",
                 transitions=[{"to": "work", "when": "true"}],
                 on_enter=[
-                    {"type": "call_mcp_tool", "server_name": "gobby-tasks", "tool_name": "claim_task"},
+                    {
+                        "type": "call_mcp_tool",
+                        "server_name": "gobby-tasks",
+                        "tool_name": "claim_task",
+                    },
                 ],
             ),
             _make_step(
                 "work",
                 description="Do the work",
-                transitions=[{"to": "report", "when": "task_tree_complete(variables.session_task)"}],
+                transitions=[
+                    {"to": "report", "when": "task_tree_complete(variables.session_task)"}
+                ],
             ),
             _make_step(
                 "report",

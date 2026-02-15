@@ -264,9 +264,7 @@ class TestGetSkillTool:
         assert result["success"] is True
 
         # No usage should be recorded
-        row = populated_db.fetchone(
-            "SELECT COUNT(*) FROM session_skills", ()
-        )
+        row = populated_db.fetchone("SELECT COUNT(*) FROM session_skills", ())
         assert row[0] == 0
 
     @pytest.mark.asyncio

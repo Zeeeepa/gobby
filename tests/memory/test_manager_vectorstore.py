@@ -114,12 +114,8 @@ async def test_search_memories_queries_qdrant(manager, mock_vector_store, mock_e
 async def test_search_memories_user_source_boost(manager, mock_vector_store, mock_embed_fn):
     """search_memories should boost user memories by 1.2x."""
     # Create two memories
-    user_mem = await manager.create_memory(
-        content="user memory", source_type="user"
-    )
-    session_mem = await manager.create_memory(
-        content="session memory", source_type="session"
-    )
+    user_mem = await manager.create_memory(content="user memory", source_type="user")
+    session_mem = await manager.create_memory(content="session memory", source_type="session")
     mock_embed_fn.reset_mock()
 
     # Both returned with same score
@@ -181,9 +177,7 @@ async def test_search_memories_tag_filtering(manager, mock_vector_store, mock_em
     mock_embed_fn.reset_mock()
 
     # Search with tags_all filter (no query = SQLite list)
-    results = await manager.search_memories(
-        query=None, tags_all=["python"]
-    )
+    results = await manager.search_memories(query=None, tags_all=["python"])
     assert len(results) == 1
     assert results[0].id == m1.id
 
@@ -192,6 +186,7 @@ async def test_search_memories_tag_filtering(manager, mock_vector_store, mock_em
 async def test_no_search_coordinator_import():
     """MemoryManager should not import SearchCoordinator."""
     import gobby.memory.manager as mod
+
     source = open(mod.__file__).read()
     assert "SearchCoordinator" not in source
     assert "EmbeddingService" not in source

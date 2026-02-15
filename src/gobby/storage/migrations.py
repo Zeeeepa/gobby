@@ -1554,9 +1554,6 @@ MIGRATIONS: list[tuple[int, str, MigrationAction]] = [
         "Drop memory_embeddings table",
         """
         DROP TABLE IF EXISTS memory_embeddings;
-        DROP INDEX IF EXISTS idx_memory_embeddings_memory;
-        DROP INDEX IF EXISTS idx_memory_embeddings_hash;
-        DROP INDEX IF EXISTS idx_memory_embeddings_project;
         """,
     ),
     # Memory V6: drop mem0_id column (mem0 integration removed)

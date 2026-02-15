@@ -21,6 +21,7 @@ pytestmark = [pytest.mark.unit, pytest.mark.asyncio]
 # Helpers
 # ---------------------------------------------------------------------------
 
+
 def _make_config(**overrides: Any) -> MCPServerConfig:
     """Create a real MCPServerConfig for WebSocket transport."""
     defaults = dict(
@@ -44,6 +45,7 @@ def _mock_session() -> AsyncMock:
 # ---------------------------------------------------------------------------
 # Fixtures
 # ---------------------------------------------------------------------------
+
 
 @pytest.fixture
 def config() -> MCPServerConfig:
@@ -146,9 +148,7 @@ class TestWebSocketConnectSuccess:
     ) -> None:
         """Verify url from config is passed to websocket_client."""
         mock_transport_ctx = AsyncMock()
-        mock_transport_ctx.__aenter__ = AsyncMock(
-            return_value=(MagicMock(), MagicMock())
-        )
+        mock_transport_ctx.__aenter__ = AsyncMock(return_value=(MagicMock(), MagicMock()))
         mock_ws_client.return_value = mock_transport_ctx
 
         mock_session = _mock_session()
@@ -194,9 +194,7 @@ class TestWebSocketConnectTransportFailure:
         conn: WebSocketTransportConnection,
     ) -> None:
         mock_transport_ctx = AsyncMock()
-        mock_transport_ctx.__aenter__ = AsyncMock(
-            side_effect=ConnectionError("ws refused")
-        )
+        mock_transport_ctx.__aenter__ = AsyncMock(side_effect=ConnectionError("ws refused"))
         mock_ws_client.return_value = mock_transport_ctx
 
         with pytest.raises(MCPError, match="WebSocket connection failed.*ws refused"):
@@ -222,16 +220,12 @@ class TestWebSocketConnectSessionFailure:
         conn: WebSocketTransportConnection,
     ) -> None:
         mock_transport_ctx = AsyncMock()
-        mock_transport_ctx.__aenter__ = AsyncMock(
-            return_value=(MagicMock(), MagicMock())
-        )
+        mock_transport_ctx.__aenter__ = AsyncMock(return_value=(MagicMock(), MagicMock()))
         mock_transport_ctx.__aexit__ = AsyncMock(return_value=False)
         mock_ws_client.return_value = mock_transport_ctx
 
         mock_session_ctx = AsyncMock()
-        mock_session_ctx.__aenter__ = AsyncMock(
-            side_effect=RuntimeError("session init failed")
-        )
+        mock_session_ctx.__aenter__ = AsyncMock(side_effect=RuntimeError("session init failed"))
         mock_client_session_cls.return_value = mock_session_ctx
 
         with pytest.raises(MCPError, match="WebSocket connection failed.*session init failed"):
@@ -256,16 +250,12 @@ class TestWebSocketConnectInitializeFailure:
         conn: WebSocketTransportConnection,
     ) -> None:
         mock_transport_ctx = AsyncMock()
-        mock_transport_ctx.__aenter__ = AsyncMock(
-            return_value=(MagicMock(), MagicMock())
-        )
+        mock_transport_ctx.__aenter__ = AsyncMock(return_value=(MagicMock(), MagicMock()))
         mock_transport_ctx.__aexit__ = AsyncMock(return_value=False)
         mock_ws_client.return_value = mock_transport_ctx
 
         mock_session = _mock_session()
-        mock_session.initialize = AsyncMock(
-            side_effect=ConnectionError("handshake failed")
-        )
+        mock_session.initialize = AsyncMock(side_effect=ConnectionError("handshake failed"))
 
         mock_session_ctx = AsyncMock()
         mock_session_ctx.__aenter__ = AsyncMock(return_value=mock_session)
@@ -295,9 +285,7 @@ class TestWebSocketConnectCleanupErrors:
         conn: WebSocketTransportConnection,
     ) -> None:
         mock_transport_ctx = AsyncMock()
-        mock_transport_ctx.__aenter__ = AsyncMock(
-            return_value=(MagicMock(), MagicMock())
-        )
+        mock_transport_ctx.__aenter__ = AsyncMock(return_value=(MagicMock(), MagicMock()))
         mock_transport_ctx.__aexit__ = AsyncMock(return_value=False)
         mock_ws_client.return_value = mock_transport_ctx
 
@@ -323,12 +311,8 @@ class TestWebSocketConnectCleanupErrors:
         conn: WebSocketTransportConnection,
     ) -> None:
         mock_transport_ctx = AsyncMock()
-        mock_transport_ctx.__aenter__ = AsyncMock(
-            return_value=(MagicMock(), MagicMock())
-        )
-        mock_transport_ctx.__aexit__ = AsyncMock(
-            side_effect=OSError("transport cleanup fail")
-        )
+        mock_transport_ctx.__aenter__ = AsyncMock(return_value=(MagicMock(), MagicMock()))
+        mock_transport_ctx.__aexit__ = AsyncMock(side_effect=OSError("transport cleanup fail"))
         mock_ws_client.return_value = mock_transport_ctx
 
         mock_session = _mock_session()
@@ -462,9 +446,7 @@ class TestWebSocketDisconnectSessionTimeout:
 class TestWebSocketDisconnectSessionRuntimeError:
     async def test_cancel_scope_error_suppressed(self, conn: WebSocketTransportConnection) -> None:
         mock_session_ctx = AsyncMock()
-        mock_session_ctx.__aexit__ = AsyncMock(
-            side_effect=RuntimeError("cannot exit cancel scope")
-        )
+        mock_session_ctx.__aexit__ = AsyncMock(side_effect=RuntimeError("cannot exit cancel scope"))
         conn._session_context = mock_session_ctx
         conn._session = MagicMock()
 
@@ -474,9 +456,7 @@ class TestWebSocketDisconnectSessionRuntimeError:
 
     async def test_other_runtime_error_handled(self, conn: WebSocketTransportConnection) -> None:
         mock_session_ctx = AsyncMock()
-        mock_session_ctx.__aexit__ = AsyncMock(
-            side_effect=RuntimeError("something else entirely")
-        )
+        mock_session_ctx.__aexit__ = AsyncMock(side_effect=RuntimeError("something else entirely"))
         conn._session_context = mock_session_ctx
         conn._session = MagicMock()
 
@@ -529,9 +509,7 @@ class TestWebSocketDisconnectTransportTimeout:
 class TestWebSocketDisconnectTransportRuntimeError:
     async def test_cancel_scope_error_suppressed(self, conn: WebSocketTransportConnection) -> None:
         mock_transport_ctx = AsyncMock()
-        mock_transport_ctx.__aexit__ = AsyncMock(
-            side_effect=RuntimeError("cancel scope blah")
-        )
+        mock_transport_ctx.__aexit__ = AsyncMock(side_effect=RuntimeError("cancel scope blah"))
         conn._transport_context = mock_transport_ctx
 
         await conn.disconnect()
@@ -581,9 +559,7 @@ class TestWebSocketFullLifecycle:
         conn: WebSocketTransportConnection,
     ) -> None:
         mock_transport_ctx = AsyncMock()
-        mock_transport_ctx.__aenter__ = AsyncMock(
-            return_value=(MagicMock(), MagicMock())
-        )
+        mock_transport_ctx.__aenter__ = AsyncMock(return_value=(MagicMock(), MagicMock()))
         mock_transport_ctx.__aexit__ = AsyncMock(return_value=False)
         mock_ws_client.return_value = mock_transport_ctx
 
@@ -614,7 +590,9 @@ class TestWebSocketFullLifecycle:
 
 
 class TestWebSocketBaseProperties:
-    def test_is_connected_requires_both_state_and_session(self, conn: WebSocketTransportConnection) -> None:
+    def test_is_connected_requires_both_state_and_session(
+        self, conn: WebSocketTransportConnection
+    ) -> None:
         conn._state = ConnectionState.CONNECTED
         conn._session = None
         assert conn.is_connected is False

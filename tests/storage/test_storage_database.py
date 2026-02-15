@@ -153,4 +153,3 @@ class TestLocalDatabase:
         """Test that foreign keys are enabled."""
         row = temp_db.fetchone("PRAGMA foreign_keys")
         assert row[0] == 1
-

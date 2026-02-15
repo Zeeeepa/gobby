@@ -549,9 +549,13 @@ class ClaudeLLMProvider(LLMProvider):
             # Strip markdown code fences if present
             content = text.strip()
             if content.startswith("```"):
-                # Remove first and last lines (code fences)
-                lines = content.split("\n")
-                content = "\n".join(lines[1:-1]).strip()
+                first_newline = content.find("\n")
+                last_fence = content.rfind("```")
+                if first_newline != -1 and last_fence > first_newline:
+                    content = content[first_newline + 1 : last_fence].strip()
+                else:
+                    lines = content.split("\n")
+                    content = "\n".join(lines[1:-1]).strip()
             result: dict[str, Any] = json.loads(content)
             return result
         except json.JSONDecodeError as e:

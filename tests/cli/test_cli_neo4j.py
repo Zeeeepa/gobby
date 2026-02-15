@@ -16,6 +16,7 @@ pytestmark = pytest.mark.unit
 # services.py — is_neo4j_installed / get_neo4j_status
 # ---------------------------------------------------------------------------
 
+
 class TestIsNeo4jInstalled:
     """Tests for is_neo4j_installed."""
 
@@ -67,6 +68,7 @@ class TestGetNeo4jStatus:
 # install.py — --neo4j flag exists, --mem0 does not
 # ---------------------------------------------------------------------------
 
+
 class TestInstallNeo4jFlag:
     """Tests for --neo4j flag in install command."""
 
@@ -102,6 +104,7 @@ class TestInstallNeo4jFlag:
 # ---------------------------------------------------------------------------
 # daemon.py — --neo4j flag exists, --mem0 does not
 # ---------------------------------------------------------------------------
+
 
 class TestDaemonNeo4jFlag:
     """Tests for --neo4j flag on daemon start/stop/restart."""
@@ -175,6 +178,7 @@ class TestDaemonNeo4jFlag:
 # ---------------------------------------------------------------------------
 # status display — Neo4j replaces Mem0
 # ---------------------------------------------------------------------------
+
 
 class TestStatusNeo4jDisplay:
     """Tests for Neo4j status in format_status_message."""

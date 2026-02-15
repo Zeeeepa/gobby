@@ -113,6 +113,16 @@ class MemoryManager:
                 logger.warning(f"Failed to initialize DedupService: {e}")
 
     @property
+    def kg_service(self) -> KnowledgeGraphService | None:
+        """Get the knowledge graph service."""
+        return self._kg_service
+
+    @property
+    def embed_fn(self) -> Callable[..., Any] | None:
+        """Get the embedding function."""
+        return self._embed_fn
+
+    @property
     def llm_service(self) -> LLMService | None:
         """Get the LLM service for image description."""
         return self._ingestion_service.llm_service

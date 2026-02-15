@@ -91,9 +91,10 @@ class TestPipelineStepMCP:
                 exec="echo hello",
                 mcp=MCPStepConfig(server="s", tool="t"),
             )
-        assert "mutually exclusive" in str(exc_info.value).lower() or "only one" in str(
-            exc_info.value
-        ).lower()
+        assert (
+            "mutually exclusive" in str(exc_info.value).lower()
+            or "only one" in str(exc_info.value).lower()
+        )
 
     def test_mcp_mutually_exclusive_with_prompt(self) -> None:
         """Test that mcp and prompt are mutually exclusive."""
@@ -103,9 +104,10 @@ class TestPipelineStepMCP:
                 prompt="Do something",
                 mcp=MCPStepConfig(server="s", tool="t"),
             )
-        assert "mutually exclusive" in str(exc_info.value).lower() or "only one" in str(
-            exc_info.value
-        ).lower()
+        assert (
+            "mutually exclusive" in str(exc_info.value).lower()
+            or "only one" in str(exc_info.value).lower()
+        )
 
     def test_mcp_mutually_exclusive_with_invoke_pipeline(self) -> None:
         """Test that mcp and invoke_pipeline are mutually exclusive."""
@@ -115,9 +117,10 @@ class TestPipelineStepMCP:
                 invoke_pipeline="other-pipeline",
                 mcp=MCPStepConfig(server="s", tool="t"),
             )
-        assert "mutually exclusive" in str(exc_info.value).lower() or "only one" in str(
-            exc_info.value
-        ).lower()
+        assert (
+            "mutually exclusive" in str(exc_info.value).lower()
+            or "only one" in str(exc_info.value).lower()
+        )
 
     def test_mcp_step_with_condition(self) -> None:
         """Test mcp step with condition."""
@@ -224,9 +227,7 @@ class TestExecuteMCPStep:
         context: dict = {"inputs": {}, "steps": {}}
         await executor._execute_mcp_step(step, context)
 
-        mock_tool_proxy.call_tool.assert_called_once_with(
-            "gobby-agents", "wait_for_agent", {}
-        )
+        mock_tool_proxy.call_tool.assert_called_once_with("gobby-agents", "wait_for_agent", {})
 
     @pytest.mark.asyncio
     async def test_mcp_step_raises_without_tool_proxy_getter(
@@ -282,9 +283,7 @@ class TestExecuteMCPStep:
         from gobby.workflows.pipeline_executor import PipelineExecutor
 
         mock_proxy = AsyncMock()
-        mock_proxy.call_tool = AsyncMock(
-            return_value={"success": False, "error": "Tool not found"}
-        )
+        mock_proxy.call_tool = AsyncMock(return_value={"success": False, "error": "Tool not found"})
 
         executor = PipelineExecutor(
             db=mock_db,

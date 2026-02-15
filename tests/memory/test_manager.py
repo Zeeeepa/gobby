@@ -196,9 +196,7 @@ class TestSearchMemories:
     async def test_search_memories_by_memory_type(self, memory_manager):
         """Test search_memories filters by memory type."""
         await memory_manager.create_memory(content="Fact 1", memory_type="fact")
-        await memory_manager.create_memory(
-            content="Pref 1", memory_type="preference"
-        )
+        await memory_manager.create_memory(content="Pref 1", memory_type="preference")
 
         memories = await memory_manager.search_memories(memory_type="preference")
 
@@ -341,9 +339,7 @@ class TestListMemories:
     async def test_list_memories_by_type(self, memory_manager):
         """Test memory listing filtered by type."""
         await memory_manager.create_memory(content="Fact", memory_type="fact")
-        await memory_manager.create_memory(
-            content="Preference", memory_type="preference"
-        )
+        await memory_manager.create_memory(content="Preference", memory_type="preference")
 
         memories = memory_manager.list_memories(memory_type="fact")
 
@@ -454,17 +450,13 @@ class TestGetStats:
         """Test stats with multiple memories."""
         await memory_manager.create_memory(content="Fact 1", memory_type="fact")
         await memory_manager.create_memory(content="Fact 2", memory_type="fact")
-        await memory_manager.create_memory(
-            content="Pref 1", memory_type="preference"
-        )
+        await memory_manager.create_memory(content="Pref 1", memory_type="preference")
 
         stats = memory_manager.get_stats()
 
         assert stats["total_count"] == 3
         assert stats["by_type"]["fact"] == 2
         assert stats["by_type"]["preference"] == 1
-
-
 
 
 # =============================================================================
@@ -502,7 +494,6 @@ class TestEdgeCases:
             mock_update.side_effect = Exception("Database error")
 
             manager._update_access_stats([memory])
-
 
 
 # =============================================================================

@@ -505,7 +505,7 @@ def create_memory_registry(
             limit: Maximum number of results to return
         """
         try:
-            kg_service = getattr(memory_manager, "_kg_service", None)
+            kg_service = memory_manager.kg_service
             if not kg_service:
                 return {"success": True, "results": []}
 

@@ -9,7 +9,9 @@ from gobby.prompts.loader import PromptLoader
 pytestmark = pytest.mark.unit
 
 # Bundled prompts directory
-PROMPTS_DIR = Path(__file__).parent.parent.parent / "src" / "gobby" / "install" / "shared" / "prompts"
+PROMPTS_DIR = (
+    Path(__file__).parent.parent.parent / "src" / "gobby" / "install" / "shared" / "prompts"
+)
 
 
 class TestFactExtractionPrompt:

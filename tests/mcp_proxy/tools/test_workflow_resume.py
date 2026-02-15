@@ -51,9 +51,10 @@ def mock_loader():
 @pytest.fixture
 def registry(mock_loader, mock_state_manager, mock_session_manager, mock_db):
     """Create workflow registry for testing."""
-    with patch(
-        "gobby.mcp_proxy.tools.workflows.WorkflowInstanceManager", return_value=None
-    ), patch("gobby.mcp_proxy.tools.workflows.SessionVariableManager", return_value=None):
+    with (
+        patch("gobby.mcp_proxy.tools.workflows.WorkflowInstanceManager", return_value=None),
+        patch("gobby.mcp_proxy.tools.workflows.SessionVariableManager", return_value=None),
+    ):
         return create_workflows_registry(
             loader=mock_loader,
             state_manager=mock_state_manager,
@@ -204,5 +205,5 @@ class TestActivateWorkflowResume:
         )
 
         assert result["success"] is True
-        assert result["step"] == "start" # Initial step
+        assert result["step"] == "start"  # Initial step
         mock_state_manager.save_state.assert_called_once()

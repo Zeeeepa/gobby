@@ -9,7 +9,9 @@ from gobby.prompts.loader import PromptLoader
 pytestmark = pytest.mark.unit
 
 # Bundled prompts directory
-PROMPTS_DIR = Path(__file__).parent.parent.parent / "src" / "gobby" / "install" / "shared" / "prompts"
+PROMPTS_DIR = (
+    Path(__file__).parent.parent.parent / "src" / "gobby" / "install" / "shared" / "prompts"
+)
 
 
 class TestDedupDecisionPrompt:
@@ -42,7 +44,10 @@ class TestDedupDecisionPrompt:
         """Prompt uses new_facts and existing_memories Jinja2 variables."""
         template = loader.load("memory/dedup_decision")
         assert "{{ new_facts }}" in template.content or "new_facts" in template.variables
-        assert "{{ existing_memories }}" in template.content or "existing_memories" in template.variables
+        assert (
+            "{{ existing_memories }}" in template.content
+            or "existing_memories" in template.variables
+        )
 
     def test_prompt_renders_with_variables(self, loader: PromptLoader) -> None:
         """PromptLoader.render works with required variables."""

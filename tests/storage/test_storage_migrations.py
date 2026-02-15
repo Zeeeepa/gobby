@@ -1252,12 +1252,8 @@ def test_workflow_instances_indexes(tmp_path) -> None:
     )
     index_names = {row["name"] for row in rows}
 
-    assert "idx_workflow_instances_session" in index_names, (
-        "idx_workflow_instances_session missing"
-    )
-    assert "idx_workflow_instances_enabled" in index_names, (
-        "idx_workflow_instances_enabled missing"
-    )
+    assert "idx_workflow_instances_session" in index_names, "idx_workflow_instances_session missing"
+    assert "idx_workflow_instances_enabled" in index_names, "idx_workflow_instances_enabled missing"
 
 
 def test_workflow_instances_defaults(tmp_path) -> None:
@@ -1492,17 +1488,21 @@ def test_session_variables_stores_json(tmp_path) -> None:
 
     run_migrations(db)
 
-    variables = json.dumps({
-        "unlocked_tools": ["Read", "Write"],
-        "task_claimed": True,
-        "stop_attempts": 2,
-    })
+    variables = json.dumps(
+        {
+            "unlocked_tools": ["Read", "Write"],
+            "task_claimed": True,
+            "stop_attempts": 2,
+        }
+    )
     db.execute(
         "INSERT INTO session_variables (session_id, variables, updated_at) VALUES (?, ?, datetime('now'))",
         ("session-1", variables),
     )
 
-    row = db.fetchone("SELECT variables FROM session_variables WHERE session_id = ?", ("session-1",))
+    row = db.fetchone(
+        "SELECT variables FROM session_variables WHERE session_id = ?", ("session-1",)
+    )
     assert row is not None
     parsed = json.loads(row["variables"])
     assert parsed["unlocked_tools"] == ["Read", "Write"]
@@ -1701,7 +1701,9 @@ def test_workflow_definitions_unique_constraint(tmp_path) -> None:
         "SELECT name, sql FROM sqlite_master WHERE type='index' AND tbl_name='workflow_definitions'"
     )
     index_names = {row["name"] for row in rows}
-    assert "idx_wf_defs_name_project" in index_names, "idx_wf_defs_name_project unique index missing"
+    assert "idx_wf_defs_name_project" in index_names, (
+        "idx_wf_defs_name_project unique index missing"
+    )
 
     # Verify it's unique
     for row in rows:
@@ -1739,16 +1741,12 @@ def test_workflow_definitions_type_mapping(tmp_path) -> None:
     run_migrations(db)
 
     # coordinator.yaml has type: pipeline
-    row = db.fetchone(
-        "SELECT workflow_type FROM workflow_definitions WHERE name = 'coordinator'"
-    )
+    row = db.fetchone("SELECT workflow_type FROM workflow_definitions WHERE name = 'coordinator'")
     if row:
         assert row["workflow_type"] == "pipeline", "coordinator should be pipeline type"
 
     # auto-task has no explicit type -> should be 'workflow'
-    row = db.fetchone(
-        "SELECT workflow_type FROM workflow_definitions WHERE name = 'auto-task'"
-    )
+    row = db.fetchone("SELECT workflow_type FROM workflow_definitions WHERE name = 'auto-task'")
     if row:
         assert row["workflow_type"] == "workflow", "auto-task should be workflow type"
 
@@ -1762,9 +1760,7 @@ def test_workflow_definitions_definition_json_populated(tmp_path) -> None:
 
     run_migrations(db)
 
-    row = db.fetchone(
-        "SELECT definition_json FROM workflow_definitions WHERE name = 'auto-task'"
-    )
+    row = db.fetchone("SELECT definition_json FROM workflow_definitions WHERE name = 'auto-task'")
     assert row is not None, "auto-task not found"
     assert row["definition_json"] is not None, "definition_json is NULL"
 
@@ -1843,8 +1839,6 @@ def test_workflow_definitions_global_null_project(tmp_path) -> None:
 
     run_migrations(db)
 
-    rows = db.fetchall(
-        "SELECT project_id FROM workflow_definitions WHERE source = 'bundled'"
-    )
+    rows = db.fetchall("SELECT project_id FROM workflow_definitions WHERE source = 'bundled'")
     for row in rows:
         assert row["project_id"] is None, "Bundled workflows should have NULL project_id"

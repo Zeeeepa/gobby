@@ -220,9 +220,7 @@ class TestExportDefinition:
 
     def test_export_file_based_missing_file(self, client: TestClient) -> None:
         """If source file is gone, fall back to model serialization."""
-        item = _make_loader_item(
-            "worker", source_path="/nonexistent/path/worker.yaml"
-        )
+        item = _make_loader_item("worker", source_path="/nonexistent/path/worker.yaml")
         with patch("gobby.agents.definitions.AgentDefinitionLoader") as mock_cls:
             mock_cls.return_value.list_all.return_value = [item]
             response = client.get("/api/agents/definitions/worker/export")

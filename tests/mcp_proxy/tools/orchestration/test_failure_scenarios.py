@@ -510,7 +510,10 @@ class TestWorktreeCreationFailure:
         assert result["spawned_count"] == 0
         assert result["skipped_count"] == 1
         # The error message from the spawner is used as the skip reason
-        assert "tmux" in result["skipped"][0]["reason"].lower() or "spawn" in result["skipped"][0]["reason"].lower()
+        assert (
+            "tmux" in result["skipped"][0]["reason"].lower()
+            or "spawn" in result["skipped"][0]["reason"].lower()
+        )
 
         # Verify worktree cleanup
         mock_worktree_storage.release.assert_called_once_with("wt-1")
@@ -827,7 +830,7 @@ class TestWaitTimeout:
         with patch("gobby.mcp_proxy.tools.tasks.resolve_task_id_for_mcp", return_value="T1"):
             result = await wait_tool.func(
                 task_id="T1",
-                timeout=0.1,   # Very short timeout
+                timeout=0.1,  # Very short timeout
                 poll_interval=0.05,
             )
 

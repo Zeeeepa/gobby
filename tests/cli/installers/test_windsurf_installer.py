@@ -176,9 +176,7 @@ class TestInstallWindsurf:
         assert result["success"] is False
         assert "Failed to install hook files" in result["error"]
 
-    def test_shared_content_failure_is_non_fatal(
-        self, project: Path, install_dir: Path
-    ) -> None:
+    def test_shared_content_failure_is_non_fatal(self, project: Path, install_dir: Path) -> None:
         """install_shared_content failure does not block hooks installation."""
         with (
             patch("gobby.cli.installers.windsurf.get_install_dir", return_value=install_dir),
@@ -194,9 +192,7 @@ class TestInstallWindsurf:
         assert result["error"] is None
         assert (project / ".windsurf" / "hooks.json").exists()
 
-    def test_shared_content_missing_keys(
-        self, project: Path, install_dir: Path
-    ) -> None:
+    def test_shared_content_missing_keys(self, project: Path, install_dir: Path) -> None:
         """Shared content result missing optional keys handled via .get()."""
         with (
             patch("gobby.cli.installers.windsurf.get_install_dir", return_value=install_dir),
@@ -211,9 +207,7 @@ class TestInstallWindsurf:
         assert result["success"] is True
         assert result["workflows_installed"] == ["w.yaml"]
 
-    def test_existing_hooks_json_backup_and_merge(
-        self, project: Path, install_dir: Path
-    ) -> None:
+    def test_existing_hooks_json_backup_and_merge(self, project: Path, install_dir: Path) -> None:
         """Existing hooks.json is backed up and merged."""
         windsurf_path = project / ".windsurf"
         windsurf_path.mkdir(parents=True)
@@ -229,7 +223,13 @@ class TestInstallWindsurf:
             patch("gobby.cli.installers.windsurf._is_dev_mode", return_value=False),
             patch(
                 "gobby.cli.installers.windsurf.install_shared_content",
-                return_value={"workflows": [], "agents": [], "plugins": [], "prompts": [], "docs": []},
+                return_value={
+                    "workflows": [],
+                    "agents": [],
+                    "plugins": [],
+                    "prompts": [],
+                    "docs": [],
+                },
             ),
         ):
             result = install_windsurf(project)
@@ -249,9 +249,7 @@ class TestInstallWindsurf:
         assert "pre_save" in merged["hooks"]
         assert "post_save" in merged["hooks"]
 
-    def test_corrupt_hooks_json_starts_fresh(
-        self, project: Path, install_dir: Path
-    ) -> None:
+    def test_corrupt_hooks_json_starts_fresh(self, project: Path, install_dir: Path) -> None:
         """Corrupt hooks.json causes a fresh start."""
         windsurf_path = project / ".windsurf"
         windsurf_path.mkdir(parents=True)
@@ -262,7 +260,13 @@ class TestInstallWindsurf:
             patch("gobby.cli.installers.windsurf._is_dev_mode", return_value=False),
             patch(
                 "gobby.cli.installers.windsurf.install_shared_content",
-                return_value={"workflows": [], "agents": [], "plugins": [], "prompts": [], "docs": []},
+                return_value={
+                    "workflows": [],
+                    "agents": [],
+                    "plugins": [],
+                    "prompts": [],
+                    "docs": [],
+                },
             ),
         ):
             result = install_windsurf(project)
@@ -287,7 +291,13 @@ class TestInstallWindsurf:
                 patch("gobby.cli.installers.windsurf._is_dev_mode", return_value=False),
                 patch(
                     "gobby.cli.installers.windsurf.install_shared_content",
-                    return_value={"workflows": [], "agents": [], "plugins": [], "prompts": [], "docs": []},
+                    return_value={
+                        "workflows": [],
+                        "agents": [],
+                        "plugins": [],
+                        "prompts": [],
+                        "docs": [],
+                    },
                 ),
             ):
                 result = install_windsurf(project)
@@ -314,7 +324,13 @@ class TestInstallWindsurf:
                 patch("gobby.cli.installers.windsurf._is_dev_mode", return_value=False),
                 patch(
                     "gobby.cli.installers.windsurf.install_shared_content",
-                    return_value={"workflows": [], "agents": [], "plugins": [], "prompts": [], "docs": []},
+                    return_value={
+                        "workflows": [],
+                        "agents": [],
+                        "plugins": [],
+                        "prompts": [],
+                        "docs": [],
+                    },
                 ),
             ):
                 result = install_windsurf(project)
@@ -338,7 +354,13 @@ class TestInstallWindsurf:
             patch("gobby.cli.installers.windsurf._is_dev_mode", return_value=False),
             patch(
                 "gobby.cli.installers.windsurf.install_shared_content",
-                return_value={"workflows": [], "agents": [], "plugins": [], "prompts": [], "docs": []},
+                return_value={
+                    "workflows": [],
+                    "agents": [],
+                    "plugins": [],
+                    "prompts": [],
+                    "docs": [],
+                },
             ),
         ):
             result = install_windsurf(project)
@@ -346,9 +368,7 @@ class TestInstallWindsurf:
         assert result["success"] is False
         assert "Failed to parse hooks template" in result["error"]
 
-    def test_backup_failure_returns_error(
-        self, project: Path, install_dir: Path
-    ) -> None:
+    def test_backup_failure_returns_error(self, project: Path, install_dir: Path) -> None:
         """Backup failure returns error."""
         windsurf_path = project / ".windsurf"
         windsurf_path.mkdir(parents=True)
@@ -359,7 +379,13 @@ class TestInstallWindsurf:
             patch("gobby.cli.installers.windsurf._is_dev_mode", return_value=False),
             patch(
                 "gobby.cli.installers.windsurf.install_shared_content",
-                return_value={"workflows": [], "agents": [], "plugins": [], "prompts": [], "docs": []},
+                return_value={
+                    "workflows": [],
+                    "agents": [],
+                    "plugins": [],
+                    "prompts": [],
+                    "docs": [],
+                },
             ),
             patch("gobby.cli.installers.windsurf.copy2", side_effect=OSError("Permission denied")),
         ):
@@ -368,9 +394,7 @@ class TestInstallWindsurf:
         assert result["success"] is False
         assert "Failed to create backup" in result["error"]
 
-    def test_atomic_write_failure_restores_backup(
-        self, project: Path, install_dir: Path
-    ) -> None:
+    def test_atomic_write_failure_restores_backup(self, project: Path, install_dir: Path) -> None:
         """Atomic write failure restores from backup."""
         windsurf_path = project / ".windsurf"
         windsurf_path.mkdir(parents=True)
@@ -383,7 +407,13 @@ class TestInstallWindsurf:
             patch("gobby.cli.installers.windsurf._is_dev_mode", return_value=False),
             patch(
                 "gobby.cli.installers.windsurf.install_shared_content",
-                return_value={"workflows": [], "agents": [], "plugins": [], "prompts": [], "docs": []},
+                return_value={
+                    "workflows": [],
+                    "agents": [],
+                    "plugins": [],
+                    "prompts": [],
+                    "docs": [],
+                },
             ),
             patch(
                 "gobby.cli.installers.windsurf.tempfile.mkstemp",
@@ -400,16 +430,20 @@ class TestInstallWindsurf:
             restored = json.load(f)
         assert "original" in restored["hooks"]
 
-    def test_atomic_write_failure_no_backup(
-        self, project: Path, install_dir: Path
-    ) -> None:
+    def test_atomic_write_failure_no_backup(self, project: Path, install_dir: Path) -> None:
         """Atomic write failure with no backup (fresh install) just returns error."""
         with (
             patch("gobby.cli.installers.windsurf.get_install_dir", return_value=install_dir),
             patch("gobby.cli.installers.windsurf._is_dev_mode", return_value=False),
             patch(
                 "gobby.cli.installers.windsurf.install_shared_content",
-                return_value={"workflows": [], "agents": [], "plugins": [], "prompts": [], "docs": []},
+                return_value={
+                    "workflows": [],
+                    "agents": [],
+                    "plugins": [],
+                    "prompts": [],
+                    "docs": [],
+                },
             ),
             patch(
                 "gobby.cli.installers.windsurf.tempfile.mkstemp",
@@ -432,7 +466,13 @@ class TestInstallWindsurf:
             patch("gobby.cli.installers.windsurf._is_dev_mode", return_value=False),
             patch(
                 "gobby.cli.installers.windsurf.install_shared_content",
-                return_value={"workflows": [], "agents": [], "plugins": [], "prompts": [], "docs": []},
+                return_value={
+                    "workflows": [],
+                    "agents": [],
+                    "plugins": [],
+                    "prompts": [],
+                    "docs": [],
+                },
             ),
         ):
             result = install_windsurf(project)
@@ -450,7 +490,13 @@ class TestInstallWindsurf:
             patch("gobby.cli.installers.windsurf._install_file") as mock_install_file,
             patch(
                 "gobby.cli.installers.windsurf.install_shared_content",
-                return_value={"workflows": [], "agents": [], "plugins": [], "prompts": [], "docs": []},
+                return_value={
+                    "workflows": [],
+                    "agents": [],
+                    "plugins": [],
+                    "prompts": [],
+                    "docs": [],
+                },
             ),
         ):
             result = install_windsurf(project)
@@ -459,9 +505,7 @@ class TestInstallWindsurf:
         call_kwargs = mock_install_file.call_args
         assert call_kwargs[1]["dev_mode"] is True
 
-    def test_hooks_json_open_oserror_after_backup(
-        self, project: Path, install_dir: Path
-    ) -> None:
+    def test_hooks_json_open_oserror_after_backup(self, project: Path, install_dir: Path) -> None:
         """OSError on open() reading hooks.json (after backup succeeds) returns error.
 
         We need copy2 (backup) to succeed, but the subsequent open() for reading
@@ -487,7 +531,13 @@ class TestInstallWindsurf:
                 patch("gobby.cli.installers.windsurf._is_dev_mode", return_value=False),
                 patch(
                     "gobby.cli.installers.windsurf.install_shared_content",
-                    return_value={"workflows": [], "agents": [], "plugins": [], "prompts": [], "docs": []},
+                    return_value={
+                        "workflows": [],
+                        "agents": [],
+                        "plugins": [],
+                        "prompts": [],
+                        "docs": [],
+                    },
                 ),
                 patch("gobby.cli.installers.windsurf.copy2", side_effect=copy2_then_lock),
             ):
@@ -524,7 +574,13 @@ class TestInstallWindsurf:
             patch("gobby.cli.installers.windsurf._is_dev_mode", return_value=False),
             patch(
                 "gobby.cli.installers.windsurf.install_shared_content",
-                return_value={"workflows": [], "agents": [], "plugins": [], "prompts": [], "docs": []},
+                return_value={
+                    "workflows": [],
+                    "agents": [],
+                    "plugins": [],
+                    "prompts": [],
+                    "docs": [],
+                },
             ),
             patch(
                 "gobby.cli.installers.windsurf.tempfile.mkstemp",
@@ -551,7 +607,13 @@ class TestInstallWindsurf:
             patch("gobby.cli.installers.windsurf._is_dev_mode", return_value=False),
             patch(
                 "gobby.cli.installers.windsurf.install_shared_content",
-                return_value={"workflows": [], "agents": [], "plugins": [], "prompts": [], "docs": []},
+                return_value={
+                    "workflows": [],
+                    "agents": [],
+                    "plugins": [],
+                    "prompts": [],
+                    "docs": [],
+                },
             ),
         ):
             fd, temp_path = real_tempfile.mkstemp(

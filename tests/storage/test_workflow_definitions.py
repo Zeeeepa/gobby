@@ -28,17 +28,21 @@ def manager(db: LocalDatabase) -> LocalWorkflowDefinitionManager:
     return LocalWorkflowDefinitionManager(db)
 
 
-SAMPLE_DEFINITION = json.dumps({
-    "name": "test-workflow",
-    "description": "A test workflow",
-    "steps": [{"name": "work", "tools": ["all"]}],
-})
+SAMPLE_DEFINITION = json.dumps(
+    {
+        "name": "test-workflow",
+        "description": "A test workflow",
+        "steps": [{"name": "work", "tools": ["all"]}],
+    }
+)
 
-SAMPLE_PIPELINE_DEFINITION = json.dumps({
-    "name": "test-pipeline",
-    "type": "pipeline",
-    "steps": [{"id": "build", "exec": {"command": "make build"}}],
-})
+SAMPLE_PIPELINE_DEFINITION = json.dumps(
+    {
+        "name": "test-pipeline",
+        "type": "pipeline",
+        "steps": [{"id": "build", "exec": {"command": "make build"}}],
+    }
+)
 
 SAMPLE_YAML = """\
 name: yaml-workflow

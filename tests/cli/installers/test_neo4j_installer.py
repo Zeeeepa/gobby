@@ -16,6 +16,7 @@ pytestmark = [pytest.mark.unit]
 # docker-compose.neo4j.yml tests
 # ---------------------------------------------------------------------------
 
+
 class TestDockerComposeNeo4j:
     """Tests for the bundled docker-compose.neo4j.yml file."""
 
@@ -76,6 +77,7 @@ class TestDockerComposeNeo4j:
 # ---------------------------------------------------------------------------
 # Installer function tests
 # ---------------------------------------------------------------------------
+
 
 class TestInstallNeo4j:
     """Tests for install_neo4j function."""

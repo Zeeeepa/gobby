@@ -172,9 +172,7 @@ class TestInstallCursor:
         assert result["success"] is False
         assert "Failed to install hook files" in result["error"]
 
-    def test_shared_content_failure_is_non_fatal(
-        self, project: Path, install_dir: Path
-    ) -> None:
+    def test_shared_content_failure_is_non_fatal(self, project: Path, install_dir: Path) -> None:
         """install_shared_content failure does not block hooks installation."""
         with (
             patch("gobby.cli.installers.cursor.get_install_dir", return_value=install_dir),
@@ -190,9 +188,7 @@ class TestInstallCursor:
         assert result["error"] is None
         assert (project / ".cursor" / "hooks.json").exists()
 
-    def test_shared_content_results_populated(
-        self, project: Path, install_dir: Path
-    ) -> None:
+    def test_shared_content_results_populated(self, project: Path, install_dir: Path) -> None:
         """All shared content result keys are populated."""
         with (
             patch("gobby.cli.installers.cursor.get_install_dir", return_value=install_dir),
@@ -217,9 +213,7 @@ class TestInstallCursor:
         assert result["prompts_installed"] == ["pr.md"]
         assert result["docs_installed"] == ["d.md"]
 
-    def test_existing_hooks_json_backup_and_merge(
-        self, project: Path, install_dir: Path
-    ) -> None:
+    def test_existing_hooks_json_backup_and_merge(self, project: Path, install_dir: Path) -> None:
         """Existing hooks.json is backed up and merged with Gobby hooks."""
         cursor_path = project / ".cursor"
         cursor_path.mkdir(parents=True)
@@ -236,7 +230,13 @@ class TestInstallCursor:
             patch("gobby.cli.installers.cursor._is_dev_mode", return_value=False),
             patch(
                 "gobby.cli.installers.cursor.install_shared_content",
-                return_value={"workflows": [], "agents": [], "plugins": [], "prompts": [], "docs": []},
+                return_value={
+                    "workflows": [],
+                    "agents": [],
+                    "plugins": [],
+                    "prompts": [],
+                    "docs": [],
+                },
             ),
         ):
             result = install_cursor(project)
@@ -256,9 +256,7 @@ class TestInstallCursor:
         assert "file_saved" in merged["hooks"]
         assert "context_loading" in merged["hooks"]
 
-    def test_corrupt_hooks_json_starts_fresh(
-        self, project: Path, install_dir: Path
-    ) -> None:
+    def test_corrupt_hooks_json_starts_fresh(self, project: Path, install_dir: Path) -> None:
         """Corrupt hooks.json causes a fresh start, not a failure."""
         cursor_path = project / ".cursor"
         cursor_path.mkdir(parents=True)
@@ -269,7 +267,13 @@ class TestInstallCursor:
             patch("gobby.cli.installers.cursor._is_dev_mode", return_value=False),
             patch(
                 "gobby.cli.installers.cursor.install_shared_content",
-                return_value={"workflows": [], "agents": [], "plugins": [], "prompts": [], "docs": []},
+                return_value={
+                    "workflows": [],
+                    "agents": [],
+                    "plugins": [],
+                    "prompts": [],
+                    "docs": [],
+                },
             ),
         ):
             result = install_cursor(project)
@@ -294,7 +298,13 @@ class TestInstallCursor:
                 patch("gobby.cli.installers.cursor._is_dev_mode", return_value=False),
                 patch(
                     "gobby.cli.installers.cursor.install_shared_content",
-                    return_value={"workflows": [], "agents": [], "plugins": [], "prompts": [], "docs": []},
+                    return_value={
+                        "workflows": [],
+                        "agents": [],
+                        "plugins": [],
+                        "prompts": [],
+                        "docs": [],
+                    },
                 ),
             ):
                 result = install_cursor(project)
@@ -321,7 +331,13 @@ class TestInstallCursor:
                 patch("gobby.cli.installers.cursor._is_dev_mode", return_value=False),
                 patch(
                     "gobby.cli.installers.cursor.install_shared_content",
-                    return_value={"workflows": [], "agents": [], "plugins": [], "prompts": [], "docs": []},
+                    return_value={
+                        "workflows": [],
+                        "agents": [],
+                        "plugins": [],
+                        "prompts": [],
+                        "docs": [],
+                    },
                 ),
             ):
                 result = install_cursor(project)
@@ -345,7 +361,13 @@ class TestInstallCursor:
             patch("gobby.cli.installers.cursor._is_dev_mode", return_value=False),
             patch(
                 "gobby.cli.installers.cursor.install_shared_content",
-                return_value={"workflows": [], "agents": [], "plugins": [], "prompts": [], "docs": []},
+                return_value={
+                    "workflows": [],
+                    "agents": [],
+                    "plugins": [],
+                    "prompts": [],
+                    "docs": [],
+                },
             ),
         ):
             result = install_cursor(project)
@@ -353,9 +375,7 @@ class TestInstallCursor:
         assert result["success"] is False
         assert "Failed to parse hooks template" in result["error"]
 
-    def test_backup_failure_returns_error(
-        self, project: Path, install_dir: Path
-    ) -> None:
+    def test_backup_failure_returns_error(self, project: Path, install_dir: Path) -> None:
         """Backup failure (copy2 error) returns error."""
         cursor_path = project / ".cursor"
         cursor_path.mkdir(parents=True)
@@ -366,7 +386,13 @@ class TestInstallCursor:
             patch("gobby.cli.installers.cursor._is_dev_mode", return_value=False),
             patch(
                 "gobby.cli.installers.cursor.install_shared_content",
-                return_value={"workflows": [], "agents": [], "plugins": [], "prompts": [], "docs": []},
+                return_value={
+                    "workflows": [],
+                    "agents": [],
+                    "plugins": [],
+                    "prompts": [],
+                    "docs": [],
+                },
             ),
             patch("gobby.cli.installers.cursor.copy2", side_effect=OSError("Permission denied")),
         ):
@@ -375,9 +401,7 @@ class TestInstallCursor:
         assert result["success"] is False
         assert "Failed to create backup" in result["error"]
 
-    def test_atomic_write_failure_restores_backup(
-        self, project: Path, install_dir: Path
-    ) -> None:
+    def test_atomic_write_failure_restores_backup(self, project: Path, install_dir: Path) -> None:
         """Atomic write failure restores from backup."""
         cursor_path = project / ".cursor"
         cursor_path.mkdir(parents=True)
@@ -390,7 +414,13 @@ class TestInstallCursor:
             patch("gobby.cli.installers.cursor._is_dev_mode", return_value=False),
             patch(
                 "gobby.cli.installers.cursor.install_shared_content",
-                return_value={"workflows": [], "agents": [], "plugins": [], "prompts": [], "docs": []},
+                return_value={
+                    "workflows": [],
+                    "agents": [],
+                    "plugins": [],
+                    "prompts": [],
+                    "docs": [],
+                },
             ),
             patch(
                 "gobby.cli.installers.cursor.tempfile.mkstemp",
@@ -407,16 +437,20 @@ class TestInstallCursor:
             restored = json.load(f)
         assert restored == original_hooks
 
-    def test_atomic_write_failure_no_backup(
-        self, project: Path, install_dir: Path
-    ) -> None:
+    def test_atomic_write_failure_no_backup(self, project: Path, install_dir: Path) -> None:
         """Atomic write failure with no backup (new install) just returns error."""
         with (
             patch("gobby.cli.installers.cursor.get_install_dir", return_value=install_dir),
             patch("gobby.cli.installers.cursor._is_dev_mode", return_value=False),
             patch(
                 "gobby.cli.installers.cursor.install_shared_content",
-                return_value={"workflows": [], "agents": [], "plugins": [], "prompts": [], "docs": []},
+                return_value={
+                    "workflows": [],
+                    "agents": [],
+                    "plugins": [],
+                    "prompts": [],
+                    "docs": [],
+                },
             ),
             patch(
                 "gobby.cli.installers.cursor.tempfile.mkstemp",
@@ -428,9 +462,7 @@ class TestInstallCursor:
         assert result["success"] is False
         assert "Failed to write hooks.json" in result["error"]
 
-    def test_ensures_version_and_hooks_keys(
-        self, project: Path, install_dir: Path
-    ) -> None:
+    def test_ensures_version_and_hooks_keys(self, project: Path, install_dir: Path) -> None:
         """Existing hooks.json missing version/hooks keys gets them added."""
         cursor_path = project / ".cursor"
         cursor_path.mkdir(parents=True)
@@ -441,7 +473,13 @@ class TestInstallCursor:
             patch("gobby.cli.installers.cursor._is_dev_mode", return_value=False),
             patch(
                 "gobby.cli.installers.cursor.install_shared_content",
-                return_value={"workflows": [], "agents": [], "plugins": [], "prompts": [], "docs": []},
+                return_value={
+                    "workflows": [],
+                    "agents": [],
+                    "plugins": [],
+                    "prompts": [],
+                    "docs": [],
+                },
             ),
         ):
             result = install_cursor(project)
@@ -460,7 +498,13 @@ class TestInstallCursor:
             patch("gobby.cli.installers.cursor._install_file") as mock_install_file,
             patch(
                 "gobby.cli.installers.cursor.install_shared_content",
-                return_value={"workflows": [], "agents": [], "plugins": [], "prompts": [], "docs": []},
+                return_value={
+                    "workflows": [],
+                    "agents": [],
+                    "plugins": [],
+                    "prompts": [],
+                    "docs": [],
+                },
             ),
         ):
             result = install_cursor(project)
@@ -470,9 +514,7 @@ class TestInstallCursor:
         call_kwargs = mock_install_file.call_args
         assert call_kwargs[1]["dev_mode"] is True
 
-    def test_hooks_json_open_oserror_after_backup(
-        self, project: Path, install_dir: Path
-    ) -> None:
+    def test_hooks_json_open_oserror_after_backup(self, project: Path, install_dir: Path) -> None:
         """OSError on open() reading hooks.json (after backup succeeds) returns error.
 
         We need copy2 (backup) to succeed, but the subsequent open() for reading
@@ -500,7 +542,13 @@ class TestInstallCursor:
                 patch("gobby.cli.installers.cursor._is_dev_mode", return_value=False),
                 patch(
                     "gobby.cli.installers.cursor.install_shared_content",
-                    return_value={"workflows": [], "agents": [], "plugins": [], "prompts": [], "docs": []},
+                    return_value={
+                        "workflows": [],
+                        "agents": [],
+                        "plugins": [],
+                        "prompts": [],
+                        "docs": [],
+                    },
                 ),
                 patch("gobby.cli.installers.cursor.copy2", side_effect=copy2_then_lock),
             ):
@@ -541,7 +589,13 @@ class TestInstallCursor:
             patch("gobby.cli.installers.cursor._is_dev_mode", return_value=False),
             patch(
                 "gobby.cli.installers.cursor.install_shared_content",
-                return_value={"workflows": [], "agents": [], "plugins": [], "prompts": [], "docs": []},
+                return_value={
+                    "workflows": [],
+                    "agents": [],
+                    "plugins": [],
+                    "prompts": [],
+                    "docs": [],
+                },
             ),
             patch(
                 "gobby.cli.installers.cursor.tempfile.mkstemp",
@@ -568,7 +622,13 @@ class TestInstallCursor:
             patch("gobby.cli.installers.cursor._is_dev_mode", return_value=False),
             patch(
                 "gobby.cli.installers.cursor.install_shared_content",
-                return_value={"workflows": [], "agents": [], "plugins": [], "prompts": [], "docs": []},
+                return_value={
+                    "workflows": [],
+                    "agents": [],
+                    "plugins": [],
+                    "prompts": [],
+                    "docs": [],
+                },
             ),
         ):
             # Create a real temp file then make os.fdopen fail
@@ -615,9 +675,7 @@ class TestUninstallCursor:
         hooks_config = {
             "version": 1,
             "hooks": {
-                "file_saved": [
-                    {"command": "python .cursor/hooks/hook_dispatcher.py file_saved"}
-                ],
+                "file_saved": [{"command": "python .cursor/hooks/hook_dispatcher.py file_saved"}],
                 "context_loading": [
                     {"command": "python .cursor/hooks/hook_dispatcher.py context_loading"}
                 ],

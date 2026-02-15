@@ -686,7 +686,9 @@ class TestSaveConfigTestGuard:
         """save_config raises RuntimeError when GOBBY_TEST_PROTECT=1 and config_file is None."""
         monkeypatch.setenv("GOBBY_TEST_PROTECT", "1")
 
-        with pytest.raises(RuntimeError, match="save_config.*would write to production path.*during tests"):
+        with pytest.raises(
+            RuntimeError, match="save_config.*would write to production path.*during tests"
+        ):
             save_config(default_config, config_file=None)
 
     def test_no_error_with_explicit_path(

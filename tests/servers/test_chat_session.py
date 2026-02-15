@@ -31,7 +31,9 @@ class TestCanUseTool:
             patch("gobby.servers.chat_session._find_cli_path", return_value="/usr/bin/claude"),
             patch("gobby.servers.chat_session._find_mcp_config", return_value=None),
             patch("gobby.servers.chat_session._find_project_root", return_value=None),
-            patch("gobby.servers.chat_session._load_chat_system_prompt", return_value="test prompt"),
+            patch(
+                "gobby.servers.chat_session._load_chat_system_prompt", return_value="test prompt"
+            ),
             patch("gobby.servers.chat_session.ClaudeAgentOptions", side_effect=capture_options),
             patch("gobby.servers.chat_session.ClaudeSDKClient") as mock_client_cls,
         ):

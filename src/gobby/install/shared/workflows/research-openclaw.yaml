@@ -4,7 +4,7 @@ type: pipeline
 version: "1.0"
 
 outputs:
-  summary: "$summarize.output"
+  summary: "${{ steps.summarize.output }}"
 
 steps:
   - id: resolve_openclaw
@@ -20,7 +20,7 @@ steps:
       server: context7
       tool: query-docs
       arguments:
-        libraryId: "${{ steps.resolve_openclaw.output.result | regex_search('library ID: (/\\S+)') }}"
+        libraryId: "${{ steps.resolve_openclaw.output.result | regex_search('library ID: /?(\\S+)') }}"
         query: "Where are pipelines and workflows defined? How does ClawdHub organize skills and automation pipelines?"
 
   - id: summarize

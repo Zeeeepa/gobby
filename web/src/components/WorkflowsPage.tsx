@@ -292,6 +292,7 @@ export function WorkflowsPage() {
             onChange={e => setSearchText(e.target.value)}
           />
           <button
+            type="button"
             className="workflows-toolbar-btn"
             onClick={() => fetchWorkflows()}
             title="Refresh"
@@ -300,18 +301,21 @@ export function WorkflowsPage() {
             &#x21bb;
           </button>
           <button
+            type="button"
             className="workflows-toolbar-btn"
             onClick={() => setShowImportModal(true)}
           >
             Import
           </button>
           <button
+            type="button"
             className="workflows-new-btn"
             onClick={() => { setCreateType('workflow'); setShowCreateModal(true) }}
           >
             + Workflow
           </button>
           <button
+            type="button"
             className="workflows-new-btn"
             onClick={() => { setCreateType('pipeline'); setShowCreateModal(true) }}
           >
@@ -357,12 +361,14 @@ export function WorkflowsPage() {
         <div className="workflows-filter-chips">
           {/* Type filters */}
           <button
+            type="button"
             className={`workflows-filter-chip ${typeFilter === 'workflow' ? 'workflows-filter-chip--active' : ''}`}
             onClick={() => setTypeFilter(typeFilter === 'workflow' ? null : 'workflow')}
           >
             workflow
           </button>
           <button
+            type="button"
             className={`workflows-filter-chip ${typeFilter === 'pipeline' ? 'workflows-filter-chip--active' : ''}`}
             onClick={() => setTypeFilter(typeFilter === 'pipeline' ? null : 'pipeline')}
           >
@@ -372,6 +378,7 @@ export function WorkflowsPage() {
           {/* Source filters */}
           {sources.map(s => (
             <button
+              type="button"
               key={s}
               className={`workflows-filter-chip ${sourceFilter === s ? 'workflows-filter-chip--active' : ''}`}
               onClick={() => setSourceFilter(sourceFilter === s ? null : s)}
@@ -382,12 +389,14 @@ export function WorkflowsPage() {
 
           {/* Enabled filters */}
           <button
+            type="button"
             className={`workflows-filter-chip ${enabledFilter === true ? 'workflows-filter-chip--active' : ''}`}
             onClick={() => setEnabledFilter(enabledFilter === true ? null : true)}
           >
             enabled
           </button>
           <button
+            type="button"
             className={`workflows-filter-chip ${enabledFilter === false ? 'workflows-filter-chip--active' : ''}`}
             onClick={() => setEnabledFilter(enabledFilter === false ? null : false)}
           >
@@ -446,6 +455,7 @@ export function WorkflowsPage() {
 
                   <div className="workflows-card-actions">
                     <button
+                      type="button"
                       className="workflows-action-btn"
                       onClick={() => setEditingWorkflow(wf)}
                       title="Edit in visual builder"
@@ -453,6 +463,7 @@ export function WorkflowsPage() {
                       Edit
                     </button>
                     <button
+                      type="button"
                       className="workflows-action-btn"
                       onClick={() => handleDuplicate(wf)}
                       title="Duplicate"
@@ -460,6 +471,7 @@ export function WorkflowsPage() {
                       Dup
                     </button>
                     <button
+                      type="button"
                       className="workflows-action-btn"
                       onClick={() => handleExport(wf)}
                       title="Export YAML"
@@ -467,6 +479,7 @@ export function WorkflowsPage() {
                       YAML
                     </button>
                     <button
+                      type="button"
                       className="workflows-action-btn workflows-action-btn--danger"
                       onClick={() => handleDelete(wf)}
                       title="Delete"
@@ -572,8 +585,9 @@ function CreateModal({ type, onClose, onCreate }: {
           />
         </div>
         <div className="workflows-modal-actions">
-          <button className="workflows-modal-cancel" onClick={onClose}>Cancel</button>
+          <button type="button" className="workflows-modal-cancel" onClick={onClose}>Cancel</button>
           <button
+            type="button"
             className="workflows-modal-submit"
             onClick={handleSubmit}
             disabled={!name.trim() || submitting}
@@ -616,8 +630,9 @@ function ImportModal({ onClose, onImport }: {
           />
         </div>
         <div className="workflows-modal-actions">
-          <button className="workflows-modal-cancel" onClick={onClose}>Cancel</button>
+          <button type="button" className="workflows-modal-cancel" onClick={onClose}>Cancel</button>
           <button
+            type="button"
             className="workflows-modal-submit"
             onClick={handleSubmit}
             disabled={!yamlContent.trim() || submitting}

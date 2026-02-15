@@ -246,7 +246,8 @@ async def handle_end_workflow(context: "ActionContext", **kwargs: Any) -> dict[s
         instance_manager = WorkflowInstanceManager(context.db)
         instance_manager.set_enabled(session_id, workflow_name, enabled=False)
     except Exception as e:
-        logger.debug("Could not disable workflow instance: %s", e)
+        logger.warning("Could not disable workflow instance: %s", e)
+        return {"ended": False, "workflow": workflow_name, "error": str(e)}
 
     logger.info(
         "Workflow '%s' disabled for session %s via end_workflow action", workflow_name, session_id

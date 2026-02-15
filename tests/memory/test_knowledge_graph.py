@@ -150,7 +150,11 @@ class TestAddToGraph:
         mock_llm.generate_json = AsyncMock(
             side_effect=[
                 {"entities": entities},
-                {"relations": [{"source": "Josh", "relationship": "works_on", "destination": "Gobby"}]},
+                {
+                    "relations": [
+                        {"source": "Josh", "relationship": "works_on", "destination": "Gobby"}
+                    ]
+                },
                 {"relations_to_delete": []},
             ]
         )
@@ -171,10 +175,12 @@ class TestAddToGraph:
         """add_to_graph calls merge_node for each extracted entity."""
         mock_llm.generate_json = AsyncMock(
             side_effect=[
-                {"entities": [
-                    {"entity": "Josh", "entity_type": "person"},
-                    {"entity": "Python", "entity_type": "tool"},
-                ]},
+                {
+                    "entities": [
+                        {"entity": "Josh", "entity_type": "person"},
+                        {"entity": "Python", "entity_type": "tool"},
+                    ]
+                },
                 {"relations": []},
                 {"relations_to_delete": []},
             ]
@@ -196,13 +202,17 @@ class TestAddToGraph:
         """add_to_graph calls merge_relationship for each extracted relationship."""
         mock_llm.generate_json = AsyncMock(
             side_effect=[
-                {"entities": [
-                    {"entity": "Josh", "entity_type": "person"},
-                    {"entity": "Python", "entity_type": "tool"},
-                ]},
-                {"relations": [
-                    {"source": "Josh", "relationship": "uses", "destination": "Python"},
-                ]},
+                {
+                    "entities": [
+                        {"entity": "Josh", "entity_type": "person"},
+                        {"entity": "Python", "entity_type": "tool"},
+                    ]
+                },
+                {
+                    "relations": [
+                        {"source": "Josh", "relationship": "uses", "destination": "Python"},
+                    ]
+                },
                 {"relations_to_delete": []},
             ]
         )
@@ -244,32 +254,37 @@ class TestAddToGraph:
     ) -> None:
         """add_to_graph deletes outdated relationships identified by LLM."""
         # Existing relations in Neo4j
-        mock_neo4j.query = AsyncMock(return_value=[
-            {"source": "Josh", "rel_type": "uses", "target": "Python 3.12"},
-        ])
+        mock_neo4j.query = AsyncMock(
+            return_value=[
+                {"source": "Josh", "rel_type": "uses", "target": "Python 3.12"},
+            ]
+        )
 
         mock_llm.generate_json = AsyncMock(
             side_effect=[
-                {"entities": [
-                    {"entity": "Josh", "entity_type": "person"},
-                    {"entity": "Python 3.13", "entity_type": "tool"},
-                ]},
-                {"relations": [
-                    {"source": "Josh", "relationship": "uses", "destination": "Python 3.13"},
-                ]},
-                {"relations_to_delete": [
-                    {"source": "Josh", "relationship": "uses", "destination": "Python 3.12"},
-                ]},
+                {
+                    "entities": [
+                        {"entity": "Josh", "entity_type": "person"},
+                        {"entity": "Python 3.13", "entity_type": "tool"},
+                    ]
+                },
+                {
+                    "relations": [
+                        {"source": "Josh", "relationship": "uses", "destination": "Python 3.13"},
+                    ]
+                },
+                {
+                    "relations_to_delete": [
+                        {"source": "Josh", "relationship": "uses", "destination": "Python 3.12"},
+                    ]
+                },
             ]
         )
 
         await service.add_to_graph("Josh uses Python 3.13")
 
         # Should have called query to delete the outdated relation
-        delete_calls = [
-            c for c in mock_neo4j.query.call_args_list
-            if "DELETE" in str(c)
-        ]
+        delete_calls = [c for c in mock_neo4j.query.call_args_list if "DELETE" in str(c)]
         assert len(delete_calls) >= 1
 
     async def test_add_to_graph_no_entities_returns_early(
@@ -338,9 +353,11 @@ class TestSearchGraph:
         mock_neo4j: AsyncMock,
     ) -> None:
         """search_graph queries Neo4j for entities matching the query."""
-        mock_neo4j.query = AsyncMock(return_value=[
-            {"name": "Python", "labels": ["Tool"], "score": 0.9},
-        ])
+        mock_neo4j.query = AsyncMock(
+            return_value=[
+                {"name": "Python", "labels": ["Tool"], "score": 0.9},
+            ]
+        )
 
         result = await service.search_graph("programming language", limit=5)
 

@@ -136,7 +136,6 @@ class TestObserverEvaluationInLifecycle:
             state_manager=state_mgr,
             action_executor=_mock_action_executor(),
             evaluator=_mock_evaluator(),
-
             check_premature_stop_fn=AsyncMock(return_value=None),
             observer_engine=ObserverEngine(),
         )
@@ -180,7 +179,6 @@ class TestObserverEvaluationInLifecycle:
             state_manager=state_mgr,
             action_executor=_mock_action_executor(),
             evaluator=_mock_evaluator(),
-
             check_premature_stop_fn=AsyncMock(return_value=None),
             observer_engine=ObserverEngine(),
         )
@@ -202,9 +200,7 @@ class TestObserverEvaluationInLifecycle:
         registry = BehaviorRegistry()
         registry.register("mock_behavior", mock_behavior)
 
-        workflow = _make_workflow(
-            observers=[Observer(name="test", behavior="mock_behavior")]
-        )
+        workflow = _make_workflow(observers=[Observer(name="test", behavior="mock_behavior")])
 
         state = WorkflowState(
             session_id="test-session",
@@ -223,7 +219,6 @@ class TestObserverEvaluationInLifecycle:
             state_manager=state_mgr,
             action_executor=_mock_action_executor(),
             evaluator=_mock_evaluator(),
-
             check_premature_stop_fn=AsyncMock(return_value=None),
             observer_engine=ObserverEngine(behavior_registry=registry),
         )
@@ -264,7 +259,6 @@ class TestObserverEvaluationInLifecycle:
             state_manager=state_mgr,
             action_executor=_mock_action_executor(),
             evaluator=_mock_evaluator(),
-
             check_premature_stop_fn=AsyncMock(return_value=None),
             observer_engine=ObserverEngine(),
         )
@@ -301,7 +295,6 @@ class TestObserverEvaluationInLifecycle:
             state_manager=state_mgr,
             action_executor=_mock_action_executor(),
             evaluator=_mock_evaluator(),
-
             check_premature_stop_fn=AsyncMock(return_value=None),
         )
 

@@ -172,6 +172,7 @@ class TestMemoryUpdateCommand:
             memory_id="mem-up123", content=None, tags=None
         )
 
+
 class TestMemoryRecallCommand:
     """Tests for gobby memory recall command."""
 

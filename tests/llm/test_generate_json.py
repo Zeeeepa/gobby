@@ -74,9 +74,7 @@ class TestLiteLLMGenerateJson:
         provider = LiteLLMProvider(litellm_config)
 
         mock_response = MagicMock()
-        mock_response.choices = [
-            MagicMock(message=MagicMock(content='{"result": "ok"}'))
-        ]
+        mock_response.choices = [MagicMock(message=MagicMock(content='{"result": "ok"}'))]
         provider._litellm = MagicMock()
         provider._litellm.acompletion = AsyncMock(return_value=mock_response)
 
@@ -87,18 +85,14 @@ class TestLiteLLMGenerateJson:
         assert call_kwargs.kwargs.get("response_format") == {"type": "json_object"}
 
     @pytest.mark.asyncio
-    async def test_malformed_json_raises_valueerror(
-        self, litellm_config: DaemonConfig
-    ) -> None:
+    async def test_malformed_json_raises_valueerror(self, litellm_config: DaemonConfig) -> None:
         """generate_json() raises ValueError on malformed JSON response."""
         from gobby.llm.litellm import LiteLLMProvider
 
         provider = LiteLLMProvider(litellm_config)
 
         mock_response = MagicMock()
-        mock_response.choices = [
-            MagicMock(message=MagicMock(content="This is not valid JSON"))
-        ]
+        mock_response.choices = [MagicMock(message=MagicMock(content="This is not valid JSON"))]
         provider._litellm = MagicMock()
         provider._litellm.acompletion = AsyncMock(return_value=mock_response)
 
@@ -113,15 +107,11 @@ class TestLiteLLMGenerateJson:
         provider = LiteLLMProvider(litellm_config)
 
         mock_response = MagicMock()
-        mock_response.choices = [
-            MagicMock(message=MagicMock(content='{"ok": true}'))
-        ]
+        mock_response.choices = [MagicMock(message=MagicMock(content='{"ok": true}'))]
         provider._litellm = MagicMock()
         provider._litellm.acompletion = AsyncMock(return_value=mock_response)
 
-        await provider.generate_json(
-            "test prompt", system_prompt="You are a fact extractor."
-        )
+        await provider.generate_json("test prompt", system_prompt="You are a fact extractor.")
 
         call_kwargs = provider._litellm.acompletion.call_args
         messages = call_kwargs.kwargs.get("messages", [])
@@ -137,9 +127,7 @@ class TestLiteLLMGenerateJson:
         provider = LiteLLMProvider(litellm_config)
 
         mock_response = MagicMock()
-        mock_response.choices = [
-            MagicMock(message=MagicMock(content='{"ok": true}'))
-        ]
+        mock_response.choices = [MagicMock(message=MagicMock(content='{"ok": true}'))]
         provider._litellm = MagicMock()
         provider._litellm.acompletion = AsyncMock(return_value=mock_response)
 
@@ -192,9 +180,7 @@ class TestClaudeGenerateJson:
         provider = ClaudeLLMProvider(config, auth_mode="api_key")
 
         mock_response = MagicMock()
-        mock_response.choices = [
-            MagicMock(message=MagicMock(content='{"facts": ["test"]}'))
-        ]
+        mock_response.choices = [MagicMock(message=MagicMock(content='{"facts": ["test"]}'))]
         provider._litellm = MagicMock()
         provider._litellm.acompletion = AsyncMock(return_value=mock_response)
 

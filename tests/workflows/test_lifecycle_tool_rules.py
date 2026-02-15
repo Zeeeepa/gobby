@@ -145,9 +145,7 @@ class TestToolRulesLifecycleEvaluation:
         """tool_rules should block a matching tool via block_tools()."""
         from gobby.workflows.lifecycle_evaluator import evaluate_workflow_triggers
 
-        workflow = _make_workflow(
-            tool_rules=[{"tools": ["Edit"], "reason": "Editing is blocked"}]
-        )
+        workflow = _make_workflow(tool_rules=[{"tools": ["Edit"], "reason": "Editing is blocked"}])
         event = _make_event(tool_name="Edit")
         state = _make_state()
         state_mgr = _mock_state_manager(state)
@@ -169,9 +167,7 @@ class TestToolRulesLifecycleEvaluation:
         """tool_rules should not block a non-matching tool."""
         from gobby.workflows.lifecycle_evaluator import evaluate_workflow_triggers
 
-        workflow = _make_workflow(
-            tool_rules=[{"tools": ["Write"], "reason": "Writing is blocked"}]
-        )
+        workflow = _make_workflow(tool_rules=[{"tools": ["Write"], "reason": "Writing is blocked"}])
         event = _make_event(tool_name="Edit")
         state = _make_state()
         state_mgr = _mock_state_manager(state)
@@ -316,9 +312,7 @@ class TestToolRulesLifecycleEvaluation:
         """tool_rules should only be evaluated on BEFORE_TOOL events, not others."""
         from gobby.workflows.lifecycle_evaluator import evaluate_workflow_triggers
 
-        workflow = _make_workflow(
-            tool_rules=[{"tools": ["Edit"], "reason": "Editing is blocked"}]
-        )
+        workflow = _make_workflow(tool_rules=[{"tools": ["Edit"], "reason": "Editing is blocked"}])
         # Use SESSION_START event instead of BEFORE_TOOL
         event = _make_event(
             event_type=HookEventType.SESSION_START,

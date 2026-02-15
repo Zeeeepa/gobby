@@ -85,8 +85,12 @@ class TestSecretInfo:
     def test_slots(self) -> None:
         """SecretInfo uses __slots__ for memory efficiency."""
         info = SecretInfo(
-            id="id", name="n", category="general",
-            description=None, created_at="t", updated_at="t",
+            id="id",
+            name="n",
+            category="general",
+            description=None,
+            created_at="t",
+            updated_at="t",
         )
         assert hasattr(info, "__slots__")
         with pytest.raises(AttributeError):
@@ -282,9 +286,7 @@ class TestSecretStoreGet:
         store.set("KEY", "new")
         assert store.get("KEY") == "new"
 
-    def test_get_invalid_token_returns_none(
-        self, temp_db: LocalDatabase, salt_dir: Path
-    ) -> None:
+    def test_get_invalid_token_returns_none(self, temp_db: LocalDatabase, salt_dir: Path) -> None:
         """If the machine ID changes, decryption fails gracefully."""
         # Store with one machine ID
         with patch("gobby.storage.secrets.get_machine_id", return_value="machine-A"):
@@ -432,10 +434,12 @@ class TestSecretStoreResolve:
 class TestSecretStoreResolveDict:
     def test_resolve_dict(self, store: SecretStore) -> None:
         store.set("TOKEN", "bearer-token-value")
-        result = store.resolve_dict({
-            "Authorization": "Bearer $secret:TOKEN",
-            "Plain": "no-secret",
-        })
+        result = store.resolve_dict(
+            {
+                "Authorization": "Bearer $secret:TOKEN",
+                "Plain": "no-secret",
+            }
+        )
         assert result["Authorization"] == "Bearer bearer-token-value"
         assert result["Plain"] == "no-secret"
 

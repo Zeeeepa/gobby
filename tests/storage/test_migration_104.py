@@ -33,9 +33,7 @@ def test_mem0_id_index_dropped(db) -> None:
 
 def test_memories_table_still_exists(db) -> None:
     """memories table should still exist after migration."""
-    tables = db.fetchall(
-        "SELECT name FROM sqlite_master WHERE type='table' AND name='memories'"
-    )
+    tables = db.fetchall("SELECT name FROM sqlite_master WHERE type='table' AND name='memories'")
     assert len(tables) == 1
 
 
@@ -44,10 +42,18 @@ def test_other_columns_preserved(db) -> None:
     columns = db.fetchall("PRAGMA table_info(memories)")
     column_names = [c["name"] for c in columns]
     expected = [
-        "id", "project_id", "memory_type", "content",
-        "source_type", "source_session_id",
-        "access_count", "last_accessed_at", "tags", "media",
-        "created_at", "updated_at",
+        "id",
+        "project_id",
+        "memory_type",
+        "content",
+        "source_type",
+        "source_session_id",
+        "access_count",
+        "last_accessed_at",
+        "tags",
+        "media",
+        "created_at",
+        "updated_at",
     ]
     for col in expected:
         assert col in column_names, f"Column {col} missing after migration"

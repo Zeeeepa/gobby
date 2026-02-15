@@ -696,7 +696,7 @@ class GobbyRunner:
                             memory_dicts = [
                                 {"id": m.id, "content": m.content} for m in sqlite_memories
                             ]
-                            embed_fn = self.memory_manager._embed_fn
+                            embed_fn = self.memory_manager.embed_fn
                             if embed_fn:
                                 await self.vector_store.rebuild(memory_dicts, embed_fn)
                                 logger.info("VectorStore rebuild complete")

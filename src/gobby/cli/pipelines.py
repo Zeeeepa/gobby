@@ -94,7 +94,8 @@ def _try_daemon_run(name: str, inputs: dict[str, str], project_id: str) -> dict[
             result: dict[str, Any] = response.json()
             return result
         return None
-    except Exception:
+    except Exception as e:
+        logger.debug(f"Daemon run failed for {name}: {e}", exc_info=True)
         return None
 
 

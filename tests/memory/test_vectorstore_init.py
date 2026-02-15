@@ -129,9 +129,7 @@ class TestVectorStoreInitialization:
         sqlite_memories = storage.list_memories(limit=10000)
 
         if qdrant_count == 0 and len(sqlite_memories) > 0:
-            memory_dicts = [
-                {"id": m.id, "content": m.content} for m in sqlite_memories
-            ]
+            memory_dicts = [{"id": m.id, "content": m.content} for m in sqlite_memories]
             await vs.rebuild(memory_dicts, embed_fn)
 
         vs.rebuild.assert_called_once()

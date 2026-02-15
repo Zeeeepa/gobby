@@ -34,7 +34,7 @@ export function WorkflowPropertyPanel({
   if (collapsed) {
     return (
       <div className="property-panel property-panel--collapsed">
-        <button className="property-panel-toggle" onClick={onToggleCollapse} title="Expand panel">
+        <button type="button" className="property-panel-toggle" onClick={onToggleCollapse} title="Expand panel">
           &laquo;
         </button>
       </div>
@@ -46,7 +46,7 @@ export function WorkflowPropertyPanel({
       <div className="property-panel-header">
         <span className="property-panel-title">Properties</span>
         {onToggleCollapse && (
-          <button className="property-panel-toggle" onClick={onToggleCollapse} title="Collapse panel">
+          <button type="button" className="property-panel-toggle" onClick={onToggleCollapse} title="Collapse panel">
             &raquo;
           </button>
         )}
@@ -434,6 +434,7 @@ function FormSection({
   return (
     <div className="property-section">
       <button
+        type="button"
         className="property-section-header"
         onClick={() => setExpanded(!expanded)}
       >

@@ -51,7 +51,9 @@ def mock_prompt_loader():
 
 
 @pytest.fixture
-def dedup_service(mock_llm_provider, mock_vector_store, mock_storage, mock_embed_fn, mock_prompt_loader):
+def dedup_service(
+    mock_llm_provider, mock_vector_store, mock_storage, mock_embed_fn, mock_prompt_loader
+):
     """Create DedupService with all mocks."""
     return DedupService(
         llm_provider=mock_llm_provider,
@@ -112,9 +114,7 @@ class TestExtractFacts:
     @pytest.mark.asyncio
     async def test_extract_facts_calls_llm(self, dedup_service, mock_llm_provider) -> None:
         """_extract_facts calls LLM with rendered fact_extraction prompt."""
-        mock_llm_provider.generate_json.return_value = {
-            "facts": ["Fact one", "Fact two"]
-        }
+        mock_llm_provider.generate_json.return_value = {"facts": ["Fact one", "Fact two"]}
 
         facts = await dedup_service._extract_facts("Some content about testing")
 
@@ -200,9 +200,7 @@ class TestDecideActions:
         """_decide_actions returns empty list on LLM failure."""
         mock_llm_provider.generate_json.side_effect = Exception("LLM error")
 
-        actions = await dedup_service._decide_actions(
-            new_facts=["Fact"], existing_memories=[]
-        )
+        actions = await dedup_service._decide_actions(new_facts=["Fact"], existing_memories=[])
         assert actions == []
 
 
@@ -217,7 +215,9 @@ class TestProcess:
         # Mock fact extraction
         mock_llm_provider.generate_json.side_effect = [
             {"facts": ["The project uses Python 3.13"]},  # extract_facts
-            {"memory": [{"event": "ADD", "text": "The project uses Python 3.13"}]},  # decide_actions
+            {
+                "memory": [{"event": "ADD", "text": "The project uses Python 3.13"}]
+            },  # decide_actions
         ]
 
         # Mock storage.create_memory
@@ -294,9 +294,7 @@ class TestProcess:
             {"memory": [{"event": "NOOP", "text": "Already known"}]},
         ]
 
-        result = await dedup_service.process(
-            content="We use pytest", project_id="proj-1"
-        )
+        result = await dedup_service.process(content="We use pytest", project_id="proj-1")
 
         assert result.added == []
         assert result.updated == []

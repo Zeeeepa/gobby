@@ -101,7 +101,9 @@ class TestDeveloperWorkflowNamedRules:
             # Should reference the shared rules
             assert "no_push" in step.check_rules, f"Step {step_name} missing no_push"
             assert "no_agent_spawn" in step.check_rules, f"Step {step_name} missing no_agent_spawn"
-            assert "no_task_management" in step.check_rules, f"Step {step_name} missing no_task_management"
+            assert "no_task_management" in step.check_rules, (
+                f"Step {step_name} missing no_task_management"
+            )
 
     @pytest.mark.asyncio
     async def test_commit_step_has_no_push(self, loader: WorkflowLoader) -> None:

@@ -967,9 +967,7 @@ class TestMemoryReviewGate:
         mock_mm = MagicMock()
         mock_mm.config.enabled = True
 
-        state = WorkflowState(
-            session_id="test-session", workflow_name="test", step="test"
-        )
+        state = WorkflowState(session_id="test-session", workflow_name="test", step="test")
         state.variables = {"pending_memory_review": True}
 
         result = await memory_review_gate(
@@ -988,9 +986,7 @@ class TestMemoryReviewGate:
         mock_mm = MagicMock()
         mock_mm.config.enabled = True
 
-        state = WorkflowState(
-            session_id="test-session", workflow_name="test", step="test"
-        )
+        state = WorkflowState(session_id="test-session", workflow_name="test", step="test")
         state.variables = {"pending_memory_review": False}
 
         result = await memory_review_gate(
@@ -1021,9 +1017,7 @@ class TestMemoryReviewGate:
         mock_mm = MagicMock()
         mock_mm.config.enabled = False
 
-        state = WorkflowState(
-            session_id="test-session", workflow_name="test", step="test"
-        )
+        state = WorkflowState(session_id="test-session", workflow_name="test", step="test")
         state.variables = {"pending_memory_review": True}
 
         result = await memory_review_gate(
@@ -1056,9 +1050,7 @@ class TestMemoryReviewGate:
         mock_session.seq_num = 42
         mock_sm.get.return_value = mock_session
 
-        state = WorkflowState(
-            session_id="test-session", workflow_name="test", step="test"
-        )
+        state = WorkflowState(session_id="test-session", workflow_name="test", step="test")
         state.variables = {"pending_memory_review": True}
 
         result = await memory_review_gate(
@@ -1218,9 +1210,7 @@ class TestMemoryInjectProjectContext:
         mock_session.project_id = "proj-123"
         mock_sm.get.return_value = mock_session
 
-        state = WorkflowState(
-            session_id="test-session", workflow_name="test", step="test"
-        )
+        state = WorkflowState(session_id="test-session", workflow_name="test", step="test")
 
         result = await memory_inject_project_context(
             memory_manager=mock_mm,
@@ -1326,9 +1316,7 @@ class TestMemoryInjectProjectContext:
         mock_session.project_id = "proj-123"
         mock_sm.get.return_value = mock_session
 
-        state = WorkflowState(
-            session_id="test-session", workflow_name="test", step="test"
-        )
+        state = WorkflowState(session_id="test-session", workflow_name="test", step="test")
         state.variables = {"_injected_memory_ids": ["mem-001"]}
 
         result = await memory_inject_project_context(
@@ -1363,4 +1351,3 @@ class TestMemoryInjectProjectContext:
 
         assert result is not None
         assert "error" in result
-

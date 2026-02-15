@@ -114,7 +114,7 @@
 
 .workflows-overview-card--active {
   border-color: var(--accent);
-  background: #1a2332;
+  background: var(--bg-active, #1a2332);
 }
 
 .workflows-overview-value {

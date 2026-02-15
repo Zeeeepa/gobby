@@ -73,9 +73,7 @@ class TestSetVariableScoped:
         assert result["ok"] is True
         assert result["value"] is True
         # Verify instance_manager was used to save
-        mocks["instance_manager"].get_instance.assert_called_once_with(
-            "uuid-session-1", "dev"
-        )
+        mocks["instance_manager"].get_instance.assert_called_once_with("uuid-session-1", "dev")
         mocks["instance_manager"].save_instance.assert_called_once()
         saved = mocks["instance_manager"].save_instance.call_args[0][0]
         assert saved.variables["my_flag"] is True
@@ -179,9 +177,7 @@ class TestGetVariableScoped:
         assert result["ok"] is True
         assert result["value"] is True
         assert result["exists"] is True
-        mocks["instance_manager"].get_instance.assert_called_once_with(
-            "uuid-session-1", "dev"
-        )
+        mocks["instance_manager"].get_instance.assert_called_once_with("uuid-session-1", "dev")
 
     def test_get_variable_without_workflow_reads_from_session_variables(self) -> None:
         """get_variable() without workflow reads from session_variables."""
@@ -200,9 +196,7 @@ class TestGetVariableScoped:
         assert result["ok"] is True
         assert result["value"] == 42
         assert result["exists"] is True
-        mocks["session_var_manager"].get_variables.assert_called_once_with(
-            "uuid-session-1"
-        )
+        mocks["session_var_manager"].get_variables.assert_called_once_with("uuid-session-1")
 
     def test_get_all_variables_with_workflow(self) -> None:
         """get_variable(workflow='dev') without name returns all workflow variables."""

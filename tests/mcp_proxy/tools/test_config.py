@@ -111,9 +111,7 @@ class TestGetConfigSection:
 class TestSetConfig:
     """Tests for set_config tool."""
 
-    def test_set_config_persists_to_db(
-        self, config_registry, config_store: ConfigStore
-    ) -> None:
+    def test_set_config_persists_to_db(self, config_registry, config_store: ConfigStore) -> None:
         """Test set_config persists the value to the database."""
         tool = config_registry.get_tool("set_config")
         result = tool(key="daemon_port", value=61000)
@@ -168,9 +166,7 @@ class TestListConfigKeys:
         assert result["count"] == 0
         assert result["keys"] == []
 
-    def test_list_config_keys_after_set(
-        self, config_registry, config_store: ConfigStore
-    ) -> None:
+    def test_list_config_keys_after_set(self, config_registry, config_store: ConfigStore) -> None:
         """Test list_config_keys returns keys after setting values."""
         config_store.set("daemon_port", 60887)
         config_store.set("conductor.daily_budget_usd", 50.0)
@@ -183,9 +179,7 @@ class TestListConfigKeys:
         assert "daemon_port" in result["keys"]
         assert "conductor.daily_budget_usd" in result["keys"]
 
-    def test_list_config_keys_with_prefix(
-        self, config_registry, config_store: ConfigStore
-    ) -> None:
+    def test_list_config_keys_with_prefix(self, config_registry, config_store: ConfigStore) -> None:
         """Test list_config_keys filters by prefix."""
         config_store.set("conductor.daily_budget_usd", 50.0)
         config_store.set("conductor.warning_threshold", 0.8)
@@ -236,9 +230,7 @@ class TestEnsureDefaults:
         if result["inserted"] > 0:
             assert "conductor.daily_budget_usd" not in result["keys_inserted"]
 
-    def test_ensure_defaults_all_present(
-        self, config_registry, config_store: ConfigStore
-    ) -> None:
+    def test_ensure_defaults_all_present(self, config_registry, config_store: ConfigStore) -> None:
         """Test ensure_defaults reports when all keys are already present."""
         # First call populates
         tool = config_registry.get_tool("ensure_defaults")

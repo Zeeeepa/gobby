@@ -112,16 +112,12 @@ class TestConditionEvaluator:
 
     def test_mcp_called_helper(self, evaluator) -> None:
         """Test mcp_called() function — used in workflow gates."""
-        context = {
-            "variables": {"mcp_calls": {"gobby-tasks": ["create_task", "close_task"]}}
-        }
+        context = {"variables": {"mcp_calls": {"gobby-tasks": ["create_task", "close_task"]}}}
         assert evaluator.evaluate("mcp_called('gobby-tasks', 'close_task')", context) is True
         assert evaluator.evaluate("mcp_called('gobby-tasks', 'unknown')", context) is False
 
     def test_mcp_result_is_null_helper(self, evaluator) -> None:
-        context = {
-            "variables": {"mcp_results": {"gobby-tasks": {"suggest": None}}}
-        }
+        context = {"variables": {"mcp_results": {"gobby-tasks": {"suggest": None}}}}
         assert evaluator.evaluate("mcp_result_is_null('gobby-tasks', 'suggest')", context) is True
 
     def test_mcp_failed_helper(self, evaluator) -> None:
@@ -133,12 +129,11 @@ class TestConditionEvaluator:
         assert evaluator.evaluate("mcp_failed('gobby-tasks', 'close_task')", context) is True
 
     def test_mcp_result_has_helper(self, evaluator) -> None:
-        context = {
-            "variables": {
-                "mcp_results": {"gobby-tasks": {"wait": {"timed_out": True}}}
-            }
-        }
-        assert evaluator.evaluate("mcp_result_has('gobby-tasks', 'wait', 'timed_out', True)", context) is True
+        context = {"variables": {"mcp_results": {"gobby-tasks": {"wait": {"timed_out": True}}}}}
+        assert (
+            evaluator.evaluate("mcp_result_has('gobby-tasks', 'wait', 'timed_out', True)", context)
+            is True
+        )
 
     def test_task_tree_complete_with_manager(self) -> None:
         """Test task_tree_complete() with registered task manager."""
@@ -188,9 +183,7 @@ class TestExitWhenAndShorthand:
 
     def test_exit_when_expression_evaluates(self, evaluator, mock_state) -> None:
         """exit_when string evaluates as an expression condition."""
-        result = evaluator.check_exit_conditions(
-            [], mock_state, exit_when="step_action_count == 5"
-        )
+        result = evaluator.check_exit_conditions([], mock_state, exit_when="step_action_count == 5")
         assert result is True
 
     def test_exit_when_expression_fails(self, evaluator, mock_state) -> None:
@@ -204,13 +197,14 @@ class TestExitWhenAndShorthand:
         """exit_when is AND-ed with exit_conditions - both must pass."""
         conditions = [{"type": "variable_set", "variable": "foo"}]
         # Both pass
-        assert evaluator.check_exit_conditions(
-            conditions, mock_state, exit_when="count == 10"
-        ) is True
+        assert (
+            evaluator.check_exit_conditions(conditions, mock_state, exit_when="count == 10") is True
+        )
         # exit_when fails
-        assert evaluator.check_exit_conditions(
-            conditions, mock_state, exit_when="count == 999"
-        ) is False
+        assert (
+            evaluator.check_exit_conditions(conditions, mock_state, exit_when="count == 999")
+            is False
+        )
 
     def test_string_item_as_expression(self, evaluator, mock_state) -> None:
         """String items in exit_conditions are treated as expression shorthand."""

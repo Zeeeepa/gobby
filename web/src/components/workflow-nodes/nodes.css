@@ -88,23 +88,23 @@
 }
 
 .wf-node-badge--tools {
-  background: #1a2a3a;
-  color: #60a5fa;
+  background: var(--badge-tools-bg, #1a2a3a);
+  color: var(--badge-tools-color, #60a5fa);
 }
 
 .wf-node-badge--blocked {
-  background: #3a1a1a;
-  color: #f87171;
+  background: var(--badge-blocked-bg, #3a1a1a);
+  color: var(--badge-blocked-color, #f87171);
 }
 
 .wf-node-badge--rules {
-  background: #2a2a1a;
-  color: #facc15;
+  background: var(--badge-rules-bg, #2a2a1a);
+  color: var(--badge-rules-color, #facc15);
 }
 
 .wf-node-badge--transitions {
-  background: #1a3a2a;
-  color: #4ade80;
+  background: var(--badge-transitions-bg, #1a3a2a);
+  color: var(--badge-transitions-color, #4ade80);
 }
 
 /* Handles */
