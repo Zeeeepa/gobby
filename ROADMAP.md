@@ -65,6 +65,10 @@ Legend:
 - ✅ Autonomous orchestration: inter-agent messaging, review gates, conductor daemon
 - ✅ Skill slash command system rework (0.2.14)
 - ✅ Agent-type-aware skill discovery and injection (0.2.14)
+- ✅ Visual workflow builder with drag-and-drop canvas, property panel, expression editor (0.2.16)
+- ✅ DB-backed workflow definitions with CRUD API and templates (0.2.16)
+- ✅ background:true workflow action dispatch (0.2.16)
+- ✅ regex_search Jinja2 filter for MCP output extraction (0.2.16)
 
 ### Pipeline system
 
@@ -76,6 +80,7 @@ Legend:
 - ✅ Pipeline CLI, MCP tools, and HTTP API endpoints
 - ✅ spawn_session and activate_workflow step types (0.2.15)
 - ✅ result_variable and failure handling for run_pipeline action (0.2.15)
+- ✅ Pipeline fixes: template_engine/tool_proxy wiring, CallToolResult serialization, default provider for prompt steps (0.2.16)
 
 ### Codex adapter enhancements (0.2.13)
 
@@ -129,6 +134,19 @@ Legend:
 - ✅ Config write isolation + lightweight health endpoint
 - ✅ gobby-config MCP server for agent config access
 
+### Memory v5: Qdrant + Knowledge Graph (0.2.16)
+
+- ✅ Replace Mem0 with native Qdrant-based VectorStore
+- ✅ MemoryManager rewritten to use VectorStore with method names matching MCP tools
+- ✅ LLM-powered fact extraction, dedup decision, entity/relationship extraction prompt templates
+- ✅ DedupService for LLM-based memory deduplication (fire-and-forget)
+- ✅ KnowledgeGraphService with entity/relationship extraction wired into MemoryManager
+- ✅ search_knowledge_graph MCP tool (replaces export_memory_graph)
+- ✅ Standalone docker-compose.neo4j.yml and installer; CLI --mem0 replaced with --neo4j
+- ✅ generate_json() added to LLM providers for structured output
+- ✅ Migrations 103-104: drop memory_embeddings table and mem0_id column
+- ✅ Complete removal of Mem0 dependency, imports, config fields, and tests
+
 ### Mem0 + memory improvements (0.2.15)
 
 - ✅ Async Mem0 queueing with background sync
@@ -167,6 +185,10 @@ Legend:
 - ✅ Web UI accessible over Tailscale (0.2.15)
 - ✅ Auto-start Vite dev server on daemon startup (0.2.15)
 - ✅ Standardized sidebar widths via CSS variable (0.2.15)
+- ✅ Visual workflow builder with @xyflow/react: canvas, dagre layout, node types, property panel, expression editor, settings modal, save/load (0.2.16)
+- ✅ Workflows page: list view, templates API, DB-backed CRUD (0.2.16)
+- ✅ Mobile chat: drawer replacing sidebar, click-outside-to-close, conversation picker toggle (0.2.16)
+- ✅ Chat: delete chat, resume placeholder for remote sessions, stale event drain on interrupt (0.2.16)
 - 🗺️ Hook inspector
 
 ### Worktrees
@@ -182,6 +204,7 @@ Legend:
 - ✅ Memory v4: embedding persistence, lifecycle hooks, reindex CLI, automated capture (0.2.14)
 - ✅ Mem0 integration with Docker-compose bundle (0.2.14)
 - ✅ Memory v4.5: async Mem0 queueing, configurable timeouts, background sync (0.2.15)
+- ✅ Memory v5: Qdrant vector store, LLM-powered dedup/extraction, KnowledgeGraphService, Mem0 fully removed (0.2.16)
 
 ### Integrations + extensibility
 
@@ -261,9 +284,10 @@ Legend:
 - 🚧 Production-ready orchestration with review/merge cycles
 - 🚧 Finalizing coordinator workflow end-to-end
 
-### Web UI buildout
+### Web UI polish
 
-- 🚧 Polish and UX improvements across all pages
+- 🚧 Mobile responsiveness and UX improvements
+- 🚧 Visual workflow builder: additional node types, validation, undo/redo
 
 ---
 
@@ -373,8 +397,10 @@ Goal: make Gobby the obvious substrate for serious local agentic coding.
 
 ### 2) Memory adapters + open Memory API
 
+- ✅ Qdrant vector store adapter (0.2.16)
+- ✅ Neo4j knowledge graph adapter with entity/relationship extraction (0.2.16)
 - 🗺️ Stable Memory API (store/retrieve/summarize/evict)
-- 🗺️ Adapters for popular memory systems (vector DBs, knowledge graphs, etc.)
+- 🗺️ Additional vector DB adapters (Chroma, Weaviate, etc.)
 - 🗺️ Clear guidance: baseline local memory vs advanced backends
 
 ### 3) Plugin ecosystem + templates

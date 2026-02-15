@@ -8,6 +8,93 @@ All notable changes to Gobby are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.16] - 2026-02-15
+
+### Major Features
+
+#### Memory v5: Qdrant Vector Store + Knowledge Graph (Mem0 Removal)
+
+Complete replacement of the Mem0 dependency with a native Qdrant-based vector store and LLM-powered knowledge graph pipeline.
+
+- VectorStore class wrapping qdrant-client, replacing mem0ai dependency (#8240, #8241)
+- Qdrant config fields in MemoryConfig, legacy mem0 fields removed (#8242, #8266)
+- MemoryManager rewritten to use VectorStore with renamed methods matching MCP tools (#8244-#8246)
+- VectorStore initialized in runner.py (#8247)
+- Migration 103 to drop memory_embeddings table (#8248)
+- Migration 104 to drop mem0_id column from memories (#8267)
+- Removed decay_memories, dropped mem0_client from get_stats, added vector_count (#8249)
+- Deleted legacy memory search files and cleaned up imports (#8250)
+- generate_json() added to LLM providers for structured output (#8251)
+- LLM prompt templates: fact extraction, dedup decision, entity extraction, relationship extraction, delete relations (#8252, #8253, #8257, #8258, #8259)
+- Feature configs for memory LLM calls (#8254)
+- DedupService for LLM-based memory deduplication, wired as fire-and-forget (#8255, #8256)
+- KnowledgeGraphService with entity/relationship extraction (#8261)
+- KnowledgeGraphService wired into MemoryManager (#8262)
+- Write convenience methods added to Neo4jClient (#8260)
+- search_knowledge_graph MCP tool replaces export_memory_graph (#8263)
+- Standalone docker-compose.neo4j.yml and installer (#8264)
+- CLI: --mem0 replaced with --neo4j (#8265)
+- Removed importance field from memory extraction and cleaned up memory-v5 vestiges (#8243, #8284)
+- Cleaned up all legacy mem0 imports, comments, and tests (#8268, #8301)
+
+#### Visual Workflow Builder (Web UI)
+
+New drag-and-drop workflow editor built with @xyflow/react.
+
+- workflow_definitions table + bundled YAML import (migration 102) (#8188)
+- LocalWorkflowDefinitionManager storage manager (#8189)
+- DB-first lookup in WorkflowLoader + Runner wiring (#8190)
+- HTTP API routes for workflow definitions CRUD (#8191)
+- useWorkflows React data hook (#8192)
+- WorkflowsPage list view component + CSS, wired into App.tsx workflows tab (#8193, #8194)
+- DB query for list_workflows with filesystem fallback (#8195)
+- Workflow templates API for New button (#8196)
+- WorkflowBuilder canvas scaffold with toolbar and palette sidebar (#8199)
+- Dagre auto-layout and definitionToFlow/flowToDefinition serialization (#8200)
+- Shared node types registry and StepNode component (#8201)
+- WorkflowPropertyPanel with dynamic form routing (#8205)
+- CodeMirror ExpressionEditor for workflow expressions (#8208)
+- Edge styling, workflow settings modal, variables/rules/exit condition editors (#8209)
+- Save/load cycle for visual workflow builder (#8209)
+- Distinct visual node components for workflow builder (#8283)
+
+### Improvements
+
+- background:true workflow action dispatch + transcript title re-synthesis (#8300)
+- regex_search Jinja2 filter for MCP output extraction (#8293)
+- Mobile chat drawer replacing sidebar on mobile (#8278)
+- Click-outside-to-close for ConversationPicker sidebar (#8278)
+- Rate limit backoff for embeddings service (#8299)
+- License updated to Apache-2.0 in pyproject.toml (#8346)
+
+### Bug Fixes
+
+- Configure D3 force simulation to prevent KG node clumping (#8303)
+- Fall back to neo4j_client for graph reads when kg_service unavailable (#8302)
+- Add set-titles-string to user session tmux rename (#8297)
+- Update tests for async memory manager migration (#8294)
+- Web chat title synthesis + add delete chat (#8289)
+- Use get_default_provider().generate_text() in pipeline prompt steps (#8290)
+- Serialize CallToolResult in pipeline MCP steps (#8288)
+- Wire template_engine and tool_proxy_getter into PipelineExecutor (#8287)
+- Auto-task workflow ends when session_task is complete (#8280)
+- Load session messages from API when switching conversations (#8281)
+- Show resume placeholder when switching to sessions without local messages (#8279)
+- Update MemoryConfig tests for removed legacy attributes (#8277)
+- Keep conversation picker toggle visible on mobile (#8276)
+- Use db_session_id in web chat lifecycle events (#8274)
+- Drain stale SDK response events after chat interrupt (#8273)
+- Lazy-load KnowledgeGraph to prevent crash over HTTP (#8271)
+- Allow all hosts in Vite when bound to 0.0.0.0 (#8270)
+- Make Vite dev server host configurable for Tailscale access (#8269)
+- Reduce flakiness in background action error test (#8342)
+
+### Documentation
+
+- Database-backed prompt storage plan (#8304)
+
+---
+
 ## [0.2.15] - 2026-02-15
 
 ### Major Features
