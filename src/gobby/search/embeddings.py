@@ -118,10 +118,9 @@ async def generate_embeddings(
             last_error = e
             if attempt == max_retries:
                 break
-            delay = min(base_delay * (2 ** attempt), _DEFAULT_MAX_DELAY)
+            delay = min(base_delay * (2**attempt), _DEFAULT_MAX_DELAY)
             logger.warning(
-                f"Rate limited (attempt {attempt + 1}/{max_retries + 1}), "
-                f"retrying in {delay:.1f}s"
+                f"Rate limited (attempt {attempt + 1}/{max_retries + 1}), retrying in {delay:.1f}s"
             )
             await asyncio.sleep(delay)
         except Exception as e:
@@ -129,7 +128,9 @@ async def generate_embeddings(
             raise RuntimeError(f"Embedding generation failed: {e}") from e
 
     logger.error(f"LiteLLM rate limit exceeded after {max_retries + 1} attempts: {last_error}")
-    raise RuntimeError(f"Rate limit exceeded after {max_retries + 1} attempts: {last_error}") from last_error
+    raise RuntimeError(
+        f"Rate limit exceeded after {max_retries + 1} attempts: {last_error}"
+    ) from last_error
 
 
 async def generate_embedding(
