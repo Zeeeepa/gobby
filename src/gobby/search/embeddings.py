@@ -119,7 +119,7 @@ async def generate_embeddings(
             last_error = e
             if attempt == max_retries:
                 break
-            delay = min(base_delay * (2**attempt), _DEFAULT_MAX_DELAY) * random.uniform(0.8, 1.2)
+            delay = min(base_delay * (2**attempt), _DEFAULT_MAX_DELAY) * random.uniform(0.8, 1.2)  # nosec B311
             logger.warning(
                 f"Rate limited (attempt {attempt + 1}/{max_retries + 1}), retrying in {delay:.1f}s"
             )
