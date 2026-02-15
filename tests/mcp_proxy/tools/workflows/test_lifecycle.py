@@ -109,10 +109,12 @@ class TestActivateWorkflowMultiWorkflow:
 
         # Activate second workflow
         wf_b = _make_definition(name="workflow-b")
-        mocks["loader"].load_workflow = AsyncMock(side_effect=[
-            _make_definition(name="workflow-a"),  # lookup for existing
-            wf_b,  # lookup for new
-        ])
+        mocks["loader"].load_workflow = AsyncMock(
+            side_effect=[
+                _make_definition(name="workflow-a"),  # lookup for existing
+                wf_b,  # lookup for new
+            ]
+        )
 
         result = await activate_workflow(
             mocks["loader"],

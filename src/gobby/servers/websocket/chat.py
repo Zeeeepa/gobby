@@ -22,6 +22,7 @@ from gobby.servers.websocket.models import (
     CLEANUP_INTERVAL_SECONDS,
     IDLE_TIMEOUT_SECONDS,
 )
+from gobby.sessions.transcripts.base import ParsedMessage
 from gobby.storage.projects import PERSONAL_PROJECT_ID
 from gobby.utils.machine_id import get_machine_id
 
@@ -59,6 +60,10 @@ class ChatMixin:
 
         Attempts a graceful interrupt first so the SDK can clean up its
         internal task group, then force-cancels if the task is still running.
+        After the task is cancelled, drains any stale response events from
+        the SDK to prevent the off-by-one bug where the next query's
+        ``receive_response()`` returns leftover events from the interrupted
+        turn.
         """
         session = self._chat_sessions.get(conversation_id)
         if session:
@@ -74,6 +79,16 @@ class ChatMixin:
                 await active_task
             except asyncio.CancelledError:
                 pass
+            # Let the SDK settle after interrupt+cancellation.
+            # Without this pause, an immediate query() can get an empty
+            # response because the SDK hasn't finished its internal cleanup.
+            await asyncio.sleep(0.1)
+
+        # Drain any stale response events buffered in the SDK.
+        # Without this, receive_response() on the *next* query returns
+        # leftover events from this interrupted turn (off-by-one bug).
+        if session:
+            await session.drain_pending_response()
 
     async def _handle_stop_chat(self, websocket: Any, data: dict[str, Any] | None = None) -> None:
         """
@@ -159,9 +174,15 @@ class ChatMixin:
         if not workflow_handler:
             return None
 
+        # Use the database session ID (not the external conversation_id) so that
+        # workflow actions like synthesize_title can look up the session via
+        # session_manager.get(session_id).
+        session = self._chat_sessions.get(conversation_id)
+        db_session_id = getattr(session, "db_session_id", None) or conversation_id
+
         event = HookEvent(
             event_type=event_type,
-            session_id=conversation_id,
+            session_id=db_session_id,
             source=SessionSource.CLAUDE_SDK_WEB_CHAT,
             timestamp=datetime.now(UTC),
             data=data,
@@ -284,12 +305,37 @@ class ChatMixin:
         )
 
         assistant_message_id = f"assistant-{uuid4().hex[:12]}"
+        accumulated_text = ""
 
         def _base_msg(**fields: Any) -> dict[str, Any]:
             """Build a response dict, always including request_id for stream correlation."""
             msg: dict[str, Any] = fields
             msg["request_id"] = request_id
             return msg
+
+        async def _persist_message(session: Any, role: str, text: str) -> None:
+            """Persist a chat message to the database (best-effort)."""
+            message_manager = getattr(self, "message_manager", None)
+            db_sid = getattr(session, "db_session_id", None)
+            if not message_manager or not db_sid or not text:
+                return
+            try:
+                idx = session.message_index
+                session.message_index = idx + 1
+                msg = ParsedMessage(
+                    index=idx,
+                    role=role,
+                    content=text,
+                    content_type="text",
+                    tool_name=None,
+                    tool_input=None,
+                    tool_result=None,
+                    timestamp=datetime.now(UTC),
+                    raw_json={},
+                )
+                await message_manager.store_messages(db_sid, [msg])
+            except Exception as e:
+                logger.warning(f"Failed to persist {role} message for {conversation_id[:8]}: {e}")
 
         gen: AsyncIterator[Any] | None = None
         try:
@@ -342,6 +388,10 @@ class ChatMixin:
                         )
                     )
 
+            # Persist user message to database
+            user_text = content if isinstance(content, str) else json.dumps(content)
+            await _persist_message(session, "user", user_text)
+
             # Stream events from ChatSession.
             # Hold a reference to the generator so we can explicitly aclose()
             # it in the finally block — this prevents Python's GC from
@@ -361,6 +411,7 @@ class ChatMixin:
                         )
                     )
                 elif isinstance(event, TextChunk):
+                    accumulated_text += event.content
                     await websocket.send(
                         json.dumps(
                             _base_msg(
@@ -406,6 +457,9 @@ class ChatMixin:
                         )
                     )
                 elif isinstance(event, DoneEvent):
+                    # Persist assistant message to database
+                    await _persist_message(session, "assistant", accumulated_text)
+
                     # Flush TTS if voice mode is active
                     _voice_flush = getattr(self, "_voice_tts_flush", None)
                     if _voice_flush:
@@ -537,6 +591,46 @@ class ChatMixin:
             json.dumps({"type": "chat_cleared", "conversation_id": conversation_id})
         )
         logger.info(f"Chat cleared for conversation {conversation_id[:8]}")
+
+    async def _handle_delete_chat(self, websocket: Any, data: dict[str, Any]) -> None:
+        """Handle delete_chat message: stop session, delete from DB, notify frontend.
+
+        Message format:
+        {
+            "type": "delete_chat",
+            "conversation_id": "stable-id"
+        }
+        """
+        conversation_id = data.get("conversation_id")
+        if not conversation_id:
+            return
+
+        session = self._chat_sessions.get(conversation_id)
+        db_session_id = getattr(session, "db_session_id", None) if session else None
+
+        # Stop the ChatSession if active
+        if session:
+            await self._cancel_active_chat(conversation_id)
+            await session.stop()
+            self._chat_sessions.pop(conversation_id, None)
+
+        # Delete from database
+        if db_session_id:
+            session_manager = getattr(self, "session_manager", None)
+            message_manager = getattr(self, "message_manager", None)
+            try:
+                if message_manager:
+                    await message_manager.delete(db_session_id)
+                if session_manager:
+                    await asyncio.to_thread(session_manager.delete, db_session_id)
+            except Exception as e:
+                logger.warning(f"Failed to delete session from DB: {e}")
+
+        # Notify frontend
+        await websocket.send(
+            json.dumps({"type": "chat_deleted", "conversation_id": conversation_id})
+        )
+        logger.info(f"Chat deleted for conversation {conversation_id[:8]}")
 
     async def _cleanup_idle_sessions(self) -> None:
         """Periodically disconnect chat sessions that have been idle too long."""

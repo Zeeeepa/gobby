@@ -32,6 +32,7 @@ logger = logging.getLogger(__name__)
 
 
 if TYPE_CHECKING:
+    from gobby.storage.session_messages import LocalSessionMessageManager
     from gobby.storage.sessions import LocalSessionManager
 
 
@@ -63,6 +64,7 @@ class WebSocketServer(VoiceMixin, TmuxMixin, ChatMixin, HandlerMixin, AuthMixin,
         auth_callback: Callable[[str], Coroutine[Any, Any, str | None]] | None = None,
         stop_registry: Any = None,
         session_manager: "LocalSessionManager | None" = None,
+        message_manager: "LocalSessionMessageManager | None" = None,
         daemon_config: Any = None,
     ):
         """
@@ -75,6 +77,7 @@ class WebSocketServer(VoiceMixin, TmuxMixin, ChatMixin, HandlerMixin, AuthMixin,
                           If None, all connections are accepted (local-first mode).
             stop_registry: Optional StopRegistry for handling stop requests from clients.
             session_manager: Optional LocalSessionManager for persisting web-chat sessions.
+            message_manager: Optional LocalSessionMessageManager for persisting chat messages.
             daemon_config: Optional DaemonConfig for voice and other features.
         """
         self.config = config
@@ -82,6 +85,7 @@ class WebSocketServer(VoiceMixin, TmuxMixin, ChatMixin, HandlerMixin, AuthMixin,
         self.auth_callback = auth_callback
         self.stop_registry = stop_registry
         self.session_manager = session_manager
+        self.message_manager = message_manager
         self.daemon_config = daemon_config
         self.workflow_handler: Any = None  # WorkflowHookHandler from HookManager
 
@@ -219,6 +223,7 @@ class WebSocketServer(VoiceMixin, TmuxMixin, ChatMixin, HandlerMixin, AuthMixin,
                 "tmux_kill_session": self._handle_tmux_kill_session,
                 "tmux_resize": self._handle_tmux_resize,
                 "clear_chat": self._handle_clear_chat,
+                "delete_chat": self._handle_delete_chat,
                 "voice_audio": self._handle_voice_audio,
                 "voice_mode_toggle": self._handle_voice_mode_toggle,
             }

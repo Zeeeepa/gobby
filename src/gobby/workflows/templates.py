@@ -1,4 +1,5 @@
 import logging
+import re
 from typing import Any, Protocol, runtime_checkable
 
 from jinja2 import Environment, FileSystemLoader, select_autoescape
@@ -16,6 +17,24 @@ class TemplateRenderer(Protocol):
     """
 
     def render(self, template_str: str, context: dict[str, Any]) -> str: ...
+
+
+def _regex_search(value: str, pattern: str, group: int = 1) -> str:
+    """Jinja2 filter: extract a regex capture group from text.
+
+    Usage in templates:
+        {{ text | regex_search('library ID: (/\\S+)') }}
+        {{ text | regex_search('version (\\d+\\.\\d+)', 1) }}
+
+    Returns the captured group (default group 1), or empty string if no match.
+    """
+    match = re.search(pattern, str(value))
+    if match:
+        try:
+            return match.group(group)
+        except IndexError:
+            return match.group(0)
+    return ""
 
 
 class TemplateEngine:
@@ -37,6 +56,7 @@ class TemplateEngine:
             trim_blocks=True,
             lstrip_blocks=True,
         )
+        self.env.filters["regex_search"] = _regex_search
 
     def render(self, template_str: str, context: dict[str, Any]) -> str:
         """

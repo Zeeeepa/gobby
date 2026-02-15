@@ -60,9 +60,7 @@ class TestSoftDelete:
         names = [p.name for p in projects]
         assert "will-delete" not in names
 
-    def test_soft_delete_hides_from_get_by_name(
-        self, project_manager: LocalProjectManager
-    ) -> None:
+    def test_soft_delete_hides_from_get_by_name(self, project_manager: LocalProjectManager) -> None:
         """Soft-deleted projects are hidden from get_by_name()."""
         project = project_manager.create(name="hidden-proj", repo_path="/tmp/hp")
         project_manager.soft_delete(project.id)
@@ -128,18 +126,14 @@ class TestResolveRef:
 class TestIsProtected:
     """Tests for is_protected."""
 
-    def test_system_projects_are_protected(
-        self, project_manager: LocalProjectManager
-    ) -> None:
+    def test_system_projects_are_protected(self, project_manager: LocalProjectManager) -> None:
         """System projects (_orphaned, _migrated, _personal, gobby) are protected."""
         # _orphaned is created by migrations
         orphaned = project_manager.get_by_name("_orphaned")
         assert orphaned is not None
         assert project_manager.is_protected(orphaned) is True
 
-    def test_regular_projects_not_protected(
-        self, project_manager: LocalProjectManager
-    ) -> None:
+    def test_regular_projects_not_protected(self, project_manager: LocalProjectManager) -> None:
         """Regular projects are not protected."""
         project = project_manager.create(name="regular", repo_path="/tmp/reg")
         assert project_manager.is_protected(project) is False

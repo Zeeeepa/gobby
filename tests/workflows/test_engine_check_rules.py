@@ -264,14 +264,10 @@ class TestResolveCheckRules:
             },
         }
 
-        result = engine._resolve_check_rules(
-            ["custom_rule"], workflow, project_id="proj-123"
-        )
+        result = engine._resolve_check_rules(["custom_rule"], workflow, project_id="proj-123")
 
         assert len(result) == 1
-        mock_rule_store.get_rule.assert_called_once_with(
-            "custom_rule", project_id="proj-123"
-        )
+        mock_rule_store.get_rule.assert_called_once_with("custom_rule", project_id="proj-123")
 
     def test_multiple_rules_resolved_in_order(self, engine, mock_rule_store):
         """Multiple check_rules names are all resolved in order."""
@@ -314,7 +310,9 @@ class TestResolveCheckRules:
 
         assert len(result) == 0
 
-    def test_no_rule_store_skips_db_lookup(self, mock_loader, mock_state_manager, mock_action_executor, mock_evaluator):
+    def test_no_rule_store_skips_db_lookup(
+        self, mock_loader, mock_state_manager, mock_action_executor, mock_evaluator
+    ):
         """When rule_store is None and no DB available, DB lookup is skipped."""
         mock_action_executor.db = None
         engine = WorkflowEngine(
@@ -342,7 +340,10 @@ class TestCheckRulesInHandleEvent:
     """Tests for check_rules evaluation in handle_event BEFORE_TOOL path."""
 
     async def test_blocks_matching_tool(
-        self, engine, mock_state_manager, mock_loader,
+        self,
+        engine,
+        mock_state_manager,
+        mock_loader,
     ):
         """Resolved check_rules should block matching tools."""
         state = _make_state(variables={"task_claimed": False})
@@ -365,7 +366,10 @@ class TestCheckRulesInHandleEvent:
         assert "Claim a task" in response.reason
 
     async def test_allows_non_matching_tool(
-        self, engine, mock_state_manager, mock_loader,
+        self,
+        engine,
+        mock_state_manager,
+        mock_loader,
     ):
         """check_rules should allow tools not listed in the rule."""
         state = _make_state()
@@ -387,7 +391,10 @@ class TestCheckRulesInHandleEvent:
         assert response.decision == "allow"
 
     async def test_condition_prevents_block(
-        self, engine, mock_state_manager, mock_loader,
+        self,
+        engine,
+        mock_state_manager,
+        mock_loader,
     ):
         """check_rules with when condition should not block when condition is false."""
         state = _make_state(variables={"task_claimed": True})
@@ -409,7 +416,11 @@ class TestCheckRulesInHandleEvent:
         assert response.decision == "allow"
 
     async def test_inline_rules_and_check_rules_both_apply(
-        self, engine, mock_state_manager, mock_loader, mock_evaluator,
+        self,
+        engine,
+        mock_state_manager,
+        mock_loader,
+        mock_evaluator,
     ):
         """Both inline rules and check_rules should be evaluated."""
         state = _make_state()
@@ -451,7 +462,11 @@ class TestCheckRulesInHandleEvent:
         assert "Edit is blocked by named rule" in response.reason
 
     async def test_check_rules_from_db(
-        self, engine, mock_state_manager, mock_loader, mock_rule_store,
+        self,
+        engine,
+        mock_state_manager,
+        mock_loader,
+        mock_rule_store,
     ):
         """check_rules should resolve names from DB when not in workflow."""
         state = _make_state()
@@ -482,7 +497,11 @@ class TestCheckRulesInHandleEvent:
         assert "Do not push" in response.reason
 
     async def test_command_pattern_no_match(
-        self, engine, mock_state_manager, mock_loader, mock_rule_store,
+        self,
+        engine,
+        mock_state_manager,
+        mock_loader,
+        mock_rule_store,
     ):
         """Command pattern rules should not block non-matching commands."""
         state = _make_state()
@@ -512,7 +531,10 @@ class TestCheckRulesInHandleEvent:
         assert response.decision == "allow"
 
     async def test_empty_check_rules_no_effect(
-        self, engine, mock_state_manager, mock_loader,
+        self,
+        engine,
+        mock_state_manager,
+        mock_loader,
     ):
         """Empty check_rules list should have no effect."""
         state = _make_state()
@@ -528,7 +550,11 @@ class TestCheckRulesInHandleEvent:
         assert response.decision == "allow"
 
     async def test_unknown_check_rule_skipped(
-        self, engine, mock_state_manager, mock_loader, mock_rule_store,
+        self,
+        engine,
+        mock_state_manager,
+        mock_loader,
+        mock_rule_store,
     ):
         """Unknown check_rules names should be skipped without blocking."""
         state = _make_state()
@@ -545,7 +571,10 @@ class TestCheckRulesInHandleEvent:
         assert response.decision == "allow"
 
     async def test_non_block_action_skipped(
-        self, engine, mock_state_manager, mock_loader,
+        self,
+        engine,
+        mock_state_manager,
+        mock_loader,
     ):
         """Rules with action != 'block' should not be passed to block_tools."""
         state = _make_state()

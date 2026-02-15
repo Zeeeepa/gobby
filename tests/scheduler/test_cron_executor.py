@@ -41,9 +41,7 @@ def _make_job(storage: CronJobStorage, action_type: str, action_config: dict) ->
 
 
 @pytest.mark.asyncio
-async def test_execute_shell_success(
-    cron_storage: CronJobStorage, executor: CronExecutor
-) -> None:
+async def test_execute_shell_success(cron_storage: CronJobStorage, executor: CronExecutor) -> None:
     """Shell action runs command and captures output."""
     job = _make_job(cron_storage, "shell", {"command": "echo", "args": ["hello world"]})
     run = cron_storage.create_run(job.id)
@@ -54,12 +52,11 @@ async def test_execute_shell_success(
 
 
 @pytest.mark.asyncio
-async def test_execute_shell_timeout(
-    cron_storage: CronJobStorage, executor: CronExecutor
-) -> None:
+async def test_execute_shell_timeout(cron_storage: CronJobStorage, executor: CronExecutor) -> None:
     """Shell action respects timeout."""
     job = _make_job(
-        cron_storage, "shell",
+        cron_storage,
+        "shell",
         {"command": "sleep", "args": ["10"], "timeout_seconds": 1},
     )
     run = cron_storage.create_run(job.id)
@@ -70,12 +67,11 @@ async def test_execute_shell_timeout(
 
 
 @pytest.mark.asyncio
-async def test_execute_shell_failure(
-    cron_storage: CronJobStorage, executor: CronExecutor
-) -> None:
+async def test_execute_shell_failure(cron_storage: CronJobStorage, executor: CronExecutor) -> None:
     """Shell action captures non-zero exit code."""
     job = _make_job(
-        cron_storage, "shell",
+        cron_storage,
+        "shell",
         {"command": "false"},  # always exits with 1
     )
     run = cron_storage.create_run(job.id)
@@ -91,7 +87,8 @@ async def test_execute_agent_spawn_no_runner(
 ) -> None:
     """agent_spawn without agent_runner raises error."""
     job = _make_job(
-        cron_storage, "agent_spawn",
+        cron_storage,
+        "agent_spawn",
         {"prompt": "test", "provider": "claude"},
     )
     run = cron_storage.create_run(job.id)
@@ -107,15 +104,12 @@ async def test_execute_agent_spawn_with_mock_runner(
 ) -> None:
     """agent_spawn delegates to agent_runner.spawn_headless."""
     mock_runner = MagicMock()
-    mock_runner.spawn_headless = AsyncMock(
-        return_value={"output": "Agent said hello"}
-    )
-    executor = CronExecutor(
-        storage=cron_storage, agent_runner=mock_runner
-    )
+    mock_runner.spawn_headless = AsyncMock(return_value={"output": "Agent said hello"})
+    executor = CronExecutor(storage=cron_storage, agent_runner=mock_runner)
 
     job = _make_job(
-        cron_storage, "agent_spawn",
+        cron_storage,
+        "agent_spawn",
         {"prompt": "say hello", "provider": "claude", "timeout_seconds": 30},
     )
     run = cron_storage.create_run(job.id)
@@ -132,7 +126,8 @@ async def test_execute_pipeline_no_executor(
 ) -> None:
     """pipeline without pipeline_executor raises error."""
     job = _make_job(
-        cron_storage, "pipeline",
+        cron_storage,
+        "pipeline",
         {"pipeline_name": "test-pipeline"},
     )
     run = cron_storage.create_run(job.id)

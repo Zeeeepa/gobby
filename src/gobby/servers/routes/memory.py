@@ -30,7 +30,6 @@ class MemoryCreateRequest(BaseModel):
     memory_type: str = Field(
         default="fact", description="Memory type (fact, preference, pattern, context)"
     )
-    importance: float = Field(default=0.5, description="Importance score (0.0-1.0)")
     project_id: str | None = Field(default=None, description="Project ID to associate with")
     source_type: str = Field(default="user", description="Source type (user, session, inferred)")
     source_session_id: str | None = Field(default=None, description="Source session ID")
@@ -41,7 +40,6 @@ class MemoryUpdateRequest(BaseModel):
     """Request body for updating a memory."""
 
     content: str | None = Field(default=None, description="New content text")
-    importance: float | None = Field(default=None, description="New importance score")
     tags: list[str] | None = Field(default=None, description="New tags")
 
 
@@ -59,7 +57,6 @@ def create_memory_router(server: "HTTPServer") -> APIRouter:
     def list_memories(
         project_id: str | None = Query(None, description="Filter by project ID"),
         memory_type: str | None = Query(None, description="Filter by memory type"),
-        min_importance: float | None = Query(None, description="Minimum importance"),
         limit: int = Query(50, description="Maximum results"),
         offset: int = Query(0, description="Pagination offset"),
     ) -> dict[str, Any]:
@@ -69,7 +66,6 @@ def create_memory_router(server: "HTTPServer") -> APIRouter:
             memories = server.memory_manager.list_memories(
                 project_id=project_id,
                 memory_type=memory_type,
-                min_importance=min_importance,
                 limit=limit,
                 offset=offset,
             )
@@ -83,10 +79,9 @@ def create_memory_router(server: "HTTPServer") -> APIRouter:
         """Create a new memory."""
         metrics.inc_counter("http_requests_total")
         try:
-            memory = await server.memory_manager.remember(
+            memory = await server.memory_manager.create_memory(
                 content=request_data.content,
                 memory_type=request_data.memory_type,
-                importance=request_data.importance,
                 project_id=request_data.project_id,
                 source_type=request_data.source_type,
                 source_session_id=request_data.source_session_id,
@@ -100,20 +95,18 @@ def create_memory_router(server: "HTTPServer") -> APIRouter:
             raise HTTPException(status_code=500, detail=str(e)) from e
 
     @router.get("/search")
-    def search_memories(
+    async def search_memories(
         q: str = Query(..., description="Search query"),
         project_id: str | None = Query(None, description="Filter by project ID"),
         limit: int = Query(10, description="Maximum results"),
-        min_importance: float = Query(0.0, description="Minimum importance"),
     ) -> dict[str, Any]:
         """Search memories by query."""
         metrics.inc_counter("http_requests_total")
         try:
-            results = server.memory_manager.recall(
+            results = await server.memory_manager.search_memories(
                 query=q,
                 project_id=project_id,
                 limit=limit,
-                min_importance=min_importance,
             )
             return {
                 "query": q,
@@ -243,14 +236,13 @@ def create_memory_router(server: "HTTPServer") -> APIRouter:
         return memory.to_dict()
 
     @router.put("/{memory_id}")
-    def update_memory(memory_id: str, request_data: MemoryUpdateRequest) -> Any:
+    async def update_memory(memory_id: str, request_data: MemoryUpdateRequest) -> Any:
         """Update an existing memory."""
         metrics.inc_counter("http_requests_total")
         try:
-            memory = server.memory_manager.update_memory(
+            memory = await server.memory_manager.update_memory(
                 memory_id=memory_id,
                 content=request_data.content,
-                importance=request_data.importance,
                 tags=request_data.tags,
             )
             return memory.to_dict()
@@ -265,7 +257,7 @@ def create_memory_router(server: "HTTPServer") -> APIRouter:
         """Delete a memory."""
         metrics.inc_counter("http_requests_total")
         try:
-            result = await server.memory_manager.forget(memory_id)
+            result = await server.memory_manager.delete_memory(memory_id)
         except Exception as e:
             logger.error(f"Failed to delete memory {memory_id}: {e}")
             raise HTTPException(status_code=500, detail=str(e)) from e

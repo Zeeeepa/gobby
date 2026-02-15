@@ -165,9 +165,13 @@ def test_variables_persist_across_workflow_changes(db) -> None:
     sv_mgr.set_variable("s1", "unlocked_tools", ["Read", "Write"])
 
     # Create and then delete a workflow instance
-    wi_mgr.save_instance(WorkflowInstance(
-        id="inst-1", session_id="s1", workflow_name="auto-task",
-    ))
+    wi_mgr.save_instance(
+        WorkflowInstance(
+            id="inst-1",
+            session_id="s1",
+            workflow_name="auto-task",
+        )
+    )
     wi_mgr.delete_instance("s1", "auto-task")
 
     # Session variables should be unaffected

@@ -507,6 +507,95 @@ class ClaudeLLMProvider(LLMProvider):
             self.logger.error(f"Failed to generate text with LiteLLM: {e}", exc_info=True)
             return f"Generation failed: {e}"
 
+    async def generate_json(
+        self,
+        prompt: str,
+        system_prompt: str | None = None,
+        model: str | None = None,
+    ) -> dict[str, Any]:
+        """
+        Generate structured JSON using Claude.
+
+        In api_key mode, uses LiteLLM with response_format.
+        In subscription mode, uses SDK with prompt-based JSON instruction.
+
+        Raises:
+            RuntimeError: If no LLM backend is available
+            ValueError: If response is empty or not valid JSON
+        """
+        cli_path = self._verify_cli_path()
+        if cli_path:
+            return await self._generate_json_sdk(prompt, system_prompt, model)
+        elif self._litellm:
+            return await self._generate_json_litellm(prompt, system_prompt, model)
+        else:
+            raise RuntimeError("Generation unavailable (no LLM backend configured)")
+
+    async def _generate_json_sdk(
+        self,
+        prompt: str,
+        system_prompt: str | None = None,
+        model: str | None = None,
+    ) -> dict[str, Any]:
+        """Generate JSON using Claude Agent SDK (subscription mode)."""
+        # SDK doesn't support response_format, so we rely on prompt instructions
+        json_system = (system_prompt or "You are a helpful assistant.") + (
+            "\n\nIMPORTANT: You MUST respond with valid JSON only. No other text."
+        )
+        text = await self._generate_text_sdk(prompt, json_system, model)
+
+        # Try to extract JSON from the response
+        try:
+            # Strip markdown code fences if present
+            content = text.strip()
+            if content.startswith("```"):
+                first_newline = content.find("\n")
+                last_fence = content.rfind("```")
+                if first_newline != -1 and last_fence > first_newline:
+                    content = content[first_newline + 1 : last_fence].strip()
+                else:
+                    lines = content.split("\n")
+                    content = "\n".join(lines[1:-1]).strip()
+            result: dict[str, Any] = json.loads(content)
+            return result
+        except json.JSONDecodeError as e:
+            raise ValueError(f"Failed to parse LLM response as JSON: {e}") from e
+
+    async def _generate_json_litellm(
+        self,
+        prompt: str,
+        system_prompt: str | None = None,
+        model: str | None = None,
+    ) -> dict[str, Any]:
+        """Generate JSON using LiteLLM (api_key mode)."""
+        if not self._litellm:
+            raise RuntimeError("Generation unavailable (LiteLLM not initialized)")
+
+        model = model or "claude-haiku-4-5"
+        litellm_model = f"anthropic/{model}"
+
+        try:
+            response = await self._litellm.acompletion(
+                model=litellm_model,
+                messages=[
+                    {
+                        "role": "system",
+                        "content": system_prompt
+                        or "You are a helpful assistant. Respond with valid JSON.",
+                    },
+                    {"role": "user", "content": prompt},
+                ],
+                max_tokens=8000,
+                response_format={"type": "json_object"},
+            )
+            content = response.choices[0].message.content
+            if not content:
+                raise ValueError("Empty response from LLM")
+            result: dict[str, Any] = json.loads(content)
+            return result
+        except json.JSONDecodeError as e:
+            raise ValueError(f"Failed to parse LLM response as JSON: {e}") from e
+
     async def generate_with_mcp_tools(
         self,
         prompt: str,

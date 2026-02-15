@@ -190,11 +190,10 @@ class TestFormatStatusMessage:
         result = format_status_message(
             running=True,
             memories_count=50,
-            memories_avg_importance=0.65,
         )
 
         assert "Memory:" in result
-        assert "Memories: 50 (avg importance: 0.65)" in result
+        assert "Memories: 50" in result
 
     def test_process_metrics(self) -> None:
         """Test process metrics (memory, CPU)."""

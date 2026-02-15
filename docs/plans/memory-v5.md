@@ -370,3 +370,12 @@ End-to-end after all phases:
 | `src/gobby/search/embeddings.py` | Keep — `generate_embedding()` still needed |
 | `src/gobby/prompts/loader.py` | PromptLoader — loads all new prompt templates |
 | `src/gobby/config/features.py` | Feature configs for memory LLM calls |
+
+## Post-Implementation Notes
+
+All three phases are complete. A post-implementation cleanup addressed residual issues:
+
+- **`src/gobby/search/`** — Retained. While TF-IDF memory search was removed (replaced by Qdrant), `src/gobby/search/` is still used by task search (`TFIDFSearcher` in task matching) and skill search. `scikit-learn` remains as a dependency for these consumers.
+- **`CrossrefService` deleted** — `src/gobby/memory/services/crossref.py` was dead code. `MemoryManager._create_crossrefs()` replaced it with VectorStore-based crossrefs in Phase 1.
+- **`importance` field removed** — The plan specified "no importance scoring" but the field persisted across all layers. Migration 105 drops the `importance` column from `memories`. Removed from: `MemoryRecord`, `MemoryQuery`, `MemoryBackendProtocol`, `Memory` dataclass, `MemoryManager`, MCP tools, CLI, HTTP routes, workflow actions, sync/backup, and all tests.
+- **`scikit-learn`** — Comment in `pyproject.toml` updated to reflect actual usage (task search and skill search, not memory search).

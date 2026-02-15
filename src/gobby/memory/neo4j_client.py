@@ -1,13 +1,14 @@
 """Async Neo4j HTTP client.
 
 Provides a direct HTTP client for the Neo4j HTTP Query API v2,
-used to query the knowledge graph built by Mem0's graph store.
+used to query the knowledge graph built by the KnowledgeGraphService.
 """
 
 from __future__ import annotations
 
 import base64
 import logging
+import re
 from typing import Any
 
 import httpx
@@ -26,6 +27,19 @@ class Neo4jQueryError(Exception):
         super().__init__(message)
         self.status_code = status_code
         self.response_body = response_body
+
+
+_CYPHER_IDENTIFIER_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
+
+
+def _validate_cypher_identifier(value: str, kind: str = "identifier") -> None:
+    """Validate that a value is a safe Cypher identifier.
+
+    Raises ValueError if the value contains characters that could
+    enable Cypher injection when interpolated into a query.
+    """
+    if not _CYPHER_IDENTIFIER_RE.match(value):
+        raise ValueError(f"Invalid Cypher {kind}: {value!r}. Must match [A-Za-z_][A-Za-z0-9_]*.")
 
 
 class Neo4jClient:
@@ -301,6 +315,83 @@ class Neo4jClient:
             )
 
         return {"entities": entities, "relationships": relationships}
+
+    async def merge_node(
+        self,
+        name: str,
+        labels: list[str] | None = None,
+        properties: dict[str, Any] | None = None,
+    ) -> list[dict[str, Any]]:
+        """Merge a node by name, creating or updating it.
+
+        Uses MERGE with ON CREATE SET / ON MATCH SET to upsert.
+
+        Args:
+            name: Node name (used as the merge key)
+            labels: Neo4j labels to apply (e.g. ["Person", "Engineer"])
+            properties: Additional properties to set on the node
+        """
+        props = dict(properties or {})
+        if labels:
+            for label in labels:
+                _validate_cypher_identifier(label, "label")
+        label_clause = ":" + ":".join(labels) if labels else ""
+        cypher = (
+            f"MERGE (n{label_clause} {{name: $name}}) "
+            "ON CREATE SET n += $props "
+            "ON MATCH SET n += $props "
+            "RETURN n.name AS name"
+        )
+        return await self.query(cypher, {"name": name, "props": props})
+
+    async def merge_relationship(
+        self,
+        source: str,
+        target: str,
+        rel_type: str,
+        properties: dict[str, Any] | None = None,
+    ) -> list[dict[str, Any]]:
+        """Merge a relationship between two nodes matched by name.
+
+        Args:
+            source: Source node name
+            target: Target node name
+            rel_type: Relationship type (e.g. "KNOWS")
+            properties: Properties to set on the relationship
+        """
+        _validate_cypher_identifier(rel_type, "relationship type")
+        props = dict(properties or {})
+        cypher = (
+            "MATCH (a {name: $source_name}), (b {name: $target_name}) "
+            f"MERGE (a)-[r:{rel_type}]->(b) "
+            "ON CREATE SET r += $props "
+            "ON MATCH SET r += $props "
+            "RETURN type(r) AS rel_type"
+        )
+        return await self.query(
+            cypher, {"source_name": source, "target_name": target, "props": props}
+        )
+
+    async def set_node_vector(
+        self,
+        node_name: str,
+        embedding: list[float],
+        property_name: str = "embedding",
+    ) -> list[dict[str, Any]]:
+        """Set a vector property on a node using Neo4j's vector procedure.
+
+        Args:
+            node_name: Name of the node to set the vector on
+            embedding: The embedding vector
+            property_name: Vector property name (default: 'embedding')
+        """
+        _validate_cypher_identifier(property_name, "property name")
+        cypher = (
+            "MATCH (n {name: $name}) "
+            f"CALL db.create.setNodeVectorProperty(n, '{property_name}', $embedding) "
+            "RETURN n.name AS name"
+        )
+        return await self.query(cypher, {"name": node_name, "embedding": embedding})
 
     async def ping(self) -> bool:
         """Check if Neo4j is reachable."""

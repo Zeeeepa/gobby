@@ -394,6 +394,7 @@ def create_readiness_registry(
             return {"error": str(e), "suggestion": None}
 
         # Auto-scope to session_task if session_id is provided and parent_task_id is not set
+        scoped_from_session_task = False
         if session_id and not parent_task_id:
             # Resolve session_id from #N format to UUID
             try:
@@ -410,6 +411,7 @@ def create_readiness_registry(
                 if session_task and session_task != "*":
                     # session_task is set, use it as parent_task_id for scoping
                     parent_task_id = session_task
+                    scoped_from_session_task = True
 
         # Resolve parent_task_id if it's a reference format
         if parent_task_id:
@@ -442,6 +444,15 @@ def create_readiness_registry(
             )
 
         if not ready_tasks:
+            # If scoped from session_task and parent is closed, signal completion
+            if scoped_from_session_task and parent_task_id:
+                parent_task = task_manager.get_task(parent_task_id)
+                if parent_task and parent_task.status == "closed":
+                    return {
+                        "suggestion": None,
+                        "reason": "session_task is complete — all subtasks closed",
+                        "session_task_complete": True,
+                    }
             return {
                 "suggestion": None,
                 "reason": "No ready tasks found",

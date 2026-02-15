@@ -132,11 +132,16 @@ class TestCronAdd:
         result = runner.invoke(
             cli,
             [
-                "cron", "add",
-                "--name", "Morning Check",
-                "--schedule", "0 7 * * *",
-                "--action-type", "shell",
-                "--action-config", '{"command": "echo", "args": ["hello"]}',
+                "cron",
+                "add",
+                "--name",
+                "Morning Check",
+                "--schedule",
+                "0 7 * * *",
+                "--action-type",
+                "shell",
+                "--action-config",
+                '{"command": "echo", "args": ["hello"]}',
             ],
         )
         assert result.exit_code == 0
@@ -150,11 +155,16 @@ class TestCronAdd:
         result = runner.invoke(
             cli,
             [
-                "cron", "add",
-                "--name", "Periodic Check",
-                "--schedule", "300s",
-                "--action-type", "shell",
-                "--action-config", '{"command": "echo"}',
+                "cron",
+                "add",
+                "--name",
+                "Periodic Check",
+                "--schedule",
+                "300s",
+                "--action-type",
+                "shell",
+                "--action-config",
+                '{"command": "echo"}',
             ],
         )
         assert result.exit_code == 0
@@ -167,11 +177,16 @@ class TestCronAdd:
         result = runner.invoke(
             cli,
             [
-                "cron", "add",
-                "--name", "Test",
-                "--schedule", "0 * * * *",
-                "--action-type", "shell",
-                "--action-config", '{"command": "echo"}',
+                "cron",
+                "add",
+                "--name",
+                "Test",
+                "--schedule",
+                "0 * * * *",
+                "--action-type",
+                "shell",
+                "--action-config",
+                '{"command": "echo"}',
                 "--json",
             ],
         )
@@ -183,11 +198,16 @@ class TestCronAdd:
         result = runner.invoke(
             cli,
             [
-                "cron", "add",
-                "--name", "Bad",
-                "--schedule", "0 * * * *",
-                "--action-type", "shell",
-                "--action-config", "not-json",
+                "cron",
+                "add",
+                "--name",
+                "Bad",
+                "--schedule",
+                "0 * * * *",
+                "--action-type",
+                "shell",
+                "--action-config",
+                "not-json",
             ],
         )
         assert result.exit_code != 0
@@ -345,9 +365,7 @@ class TestCronEdit:
     def test_edit_json_output(self, runner, mock_storage) -> None:
         mock_storage.get_job.return_value = _make_job()
         mock_storage.update_job.return_value = _make_job(name="Updated")
-        result = runner.invoke(
-            cli, ["cron", "edit", "cj-abc123", "--name", "Updated", "--json"]
-        )
+        result = runner.invoke(cli, ["cron", "edit", "cj-abc123", "--name", "Updated", "--json"])
         assert result.exit_code == 0
         data = json.loads(result.output)
         assert data["name"] == "Updated"

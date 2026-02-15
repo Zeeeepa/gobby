@@ -17,7 +17,7 @@ from gobby.llm import LLMService, create_llm_service
 from gobby.llm.resolver import ExecutorRegistry
 from gobby.mcp_proxy.manager import MCPClientManager
 from gobby.memory.manager import MemoryManager
-from gobby.memory.mem0_sync import Mem0SyncProcessor
+from gobby.memory.vectorstore import VectorStore
 from gobby.servers.http import HTTPServer
 from gobby.servers.websocket.models import WebSocketConfig
 from gobby.servers.websocket.server import WebSocketServer
@@ -176,29 +176,27 @@ class GobbyRunner:
         except Exception as e:
             logger.error(f"Failed to initialize LLM service: {e}")
 
-        # Initialize Memory Manager
+        # Initialize VectorStore and Memory Manager
+        self.vector_store: VectorStore | None = None
         self.memory_manager: MemoryManager | None = None
         if hasattr(self.config, "memory"):
             try:
-                embedding_api_key = None
-                if self.config.llm_providers and self.config.llm_providers.api_keys:
-                    embedding_api_key = self.config.llm_providers.api_keys.get("OPENAI_API_KEY")
+                # Create VectorStore (async initialize() called during startup)
+                qdrant_path = self.config.memory.qdrant_path or str(
+                    Path.home() / ".gobby" / "qdrant"
+                )
+                self.vector_store = VectorStore(
+                    path=qdrant_path if not self.config.memory.qdrant_url else None,
+                    url=self.config.memory.qdrant_url,
+                    api_key=self.config.memory.qdrant_api_key,
+                )
                 self.memory_manager = MemoryManager(
                     self.database,
                     self.config.memory,
-                    embedding_api_key=embedding_api_key,
+                    vector_store=self.vector_store,
                 )
             except Exception as e:
                 logger.error(f"Failed to initialize MemoryManager: {e}")
-
-        # Mem0 Background Sync Processor
-        self.mem0_sync: Mem0SyncProcessor | None = None
-        if self.memory_manager and self.memory_manager._mem0_client:
-            self.mem0_sync = Mem0SyncProcessor(
-                memory_manager=self.memory_manager,
-                sync_interval=self.config.memory.mem0_sync_interval,
-                max_backoff=self.config.memory.mem0_sync_max_backoff,
-            )
 
         # MCP Proxy Manager - Initialize early for tool access
         # LocalMCPManager handles server/tool storage in SQLite
@@ -301,8 +299,9 @@ class GobbyRunner:
             from gobby.storage.pipelines import LocalPipelineExecutionManager
             from gobby.workflows.loader import WorkflowLoader
             from gobby.workflows.pipeline_executor import PipelineExecutor
+            from gobby.workflows.templates import TemplateEngine
 
-            self.workflow_loader = WorkflowLoader()
+            self.workflow_loader = WorkflowLoader(db=self.database)
             if self.project_id:
                 self.pipeline_execution_manager = LocalPipelineExecutionManager(
                     db=self.database,
@@ -314,6 +313,7 @@ class GobbyRunner:
                         execution_manager=self.pipeline_execution_manager,
                         llm_service=self.llm_service,
                         loader=self.workflow_loader,
+                        template_engine=TemplateEngine(),
                     )
                     logger.debug("Pipeline executor initialized")
                 else:
@@ -441,6 +441,7 @@ class GobbyRunner:
                 config=websocket_config,
                 mcp_manager=self.mcp_proxy,
                 session_manager=self.session_manager,
+                message_manager=self.message_manager,
                 daemon_config=self.config,
             )
             # Pass WebSocket server reference to HTTP server for broadcasting
@@ -681,13 +682,34 @@ class GobbyRunner:
             # Check for pending Memory V2 migration
             self._check_memory_v2_migration()
 
+            # Initialize VectorStore (async) and rebuild if needed
+            if self.vector_store:
+                try:
+                    await self.vector_store.initialize()
+                    qdrant_count = await self.vector_store.count()
+                    if qdrant_count == 0 and self.memory_manager:
+                        sqlite_memories = self.memory_manager.storage.list_memories(limit=10000)
+                        if sqlite_memories:
+                            logger.info(
+                                f"Qdrant empty, rebuilding from {len(sqlite_memories)} SQLite memories..."
+                            )
+                            memory_dicts = [
+                                {"id": m.id, "content": m.content} for m in sqlite_memories
+                            ]
+                            embed_fn = self.memory_manager.embed_fn
+                            if embed_fn:
+                                await self.vector_store.rebuild(memory_dicts, embed_fn)
+                                logger.info("VectorStore rebuild complete")
+                            else:
+                                logger.warning(
+                                    "No embed_fn configured, skipping VectorStore rebuild"
+                                )
+                except Exception as e:
+                    logger.error(f"VectorStore initialization failed: {e}")
+
             # Start Message Processor
             if self.message_processor:
                 await self.message_processor.start()
-
-            # Start Mem0 Background Sync
-            if self.mem0_sync:
-                await self.mem0_sync.start()
 
             # Start Session Lifecycle Manager
             await self.lifecycle_manager.start()
@@ -800,12 +822,14 @@ class GobbyRunner:
 
                 stop_ui_server(quiet=True)
 
-            # Stop Mem0 background sync (before memory backup)
-            if self.mem0_sync:
+            # Close VectorStore connection
+            if self.vector_store:
                 try:
-                    await asyncio.wait_for(self.mem0_sync.stop(), timeout=5.0)
+                    await asyncio.wait_for(self.vector_store.close(), timeout=5.0)
                 except TimeoutError:
-                    logger.warning("Mem0 sync processor shutdown timed out")
+                    logger.warning("VectorStore close timed out")
+                except Exception as e:
+                    logger.warning(f"VectorStore close failed: {e}")
 
             # Export memories to JSONL backup on shutdown
             if self.memory_sync_manager:

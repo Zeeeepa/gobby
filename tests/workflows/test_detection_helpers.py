@@ -118,7 +118,9 @@ class TestDetectPlanModeFromContext:
 
     def test_detects_you_are_in_plan_mode(self, workflow_state) -> None:
         """Detects 'You are in plan mode' in prompt."""
-        prompt = "<system-reminder>You are in plan mode</system-reminder>. Please continue planning."
+        prompt = (
+            "<system-reminder>You are in plan mode</system-reminder>. Please continue planning."
+        )
 
         detect_plan_mode_from_context(prompt, workflow_state)
 
@@ -177,9 +179,7 @@ class TestHandleDetectPlanModeFromContext:
         """Action handler reads prompt from event_data and detects plan mode."""
         context = MagicMock()
         context.state = workflow_state
-        context.event_data = {
-            "prompt": "<system-reminder>Plan mode is active</system-reminder>"
-        }
+        context.event_data = {"prompt": "<system-reminder>Plan mode is active</system-reminder>"}
 
         result = await handle_detect_plan_mode_from_context(context)
 
@@ -216,9 +216,7 @@ class TestHandleDetectPlanModeFromContext:
         workflow_state.variables["plan_mode"] = True
         context = MagicMock()
         context.state = workflow_state
-        context.event_data = {
-            "prompt": "<system-reminder>Exited Plan Mode</system-reminder>"
-        }
+        context.event_data = {"prompt": "<system-reminder>Exited Plan Mode</system-reminder>"}
 
         result = await handle_detect_plan_mode_from_context(context)
 

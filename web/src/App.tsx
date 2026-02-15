@@ -20,13 +20,14 @@ import { McpPage } from './components/McpPage'
 import { CronJobsPage } from './components/CronJobsPage'
 import { AgentDefinitionsPage } from './components/AgentDefinitionsPage'
 import { ConfigurationPage } from './components/ConfigurationPage'
+import { WorkflowsPage } from './components/WorkflowsPage'
 import { QuickCaptureTask } from './components/tasks/QuickCaptureTask'
 import type { GobbySession } from './hooks/useSessions'
 
 const HIDDEN_PROJECTS = new Set(['_orphaned', '_migrated'])
 
 export default function App() {
-  const { messages, conversationId, isConnected, isStreaming, isThinking, sendMessage, stopStreaming, clearHistory, executeCommand, respondToQuestion, switchConversation, startNewChat, wsRef, handleVoiceMessageRef } = useChat()
+  const { messages, conversationId, isConnected, isStreaming, isThinking, sendMessage, stopStreaming, deleteConversation, executeCommand, respondToQuestion, switchConversation, startNewChat, wsRef, handleVoiceMessageRef } = useChat()
   const voice = useVoice(wsRef, conversationId)
   const { settings, modelInfo, modelsLoading, updateFontSize, updateModel, resetSettings } = useSettings()
   const { agents, selectedAgent, setSelectedAgent, sendInput, onOutput } = useTerminal()
@@ -37,7 +38,9 @@ export default function App() {
   const [terminalOpen, setTerminalOpen] = useState(true)
   const [activeTab, setActiveTab] = useState<string>('chat')
   const [sidebarOpen, setSidebarOpen] = useState(false)
-  const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null)
+  const [selectedProjectId, setSelectedProjectId] = useState<string | null>(() => {
+    try { return localStorage.getItem('gobby-chat-project') } catch { return null }
+  })
   const [quickCaptureOpen, setQuickCaptureOpen] = useState(false)
 
   // Global keyboard chord: Cmd+K → t opens quick capture task creation
@@ -97,6 +100,14 @@ export default function App() {
 
   const effectiveProjectId = selectedProjectId ?? defaultProjectId
 
+  // Persist project selection
+  useEffect(() => {
+    try {
+      if (selectedProjectId) localStorage.setItem('gobby-chat-project', selectedProjectId)
+      else localStorage.removeItem('gobby-chat-project')
+    } catch { /* noop */ }
+  }, [selectedProjectId])
+
   // Web-chat sessions only (for ConversationPicker in ChatPage)
   const webChatSessions = useMemo(
     () => sessionsHook.filteredSessions.filter((s) => s.source === 'claude_sdk_web_chat'),
@@ -123,8 +134,13 @@ export default function App() {
 
   // Chat page: only web-chat sessions are selectable
   const handleSelectConversation = useCallback((session: GobbySession) => {
-    switchConversation(session.external_id)
+    switchConversation(session.external_id, session.id)
   }, [switchConversation])
+
+  const handleDeleteConversation = useCallback((session: GobbySession) => {
+    deleteConversation(session.external_id)
+    sessionsHook.refresh()
+  }, [deleteConversation, sessionsHook])
 
   /* "Ask Gobby about this session" from Sessions page */
   const handleAskGobby = useCallback((context: string) => {
@@ -201,15 +217,6 @@ export default function App() {
           <span className={`status ${isConnected ? 'connected' : 'disconnected'}`}>
             {isConnected ? 'Connected' : 'Disconnected'}
           </span>
-          {messages.length > 0 && activeTab === 'chat' && (
-            <button
-              className="settings-button"
-              onClick={clearHistory}
-              title="Clear chat history"
-            >
-              <TrashIcon />
-            </button>
-          )}
         </div>
       </header>
 
@@ -240,6 +247,7 @@ export default function App() {
             activeSessionId: conversationId,
             onNewChat: startNewChat,
             onSelectSession: handleSelectConversation,
+            onDeleteSession: handleDeleteConversation,
           }}
           terminal={{
             isOpen: terminalOpen,
@@ -304,6 +312,8 @@ export default function App() {
         <AgentDefinitionsPage />
       ) : activeTab === 'skills' ? (
         <SkillsPage />
+      ) : activeTab === 'workflows' ? (
+        <WorkflowsPage />
       ) : activeTab === 'mcp' ? (
         <McpPage />
       ) : activeTab === 'configuration' ? (
@@ -521,20 +531,3 @@ function ConfigurationIcon() {
   )
 }
 
-function TrashIcon() {
-  return (
-    <svg
-      width="18"
-      height="18"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    >
-      <polyline points="3 6 5 6 21 6" />
-      <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
-    </svg>
-  )
-}

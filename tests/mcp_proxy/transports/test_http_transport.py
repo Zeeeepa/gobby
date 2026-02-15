@@ -23,6 +23,7 @@ pytestmark = [pytest.mark.unit, pytest.mark.asyncio]
 # Helpers
 # ---------------------------------------------------------------------------
 
+
 def _make_config(**overrides: Any) -> MCPServerConfig:
     """Create a real MCPServerConfig for HTTP transport."""
     defaults = dict(
@@ -63,6 +64,7 @@ async def _fake_streamablehttp_error(url: str, headers: dict | None = None):
 # ---------------------------------------------------------------------------
 # Fixtures
 # ---------------------------------------------------------------------------
+
 
 @pytest.fixture
 def config() -> MCPServerConfig:
@@ -290,7 +292,9 @@ class TestHTTPConnectError:
         assert conn.state == ConnectionState.FAILED
         assert conn._owner_task is None
 
-    async def test_connection_error_cleared_after_raise(self, conn: HTTPTransportConnection) -> None:
+    async def test_connection_error_cleared_after_raise(
+        self, conn: HTTPTransportConnection
+    ) -> None:
         """_connection_error is set to None before raising."""
         error = MCPError("boom")
 
@@ -330,7 +334,9 @@ class TestHTTPRunConnection:
         assert c._session is None
         assert c.state == ConnectionState.DISCONNECTED
 
-    async def test_events_not_initialized_raises_runtime_error(self, conn: HTTPTransportConnection) -> None:
+    async def test_events_not_initialized_raises_runtime_error(
+        self, conn: HTTPTransportConnection
+    ) -> None:
         """If events not set, _run_connection raises RuntimeError."""
         conn._disconnect_event = None
         conn._session_ready = None
@@ -345,6 +351,7 @@ class TestHTTPRunConnection:
         conn: HTTPTransportConnection,
     ) -> None:
         """Non-MCPError exceptions get wrapped in MCPError."""
+
         @asynccontextmanager
         async def failing_client(url, headers=None):
             raise OSError("network down")
@@ -485,6 +492,7 @@ class TestHTTPCleanupOwnerTask:
 
     async def test_running_task_is_cancelled(self, conn: HTTPTransportConnection) -> None:
         """A running task gets cancelled and awaited."""
+
         async def long_running() -> None:
             await asyncio.sleep(100)
 
@@ -555,7 +563,9 @@ class TestHTTPDisconnect:
         assert conn.state == ConnectionState.DISCONNECTED
         assert conn._owner_task is None
 
-    async def test_disconnect_signals_event_and_cleans_up(self, conn: HTTPTransportConnection) -> None:
+    async def test_disconnect_signals_event_and_cleans_up(
+        self, conn: HTTPTransportConnection
+    ) -> None:
         """disconnect() sets the event and cleans up owner task."""
         event = asyncio.Event()
         conn._disconnect_event = event
@@ -615,7 +625,9 @@ class TestHTTPDisconnect:
 
 
 class TestHTTPBaseProperties:
-    def test_is_connected_requires_both_state_and_session(self, conn: HTTPTransportConnection) -> None:
+    def test_is_connected_requires_both_state_and_session(
+        self, conn: HTTPTransportConnection
+    ) -> None:
         # State CONNECTED but no session -> not connected
         conn._state = ConnectionState.CONNECTED
         conn._session = None

@@ -155,9 +155,7 @@ class TestCheckHealth:
         assert verbose_watchdog.check_health() is True
 
     @patch("gobby.watchdog.httpx.get")
-    def test_non_verbose_skips_debug_log(
-        self, mock_get: MagicMock, watchdog: Watchdog
-    ) -> None:
+    def test_non_verbose_skips_debug_log(self, mock_get: MagicMock, watchdog: Watchdog) -> None:
         mock_get.return_value = MagicMock(status_code=200)
         # Should succeed without verbose debug logging
         assert watchdog.check_health() is True

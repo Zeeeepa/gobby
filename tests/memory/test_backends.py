@@ -135,7 +135,6 @@ class TestStorageAdapter:
         assert MemoryCapability.DELETE in caps
         assert MemoryCapability.SEARCH_TEXT in caps
         assert MemoryCapability.TAGS in caps
-        assert MemoryCapability.IMPORTANCE in caps
 
     @pytest.mark.asyncio
     async def test_storage_adapter_create_and_get(self, temp_db: LocalDatabase):
@@ -146,13 +145,11 @@ class TestStorageAdapter:
         record = await backend.create(
             content="Test memory for StorageAdapter",
             memory_type="fact",
-            importance=0.8,
             tags=["test", "adapter"],
         )
         assert record is not None
         assert record.id is not None
         assert record.content == "Test memory for StorageAdapter"
-        assert record.importance == 0.8
 
         # Get the memory back
         retrieved = await backend.get(record.id)
@@ -172,10 +169,8 @@ class TestStorageAdapter:
         updated = await backend.update(
             record.id,
             content="Updated content",
-            importance=0.9,
         )
         assert updated.content == "Updated content"
-        assert updated.importance == 0.9
 
     @pytest.mark.asyncio
     async def test_storage_adapter_delete(self, temp_db: LocalDatabase):

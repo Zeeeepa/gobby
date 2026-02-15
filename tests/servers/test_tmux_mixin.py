@@ -81,8 +81,12 @@ class TestTmuxListSessions:
     async def test_list_empty(self, server: WebSocketServer) -> None:
         ws = MockWebSocket()
         with (
-            patch.object(server._tmux_mgr_default, "list_sessions", new_callable=AsyncMock, return_value=[]),
-            patch.object(server._tmux_mgr_gobby, "list_sessions", new_callable=AsyncMock, return_value=[]),
+            patch.object(
+                server._tmux_mgr_default, "list_sessions", new_callable=AsyncMock, return_value=[]
+            ),
+            patch.object(
+                server._tmux_mgr_gobby, "list_sessions", new_callable=AsyncMock, return_value=[]
+            ),
         ):
             await server._handle_tmux_list_sessions(ws, {"request_id": "r1"})
 
@@ -245,9 +249,7 @@ class TestTmuxKillSession:
             mode="tmux",
             tmux_session_name="agent-sess",
         )
-        with patch(
-            "gobby.servers.websocket.tmux.get_running_agent_registry"
-        ) as mock_reg:
+        with patch("gobby.servers.websocket.tmux.get_running_agent_registry") as mock_reg:
             mock_reg.return_value.list_all.return_value = [agent]
             await server._handle_tmux_kill_session(
                 ws,
@@ -272,9 +274,7 @@ class TestTmuxResize:
     async def test_resize_calls_bridge(self, server: WebSocketServer) -> None:
         ws = MockWebSocket()
         with patch.object(server._tmux_bridge, "resize", new_callable=AsyncMock) as mock_resize:
-            await server._handle_tmux_resize(
-                ws, {"streaming_id": "s1", "rows": 24, "cols": 80}
-            )
+            await server._handle_tmux_resize(ws, {"streaming_id": "s1", "rows": 24, "cols": 80})
             mock_resize.assert_called_once_with("s1", 24, 80)
 
 
@@ -313,9 +313,7 @@ class TestTerminalInputBridgeRouting:
             server._tmux_bridge, "get_master_fd", new_callable=AsyncMock, return_value=42
         ):
             with patch("asyncio.to_thread", new_callable=AsyncMock) as mock_thread:
-                await server._handle_terminal_input(
-                    ws, {"run_id": "tmux-abc123", "data": "ls\n"}
-                )
+                await server._handle_terminal_input(ws, {"run_id": "tmux-abc123", "data": "ls\n"})
                 mock_thread.assert_called_once()
                 args = mock_thread.call_args
                 assert args[0][1] == 42  # fd
@@ -325,12 +323,10 @@ class TestTerminalInputBridgeRouting:
     async def test_input_falls_through_to_registry(self, server: WebSocketServer) -> None:
         ws = MockWebSocket()
         # Bridge returns None for fd - should fall through to registry lookup
-        with patch.object(server._tmux_bridge, "get_master_fd", new_callable=AsyncMock, return_value=None):
-            with patch(
-                "gobby.servers.websocket.handlers.get_running_agent_registry"
-            ) as mock_reg:
+        with patch.object(
+            server._tmux_bridge, "get_master_fd", new_callable=AsyncMock, return_value=None
+        ):
+            with patch("gobby.servers.websocket.handlers.get_running_agent_registry") as mock_reg:
                 mock_reg.return_value.get.return_value = None
-                await server._handle_terminal_input(
-                    ws, {"run_id": "some-agent", "data": "x"}
-                )
+                await server._handle_terminal_input(ws, {"run_id": "some-agent", "data": "x"})
                 mock_reg.return_value.get.assert_called_once_with("some-agent")

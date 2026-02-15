@@ -1,12 +1,13 @@
 import type { GobbySession } from '../hooks/useSessions'
 import { formatRelativeTime } from '../utils/formatTime'
-import { useState } from 'react'
+import { useState, useEffect, useRef } from 'react'
 
 interface ConversationPickerProps {
   sessions: GobbySession[]
   activeSessionId: string | null
   onNewChat: () => void
   onSelectSession: (session: GobbySession) => void
+  onDeleteSession?: (session: GobbySession) => void
 }
 
 export function ConversationPicker({
@@ -14,9 +15,22 @@ export function ConversationPicker({
   activeSessionId,
   onNewChat,
   onSelectSession,
+  onDeleteSession,
 }: ConversationPickerProps) {
   const [search, setSearch] = useState('')
   const [isOpen, setIsOpen] = useState(true)
+  const pickerRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    if (!isOpen) return
+    const handleClickOutside = (e: MouseEvent) => {
+      if (pickerRef.current && !pickerRef.current.contains(e.target as Node)) {
+        setIsOpen(false)
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => document.removeEventListener('mousedown', handleClickOutside)
+  }, [isOpen])
 
   const filtered = search
     ? sessions.filter(
@@ -27,12 +41,13 @@ export function ConversationPicker({
     : sessions
 
   return (
-    <div className={`conversation-picker ${isOpen ? '' : 'collapsed'}`}>
+    <div ref={pickerRef} className={`conversation-picker ${isOpen ? '' : 'collapsed'}`}>
       <div className="conversation-picker-header">
         {isOpen && <span className="conversation-picker-title">Chats</span>}
         <div className="conversation-picker-actions">
           {isOpen && (
             <button
+              type="button"
               className="terminals-action-btn"
               onClick={onNewChat}
               title="New Chat"
@@ -41,6 +56,7 @@ export function ConversationPicker({
             </button>
           )}
           <button
+            type="button"
             className="terminals-sidebar-toggle"
             onClick={() => setIsOpen(!isOpen)}
             title={isOpen ? 'Collapse' : 'Expand'}
@@ -88,6 +104,16 @@ export function ConversationPicker({
                     <span className="session-pid">
                       {formatRelativeTime(session.updated_at)}
                     </span>
+                    {onDeleteSession && (
+                      <button
+                        type="button"
+                        className="session-delete-btn"
+                        title="Delete chat"
+                        onClick={(e) => { e.stopPropagation(); onDeleteSession(session) }}
+                      >
+                        <TrashIcon />
+                      </button>
+                    )}
                   </div>
                 </div>
               )
@@ -96,6 +122,15 @@ export function ConversationPicker({
         </>
       )}
     </div>
+  )
+}
+
+function TrashIcon() {
+  return (
+    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <polyline points="3 6 5 6 21 6" />
+      <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+    </svg>
   )
 }
 

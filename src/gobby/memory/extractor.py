@@ -32,7 +32,6 @@ class MemoryCandidate:
 
     content: str
     memory_type: str  # fact, pattern, preference, context
-    importance: float
     tags: list[str]
 
     def to_dict(self) -> dict[str, Any]:
@@ -40,7 +39,6 @@ class MemoryCandidate:
         return {
             "content": self.content,
             "memory_type": self.memory_type,
-            "importance": self.importance,
             "tags": self.tags,
         }
 
@@ -91,7 +89,6 @@ class SessionMemoryExtractor:
     async def extract(
         self,
         session_id: str,
-        min_importance: float = 0.7,
         max_memories: int = 5,
         dry_run: bool = False,
     ) -> list[MemoryCandidate]:
@@ -99,7 +96,6 @@ class SessionMemoryExtractor:
 
         Args:
             session_id: The session to extract memories from
-            min_importance: Minimum importance threshold (0.0-1.0)
             max_memories: Maximum number of memories to extract
             dry_run: If True, don't store memories, just return candidates
 
@@ -115,7 +111,6 @@ class SessionMemoryExtractor:
         # 2. Load and render prompt
         prompt = self._render_prompt(
             context=context,
-            min_importance=min_importance,
             max_memories=max_memories,
         )
 
@@ -125,10 +120,9 @@ class SessionMemoryExtractor:
             logger.debug(f"No memory candidates extracted from session {session_id}")
             return []
 
-        # 4. Quality filter + deduplicate
+        # 4. Deduplicate against existing memories
         filtered = await self._filter_and_dedupe(
             candidates=candidates,
-            min_importance=min_importance,
             project_id=context.project_id,
         )
 
@@ -268,14 +262,12 @@ class SessionMemoryExtractor:
     def _render_prompt(
         self,
         context: SessionContext,
-        min_importance: float,
         max_memories: int,
     ) -> str:
         """Render the extraction prompt with context.
 
         Args:
             context: Session context
-            min_importance: Minimum importance threshold
             max_memories: Maximum memories to extract
 
         Returns:
@@ -289,7 +281,6 @@ class SessionMemoryExtractor:
                 "files": context.files_modified,
                 "tool_summary": context.tool_summary,
                 "transcript_summary": context.transcript_summary,
-                "min_importance": min_importance,
                 "max_memories": max_memories,
             },
         )
@@ -355,17 +346,6 @@ class SessionMemoryExtractor:
                 if memory_type not in ("fact", "pattern", "preference", "context"):
                     memory_type = "fact"
 
-                raw_importance = item.get("importance", 0.7)
-                try:
-                    importance = float(raw_importance)
-                except (ValueError, TypeError) as e:
-                    logger.warning(
-                        f"Invalid importance value '{raw_importance}' in memory item "
-                        f"(content: {content[:50]}...): {e}. Using default 0.7"
-                    )
-                    importance = 0.7
-                importance = max(0.0, min(1.0, importance))
-
                 tags = item.get("tags", [])
                 if not isinstance(tags, list):
                     tags = []
@@ -375,7 +355,6 @@ class SessionMemoryExtractor:
                     MemoryCandidate(
                         content=content,
                         memory_type=memory_type,
-                        importance=importance,
                         tags=tags,
                     )
                 )
@@ -390,26 +369,20 @@ class SessionMemoryExtractor:
     async def _filter_and_dedupe(
         self,
         candidates: list[MemoryCandidate],
-        min_importance: float,
         project_id: str | None,
     ) -> list[MemoryCandidate]:
-        """Filter candidates by importance and deduplicate against existing memories.
+        """Deduplicate candidates against existing memories.
 
         Args:
             candidates: Raw candidates from LLM
-            min_importance: Minimum importance threshold
             project_id: Project ID for deduplication
 
         Returns:
-            Filtered and deduplicated candidates
+            Deduplicated candidates
         """
         filtered: list[MemoryCandidate] = []
 
         for candidate in candidates:
-            # Skip low importance
-            if candidate.importance < min_importance:
-                continue
-
             # Check for duplicates in existing memories
             if self.memory_manager.content_exists(candidate.content, project_id):
                 logger.debug(f"Skipping duplicate memory: {candidate.content[:50]}...")
@@ -477,10 +450,9 @@ class SessionMemoryExtractor:
 
         for candidate in candidates:
             try:
-                await self.memory_manager.remember(
+                await self.memory_manager.create_memory(
                     content=candidate.content,
                     memory_type=candidate.memory_type,
-                    importance=candidate.importance,
                     project_id=project_id,
                     source_type="session",
                     source_session_id=session_id,

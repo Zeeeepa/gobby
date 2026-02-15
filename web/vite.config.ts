@@ -3,6 +3,7 @@ import react from '@vitejs/plugin-react'
 
 const GOBBY_HTTP_PORT = process.env.GOBBY_DAEMON_PORT || '60887'
 const GOBBY_WS_PORT = process.env.GOBBY_WS_PORT || '60888'
+const GOBBY_UI_HOST = process.env.GOBBY_UI_HOST || 'localhost'
 
 // https://vite.dev/config/
 export default defineConfig({
@@ -11,8 +12,9 @@ export default defineConfig({
     dedupe: ['@codemirror/state', '@codemirror/view', '@codemirror/language'],
   },
   server: {
+    host: GOBBY_UI_HOST,
     port: 60889,
-    allowedHosts: ['localhost', '.ts.net', ...(process.env.VITE_ALLOWED_HOST ? [process.env.VITE_ALLOWED_HOST] : [])],
+    allowedHosts: GOBBY_UI_HOST === '0.0.0.0' ? true : ['localhost', '.ts.net', ...(process.env.VITE_ALLOWED_HOST ? [process.env.VITE_ALLOWED_HOST] : [])],
     proxy: {
       // Proxy API requests to Gobby daemon
       ...Object.fromEntries(

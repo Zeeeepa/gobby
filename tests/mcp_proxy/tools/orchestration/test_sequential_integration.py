@@ -47,9 +47,7 @@ def _build_tool_proxy() -> AsyncMock:
     proxy = AsyncMock()
     call_counts: dict[str, int] = {}
 
-    async def mock_call_tool(
-        server: str, tool: str, args: dict | None = None
-    ) -> dict:
+    async def mock_call_tool(server: str, tool: str, args: dict | None = None) -> dict:
         key = f"{server}/{tool}"
         call_counts[key] = call_counts.get(key, 0) + 1
         count = call_counts[key]
@@ -101,9 +99,7 @@ def _build_task_manager(tool_proxy: AsyncMock) -> MagicMock:
         task.requires_user_review = False
         if task_id == "#parent-epic":
             # Parent complete only after all suggest calls exhausted
-            suggest_count = tool_proxy._call_counts.get(
-                "gobby-tasks/suggest_next_task", 0
-            )
+            suggest_count = tool_proxy._call_counts.get("gobby-tasks/suggest_next_task", 0)
             task.status = "closed" if suggest_count >= 3 else "open"
         else:
             task.status = "closed"
@@ -190,9 +186,7 @@ class TestSequentialOrchestration:
     """Test meeseeks-box workflow processes 2 tasks sequentially."""
 
     @pytest.mark.asyncio
-    async def test_full_sequential_cycle(
-        self, engine, state, tool_proxy, task_manager
-    ) -> None:
+    async def test_full_sequential_cycle(self, engine, state, tool_proxy, task_manager) -> None:
         """Drive the full workflow: 2 tasks through find→spawn→wait→review→merge→cleanup→complete."""
         wf_engine, state_manager = engine
         state_manager.get_state.return_value = state
@@ -341,9 +335,7 @@ class TestSequentialOrchestration:
         assert state.variables.get("wait_retry_count") == 0
 
     @pytest.mark.asyncio
-    async def test_dry_run_skips_spawn_to_complete(
-        self, engine, state, tool_proxy
-    ) -> None:
+    async def test_dry_run_skips_spawn_to_complete(self, engine, state, tool_proxy) -> None:
         """dry_run=true: find_work → spawn_worker → complete (no actual spawn)."""
         wf_engine, state_manager = engine
         state_manager.get_state.return_value = state

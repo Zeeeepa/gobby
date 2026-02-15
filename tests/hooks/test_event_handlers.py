@@ -234,9 +234,7 @@ class TestErrorIsolation:
         self, event_handlers: EventHandlers, mock_dependencies: dict
     ) -> None:
         """Test workflow errors are handled gracefully."""
-        mock_dependencies["workflow_handler"].evaluate.side_effect = Exception(
-            "Workflow error"
-        )
+        mock_dependencies["workflow_handler"].evaluate.side_effect = Exception("Workflow error")
         event = make_event(HookEventType.BEFORE_AGENT, data={"prompt": "Hello"})
         response = event_handlers.handle_before_agent(event)
         assert response.decision in ("allow", "block")
@@ -497,9 +495,7 @@ class TestSessionStartPreCreatedSession:
         mock_session.agent_run_id = None
 
         mock_dependencies["session_storage"].get.return_value = mock_session
-        mock_dependencies["workflow_handler"].evaluate.side_effect = Exception(
-            "Workflow error"
-        )
+        mock_dependencies["workflow_handler"].evaluate.side_effect = Exception("Workflow error")
 
         handlers = EventHandlers(**mock_dependencies)
         event = make_event(
@@ -697,9 +693,7 @@ class TestSessionStartNewSession:
         """Test workflow error during new session is handled."""
         mock_dependencies["session_storage"].get.return_value = None
         mock_dependencies["session_manager"].register_session.return_value = "new-sess-456"
-        mock_dependencies["workflow_handler"].evaluate.side_effect = Exception(
-            "Workflow error"
-        )
+        mock_dependencies["workflow_handler"].evaluate.side_effect = Exception("Workflow error")
 
         handlers = EventHandlers(**mock_dependencies)
         event = make_event(
@@ -762,9 +756,7 @@ class TestSessionEndHandling:
 
     def test_session_end_workflow_error(self, mock_dependencies: dict) -> None:
         """Test workflow error during session end is handled."""
-        mock_dependencies["workflow_handler"].evaluate.side_effect = Exception(
-            "Workflow error"
-        )
+        mock_dependencies["workflow_handler"].evaluate.side_effect = Exception("Workflow error")
 
         handlers = EventHandlers(**mock_dependencies)
         event = make_event(
@@ -1617,9 +1609,7 @@ class TestWorkflowErrorHandling:
 
     def test_after_agent_workflow_error(self, mock_dependencies: dict) -> None:
         """Test AFTER_AGENT handles workflow errors gracefully."""
-        mock_dependencies["workflow_handler"].evaluate.side_effect = Exception(
-            "Workflow error"
-        )
+        mock_dependencies["workflow_handler"].evaluate.side_effect = Exception("Workflow error")
 
         handlers = EventHandlers(**mock_dependencies)
         event = make_event(HookEventType.AFTER_AGENT)
@@ -1631,9 +1621,7 @@ class TestWorkflowErrorHandling:
 
     def test_before_tool_workflow_error(self, mock_dependencies: dict) -> None:
         """Test BEFORE_TOOL handles workflow errors gracefully."""
-        mock_dependencies["workflow_handler"].evaluate.side_effect = Exception(
-            "Workflow error"
-        )
+        mock_dependencies["workflow_handler"].evaluate.side_effect = Exception("Workflow error")
 
         handlers = EventHandlers(**mock_dependencies)
         event = make_event(
@@ -1648,9 +1636,7 @@ class TestWorkflowErrorHandling:
 
     def test_after_tool_workflow_error(self, mock_dependencies: dict) -> None:
         """Test AFTER_TOOL handles workflow errors gracefully."""
-        mock_dependencies["workflow_handler"].evaluate.side_effect = Exception(
-            "Workflow error"
-        )
+        mock_dependencies["workflow_handler"].evaluate.side_effect = Exception("Workflow error")
 
         handlers = EventHandlers(**mock_dependencies)
         event = make_event(
@@ -1665,9 +1651,7 @@ class TestWorkflowErrorHandling:
 
     def test_stop_workflow_error(self, mock_dependencies: dict) -> None:
         """Test STOP handles workflow errors gracefully."""
-        mock_dependencies["workflow_handler"].evaluate.side_effect = Exception(
-            "Workflow error"
-        )
+        mock_dependencies["workflow_handler"].evaluate.side_effect = Exception("Workflow error")
 
         handlers = EventHandlers(**mock_dependencies)
         event = make_event(HookEventType.STOP)
@@ -1679,9 +1663,7 @@ class TestWorkflowErrorHandling:
 
     def test_pre_compact_workflow_error(self, mock_dependencies: dict) -> None:
         """Test PRE_COMPACT handles workflow errors gracefully."""
-        mock_dependencies["workflow_handler"].evaluate.side_effect = Exception(
-            "Workflow error"
-        )
+        mock_dependencies["workflow_handler"].evaluate.side_effect = Exception("Workflow error")
 
         handlers = EventHandlers(**mock_dependencies)
         event = make_event(HookEventType.PRE_COMPACT)
@@ -1836,7 +1818,9 @@ class TestTranscriptPathDerivation:
         result = event_handlers._derive_transcript_path("unknown-cli", {}, "ext-123")
         assert result is None
 
-    def test_derive_transcript_path_claude_returns_none(self, event_handlers: EventHandlers) -> None:
+    def test_derive_transcript_path_claude_returns_none(
+        self, event_handlers: EventHandlers
+    ) -> None:
         """Claude provides transcript_path natively, so derivation returns None."""
         result = event_handlers._derive_transcript_path("claude", {}, "ext-123")
         assert result is None
@@ -1853,7 +1837,9 @@ class TestTranscriptPathDerivation:
         )
         assert result is None
 
-    def test_find_gemini_transcript_by_prefix(self, event_handlers: EventHandlers, tmp_path, monkeypatch) -> None:
+    def test_find_gemini_transcript_by_prefix(
+        self, event_handlers: EventHandlers, tmp_path, monkeypatch
+    ) -> None:
         """Should find Gemini session file by session_id prefix."""
         import hashlib
 
@@ -1867,6 +1853,7 @@ class TestTranscriptPathDerivation:
         session_file.touch()
 
         import gobby.hooks.event_handlers._session as session_mod
+
         monkeypatch.setattr(session_mod.Path, "home", staticmethod(lambda: tmp_path))
 
         result = event_handlers._find_gemini_transcript(
@@ -1875,7 +1862,9 @@ class TestTranscriptPathDerivation:
         assert result is not None
         assert "abcd1234" in result
 
-    def test_find_gemini_transcript_fallback_most_recent(self, event_handlers: EventHandlers, tmp_path, monkeypatch) -> None:
+    def test_find_gemini_transcript_fallback_most_recent(
+        self, event_handlers: EventHandlers, tmp_path, monkeypatch
+    ) -> None:
         """Should fall back to most recent session file when prefix doesn't match."""
         import hashlib
 
@@ -1889,6 +1878,7 @@ class TestTranscriptPathDerivation:
         session_file.touch()
 
         import gobby.hooks.event_handlers._session as session_mod
+
         monkeypatch.setattr(session_mod.Path, "home", staticmethod(lambda: tmp_path))
 
         result = event_handlers._find_gemini_transcript(
@@ -1897,7 +1887,9 @@ class TestTranscriptPathDerivation:
         assert result is not None
         assert "xxxxxxxx" in result
 
-    def test_find_cursor_transcript_from_terminal_context(self, event_handlers: EventHandlers) -> None:
+    def test_find_cursor_transcript_from_terminal_context(
+        self, event_handlers: EventHandlers
+    ) -> None:
         """Should find Cursor capture path from terminal_context."""
         result = event_handlers._find_cursor_transcript(
             {"terminal_context": {"cursor_capture_path": "/tmp/gobby-cursor-abc.ndjson"}},
@@ -1905,7 +1897,9 @@ class TestTranscriptPathDerivation:
         )
         assert result == "/tmp/gobby-cursor-abc.ndjson"
 
-    def test_find_cursor_transcript_from_standard_location(self, event_handlers: EventHandlers, tmp_path) -> None:
+    def test_find_cursor_transcript_from_standard_location(
+        self, event_handlers: EventHandlers, tmp_path
+    ) -> None:
         """Should find Cursor capture file in temp dir by session_id."""
         import tempfile
         from unittest.mock import patch
@@ -1921,9 +1915,7 @@ class TestTranscriptPathDerivation:
 
     def test_find_cursor_transcript_not_found(self, event_handlers: EventHandlers) -> None:
         """Should return None when no capture file exists."""
-        result = event_handlers._find_cursor_transcript(
-            {}, "nonexistent-session-id-xyz"
-        )
+        result = event_handlers._find_cursor_transcript({}, "nonexistent-session-id-xyz")
         assert result is None
 
     def test_derive_gemini_dispatches(self, event_handlers: EventHandlers) -> None:

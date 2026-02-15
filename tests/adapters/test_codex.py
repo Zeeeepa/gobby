@@ -2609,9 +2609,7 @@ class TestCodexBlockToolsEnforcement:
             }
         ]
 
-        result = await block_tools(
-            rules=rules, event_data=event_data, workflow_state=state
-        )
+        result = await block_tools(rules=rules, event_data=event_data, workflow_state=state)
 
         assert result is not None
         assert result["decision"] == "block"
@@ -2642,9 +2640,7 @@ class TestCodexBlockToolsEnforcement:
             }
         ]
 
-        result = await block_tools(
-            rules=rules, event_data=event_data, workflow_state=state
-        )
+        result = await block_tools(rules=rules, event_data=event_data, workflow_state=state)
 
         assert result is None  # Allowed because task_claimed=True
 

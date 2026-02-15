@@ -22,7 +22,7 @@ class TestStatusUtils:
             "mcp_tools_cached": 5,
             "sessions": {"active": 1, "paused": 0, "handoff_ready": 0},
             "tasks": {"open": 2, "in_progress": 1},
-            "memory": {"count": 10, "avg_importance": 0.8},
+            "memory": {"count": 10},
         }
         mock_get.return_value = mock_response
 
@@ -98,7 +98,6 @@ class TestStatusUtils:
             tasks_ready=3,
             tasks_blocked=4,
             memories_count=10,
-            memories_avg_importance=0.5,
             sessions_paused=1,
             sessions_handoff_ready=1,
         )
@@ -108,6 +107,6 @@ class TestStatusUtils:
         assert "Ready: 3" in msg
         assert "Blocked: 4" in msg
         assert "Memory:" in msg
-        assert "Memories: 10 (avg importance: 0.50)" in msg
+        assert "Memories: 10" in msg
         assert "Paused: 1" in msg
         assert "Handoff Ready: 1" in msg

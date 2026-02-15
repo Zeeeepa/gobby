@@ -40,7 +40,7 @@ class TestAdminRoutes:
         server.task_manager.count_blocked_tasks.return_value = 0
 
         server.memory_manager = MagicMock()
-        server.memory_manager.get_stats.return_value = {"total_count": 10, "avg_importance": 0.5}
+        server.memory_manager.get_stats.return_value = {"total_count": 10}
 
         server._background_tasks = set()
 

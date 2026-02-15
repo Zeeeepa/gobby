@@ -50,7 +50,6 @@ async def memory_save(
     session_id: str,
     content: str | None = None,
     memory_type: str = "fact",
-    importance: float = 0.5,
     tags: list[str] | None = None,
     project_id: str | None = None,
 ) -> dict[str, Any] | None:
@@ -62,7 +61,6 @@ async def memory_save(
         session_id: Current session ID (used for project resolution and logging)
         content: The memory content to save (required)
         memory_type: One of 'fact', 'preference', 'pattern', 'context'
-        importance: Float 0.0-1.0
         tags: List of string tags
         project_id: Override project ID
 
@@ -88,21 +86,15 @@ async def memory_save(
         return {"error": "No project_id found"}
 
     logger.debug(
-        "Saving memory type=%s session=%s project=%s importance=%.2f",
+        "Saving memory type=%s session=%s project=%s",
         memory_type,
         session_id,
         project_id,
-        importance,
     )
 
     # Validate memory_type
     if memory_type not in ("fact", "preference", "pattern", "context"):
         memory_type = "fact"
-
-    # Validate importance
-    if not isinstance(importance, int | float):
-        importance = 0.5
-    importance = max(0.0, min(1.0, float(importance)))
 
     # Validate tags
     if tags is None:
@@ -115,10 +107,9 @@ async def memory_save(
             logger.debug("save_memory: Skipping duplicate: %s...", content[:50])
             return {"saved": False, "reason": "duplicate"}
 
-        memory = await memory_manager.remember(
+        memory = await memory_manager.create_memory(
             content=content,
             memory_type=memory_type,
-            importance=importance,
             project_id=project_id,
             source_type="workflow",
             source_session_id=session_id,
@@ -130,7 +121,6 @@ async def memory_save(
             "saved": True,
             "memory_id": memory.id,
             "memory_type": memory_type,
-            "importance": importance,
         }
 
     except Exception as e:
@@ -145,7 +135,6 @@ async def memory_recall_relevant(
     prompt_text: str | None = None,
     project_id: str | None = None,
     limit: int = 5,
-    min_importance: float = 0.3,
     state: Any | None = None,
 ) -> dict[str, Any] | None:
     """Recall memories relevant to the current user prompt.
@@ -157,7 +146,6 @@ async def memory_recall_relevant(
         prompt_text: The user's prompt text
         project_id: Override project ID
         limit: Max memories to retrieve
-        min_importance: Minimum importance threshold
         state: WorkflowState for tracking injected memory IDs (for deduplication)
 
     Returns:
@@ -192,11 +180,10 @@ async def memory_recall_relevant(
         injected_ids = set(variables.get("_injected_memory_ids", []))
 
     try:
-        memories = memory_manager.recall(
+        memories = await memory_manager.search_memories(
             query=prompt_text,
             project_id=project_id,
             limit=limit,
-            min_importance=min_importance,
             search_mode="auto",
         )
 
@@ -322,7 +309,6 @@ async def handle_memory_save(context: "ActionContext", **kwargs: Any) -> dict[st
         session_id=context.session_id,
         content=kwargs.get("content"),
         memory_type=kwargs.get("memory_type", "fact"),
-        importance=kwargs.get("importance", 0.5),
         tags=kwargs.get("tags"),
         project_id=kwargs.get("project_id"),
     )
@@ -344,7 +330,6 @@ async def handle_memory_recall_relevant(
         prompt_text=prompt_text,
         project_id=kwargs.get("project_id"),
         limit=kwargs.get("limit", 5),
-        min_importance=kwargs.get("min_importance", 0.3),
         state=context.state,
     )
 
@@ -402,7 +387,6 @@ async def handle_memory_extract_from_session(
         llm_service=context.llm_service,
         transcript_processor=context.transcript_processor,
         session_id=context.session_id,
-        min_importance=kwargs.get("min_importance", 0.7),
         max_memories=kwargs.get("max_memories", 5),
     )
 
@@ -420,7 +404,6 @@ async def handle_memory_inject_project_context(
         session_manager=context.session_manager,
         session_id=context.session_id,
         limit=kwargs.get("limit", 10),
-        min_importance=kwargs.get("min_importance", 0.7),
         state=context.state,
     )
 
@@ -554,7 +537,6 @@ async def memory_extract_from_session(
     llm_service: Any,
     transcript_processor: Any | None,
     session_id: str,
-    min_importance: float = 0.7,
     max_memories: int = 5,
 ) -> dict[str, Any] | None:
     """Extract memories from a session transcript using LLM analysis.
@@ -568,7 +550,6 @@ async def memory_extract_from_session(
         llm_service: LLM service for analysis
         transcript_processor: Optional transcript processor
         session_id: Session to extract from
-        min_importance: Minimum importance threshold
         max_memories: Maximum memories to extract
 
     Returns:
@@ -595,7 +576,6 @@ async def memory_extract_from_session(
 
         candidates = await extractor.extract(
             session_id=session_id,
-            min_importance=min_importance,
             max_memories=max_memories,
         )
 
@@ -625,20 +605,18 @@ async def memory_inject_project_context(
     session_manager: Any,
     session_id: str,
     limit: int = 10,
-    min_importance: float = 0.7,
     state: Any | None = None,
 ) -> dict[str, Any] | None:
     """Inject top project memories at session start.
 
-    Lists the most important memories for the current project (no query —
-    just top N by importance) and injects them as context.
+    Lists the most recent memories for the current project and injects
+    them as context.
 
     Args:
         memory_manager: The memory manager instance
         session_manager: Session manager for project resolution
         session_id: Current session ID
         limit: Max memories to inject
-        min_importance: Minimum importance threshold
         state: WorkflowState for tracking injected IDs
 
     Returns:
@@ -669,7 +647,6 @@ async def memory_inject_project_context(
     try:
         memories = memory_manager.list_memories(
             project_id=project_id,
-            min_importance=min_importance,
             limit=limit,
         )
 

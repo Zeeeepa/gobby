@@ -71,12 +71,8 @@ def sample_task(task_manager, project_id) -> dict:
 @pytest.fixture
 def two_tasks(task_manager, project_id) -> tuple[dict, dict]:
     """Create two tasks for dependency tests."""
-    t1 = task_manager.create_task(
-        project_id=project_id, title="Task A", task_type="task"
-    )
-    t2 = task_manager.create_task(
-        project_id=project_id, title="Task B", task_type="task"
-    )
+    t1 = task_manager.create_task(project_id=project_id, title="Task A", task_type="task")
+    t2 = task_manager.create_task(project_id=project_id, title="Task B", task_type="task")
     return t1.to_dict(), t2.to_dict()
 
 
@@ -102,30 +98,22 @@ class TestListTasks:
         ids = [t["id"] for t in data["tasks"]]
         assert sample_task["id"] in ids
 
-    def test_list_with_status_filter(
-        self, client: TestClient, sample_task: dict
-    ) -> None:
+    def test_list_with_status_filter(self, client: TestClient, sample_task: dict) -> None:
         response = client.get("/tasks?status=open")
         assert response.status_code == 200
         assert len(response.json()["tasks"]) >= 1
 
-    def test_list_with_comma_separated_status(
-        self, client: TestClient, sample_task: dict
-    ) -> None:
+    def test_list_with_comma_separated_status(self, client: TestClient, sample_task: dict) -> None:
         response = client.get("/tasks?status=open,in_progress")
         assert response.status_code == 200
 
-    def test_list_with_priority_filter(
-        self, client: TestClient, sample_task: dict
-    ) -> None:
+    def test_list_with_priority_filter(self, client: TestClient, sample_task: dict) -> None:
         # sample_task has priority=1
         response = client.get("/tasks?priority=1")
         assert response.status_code == 200
         assert len(response.json()["tasks"]) >= 1
 
-    def test_list_with_task_type_filter(
-        self, client: TestClient, sample_task: dict
-    ) -> None:
+    def test_list_with_task_type_filter(self, client: TestClient, sample_task: dict) -> None:
         response = client.get("/tasks?task_type=task")
         assert response.status_code == 200
 
@@ -134,9 +122,7 @@ class TestListTasks:
         assert response.status_code == 200
         assert len(response.json()["tasks"]) >= 1
 
-    def test_list_with_limit_and_offset(
-        self, client: TestClient, two_tasks: tuple
-    ) -> None:
+    def test_list_with_limit_and_offset(self, client: TestClient, two_tasks: tuple) -> None:
         response = client.get("/tasks?limit=1&offset=0")
         assert response.status_code == 200
         data = response.json()
@@ -146,9 +132,7 @@ class TestListTasks:
 
     def test_list_value_error(self, server) -> None:
         """When resolve_project_id raises ValueError, returns 400."""
-        with patch.object(
-            server, "resolve_project_id", side_effect=ValueError("Bad project")
-        ):
+        with patch.object(server, "resolve_project_id", side_effect=ValueError("Bad project")):
             c = TestClient(server.app)
             response = c.get("/tasks")
         assert response.status_code == 400
@@ -201,9 +185,7 @@ class TestCreateTask:
         response = client.post("/tasks", json={})
         assert response.status_code == 422
 
-    def test_create_with_parent(
-        self, client: TestClient, sample_task: dict
-    ) -> None:
+    def test_create_with_parent(self, client: TestClient, sample_task: dict) -> None:
         response = client.post(
             "/tasks",
             json={
@@ -247,9 +229,7 @@ class TestUpdateTask:
         assert response.status_code == 200
         assert response.json()["title"] == "Updated title"
 
-    def test_update_multiple_fields(
-        self, client: TestClient, sample_task: dict
-    ) -> None:
+    def test_update_multiple_fields(self, client: TestClient, sample_task: dict) -> None:
         response = client.patch(
             f"/tasks/{sample_task['id']}",
             json={
@@ -266,18 +246,14 @@ class TestUpdateTask:
         assert data["priority"] == 3
         assert data["status"] == "in_progress"
 
-    def test_update_no_fields_returns_existing(
-        self, client: TestClient, sample_task: dict
-    ) -> None:
+    def test_update_no_fields_returns_existing(self, client: TestClient, sample_task: dict) -> None:
         """Empty update returns the existing task unchanged."""
         response = client.patch(f"/tasks/{sample_task['id']}", json={})
         assert response.status_code == 200
         assert response.json()["title"] == "Sample task"
 
     def test_update_not_found(self, client: TestClient) -> None:
-        response = client.patch(
-            "/tasks/nonexistent-id-000", json={"title": "X"}
-        )
+        response = client.patch("/tasks/nonexistent-id-000", json={"title": "X"})
         assert response.status_code == 404
 
     def test_update_labels(self, client: TestClient, sample_task: dict) -> None:
@@ -327,9 +303,7 @@ class TestDeleteTask:
             title="Child",
             parent_task_id=sample_task["id"],
         )
-        response = client.delete(
-            f"/tasks/{sample_task['id']}?cascade=true"
-        )
+        response = client.delete(f"/tasks/{sample_task['id']}?cascade=true")
         assert response.status_code == 200
         assert response.json()["deleted"] is True
         # Child should also be gone
@@ -349,9 +323,7 @@ class TestCloseTask:
         data = response.json()
         assert data["status"] == "closed"
 
-    def test_close_with_reason(
-        self, client: TestClient, sample_task: dict
-    ) -> None:
+    def test_close_with_reason(self, client: TestClient, sample_task: dict) -> None:
         response = client.post(
             f"/tasks/{sample_task['id']}/close",
             json={
@@ -377,9 +349,7 @@ class TestCloseTask:
         response = client.post("/tasks/nonexistent-id-000/close")
         assert response.status_code == 400
 
-    def test_close_idempotent(
-        self, client: TestClient, sample_task: dict
-    ) -> None:
+    def test_close_idempotent(self, client: TestClient, sample_task: dict) -> None:
         """Closing an already-closed task succeeds idempotently."""
         client.post(f"/tasks/{sample_task['id']}/close")
         response = client.post(f"/tasks/{sample_task['id']}/close")
@@ -405,9 +375,7 @@ class TestReopenTask:
         data = response.json()
         assert data["status"] == "open"
 
-    def test_reopen_already_open(
-        self, client: TestClient, sample_task: dict
-    ) -> None:
+    def test_reopen_already_open(self, client: TestClient, sample_task: dict) -> None:
         """Reopening an already-open task returns 400."""
         response = client.post(f"/tasks/{sample_task['id']}/reopen")
         assert response.status_code == 400
@@ -416,9 +384,7 @@ class TestReopenTask:
         response = client.post("/tasks/nonexistent-id-000/reopen")
         assert response.status_code == 400
 
-    def test_reopen_without_body(
-        self, client: TestClient, sample_task: dict
-    ) -> None:
+    def test_reopen_without_body(self, client: TestClient, sample_task: dict) -> None:
         """Reopen without a JSON body should use defaults."""
         client.post(f"/tasks/{sample_task['id']}/close")
         response = client.post(f"/tasks/{sample_task['id']}/reopen")
@@ -453,9 +419,7 @@ class TestDeEscalateTask:
         assert data["status"] == "in_progress"
         assert "User approved the approach" in data["description"]
 
-    def test_de_escalate_not_escalated(
-        self, client: TestClient, sample_task: dict
-    ) -> None:
+    def test_de_escalate_not_escalated(self, client: TestClient, sample_task: dict) -> None:
         """De-escalating a task that's not escalated returns 400."""
         response = client.post(
             f"/tasks/{sample_task['id']}/de-escalate",
@@ -492,9 +456,7 @@ class TestDeEscalateTask:
 
 
 class TestComments:
-    def test_list_comments_empty(
-        self, client: TestClient, sample_task: dict
-    ) -> None:
+    def test_list_comments_empty(self, client: TestClient, sample_task: dict) -> None:
         response = client.get(f"/tasks/{sample_task['id']}/comments")
         assert response.status_code == 200
         data = response.json()
@@ -504,8 +466,12 @@ class TestComments:
 
     @staticmethod
     def _insert_comment(
-        temp_db, task_id: str, body: str, author: str,
-        author_type: str = "session", parent_comment_id: str | None = None,
+        temp_db,
+        task_id: str,
+        body: str,
+        author: str,
+        author_type: str = "session",
+        parent_comment_id: str | None = None,
     ) -> str:
         """Insert a comment directly into the DB, bypassing the route.
 
@@ -523,9 +489,7 @@ class TestComments:
         )
         return comment_id
 
-    def test_create_comment_endpoint(
-        self, client: TestClient, sample_task: dict
-    ) -> None:
+    def test_create_comment_endpoint(self, client: TestClient, sample_task: dict) -> None:
         """Exercise the create_comment endpoint.
 
         The route has a known bug (task.ref doesn't exist on Task dataclass)
@@ -543,9 +507,7 @@ class TestComments:
         list_resp = client.get(f"/tasks/{sample_task['id']}/comments")
         assert list_resp.json()["total"] >= 1
 
-    def test_list_comments(
-        self, client: TestClient, sample_task: dict, temp_db
-    ) -> None:
+    def test_list_comments(self, client: TestClient, sample_task: dict, temp_db) -> None:
         self._insert_comment(temp_db, sample_task["id"], "First", "a1")
         self._insert_comment(temp_db, sample_task["id"], "Second", "a2")
         response = client.get(f"/tasks/{sample_task['id']}/comments")
@@ -554,12 +516,13 @@ class TestComments:
         assert data["count"] == 2
         assert data["total"] == 2
 
-    def test_threaded_comments(
-        self, client: TestClient, sample_task: dict, temp_db
-    ) -> None:
+    def test_threaded_comments(self, client: TestClient, sample_task: dict, temp_db) -> None:
         parent_id = self._insert_comment(temp_db, sample_task["id"], "Parent", "a1")
         self._insert_comment(
-            temp_db, sample_task["id"], "Reply", "a2",
+            temp_db,
+            sample_task["id"],
+            "Reply",
+            "a2",
             parent_comment_id=parent_id,
         )
         response = client.get(f"/tasks/{sample_task['id']}/comments")
@@ -567,13 +530,9 @@ class TestComments:
         reply = [c for c in comments if c["body"] == "Reply"][0]
         assert reply["parent_comment_id"] == parent_id
 
-    def test_delete_comment(
-        self, client: TestClient, sample_task: dict, temp_db
-    ) -> None:
+    def test_delete_comment(self, client: TestClient, sample_task: dict, temp_db) -> None:
         comment_id = self._insert_comment(temp_db, sample_task["id"], "To delete", "a1")
-        response = client.delete(
-            f"/tasks/{sample_task['id']}/comments/{comment_id}"
-        )
+        response = client.delete(f"/tasks/{sample_task['id']}/comments/{comment_id}")
         assert response.status_code == 200
         assert response.json()["deleted"] is True
         list_resp = client.get(f"/tasks/{sample_task['id']}/comments")
@@ -595,9 +554,7 @@ class TestComments:
     ) -> None:
         for i in range(3):
             self._insert_comment(temp_db, sample_task["id"], f"Comment {i}", "a1")
-        response = client.get(
-            f"/tasks/{sample_task['id']}/comments?limit=2&offset=0"
-        )
+        response = client.get(f"/tasks/{sample_task['id']}/comments?limit=2&offset=0")
         data = response.json()
         assert data["count"] == 2
         assert data["total"] == 3
@@ -609,17 +566,13 @@ class TestComments:
 
 
 class TestDependencies:
-    def test_get_dependency_tree_empty(
-        self, client: TestClient, sample_task: dict
-    ) -> None:
+    def test_get_dependency_tree_empty(self, client: TestClient, sample_task: dict) -> None:
         response = client.get(f"/tasks/{sample_task['id']}/dependencies")
         assert response.status_code == 200
         data = response.json()
         assert data["id"] == sample_task["id"]
 
-    def test_add_dependency(
-        self, client: TestClient, two_tasks: tuple
-    ) -> None:
+    def test_add_dependency(self, client: TestClient, two_tasks: tuple) -> None:
         t1, t2 = two_tasks
         response = client.post(
             f"/tasks/{t1['id']}/dependencies",
@@ -631,9 +584,7 @@ class TestDependencies:
         assert data["depends_on"] == t2["id"]
         assert data["dep_type"] == "blocks"
 
-    def test_add_and_get_dependency_tree(
-        self, client: TestClient, two_tasks: tuple
-    ) -> None:
+    def test_add_and_get_dependency_tree(self, client: TestClient, two_tasks: tuple) -> None:
         t1, t2 = two_tasks
         # t1 depends on t2
         client.post(
@@ -645,9 +596,7 @@ class TestDependencies:
         data = response.json()
         assert "blockers" in data
 
-    def test_add_dependency_related_type(
-        self, client: TestClient, two_tasks: tuple
-    ) -> None:
+    def test_add_dependency_related_type(self, client: TestClient, two_tasks: tuple) -> None:
         t1, t2 = two_tasks
         response = client.post(
             f"/tasks/{t1['id']}/dependencies",
@@ -656,9 +605,7 @@ class TestDependencies:
         assert response.status_code == 201
         assert response.json()["dep_type"] == "related"
 
-    def test_remove_dependency(
-        self, client: TestClient, two_tasks: tuple
-    ) -> None:
+    def test_remove_dependency(self, client: TestClient, two_tasks: tuple) -> None:
         t1, t2 = two_tasks
         # Add
         client.post(
@@ -666,42 +613,30 @@ class TestDependencies:
             json={"depends_on": t2["id"]},
         )
         # Remove
-        response = client.delete(
-            f"/tasks/{t1['id']}/dependencies/{t2['id']}"
-        )
+        response = client.delete(f"/tasks/{t1['id']}/dependencies/{t2['id']}")
         assert response.status_code == 200
         data = response.json()
         assert data["removed"] is True
         assert data["task_id"] == t1["id"]
         assert data["depends_on"] == t2["id"]
 
-    def test_remove_nonexistent_dependency(
-        self, client: TestClient, two_tasks: tuple
-    ) -> None:
+    def test_remove_nonexistent_dependency(self, client: TestClient, two_tasks: tuple) -> None:
         t1, t2 = two_tasks
-        response = client.delete(
-            f"/tasks/{t1['id']}/dependencies/{t2['id']}"
-        )
+        response = client.delete(f"/tasks/{t1['id']}/dependencies/{t2['id']}")
         assert response.status_code == 404
 
-    def test_dependency_tree_with_direction(
-        self, client: TestClient, two_tasks: tuple
-    ) -> None:
+    def test_dependency_tree_with_direction(self, client: TestClient, two_tasks: tuple) -> None:
         t1, t2 = two_tasks
         client.post(
             f"/tasks/{t1['id']}/dependencies",
             json={"depends_on": t2["id"]},
         )
         # blockers direction
-        resp_blockers = client.get(
-            f"/tasks/{t1['id']}/dependencies?direction=blockers"
-        )
+        resp_blockers = client.get(f"/tasks/{t1['id']}/dependencies?direction=blockers")
         assert resp_blockers.status_code == 200
 
         # blocking direction
-        resp_blocking = client.get(
-            f"/tasks/{t2['id']}/dependencies?direction=blocking"
-        )
+        resp_blocking = client.get(f"/tasks/{t2['id']}/dependencies?direction=blocking")
         assert resp_blocking.status_code == 200
 
     def test_dependency_not_found_task(self, client: TestClient) -> None:
@@ -712,15 +647,9 @@ class TestDependencies:
         self, client: TestClient, task_manager: LocalTaskManager, project_id: str
     ) -> None:
         """Adding a dependency that creates a cycle returns 409."""
-        t1 = task_manager.create_task(
-            project_id=project_id, title="Cycle A"
-        )
-        t2 = task_manager.create_task(
-            project_id=project_id, title="Cycle B"
-        )
-        t3 = task_manager.create_task(
-            project_id=project_id, title="Cycle C"
-        )
+        t1 = task_manager.create_task(project_id=project_id, title="Cycle A")
+        t2 = task_manager.create_task(project_id=project_id, title="Cycle B")
+        t3 = task_manager.create_task(project_id=project_id, title="Cycle C")
         # A depends on B, B depends on C
         client.post(
             f"/tasks/{t1.id}/dependencies",
@@ -737,9 +666,7 @@ class TestDependencies:
         )
         assert response.status_code == 409
 
-    def test_add_dependency_self_reference(
-        self, client: TestClient, sample_task: dict
-    ) -> None:
+    def test_add_dependency_self_reference(self, client: TestClient, sample_task: dict) -> None:
         """A task cannot depend on itself."""
         response = client.post(
             f"/tasks/{sample_task['id']}/dependencies",

@@ -3,14 +3,16 @@ Tests for gobby.mcp_proxy.tools.memory module.
 
 Tests the memory MCP tools including:
 - create_memory
-- recall_memory
+- search_memories
 - delete_memory
 - list_memories
 - get_memory
 - get_related_memories
 - update_memory
+- remember_with_image
+- remember_screenshot
 - memory_stats
-- export_memory_graph
+- search_knowledge_graph
 """
 
 from unittest.mock import AsyncMock, MagicMock, patch
@@ -30,7 +32,6 @@ class MockMemory:
         id: str = "mem-123",
         content: str = "Test memory content",
         memory_type: str = "fact",
-        importance: float = 0.5,
         created_at: str = "2024-01-01T00:00:00",
         updated_at: str | None = None,
         project_id: str | None = None,
@@ -43,7 +44,6 @@ class MockMemory:
         self.id = id
         self.content = content
         self.memory_type = memory_type
-        self.importance = importance
         self.created_at = created_at
         self.updated_at = updated_at or created_at
         self.project_id = project_id
@@ -59,13 +59,13 @@ class MockMemory:
 def mock_memory_manager():
     """Create a mock memory manager."""
     manager = MagicMock()
-    manager.remember = AsyncMock(return_value=MockMemory())
-    manager.recall = MagicMock(return_value=[MockMemory()])
-    manager.forget = AsyncMock(return_value=True)
+    manager.create_memory = AsyncMock(return_value=MockMemory())
+    manager.search_memories = AsyncMock(return_value=[MockMemory()])
+    manager.delete_memory = AsyncMock(return_value=True)
     manager.list_memories = MagicMock(return_value=[MockMemory()])
     manager.get_memory = MagicMock(return_value=MockMemory())
     manager.get_related = AsyncMock(return_value=[MockMemory()])
-    manager.update_memory = MagicMock(return_value=MockMemory())
+    manager.update_memory = AsyncMock(return_value=MockMemory())
     manager.get_stats = MagicMock(return_value={"total": 10, "by_type": {"fact": 5}})
     manager.db = MagicMock()
     manager.content_exists = MagicMock(return_value=False)
@@ -109,7 +109,7 @@ class TestCreateMemory:
     @pytest.mark.asyncio
     async def test_create_memory_success(self, memory_registry, mock_memory_manager):
         """Test successful memory creation with similar_existing in response."""
-        mock_memory_manager.recall.return_value = [
+        mock_memory_manager.search_memories.return_value = [
             MockMemory(id="existing-1", content="Similar memory", similarity=0.85),
         ]
 
@@ -118,7 +118,7 @@ class TestCreateMemory:
         ):
             result = await memory_registry.call(
                 "create_memory",
-                {"content": "Test content", "memory_type": "fact", "importance": 0.8},
+                {"content": "Test content", "memory_type": "fact"},
             )
 
         assert result["success"] is True
@@ -128,12 +128,12 @@ class TestCreateMemory:
         assert len(result["similar_existing"]) == 1
         assert result["similar_existing"][0]["id"] == "existing-1"
         assert result["similar_existing"][0]["similarity"] == 0.85
-        mock_memory_manager.remember.assert_called_once()
+        mock_memory_manager.create_memory.assert_called_once()
 
     @pytest.mark.asyncio
     async def test_create_memory_with_tags(self, memory_registry, mock_memory_manager):
         """Test memory creation with tags."""
-        mock_memory_manager.recall.return_value = []
+        mock_memory_manager.search_memories.return_value = []
 
         with patch(
             "gobby.utils.project_context.get_project_context", return_value={"id": "proj-1"}
@@ -144,13 +144,13 @@ class TestCreateMemory:
 
         assert result["success"] is True
         assert result["similar_existing"] == []
-        call_kwargs = mock_memory_manager.remember.call_args.kwargs
+        call_kwargs = mock_memory_manager.create_memory.call_args.kwargs
         assert call_kwargs["tags"] == ["tag1", "tag2"]
 
     @pytest.mark.asyncio
     async def test_create_memory_with_session_id(self, memory_registry, mock_memory_manager):
         """Test memory creation resolves and passes source_session_id."""
-        mock_memory_manager.recall.return_value = []
+        mock_memory_manager.search_memories.return_value = []
         resolved_uuid = "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee"
 
         with (
@@ -169,7 +169,7 @@ class TestCreateMemory:
 
         assert result["success"] is True
         mock_resolve.assert_called_once_with(mock_memory_manager.db, "#42", "proj-1")
-        call_kwargs = mock_memory_manager.remember.call_args.kwargs
+        call_kwargs = mock_memory_manager.create_memory.call_args.kwargs
         assert call_kwargs["source_session_id"] == resolved_uuid
 
     @pytest.mark.asyncio
@@ -177,7 +177,7 @@ class TestCreateMemory:
         self, memory_registry, mock_memory_manager
     ):
         """Test memory creation falls back to None when session resolution fails."""
-        mock_memory_manager.recall.return_value = []
+        mock_memory_manager.search_memories.return_value = []
 
         with (
             patch(
@@ -194,21 +194,8 @@ class TestCreateMemory:
             )
 
         assert result["success"] is True
-        call_kwargs = mock_memory_manager.remember.call_args.kwargs
+        call_kwargs = mock_memory_manager.create_memory.call_args.kwargs
         assert call_kwargs["source_session_id"] is None
-
-    @pytest.mark.asyncio
-    async def test_create_memory_default_importance(self, memory_registry, mock_memory_manager):
-        """Test that default importance is 0.8."""
-        mock_memory_manager.recall.return_value = []
-
-        with patch(
-            "gobby.utils.project_context.get_project_context", return_value={"id": "proj-1"}
-        ):
-            await memory_registry.call("create_memory", {"content": "Test"})
-
-        call_kwargs = mock_memory_manager.remember.call_args.kwargs
-        assert call_kwargs["importance"] == 0.8
 
     @pytest.mark.asyncio
     async def test_create_memory_excludes_self_from_similar(
@@ -216,7 +203,7 @@ class TestCreateMemory:
     ):
         """Test that the newly created memory is excluded from similar_existing."""
         # Recall returns the new memory itself plus another
-        mock_memory_manager.recall.return_value = [
+        mock_memory_manager.search_memories.return_value = [
             MockMemory(id="mem-123", content="Test content", similarity=1.0),
             MockMemory(id="existing-1", content="Similar", similarity=0.9),
         ]
@@ -235,7 +222,7 @@ class TestCreateMemory:
         self, memory_registry, mock_memory_manager
     ):
         """Test that similarity search failure doesn't break memory creation."""
-        mock_memory_manager.recall.side_effect = Exception("Search unavailable")
+        mock_memory_manager.search_memories.side_effect = Exception("Search unavailable")
 
         with patch(
             "gobby.utils.project_context.get_project_context", return_value={"id": "proj-1"}
@@ -248,7 +235,7 @@ class TestCreateMemory:
     @pytest.mark.asyncio
     async def test_create_memory_error(self, memory_registry, mock_memory_manager):
         """Test memory creation error handling."""
-        mock_memory_manager.remember.side_effect = Exception("Database error")
+        mock_memory_manager.create_memory.side_effect = Exception("Database error")
 
         with patch("gobby.utils.project_context.get_project_context", return_value=None):
             result = await memory_registry.call("create_memory", {"content": "Test"})
@@ -263,7 +250,7 @@ class TestSearchMemories:
     @pytest.mark.asyncio
     async def test_search_memories_success(self, memory_registry, mock_memory_manager):
         """Test successful memory search."""
-        mock_memory_manager.recall.return_value = [
+        mock_memory_manager.search_memories.return_value = [
             MockMemory(id="m1", content="Memory 1", similarity=0.95),
             MockMemory(id="m2", content="Memory 2", similarity=0.85),
         ]
@@ -289,7 +276,6 @@ class TestSearchMemories:
                 "search_memories",
                 {
                     "query": "test",
-                    "min_importance": 0.5,
                     "tags_all": ["important"],
                     "tags_any": ["work", "personal"],
                     "tags_none": ["archived"],
@@ -297,8 +283,7 @@ class TestSearchMemories:
             )
 
         assert result["success"] is True
-        call_kwargs = mock_memory_manager.recall.call_args.kwargs
-        assert call_kwargs["min_importance"] == 0.5
+        call_kwargs = mock_memory_manager.search_memories.call_args.kwargs
         assert call_kwargs["tags_all"] == ["important"]
         assert call_kwargs["tags_any"] == ["work", "personal"]
         assert call_kwargs["tags_none"] == ["archived"]
@@ -306,7 +291,7 @@ class TestSearchMemories:
     @pytest.mark.asyncio
     async def test_search_memories_error(self, memory_registry, mock_memory_manager):
         """Test search error handling."""
-        mock_memory_manager.recall.side_effect = Exception("Search error")
+        mock_memory_manager.search_memories.side_effect = Exception("Search error")
 
         with patch("gobby.utils.project_context.get_project_context", return_value=None):
             result = await memory_registry.call("search_memories", {"query": "test"})
@@ -324,12 +309,12 @@ class TestDeleteMemory:
         result = await memory_registry.call("delete_memory", {"memory_id": "mem-123"})
 
         assert result == {"success": True}  # Success response
-        mock_memory_manager.forget.assert_called_once_with("mem-123")
+        mock_memory_manager.delete_memory.assert_called_once_with("mem-123")
 
     @pytest.mark.asyncio
     async def test_delete_memory_not_found(self, memory_registry, mock_memory_manager):
         """Test deletion when memory not found."""
-        mock_memory_manager.forget.return_value = False
+        mock_memory_manager.delete_memory.return_value = False
 
         result = await memory_registry.call("delete_memory", {"memory_id": "nonexistent"})
 
@@ -339,7 +324,7 @@ class TestDeleteMemory:
     @pytest.mark.asyncio
     async def test_delete_memory_error(self, memory_registry, mock_memory_manager):
         """Test deletion error handling."""
-        mock_memory_manager.forget.side_effect = Exception("Delete error")
+        mock_memory_manager.delete_memory.side_effect = Exception("Delete error")
 
         result = await memory_registry.call("delete_memory", {"memory_id": "mem-123"})
 
@@ -378,7 +363,6 @@ class TestListMemories:
                 "list_memories",
                 {
                     "memory_type": "fact",
-                    "min_importance": 0.7,
                     "limit": 20,
                     "tags_all": ["work"],
                 },
@@ -387,7 +371,6 @@ class TestListMemories:
         assert result["success"] is True
         call_kwargs = mock_memory_manager.list_memories.call_args.kwargs
         assert call_kwargs["memory_type"] == "fact"
-        assert call_kwargs["min_importance"] == 0.7
         assert call_kwargs["limit"] == 20
         assert call_kwargs["tags_all"] == ["work"]
 
@@ -413,7 +396,6 @@ class TestGetMemory:
             id="mem-123",
             content="Test content",
             memory_type="fact",
-            importance=0.8,
             project_id="proj-1",
             access_count=5,
             tags=["tag1"],
@@ -518,7 +500,6 @@ class TestUpdateMemory:
             {
                 "memory_id": "mem-123",
                 "content": "Updated content",
-                "importance": 0.9,
                 "tags": ["new-tag"],
             },
         )
@@ -528,7 +509,6 @@ class TestUpdateMemory:
         mock_memory_manager.update_memory.assert_called_once_with(
             memory_id="mem-123",
             content="Updated content",
-            importance=0.9,
             tags=["new-tag"],
         )
 
@@ -538,15 +518,14 @@ class TestUpdateMemory:
         mock_memory_manager.update_memory.return_value = MockMemory()
 
         result = await memory_registry.call(
-            "update_memory", {"memory_id": "mem-123", "importance": 0.5}
+            "update_memory", {"memory_id": "mem-123", "tags": ["updated"]}
         )
 
         assert result["success"] is True
         mock_memory_manager.update_memory.assert_called_once_with(
             memory_id="mem-123",
             content=None,
-            importance=0.5,
-            tags=None,
+            tags=["updated"],
         )
 
     @pytest.mark.asyncio
@@ -606,82 +585,6 @@ class TestMemoryStats:
         assert "Stats error" in result["error"]
 
 
-class TestExportMemoryGraph:
-    """Tests for export_memory_graph tool."""
-
-    @pytest.mark.asyncio
-    async def test_export_graph_success(self, memory_registry, mock_memory_manager, tmp_path):
-        """Test successful graph export."""
-        mock_memory_manager.list_memories.return_value = [MockMemory()]
-        output_path = tmp_path / "test_graph.html"
-
-        with (
-            patch("gobby.utils.project_context.get_project_context", return_value={"id": "proj-1"}),
-            patch("gobby.memory.viz.export_memory_graph") as mock_export,
-            patch("gobby.storage.memories.LocalMemoryManager") as mock_local_manager,
-        ):
-            mock_export.return_value = "<html>Graph</html>"
-            mock_local_manager.return_value.get_all_crossrefs.return_value = []
-
-            result = await memory_registry.call(
-                "export_memory_graph", {"title": "Test Graph", "output_path": str(output_path)}
-            )
-
-        assert result["success"] is True
-        assert result["memory_count"] == 1
-        assert result["crossref_count"] == 0
-        assert output_path.exists()
-
-    @pytest.mark.asyncio
-    async def test_export_graph_no_memories(self, memory_registry, mock_memory_manager):
-        """Test export when no memories exist."""
-        mock_memory_manager.list_memories.return_value = []
-
-        with patch(
-            "gobby.utils.project_context.get_project_context", return_value={"id": "proj-1"}
-        ):
-            result = await memory_registry.call("export_memory_graph", {})
-
-        assert result["success"] is False
-        assert "No memories found" in result["error"]
-
-    @pytest.mark.asyncio
-    async def test_export_graph_default_path(
-        self, memory_registry, mock_memory_manager, tmp_path, monkeypatch
-    ):
-        """Test export with default output path."""
-        mock_memory_manager.list_memories.return_value = [MockMemory()]
-
-        # Change to tmp_path so default file goes there
-        monkeypatch.chdir(tmp_path)
-
-        with (
-            patch("gobby.utils.project_context.get_project_context", return_value={"id": "proj-1"}),
-            patch("gobby.memory.viz.export_memory_graph") as mock_export,
-            patch("gobby.storage.memories.LocalMemoryManager") as mock_local_manager,
-        ):
-            mock_export.return_value = "<html>Graph</html>"
-            mock_local_manager.return_value.get_all_crossrefs.return_value = []
-
-            result = await memory_registry.call(
-                "export_memory_graph", {}
-            )  # No output_path specified
-
-        assert result["success"] is True
-        assert (tmp_path / "memory_graph.html").exists()
-
-    @pytest.mark.asyncio
-    async def test_export_graph_error(self, memory_registry, mock_memory_manager):
-        """Test export error handling."""
-        mock_memory_manager.list_memories.side_effect = Exception("Export error")
-
-        with patch("gobby.utils.project_context.get_project_context", return_value=None):
-            result = await memory_registry.call("export_memory_graph", {})
-
-        assert result["success"] is False
-        assert "Export error" in result["error"]
-
-
 class TestRegistryCreation:
     """Tests for create_memory_registry function."""
 
@@ -704,8 +607,10 @@ class TestRegistryCreation:
             "get_memory",
             "get_related_memories",
             "update_memory",
+            "remember_with_image",
+            "remember_screenshot",
             "memory_stats",
-            "export_memory_graph",
+            "search_knowledge_graph",
         ]
 
         # Get available tools from registry

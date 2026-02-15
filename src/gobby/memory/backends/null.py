@@ -43,7 +43,6 @@ class NullBackend:
         self,
         content: str,
         memory_type: str = "fact",
-        importance: float = 0.5,
         project_id: str | None = None,
         user_id: str | None = None,
         tags: list[str] | None = None,
@@ -59,7 +58,6 @@ class NullBackend:
             content=content,
             created_at=now,
             memory_type=memory_type,
-            importance=importance,
             project_id=project_id,
             user_id=user_id,
             tags=tags or [],
@@ -77,7 +75,6 @@ class NullBackend:
         self,
         memory_id: str,
         content: str | None = None,
-        importance: float | None = None,
         tags: list[str] | None = None,
     ) -> MemoryRecord:
         """Update a memory (creates a new record since nothing is persisted)."""
@@ -87,7 +84,6 @@ class NullBackend:
             content=content or "",
             created_at=now,
             updated_at=now,
-            importance=importance if importance is not None else 0.5,
             tags=tags or [],
         )
 

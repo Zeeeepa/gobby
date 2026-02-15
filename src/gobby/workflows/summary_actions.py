@@ -305,6 +305,11 @@ async def _rename_tmux_window(session: Any, title: str) -> None:
                 "set-titles",
                 "on",
                 ";",
+                "set-option",
+                "-g",
+                "set-titles-string",
+                "#W",
+                ";",
                 "rename-window",
                 "-t",
                 pane,
@@ -619,10 +624,10 @@ async def generate_handoff(
 
 async def handle_synthesize_title(context: ActionContext, **kwargs: Any) -> dict[str, Any] | None:
     """ActionHandler wrapper for synthesize_title."""
-    # Extract prompt from event data (UserPromptSubmit hook)
+    # When source=transcript, skip prompt extraction to force the transcript fallback path
     prompt = None
-    if context.event_data:
-        prompt = context.event_data.get("prompt")
+    if kwargs.get("source") != "transcript" and context.event_data:
+        prompt = context.event_data.get("prompt") or context.event_data.get("prompt_text")
 
     return await synthesize_title(
         session_manager=context.session_manager,

@@ -686,7 +686,9 @@ class TestSaveConfigTestGuard:
         """save_config raises RuntimeError when GOBBY_TEST_PROTECT=1 and config_file is None."""
         monkeypatch.setenv("GOBBY_TEST_PROTECT", "1")
 
-        with pytest.raises(RuntimeError, match="save_config.*would write to production path.*during tests"):
+        with pytest.raises(
+            RuntimeError, match="save_config.*would write to production path.*during tests"
+        ):
             save_config(default_config, config_file=None)
 
     def test_no_error_with_explicit_path(
@@ -859,17 +861,17 @@ class TestMemoryConfig:
         """Test default memory config."""
         config = MemoryConfig()
         assert config.enabled is True
-        assert config.importance_threshold == 0.7
-        assert config.decay_enabled is True
-        assert config.decay_rate == 0.05
-        assert config.decay_floor == 0.1
+        assert config.backend == "local"
+        assert config.embedding_model == "text-embedding-3-small"
+        assert config.crossref_threshold == 0.3
+        assert config.access_debounce_seconds == 60
 
-    def test_probability_validation(self) -> None:
-        """Test probability fields validation."""
+    def test_crossref_threshold_validation(self) -> None:
+        """Test crossref_threshold validation."""
         with pytest.raises(ValidationError):
-            MemoryConfig(importance_threshold=1.5)
+            MemoryConfig(crossref_threshold=1.5)
         with pytest.raises(ValidationError):
-            MemoryConfig(decay_rate=-0.1)
+            MemoryConfig(crossref_threshold=-0.1)
 
 
 # ==============================================================================
@@ -1148,7 +1150,7 @@ class TestDaemonConfigComposition:
         config = DaemonConfig(
             daemon_port=9000,
             logging=LoggingSettings(level="debug"),
-            memory=MemoryConfig(importance_threshold=0.8),
+            memory=MemoryConfig(crossref_threshold=0.8),
         )
 
         # Save
@@ -1160,7 +1162,7 @@ class TestDaemonConfigComposition:
 
         assert loaded.daemon_port == 9000
         assert loaded.logging.level == "debug"
-        assert loaded.memory.importance_threshold == 0.8
+        assert loaded.memory.crossref_threshold == 0.8
 
 
 class TestAllConfigClassesInstantiate:

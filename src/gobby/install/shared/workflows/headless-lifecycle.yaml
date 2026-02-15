@@ -105,12 +105,18 @@ triggers:
 
     - action: detect_plan_mode_from_context
 
+    # Title synthesis on first prompt (foreground)
     - action: synthesize_title
       when: "session.title == None"
 
+    # Re-synthesize title from transcript in background on subsequent prompts
+    - action: synthesize_title
+      background: true
+      source: transcript
+      when: "session.title != None"
+
     - action: memory_recall_relevant
       limit: 5
-      min_importance: 0.7
 
     # Memory capture nudge - remind agent to save user preferences/facts
     - action: inject_context
@@ -266,7 +272,6 @@ triggers:
 
     # Daemon-side memory extraction — capture before context loss
     - action: memory_extract_from_session
-      min_importance: 0.7
       max_memories: 5
 
     # Sync to JSONL for Git persistence

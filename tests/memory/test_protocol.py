@@ -52,10 +52,8 @@ class TestMemoryCapability:
     def test_advanced_capabilities_exist(self) -> None:
         """Test that advanced capabilities are defined."""
         assert MemoryCapability.TAGS is not None
-        assert MemoryCapability.IMPORTANCE is not None
         assert MemoryCapability.CROSSREF is not None
         assert MemoryCapability.MEDIA is not None
-        assert MemoryCapability.DECAY is not None
 
     def test_capability_is_enum_member(self) -> None:
         """Test that capabilities are proper enum members."""
@@ -89,7 +87,6 @@ class TestMemoryQuery:
             project_id="proj-123",
             user_id="user-456",
             limit=20,
-            min_importance=0.5,
             memory_type="fact",
             tags_all=["important", "verified"],
             tags_any=["work", "personal"],
@@ -100,7 +97,6 @@ class TestMemoryQuery:
         assert query.project_id == "proj-123"
         assert query.user_id == "user-456"
         assert query.limit == 20
-        assert query.min_importance == 0.5
         assert query.memory_type == "fact"
         assert query.tags_all == ["important", "verified"]
         assert query.tags_any == ["work", "personal"]
@@ -113,7 +109,6 @@ class TestMemoryQuery:
         assert query.project_id is None
         assert query.user_id is None
         assert query.limit == 10  # Default limit
-        assert query.min_importance is None
         assert query.memory_type is None
         assert query.tags_all is None
         assert query.tags_any is None
@@ -216,7 +211,6 @@ class TestMemoryRecord:
             updated_at=now,
             project_id="proj-789",
             user_id="user-abc",
-            importance=0.8,
             tags=["important", "work"],
             source_type="user",
             source_session_id="sess-xyz",
@@ -227,7 +221,6 @@ class TestMemoryRecord:
         )
         assert record.id == "mem-456"
         assert record.memory_type == "fact"
-        assert record.importance == 0.8
         assert record.tags == ["important", "work"]
         assert len(record.media) == 1
         assert record.metadata["custom"] == "data"
@@ -240,7 +233,6 @@ class TestMemoryRecord:
             created_at=datetime.now(UTC),
         )
         assert record.memory_type == "fact"  # Default type
-        assert record.importance == 0.5  # Default importance
         assert record.tags == [] or record.tags is None
         assert record.access_count == 0
         assert record.media == [] or record.media is None
@@ -265,12 +257,10 @@ class TestMemoryRecord:
             "content": "From dict content",
             "created_at": datetime.now(UTC).isoformat(),
             "memory_type": "preference",
-            "importance": 0.7,
         }
         record = MemoryRecord.from_dict(data)
         assert record.id == "mem-from-dict"
         assert record.memory_type == "preference"
-        assert record.importance == 0.7
 
 
 # =============================================================================
@@ -332,7 +322,6 @@ class TestMemoryBackendProtocolCompliance:
                 self,
                 content: str,
                 memory_type: str = "fact",
-                importance: float = 0.5,
                 project_id: str | None = None,
                 user_id: str | None = None,
                 tags: list[str] | None = None,
@@ -354,7 +343,6 @@ class TestMemoryBackendProtocolCompliance:
                 self,
                 memory_id: str,
                 content: str | None = None,
-                importance: float | None = None,
                 tags: list[str] | None = None,
             ) -> MemoryRecord:
                 return MemoryRecord(

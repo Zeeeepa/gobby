@@ -101,22 +101,26 @@ def list_workflows(
     project_path: str | None = None,
     workflow_type: str | None = None,
     global_only: bool = False,
+    db: Any = None,
 ) -> dict[str, Any]:
     """
     List available workflows.
 
-    Lists workflows from both project (.gobby/workflows) and global (~/.gobby/workflows)
-    directories. Project workflows shadow global ones with the same name.
+    Queries DB-stored definitions first, then merges with filesystem discovery.
+    DB entries take precedence for same-name workflows. Falls back to filesystem
+    when DB has no results or DB is unavailable.
 
     Args:
         loader: WorkflowLoader instance
         project_path: Project directory path. Auto-discovered from cwd if not provided.
         workflow_type: Filter by type ("step" or "lifecycle")
         global_only: If True, only show global workflows (ignore project)
+        db: Optional database for querying stored definitions
 
     Returns:
         List of workflows with name, type, description, and source
     """
+    from gobby.storage.workflow_definitions import LocalWorkflowDefinitionManager
 
     # Auto-discover project path if not provided
     if not project_path:
@@ -124,6 +128,32 @@ def list_workflows(
         if discovered:
             project_path = str(discovered)
 
+    workflows: list[dict[str, Any]] = []
+    seen_names: set[str] = set()
+
+    # Query DB first — DB definitions take precedence
+    if db is not None:
+        try:
+            mgr = LocalWorkflowDefinitionManager(db)
+            db_rows = mgr.list_all(workflow_type=workflow_type)
+            for row in db_rows:
+                if row.name in seen_names:
+                    continue
+                workflows.append(
+                    {
+                        "name": row.name,
+                        "type": row.workflow_type,
+                        "description": row.description or "",
+                        "source": row.source,
+                        "enabled": row.enabled,
+                        "priority": row.priority,
+                    }
+                )
+                seen_names.add(row.name)
+        except Exception as e:
+            logger.warning("DB workflow query failed, falling back to filesystem: %s", e)
+
+    # Merge with filesystem discovery
     search_dirs = list(loader.global_dirs)
     proj = Path(project_path) if project_path else None
 
@@ -132,9 +162,6 @@ def list_workflows(
         project_dir = proj / ".gobby" / "workflows"
         if project_dir.exists():
             search_dirs.insert(0, project_dir)
-
-    workflows = []
-    seen_names = set()
 
     for search_dir in search_dirs:
         if not search_dir.exists():

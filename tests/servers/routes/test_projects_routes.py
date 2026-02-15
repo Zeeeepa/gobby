@@ -75,9 +75,7 @@ class TestProjectRoutes:
         assert "_orphaned" not in names
         assert "_migrated" not in names
 
-    def test_list_projects_with_project(
-        self, client: TestClient, real_project: dict
-    ) -> None:
+    def test_list_projects_with_project(self, client: TestClient, real_project: dict) -> None:
         """List returns created project with display_name and stats."""
         response = client.get("/api/projects")
         assert response.status_code == 200
@@ -182,9 +180,7 @@ class TestProjectRoutes:
     # PUT /api/projects/{project_id}
     # -----------------------------------------------------------------
 
-    def test_update_project_name(
-        self, client: TestClient, real_project: dict
-    ) -> None:
+    def test_update_project_name(self, client: TestClient, real_project: dict) -> None:
         """Update project name."""
         response = client.put(
             f"/api/projects/{real_project['id']}",
@@ -195,9 +191,7 @@ class TestProjectRoutes:
         assert data["name"] == "new-name"
         assert data["display_name"] == "new-name"
 
-    def test_update_project_github_url(
-        self, client: TestClient, real_project: dict
-    ) -> None:
+    def test_update_project_github_url(self, client: TestClient, real_project: dict) -> None:
         """Update project github_url."""
         response = client.put(
             f"/api/projects/{real_project['id']}",
@@ -207,9 +201,7 @@ class TestProjectRoutes:
         data = response.json()
         assert data["github_url"] == "https://github.com/test/updated"
 
-    def test_update_project_repo_path(
-        self, client: TestClient, real_project: dict
-    ) -> None:
+    def test_update_project_repo_path(self, client: TestClient, real_project: dict) -> None:
         """Update project repo_path."""
         response = client.put(
             f"/api/projects/{real_project['id']}",
@@ -219,9 +211,7 @@ class TestProjectRoutes:
         data = response.json()
         assert data["repo_path"] == "/new/path"
 
-    def test_update_project_github_repo(
-        self, client: TestClient, real_project: dict
-    ) -> None:
+    def test_update_project_github_repo(self, client: TestClient, real_project: dict) -> None:
         """Update project github_repo field."""
         response = client.put(
             f"/api/projects/{real_project['id']}",
@@ -231,9 +221,7 @@ class TestProjectRoutes:
         data = response.json()
         assert data["github_repo"] == "owner/repo"
 
-    def test_update_project_linear_team_id(
-        self, client: TestClient, real_project: dict
-    ) -> None:
+    def test_update_project_linear_team_id(self, client: TestClient, real_project: dict) -> None:
         """Update project linear_team_id field."""
         response = client.put(
             f"/api/projects/{real_project['id']}",
@@ -243,9 +231,7 @@ class TestProjectRoutes:
         data = response.json()
         assert data["linear_team_id"] == "TEAM-123"
 
-    def test_update_project_empty_body(
-        self, client: TestClient, real_project: dict
-    ) -> None:
+    def test_update_project_empty_body(self, client: TestClient, real_project: dict) -> None:
         """Empty update body returns current project data unchanged."""
         response = client.put(
             f"/api/projects/{real_project['id']}",
@@ -291,9 +277,7 @@ class TestProjectRoutes:
     # DELETE /api/projects/{project_id}
     # -----------------------------------------------------------------
 
-    def test_delete_project(
-        self, client: TestClient, real_project: dict
-    ) -> None:
+    def test_delete_project(self, client: TestClient, real_project: dict) -> None:
         """Successfully soft-delete a project."""
         response = client.delete(f"/api/projects/{real_project['id']}")
         assert response.status_code == 200
@@ -314,23 +298,17 @@ class TestProjectRoutes:
         response = client.delete(f"/api/projects/{real_project['id']}")
         assert response.status_code == 404
 
-    def test_delete_protected_personal(
-        self, client: TestClient, personal_project: dict
-    ) -> None:
+    def test_delete_protected_personal(self, client: TestClient, personal_project: dict) -> None:
         """Cannot delete _personal (system project)."""
         response = client.delete(f"/api/projects/{personal_project['id']}")
         assert response.status_code == 403
 
-    def test_delete_protected_orphaned(
-        self, client: TestClient, orphaned_project: dict
-    ) -> None:
+    def test_delete_protected_orphaned(self, client: TestClient, orphaned_project: dict) -> None:
         """Cannot delete _orphaned (system project)."""
         response = client.delete(f"/api/projects/{orphaned_project['id']}")
         assert response.status_code == 403
 
-    def test_delete_protected_migrated(
-        self, client: TestClient, migrated_project: dict
-    ) -> None:
+    def test_delete_protected_migrated(self, client: TestClient, migrated_project: dict) -> None:
         """Cannot delete _migrated (system project)."""
         response = client.delete(f"/api/projects/{migrated_project['id']}")
         assert response.status_code == 403

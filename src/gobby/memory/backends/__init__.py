@@ -6,7 +6,6 @@ Note:
     - Default local storage is handled directly by MemoryManager via
       StorageAdapter wrapping LocalMemoryManager — it does not go through
       this factory.
-    - Mem0 integration uses Mem0Client directly in manager.py.
     - This factory is primarily for testing (null backend) or future extensions.
 
 Example:
@@ -32,7 +31,6 @@ def get_backend(backend_type: str, **kwargs: Any) -> MemoryBackendProtocol:
     the "null" backend for testing.
 
     Note: Local storage uses StorageAdapter (via MemoryManager).
-    Mem0 integration uses Mem0Client directly (not through this factory).
 
     Args:
         backend_type: Type of backend to create:

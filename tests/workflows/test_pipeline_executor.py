@@ -42,9 +42,15 @@ def mock_execution_manager():
 
 @pytest.fixture
 def mock_llm_service():
-    """Create a mock LLM service."""
-    service = AsyncMock()
-    service.generate.return_value = "LLM response"
+    """Create a mock LLM service.
+
+    Uses MagicMock (not AsyncMock) because get_default_provider() is sync.
+    The provider itself is AsyncMock since generate_text() is async.
+    """
+    service = MagicMock()
+    mock_provider = AsyncMock()
+    mock_provider.generate_text.return_value = "LLM response"
+    service.get_default_provider.return_value = mock_provider
     return service
 
 
@@ -486,7 +492,9 @@ class TestExecutePromptStep:
         """Test that prompt step calls the LLM service."""
         from gobby.workflows.pipeline_executor import PipelineExecutor
 
-        mock_llm_service.generate.return_value = "LLM response text"
+        mock_llm_service.get_default_provider.return_value.generate_text.return_value = (
+            "LLM response text"
+        )
 
         executor = PipelineExecutor(
             db=mock_db,
@@ -497,7 +505,7 @@ class TestExecutePromptStep:
         context: dict = {"inputs": {}, "steps": {}}
         await executor._execute_prompt_step("Analyze this data", context)
 
-        mock_llm_service.generate.assert_called_once()
+        mock_llm_service.get_default_provider.return_value.generate_text.assert_called_once()
 
     @pytest.mark.asyncio
     async def test_prompt_step_returns_response(
@@ -506,7 +514,9 @@ class TestExecutePromptStep:
         """Test that prompt step returns the LLM response."""
         from gobby.workflows.pipeline_executor import PipelineExecutor
 
-        mock_llm_service.generate.return_value = "Generated analysis"
+        mock_llm_service.get_default_provider.return_value.generate_text.return_value = (
+            "Generated analysis"
+        )
 
         executor = PipelineExecutor(
             db=mock_db,
@@ -528,7 +538,7 @@ class TestExecutePromptStep:
         """Test that prompt step passes the prompt text to LLM."""
         from gobby.workflows.pipeline_executor import PipelineExecutor
 
-        mock_llm_service.generate.return_value = "Response"
+        mock_llm_service.get_default_provider.return_value.generate_text.return_value = "Response"
 
         executor = PipelineExecutor(
             db=mock_db,
@@ -540,7 +550,7 @@ class TestExecutePromptStep:
         await executor._execute_prompt_step("Generate a report", context)
 
         # Check the prompt was passed
-        call_args = mock_llm_service.generate.call_args
+        call_args = mock_llm_service.get_default_provider.return_value.generate_text.call_args
         assert "Generate a report" in str(call_args)
 
     @pytest.mark.asyncio
@@ -550,7 +560,9 @@ class TestExecutePromptStep:
         """Test that prompt step handles LLM errors gracefully."""
         from gobby.workflows.pipeline_executor import PipelineExecutor
 
-        mock_llm_service.generate.side_effect = Exception("LLM API error")
+        mock_llm_service.get_default_provider.return_value.generate_text.side_effect = Exception(
+            "LLM API error"
+        )
 
         executor = PipelineExecutor(
             db=mock_db,
@@ -572,7 +584,9 @@ class TestExecutePromptStep:
         """Test that prompt step returns proper dict structure."""
         from gobby.workflows.pipeline_executor import PipelineExecutor
 
-        mock_llm_service.generate.return_value = "Test response"
+        mock_llm_service.get_default_provider.return_value.generate_text.return_value = (
+            "Test response"
+        )
 
         executor = PipelineExecutor(
             db=mock_db,

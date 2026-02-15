@@ -40,7 +40,6 @@ class StorageAdapter:
             MemoryCapability.SEARCH_TEXT,
             MemoryCapability.SEARCH,
             MemoryCapability.TAGS,
-            MemoryCapability.IMPORTANCE,
             MemoryCapability.LIST,
             MemoryCapability.REMEMBER,
             MemoryCapability.RECALL,
@@ -51,7 +50,6 @@ class StorageAdapter:
         self,
         content: str,
         memory_type: str = "fact",
-        importance: float = 0.5,
         project_id: str | None = None,
         user_id: str | None = None,
         tags: list[str] | None = None,
@@ -80,7 +78,6 @@ class StorageAdapter:
             self._storage.create_memory,
             content=content,
             memory_type=memory_type,
-            importance=importance,
             project_id=project_id,
             source_type=source_type or "user",
             source_session_id=source_session_id,
@@ -100,14 +97,12 @@ class StorageAdapter:
         self,
         memory_id: str,
         content: str | None = None,
-        importance: float | None = None,
         tags: list[str] | None = None,
     ) -> MemoryRecord:
         memory = await asyncio.to_thread(
             self._storage.update_memory,
             memory_id=memory_id,
             content=content,
-            importance=importance,
             tags=tags,
         )
         if memory is None:
@@ -127,8 +122,6 @@ class StorageAdapter:
             tags_any=query.tags_any,
             tags_none=query.tags_none,
         )
-        if query.min_importance is not None:
-            memories = [m for m in memories if m.importance >= query.min_importance]
         if query.memory_type is not None:
             memories = [m for m in memories if m.memory_type == query.memory_type]
         return [self._to_record(m) for m in memories]
@@ -201,7 +194,6 @@ class StorageAdapter:
             updated_at=updated_at,
             project_id=memory.project_id,
             user_id=user_id,
-            importance=memory.importance,
             tags=memory.tags or [],
             source_type=memory.source_type,
             source_session_id=memory.source_session_id,

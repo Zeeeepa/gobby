@@ -30,7 +30,6 @@ def test_create_memory(memory_manager) -> None:
     assert memory.content == "Test memory"
     assert memory.memory_type == "fact"
     assert memory.tags == ["test"]
-    assert memory.importance == 0.5
 
 
 def test_get_memory(memory_manager) -> None:
@@ -40,14 +39,12 @@ def test_get_memory(memory_manager) -> None:
 
 
 def test_update_memory(memory_manager) -> None:
-    created = memory_manager.create_memory(content="Original", importance=0.1)
+    created = memory_manager.create_memory(content="Original")
     updated = memory_manager.update_memory(
         created.id,
         content="Updated",
-        importance=0.9,
     )
     assert updated.content == "Updated"
-    assert updated.importance == 0.9
     assert updated.updated_at >= created.updated_at
 
 
@@ -63,9 +60,9 @@ def test_list_memories(memory_manager, db) -> None:
     db.execute("INSERT INTO projects (id, name) VALUES ('p1', 'Project 1')")
     db.execute("INSERT INTO projects (id, name) VALUES ('p2', 'Project 2')")
 
-    memory_manager.create_memory(content="Global", project_id=None, importance=0.8)
-    memory_manager.create_memory(content="Project A", project_id="p1", importance=0.5)
-    memory_manager.create_memory(content="Project B", project_id="p2", importance=0.2)
+    memory_manager.create_memory(content="Global", project_id=None)
+    memory_manager.create_memory(content="Project A", project_id="p1")
+    memory_manager.create_memory(content="Project B", project_id="p2")
 
     # List all global + project A
     # Wait, implementation logic: (project_id = ? OR project_id IS NULL)
@@ -82,11 +79,6 @@ def test_list_memories(memory_manager, db) -> None:
     # Logic in manager: "if project_id: ...". So if None, returns all.
     all_memories = memory_manager.list_memories()
     assert len(all_memories) == 3
-
-    # 3. Filter by importance
-    high_imp = memory_manager.list_memories(min_importance=0.6)
-    assert len(high_imp) == 1
-    assert high_imp[0].content == "Global"
 
 
 def test_search_memories(memory_manager) -> None:
@@ -107,7 +99,6 @@ def test_memory_to_dict(memory_manager) -> None:
         content="Test to_dict",
         memory_type="preference",
         tags=["tag1", "tag2"],
-        importance=0.7,
     )
 
     d = memory.to_dict()
@@ -115,7 +106,6 @@ def test_memory_to_dict(memory_manager) -> None:
     assert d["content"] == "Test to_dict"
     assert d["memory_type"] == "preference"
     assert d["tags"] == ["tag1", "tag2"]
-    assert d["importance"] == 0.7
     assert d["access_count"] == 0
     assert d["last_accessed_at"] is None
     assert "created_at" in d
@@ -228,20 +218,13 @@ def test_update_memory_individual_fields(memory_manager) -> None:
     """Test updating individual fields in update_memory."""
     memory = memory_manager.create_memory(
         content="Original content",
-        importance=0.5,
         tags=["original"],
     )
 
     # Update only content
     updated = memory_manager.update_memory(memory.id, content="New content")
     assert updated.content == "New content"
-    assert updated.importance == 0.5
     assert updated.tags == ["original"]
-
-    # Update only importance
-    updated = memory_manager.update_memory(memory.id, importance=0.9)
-    assert updated.content == "New content"
-    assert updated.importance == 0.9
 
     # Update only tags
     updated = memory_manager.update_memory(memory.id, tags=["new", "tags"])
@@ -286,7 +269,7 @@ def test_list_memories_by_type(memory_manager) -> None:
 def test_list_memories_offset(memory_manager) -> None:
     """Test list_memories with offset pagination."""
     for i in range(5):
-        memory_manager.create_memory(content=f"Memory {i}", importance=float(i) / 10)
+        memory_manager.create_memory(content=f"Memory {i}")
 
     # Get all memories
     all_memories = memory_manager.list_memories(limit=10)
@@ -327,17 +310,12 @@ def test_search_memories_with_project(memory_manager, db) -> None:
     """Test search_memories with project_id filter."""
     db.execute("INSERT INTO projects (id, name) VALUES ('proj-search', 'Search Project')")
 
-    memory_manager.create_memory(
-        content="Project-specific fox", project_id="proj-search", importance=0.8
-    )
-    memory_manager.create_memory(content="Global fox", project_id=None, importance=0.5)
+    memory_manager.create_memory(content="Project-specific fox", project_id="proj-search")
+    memory_manager.create_memory(content="Global fox", project_id=None)
 
     # Search with project filter should find both project-specific and global
     results = memory_manager.search_memories(query_text="fox", project_id="proj-search")
     assert len(results) == 2
-
-    # Verify ordering by importance
-    assert results[0].importance >= results[1].importance
 
 
 def test_search_memories_limit(memory_manager) -> None:
@@ -398,7 +376,6 @@ def test_create_memory_with_all_fields(memory_manager, db) -> None:
         project_id="proj-full",
         source_type="session",
         source_session_id="sess-123",
-        importance=0.9,
         tags=["tag1", "tag2", "tag3"],
     )
 
@@ -407,7 +384,6 @@ def test_create_memory_with_all_fields(memory_manager, db) -> None:
     assert memory.project_id == "proj-full"
     assert memory.source_type == "session"
     assert memory.source_session_id == "sess-123"
-    assert memory.importance == 0.9
     assert memory.tags == ["tag1", "tag2", "tag3"]
 
 
@@ -416,27 +392,22 @@ def test_list_memories_combined_filters(memory_manager, db) -> None:
     db.execute("INSERT INTO projects (id, name) VALUES ('proj-combo', 'Combo Project')")
 
     memory_manager.create_memory(
-        content="High importance fact",
+        content="Fact one",
         memory_type="fact",
         project_id="proj-combo",
-        importance=0.9,
     )
     memory_manager.create_memory(
-        content="Low importance fact",
+        content="Fact two",
         memory_type="fact",
         project_id="proj-combo",
-        importance=0.2,
     )
     memory_manager.create_memory(
-        content="High importance preference",
+        content="Preference one",
         memory_type="preference",
         project_id="proj-combo",
-        importance=0.8,
     )
 
-    # Filter by project, type, and importance
-    results = memory_manager.list_memories(
-        project_id="proj-combo", memory_type="fact", min_importance=0.5
-    )
-    assert len(results) == 1
-    assert results[0].content == "High importance fact"
+    # Filter by project and type
+    results = memory_manager.list_memories(project_id="proj-combo", memory_type="fact")
+    assert len(results) == 2
+    assert all(r.memory_type == "fact" for r in results)

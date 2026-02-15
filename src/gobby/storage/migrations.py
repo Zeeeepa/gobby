@@ -14,8 +14,11 @@ To add a new migration:
     3. Also add the migration to BASELINE_SCHEMA_V2 for future fresh installs.
 """
 
+import json
 import logging
+import uuid
 from collections.abc import Callable
+from pathlib import Path
 
 from gobby.storage.database import LocalDatabase
 
@@ -34,7 +37,7 @@ MigrationAction = str | Callable[[LocalDatabase], None]
 # Baseline version - the schema state that is applied for new databases directly.
 # Must be bumped when BASELINE_SCHEMA is updated with columns from new migrations,
 # so that fresh databases don't re-run migrations already baked into the baseline.
-BASELINE_VERSION = 101
+BASELINE_VERSION = 105
 
 # Minimum migration version - databases older than this cannot be upgraded
 # because legacy migrations (pre-v76) have been removed.
@@ -479,35 +482,15 @@ CREATE TABLE memories (
     content TEXT NOT NULL,
     source_type TEXT,
     source_session_id TEXT REFERENCES sessions(id),
-    importance REAL DEFAULT 0.5,
     access_count INTEGER DEFAULT 0,
     last_accessed_at TEXT,
     tags TEXT,
     media TEXT,
-    mem0_id TEXT,
     created_at TEXT NOT NULL,
     updated_at TEXT NOT NULL
 );
 CREATE INDEX idx_memories_project ON memories(project_id);
 CREATE INDEX idx_memories_type ON memories(memory_type);
-CREATE INDEX idx_memories_importance ON memories(importance DESC);
-CREATE INDEX idx_memories_mem0_id ON memories(mem0_id);
-
-CREATE TABLE memory_embeddings (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    memory_id TEXT NOT NULL REFERENCES memories(id) ON DELETE CASCADE,
-    project_id TEXT REFERENCES projects(id) ON DELETE CASCADE,
-    embedding BLOB NOT NULL,
-    embedding_model TEXT NOT NULL,
-    embedding_dim INTEGER NOT NULL,
-    text_hash TEXT NOT NULL,
-    created_at TEXT NOT NULL DEFAULT (datetime('now')),
-    updated_at TEXT NOT NULL DEFAULT (datetime('now')),
-    UNIQUE(memory_id)
-);
-CREATE INDEX idx_memory_embeddings_memory ON memory_embeddings(memory_id);
-CREATE INDEX idx_memory_embeddings_hash ON memory_embeddings(text_hash);
-CREATE INDEX idx_memory_embeddings_project ON memory_embeddings(project_id);
 
 CREATE TABLE session_memories (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -815,6 +798,29 @@ CREATE TABLE config_store (
     updated_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 CREATE INDEX idx_config_store_source ON config_store(source);
+
+CREATE TABLE workflow_definitions (
+    id TEXT PRIMARY KEY,
+    project_id TEXT REFERENCES projects(id) ON DELETE CASCADE,
+    name TEXT NOT NULL,
+    description TEXT,
+    workflow_type TEXT NOT NULL DEFAULT 'workflow',
+    version TEXT DEFAULT '1.0',
+    enabled INTEGER DEFAULT 1,
+    priority INTEGER DEFAULT 100,
+    sources TEXT,
+    definition_json TEXT NOT NULL,
+    canvas_json TEXT,
+    source TEXT DEFAULT 'custom',
+    tags TEXT,
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX idx_wf_defs_project ON workflow_definitions(project_id);
+CREATE INDEX idx_wf_defs_name ON workflow_definitions(name);
+CREATE INDEX idx_wf_defs_type ON workflow_definitions(workflow_type);
+CREATE INDEX idx_wf_defs_enabled ON workflow_definitions(enabled);
+CREATE UNIQUE INDEX idx_wf_defs_name_project ON workflow_definitions(name, COALESCE(project_id, '__global__'));
 """
 
 # Future migrations (v61+)
@@ -1060,6 +1066,133 @@ def _migrate_add_workflow_instances_and_session_variables(db: LocalDatabase) -> 
                 )
 
     logger.info("Added workflow_instances and session_variables tables with data migration")
+
+
+_BUNDLED_WORKFLOWS_DIR = Path(__file__).parent.parent / "install" / "shared" / "workflows"
+
+
+def _import_bundled_workflows(db: LocalDatabase) -> None:
+    """Import bundled YAML workflows into workflow_definitions table.
+
+    Scans _BUNDLED_WORKFLOWS_DIR for YAML files and inserts them with
+    source='bundled'. Uses INSERT OR IGNORE for idempotency.
+    """
+    import yaml
+
+    if not _BUNDLED_WORKFLOWS_DIR.exists():
+        logger.warning(f"Bundled workflows directory not found: {_BUNDLED_WORKFLOWS_DIR}")
+        return
+
+    imported = 0
+    for yaml_path in sorted(_BUNDLED_WORKFLOWS_DIR.glob("**/*.yaml")):
+        try:
+            raw = yaml_path.read_text(encoding="utf-8")
+            data = yaml.safe_load(raw)
+            if not isinstance(data, dict) or "name" not in data:
+                logger.debug(f"Skipping invalid workflow YAML: {yaml_path}")
+                continue
+
+            name = data["name"]
+            description = data.get("description", "")
+            yaml_type = data.get("type", "")
+            workflow_type = "pipeline" if yaml_type == "pipeline" else "workflow"
+            version = data.get("version", "1.0")
+            enabled = 1 if data.get("enabled", False) else 0
+            priority = data.get("priority", 100)
+            sources_list = data.get("sources")
+            sources_json = json.dumps(sources_list) if sources_list else None
+            definition_json = json.dumps(data)
+
+            db.execute(
+                """INSERT OR IGNORE INTO workflow_definitions
+                   (id, name, description, workflow_type, version, enabled,
+                    priority, sources, definition_json, source)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'bundled')""",
+                (
+                    str(uuid.uuid4()),
+                    name,
+                    description,
+                    workflow_type,
+                    str(version),
+                    enabled,
+                    priority,
+                    sources_json,
+                    definition_json,
+                ),
+            )
+            imported += 1
+        except Exception as e:
+            logger.warning(f"Failed to import workflow {yaml_path}: {e}")
+
+    logger.info(f"Imported {imported} bundled workflow definitions")
+
+
+def _migrate_drop_mem0_id(db: LocalDatabase) -> None:
+    """Drop mem0_id column from memories table if it exists.
+
+    Conditional because fresh databases (baseline schema) never had this column.
+    """
+    columns = db.fetchall("PRAGMA table_info(memories)")
+    column_names = [c["name"] for c in columns]
+    if "mem0_id" in column_names:
+        db.execute("DROP INDEX IF EXISTS idx_memories_mem0_id")
+        db.execute("ALTER TABLE memories DROP COLUMN mem0_id")
+
+
+def _migrate_drop_importance(db: LocalDatabase) -> None:
+    """Drop importance column from memories table if it exists.
+
+    Conditional because fresh databases (baseline schema) never had this column.
+    """
+    columns = db.fetchall("PRAGMA table_info(memories)")
+    column_names = [c["name"] for c in columns]
+    if "importance" in column_names:
+        db.execute("DROP INDEX IF EXISTS idx_memories_importance")
+        db.execute("ALTER TABLE memories DROP COLUMN importance")
+
+
+def _migrate_add_workflow_definitions(db: LocalDatabase) -> None:
+    """Add workflow_definitions table and import bundled YAML workflows.
+
+    Creates the table with all columns, indexes, and imports all bundled
+    workflow YAML files from the shared workflows directory.
+    """
+    with db.transaction() as conn:
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS workflow_definitions (
+                id TEXT PRIMARY KEY,
+                project_id TEXT REFERENCES projects(id) ON DELETE CASCADE,
+                name TEXT NOT NULL,
+                description TEXT,
+                workflow_type TEXT NOT NULL DEFAULT 'workflow',
+                version TEXT DEFAULT '1.0',
+                enabled INTEGER DEFAULT 1,
+                priority INTEGER DEFAULT 100,
+                sources TEXT,
+                definition_json TEXT NOT NULL,
+                canvas_json TEXT,
+                source TEXT DEFAULT 'custom',
+                tags TEXT,
+                created_at TEXT NOT NULL DEFAULT (datetime('now')),
+                updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+            )
+        """)
+        conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_wf_defs_project ON workflow_definitions(project_id)"
+        )
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_wf_defs_name ON workflow_definitions(name)")
+        conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_wf_defs_type ON workflow_definitions(workflow_type)"
+        )
+        conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_wf_defs_enabled ON workflow_definitions(enabled)"
+        )
+        conn.execute(
+            "CREATE UNIQUE INDEX IF NOT EXISTS idx_wf_defs_name_project "
+            "ON workflow_definitions(name, COALESCE(project_id, '__global__'))"
+        )
+
+    _import_bundled_workflows(db)
 
 
 MIGRATIONS: list[tuple[int, str, MigrationAction]] = [
@@ -1409,6 +1542,32 @@ MIGRATIONS: list[tuple[int, str, MigrationAction]] = [
         "Add workflow_instances and session_variables tables",
         _migrate_add_workflow_instances_and_session_variables,
     ),
+    # Workflow UI: workflow_definitions table + bundled YAML import
+    (
+        102,
+        "Add workflow_definitions table",
+        _migrate_add_workflow_definitions,
+    ),
+    # Memory V5: drop memory_embeddings (replaced by Qdrant VectorStore)
+    (
+        103,
+        "Drop memory_embeddings table",
+        """
+        DROP TABLE IF EXISTS memory_embeddings;
+        """,
+    ),
+    # Memory V6: drop mem0_id column (mem0 integration removed)
+    (
+        104,
+        "Drop mem0_id column from memories",
+        _migrate_drop_mem0_id,
+    ),
+    # Memory V7: drop importance column (importance scoring removed)
+    (
+        105,
+        "Drop importance column from memories",
+        _migrate_drop_importance,
+    ),
 ]
 
 
@@ -1436,6 +1595,9 @@ def _apply_baseline(db: LocalDatabase) -> None:
         "INSERT INTO schema_version (version) VALUES (?)",
         (BASELINE_VERSION,),
     )
+
+    # Import bundled workflow definitions into the new table
+    _import_bundled_workflows(db)
 
     logger.info(f"Baseline schema applied, now at version {BASELINE_VERSION}")
 

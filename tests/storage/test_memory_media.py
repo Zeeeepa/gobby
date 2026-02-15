@@ -148,9 +148,9 @@ class TestMemoryFromRowMedia:
         db.execute(
             """
             INSERT INTO memories (id, memory_type, content, created_at, updated_at,
-                                  importance, access_count, tags, media)
+                                  access_count, tags, media)
             VALUES (?, 'fact', 'Test content', '2026-01-19', '2026-01-19',
-                    0.5, 0, '[]', ?)
+                    0, '[]', ?)
         """,
             ("mm-test", media_data),
         )
@@ -166,9 +166,9 @@ class TestMemoryFromRowMedia:
         """Test that Memory.from_row() handles NULL media gracefully."""
         db.execute("""
             INSERT INTO memories (id, memory_type, content, created_at, updated_at,
-                                  importance, access_count, tags)
+                                  access_count, tags)
             VALUES ('mm-test', 'fact', 'Test', '2026-01-19', '2026-01-19',
-                    0.5, 0, '[]')
+                    0, '[]')
         """)
 
         cursor = db.execute("SELECT * FROM memories WHERE id = 'mm-test'")

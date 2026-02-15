@@ -31,7 +31,7 @@ export interface GobbyMemory {
   access_count: number
   last_accessed_at: string | null
   tags: string[] | null
-  mem0_id: string | null
+
 }
 
 export interface KnowledgeEntity {
@@ -327,39 +327,9 @@ export function useMemory() {
   }
 }
 
-export interface Mem0Status {
-  configured: boolean
-  url?: string
-}
-
 export interface Neo4jStatus {
   configured: boolean
   url?: string
-}
-
-export function useMem0Status() {
-  const [mem0Status, setMem0Status] = useState<Mem0Status | null>(null)
-
-  useEffect(() => {
-    async function fetchStatus() {
-      try {
-        const baseUrl = getBaseUrl()
-        const response = await fetch(`${baseUrl}/admin/status`)
-        if (response.ok) {
-          const data = await response.json()
-          const mem0 = data.memory?.mem0
-          if (mem0) {
-            setMem0Status(mem0)
-          }
-        }
-      } catch (e) {
-        console.warn('Failed to fetch mem0 status:', e)
-      }
-    }
-    fetchStatus()
-  }, [])
-
-  return mem0Status
 }
 
 export function useNeo4jStatus() {

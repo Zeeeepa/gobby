@@ -102,7 +102,13 @@ class TestNoFindings:
 
     def test_return_keys(self) -> None:
         result = _scan("# Test")
-        expected_keys = {"is_safe", "max_severity", "scan_duration_seconds", "findings", "findings_count"}
+        expected_keys = {
+            "is_safe",
+            "max_severity",
+            "scan_duration_seconds",
+            "findings",
+            "findings_count",
+        }
         assert set(result.keys()) == expected_keys
 
 

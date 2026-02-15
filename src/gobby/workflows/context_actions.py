@@ -35,7 +35,6 @@ def inject_context(
     memory_manager: Any | None = None,
     prompt_text: str | None = None,
     limit: int = 5,
-    min_importance: float = 0.3,
 ) -> dict[str, Any] | None:
     """Inject context from a source or multiple sources.
 
@@ -54,7 +53,6 @@ def inject_context(
         memory_manager: MemoryManager instance (required for source='memories')
         prompt_text: User prompt text for memory recall (required for source='memories')
         limit: Max memories to retrieve (default: 5, used with source='memories')
-        min_importance: Minimum importance threshold (default: 0.3, used with source='memories')
 
     Returns:
         Dict with inject_context key, blocking decision, or None
@@ -94,7 +92,6 @@ def inject_context(
                 memory_manager=memory_manager,
                 prompt_text=prompt_text,
                 limit=limit,
-                min_importance=min_importance,
             )
             if result and result.get("inject_context"):
                 combined_content.append(result["inject_context"])
@@ -263,11 +260,10 @@ def inject_context(
             project_id = getattr(session, "project_id", None)
 
         try:
-            memories = memory_manager.recall(
+            memories = memory_manager.search_memories(
                 query=prompt_text or "",
                 project_id=project_id,
                 limit=limit,
-                min_importance=min_importance,
                 search_mode="auto",
             )
 
@@ -468,15 +464,11 @@ def _format_memories(memories: list[Any]) -> str:
     for memory in memories:
         content = getattr(memory, "content", str(memory))
         memory_type = getattr(memory, "memory_type", None)
-        importance = getattr(memory, "importance", None)
 
         if memory_type:
             lines.append(f"- [{memory_type}] {content}")
         else:
             lines.append(f"- {content}")
-
-        if importance and importance >= 0.8:
-            lines[-1] += " *(high importance)*"
 
     return "\n".join(lines)
 
@@ -748,7 +740,6 @@ async def handle_inject_context(context: ActionContext, **kwargs: Any) -> dict[s
         memory_manager=context.memory_manager,
         prompt_text=prompt_text,
         limit=kwargs.get("limit", 5),
-        min_importance=kwargs.get("min_importance", 0.3),
     )
 
 

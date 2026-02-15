@@ -123,12 +123,15 @@ class TestCronListJobs:
 class TestCronCreateJob:
     def test_create_job(self, client, cron_storage) -> None:
         cron_storage.create_job.return_value = _make_job()
-        resp = client.post("/api/cron/jobs", json={
-            "name": "Test",
-            "action_type": "shell",
-            "action_config": {"command": "echo"},
-            "cron_expr": "0 7 * * *",
-        })
+        resp = client.post(
+            "/api/cron/jobs",
+            json={
+                "name": "Test",
+                "action_type": "shell",
+                "action_config": {"command": "echo"},
+                "cron_expr": "0 7 * * *",
+            },
+        )
         assert resp.status_code == 200
         data = resp.json()
         assert data["status"] == "success"

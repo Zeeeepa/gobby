@@ -696,6 +696,53 @@ class TestSuggestNextTaskWithSessionId:
         assert result["suggestion"] is not None
         assert result["suggestion"]["id"] == "child-of-explicit"
 
+    def test_suggest_next_task_session_task_complete_when_closed(
+        self, mock_readiness_registry, monkeypatch
+    ) -> None:
+        """Test suggest_next_task returns session_task_complete when scoped epic is closed."""
+        from gobby.mcp_proxy.tools.task_readiness import create_readiness_registry
+        from gobby.workflows.definitions import WorkflowState
+
+        task_manager = MagicMock()
+
+        # The epic is closed — no ready descendants
+        closed_epic = MagicMock()
+        closed_epic.id = "epic-1"
+        closed_epic.status = "closed"
+
+        task_manager.list_ready_tasks.return_value = []
+        task_manager.list_tasks.return_value = []  # No descendants
+        task_manager.get_task.return_value = closed_epic
+
+        # Patch WorkflowStateManager - session_task points to the closed epic
+        mock_workflow_state = WorkflowState(
+            session_id="test-session-123",
+            workflow_name="auto-task",
+            step="work",
+            variables={"session_task": "epic-1"},
+        )
+        monkeypatch.setattr(
+            "gobby.workflows.state_manager.WorkflowStateManager.get_state",
+            lambda self, sid: mock_workflow_state if sid == "test-session-123" else None,
+        )
+        monkeypatch.setattr(
+            "gobby.mcp_proxy.tools.tasks.resolve_task_id_for_mcp",
+            lambda tm, tid, pid: tid,
+        )
+        monkeypatch.setattr(
+            "gobby.storage.sessions.LocalSessionManager.resolve_session_reference",
+            lambda self, sid, pid: sid,
+        )
+
+        registry = create_readiness_registry(task_manager=task_manager)
+        suggest = registry.get_tool("suggest_next_task")
+
+        result = suggest(session_id="test-session-123")
+
+        assert result["suggestion"] is None
+        assert result["session_task_complete"] is True
+        assert "complete" in result["reason"].lower()
+
     def test_suggest_next_task_session_id_star_does_not_scope(
         self, mock_readiness_registry, monkeypatch
     ) -> None:

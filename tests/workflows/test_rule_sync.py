@@ -42,19 +42,23 @@ class TestSyncBundledRules:
         """Sync should load all rule files and insert them into the DB."""
         from gobby.workflows.rule_sync import sync_bundled_rules_sync as sync_bundled_rules
 
-        _write_rule_file(rules_dir, "safety", {
-            "no_push": {
-                "tools": ["Bash"],
-                "command_pattern": r"git\s+push",
-                "reason": "No pushing allowed",
-                "action": "block",
+        _write_rule_file(
+            rules_dir,
+            "safety",
+            {
+                "no_push": {
+                    "tools": ["Bash"],
+                    "command_pattern": r"git\s+push",
+                    "reason": "No pushing allowed",
+                    "action": "block",
+                },
+                "require_task": {
+                    "tools": ["Edit", "Write"],
+                    "reason": "Claim a task first",
+                    "action": "block",
+                },
             },
-            "require_task": {
-                "tools": ["Edit", "Write"],
-                "reason": "Claim a task first",
-                "action": "block",
-            },
-        })
+        )
 
         result = sync_bundled_rules(temp_db, rules_dir=rules_dir)
         assert result["success"] is True
@@ -74,17 +78,25 @@ class TestSyncBundledRules:
         """Syncing again should update existing rules, not duplicate them."""
         from gobby.workflows.rule_sync import sync_bundled_rules_sync as sync_bundled_rules
 
-        _write_rule_file(rules_dir, "safety", {
-            "no_push": {"tools": ["Bash"], "reason": "old reason", "action": "block"},
-        })
+        _write_rule_file(
+            rules_dir,
+            "safety",
+            {
+                "no_push": {"tools": ["Bash"], "reason": "old reason", "action": "block"},
+            },
+        )
 
         result1 = sync_bundled_rules(temp_db, rules_dir=rules_dir)
         assert result1["synced"] == 1
 
         # Update the file
-        _write_rule_file(rules_dir, "safety", {
-            "no_push": {"tools": ["Bash"], "reason": "new reason", "action": "warn"},
-        })
+        _write_rule_file(
+            rules_dir,
+            "safety",
+            {
+                "no_push": {"tools": ["Bash"], "reason": "new reason", "action": "warn"},
+            },
+        )
 
         result2 = sync_bundled_rules(temp_db, rules_dir=rules_dir)
         assert result2["updated"] == 1
@@ -103,9 +115,13 @@ class TestSyncBundledRules:
         """Rules whose source files no longer exist should be removed."""
         from gobby.workflows.rule_sync import sync_bundled_rules_sync as sync_bundled_rules
 
-        _write_rule_file(rules_dir, "safety", {
-            "no_push": {"tools": ["Bash"], "reason": "test", "action": "block"},
-        })
+        _write_rule_file(
+            rules_dir,
+            "safety",
+            {
+                "no_push": {"tools": ["Bash"], "reason": "test", "action": "block"},
+            },
+        )
 
         result1 = sync_bundled_rules(temp_db, rules_dir=rules_dir)
         assert result1["synced"] == 1
@@ -143,12 +159,18 @@ class TestSyncBundledRules:
         from gobby.workflows.rule_sync import sync_bundled_rules_sync as sync_bundled_rules
 
         # Write a valid file
-        _write_rule_file(rules_dir, "good", {
-            "valid_rule": {"tools": ["Bash"], "reason": "test", "action": "block"},
-        })
+        _write_rule_file(
+            rules_dir,
+            "good",
+            {
+                "valid_rule": {"tools": ["Bash"], "reason": "test", "action": "block"},
+            },
+        )
 
         # Write a malformed file
-        (rules_dir / "bad.yaml").write_text("rule_definitions:\n  bad_rule:\n    - invalid list not dict")
+        (rules_dir / "bad.yaml").write_text(
+            "rule_definitions:\n  bad_rule:\n    - invalid list not dict"
+        )
 
         result = sync_bundled_rules(temp_db, rules_dir=rules_dir)
         assert result["synced"] == 1  # good file synced
@@ -158,12 +180,20 @@ class TestSyncBundledRules:
         """Multiple rule files should all be synced."""
         from gobby.workflows.rule_sync import sync_bundled_rules_sync as sync_bundled_rules
 
-        _write_rule_file(rules_dir, "safety", {
-            "no_push": {"tools": ["Bash"], "reason": "safety", "action": "block"},
-        })
-        _write_rule_file(rules_dir, "quality", {
-            "require_tests": {"tools": ["Bash"], "reason": "quality", "action": "warn"},
-        })
+        _write_rule_file(
+            rules_dir,
+            "safety",
+            {
+                "no_push": {"tools": ["Bash"], "reason": "safety", "action": "block"},
+            },
+        )
+        _write_rule_file(
+            rules_dir,
+            "quality",
+            {
+                "require_tests": {"tools": ["Bash"], "reason": "quality", "action": "warn"},
+            },
+        )
 
         result = sync_bundled_rules(temp_db, rules_dir=rules_dir)
         assert result["synced"] == 2
@@ -178,9 +208,13 @@ class TestSyncBundledRules:
         """Synced rules should record the source file path."""
         from gobby.workflows.rule_sync import sync_bundled_rules_sync as sync_bundled_rules
 
-        _write_rule_file(rules_dir, "safety", {
-            "no_push": {"tools": ["Bash"], "reason": "test", "action": "block"},
-        })
+        _write_rule_file(
+            rules_dir,
+            "safety",
+            {
+                "no_push": {"tools": ["Bash"], "reason": "test", "action": "block"},
+            },
+        )
 
         sync_bundled_rules(temp_db, rules_dir=rules_dir)
 
@@ -196,9 +230,13 @@ class TestSyncBundledRules:
         """Syncing identical content should report skipped, not updated."""
         from gobby.workflows.rule_sync import sync_bundled_rules_sync as sync_bundled_rules
 
-        _write_rule_file(rules_dir, "safety", {
-            "no_push": {"tools": ["Bash"], "reason": "test", "action": "block"},
-        })
+        _write_rule_file(
+            rules_dir,
+            "safety",
+            {
+                "no_push": {"tools": ["Bash"], "reason": "test", "action": "block"},
+            },
+        )
 
         result1 = sync_bundled_rules(temp_db, rules_dir=rules_dir)
         assert result1["synced"] == 1

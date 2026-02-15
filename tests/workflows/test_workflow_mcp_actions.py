@@ -44,9 +44,7 @@ class TestCallMcpToolBasic:
 
         assert result["result"] == {"data": "result"}
         assert result["stored_as"] is None
-        mock_proxy.call_tool.assert_called_once_with(
-            "test-server", "test-tool", {"key": "value"}
-        )
+        mock_proxy.call_tool.assert_called_once_with("test-server", "test-tool", {"key": "value"})
 
     @pytest.mark.asyncio
     async def test_successful_tool_call_with_output_as(self):
@@ -361,9 +359,7 @@ class TestCallMcpToolComplexArguments:
         )
 
         assert result["result"] == {"success": True}
-        mock_proxy.call_tool.assert_called_once_with(
-            "test-server", "complex-tool", complex_args
-        )
+        mock_proxy.call_tool.assert_called_once_with("test-server", "complex-tool", complex_args)
 
     @pytest.mark.asyncio
     async def test_list_arguments(self):
@@ -574,9 +570,7 @@ class TestCallMcpToolEdgeCases:
         )
 
         assert result["result"] == {"processed": True}
-        mock_proxy.call_tool.assert_called_once_with(
-            "test-server", "test-tool", args_with_none
-        )
+        mock_proxy.call_tool.assert_called_once_with("test-server", "test-tool", args_with_none)
 
     @pytest.mark.asyncio
     async def test_arguments_with_empty_string_values(self):

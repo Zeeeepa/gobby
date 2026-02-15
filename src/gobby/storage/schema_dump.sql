@@ -124,17 +124,14 @@ CREATE TABLE memories (
             content TEXT NOT NULL,
             source_type TEXT,
             source_session_id TEXT REFERENCES sessions(id) ON DELETE SET NULL,
-            importance REAL DEFAULT 0.5,
             access_count INTEGER DEFAULT 0,
             last_accessed_at TEXT,
             tags TEXT,
             created_at TEXT NOT NULL,
             updated_at TEXT NOT NULL
-        , media TEXT, mem0_id TEXT);
+        , media TEXT);
 CREATE INDEX idx_memories_project ON memories(project_id);
-CREATE INDEX idx_memories_mem0_id ON memories(mem0_id);
 CREATE INDEX idx_memories_type ON memories(memory_type);
-CREATE INDEX idx_memories_importance ON memories(importance DESC);
 CREATE TABLE session_memories (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             session_id TEXT NOT NULL REFERENCES sessions(id) ON DELETE CASCADE,

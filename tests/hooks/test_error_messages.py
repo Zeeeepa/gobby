@@ -45,9 +45,7 @@ class TestRequireActiveTaskSkillHint:
         assert result["decision"] == "block"
         # Should include task creation instructions
         reason = result["reason"].lower()
-        assert "task" in reason, (
-            f"Block reason should mention tasks.\nGot: {result['reason']}"
-        )
+        assert "task" in reason, f"Block reason should mention tasks.\nGot: {result['reason']}"
 
     @pytest.mark.asyncio
     async def test_inject_context_includes_task_instructions(self) -> None:

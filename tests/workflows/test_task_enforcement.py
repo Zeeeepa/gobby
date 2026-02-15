@@ -678,9 +678,7 @@ class TestRequireTaskReviewOrCloseBeforeStop:
     # session_task should never block stop — only claimed_task_id does.
     # -------------------------------------------------------------------------
 
-    async def test_session_task_string_does_not_block(
-        self, workflow_state, mock_task_manager
-    ):
+    async def test_session_task_string_does_not_block(self, workflow_state, mock_task_manager):
         """session_task is a scoping variable, not ownership — should not block stop."""
         task_id = "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee"
         workflow_state.variables["session_task"] = task_id
@@ -694,9 +692,7 @@ class TestRequireTaskReviewOrCloseBeforeStop:
         # session_task alone should never block
         assert result is None
 
-    async def test_session_task_list_does_not_block(
-        self, workflow_state, mock_task_manager
-    ):
+    async def test_session_task_list_does_not_block(self, workflow_state, mock_task_manager):
         """session_task list should not block stop — only claimed_task_id does."""
         task1_id = "11111111-1111-1111-1111-111111111111"
         task2_id = "22222222-2222-2222-2222-222222222222"

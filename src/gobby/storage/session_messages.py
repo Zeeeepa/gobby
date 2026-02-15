@@ -206,6 +206,18 @@ class LocalSessionMessageManager:
         )
         return {row["session_id"]: row["count"] for row in rows}
 
+    async def delete(self, session_id: str) -> None:
+        """Delete all messages for a session.
+
+        Args:
+            session_id: Session ID whose messages to delete
+        """
+        await asyncio.to_thread(
+            self.db.execute,
+            "DELETE FROM session_messages WHERE session_id = ?",
+            (session_id,),
+        )
+
     async def search_messages(
         self,
         query_text: str,

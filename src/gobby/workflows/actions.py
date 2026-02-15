@@ -56,6 +56,7 @@ from gobby.workflows.session_actions import (
 )
 from gobby.workflows.shell_actions import handle_shell_run
 from gobby.workflows.state_actions import (
+    handle_end_workflow,
     handle_increment_variable,
     handle_load_workflow_state,
     handle_mark_loop_complete,
@@ -219,6 +220,7 @@ class ActionExecutor:
         self.register("set_variable", handle_set_variable)
         self.register("increment_variable", handle_increment_variable)
         self.register("mark_loop_complete", handle_mark_loop_complete)
+        self.register("end_workflow", handle_end_workflow)
 
         # --- Session actions ---
         self.register("start_new_session", handle_start_new_session)

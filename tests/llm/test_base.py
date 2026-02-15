@@ -34,6 +34,14 @@ class ConcreteProvider(LLMProvider):
     ) -> str:
         return "test text"
 
+    async def generate_json(
+        self,
+        prompt: str,
+        system_prompt: str | None = None,
+        model: str | None = None,
+    ) -> dict[str, Any]:
+        return {"test": True}
+
     async def describe_image(
         self,
         image_path: str,
@@ -66,6 +74,14 @@ class IncompleteProviderMissingDescribeImage(LLMProvider):
         model: str | None = None,
     ) -> str:
         return "text"
+
+    async def generate_json(
+        self,
+        prompt: str,
+        system_prompt: str | None = None,
+        model: str | None = None,
+    ) -> dict[str, Any]:
+        return {}
 
 
 class TestLLMProvider:

@@ -465,8 +465,10 @@ export function useChat() {
   }, [messages])
 
   // Switch to a different conversation
-  const switchConversation = useCallback((id: string) => {
-    if (!id || id === conversationIdRef.current) return
+  const switchConversation = useCallback((id: string, dbSessionId?: string) => {
+    if (!id) return
+    // Skip if already on this conversation with messages loaded
+    if (id === conversationIdRef.current && messagesRef.current.length > 0) return
 
     // Stop partial streaming first
     activeRequestIdRef.current = null
@@ -484,7 +486,36 @@ export function useChat() {
 
     // Load messages for the target conversation
     const loaded = loadMessagesForConversation(id)
-    setMessages(loaded)
+    if (loaded.length > 0) {
+      setMessages(loaded)
+      return
+    }
+
+    // No local messages — fetch from API if we have the DB session ID
+    if (dbSessionId) {
+      setMessages([])
+      const baseUrl = import.meta.env.VITE_API_BASE_URL || ''
+      fetch(`${baseUrl}/sessions/${dbSessionId}/messages?limit=100&offset=0`)
+        .then(res => res.ok ? res.json() : null)
+        .then(data => {
+          if (!data?.messages?.length || conversationIdRef.current !== id) return
+          const mapped: ChatMessage[] = data.messages
+            .filter((m: { role: string }) => m.role === 'user' || m.role === 'assistant')
+            .map((m: { id: string; role: string; content: string; timestamp: string; message_index?: number }, i: number) => ({
+              id: m.id || `msg-${m.message_index ?? i}`,
+              role: m.role as 'user' | 'assistant',
+              content: m.content,
+              timestamp: new Date(m.timestamp),
+            }))
+          if (mapped.length > 0) {
+            setMessages(mapped)
+            saveMessagesForConversation(id, mapped)
+          }
+        })
+        .catch(err => console.error('Failed to fetch session messages:', err))
+    } else {
+      setMessages([])
+    }
   }, [])
 
   // Start a new chat conversation
@@ -545,6 +576,28 @@ export function useChat() {
     conversationIdRef.current = newId
     setConversationId(newId)
     saveConversationId(newId)
+  }, [])
+
+  // Delete a conversation from backend and clean up local state
+  const deleteConversation = useCallback((id: string) => {
+    if (wsRef.current?.readyState === WebSocket.OPEN) {
+      wsRef.current.send(JSON.stringify({
+        type: 'delete_chat',
+        conversation_id: id,
+      }))
+    }
+    localStorage.removeItem(chatStorageKey(id))
+    // If deleting the active conversation, start a new one
+    if (id === conversationIdRef.current) {
+      const newId = uuid()
+      conversationIdRef.current = newId
+      setConversationId(newId)
+      saveConversationId(newId)
+      setMessages([])
+      activeRequestIdRef.current = null
+      setIsStreaming(false)
+      setIsThinking(false)
+    }
   }, [])
 
   // Stop the current streaming response
@@ -691,6 +744,7 @@ export function useChat() {
     sendMessage,
     stopStreaming,
     clearHistory,
+    deleteConversation,
     executeCommand,
     respondToQuestion,
     switchConversation,

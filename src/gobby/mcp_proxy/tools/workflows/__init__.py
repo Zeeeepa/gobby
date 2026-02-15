@@ -120,7 +120,7 @@ def create_workflows_registry(
         workflow_type: str | None = None,
         global_only: bool = False,
     ) -> dict[str, Any]:
-        return list_workflows(_loader, project_path, workflow_type, global_only)
+        return list_workflows(_loader, project_path, workflow_type, global_only, db=_db)
 
     @registry.tool(
         name="activate_workflow",

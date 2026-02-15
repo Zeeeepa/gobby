@@ -65,9 +65,7 @@ class TestVoiceRoutes:
         assert data["tts_available"] is False
         assert data["reason"] == "Voice config not found"
 
-    def test_status_no_voice_attr(
-        self, client: TestClient, server_with_voice: MagicMock
-    ) -> None:
+    def test_status_no_voice_attr(self, client: TestClient, server_with_voice: MagicMock) -> None:
         """When config exists but has no voice attribute."""
         # Remove the voice attribute from config
         config_obj = MagicMock(spec=[])  # spec=[] means no attributes
@@ -106,9 +104,7 @@ class TestVoiceRoutes:
         self, client: TestClient, server_with_voice: MagicMock
     ) -> None:
         """TTS available when ElevenLabs API key is configured."""
-        server_with_voice.config.voice = VoiceConfig(
-            enabled=True, elevenlabs_api_key="sk-test-key"
-        )
+        server_with_voice.config.voice = VoiceConfig(enabled=True, elevenlabs_api_key="sk-test-key")
         response = client.get("/api/voice/status")
         data = response.json()
         assert data["tts_available"] is True
@@ -128,16 +124,12 @@ class TestVoiceRoutes:
         self, client: TestClient, server_with_voice: MagicMock
     ) -> None:
         """Custom whisper model size is reflected in status."""
-        server_with_voice.config.voice = VoiceConfig(
-            enabled=False, whisper_model_size="small"
-        )
+        server_with_voice.config.voice = VoiceConfig(enabled=False, whisper_model_size="small")
         response = client.get("/api/voice/status")
         data = response.json()
         assert data["whisper_model"] == "small"
 
-    def test_status_custom_voice_id(
-        self, client: TestClient, server_with_voice: MagicMock
-    ) -> None:
+    def test_status_custom_voice_id(self, client: TestClient, server_with_voice: MagicMock) -> None:
         """Custom ElevenLabs voice ID is reflected in status."""
         server_with_voice.config.voice = VoiceConfig(
             enabled=False, elevenlabs_voice_id="custom-voice-42"
@@ -161,9 +153,7 @@ class TestVoiceRoutes:
         assert data["error"] == "Voice not enabled"
         assert data["text"] == ""
 
-    def test_transcribe_no_config(
-        self, client: TestClient, server_with_voice: MagicMock
-    ) -> None:
+    def test_transcribe_no_config(self, client: TestClient, server_with_voice: MagicMock) -> None:
         """Transcribe returns error when config is None."""
         server_with_voice.config = None
         response = client.post(
@@ -207,9 +197,7 @@ class TestVoiceRoutes:
         assert "faster-whisper" in data["error"]
         assert data["text"] == ""
 
-    def test_transcribe_success(
-        self, client: TestClient, server_with_voice: MagicMock
-    ) -> None:
+    def test_transcribe_success(self, client: TestClient, server_with_voice: MagicMock) -> None:
         """Successful transcription returns text and metadata."""
         server_with_voice.config.voice = VoiceConfig(enabled=True)
         mock_stt_instance = MagicMock()

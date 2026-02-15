@@ -86,7 +86,9 @@ class TestAgentNotFound:
 class TestWorkflowKeyMismatch:
     @pytest.mark.asyncio
     async def test_workflow_key_mismatch(
-        self, mock_agent_loader: MagicMock, mock_workflow_loader: MagicMock,
+        self,
+        mock_agent_loader: MagicMock,
+        mock_workflow_loader: MagicMock,
     ) -> None:
         """WORKFLOW_KEY_MISMATCH error — the original bug."""
         agent_def = _make_agent(
@@ -109,7 +111,9 @@ class TestWorkflowKeyMismatch:
 
     @pytest.mark.asyncio
     async def test_workflow_key_matches(
-        self, mock_agent_loader: MagicMock, mock_workflow_loader: MagicMock,
+        self,
+        mock_agent_loader: MagicMock,
+        mock_workflow_loader: MagicMock,
     ) -> None:
         """Happy path — default_workflow is in workflows map."""
         agent_def = _make_agent(
@@ -140,7 +144,8 @@ class TestWorkflowKeyMismatch:
 class TestOrchestratorEnforcement:
     @pytest.mark.asyncio
     async def test_orchestrator_not_evaluated_no_session(
-        self, mock_agent_loader: MagicMock,
+        self,
+        mock_agent_loader: MagicMock,
     ) -> None:
         """Reports not-evaluated when no parent session provided."""
         agent_def = _make_agent(
@@ -161,10 +166,10 @@ class TestOrchestratorEnforcement:
         orch_items = [i for i in result.items if i.code == "ORCHESTRATOR_NOT_EVALUATED"]
         assert len(orch_items) == 1
 
-
     @pytest.mark.asyncio
     async def test_internal_workflow_blocked_no_parent(
-        self, mock_agent_loader: MagicMock,
+        self,
+        mock_agent_loader: MagicMock,
     ) -> None:
         """INTERNAL_WORKFLOW_BLOCKED when internal workflow requested without parent session."""
         agent_def = _make_agent(
@@ -222,7 +227,8 @@ class TestOrchestratorEnforcement:
 class TestIsolation:
     @pytest.mark.asyncio
     async def test_isolation_deps_missing_worktree(
-        self, mock_agent_loader: MagicMock,
+        self,
+        mock_agent_loader: MagicMock,
     ) -> None:
         """ISOLATION_DEPS_MISSING for worktree mode without deps."""
         agent_def = _make_agent(isolation="worktree")
@@ -241,7 +247,8 @@ class TestIsolation:
 
     @pytest.mark.asyncio
     async def test_isolation_deps_missing_clone(
-        self, mock_agent_loader: MagicMock,
+        self,
+        mock_agent_loader: MagicMock,
     ) -> None:
         """ISOLATION_DEPS_MISSING for clone mode without deps."""
         agent_def = _make_agent(isolation="clone")
@@ -262,7 +269,9 @@ class TestIsolation:
 class TestRuntimeEnvironment:
     @pytest.mark.asyncio
     async def test_spawn_depth_exceeded(
-        self, mock_agent_loader: MagicMock, mock_runner: MagicMock,
+        self,
+        mock_agent_loader: MagicMock,
+        mock_runner: MagicMock,
     ) -> None:
         """SPAWN_DEPTH_EXCEEDED when can_spawn returns False."""
         agent_def = _make_agent()
@@ -359,7 +368,8 @@ class TestWorkflowEvaluation:
         )
         mock_agent_loader.load.return_value = agent_def
         mock_workflow_loader.validate_workflow_for_agent.return_value = (
-            False, "Cannot use lifecycle workflow"
+            False,
+            "Cannot use lifecycle workflow",
         )
 
         result = await evaluate_spawn(

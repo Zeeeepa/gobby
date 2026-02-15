@@ -29,17 +29,13 @@ def cron_storage(temp_db: LocalDatabase) -> CronJobStorage:
 
 def test_cron_jobs_table_exists(temp_db: LocalDatabase) -> None:
     """Migration creates cron_jobs table."""
-    row = temp_db.fetchone(
-        "SELECT name FROM sqlite_master WHERE type='table' AND name='cron_jobs'"
-    )
+    row = temp_db.fetchone("SELECT name FROM sqlite_master WHERE type='table' AND name='cron_jobs'")
     assert row is not None
 
 
 def test_cron_runs_table_exists(temp_db: LocalDatabase) -> None:
     """Migration creates cron_runs table."""
-    row = temp_db.fetchone(
-        "SELECT name FROM sqlite_master WHERE type='table' AND name='cron_runs'"
-    )
+    row = temp_db.fetchone("SELECT name FROM sqlite_master WHERE type='table' AND name='cron_runs'")
     assert row is not None
 
 
@@ -47,11 +43,24 @@ def test_cron_jobs_has_expected_columns(temp_db: LocalDatabase) -> None:
     """cron_jobs table has all required columns."""
     columns = {row["name"] for row in temp_db.fetchall("PRAGMA table_info(cron_jobs)")}
     expected = {
-        "id", "project_id", "name", "description", "schedule_type",
-        "cron_expr", "interval_seconds", "run_at", "timezone",
-        "action_type", "action_config", "enabled", "next_run_at",
-        "last_run_at", "last_status", "consecutive_failures",
-        "created_at", "updated_at",
+        "id",
+        "project_id",
+        "name",
+        "description",
+        "schedule_type",
+        "cron_expr",
+        "interval_seconds",
+        "run_at",
+        "timezone",
+        "action_type",
+        "action_config",
+        "enabled",
+        "next_run_at",
+        "last_run_at",
+        "last_status",
+        "consecutive_failures",
+        "created_at",
+        "updated_at",
     }
     assert expected.issubset(columns)
 
@@ -100,14 +109,20 @@ def test_get_job_not_found(cron_storage: CronJobStorage) -> None:
 def test_list_jobs(cron_storage: CronJobStorage) -> None:
     """list_jobs returns all jobs for a project."""
     cron_storage.create_job(
-        project_id=PROJECT_ID, name="Job 1",
-        schedule_type="cron", action_type="shell",
-        action_config={"command": "echo"}, cron_expr="0 * * * *",
+        project_id=PROJECT_ID,
+        name="Job 1",
+        schedule_type="cron",
+        action_type="shell",
+        action_config={"command": "echo"},
+        cron_expr="0 * * * *",
     )
     cron_storage.create_job(
-        project_id=PROJECT_ID, name="Job 2",
-        schedule_type="interval", action_type="shell",
-        action_config={"command": "echo"}, interval_seconds=300,
+        project_id=PROJECT_ID,
+        name="Job 2",
+        schedule_type="interval",
+        action_type="shell",
+        action_config={"command": "echo"},
+        interval_seconds=300,
     )
     jobs = cron_storage.list_jobs(project_id=PROJECT_ID)
     assert len(jobs) == 2
@@ -116,14 +131,20 @@ def test_list_jobs(cron_storage: CronJobStorage) -> None:
 def test_list_jobs_enabled_filter(cron_storage: CronJobStorage) -> None:
     """list_jobs filters by enabled state."""
     job = cron_storage.create_job(
-        project_id=PROJECT_ID, name="Enabled",
-        schedule_type="cron", action_type="shell",
-        action_config={"command": "echo"}, cron_expr="0 * * * *",
+        project_id=PROJECT_ID,
+        name="Enabled",
+        schedule_type="cron",
+        action_type="shell",
+        action_config={"command": "echo"},
+        cron_expr="0 * * * *",
     )
     cron_storage.create_job(
-        project_id=PROJECT_ID, name="Disabled",
-        schedule_type="cron", action_type="shell",
-        action_config={"command": "echo"}, cron_expr="0 * * * *",
+        project_id=PROJECT_ID,
+        name="Disabled",
+        schedule_type="cron",
+        action_type="shell",
+        action_config={"command": "echo"},
+        cron_expr="0 * * * *",
         enabled=False,
     )
     enabled_jobs = cron_storage.list_jobs(project_id=PROJECT_ID, enabled=True)
@@ -134,9 +155,12 @@ def test_list_jobs_enabled_filter(cron_storage: CronJobStorage) -> None:
 def test_update_job(cron_storage: CronJobStorage) -> None:
     """update_job modifies specified fields."""
     job = cron_storage.create_job(
-        project_id=PROJECT_ID, name="Original",
-        schedule_type="cron", action_type="shell",
-        action_config={"command": "echo"}, cron_expr="0 * * * *",
+        project_id=PROJECT_ID,
+        name="Original",
+        schedule_type="cron",
+        action_type="shell",
+        action_config={"command": "echo"},
+        cron_expr="0 * * * *",
     )
     updated = cron_storage.update_job(job.id, name="Updated", description="new desc")
     assert updated is not None
@@ -147,9 +171,12 @@ def test_update_job(cron_storage: CronJobStorage) -> None:
 def test_update_job_invalid_field(cron_storage: CronJobStorage) -> None:
     """update_job rejects invalid field names."""
     job = cron_storage.create_job(
-        project_id=PROJECT_ID, name="Test",
-        schedule_type="cron", action_type="shell",
-        action_config={"command": "echo"}, cron_expr="0 * * * *",
+        project_id=PROJECT_ID,
+        name="Test",
+        schedule_type="cron",
+        action_type="shell",
+        action_config={"command": "echo"},
+        cron_expr="0 * * * *",
     )
     with pytest.raises(ValueError, match="Invalid field names"):
         cron_storage.update_job(job.id, fake_field="bad")
@@ -158,9 +185,12 @@ def test_update_job_invalid_field(cron_storage: CronJobStorage) -> None:
 def test_delete_job(cron_storage: CronJobStorage) -> None:
     """delete_job removes a job and its runs."""
     job = cron_storage.create_job(
-        project_id=PROJECT_ID, name="To Delete",
-        schedule_type="cron", action_type="shell",
-        action_config={"command": "echo"}, cron_expr="0 * * * *",
+        project_id=PROJECT_ID,
+        name="To Delete",
+        schedule_type="cron",
+        action_type="shell",
+        action_config={"command": "echo"},
+        cron_expr="0 * * * *",
     )
     # Create a run for the job
     cron_storage.create_run(job.id)
@@ -172,9 +202,12 @@ def test_delete_job(cron_storage: CronJobStorage) -> None:
 def test_toggle_job(cron_storage: CronJobStorage) -> None:
     """toggle_job flips enabled state."""
     job = cron_storage.create_job(
-        project_id=PROJECT_ID, name="Toggle Me",
-        schedule_type="cron", action_type="shell",
-        action_config={"command": "echo"}, cron_expr="0 * * * *",
+        project_id=PROJECT_ID,
+        name="Toggle Me",
+        schedule_type="cron",
+        action_type="shell",
+        action_config={"command": "echo"},
+        cron_expr="0 * * * *",
     )
     assert job.enabled is True
     toggled = cron_storage.toggle_job(job.id)
@@ -193,16 +226,22 @@ def test_get_due_jobs(cron_storage: CronJobStorage) -> None:
     past = (datetime.now(timezone.utc) - timedelta(minutes=5)).isoformat()
     future = (datetime.now(timezone.utc) + timedelta(hours=1)).isoformat()
     job1 = cron_storage.create_job(
-        project_id=PROJECT_ID, name="Due",
-        schedule_type="cron", action_type="shell",
-        action_config={"command": "echo"}, cron_expr="0 * * * *",
+        project_id=PROJECT_ID,
+        name="Due",
+        schedule_type="cron",
+        action_type="shell",
+        action_config={"command": "echo"},
+        cron_expr="0 * * * *",
     )
     cron_storage.update_job(job1.id, next_run_at=past)
 
     job2 = cron_storage.create_job(
-        project_id=PROJECT_ID, name="Not Due",
-        schedule_type="cron", action_type="shell",
-        action_config={"command": "echo"}, cron_expr="0 * * * *",
+        project_id=PROJECT_ID,
+        name="Not Due",
+        schedule_type="cron",
+        action_type="shell",
+        action_config={"command": "echo"},
+        cron_expr="0 * * * *",
     )
     cron_storage.update_job(job2.id, next_run_at=future)
 
@@ -217,9 +256,12 @@ def test_get_due_jobs(cron_storage: CronJobStorage) -> None:
 def test_create_run(cron_storage: CronJobStorage) -> None:
     """create_run inserts and returns a CronRun."""
     job = cron_storage.create_job(
-        project_id=PROJECT_ID, name="Run Test",
-        schedule_type="cron", action_type="shell",
-        action_config={"command": "echo"}, cron_expr="0 * * * *",
+        project_id=PROJECT_ID,
+        name="Run Test",
+        schedule_type="cron",
+        action_type="shell",
+        action_config={"command": "echo"},
+        cron_expr="0 * * * *",
     )
     run = cron_storage.create_run(job.id)
     assert run.id.startswith("cr-")
@@ -230,9 +272,12 @@ def test_create_run(cron_storage: CronJobStorage) -> None:
 def test_update_run(cron_storage: CronJobStorage) -> None:
     """update_run changes status and output."""
     job = cron_storage.create_job(
-        project_id=PROJECT_ID, name="Update Run",
-        schedule_type="cron", action_type="shell",
-        action_config={"command": "echo"}, cron_expr="0 * * * *",
+        project_id=PROJECT_ID,
+        name="Update Run",
+        schedule_type="cron",
+        action_type="shell",
+        action_config={"command": "echo"},
+        cron_expr="0 * * * *",
     )
     run = cron_storage.create_run(job.id)
     now = datetime.now(timezone.utc).isoformat()
@@ -251,9 +296,12 @@ def test_update_run(cron_storage: CronJobStorage) -> None:
 def test_list_runs(cron_storage: CronJobStorage) -> None:
     """list_runs returns runs for a job."""
     job = cron_storage.create_job(
-        project_id=PROJECT_ID, name="List Runs",
-        schedule_type="cron", action_type="shell",
-        action_config={"command": "echo"}, cron_expr="0 * * * *",
+        project_id=PROJECT_ID,
+        name="List Runs",
+        schedule_type="cron",
+        action_type="shell",
+        action_config={"command": "echo"},
+        cron_expr="0 * * * *",
     )
     cron_storage.create_run(job.id)
     cron_storage.create_run(job.id)
@@ -264,9 +312,12 @@ def test_list_runs(cron_storage: CronJobStorage) -> None:
 def test_count_running(cron_storage: CronJobStorage) -> None:
     """count_running returns number of running jobs."""
     job = cron_storage.create_job(
-        project_id=PROJECT_ID, name="Count Test",
-        schedule_type="cron", action_type="shell",
-        action_config={"command": "echo"}, cron_expr="0 * * * *",
+        project_id=PROJECT_ID,
+        name="Count Test",
+        schedule_type="cron",
+        action_type="shell",
+        action_config={"command": "echo"},
+        cron_expr="0 * * * *",
     )
     run = cron_storage.create_run(job.id)
     assert cron_storage.count_running() == 0
@@ -277,9 +328,12 @@ def test_count_running(cron_storage: CronJobStorage) -> None:
 def test_cleanup_old_runs(cron_storage: CronJobStorage) -> None:
     """cleanup_old_runs deletes runs older than threshold."""
     job = cron_storage.create_job(
-        project_id=PROJECT_ID, name="Cleanup",
-        schedule_type="cron", action_type="shell",
-        action_config={"command": "echo"}, cron_expr="0 * * * *",
+        project_id=PROJECT_ID,
+        name="Cleanup",
+        schedule_type="cron",
+        action_type="shell",
+        action_config={"command": "echo"},
+        cron_expr="0 * * * *",
     )
     # Create a recent run
     cron_storage.create_run(job.id)
@@ -302,10 +356,17 @@ def test_cleanup_old_runs(cron_storage: CronJobStorage) -> None:
 def test_compute_next_run_cron() -> None:
     """compute_next_run with cron expression returns correct datetime."""
     job = CronJob(
-        id="cj-1", project_id="p", name="test",
-        schedule_type="cron", action_type="shell",
-        action_config={}, created_at="", updated_at="",
-        cron_expr="0 7 * * *", timezone="UTC", enabled=True,
+        id="cj-1",
+        project_id="p",
+        name="test",
+        schedule_type="cron",
+        action_type="shell",
+        action_config={},
+        created_at="",
+        updated_at="",
+        cron_expr="0 7 * * *",
+        timezone="UTC",
+        enabled=True,
     )
     next_run = compute_next_run(job)
     assert next_run is not None
@@ -315,10 +376,17 @@ def test_compute_next_run_cron() -> None:
 def test_compute_next_run_interval_no_last_run() -> None:
     """compute_next_run with interval and no last run uses now + interval."""
     job = CronJob(
-        id="cj-1", project_id="p", name="test",
-        schedule_type="interval", action_type="shell",
-        action_config={}, created_at="", updated_at="",
-        interval_seconds=300, timezone="UTC", enabled=True,
+        id="cj-1",
+        project_id="p",
+        name="test",
+        schedule_type="interval",
+        action_type="shell",
+        action_config={},
+        created_at="",
+        updated_at="",
+        interval_seconds=300,
+        timezone="UTC",
+        enabled=True,
     )
     next_run = compute_next_run(job)
     assert next_run is not None
@@ -331,10 +399,17 @@ def test_compute_next_run_interval_with_last_run() -> None:
     """compute_next_run with interval adds timedelta from last_run_at."""
     last = datetime.now(timezone.utc).isoformat()
     job = CronJob(
-        id="cj-1", project_id="p", name="test",
-        schedule_type="interval", action_type="shell",
-        action_config={}, created_at="", updated_at="",
-        interval_seconds=60, timezone="UTC", enabled=True,
+        id="cj-1",
+        project_id="p",
+        name="test",
+        schedule_type="interval",
+        action_type="shell",
+        action_config={},
+        created_at="",
+        updated_at="",
+        interval_seconds=60,
+        timezone="UTC",
+        enabled=True,
         last_run_at=last,
     )
     next_run = compute_next_run(job)
@@ -347,10 +422,17 @@ def test_compute_next_run_once_future() -> None:
     """compute_next_run with 'once' schedule uses run_at for future time."""
     future = (datetime.now(timezone.utc) + timedelta(hours=1)).isoformat()
     job = CronJob(
-        id="cj-1", project_id="p", name="test",
-        schedule_type="once", action_type="shell",
-        action_config={}, created_at="", updated_at="",
-        run_at=future, timezone="UTC", enabled=True,
+        id="cj-1",
+        project_id="p",
+        name="test",
+        schedule_type="once",
+        action_type="shell",
+        action_config={},
+        created_at="",
+        updated_at="",
+        run_at=future,
+        timezone="UTC",
+        enabled=True,
     )
     next_run = compute_next_run(job)
     assert next_run is not None
@@ -360,10 +442,17 @@ def test_compute_next_run_once_expired() -> None:
     """compute_next_run returns None for expired one-shot."""
     past = (datetime.now(timezone.utc) - timedelta(hours=1)).isoformat()
     job = CronJob(
-        id="cj-1", project_id="p", name="test",
-        schedule_type="once", action_type="shell",
-        action_config={}, created_at="", updated_at="",
-        run_at=past, timezone="UTC", enabled=True,
+        id="cj-1",
+        project_id="p",
+        name="test",
+        schedule_type="once",
+        action_type="shell",
+        action_config={},
+        created_at="",
+        updated_at="",
+        run_at=past,
+        timezone="UTC",
+        enabled=True,
     )
     next_run = compute_next_run(job)
     assert next_run is None
@@ -372,10 +461,17 @@ def test_compute_next_run_once_expired() -> None:
 def test_compute_next_run_disabled() -> None:
     """compute_next_run returns None for disabled jobs."""
     job = CronJob(
-        id="cj-1", project_id="p", name="test",
-        schedule_type="cron", action_type="shell",
-        action_config={}, created_at="", updated_at="",
-        cron_expr="0 7 * * *", timezone="UTC", enabled=False,
+        id="cj-1",
+        project_id="p",
+        name="test",
+        schedule_type="cron",
+        action_type="shell",
+        action_config={},
+        created_at="",
+        updated_at="",
+        cron_expr="0 7 * * *",
+        timezone="UTC",
+        enabled=False,
     )
     next_run = compute_next_run(job)
     assert next_run is None
@@ -384,10 +480,17 @@ def test_compute_next_run_disabled() -> None:
 def test_compute_next_run_respects_timezone() -> None:
     """compute_next_run respects timezone setting."""
     job = CronJob(
-        id="cj-1", project_id="p", name="test",
-        schedule_type="cron", action_type="shell",
-        action_config={}, created_at="", updated_at="",
-        cron_expr="0 7 * * *", timezone="America/Los_Angeles", enabled=True,
+        id="cj-1",
+        project_id="p",
+        name="test",
+        schedule_type="cron",
+        action_type="shell",
+        action_config={},
+        created_at="",
+        updated_at="",
+        cron_expr="0 7 * * *",
+        timezone="America/Los_Angeles",
+        enabled=True,
     )
     next_run = compute_next_run(job)
     assert next_run is not None

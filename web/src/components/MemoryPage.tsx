@@ -1,14 +1,38 @@
-import { useState, useCallback, useMemo, useEffect, useRef } from 'react'
+import { useState, useCallback, useMemo, useEffect, useRef, lazy, Suspense, Component, type ReactNode } from 'react'
 import { useMemory, useNeo4jStatus } from '../hooks/useMemory'
 import type { GobbyMemory } from '../hooks/useMemory'
 import { MemoryOverview } from './MemoryOverview'
 import { MemoryFilters } from './MemoryFilters'
 import { MemoryTable } from './MemoryTable'
 import { MemoryGraph } from './MemoryGraph'
-import { KnowledgeGraph } from './KnowledgeGraph'
 import { MemoryForm } from './MemoryForm'
 import type { MemoryFormData } from './MemoryForm'
 import { MemoryDetail } from './MemoryDetail'
+
+const KnowledgeGraph = lazy(() => import('./KnowledgeGraph').then(m => ({ default: m.KnowledgeGraph })))
+
+class KnowledgeGraphErrorBoundary extends Component<
+  { children: ReactNode },
+  { hasError: boolean }
+> {
+  constructor(props: { children: ReactNode }) {
+    super(props)
+    this.state = { hasError: false }
+  }
+  static getDerivedStateFromError() {
+    return { hasError: true }
+  }
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div style={{ padding: '2rem', color: 'var(--text-secondary)', textAlign: 'center' }}>
+          Failed to load 3D knowledge graph. Please try refreshing the page.
+        </div>
+      )
+    }
+    return this.props.children
+  }
+}
 
 const TWENTY_FOUR_HOURS_MS = 24 * 60 * 60 * 1000
 
@@ -268,10 +292,14 @@ export function MemoryPage() {
       {/* Content area */}
       <div className="memory-content">
         {viewMode === 'knowledge' ? (
-          <KnowledgeGraph
-            fetchKnowledgeGraph={fetchKnowledgeGraph}
-            fetchEntityNeighbors={fetchEntityNeighbors}
-          />
+          <KnowledgeGraphErrorBoundary>
+            <Suspense fallback={<div style={{ padding: '2rem', color: 'var(--text-secondary)' }}>Loading 3D graph...</div>}>
+              <KnowledgeGraph
+                fetchKnowledgeGraph={fetchKnowledgeGraph}
+                fetchEntityNeighbors={fetchEntityNeighbors}
+              />
+            </Suspense>
+          </KnowledgeGraphErrorBoundary>
         ) : viewMode === 'graph' ? (
           <MemoryGraph
             memories={filteredMemories}

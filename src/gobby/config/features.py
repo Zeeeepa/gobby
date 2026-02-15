@@ -18,6 +18,9 @@ __all__ = [
     "ToolSummarizerConfig",
     "RecommendToolsConfig",
     "ImportMCPServerConfig",
+    "MemoryDedupDecisionConfig",
+    "MemoryEntityExtractionConfig",
+    "MemoryFactExtractionConfig",
     "MetricsConfig",
     "ProjectVerificationConfig",
     "HookStageConfig",
@@ -104,6 +107,69 @@ class TaskDescriptionConfig(BaseModel):
         if v < 0:
             raise ValueError("min_structured_length must be non-negative")
         return v
+
+
+class MemoryFactExtractionConfig(BaseModel):
+    """Configuration for memory fact extraction LLM calls."""
+
+    enabled: bool = Field(
+        default=True,
+        description="Enable LLM-based fact extraction from memory content",
+    )
+    provider: str = Field(
+        default="claude",
+        description="LLM provider to use for fact extraction",
+    )
+    model: str = Field(
+        default="claude-haiku-4-5",
+        description="Model to use for fact extraction (fast/cheap recommended)",
+    )
+    prompt_path: str | None = Field(
+        default=None,
+        description="Path to custom fact extraction prompt (e.g., 'memory/fact_extraction')",
+    )
+
+
+class MemoryDedupDecisionConfig(BaseModel):
+    """Configuration for memory deduplication decision LLM calls."""
+
+    enabled: bool = Field(
+        default=True,
+        description="Enable LLM-based dedup decision for memories",
+    )
+    provider: str = Field(
+        default="claude",
+        description="LLM provider to use for dedup decisions",
+    )
+    model: str = Field(
+        default="claude-haiku-4-5",
+        description="Model to use for dedup decisions (fast/cheap recommended)",
+    )
+    prompt_path: str | None = Field(
+        default=None,
+        description="Path to custom dedup decision prompt (e.g., 'memory/dedup_decision')",
+    )
+
+
+class MemoryEntityExtractionConfig(BaseModel):
+    """Configuration for memory entity extraction LLM calls."""
+
+    enabled: bool = Field(
+        default=True,
+        description="Enable LLM-based entity extraction from memories",
+    )
+    provider: str = Field(
+        default="claude",
+        description="LLM provider to use for entity extraction",
+    )
+    model: str = Field(
+        default="claude-haiku-4-5",
+        description="Model to use for entity extraction (fast/cheap recommended)",
+    )
+    prompt_path: str | None = Field(
+        default=None,
+        description="Path to custom entity extraction prompt (e.g., 'memory/entity_extraction')",
+    )
 
 
 class RecommendToolsConfig(BaseModel):

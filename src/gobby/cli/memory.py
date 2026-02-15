@@ -13,10 +13,7 @@ def get_memory_manager(ctx: click.Context) -> MemoryManager:
     config: DaemonConfig = ctx.obj["config"]
     db = LocalDatabase()
 
-    embedding_api_key = None
-    if config.llm_providers and config.llm_providers.api_keys:
-        embedding_api_key = config.llm_providers.api_keys.get("OPENAI_API_KEY")
-    return MemoryManager(db, config.memory, embedding_api_key=embedding_api_key)
+    return MemoryManager(db, config.memory)
 
 
 @click.group()
@@ -30,20 +27,16 @@ def memory() -> None:
 @click.option(
     "--type", "-t", "memory_type", default="fact", help="Type of memory (fact, preference, etc.)"
 )
-@click.option("--importance", "-i", type=float, default=0.5, help="Importance (0.0 - 1.0)")
 @click.option("--project", "-p", "project_ref", help="Project (name or UUID)")
 @click.pass_context
-def create(
-    ctx: click.Context, content: str, memory_type: str, importance: float, project_ref: str | None
-) -> None:
+def create(ctx: click.Context, content: str, memory_type: str, project_ref: str | None) -> None:
     """Create a new memory."""
     project_id = resolve_project_ref(project_ref) if project_ref else None
     manager = get_memory_manager(ctx)
     memory = asyncio.run(
-        manager.remember(
+        manager.create_memory(
             content=content,
             memory_type=memory_type,
-            importance=importance,
             project_id=project_id,
             source_type="cli",
         )
@@ -77,13 +70,15 @@ def recall(
     tags_any_list = [t.strip() for t in tags_any.split(",") if t.strip()] if tags_any else None
     tags_none_list = [t.strip() for t in tags_none.split(",") if t.strip()] if tags_none else None
 
-    memories = manager.recall(
-        query=query,
-        project_id=project_id,
-        limit=limit,
-        tags_all=tags_all_list,
-        tags_any=tags_any_list,
-        tags_none=tags_none_list,
+    memories = asyncio.run(
+        manager.search_memories(
+            query=query,
+            project_id=project_id,
+            limit=limit,
+            tags_all=tags_all_list,
+            tags_any=tags_any_list,
+            tags_none=tags_none_list,
+        )
     )
     if not memories:
         click.echo("No memories found.")
@@ -91,7 +86,7 @@ def recall(
 
     for mem in memories:
         tags_str = f" [{', '.join(mem.tags)}]" if mem.tags else ""
-        click.echo(f"[{mem.id[:8]}] ({mem.memory_type}, {mem.importance}){tags_str} {mem.content}")
+        click.echo(f"[{mem.id[:8]}] ({mem.memory_type}){tags_str} {mem.content}")
 
 
 @memory.command()
@@ -101,7 +96,7 @@ def delete(ctx: click.Context, memory_ref: str) -> None:
     """Delete a memory by ID (UUID or prefix)."""
     manager = get_memory_manager(ctx)
     memory_id = resolve_memory_id(manager, memory_ref)
-    success = asyncio.run(manager.forget(memory_id))
+    success = asyncio.run(manager.delete_memory(memory_id))
     if success:
         click.echo(f"Deleted memory: {memory_id}")
     else:
@@ -110,7 +105,6 @@ def delete(ctx: click.Context, memory_ref: str) -> None:
 
 @memory.command("list")
 @click.option("--type", "-t", "memory_type", help="Filter by memory type")
-@click.option("--min-importance", "-i", type=float, help="Minimum importance threshold")
 @click.option("--limit", "-n", default=50, help="Max results")
 @click.option("--project", "-p", "project_ref", help="Project (name or UUID)")
 @click.option("--tags-all", "tags_all", help="Require ALL tags (comma-separated)")
@@ -120,7 +114,6 @@ def delete(ctx: click.Context, memory_ref: str) -> None:
 def list_memories(
     ctx: click.Context,
     memory_type: str | None,
-    min_importance: float | None,
     project_ref: str | None,
     limit: int,
     tags_all: str | None,
@@ -139,7 +132,6 @@ def list_memories(
     memories = manager.list_memories(
         project_id=project_id,
         memory_type=memory_type,
-        min_importance=min_importance,
         limit=limit,
         tags_all=tags_all_list,
         tags_any=tags_any_list,
@@ -151,7 +143,7 @@ def list_memories(
 
     for mem in memories:
         tags_str = f" [{', '.join(mem.tags)}]" if mem.tags else ""
-        click.echo(f"[{mem.id[:8]}] ({mem.memory_type}, {mem.importance:.2f}){tags_str}")
+        click.echo(f"[{mem.id[:8]}] ({mem.memory_type}){tags_str}")
         click.echo(f"  {mem.content[:100]}{'...' if len(mem.content) > 100 else ''}")
 
 
@@ -169,7 +161,6 @@ def show_memory(ctx: click.Context, memory_ref: str) -> None:
 
     click.echo(f"ID: {memory.id}")
     click.echo(f"Type: {memory.memory_type}")
-    click.echo(f"Importance: {memory.importance}")
     click.echo(f"Created: {memory.created_at}")
     click.echo(f"Updated: {memory.updated_at}")
     click.echo(f"Source: {memory.source_type}")
@@ -182,14 +173,12 @@ def show_memory(ctx: click.Context, memory_ref: str) -> None:
 @memory.command("update")
 @click.argument("memory_ref")
 @click.option("--content", "-c", help="New content")
-@click.option("--importance", "-i", type=float, help="New importance (0.0-1.0)")
 @click.option("--tags", "-t", help="New tags (comma-separated)")
 @click.pass_context
 def update_memory(
     ctx: click.Context,
     memory_ref: str,
     content: str | None,
-    importance: float | None,
     tags: str | None,
 ) -> None:
     """Update an existing memory (UUID or prefix)."""
@@ -202,15 +191,15 @@ def update_memory(
         tag_list = None
 
     try:
-        memory = manager.update_memory(
-            memory_id=memory_id,
-            content=content,
-            importance=importance,
-            tags=tag_list,
+        memory = asyncio.run(
+            manager.update_memory(
+                memory_id=memory_id,
+                content=content,
+                tags=tag_list,
+            )
         )
         click.echo(f"Updated memory: {memory.id}")
         click.echo(f"  Content: {memory.content[:80]}{'...' if len(memory.content) > 80 else ''}")
-        click.echo(f"  Importance: {memory.importance}")
     except ValueError as e:
         click.echo(f"Error: {e}")
 
@@ -226,7 +215,6 @@ def memory_stats(ctx: click.Context, project_ref: str | None) -> None:
 
     click.echo("Memory Statistics:")
     click.echo(f"  Total Memories: {stats['total_count']}")
-    click.echo(f"  Average Importance: {stats['avg_importance']:.3f}")
     if stats["by_type"]:
         click.echo("  By Type:")
         for mem_type, count in stats["by_type"].items():
@@ -346,7 +334,7 @@ def dedupe_memories(ctx: click.Context, dry_run: bool) -> None:
         # Delete duplicates
         deleted = 0
         for memory_id in duplicates_to_delete:
-            if asyncio.run(manager.forget(memory_id)):
+            if asyncio.run(manager.delete_memory(memory_id)):
                 deleted += 1
 
         click.echo(f"Deleted {deleted} duplicate memories.")

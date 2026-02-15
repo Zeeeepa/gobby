@@ -21,14 +21,14 @@ from .installers import (
     install_default_mcp_servers,
     install_gemini,
     install_git_hooks,
-    install_mem0,
+    install_neo4j,
     install_windsurf,
     uninstall_claude,
     uninstall_codex_notify,
     uninstall_copilot,
     uninstall_cursor,
     uninstall_gemini,
-    uninstall_mem0,
+    uninstall_neo4j,
     uninstall_windsurf,
 )
 from .utils import get_install_dir
@@ -173,16 +173,10 @@ def _is_copilot_cli_installed() -> bool:
     help="Install Antigravity agent hooks (internal)",
 )
 @click.option(
-    "--mem0",
-    "mem0_flag",
+    "--neo4j",
+    "neo4j_flag",
     is_flag=True,
-    help="Install mem0 memory backend (Docker-based)",
-)
-@click.option(
-    "--remote",
-    "remote_url",
-    default=None,
-    help="Remote mem0 URL (use with --mem0 to skip Docker)",
+    help="Install Neo4j knowledge graph backend (Docker-based)",
 )
 def install(
     claude_flag: bool,
@@ -194,8 +188,7 @@ def install(
     hooks_flag: bool,
     all_flag: bool,
     antigravity_flag: bool,
-    mem0_flag: bool,
-    remote_url: str | None,
+    neo4j_flag: bool,
 ) -> None:
     """Install Gobby hooks to AI coding CLIs and Git.
 
@@ -224,7 +217,7 @@ def install(
         and not hooks_flag
         and not all_flag
         and not antigravity_flag
-        and not mem0_flag
+        and not neo4j_flag
     ):
         all_flag = True
 
@@ -583,19 +576,19 @@ def install(
             click.echo(f"Failed: {result['error']}", err=True)
         click.echo("")
 
-    # Install Mem0 services
-    if mem0_flag:
+    # Install Neo4j services
+    if neo4j_flag:
         click.echo("-" * 40)
-        click.echo("Mem0 Memory Backend")
+        click.echo("Neo4j Knowledge Graph")
         click.echo("-" * 40)
 
-        result = install_mem0(remote_url=remote_url)
-        results["mem0"] = result
+        result = install_neo4j()
+        results["neo4j"] = result
 
         if result["success"]:
-            mode = result.get("mode", "local")
-            click.echo(f"Mem0 installed ({mode} mode)")
-            click.echo(f"  URL: {result['mem0_url']}")
+            click.echo("Neo4j installed (local mode)")
+            click.echo(f"  HTTP: {result['neo4j_url']}")
+            click.echo(f"  Bolt: {result.get('bolt_url', 'N/A')}")
             if result.get("compose_file"):
                 click.echo(f"  Compose: {result['compose_file']}")
             click.echo("\nRestart the daemon to apply: gobby restart")
@@ -688,16 +681,16 @@ def install(
     help="Uninstall hooks from all CLIs (default behavior when no flags specified)",
 )
 @click.option(
-    "--mem0",
-    "mem0_flag",
+    "--neo4j",
+    "neo4j_flag",
     is_flag=True,
-    help="Uninstall mem0 memory backend",
+    help="Uninstall Neo4j knowledge graph backend",
 )
 @click.option(
     "--volumes",
     "volumes_flag",
     is_flag=True,
-    help="Also remove Docker volumes (data loss, use with --mem0)",
+    help="Also remove Docker volumes (data loss, use with --neo4j)",
 )
 @click.confirmation_option(prompt="Are you sure you want to uninstall Gobby hooks?")
 def uninstall(
@@ -708,7 +701,7 @@ def uninstall(
     windsurf_flag: bool,
     copilot_flag: bool,
     all_flag: bool,
-    mem0_flag: bool,
+    neo4j_flag: bool,
     volumes_flag: bool,
 ) -> None:
     """Uninstall Gobby hooks from AI coding CLIs.
@@ -730,7 +723,7 @@ def uninstall(
         and not windsurf_flag
         and not copilot_flag
         and not all_flag
-        and not mem0_flag
+        and not neo4j_flag
     ):
         all_flag = True
 
@@ -925,20 +918,20 @@ def uninstall(
             click.echo(f"Failed: {result['error']}", err=True)
         click.echo("")
 
-    # Uninstall Mem0 services
-    if mem0_flag:
+    # Uninstall Neo4j services
+    if neo4j_flag:
         click.echo("-" * 40)
-        click.echo("Mem0 Memory Backend")
+        click.echo("Neo4j Knowledge Graph")
         click.echo("-" * 40)
 
-        result = uninstall_mem0(remove_volumes=volumes_flag)
-        results["mem0"] = result
+        result = uninstall_neo4j(remove_volumes=volumes_flag)
+        results["neo4j"] = result
 
         if result["success"]:
             if result.get("already_uninstalled"):
-                click.echo("Mem0 was not installed")
+                click.echo("Neo4j was not installed")
             else:
-                click.echo("Mem0 services removed")
+                click.echo("Neo4j services removed")
                 if result.get("volumes_removed"):
                     click.echo("  Docker volumes removed (data deleted)")
             click.echo("\nRestart the daemon to apply: gobby restart")

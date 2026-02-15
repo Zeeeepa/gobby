@@ -144,6 +144,18 @@ async def _execute_actions(
                 logger.debug(f"Skipping action '{action_type}': when condition false: {when}")
                 continue
 
+        # Extract and remove background flag before passing to executor
+        is_background = action_def.get("background", False)
+        if is_background:
+            from .lifecycle_evaluator import _dispatch_background_action
+
+            clean_kwargs = {
+                k: v for k, v in action_def.items() if k not in ("action", "when", "background")
+            }
+            logger.debug(f"Dispatching step action '{action_type}' as background task")
+            _dispatch_background_action(engine.action_executor, action_type, context, clean_kwargs)
+            continue
+
         result = await engine.action_executor.execute(action_type, context, **action_def)
 
         if result:

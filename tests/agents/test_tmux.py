@@ -231,10 +231,27 @@ class TestTmuxSessionManager:
             mock_run.return_value = (0, "", "")
             assert await mgr.rename_window("%42", "My Title") is True
             mock_run.assert_called_once_with(
-                "set-option", "-g", "set-titles", "on", ";",
-                "set-option", "-g", "set-titles-string", "#W", ";",
-                "rename-window", "-t", "%42", "My Title", ";",
-                "set-option", "-w", "-t", "%42", "automatic-rename", "off",
+                "set-option",
+                "-g",
+                "set-titles",
+                "on",
+                ";",
+                "set-option",
+                "-g",
+                "set-titles-string",
+                "#W",
+                ";",
+                "rename-window",
+                "-t",
+                "%42",
+                "My Title",
+                ";",
+                "set-option",
+                "-w",
+                "-t",
+                "%42",
+                "automatic-rename",
+                "off",
             )
 
     @pytest.mark.asyncio

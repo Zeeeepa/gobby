@@ -24,8 +24,10 @@ Example usage:
 
 from __future__ import annotations
 
+import asyncio
 import logging
 import os
+import random
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
@@ -33,17 +35,26 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
+# Default retry settings for rate-limited requests
+_DEFAULT_MAX_RETRIES = 5
+_DEFAULT_BASE_DELAY = 1.0  # seconds
+_DEFAULT_MAX_DELAY = 60.0  # seconds
+
 
 async def generate_embeddings(
     texts: list[str],
     model: str = "text-embedding-3-small",
     api_base: str | None = None,
     api_key: str | None = None,
+    max_retries: int = _DEFAULT_MAX_RETRIES,
+    base_delay: float = _DEFAULT_BASE_DELAY,
 ) -> list[list[float]]:
-    """Generate embeddings using LiteLLM.
+    """Generate embeddings using LiteLLM with exponential backoff.
 
     Supports OpenAI, Ollama, Azure, Gemini, Mistral and other providers
-    through LiteLLM's unified API.
+    through LiteLLM's unified API. Rate limit errors are retried with
+    exponential backoff; non-retryable errors (auth, model not found,
+    context window) fail immediately.
 
     Args:
         texts: List of texts to embed
@@ -51,6 +62,8 @@ async def generate_embeddings(
                "openai/nomic-embed-text" for Ollama)
         api_base: Optional API base URL for custom endpoints (e.g., Ollama)
         api_key: Optional API key (uses environment variable if not set)
+        max_retries: Maximum retry attempts for rate limit errors (default: 5)
+        base_delay: Initial backoff delay in seconds (default: 1.0)
 
     Returns:
         List of embedding vectors (one per input text). Returns an empty
@@ -74,9 +87,10 @@ async def generate_embeddings(
         raise RuntimeError("litellm package not installed. Run: uv add litellm") from e
 
     # Build kwargs for LiteLLM
-    kwargs: dict[str, str | list[str]] = {
+    kwargs: dict[str, str | int | list[str]] = {
         "model": model,
         "input": texts,
+        "num_retries": 0,  # Disable LiteLLM's internal retries; we handle backoff
     }
 
     if api_key:
@@ -85,26 +99,39 @@ async def generate_embeddings(
     if api_base:
         kwargs["api_base"] = api_base
 
-    try:
-        response = await litellm.aembedding(**kwargs)
-        embeddings: list[list[float]] = [item["embedding"] for item in response.data]
-        logger.debug(f"Generated {len(embeddings)} embeddings via LiteLLM ({model})")
-        return embeddings
-    except AuthenticationError as e:
-        logger.error(f"LiteLLM authentication failed: {e}")
-        raise RuntimeError(f"Authentication failed: {e}") from e
-    except NotFoundError as e:
-        logger.error(f"LiteLLM model not found: {e}")
-        raise RuntimeError(f"Model not found: {e}") from e
-    except RateLimitError as e:
-        logger.error(f"LiteLLM rate limit exceeded: {e}")
-        raise RuntimeError(f"Rate limit exceeded: {e}") from e
-    except ContextWindowExceededError as e:
-        logger.error(f"LiteLLM context window exceeded: {e}")
-        raise RuntimeError(f"Context window exceeded: {e}") from e
-    except Exception as e:
-        logger.error(f"Failed to generate embeddings with LiteLLM: {e}")
-        raise RuntimeError(f"Embedding generation failed: {e}") from e
+    last_error: Exception | None = None
+    for attempt in range(max_retries + 1):
+        try:
+            response = await litellm.aembedding(**kwargs)
+            embeddings: list[list[float]] = [item["embedding"] for item in response.data]
+            logger.debug(f"Generated {len(embeddings)} embeddings via LiteLLM ({model})")
+            return embeddings
+        except AuthenticationError as e:
+            logger.error(f"LiteLLM authentication failed: {e}")
+            raise RuntimeError(f"Authentication failed: {e}") from e
+        except NotFoundError as e:
+            logger.error(f"LiteLLM model not found: {e}")
+            raise RuntimeError(f"Model not found: {e}") from e
+        except ContextWindowExceededError as e:
+            logger.error(f"LiteLLM context window exceeded: {e}")
+            raise RuntimeError(f"Context window exceeded: {e}") from e
+        except RateLimitError as e:
+            last_error = e
+            if attempt == max_retries:
+                break
+            delay = min(base_delay * (2**attempt), _DEFAULT_MAX_DELAY) * random.uniform(0.8, 1.2)  # nosec B311
+            logger.warning(
+                f"Rate limited (attempt {attempt + 1}/{max_retries + 1}), retrying in {delay:.1f}s"
+            )
+            await asyncio.sleep(delay)
+        except Exception as e:
+            logger.error(f"Failed to generate embeddings with LiteLLM: {e}")
+            raise RuntimeError(f"Embedding generation failed: {e}") from e
+
+    logger.error(f"LiteLLM rate limit exceeded after {max_retries + 1} attempts: {last_error}")
+    raise RuntimeError(
+        f"Rate limit exceeded after {max_retries + 1} attempts: {last_error}"
+    ) from last_error
 
 
 async def generate_embedding(
@@ -112,6 +139,8 @@ async def generate_embedding(
     model: str = "text-embedding-3-small",
     api_base: str | None = None,
     api_key: str | None = None,
+    max_retries: int = _DEFAULT_MAX_RETRIES,
+    base_delay: float = _DEFAULT_BASE_DELAY,
 ) -> list[float]:
     """Generate embedding for a single text.
 
@@ -122,6 +151,8 @@ async def generate_embedding(
         model: LiteLLM model string
         api_base: Optional API base URL
         api_key: Optional API key
+        max_retries: Maximum retry attempts for rate limit errors
+        base_delay: Initial backoff delay in seconds
 
     Returns:
         Embedding vector as list of floats
@@ -134,6 +165,8 @@ async def generate_embedding(
         model=model,
         api_base=api_base,
         api_key=api_key,
+        max_retries=max_retries,
+        base_delay=base_delay,
     )
     if not embeddings:
         raise RuntimeError(

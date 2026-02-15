@@ -21,7 +21,10 @@ def _make_event(
     **kwargs: object,
 ) -> HookEvent:
     """Create a minimal HookEvent for testing."""
-    data: dict = {"tool_name": tool_name, **(kwargs.get("data", {}) if isinstance(kwargs.get("data"), dict) else {})}  # type: ignore[assignment]
+    data: dict = {
+        "tool_name": tool_name,
+        **(kwargs.get("data", {}) if isinstance(kwargs.get("data"), dict) else {}),
+    }  # type: ignore[assignment]
     return HookEvent(
         event_type=event_type,
         session_id="test-session",
@@ -102,19 +105,23 @@ class TestEvaluateEvent:
         definitions = {
             "high-pri": _make_definition(
                 "high-pri",
-                steps=[WorkflowStep(
-                    name="work",
-                    status_message="high-pri context",
-                    transitions=[WorkflowTransition(to="done", when="True")],
-                )],
+                steps=[
+                    WorkflowStep(
+                        name="work",
+                        status_message="high-pri context",
+                        transitions=[WorkflowTransition(to="done", when="True")],
+                    )
+                ],
             ),
             "low-pri": _make_definition(
                 "low-pri",
-                steps=[WorkflowStep(
-                    name="work",
-                    status_message="low-pri context",
-                    transitions=[WorkflowTransition(to="done", when="True")],
-                )],
+                steps=[
+                    WorkflowStep(
+                        name="work",
+                        status_message="low-pri context",
+                        transitions=[WorkflowTransition(to="done", when="True")],
+                    )
+                ],
             ),
         }
 
@@ -137,15 +144,19 @@ class TestEvaluateEvent:
         definitions = {
             "wf-a": _make_definition(
                 "wf-a",
-                triggers={"on_session_start": [
-                    {"action": "inject_context", "content": "Context from A"},
-                ]},
+                triggers={
+                    "on_session_start": [
+                        {"action": "inject_context", "content": "Context from A"},
+                    ]
+                },
             ),
             "wf-b": _make_definition(
                 "wf-b",
-                triggers={"on_session_start": [
-                    {"action": "inject_context", "content": "Context from B"},
-                ]},
+                triggers={
+                    "on_session_start": [
+                        {"action": "inject_context", "content": "Context from B"},
+                    ]
+                },
             ),
         }
 
@@ -362,12 +373,14 @@ class TestVariableNamespaces:
         definitions = {
             "wf": _make_definition(
                 "wf",
-                steps=[WorkflowStep(
-                    name="waiting",
-                    transitions=[
-                        WorkflowTransition(to="active", when="session.task_claimed"),
-                    ],
-                )],
+                steps=[
+                    WorkflowStep(
+                        name="waiting",
+                        transitions=[
+                            WorkflowTransition(to="active", when="session.task_claimed"),
+                        ],
+                    )
+                ],
             ),
         }
         session_vars = {"task_claimed": True}
@@ -388,12 +401,14 @@ class TestVariableNamespaces:
         definitions = {
             "wf": _make_definition(
                 "wf",
-                steps=[WorkflowStep(
-                    name="work",
-                    transitions=[
-                        WorkflowTransition(to="review", when="variables.tests_passing"),
-                    ],
-                )],
+                steps=[
+                    WorkflowStep(
+                        name="work",
+                        transitions=[
+                            WorkflowTransition(to="review", when="variables.tests_passing"),
+                        ],
+                    )
+                ],
             ),
         }
 
@@ -425,9 +440,11 @@ class TestEvaluateTriggers:
 
         event = _make_event(event_type=HookEventType.SESSION_START)
         definition = _make_definition(
-            triggers={"on_session_start": [
-                {"action": "inject_context", "content": "Welcome!"},
-            ]},
+            triggers={
+                "on_session_start": [
+                    {"action": "inject_context", "content": "Welcome!"},
+                ]
+            },
         )
 
         result = _evaluate_triggers(event, definition, {})
@@ -439,9 +456,11 @@ class TestEvaluateTriggers:
 
         event = _make_event(event_type=HookEventType.BEFORE_TOOL)
         definition = _make_definition(
-            triggers={"on_session_start": [
-                {"action": "inject_context", "content": "Should not appear"},
-            ]},
+            triggers={
+                "on_session_start": [
+                    {"action": "inject_context", "content": "Should not appear"},
+                ]
+            },
         )
 
         result = _evaluate_triggers(event, definition, {})
@@ -453,10 +472,12 @@ class TestEvaluateTriggers:
 
         event = _make_event(event_type=HookEventType.SESSION_START)
         definition = _make_definition(
-            triggers={"on_session_start": [
-                {"action": "inject_context", "content": "show", "when": "True"},
-                {"action": "inject_context", "content": "hide", "when": "False"},
-            ]},
+            triggers={
+                "on_session_start": [
+                    {"action": "inject_context", "content": "show", "when": "True"},
+                    {"action": "inject_context", "content": "hide", "when": "False"},
+                ]
+            },
         )
 
         result = _evaluate_triggers(event, definition, {})
@@ -469,10 +490,12 @@ class TestEvaluateTriggers:
 
         event = _make_event(event_type=HookEventType.SESSION_START)
         definition = _make_definition(
-            triggers={"on_session_start": [
-                {"action": "set_variable", "name": "key", "value": "val"},
-                {"action": "inject_context", "content": "visible"},
-            ]},
+            triggers={
+                "on_session_start": [
+                    {"action": "set_variable", "name": "key", "value": "val"},
+                    {"action": "inject_context", "content": "visible"},
+                ]
+            },
         )
 
         result = _evaluate_triggers(event, definition, {})

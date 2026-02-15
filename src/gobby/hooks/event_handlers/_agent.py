@@ -218,6 +218,18 @@ class AgentEventHandlerMixin(EventHandlersBase):
             context="\n\n".join(context_parts) if context_parts else None,
         )
 
+    def _is_plan_mode(self, session_id: str | None) -> bool:
+        """Check if plan_mode is active for this session."""
+        if not session_id or not self._workflow_handler:
+            return False
+        try:
+            state = self._workflow_handler.engine.state_manager.get_state(session_id)
+            if state and state.variables.get("plan_mode"):
+                return True
+        except Exception:
+            pass
+        return False
+
     def handle_stop(self, event: HookEvent) -> HookResponse:
         """Handle STOP event (Claude Code only)."""
         session_id = event.metadata.get("_platform_session_id")
@@ -233,6 +245,11 @@ class AgentEventHandlerMixin(EventHandlersBase):
                     self.logger.warning(f"Failed to update session status: {e}")
         else:
             self.logger.debug("STOP")
+
+        # Skip workflow evaluation in plan mode to avoid disruptive blocking
+        if self._is_plan_mode(session_id):
+            self.logger.debug("STOP: skipping workflow evaluation (plan mode)")
+            return HookResponse(decision="allow")
 
         # Execute lifecycle workflow triggers
         wf_response = self._evaluate_workflows(event)

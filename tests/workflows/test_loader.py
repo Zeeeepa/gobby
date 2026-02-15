@@ -1760,9 +1760,7 @@ class TestDiscoverWorkflows:
         (project_dir / "shared.yaml").write_text("name: shared\nversion: '2.0'\npriority: 50\n")
 
         loader = WorkflowLoader(workflow_dirs=[global_dir])
-        discovered = await loader.discover_workflows(
-            project_path=temp_workflow_dir / "project"
-        )
+        discovered = await loader.discover_workflows(project_path=temp_workflow_dir / "project")
 
         assert len(discovered) == 1
         assert discovered[0].is_project is True
@@ -1824,3 +1822,287 @@ class TestDiscoverWorkflows:
 
         assert len(discovered) == 1
         assert discovered[0].priority == 15
+
+
+# =============================================================================
+# DB-First Lookup (Task #8190)
+# =============================================================================
+
+
+class TestDBFirstLookup:
+    """Tests for WorkflowLoader DB-first lookup behavior."""
+
+    @pytest.fixture
+    def db(self, tmp_path):
+        """Create a fresh database with migrations applied."""
+        from gobby.storage.database import LocalDatabase
+        from gobby.storage.migrations import run_migrations
+
+        db_path = tmp_path / "test_loader_db.db"
+        database = LocalDatabase(db_path)
+        run_migrations(database)
+        return database
+
+    @pytest.fixture
+    def def_manager(self, db):
+        """Create a workflow definition manager."""
+        from gobby.storage.workflow_definitions import LocalWorkflowDefinitionManager
+
+        return LocalWorkflowDefinitionManager(db)
+
+    def test_init_accepts_db_param(self, db) -> None:
+        """Test that WorkflowLoader accepts an optional db parameter."""
+        loader = WorkflowLoader(
+            workflow_dirs=[Path("/tmp/workflows")],
+            db=db,
+        )
+        assert loader.db is db
+
+    def test_init_without_db_backward_compat(self) -> None:
+        """Test that WorkflowLoader works without db parameter (backward compat)."""
+        loader = WorkflowLoader(workflow_dirs=[Path("/tmp/workflows")])
+        assert loader.db is None
+
+    @pytest.mark.asyncio
+    async def test_load_workflow_from_db(self, db, def_manager, tmp_path) -> None:
+        """Test that load_workflow returns a definition from DB when found."""
+        import json
+
+        definition_data = {
+            "name": "db-workflow",
+            "version": "1.0",
+            "steps": [{"name": "work", "allowed_tools": "all"}],
+        }
+        def_manager.create(
+            name="db-workflow",
+            definition_json=json.dumps(definition_data),
+            workflow_type="workflow",
+        )
+
+        wf_dir = tmp_path / "workflows"
+        wf_dir.mkdir()
+        loader = WorkflowLoader(workflow_dirs=[wf_dir], db=db)
+
+        result = await loader.load_workflow("db-workflow")
+        assert result is not None
+        assert result.name == "db-workflow"
+        assert isinstance(result, WorkflowDefinition)
+
+    @pytest.mark.asyncio
+    async def test_load_pipeline_from_db(self, db, def_manager, tmp_path) -> None:
+        """Test that load_workflow returns a PipelineDefinition from DB when type=pipeline."""
+        import json
+
+        from gobby.workflows.definitions import PipelineDefinition
+
+        definition_data = {
+            "name": "db-pipeline",
+            "type": "pipeline",
+            "steps": [{"id": "build", "exec": "make build"}],
+        }
+        def_manager.create(
+            name="db-pipeline",
+            definition_json=json.dumps(definition_data),
+            workflow_type="pipeline",
+        )
+
+        wf_dir = tmp_path / "workflows"
+        wf_dir.mkdir()
+        loader = WorkflowLoader(workflow_dirs=[wf_dir], db=db)
+
+        result = await loader.load_workflow("db-pipeline")
+        assert result is not None
+        assert isinstance(result, PipelineDefinition)
+        assert result.name == "db-pipeline"
+
+    @pytest.mark.asyncio
+    async def test_load_workflow_db_shadows_filesystem(self, db, def_manager, tmp_path) -> None:
+        """Test that DB definition shadows filesystem definition with the same name."""
+        import json
+
+        # Create DB version with description
+        definition_data = {
+            "name": "shadowed",
+            "description": "from-db",
+            "version": "2.0",
+            "steps": [{"name": "work", "allowed_tools": "all"}],
+        }
+        def_manager.create(
+            name="shadowed",
+            definition_json=json.dumps(definition_data),
+            workflow_type="workflow",
+        )
+
+        # Create filesystem version with different description
+        wf_dir = tmp_path / "workflows"
+        wf_dir.mkdir()
+        (wf_dir / "shadowed.yaml").write_text(
+            "name: shadowed\ndescription: from-filesystem\nversion: '1.0'\n"
+            "steps:\n  - name: work\n    allowed_tools: all\n"
+        )
+
+        loader = WorkflowLoader(workflow_dirs=[wf_dir], db=db)
+        result = await loader.load_workflow("shadowed")
+
+        assert result is not None
+        assert result.description == "from-db"
+        assert result.version == "2.0"
+
+    @pytest.mark.asyncio
+    async def test_load_workflow_falls_back_to_filesystem(self, db, tmp_path) -> None:
+        """Test that load_workflow falls back to filesystem when DB has no match."""
+        wf_dir = tmp_path / "workflows"
+        wf_dir.mkdir()
+        (wf_dir / "fs-only.yaml").write_text(
+            "name: fs-only\ndescription: filesystem-only\nversion: '1.0'\n"
+            "steps:\n  - name: work\n    allowed_tools: all\n"
+        )
+
+        loader = WorkflowLoader(workflow_dirs=[wf_dir], db=db)
+        result = await loader.load_workflow("fs-only")
+
+        assert result is not None
+        assert result.name == "fs-only"
+        assert result.description == "filesystem-only"
+
+    @pytest.mark.asyncio
+    async def test_load_workflow_db_disabled_skipped(self, db, def_manager, tmp_path) -> None:
+        """Test that disabled DB definitions are still returned by load_workflow.
+
+        Enabled/disabled filtering is done at the engine level, not the loader level.
+        """
+        import json
+
+        definition_data = {
+            "name": "disabled-wf",
+            "steps": [{"name": "work", "allowed_tools": "all"}],
+        }
+        def_manager.create(
+            name="disabled-wf",
+            definition_json=json.dumps(definition_data),
+            workflow_type="workflow",
+            enabled=False,
+        )
+
+        wf_dir = tmp_path / "workflows"
+        wf_dir.mkdir()
+        loader = WorkflowLoader(workflow_dirs=[wf_dir], db=db)
+
+        result = await loader.load_workflow("disabled-wf")
+        assert result is not None
+        assert result.name == "disabled-wf"
+
+    @pytest.mark.asyncio
+    async def test_load_workflow_db_caches_result(self, db, def_manager, tmp_path) -> None:
+        """Test that DB-loaded workflow is cached for subsequent calls."""
+        import json
+
+        definition_data = {
+            "name": "cached-wf",
+            "steps": [{"name": "work", "allowed_tools": "all"}],
+        }
+        def_manager.create(
+            name="cached-wf",
+            definition_json=json.dumps(definition_data),
+            workflow_type="workflow",
+        )
+
+        wf_dir = tmp_path / "workflows"
+        wf_dir.mkdir()
+        loader = WorkflowLoader(workflow_dirs=[wf_dir], db=db)
+
+        result1 = await loader.load_workflow("cached-wf")
+        result2 = await loader.load_workflow("cached-wf")
+
+        assert result1 is not None
+        assert result2 is not None
+        assert result1.name == result2.name
+
+    @pytest.mark.asyncio
+    async def test_discover_workflows_includes_db_entries(self, db, def_manager, tmp_path) -> None:
+        """Test that discover_workflows includes DB workflow definitions."""
+        import json
+
+        definition_data = {
+            "name": "db-discovered",
+            "steps": [{"name": "work", "allowed_tools": "all"}],
+        }
+        def_manager.create(
+            name="db-discovered",
+            definition_json=json.dumps(definition_data),
+            workflow_type="workflow",
+        )
+
+        wf_dir = tmp_path / "workflows"
+        wf_dir.mkdir()
+        loader = WorkflowLoader(workflow_dirs=[wf_dir], db=db)
+
+        discovered = await loader.discover_workflows()
+        names = {d.name for d in discovered}
+        assert "db-discovered" in names
+
+    @pytest.mark.asyncio
+    async def test_discover_workflows_db_shadows_filesystem(
+        self, db, def_manager, tmp_path
+    ) -> None:
+        """Test that DB entries shadow filesystem entries with the same name in discover."""
+        import json
+
+        definition_data = {
+            "name": "shadow-test",
+            "description": "from-db",
+            "steps": [{"name": "work", "allowed_tools": "all"}],
+        }
+        def_manager.create(
+            name="shadow-test",
+            definition_json=json.dumps(definition_data),
+            workflow_type="workflow",
+            priority=10,
+        )
+
+        wf_dir = tmp_path / "workflows"
+        wf_dir.mkdir()
+        (wf_dir / "shadow-test.yaml").write_text(
+            "name: shadow-test\ndescription: from-filesystem\nversion: '1.0'\n"
+            "steps:\n  - name: work\n    allowed_tools: all\n"
+        )
+
+        loader = WorkflowLoader(workflow_dirs=[wf_dir], db=db)
+        discovered = await loader.discover_workflows()
+
+        shadow_entries = [d for d in discovered if d.name == "shadow-test"]
+        assert len(shadow_entries) == 1
+        assert shadow_entries[0].definition.description == "from-db"
+        assert shadow_entries[0].priority == 10
+
+    @pytest.mark.asyncio
+    async def test_discover_workflows_merges_db_and_filesystem(
+        self, db, def_manager, tmp_path
+    ) -> None:
+        """Test that discover merges DB-only and filesystem-only workflows."""
+        import json
+
+        # DB-only workflow
+        definition_data = {
+            "name": "db-only",
+            "steps": [{"name": "work", "allowed_tools": "all"}],
+        }
+        def_manager.create(
+            name="db-only",
+            definition_json=json.dumps(definition_data),
+            workflow_type="workflow",
+        )
+
+        # Filesystem-only workflow
+        wf_dir = tmp_path / "workflows"
+        wf_dir.mkdir()
+        (wf_dir / "fs-only.yaml").write_text(
+            "name: fs-only\nversion: '1.0'\nsteps:\n  - name: work\n    allowed_tools: all\n"
+        )
+
+        loader = WorkflowLoader(workflow_dirs=[wf_dir], db=db)
+        discovered = await loader.discover_workflows()
+        names = {d.name for d in discovered}
+
+        assert "db-only" in names
+        assert "fs-only" in names

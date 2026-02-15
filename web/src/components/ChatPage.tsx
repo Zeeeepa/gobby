@@ -1,3 +1,4 @@
+import { useState, useCallback, useEffect, useRef } from 'react'
 import { ConversationPicker } from './ConversationPicker'
 import { ChatMessages } from './ChatMessages'
 import { ChatInput } from './ChatInput'
@@ -25,6 +26,7 @@ export interface ConversationState {
   activeSessionId: string | null
   onNewChat: () => void
   onSelectSession: (session: GobbySession) => void
+  onDeleteSession?: (session: GobbySession) => void
 }
 
 export interface TerminalProps {
@@ -64,7 +66,114 @@ interface ChatPageProps {
   voice: VoiceProps
 }
 
+function MobileChatDrawer({ conversations }: { conversations: ConversationState }) {
+  const [isOpen, setIsOpen] = useState(false)
+  const drawerRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    if (!isOpen) return
+    const handleClickOutside = (e: MouseEvent) => {
+      if (drawerRef.current && !drawerRef.current.contains(e.target as Node)) {
+        setIsOpen(false)
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => document.removeEventListener('mousedown', handleClickOutside)
+  }, [isOpen])
+
+  const handleSelect = useCallback((session: GobbySession) => {
+    conversations.onSelectSession(session)
+    setIsOpen(false)
+  }, [conversations])
+
+  const handleNewChat = useCallback(() => {
+    conversations.onNewChat()
+    setIsOpen(false)
+  }, [conversations])
+
+  return (
+    <div ref={drawerRef} className={`mobile-chat-drawer ${isOpen ? 'open' : 'collapsed'}`}>
+      <div
+        className="mobile-chat-drawer-header"
+        onClick={() => setIsOpen(prev => !prev)}
+        role="button"
+        tabIndex={0}
+        aria-expanded={isOpen}
+        onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setIsOpen(prev => !prev) } }}
+      >
+        <span className="mobile-chat-drawer-title">
+          <ChatIcon />
+          Chats
+          <span className="agent-count">{conversations.sessions.length}</span>
+        </span>
+        <button type="button" className="terminal-toggle">
+          {isOpen ? '\u25B2' : '\u25BC'}
+        </button>
+      </div>
+      {isOpen && (
+        <div className="mobile-chat-drawer-content">
+          <button type="button" className="mobile-chat-drawer-new" onClick={handleNewChat}>
+            + New Chat
+          </button>
+          <div className="mobile-chat-drawer-list">
+            {conversations.sessions.length === 0 && (
+              <div className="terminals-empty-sidebar">No conversations</div>
+            )}
+            {conversations.sessions.map((session) => {
+              const title = session.title || `Chat #${session.ref}`
+              const isActive = session.external_id === conversations.activeSessionId
+              return (
+                <div
+                  key={session.id}
+                  className={`session-item ${isActive ? 'attached' : ''}`}
+                  onClick={() => handleSelect(session)}
+                  role="button"
+                  tabIndex={0}
+                  onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); handleSelect(session) } }}
+                >
+                  <div className="session-item-main">
+                    <span className="session-source-dot web-chat" />
+                    <span className="session-name" title={title}>{title}</span>
+                  </div>
+                  {conversations.onDeleteSession && (
+                    <button
+                      type="button"
+                      className="session-delete-btn"
+                      title="Delete chat"
+                      onClick={(e) => { e.stopPropagation(); conversations.onDeleteSession!(session) }}
+                    >
+                      <MobileTrashIcon />
+                    </button>
+                  )}
+                </div>
+              )
+            })}
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+function MobileTrashIcon() {
+  return (
+    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <polyline points="3 6 5 6 21 6" />
+      <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+    </svg>
+  )
+}
+
+function ChatIcon() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+    </svg>
+  )
+}
+
 export function ChatPage({ chat, conversations, terminal, project, voice }: ChatPageProps) {
+
   return (
     <div className="chat-page">
       <ConversationPicker
@@ -72,8 +181,10 @@ export function ChatPage({ chat, conversations, terminal, project, voice }: Chat
         activeSessionId={conversations.activeSessionId}
         onNewChat={conversations.onNewChat}
         onSelectSession={conversations.onSelectSession}
+        onDeleteSession={conversations.onDeleteSession}
       />
       <div className="chat-main">
+        <MobileChatDrawer conversations={conversations} />
         <main className="chat-container">
           <ChatMessages
             messages={chat.messages}

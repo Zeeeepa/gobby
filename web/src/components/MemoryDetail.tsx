@@ -87,14 +87,7 @@ export function MemoryDetail({ memory, onEdit, onDelete, onClose }: MemoryDetail
                 </>
               )}
 
-              {memory.mem0_id && (
-                <>
-                  <div className="memory-detail-label">Mem0 ID</div>
-                  <div className="memory-detail-value memory-detail-mono">
-                    {memory.mem0_id}
-                  </div>
-                </>
-              )}
+
             </div>
 
             {memory.tags && memory.tags.length > 0 && (

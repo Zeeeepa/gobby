@@ -176,9 +176,7 @@ class TestMcpCalled:
         assert ev.evaluate("mcp_called('gobby-tasks', 'claim_task')") is True
 
     def test_returns_false_when_tool_not_called(self) -> None:
-        ctx: dict[str, Any] = {
-            "variables": {"mcp_calls": {"gobby-tasks": ["create_task"]}}
-        }
+        ctx: dict[str, Any] = {"variables": {"mcp_calls": {"gobby-tasks": ["create_task"]}}}
         ev = _build_evaluator(ctx)
         assert ev.evaluate("mcp_called('gobby-tasks', 'close_task')") is False
 
@@ -229,7 +227,9 @@ class TestMcpFailed:
     def test_returns_true_when_success_false(self) -> None:
         ctx: dict[str, Any] = {
             "variables": {
-                "mcp_results": {"gobby-agents": {"spawn_agent": {"success": False, "error": "fail"}}}
+                "mcp_results": {
+                    "gobby-agents": {"spawn_agent": {"success": False, "error": "fail"}}
+                }
             }
         }
         ev = _build_evaluator(ctx)
@@ -246,18 +246,14 @@ class TestMcpFailed:
 
     def test_returns_true_when_status_failed(self) -> None:
         ctx: dict[str, Any] = {
-            "variables": {
-                "mcp_results": {"gobby-agents": {"spawn_agent": {"status": "failed"}}}
-            }
+            "variables": {"mcp_results": {"gobby-agents": {"spawn_agent": {"status": "failed"}}}}
         }
         ev = _build_evaluator(ctx)
         assert ev.evaluate("mcp_failed('gobby-agents', 'spawn_agent')") is True
 
     def test_returns_false_when_success(self) -> None:
         ctx: dict[str, Any] = {
-            "variables": {
-                "mcp_results": {"gobby-agents": {"spawn_agent": {"success": True}}}
-            }
+            "variables": {"mcp_results": {"gobby-agents": {"spawn_agent": {"success": True}}}}
         }
         ev = _build_evaluator(ctx)
         assert ev.evaluate("mcp_failed('gobby-agents', 'spawn_agent')") is False
@@ -281,35 +277,31 @@ class TestMcpResultHas:
             }
         }
         ev = _build_evaluator(ctx)
-        assert ev.evaluate("mcp_result_has('gobby-tasks', 'wait_for_task', 'timed_out', True)") is True
+        assert (
+            ev.evaluate("mcp_result_has('gobby-tasks', 'wait_for_task', 'timed_out', True)") is True
+        )
 
     def test_returns_false_when_field_doesnt_match(self) -> None:
         ctx: dict[str, Any] = {
-            "variables": {
-                "mcp_results": {
-                    "gobby-tasks": {"wait_for_task": {"timed_out": False}}
-                }
-            }
+            "variables": {"mcp_results": {"gobby-tasks": {"wait_for_task": {"timed_out": False}}}}
         }
         ev = _build_evaluator(ctx)
         assert (
-            ev.evaluate("mcp_result_has('gobby-tasks', 'wait_for_task', 'timed_out', True)") is False
+            ev.evaluate("mcp_result_has('gobby-tasks', 'wait_for_task', 'timed_out', True)")
+            is False
         )
 
     def test_returns_false_when_no_result(self) -> None:
         ctx: dict[str, Any] = {"variables": {}}
         ev = _build_evaluator(ctx)
         assert (
-            ev.evaluate("mcp_result_has('gobby-tasks', 'wait_for_task', 'timed_out', True)") is False
+            ev.evaluate("mcp_result_has('gobby-tasks', 'wait_for_task', 'timed_out', True)")
+            is False
         )
 
     def test_string_value_match(self) -> None:
         ctx: dict[str, Any] = {
-            "variables": {
-                "mcp_results": {
-                    "gobby-tasks": {"get_task": {"status": "closed"}}
-                }
-            }
+            "variables": {"mcp_results": {"gobby-tasks": {"get_task": {"status": "closed"}}}}
         }
         ev = _build_evaluator(ctx)
         assert ev.evaluate("mcp_result_has('gobby-tasks', 'get_task', 'status', 'closed')") is True
@@ -346,9 +338,12 @@ class TestCombinedExpressions:
             "variables": {"mcp_calls": {"gobby-tasks": ["claim_task"]}},
         }
         ev = _build_evaluator(ctx, task_manager=mock_task_manager)
-        assert ev.evaluate(
-            "task_tree_complete('task-123') and mcp_called('gobby-tasks', 'claim_task')"
-        ) is True
+        assert (
+            ev.evaluate(
+                "task_tree_complete('task-123') and mcp_called('gobby-tasks', 'claim_task')"
+            )
+            is True
+        )
 
     def test_negation_with_helpers(self) -> None:
         ctx: dict[str, Any] = {"variables": {}}
@@ -376,7 +371,9 @@ class TestCombinedExpressions:
         """Test the (dict.get('key') or {}).get('nested') pattern from lifecycle YAML."""
         from gobby.workflows.safe_evaluator import SafeExpressionEvaluator
 
-        ctx: dict[str, Any] = {"event": {"data": {"tool_input": {"arguments": {"commit_sha": "abc"}}}}}
+        ctx: dict[str, Any] = {
+            "event": {"data": {"tool_input": {"arguments": {"commit_sha": "abc"}}}}
+        }
         ev = SafeExpressionEvaluator(ctx, {})
         # This is the pattern from session-lifecycle.yaml line 363
         result = ev.evaluate(

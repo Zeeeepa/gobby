@@ -49,15 +49,12 @@ class TestMemoryConfigDefaults:
 
         config = MemoryConfig()
         assert config.enabled is True
-        assert config.importance_threshold == 0.7
-        assert config.decay_enabled is True
-        assert config.decay_rate == 0.05
-        assert config.decay_floor == 0.1
-        assert config.search_backend == "auto"
+        assert config.backend == "local"
         assert config.embedding_model == "text-embedding-3-small"
-        assert config.embedding_weight == 0.6
-        assert config.tfidf_weight == 0.4
+        assert config.qdrant_path is None
+        assert config.qdrant_url is None
         assert config.access_debounce_seconds == 60
+        assert config.crossref_threshold == 0.3
 
 
 class TestMemoryConfigCustom:
@@ -70,81 +67,49 @@ class TestMemoryConfigCustom:
         config = MemoryConfig(enabled=False)
         assert config.enabled is False
 
-    def test_custom_importance_threshold(self) -> None:
-        """Test setting custom importance threshold."""
+    def test_custom_backend(self) -> None:
+        """Test setting custom backend."""
         from gobby.config.persistence import MemoryConfig
 
-        config = MemoryConfig(importance_threshold=0.5)
-        assert config.importance_threshold == 0.5
+        config = MemoryConfig(backend="null")
+        assert config.backend == "null"
 
-    def test_custom_decay_settings(self) -> None:
-        """Test setting custom decay settings."""
+    def test_custom_qdrant_path(self) -> None:
+        """Test setting custom qdrant_path."""
         from gobby.config.persistence import MemoryConfig
 
-        config = MemoryConfig(
-            decay_enabled=False,
-            decay_rate=0.1,
-            decay_floor=0.2,
-        )
-        assert config.decay_enabled is False
-        assert config.decay_rate == 0.1
-        assert config.decay_floor == 0.2
+        config = MemoryConfig(qdrant_path="/tmp/qdrant")
+        assert config.qdrant_path == "/tmp/qdrant"
 
 
 class TestMemoryConfigValidation:
     """Test MemoryConfig validation."""
 
-    def test_importance_threshold_range(self) -> None:
-        """Test that importance_threshold must be between 0 and 1."""
+    def test_crossref_threshold_range(self) -> None:
+        """Test that crossref_threshold must be between 0 and 1."""
         from gobby.config.persistence import MemoryConfig
 
-        # Boundaries are valid
-        config = MemoryConfig(importance_threshold=0.0)
-        assert config.importance_threshold == 0.0
+        config = MemoryConfig(crossref_threshold=0.0)
+        assert config.crossref_threshold == 0.0
 
-        config = MemoryConfig(importance_threshold=1.0)
-        assert config.importance_threshold == 1.0
+        config = MemoryConfig(crossref_threshold=1.0)
+        assert config.crossref_threshold == 1.0
 
-        # Out of range
-        with pytest.raises(ValidationError) as exc_info:
-            MemoryConfig(importance_threshold=-0.1)
-        assert "0" in str(exc_info.value) and "1" in str(exc_info.value)
+        with pytest.raises(ValidationError):
+            MemoryConfig(crossref_threshold=-0.1)
 
-        with pytest.raises(ValidationError) as exc_info:
-            MemoryConfig(importance_threshold=1.1)
-        assert "0" in str(exc_info.value) and "1" in str(exc_info.value)
+        with pytest.raises(ValidationError):
+            MemoryConfig(crossref_threshold=1.1)
 
-    def test_decay_rate_range(self) -> None:
-        """Test that decay_rate must be between 0 and 1."""
+    def test_crossref_max_links_positive(self) -> None:
+        """Test that crossref_max_links must be at least 1."""
         from gobby.config.persistence import MemoryConfig
 
-        config = MemoryConfig(decay_rate=0.0)
-        assert config.decay_rate == 0.0
-
-        config = MemoryConfig(decay_rate=1.0)
-        assert config.decay_rate == 1.0
+        config = MemoryConfig(crossref_max_links=1)
+        assert config.crossref_max_links == 1
 
         with pytest.raises(ValidationError):
-            MemoryConfig(decay_rate=-0.1)
-
-        with pytest.raises(ValidationError):
-            MemoryConfig(decay_rate=1.1)
-
-    def test_decay_floor_range(self) -> None:
-        """Test that decay_floor must be between 0 and 1."""
-        from gobby.config.persistence import MemoryConfig
-
-        config = MemoryConfig(decay_floor=0.0)
-        assert config.decay_floor == 0.0
-
-        config = MemoryConfig(decay_floor=1.0)
-        assert config.decay_floor == 1.0
-
-        with pytest.raises(ValidationError):
-            MemoryConfig(decay_floor=-0.1)
-
-        with pytest.raises(ValidationError):
-            MemoryConfig(decay_floor=1.1)
+            MemoryConfig(crossref_max_links=0)
 
 
 # =============================================================================
@@ -245,35 +210,35 @@ class TestMemorySyncConfigValidation:
 # =============================================================================
 
 
-class TestMemoryConfigSearchBackendOptions:
-    """Test expanded search_backend options for semantic search."""
+class TestMemoryConfigQdrantExclusivity:
+    """Test qdrant_path and qdrant_url mutual exclusivity."""
 
-    @pytest.mark.parametrize("backend", ["tfidf", "text", "embedding", "auto", "hybrid"])
-    def test_valid_search_backends(self, backend: str) -> None:
-        """Test that all valid search_backend values are accepted."""
+    def test_qdrant_path_only(self) -> None:
+        """Test setting qdrant_path without qdrant_url."""
         from gobby.config.persistence import MemoryConfig
 
-        config = MemoryConfig(search_backend=backend)
-        assert config.search_backend == backend
+        config = MemoryConfig(qdrant_path="/tmp/qdrant")
+        assert config.qdrant_path == "/tmp/qdrant"
+        assert config.qdrant_url is None
 
-    def test_invalid_search_backend_rejected(self) -> None:
-        """Test that invalid search_backend values are rejected."""
+    def test_qdrant_url_only(self) -> None:
+        """Test setting qdrant_url without qdrant_path."""
         from gobby.config.persistence import MemoryConfig
 
-        with pytest.raises(ValidationError) as exc_info:
-            MemoryConfig(search_backend="invalid")
-        assert "invalid" in str(exc_info.value).lower()
+        config = MemoryConfig(qdrant_url="http://localhost:6333")
+        assert config.qdrant_url == "http://localhost:6333"
+        assert config.qdrant_path is None
 
-    def test_default_search_backend_is_auto(self) -> None:
-        """Test that the default search_backend is 'auto'."""
+    def test_both_qdrant_rejected(self) -> None:
+        """Test that setting both qdrant_path and qdrant_url raises error."""
         from gobby.config.persistence import MemoryConfig
 
-        config = MemoryConfig()
-        assert config.search_backend == "auto"
+        with pytest.raises(ValidationError, match="mutually exclusive"):
+            MemoryConfig(qdrant_path="/tmp/qdrant", qdrant_url="http://localhost:6333")
 
 
 class TestMemoryConfigEmbeddingFields:
-    """Test new embedding configuration fields."""
+    """Test embedding configuration fields."""
 
     def test_embedding_model_default(self) -> None:
         """Test default embedding_model value."""
@@ -289,84 +254,45 @@ class TestMemoryConfigEmbeddingFields:
         config = MemoryConfig(embedding_model="text-embedding-3-large")
         assert config.embedding_model == "text-embedding-3-large"
 
-    def test_embedding_weight_default(self) -> None:
-        """Test default embedding_weight value."""
+
+class TestMemoryConfigNeo4jFields:
+    """Test neo4j_url and neo4j_auth fields on MemoryConfig."""
+
+    def test_neo4j_url_defaults_to_none(self) -> None:
+        """neo4j_url should default to None."""
         from gobby.config.persistence import MemoryConfig
 
         config = MemoryConfig()
-        assert config.embedding_weight == 0.6
+        assert config.neo4j_url is None
 
-    def test_tfidf_weight_default(self) -> None:
-        """Test default tfidf_weight value."""
+    def test_neo4j_auth_defaults_to_none(self) -> None:
+        """neo4j_auth should default to None."""
         from gobby.config.persistence import MemoryConfig
 
         config = MemoryConfig()
-        assert config.tfidf_weight == 0.4
+        assert config.neo4j_auth is None
 
-    def test_custom_weights(self) -> None:
-        """Test setting custom search weights."""
+    def test_neo4j_url_accepts_valid_url(self) -> None:
+        """Setting neo4j_url to a valid URL should work."""
         from gobby.config.persistence import MemoryConfig
 
-        config = MemoryConfig(embedding_weight=0.8, tfidf_weight=0.2)
-        assert config.embedding_weight == 0.8
-        assert config.tfidf_weight == 0.2
+        config = MemoryConfig(neo4j_url="http://localhost:8474")
+        assert config.neo4j_url == "http://localhost:8474"
 
-    def test_weight_validation_range(self) -> None:
-        """Test that weights must be between 0 and 1."""
+    def test_neo4j_auth_stores_credentials(self) -> None:
+        """neo4j_auth stores user:password format."""
         from gobby.config.persistence import MemoryConfig
 
-        with pytest.raises(ValidationError):
-            MemoryConfig(embedding_weight=1.5)
+        config = MemoryConfig(neo4j_auth="neo4j:password")
+        assert config.neo4j_auth == "neo4j:password"
 
-        with pytest.raises(ValidationError):
-            MemoryConfig(tfidf_weight=-0.1)
-
-
-class TestMemoryConfigMem0Fields:
-    """Test mem0_url and mem0_api_key fields on MemoryConfig."""
-
-    def test_mem0_url_defaults_to_none(self) -> None:
-        """mem0_url should default to None (standalone mode)."""
-        from gobby.config.persistence import MemoryConfig
-
-        config = MemoryConfig()
-        assert config.mem0_url is None
-
-    def test_mem0_api_key_defaults_to_none(self) -> None:
-        """mem0_api_key should default to None."""
-        from gobby.config.persistence import MemoryConfig
-
-        config = MemoryConfig()
-        assert config.mem0_api_key is None
-
-    def test_mem0_url_accepts_valid_url(self) -> None:
-        """Setting mem0_url to a valid URL should work."""
-        from gobby.config.persistence import MemoryConfig
-
-        config = MemoryConfig(mem0_url="http://localhost:8888")
-        assert config.mem0_url == "http://localhost:8888"
-
-    def test_mem0_api_key_stores_env_var_pattern(self) -> None:
-        """mem0_api_key should store ${ENV_VAR} as-is (expansion at load time)."""
-        from gobby.config.persistence import MemoryConfig
-
-        config = MemoryConfig(mem0_api_key="${MEM0_API_KEY}")
-        assert config.mem0_api_key == "${MEM0_API_KEY}"
-
-    def test_none_mem0_url_means_standalone(self) -> None:
-        """When mem0_url is None, the system operates in standalone mode."""
-        from gobby.config.persistence import MemoryConfig
-
-        config = MemoryConfig(mem0_url=None)
-        assert config.mem0_url is None
-
-    def test_mem0_url_with_api_key(self) -> None:
-        """Both mem0_url and mem0_api_key can be set together."""
+    def test_neo4j_url_with_auth(self) -> None:
+        """Both neo4j_url and neo4j_auth can be set together."""
         from gobby.config.persistence import MemoryConfig
 
         config = MemoryConfig(
-            mem0_url="https://api.mem0.ai",
-            mem0_api_key="sk-test-key",
+            neo4j_url="http://localhost:8474",
+            neo4j_auth="neo4j:gobbyneo4j",
         )
-        assert config.mem0_url == "https://api.mem0.ai"
-        assert config.mem0_api_key == "sk-test-key"
+        assert config.neo4j_url == "http://localhost:8474"
+        assert config.neo4j_auth == "neo4j:gobbyneo4j"

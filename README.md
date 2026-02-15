@@ -140,7 +140,7 @@ Gobby ships a built-in web interface that auto-starts with the daemon:
 
 - **Chat** with MCP tool support, voice chat, model switching, slash commands
 - **Tasks** — kanban board, tree view, dependency graph, Gantt chart, detail panel
-- **Memory** — table view, Neo4j 3D knowledge graph, mem0 status
+- **Memory** — table view, Neo4j 3D knowledge graph
 - **Sessions** — lineage tree, transcript viewer, AI summary generation
 - **Cron Jobs**, **Configuration**, **Skills**, **Projects**, **Agent Registry** pages
 - File browser/editor, terminal panel with xterm.js
@@ -388,7 +388,7 @@ Gobby exposes tools via MCP that your AI coding assistant can use:
 
 See [ROADMAP.md](ROADMAP.md) for the full plan, but highlights:
 
-**Shipped:** Task system v2, TDD expansion, workflow engine, MCP proxy with progressive discovery, session handoffs, memory v4 with embeddings, hooks for all CLIs, unified agent spawning, worktree and clone orchestration, skills system, pipeline system, cron scheduler, coordinator pipeline, mem0 integration, web UI (tasks kanban/tree/Gantt/graph, memory with Neo4j knowledge graph, sessions with transcripts, chat with voice and model switching, cron jobs, configuration, skills, projects, agent registry, file browser), tmux first-class support, personal workspace, code decomposition, DB-backed agent registry
+**Shipped:** Task system v2, TDD expansion, workflow engine, MCP proxy with progressive discovery, session handoffs, memory v4 with embeddings, hooks for all CLIs, unified agent spawning, worktree and clone orchestration, skills system, pipeline system, cron scheduler, coordinator pipeline, web UI (tasks kanban/tree/Gantt/graph, memory with Neo4j knowledge graph, sessions with transcripts, chat with voice and model switching, cron jobs, configuration, skills, projects, agent registry, file browser), tmux first-class support, personal workspace, code decomposition, DB-backed agent registry
 
 **Beta:** Autonomous orchestration (conductor daemon, inter-agent messaging, token budget tracking, review gates)
 
