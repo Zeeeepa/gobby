@@ -733,15 +733,27 @@ class MemoryManager:
 
     async def get_entity_graph(self, limit: int = 500) -> dict[str, Any] | None:
         """Get the Neo4j entity graph for visualization."""
-        if not self._kg_service:
-            return None
-        return await self._kg_service.get_entity_graph(limit=limit)
+        if self._kg_service:
+            return await self._kg_service.get_entity_graph(limit=limit)
+        if self._neo4j_client:
+            try:
+                return await self._neo4j_client.get_entity_graph(limit=limit)
+            except Exception as e:
+                logger.warning(f"Neo4j query failed: {e}")
+                return None
+        return None
 
     async def get_entity_neighbors(self, name: str) -> dict[str, Any] | None:
         """Get neighbors for a single Neo4j entity."""
-        if not self._kg_service:
-            return None
-        return await self._kg_service.get_entity_neighbors(name)
+        if self._kg_service:
+            return await self._kg_service.get_entity_neighbors(name)
+        if self._neo4j_client:
+            try:
+                return await self._neo4j_client.get_entity_neighbors(name)
+            except Exception as e:
+                logger.warning(f"Neo4j query failed: {e}")
+                return None
+        return None
 
     def export_markdown(
         self,
