@@ -98,7 +98,7 @@ Legend:
 - ✅ Syntax highlighting, streaming, chat history persistence
 - ✅ Auto-start with daemon
 - ✅ Tasks page: kanban board, tree view, dependency graph, Gantt chart, detail panel, creation form, comments, handoff, assignee management, audit log, oversight views (0.2.14)
-- ✅ Memory page: table, filters, graph view, Neo4j 3D knowledge graph, mem0 status indicator (0.2.14)
+- ✅ Memory page: table, filters, graph view, Neo4j 3D knowledge graph (0.2.14)
 - ✅ Sessions page: lineage tree, transcript viewer, AI summary generation (0.2.14)
 - ✅ Chat: Claude SDK backend, model switching, AskUserQuestion interactive UI, voice chat (0.2.14)
 - ✅ Cron Jobs page with two-panel layout (0.2.14)

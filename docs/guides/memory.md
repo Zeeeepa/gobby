@@ -310,13 +310,6 @@ Gobby's memory system operates in one of two modes:
 - Zero external dependencies for TF-IDF; embedding modes require an API key (OpenAI, etc.)
 - Works out of the box with no additional setup
 
-**Mem0 mode** (optional, via `gobby install mem0`):
-- SQLite remains the source of truth
-- Mem0 provides enhanced semantic search, graph memory, and its own UI
-- Dual-write: memories stored in SQLite AND indexed in mem0
-- Graceful fallback: if mem0 is unreachable, falls back to standalone search
-- See [Mem0 Integration Guide](mem0-integration.md) for setup details
-
 ### Search Pipeline
 
 ```
@@ -411,10 +404,6 @@ memory:
   # Access tracking
   access_debounce_seconds: 60       # Min seconds between access stat updates
 
-  # Mem0 integration (optional — set via 'gobby install mem0')
-  # mem0_url: http://localhost:8888
-  # mem0_api_key: ${MEM0_API_KEY}   # Supports env var expansion
-
 memory_sync:
   enabled: true                     # Enable filesystem backup
   export_debounce: 5.0              # Seconds to wait before export
@@ -429,12 +418,6 @@ Config values support `${VAR}` syntax for environment variable expansion at load
 - `${VAR:-default}` — replaced with `VAR`'s value, or `default` if unset/empty
 
 This is useful for API keys:
-
-```yaml
-memory:
-  mem0_api_key: ${MEM0_API_KEY}              # From environment
-  mem0_api_key: ${MEM0_API_KEY:-sk-fallback} # With default fallback
-```
 
 ### Example Configurations
 
@@ -473,23 +456,6 @@ memory:
   embedding_model: text-embedding-3-small
   embedding_weight: 0.6
   tfidf_weight: 0.4
-```
-
-**With mem0 (local Docker install)**:
-
-```yaml
-memory:
-  enabled: true
-  mem0_url: http://localhost:8888   # Set by 'gobby install --mem0'
-```
-
-**With mem0 (remote/hosted)**:
-
-```yaml
-memory:
-  enabled: true
-  mem0_url: https://api.mem0.ai
-  mem0_api_key: ${MEM0_API_KEY}
 ```
 
 ## Automatic Memory Injection
@@ -662,6 +628,5 @@ triggers:
 
 ## Related Documentation
 
-- [Memory V4 Plan](../plans/memory-v4.md) - Embeddings + Mem0 integration plan
-- [Mem0 Integration Guide](mem0-integration.md) - Setting up optional mem0 integration
+- [Memory V4 Plan](../plans/memory-v4.md) - Embeddings integration plan
 - [Task Tracking](tasks.md) - Task tracking system

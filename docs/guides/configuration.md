@@ -171,7 +171,7 @@ Persistent memory system. See [memory.md](memory.md) for details.
 ```yaml
 memory:
   enabled: true
-  backend: local                  # local (preferred), sqlite (alias for local), mem0, or null (testing)
+  backend: local                  # local (preferred), sqlite (alias for local), or null (testing)
 
   # Search
   search_backend: auto            # tfidf, text, embedding, auto, hybrid
@@ -192,9 +192,6 @@ memory:
 
   access_debounce_seconds: 60
 
-  # Mem0 integration (optional — set via 'gobby install --mem0')
-  # mem0_url: http://localhost:8888
-  # mem0_api_key: ${MEM0_API_KEY}
 ```
 
 ### Memory Sync
@@ -691,7 +688,6 @@ gobby config show --format yaml
 ```bash
 # Set a value
 gobby config set daemon_port 60888
-gobby config set memory.backend mem0
 gobby config set logging.level debug
 
 # Reset to defaults
@@ -726,7 +722,7 @@ All values are validated via Pydantic:
 | Count | Positive integer |
 | Search mode | tfidf, embedding, auto, hybrid |
 | Log level | debug, info, warning, error |
-| Memory backend | local, sqlite (alias for local), mem0, null |
+| Memory backend | local, sqlite (alias for local), null |
 | Auth mode | subscription, api_key, adc |
 
 ---

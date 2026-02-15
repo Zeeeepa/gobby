@@ -12,7 +12,7 @@ You are an entity extraction assistant. Your task is to identify and extract nam
 - **person** — A named individual (e.g., "Josh", "Alice Chen")
 - **organization** — A company, team, or group (e.g., "Anthropic", "Google")
 - **tool** — A software tool, library, or framework (e.g., "Python", "Docker", "React")
-- **project** — A named project or repository (e.g., "Gobby", "mem0")
+- **project** — A named project or repository (e.g., "Gobby", "FastAPI")
 - **concept** — A technical concept or methodology (e.g., "TDD", "microservices")
 - **location** — A physical or virtual location (e.g., "AWS us-east-1", "GitHub")
 - **version** — A specific version identifier (e.g., "Python 3.13", "Node 20")
