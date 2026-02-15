@@ -40,7 +40,10 @@ def mock_server():
     """Create mock HTTPServer with memory_manager."""
     server = MagicMock()
     server.memory_manager = MagicMock()
-    server.memory_manager.forget = AsyncMock(return_value=True)
+    server.memory_manager.create_memory = AsyncMock(return_value=_make_memory())
+    server.memory_manager.search_memories = AsyncMock(return_value=[])
+    server.memory_manager.update_memory = AsyncMock(return_value=_make_memory())
+    server.memory_manager.delete_memory = AsyncMock(return_value=True)
     return server
 
 
@@ -110,7 +113,7 @@ class TestCreateMemory:
 
     def test_create_memory(self, client, mock_server) -> None:
         """POST /memories creates a memory and returns id."""
-        mock_server.memory_manager.remember = AsyncMock(return_value=_make_memory(id="mm-new-123"))
+        mock_server.memory_manager.create_memory = AsyncMock(return_value=_make_memory(id="mm-new-123"))
         response = client.post(
             "/memories",
             json={
@@ -132,7 +135,7 @@ class TestCreateMemory:
 
     def test_create_memory_server_error(self, client, mock_server) -> None:
         """POST /memories returns 500 when manager raises error."""
-        mock_server.memory_manager.remember.side_effect = RuntimeError("Backend failure")
+        mock_server.memory_manager.create_memory.side_effect = RuntimeError("Backend failure")
         response = client.post(
             "/memories",
             json={"content": "test"},
@@ -204,15 +207,15 @@ class TestDeleteMemory:
 
     def test_delete_memory(self, client, mock_server) -> None:
         """DELETE /memories/{id} removes memory."""
-        mock_server.memory_manager.forget.return_value = True
+        mock_server.memory_manager.delete_memory.return_value = True
         response = client.delete("/memories/mm-abc123")
         assert response.status_code == 200
         assert response.json()["deleted"] is True
-        mock_server.memory_manager.forget.assert_called_once_with("mm-abc123")
+        mock_server.memory_manager.delete_memory.assert_called_once_with("mm-abc123")
 
     def test_delete_not_found(self, client, mock_server) -> None:
         """DELETE /memories/{id} returns 404 when not found."""
-        mock_server.memory_manager.forget.return_value = False
+        mock_server.memory_manager.delete_memory.return_value = False
         response = client.delete("/memories/nonexistent")
         assert response.status_code == 404
 
@@ -227,7 +230,7 @@ class TestSearchMemories:
 
     def test_search_returns_results(self, client, mock_server) -> None:
         """GET /memories/search?q=query returns ranked results."""
-        mock_server.memory_manager.recall.return_value = [
+        mock_server.memory_manager.search_memories.return_value = [
             _make_memory(id="mm-1", content="Dark mode preference"),
         ]
         response = client.get("/memories/search", params={"q": "dark mode"})
@@ -244,13 +247,13 @@ class TestSearchMemories:
 
     def test_search_with_filters(self, client, mock_server) -> None:
         """GET /memories/search supports project_id and limit filters."""
-        mock_server.memory_manager.recall.return_value = []
+        mock_server.memory_manager.search_memories.return_value = []
         response = client.get(
             "/memories/search",
             params={"q": "test", "project_id": "proj-1", "limit": 5},
         )
         assert response.status_code == 200
-        mock_server.memory_manager.recall.assert_called_once_with(
+        mock_server.memory_manager.search_memories.assert_called_once_with(
             query="test",
             project_id="proj-1",
             limit=5,

@@ -122,7 +122,7 @@ async def test_memory_save_creates_memory(
 
     mock_memory = MagicMock()
     mock_memory.id = "mem-123"
-    mock_mem_services["memory_manager"].remember.return_value = mock_memory
+    mock_mem_services["memory_manager"].create_memory.return_value = mock_memory
 
     result = await mem_action_executor.execute(
         "memory_save",
@@ -137,7 +137,7 @@ async def test_memory_save_creates_memory(
     assert result["memory_id"] == "mem-123"
     assert result["memory_type"] == "preference"
 
-    mock_mem_services["memory_manager"].remember.assert_called_once_with(
+    mock_mem_services["memory_manager"].create_memory.assert_called_once_with(
         content="User prefers dark mode",
         memory_type="preference",
         project_id=sample_project["id"],
@@ -187,7 +187,7 @@ async def test_memory_save_skips_duplicates(
     assert result is not None
     assert result["saved"] is False
     assert result["reason"] == "duplicate"
-    mock_mem_services["memory_manager"].remember.assert_not_called()
+    mock_mem_services["memory_manager"].create_memory.assert_not_called()
 
 
 @pytest.mark.asyncio
@@ -209,7 +209,7 @@ async def test_memory_save_uses_defaults(
 
     mock_memory = MagicMock()
     mock_memory.id = "mem-456"
-    mock_mem_services["memory_manager"].remember.return_value = mock_memory
+    mock_mem_services["memory_manager"].create_memory.return_value = mock_memory
 
     result = await mem_action_executor.execute(
         "memory_save",
@@ -222,7 +222,7 @@ async def test_memory_save_uses_defaults(
     assert result["memory_type"] == "fact"
 
     # Verify defaults were used
-    call_kwargs = mock_mem_services["memory_manager"].remember.call_args[1]
+    call_kwargs = mock_mem_services["memory_manager"].create_memory.call_args[1]
     assert call_kwargs["memory_type"] == "fact"
     assert call_kwargs["tags"] == []
 
@@ -249,7 +249,7 @@ async def test_memory_recall_relevant_with_prompt(
 
     m1 = MagicMock(memory_type="fact", content="Tests are in tests/ directory")
     m2 = MagicMock(memory_type="fact", content="Use pytest for testing")
-    mock_mem_services["memory_manager"].recall.return_value = [m1, m2]
+    mock_mem_services["memory_manager"].search_memories.return_value = [m1, m2]
 
     result = await mem_action_executor.execute("memory_recall_relevant", mem_action_context)
 
@@ -259,8 +259,8 @@ async def test_memory_recall_relevant_with_prompt(
     assert "inject_context" in result
 
     # Verify semantic search was used
-    mock_mem_services["memory_manager"].recall.assert_called_once()
-    call_kwargs = mock_mem_services["memory_manager"].recall.call_args[1]
+    mock_mem_services["memory_manager"].search_memories.assert_called_once()
+    call_kwargs = mock_mem_services["memory_manager"].search_memories.call_args[1]
     assert call_kwargs["query"] == "How do I write tests for this project?"
     assert call_kwargs["search_mode"] == "auto"
 
@@ -276,7 +276,7 @@ async def test_memory_recall_relevant_no_prompt(
     result = await mem_action_executor.execute("memory_recall_relevant", mem_action_context)
 
     assert result is None
-    mock_mem_services["memory_manager"].recall.assert_not_called()
+    mock_mem_services["memory_manager"].search_memories.assert_not_called()
 
 
 @pytest.mark.asyncio
@@ -290,7 +290,7 @@ async def test_memory_recall_relevant_skips_commands(
     result = await mem_action_executor.execute("memory_recall_relevant", mem_action_context)
 
     assert result is None
-    mock_mem_services["memory_manager"].recall.assert_not_called()
+    mock_mem_services["memory_manager"].search_memories.assert_not_called()
 
 
 @pytest.mark.asyncio
@@ -304,7 +304,7 @@ async def test_memory_recall_relevant_skips_short_prompts(
     result = await mem_action_executor.execute("memory_recall_relevant", mem_action_context)
 
     assert result is None
-    mock_mem_services["memory_manager"].recall.assert_not_called()
+    mock_mem_services["memory_manager"].search_memories.assert_not_called()
 
 
 @pytest.mark.asyncio
@@ -323,7 +323,7 @@ async def test_memory_recall_relevant_no_memories_found(
     mem_action_context.event_data = {"prompt_text": "What is the meaning of life?"}
 
     mock_mem_services["memory_manager"].config.enabled = True
-    mock_mem_services["memory_manager"].recall.return_value = []
+    mock_mem_services["memory_manager"].search_memories.return_value = []
 
     result = await mem_action_executor.execute("memory_recall_relevant", mem_action_context)
 
@@ -350,7 +350,7 @@ async def test_memory_recall_relevant_respects_kwargs(
     mock_mem_services["memory_manager"].config.enabled = True
 
     m1 = MagicMock(memory_type="fact", content="Database uses SQLite")
-    mock_mem_services["memory_manager"].recall.return_value = [m1]
+    mock_mem_services["memory_manager"].search_memories.return_value = [m1]
 
     result = await mem_action_executor.execute(
         "memory_recall_relevant",
@@ -362,7 +362,7 @@ async def test_memory_recall_relevant_respects_kwargs(
     assert result["injected"] is True
 
     # Verify kwargs were passed
-    call_kwargs = mock_mem_services["memory_manager"].recall.call_args[1]
+    call_kwargs = mock_mem_services["memory_manager"].search_memories.call_args[1]
     assert call_kwargs["limit"] == 3
 
 
@@ -484,10 +484,10 @@ class TestMemorySaveDirect:
         mock_memory_manager = MagicMock()
         mock_memory_manager.config.enabled = True
         mock_memory_manager.content_exists.return_value = False
-        mock_memory_manager.remember = AsyncMock()
+        mock_memory_manager.create_memory = AsyncMock()
         mock_memory = MagicMock()
         mock_memory.id = "mem-123"
-        mock_memory_manager.remember.return_value = mock_memory
+        mock_memory_manager.create_memory.return_value = mock_memory
 
         result = await memory_save(
             memory_manager=mock_memory_manager,
@@ -508,10 +508,10 @@ class TestMemorySaveDirect:
         mock_memory_manager = MagicMock()
         mock_memory_manager.config.enabled = True
         mock_memory_manager.content_exists.return_value = False
-        mock_memory_manager.remember = AsyncMock()
+        mock_memory_manager.create_memory = AsyncMock()
         mock_memory = MagicMock()
         mock_memory.id = "mem-123"
-        mock_memory_manager.remember.return_value = mock_memory
+        mock_memory_manager.create_memory.return_value = mock_memory
 
         result = await memory_save(
             memory_manager=mock_memory_manager,
@@ -524,7 +524,7 @@ class TestMemorySaveDirect:
 
         assert result is not None
         assert result["saved"] is True
-        call_kwargs = mock_memory_manager.remember.call_args[1]
+        call_kwargs = mock_memory_manager.create_memory.call_args[1]
         assert call_kwargs["tags"] == []
 
     @pytest.mark.asyncio
@@ -533,7 +533,7 @@ class TestMemorySaveDirect:
         mock_memory_manager = MagicMock()
         mock_memory_manager.config.enabled = True
         mock_memory_manager.content_exists.return_value = False
-        mock_memory_manager.remember = AsyncMock(side_effect=Exception("DB error"))
+        mock_memory_manager.create_memory = AsyncMock(side_effect=Exception("DB error"))
 
         result = await memory_save(
             memory_manager=mock_memory_manager,
@@ -599,7 +599,7 @@ class TestMemoryRecallRelevantDirect:
         m1 = MagicMock()
         m1.memory_type = "fact"
         m1.content = "Test memory"
-        mock_memory_manager.recall.return_value = [m1]
+        mock_memory_manager.search_memories = AsyncMock(return_value=[m1])
 
         mock_session_manager = MagicMock()
         mock_session = MagicMock()
@@ -614,7 +614,7 @@ class TestMemoryRecallRelevantDirect:
         )
 
         assert result is not None
-        call_kwargs = mock_memory_manager.recall.call_args[1]
+        call_kwargs = mock_memory_manager.search_memories.call_args[1]
         assert call_kwargs["project_id"] == "proj-from-session"
 
     @pytest.mark.asyncio
@@ -622,7 +622,7 @@ class TestMemoryRecallRelevantDirect:
         """Test memory_recall_relevant handles exceptions gracefully."""
         mock_memory_manager = MagicMock()
         mock_memory_manager.config.enabled = True
-        mock_memory_manager.recall.side_effect = Exception("Search error")
+        mock_memory_manager.search_memories = AsyncMock(side_effect=Exception("Search error"))
 
         result = await memory_recall_relevant(
             memory_manager=mock_memory_manager,
@@ -655,7 +655,7 @@ class TestMemoryRecallRelevantEdgeCases:
         m1 = MagicMock()
         m1.memory_type = "fact"
         m1.content = "Test memory"
-        mock_memory_manager.recall.return_value = [m1]
+        mock_memory_manager.search_memories = AsyncMock(return_value=[m1])
 
         result = await memory_recall_relevant(
             memory_manager=mock_memory_manager,
@@ -667,7 +667,7 @@ class TestMemoryRecallRelevantEdgeCases:
 
         assert result is not None
         # Verify recall was called with None project_id
-        call_kwargs = mock_memory_manager.recall.call_args[1]
+        call_kwargs = mock_memory_manager.search_memories.call_args[1]
         assert call_kwargs["project_id"] is None
 
 
@@ -693,7 +693,7 @@ class TestMemoryDeduplication:
         m2.id = "mem-002"
         m2.memory_type = "fact"
         m2.content = "Test memory 2"
-        mock_memory_manager.recall.return_value = [m1, m2]
+        mock_memory_manager.search_memories = AsyncMock(return_value=[m1, m2])
 
         state = WorkflowState(
             session_id="test-session",
@@ -728,7 +728,7 @@ class TestMemoryDeduplication:
         m1.id = "mem-001"
         m1.memory_type = "fact"
         m1.content = "Test memory"
-        mock_memory_manager.recall.return_value = [m1]
+        mock_memory_manager.search_memories = AsyncMock(return_value=[m1])
 
         state = WorkflowState(
             session_id="test-session",
@@ -788,7 +788,7 @@ class TestMemoryDeduplication:
         )
 
         # First call - returns m1
-        mock_memory_manager.recall.return_value = [m1]
+        mock_memory_manager.search_memories = AsyncMock(return_value=[m1])
         result1 = await memory_recall_relevant(
             memory_manager=mock_memory_manager,
             session_manager=MagicMock(),
@@ -801,7 +801,7 @@ class TestMemoryDeduplication:
         assert result1["count"] == 1
 
         # Second call - returns m1 and m2, but only m2 is new
-        mock_memory_manager.recall.return_value = [m1, m2]
+        mock_memory_manager.search_memories = AsyncMock(return_value=[m1, m2])
         result2 = await memory_recall_relevant(
             memory_manager=mock_memory_manager,
             session_manager=MagicMock(),
@@ -828,7 +828,7 @@ class TestMemoryDeduplication:
         m1.id = "mem-001"
         m1.memory_type = "fact"
         m1.content = "Test memory"
-        mock_memory_manager.recall.return_value = [m1]
+        mock_memory_manager.search_memories = AsyncMock(return_value=[m1])
 
         # Call without state - should work without deduplication
         result = await memory_recall_relevant(
@@ -905,7 +905,7 @@ class TestResetMemoryInjectionTracking:
         m1.id = "mem-001"
         m1.memory_type = "fact"
         m1.content = "Test memory"
-        mock_memory_manager.recall.return_value = [m1]
+        mock_memory_manager.search_memories = AsyncMock(return_value=[m1])
 
         state = WorkflowState(
             session_id="test-session",

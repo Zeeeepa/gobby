@@ -1180,9 +1180,7 @@ def _migrate_add_workflow_definitions(db: LocalDatabase) -> None:
         conn.execute(
             "CREATE INDEX IF NOT EXISTS idx_wf_defs_project ON workflow_definitions(project_id)"
         )
-        conn.execute(
-            "CREATE INDEX IF NOT EXISTS idx_wf_defs_name ON workflow_definitions(name)"
-        )
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_wf_defs_name ON workflow_definitions(name)")
         conn.execute(
             "CREATE INDEX IF NOT EXISTS idx_wf_defs_type ON workflow_definitions(workflow_type)"
         )

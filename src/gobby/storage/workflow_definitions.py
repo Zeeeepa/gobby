@@ -140,16 +140,12 @@ class LocalWorkflowDefinitionManager:
 
     def get(self, definition_id: str) -> WorkflowDefinitionRow:
         """Get a workflow definition by primary key."""
-        row = self.db.fetchone(
-            "SELECT * FROM workflow_definitions WHERE id = ?", (definition_id,)
-        )
+        row = self.db.fetchone("SELECT * FROM workflow_definitions WHERE id = ?", (definition_id,))
         if not row:
             raise ValueError(f"Workflow definition {definition_id} not found")
         return WorkflowDefinitionRow.from_row(row)
 
-    def get_by_name(
-        self, name: str, project_id: str | None = None
-    ) -> WorkflowDefinitionRow | None:
+    def get_by_name(self, name: str, project_id: str | None = None) -> WorkflowDefinitionRow | None:
         """Get a workflow definition by name (project-scoped first, then global fallback)."""
         if project_id:
             row = self.db.fetchone(
@@ -187,9 +183,7 @@ class LocalWorkflowDefinitionManager:
     def delete(self, definition_id: str) -> bool:
         """Delete a workflow definition from the database."""
         with self.db.transaction() as conn:
-            cursor = conn.execute(
-                "DELETE FROM workflow_definitions WHERE id = ?", (definition_id,)
-            )
+            cursor = conn.execute("DELETE FROM workflow_definitions WHERE id = ?", (definition_id,))
             return cursor.rowcount > 0
 
     def list_all(
@@ -261,9 +255,7 @@ class LocalWorkflowDefinitionManager:
         data = json.loads(row.definition_json)
         return yaml.dump(data, default_flow_style=False, sort_keys=False)
 
-    def duplicate(
-        self, definition_id: str, new_name: str
-    ) -> WorkflowDefinitionRow:
+    def duplicate(self, definition_id: str, new_name: str) -> WorkflowDefinitionRow:
         """Duplicate a workflow definition with a new name."""
         original = self.get(definition_id)
         definition_data = json.loads(original.definition_json)

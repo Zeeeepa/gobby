@@ -176,7 +176,8 @@ class KnowledgeGraphService:
                 relationship=r["relationship"],
             )
             for r in raw_relations
-            if isinstance(r, dict) and all(k in r for k in ("source", "relationship", "destination"))
+            if isinstance(r, dict)
+            and all(k in r for k in ("source", "relationship", "destination"))
         ]
 
     async def _delete_outdated_relations(
@@ -197,8 +198,10 @@ class KnowledgeGraphService:
             return
 
         new_relations_json = json.dumps(
-            [{"source": r.source, "relationship": r.relationship, "destination": r.target}
-             for r in new_relations]
+            [
+                {"source": r.source, "relationship": r.relationship, "destination": r.target}
+                for r in new_relations
+            ]
         )
         existing_json = json.dumps(existing)
 
@@ -226,9 +229,7 @@ class KnowledgeGraphService:
                     logger.warning(f"Neo4j unreachable during relation delete: {e}")
                     return
 
-    async def _fetch_existing_relations(
-        self, entity_names: list[str]
-    ) -> list[dict[str, str]]:
+    async def _fetch_existing_relations(self, entity_names: list[str]) -> list[dict[str, str]]:
         """Fetch existing relationships involving the given entities."""
         rows = await self._neo4j.query(
             "MATCH (a)-[r]->(b) "
@@ -273,9 +274,7 @@ class KnowledgeGraphService:
             logger.warning(f"Neo4j query failed: {e}")
             return None
 
-    async def search_graph(
-        self, query: str, limit: int = 10
-    ) -> list[dict[str, Any]]:
+    async def search_graph(self, query: str, limit: int = 10) -> list[dict[str, Any]]:
         """Search the knowledge graph for entities matching a query.
 
         Returns empty list if Neo4j is unreachable.

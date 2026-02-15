@@ -206,6 +206,7 @@ class ChatSession:
 
     conversation_id: str
     db_session_id: str | None = field(default=None)
+    message_index: int = field(default=0)
     last_activity: datetime = field(default_factory=lambda: datetime.now(UTC))
     _client: ClaudeSDKClient | None = field(default=None, repr=False)
     _connected: bool = field(default=False, repr=False)
@@ -524,13 +525,9 @@ class ChatSession:
                 async for _ in self._client.receive_response():
                     pass
         except TimeoutError:
-            logger.debug(
-                f"ChatSession {self.conversation_id}: drain timed out (no stale events)"
-            )
+            logger.debug(f"ChatSession {self.conversation_id}: drain timed out (no stale events)")
         except Exception as e:
-            logger.debug(
-                f"ChatSession {self.conversation_id}: drain error (expected): {e}"
-            )
+            logger.debug(f"ChatSession {self.conversation_id}: drain error (expected): {e}")
 
     async def stop(self) -> None:
         """Disconnect the ClaudeSDKClient and clean up."""

@@ -95,7 +95,7 @@ def create_memory_router(server: "HTTPServer") -> APIRouter:
             raise HTTPException(status_code=500, detail=str(e)) from e
 
     @router.get("/search")
-    def search_memories(
+    async def search_memories(
         q: str = Query(..., description="Search query"),
         project_id: str | None = Query(None, description="Filter by project ID"),
         limit: int = Query(10, description="Maximum results"),
@@ -103,7 +103,7 @@ def create_memory_router(server: "HTTPServer") -> APIRouter:
         """Search memories by query."""
         metrics.inc_counter("http_requests_total")
         try:
-            results = server.memory_manager.search_memories(
+            results = await server.memory_manager.search_memories(
                 query=q,
                 project_id=project_id,
                 limit=limit,
@@ -236,11 +236,11 @@ def create_memory_router(server: "HTTPServer") -> APIRouter:
         return memory.to_dict()
 
     @router.put("/{memory_id}")
-    def update_memory(memory_id: str, request_data: MemoryUpdateRequest) -> Any:
+    async def update_memory(memory_id: str, request_data: MemoryUpdateRequest) -> Any:
         """Update an existing memory."""
         metrics.inc_counter("http_requests_total")
         try:
-            memory = server.memory_manager.update_memory(
+            memory = await server.memory_manager.update_memory(
                 memory_id=memory_id,
                 content=request_data.content,
                 tags=request_data.tags,

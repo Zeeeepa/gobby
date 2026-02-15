@@ -623,6 +623,28 @@ class MemoryManager:
         return _get_stats(self.storage, self.db, project_id, vector_store=self._vector_store)
 
     # =========================================================================
+    # Reindexing
+    # =========================================================================
+
+    async def reindex_embeddings(self) -> dict[str, Any]:
+        """Regenerate embeddings for all stored memories."""
+        if not self._vector_store or not self._embed_fn:
+            return {"success": False, "error": "Vector store or embedding function not configured"}
+
+        memories = self.list_memories(limit=100_000)
+        total = len(memories)
+        generated = 0
+
+        for mem in memories:
+            try:
+                await self._embed_and_upsert(mem.id, mem.content)
+                generated += 1
+            except Exception as e:
+                logger.warning(f"Failed to reindex memory {mem.id}: {e}")
+
+        return {"success": True, "total_memories": total, "embeddings_generated": generated}
+
+    # =========================================================================
     # Cross-references (using VectorStore for similarity search)
     # =========================================================================
 
@@ -655,8 +677,8 @@ class MemoryManager:
         if not self._vector_store or not self._embed_fn:
             return 0
 
-        threshold = threshold or getattr(self.config, "crossref_threshold", 0.7)
-        max_links = max_links or getattr(self.config, "crossref_max_links", 5)
+        threshold = threshold or getattr(self.config, "crossref_threshold", None) or 0.7
+        max_links = max_links or getattr(self.config, "crossref_max_links", None) or 5
 
         embedding = await self._embed_fn(memory.content)
         results = await self._vector_store.search(embedding, limit=max_links + 1)

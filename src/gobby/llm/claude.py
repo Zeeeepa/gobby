@@ -552,7 +552,8 @@ class ClaudeLLMProvider(LLMProvider):
                 # Remove first and last lines (code fences)
                 lines = content.split("\n")
                 content = "\n".join(lines[1:-1]).strip()
-            return json.loads(content)
+            result: dict[str, Any] = json.loads(content)
+            return result
         except json.JSONDecodeError as e:
             raise ValueError(f"Failed to parse LLM response as JSON: {e}") from e
 
@@ -575,7 +576,8 @@ class ClaudeLLMProvider(LLMProvider):
                 messages=[
                     {
                         "role": "system",
-                        "content": system_prompt or "You are a helpful assistant. Respond with valid JSON.",
+                        "content": system_prompt
+                        or "You are a helpful assistant. Respond with valid JSON.",
                     },
                     {"role": "user", "content": prompt},
                 ],
@@ -585,7 +587,8 @@ class ClaudeLLMProvider(LLMProvider):
             content = response.choices[0].message.content
             if not content:
                 raise ValueError("Empty response from LLM")
-            return json.loads(content)
+            result: dict[str, Any] = json.loads(content)
+            return result
         except json.JSONDecodeError as e:
             raise ValueError(f"Failed to parse LLM response as JSON: {e}") from e
 

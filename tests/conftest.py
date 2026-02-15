@@ -153,6 +153,8 @@ def mock_daemon_config() -> "MagicMock":
     config.logging.client_error = "~/.gobby/logs/client_error.log"
     config.watchdog.enabled = False
     config.ui.enabled = False
+    config.memory.neo4j_url = None
+    config.memory.neo4j_auth = None
     return config
 
 

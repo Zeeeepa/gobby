@@ -29,9 +29,7 @@ def memory() -> None:
 )
 @click.option("--project", "-p", "project_ref", help="Project (name or UUID)")
 @click.pass_context
-def create(
-    ctx: click.Context, content: str, memory_type: str, project_ref: str | None
-) -> None:
+def create(ctx: click.Context, content: str, memory_type: str, project_ref: str | None) -> None:
     """Create a new memory."""
     project_id = resolve_project_ref(project_ref) if project_ref else None
     manager = get_memory_manager(ctx)
@@ -72,13 +70,15 @@ def recall(
     tags_any_list = [t.strip() for t in tags_any.split(",") if t.strip()] if tags_any else None
     tags_none_list = [t.strip() for t in tags_none.split(",") if t.strip()] if tags_none else None
 
-    memories = manager.search_memories(
-        query=query,
-        project_id=project_id,
-        limit=limit,
-        tags_all=tags_all_list,
-        tags_any=tags_any_list,
-        tags_none=tags_none_list,
+    memories = asyncio.run(
+        manager.search_memories(
+            query=query,
+            project_id=project_id,
+            limit=limit,
+            tags_all=tags_all_list,
+            tags_any=tags_any_list,
+            tags_none=tags_none_list,
+        )
     )
     if not memories:
         click.echo("No memories found.")
@@ -191,10 +191,12 @@ def update_memory(
         tag_list = None
 
     try:
-        memory = manager.update_memory(
-            memory_id=memory_id,
-            content=content,
-            tags=tag_list,
+        memory = asyncio.run(
+            manager.update_memory(
+                memory_id=memory_id,
+                content=content,
+                tags=tag_list,
+            )
         )
         click.echo(f"Updated memory: {memory.id}")
         click.echo(f"  Content: {memory.content[:80]}{'...' if len(memory.content) > 80 else ''}")

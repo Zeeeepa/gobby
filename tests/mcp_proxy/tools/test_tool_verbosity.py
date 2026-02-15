@@ -19,8 +19,10 @@ async def test_memory_verbosity_reduction():
     mock_memory = MagicMock()
     mock_memory.id = "mem-123"
     mock_memory.content = "Massive content..." * 100
-    mock_manager.remember.return_value = mock_memory
+    mock_manager.create_memory.return_value = mock_memory
     mock_manager.update_memory.return_value = mock_memory
+    mock_manager.search_memories = AsyncMock(return_value=[])
+    mock_manager.content_exists = MagicMock(return_value=False)
 
     registry = create_memory_registry(mock_manager)
 

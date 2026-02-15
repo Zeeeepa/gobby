@@ -105,7 +105,7 @@ def create_memory_registry(
             # Search for similar existing memories to surface potential duplicates
             similar_existing: list[dict[str, Any]] = []
             try:
-                similar = memory_manager.search_memories(
+                similar = await memory_manager.search_memories(
                     query=content,
                     project_id=project_id,
                     limit=4,  # fetch 4 since the new memory itself may appear
@@ -144,7 +144,7 @@ def create_memory_registry(
         name="search_memories",
         description="Search memories based on query and filters. Supports tag-based filtering.",
     )
-    def search_memories(
+    async def search_memories(
         query: str | None = None,
         limit: int = 10,
         tags_all: list[str] | None = None,
@@ -162,7 +162,7 @@ def create_memory_registry(
             tags_none: Memory must have NONE of these tags
         """
         try:
-            memories = memory_manager.search_memories(
+            memories = await memory_manager.search_memories(
                 query=query,
                 project_id=get_current_project_id(),
                 limit=limit,
@@ -339,7 +339,7 @@ def create_memory_registry(
         name="update_memory",
         description="Update an existing memory's content or tags.",
     )
-    def update_memory(
+    async def update_memory(
         memory_id: str,
         content: str | None = None,
         tags: list[str] | None = None,
@@ -353,7 +353,7 @@ def create_memory_registry(
             tags: New list of tags (optional)
         """
         try:
-            memory = memory_manager.update_memory(
+            memory = await memory_manager.update_memory(
                 memory_id=memory_id,
                 content=content,
                 tags=tags,

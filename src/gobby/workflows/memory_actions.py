@@ -180,7 +180,7 @@ async def memory_recall_relevant(
         injected_ids = set(variables.get("_injected_memory_ids", []))
 
     try:
-        memories = memory_manager.search_memories(
+        memories = await memory_manager.search_memories(
             query=prompt_text,
             project_id=project_id,
             limit=limit,

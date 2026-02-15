@@ -230,9 +230,7 @@ async def handle_mark_loop_complete(
     return mark_loop_complete(context.state)
 
 
-async def handle_end_workflow(
-    context: "ActionContext", **kwargs: Any
-) -> dict[str, Any] | None:
+async def handle_end_workflow(context: "ActionContext", **kwargs: Any) -> dict[str, Any] | None:
     """End the active workflow by disabling it.
 
     Sets enabled=false on the workflow instance so the engine stops evaluating it.
@@ -250,5 +248,7 @@ async def handle_end_workflow(
     except Exception as e:
         logger.debug("Could not disable workflow instance: %s", e)
 
-    logger.info("Workflow '%s' disabled for session %s via end_workflow action", workflow_name, session_id)
+    logger.info(
+        "Workflow '%s' disabled for session %s via end_workflow action", workflow_name, session_id
+    )
     return {"ended": True, "workflow": workflow_name}

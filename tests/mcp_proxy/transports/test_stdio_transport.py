@@ -21,7 +21,7 @@ from gobby.mcp_proxy.transports.stdio import (
     _expand_env_var,
 )
 
-pytestmark = [pytest.mark.unit, pytest.mark.asyncio]
+pytestmark = pytest.mark.unit
 
 
 # ---------------------------------------------------------------------------

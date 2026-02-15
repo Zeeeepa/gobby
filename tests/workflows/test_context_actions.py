@@ -1994,7 +1994,7 @@ class TestInjectContextMemoriesSource:
         memory2.content = "Project uses pytest for testing"
         memory2.memory_type = "fact"
 
-        manager.recall.return_value = [memory1, memory2]
+        manager.search_memories.return_value = [memory1, memory2]
 
         return manager
 
@@ -2086,7 +2086,7 @@ class TestInjectContextMemoriesSource:
 
         empty_manager = MagicMock()
         empty_manager.config.enabled = True
-        empty_manager.recall.return_value = []
+        empty_manager.search_memories.return_value = []
 
         result = inject_context(
             session_manager=mock_session_manager,
@@ -2123,8 +2123,8 @@ class TestInjectContextMemoriesSource:
         )
 
         # Verify limit was passed to recall
-        mock_memory_manager.recall.assert_called_once()
-        call_kwargs = mock_memory_manager.recall.call_args[1]
+        mock_memory_manager.search_memories.assert_called_once()
+        call_kwargs = mock_memory_manager.search_memories.call_args[1]
         assert call_kwargs["limit"] == 10
 
     def test_memories_source_with_template_rendering(
@@ -2193,7 +2193,7 @@ class TestInjectContextMemoriesSource:
 
         empty_manager = MagicMock()
         empty_manager.config.enabled = True
-        empty_manager.recall.return_value = []
+        empty_manager.search_memories.return_value = []
 
         result = inject_context(
             session_manager=mock_session_manager,

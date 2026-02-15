@@ -326,7 +326,7 @@ async def test_save_memory(action_executor, action_context, mock_services):
     # Mock 'remember' to return a Memory object-like mock
     mem_mock = MagicMock()
     mem_mock.id = "mem-1"
-    mock_services["memory_manager"].remember = AsyncMock(return_value=mem_mock)
+    mock_services["memory_manager"].create_memory = AsyncMock(return_value=mem_mock)
     mock_services["memory_manager"].content_exists.return_value = False
 
     result = await action_executor.execute(
@@ -408,7 +408,7 @@ async def test_memory_recall_relevant(
     mem1 = MagicMock()
     mem1.content = "Relevant memory"
     mem1.memory_type = "fact"
-    mock_services["memory_manager"].recall.return_value = [mem1]
+    mock_services["memory_manager"].search_memories = AsyncMock(return_value=[mem1])
 
     # Prepare session and event data
     session = session_manager.register(

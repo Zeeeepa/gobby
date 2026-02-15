@@ -16,7 +16,7 @@ import pytest
 from gobby.mcp_proxy.models import ConnectionState, MCPError, MCPServerConfig
 from gobby.mcp_proxy.transports.http import HTTPTransportConnection
 
-pytestmark = [pytest.mark.unit, pytest.mark.asyncio]
+pytestmark = pytest.mark.unit
 
 
 # ---------------------------------------------------------------------------

@@ -167,9 +167,7 @@ class WorkflowLoader(WorkflowLoaderSyncMixin):
         project_id = str(project_path) if project_path else None
         db_definition = self._load_from_db(name, project_id=project_id)
         if db_definition is not None:
-            self._cache[cache_key] = _CachedEntry(
-                definition=db_definition, path=None, mtime=0.0
-            )
+            self._cache[cache_key] = _CachedEntry(definition=db_definition, path=None, mtime=0.0)
             return db_definition
 
         # Build search directories: project-specific first, then global, then bundled

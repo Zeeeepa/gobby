@@ -5,6 +5,7 @@ Extracted from manager.py as part of Strangler Fig decomposition (Wave 2).
 
 from __future__ import annotations
 
+import asyncio
 import logging
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Any
@@ -57,7 +58,7 @@ def get_stats(
     # Vector store count
     if vector_store is not None:
         try:
-            stats["vector_count"] = vector_store.count_sync()
+            stats["vector_count"] = asyncio.run(vector_store.count())
         except Exception:
             stats["vector_count"] = -1
 

@@ -125,9 +125,7 @@ def create_workflows_router(server: "HTTPServer") -> APIRouter:
             return Response(
                 content=yaml_content,
                 media_type="application/x-yaml",
-                headers={
-                    "Content-Disposition": f'attachment; filename="{definition_id}.yaml"'
-                },
+                headers={"Content-Disposition": f'attachment; filename="{definition_id}.yaml"'},
             )
         except ValueError as e:
             raise HTTPException(status_code=404, detail=str(e)) from e
@@ -155,9 +153,7 @@ def create_workflows_router(server: "HTTPServer") -> APIRouter:
         metrics.inc_counter("http_requests_total")
         try:
             manager = _get_manager()
-            row = manager.import_from_yaml(
-                request.yaml_content, project_id=request.project_id
-            )
+            row = manager.import_from_yaml(request.yaml_content, project_id=request.project_id)
             return {"status": "success", "definition": row.to_dict()}
         except ValueError as e:
             raise HTTPException(status_code=400, detail=str(e)) from e
@@ -166,9 +162,7 @@ def create_workflows_router(server: "HTTPServer") -> APIRouter:
             raise HTTPException(status_code=500, detail=str(e)) from e
 
     @router.post("/{definition_id}/duplicate")
-    async def duplicate_workflow(
-        definition_id: str, request: DuplicateRequest
-    ) -> dict[str, Any]:
+    async def duplicate_workflow(definition_id: str, request: DuplicateRequest) -> dict[str, Any]:
         """Duplicate a workflow definition with a new name."""
         metrics.inc_counter("http_requests_total")
         try:
@@ -222,9 +216,7 @@ def create_workflows_router(server: "HTTPServer") -> APIRouter:
             raise HTTPException(status_code=500, detail=str(e)) from e
 
     @router.put("/{definition_id}")
-    async def update_workflow(
-        definition_id: str, request: UpdateWorkflowRequest
-    ) -> dict[str, Any]:
+    async def update_workflow(definition_id: str, request: UpdateWorkflowRequest) -> dict[str, Any]:
         """Update a workflow definition."""
         metrics.inc_counter("http_requests_total")
         try:

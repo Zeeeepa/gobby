@@ -200,10 +200,12 @@ class DedupService:
                         seen_ids.add(memory_id)
                         memory = self.storage.get_memory(memory_id)
                         if memory:
-                            existing.append({
-                                "id": memory.id,
-                                "text": memory.content,
-                            })
+                            existing.append(
+                                {
+                                    "id": memory.id,
+                                    "text": memory.content,
+                                }
+                            )
             except Exception as e:
                 logger.warning(f"Similarity search failed for fact: {e}")
 
@@ -237,11 +239,13 @@ class DedupService:
                 event = item.get("event", "").upper()
                 if event not in ("ADD", "UPDATE", "DELETE", "NOOP"):
                     continue
-                actions.append(Action(
-                    event=event,  # type: ignore[arg-type]
-                    text=item.get("text", ""),
-                    memory_id=item.get("id"),
-                ))
+                actions.append(
+                    Action(
+                        event=event,
+                        text=item.get("text", ""),
+                        memory_id=item.get("id"),
+                    )
+                )
 
             return actions
         except Exception as e:

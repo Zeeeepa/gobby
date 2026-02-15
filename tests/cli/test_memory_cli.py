@@ -74,7 +74,7 @@ class TestMemoryDeleteCommand:
     ) -> None:
         """Test deleting a memory item."""
         mock_manager = MagicMock()
-        mock_manager.forget = AsyncMock(return_value=True)
+        mock_manager.delete_memory = AsyncMock(return_value=True)
         mock_get_manager.return_value = mock_manager
         mock_resolve.return_value = "mem-del123"
 
@@ -82,7 +82,7 @@ class TestMemoryDeleteCommand:
 
         assert result.exit_code == 0
         assert "Deleted memory: mem-del123" in result.output
-        mock_manager.forget.assert_called_once_with("mem-del123")
+        mock_manager.delete_memory.assert_called_once_with("mem-del123")
 
 
 class TestMemoryUpdateCommand:
@@ -106,7 +106,7 @@ class TestMemoryUpdateCommand:
         mock_mem = MagicMock()
         mock_mem.id = "mem-up123"
         mock_mem.content = "New content"
-        mock_manager.update_memory.return_value = mock_mem
+        mock_manager.update_memory = AsyncMock(return_value=mock_mem)
 
         mock_get_manager.return_value = mock_manager
         mock_resolve.return_value = "mem-up123"
@@ -132,7 +132,7 @@ class TestMemoryUpdateCommand:
         mock_mem = MagicMock()
         mock_mem.id = "mem-up123"
         mock_mem.content = "Content"
-        mock_manager.update_memory.return_value = mock_mem
+        mock_manager.update_memory = AsyncMock(return_value=mock_mem)
 
         mock_get_manager.return_value = mock_manager
         mock_resolve.return_value = "mem-up123"
@@ -159,7 +159,7 @@ class TestMemoryUpdateCommand:
         mock_mem = MagicMock()
         mock_mem.id = "mem-up123"
         mock_mem.content = "Content"
-        mock_manager.update_memory.return_value = mock_mem
+        mock_manager.update_memory = AsyncMock(return_value=mock_mem)
 
         mock_get_manager.return_value = mock_manager
         mock_resolve.return_value = "mem-up123"
@@ -185,7 +185,7 @@ class TestMemoryRecallCommand:
     def test_recall_no_results(self, mock_get_manager: MagicMock, runner: CliRunner) -> None:
         """Test recall with no results."""
         mock_manager = MagicMock()
-        mock_manager.recall.return_value = []
+        mock_manager.search_memories = AsyncMock(return_value=[])
         mock_get_manager.return_value = mock_manager
 
         result = runner.invoke(cli, ["memory", "recall", "test query"])
@@ -202,7 +202,7 @@ class TestMemoryRecallCommand:
         mock_mem.memory_type = "fact"
         mock_mem.content = "Test content"
         mock_mem.tags = ["tag1", "tag2"]
-        mock_manager.recall.return_value = [mock_mem]
+        mock_manager.search_memories = AsyncMock(return_value=[mock_mem])
         mock_get_manager.return_value = mock_manager
 
         result = runner.invoke(cli, ["memory", "recall", "test"])
@@ -216,7 +216,7 @@ class TestMemoryRecallCommand:
     def test_recall_with_tag_filters(self, mock_get_manager: MagicMock, runner: CliRunner) -> None:
         """Test recall with tag filters."""
         mock_manager = MagicMock()
-        mock_manager.recall.return_value = []
+        mock_manager.search_memories = AsyncMock(return_value=[])
         mock_get_manager.return_value = mock_manager
 
         result = runner.invoke(
@@ -235,8 +235,8 @@ class TestMemoryRecallCommand:
         )
 
         assert result.exit_code == 0
-        mock_manager.recall.assert_called_once()
-        call_kwargs = mock_manager.recall.call_args[1]
+        mock_manager.search_memories.assert_called_once()
+        call_kwargs = mock_manager.search_memories.call_args[1]
         assert call_kwargs["tags_all"] == ["tag1", "tag2"]
         assert call_kwargs["tags_any"] == ["tag3", "tag4"]
         assert call_kwargs["tags_none"] == ["excluded"]
@@ -451,7 +451,7 @@ class TestMemoryDeleteNotFound:
     ) -> None:
         """Test deleting a non-existent memory."""
         mock_manager = MagicMock()
-        mock_manager.forget = AsyncMock(return_value=False)
+        mock_manager.delete_memory = AsyncMock(return_value=False)
         mock_get_manager.return_value = mock_manager
         mock_resolve.return_value = "nonexistent"
 

@@ -66,16 +66,12 @@ class VectorStore:
                 self._client = await asyncio.to_thread(QdrantClient, path=self._path)
 
         # Check if collection exists; create if not
-        exists = await asyncio.to_thread(
-            self._client.collection_exists, self._collection_name
-        )
+        exists = await asyncio.to_thread(self._client.collection_exists, self._collection_name)
         if not exists:
             await asyncio.to_thread(
                 self._client.create_collection,
                 collection_name=self._collection_name,
-                vectors_config=VectorParams(
-                    size=self._embedding_dim, distance=Distance.COSINE
-                ),
+                vectors_config=VectorParams(size=self._embedding_dim, distance=Distance.COSINE),
             )
             logger.info(
                 f"Created Qdrant collection '{self._collection_name}' "
@@ -128,8 +124,7 @@ class VectorStore:
         query_filter = None
         if filters:
             conditions = [
-                FieldCondition(key=k, match=MatchValue(value=v))
-                for k, v in filters.items()
+                FieldCondition(key=k, match=MatchValue(value=v)) for k, v in filters.items()
             ]
             query_filter = Filter(must=conditions)
 
@@ -141,10 +136,7 @@ class VectorStore:
             limit=limit,
         )
 
-        return [
-            (str(point.id), point.score)
-            for point in results.points
-        ]
+        return [(str(point.id), point.score) for point in results.points]
 
     async def delete(self, memory_id: str) -> None:
         """Delete a point by memory ID."""
@@ -180,9 +172,7 @@ class VectorStore:
     async def count(self) -> int:
         """Return the number of points in the collection."""
         client = self._ensure_client()
-        result = await asyncio.to_thread(
-            client.count, collection_name=self._collection_name
-        )
+        result = await asyncio.to_thread(client.count, collection_name=self._collection_name)
         return result.count
 
     async def rebuild(
@@ -202,15 +192,11 @@ class VectorStore:
         client = self._ensure_client()
 
         # Delete and recreate collection for clean rebuild
-        await asyncio.to_thread(
-            client.delete_collection, collection_name=self._collection_name
-        )
+        await asyncio.to_thread(client.delete_collection, collection_name=self._collection_name)
         await asyncio.to_thread(
             client.create_collection,
             collection_name=self._collection_name,
-            vectors_config=VectorParams(
-                size=self._embedding_dim, distance=Distance.COSINE
-            ),
+            vectors_config=VectorParams(size=self._embedding_dim, distance=Distance.COSINE),
         )
 
         if not memories:
