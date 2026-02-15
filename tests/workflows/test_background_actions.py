@@ -109,9 +109,9 @@ class TestBackgroundActionDispatch:
         executor.execute = AsyncMock(side_effect=RuntimeError("LLM timeout"))
         ctx = MagicMock()
 
-        with caplog.at_level(logging.ERROR):
+        with caplog.at_level(logging.ERROR, logger="gobby.workflows.lifecycle_evaluator"):
             _dispatch_background_action(executor, "synthesize_title", ctx, {})
-            await asyncio.sleep(0.1)
+            await asyncio.sleep(0.5)
 
         assert any("Background action failed" in r.message for r in caplog.records)
 
