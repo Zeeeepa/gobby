@@ -149,7 +149,9 @@ async def _execute_actions(
         if is_background:
             from .lifecycle_evaluator import _dispatch_background_action
 
-            clean_kwargs = {k: v for k, v in action_def.items() if k not in ("action", "when", "background")}
+            clean_kwargs = {
+                k: v for k, v in action_def.items() if k not in ("action", "when", "background")
+            }
             logger.debug(f"Dispatching step action '{action_type}' as background task")
             _dispatch_background_action(engine.action_executor, action_type, context, clean_kwargs)
             continue
