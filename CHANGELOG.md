@@ -8,6 +8,138 @@ All notable changes to Gobby are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.15] - 2026-02-15
+
+### Major Features
+
+#### Unified Workflow Engine
+
+- Observer engine with YAML-declared observers and behavior registry (#8000-#8003)
+- Built-in behaviors: task_claim_tracking, detect_plan_mode, mcp_call_tracking (#8001, #8002)
+- Plugin support for custom observer behaviors (#8005)
+- Unified evaluator: single evaluation loop replacing fragmented evaluators (#8084, #8085)
+- Named rule definitions with RuleStore (three-tier CRUD, bundled sync, import loading) (#7992-#7995)
+- Multi-workflow support: WorkflowInstanceManager, concurrent instances per session (#8078-#8080)
+- Session variables: shared state visible across all workflow instances (#8081)
+- Scoped variable MCP tools (get/set) (#8088)
+- tool_rules field on WorkflowDefinition with lifecycle evaluation (#7998)
+- Unified workflow format: lifecycle + step YAMLs migrated to single format (#8092, #8093)
+- enabled/priority fields replace type field for workflow distinction (#8082, #8093)
+- exit_when shorthand and expression-based exit conditions (#8006, #8007)
+- SafeExpressionEvaluator replacing eval() in ConditionEvaluator (#7989, #7990)
+- check_rules resolution logic in workflow engine (#7996)
+- build_condition_helpers for SafeExpressionEvaluator (#7989)
+
+#### Artifact System Removal
+
+- Complete removal of artifact references from workflows, sessions, LLM, config, web UI, tests, and docs (#8046-#8054)
+- Migration to drop artifact tables and update baseline schema (#8052)
+- Remove ArtifactHandoffConfig (#8048)
+- Remove artifact registration and wiring (#8047)
+
+#### Strangler Fig Decomposition (Wave 3)
+
+- workflow/loader.py → loader_cache.py, loader_discovery.py, loader_validation.py, loader_sync.py (#8155-#8158)
+- workflow/engine.py → engine_models.py, engine_context.py, engine_transitions.py, engine_activation.py (#8163-#8166)
+- memory/manager.py → services/embeddings.py, services/mem0_sync.py, services/graph.py, services/maintenance.py (#8159-#8162)
+- cli/installers/shared.py → installers/mcp_config.py, skill_install.py, ide_config.py (#8167-#8169)
+- runner.py → runner_models.py, runner_tracking.py, runner_queries.py (#8170-#8172)
+- Remove re-exports from loader.py, engine.py, shared.py, runner.py — canonical imports only (#8175-#8179)
+
+#### Config System
+
+- DB-first config resolution — store config in SQLite instead of YAML (#8098)
+- $secret:NAME config pattern for secrets-store-only resolution (#8071)
+- Secrets store priority: secrets store first, env vars as fallback (#8070)
+- Config write isolation + lightweight health endpoint (#8072)
+- gobby-config MCP server for agent config access (#8141)
+
+#### Terminal + Tmux
+
+- Consolidated terminal spawners to tmux-only (#8063)
+- Tmux window rename after title synthesis (#8114)
+- TmuxPaneMonitor for detecting dead panes (#8062)
+- Permanent set-titles-string and IDE terminal title auto-config (#8122)
+- Show terminal title instead of tmux pane ID (#8149)
+- Terminal rename via double-click (#8027)
+
+### Improvements
+
+- Async Mem0 queueing with background sync (#8145)
+- Configurable mem0 client timeout, increased default to 90s (#8105, #8107)
+- Skill usage tracking in get_skill() MCP handler (#8121)
+- Skills-used tracking in session stats (#7982)
+- Provider-dependent model selection in agent definitions (#7973)
+- Running agents tracking on agents page (#7971)
+- spawn_session and activate_workflow pipeline step types (#8091)
+- result_variable and failure handling for run_pipeline action (#8090)
+- Task status approved → review_approved + Gantt scheduling fields (#8135)
+- Web UI accessible over Tailscale (#8212)
+- Auto-start Vite dev server on daemon startup (#8133)
+- File editor: save/cancel with confirmation, undo/redo (#8025)
+- Agent definition editing from UI (#8028)
+- Needs Review + In Review overview cards for tasks and memory (#8029, #8060)
+- Standardized sidebar widths via CSS variable (#8020)
+- Consolidate hook integration call sites (#8086)
+- Standardize args → arguments in MCP layer (#8056)
+- Remove hardcoded model aliases and resolve_model_id (#8185)
+- Remove redundant context injection (progressive disclosure + blind memory inject) (#8123)
+- Replace skill list injection with discovery guide skill (#8118)
+- Multi-workflow MCP activate/end workflow support (#8087)
+- Workflow status query updated for multi-workflow (#8089)
+- Session variables override priority in lifecycle evaluator (#8217)
+- Merge session_variables into lifecycle evaluator context (#8214)
+- Recently Done filter applies 24h cutoff (#8019)
+- Remove approved from Recently Done — not a completed status (#8059)
+- Improve scope toggle contrast and readability (#8021)
+- Knowledge graph idle animation with manual camera rotation (#7976)
+
+### Bug Fixes
+
+- Baseline schema out of sync with BASELINE_VERSION + migration guard rejects valid DBs (#8137)
+- Phase 2 config reload drops YAML settings + e2e test env leak (#8136)
+- Port isolation for e2e tests + daemon startup cleanup (#8125)
+- Revert _clear_port() — kills production daemon during e2e tests (#8131)
+- Mypy arg-type errors in runner.py + suppress bandit B105 (#8138)
+- Pre-push scripts missing -c pyproject.toml for bandit (#8139)
+- Stale model default in TaskValidationConfig (#8144)
+- Mem0 Docker setup — correct image, env vars, and secret injection (#8095, #8096)
+- Resolve API keys from config before os.environ fallback (#8075)
+- YAML observer type coercion, cache BehaviorRegistry, stale comments (#8065)
+- Voice UI availability gating + config save persistence (#8064)
+- AST evaluator compatibility for lifecycle YAML expressions (#7991)
+- Guard against push-to-talk EOF error on short recordings (#8148)
+- Show mem0 status in gobby start/restart output (#8130)
+- Enable set-titles so tmux window rename propagates to terminal emulator (#8117)
+- Replace curl healthcheck with python urllib in mem0 docker-compose (#8116)
+- Reduce daemon log noise from five recurring error/warning sources (#8109)
+- Memory page 2D graph flash and animation label disappearance (#8097)
+- Prevent animation toggle from rebuilding graph nodes (#8099)
+- Support space syntax for /gobby skill routing (#8069)
+- Worktree test patches and memory session_id FK constraint (#8058, #8061)
+- Eliminate all type: ignore comments across codebase (#8237)
+- Align 37 failing tests with workflow enabled/type refactor (#8234)
+- Use Protocol to properly type loader_sync.py mixin (#8236)
+- Remove bad opus model alias and strip CLAUDECODE env var (#8183)
+- Resolve 8 mypy errors across 4 files (#8129)
+- Multiple rounds of CodeRabbit review fixes (#8101, #8104, #8110, #8112, #8113, #8215, #8216, #8220, #8221, #8225)
+
+### Security
+
+- Ignore CVE-2025-69872 in pip-audit (diskcache, no fix available) (#8181)
+
+### Documentation
+
+- Memory v5 plan (#8219)
+- Strangler fig decomposition wave 2 plan (#8152)
+- Workflow UI plan review and update (#8154)
+- Party system v2 design + plan cleanup (#8150)
+- Unified workflow architecture plan with implementation phases (#8066, #8067)
+- Remove artifact references from documentation (#8054)
+- Remove meeseeks reference from workflows skill (#8057)
+
+---
+
 ## [0.2.14] - 2026-02-11
 
 ### Major Features
