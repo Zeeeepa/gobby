@@ -55,6 +55,7 @@ Legend:
 - ✅ TF-IDF task search with MCP and CLI interfaces
 - ✅ Claude Code Task Interop: transparent sync between CC TaskCreate/TaskUpdate and Gobby tasks
 - ✅ Task status simplification (8 → 6 statuses) (0.2.14)
+- ✅ Rename task status approved → review_approved + Gantt scheduling fields (0.2.15)
 - 🧪 Publish comparisons + guidance: "Gobby tasks vs Beads vs Task Master"
   - Beads is dependency-graph-first for agent planning/memory  [oai_citation:2‡GitHub](https://github.com/steveyegge/beads?utm_source=chatgpt.com)
 
@@ -73,6 +74,8 @@ Legend:
 - ✅ WebSocket streaming for pipeline execution
 - ✅ Safe expression evaluator for conditions
 - ✅ Pipeline CLI, MCP tools, and HTTP API endpoints
+- ✅ spawn_session and activate_workflow step types (0.2.15)
+- ✅ result_variable and failure handling for run_pipeline action (0.2.15)
 
 ### Codex adapter enhancements (0.2.13)
 
@@ -91,6 +94,57 @@ Legend:
 - ✅ Async hook dispatchers
 - ✅ Proactive memory capture
 
+### Unified workflow engine (0.2.15)
+
+- ✅ Observer engine with YAML-declared observers and behavior registry
+- ✅ Built-in behaviors: task_claim_tracking, detect_plan_mode, mcp_call_tracking
+- ✅ Plugin support for custom observer behaviors
+- ✅ Unified evaluator: single evaluation loop replacing fragmented evaluators
+- ✅ Named rule definitions with RuleStore (three-tier CRUD + bundled sync)
+- ✅ Multi-workflow support: WorkflowInstanceManager, concurrent workflow instances per session
+- ✅ Session variables: shared state visible across all workflow instances
+- ✅ Scoped variable MCP tools (get/set)
+- ✅ tool_rules field on WorkflowDefinition with lifecycle evaluation
+- ✅ Unified workflow format: lifecycle + step YAMLs migrated to single format
+- ✅ enabled/priority fields replace type field for workflow distinction
+- ✅ exit_when shorthand and expression-based exit conditions
+- ✅ SafeExpressionEvaluator replacing eval() in ConditionEvaluator
+- ✅ spawn_session and activate_workflow pipeline step types
+- ✅ result_variable and failure handling for run_pipeline action
+
+### Strangler fig decomposition wave 2 (0.2.15)
+
+- ✅ workflow/loader.py → loader_cache.py, loader_discovery.py, loader_validation.py, loader_sync.py
+- ✅ workflow/engine.py → engine_models.py, engine_context.py, engine_transitions.py, engine_activation.py
+- ✅ memory/manager.py → services/embeddings.py, services/mem0_sync.py, services/graph.py, services/maintenance.py
+- ✅ cli/installers/shared.py → installers/mcp_config.py, skill_install.py, ide_config.py
+- ✅ runner.py → runner_models.py, runner_tracking.py, runner_queries.py
+- ✅ Removed re-exports from loader.py, engine.py, shared.py, runner.py — canonical imports only
+
+### Config system (0.2.15)
+
+- ✅ DB-first config resolution — store config in SQLite instead of YAML
+- ✅ $secret:NAME config pattern for secrets-store-only resolution
+- ✅ Secrets store priority: secrets store first, env vars as fallback
+- ✅ Config write isolation + lightweight health endpoint
+- ✅ gobby-config MCP server for agent config access
+
+### Mem0 + memory improvements (0.2.15)
+
+- ✅ Async Mem0 queueing with background sync
+- ✅ Configurable mem0 client timeout (default 90s)
+- ✅ Mem0 Docker setup fixes (correct image, env vars, neo4j credentials)
+- ✅ Knowledge graph idle animation with manual camera rotation
+
+### Terminal + tmux (0.2.15)
+
+- ✅ Consolidated terminal spawners to tmux-only
+- ✅ Tmux window rename after title synthesis
+- ✅ TmuxPaneMonitor for detecting dead panes
+- ✅ Permanent set-titles-string and IDE terminal title auto-config
+- ✅ Show terminal title instead of tmux pane ID
+- ✅ Terminal rename via double-click
+
 ### Web UI
 
 - ✅ Chat interface with React + Vite and MCP tool support
@@ -107,6 +161,12 @@ Legend:
 - ✅ Unified Projects page (0.2.14)
 - ✅ DB-backed agent registry + configuration catalog UI (0.2.14)
 - ✅ File browser/viewer/editor (0.2.14)
+- ✅ File editor: save/cancel with confirmation, undo/redo (0.2.15)
+- ✅ Agent definition editing from UI (0.2.15)
+- ✅ Needs Review + In Review overview cards for tasks and memory (0.2.15)
+- ✅ Web UI accessible over Tailscale (0.2.15)
+- ✅ Auto-start Vite dev server on daemon startup (0.2.15)
+- ✅ Standardized sidebar widths via CSS variable (0.2.15)
 - 🗺️ Hook inspector
 
 ### Worktrees
@@ -121,6 +181,7 @@ Legend:
 - ✅ Memory v3: backend abstraction layer (SQLite, MemU, Mem0, OpenMemory)
 - ✅ Memory v4: embedding persistence, lifecycle hooks, reindex CLI, automated capture (0.2.14)
 - ✅ Mem0 integration with Docker-compose bundle (0.2.14)
+- ✅ Memory v4.5: async Mem0 queueing, configurable timeouts, background sync (0.2.15)
 
 ### Integrations + extensibility
 
@@ -138,6 +199,8 @@ Legend:
 - ✅ Install from GitHub, local paths, ZIP archives
 - ✅ Project-scoped and global skill management
 - ✅ Skill profile replaced with typed SkillProfileConfig model (0.2.14)
+- ✅ Skill usage tracking in get_skill() MCP handler (0.2.15)
+- ✅ Skills-used tracking in session stats (0.2.15)
 
 ### Orchestration
 
@@ -157,6 +220,8 @@ Legend:
 - ✅ Auto terminal detection prefers tmux when installed (0.2.14)
 - ✅ Automatic interactive/autonomous mode via tmux focus (0.2.14)
 - ✅ DB-backed agent registry with prompt fields and YAML export (0.2.14)
+- ✅ Provider-dependent model selection in agent definitions (0.2.15)
+- ✅ Running agents tracking on agents page (0.2.15)
 
 ### Cron scheduler (0.2.14)
 
@@ -169,6 +234,9 @@ Legend:
 - ✅ Round 1: mcp/tools.py, workflows/actions.py, event_handlers.py, adapters/codex.py
 - ✅ Round 2: websocket.py, claude.py, skills.py, sessions.py, hook_manager.py (0.2.14)
 - ✅ Orchestration tools extracted to standalone gobby-orchestration server (0.2.14)
+- ✅ Round 3 (strangler fig wave 2): loader.py, engine.py, runner.py, shared.py, memory/manager.py decomposed into 20+ focused modules (0.2.15)
+- ✅ Removed re-export shims — canonical imports only (0.2.15)
+- ✅ Removed hardcoded model aliases and resolve_model_id (0.2.15)
 
 ### Personal workspace (0.2.14)
 
@@ -182,6 +250,12 @@ Legend:
 
 ## Current work (in progress)
 
+### Database-backed prompt storage
+
+- 🚧 Migrate prompts from filesystem to SQLite (three-tier: bundled → global → project)
+- 🚧 `LocalPromptManager` with bundled read-only enforcement (dev mode exception)
+- 🚧 `PromptLoader` refactor: database-only at runtime, no filesystem fallback
+
 ### Coordinator finalization
 
 - 🚧 Production-ready orchestration with review/merge cycles
@@ -189,7 +263,6 @@ Legend:
 
 ### Web UI buildout
 
-- 🚧 Wiring remaining web UI pages to existing backend APIs
 - 🚧 Polish and UX improvements across all pages
 
 ---
