@@ -127,9 +127,7 @@ async def discover_workflows(
     )
 
     # Cache and return
-    loader._discovery_cache[cache_key] = _CachedDiscovery(
-        results=sorted_workflows, file_mtimes={}, dir_mtimes={}
-    )
+    loader._discovery_cache[cache_key] = _CachedDiscovery(results=sorted_workflows)
     return sorted_workflows
 
 
@@ -181,7 +179,5 @@ async def discover_pipeline_workflows(
     )
 
     # Cache and return
-    loader._discovery_cache[cache_key] = _CachedDiscovery(
-        results=sorted_pipelines, file_mtimes={}, dir_mtimes={}
-    )
+    loader._discovery_cache[cache_key] = _CachedDiscovery(results=sorted_pipelines)
     return sorted_pipelines
