@@ -9,19 +9,20 @@ WorkflowLoader with a mocked ToolProxyService to control MCP results.
 """
 
 from datetime import UTC, datetime
-from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
 from gobby.hooks.events import HookEvent, HookEventType, SessionSource
+from gobby.storage.database import LocalDatabase
+from gobby.storage.migrations import run_migrations
 from gobby.workflows.actions import ActionExecutor
 from gobby.workflows.definitions import WorkflowState
 from gobby.workflows.engine import WorkflowEngine
 from gobby.workflows.evaluator import ConditionEvaluator
-from gobby.storage.migrations import _BUNDLED_WORKFLOWS_DIR
 from gobby.workflows.loader import WorkflowLoader
 from gobby.workflows.state_manager import WorkflowStateManager
+from gobby.workflows.sync import sync_bundled_workflows
 from gobby.workflows.templates import TemplateEngine
 
 pytestmark = [pytest.mark.unit]
@@ -149,14 +150,13 @@ def state() -> WorkflowState:
 
 
 @pytest.fixture
-def engine(tool_proxy, task_manager) -> tuple[WorkflowEngine, MagicMock]:
+def engine(tool_proxy, task_manager, tmp_path) -> tuple[WorkflowEngine, MagicMock]:
     """Build WorkflowEngine with real loader/evaluator, mocked MCP proxy."""
-    # Use only bundled workflows dir — workflow_dirs must be non-empty ([] is falsy)
-    # to avoid falling back to ~/.gobby/workflows/ which may have stale copies
-    loader = WorkflowLoader(
-        workflow_dirs=[Path("/tmp/gobby-test-no-workflows")],
-        bundled_dir=_BUNDLED_WORKFLOWS_DIR,
-    )
+    # Create a temp DB with bundled workflows synced (DB-first pattern)
+    db = LocalDatabase(tmp_path / "test_orch.db")
+    run_migrations(db)
+    sync_bundled_workflows(db)
+    loader = WorkflowLoader(db=db)
     state_manager = MagicMock(spec=WorkflowStateManager)
     template_engine = TemplateEngine()
 
