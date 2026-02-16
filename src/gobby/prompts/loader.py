@@ -11,10 +11,13 @@ read by sync_bundled_prompts() on daemon startup.
 """
 
 import logging
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from gobby.prompts.models import PromptTemplate
 from gobby.storage.database import DatabaseProtocol
+
+if TYPE_CHECKING:
+    from gobby.storage.prompts import LocalPromptManager
 
 logger = logging.getLogger(__name__)
 
@@ -65,7 +68,7 @@ class PromptLoader:
             self._db = LocalDatabase()
         return self._db
 
-    def _get_manager(self) -> Any:
+    def _get_manager(self) -> "LocalPromptManager":
         """Lazily import and create a LocalPromptManager."""
         from gobby.storage.prompts import LocalPromptManager
 

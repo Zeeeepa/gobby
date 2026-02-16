@@ -320,6 +320,8 @@ class LocalPromptManager:
                 raise
 
         record = self.get_prompt(prompt_id)
+        if record is None:
+            raise RuntimeError(f"Failed to retrieve newly created prompt {prompt_id}")
         self._notify_change("create", prompt_id, name)
         return record
 
@@ -406,6 +408,8 @@ class LocalPromptManager:
         """
         # Check scope before updating
         existing = self.get_prompt(prompt_id)
+        if existing is None:
+            raise ValueError(f"Prompt {prompt_id} not found")
         self._check_bundled_writable(existing.scope)
 
         updates = []
@@ -448,6 +452,8 @@ class LocalPromptManager:
                 raise ValueError(f"Prompt {prompt_id} not found")
 
         record = self.get_prompt(prompt_id)
+        if record is None:
+            raise RuntimeError(f"Failed to retrieve updated prompt {prompt_id}")
         self._notify_change("update", prompt_id, record.name)
         return record
 
@@ -457,9 +463,8 @@ class LocalPromptManager:
         Raises:
             ValueError: If bundled and not in dev mode.
         """
-        try:
-            record = self.get_prompt(prompt_id)
-        except ValueError:
+        record = self.get_prompt(prompt_id)
+        if record is None:
             return False
 
         self._check_bundled_writable(record.scope)

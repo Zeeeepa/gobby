@@ -107,7 +107,7 @@ def create_configuration_router(server: "HTTPServer") -> APIRouter:
 
     def _get_prompt_manager() -> LocalPromptManager:
         manager = getattr(server.services, "prompt_manager", None)
-        if manager is not None:
+        if isinstance(manager, LocalPromptManager):
             return manager
         dev_mode = getattr(server.services, "dev_mode", False)
         return LocalPromptManager(server.services.database, dev_mode=dev_mode)
