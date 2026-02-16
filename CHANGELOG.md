@@ -8,6 +8,39 @@ All notable changes to Gobby are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.17] - 2026-02-15
+
+### Features
+
+#### Database-Backed Prompt Storage
+
+Migrated prompt templates from filesystem to SQLite database with three-tier scope precedence (project > global > bundled).
+
+- `prompts` table with scope-based precedence (migration 106) (#8352)
+- `LocalPromptManager` with CRUD operations and bundled read-only enforcement (#8352)
+- `sync_bundled_prompts()` for daemon startup sync from `.md` files (#8352)
+- `PromptLoader` refactored to use database as sole runtime source (#8352)
+- All 13 consumer files updated to pass `db` to `PromptLoader` (#8352)
+- Configuration API routes updated for DB-backed list/detail/override/revert (#8352)
+- Export/import updated to read/write from database (#8352)
+- Filesystem prompt copying removed from installer (#8352)
+- Shared `is_dev_mode()` utility added (#8352)
+
+### Bug Fixes
+
+- **pytest**: Update test expectations for database-backed prompt storage migration (#8353)
+- **mypy**: Add None guards and return type annotations in prompt storage and loader (#8354)
+
+### Documentation
+
+- Update `__init__.py` docstring to match pyproject.toml description (#8351)
+
+### Chores
+
+- Bump version to 0.2.17 (#8350)
+
+---
+
 ## [0.2.16] - 2026-02-15
 
 ### Major Features
