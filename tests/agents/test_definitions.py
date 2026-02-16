@@ -324,7 +324,7 @@ class TestAgentDefinitionLoader:
 class TestGetDbFallbackBehavior:
     """Tests for AgentDefinitionLoader._get_db warning and strict mode."""
 
-    def test_get_db_warns_on_fallback(self, tmp_path: Path) -> None:
+    def test_get_db_warns_on_fallback(self) -> None:
         """Test that _get_db emits a warning when falling back to LocalDatabase."""
         from unittest.mock import patch as mock_patch
 
@@ -344,7 +344,7 @@ class TestGetDbFallbackBehavior:
             assert "No database was injected" in warning_msg
             assert "db=" in warning_msg
 
-    def test_get_db_warns_includes_default_path(self, tmp_path: Path) -> None:
+    def test_get_db_warns_includes_default_path(self) -> None:
         """Test that the fallback warning includes the default DB path."""
         from unittest.mock import patch as mock_patch
 
@@ -363,7 +363,7 @@ class TestGetDbFallbackBehavior:
             fmt_str = call_args[0][0]
             assert "%s" in fmt_str or "default path" in fmt_str.lower()
 
-    def test_get_db_no_warning_when_injected(self, tmp_path: Path) -> None:
+    def test_get_db_no_warning_when_injected(self) -> None:
         """Test that _get_db does NOT warn when a db is injected."""
         from unittest.mock import patch as mock_patch
 
