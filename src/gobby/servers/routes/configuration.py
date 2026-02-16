@@ -9,9 +9,9 @@ Provides endpoints for:
 - Export/import configuration bundles
 """
 
+import json
 import logging
 from datetime import UTC, datetime
-from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 import yaml
@@ -23,8 +23,10 @@ from gobby.config.app import (
     DaemonConfig,
     deep_merge,
 )
-from gobby.prompts.loader import DEFAULTS_DIR, PromptLoader
+from gobby.prompts.loader import PromptLoader
+from gobby.prompts.models import parse_frontmatter
 from gobby.storage.config_store import ConfigStore, flatten_config, unflatten_config
+from gobby.storage.prompts import LocalPromptManager
 from gobby.storage.secrets import VALID_CATEGORIES, SecretStore
 from gobby.utils.metrics import get_metrics_collector
 
@@ -32,8 +34,6 @@ if TYPE_CHECKING:
     from gobby.servers.http import HTTPServer
 
 logger = logging.getLogger(__name__)
-
-GLOBAL_PROMPTS_DIR = Path("~/.gobby/prompts").expanduser()
 
 
 # =============================================================================
@@ -105,8 +105,18 @@ def create_configuration_router(server: "HTTPServer") -> APIRouter:
             store = ConfigStore(db)
         return store
 
+    def _get_prompt_manager() -> LocalPromptManager:
+        manager = getattr(server.services, "prompt_manager", None)
+        if isinstance(manager, LocalPromptManager):
+            return manager
+        dev_mode = getattr(server.services, "dev_mode", False)
+        return LocalPromptManager(server.services.database, dev_mode=dev_mode)
+
     def _get_prompt_loader() -> PromptLoader:
-        return PromptLoader(global_dir=Path.home() / ".gobby")
+        return PromptLoader(
+            db=server.services.database,
+            project_id=server.services.project_id,
+        )
 
     # =========================================================================
     # Schema + Config values
@@ -314,29 +324,39 @@ def create_configuration_router(server: "HTTPServer") -> APIRouter:
         """List all prompts with category, source tier, override status."""
         metrics.inc_counter("http_requests_total")
         try:
-            loader = _get_prompt_loader()
-            template_paths = loader.list_templates()
+            manager = _get_prompt_manager()
+            records = manager.list_prompts(
+                project_id=server.services.project_id,
+                enabled=True,
+                limit=500,
+            )
+
+            # Deduplicate: keep highest-precedence per name
+            seen: dict[str, Any] = {}
+            bundled_names: set[str] = set()
+            override_names: set[str] = set()
+
+            for r in records:
+                if r.scope in ("global", "project"):
+                    override_names.add(r.name)
+                if r.scope == "bundled":
+                    bundled_names.add(r.name)
+                if r.name not in seen:
+                    seen[r.name] = r
 
             prompts = []
-            for path in template_paths:
-                template = loader.load(path)
-                # Determine source tier
-                source = "bundled"
-                if template.source_path:
-                    source_str = str(template.source_path)
-                    if str(GLOBAL_PROMPTS_DIR) in source_str:
-                        source = "overridden"
-
-                # Extract category from path
-                category = path.split("/")[0] if "/" in path else "general"
+            for name, r in sorted(seen.items()):
+                category = name.split("/")[0] if "/" in name else "general"
+                has_override = name in override_names
+                source = "overridden" if has_override else "bundled"
 
                 prompts.append(
                     {
-                        "path": path,
-                        "description": template.description,
+                        "path": name,
+                        "description": r.description,
                         "category": category,
                         "source": source,
-                        "has_override": source == "overridden",
+                        "has_override": has_override,
                     }
                 )
 
@@ -362,61 +382,99 @@ def create_configuration_router(server: "HTTPServer") -> APIRouter:
         """Get prompt content and frontmatter."""
         metrics.inc_counter("http_requests_total")
         try:
-            loader = _get_prompt_loader()
-            template = loader.load(path)
+            manager = _get_prompt_manager()
 
-            # Determine source
-            source = "bundled"
-            override_path = GLOBAL_PROMPTS_DIR / f"{path}.md"
-            has_override = override_path.exists()
-            if (
-                has_override
-                and template.source_path
-                and str(GLOBAL_PROMPTS_DIR) in str(template.source_path)
-            ):
-                source = "overridden"
+            # Get effective prompt (highest precedence)
+            record = manager.get_by_name(path, project_id=server.services.project_id)
+            if not record:
+                raise HTTPException(status_code=404, detail=f"Prompt '{path}' not found")
+
+            # Check for override
+            has_override = record.scope in ("global", "project")
 
             # Get bundled content for comparison if overridden
             bundled_content = None
             if has_override:
-                bundled_path = DEFAULTS_DIR / f"{path}.md"
-                if bundled_path.exists():
-                    bundled_content = bundled_path.read_text(encoding="utf-8")
+                bundled = manager.get_bundled(path)
+                if bundled:
+                    bundled_content = bundled.content
+
+            # Determine source label
+            source = "overridden" if has_override else "bundled"
 
             return JSONResponse(
                 content={
                     "path": path,
-                    "description": template.description,
-                    "content": template.content,
+                    "description": record.description,
+                    "content": record.content,
                     "source": source,
                     "has_override": has_override,
                     "bundled_content": bundled_content,
                     "variables": {
-                        name: {
-                            "type": spec.type,
-                            "required": spec.required,
-                            "default": spec.default,
-                        }
-                        for name, spec in template.variables.items()
+                        name: (
+                            {
+                                "type": spec.get("type", "str"),
+                                "required": spec.get("required", False),
+                                "default": spec.get("default"),
+                            }
+                            if isinstance(spec, dict)
+                            else {"type": "str", "default": spec}
+                        )
+                        for name, spec in (record.variables or {}).items()
                     },
                 }
             )
-        except FileNotFoundError as e:
-            raise HTTPException(status_code=404, detail=f"Prompt '{path}' not found") from e
+        except HTTPException:
+            raise
         except Exception as e:
             logger.error(f"Failed to get prompt: {e}")
             raise HTTPException(status_code=500, detail=str(e)) from e
 
     @router.put("/prompts/{path:path}")
     async def save_prompt_override(path: str, request: SavePromptOverrideRequest) -> JSONResponse:
-        """Create/update a prompt override in ~/.gobby/prompts/."""
+        """Create/update a prompt override (scope='global') in the database."""
         metrics.inc_counter("http_requests_total")
         try:
-            override_path = GLOBAL_PROMPTS_DIR / f"{path}.md"
-            override_path.parent.mkdir(parents=True, exist_ok=True)
-            override_path.write_text(request.content, encoding="utf-8")
+            manager = _get_prompt_manager()
 
-            # Clear loader cache so next load picks up the override
+            # Parse frontmatter from the content
+            frontmatter, body = parse_frontmatter(request.content)
+            description = frontmatter.get("description", "")
+            version = str(frontmatter.get("version", "1.0"))
+
+            # Extract variables
+            variables = frontmatter.get("variables")
+
+            # Check if a global override already exists
+            existing_override = manager.db.fetchone(
+                "SELECT * FROM prompts WHERE name = ? AND scope = 'global' AND project_id IS NULL",
+                (path,),
+            )
+
+            if existing_override:
+                # Update existing override
+                from gobby.storage.prompts import PromptRecord
+
+                record = PromptRecord.from_row(existing_override)
+                manager.update_prompt(
+                    prompt_id=record.id,
+                    description=description,
+                    content=body.strip() if body.strip() else request.content,
+                    version=version,
+                    variables=variables,
+                )
+            else:
+                # Create new global override
+                manager.create_prompt(
+                    name=path,
+                    description=description,
+                    content=body.strip() if body.strip() else request.content,
+                    version=version,
+                    variables=variables,
+                    scope="global",
+                )
+
+            # Clear loader cache
             loader = _get_prompt_loader()
             loader.clear_cache()
 
@@ -427,13 +485,23 @@ def create_configuration_router(server: "HTTPServer") -> APIRouter:
 
     @router.delete("/prompts/{path:path}")
     async def delete_prompt_override(path: str) -> JSONResponse:
-        """Remove override (revert to bundled)."""
+        """Remove override (revert to bundled) by deleting the global record."""
         metrics.inc_counter("http_requests_total")
         try:
-            override_path = GLOBAL_PROMPTS_DIR / f"{path}.md"
-            if not override_path.exists():
+            manager = _get_prompt_manager()
+
+            # Find the global override
+            row = manager.db.fetchone(
+                "SELECT * FROM prompts WHERE name = ? AND scope = 'global' AND project_id IS NULL",
+                (path,),
+            )
+            if not row:
                 raise HTTPException(status_code=404, detail=f"No override for '{path}'")
-            override_path.unlink()
+
+            from gobby.storage.prompts import PromptRecord
+
+            record = PromptRecord.from_row(row)
+            manager.delete_prompt(record.id)
 
             # Clear loader cache
             loader = _get_prompt_loader()
@@ -459,12 +527,29 @@ def create_configuration_router(server: "HTTPServer") -> APIRouter:
             config_store = _get_config_store()
             flat_config = config_store.get_all()
 
-            # Prompt overrides
+            # Prompt overrides from DB
+            manager = _get_prompt_manager()
+            overrides = manager.list_overrides(project_id=server.services.project_id)
+
             prompt_overrides: dict[str, str] = {}
-            if GLOBAL_PROMPTS_DIR.exists():
-                for md_file in GLOBAL_PROMPTS_DIR.rglob("*.md"):
-                    rel = str(md_file.relative_to(GLOBAL_PROMPTS_DIR))
-                    prompt_overrides[rel] = md_file.read_text(encoding="utf-8")
+            for record in overrides:
+                # Reconstruct full markdown (frontmatter + body) for portability
+                fm_parts: list[str] = []
+                if record.description:
+                    fm_parts.append(f"description: {record.description}")
+                if record.version and record.version != "1.0":
+                    fm_parts.append(f'version: "{record.version}"')
+                if record.variables:
+                    fm_parts.append(f"variables: {json.dumps(record.variables)}")
+
+                if fm_parts:
+                    full_content = "---\n" + "\n".join(fm_parts) + "\n---\n" + record.content
+                else:
+                    full_content = record.content
+
+                # Use .md extension for backward compat with existing export format
+                key = f"{record.name}.md"
+                prompt_overrides[key] = full_content
 
             # Secret names only
             store = _get_secret_store()
@@ -524,12 +609,43 @@ def create_configuration_router(server: "HTTPServer") -> APIRouter:
                 summary_parts.append(f"config restored ({count} keys)")
                 config_imported = True
 
-            # Import prompt overrides
+            # Import prompt overrides into database
             if request.prompts:
+                manager = _get_prompt_manager()
                 for rel_path, content in request.prompts.items():
-                    override_path = GLOBAL_PROMPTS_DIR / rel_path
-                    override_path.parent.mkdir(parents=True, exist_ok=True)
-                    override_path.write_text(content, encoding="utf-8")
+                    # Strip .md extension if present to get prompt name
+                    name = rel_path
+                    if name.endswith(".md"):
+                        name = name[:-3]
+
+                    frontmatter, body = parse_frontmatter(content)
+                    description = frontmatter.get("description", "")
+                    version = str(frontmatter.get("version", "1.0"))
+                    variables = frontmatter.get("variables")
+
+                    # Upsert as scope='global'
+                    existing = manager.db.fetchone(
+                        "SELECT id FROM prompts WHERE name = ? AND scope = 'global' "
+                        "AND project_id IS NULL",
+                        (name,),
+                    )
+                    if existing:
+                        manager.update_prompt(
+                            prompt_id=existing["id"],
+                            description=description,
+                            content=body.strip() if body.strip() else content,
+                            version=version,
+                            variables=variables,
+                        )
+                    else:
+                        manager.create_prompt(
+                            name=name,
+                            description=description,
+                            content=body.strip() if body.strip() else content,
+                            version=version,
+                            variables=variables,
+                            scope="global",
+                        )
                 summary_parts.append(f"{len(request.prompts)} prompt override(s) restored")
 
             return JSONResponse(

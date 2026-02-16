@@ -130,6 +130,19 @@ class GobbyRunner:
         except Exception as e:
             logger.warning(f"Failed to sync bundled skills: {e}")
 
+        # Sync bundled prompts to database
+        from gobby.prompts.sync import sync_bundled_prompts
+        from gobby.utils.dev import is_dev_mode
+
+        self._dev_mode = is_dev_mode(Path.cwd())
+
+        try:
+            prompt_result = sync_bundled_prompts(self.database)
+            if prompt_result["synced"] > 0:
+                logger.info(f"Synced {prompt_result['synced']} bundled prompts to database")
+        except Exception as e:
+            logger.warning(f"Failed to sync bundled prompts: {e}")
+
         # Sync bundled rules to database
         from gobby.workflows.rule_sync import sync_bundled_rules_sync
 
@@ -139,6 +152,11 @@ class GobbyRunner:
                 logger.info(f"Synced {rule_result['synced']} bundled rules to database")
         except Exception as e:
             logger.warning(f"Failed to sync bundled rules: {e}")
+
+        # Initialize Prompt Manager
+        from gobby.storage.prompts import LocalPromptManager
+
+        self.prompt_manager = LocalPromptManager(self.database, dev_mode=self._dev_mode)
 
         # Initialize Skill Manager and Hub Manager
         from gobby.storage.skills import LocalSkillManager
@@ -264,6 +282,7 @@ class GobbyRunner:
                     self.task_validator = TaskValidator(
                         llm_service=self.llm_service,
                         config=gobby_tasks_config.validation,
+                        db=self.database,
                     )
                 except Exception as e:
                     logger.error(f"Failed to initialize TaskValidator: {e}")
@@ -409,6 +428,8 @@ class GobbyRunner:
             skill_manager=self.skill_manager,
             hub_manager=self.hub_manager,
             config_store=self.config_store,
+            prompt_manager=self.prompt_manager,
+            dev_mode=self._dev_mode,
         )
 
         self.http_server = HTTPServer(

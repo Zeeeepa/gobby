@@ -37,7 +37,7 @@ MigrationAction = str | Callable[[LocalDatabase], None]
 # Baseline version - the schema state that is applied for new databases directly.
 # Must be bumped when BASELINE_SCHEMA is updated with columns from new migrations,
 # so that fresh databases don't re-run migrations already baked into the baseline.
-BASELINE_VERSION = 105
+BASELINE_VERSION = 106
 
 # Minimum migration version - databases older than this cannot be upgraded
 # because legacy migrations (pre-v76) have been removed.
@@ -821,6 +821,27 @@ CREATE INDEX idx_wf_defs_name ON workflow_definitions(name);
 CREATE INDEX idx_wf_defs_type ON workflow_definitions(workflow_type);
 CREATE INDEX idx_wf_defs_enabled ON workflow_definitions(enabled);
 CREATE UNIQUE INDEX idx_wf_defs_name_project ON workflow_definitions(name, COALESCE(project_id, '__global__'));
+
+CREATE TABLE prompts (
+    id TEXT PRIMARY KEY,
+    name TEXT NOT NULL,
+    description TEXT NOT NULL DEFAULT '',
+    content TEXT NOT NULL,
+    version TEXT DEFAULT '1.0',
+    variables TEXT,
+    scope TEXT NOT NULL DEFAULT 'bundled'
+        CHECK(scope IN ('bundled', 'global', 'project')),
+    source_path TEXT,
+    project_id TEXT REFERENCES projects(id) ON DELETE CASCADE,
+    enabled INTEGER DEFAULT 1,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+);
+CREATE INDEX idx_prompts_name ON prompts(name);
+CREATE INDEX idx_prompts_scope ON prompts(scope);
+CREATE INDEX idx_prompts_project ON prompts(project_id);
+CREATE UNIQUE INDEX idx_prompts_name_scope_project
+    ON prompts(name, scope, COALESCE(project_id, ''));
 """
 
 # Future migrations (v61+)
@@ -1567,6 +1588,35 @@ MIGRATIONS: list[tuple[int, str, MigrationAction]] = [
         105,
         "Drop importance column from memories",
         _migrate_drop_importance,
+    ),
+    # Prompt storage: database-backed prompt management
+    # Uses DROP + CREATE to handle pre-existing dev-era prompts table with different schema
+    (
+        106,
+        "Add prompts table",
+        """
+        DROP TABLE IF EXISTS prompts;
+        CREATE TABLE prompts (
+            id TEXT PRIMARY KEY,
+            name TEXT NOT NULL,
+            description TEXT NOT NULL DEFAULT '',
+            content TEXT NOT NULL,
+            version TEXT DEFAULT '1.0',
+            variables TEXT,
+            scope TEXT NOT NULL DEFAULT 'bundled'
+                CHECK(scope IN ('bundled', 'global', 'project')),
+            source_path TEXT,
+            project_id TEXT REFERENCES projects(id) ON DELETE CASCADE,
+            enabled INTEGER DEFAULT 1,
+            created_at TEXT NOT NULL,
+            updated_at TEXT NOT NULL
+        );
+        CREATE INDEX idx_prompts_name ON prompts(name);
+        CREATE INDEX idx_prompts_scope ON prompts(scope);
+        CREATE INDEX idx_prompts_project ON prompts(project_id);
+        CREATE UNIQUE INDEX idx_prompts_name_scope_project
+            ON prompts(name, scope, COALESCE(project_id, ''));
+        """,
     ),
 ]
 

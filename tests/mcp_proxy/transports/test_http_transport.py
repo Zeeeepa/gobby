@@ -16,7 +16,7 @@ import pytest
 from gobby.mcp_proxy.models import ConnectionState, MCPError, MCPServerConfig
 from gobby.mcp_proxy.transports.http import HTTPTransportConnection
 
-pytestmark = [pytest.mark.unit, pytest.mark.asyncio]
+pytestmark = pytest.mark.unit
 
 
 # ---------------------------------------------------------------------------
@@ -110,6 +110,7 @@ class TestHTTPInit:
 
 
 class TestHTTPConnectAlreadyConnected:
+    @pytest.mark.asyncio
     async def test_returns_existing_session(self, conn: HTTPTransportConnection) -> None:
         fake_session = MagicMock()
         conn._state = ConnectionState.CONNECTED
@@ -127,6 +128,7 @@ class TestHTTPConnectAlreadyConnected:
 
 
 class TestHTTPConnectSuccess:
+    @pytest.mark.asyncio
     @patch("gobby.mcp_proxy.transports.http.ClientSession")
     @patch("gobby.mcp_proxy.transports.http.streamablehttp_client")
     async def test_full_connect_lifecycle(
@@ -164,6 +166,7 @@ class TestHTTPConnectSuccess:
         # Clean up - signal disconnect so background task can finish
         await conn.disconnect()
 
+    @pytest.mark.asyncio
     @patch("gobby.mcp_proxy.transports.http.ClientSession")
     @patch("gobby.mcp_proxy.transports.http.streamablehttp_client")
     async def test_connect_passes_url_and_headers(
@@ -203,6 +206,7 @@ class TestHTTPConnectSuccess:
 
 
 class TestHTTPConnectReconnect:
+    @pytest.mark.asyncio
     @patch("gobby.mcp_proxy.transports.http.ClientSession")
     @patch("gobby.mcp_proxy.transports.http.streamablehttp_client")
     async def test_reconnect_cleans_old_task(
@@ -243,6 +247,7 @@ class TestHTTPConnectReconnect:
 
 
 class TestHTTPConnectTimeout:
+    @pytest.mark.asyncio
     async def test_timeout_transitions_to_failed(self, conn: HTTPTransportConnection) -> None:
         """If _session_ready never fires, connect raises MCPError after timeout."""
         conn.config = _make_config(connect_timeout=0.05)
@@ -258,6 +263,7 @@ class TestHTTPConnectTimeout:
         assert conn.state == ConnectionState.FAILED
         assert conn._owner_task is None
 
+    @pytest.mark.asyncio
     async def test_timeout_includes_server_name(self) -> None:
         cfg = _make_config(name="my-server", connect_timeout=0.05)
         c = HTTPTransportConnection(cfg)
@@ -276,6 +282,7 @@ class TestHTTPConnectTimeout:
 
 
 class TestHTTPConnectError:
+    @pytest.mark.asyncio
     async def test_connection_error_propagated(self, conn: HTTPTransportConnection) -> None:
         """When _run_connection sets _connection_error, connect() re-raises it."""
         error = MCPError("HTTP connection failed: refused")
@@ -292,6 +299,7 @@ class TestHTTPConnectError:
         assert conn.state == ConnectionState.FAILED
         assert conn._owner_task is None
 
+    @pytest.mark.asyncio
     async def test_connection_error_cleared_after_raise(
         self, conn: HTTPTransportConnection
     ) -> None:
@@ -317,6 +325,7 @@ class TestHTTPConnectError:
 
 
 class TestHTTPRunConnection:
+    @pytest.mark.asyncio
     async def test_missing_url_sets_connection_error(self) -> None:
         """When config.url is None, _run_connection records a ValueError-based MCPError."""
         cfg = _make_config(url=None)
@@ -334,6 +343,7 @@ class TestHTTPRunConnection:
         assert c._session is None
         assert c.state == ConnectionState.DISCONNECTED
 
+    @pytest.mark.asyncio
     async def test_events_not_initialized_raises_runtime_error(
         self, conn: HTTPTransportConnection
     ) -> None:
@@ -344,6 +354,7 @@ class TestHTTPRunConnection:
         with pytest.raises(RuntimeError, match="Connection events not initialized"):
             await conn._run_connection()
 
+    @pytest.mark.asyncio
     @patch("gobby.mcp_proxy.transports.http.streamablehttp_client")
     async def test_connection_exception_wraps_as_mcp_error(
         self,
@@ -370,6 +381,7 @@ class TestHTTPRunConnection:
         assert conn._session is None
         assert conn.state == ConnectionState.DISCONNECTED
 
+    @pytest.mark.asyncio
     @patch("gobby.mcp_proxy.transports.http.streamablehttp_client")
     async def test_mcp_error_not_double_wrapped(
         self,
@@ -393,6 +405,7 @@ class TestHTTPRunConnection:
 
         assert conn._connection_error is original
 
+    @pytest.mark.asyncio
     @patch("gobby.mcp_proxy.transports.http.streamablehttp_client")
     async def test_empty_error_message_uses_type_name(
         self,
@@ -421,6 +434,7 @@ class TestHTTPRunConnection:
         assert "SilentError" in str(conn._connection_error)
         assert "Connection closed or timed out" in str(conn._connection_error)
 
+    @pytest.mark.asyncio
     @patch("gobby.mcp_proxy.transports.http.ClientSession")
     @patch("gobby.mcp_proxy.transports.http.streamablehttp_client")
     async def test_finally_clears_session_and_state(
@@ -469,6 +483,7 @@ class TestHTTPRunConnection:
 
 
 class TestHTTPCleanupOwnerTask:
+    @pytest.mark.asyncio
     async def test_no_task(self, conn: HTTPTransportConnection) -> None:
         """No-op when _owner_task is None."""
         await conn._cleanup_owner_task()
@@ -476,6 +491,7 @@ class TestHTTPCleanupOwnerTask:
         assert conn._disconnect_event is None
         assert conn._session_ready is None
 
+    @pytest.mark.asyncio
     async def test_done_task(self, conn: HTTPTransportConnection) -> None:
         """Already-done task is just set to None."""
         done_task = asyncio.create_task(asyncio.sleep(0))
@@ -490,6 +506,7 @@ class TestHTTPCleanupOwnerTask:
         assert conn._disconnect_event is None
         assert conn._session_ready is None
 
+    @pytest.mark.asyncio
     async def test_running_task_is_cancelled(self, conn: HTTPTransportConnection) -> None:
         """A running task gets cancelled and awaited."""
 
@@ -506,6 +523,7 @@ class TestHTTPCleanupOwnerTask:
         assert conn._owner_task is None
         assert task.cancelled()
 
+    @pytest.mark.asyncio
     async def test_task_cancel_timeout_warning(self, conn: HTTPTransportConnection) -> None:
         """If the task doesn't cancel within timeout, cleanup logs warning and finishes."""
         # Create a task that is running but will hang after cancel
@@ -557,12 +575,14 @@ class TestHTTPCleanupOwnerTask:
 
 
 class TestHTTPDisconnect:
+    @pytest.mark.asyncio
     async def test_disconnect_no_event(self, conn: HTTPTransportConnection) -> None:
         """Disconnect when no connection has been made."""
         await conn.disconnect()
         assert conn.state == ConnectionState.DISCONNECTED
         assert conn._owner_task is None
 
+    @pytest.mark.asyncio
     async def test_disconnect_signals_event_and_cleans_up(
         self, conn: HTTPTransportConnection
     ) -> None:
@@ -584,6 +604,7 @@ class TestHTTPDisconnect:
         assert conn._disconnect_event is None
         assert conn._session_ready is None
 
+    @pytest.mark.asyncio
     @patch("gobby.mcp_proxy.transports.http.ClientSession")
     @patch("gobby.mcp_proxy.transports.http.streamablehttp_client")
     async def test_full_connect_then_disconnect(
@@ -646,10 +667,12 @@ class TestHTTPBaseProperties:
         conn.set_auth_token("new-token")
         assert conn._auth_token == "new-token"
 
+    @pytest.mark.asyncio
     async def test_health_check_not_connected(self, conn: HTTPTransportConnection) -> None:
         result = await conn.health_check()
         assert result is False
 
+    @pytest.mark.asyncio
     async def test_health_check_connected_success(self, conn: HTTPTransportConnection) -> None:
         mock_session = AsyncMock()
         mock_session.list_tools = AsyncMock(return_value=[])
@@ -661,6 +684,7 @@ class TestHTTPBaseProperties:
         assert conn._consecutive_failures == 0
         assert conn._last_health_check is not None
 
+    @pytest.mark.asyncio
     async def test_health_check_connected_failure(self, conn: HTTPTransportConnection) -> None:
         mock_session = AsyncMock()
         mock_session.list_tools = AsyncMock(side_effect=TimeoutError("slow"))

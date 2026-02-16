@@ -6,7 +6,7 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-pytestmark = [pytest.mark.unit, pytest.mark.asyncio]
+pytestmark = pytest.mark.unit
 
 
 def _make_registry(
@@ -42,6 +42,7 @@ class TestSearchKnowledgeGraphTool:
         tool_names = [t["name"] for t in registry.list_tools()]
         assert "search_knowledge_graph" in tool_names
 
+    @pytest.mark.asyncio
     async def test_search_knowledge_graph_returns_results(self) -> None:
         """search_knowledge_graph returns graph search results."""
         registry, manager = _make_registry(neo4j_url="http://localhost:7474")
@@ -64,6 +65,7 @@ class TestSearchKnowledgeGraphTool:
         assert len(result["results"]) >= 1
         kg_service.search_graph.assert_called_once_with("programming language", limit=5)
 
+    @pytest.mark.asyncio
     async def test_search_knowledge_graph_returns_empty_when_no_kg_service(self) -> None:
         """search_knowledge_graph returns empty when KG service not available."""
         registry, manager = _make_registry()

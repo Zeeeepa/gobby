@@ -1,111 +1,78 @@
 """
-Prompt template loader with multi-level override support.
+Prompt template loader with database-backed storage.
 
-Implements prompt loading with precedence:
-1. Project file (.gobby/prompts/)
-2. Global file (~/.gobby/prompts/)
-3. Bundled default (install/shared/prompts/)
+Implements prompt loading with precedence via the database:
+1. Project scope (scope='project')
+2. Global scope (scope='global')
+3. Bundled scope (scope='bundled')
+
+The database is the sole runtime source. Bundled .md files are only
+read by sync_bundled_prompts() on daemon startup.
 """
 
 import logging
-import re
-from functools import lru_cache
-from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
-import yaml
+from gobby.prompts.models import PromptTemplate
+from gobby.storage.database import DatabaseProtocol
 
-from .models import PromptTemplate
+if TYPE_CHECKING:
+    from gobby.storage.prompts import LocalPromptManager
 
 logger = logging.getLogger(__name__)
 
-# Default location for bundled prompts (shipped in install/shared/prompts)
-DEFAULTS_DIR = Path(__file__).parent.parent / "install" / "shared" / "prompts"
-
 
 class PromptLoader:
-    """Loads prompt templates from multiple sources with override precedence.
+    """Loads prompt templates from the database with scope-based precedence.
 
     Usage:
-        loader = PromptLoader(project_dir=Path("."))
+        loader = PromptLoader(db=database, project_id="proj-123")
         template = loader.load("expansion/system")
         rendered = loader.render("expansion/system", {"tdd_mode": True})
     """
 
     def __init__(
         self,
-        project_dir: Path | None = None,
-        global_dir: Path | None = None,
-        defaults_dir: Path | None = None,
+        db: DatabaseProtocol | None = None,
+        project_id: str | None = None,
+        notifier: Any | None = None,
     ):
         """Initialize the prompt loader.
 
         Args:
-            project_dir: Project root directory (for .gobby/prompts)
-            global_dir: Global config directory (defaults to ~/.gobby)
-            defaults_dir: Directory for bundled defaults (auto-detected)
+            db: Database connection (if None, lazily creates a LocalDatabase)
+            project_id: Project context for precedence resolution
+            notifier: Optional PromptChangeNotifier for cache invalidation
         """
-        self.project_dir = project_dir
-        self.global_dir = global_dir or Path.home() / ".gobby"
-        self.defaults_dir = defaults_dir or DEFAULTS_DIR
-
-        # Build search paths in priority order
-        self._search_paths: list[Path] = []
-        if project_dir:
-            self._search_paths.append(project_dir / ".gobby" / "prompts")
-        self._search_paths.append(self.global_dir / "prompts")
-        self._search_paths.append(self.defaults_dir)
-
-        # Template cache
+        self._db = db
+        self._project_id = project_id
         self._cache: dict[str, PromptTemplate] = {}
+
+        # Subscribe to change events for cache invalidation
+        if notifier is not None:
+            notifier.add_listener(self._on_change)
+
+    def _on_change(self, event: Any) -> None:
+        """Handle change notification by clearing cache."""
+        self._cache.clear()
 
     def clear_cache(self) -> None:
         """Clear the template cache."""
         self._cache.clear()
 
-    def _find_template_file(self, path: str) -> Path | None:
-        """Find a template file in search paths.
+    def _get_db(self) -> DatabaseProtocol:
+        """Get the database connection, lazily creating one if needed."""
+        if self._db is None:
+            from gobby.storage.database import LocalDatabase
 
-        Args:
-            path: Template path (e.g., "expansion/system")
+            self._db = LocalDatabase()
+        return self._db
 
-        Returns:
-            Path to template file if found, None otherwise
-        """
-        # Add .md extension if not present
-        if not path.endswith(".md"):
-            path = f"{path}.md"
+    def _get_manager(self) -> "LocalPromptManager":
+        """Lazily import and create a LocalPromptManager."""
+        from gobby.storage.prompts import LocalPromptManager
 
-        for search_dir in self._search_paths:
-            template_path = search_dir / path
-            if template_path.exists():
-                return template_path
-
-        return None
-
-    def _parse_frontmatter(self, content: str) -> tuple[dict[str, Any], str]:
-        """Parse YAML frontmatter from template content.
-
-        Args:
-            content: Raw file content
-
-        Returns:
-            Tuple of (frontmatter dict, body content)
-        """
-        # Match YAML frontmatter between --- markers
-        frontmatter_pattern = re.compile(r"^---\s*\n(.*?)\n---\s*\n", re.DOTALL)
-        match = frontmatter_pattern.match(content)
-
-        if match:
-            try:
-                frontmatter = yaml.safe_load(match.group(1)) or {}
-                body = content[match.end() :]
-                return frontmatter, body
-            except yaml.YAMLError as e:
-                logger.warning(f"Failed to parse frontmatter: {e}")
-                return {}, content
-
-        return {}, content
+        return LocalPromptManager(self._get_db())
 
     def load(self, path: str) -> PromptTemplate:
         """Load a prompt template by path.
@@ -117,27 +84,18 @@ class PromptLoader:
             PromptTemplate instance
 
         Raises:
-            FileNotFoundError: If template not found and no fallback registered
+            FileNotFoundError: If template not found in database
         """
-        # Check cache first
         if path in self._cache:
             return self._cache[path]
 
-        # Try to find template file
-        template_file = self._find_template_file(path)
+        manager = self._get_manager()
+        record = manager.get_by_name(path, project_id=self._project_id)
 
-        if template_file:
-            content = template_file.read_text(encoding="utf-8")
-            frontmatter, body = self._parse_frontmatter(content)
-
-            template = PromptTemplate.from_frontmatter(
-                name=path,
-                frontmatter=frontmatter,
-                content=body.strip(),
-                source_path=template_file,
-            )
+        if record is not None:
+            template = record.to_prompt_template()
             self._cache[path] = template
-            logger.debug(f"Loaded prompt template '{path}' from {template_file}")
+            logger.debug(f"Loaded prompt template '{path}' from database (scope={record.scope})")
             return template
 
         raise FileNotFoundError(f"Prompt template not found: {path}")
@@ -178,29 +136,16 @@ class PromptLoader:
         return self._render_jinja(template.content, ctx)
 
     def _render_jinja(self, template_str: str, context: dict[str, Any]) -> str:
-        """Render a template string with Jinja2.
-
-        Uses a safe subset of Jinja2 features.
-
-        Args:
-            template_str: Template content with Jinja2 syntax
-            context: Context dict for rendering
-
-        Returns:
-            Rendered string
-        """
+        """Render a template string with Jinja2."""
         try:
             from jinja2 import Environment, StrictUndefined, UndefinedError
 
-            # Create a restricted Jinja2 environment
             env = Environment(  # nosec B701 - generating raw text prompts, not HTML
                 autoescape=False,
                 undefined=StrictUndefined,
-                # Disable dangerous features
                 extensions=[],
             )
 
-            # Add safe filters
             env.filters["default"] = lambda v, d="": d if v is None else v
 
             template = env.from_string(template_str)
@@ -208,10 +153,8 @@ class PromptLoader:
 
         except UndefinedError as e:
             logger.warning(f"Template rendering error (undefined variable): {e}")
-            # Fall back to simple string formatting for undefined vars
             return self._render_simple(template_str, context)
         except ImportError:
-            # Jinja2 not available, use simple formatting
             logger.debug("Jinja2 not available, using simple format")
             return self._render_simple(template_str, context)
         except Exception as e:
@@ -219,33 +162,23 @@ class PromptLoader:
             return self._render_simple(template_str, context)
 
     def _render_simple(self, template_str: str, context: dict[str, Any]) -> str:
-        """Simple string formatting fallback.
-
-        Handles {variable} placeholders using str.format().
-
-        Args:
-            template_str: Template with {var} placeholders
-            context: Context dict
-
-        Returns:
-            Rendered string
-        """
+        """Simple string formatting fallback."""
         try:
             return template_str.format(**context)
         except KeyError:
-            # Return as-is if formatting fails
             return template_str
 
     def exists(self, path: str) -> bool:
-        """Check if a template exists.
+        """Check if a template exists in the database.
 
         Args:
             path: Template path
 
         Returns:
-            True if template exists (file or fallback)
+            True if template exists
         """
-        return self._find_template_file(path) is not None
+        manager = self._get_manager()
+        return manager.get_by_name(path, project_id=self._project_id) is not None
 
     def list_templates(self, category: str | None = None) -> list[str]:
         """List available template paths.
@@ -254,56 +187,22 @@ class PromptLoader:
             category: Optional category to filter (e.g., "expansion")
 
         Returns:
-            List of template paths
+            Sorted list of template paths
         """
-        templates: set[str] = set()
+        manager = self._get_manager()
+        records = manager.list_prompts(
+            project_id=self._project_id,
+            category=category,
+            enabled=True,
+            limit=500,
+        )
 
-        for search_dir in self._search_paths:
-            if not search_dir.exists():
-                continue
+        # Deduplicate by name (higher-precedence scope wins)
+        seen: set[str] = set()
+        names: list[str] = []
+        for r in records:
+            if r.name not in seen:
+                seen.add(r.name)
+                names.append(r.name)
 
-            for md_file in search_dir.rglob("*.md"):
-                rel_path = md_file.relative_to(search_dir)
-                # Remove .md extension for path
-                template_path = str(rel_path.with_suffix(""))
-
-                if category is None or template_path.startswith(f"{category}/"):
-                    templates.add(template_path)
-
-        return sorted(templates)
-
-
-# Module-level cached loader instance
-@lru_cache(maxsize=1)
-def get_default_loader() -> PromptLoader:
-    """Get or create the default prompt loader.
-
-    Returns:
-        Cached PromptLoader instance
-    """
-    return PromptLoader()
-
-
-def load_prompt(path: str) -> PromptTemplate:
-    """Convenience function to load a prompt using default loader.
-
-    Args:
-        path: Template path
-
-    Returns:
-        PromptTemplate
-    """
-    return get_default_loader().load(path)
-
-
-def render_prompt(path: str, context: dict[str, Any] | None = None) -> str:
-    """Convenience function to render a prompt using default loader.
-
-    Args:
-        path: Template path
-        context: Variables for rendering
-
-    Returns:
-        Rendered string
-    """
-    return get_default_loader().render(path, context)
+        return sorted(names)

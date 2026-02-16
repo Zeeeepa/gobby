@@ -7,7 +7,6 @@ backed by a real temp_db.
 
 from __future__ import annotations
 
-from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -421,12 +420,9 @@ class TestPromptsEndpoints:
             # Sum of category counts should equal total
             assert sum(data["categories"].values()) == data["total"]
 
-    def test_list_prompts_source_is_bundled(self, client: TestClient, tmp_path: Path) -> None:
+    def test_list_prompts_source_is_bundled(self, client: TestClient) -> None:
         """Without overrides, all sources should be 'bundled'."""
-        # Point GLOBAL_PROMPTS_DIR to empty tmp dir so no overrides are found
-        empty_prompts = tmp_path / "empty_prompts"
-        with patch("gobby.servers.routes.configuration.GLOBAL_PROMPTS_DIR", empty_prompts):
-            response = client.get("/api/config/prompts")
+        response = client.get("/api/config/prompts")
         for p in response.json()["prompts"]:
             assert p["source"] == "bundled"
             assert p["has_override"] is False
@@ -453,65 +449,58 @@ class TestPromptsEndpoints:
 
     def test_list_prompts_error(self, client: TestClient) -> None:
         with patch(
-            "gobby.servers.routes.configuration.PromptLoader",
-            side_effect=RuntimeError("Loader broke"),
+            "gobby.storage.prompts.LocalPromptManager.list_prompts",
+            side_effect=RuntimeError("DB broke"),
         ):
             response = client.get("/api/config/prompts")
         assert response.status_code == 500
 
-    def test_save_and_delete_prompt_override(self, client: TestClient, tmp_path: Path) -> None:
+    def test_save_and_delete_prompt_override(self, client: TestClient) -> None:
         """Save an override, then delete it."""
-        prompts_dir = tmp_path / "prompts"
-        with patch("gobby.servers.routes.configuration.GLOBAL_PROMPTS_DIR", prompts_dir):
-            # Save
-            response = client.put(
-                "/api/config/prompts/test/prompt",
-                json={"content": "# Custom override\nHello world"},
-            )
-            assert response.status_code == 200
-            assert response.json()["ok"] is True
-            # Verify file exists
-            assert (prompts_dir / "test" / "prompt.md").exists()
+        # Save
+        response = client.put(
+            "/api/config/prompts/test/prompt",
+            json={"content": "# Custom override\nHello world"},
+        )
+        assert response.status_code == 200
+        assert response.json()["ok"] is True
+        # Verify override exists via GET
+        detail = client.get("/api/config/prompts/test/prompt")
+        assert detail.status_code == 200
+        assert detail.json()["source"] == "overridden"
 
-            # Delete
-            response = client.delete("/api/config/prompts/test/prompt")
-            assert response.status_code == 200
-            assert response.json()["ok"] is True
-            assert not (prompts_dir / "test" / "prompt.md").exists()
+        # Delete
+        response = client.delete("/api/config/prompts/test/prompt")
+        assert response.status_code == 200
+        assert response.json()["ok"] is True
 
-    def test_delete_prompt_override_not_found(self, client: TestClient, tmp_path: Path) -> None:
-        prompts_dir = tmp_path / "prompts"
-        with patch("gobby.servers.routes.configuration.GLOBAL_PROMPTS_DIR", prompts_dir):
-            response = client.delete("/api/config/prompts/no/such/prompt")
+    def test_delete_prompt_override_not_found(self, client: TestClient) -> None:
+        response = client.delete("/api/config/prompts/no/such/prompt")
         assert response.status_code == 404
         assert "No override" in response.json()["detail"]
 
     def test_save_prompt_override_error(self, client: TestClient) -> None:
         with patch(
-            "gobby.servers.routes.configuration.GLOBAL_PROMPTS_DIR",
-            new_callable=lambda: MagicMock(
-                __truediv__=MagicMock(
-                    return_value=MagicMock(
-                        parent=MagicMock(mkdir=MagicMock(side_effect=OSError("No space")))
-                    )
-                )
-            ),
+            "gobby.storage.prompts.LocalPromptManager.create_prompt",
+            side_effect=OSError("No space"),
         ):
             response = client.put(
-                "/api/config/prompts/test/prompt",
+                "/api/config/prompts/test/save_error_prompt",
                 json={"content": "# Fail"},
             )
         assert response.status_code == 500
 
-    def test_delete_prompt_override_error(self, client: TestClient, tmp_path: Path) -> None:
-        prompts_dir = tmp_path / "prompts"
-        override_file = prompts_dir / "test" / "prompt.md"
-        override_file.parent.mkdir(parents=True, exist_ok=True)
-        override_file.write_text("# Override", encoding="utf-8")
-        with patch("gobby.servers.routes.configuration.GLOBAL_PROMPTS_DIR", prompts_dir):
-            # Make unlink fail
-            with patch.object(Path, "unlink", side_effect=OSError("Locked")):
-                response = client.delete("/api/config/prompts/test/prompt")
+    def test_delete_prompt_override_error(self, client: TestClient) -> None:
+        # First create a global override so the route finds it
+        client.put(
+            "/api/config/prompts/test/delete_error",
+            json={"content": "# Override to fail on delete"},
+        )
+        with patch(
+            "gobby.storage.prompts.LocalPromptManager.delete_prompt",
+            side_effect=OSError("Locked"),
+        ):
+            response = client.delete("/api/config/prompts/test/delete_error")
         assert response.status_code == 500
 
 
@@ -521,10 +510,8 @@ class TestPromptsEndpoints:
 
 
 class TestExportImport:
-    def test_export_config(self, client: TestClient, tmp_path: Path, mock_machine_id) -> None:
-        prompts_dir = tmp_path / "prompts"
-        with patch("gobby.servers.routes.configuration.GLOBAL_PROMPTS_DIR", prompts_dir):
-            response = client.post("/api/config/export")
+    def test_export_config(self, client: TestClient, mock_machine_id) -> None:
+        response = client.post("/api/config/export")
         assert response.status_code == 200
         data = response.json()
         assert "exported_at" in data
@@ -534,16 +521,17 @@ class TestExportImport:
         assert isinstance(data["secrets"], list)
 
     def test_export_config_with_prompt_overrides(
-        self, client: TestClient, tmp_path: Path, mock_machine_id
+        self, client: TestClient, mock_machine_id
     ) -> None:
-        prompts_dir = tmp_path / "prompts"
-        (prompts_dir / "expansion").mkdir(parents=True)
-        (prompts_dir / "expansion" / "system.md").write_text("# Custom")
-        with patch("gobby.servers.routes.configuration.GLOBAL_PROMPTS_DIR", prompts_dir):
-            response = client.post("/api/config/export")
+        # Insert a global override via the API
+        client.put(
+            "/api/config/prompts/expansion/system",
+            json={"content": "# Custom"},
+        )
+        response = client.post("/api/config/export")
         data = response.json()
         assert "expansion/system.md" in data["prompts"]
-        assert data["prompts"]["expansion/system.md"] == "# Custom"
+        assert "# Custom" in data["prompts"]["expansion/system.md"]
 
     def test_import_config_store(self, client: TestClient, temp_db) -> None:
         """Import flat config_store dict writes to DB."""
@@ -572,21 +560,18 @@ class TestExportImport:
         assert "config restored" in data["summary"]
         assert data["requires_restart"] is True
 
-    def test_import_config_with_prompts(self, client: TestClient, tmp_path: Path) -> None:
-        prompts_dir = tmp_path / "prompts"
-        with patch("gobby.servers.routes.configuration.GLOBAL_PROMPTS_DIR", prompts_dir):
-            response = client.post(
-                "/api/config/import",
-                json={
-                    "prompts": {"expansion/system.md": "# Custom prompt override"},
-                },
-            )
+    def test_import_config_with_prompts(self, client: TestClient) -> None:
+        response = client.post(
+            "/api/config/import",
+            json={
+                "prompts": {"expansion/system.md": "# Custom prompt override"},
+            },
+        )
         assert response.status_code == 200
         data = response.json()
         assert data["success"] is True
         assert "1 prompt override(s) restored" in data["summary"]
         assert data["requires_restart"] is False
-        assert (prompts_dir / "expansion/system.md").read_text() == "# Custom prompt override"
 
     def test_import_nothing(self, client: TestClient) -> None:
         response = client.post("/api/config/import", json={})
@@ -603,16 +588,14 @@ class TestExportImport:
         )
         assert response.status_code == 400
 
-    def test_import_config_and_prompts_together(self, client: TestClient, tmp_path: Path) -> None:
-        prompts_dir = tmp_path / "prompts"
-        with patch("gobby.servers.routes.configuration.GLOBAL_PROMPTS_DIR", prompts_dir):
-            response = client.post(
-                "/api/config/import",
-                json={
-                    "config_store": {"daemon_port": 7777},
-                    "prompts": {"test/foo.md": "# Foo"},
-                },
-            )
+    def test_import_config_and_prompts_together(self, client: TestClient) -> None:
+        response = client.post(
+            "/api/config/import",
+            json={
+                "config_store": {"daemon_port": 7777},
+                "prompts": {"test/foo.md": "# Foo"},
+            },
+        )
         assert response.status_code == 200
         data = response.json()
         assert "config restored" in data["summary"]

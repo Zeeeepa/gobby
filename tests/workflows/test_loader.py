@@ -747,7 +747,7 @@ class TestMergeSteps:
 
 
 class TestDiscoverLifecycleWorkflows:
-    """Tests for discover_lifecycle_workflows method."""
+    """Tests for discover_workflows method (formerly discover_lifecycle_workflows)."""
 
     @pytest.mark.asyncio
     async def test_discover_from_global_directory(self, temp_workflow_dir) -> None:
@@ -766,7 +766,7 @@ settings:
         (global_dir / "session_start.yaml").write_text(workflow_yaml)
 
         loader = WorkflowLoader(workflow_dirs=[global_dir])
-        discovered = await loader.discover_lifecycle_workflows()
+        discovered = await loader.discover_workflows()
 
         assert len(discovered) == 1
         assert discovered[0].name == "session_start"
@@ -800,7 +800,7 @@ settings:
         (project_dir / "session_start.yaml").write_text(project_yaml)
 
         loader = WorkflowLoader(workflow_dirs=[global_dir])
-        discovered = await loader.discover_lifecycle_workflows(
+        discovered = await loader.discover_workflows(
             project_path=temp_workflow_dir / "project"
         )
 
@@ -827,7 +827,7 @@ settings:
             (global_dir / f"{name}.yaml").write_text(yaml_content)
 
         loader = WorkflowLoader(workflow_dirs=[global_dir])
-        discovered = await loader.discover_lifecycle_workflows()
+        discovered = await loader.discover_workflows()
 
         # Should be sorted: priority 50 first (b, c), then priority 100 (a)
         # Within same priority, alphabetical
@@ -884,9 +884,9 @@ type: lifecycle
         loader = WorkflowLoader(workflow_dirs=[global_dir])
 
         # First call
-        discovered1 = await loader.discover_lifecycle_workflows()
+        discovered1 = await loader.discover_workflows()
         # Second call should return cached
-        discovered2 = await loader.discover_lifecycle_workflows()
+        discovered2 = await loader.discover_workflows()
 
         assert discovered1 is discovered2
 
@@ -904,7 +904,7 @@ type: lifecycle
         (global_dir / "no_priority.yaml").write_text(yaml_content)
 
         loader = WorkflowLoader(workflow_dirs=[global_dir])
-        discovered = await loader.discover_lifecycle_workflows()
+        discovered = await loader.discover_workflows()
 
         assert len(discovered) == 1
         assert discovered[0].priority == 100
@@ -1053,7 +1053,7 @@ type: lifecycle
         loader = WorkflowLoader(workflow_dirs=[global_dir])
 
         # Populate cache
-        await loader.discover_lifecycle_workflows()
+        await loader.discover_workflows()
         assert len(loader._discovery_cache) > 0
 
         # Clear cache
@@ -1474,7 +1474,7 @@ settings:
         loader = WorkflowLoader(workflow_dirs=[global_dir])
 
         # First discovery
-        discovered1 = await loader.discover_lifecycle_workflows()
+        discovered1 = await loader.discover_workflows()
         assert len(discovered1) == 1
         assert discovered1[0].definition.version == "1.0.0"
         assert discovered1[0].priority == 10
@@ -1484,7 +1484,7 @@ settings:
         os.utime(yaml_path, (time.time() + 2, time.time() + 2))
 
         # Second discovery should detect stale cache and reload
-        discovered2 = await loader.discover_lifecycle_workflows()
+        discovered2 = await loader.discover_workflows()
         assert len(discovered2) == 1
         assert discovered2[0].definition.version == "2.0.0"
         assert discovered2[0].priority == 20
@@ -1505,7 +1505,7 @@ type: lifecycle
         loader = WorkflowLoader(workflow_dirs=[global_dir])
 
         # First discovery
-        discovered1 = await loader.discover_lifecycle_workflows()
+        discovered1 = await loader.discover_workflows()
         assert len(discovered1) == 1
 
         # Add a new file (changes directory mtime)
@@ -1518,7 +1518,7 @@ type: lifecycle
         os.utime(global_dir, (time.time() + 2, time.time() + 2))
 
         # Second discovery should detect new file via dir mtime change
-        discovered2 = await loader.discover_lifecycle_workflows()
+        discovered2 = await loader.discover_workflows()
         assert len(discovered2) == 2
         names = [w.name for w in discovered2]
         assert "existing" in names
@@ -1633,7 +1633,7 @@ class TestBundledFallback:
         empty_global.mkdir()
         loader = WorkflowLoader(workflow_dirs=[empty_global], bundled_dir=bundled_dir)
 
-        discovered = await loader.discover_lifecycle_workflows()
+        discovered = await loader.discover_workflows()
         names = [w.name for w in discovered]
         assert "bundled-lc" in names
 
@@ -1744,7 +1744,12 @@ class TestDiscoverWorkflows:
         unified = await loader.discover_workflows()
         # Clear discovery cache so the deprecated alias runs fresh
         loader._discovery_cache.clear()
-        deprecated = await loader.discover_lifecycle_workflows()
+
+        import warnings
+
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", DeprecationWarning)
+            deprecated = await loader.discover_lifecycle_workflows()
 
         assert [w.name for w in unified] == [w.name for w in deprecated]
 

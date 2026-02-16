@@ -5,6 +5,9 @@ from pathlib import Path
 import pytest
 
 from gobby.prompts.loader import PromptLoader
+from gobby.prompts.sync import sync_bundled_prompts
+from gobby.storage.database import LocalDatabase
+from gobby.storage.migrations import run_migrations
 
 pytestmark = pytest.mark.unit
 
@@ -18,9 +21,12 @@ class TestDedupDecisionPrompt:
     """Tests for memory/dedup_decision prompt template."""
 
     @pytest.fixture
-    def loader(self) -> PromptLoader:
-        """Create a PromptLoader pointing at bundled prompts."""
-        return PromptLoader(defaults_dir=PROMPTS_DIR)
+    def loader(self, tmp_path) -> PromptLoader:
+        """Create a DB-backed PromptLoader with bundled prompts synced."""
+        db = LocalDatabase(tmp_path / "test.db")
+        run_migrations(db)
+        sync_bundled_prompts(db)
+        return PromptLoader(db=db)
 
     def test_prompt_file_exists(self) -> None:
         """dedup_decision.md exists in the prompts directory."""

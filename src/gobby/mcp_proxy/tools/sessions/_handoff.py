@@ -304,16 +304,14 @@ Args:
                 try:
                     from gobby.prompts.loader import PromptLoader
 
-                    loader = PromptLoader()
+                    loader = PromptLoader(db=session_manager.db)
                     prompt_obj = loader.load("handoff/session_end")
                     prompt_template = prompt_obj.content
                 except FileNotFoundError:
                     pass
 
                 if not prompt_template:
-                    raise ValueError(
-                        "No prompt template found. Add ~/.gobby/prompts/handoff/session_end.md"
-                    )
+                    raise ValueError("No prompt template found for handoff/session_end")
 
                 # Prepare context for LLM
                 last_turns = transcript_parser.extract_turns_since_clear(turns, max_turns=50)

@@ -8,6 +8,6 @@ Provides externalized prompt management with:
 """
 
 from .loader import PromptLoader
-from .models import PromptTemplate, VariableSpec
+from .models import PromptTemplate, VariableSpec, parse_frontmatter
 
-__all__ = ["PromptLoader", "PromptTemplate", "VariableSpec"]
+__all__ = ["PromptLoader", "PromptTemplate", "VariableSpec", "parse_frontmatter"]

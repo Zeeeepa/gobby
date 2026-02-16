@@ -13,6 +13,7 @@ from typing import TYPE_CHECKING, Any
 if TYPE_CHECKING:
     from gobby.config.features import ToolSummarizerConfig
 from gobby.prompts import PromptLoader
+from gobby.storage.database import DatabaseProtocol
 
 logger = logging.getLogger(__name__)
 
@@ -24,13 +25,15 @@ _config: ToolSummarizerConfig | None = None
 _loader: PromptLoader | None = None
 
 
-def init_summarizer_config(config: ToolSummarizerConfig, project_dir: str | None = None) -> None:
+def init_summarizer_config(
+    config: ToolSummarizerConfig,
+    project_dir: str | None = None,
+    db: DatabaseProtocol | None = None,
+) -> None:
     """Initialize the summarizer with configuration."""
-    from pathlib import Path
-
     global _config, _loader
     _config = config
-    _loader = PromptLoader(project_dir=Path(project_dir) if project_dir else None)
+    _loader = PromptLoader(db=db)
 
 
 def _get_config() -> ToolSummarizerConfig:
@@ -39,11 +42,6 @@ def _get_config() -> ToolSummarizerConfig:
         return _config
     # Import here to avoid circular imports
     from gobby.config.features import ToolSummarizerConfig
-
-    # Ensure loader defaults exist even if init wasn't called
-    global _loader
-    if _loader is None:
-        _loader = PromptLoader()
 
     return ToolSummarizerConfig()
 

@@ -250,7 +250,9 @@ async def test_recommend_tools(daemon_tools, mock_mcp_manager):
     # The RecommendationService.recommend_tools accesses mcp_manager._configs
     mock_mcp_manager._configs = {"server1": MagicMock()}
 
-    result = await daemon_tools.recommend_tools("find logic")
+    with patch.object(daemon_tools.recommendation, "_loader") as mock_loader:
+        mock_loader.render.return_value = "Recommend tools for: {task}"
+        result = await daemon_tools.recommend_tools("find logic")
     assert result["success"] is True
     # The actual implementation returns a stubbed recommendation
     assert "recommendation" in result

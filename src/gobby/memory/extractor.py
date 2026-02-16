@@ -13,6 +13,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 from gobby.prompts.loader import PromptLoader
+from gobby.storage.database import DatabaseProtocol
 from gobby.workflows.summary_actions import format_turns_for_llm
 
 if TYPE_CHECKING:
@@ -70,6 +71,7 @@ class SessionMemoryExtractor:
         llm_service: LLMService,
         prompt_loader: PromptLoader | None = None,
         transcript_processor: Any | None = None,
+        db: DatabaseProtocol | None = None,
     ):
         """Initialize the extractor.
 
@@ -79,11 +81,13 @@ class SessionMemoryExtractor:
             llm_service: LLM service for analysis
             prompt_loader: Optional custom prompt loader
             transcript_processor: Optional transcript processor for parsing
+            db: Database connection (used to create default PromptLoader if prompt_loader not provided)
         """
         self.memory_manager = memory_manager
         self.session_manager = session_manager
         self.llm_service = llm_service
-        self.prompt_loader = prompt_loader or PromptLoader()
+        _db = db or getattr(memory_manager, "db", None)
+        self.prompt_loader = prompt_loader or PromptLoader(db=_db)
         self.transcript_processor = transcript_processor
 
     async def extract(

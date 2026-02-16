@@ -15,6 +15,7 @@ from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any, Literal
 
 from gobby.prompts.loader import PromptLoader
+from gobby.storage.database import DatabaseProtocol
 
 if TYPE_CHECKING:
     from gobby.llm.base import LLMProvider
@@ -65,12 +66,13 @@ class DedupService:
         storage: LocalMemoryManager,
         embed_fn: Callable[..., Any],
         prompt_loader: PromptLoader | None = None,
+        db: DatabaseProtocol | None = None,
     ):
         self.llm_provider = llm_provider
         self.vector_store = vector_store
         self.storage = storage
         self.embed_fn = embed_fn
-        self.prompt_loader = prompt_loader or PromptLoader()
+        self.prompt_loader = prompt_loader or PromptLoader(db=db)
 
     async def process(
         self,

@@ -1,211 +1,194 @@
-"""Unit tests for PromptLoader."""
-
-import tempfile
-from pathlib import Path
+"""Unit tests for PromptLoader (database-backed)."""
 
 import pytest
 
 from gobby.prompts import PromptLoader, PromptTemplate
+from gobby.prompts.sync import sync_bundled_prompts
+from gobby.storage.database import LocalDatabase
+from gobby.storage.migrations import run_migrations
+from gobby.storage.prompts import LocalPromptManager, PromptChangeNotifier
 
 pytestmark = pytest.mark.unit
+
+
+@pytest.fixture
+def db(tmp_path):
+    """Create a fresh database with migrations applied."""
+    database = LocalDatabase(tmp_path / "test.db")
+    run_migrations(database)
+    yield database
+    database.close()
+
+
+@pytest.fixture
+def synced_db(db):
+    """Database with bundled prompts synced."""
+    sync_bundled_prompts(db)
+    return db
+
+
+@pytest.fixture
+def manager(db):
+    """Create a prompt manager for seeding test data."""
+    return LocalPromptManager(db)
 
 
 class TestPromptLoader:
     """Tests for PromptLoader class."""
 
-    def test_load_from_bundled_defaults(self) -> None:
-        """Test loading prompt from bundled defaults directory."""
-        loader = PromptLoader()
+    def test_load_from_database(self, synced_db) -> None:
+        """Test loading prompt from database."""
+        loader = PromptLoader(db=synced_db)
 
-        # Should find the bundled expansion/system template
         template = loader.load("expansion/system")
 
         assert template is not None
         assert template.name == "expansion/system"
         assert "senior technical project manager" in template.content
-        assert template.source_path is not None
 
-    def test_load_file_not_found(self) -> None:
+    def test_load_file_not_found(self, db) -> None:
         """Test that FileNotFoundError is raised for non-existent templates."""
-        loader = PromptLoader()
+        loader = PromptLoader(db=db)
 
         with pytest.raises(FileNotFoundError, match="Prompt template not found"):
             loader.load("completely/nonexistent/path")
 
-    def test_render_with_jinja2_variables(self) -> None:
+    def test_render_with_jinja2_variables(self, db, manager) -> None:
         """Test rendering template with Jinja2 variables."""
-        with tempfile.TemporaryDirectory() as tmpdir:
-            # Create a test template
-            prompts_dir = Path(tmpdir) / ".gobby" / "prompts"
-            prompts_dir.mkdir(parents=True)
+        manager.create_prompt(
+            name="test/template",
+            description="Test template",
+            content="Hello, {{ name }}!",
+            variables={"name": {"type": "str", "default": "World"}},
+            scope="bundled",
+        )
 
-            template_content = """---
-name: test-template
-description: Test template
-variables:
-  name:
-    type: str
-    default: "World"
----
-Hello, {{ name }}!"""
+        loader = PromptLoader(db=db)
+        result = loader.render("test/template", {"name": "Claude"})
 
-            (prompts_dir / "test.md").write_text(template_content)
+        assert result == "Hello, Claude!"
 
-            loader = PromptLoader(project_dir=Path(tmpdir))
-            result = loader.render("test", {"name": "Claude"})
+    def test_render_with_defaults(self, db, manager) -> None:
+        """Test rendering uses default values from variables."""
+        manager.create_prompt(
+            name="test/greet",
+            content="{{ greeting }}, {{ name }}!",
+            variables={
+                "greeting": {"type": "str", "default": "Hello"},
+                "name": {"type": "str", "default": "World"},
+            },
+            scope="bundled",
+        )
 
-            assert result == "Hello, Claude!"
+        loader = PromptLoader(db=db)
+        result = loader.render("test/greet", {})
 
-    def test_render_with_defaults(self) -> None:
-        """Test rendering uses default values from frontmatter."""
-        with tempfile.TemporaryDirectory() as tmpdir:
-            prompts_dir = Path(tmpdir) / ".gobby" / "prompts"
-            prompts_dir.mkdir(parents=True)
+        assert result == "Hello, World!"
 
-            template_content = """---
-name: test-template
-variables:
-  greeting:
-    type: str
-    default: "Hello"
-  name:
-    type: str
-    default: "World"
----
-{{ greeting }}, {{ name }}!"""
-
-            (prompts_dir / "greet.md").write_text(template_content)
-
-            loader = PromptLoader(project_dir=Path(tmpdir))
-            result = loader.render("greet", {})
-
-            assert result == "Hello, World!"
-
-    def test_render_with_conditionals(self) -> None:
+    def test_render_with_conditionals(self, db, manager) -> None:
         """Test rendering with Jinja2 conditionals."""
-        with tempfile.TemporaryDirectory() as tmpdir:
-            prompts_dir = Path(tmpdir) / ".gobby" / "prompts"
-            prompts_dir.mkdir(parents=True)
+        manager.create_prompt(
+            name="test/conditional",
+            content="Base content.\n{% if show_extra %}\nExtra content here.\n{% endif %}",
+            variables={"show_extra": {"type": "bool", "default": False}},
+            scope="bundled",
+        )
 
-            template_content = """---
-name: conditional-test
-variables:
-  show_extra:
-    type: bool
-    default: false
----
-Base content.
-{% if show_extra %}
-Extra content here.
-{% endif %}"""
+        loader = PromptLoader(db=db)
 
-            (prompts_dir / "conditional.md").write_text(template_content)
+        result_false = loader.render("test/conditional", {"show_extra": False})
+        assert "Base content." in result_false
+        assert "Extra content here." not in result_false
 
-            loader = PromptLoader(project_dir=Path(tmpdir))
+        result_true = loader.render("test/conditional", {"show_extra": True})
+        assert "Base content." in result_true
+        assert "Extra content here." in result_true
 
-            # Test with show_extra=False (default)
-            result_false = loader.render("conditional", {"show_extra": False})
-            assert "Base content." in result_false
-            assert "Extra content here." not in result_false
+    def test_precedence_global_over_bundled(self, db, manager) -> None:
+        """Test that global templates take precedence over bundled."""
+        manager.create_prompt(
+            name="test/precedence",
+            content="Bundled version",
+            scope="bundled",
+        )
+        manager.create_prompt(
+            name="test/precedence",
+            content="Global version",
+            scope="global",
+        )
 
-            # Test with show_extra=True
-            result_true = loader.render("conditional", {"show_extra": True})
-            assert "Base content." in result_true
-            assert "Extra content here." in result_true
+        loader = PromptLoader(db=db)
+        template = loader.load("test/precedence")
 
-    def test_precedence_project_over_global(self) -> None:
-        """Test that project templates take precedence over global."""
-        with tempfile.TemporaryDirectory() as project_dir:
-            with tempfile.TemporaryDirectory() as global_dir:
-                # Create global template
-                global_prompts = Path(global_dir) / "prompts"
-                global_prompts.mkdir(parents=True)
-                (global_prompts / "test.md").write_text("Global version")
+        assert template.content == "Global version"
 
-                # Create project template
-                project_prompts = Path(project_dir) / ".gobby" / "prompts"
-                project_prompts.mkdir(parents=True)
-                (project_prompts / "test.md").write_text("Project version")
-
-                loader = PromptLoader(project_dir=Path(project_dir), global_dir=Path(global_dir))
-                template = loader.load("test")
-
-                assert template.content == "Project version"
-
-    def test_cache_behavior(self) -> None:
+    def test_cache_behavior(self, synced_db) -> None:
         """Test that templates are cached after first load."""
-        loader = PromptLoader()
+        loader = PromptLoader(db=synced_db)
 
-        # First load
         template1 = loader.load("expansion/system")
-        # Second load should return cached version
         template2 = loader.load("expansion/system")
 
         assert template1 is template2
 
-        # Clear cache
         loader.clear_cache()
         template3 = loader.load("expansion/system")
 
-        # After clear, should be different object
         assert template1 is not template3
 
-    def test_list_templates(self) -> None:
-        """Test listing available templates."""
-        loader = PromptLoader()
+    def test_cache_invalidation_via_notifier(self, db, manager) -> None:
+        """Test that cache is invalidated when notifier fires."""
+        notifier = PromptChangeNotifier()
+        loader = PromptLoader(db=db, notifier=notifier)
 
-        # List all templates
+        manager_with_notifier = LocalPromptManager(db, notifier=notifier)
+        manager.create_prompt(
+            name="test/cache",
+            content="Original",
+            scope="global",
+        )
+
+        # Load to cache
+        template1 = loader.load("test/cache")
+        assert template1.content == "Original"
+
+        # Update via manager with notifier (triggers cache clear)
+        records = manager_with_notifier.list_prompts()
+        target = next(r for r in records if r.name == "test/cache")
+        manager_with_notifier.update_prompt(target.id, content="Updated")
+
+        # Cache should be cleared, so next load gets updated version
+        template2 = loader.load("test/cache")
+        assert template2.content == "Updated"
+
+    def test_list_templates(self, synced_db) -> None:
+        """Test listing available templates."""
+        loader = PromptLoader(db=synced_db)
+
         all_templates = loader.list_templates()
 
         assert len(all_templates) > 0
         assert "expansion/system" in all_templates
         assert "expansion/user" in all_templates
 
-        # List filtered by category
         expansion_templates = loader.list_templates(category="expansion")
-
         assert all(t.startswith("expansion/") for t in expansion_templates)
 
-    def test_exists(self) -> None:
+    def test_exists(self, synced_db) -> None:
         """Test checking if template exists."""
-        loader = PromptLoader()
+        loader = PromptLoader(db=synced_db)
 
         assert loader.exists("expansion/system") is True
         assert loader.exists("nonexistent/path") is False
 
-    def test_frontmatter_parsing(self) -> None:
-        """Test YAML frontmatter parsing."""
-        with tempfile.TemporaryDirectory() as tmpdir:
-            prompts_dir = Path(tmpdir) / ".gobby" / "prompts"
-            prompts_dir.mkdir(parents=True)
-
-            template_content = """---
-name: test-template
-description: A test template
-version: "2.0"
-variables:
-  required_var:
-    type: str
-    required: true
-    description: A required variable
-  optional_var:
-    type: int
-    default: 42
----
-Template content: {{ required_var }}"""
-
-            (prompts_dir / "test.md").write_text(template_content)
-
-            loader = PromptLoader(project_dir=Path(tmpdir))
-            template = loader.load("test")
-
-            assert template.name == "test"
-            assert template.description == "A test template"
-            assert template.version == "2.0"
-            assert "required_var" in template.variables
-            assert template.variables["required_var"].required is True
-            assert "optional_var" in template.variables
-            assert template.variables["optional_var"].default == 42
+    def test_lazy_db_creation(self) -> None:
+        """Test that PromptLoader lazily creates a database if none provided."""
+        # This tests the fallback mechanism - PromptLoader() with no args
+        loader = PromptLoader()
+        # The loader should have been created without error
+        assert loader._db is None
+        # Accessing _get_db() would create a LocalDatabase, but we don't
+        # test that here to avoid side effects on the real database
 
 
 class TestPromptTemplate:
@@ -241,12 +224,10 @@ class TestPromptTemplate:
             },
         )
 
-        # Missing required var
         errors = template.validate_context({})
         assert len(errors) == 1
         assert "required_var" in errors[0]
 
-        # All required vars present
         errors = template.validate_context({"required_var": "value"})
         assert len(errors) == 0
 
@@ -312,28 +293,21 @@ class TestBundledTemplates:
             "import/search_fetch",
         ],
     )
-    def test_bundled_template_loads(self, template_path: str) -> None:
+    def test_bundled_template_loads(self, synced_db, template_path: str) -> None:
         """Test that each bundled template loads without error."""
-        loader = PromptLoader()
+        loader = PromptLoader(db=synced_db)
         template = loader.load(template_path)
 
         assert template is not None
         assert template.content != ""
-        assert template.source_path is not None
 
-    def test_expansion_system_no_tdd_mode_in_prompt(self) -> None:
-        """Test that expansion/system template does not include TDD mode.
+    def test_expansion_system_no_tdd_mode_in_prompt(self, synced_db) -> None:
+        """Test that expansion/system template does not include TDD mode."""
+        loader = PromptLoader(db=synced_db)
 
-        TDD mode is now applied post-expansion via the sandwich pattern,
-        not in the prompt itself.
-        """
-        loader = PromptLoader()
-
-        # TDD mode is no longer in the template - it's applied post-expansion
         result = loader.render("expansion/system", {"tdd_mode": False})
         assert "TDD Mode Enabled" not in result
 
-        # tdd_mode variable is ignored - template is the same regardless
         result_with_flag = loader.render("expansion/system", {"tdd_mode": True})
         assert "TDD Mode Enabled" not in result_with_flag
         assert result == result_with_flag

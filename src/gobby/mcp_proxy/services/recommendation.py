@@ -9,6 +9,7 @@ from typing import TYPE_CHECKING, Any, Literal
 if TYPE_CHECKING:
     from gobby.config.features import RecommendToolsConfig
 from gobby.prompts import PromptLoader
+from gobby.storage.database import DatabaseProtocol
 
 logger = logging.getLogger("gobby.mcp.server")
 
@@ -26,13 +27,14 @@ class RecommendationService:
         semantic_search: Any | None = None,
         project_id: str | None = None,
         config: RecommendToolsConfig | None = None,
+        db: DatabaseProtocol | None = None,
     ):
         self._llm_service = llm_service
         self._mcp_manager = mcp_manager
         self._semantic_search = semantic_search
         self._project_id = project_id
         self._config = config
-        self._loader = PromptLoader()
+        self._loader = PromptLoader(db=db)
 
     def _get_config(self) -> RecommendToolsConfig:
         """Get config with fallback to defaults."""
