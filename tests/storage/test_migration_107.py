@@ -9,7 +9,7 @@ pytestmark = pytest.mark.unit
 
 
 @pytest.fixture
-def db(tmp_path):
+def db(tmp_path) -> LocalDatabase:
     """Fresh database with all migrations applied."""
     database = LocalDatabase(tmp_path / "gobby-hub.db")
     run_migrations(database)
@@ -101,9 +101,7 @@ class TestMigration107Upgrade:
                 updated_at TEXT NOT NULL DEFAULT (datetime('now'))
             )
         """)
-        database.execute(
-            "INSERT INTO projects (id, name) VALUES ('proj-1', 'test-project')"
-        )
+        database.execute("INSERT INTO projects (id, name) VALUES ('proj-1', 'test-project')")
 
         # Create agent_definitions as it would exist at v106 (after migrations 92+94,
         # but without scope/source_path/version columns — no CHECK constraint)
@@ -145,12 +143,8 @@ class TestMigration107Upgrade:
             "CREATE UNIQUE INDEX idx_agent_defs_global_name "
             "ON agent_definitions(name) WHERE project_id IS NULL"
         )
-        database.execute(
-            "CREATE INDEX idx_agent_defs_project ON agent_definitions(project_id)"
-        )
-        database.execute(
-            "CREATE INDEX idx_agent_defs_provider ON agent_definitions(provider)"
-        )
+        database.execute("CREATE INDEX idx_agent_defs_project ON agent_definitions(project_id)")
+        database.execute("CREATE INDEX idx_agent_defs_provider ON agent_definitions(provider)")
 
         # Seed some rows to verify data survives the recreate
         database.execute(
@@ -175,9 +169,7 @@ class TestMigration107Upgrade:
     def test_upgrade_preserves_global_row(self, upgrade_db: LocalDatabase) -> None:
         """Global agent rows should survive and get scope='global'."""
         run_migrations(upgrade_db)
-        row = upgrade_db.fetchone(
-            "SELECT * FROM agent_definitions WHERE id = 'global-1'"
-        )
+        row = upgrade_db.fetchone("SELECT * FROM agent_definitions WHERE id = 'global-1'")
         assert row is not None
         assert row["name"] == "agent-global"
         assert row["scope"] == "global"
@@ -186,9 +178,7 @@ class TestMigration107Upgrade:
     def test_upgrade_backfills_project_scope(self, upgrade_db: LocalDatabase) -> None:
         """Rows with project_id should get scope='project'."""
         run_migrations(upgrade_db)
-        row = upgrade_db.fetchone(
-            "SELECT * FROM agent_definitions WHERE id = 'proj-1-def'"
-        )
+        row = upgrade_db.fetchone("SELECT * FROM agent_definitions WHERE id = 'proj-1-def'")
         assert row is not None
         assert row["scope"] == "project"
         assert row["project_id"] == "proj-1"
@@ -196,18 +186,14 @@ class TestMigration107Upgrade:
     def test_upgrade_sets_version_default(self, upgrade_db: LocalDatabase) -> None:
         """version column should default to '1.0' for migrated rows."""
         run_migrations(upgrade_db)
-        row = upgrade_db.fetchone(
-            "SELECT version FROM agent_definitions WHERE id = 'global-1'"
-        )
+        row = upgrade_db.fetchone("SELECT version FROM agent_definitions WHERE id = 'global-1'")
         assert row is not None
         assert row["version"] == "1.0"
 
     def test_upgrade_source_path_null(self, upgrade_db: LocalDatabase) -> None:
         """source_path should be NULL for migrated rows."""
         run_migrations(upgrade_db)
-        row = upgrade_db.fetchone(
-            "SELECT source_path FROM agent_definitions WHERE id = 'global-1'"
-        )
+        row = upgrade_db.fetchone("SELECT source_path FROM agent_definitions WHERE id = 'global-1'")
         assert row is not None
         assert row["source_path"] is None
 

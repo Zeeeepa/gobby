@@ -135,14 +135,6 @@ class ChatMixin:
             conversation_id, HookEventType.STOP, data
         )
 
-        # Apply chat history limits from config if available
-        daemon_config = getattr(self, "daemon_config", None)
-        if daemon_config is not None:
-            chat_history_cfg = getattr(daemon_config, "chat_history", None)
-            if chat_history_cfg is not None:
-                session._max_history_message_chars = chat_history_cfg.max_message_chars
-                session._max_history_total_chars = chat_history_cfg.max_total_chars
-
         await session.start(model=model)
         self._chat_sessions[conversation_id] = session
 

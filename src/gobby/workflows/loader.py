@@ -99,7 +99,9 @@ class WorkflowLoader(WorkflowLoaderSyncMixin):
             # Resolve extends from DB
             if "extends" in data:
                 parent_name = data["extends"]
-                parent_def = self._load_from_db(parent_name, project_id=project_id, _visited=_visited)
+                parent_def = self._load_from_db(
+                    parent_name, project_id=project_id, _visited=_visited
+                )
                 if parent_def:
                     data = self._merge_workflows(parent_def.model_dump(), data)
                 else:
@@ -209,7 +211,7 @@ class WorkflowLoader(WorkflowLoaderSyncMixin):
 
         # DB lookup (the only runtime source)
         project_id = str(project_path) if project_path else None
-        visited = set(_inheritance_chain) if _inheritance_chain else None
+        visited = set(_inheritance_chain) if _inheritance_chain else set()
         db_definition = self._load_from_db(name, project_id=project_id, _visited=visited)
         if db_definition is not None:
             self._cache[cache_key] = _CachedEntry(definition=db_definition, path=None, mtime=0.0)
