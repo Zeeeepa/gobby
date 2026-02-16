@@ -150,6 +150,8 @@ class TestPipelineExecutorInit:
 
         assert executor.template_engine is mock_template_engine
         assert executor.webhook_notifier is mock_webhook_notifier
+        assert executor.renderer is not None
+        assert executor.approval_manager is not None
 
 
 class TestPipelineExecutorExecute:
@@ -367,16 +369,10 @@ class TestExecuteExecStep:
         self, mock_db, mock_execution_manager, mock_llm_service
     ) -> None:
         """Test that exec step runs a shell command."""
-        from gobby.workflows.pipeline_executor import PipelineExecutor
-
-        executor = PipelineExecutor(
-            db=mock_db,
-            execution_manager=mock_execution_manager,
-            llm_service=mock_llm_service,
-        )
+        from gobby.workflows.pipeline.handlers import execute_exec_step
 
         context: dict = {"inputs": {}, "steps": {}}
-        result = await executor._execute_exec_step("echo hello", context)
+        result = await execute_exec_step("echo hello", context)
 
         assert result is not None
         assert "stdout" in result
@@ -387,16 +383,10 @@ class TestExecuteExecStep:
         self, mock_db, mock_execution_manager, mock_llm_service
     ) -> None:
         """Test that exec step captures stdout."""
-        from gobby.workflows.pipeline_executor import PipelineExecutor
-
-        executor = PipelineExecutor(
-            db=mock_db,
-            execution_manager=mock_execution_manager,
-            llm_service=mock_llm_service,
-        )
+        from gobby.workflows.pipeline.handlers import execute_exec_step
 
         context: dict = {"inputs": {}, "steps": {}}
-        result = await executor._execute_exec_step("echo 'test output'", context)
+        result = await execute_exec_step("echo 'test output'", context)
 
         assert result["stdout"].strip() == "test output"
         assert result["exit_code"] == 0
@@ -406,17 +396,11 @@ class TestExecuteExecStep:
         self, mock_db, mock_execution_manager, mock_llm_service
     ) -> None:
         """Test that exec step captures stderr."""
-        from gobby.workflows.pipeline_executor import PipelineExecutor
-
-        executor = PipelineExecutor(
-            db=mock_db,
-            execution_manager=mock_execution_manager,
-            llm_service=mock_llm_service,
-        )
+        from gobby.workflows.pipeline.handlers import execute_exec_step
 
         context: dict = {"inputs": {}, "steps": {}}
         # Use Python to write to stderr (no shell redirection needed)
-        result = await executor._execute_exec_step(
+        result = await execute_exec_step(
             "python -c \"import sys; sys.stderr.write('error\\n')\"", context
         )
 
@@ -428,16 +412,10 @@ class TestExecuteExecStep:
         self, mock_db, mock_execution_manager, mock_llm_service
     ) -> None:
         """Test that exec step handles command failure gracefully."""
-        from gobby.workflows.pipeline_executor import PipelineExecutor
-
-        executor = PipelineExecutor(
-            db=mock_db,
-            execution_manager=mock_execution_manager,
-            llm_service=mock_llm_service,
-        )
+        from gobby.workflows.pipeline.handlers import execute_exec_step
 
         context: dict = {"inputs": {}, "steps": {}}
-        result = await executor._execute_exec_step("exit 1", context)
+        result = await execute_exec_step("exit 1", context)
 
         assert result["exit_code"] == 1
 
@@ -446,16 +424,10 @@ class TestExecuteExecStep:
         self, mock_db, mock_execution_manager, mock_llm_service
     ) -> None:
         """Test that exec step handles non-existent commands."""
-        from gobby.workflows.pipeline_executor import PipelineExecutor
-
-        executor = PipelineExecutor(
-            db=mock_db,
-            execution_manager=mock_execution_manager,
-            llm_service=mock_llm_service,
-        )
+        from gobby.workflows.pipeline.handlers import execute_exec_step
 
         context: dict = {"inputs": {}, "steps": {}}
-        result = await executor._execute_exec_step("nonexistent_command_xyz_123", context)
+        result = await execute_exec_step("nonexistent_command_xyz_123", context)
 
         # Should have non-zero exit code
         assert result["exit_code"] != 0
@@ -465,16 +437,10 @@ class TestExecuteExecStep:
         self, mock_db, mock_execution_manager, mock_llm_service
     ) -> None:
         """Test that exec step returns dict with stdout, stderr, exit_code."""
-        from gobby.workflows.pipeline_executor import PipelineExecutor
-
-        executor = PipelineExecutor(
-            db=mock_db,
-            execution_manager=mock_execution_manager,
-            llm_service=mock_llm_service,
-        )
+        from gobby.workflows.pipeline.handlers import execute_exec_step
 
         context: dict = {"inputs": {}, "steps": {}}
-        result = await executor._execute_exec_step("echo test", context)
+        result = await execute_exec_step("echo test", context)
 
         assert isinstance(result, dict)
         assert "stdout" in result
@@ -490,20 +456,14 @@ class TestExecutePromptStep:
         self, mock_db, mock_execution_manager, mock_llm_service
     ) -> None:
         """Test that prompt step calls the LLM service."""
-        from gobby.workflows.pipeline_executor import PipelineExecutor
+        from gobby.workflows.pipeline.handlers import execute_prompt_step
 
         mock_llm_service.get_default_provider.return_value.generate_text.return_value = (
             "LLM response text"
         )
 
-        executor = PipelineExecutor(
-            db=mock_db,
-            execution_manager=mock_execution_manager,
-            llm_service=mock_llm_service,
-        )
-
         context: dict = {"inputs": {}, "steps": {}}
-        await executor._execute_prompt_step("Analyze this data", context)
+        await execute_prompt_step("Analyze this data", context, mock_llm_service)
 
         mock_llm_service.get_default_provider.return_value.generate_text.assert_called_once()
 
@@ -512,20 +472,14 @@ class TestExecutePromptStep:
         self, mock_db, mock_execution_manager, mock_llm_service
     ) -> None:
         """Test that prompt step returns the LLM response."""
-        from gobby.workflows.pipeline_executor import PipelineExecutor
+        from gobby.workflows.pipeline.handlers import execute_prompt_step
 
         mock_llm_service.get_default_provider.return_value.generate_text.return_value = (
             "Generated analysis"
         )
 
-        executor = PipelineExecutor(
-            db=mock_db,
-            execution_manager=mock_execution_manager,
-            llm_service=mock_llm_service,
-        )
-
         context: dict = {"inputs": {}, "steps": {}}
-        result = await executor._execute_prompt_step("Analyze this", context)
+        result = await execute_prompt_step("Analyze this", context, mock_llm_service)
 
         assert result is not None
         assert "response" in result
@@ -536,18 +490,12 @@ class TestExecutePromptStep:
         self, mock_db, mock_execution_manager, mock_llm_service
     ) -> None:
         """Test that prompt step passes the prompt text to LLM."""
-        from gobby.workflows.pipeline_executor import PipelineExecutor
+        from gobby.workflows.pipeline.handlers import execute_prompt_step
 
         mock_llm_service.get_default_provider.return_value.generate_text.return_value = "Response"
 
-        executor = PipelineExecutor(
-            db=mock_db,
-            execution_manager=mock_execution_manager,
-            llm_service=mock_llm_service,
-        )
-
         context: dict = {"inputs": {}, "steps": {}}
-        await executor._execute_prompt_step("Generate a report", context)
+        await execute_prompt_step("Generate a report", context, mock_llm_service)
 
         # Check the prompt was passed
         call_args = mock_llm_service.get_default_provider.return_value.generate_text.call_args
@@ -558,20 +506,14 @@ class TestExecutePromptStep:
         self, mock_db, mock_execution_manager, mock_llm_service
     ) -> None:
         """Test that prompt step handles LLM errors gracefully."""
-        from gobby.workflows.pipeline_executor import PipelineExecutor
+        from gobby.workflows.pipeline.handlers import execute_prompt_step
 
         mock_llm_service.get_default_provider.return_value.generate_text.side_effect = Exception(
             "LLM API error"
         )
 
-        executor = PipelineExecutor(
-            db=mock_db,
-            execution_manager=mock_execution_manager,
-            llm_service=mock_llm_service,
-        )
-
         context: dict = {"inputs": {}, "steps": {}}
-        result = await executor._execute_prompt_step("Generate something", context)
+        result = await execute_prompt_step("Generate something", context, mock_llm_service)
 
         # Should return error in response
         assert result is not None
@@ -582,20 +524,14 @@ class TestExecutePromptStep:
         self, mock_db, mock_execution_manager, mock_llm_service
     ) -> None:
         """Test that prompt step returns proper dict structure."""
-        from gobby.workflows.pipeline_executor import PipelineExecutor
+        from gobby.workflows.pipeline.handlers import execute_prompt_step
 
         mock_llm_service.get_default_provider.return_value.generate_text.return_value = (
             "Test response"
         )
 
-        executor = PipelineExecutor(
-            db=mock_db,
-            execution_manager=mock_execution_manager,
-            llm_service=mock_llm_service,
-        )
-
         context: dict = {"inputs": {}, "steps": {}}
-        result = await executor._execute_prompt_step("Test prompt", context)
+        result = await execute_prompt_step("Test prompt", context, mock_llm_service)
 
         assert isinstance(result, dict)
         assert "response" in result
@@ -717,7 +653,7 @@ class TestConditionEvaluation:
         step = PipelineStep(id="step1", exec="echo test")
         context: dict = {"inputs": {}, "steps": {}}
 
-        result = executor._should_run_step(step, context)
+        result = executor.renderer.should_run_step(step, context)
 
         assert result is True
 
@@ -737,7 +673,7 @@ class TestConditionEvaluation:
         step = PipelineStep(id="step1", exec="echo test", condition="True")
         context: dict = {"inputs": {}, "steps": {}}
 
-        result = executor._should_run_step(step, context)
+        result = executor.renderer.should_run_step(step, context)
 
         assert result is True
 
@@ -757,7 +693,7 @@ class TestConditionEvaluation:
         step = PipelineStep(id="step1", exec="echo test", condition="False")
         context: dict = {"inputs": {}, "steps": {}}
 
-        result = executor._should_run_step(step, context)
+        result = executor.renderer.should_run_step(step, context)
 
         assert result is False
 
@@ -779,7 +715,7 @@ class TestConditionEvaluation:
         )
         context: dict = {"inputs": {"mode": "deploy"}, "steps": {}}
 
-        result = executor._should_run_step(step, context)
+        result = executor.renderer.should_run_step(step, context)
 
         assert result is True
 

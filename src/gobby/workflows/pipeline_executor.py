@@ -4,17 +4,23 @@ from __future__ import annotations
 
 import json
 import logging
-import secrets
-import shlex
 from typing import TYPE_CHECKING, Any
 
+from gobby.workflows.pipeline.gatekeeper import ApprovalManager
+from gobby.workflows.pipeline.handlers import (
+    execute_activate_workflow_step,
+    execute_exec_step,
+    execute_mcp_step,
+    execute_prompt_step,
+    execute_spawn_session_step,
+)
+from gobby.workflows.pipeline.renderer import StepRenderer
 from gobby.workflows.pipeline_state import (
     ApprovalRequired,
     ExecutionStatus,
     PipelineExecution,
     StepStatus,
 )
-from gobby.workflows.safe_evaluator import SafeExpressionEvaluator
 
 if TYPE_CHECKING:
     from gobby.storage.database import DatabaseProtocol
@@ -72,13 +78,19 @@ class PipelineExecutor:
         self.db = db
         self.execution_manager = execution_manager
         self.llm_service = llm_service
-        self.template_engine = template_engine
         self.webhook_notifier = webhook_notifier
         self.loader = loader
         self.event_callback = event_callback
         self.tool_proxy_getter = tool_proxy_getter
         self.spawner = spawner
         self.session_manager = session_manager
+
+        self.renderer = StepRenderer(template_engine)
+        self.approval_manager = ApprovalManager(
+            execution_manager=execution_manager,
+            webhook_notifier=webhook_notifier,
+            event_callback=event_callback,
+        )
 
     async def _emit_event(self, event: str, execution_id: str, **kwargs: Any) -> None:
         """Emit a pipeline event via the callback if configured.
@@ -197,7 +209,7 @@ class PipelineExecutor:
                     )
 
                 # Check if step should run based on condition
-                if not self._should_run_step(step, context):
+                if not self.renderer.should_run_step(step, context):
                     # Skip this step
                     self.execution_manager.update_step_execution(
                         step_execution_id=step_execution.id,
@@ -230,7 +242,9 @@ class PipelineExecutor:
                 )
 
                 # Check for approval gate
-                await self._check_approval_gate(step, execution, step_execution, pipeline)
+                await self.approval_manager.check_approval_gate(
+                    step, execution, step_execution, pipeline
+                )
 
                 # Execute the step
                 step_output = await self._execute_step(step, context, project_id)
@@ -302,25 +316,16 @@ class PipelineExecutor:
         context: dict[str, Any],
         project_id: str,
     ) -> Any:
-        """Execute a single pipeline step.
-
-        Args:
-            step: The step to execute
-            context: Current execution context with inputs and step outputs
-            project_id: Project context
-
-        Returns:
-            The step's output value
-        """
+        """Execute a single pipeline step."""
         # Render any template variables in the step
-        rendered_step = self._render_step(step, context)
+        rendered_step = self.renderer.render_step(step, context)
 
         if step.exec:
             # Execute shell command
-            return await self._execute_exec_step(rendered_step.exec, context)
+            return await execute_exec_step(rendered_step.exec, context)
         elif step.prompt:
             # Execute LLM prompt
-            return await self._execute_prompt_step(rendered_step.prompt, context)
+            return await execute_prompt_step(rendered_step.prompt, context, self.llm_service)
         elif step.invoke_pipeline:
             # Execute nested pipeline
             return await self._execute_nested_pipeline(
@@ -328,307 +333,28 @@ class PipelineExecutor:
             )
         elif step.mcp:
             # Execute MCP tool call
-            return await self._execute_mcp_step(rendered_step, context)
+            return await execute_mcp_step(rendered_step, context, self.tool_proxy_getter)
         elif step.spawn_session:
             # Spawn a CLI session via tmux
-            return await self._execute_spawn_session_step(rendered_step, context, project_id)
+            return await execute_spawn_session_step(
+                rendered_step,
+                context,
+                project_id,
+                self.spawner,
+                self.session_manager,
+            )
         elif step.activate_workflow:
             # Activate a workflow on a session
-            return await self._execute_activate_workflow_step(rendered_step, context)
+            return await execute_activate_workflow_step(
+                rendered_step,
+                context,
+                self.loader,
+                self.session_manager,
+                self.db,
+            )
         else:
             logger.warning(f"Step {step.id} has no action defined")
             return None
-
-    def _render_step(self, step: Any, context: dict[str, Any]) -> Any:
-        """Render template variables in step fields.
-
-        Args:
-            step: The step to render
-            context: Context with variables for substitution
-
-        Returns:
-            Step with rendered fields
-        """
-        if not self.template_engine:
-            return step
-
-        template_engine = self.template_engine
-
-        import os
-        import re
-
-        # Build render context
-        render_context = {
-            "inputs": context.get("inputs", {}),
-            "steps": context.get("steps", {}),
-            "env": os.environ,
-        }
-
-        def render_string(s: str) -> str:
-            if not s:
-                return s
-            # Replace ${{ ... }} with {{ ... }} for Jinja2
-            # Use dotall to allow multi-line expressions
-            jinja_template = re.sub(r"\$\{\{(.*?)\}\}", r"{{\1}}", s, flags=re.DOTALL)
-
-            # If no changes (no ${{ }}), we might still want to run it through jinja
-            # if we wanted to support direct {{ }} syntax too.
-            # But the requirement highlights ${{ }}.
-            # If the user provides {{ }}, it will also be rendered by Jinja.
-
-            return template_engine.render(jinja_template, render_context)
-
-        def _coerce_value(value: str) -> Any:
-            """Auto-coerce rendered string values to native types.
-
-            After template rendering, values like "${{ inputs.timeout }}" become "600" (string).
-            MCP tools expect native types, so coerce: "600" → 600, "true" → True, etc.
-            """
-            if not isinstance(value, str):
-                return value
-            # Boolean
-            if value.lower() == "true":
-                return True
-            if value.lower() == "false":
-                return False
-            # Null
-            if value.lower() in ("null", "none"):
-                return None
-            # Integer
-            try:
-                return int(value)
-            except ValueError:
-                pass
-            # Float
-            try:
-                return float(value)
-            except ValueError:
-                pass
-            return value
-
-        def render_mcp_arguments(args: dict[str, Any]) -> dict[str, Any]:
-            """Render template variables in MCP arguments and coerce types."""
-            rendered: dict[str, Any] = {}
-            for key, value in args.items():
-                if isinstance(value, str):
-                    rendered_val = render_string(value)
-                    rendered[key] = _coerce_value(rendered_val)
-                elif isinstance(value, dict):
-                    rendered[key] = render_mcp_arguments(value)
-                elif isinstance(value, list):
-                    rendered[key] = [
-                        _coerce_value(render_string(v)) if isinstance(v, str) else v for v in value
-                    ]
-                else:
-                    rendered[key] = value
-            return rendered
-
-        # Create a copy of the step to avoid modifying the definition
-        rendered_step = step.model_copy(deep=True)
-
-        try:
-            if rendered_step.exec:
-                rendered_step.exec = render_string(rendered_step.exec)
-
-            if rendered_step.prompt:
-                rendered_step.prompt = render_string(rendered_step.prompt)
-
-            if rendered_step.mcp and rendered_step.mcp.arguments:
-                rendered_step.mcp.arguments = render_mcp_arguments(rendered_step.mcp.arguments)
-
-        except Exception as e:
-            raise ValueError(f"Failed to render step {step.id}: {e}") from e
-
-        return rendered_step
-
-    async def _execute_mcp_step(self, rendered_step: Any, context: dict[str, Any]) -> Any:
-        """Execute an MCP tool call step.
-
-        Args:
-            rendered_step: The rendered step with MCP config
-            context: Execution context
-
-        Returns:
-            The MCP tool result (structured JSON)
-
-        Raises:
-            RuntimeError: If tool_proxy_getter is not configured or MCP call fails
-        """
-        mcp_config = rendered_step.mcp
-
-        logger.info(f"Executing MCP step: {mcp_config.server}:{mcp_config.tool}")
-
-        if not self.tool_proxy_getter:
-            raise RuntimeError(
-                f"MCP step {rendered_step.id} requires tool_proxy_getter but none configured"
-            )
-
-        tool_proxy = self.tool_proxy_getter()
-        if not tool_proxy:
-            raise RuntimeError("tool_proxy_getter returned None")
-
-        result = await tool_proxy.call_tool(
-            mcp_config.server,
-            mcp_config.tool,
-            mcp_config.arguments or {},
-        )
-
-        # Convert MCP SDK CallToolResult to a serializable dict
-        if hasattr(result, "content") and hasattr(result, "isError"):
-            texts = []
-            for item in result.content:
-                if hasattr(item, "text"):
-                    texts.append(item.text)
-            output = "\n".join(texts) if texts else ""
-            if getattr(result, "isError", False):
-                raise RuntimeError(
-                    f"MCP step {rendered_step.id} failed: "
-                    f"{mcp_config.server}:{mcp_config.tool} returned error: {output}"
-                )
-            return {"result": output}
-
-        # Check for MCP-level failure (dict responses from internal tools)
-        if isinstance(result, dict) and result.get("success") is False:
-            error_msg = result.get("error", "Unknown MCP tool error")
-            raise RuntimeError(
-                f"MCP step {rendered_step.id} failed: "
-                f"{mcp_config.server}:{mcp_config.tool} returned error: {error_msg}"
-            )
-
-        return result
-
-    async def _execute_spawn_session_step(
-        self, rendered_step: Any, context: dict[str, Any], project_id: str
-    ) -> dict[str, Any]:
-        """Execute a spawn_session step — spawn a CLI session via tmux.
-
-        Args:
-            rendered_step: The rendered step with spawn_session config
-            context: Execution context
-            project_id: Project ID for the session
-
-        Returns:
-            Dict with session_id and tmux_session_name
-        """
-        config = rendered_step.spawn_session
-        if not self.spawner:
-            return {"error": "spawn_session requires a tmux spawner but none configured"}
-
-        if not self.session_manager:
-            return {"error": "spawn_session requires session_manager but none configured"}
-
-        cli = config.get("cli", "claude")
-        prompt = config.get("prompt")
-        cwd = config.get("cwd")
-        workflow_name = config.get("workflow_name")
-        agent_depth = config.get("agent_depth", 1)
-
-        # Create a gobby session record
-        session = self.session_manager.create_session(
-            platform=cli,
-            project_id=project_id,
-        )
-        session_id = session.id if hasattr(session, "id") else str(session)
-
-        try:
-            result = self.spawner.spawn_agent(
-                cli=cli,
-                cwd=cwd or ".",
-                session_id=session_id,
-                parent_session_id="",
-                agent_run_id=session_id,
-                project_id=project_id,
-                workflow_name=workflow_name,
-                agent_depth=agent_depth,
-                prompt=prompt,
-            )
-            return {
-                "session_id": session_id,
-                "tmux_session_name": getattr(result, "tmux_session_name", ""),
-            }
-        except Exception as e:
-            return {"error": f"Failed to spawn session: {e}"}
-
-    async def _execute_activate_workflow_step(
-        self, rendered_step: Any, context: dict[str, Any]
-    ) -> dict[str, Any]:
-        """Execute an activate_workflow step — activate a workflow on a session.
-
-        Args:
-            rendered_step: The rendered step with activate_workflow config
-            context: Execution context
-
-        Returns:
-            Dict with workflow activation result
-        """
-        config = rendered_step.activate_workflow
-        if not self.loader:
-            return {"error": "activate_workflow requires workflow loader but none configured"}
-
-        workflow_name = config.get("name")
-        session_id = config.get("session_id")
-        variables = config.get("variables") or {}
-
-        if not workflow_name:
-            return {"error": "activate_workflow requires 'name' field"}
-        if not session_id:
-            return {"error": "activate_workflow requires 'session_id' field"}
-        if not self.session_manager:
-            return {"error": "activate_workflow requires session_manager but none configured"}
-
-        try:
-            from gobby.mcp_proxy.tools.workflows._lifecycle import activate_workflow
-            from gobby.workflows.state_manager import WorkflowStateManager
-
-            state_manager = WorkflowStateManager(self.db)
-
-            result = await activate_workflow(
-                loader=self.loader,
-                state_manager=state_manager,
-                session_manager=self.session_manager,
-                db=self.db,
-                name=workflow_name,
-                session_id=session_id,
-                variables=variables,
-            )
-            return result
-        except Exception as e:
-            return {"error": f"Failed to activate workflow: {e}"}
-
-    def _should_run_step(self, step: Any, context: dict[str, Any]) -> bool:
-        """Check if a step should run based on its condition.
-
-        Args:
-            step: The step to check
-            context: Current execution context
-
-        Returns:
-            True if step should run, False if it should be skipped
-        """
-        # No condition means always run
-        if not step.condition:
-            return True
-
-        try:
-            # Evaluate the condition using safe AST-based evaluator
-            # This avoids eval() security risks while supporting common expressions
-            eval_context = {
-                "inputs": context.get("inputs", {}),
-                "steps": context.get("steps", {}),
-            }
-            # Allow common helper functions for conditions
-            allowed_funcs: dict[str, Any] = {
-                "len": len,
-                "bool": bool,
-                "str": str,
-                "int": int,
-            }
-            evaluator = SafeExpressionEvaluator(eval_context, allowed_funcs)
-            return evaluator.evaluate(step.condition)
-        except Exception as e:
-            logger.warning(f"Condition evaluation failed for step {step.id}: {e}")
-            # Default to running the step if condition evaluation fails
-            return True
 
     async def _check_approval_gate(
         self,
@@ -714,34 +440,8 @@ class PipelineExecutor:
         token: str,
         approved_by: str | None = None,
     ) -> PipelineExecution:
-        """Approve a pipeline execution that is waiting for approval.
-
-        Args:
-            token: The approval token from the ApprovalRequired exception
-            approved_by: Optional identifier of the approver
-
-        Returns:
-            The updated PipelineExecution record
-
-        Raises:
-            ValueError: If the token is invalid or not found
-        """
-        # Find the step by approval token
-        step = self.execution_manager.get_step_by_approval_token(token)
-        if not step:
-            raise ValueError(f"Invalid approval token: {token}")
-
-        # Mark step as approved
-        self.execution_manager.update_step_execution(
-            step_execution_id=step.id,
-            status=StepStatus.COMPLETED,
-            approved_by=approved_by,
-        )
-
-        # Get the execution
-        execution = self.execution_manager.get_execution(step.execution_id)
-        if not execution:
-            raise ValueError(f"Execution {step.execution_id} not found")
+        """Approve a pipeline execution that is waiting for approval."""
+        execution = self.approval_manager.approve_step(token, approved_by)
 
         # Resume execution
         if self.loader:
@@ -767,9 +467,7 @@ class PipelineExecutor:
                 # Refresh execution to get latest status
                 execution = self.execution_manager.get_execution(execution.id)
                 if not execution:
-                    raise ValueError(
-                        f"Execution {step.execution_id} not found after resume"
-                    ) from None
+                    raise ValueError(f"Execution {execution.id} not found after resume") from None
             except Exception as e:
                 logger.error(f"Failed to resume execution after approval: {e}", exc_info=True)
                 # Don't fail the approval if resume fails, but log it
@@ -783,123 +481,8 @@ class PipelineExecutor:
         token: str,
         rejected_by: str | None = None,
     ) -> PipelineExecution:
-        """Reject a pipeline execution that is waiting for approval.
-
-        Args:
-            token: The approval token from the ApprovalRequired exception
-            rejected_by: Optional identifier of the rejector
-
-        Returns:
-            The updated PipelineExecution record
-
-        Raises:
-            ValueError: If the token is invalid or not found
-        """
-        # Find the step by approval token
-        step = self.execution_manager.get_step_by_approval_token(token)
-        if not step:
-            raise ValueError(f"Invalid approval token: {token}")
-
-        # Mark step as failed
-        error_msg = "Rejected"
-        if rejected_by:
-            error_msg += f" by {rejected_by}"
-
-        self.execution_manager.update_step_execution(
-            step_execution_id=step.id,
-            status=StepStatus.FAILED,
-            error=error_msg,
-        )
-
-        # Set execution status to CANCELLED
-        execution = self.execution_manager.update_execution_status(
-            execution_id=step.execution_id,
-            status=ExecutionStatus.CANCELLED,
-        )
-
-        if not execution:
-            raise ValueError(f"Execution {step.execution_id} not found")
-
-        return execution
-
-    async def _execute_exec_step(self, command: str, context: dict[str, Any]) -> dict[str, Any]:
-        """Execute a shell command step.
-
-        Commands are parsed using shlex.split and executed via create_subprocess_exec
-        to avoid shell injection vulnerabilities. The command string is treated as a
-        space-separated list of arguments, not a shell script.
-
-        Note: Pipeline commands are defined by the pipeline author, not end users.
-        This is a defense-in-depth measure.
-
-        Args:
-            command: The command to execute (space-separated arguments)
-            context: Execution context
-
-        Returns:
-            Dict with stdout, stderr, exit_code
-        """
-        import asyncio
-
-        logger.info(f"Executing command: {command}")
-
-        try:
-            # Parse command into arguments to avoid shell injection
-            args = shlex.split(command)
-            if not args:
-                return {
-                    "stdout": "",
-                    "stderr": "Empty command",
-                    "exit_code": 1,
-                }
-
-            # Run command without shell
-            proc = await asyncio.create_subprocess_exec(
-                *args,
-                stdout=asyncio.subprocess.PIPE,
-                stderr=asyncio.subprocess.PIPE,
-            )
-
-            stdout_bytes, stderr_bytes = await proc.communicate()
-
-            return {
-                "stdout": stdout_bytes.decode("utf-8", errors="replace"),
-                "stderr": stderr_bytes.decode("utf-8", errors="replace"),
-                "exit_code": proc.returncode or 0,
-            }
-
-        except Exception as e:
-            logger.error(f"Command execution failed: {e}", exc_info=True)
-            return {
-                "stdout": "",
-                "stderr": str(e),
-                "exit_code": 1,
-            }
-
-    async def _execute_prompt_step(self, prompt: str, context: dict[str, Any]) -> dict[str, Any]:
-        """Execute an LLM prompt step.
-
-        Args:
-            prompt: The prompt to send to the LLM
-            context: Execution context
-
-        Returns:
-            Dict with response text or error
-        """
-        logger.info("Executing prompt step")
-
-        try:
-            provider = self.llm_service.get_default_provider()
-            response = await provider.generate_text(prompt)
-            return {
-                "response": response,
-            }
-        except Exception as e:
-            logger.error(f"LLM prompt execution failed: {e}", exc_info=True)
-            return {
-                "response": "",
-                "error": str(e),
-            }
+        """Reject a pipeline execution that is waiting for approval."""
+        return self.approval_manager.reject_step(token, rejected_by)
 
     async def _execute_nested_pipeline(
         self,
@@ -983,35 +566,5 @@ class PipelineExecutor:
         return outputs
 
     def _resolve_reference(self, ref: str, context: dict[str, Any]) -> Any:
-        """Resolve a $step.output reference from context.
-
-        Args:
-            ref: Reference string like "$step1.output" or "$step1.output.field"
-            context: Execution context
-
-        Returns:
-            The resolved value
-        """
-        import re
-
-        # Parse reference: $step_id.output[.field]
-        match = re.match(r"\$([a-zA-Z_][a-zA-Z0-9_]*)\.output(?:\.(.+))?", ref)
-        if not match:
-            return ref
-
-        step_id = match.group(1)
-        field_path = match.group(2)
-
-        # Get step output from context
-        step_data = context.get("steps", {}).get(step_id, {})
-        output = step_data.get("output")
-
-        if field_path and isinstance(output, dict):
-            # Navigate nested field path
-            for part in field_path.split("."):
-                if isinstance(output, dict):
-                    output = output.get(part)
-                else:
-                    break
-
-        return output
+        """Resolve a $step.output reference from context."""
+        return self.renderer.resolve_reference(ref, context)

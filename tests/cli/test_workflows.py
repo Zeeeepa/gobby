@@ -24,13 +24,13 @@ MOCK_WORKFLOW = WorkflowDefinition(
 
 @pytest.fixture
 def mock_loader():
-    with patch("gobby.cli.workflows.get_workflow_loader") as mock:
+    with patch("gobby.cli.workflows.common.get_workflow_loader") as mock:
         yield mock.return_value
 
 
 @pytest.fixture
 def mock_state_manager():
-    with patch("gobby.cli.workflows.get_state_manager") as mock:
+    with patch("gobby.cli.workflows.common.get_state_manager") as mock:
         yield mock.return_value
 
 
@@ -40,7 +40,7 @@ def test_list_workflows_empty(mock_loader) -> None:
     mock_loader.global_dirs = []
 
     # We also need to patch pathlib.Path.cwd to return a path without .gobby
-    with patch("gobby.cli.workflows.Path.cwd") as mock_cwd:
+    with patch("gobby.cli.workflows.common.Path.cwd") as mock_cwd:
         mock_cwd.return_value = MagicMock()
         mock_cwd.return_value.__truediv__.return_value.exists.return_value = False
 
@@ -51,9 +51,9 @@ def test_list_workflows_empty(mock_loader) -> None:
     assert "No workflows found" in result.output
 
 
-@patch("gobby.cli.workflows.get_project_path", return_value=None)
-@patch("gobby.cli.workflows.yaml.safe_load")
-@patch("gobby.cli.workflows.open", new_callable=MagicMock)
+@patch("gobby.cli.workflows.common.get_project_path", return_value=None)
+@patch("gobby.cli.workflows.inspect.yaml.safe_load")
+@patch("gobby.cli.workflows.inspect.open", new_callable=MagicMock)
 def test_list_workflows_found(mock_open, mock_yaml, mock_project_path, mock_loader):
     """Test 'workflows list' finding files."""
     mock_dir = MagicMock()
@@ -113,7 +113,7 @@ def test_status_no_active(mock_state_manager) -> None:
     mock_state_manager.get_state.return_value = None
 
     runner = CliRunner()
-    with patch("gobby.cli.workflows.resolve_session_id", return_value="sess-123"):
+    with patch("gobby.cli.workflows.inspect.resolve_session_id", return_value="sess-123"):
         result = runner.invoke(workflows, ["status"])
 
     assert result.exit_code == 0
@@ -126,7 +126,7 @@ def test_set_workflow_success(mock_loader, mock_state_manager) -> None:
     mock_state_manager.get_state.return_value = None  # No existing workflow
 
     runner = CliRunner()
-    with patch("gobby.cli.workflows.resolve_session_id", return_value="sess-123"):
+    with patch("gobby.cli.workflows.control.resolve_session_id", return_value="sess-123"):
         result = runner.invoke(workflows, ["set", "test-workflow"])
 
     assert result.exit_code == 0
@@ -141,7 +141,7 @@ def test_clear_workflow(mock_state_manager) -> None:
     mock_state_manager.get_state.return_value = mock_state
 
     runner = CliRunner()
-    with patch("gobby.cli.workflows.resolve_session_id", return_value="sess-123"):
+    with patch("gobby.cli.workflows.control.resolve_session_id", return_value="sess-123"):
         result = runner.invoke(workflows, ["clear"], input="y\n")
 
     assert result.exit_code == 0
