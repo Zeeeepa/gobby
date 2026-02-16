@@ -326,13 +326,11 @@ class TestGetDbFallbackBehavior:
 
     def test_get_db_warns_on_fallback(self) -> None:
         """Test that _get_db emits a warning when falling back to LocalDatabase."""
-        from unittest.mock import patch as mock_patch
-
         loader = AgentDefinitionLoader()  # No db injected
 
-        with mock_patch(
+        with patch(
             "gobby.storage.database.LocalDatabase"
-        ) as mock_local_db_cls, mock_patch(
+        ) as mock_local_db_cls, patch(
             "gobby.agents.definitions.logger"
         ) as mock_logger:
             mock_local_db_cls.return_value = MagicMock()
@@ -346,13 +344,11 @@ class TestGetDbFallbackBehavior:
 
     def test_get_db_warns_includes_default_path(self) -> None:
         """Test that the fallback warning includes the default DB path."""
-        from unittest.mock import patch as mock_patch
-
         loader = AgentDefinitionLoader()
 
-        with mock_patch(
+        with patch(
             "gobby.storage.database.LocalDatabase"
-        ) as mock_local_db_cls, mock_patch(
+        ) as mock_local_db_cls, patch(
             "gobby.agents.definitions.logger"
         ) as mock_logger:
             mock_local_db_cls.return_value = MagicMock()
@@ -365,12 +361,10 @@ class TestGetDbFallbackBehavior:
 
     def test_get_db_no_warning_when_injected(self) -> None:
         """Test that _get_db does NOT warn when a db is injected."""
-        from unittest.mock import patch as mock_patch
-
         mock_db = MagicMock()
         loader = AgentDefinitionLoader(db=mock_db)
 
-        with mock_patch("gobby.agents.definitions.logger") as mock_logger:
+        with patch("gobby.agents.definitions.logger") as mock_logger:
             db = loader._get_db()
 
             assert db is mock_db
@@ -412,13 +406,11 @@ class TestGetDbFallbackBehavior:
 
     def test_get_db_fallback_caches_instance(self) -> None:
         """Test that fallback LocalDatabase is cached on subsequent calls."""
-        from unittest.mock import patch as mock_patch
-
         loader = AgentDefinitionLoader()
 
-        with mock_patch(
+        with patch(
             "gobby.storage.database.LocalDatabase"
-        ) as mock_local_db_cls, mock_patch("gobby.agents.definitions.logger"):
+        ) as mock_local_db_cls, patch("gobby.agents.definitions.logger"):
             sentinel = MagicMock()
             mock_local_db_cls.return_value = sentinel
 
