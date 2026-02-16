@@ -157,6 +157,22 @@ class ChatMixin:
             except Exception as e:
                 logger.warning(f"Failed to register web-chat session in DB: {e}")
 
+        # Detect returning sessions and set up history injection
+        message_manager = getattr(self, "message_manager", None)
+        if message_manager and session.db_session_id:
+            try:
+                max_idx = await message_manager.get_max_message_index(session.db_session_id)
+                if max_idx >= 0:
+                    session.message_index = max_idx + 1
+                    session._needs_history_injection = True
+                    session._message_manager = message_manager
+                    logger.info(
+                        f"Returning session detected (max_idx={max_idx}), "
+                        f"history injection enabled for {conversation_id[:8]}"
+                    )
+            except Exception as e:
+                logger.warning(f"Failed to check message history: {e}")
+
         return session
 
     async def _fire_lifecycle(

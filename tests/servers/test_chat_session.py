@@ -128,3 +128,126 @@ class TestCanUseTool:
 
         assert isinstance(result, PermissionResultAllow)
         assert result.updated_input["answers"] == answers
+
+
+class TestHistoryInjection:
+    """Tests for history injection on session recreation."""
+
+    def test_needs_history_injection_default_false(self) -> None:
+        """New sessions should not need history injection by default."""
+        s = ChatSession(conversation_id="test-default")
+        assert s._needs_history_injection is False
+
+    @pytest.mark.asyncio
+    async def test_load_history_context_no_manager(self, session: ChatSession) -> None:
+        """_load_history_context returns None when no message_manager is set."""
+        session.db_session_id = "some-id"
+        session._message_manager = None
+        result = await session._load_history_context()
+        assert result is None
+
+    @pytest.mark.asyncio
+    async def test_load_history_context_no_db_session_id(self, session: ChatSession) -> None:
+        """_load_history_context returns None when db_session_id is not set."""
+        session._message_manager = AsyncMock()
+        session.db_session_id = None
+        result = await session._load_history_context()
+        assert result is None
+
+    @pytest.mark.asyncio
+    async def test_load_history_context_formats_messages(self, session: ChatSession) -> None:
+        """_load_history_context correctly formats user/assistant messages."""
+        mock_manager = AsyncMock()
+        mock_manager.get_messages.return_value = [
+            {"role": "user", "content_type": "text", "content": "Hello there"},
+            {"role": "assistant", "content_type": "text", "content": "Hi! How can I help?"},
+            {"role": "user", "content_type": "text", "content": "Tell me about Python"},
+        ]
+        session.db_session_id = "test-db-id"
+        session._message_manager = mock_manager
+
+        result = await session._load_history_context()
+        assert result is not None
+        assert "<conversation-history>" in result
+        assert "</conversation-history>" in result
+        assert "**User:** Hello there" in result
+        assert "**Assistant:** Hi! How can I help?" in result
+        assert "**User:** Tell me about Python" in result
+
+    @pytest.mark.asyncio
+    async def test_load_history_context_truncates_long_messages(self, session: ChatSession) -> None:
+        """Messages longer than 2000 chars should be truncated."""
+        long_text = "x" * 3000
+        mock_manager = AsyncMock()
+        mock_manager.get_messages.return_value = [
+            {"role": "user", "content_type": "text", "content": long_text},
+        ]
+        session.db_session_id = "test-db-id"
+        session._message_manager = mock_manager
+
+        result = await session._load_history_context()
+        assert result is not None
+        # 2000 chars + "..." = truncated
+        assert "x" * 2000 + "..." in result
+        assert "x" * 2001 not in result
+
+    @pytest.mark.asyncio
+    async def test_load_history_context_filters_non_text(self, session: ChatSession) -> None:
+        """Tool use and tool result messages should be excluded."""
+        mock_manager = AsyncMock()
+        mock_manager.get_messages.return_value = [
+            {"role": "user", "content_type": "text", "content": "Do something"},
+            {"role": "assistant", "content_type": "tool_use", "content": '{"name": "Read"}'},
+            {"role": "user", "content_type": "tool_result", "content": "file contents"},
+            {"role": "assistant", "content_type": "text", "content": "Done!"},
+        ]
+        session.db_session_id = "test-db-id"
+        session._message_manager = mock_manager
+
+        result = await session._load_history_context()
+        assert result is not None
+        assert "Do something" in result
+        assert "Done!" in result
+        assert "Read" not in result
+        assert "file contents" not in result
+
+    @pytest.mark.asyncio
+    async def test_load_history_context_empty_messages(self, session: ChatSession) -> None:
+        """Returns None when no messages exist."""
+        mock_manager = AsyncMock()
+        mock_manager.get_messages.return_value = []
+        session.db_session_id = "test-db-id"
+        session._message_manager = mock_manager
+
+        result = await session._load_history_context()
+        assert result is None
+
+    @pytest.mark.asyncio
+    async def test_load_history_context_respects_total_limit(self, session: ChatSession) -> None:
+        """History should stop before exceeding 30KB total."""
+        mock_manager = AsyncMock()
+        # Each message is ~1100 chars, 30 messages = ~33KB > 30KB limit
+        mock_manager.get_messages.return_value = [
+            {"role": "user", "content_type": "text", "content": "a" * 1100}
+            for _ in range(30)
+        ]
+        session.db_session_id = "test-db-id"
+        session._message_manager = mock_manager
+
+        result = await session._load_history_context()
+        assert result is not None
+        # Should have fewer than 30 entries due to 30KB cap
+        count = result.count("**User:**")
+        assert count < 30
+        assert count > 0
+
+    @pytest.mark.asyncio
+    async def test_load_history_context_handles_error(self, session: ChatSession) -> None:
+        """Returns None on error instead of raising."""
+        mock_manager = AsyncMock()
+        mock_manager.get_messages.side_effect = RuntimeError("DB error")
+        session.db_session_id = "test-db-id"
+        session._message_manager = mock_manager
+
+        result = await session._load_history_context()
+        assert result is None

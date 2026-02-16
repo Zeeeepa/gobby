@@ -193,6 +193,16 @@ class LocalSessionMessageManager:
         )
         return result["count"] if result else 0
 
+    async def get_max_message_index(self, session_id: str) -> int:
+        """Get highest message_index for a session, or -1 if none exist."""
+        result = await asyncio.to_thread(
+            self.db.fetchone,
+            "SELECT MAX(message_index) as max_idx FROM session_messages WHERE session_id = ?",
+            (session_id,),
+        )
+        max_idx = result["max_idx"] if result else None
+        return max_idx if max_idx is not None else -1
+
     async def get_all_counts(self) -> dict[str, int]:
         """
         Get message counts for all sessions.
