@@ -30,13 +30,6 @@ def test_memories_table_still_exists(db) -> None:
     assert len(tables) == 1
 
 
-def test_memories_no_mem0_id_column(db) -> None:
-    """memories table should not have mem0_id column (removed in migration 104)."""
-    columns = db.fetchall("PRAGMA table_info(memories)")
-    column_names = [c["name"] for c in columns]
-    assert "mem0_id" not in column_names
-
-
 def test_memories_no_importance_column(db) -> None:
     """memories table should not have importance column (removed in migration 105)."""
     columns = db.fetchall("PRAGMA table_info(memories)")

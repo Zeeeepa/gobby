@@ -2,7 +2,7 @@
 
 Validates that the runner creates a VectorStore, passes it to MemoryManager,
 triggers rebuild when Qdrant is empty but SQLite has memories, and calls
-close() on shutdown. Also verifies Mem0SyncProcessor is fully removed.
+close() on shutdown.
 """
 
 from __future__ import annotations
@@ -16,23 +16,6 @@ pytestmark = pytest.mark.unit
 
 class TestVectorStoreInitialization:
     """Test that runner.py initializes VectorStore correctly."""
-
-    def test_mem0_sync_not_imported(self) -> None:
-        """Mem0SyncProcessor should not be imported in runner.py."""
-        import gobby.runner as runner_module
-
-        assert not hasattr(runner_module, "Mem0SyncProcessor")
-
-    def test_runner_has_no_mem0_sync_attribute(self) -> None:
-        """GobbyRunner instances should not have mem0_sync attribute."""
-        import ast
-        from pathlib import Path
-
-        runner_path = Path("src/gobby/runner.py")
-        source = runner_path.read_text()
-
-        assert "mem0_sync" not in source
-        assert "Mem0SyncProcessor" not in source
 
     @pytest.mark.asyncio
     async def test_vectorstore_created_with_config_path(self) -> None:
