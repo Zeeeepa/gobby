@@ -152,6 +152,7 @@ class TestSyncBundledAgents:
         assert result["synced"] == 0
         assert len(result["errors"]) == 1
 
+    @pytest.mark.integration
     def test_sync_with_real_bundled_agents(self, tmp_path: Path) -> None:
         """Test that sync works with the actual bundled agents directory."""
         db = _setup_db(tmp_path)
