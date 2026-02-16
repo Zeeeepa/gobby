@@ -97,9 +97,9 @@ def sync_bundled_workflows(db: DatabaseProtocol) -> dict[str, Any]:
                         logger.debug(f"Workflow '{name}' already up to date, skipping")
                         result["skipped"] += 1
                     else:
-                        # Delete and recreate to update
-                        manager.delete(existing.id)
-                        manager.create(
+                        # Atomic in-place update (preserves id, avoids data loss)
+                        manager.update(
+                            existing.id,
                             name=name,
                             definition_json=definition_json,
                             workflow_type=workflow_type,
