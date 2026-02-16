@@ -242,6 +242,45 @@ class TestHistoryInjection:
         assert count > 0
 
     @pytest.mark.asyncio
+    async def test_load_history_context_respects_custom_message_limit(
+        self, session: ChatSession
+    ) -> None:
+        """Per-message truncation should respect _max_history_message_chars."""
+        session._max_history_message_chars = 50
+        mock_manager = AsyncMock()
+        mock_manager.get_messages.return_value = [
+            {"role": "user", "content_type": "text", "content": "a" * 200},
+        ]
+        session.db_session_id = "test-db-id"
+        session._message_manager = mock_manager
+
+        result = await session._load_history_context()
+        assert result is not None
+        assert "a" * 50 + "..." in result
+        assert "a" * 51 not in result
+
+    @pytest.mark.asyncio
+    async def test_load_history_context_respects_custom_total_limit(
+        self, session: ChatSession
+    ) -> None:
+        """History should stop before exceeding _max_history_total_chars."""
+        session._max_history_total_chars = 500
+        mock_manager = AsyncMock()
+        # Each message is ~110 chars with role label, 10 messages = ~1100 > 500
+        mock_manager.get_messages.return_value = [
+            {"role": "user", "content_type": "text", "content": "b" * 100}
+            for _ in range(10)
+        ]
+        session.db_session_id = "test-db-id"
+        session._message_manager = mock_manager
+
+        result = await session._load_history_context()
+        assert result is not None
+        count = result.count("**User:**")
+        assert count < 10
+        assert count > 0
+
+    @pytest.mark.asyncio
     async def test_load_history_context_handles_error(self, session: ChatSession) -> None:
         """Returns None on error instead of raising."""
         mock_manager = AsyncMock()

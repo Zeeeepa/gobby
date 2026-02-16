@@ -14,12 +14,32 @@ Extracted from app.py using Strangler Fig pattern for code decomposition.
 from pydantic import BaseModel, Field, field_validator
 
 __all__ = [
+    "ChatHistoryConfig",
     "ContextInjectionConfig",
     "SessionSummaryConfig",
     "TitleSynthesisConfig",
     "MessageTrackingConfig",
     "SessionLifecycleConfig",
 ]
+
+
+class ChatHistoryConfig(BaseModel):
+    """Configuration for chat history injection on session recreation.
+
+    Controls how much prior conversation context is loaded and injected
+    when a ChatSession is recreated after a disconnect.
+    """
+
+    max_message_chars: int = Field(
+        default=2000,
+        gt=0,
+        description="Maximum characters per individual history message before truncation.",
+    )
+    max_total_chars: int = Field(
+        default=30_000,
+        gt=0,
+        description="Maximum total characters of combined history context to inject.",
+    )
 
 
 class ContextInjectionConfig(BaseModel):

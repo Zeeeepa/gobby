@@ -135,6 +135,14 @@ class ChatMixin:
             conversation_id, HookEventType.STOP, data
         )
 
+        # Apply chat history limits from config if available
+        daemon_config = getattr(self, "daemon_config", None)
+        if daemon_config is not None:
+            chat_history_cfg = getattr(daemon_config, "chat_history", None)
+            if chat_history_cfg is not None:
+                session._max_history_message_chars = chat_history_cfg.max_message_chars
+                session._max_history_total_chars = chat_history_cfg.max_total_chars
+
         await session.start(model=model)
         self._chat_sessions[conversation_id] = session
 
@@ -167,11 +175,15 @@ class ChatMixin:
                     session._needs_history_injection = True
                     session._message_manager = message_manager
                     logger.info(
-                        f"Returning session detected (max_idx={max_idx}), "
-                        f"history injection enabled for {conversation_id[:8]}"
+                        "Returning session detected; history injection enabled",
+                        extra={"max_idx": max_idx, "conversation_id": conversation_id[:8]},
                     )
             except Exception as e:
-                logger.warning(f"Failed to check message history: {e}")
+                logger.warning(
+                    "Failed to check message history",
+                    extra={"conversation_id": conversation_id[:8]},
+                    exc_info=e,
+                )
 
         return session
 
