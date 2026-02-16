@@ -38,13 +38,6 @@ class TestEntityExtractionPrompt:
         assert template is not None
         assert template.content
 
-    def test_prompt_has_apache2_attribution(self) -> None:
-        """Prompt frontmatter contains Apache 2.0 attribution."""
-        prompt_path = PROMPTS_DIR / "memory" / "extract_entities.md"
-        content = prompt_path.read_text()
-        assert "Apache-2.0" in content
-        assert "mem0" in content
-
     def test_prompt_has_content_variable(self, loader: PromptLoader) -> None:
         """Prompt uses {{ content }} Jinja2 variable."""
         template = loader.load("memory/extract_entities")

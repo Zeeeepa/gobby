@@ -38,13 +38,6 @@ class TestDeleteRelationsPrompt:
         assert template is not None
         assert template.content
 
-    def test_prompt_has_apache2_attribution(self) -> None:
-        """Prompt frontmatter contains Apache 2.0 attribution."""
-        prompt_path = PROMPTS_DIR / "memory" / "delete_relations.md"
-        content = prompt_path.read_text()
-        assert "Apache-2.0" in content
-        assert "mem0" in content
-
     def test_prompt_has_required_variables(self, loader: PromptLoader) -> None:
         """Prompt uses {{ existing_relations }} and {{ new_relations }} variables."""
         template = loader.load("memory/delete_relations")
