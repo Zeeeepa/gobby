@@ -27,7 +27,7 @@ class ApprovalManager:
         execution_manager: LocalPipelineExecutionManager,
         webhook_notifier: Any | None = None,
         event_callback: Any | None = None,
-    ):
+    ) -> None:
         self.execution_manager = execution_manager
         self.webhook_notifier = webhook_notifier
         self.event_callback = event_callback
@@ -37,8 +37,12 @@ class ApprovalManager:
         if self.event_callback:
             try:
                 await self.event_callback(event, execution_id, **kwargs)
-            except Exception as e:
-                logger.warning(f"Failed to emit pipeline event {event}: {e}")
+            except Exception:
+                logger.warning(
+                    "Failed to emit pipeline event",
+                    extra={"event": event, "execution_id": execution_id},
+                    exc_info=True,
+                )
 
     async def check_approval_gate(
         self,
@@ -98,8 +102,12 @@ class ApprovalManager:
                     message=message,
                     pipeline=pipeline,
                 )
-            except Exception as e:
-                logger.warning(f"Failed to send approval webhook: {e}")
+            except (OSError, RuntimeError):
+                logger.warning(
+                    "Failed to send approval webhook",
+                    extra={"execution_id": execution.id, "step_id": step.id},
+                    exc_info=True,
+                )
 
         # Emit approval_required event
         await self._emit_event(

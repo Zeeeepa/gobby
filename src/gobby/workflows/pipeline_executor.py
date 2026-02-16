@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import json
 import logging
-import secrets
 from typing import TYPE_CHECKING, Any
 
 from gobby.workflows.pipeline.gatekeeper import ApprovalManager
@@ -104,8 +103,12 @@ class PipelineExecutor:
         if self.event_callback:
             try:
                 await self.event_callback(event, execution_id, **kwargs)
-            except Exception as e:
-                logger.warning(f"Failed to emit pipeline event {event}: {e}")
+            except Exception:
+                logger.warning(
+                    "Failed to emit pipeline event",
+                    extra={"event": event, "execution_id": execution_id},
+                    exc_info=True,
+                )
 
     async def execute(
         self,
@@ -357,85 +360,6 @@ class PipelineExecutor:
             logger.warning(f"Step {step.id} has no action defined")
             return None
 
-    async def _check_approval_gate(
-        self,
-        step: Any,
-        execution: PipelineExecution,
-        step_execution: Any,
-        pipeline: Any,
-    ) -> None:
-        """Check if a step has an approval gate and handle it.
-
-        If the step requires approval, this method:
-        1. Generates a unique approval token
-        2. Updates the step and execution status to WAITING_APPROVAL
-        3. Calls the webhook notifier if configured
-        4. Raises ApprovalRequired to pause execution
-
-        Args:
-            step: The step to check for approval requirement
-            execution: The current pipeline execution record
-            step_execution: The current step execution record
-            pipeline: The pipeline definition (for webhook config)
-
-        Raises:
-            ApprovalRequired: If the step requires approval
-        """
-        # Check if step has approval gate
-        if not step.approval or not step.approval.required:
-            return
-
-        # Generate unique approval token
-        token = secrets.token_urlsafe(24)
-
-        # Get approval message
-        message = step.approval.message or f"Approval required for step '{step.id}'"
-
-        # Update step status to WAITING_APPROVAL and store token
-        self.execution_manager.update_step_execution(
-            step_execution_id=step_execution.id,
-            status=StepStatus.WAITING_APPROVAL,
-            approval_token=token,
-        )
-
-        # Update execution status to WAITING_APPROVAL
-        self.execution_manager.update_execution_status(
-            execution_id=execution.id,
-            status=ExecutionStatus.WAITING_APPROVAL,
-            resume_token=token,
-        )
-
-        # Call webhook notifier if configured
-        if self.webhook_notifier:
-            try:
-                await self.webhook_notifier.notify_approval_pending(
-                    execution_id=execution.id,
-                    step_id=step.id,
-                    token=token,
-                    message=message,
-                    pipeline=pipeline,
-                )
-            except Exception as e:
-                logger.warning(f"Failed to send approval webhook: {e}")
-
-        # Emit approval_required event
-        await self._emit_event(
-            "approval_required",
-            execution.id,
-            step_id=step.id,
-            step_name=getattr(step, "name", step.id),
-            message=message,
-            token=token,
-        )
-
-        # Raise to pause execution
-        raise ApprovalRequired(
-            execution_id=execution.id,
-            step_id=step.id,
-            token=token,
-            message=message,
-        )
-
     async def approve(
         self,
         token: str,
@@ -466,10 +390,11 @@ class PipelineExecutor:
             except ApprovalRequired:
                 # Pipeline paused again for another approval - this is expected
                 # Refresh execution to get latest status
-                _execution = self.execution_manager.get_execution(execution.id)
-                if not _execution:
-                    raise ValueError(f"Execution {execution.id} not found after resume") from None
-                execution = _execution
+                exec_id = execution.id  # Save before get_execution may return None
+                refreshed = self.execution_manager.get_execution(exec_id)
+                if not refreshed:
+                    raise ValueError(f"Execution {exec_id} not found after resume") from None
+                execution = refreshed
             except Exception as e:
                 logger.error(f"Failed to resume execution after approval: {e}", exc_info=True)
                 # Don't fail the approval if resume fails, but log it

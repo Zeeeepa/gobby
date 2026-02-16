@@ -38,16 +38,7 @@ def set_workflow(
         raise SystemExit(1)
 
     # Get session
-    if not session_id:
-        try:
-            session_id = common.resolve_session_id(None)
-        except click.ClickException as e:
-            raise SystemExit(1) from e
-    else:
-        try:
-            session_id = common.resolve_session_id(session_id)
-        except click.ClickException as e:
-            raise SystemExit(1) from e
+    session_id = common.resolve_session_id(session_id)
 
     # Check for existing workflow
     existing = state_manager.get_state(session_id)
@@ -63,7 +54,10 @@ def set_workflow(
             raise SystemExit(1)
         step = initial_step
     else:
-        step = definition.steps[0].name if definition.steps else "default"
+        if not definition.steps:
+            click.echo(f"Workflow '{name}' has no steps defined.", err=True)
+            raise SystemExit(1)
+        step = definition.steps[0].name
 
     # Create state
     state = WorkflowState(
@@ -84,7 +78,7 @@ def set_workflow(
     )
 
     state_manager.save_state(state)
-    click.echo(f"✓ Activated workflow '{name}' for session {session_id[:12]}...")
+    click.echo(f"✓ Activated workflow '{name}' for session {common.truncate_id(session_id)}")
     click.echo(f"  Starting step: {step}")
 
 
@@ -96,14 +90,11 @@ def clear_workflow(ctx: click.Context, session_id: str | None, force: bool) -> N
     """Clear/deactivate workflow for a session."""
     state_manager = common.get_state_manager()
 
-    try:
-        session_id = common.resolve_session_id(session_id)
-    except click.ClickException as e:
-        raise SystemExit(1) from e
+    session_id = common.resolve_session_id(session_id)
 
     state = state_manager.get_state(session_id)
     if not state:
-        click.echo(f"No workflow active for session: {session_id[:12]}...")
+        click.echo(f"No workflow active for session: {common.truncate_id(session_id)}")
         return
 
     if not force:
@@ -113,7 +104,7 @@ def clear_workflow(ctx: click.Context, session_id: str | None, force: bool) -> N
         )
 
     state_manager.delete_state(session_id)
-    click.echo(f"✓ Cleared workflow from session {session_id[:12]}...")
+    click.echo(f"✓ Cleared workflow from session {common.truncate_id(session_id)}")
 
 
 @click.command("step")
@@ -127,14 +118,11 @@ def set_step(ctx: click.Context, step_name: str, session_id: str | None, force: 
     state_manager = common.get_state_manager()
     project_path = common.get_project_path()
 
-    try:
-        session_id = common.resolve_session_id(session_id)
-    except click.ClickException as e:
-        raise SystemExit(1) from e
+    session_id = common.resolve_session_id(session_id)
 
     state = state_manager.get_state(session_id)
     if not state:
-        click.echo(f"No workflow active for session: {session_id[:12]}...", err=True)
+        click.echo(f"No workflow active for session: {common.truncate_id(session_id)}", err=True)
         raise SystemExit(1)
 
     # Load workflow to validate step
@@ -173,14 +161,11 @@ def reset_workflow(ctx: click.Context, session_id: str | None, force: bool) -> N
     """Reset workflow to initial step (escape hatch)."""
     state_manager = common.get_state_manager()
 
-    try:
-        session_id = common.resolve_session_id(session_id)
-    except click.ClickException as e:
-        raise SystemExit(1) from e
+    session_id = common.resolve_session_id(session_id)
 
     state = state_manager.get_state(session_id)
     if not state:
-        click.echo(f"No workflow active for session: {session_id[:12]}...", err=True)
+        click.echo(f"No workflow active for session: {common.truncate_id(session_id)}", err=True)
         raise SystemExit(1)
 
     # Determine initial step
@@ -216,14 +201,11 @@ def disable_workflow(ctx: click.Context, session_id: str | None, reason: str | N
     """Temporarily disable workflow enforcement (escape hatch)."""
     state_manager = common.get_state_manager()
 
-    try:
-        session_id = common.resolve_session_id(session_id)
-    except click.ClickException as e:
-        raise SystemExit(1) from e
+    session_id = common.resolve_session_id(session_id)
 
     state = state_manager.get_state(session_id)
     if not state:
-        click.echo(f"No workflow active for session: {session_id[:12]}...", err=True)
+        click.echo(f"No workflow active for session: {common.truncate_id(session_id)}", err=True)
         raise SystemExit(1)
 
     if state.disabled:
@@ -246,14 +228,11 @@ def enable_workflow(ctx: click.Context, session_id: str | None) -> None:
     """Re-enable a disabled workflow."""
     state_manager = common.get_state_manager()
 
-    try:
-        session_id = common.resolve_session_id(session_id)
-    except click.ClickException as e:
-        raise SystemExit(1) from e
+    session_id = common.resolve_session_id(session_id)
 
     state = state_manager.get_state(session_id)
     if not state:
-        click.echo(f"No workflow active for session: {session_id[:12]}...", err=True)
+        click.echo(f"No workflow active for session: {common.truncate_id(session_id)}", err=True)
         raise SystemExit(1)
 
     if not state.disabled:

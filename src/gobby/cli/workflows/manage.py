@@ -54,6 +54,15 @@ def import_workflow(ctx: click.Context, source: str, name: str | None, is_global
 
     # Determine destination
     workflow_name = name or data.get("name", source_path.stem)
+
+    # Sanitize workflow name to prevent path traversal
+    safe_name = Path(workflow_name).name
+    if safe_name != workflow_name:
+        click.echo(
+            f"Invalid workflow name: '{workflow_name}' (contains path separators).", err=True
+        )
+        raise SystemExit(1)
+
     filename = f"{workflow_name}.yaml"
 
     if is_global:
@@ -104,7 +113,7 @@ def reload_workflows(ctx: click.Context) -> None:
                         break
                 except (psutil.NoSuchProcess, psutil.AccessDenied):
                     continue
-        except Exception:
+        except psutil.Error:
             # Fallback to connection attempt
             is_running = True
 
@@ -125,10 +134,10 @@ def reload_workflows(ctx: click.Context) -> None:
             except httpx.ConnectError:
                 # Daemon not actually running or listening
                 pass
-            except Exception as e:
+            except httpx.RequestError as e:
                 click.echo(f"Failed to communicate with daemon: {e}", err=True)
     except Exception as e:
-        logger.debug(f"Error checking daemon status: {e}")
+        logger.debug("Error checking daemon status: %s", e, exc_info=True)
 
     # Fallback: Clear local cache (useful if running in same process or just validating)
     # This also helps if the user just wants to verify the command runs

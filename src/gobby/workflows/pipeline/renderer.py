@@ -106,13 +106,24 @@ class StepRenderer:
             elif isinstance(value, dict):
                 rendered[key] = self.render_mcp_arguments(value, context)
             elif isinstance(value, list):
-                rendered[key] = [
-                    self._coerce_value(self.render_string(v, context)) if isinstance(v, str) else v
-                    for v in value
-                ]
+                rendered[key] = self._render_list(value, context)
             else:
                 rendered[key] = value
         return rendered
+
+    def _render_list(self, items: list[Any], context: dict[str, Any]) -> list[Any]:
+        """Render template variables in a list, handling nested dicts and lists."""
+        result = []
+        for v in items:
+            if isinstance(v, str):
+                result.append(self._coerce_value(self.render_string(v, context)))
+            elif isinstance(v, dict):
+                result.append(self.render_mcp_arguments(v, context))
+            elif isinstance(v, list):
+                result.append(self._render_list(v, context))
+            else:
+                result.append(v)
+        return result
 
     def resolve_reference(self, ref: str, context: dict[str, Any]) -> Any:
         """Resolve a $step.output reference from context.

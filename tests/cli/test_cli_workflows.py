@@ -75,14 +75,14 @@ def test_status_no_session(cli_runner, mock_state_manager) -> None:
 
     with patch("gobby.cli.workflows.common.get_state_manager", return_value=mock_state_manager):
         # Mock resolve_session_id to raise no active session error
-        # The CLI catches this and does SystemExit(1) without message
+        # ClickException now propagates — Click's runner displays the message and exits 1
         with patch(
             "gobby.cli.workflows.common.resolve_session_id",
             side_effect=click.ClickException("No active session found"),
         ):
             result = cli_runner.invoke(workflows, ["status"])
-            # Exit code 1 indicates no session found
             assert result.exit_code == 1
+            assert "No active session found" in result.output
 
 
 def test_status_active(cli_runner, mock_state_manager) -> None:

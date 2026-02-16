@@ -33,19 +33,7 @@ def set_variable(
 
     state_manager = common.get_state_manager()
 
-    if not session_id:
-        try:
-            session_id = common.resolve_session_id(None)
-        except click.ClickException as e:
-            raise SystemExit(1) from e
-    else:
-        try:
-            session_id = common.resolve_session_id(session_id)
-        except click.ClickException as e:
-            raise SystemExit(1) from e
-
-    if session_id is None:
-        raise click.ClickException("Session ID is required")
+    session_id = common.resolve_session_id(session_id)
 
     # Parse value type
     parsed_value: str | int | float | bool | None
@@ -96,7 +84,7 @@ def set_variable(
     else:
         value_display = repr(parsed_value) if isinstance(parsed_value, str) else str(parsed_value)
         click.echo(f"✓ Set {name} = {value_display}")
-        click.echo(f"  Session: {session_id[:12]}...")
+        click.echo(f"  Session: {common.truncate_id(session_id)}")
 
 
 @click.command("get-var")
@@ -120,19 +108,7 @@ def get_variable(
     """
     state_manager = common.get_state_manager()
 
-    if not session_id:
-        try:
-            session_id = common.resolve_session_id(None)
-        except click.ClickException as e:
-            raise SystemExit(1) from e
-    else:
-        try:
-            session_id = common.resolve_session_id(session_id)
-        except click.ClickException as e:
-            raise SystemExit(1) from e
-
-    if session_id is None:
-        raise click.ClickException("Session ID is required")
+    session_id = common.resolve_session_id(session_id)
 
     state = state_manager.get_state(session_id)
     variables = state.variables if state else {}
@@ -176,11 +152,11 @@ def get_variable(
             )
         else:
             if variables:
-                click.echo(f"Variables for session {session_id[:12]}...:\n")
+                click.echo(f"Variables for session {common.truncate_id(session_id)}:\n")
                 for var_name, var_value in sorted(variables.items()):
                     value_display = (
                         repr(var_value) if isinstance(var_value, str) else str(var_value)
                     )
                     click.echo(f"  {var_name} = {value_display}")
             else:
-                click.echo(f"No variables set for session {session_id[:12]}...")
+                click.echo(f"No variables set for session {common.truncate_id(session_id)}")

@@ -148,7 +148,7 @@ class TestPipelineExecutorInit:
             webhook_notifier=mock_webhook_notifier,
         )
 
-        assert executor.template_engine is mock_template_engine
+        assert executor.renderer.template_engine is mock_template_engine
         assert executor.webhook_notifier is mock_webhook_notifier
         assert executor.renderer is not None
         assert executor.approval_manager is not None
@@ -508,7 +508,7 @@ class TestExecutePromptStep:
         """Test that prompt step handles LLM errors gracefully."""
         from gobby.workflows.pipeline.handlers import execute_prompt_step
 
-        mock_llm_service.get_default_provider.return_value.generate_text.side_effect = Exception(
+        mock_llm_service.get_default_provider.return_value.generate_text.side_effect = RuntimeError(
             "LLM API error"
         )
 

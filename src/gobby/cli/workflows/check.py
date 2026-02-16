@@ -3,6 +3,7 @@
 import json
 
 import click
+import httpx
 
 from gobby.cli.workflows import common
 
@@ -32,9 +33,18 @@ def check_workflow(ctx: click.Context, name: str, json_format: bool) -> None:
             arguments={"name": name},
             timeout=15.0,
         )
+    except httpx.ConnectError:
+        click.echo("Error: Cannot connect to Gobby daemon. Is it running?", err=True)
+        click.echo("Start with: gobby start", err=True)
+        raise SystemExit(1) from None
+    except httpx.HTTPStatusError as e:
+        click.echo(f"Error: HTTP {e.response.status_code}: {e.response.text}", err=True)
+        raise SystemExit(1) from None
+    except httpx.TimeoutException:
+        click.echo("Error: Request timed out. The daemon may be overloaded.", err=True)
+        raise SystemExit(1) from None
     except Exception as e:
         click.echo(f"Error: {e}", err=True)
-        click.echo("Is the Gobby daemon running? Start with: gobby start", err=True)
         raise SystemExit(1) from None
 
     if json_format:
@@ -118,10 +128,7 @@ def audit_workflow(
 
     audit_manager = WorkflowAuditManager()
 
-    try:
-        session_id = common.resolve_session_id(session_id)
-    except click.ClickException as e:
-        raise SystemExit(1) from e
+    session_id = common.resolve_session_id(session_id)
 
     entries = audit_manager.get_entries(
         session_id=session_id,
@@ -131,7 +138,7 @@ def audit_workflow(
     )
 
     if not entries:
-        click.echo(f"No audit entries found for session {session_id[:12]}...")
+        click.echo(f"No audit entries found for session {common.truncate_id(session_id)}")
         return
 
     if json_format:
@@ -155,7 +162,7 @@ def audit_workflow(
         return
 
     # Human-readable output
-    click.echo(f"Audit log for session {session_id[:12]}... ({len(entries)} entries)\n")
+    click.echo(f"Audit log for session {common.truncate_id(session_id)} ({len(entries)} entries)\n")
 
     for entry in entries:
         # Format: [timestamp] RESULT event_type

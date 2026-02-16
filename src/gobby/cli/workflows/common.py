@@ -19,6 +19,11 @@ def get_state_manager() -> WorkflowStateManager:
     return WorkflowStateManager(db)
 
 
+def truncate_id(session_id: str, length: int = 12) -> str:
+    """Truncate ID for display, appending '...' only if truncated."""
+    return f"{session_id[:length]}..." if len(session_id) > length else session_id
+
+
 def get_project_path() -> Path | None:
     """Get current project path if in a gobby project."""
     cwd = Path.cwd()

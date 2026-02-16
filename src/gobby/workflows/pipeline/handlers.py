@@ -100,7 +100,7 @@ async def execute_spawn_session_step(
             "session_id": session_id,
             "tmux_session_name": getattr(result, "tmux_session_name", ""),
         }
-    except Exception as e:
+    except (OSError, RuntimeError) as e:
         return {"error": f"Failed to spawn session: {e}"}
 
 
@@ -143,7 +143,7 @@ async def execute_activate_workflow_step(
             variables=variables,
         )
         return result
-    except Exception as e:
+    except (ImportError, ValueError, RuntimeError, OSError) as e:
         return {"error": f"Failed to activate workflow: {e}"}
 
 
@@ -168,7 +168,7 @@ async def execute_exec_step(command: str, context: dict[str, Any]) -> dict[str, 
             "stderr": stderr.decode().strip(),
             "exit_code": proc.returncode,
         }
-    except Exception as e:
+    except (OSError, ValueError) as e:
         return {
             "stdout": "",
             "stderr": str(e),
@@ -187,7 +187,7 @@ async def execute_prompt_step(
         provider = llm_service.get_default_provider()
         response = await provider.generate_text(prompt)
         return {"response": response}
-    except Exception as e:
+    except (OSError, RuntimeError, ValueError) as e:
         logger.error(f"LLM prompt execution failed: {e}", exc_info=True)
         return {
             "response": "",

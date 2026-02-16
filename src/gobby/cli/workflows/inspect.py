@@ -166,17 +166,7 @@ def workflow_status(ctx: click.Context, session_id: str | None, json_format: boo
     """Show current workflow state for a session."""
     state_manager = common.get_state_manager()
 
-    if not session_id:
-        try:
-            session_id = common.resolve_session_id(None)
-        except click.ClickException as e:
-            # Re-raise to match expected behavior or exit
-            raise SystemExit(1) from e
-    else:
-        try:
-            session_id = common.resolve_session_id(session_id)
-        except click.ClickException as e:
-            raise SystemExit(1) from e
+    session_id = common.resolve_session_id(session_id)
 
     state = state_manager.get_state(session_id)
 
@@ -184,7 +174,7 @@ def workflow_status(ctx: click.Context, session_id: str | None, json_format: boo
         if json_format:
             click.echo(json.dumps({"session_id": session_id, "has_workflow": False}))
         else:
-            click.echo(f"No workflow active for session: {session_id[:12]}...")
+            click.echo(f"No workflow active for session: {common.truncate_id(session_id)}")
         return
 
     if json_format:
@@ -207,7 +197,7 @@ def workflow_status(ctx: click.Context, session_id: str | None, json_format: boo
         )
         return
 
-    click.echo(f"Session: {session_id[:12]}...")
+    click.echo(f"Session: {common.truncate_id(session_id)}")
     click.echo(f"Workflow: {state.workflow_name}")
     click.echo(f"Step: {state.step}")
     click.echo(f"Actions in step: {state.step_action_count}")
