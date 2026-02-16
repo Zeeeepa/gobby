@@ -65,7 +65,6 @@ def sync_bundled_agents(db: DatabaseProtocol) -> dict[str, Any]:
     manager = LocalAgentDefinitionManager(db, dev_mode=True)
 
     for yaml_file in sorted(agents_path.glob("*.yaml")):
-
         try:
             raw_content = yaml_file.read_text(encoding="utf-8")
             data = yaml.safe_load(raw_content)
@@ -89,10 +88,7 @@ def sync_bundled_agents(db: DatabaseProtocol) -> dict[str, Any]:
                 existing_def = manager.export_to_definition(existing.id)
                 existing_json = existing_def.model_dump_json(exclude_none=False)
                 new_json = agent_def.model_dump_json(exclude_none=False)
-                needs_update = (
-                    existing_json != new_json
-                    or existing.source_path != source_path
-                )
+                needs_update = existing_json != new_json or existing.source_path != source_path
 
                 if needs_update:
                     # Atomic in-place update via manager.update() — avoids
@@ -106,7 +102,11 @@ def sync_bundled_agents(db: DatabaseProtocol) -> dict[str, Any]:
                                 for wf_name, spec in agent_def.workflows.items()
                             }
                         sandbox_dict = agent_def.sandbox.model_dump() if agent_def.sandbox else None
-                        skill_dict = agent_def.skill_profile.model_dump() if agent_def.skill_profile else None
+                        skill_dict = (
+                            agent_def.skill_profile.model_dump()
+                            if agent_def.skill_profile
+                            else None
+                        )
 
                         manager.update(
                             existing.id,
@@ -134,12 +134,8 @@ def sync_bundled_agents(db: DatabaseProtocol) -> dict[str, Any]:
                         logger.info(f"Updated bundled agent definition: {name}")
                         result["updated"] += 1
                     except Exception as e:
-                        logger.error(
-                            f"Failed to update bundled agent '{name}': {e}"
-                        )
-                        result["errors"].append(
-                            f"Failed to update '{name}': {e}"
-                        )
+                        logger.error(f"Failed to update bundled agent '{name}': {e}")
+                        result["errors"].append(f"Failed to update '{name}': {e}")
                 else:
                     logger.debug(f"Agent definition '{name}' already up to date, skipping")
                     result["skipped"] += 1

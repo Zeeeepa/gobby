@@ -63,7 +63,6 @@ def sync_bundled_workflows(db: DatabaseProtocol) -> dict[str, Any]:
     manager = LocalWorkflowDefinitionManager(db)
 
     for yaml_file in sorted(workflows_path.glob("*.yaml")):
-
         try:
             raw_content = yaml_file.read_text(encoding="utf-8")
             data = yaml.safe_load(raw_content)
