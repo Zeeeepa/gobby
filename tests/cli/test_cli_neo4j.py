@@ -65,7 +65,7 @@ class TestGetNeo4jStatus:
 
 
 # ---------------------------------------------------------------------------
-# install.py — --neo4j flag exists, --mem0 does not
+# install.py — --neo4j flag
 # ---------------------------------------------------------------------------
 
 
@@ -79,13 +79,6 @@ class TestInstallNeo4jFlag:
         param_names = [p.name for p in install.params]
         assert "neo4j_flag" in param_names
 
-    def test_install_command_no_mem0_option(self) -> None:
-        """install command should NOT have --mem0 flag."""
-        from gobby.cli.install import install
-
-        param_names = [p.name for p in install.params]
-        assert "mem0_flag" not in param_names
-
     def test_uninstall_command_has_neo4j_option(self) -> None:
         """uninstall command has --neo4j flag."""
         from gobby.cli.install import uninstall
@@ -93,16 +86,9 @@ class TestInstallNeo4jFlag:
         param_names = [p.name for p in uninstall.params]
         assert "neo4j_flag" in param_names
 
-    def test_uninstall_command_no_mem0_option(self) -> None:
-        """uninstall command should NOT have --mem0 flag."""
-        from gobby.cli.install import uninstall
-
-        param_names = [p.name for p in uninstall.params]
-        assert "mem0_flag" not in param_names
-
 
 # ---------------------------------------------------------------------------
-# daemon.py — --neo4j flag exists, --mem0 does not
+# daemon.py — --neo4j flag
 # ---------------------------------------------------------------------------
 
 
@@ -114,21 +100,18 @@ class TestDaemonNeo4jFlag:
 
         param_names = [p.name for p in start.params]
         assert "neo4j_flag" in param_names
-        assert "mem0_flag" not in param_names
 
     def test_stop_has_neo4j_flag(self) -> None:
         from gobby.cli.daemon import stop
 
         param_names = [p.name for p in stop.params]
         assert "neo4j_flag" in param_names
-        assert "mem0_flag" not in param_names
 
     def test_restart_has_neo4j_flag(self) -> None:
         from gobby.cli.daemon import restart
 
         param_names = [p.name for p in restart.params]
         assert "neo4j_flag" in param_names
-        assert "mem0_flag" not in param_names
 
     def test_neo4j_start_runs_compose_up(self, tmp_path: Path) -> None:
         from gobby.cli.daemon import _neo4j_start
@@ -176,7 +159,7 @@ class TestDaemonNeo4jFlag:
 
 
 # ---------------------------------------------------------------------------
-# status display — Neo4j replaces Mem0
+# status display — Neo4j knowledge graph
 # ---------------------------------------------------------------------------
 
 
@@ -220,13 +203,3 @@ class TestStatusNeo4jDisplay:
         msg = format_status_message(running=True, pid=123)
         assert "Neo4j" not in msg
 
-    def test_status_no_mem0_params(self) -> None:
-        """format_status_message should not accept mem0 params."""
-        # mem0 params should be passed to **kwargs (ignored), not as named params
-        msg = format_status_message(
-            running=True,
-            pid=123,
-            mem0_installed=True,
-        )
-        # "Mem0" should not appear in output
-        assert "Mem0" not in msg

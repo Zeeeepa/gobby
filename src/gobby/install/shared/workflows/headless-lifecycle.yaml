@@ -2,7 +2,7 @@ name: headless-lifecycle
 description: "Lifecycle for headless/SDK clients without session_start/session_end hooks"
 enabled: true
 priority: 10
-sources: [claude_sdk]
+sources: [claude_sdk, claude_sdk_web_chat]
 
 # Workflow-scoped variables (behavior settings)
 variables:

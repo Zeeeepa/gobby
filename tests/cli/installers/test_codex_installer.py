@@ -218,13 +218,13 @@ class TestInstallCodexNotify:
         assert result["mcp_configured"] is False
         assert result["mcp_already_configured"] is True
 
-    def test_install_workflows_merged(
+    def test_install_workflows_db_managed(
         self,
         mock_home: Path,
         mock_install_dir: Path,
         mock_mcp_configure,
     ) -> None:
-        """Test that shared and CLI-specific workflows are merged."""
+        """Test that workflows are DB-managed (not merged from file installs)."""
         from gobby.cli.installers.codex import install_codex_notify
 
         with (
@@ -232,18 +232,17 @@ class TestInstallCodexNotify:
             patch("gobby.cli.installers.codex.install_cli_content") as mock_cli,
         ):
             mock_shared.return_value = {
-                "workflows": ["shared-workflow"],
                 "plugins": ["plugin.py"],
+                "docs": [],
             }
             mock_cli.return_value = {
-                "workflows": ["cli-workflow"],
                 "commands": ["command1"],
             }
 
             result = install_codex_notify(mock_home)
 
         assert result["success"] is True
-        assert result["workflows_installed"] == ["shared-workflow", "cli-workflow"]
+        assert result["workflows_installed"] == []  # DB-managed
         assert result["commands_installed"] == ["command1"]
         assert result["plugins_installed"] == ["plugin.py"]
 

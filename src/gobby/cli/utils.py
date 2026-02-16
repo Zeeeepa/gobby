@@ -369,8 +369,12 @@ def kill_all_gobby_daemons() -> int:
     return killed_count
 
 
-def init_local_storage() -> None:
-    """Initialize hub SQLite storage and run migrations."""
+def init_local_storage() -> "LocalDatabase":
+    """Initialize hub SQLite storage and run migrations.
+
+    Returns:
+        The initialized database instance.
+    """
     from gobby.storage.database import LocalDatabase
     from gobby.storage.migrations import run_migrations
 
@@ -383,6 +387,7 @@ def init_local_storage() -> None:
     hub_db = LocalDatabase(hub_db_path)
     run_migrations(hub_db)
     logger.debug(f"Database: {hub_db_path}")
+    return hub_db
 
 
 def get_install_dir() -> Path:

@@ -384,7 +384,7 @@ class HookManagerFactory:
         from gobby.workflows.engine import WorkflowEngine
         from gobby.workflows.templates import TemplateEngine
 
-        loader = WorkflowLoader(workflow_dirs=[Path.home() / ".gobby" / "workflows"])
+        loader = WorkflowLoader(db=database)
         state_manager = WorkflowStateManager(database)
         template_engine = TemplateEngine()
         skill_manager = HookSkillManager()

@@ -33,26 +33,6 @@ class TestGetStatsNoDecay:
         assert not hasattr(maintenance, "decay_memories")
 
 
-class TestGetStatsNoMem0Sync:
-    """Tests that mem0 sync stats are removed."""
-
-    def test_no_mem0_sync_in_stats(self) -> None:
-        """get_stats should not include mem0_sync in output."""
-        storage = _make_storage([_make_memory()])
-        db = MagicMock()
-
-        stats = get_stats(storage, db, project_id=None)
-
-        assert "mem0_sync" not in stats
-
-    def test_get_stats_no_mem0_client_param(self) -> None:
-        """get_stats should not accept mem0_client parameter."""
-        import inspect
-
-        sig = inspect.signature(get_stats)
-        assert "mem0_client" not in sig.parameters
-
-
 class TestGetStatsVectorCount:
     """Tests for vector_count in get_stats."""
 

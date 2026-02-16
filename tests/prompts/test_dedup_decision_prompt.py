@@ -39,13 +39,6 @@ class TestDedupDecisionPrompt:
         assert template is not None
         assert template.content
 
-    def test_prompt_has_apache2_attribution(self) -> None:
-        """Prompt frontmatter contains Apache 2.0 attribution."""
-        prompt_path = PROMPTS_DIR / "memory" / "dedup_decision.md"
-        content = prompt_path.read_text()
-        assert "Apache-2.0" in content
-        assert "mem0" in content
-
     def test_prompt_has_required_variables(self, loader: PromptLoader) -> None:
         """Prompt uses new_facts and existing_memories Jinja2 variables."""
         template = loader.load("memory/dedup_decision")

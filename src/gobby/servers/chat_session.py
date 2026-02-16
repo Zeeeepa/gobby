@@ -218,6 +218,8 @@ class ChatSession:
     _pending_question: dict[str, Any] | None = field(default=None, repr=False)
     _pending_answer_event: asyncio.Event | None = field(default=None, repr=False)
     _pending_answers: dict[str, str] | None = field(default=None, repr=False)
+    _needs_history_injection: bool = field(default=False, repr=False)
+    _message_manager: Any | None = field(default=None, repr=False)
 
     # Lifecycle callbacks — set by ChatMixin to bridge SDK hooks to workflow engine
     _on_before_agent: Callable[[dict[str, Any]], Awaitable[dict[str, Any] | None]] | None = field(
@@ -290,7 +292,26 @@ class ChatSession:
             ) -> SyncHookJSONOutput:
                 data = {"prompt_text": inp.get("prompt", ""), "source": "claude_sdk_web_chat"}
                 resp = await cb(data)
-                return _response_to_prompt_output(resp)
+                output = _response_to_prompt_output(resp)
+
+                # Inject conversation history on first prompt of a recreated session
+                if self._needs_history_injection:
+                    self._needs_history_injection = False
+                    history_ctx = await self._load_history_context()
+                    if history_ctx:
+                        existing = ""
+                        hook_specific = output.get("hookSpecificOutput")
+                        if hook_specific and isinstance(hook_specific, dict):
+                            existing = str(hook_specific.get("additionalContext", "") or "")
+                        combined = (
+                            (existing + "\n\n" + history_ctx).strip() if existing else history_ctx
+                        )
+                        output["hookSpecificOutput"] = UserPromptSubmitHookSpecificOutput(
+                            hookEventName="UserPromptSubmit",
+                            additionalContext=combined,
+                        )
+
+                return output
 
             hooks["UserPromptSubmit"] = [HookMatcher(matcher=None, hooks=[_prompt_hook])]
 
@@ -410,6 +431,61 @@ class ChatSession:
     def has_pending_question(self) -> bool:
         """Whether an AskUserQuestion is currently awaiting a response."""
         return self._pending_question is not None
+
+    async def _load_history_context(self) -> str | None:
+        """Load prior conversation messages and format as context for injection.
+
+        Returns a formatted string with conversation history, or None if
+        no messages exist or an error occurs.
+        """
+        if not self._message_manager or not self.db_session_id:
+            return None
+
+        try:
+            messages = await self._message_manager.get_messages(self.db_session_id, limit=50)
+            if not messages:
+                return None
+
+            # Filter to user/assistant text messages only
+            text_messages = [
+                m
+                for m in messages
+                if m.get("role") in ("user", "assistant")
+                and m.get("content_type") == "text"
+                and m.get("content")
+            ]
+            if not text_messages:
+                return None
+
+            max_msg_chars = 2000
+            max_total_chars = 30_000
+            parts: list[str] = []
+            total = 0
+
+            for m in text_messages:
+                role_label = "**User:**" if m["role"] == "user" else "**Assistant:**"
+                content = m["content"]
+                if len(content) > max_msg_chars:
+                    content = content[:max_msg_chars] + "..."
+                entry = f"{role_label} {content}"
+                if total + len(entry) > max_total_chars:
+                    break
+                parts.append(entry)
+                total += len(entry)
+
+            if not parts:
+                return None
+
+            return (
+                "<conversation-history>\n"
+                "The following is the prior conversation history for this session, "
+                "restored after session recreation. Use it to maintain continuity.\n\n"
+                + "\n\n".join(parts)
+                + "\n</conversation-history>"
+            )
+        except Exception as e:
+            logger.warning(f"Failed to load history context for {self.conversation_id}: {e}")
+            return None
 
     async def send_message(self, content: str | list[dict[str, Any]]) -> AsyncIterator[ChatEvent]:
         """

@@ -72,11 +72,10 @@ class TestInstallClaude:
 
         mock_get_install_dir.return_value = mock_install_dir
         mock_shared_content.return_value = {
-            "workflows": ["workflow.yaml"],
             "plugins": [],
+            "docs": [],
         }
         mock_cli_content.return_value = {
-            "workflows": [],
             "commands": ["memory/"],
         }
         mock_mcp_config.return_value = {"success": True, "added": True}
@@ -88,7 +87,7 @@ class TestInstallClaude:
         assert result["error"] is None
         assert "SessionStart" in result["hooks_installed"]
         assert "PreToolUse" in result["hooks_installed"]
-        assert "workflow.yaml" in result["workflows_installed"]
+        assert result["workflows_installed"] == []  # DB-managed
         assert "memory/" in result["commands_installed"]
         assert result["mcp_configured"] is True
 

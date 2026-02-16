@@ -1,8 +1,12 @@
 """
 Shared content installation for Gobby hooks.
 
-This module handles installing shared workflows and plugins
+This module handles installing shared plugins and docs
 that are used across all CLI integrations (Claude, Gemini, Codex, etc.).
+
+Workflows, agents, rules, prompts, and skills are DB-managed:
+they are synced from bundled YAML to the database during ``gobby install``
+via :func:`sync_bundled_content_to_db`, NOT copied to ``.gobby/`` on disk.
 """
 
 import logging
@@ -10,8 +14,12 @@ import os
 import shutil
 from pathlib import Path
 from shutil import copy2, copytree
+from typing import TYPE_CHECKING, Any
 
 from gobby.cli.utils import get_install_dir
+
+if TYPE_CHECKING:
+    from gobby.storage.database import DatabaseProtocol
 
 logger = logging.getLogger(__name__)
 
@@ -76,12 +84,12 @@ def _install_file(source: Path, target: Path, dev_mode: bool, executable: bool =
 def install_shared_content(cli_path: Path, project_path: Path) -> dict[str, list[str]]:
     """Install shared content from src/install/shared/.
 
-    Workflows are cross-CLI and go to {project_path}/.gobby/workflows/.
-    Agents are cross-CLI and go to {project_path}/.gobby/agents/.
     Plugins are project-scoped and go to {project_path}/.gobby/plugins/.
     Docs are project-local and go to {project_path}/.gobby/docs/.
 
-    Note: Prompts are now database-managed via sync_bundled_prompts() on daemon startup.
+    Note: Workflows, agents, prompts, rules, and skills are DB-managed.
+    They are synced to the database during ``gobby install`` via
+    :func:`sync_bundled_content_to_db`, NOT copied to ``.gobby/``.
 
     In dev mode (running inside the gobby source repo), symlinks are created
     instead of copies so that .gobby/ and install/shared/ stay in sync.
@@ -96,8 +104,6 @@ def install_shared_content(cli_path: Path, project_path: Path) -> dict[str, list
     shared_dir = get_install_dir() / "shared"
     dev_mode = _is_dev_mode(project_path)
     installed: dict[str, list[str]] = {
-        "workflows": [],
-        "agents": [],
         "plugins": [],
         "docs": [],
     }
@@ -105,10 +111,9 @@ def install_shared_content(cli_path: Path, project_path: Path) -> dict[str, list
     if dev_mode:
         logger.info("Dev mode detected: using symlinks instead of copies")
 
-    # Resource directories to install: (source_subdir, target_subdir, type_key)
+    # Only plugins and docs are file-based; workflows/agents/rules/prompts/skills
+    # are DB-managed and synced via sync_bundled_content_to_db().
     resource_dirs = [
-        ("workflows", "workflows", "workflows"),
-        ("agents", "agents", "agents"),
         ("plugins", "plugins", "plugins"),
         ("docs", "docs", "docs"),
     ]
@@ -126,55 +131,14 @@ def install_shared_content(cli_path: Path, project_path: Path) -> dict[str, list
             _install_resource_dir(source, target, dev_mode=True)
             installed[type_key].append(f"{source_name}/ -> (symlink)")
         else:
-            # Copy files individually (preserving existing per-item logic)
+            # Copy files individually
             target.mkdir(parents=True, exist_ok=True)
-            if type_key == "workflows":
-                _copy_workflows(source, target, installed)
-            elif type_key == "agents":
-                _copy_agents(source, target, installed)
-            elif type_key == "plugins":
+            if type_key == "plugins":
                 _copy_plugins(source, target, installed)
             elif type_key == "docs":
                 _copy_docs(source, target, installed)
 
     return installed
-
-
-def _safe_remove_target(path: Path) -> None:
-    """Remove a symlink or directory at path so it can be replaced."""
-    if path.is_symlink():
-        os.unlink(path)
-    elif path.exists():
-        shutil.rmtree(path)
-
-
-def _copy_workflows(source: Path, target: Path, installed: dict[str, list[str]]) -> None:
-    """Copy workflow files from source to target."""
-    for item in source.iterdir():
-        # Skip deprecated workflows - they are kept for reference only
-        if item.name == "deprecated":
-            continue
-        if item.is_file():
-            copy2(item, target / item.name)
-            installed["workflows"].append(item.name)
-        elif item.is_dir():
-            target_subdir = target / item.name
-            _safe_remove_target(target_subdir)
-            copytree(item, target_subdir)
-            installed["workflows"].append(f"{item.name}/")
-
-
-def _copy_agents(source: Path, target: Path, installed: dict[str, list[str]]) -> None:
-    """Copy agent files from source to target."""
-    for item in source.iterdir():
-        if item.is_file() and item.suffix in (".yaml", ".yml"):
-            copy2(item, target / item.name)
-            installed["agents"].append(item.name)
-        elif item.is_dir():
-            target_subdir = target / item.name
-            _safe_remove_target(target_subdir)
-            copytree(item, target_subdir)
-            installed["agents"].append(f"{item.name}/")
 
 
 def _copy_plugins(source: Path, target: Path, installed: dict[str, list[str]]) -> None:
@@ -193,8 +157,53 @@ def _copy_docs(source: Path, target: Path, installed: dict[str, list[str]]) -> N
             installed["docs"].append(doc_file.name)
 
 
+def sync_bundled_content_to_db(db: "DatabaseProtocol") -> dict[str, Any]:
+    """Sync all bundled content (skills, prompts, rules, agents, workflows) to the database.
+
+    Called during ``gobby install`` as the single import point.
+    The daemon no longer syncs on startup.
+
+    Args:
+        db: Database connection implementing DatabaseProtocol.
+
+    Returns:
+        Dict with total_synced count and any errors.
+    """
+    result: dict[str, Any] = {
+        "total_synced": 0,
+        "errors": [],
+        "details": {},
+    }
+
+    # (content_type, module_path, function_name)
+    sync_targets: list[tuple[str, str, str]] = [
+        ("skills", "gobby.skills.sync", "sync_bundled_skills"),
+        ("prompts", "gobby.prompts.sync", "sync_bundled_prompts"),
+        ("rules", "gobby.workflows.rule_sync", "sync_bundled_rules_sync"),
+        ("agents", "gobby.agents.sync", "sync_bundled_agents"),
+        ("workflows", "gobby.workflows.sync", "sync_bundled_workflows"),
+    ]
+
+    for content_type, module_path, func_name in sync_targets:
+        try:
+            module = __import__(module_path, fromlist=[func_name])
+            sync_fn = getattr(module, func_name)
+            sync_result = sync_fn(db)
+            synced = sync_result.get("synced", 0) + sync_result.get("updated", 0)
+            result["total_synced"] += synced
+            result["details"][content_type] = sync_result
+            if synced > 0:
+                logger.info(f"Synced {synced} bundled {content_type} to database")
+        except Exception as e:
+            msg = f"Failed to sync bundled {content_type}: {e}"
+            logger.warning(msg)
+            result["errors"].append(msg)
+
+    return result
+
+
 def install_cli_content(cli_name: str, target_path: Path) -> dict[str, list[str]]:
-    """Install CLI-specific workflows/commands (layered on top of shared).
+    """Install CLI-specific commands (layered on top of shared).
 
     CLI-specific content can add to or override shared content.
 
@@ -206,24 +215,7 @@ def install_cli_content(cli_name: str, target_path: Path) -> dict[str, list[str]
         Dict with lists of installed items by type
     """
     cli_dir = get_install_dir() / cli_name
-    installed: dict[str, list[str]] = {"workflows": [], "commands": []}
-
-    # CLI-specific workflows
-    cli_workflows = cli_dir / "workflows"
-    if cli_workflows.exists():
-        target_workflows = target_path / "workflows"
-        target_workflows.mkdir(parents=True, exist_ok=True)
-        for item in cli_workflows.iterdir():
-            if item.is_file():
-                copy2(item, target_workflows / item.name)
-                installed["workflows"].append(item.name)
-            elif item.is_dir():
-                # Copy subdirectories
-                target_subdir = target_workflows / item.name
-                if target_subdir.exists():
-                    shutil.rmtree(target_subdir)
-                copytree(item, target_subdir)
-                installed["workflows"].append(f"{item.name}/")
+    installed: dict[str, list[str]] = {"commands": []}
 
     # CLI-specific commands (slash commands)
     # Claude/Gemini: commands/, Codex: prompts/

@@ -120,38 +120,13 @@ class GobbyRunner:
         self.task_manager = LocalTaskManager(self.database)
         self.session_task_manager = SessionTaskManager(self.database)
 
-        # Sync bundled skills to database
-        from gobby.skills.sync import sync_bundled_skills
+        # Bundled content (skills, prompts, rules, agents) is synced to the DB
+        # during `gobby install`, not on every daemon startup.  See
+        # src/gobby/cli/install.py -> sync_bundled_content_to_db().
 
-        try:
-            skill_result = sync_bundled_skills(self.database)
-            if skill_result["synced"] > 0:
-                logger.info(f"Synced {skill_result['synced']} bundled skills to database")
-        except Exception as e:
-            logger.warning(f"Failed to sync bundled skills: {e}")
-
-        # Sync bundled prompts to database
-        from gobby.prompts.sync import sync_bundled_prompts
         from gobby.utils.dev import is_dev_mode
 
         self._dev_mode = is_dev_mode(Path.cwd())
-
-        try:
-            prompt_result = sync_bundled_prompts(self.database)
-            if prompt_result["synced"] > 0:
-                logger.info(f"Synced {prompt_result['synced']} bundled prompts to database")
-        except Exception as e:
-            logger.warning(f"Failed to sync bundled prompts: {e}")
-
-        # Sync bundled rules to database
-        from gobby.workflows.rule_sync import sync_bundled_rules_sync
-
-        try:
-            rule_result = sync_bundled_rules_sync(self.database)
-            if rule_result["synced"] > 0:
-                logger.info(f"Synced {rule_result['synced']} bundled rules to database")
-        except Exception as e:
-            logger.warning(f"Failed to sync bundled rules: {e}")
 
         # Initialize Prompt Manager
         from gobby.storage.prompts import LocalPromptManager

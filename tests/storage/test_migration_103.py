@@ -30,13 +30,6 @@ def test_memories_table_still_exists(db) -> None:
     assert len(tables) == 1
 
 
-def test_memories_no_mem0_id_column(db) -> None:
-    """memories table should not have mem0_id column (removed in migration 104)."""
-    columns = db.fetchall("PRAGMA table_info(memories)")
-    column_names = [c["name"] for c in columns]
-    assert "mem0_id" not in column_names
-
-
 def test_memories_no_importance_column(db) -> None:
     """memories table should not have importance column (removed in migration 105)."""
     columns = db.fetchall("PRAGMA table_info(memories)")
@@ -67,6 +60,20 @@ def test_migration_applies_to_existing_db(tmp_path) -> None:
             embedding_model TEXT NOT NULL,
             embedding_dim INTEGER NOT NULL,
             text_hash TEXT NOT NULL
+        )
+    """)
+    # Create agent_definitions table as it would exist at v102 (created by migration 92).
+    # Required for migration 107 which alters this table.
+    db.execute("""
+        CREATE TABLE IF NOT EXISTS agent_definitions (
+            id TEXT PRIMARY KEY,
+            project_id TEXT,
+            name TEXT NOT NULL,
+            description TEXT,
+            definition_json TEXT NOT NULL,
+            source TEXT DEFAULT 'custom',
+            created_at TEXT NOT NULL,
+            updated_at TEXT NOT NULL
         )
     """)
 

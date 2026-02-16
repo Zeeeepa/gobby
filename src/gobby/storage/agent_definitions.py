@@ -5,12 +5,14 @@ import logging
 import sqlite3
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
-from typing import Any
+from typing import Any, Literal
 from uuid import uuid4
 
 from gobby.storage.database import DatabaseProtocol
 
 logger = logging.getLogger(__name__)
+
+AgentDefinitionScope = Literal["bundled", "global", "project"]
 
 
 @dataclass
@@ -40,6 +42,9 @@ class AgentDefinitionRow:
     sandbox_config: dict[str, Any] | None = None
     skill_profile: dict[str, Any] | None = None
     workflows: dict[str, Any] | None = None
+    scope: AgentDefinitionScope = "global"
+    source_path: str | None = None
+    version: str = "1.0"
     lifecycle_variables: dict[str, Any] = field(default_factory=dict)
     default_variables: dict[str, Any] = field(default_factory=dict)
 
@@ -75,6 +80,9 @@ class AgentDefinitionRow:
             sandbox_config=_parse_json(row["sandbox_config"]),
             skill_profile=_parse_json(row["skill_profile"]),
             workflows=_parse_json(row["workflows"]),
+            scope=row["scope"] if row["scope"] else "global",
+            source_path=row["source_path"],
+            version=row["version"] or "1.0",
             lifecycle_variables=_parse_json(row["lifecycle_variables"]) or {},
             default_variables=_parse_json(row["default_variables"]) or {},
             enabled=bool(row["enabled"]),
@@ -104,6 +112,9 @@ class AgentDefinitionRow:
             "sandbox_config": self.sandbox_config,
             "skill_profile": self.skill_profile,
             "workflows": self.workflows,
+            "scope": self.scope,
+            "source_path": self.source_path,
+            "version": self.version,
             "lifecycle_variables": self.lifecycle_variables,
             "default_variables": self.default_variables,
             "enabled": self.enabled,
@@ -115,8 +126,17 @@ class AgentDefinitionRow:
 class LocalAgentDefinitionManager:
     """Manages agent definitions in the local database."""
 
-    def __init__(self, db: DatabaseProtocol):
+    def __init__(self, db: DatabaseProtocol, dev_mode: bool = False):
         self.db = db
+        self._dev_mode = dev_mode
+
+    def _check_bundled_writable(self, scope: str) -> None:
+        """Raise ValueError if trying to mutate a bundled record in non-dev mode."""
+        if scope == "bundled" and not self._dev_mode:
+            raise ValueError(
+                "Cannot modify bundled agent definitions outside dev mode. "
+                "Create a scope='global' override instead."
+            )
 
     def create(
         self,
@@ -141,8 +161,15 @@ class LocalAgentDefinitionManager:
         workflows: dict[str, Any] | None = None,
         lifecycle_variables: dict[str, Any] | None = None,
         default_variables: dict[str, Any] | None = None,
+        scope: AgentDefinitionScope = "global",
+        source_path: str | None = None,
+        version: str = "1.0",
     ) -> AgentDefinitionRow:
         """Create a new agent definition in the database."""
+        # Auto-infer scope from project_id when using default scope
+        if project_id is not None and scope == "global":
+            scope = "project"
+        self._check_bundled_writable(scope)
         definition_id = str(uuid4())
         now = datetime.now(UTC).isoformat()
 
@@ -156,8 +183,9 @@ class LocalAgentDefinitionManager:
                     timeout, max_turns, default_workflow,
                     sandbox_config, skill_profile, workflows,
                     lifecycle_variables, default_variables,
-                    enabled, created_at, updated_at
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?)
+                    enabled, scope, source_path, version,
+                    created_at, updated_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?, ?, ?, ?)
                 """,
                 (
                     definition_id,
@@ -182,6 +210,9 @@ class LocalAgentDefinitionManager:
                     json.dumps(workflows) if workflows else None,
                     json.dumps(lifecycle_variables) if lifecycle_variables else None,
                     json.dumps(default_variables) if default_variables else None,
+                    scope,
+                    source_path,
+                    version,
                     now,
                     now,
                 ),
@@ -197,23 +228,52 @@ class LocalAgentDefinitionManager:
         return AgentDefinitionRow.from_row(row)
 
     def get_by_name(self, name: str, project_id: str | None = None) -> AgentDefinitionRow | None:
-        """Get an agent definition by name and scope (project first, then global)."""
+        """Get an agent definition by name with precedence: project > global > bundled."""
         if project_id:
             row = self.db.fetchone(
-                "SELECT * FROM agent_definitions WHERE name = ? AND project_id = ?",
+                """
+                SELECT * FROM agent_definitions
+                WHERE name = ? AND (project_id = ? OR project_id IS NULL)
+                ORDER BY CASE scope
+                    WHEN 'project' THEN 1
+                    WHEN 'global' THEN 2
+                    WHEN 'bundled' THEN 3
+                END
+                LIMIT 1
+                """,
                 (name, project_id),
             )
-            if row:
-                return AgentDefinitionRow.from_row(row)
-        # Fall back to global
+        else:
+            row = self.db.fetchone(
+                """
+                SELECT * FROM agent_definitions
+                WHERE name = ? AND project_id IS NULL
+                ORDER BY CASE scope
+                    WHEN 'global' THEN 1
+                    WHEN 'bundled' THEN 2
+                END
+                LIMIT 1
+                """,
+                (name,),
+            )
+        return AgentDefinitionRow.from_row(row) if row else None
+
+    def get_bundled(self, name: str) -> AgentDefinitionRow | None:
+        """Get the bundled version of an agent definition (ignoring overrides)."""
         row = self.db.fetchone(
-            "SELECT * FROM agent_definitions WHERE name = ? AND project_id IS NULL",
+            "SELECT * FROM agent_definitions WHERE name = ? AND scope = 'bundled'",
             (name,),
         )
         return AgentDefinitionRow.from_row(row) if row else None
 
     def update(self, definition_id: str, **fields: Any) -> AgentDefinitionRow:
-        """Partial update of an agent definition."""
+        """Partial update of an agent definition.
+
+        Raises:
+            ValueError: If definition not found or if bundled and not in dev mode.
+        """
+        existing = self.get(definition_id)
+        self._check_bundled_writable(existing.scope)
         json_fields = {
             "sandbox_config",
             "skill_profile",
@@ -236,7 +296,16 @@ class LocalAgentDefinitionManager:
         return self.get(definition_id)
 
     def delete(self, definition_id: str) -> bool:
-        """Delete an agent definition from the database."""
+        """Delete an agent definition from the database.
+
+        Raises:
+            ValueError: If bundled and not in dev mode.
+        """
+        existing_row = self.db.fetchone(
+            "SELECT scope FROM agent_definitions WHERE id = ?", (definition_id,)
+        )
+        if existing_row:
+            self._check_bundled_writable(existing_row["scope"])
         with self.db.transaction() as conn:
             cursor = conn.execute("DELETE FROM agent_definitions WHERE id = ?", (definition_id,))
             return cursor.rowcount > 0
@@ -272,7 +341,12 @@ class LocalAgentDefinitionManager:
         return [AgentDefinitionRow.from_row(r) for r in rows]
 
     def import_from_definition(
-        self, agent_def: Any, project_id: str | None = None
+        self,
+        agent_def: Any,
+        project_id: str | None = None,
+        scope: AgentDefinitionScope = "global",
+        source_path: str | None = None,
+        version: str = "1.0",
     ) -> AgentDefinitionRow:
         """Import an AgentDefinition Pydantic model into the database."""
         from gobby.agents.definitions import AgentDefinition
@@ -312,6 +386,9 @@ class LocalAgentDefinitionManager:
             workflows=workflows_dict,
             lifecycle_variables=agent_def.lifecycle_variables or None,
             default_variables=agent_def.default_variables or None,
+            scope=scope,
+            source_path=source_path,
+            version=version,
         )
 
     def export_to_definition(self, definition_id: str) -> Any:

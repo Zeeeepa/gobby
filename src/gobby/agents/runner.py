@@ -83,7 +83,7 @@ class AgentRunner:
         self._workflow_loader = workflow_loader or WorkflowLoader()
         from gobby.agents.definitions import AgentDefinitionLoader
 
-        self._agent_loader = AgentDefinitionLoader()
+        self._agent_loader = AgentDefinitionLoader(db=db)
         self._workflow_state_manager = WorkflowStateManager(db)
 
         self.logger = logger

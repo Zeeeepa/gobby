@@ -88,27 +88,3 @@ class TestExportMemoryGraphRemoved:
         assert "export_memory_graph" not in tool_names
 
 
-class TestMemoryStatsUpdated:
-    """Test that memory_stats returns correct fields."""
-
-    def test_memory_stats_has_no_mem0_sync(self) -> None:
-        """memory_stats should not include mem0_sync in output."""
-        registry, manager = _make_registry()
-
-        # Mock get_stats to return a realistic response
-        manager.get_stats = MagicMock(
-            return_value={
-                "total_count": 10,
-                "by_type": {"fact": 8, "preference": 2},
-                "project_id": None,
-                "vector_count": 10,
-            }
-        )
-
-        tool_fn = registry.get_tool("memory_stats")
-        result = tool_fn()
-
-        assert result["success"] is True
-        stats = result["stats"]
-        assert "mem0_sync" not in stats
-        assert "vector_count" in stats

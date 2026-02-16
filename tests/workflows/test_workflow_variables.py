@@ -2,19 +2,16 @@
 Tests for workflow variable loading and merging.
 
 Tests the following scenarios:
-1. WorkflowDefinition.variables loaded from YAML
+1. WorkflowDefinition.variables loaded from DB
 2. WorkflowState.variables initialized from definition defaults
 3. Variable inheritance when workflows extend each other
-4. Runtime variables override YAML defaults
+4. Runtime variables override defaults
 5. Variable persistence through state_manager (save/load roundtrip)
 6. Variable precedence pattern (explicit > workflow > config)
 """
 
-from collections.abc import Callable
+import json
 from datetime import UTC, datetime
-from pathlib import Path
-from typing import Any
-from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
@@ -26,65 +23,64 @@ pytestmark = pytest.mark.unit
 
 
 # =============================================================================
-# aiofiles mock helpers
+# DB fixtures
 # =============================================================================
 
 
-def mock_aiofiles_open(read_data: str = "") -> MagicMock:
-    """Create a mock for aiofiles.open that returns read_data."""
-    mock_file = AsyncMock()
-    mock_file.read = AsyncMock(return_value=read_data)
-    mock_cm = AsyncMock()
-    mock_cm.__aenter__ = AsyncMock(return_value=mock_file)
-    mock_cm.__aexit__ = AsyncMock(return_value=False)
-    return MagicMock(return_value=mock_cm)
+@pytest.fixture
+def db(tmp_path):
+    """Create a fresh database with migrations applied."""
+    from gobby.storage.database import LocalDatabase
+    from gobby.storage.migrations import run_migrations
+
+    db_path = tmp_path / "test_wf_vars.db"
+    database = LocalDatabase(db_path)
+    run_migrations(database)
+    return database
 
 
-def mock_aiofiles_open_side_effect(content_fn: Callable[[str], Any]) -> Callable[..., Any]:
-    """Create a side_effect function for aiofiles.open that dispatches by path."""
+@pytest.fixture
+def def_manager(db):
+    """Create a workflow definition manager."""
+    from gobby.storage.workflow_definitions import LocalWorkflowDefinitionManager
 
-    def _open(path: str, *args: Any, **kwargs: Any) -> AsyncMock:
-        content = content_fn(path)
-        mock_file = AsyncMock()
-        mock_file.read = AsyncMock(return_value=content)
-        mock_cm = AsyncMock()
-        mock_cm.__aenter__ = AsyncMock(return_value=mock_file)
-        mock_cm.__aexit__ = AsyncMock(return_value=False)
-        return mock_cm
+    return LocalWorkflowDefinitionManager(db)
 
-    return _open
+
+@pytest.fixture
+def loader(db):
+    """Create a WorkflowLoader backed by the temp database."""
+    return WorkflowLoader(db=db)
 
 
 # =============================================================================
-# Test WorkflowDefinition Variables Loading from YAML
+# Test WorkflowDefinition Variables Loading from DB
 # =============================================================================
 
 
 class TestWorkflowDefinitionVariables:
-    """Tests for loading variables from workflow YAML files."""
+    """Tests for loading variables from workflow definitions in DB."""
 
     @pytest.mark.asyncio
-    async def test_load_workflow_with_variables(self) -> None:
-        """Variables section from YAML is loaded into WorkflowDefinition."""
-        loader = WorkflowLoader(workflow_dirs=[Path("/tmp/workflows")])
-        yaml_content = """
-        name: test_workflow
-        version: "1.0.0"
-        type: lifecycle
-        variables:
-          require_task_before_edit: true
-          tdd_mode: false
-          session_task: null
-        steps: []
-        """
+    async def test_load_workflow_with_variables(self, loader, def_manager) -> None:
+        """Variables section is loaded into WorkflowDefinition."""
+        def_manager.create(
+            name="test_workflow",
+            definition_json=json.dumps({
+                "name": "test_workflow",
+                "version": "1.0.0",
+                "type": "lifecycle",
+                "variables": {
+                    "require_task_before_edit": True,
+                    "tdd_mode": False,
+                    "session_task": None,
+                },
+                "steps": [],
+            }),
+            workflow_type="workflow",
+        )
 
-        with patch.object(
-            loader,
-            "_find_workflow_file",
-            return_value=Path("/tmp/workflows/test_workflow.yaml"),
-        ):
-            with patch("aiofiles.open", mock_aiofiles_open(read_data=yaml_content)):
-                wf = await loader.load_workflow("test_workflow")
+        wf = await loader.load_workflow("test_workflow")
 
         assert wf is not None
         assert wf.variables == {
@@ -94,52 +90,46 @@ class TestWorkflowDefinitionVariables:
         }
 
     @pytest.mark.asyncio
-    async def test_load_workflow_without_variables(self) -> None:
+    async def test_load_workflow_without_variables(self, loader, def_manager) -> None:
         """Workflow without variables section has empty dict."""
-        loader = WorkflowLoader(workflow_dirs=[Path("/tmp/workflows")])
-        yaml_content = """
-        name: no_vars_workflow
-        version: "1.0.0"
-        steps: []
-        """
+        def_manager.create(
+            name="no_vars_workflow",
+            definition_json=json.dumps({
+                "name": "no_vars_workflow",
+                "version": "1.0.0",
+                "steps": [],
+            }),
+            workflow_type="workflow",
+        )
 
-        with patch.object(
-            loader,
-            "_find_workflow_file",
-            return_value=Path("/tmp/workflows/no_vars_workflow.yaml"),
-        ):
-            with patch("aiofiles.open", mock_aiofiles_open(read_data=yaml_content)):
-                wf = await loader.load_workflow("no_vars_workflow")
+        wf = await loader.load_workflow("no_vars_workflow")
 
         assert wf is not None
         assert wf.variables == {}
 
     @pytest.mark.asyncio
-    async def test_variables_support_all_types(self) -> None:
+    async def test_variables_support_all_types(self, loader, def_manager) -> None:
         """Variables support string, int, float, bool, null, list, and dict values."""
-        loader = WorkflowLoader(workflow_dirs=[Path("/tmp/workflows")])
-        yaml_content = """
-        name: typed_vars
-        version: "1.0.0"
-        variables:
-          string_var: "hello"
-          int_var: 42
-          float_var: 3.14
-          bool_var: true
-          null_var: null
-          list_var: [1, 2, 3]
-          dict_var:
-            nested: value
-        steps: []
-        """
+        def_manager.create(
+            name="typed_vars",
+            definition_json=json.dumps({
+                "name": "typed_vars",
+                "version": "1.0.0",
+                "variables": {
+                    "string_var": "hello",
+                    "int_var": 42,
+                    "float_var": 3.14,
+                    "bool_var": True,
+                    "null_var": None,
+                    "list_var": [1, 2, 3],
+                    "dict_var": {"nested": "value"},
+                },
+                "steps": [],
+            }),
+            workflow_type="workflow",
+        )
 
-        with patch.object(
-            loader,
-            "_find_workflow_file",
-            return_value=Path("/tmp/workflows/typed_vars.yaml"),
-        ):
-            with patch("aiofiles.open", mock_aiofiles_open(read_data=yaml_content)):
-                wf = await loader.load_workflow("typed_vars")
+        wf = await loader.load_workflow("typed_vars")
 
         assert wf.variables["string_var"] == "hello"
         assert wf.variables["int_var"] == 42
@@ -154,47 +144,36 @@ class TestWorkflowVariableInheritance:
     """Tests for variable inheritance when workflows extend each other."""
 
     @pytest.mark.asyncio
-    async def test_child_inherits_parent_variables(self) -> None:
+    async def test_child_inherits_parent_variables(self, loader, def_manager) -> None:
         """Child workflow inherits variables from parent."""
-        loader = WorkflowLoader(workflow_dirs=[Path("/tmp/workflows")])
+        def_manager.create(
+            name="parent",
+            definition_json=json.dumps({
+                "name": "parent",
+                "version": "1.0.0",
+                "variables": {
+                    "from_parent": "inherited",
+                    "shared": "parent_value",
+                },
+                "steps": [],
+            }),
+            workflow_type="workflow",
+        )
+        def_manager.create(
+            name="child",
+            definition_json=json.dumps({
+                "name": "child",
+                "version": "1.0.0",
+                "extends": "parent",
+                "variables": {
+                    "from_child": "new",
+                },
+                "steps": [],
+            }),
+            workflow_type="workflow",
+        )
 
-        parent_yaml = """
-        name: parent
-        version: "1.0.0"
-        variables:
-          from_parent: "inherited"
-          shared: "parent_value"
-        steps: []
-        """
-
-        child_yaml = """
-        name: child
-        version: "1.0.0"
-        extends: parent
-        variables:
-          from_child: "new"
-        steps: []
-        """
-
-        def mock_find(name, search_dirs):
-            paths = {
-                "parent": Path("/tmp/workflows/parent.yaml"),
-                "child": Path("/tmp/workflows/child.yaml"),
-            }
-            return paths.get(name)
-
-        def content_for_path(path):
-            if "parent" in str(path):
-                return parent_yaml
-            if "child" in str(path):
-                return child_yaml
-            raise FileNotFoundError(path)
-
-        with patch.object(loader, "_find_workflow_file", side_effect=mock_find):
-            with patch(
-                "aiofiles.open", side_effect=mock_aiofiles_open_side_effect(content_for_path)
-            ):
-                wf = await loader.load_workflow("child")
+        wf = await loader.load_workflow("child")
 
         assert wf is not None
         # Should have both parent and child variables
@@ -202,107 +181,80 @@ class TestWorkflowVariableInheritance:
         assert wf.variables["from_child"] == "new"
 
     @pytest.mark.asyncio
-    async def test_child_overrides_parent_variables(self) -> None:
+    async def test_child_overrides_parent_variables(self, loader, def_manager) -> None:
         """Child variables override parent variables with same name."""
-        loader = WorkflowLoader(workflow_dirs=[Path("/tmp/workflows")])
+        def_manager.create(
+            name="parent",
+            definition_json=json.dumps({
+                "name": "parent",
+                "version": "1.0.0",
+                "variables": {
+                    "shared_var": "parent_value",
+                    "only_parent": 100,
+                },
+                "steps": [],
+            }),
+            workflow_type="workflow",
+        )
+        def_manager.create(
+            name="child",
+            definition_json=json.dumps({
+                "name": "child",
+                "version": "1.0.0",
+                "extends": "parent",
+                "variables": {
+                    "shared_var": "child_value",
+                },
+                "steps": [],
+            }),
+            workflow_type="workflow",
+        )
 
-        parent_yaml = """
-        name: parent
-        version: "1.0.0"
-        variables:
-          shared_var: "parent_value"
-          only_parent: 100
-        steps: []
-        """
-
-        child_yaml = """
-        name: child
-        version: "1.0.0"
-        extends: parent
-        variables:
-          shared_var: "child_value"
-        steps: []
-        """
-
-        def mock_find(name, search_dirs):
-            paths = {
-                "parent": Path("/tmp/workflows/parent.yaml"),
-                "child": Path("/tmp/workflows/child.yaml"),
-            }
-            return paths.get(name)
-
-        def content_for_path(path):
-            if "parent" in str(path):
-                return parent_yaml
-            if "child" in str(path):
-                return child_yaml
-            raise FileNotFoundError(path)
-
-        with patch.object(loader, "_find_workflow_file", side_effect=mock_find):
-            with patch(
-                "aiofiles.open", side_effect=mock_aiofiles_open_side_effect(content_for_path)
-            ):
-                wf = await loader.load_workflow("child")
+        wf = await loader.load_workflow("child")
 
         # Child overrides shared_var but inherits only_parent
         assert wf.variables["shared_var"] == "child_value"
         assert wf.variables["only_parent"] == 100
 
     @pytest.mark.asyncio
-    async def test_three_level_inheritance_merges_variables(self) -> None:
+    async def test_three_level_inheritance_merges_variables(
+        self, loader, def_manager
+    ) -> None:
         """Variables merge across three levels of inheritance."""
-        loader = WorkflowLoader(workflow_dirs=[Path("/tmp/workflows")])
+        def_manager.create(
+            name="base",
+            definition_json=json.dumps({
+                "name": "base",
+                "version": "1.0.0",
+                "variables": {"level": "base", "from_base": True},
+                "steps": [],
+            }),
+            workflow_type="workflow",
+        )
+        def_manager.create(
+            name="middle",
+            definition_json=json.dumps({
+                "name": "middle",
+                "version": "1.0.0",
+                "extends": "base",
+                "variables": {"level": "middle", "from_middle": True},
+                "steps": [],
+            }),
+            workflow_type="workflow",
+        )
+        def_manager.create(
+            name="top",
+            definition_json=json.dumps({
+                "name": "top",
+                "version": "1.0.0",
+                "extends": "middle",
+                "variables": {"level": "top", "from_top": True},
+                "steps": [],
+            }),
+            workflow_type="workflow",
+        )
 
-        base_yaml = """
-        name: base
-        version: "1.0.0"
-        variables:
-          level: "base"
-          from_base: true
-        steps: []
-        """
-
-        middle_yaml = """
-        name: middle
-        version: "1.0.0"
-        extends: base
-        variables:
-          level: "middle"
-          from_middle: true
-        steps: []
-        """
-
-        top_yaml = """
-        name: top
-        version: "1.0.0"
-        extends: middle
-        variables:
-          level: "top"
-          from_top: true
-        steps: []
-        """
-
-        yamls = {"base": base_yaml, "middle": middle_yaml, "top": top_yaml}
-
-        def mock_find(name, search_dirs):
-            paths = {
-                "base": Path("/tmp/workflows/base.yaml"),
-                "middle": Path("/tmp/workflows/middle.yaml"),
-                "top": Path("/tmp/workflows/top.yaml"),
-            }
-            return paths.get(name)
-
-        def content_for_path(path):
-            for name, content in yamls.items():
-                if name in str(path):
-                    return content
-            raise FileNotFoundError(path)
-
-        with patch.object(loader, "_find_workflow_file", side_effect=mock_find):
-            with patch(
-                "aiofiles.open", side_effect=mock_aiofiles_open_side_effect(content_for_path)
-            ):
-                wf = await loader.load_workflow("top")
+        wf = await loader.load_workflow("top")
 
         # Top overrides level, but inherits from all ancestors
         assert wf.variables["level"] == "top"

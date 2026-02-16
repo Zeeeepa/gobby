@@ -52,13 +52,12 @@ class TestInstallGemini:
     @pytest.fixture
     def mock_shared_content(self) -> dict:
         """Mock return value for install_shared_content."""
-        return {"workflows": ["workflow1.yaml"], "plugins": ["plugin1.py"]}
+        return {"plugins": ["plugin1.py"], "docs": []}
 
     @pytest.fixture
     def mock_cli_content(self) -> dict:
         """Mock return value for install_cli_content."""
         return {
-            "workflows": ["cli_workflow.yaml"],
             "commands": ["command1.md"],
         }
 
@@ -95,7 +94,7 @@ class TestInstallGemini:
             assert result["error"] is None
             assert "SessionStart" in result["hooks_installed"]
             assert "SessionEnd" in result["hooks_installed"]
-            assert result["workflows_installed"] == ["workflow1.yaml", "cli_workflow.yaml"]
+            assert result["workflows_installed"] == []  # DB-managed
             assert result["commands_installed"] == ["command1.md", "gobby/", "g/"]
             assert result["plugins_installed"] == ["plugin1.py"]
             assert result["mcp_configured"] is True

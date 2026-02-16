@@ -128,21 +128,9 @@ def create_agents_router(server: "HTTPServer") -> APIRouter:
             if not match:
                 raise HTTPException(status_code=404, detail=f"Agent definition '{name}' not found")
 
-            # For file-based agents, read the original YAML (preserves comments)
-            if match.source_path:
-                from pathlib import Path
-
-                source = Path(match.source_path)
-                if source.exists():
-                    yaml_content = source.read_text(encoding="utf-8")
-                else:
-                    # Fall back to model serialization
-                    data = match.definition.model_dump(exclude_none=True)
-                    yaml_content = yaml.dump(data, default_flow_style=False, sort_keys=False)
-            else:
-                # DB-backed: serialize from model
-                data = match.definition.model_dump(exclude_none=True)
-                yaml_content = yaml.dump(data, default_flow_style=False, sort_keys=False)
+            # Serialize from DB model
+            data = match.definition.model_dump(exclude_none=True)
+            yaml_content = yaml.dump(data, default_flow_style=False, sort_keys=False)
 
             return Response(
                 content=yaml_content,
@@ -183,6 +171,7 @@ def create_agents_router(server: "HTTPServer") -> APIRouter:
         metrics.inc_counter("http_requests_total")
         try:
             manager = _get_manager()
+            scope = "project" if request.project_id else "global"
             row = manager.create(
                 name=request.name,
                 project_id=request.project_id,
@@ -205,6 +194,7 @@ def create_agents_router(server: "HTTPServer") -> APIRouter:
                 workflows=request.workflows,
                 lifecycle_variables=request.lifecycle_variables,
                 default_variables=request.default_variables,
+                scope=scope,
             )
             return {"status": "success", "definition": row.to_dict()}
         except Exception as e:
@@ -343,16 +333,16 @@ def create_agents_router(server: "HTTPServer") -> APIRouter:
         try:
             from gobby.agents.definitions import AgentDefinitionLoader
 
-            # Load from files only (no DB fallback)
-            file_loader = AgentDefinitionLoader()
-            defn = file_loader.load(name)
+            # Load from files only (no DB fallback) for import
+            defn = AgentDefinitionLoader.load_from_file(name)
             if not defn:
                 raise HTTPException(
                     status_code=404,
                     detail=f"File-based agent definition '{name}' not found",
                 )
+            scope = "project" if project_id else "global"
             manager = _get_manager()
-            row = manager.import_from_definition(defn, project_id=project_id)
+            row = manager.import_from_definition(defn, project_id=project_id, scope=scope)
             return {"status": "success", "definition": row.to_dict()}
         except HTTPException:
             raise

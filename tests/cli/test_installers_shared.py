@@ -104,17 +104,15 @@ class TestInstallResourceDir:
 
 
 class TestInstallSharedContent:
-    """Tests for install_shared_content with dev-mode integration."""
+    """Tests for install_shared_content — only plugins and docs are file-based."""
 
-    def test_dev_mode_creates_symlinks(self, tmp_path: Path) -> None:
-        """install_shared_content creates symlinks in dev mode."""
+    def test_dev_mode_creates_symlinks_for_plugins(self, tmp_path: Path) -> None:
+        """install_shared_content creates symlinks for plugins in dev mode."""
         # Set up a fake gobby source repo
         project = tmp_path / "gobby"
         shared = project / "src" / "gobby" / "install" / "shared"
-        (shared / "workflows" / "lifecycle").mkdir(parents=True)
-        (shared / "workflows" / "lifecycle" / "test.yaml").write_text("name: test")
-        (shared / "agents").mkdir(parents=True)
-        (shared / "agents" / "test.yaml").write_text("name: test")
+        (shared / "plugins").mkdir(parents=True)
+        (shared / "plugins" / "test_plugin.py").write_text("# plugin")
         (project / ".gobby").mkdir(parents=True)
 
         with patch(
@@ -123,18 +121,17 @@ class TestInstallSharedContent:
         ):
             result = install_shared_content(project / ".claude", project)
 
-        # Workflows should be a symlink
-        wf_target = project / ".gobby" / "workflows"
-        assert wf_target.is_symlink()
-        assert "symlink" in result["workflows"][0]
+        # Plugins should be a symlink
+        plugins_target = project / ".gobby" / "plugins"
+        assert plugins_target.is_symlink()
+        assert "symlink" in result["plugins"][0]
 
-        # Agents should be a symlink
-        ag_target = project / ".gobby" / "agents"
-        assert ag_target.is_symlink()
-        assert "symlink" in result["agents"][0]
+        # Workflows and agents should NOT be installed (DB-managed)
+        assert "workflows" not in result
+        assert "agents" not in result
 
-    def test_normal_mode_copies_files(self, tmp_path: Path) -> None:
-        """install_shared_content copies files in normal projects."""
+    def test_normal_mode_copies_plugins_and_docs(self, tmp_path: Path) -> None:
+        """install_shared_content copies plugins and docs in normal projects."""
         project = tmp_path / "myproject"
         project.mkdir()
         (project / ".gobby").mkdir()
@@ -142,15 +139,23 @@ class TestInstallSharedContent:
         # Create a fake install dir with shared content
         install_dir = tmp_path / "install"
         shared = install_dir / "shared"
-        (shared / "workflows").mkdir(parents=True)
-        (shared / "workflows" / "test.yaml").write_text("name: test")
-        (shared / "agents").mkdir(parents=True)
-        (shared / "agents" / "test.yaml").write_text("name: test")
+        (shared / "plugins").mkdir(parents=True)
+        (shared / "plugins" / "test_plugin.py").write_text("# plugin")
+        (shared / "docs").mkdir(parents=True)
+        (shared / "docs" / "guide.md").write_text("# guide")
 
         with patch("gobby.cli.installers.shared.get_install_dir", return_value=install_dir):
             result = install_shared_content(project / ".claude", project)
 
-        wf_target = project / ".gobby" / "workflows"
-        assert not wf_target.is_symlink()
-        assert wf_target.is_dir()
-        assert "test.yaml" in result["workflows"]
+        plugins_target = project / ".gobby" / "plugins"
+        assert not plugins_target.is_symlink()
+        assert plugins_target.is_dir()
+        assert "test_plugin.py" in result["plugins"]
+
+        docs_target = project / ".gobby" / "docs"
+        assert docs_target.is_dir()
+        assert "guide.md" in result["docs"]
+
+        # Workflows and agents should NOT be in result (DB-managed)
+        assert "workflows" not in result
+        assert "agents" not in result

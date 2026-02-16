@@ -418,3 +418,81 @@ class TestDeleteRule:
 
     def test_delete_by_name_nonexistent(self, rule_store: RuleStore) -> None:
         assert rule_store.delete_rule_by_name("nonexistent", tier="bundled") is False
+
+
+# =============================================================================
+# get_rules_by_source_file
+# =============================================================================
+
+
+class TestGetRulesBySourceFile:
+    """Tests for get_rules_by_source_file method."""
+
+    def test_returns_matching_rules(self, rule_store: RuleStore) -> None:
+        """Returns all rules from a given source file."""
+        rule_store.save_rule(
+            name="rule_a",
+            tier="bundled",
+            definition={"reason": "a", "action": "block"},
+            source_file="/bundled/rules/safety.yaml",
+        )
+        rule_store.save_rule(
+            name="rule_b",
+            tier="bundled",
+            definition={"reason": "b", "action": "warn"},
+            source_file="/bundled/rules/safety.yaml",
+        )
+        rule_store.save_rule(
+            name="rule_c",
+            tier="bundled",
+            definition={"reason": "c", "action": "block"},
+            source_file="/bundled/rules/quality.yaml",
+        )
+
+        result = rule_store.get_rules_by_source_file("/bundled/rules/safety.yaml")
+        assert len(result) == 2
+        names = {r["name"] for r in result}
+        assert names == {"rule_a", "rule_b"}
+
+    def test_returns_empty_for_unknown_file(self, rule_store: RuleStore) -> None:
+        """Returns empty list when no rules match the source file."""
+        assert rule_store.get_rules_by_source_file("/nonexistent.yaml") == []
+
+    def test_filters_by_tier(self, rule_store: RuleStore) -> None:
+        """Tier filter restricts results to matching tier."""
+        rule_store.save_rule(
+            name="bundled_rule",
+            tier="bundled",
+            definition={"reason": "b", "action": "block"},
+            source_file="/rules/shared.yaml",
+        )
+        rule_store.save_rule(
+            name="user_rule",
+            tier="user",
+            definition={"reason": "u", "action": "warn"},
+            source_file="/rules/shared.yaml",
+        )
+
+        bundled_only = rule_store.get_rules_by_source_file(
+            "/rules/shared.yaml", tier="bundled"
+        )
+        assert len(bundled_only) == 1
+        assert bundled_only[0]["name"] == "bundled_rule"
+
+    def test_sorted_by_name(self, rule_store: RuleStore) -> None:
+        """Results are sorted alphabetically by name."""
+        rule_store.save_rule(
+            name="z_rule",
+            tier="bundled",
+            definition={"reason": "z", "action": "block"},
+            source_file="/rules/test.yaml",
+        )
+        rule_store.save_rule(
+            name="a_rule",
+            tier="bundled",
+            definition={"reason": "a", "action": "block"},
+            source_file="/rules/test.yaml",
+        )
+
+        result = rule_store.get_rules_by_source_file("/rules/test.yaml")
+        assert [r["name"] for r in result] == ["a_rule", "z_rule"]

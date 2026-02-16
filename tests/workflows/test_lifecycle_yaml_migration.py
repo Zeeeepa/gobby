@@ -2,46 +2,36 @@
 
 from __future__ import annotations
 
-from pathlib import Path
-
 import pytest
 
-pytestmark = pytest.mark.unit
+from gobby.workflows.loader import WorkflowLoader
 
-WORKFLOW_DIR = Path(__file__).parent.parent.parent / "src/gobby/install/shared/workflows"
-LIFECYCLE_DIR = WORKFLOW_DIR / "lifecycle"
+pytestmark = pytest.mark.unit
 
 
 class TestSessionLifecycleUnifiedFormat:
     """Tests for session-lifecycle.yaml unified format fields."""
 
     @pytest.mark.asyncio
-    async def test_loads_with_enabled_true(self) -> None:
+    async def test_loads_with_enabled_true(self, db_loader: WorkflowLoader) -> None:
         """session-lifecycle.yaml loads with enabled=True."""
-        from gobby.workflows.loader import WorkflowLoader
-
-        loader = WorkflowLoader(workflow_dirs=[WORKFLOW_DIR])
-        definition = await loader.load_workflow("session-lifecycle")
+        definition = await db_loader.load_workflow("session-lifecycle")
         assert definition is not None
         assert definition.enabled is True
 
     @pytest.mark.asyncio
-    async def test_loads_with_priority_10(self) -> None:
+    async def test_loads_with_priority_10(self, db_loader: WorkflowLoader) -> None:
         """session-lifecycle.yaml loads with priority=10."""
-        from gobby.workflows.loader import WorkflowLoader
-
-        loader = WorkflowLoader(workflow_dirs=[WORKFLOW_DIR])
-        definition = await loader.load_workflow("session-lifecycle")
+        definition = await db_loader.load_workflow("session-lifecycle")
         assert definition is not None
         assert definition.priority == 10
 
     @pytest.mark.asyncio
-    async def test_session_variables_contains_shared_state(self) -> None:
+    async def test_session_variables_contains_shared_state(
+        self, db_loader: WorkflowLoader
+    ) -> None:
         """session-lifecycle.yaml session_variables contains shared state."""
-        from gobby.workflows.loader import WorkflowLoader
-
-        loader = WorkflowLoader(workflow_dirs=[WORKFLOW_DIR])
-        definition = await loader.load_workflow("session-lifecycle")
+        definition = await db_loader.load_workflow("session-lifecycle")
         assert definition is not None
         sv = definition.session_variables
         # These shared variables should be in session_variables
@@ -52,12 +42,9 @@ class TestSessionLifecycleUnifiedFormat:
         assert "stop_attempts" in sv
 
     @pytest.mark.asyncio
-    async def test_variables_contains_workflow_scoped(self) -> None:
+    async def test_variables_contains_workflow_scoped(self, db_loader: WorkflowLoader) -> None:
         """session-lifecycle.yaml variables contains workflow-scoped settings."""
-        from gobby.workflows.loader import WorkflowLoader
-
-        loader = WorkflowLoader(workflow_dirs=[WORKFLOW_DIR])
-        definition = await loader.load_workflow("session-lifecycle")
+        definition = await db_loader.load_workflow("session-lifecycle")
         assert definition is not None
         v = definition.variables
         # Behavior config remains in workflow variables
@@ -70,32 +57,25 @@ class TestHeadlessLifecycleUnifiedFormat:
     """Tests for headless-lifecycle.yaml unified format fields."""
 
     @pytest.mark.asyncio
-    async def test_loads_with_enabled_true(self) -> None:
+    async def test_loads_with_enabled_true(self, db_loader: WorkflowLoader) -> None:
         """headless-lifecycle.yaml loads with enabled=True."""
-        from gobby.workflows.loader import WorkflowLoader
-
-        loader = WorkflowLoader(workflow_dirs=[WORKFLOW_DIR])
-        definition = await loader.load_workflow("headless-lifecycle")
+        definition = await db_loader.load_workflow("headless-lifecycle")
         assert definition is not None
         assert definition.enabled is True
 
     @pytest.mark.asyncio
-    async def test_loads_with_priority_10(self) -> None:
+    async def test_loads_with_priority_10(self, db_loader: WorkflowLoader) -> None:
         """headless-lifecycle.yaml loads with priority=10."""
-        from gobby.workflows.loader import WorkflowLoader
-
-        loader = WorkflowLoader(workflow_dirs=[WORKFLOW_DIR])
-        definition = await loader.load_workflow("headless-lifecycle")
+        definition = await db_loader.load_workflow("headless-lifecycle")
         assert definition is not None
         assert definition.priority == 10
 
     @pytest.mark.asyncio
-    async def test_session_variables_contains_shared_state(self) -> None:
+    async def test_session_variables_contains_shared_state(
+        self, db_loader: WorkflowLoader
+    ) -> None:
         """headless-lifecycle.yaml session_variables contains shared state."""
-        from gobby.workflows.loader import WorkflowLoader
-
-        loader = WorkflowLoader(workflow_dirs=[WORKFLOW_DIR])
-        definition = await loader.load_workflow("headless-lifecycle")
+        definition = await db_loader.load_workflow("headless-lifecycle")
         assert definition is not None
         sv = definition.session_variables
         assert "unlocked_tools" in sv
@@ -108,11 +88,8 @@ class TestLifecycleBackwardCompat:
     """Tests for backward compatibility — lifecycle workflows now use enabled=True."""
 
     @pytest.mark.asyncio
-    async def test_lifecycle_workflow_is_enabled(self) -> None:
+    async def test_lifecycle_workflow_is_enabled(self, db_loader: WorkflowLoader) -> None:
         """Lifecycle workflows are discovered and have enabled=True."""
-        from gobby.workflows.loader import WorkflowLoader
-
-        loader = WorkflowLoader(workflow_dirs=[WORKFLOW_DIR])
-        definition = await loader.load_workflow("session-lifecycle")
+        definition = await db_loader.load_workflow("session-lifecycle")
         assert definition is not None
         assert definition.enabled is True

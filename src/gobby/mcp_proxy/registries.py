@@ -210,7 +210,7 @@ def setup_internal_registries(
 
         agents_registry = create_agents_registry(
             runner=agent_runner,
-            agent_loader=AgentDefinitionLoader(),
+            agent_loader=AgentDefinitionLoader(db=db),
             session_manager=local_session_manager,
             task_manager=task_manager,
             worktree_storage=worktree_storage,

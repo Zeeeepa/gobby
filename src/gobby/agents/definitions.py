@@ -17,9 +17,19 @@ from gobby.agents.sandbox import SandboxConfig
 from gobby.utils.project_context import get_project_context
 
 if TYPE_CHECKING:
+    from gobby.storage.agent_definitions import LocalAgentDefinitionManager
     from gobby.storage.database import DatabaseProtocol
 
-AgentSource = Literal["project-file", "user-file", "built-in-file", "project-db", "global-db"]
+AgentSource = Literal[
+    "bundled",
+    "global",
+    "project",
+    "project-file",
+    "user-file",
+    "built-in-file",
+    "project-db",
+    "global-db",
+]
 
 logger = logging.getLogger(__name__)
 
@@ -307,218 +317,168 @@ class AgentDefinitionInfo(BaseModel):
 
 class AgentDefinitionLoader:
     """
-    Loads agent definitions from YAML files and (optionally) the database.
+    Loads agent definitions from the database (DB-first pattern).
 
-    Resolution order (highest priority first):
-    1. Project .gobby/agents/*.yaml
-    2. User ~/.gobby/agents/*.yaml
-    3. Built-in src/gobby/install/shared/agents/*.yaml
-    4. Project-scoped DB definitions (tied to project_id)
-    5. Global DB templates (project_id IS NULL)
+    The database is the sole runtime source of truth. Bundled agent YAML files
+    are synced into the DB at daemon startup via sync_bundled_agents().
+
+    Resolution order (via SQL scope precedence):
+    1. Project-scoped definitions (scope='project')
+    2. Global definitions (scope='global')
+    3. Bundled definitions (scope='bundled')
+
+    File-scanning methods are retained as static helpers for the import endpoint.
     """
 
     def __init__(self, db: "DatabaseProtocol | None" = None) -> None:
         self._db = db
 
-        # Determine paths
-        # Built-in path relative to this file
-        # src/gobby/agents/definitions.py -> src/gobby/install/shared/agents/
+    def _get_db(self) -> "DatabaseProtocol":
+        """Get DB, creating a lazy fallback if none was injected."""
+        if self._db is not None:
+            return self._db
+        from gobby.storage.database import LocalDatabase
+
+        self._db = LocalDatabase()
+        return self._db
+
+    def _get_manager(self) -> "LocalAgentDefinitionManager":
+        from gobby.storage.agent_definitions import LocalAgentDefinitionManager
+
+        return LocalAgentDefinitionManager(self._get_db())
+
+    def load(self, name: str, project_id: str | None = None) -> AgentDefinition | None:
+        """
+        Load an agent definition by name from the database.
+
+        Uses scope precedence: project > global > bundled.
+
+        Args:
+            name: Name of the agent (e.g. "coordinator")
+            project_id: Optional project ID for scope resolution
+
+        Returns:
+            AgentDefinition if found, None otherwise.
+        """
+        try:
+            mgr = self._get_manager()
+        except (ImportError, OSError) as e:
+            logger.error(f"Failed to initialize agent definition manager: {e}")
+            return None
+
+        try:
+            row = mgr.get_by_name(name, project_id)
+        except (OSError, ValueError) as e:
+            logger.error(f"Failed to query agent definition '{name}' from DB: {e}")
+            return None
+
+        if not row:
+            logger.debug(f"Agent definition '{name}' not found")
+            return None
+
+        try:
+            defn: AgentDefinition = mgr.export_to_definition(row.id)
+            return defn
+        except (KeyError, ValueError) as e:
+            logger.error(f"Failed to parse agent definition '{name}' from DB: {e}")
+            return None
+
+    def list_all(self, project_id: str | None = None) -> list[AgentDefinitionInfo]:
+        """
+        List all agent definitions from the database, deduplicated by name.
+
+        Higher-priority scopes shadow lower ones (project > global > bundled).
+
+        Returns:
+            Sorted list of AgentDefinitionInfo (by name).
+        """
+        try:
+            mgr = self._get_manager()
+            rows = mgr.list_all(project_id=project_id)
+        except Exception as e:
+            logger.warning(f"Failed to load agent definitions from DB: {e}")
+            return []
+
+        seen: dict[str, AgentDefinitionInfo] = {}
+        for row in rows:
+            try:
+                defn = mgr.export_to_definition(row.id)
+                old = seen.get(row.name)
+                if old:
+                    # Higher-priority scope overwrites lower
+                    _SCOPE_PRIORITY = {"project": 1, "global": 2, "bundled": 3}
+                    old_priority = _SCOPE_PRIORITY.get(old.source, 99)
+                    new_priority = _SCOPE_PRIORITY.get(row.scope, 99)
+                    if new_priority < old_priority:
+                        seen[row.name] = AgentDefinitionInfo(
+                            definition=defn,
+                            source=row.scope,
+                            source_path=row.source_path,
+                            db_id=row.id,
+                            overridden_by=old.source,
+                        )
+                    # else: existing has higher priority, skip
+                else:
+                    seen[row.name] = AgentDefinitionInfo(
+                        definition=defn,
+                        source=row.scope,
+                        source_path=row.source_path,
+                        db_id=row.id,
+                    )
+            except Exception as e:
+                logger.warning(f"Failed to export agent definition '{row.name}': {e}")
+
+        return sorted(seen.values(), key=lambda x: x.definition.name)
+
+    @staticmethod
+    def load_from_file(name: str) -> AgentDefinition | None:
+        """Load an agent definition from YAML files only (for import endpoint).
+
+        Searches project, user, and built-in paths in priority order.
+
+        Args:
+            name: Name of the agent definition to find
+
+        Returns:
+            AgentDefinition if found, None otherwise.
+        """
         base_dir = Path(__file__).parent.parent
-        self._shared_path = base_dir / "install" / "shared" / "agents"
+        shared_path = base_dir / "install" / "shared" / "agents"
+        user_path = Path.home() / ".gobby" / "agents"
 
-        # User path
-        self._user_path = Path.home() / ".gobby" / "agents"
-
-        # Project path (tried dynamically based on current context)
-        self._project_path: Path | None = None
-
-    def _get_project_path(self) -> Path | None:
-        """Get current project path from context."""
+        project_path: Path | None = None
         ctx = get_project_context()
         if ctx and ctx.get("project_path"):
-            return Path(ctx["project_path"]) / ".gobby" / "agents"
-        return None
+            project_path = Path(ctx["project_path"]) / ".gobby" / "agents"
 
-    def _find_agent_file(self, name: str) -> Path | None:
-        """Find the agent definition file in search paths.
-
-        Resolution order per search path (project > user > built-in):
-        1. Exact filename match: {name}.yaml
-        2. YAML name-field match: scan *.yaml files for `name: {name}`
-        """
         filename = f"{name}.yaml"
-
-        search_paths = [
-            self._get_project_path(),
-            self._user_path,
-            self._shared_path,
-        ]
+        search_paths = [project_path, user_path, shared_path]
 
         # Pass 1: Exact filename match (fast path)
         for path in search_paths:
             if path and path.exists():
                 f = path / filename
                 if f.exists():
-                    return f
+                    try:
+                        with open(f, encoding="utf-8") as fh:
+                            data = yaml.safe_load(fh)
+                        if "name" not in data:
+                            data["name"] = name
+                        return AgentDefinition(**data)
+                    except Exception as e:
+                        logger.error(f"Failed to load agent definition '{name}' from {f}: {e}")
+                        return None
 
-        # Pass 2: Match by name field inside YAML files (fallback)
+        # Pass 2: Match by name field inside YAML files
         for path in search_paths:
             if path and path.exists():
-                result = self._find_by_yaml_name(path, name)
-                if result:
-                    return result
+                for yaml_file in path.glob("*.yaml"):
+                    try:
+                        with open(yaml_file, encoding="utf-8") as fh:
+                            data = yaml.safe_load(fh)
+                        if isinstance(data, dict) and data.get("name") == name:
+                            return AgentDefinition(**data)
+                    except (OSError, yaml.YAMLError):
+                        continue
 
         return None
-
-    def _find_by_yaml_name(self, directory: Path, name: str) -> Path | None:
-        """Scan YAML files in a directory for one whose 'name' field matches."""
-        import yaml
-
-        for yaml_file in directory.glob("*.yaml"):
-            try:
-                with open(yaml_file, encoding="utf-8") as f:
-                    data = yaml.safe_load(f)
-                if isinstance(data, dict) and data.get("name") == name:
-                    return yaml_file
-            except (OSError, yaml.YAMLError):
-                continue
-        return None
-
-    def load(self, name: str, project_id: str | None = None) -> AgentDefinition | None:
-        """
-        Load an agent definition by name.
-
-        Resolution order (highest priority first):
-        1. Project/User/Built-in YAML files (via _find_agent_file)
-        2. Project-scoped DB definition
-        3. Global DB template
-
-        Args:
-            name: Name of the agent (e.g. "coordinator")
-            project_id: Optional project ID for DB lookups
-
-        Returns:
-            AgentDefinition if found, None otherwise.
-        """
-        path = self._find_agent_file(name)
-        if path:
-            try:
-                with open(path, encoding="utf-8") as f:
-                    data = yaml.safe_load(f)
-
-                # Ensure name matches filename/request if not specified
-                if "name" not in data:
-                    data["name"] = name
-
-                return AgentDefinition(**data)
-            except Exception as e:
-                logger.error(f"Failed to load agent definition '{name}' from {path}: {e}")
-                return None
-
-        # Fall back to database
-        if self._db:
-            try:
-                from gobby.storage.agent_definitions import (
-                    LocalAgentDefinitionManager,
-                )
-
-                mgr = LocalAgentDefinitionManager(self._db)
-                row = mgr.get_by_name(name, project_id)
-                if row:
-                    defn: AgentDefinition = mgr.export_to_definition(row.id)
-                    return defn
-            except Exception as e:
-                logger.error(f"Failed to load agent definition '{name}' from DB: {e}")
-
-        logger.debug(f"Agent definition '{name}' not found")
-        return None
-
-    def _scan_directory(
-        self,
-        directory: Path | None,
-        source: AgentSource,
-        seen: dict[str, AgentDefinitionInfo],
-    ) -> None:
-        """Scan a directory for YAML agent definitions."""
-        if not directory or not directory.exists():
-            return
-        for yaml_file in sorted(directory.glob("*.yaml")):
-            try:
-                with open(yaml_file, encoding="utf-8") as f:
-                    data = yaml.safe_load(f)
-                if not isinstance(data, dict):
-                    continue
-                name = data.get("name", yaml_file.stem)
-                data["name"] = name
-                defn = AgentDefinition(**data)
-                old = seen.get(name)
-                if old:
-                    old.overridden_by = source
-                seen[name] = AgentDefinitionInfo(
-                    definition=defn,
-                    source=source,
-                    source_path=str(yaml_file),
-                )
-            except Exception as e:
-                logger.warning(f"Failed to load agent definition from {yaml_file}: {e}")
-
-    def list_all(self, project_id: str | None = None) -> list[AgentDefinitionInfo]:
-        """
-        List all agent definitions from all sources, merged by priority.
-
-        Scans in reverse priority order (lowest first); higher-priority
-        sources overwrite lower ones.  Each overridden entry gets tagged
-        with ``overridden_by``.
-
-        Returns:
-            Sorted list of AgentDefinitionInfo (by name).
-        """
-        seen: dict[str, AgentDefinitionInfo] = {}
-
-        # 5. Global DB templates (lowest priority)
-        if self._db:
-            try:
-                from gobby.storage.agent_definitions import (
-                    LocalAgentDefinitionManager,
-                )
-
-                mgr = LocalAgentDefinitionManager(self._db)
-                for row in mgr.list_global():
-                    defn = mgr.export_to_definition(row.id)
-                    seen[row.name] = AgentDefinitionInfo(
-                        definition=defn, source="global-db", db_id=row.id
-                    )
-            except Exception as e:
-                logger.warning(f"Failed to load global DB definitions: {e}")
-
-        # 4. Project DB definitions
-        if self._db and project_id:
-            try:
-                from gobby.storage.agent_definitions import (
-                    LocalAgentDefinitionManager,
-                )
-
-                mgr = LocalAgentDefinitionManager(self._db)
-                for row in mgr.list_by_project(project_id):
-                    defn = mgr.export_to_definition(row.id)
-                    old = seen.get(row.name)
-                    if old:
-                        old.overridden_by = "project-db"
-                    seen[row.name] = AgentDefinitionInfo(
-                        definition=defn, source="project-db", db_id=row.id
-                    )
-            except Exception as e:
-                logger.warning(f"Failed to load project DB definitions: {e}")
-
-        # 3. Built-in files
-        self._scan_directory(self._shared_path, "built-in-file", seen)
-
-        # 2. User files
-        self._scan_directory(self._user_path, "user-file", seen)
-
-        # 1. Project files (highest priority)
-        project_path = self._get_project_path()
-        if project_path:
-            self._scan_directory(project_path, "project-file", seen)
-
-        return sorted(seen.values(), key=lambda x: x.definition.name)

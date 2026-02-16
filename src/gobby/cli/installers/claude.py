@@ -117,7 +117,7 @@ def install_claude(project_path: Path) -> dict[str, Any]:
         result["error"] = f"Failed to install CLI content: {e}"
         return result
 
-    result["workflows_installed"] = shared["workflows"] + cli["workflows"]
+    result["workflows_installed"] = []  # DB-managed via sync_bundled_content_to_db()
     result["agents_installed"] = shared.get("agents", [])
     result["commands_installed"] = cli.get("commands", [])
     result["plugins_installed"] = shared.get("plugins", [])

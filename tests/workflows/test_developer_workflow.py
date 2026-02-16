@@ -9,18 +9,9 @@ from __future__ import annotations
 
 import pytest
 
-from gobby.paths import get_install_dir
 from gobby.workflows.loader import WorkflowLoader
 
 pytestmark = pytest.mark.unit
-
-
-@pytest.fixture
-def loader() -> WorkflowLoader:
-    """Create a WorkflowLoader pointing at the real bundled directory."""
-    install_dir = get_install_dir()
-    bundled_dir = install_dir / "shared" / "workflows"
-    return WorkflowLoader(workflow_dirs=[], bundled_dir=bundled_dir)
 
 
 EXPECTED_STEPS = [
@@ -43,26 +34,26 @@ EXPECTED_STEPS = [
 
 class TestDeveloperWorkflowStructure:
     @pytest.mark.asyncio
-    async def test_loads_without_error(self, loader: WorkflowLoader) -> None:
+    async def test_loads_without_error(self, db_loader: WorkflowLoader) -> None:
         """developer.yaml should load successfully."""
-        defn = await loader.load_workflow("developer")
+        defn = await db_loader.load_workflow("developer")
         assert defn is not None
         assert defn.name == "developer"
         assert defn.type == "step"
 
     @pytest.mark.asyncio
-    async def test_expected_steps_exist(self, loader: WorkflowLoader) -> None:
+    async def test_expected_steps_exist(self, db_loader: WorkflowLoader) -> None:
         """All expected TDD steps should be present."""
-        defn = await loader.load_workflow("developer")
+        defn = await db_loader.load_workflow("developer")
         assert defn is not None
         step_names = [s.name for s in defn.steps]
         for expected in EXPECTED_STEPS:
             assert expected in step_names, f"Missing step: {expected}"
 
     @pytest.mark.asyncio
-    async def test_step_count(self, loader: WorkflowLoader) -> None:
+    async def test_step_count(self, db_loader: WorkflowLoader) -> None:
         """Workflow should have exactly the expected number of steps."""
-        defn = await loader.load_workflow("developer")
+        defn = await db_loader.load_workflow("developer")
         assert defn is not None
         assert len(defn.steps) == len(EXPECTED_STEPS)
 
@@ -74,25 +65,25 @@ class TestDeveloperWorkflowStructure:
 
 class TestDeveloperWorkflowNamedRules:
     @pytest.mark.asyncio
-    async def test_imports_worker_safety(self, loader: WorkflowLoader) -> None:
+    async def test_imports_worker_safety(self, db_loader: WorkflowLoader) -> None:
         """Workflow should import worker-safety rules."""
-        defn = await loader.load_workflow("developer")
+        defn = await db_loader.load_workflow("developer")
         assert defn is not None
         # Imported rules should be merged into rule_definitions
         assert "no_push" in defn.rule_definitions
 
     @pytest.mark.asyncio
-    async def test_rule_definitions_present(self, loader: WorkflowLoader) -> None:
+    async def test_rule_definitions_present(self, db_loader: WorkflowLoader) -> None:
         """Workflow-level rule_definitions should include MCP blocking rules."""
-        defn = await loader.load_workflow("developer")
+        defn = await db_loader.load_workflow("developer")
         assert defn is not None
         assert "no_agent_spawn" in defn.rule_definitions
         assert "no_task_management" in defn.rule_definitions
 
     @pytest.mark.asyncio
-    async def test_tdd_steps_have_check_rules(self, loader: WorkflowLoader) -> None:
+    async def test_tdd_steps_have_check_rules(self, db_loader: WorkflowLoader) -> None:
         """TDD steps (red, green, blue) should use check_rules for enforcement."""
-        defn = await loader.load_workflow("developer")
+        defn = await db_loader.load_workflow("developer")
         assert defn is not None
         for step_name in ["red", "green", "blue"]:
             step = defn.get_step(step_name)
@@ -106,18 +97,18 @@ class TestDeveloperWorkflowNamedRules:
             )
 
     @pytest.mark.asyncio
-    async def test_commit_step_has_no_push(self, loader: WorkflowLoader) -> None:
+    async def test_commit_step_has_no_push(self, db_loader: WorkflowLoader) -> None:
         """Commit step should reference no_push rule."""
-        defn = await loader.load_workflow("developer")
+        defn = await db_loader.load_workflow("developer")
         assert defn is not None
         step = defn.get_step("commit")
         assert step is not None
         assert "no_push" in step.check_rules
 
     @pytest.mark.asyncio
-    async def test_check_rules_reference_valid_names(self, loader: WorkflowLoader) -> None:
+    async def test_check_rules_reference_valid_names(self, db_loader: WorkflowLoader) -> None:
         """All check_rules references should resolve to known rule_definitions."""
-        defn = await loader.load_workflow("developer")
+        defn = await db_loader.load_workflow("developer")
         assert defn is not None
         available_rules = set(defn.rule_definitions.keys())
         for step in defn.steps:
@@ -128,9 +119,9 @@ class TestDeveloperWorkflowNamedRules:
                 )
 
     @pytest.mark.asyncio
-    async def test_no_duplicate_blocked_mcp_tools(self, loader: WorkflowLoader) -> None:
+    async def test_no_duplicate_blocked_mcp_tools(self, db_loader: WorkflowLoader) -> None:
         """TDD steps should not have blocked_mcp_tools (migrated to check_rules)."""
-        defn = await loader.load_workflow("developer")
+        defn = await db_loader.load_workflow("developer")
         assert defn is not None
         for step_name in ["red", "green", "blue"]:
             step = defn.get_step(step_name)
