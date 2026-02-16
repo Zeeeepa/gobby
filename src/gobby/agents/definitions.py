@@ -407,7 +407,7 @@ class AgentDefinitionLoader:
                 if old:
                     # Higher-priority scope overwrites lower
                     _SCOPE_PRIORITY = {"project": 1, "global": 2, "bundled": 3}
-                    old_priority = _SCOPE_PRIORITY.get(old.source, 99)  # type: ignore[arg-type]
+                    old_priority = _SCOPE_PRIORITY.get(old.source, 99)
                     new_priority = _SCOPE_PRIORITY.get(row.scope, 99)
                     if new_priority < old_priority:
                         seen[row.name] = AgentDefinitionInfo(

@@ -302,7 +302,7 @@ class ChatSession:
                         existing = ""
                         hook_specific = output.get("hookSpecificOutput")
                         if hook_specific and isinstance(hook_specific, dict):
-                            existing = hook_specific.get("additionalContext", "") or ""
+                            existing = str(hook_specific.get("additionalContext", "") or "")
                         combined = (
                             (existing + "\n\n" + history_ctx).strip() if existing else history_ctx
                         )
