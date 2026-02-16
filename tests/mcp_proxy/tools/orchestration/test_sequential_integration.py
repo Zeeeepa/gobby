@@ -284,7 +284,7 @@ class TestSequentialOrchestration:
         assert state.step == "wait_for_worker"
 
         # Send timeout result
-        response = await wf_engine.handle_event(
+        await wf_engine.handle_event(
             _event(
                 HookEventType.AFTER_TOOL,
                 data={
@@ -346,7 +346,7 @@ class TestSequentialOrchestration:
 
         # Event 1: BEFORE_AGENT triggers find_work on_enter (suggest_next_task)
         # then transitions: find_work → spawn_worker → complete (dry_run shortcut)
-        response = await wf_engine.handle_event(_event(HookEventType.BEFORE_AGENT))
+        await wf_engine.handle_event(_event(HookEventType.BEFORE_AGENT))
 
         assert state.step == "complete", f"Expected complete, got {state.step}"
         assert state.variables.get("current_task_id") == "#task-1"
