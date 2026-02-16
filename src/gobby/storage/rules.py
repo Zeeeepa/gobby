@@ -211,7 +211,8 @@ class RuleStore:
             params.append(tier)
 
         sql = "SELECT * FROM rules WHERE " + " AND ".join(conditions) + " ORDER BY name"
-        rows = self.db.fetchall(sql, tuple(params))
+        with self.db.transaction():
+            rows = self.db.fetchall(sql, tuple(params))
         return [_row_to_dict(row) for row in rows]
 
     def delete_rule_by_name(
