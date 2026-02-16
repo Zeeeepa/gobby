@@ -311,9 +311,7 @@ Args:
                     pass
 
                 if not prompt_template:
-                    raise ValueError(
-                        "No prompt template found for handoff/session_end"
-                    )
+                    raise ValueError("No prompt template found for handoff/session_end")
 
                 # Prepare context for LLM
                 last_turns = transcript_parser.extract_turns_since_clear(turns, max_turns=50)

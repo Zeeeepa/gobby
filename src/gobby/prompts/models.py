@@ -31,7 +31,7 @@ def parse_frontmatter(content: str) -> tuple[dict[str, Any], str]:
     if match:
         try:
             frontmatter = yaml.safe_load(match.group(1)) or {}
-            body = content[match.end():]
+            body = content[match.end() :]
             return frontmatter, body
         except yaml.YAMLError:
             return {}, content

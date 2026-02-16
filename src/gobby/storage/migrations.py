@@ -1590,11 +1590,13 @@ MIGRATIONS: list[tuple[int, str, MigrationAction]] = [
         _migrate_drop_importance,
     ),
     # Prompt storage: database-backed prompt management
+    # Uses DROP + CREATE to handle pre-existing dev-era prompts table with different schema
     (
         106,
         "Add prompts table",
         """
-        CREATE TABLE IF NOT EXISTS prompts (
+        DROP TABLE IF EXISTS prompts;
+        CREATE TABLE prompts (
             id TEXT PRIMARY KEY,
             name TEXT NOT NULL,
             description TEXT NOT NULL DEFAULT '',
@@ -1609,10 +1611,10 @@ MIGRATIONS: list[tuple[int, str, MigrationAction]] = [
             created_at TEXT NOT NULL,
             updated_at TEXT NOT NULL
         );
-        CREATE INDEX IF NOT EXISTS idx_prompts_name ON prompts(name);
-        CREATE INDEX IF NOT EXISTS idx_prompts_scope ON prompts(scope);
-        CREATE INDEX IF NOT EXISTS idx_prompts_project ON prompts(project_id);
-        CREATE UNIQUE INDEX IF NOT EXISTS idx_prompts_name_scope_project
+        CREATE INDEX idx_prompts_name ON prompts(name);
+        CREATE INDEX idx_prompts_scope ON prompts(scope);
+        CREATE INDEX idx_prompts_project ON prompts(project_id);
+        CREATE UNIQUE INDEX idx_prompts_name_scope_project
             ON prompts(name, scope, COALESCE(project_id, ''));
         """,
     ),
