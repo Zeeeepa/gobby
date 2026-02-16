@@ -37,7 +37,7 @@ MigrationAction = str | Callable[[LocalDatabase], None]
 # Baseline version - the schema state that is applied for new databases directly.
 # Must be bumped when BASELINE_SCHEMA is updated with columns from new migrations,
 # so that fresh databases don't re-run migrations already baked into the baseline.
-BASELINE_VERSION = 106
+BASELINE_VERSION = 107
 
 # Minimum migration version - databases older than this cannot be upgraded
 # because legacy migrations (pre-v76) have been removed.
@@ -732,13 +732,15 @@ CREATE TABLE agent_definitions (
     lifecycle_variables TEXT,
     default_variables TEXT,
     enabled INTEGER NOT NULL DEFAULT 1,
+    scope TEXT NOT NULL DEFAULT 'global'
+        CHECK(scope IN ('bundled', 'global', 'project')),
+    source_path TEXT,
+    version TEXT DEFAULT '1.0',
     created_at TEXT NOT NULL DEFAULT (datetime('now')),
     updated_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
-CREATE UNIQUE INDEX idx_agent_defs_project_name
-    ON agent_definitions(project_id, name) WHERE project_id IS NOT NULL;
-CREATE UNIQUE INDEX idx_agent_defs_global_name
-    ON agent_definitions(name) WHERE project_id IS NULL;
+CREATE UNIQUE INDEX idx_agent_defs_name_scope_project
+    ON agent_definitions(name, scope, COALESCE(project_id, ''));
 CREATE INDEX idx_agent_defs_project ON agent_definitions(project_id);
 CREATE INDEX idx_agent_defs_provider ON agent_definitions(provider);
 
@@ -1216,6 +1218,40 @@ def _migrate_add_workflow_definitions(db: LocalDatabase) -> None:
     _import_bundled_workflows(db)
 
 
+def _migrate_agent_definitions_add_scope(db: LocalDatabase) -> None:
+    """Add scope, source_path, version columns to agent_definitions (idempotent).
+
+    Backfills scope based on project_id presence and replaces old unique indexes
+    with a single composite index matching the prompts pattern.
+    """
+    columns = {row["name"] for row in db.fetchall("PRAGMA table_info(agent_definitions)")}
+    with db.transaction() as conn:
+        if "scope" not in columns:
+            conn.execute(
+                "ALTER TABLE agent_definitions ADD COLUMN scope TEXT NOT NULL DEFAULT 'global'"
+            )
+        if "source_path" not in columns:
+            conn.execute("ALTER TABLE agent_definitions ADD COLUMN source_path TEXT")
+        if "version" not in columns:
+            conn.execute(
+                "ALTER TABLE agent_definitions ADD COLUMN version TEXT DEFAULT '1.0'"
+            )
+
+        # Backfill scope from project_id
+        conn.execute(
+            "UPDATE agent_definitions SET scope = 'project' WHERE project_id IS NOT NULL AND scope = 'global'"
+        )
+
+        # Drop old unique indexes and create new composite one
+        conn.execute("DROP INDEX IF EXISTS idx_agent_defs_project_name")
+        conn.execute("DROP INDEX IF EXISTS idx_agent_defs_global_name")
+        conn.execute(
+            "CREATE UNIQUE INDEX IF NOT EXISTS idx_agent_defs_name_scope_project "
+            "ON agent_definitions(name, scope, COALESCE(project_id, ''))"
+        )
+    logger.info("Added scope, source_path, version columns to agent_definitions")
+
+
 MIGRATIONS: list[tuple[int, str, MigrationAction]] = [
     # Project-scoped session refs: Change seq_num index from global to project-scoped
     (76, "Make sessions.seq_num project-scoped", _migrate_session_seq_num_project_scoped),
@@ -1617,6 +1653,12 @@ MIGRATIONS: list[tuple[int, str, MigrationAction]] = [
         CREATE UNIQUE INDEX idx_prompts_name_scope_project
             ON prompts(name, scope, COALESCE(project_id, ''));
         """,
+    ),
+    # Agent definitions: add scope/source_path/version for DB-first pattern
+    (
+        107,
+        "Add scope, source_path, version columns to agent_definitions",
+        _migrate_agent_definitions_add_scope,
     ),
 ]
 

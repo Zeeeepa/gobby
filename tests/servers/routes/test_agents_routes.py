@@ -203,12 +203,8 @@ class TestGetDefinition:
 
 class TestExportDefinition:
     def test_export_file_based(self, client: TestClient, tmp_path: Path) -> None:
-        """Export a file-based definition reads the original YAML."""
-        yaml_file = tmp_path / "worker.yaml"
-        yaml_content = "name: worker\nprovider: claude\n"
-        yaml_file.write_text(yaml_content, encoding="utf-8")
-
-        item = _make_loader_item("worker", source_path=str(yaml_file))
+        """Export serializes from DB model (includes defaults)."""
+        item = _make_loader_item("worker", source_path=str(tmp_path / "worker.yaml"))
         with patch("gobby.agents.definitions.AgentDefinitionLoader") as mock_cls:
             mock_cls.return_value.list_all.return_value = [item]
             response = client.get("/api/agents/definitions/worker/export")
@@ -216,16 +212,8 @@ class TestExportDefinition:
         assert response.status_code == 200
         assert response.headers["content-type"] == "application/x-yaml"
         assert "attachment" in response.headers.get("content-disposition", "")
-        assert response.text == yaml_content
-
-    def test_export_file_based_missing_file(self, client: TestClient) -> None:
-        """If source file is gone, fall back to model serialization."""
-        item = _make_loader_item("worker", source_path="/nonexistent/path/worker.yaml")
-        with patch("gobby.agents.definitions.AgentDefinitionLoader") as mock_cls:
-            mock_cls.return_value.list_all.return_value = [item]
-            response = client.get("/api/agents/definitions/worker/export")
-        assert response.status_code == 200
         assert "name: worker" in response.text
+        assert "provider: claude" in response.text
 
     def test_export_db_backed(self, client: TestClient) -> None:
         """DB-backed definitions (no source_path) serialize from model."""
@@ -444,8 +432,10 @@ class TestImportDefinition:
         """Import a file-based definition into the DB."""
         defn = AgentDefinition(name="importable", description="Imported agent")
 
-        with patch("gobby.agents.definitions.AgentDefinitionLoader") as mock_cls:
-            mock_cls.return_value.load.return_value = defn
+        with patch(
+            "gobby.agents.definitions.AgentDefinitionLoader.load_from_file",
+            return_value=defn,
+        ):
             response = client.post("/api/agents/definitions/import/importable")
 
         assert response.status_code == 200
@@ -454,8 +444,10 @@ class TestImportDefinition:
         assert data["definition"]["name"] == "importable"
 
     def test_import_not_found(self, client: TestClient) -> None:
-        with patch("gobby.agents.definitions.AgentDefinitionLoader") as mock_cls:
-            mock_cls.return_value.load.return_value = None
+        with patch(
+            "gobby.agents.definitions.AgentDefinitionLoader.load_from_file",
+            return_value=None,
+        ):
             response = client.post("/api/agents/definitions/import/missing")
         assert response.status_code == 404
 
@@ -463,8 +455,10 @@ class TestImportDefinition:
         project = project_manager.create(name="import-proj", repo_path="/tmp/import-proj")
         defn = AgentDefinition(name="proj-agent")
 
-        with patch("gobby.agents.definitions.AgentDefinitionLoader") as mock_cls:
-            mock_cls.return_value.load.return_value = defn
+        with patch(
+            "gobby.agents.definitions.AgentDefinitionLoader.load_from_file",
+            return_value=defn,
+        ):
             response = client.post(
                 f"/api/agents/definitions/import/proj-agent?project_id={project.id}"
             )
@@ -472,8 +466,10 @@ class TestImportDefinition:
         assert response.json()["definition"]["project_id"] == project.id
 
     def test_import_error(self, client: TestClient) -> None:
-        with patch("gobby.agents.definitions.AgentDefinitionLoader") as mock_cls:
-            mock_cls.return_value.load.side_effect = RuntimeError("Parse error")
+        with patch(
+            "gobby.agents.definitions.AgentDefinitionLoader.load_from_file",
+            side_effect=RuntimeError("Parse error"),
+        ):
             response = client.post("/api/agents/definitions/import/broken")
         assert response.status_code == 500
 

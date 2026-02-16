@@ -620,7 +620,7 @@ def create_spawn_agent_registry(
     )
 
     # Use provided loaders or create defaults
-    loader = agent_loader or AgentDefinitionLoader()
+    loader = agent_loader or AgentDefinitionLoader(db=db)
     wf_loader = workflow_loader or WorkflowLoader()
 
     @registry.tool(

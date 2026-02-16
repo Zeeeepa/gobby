@@ -153,6 +153,18 @@ class GobbyRunner:
         except Exception as e:
             logger.warning(f"Failed to sync bundled rules: {e}")
 
+        # Sync bundled agent definitions to database
+        from gobby.agents.sync import sync_bundled_agents
+
+        try:
+            agent_def_result = sync_bundled_agents(self.database)
+            if agent_def_result["synced"] > 0:
+                logger.info(
+                    f"Synced {agent_def_result['synced']} bundled agent definitions"
+                )
+        except Exception as e:
+            logger.warning(f"Failed to sync bundled agent definitions: {e}")
+
         # Initialize Prompt Manager
         from gobby.storage.prompts import LocalPromptManager
 
