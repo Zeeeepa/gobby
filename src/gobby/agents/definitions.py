@@ -442,12 +442,12 @@ class AgentDefinitionLoader:
                     old_priority = _SCOPE_PRIORITY.get(old.source, 99)
                     new_priority = _SCOPE_PRIORITY.get(row.scope, 99)
                     if new_priority < old_priority:
-                        old.overridden_by = row.scope
                         seen[row.name] = AgentDefinitionInfo(
                             definition=defn,
                             source=row.scope,
                             source_path=row.source_path,
                             db_id=row.id,
+                            overridden_by=old.source,
                         )
                     # else: existing has higher priority, skip
                 else:
