@@ -1,7 +1,6 @@
 """Tests for background action dispatch and transcript-based title re-synthesis."""
 
 import asyncio
-import logging
 from datetime import UTC, datetime
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -109,13 +108,13 @@ class TestBackgroundActionDispatch:
         await asyncio.sleep(0.05)
 
     @pytest.mark.asyncio
-    async def test_background_action_error_logged(self, caplog: pytest.LogCaptureFixture) -> None:
+    async def test_background_action_error_logged(self) -> None:
         """Verify errors in background actions are logged via done callback."""
         executor = _make_action_executor()
         executor.execute = AsyncMock(side_effect=RuntimeError("LLM timeout"))
         ctx = MagicMock()
 
-        with caplog.at_level(logging.ERROR, logger="gobby.workflows.lifecycle_evaluator"):
+        with patch("gobby.workflows.lifecycle_evaluator.logger") as mock_logger:
             _dispatch_background_action(executor, "synthesize_title", ctx, {})
             # Await all background tasks so done callbacks fire
             for t in list(_background_actions):
@@ -126,7 +125,8 @@ class TestBackgroundActionDispatch:
             # Yield once more for done callback scheduling
             await asyncio.sleep(0)
 
-        assert any("Background action failed" in r.message for r in caplog.records)
+        mock_logger.error.assert_called_once()
+        assert "Background action failed" in mock_logger.error.call_args[0][0]
 
     @pytest.mark.asyncio
     async def test_background_action_result_not_processed(self) -> None:
