@@ -1,8 +1,10 @@
 """Approval gate management for pipeline workflows."""
 
+from __future__ import annotations
+
 import logging
 import secrets
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from gobby.workflows.pipeline_state import (
     ApprovalRequired,
@@ -10,6 +12,9 @@ from gobby.workflows.pipeline_state import (
     PipelineExecution,
     StepStatus,
 )
+
+if TYPE_CHECKING:
+    from gobby.storage.pipelines import LocalPipelineExecutionManager
 
 logger = logging.getLogger(__name__)
 
@@ -19,7 +24,7 @@ class ApprovalManager:
 
     def __init__(
         self,
-        execution_manager: Any,
+        execution_manager: LocalPipelineExecutionManager,
         webhook_notifier: Any | None = None,
         event_callback: Any | None = None,
     ):

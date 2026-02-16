@@ -6,7 +6,6 @@ import logging
 import click
 import yaml
 
-from gobby.cli.utils import resolve_session_id
 from gobby.cli.workflows import common
 from gobby.workflows.definitions import WorkflowDefinition
 
@@ -74,7 +73,7 @@ def list_workflows(
                 )
                 seen_names.add(name)
 
-            except (OSError, yaml.YAMLError) as exc:
+            except (OSError, yaml.YAMLError):
                 logger.warning(
                     "Failed to load workflow",
                     extra={"path": str(yaml_path)},
@@ -169,13 +168,13 @@ def workflow_status(ctx: click.Context, session_id: str | None, json_format: boo
 
     if not session_id:
         try:
-            session_id = resolve_session_id(None)
+            session_id = common.resolve_session_id(None)
         except click.ClickException as e:
             # Re-raise to match expected behavior or exit
             raise SystemExit(1) from e
     else:
         try:
-            session_id = resolve_session_id(session_id)
+            session_id = common.resolve_session_id(session_id)
         except click.ClickException as e:
             raise SystemExit(1) from e
 

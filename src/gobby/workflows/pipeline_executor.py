@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import logging
+import secrets
 from typing import TYPE_CHECKING, Any
 
 from gobby.workflows.pipeline.gatekeeper import ApprovalManager
@@ -465,9 +466,10 @@ class PipelineExecutor:
             except ApprovalRequired:
                 # Pipeline paused again for another approval - this is expected
                 # Refresh execution to get latest status
-                execution = self.execution_manager.get_execution(execution.id)
-                if not execution:
+                _execution = self.execution_manager.get_execution(execution.id)
+                if not _execution:
                     raise ValueError(f"Execution {execution.id} not found after resume") from None
+                execution = _execution
             except Exception as e:
                 logger.error(f"Failed to resume execution after approval: {e}", exc_info=True)
                 # Don't fail the approval if resume fails, but log it

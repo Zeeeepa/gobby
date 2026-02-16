@@ -5,7 +5,6 @@ import json
 import click
 
 from gobby.cli.workflows import common
-from gobby.storage.database import LocalDatabase
 from gobby.workflows.definitions import WorkflowState
 
 
@@ -35,15 +34,15 @@ def set_variable(
     state_manager = common.get_state_manager()
 
     if not session_id:
-        db = LocalDatabase()
-        row = db.fetchone(
-            "SELECT id FROM sessions WHERE status = 'active' ORDER BY updated_at DESC LIMIT 1"
-        )
-        if row:
-            session_id = row["id"]
-        else:
-            click.echo("No active session found. Specify --session ID.", err=True)
-            raise SystemExit(1)
+        try:
+            session_id = common.resolve_session_id(None)
+        except click.ClickException as e:
+            raise SystemExit(1) from e
+    else:
+        try:
+            session_id = common.resolve_session_id(session_id)
+        except click.ClickException as e:
+            raise SystemExit(1) from e
 
     if session_id is None:
         raise click.ClickException("Session ID is required")
@@ -122,15 +121,15 @@ def get_variable(
     state_manager = common.get_state_manager()
 
     if not session_id:
-        db = LocalDatabase()
-        row = db.fetchone(
-            "SELECT id FROM sessions WHERE status = 'active' ORDER BY updated_at DESC LIMIT 1"
-        )
-        if row:
-            session_id = row["id"]
-        else:
-            click.echo("No active session found. Specify --session ID.", err=True)
-            raise SystemExit(1)
+        try:
+            session_id = common.resolve_session_id(None)
+        except click.ClickException as e:
+            raise SystemExit(1) from e
+    else:
+        try:
+            session_id = common.resolve_session_id(session_id)
+        except click.ClickException as e:
+            raise SystemExit(1) from e
 
     if session_id is None:
         raise click.ClickException("Session ID is required")

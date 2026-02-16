@@ -4,7 +4,6 @@ from datetime import UTC, datetime
 
 import click
 
-from gobby.cli.utils import resolve_session_id
 from gobby.cli.workflows import common
 from gobby.workflows.definitions import WorkflowDefinition, WorkflowState
 
@@ -39,10 +38,16 @@ def set_workflow(
         raise SystemExit(1)
 
     # Get session
-    try:
-        session_id = resolve_session_id(session_id)
-    except click.ClickException as e:
-        raise SystemExit(1) from e
+    if not session_id:
+        try:
+            session_id = common.resolve_session_id(None)
+        except click.ClickException as e:
+            raise SystemExit(1) from e
+    else:
+        try:
+            session_id = common.resolve_session_id(session_id)
+        except click.ClickException as e:
+            raise SystemExit(1) from e
 
     # Check for existing workflow
     existing = state_manager.get_state(session_id)
@@ -92,7 +97,7 @@ def clear_workflow(ctx: click.Context, session_id: str | None, force: bool) -> N
     state_manager = common.get_state_manager()
 
     try:
-        session_id = resolve_session_id(session_id)
+        session_id = common.resolve_session_id(session_id)
     except click.ClickException as e:
         raise SystemExit(1) from e
 
@@ -123,7 +128,7 @@ def set_step(ctx: click.Context, step_name: str, session_id: str | None, force: 
     project_path = common.get_project_path()
 
     try:
-        session_id = resolve_session_id(session_id)
+        session_id = common.resolve_session_id(session_id)
     except click.ClickException as e:
         raise SystemExit(1) from e
 
@@ -169,7 +174,7 @@ def reset_workflow(ctx: click.Context, session_id: str | None, force: bool) -> N
     state_manager = common.get_state_manager()
 
     try:
-        session_id = resolve_session_id(session_id)
+        session_id = common.resolve_session_id(session_id)
     except click.ClickException as e:
         raise SystemExit(1) from e
 
@@ -212,7 +217,7 @@ def disable_workflow(ctx: click.Context, session_id: str | None, reason: str | N
     state_manager = common.get_state_manager()
 
     try:
-        session_id = resolve_session_id(session_id)
+        session_id = common.resolve_session_id(session_id)
     except click.ClickException as e:
         raise SystemExit(1) from e
 
@@ -242,7 +247,7 @@ def enable_workflow(ctx: click.Context, session_id: str | None) -> None:
     state_manager = common.get_state_manager()
 
     try:
-        session_id = resolve_session_id(session_id)
+        session_id = common.resolve_session_id(session_id)
     except click.ClickException as e:
         raise SystemExit(1) from e
 

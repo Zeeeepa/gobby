@@ -4,7 +4,7 @@ import json
 
 import click
 
-from gobby.cli.utils import resolve_session_id
+from gobby.cli.workflows import common
 
 
 @click.command("check")
@@ -119,7 +119,7 @@ def audit_workflow(
     audit_manager = WorkflowAuditManager()
 
     try:
-        session_id = resolve_session_id(session_id)
+        session_id = common.resolve_session_id(session_id)
     except click.ClickException as e:
         raise SystemExit(1) from e
 
