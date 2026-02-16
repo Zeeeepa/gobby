@@ -74,14 +74,14 @@ def sync_bundled_workflows(db: DatabaseProtocol) -> dict[str, Any]:
                 continue
 
             if "name" not in data:
-                logger.warning("Skipping YAML without 'name' field", extra={"workflow": str(yaml_file)})
+                logger.warning(
+                    "Skipping YAML without 'name' field", extra={"workflow": str(yaml_file)}
+                )
                 continue
 
             # Validate against Pydantic schema before any DB operations
             schema_cls = (
-                PipelineDefinition
-                if data.get("type") == "pipeline"
-                else WorkflowDefinition
+                PipelineDefinition if data.get("type") == "pipeline" else WorkflowDefinition
             )
             try:
                 schema_cls(**data)
@@ -111,7 +111,9 @@ def sync_bundled_workflows(db: DatabaseProtocol) -> dict[str, Any]:
                 if existing.source == "bundled":
                     # Compare definition_json content to detect changes
                     if existing.definition_json == definition_json:
-                        logger.debug("Workflow already up to date, skipping", extra={"workflow": name})
+                        logger.debug(
+                            "Workflow already up to date, skipping", extra={"workflow": name}
+                        )
                         result["skipped"] += 1
                     else:
                         # Atomic in-place update (preserves id, avoids data loss)
@@ -157,13 +159,21 @@ def sync_bundled_workflows(db: DatabaseProtocol) -> dict[str, Any]:
 
         except Exception as e:
             error_msg = f"Failed to sync workflow definition '{yaml_file}': {e}"
-            logger.error("Failed to sync workflow definition", extra={"workflow": str(yaml_file), "error": str(e)})
+            logger.error(
+                "Failed to sync workflow definition",
+                extra={"workflow": str(yaml_file), "error": str(e)},
+            )
             result["errors"].append(error_msg)
 
     total = result["synced"] + result["updated"] + result["skipped"]
     logger.info(
         "Workflow definition sync complete",
-        extra={"synced": result["synced"], "updated": result["updated"], "skipped": result["skipped"], "total": total},
+        extra={
+            "synced": result["synced"],
+            "updated": result["updated"],
+            "skipped": result["skipped"],
+            "total": total,
+        },
     )
 
     return result

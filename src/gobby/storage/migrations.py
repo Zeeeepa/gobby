@@ -1247,12 +1247,31 @@ def _migrate_agent_definitions_add_scope(db: LocalDatabase) -> None:
     # Columns in the target schema (matches baseline, excluding scope/source_path/version
     # which are handled specially below).
     target_cols = [
-        "id", "project_id", "name", "description",
-        "role", "goal", "personality", "instructions",
-        "provider", "model", "mode", "terminal", "isolation", "base_branch",
-        "timeout", "max_turns", "default_workflow", "sandbox_config",
-        "skill_profile", "workflows", "lifecycle_variables", "default_variables",
-        "enabled", "created_at", "updated_at",
+        "id",
+        "project_id",
+        "name",
+        "description",
+        "role",
+        "goal",
+        "personality",
+        "instructions",
+        "provider",
+        "model",
+        "mode",
+        "terminal",
+        "isolation",
+        "base_branch",
+        "timeout",
+        "max_turns",
+        "default_workflow",
+        "sandbox_config",
+        "skill_profile",
+        "workflows",
+        "lifecycle_variables",
+        "default_variables",
+        "enabled",
+        "created_at",
+        "updated_at",
     ]
 
     old_cols = {row["name"] for row in db.fetchall("PRAGMA table_info(agent_definitions)")}
@@ -1265,9 +1284,7 @@ def _migrate_agent_definitions_add_scope(db: LocalDatabase) -> None:
     if "scope" in old_cols:
         select_parts.append("scope")
     else:
-        select_parts.append(
-            "CASE WHEN project_id IS NOT NULL THEN 'project' ELSE 'global' END"
-        )
+        select_parts.append("CASE WHEN project_id IS NOT NULL THEN 'project' ELSE 'global' END")
     select_parts.append("source_path" if "source_path" in old_cols else "NULL")
     select_parts.append("version" if "version" in old_cols else "'1.0'")
 
@@ -1330,12 +1347,8 @@ def _migrate_agent_definitions_add_scope(db: LocalDatabase) -> None:
                 "CREATE UNIQUE INDEX idx_agent_defs_name_scope_project "
                 "ON agent_definitions(name, scope, COALESCE(project_id, ''))"
             )
-            conn.execute(
-                "CREATE INDEX idx_agent_defs_project ON agent_definitions(project_id)"
-            )
-            conn.execute(
-                "CREATE INDEX idx_agent_defs_provider ON agent_definitions(provider)"
-            )
+            conn.execute("CREATE INDEX idx_agent_defs_project ON agent_definitions(project_id)")
+            conn.execute("CREATE INDEX idx_agent_defs_provider ON agent_definitions(provider)")
     finally:
         db.execute("PRAGMA foreign_keys = ON")
 

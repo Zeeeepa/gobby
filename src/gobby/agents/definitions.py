@@ -331,9 +331,7 @@ class AgentDefinitionLoader:
     File-scanning methods are retained as static helpers for the import endpoint.
     """
 
-    def __init__(
-        self, db: "DatabaseProtocol | None" = None, *, strict: bool = False
-    ) -> None:
+    def __init__(self, db: "DatabaseProtocol | None" = None, *, strict: bool = False) -> None:
         self._db = db
         self._strict = strict
 

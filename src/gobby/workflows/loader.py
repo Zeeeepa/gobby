@@ -258,7 +258,7 @@ class WorkflowLoader(WorkflowLoaderSyncMixin):
 
         # DB lookup
         project_id = str(project_path) if project_path else None
-        visited = set(_inheritance_chain) if _inheritance_chain else None
+        visited = set(_inheritance_chain) if _inheritance_chain else set()
         db_definition = self._load_from_db(name, project_id=project_id, _visited=visited)
         if db_definition is not None:
             if isinstance(db_definition, PipelineDefinition):
