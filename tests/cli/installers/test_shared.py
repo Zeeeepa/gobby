@@ -49,16 +49,16 @@ class TestInstallSharedContent:
             # Don't create shared dir
             result = install_shared_content(cli_path, project_path)
 
-        assert result == {"workflows": [], "agents": [], "plugins": [], "docs": []}
+        assert result == {"plugins": [], "docs": []}
 
-    def test_install_shared_workflows(self, temp_dir: Path) -> None:
-        """Test installing shared workflows to .gobby/workflows/."""
+    def test_install_shared_workflows_db_managed(self, temp_dir: Path) -> None:
+        """Test that workflow files are not installed (DB-managed via sync_bundled_content_to_db)."""
         install_dir = temp_dir / "install"
         shared_dir = install_dir / "shared"
         workflows_dir = shared_dir / "workflows"
         workflows_dir.mkdir(parents=True)
 
-        # Create sample workflow files
+        # Create sample workflow files (should be ignored)
         (workflows_dir / "plan-execute.yaml").write_text("name: plan-execute")
         (workflows_dir / "test-driven.yaml").write_text("name: test-driven")
 
@@ -71,19 +71,18 @@ class TestInstallSharedContent:
             mock_install_dir.return_value = install_dir
             result = install_shared_content(cli_path, project_path)
 
-        assert "plan-execute.yaml" in result["workflows"]
-        assert "test-driven.yaml" in result["workflows"]
-        assert (project_path / ".gobby" / "workflows" / "plan-execute.yaml").exists()
-        assert (project_path / ".gobby" / "workflows" / "test-driven.yaml").exists()
+        # Workflows are DB-managed, not file-based
+        assert "workflows" not in result
+        assert not (project_path / ".gobby" / "workflows").exists()
 
-    def test_install_shared_workflows_copies_subdirectories(self, temp_dir: Path) -> None:
-        """Test that subdirectories in workflows folder are copied."""
+    def test_install_shared_workflows_subdirectories_db_managed(self, temp_dir: Path) -> None:
+        """Test that workflow subdirectories are not copied (DB-managed)."""
         install_dir = temp_dir / "install"
         shared_dir = install_dir / "shared"
         workflows_dir = shared_dir / "workflows"
         workflows_dir.mkdir(parents=True)
 
-        # Create a file and a directory
+        # Create a file and a directory (should be ignored)
         (workflows_dir / "valid.yaml").write_text("name: valid")
         (workflows_dir / "lifecycle").mkdir()
         (workflows_dir / "lifecycle" / "session.yaml").write_text("name: session")
@@ -97,9 +96,9 @@ class TestInstallSharedContent:
             mock_install_dir.return_value = install_dir
             result = install_shared_content(cli_path, project_path)
 
-        assert "valid.yaml" in result["workflows"]
-        assert "lifecycle/" in result["workflows"]
-        assert (project_path / ".gobby" / "workflows" / "lifecycle" / "session.yaml").exists()
+        # Workflows are DB-managed, not file-based
+        assert "workflows" not in result
+        assert not (project_path / ".gobby" / "workflows").exists()
 
     def test_install_shared_plugins(self, temp_dir: Path) -> None:
         """Test installing shared plugins to .gobby/plugins/ (project-scoped)."""
@@ -184,7 +183,8 @@ class TestInstallSharedContent:
             mock_install_dir.return_value = install_dir
             result = install_shared_content(cli_path, project_path)
 
-        assert result["workflows"] == ["workflow1.yaml"]
+        # Workflows are DB-managed, not in result
+        assert "workflows" not in result
         assert result["plugins"] == ["plugin1.py"]
         assert result["docs"] == ["guide.md"]
         # Verify project-scoped installation
@@ -203,10 +203,10 @@ class TestInstallCliContent:
             mock_install_dir.return_value = temp_dir / "install"
             result = install_cli_content("claude", target_path)
 
-        assert result == {"workflows": [], "commands": []}
+        assert result == {"commands": []}
 
-    def test_install_cli_workflows(self, temp_dir: Path) -> None:
-        """Test installing CLI-specific workflows."""
+    def test_install_cli_workflows_db_managed(self, temp_dir: Path) -> None:
+        """Test that CLI-specific workflows are not installed (DB-managed)."""
         install_dir = temp_dir / "install"
         cli_dir = install_dir / "gemini"
         workflows_dir = cli_dir / "workflows"
@@ -221,8 +221,8 @@ class TestInstallCliContent:
             mock_install_dir.return_value = install_dir
             result = install_cli_content("gemini", target_path)
 
-        assert "gemini-workflow.yaml" in result["workflows"]
-        assert (target_path / "workflows" / "gemini-workflow.yaml").exists()
+        # Workflows are DB-managed, not file-based
+        assert "workflows" not in result
 
     def test_install_cli_commands_directory(self, temp_dir: Path) -> None:
         """Test installing CLI commands from commands/ directory."""
@@ -968,14 +968,14 @@ class TestEdgeCases:
         assert result["error"] is not None
         assert "Failed to write" in result["error"]
 
-    def test_install_cli_workflows_copies_subdirectories(self, temp_dir: Path) -> None:
-        """Test that subdirectories in CLI workflows folder are copied."""
+    def test_install_cli_workflows_subdirectories_db_managed(self, temp_dir: Path) -> None:
+        """Test that CLI workflow subdirectories are not copied (DB-managed)."""
         install_dir = temp_dir / "install"
         cli_dir = install_dir / "claude"
         workflows_dir = cli_dir / "workflows"
         workflows_dir.mkdir(parents=True)
 
-        # Create a file and a directory
+        # Create a file and a directory (should be ignored)
         (workflows_dir / "valid.yaml").write_text("name: valid")
         (workflows_dir / "lifecycle").mkdir()
         (workflows_dir / "lifecycle" / "session.yaml").write_text("name: session")
@@ -987,9 +987,8 @@ class TestEdgeCases:
             mock_install_dir.return_value = install_dir
             result = install_cli_content("claude", target_path)
 
-        assert "valid.yaml" in result["workflows"]
-        assert "lifecycle/" in result["workflows"]
-        assert (target_path / "workflows" / "lifecycle" / "session.yaml").exists()
+        # Workflows are DB-managed, not file-based
+        assert "workflows" not in result
 
 
 class TestGetIdeConfigDir:

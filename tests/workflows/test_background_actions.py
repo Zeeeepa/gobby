@@ -115,7 +115,7 @@ class TestBackgroundActionDispatch:
         executor.execute = AsyncMock(side_effect=RuntimeError("LLM timeout"))
         ctx = MagicMock()
 
-        with caplog.at_level(logging.ERROR):
+        with caplog.at_level(logging.ERROR, logger="gobby.workflows.lifecycle_evaluator"):
             _dispatch_background_action(executor, "synthesize_title", ctx, {})
             # Await all background tasks so done callbacks fire
             for t in list(_background_actions):

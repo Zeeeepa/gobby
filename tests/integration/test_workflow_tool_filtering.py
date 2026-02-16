@@ -4,17 +4,18 @@ These tests verify the full workflow tool filtering flow with real database
 operations and real workflow definitions.
 """
 
+import json
 import tempfile
 from pathlib import Path
 
 import pytest
-import yaml
 
 from gobby.mcp_proxy.services.tool_filter import ToolFilterService
 from gobby.storage.database import LocalDatabase
 from gobby.storage.migrations import run_migrations
 from gobby.storage.projects import LocalProjectManager
 from gobby.storage.sessions import LocalSessionManager
+from gobby.storage.workflow_definitions import LocalWorkflowDefinitionManager
 from gobby.workflows.definitions import WorkflowState
 from gobby.workflows.loader import WorkflowLoader
 from gobby.workflows.state_manager import WorkflowStateManager
@@ -61,85 +62,91 @@ def create_session(session_storage, project, session_id: str):
     return session
 
 
+def _insert_test_workflows(db):
+    """Insert test workflow definitions into the database."""
+    mgr = LocalWorkflowDefinitionManager(db)
+
+    # Restrictive workflow
+    restrictive_workflow = {
+        "name": "restrictive-workflow",
+        "type": "step",
+        "version": "1.0.0",
+        "steps": [
+            {
+                "name": "discovery",
+                "description": "Research and discovery phase",
+                "allowed_tools": ["read_file", "glob", "grep", "web_search"],
+                "blocked_tools": [],
+            },
+            {
+                "name": "planning",
+                "description": "Planning phase",
+                "allowed_tools": ["read_file", "write_plan"],
+                "blocked_tools": ["edit", "write", "bash"],
+            },
+            {
+                "name": "execution",
+                "description": "Implementation phase",
+                "allowed_tools": "all",
+                "blocked_tools": ["delete_file", "rm"],
+            },
+        ],
+    }
+    mgr.create(
+        name="restrictive-workflow",
+        definition_json=json.dumps(restrictive_workflow),
+        workflow_type="step",
+        source="test",
+    )
+
+    # Open workflow (all tools allowed)
+    open_workflow = {
+        "name": "open-workflow",
+        "type": "step",
+        "version": "1.0.0",
+        "steps": [
+            {
+                "name": "open",
+                "description": "All tools allowed",
+                "allowed_tools": "all",
+                "blocked_tools": [],
+            },
+        ],
+    }
+    mgr.create(
+        name="open-workflow",
+        definition_json=json.dumps(open_workflow),
+        workflow_type="step",
+        source="test",
+    )
+
+    # Minimal step workflow
+    minimal_workflow = {
+        "name": "minimal-workflow",
+        "type": "step",
+        "version": "1.0.0",
+        "steps": [
+            {
+                "name": "read-only",
+                "description": "Only read operations",
+                "allowed_tools": ["read"],
+                "blocked_tools": [],
+            },
+        ],
+    }
+    mgr.create(
+        name="minimal-workflow",
+        definition_json=json.dumps(minimal_workflow),
+        workflow_type="step",
+        source="test",
+    )
+
+
 @pytest.fixture
-def workflow_dir():
-    """Create a temporary directory with test workflow files."""
-    with tempfile.TemporaryDirectory() as tmpdir:
-        workflow_path = Path(tmpdir)
-
-        # Create a restrictive workflow
-        restrictive_workflow = {
-            "name": "restrictive-workflow",
-            "type": "step",
-            "version": "1.0.0",
-            "steps": [
-                {
-                    "name": "discovery",
-                    "description": "Research and discovery phase",
-                    "allowed_tools": ["read_file", "glob", "grep", "web_search"],
-                    "blocked_tools": [],
-                },
-                {
-                    "name": "planning",
-                    "description": "Planning phase",
-                    "allowed_tools": ["read_file", "write_plan"],
-                    "blocked_tools": ["edit", "write", "bash"],
-                },
-                {
-                    "name": "execution",
-                    "description": "Implementation phase",
-                    "allowed_tools": "all",
-                    "blocked_tools": ["delete_file", "rm"],
-                },
-            ],
-        }
-
-        with open(workflow_path / "restrictive-workflow.yaml", "w") as f:
-            yaml.dump(restrictive_workflow, f)
-
-        # Create an open workflow (all tools allowed)
-        open_workflow = {
-            "name": "open-workflow",
-            "type": "step",
-            "version": "1.0.0",
-            "steps": [
-                {
-                    "name": "open",
-                    "description": "All tools allowed",
-                    "allowed_tools": "all",
-                    "blocked_tools": [],
-                },
-            ],
-        }
-
-        with open(workflow_path / "open-workflow.yaml", "w") as f:
-            yaml.dump(open_workflow, f)
-
-        # Create a minimal step workflow
-        minimal_workflow = {
-            "name": "minimal-workflow",
-            "type": "step",
-            "version": "1.0.0",
-            "steps": [
-                {
-                    "name": "read-only",
-                    "description": "Only read operations",
-                    "allowed_tools": ["read"],
-                    "blocked_tools": [],
-                },
-            ],
-        }
-
-        with open(workflow_path / "minimal-workflow.yaml", "w") as f:
-            yaml.dump(minimal_workflow, f)
-
-        yield workflow_path
-
-
-@pytest.fixture
-def loader(workflow_dir):
-    """Create a workflow loader with test workflow directory."""
-    return WorkflowLoader(workflow_dirs=[workflow_dir])
+def loader(temp_db):
+    """Create a DB-backed workflow loader with test workflows."""
+    _insert_test_workflows(temp_db)
+    return WorkflowLoader(db=temp_db)
 
 
 @pytest.fixture
