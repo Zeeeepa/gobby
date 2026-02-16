@@ -25,7 +25,7 @@ from gobby.workflows.state_manager import WorkflowStateManager
 from gobby.workflows.sync import sync_bundled_workflows
 from gobby.workflows.templates import TemplateEngine
 
-pytestmark = [pytest.mark.unit]
+pytestmark = [pytest.mark.unit, pytest.mark.integration]
 
 SESSION_ID = "orch-sess-1"
 

@@ -5,19 +5,21 @@ from datetime import UTC, datetime
 import pytest
 
 from gobby.sessions.transcripts.base import ParsedMessage
+from gobby.storage.database import LocalDatabase
 from gobby.storage.session_messages import LocalSessionMessageManager
+from gobby.storage.sessions import LocalSessionManager
 
 pytestmark = pytest.mark.unit
 
 
 @pytest.fixture
-def message_manager(temp_db):  # type: ignore[no-untyped-def]
+def message_manager(temp_db: LocalDatabase) -> LocalSessionMessageManager:
     """Create a message manager with temp database."""
     return LocalSessionMessageManager(temp_db)
 
 
 @pytest.fixture
-def session_id(temp_db, session_manager):  # type: ignore[no-untyped-def]
+def session_id(temp_db: LocalDatabase, session_manager: LocalSessionManager) -> str:
     """Create a project and session, return the session ID."""
     from gobby.storage.projects import LocalProjectManager
 

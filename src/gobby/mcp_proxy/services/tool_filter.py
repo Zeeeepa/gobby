@@ -53,7 +53,7 @@ class ToolFilterService:
 
         from gobby.workflows.loader import WorkflowLoader
 
-        self._loader = WorkflowLoader()
+        self._loader = WorkflowLoader(db=self._db)
         return self._loader
 
     def get_step_restrictions(

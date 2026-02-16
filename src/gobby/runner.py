@@ -122,7 +122,7 @@ class GobbyRunner:
 
         # Bundled content (skills, prompts, rules, agents) is synced to the DB
         # during `gobby install`, not on every daemon startup.  See
-        # src/gobby/cli/install.py -> _sync_bundled_content_to_db().
+        # src/gobby/cli/install.py -> sync_bundled_content_to_db().
 
         from gobby.utils.dev import is_dev_mode
 

@@ -65,9 +65,6 @@ def sync_bundled_agents(db: DatabaseProtocol) -> dict[str, Any]:
     manager = LocalAgentDefinitionManager(db, dev_mode=True)
 
     for yaml_file in sorted(agents_path.glob("*.yaml")):
-        # Skip deprecated directory contents
-        if "deprecated" in yaml_file.parts:
-            continue
 
         try:
             raw_content = yaml_file.read_text(encoding="utf-8")
@@ -88,32 +85,61 @@ def sync_bundled_agents(db: DatabaseProtocol) -> dict[str, Any]:
             existing = manager.get_bundled(name)
 
             if existing is not None:
-                # Compare key fields to detect stale content
+                # Compare full serialized definitions to detect any change
                 existing_def = manager.export_to_definition(existing.id)
+                existing_json = existing_def.model_dump_json(exclude_none=False)
+                new_json = agent_def.model_dump_json(exclude_none=False)
                 needs_update = (
-                    existing_def.description != agent_def.description
-                    or existing_def.role != agent_def.role
-                    or existing_def.goal != agent_def.goal
-                    or existing_def.personality != agent_def.personality
-                    or existing_def.instructions != agent_def.instructions
-                    or existing_def.provider != agent_def.provider
-                    or existing_def.mode != agent_def.mode
-                    or existing_def.model != agent_def.model
-                    or existing_def.default_workflow != agent_def.default_workflow
+                    existing_json != new_json
                     or existing.source_path != source_path
                 )
 
                 if needs_update:
-                    # Re-import by deleting and recreating
-                    manager.delete(existing.id)
-                    manager.import_from_definition(
-                        agent_def,
-                        scope="bundled",
-                        source_path=source_path,
-                        project_id=None,
-                    )
-                    logger.info(f"Updated bundled agent definition: {name}")
-                    result["updated"] += 1
+                    # Atomic in-place update via manager.update() — avoids
+                    # the non-atomic delete-then-import pattern that could
+                    # lose the definition if import fails.
+                    try:
+                        workflows_dict = None
+                        if agent_def.workflows:
+                            workflows_dict = {
+                                wf_name: spec.model_dump(exclude_none=True)
+                                for wf_name, spec in agent_def.workflows.items()
+                            }
+                        sandbox_dict = agent_def.sandbox.model_dump() if agent_def.sandbox else None
+                        skill_dict = agent_def.skill_profile.model_dump() if agent_def.skill_profile else None
+
+                        manager.update(
+                            existing.id,
+                            description=agent_def.description,
+                            role=agent_def.role,
+                            goal=agent_def.goal,
+                            personality=agent_def.personality,
+                            instructions=agent_def.instructions,
+                            provider=agent_def.provider,
+                            model=agent_def.model,
+                            mode=agent_def.mode,
+                            terminal=agent_def.terminal,
+                            isolation=agent_def.isolation,
+                            base_branch=agent_def.base_branch,
+                            timeout=agent_def.timeout,
+                            max_turns=agent_def.max_turns,
+                            default_workflow=agent_def.default_workflow,
+                            sandbox_config=sandbox_dict,
+                            skill_profile=skill_dict,
+                            workflows=workflows_dict,
+                            lifecycle_variables=agent_def.lifecycle_variables or None,
+                            default_variables=agent_def.default_variables or None,
+                            source_path=source_path,
+                        )
+                        logger.info(f"Updated bundled agent definition: {name}")
+                        result["updated"] += 1
+                    except Exception as e:
+                        logger.error(
+                            f"Failed to update bundled agent '{name}': {e}"
+                        )
+                        result["errors"].append(
+                            f"Failed to update '{name}': {e}"
+                        )
                 else:
                     logger.debug(f"Agent definition '{name}' already up to date, skipping")
                     result["skipped"] += 1

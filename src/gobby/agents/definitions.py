@@ -17,9 +17,19 @@ from gobby.agents.sandbox import SandboxConfig
 from gobby.utils.project_context import get_project_context
 
 if TYPE_CHECKING:
+    from gobby.storage.agent_definitions import LocalAgentDefinitionManager
     from gobby.storage.database import DatabaseProtocol
 
-AgentSource = Literal["bundled", "global", "project", "project-file", "user-file", "built-in-file", "project-db", "global-db"]
+AgentSource = Literal[
+    "bundled",
+    "global",
+    "project",
+    "project-file",
+    "user-file",
+    "built-in-file",
+    "project-db",
+    "global-db",
+]
 
 logger = logging.getLogger(__name__)
 
@@ -332,7 +342,7 @@ class AgentDefinitionLoader:
         self._db = LocalDatabase()
         return self._db
 
-    def _get_manager(self) -> Any:
+    def _get_manager(self) -> "LocalAgentDefinitionManager":
         from gobby.storage.agent_definitions import LocalAgentDefinitionManager
 
         return LocalAgentDefinitionManager(self._get_db())
@@ -352,15 +362,26 @@ class AgentDefinitionLoader:
         """
         try:
             mgr = self._get_manager()
-            row = mgr.get_by_name(name, project_id)
-            if row:
-                defn: AgentDefinition = mgr.export_to_definition(row.id)
-                return defn
-        except Exception as e:
-            logger.error(f"Failed to load agent definition '{name}' from DB: {e}")
+        except (ImportError, OSError) as e:
+            logger.error(f"Failed to initialize agent definition manager: {e}")
+            return None
 
-        logger.debug(f"Agent definition '{name}' not found")
-        return None
+        try:
+            row = mgr.get_by_name(name, project_id)
+        except (OSError, ValueError) as e:
+            logger.error(f"Failed to query agent definition '{name}' from DB: {e}")
+            return None
+
+        if not row:
+            logger.debug(f"Agent definition '{name}' not found")
+            return None
+
+        try:
+            defn: AgentDefinition = mgr.export_to_definition(row.id)
+            return defn
+        except (KeyError, ValueError) as e:
+            logger.error(f"Failed to parse agent definition '{name}' from DB: {e}")
+            return None
 
     def list_all(self, project_id: str | None = None) -> list[AgentDefinitionInfo]:
         """
@@ -389,12 +410,12 @@ class AgentDefinitionLoader:
                     old_priority = _SCOPE_PRIORITY.get(old.source, 99)  # type: ignore[arg-type]
                     new_priority = _SCOPE_PRIORITY.get(row.scope, 99)
                     if new_priority < old_priority:
-                        old.overridden_by = row.scope
                         seen[row.name] = AgentDefinitionInfo(
                             definition=defn,
                             source=row.scope,
                             source_path=row.source_path,
                             db_id=row.id,
+                            overridden_by=old.source,
                         )
                     # else: existing has higher priority, skip
                 else:

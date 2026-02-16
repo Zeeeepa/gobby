@@ -83,9 +83,7 @@ class WorkflowLoader(WorkflowLoaderSyncMixin):
                 if parent_def:
                     data = self._merge_workflows(parent_def.model_dump(), data)
                 else:
-                    logger.warning(
-                        f"Parent workflow '{parent_name}' not found in DB for '{name}'"
-                    )
+                    logger.warning(f"Parent workflow '{parent_name}' not found in DB for '{name}'")
 
             # Resolve imports from DB
             if data.get("imports"):
@@ -122,10 +120,12 @@ class WorkflowLoader(WorkflowLoaderSyncMixin):
         store = RuleStore(self.db)
         merged_rules: dict[str, Any] = {}
 
+        # Cache bundled rules once to avoid O(n*m) repeated DB queries
+        all_bundled = store.list_rules(tier="bundled")
+
         for import_name in imports:
             # Search by source_file suffix matching the import name
             # Import names are like "safety" matching ".../safety.yaml"
-            all_bundled = store.list_rules(tier="bundled")
             for rule in all_bundled:
                 sf = rule.get("source_file", "") or ""
                 # Match if source_file ends with /{import_name}.yaml

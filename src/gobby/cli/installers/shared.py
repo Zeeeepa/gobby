@@ -14,9 +14,12 @@ import os
 import shutil
 from pathlib import Path
 from shutil import copy2, copytree
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from gobby.cli.utils import get_install_dir
+
+if TYPE_CHECKING:
+    from gobby.storage.database import DatabaseProtocol
 
 logger = logging.getLogger(__name__)
 
@@ -154,14 +157,14 @@ def _copy_docs(source: Path, target: Path, installed: dict[str, list[str]]) -> N
             installed["docs"].append(doc_file.name)
 
 
-def sync_bundled_content_to_db(db: Any) -> dict[str, Any]:
-    """Sync all bundled content (skills, prompts, rules, agents) to the database.
+def sync_bundled_content_to_db(db: "DatabaseProtocol") -> dict[str, Any]:
+    """Sync all bundled content (skills, prompts, rules, agents, workflows) to the database.
 
     Called during ``gobby install`` as the single import point.
     The daemon no longer syncs on startup.
 
     Args:
-        db: Database connection (DatabaseProtocol).
+        db: Database connection implementing DatabaseProtocol.
 
     Returns:
         Dict with total_synced count and any errors.
@@ -172,65 +175,29 @@ def sync_bundled_content_to_db(db: Any) -> dict[str, Any]:
         "details": {},
     }
 
-    # 1. Skills
-    try:
-        from gobby.skills.sync import sync_bundled_skills
+    # (content_type, module_path, function_name)
+    sync_targets: list[tuple[str, str, str]] = [
+        ("skills", "gobby.skills.sync", "sync_bundled_skills"),
+        ("prompts", "gobby.prompts.sync", "sync_bundled_prompts"),
+        ("rules", "gobby.workflows.rule_sync", "sync_bundled_rules_sync"),
+        ("agents", "gobby.agents.sync", "sync_bundled_agents"),
+        ("workflows", "gobby.workflows.sync", "sync_bundled_workflows"),
+    ]
 
-        skill_result = sync_bundled_skills(db)
-        synced = skill_result.get("synced", 0) + skill_result.get("updated", 0)
-        result["total_synced"] += synced
-        result["details"]["skills"] = skill_result
-        if synced > 0:
-            logger.info(f"Synced {synced} bundled skills to database")
-    except Exception as e:
-        msg = f"Failed to sync bundled skills: {e}"
-        logger.warning(msg)
-        result["errors"].append(msg)
-
-    # 2. Prompts
-    try:
-        from gobby.prompts.sync import sync_bundled_prompts
-
-        prompt_result = sync_bundled_prompts(db)
-        synced = prompt_result.get("synced", 0) + prompt_result.get("updated", 0)
-        result["total_synced"] += synced
-        result["details"]["prompts"] = prompt_result
-        if synced > 0:
-            logger.info(f"Synced {synced} bundled prompts to database")
-    except Exception as e:
-        msg = f"Failed to sync bundled prompts: {e}"
-        logger.warning(msg)
-        result["errors"].append(msg)
-
-    # 3. Rules
-    try:
-        from gobby.workflows.rule_sync import sync_bundled_rules_sync
-
-        rule_result = sync_bundled_rules_sync(db)
-        synced = rule_result.get("synced", 0) + rule_result.get("updated", 0)
-        result["total_synced"] += synced
-        result["details"]["rules"] = rule_result
-        if synced > 0:
-            logger.info(f"Synced {synced} bundled rules to database")
-    except Exception as e:
-        msg = f"Failed to sync bundled rules: {e}"
-        logger.warning(msg)
-        result["errors"].append(msg)
-
-    # 4. Agent definitions
-    try:
-        from gobby.agents.sync import sync_bundled_agents
-
-        agent_result = sync_bundled_agents(db)
-        synced = agent_result.get("synced", 0) + agent_result.get("updated", 0)
-        result["total_synced"] += synced
-        result["details"]["agents"] = agent_result
-        if synced > 0:
-            logger.info(f"Synced {synced} bundled agent definitions to database")
-    except Exception as e:
-        msg = f"Failed to sync bundled agent definitions: {e}"
-        logger.warning(msg)
-        result["errors"].append(msg)
+    for content_type, module_path, func_name in sync_targets:
+        try:
+            module = __import__(module_path, fromlist=[func_name])
+            sync_fn = getattr(module, func_name)
+            sync_result = sync_fn(db)
+            synced = sync_result.get("synced", 0) + sync_result.get("updated", 0)
+            result["total_synced"] += synced
+            result["details"][content_type] = sync_result
+            if synced > 0:
+                logger.info(f"Synced {synced} bundled {content_type} to database")
+        except Exception as e:
+            msg = f"Failed to sync bundled {content_type}: {e}"
+            logger.warning(msg)
+            result["errors"].append(msg)
 
     return result
 

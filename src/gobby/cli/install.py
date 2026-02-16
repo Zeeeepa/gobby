@@ -304,14 +304,17 @@ def install(
     # Sync bundled content (skills, prompts, rules, agents) to database.
     # This is the single import point — the daemon no longer syncs on startup.
     if db is not None:
-        from gobby.cli.installers.shared import sync_bundled_content_to_db
+        try:
+            from gobby.cli.installers.shared import sync_bundled_content_to_db
 
-        sync_result = sync_bundled_content_to_db(db)
-        if sync_result["total_synced"] > 0:
-            click.echo(f"Synced {sync_result['total_synced']} bundled items to database")
-        if sync_result["errors"]:
-            for err in sync_result["errors"]:
-                click.echo(f"  Warning: {err}")
+            sync_result = sync_bundled_content_to_db(db)
+            if sync_result["total_synced"] > 0:
+                click.echo(f"Synced {sync_result['total_synced']} bundled items to database")
+            if sync_result["errors"]:
+                for err in sync_result["errors"]:
+                    click.echo(f"  Warning: {err}")
+        finally:
+            db.close()
 
     # Install default external MCP servers (GitHub, Linear, context7)
     mcp_result = install_default_mcp_servers()

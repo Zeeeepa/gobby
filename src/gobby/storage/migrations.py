@@ -1233,9 +1233,7 @@ def _migrate_agent_definitions_add_scope(db: LocalDatabase) -> None:
         if "source_path" not in columns:
             conn.execute("ALTER TABLE agent_definitions ADD COLUMN source_path TEXT")
         if "version" not in columns:
-            conn.execute(
-                "ALTER TABLE agent_definitions ADD COLUMN version TEXT DEFAULT '1.0'"
-            )
+            conn.execute("ALTER TABLE agent_definitions ADD COLUMN version TEXT DEFAULT '1.0'")
 
         # Backfill scope from project_id
         conn.execute(

@@ -159,13 +159,13 @@ class TestSyncBundledAgents:
         result = sync_bundled_agents(db)
 
         assert result["success"] is True
-        # We know there are at least some bundled agents
-        assert result["synced"] + result["skipped"] + result["updated"] >= 0
+        # At least one bundled agent should be synced
+        assert result["synced"] + result["skipped"] + result["updated"] >= 1
         assert result["errors"] == []
 
-        # Verify bundled agents are retrievable
+        # Verify a known bundled agent is retrievable
         mgr = LocalAgentDefinitionManager(db)
         bundled = mgr.get_bundled("generic")
-        if bundled:
-            assert bundled.scope == "bundled"
-            assert bundled.name == "generic"
+        assert bundled is not None
+        assert bundled.scope == "bundled"
+        assert bundled.name == "generic"

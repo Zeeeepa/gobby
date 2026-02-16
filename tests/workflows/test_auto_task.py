@@ -257,25 +257,18 @@ class TestAutonomousTaskWorkflowLoading:
     """Tests for loading the auto-task workflow."""
 
     @pytest.mark.asyncio
-    async def test_workflow_can_be_loaded(self) -> None:
+    async def test_workflow_can_be_loaded(self, db_loader: WorkflowLoader) -> None:
         """auto-task.yaml workflow can be loaded."""
-        # Use the actual shared workflows directory
-        workflow_dir = Path(__file__).parent.parent.parent / "src/gobby/install/shared/workflows"
-        loader = WorkflowLoader(workflow_dirs=[workflow_dir])
-
-        workflow = await loader.load_workflow("auto-task")
+        workflow = await db_loader.load_workflow("auto-task")
 
         assert workflow is not None
         assert workflow.name == "auto-task"
         assert workflow.type == "step"
 
     @pytest.mark.asyncio
-    async def test_workflow_has_expected_steps(self) -> None:
+    async def test_workflow_has_expected_steps(self, db_loader: WorkflowLoader) -> None:
         """auto-task workflow has work and complete steps."""
-        workflow_dir = Path(__file__).parent.parent.parent / "src/gobby/install/shared/workflows"
-        loader = WorkflowLoader(workflow_dirs=[workflow_dir])
-
-        workflow = await loader.load_workflow("auto-task")
+        workflow = await db_loader.load_workflow("auto-task")
 
         assert workflow is not None
         step_names = [s.name for s in workflow.steps]
@@ -283,36 +276,27 @@ class TestAutonomousTaskWorkflowLoading:
         assert "complete" in step_names
 
     @pytest.mark.asyncio
-    async def test_workflow_has_exit_condition(self) -> None:
+    async def test_workflow_has_exit_condition(self, db_loader: WorkflowLoader) -> None:
         """auto-task workflow has exit_condition defined."""
-        workflow_dir = Path(__file__).parent.parent.parent / "src/gobby/install/shared/workflows"
-        loader = WorkflowLoader(workflow_dirs=[workflow_dir])
-
-        workflow = await loader.load_workflow("auto-task")
+        workflow = await db_loader.load_workflow("auto-task")
 
         assert workflow is not None
         assert workflow.exit_condition is not None
         assert "complete" in workflow.exit_condition
 
     @pytest.mark.asyncio
-    async def test_workflow_has_premature_stop_handler(self) -> None:
+    async def test_workflow_has_premature_stop_handler(self, db_loader: WorkflowLoader) -> None:
         """auto-task workflow has on_premature_stop defined."""
-        workflow_dir = Path(__file__).parent.parent.parent / "src/gobby/install/shared/workflows"
-        loader = WorkflowLoader(workflow_dirs=[workflow_dir])
-
-        workflow = await loader.load_workflow("auto-task")
+        workflow = await db_loader.load_workflow("auto-task")
 
         assert workflow is not None
         assert workflow.on_premature_stop is not None
         assert workflow.on_premature_stop.action == "guide_continuation"
 
     @pytest.mark.asyncio
-    async def test_work_step_has_transition_to_complete(self) -> None:
+    async def test_work_step_has_transition_to_complete(self, db_loader: WorkflowLoader) -> None:
         """Work step has transition to complete with task_tree_complete condition."""
-        workflow_dir = Path(__file__).parent.parent.parent / "src/gobby/install/shared/workflows"
-        loader = WorkflowLoader(workflow_dirs=[workflow_dir])
-
-        workflow = await loader.load_workflow("auto-task")
+        workflow = await db_loader.load_workflow("auto-task")
 
         work_step = workflow.get_step("work")
         assert work_step is not None
@@ -337,6 +321,15 @@ class TestAutonomousTaskWorkflowLoading:
 @pytest.mark.integration
 class TestActivateWorkflowWithVariables:
     """Tests for activate_workflow MCP tool with variables parameter."""
+
+    @pytest.fixture(autouse=True)
+    def _sync_workflows(self, temp_db):
+        """Sync bundled workflows and rules into temp_db for this test class."""
+        from gobby.workflows.rule_sync import sync_bundled_rules_sync
+        from gobby.workflows.sync import sync_bundled_workflows
+
+        sync_bundled_rules_sync(temp_db)
+        sync_bundled_workflows(temp_db)
 
     @pytest.fixture
     def state_manager(self, temp_db):
@@ -368,12 +361,9 @@ class TestActivateWorkflowWithVariables:
         """Tool requires session_id parameter."""
         from gobby.mcp_proxy.tools.workflows import create_workflows_registry
         from gobby.storage.sessions import LocalSessionManager
-        from gobby.workflows.loader import WorkflowLoader
         from gobby.workflows.state_manager import WorkflowStateManager
 
-        # Need loader with workflow directory
-        workflow_dir = Path(__file__).parent.parent.parent / "src/gobby/install/shared/workflows"
-        loader = WorkflowLoader(workflow_dirs=[workflow_dir])
+        loader = WorkflowLoader(db=temp_db)
         state_manager = WorkflowStateManager(temp_db)
         session_manager = LocalSessionManager(temp_db)
 
@@ -392,16 +382,12 @@ class TestActivateWorkflowWithVariables:
         """Tool creates workflow state with variables merged correctly."""
         from gobby.mcp_proxy.tools.workflows import create_workflows_registry
         from gobby.storage.sessions import LocalSessionManager
-        from gobby.workflows.loader import WorkflowLoader
         from gobby.workflows.state_manager import WorkflowStateManager
 
-        # Set up with actual workflow directory
-        workflow_dir = Path(__file__).parent.parent.parent / "src/gobby/install/shared/workflows"
-        loader = WorkflowLoader(workflow_dirs=[workflow_dir])
+        loader = WorkflowLoader(db=temp_db)
         state_manager = WorkflowStateManager(temp_db)
         session_manager = LocalSessionManager(temp_db)
 
-        # Pass db and session_manager so the registry uses the same database
         registry = create_workflows_registry(
             loader=loader, state_manager=state_manager, session_manager=session_manager, db=temp_db
         )
@@ -415,7 +401,7 @@ class TestActivateWorkflowWithVariables:
 
         assert result["success"] is True, f"activate_workflow failed: {result}"
         assert result["workflow"] == "auto-task"
-        # Note: This test loads the shared workflow from src/gobby/install/shared/workflows
+        # Note: This test loads the shared workflow from the database
         # which defines "work" as the first step
         assert result["step"] == "work"
         assert result["variables"]["session_task"] == "gt-abc123"
@@ -433,15 +419,12 @@ class TestActivateWorkflowWithVariables:
         """Passed variables override workflow defaults."""
         from gobby.mcp_proxy.tools.workflows import create_workflows_registry
         from gobby.storage.sessions import LocalSessionManager
-        from gobby.workflows.loader import WorkflowLoader
         from gobby.workflows.state_manager import WorkflowStateManager
 
-        workflow_dir = Path(__file__).parent.parent.parent / "src/gobby/install/shared/workflows"
-        loader = WorkflowLoader(workflow_dirs=[workflow_dir])
+        loader = WorkflowLoader(db=temp_db)
         state_manager = WorkflowStateManager(temp_db)
         session_manager = LocalSessionManager(temp_db)
 
-        # Pass db and session_manager so the registry uses the same database
         registry = create_workflows_registry(
             loader=loader, state_manager=state_manager, session_manager=session_manager, db=temp_db
         )
@@ -464,11 +447,9 @@ class TestActivateWorkflowWithVariables:
         """Multi-workflow: activating a second workflow succeeds (overwrites state)."""
         from gobby.mcp_proxy.tools.workflows import create_workflows_registry
         from gobby.storage.sessions import LocalSessionManager
-        from gobby.workflows.loader import WorkflowLoader
         from gobby.workflows.state_manager import WorkflowStateManager
 
-        workflow_dir = Path(__file__).parent.parent.parent / "src/gobby/install/shared/workflows"
-        loader = WorkflowLoader(workflow_dirs=[workflow_dir])
+        loader = WorkflowLoader(db=temp_db)
         state_manager = WorkflowStateManager(temp_db)
         session_manager = LocalSessionManager(temp_db)
 
@@ -480,7 +461,6 @@ class TestActivateWorkflowWithVariables:
         )
         state_manager.save_state(existing_state)
 
-        # Pass db and session_manager so the registry uses the same database
         registry = create_workflows_registry(
             loader=loader, state_manager=state_manager, session_manager=session_manager, db=temp_db
         )
@@ -500,11 +480,9 @@ class TestActivateWorkflowWithVariables:
         """Lifecycle variables are preserved when activating a step workflow."""
         from gobby.mcp_proxy.tools.workflows import create_workflows_registry
         from gobby.storage.sessions import LocalSessionManager
-        from gobby.workflows.loader import WorkflowLoader
         from gobby.workflows.state_manager import WorkflowStateManager
 
-        workflow_dir = Path(__file__).parent.parent.parent / "src/gobby/install/shared/workflows"
-        loader = WorkflowLoader(workflow_dirs=[workflow_dir])
+        loader = WorkflowLoader(db=temp_db)
         state_manager = WorkflowStateManager(temp_db)
         session_manager = LocalSessionManager(temp_db)
 

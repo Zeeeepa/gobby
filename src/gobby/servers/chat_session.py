@@ -303,7 +303,9 @@ class ChatSession:
                         hook_specific = output.get("hookSpecificOutput")
                         if hook_specific and isinstance(hook_specific, dict):
                             existing = hook_specific.get("additionalContext", "") or ""
-                        combined = (existing + "\n\n" + history_ctx).strip() if existing else history_ctx
+                        combined = (
+                            (existing + "\n\n" + history_ctx).strip() if existing else history_ctx
+                        )
                         output["hookSpecificOutput"] = UserPromptSubmitHookSpecificOutput(
                             hookEventName="UserPromptSubmit",
                             additionalContext=combined,
@@ -440,15 +442,14 @@ class ChatSession:
             return None
 
         try:
-            messages = await self._message_manager.get_messages(
-                self.db_session_id, limit=50
-            )
+            messages = await self._message_manager.get_messages(self.db_session_id, limit=50)
             if not messages:
                 return None
 
             # Filter to user/assistant text messages only
             text_messages = [
-                m for m in messages
+                m
+                for m in messages
                 if m.get("role") in ("user", "assistant")
                 and m.get("content_type") == "text"
                 and m.get("content")
@@ -457,7 +458,7 @@ class ChatSession:
                 return None
 
             max_msg_chars = 2000
-            max_total_bytes = 30_000
+            max_total_chars = 30_000
             parts: list[str] = []
             total = 0
 
@@ -467,7 +468,7 @@ class ChatSession:
                 if len(content) > max_msg_chars:
                     content = content[:max_msg_chars] + "..."
                 entry = f"{role_label} {content}"
-                if total + len(entry) > max_total_bytes:
+                if total + len(entry) > max_total_chars:
                     break
                 parts.append(entry)
                 total += len(entry)

@@ -8,19 +8,21 @@ imported rules, missing import is handled gracefully.
 from __future__ import annotations
 
 import json
+from pathlib import Path
 from typing import Any
 
 import pytest
 
 from gobby.storage.database import LocalDatabase
 from gobby.storage.rules import RuleStore
+from gobby.storage.workflow_definitions import LocalWorkflowDefinitionManager
 from gobby.workflows.loader import WorkflowLoader
 
 pytestmark = pytest.mark.unit
 
 
 @pytest.fixture
-def db(tmp_path):
+def db(tmp_path: Path) -> LocalDatabase:
     """Create a fresh database with migrations applied."""
     from gobby.storage.migrations import run_migrations
 
@@ -31,21 +33,19 @@ def db(tmp_path):
 
 
 @pytest.fixture
-def rule_store(db):
+def rule_store(db: LocalDatabase) -> RuleStore:
     """Create a RuleStore backed by the temp database."""
     return RuleStore(db)
 
 
 @pytest.fixture
-def def_manager(db):
+def def_manager(db: LocalDatabase) -> LocalWorkflowDefinitionManager:
     """Create a workflow definition manager."""
-    from gobby.storage.workflow_definitions import LocalWorkflowDefinitionManager
-
     return LocalWorkflowDefinitionManager(db)
 
 
 @pytest.fixture
-def loader(db):
+def loader(db: LocalDatabase) -> WorkflowLoader:
     """Create a WorkflowLoader backed by the temp database."""
     return WorkflowLoader(db=db)
 
@@ -75,7 +75,7 @@ class TestImportResolution:
 
     @pytest.mark.asyncio
     async def test_imports_merge_into_workflow(
-        self, loader, def_manager, rule_store
+        self, loader: WorkflowLoader, def_manager: LocalWorkflowDefinitionManager, rule_store: RuleStore
     ) -> None:
         """Imported rule_definitions from DB should merge into the workflow."""
         # Create bundled rule in DB with source_file matching import name
@@ -110,7 +110,7 @@ class TestImportResolution:
 
     @pytest.mark.asyncio
     async def test_local_rules_override_imported(
-        self, loader, def_manager, rule_store
+        self, loader: WorkflowLoader, def_manager: LocalWorkflowDefinitionManager, rule_store: RuleStore
     ) -> None:
         """File-local rule_definitions should override imported ones with the same name."""
         _save_bundled_rule(
@@ -149,7 +149,7 @@ class TestImportResolution:
 
     @pytest.mark.asyncio
     async def test_multiple_imports(
-        self, loader, def_manager, rule_store
+        self, loader: WorkflowLoader, def_manager: LocalWorkflowDefinitionManager, rule_store: RuleStore
     ) -> None:
         """Multiple imports should all be merged."""
         _save_bundled_rule(
@@ -183,7 +183,7 @@ class TestImportResolution:
 
     @pytest.mark.asyncio
     async def test_missing_import_loads_without_rules(
-        self, loader, def_manager
+        self, loader: WorkflowLoader, def_manager: LocalWorkflowDefinitionManager
     ) -> None:
         """Missing import source file loads workflow without those rules (no error)."""
         def_manager.create(
@@ -204,7 +204,7 @@ class TestImportResolution:
         assert defn.rule_definitions == {}
 
     @pytest.mark.asyncio
-    async def test_no_imports_field_works(self, loader, def_manager) -> None:
+    async def test_no_imports_field_works(self, loader: WorkflowLoader, def_manager: LocalWorkflowDefinitionManager) -> None:
         """Workflow without imports should load normally."""
         def_manager.create(
             name="no-imports",
@@ -222,7 +222,7 @@ class TestImportResolution:
 
     @pytest.mark.asyncio
     async def test_later_import_overrides_earlier(
-        self, loader, def_manager, rule_store
+        self, loader: WorkflowLoader, def_manager: LocalWorkflowDefinitionManager, rule_store: RuleStore
     ) -> None:
         """When two imports define rules from different source files, all are merged."""
         _save_bundled_rule(

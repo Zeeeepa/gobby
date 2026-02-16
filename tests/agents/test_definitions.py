@@ -255,47 +255,51 @@ class TestAgentDefinitionLoader:
         assert agent is not None
         assert agent.provider == "gemini"
 
-    def test_load_from_file_static(self) -> None:
+    def test_load_from_file_static(self, tmp_path: Path) -> None:
         """Test static load_from_file method finds YAML files."""
+        import yaml
+
         yaml_data: dict[str, Any] = {
             "name": "my-agent",
             "description": "Test agent",
             "provider": "claude",
         }
 
+        # Create a real temp YAML file
+        agents_dir = tmp_path / "agents"
+        agents_dir.mkdir()
+        yaml_file = agents_dir / "my-agent.yaml"
+        yaml_file.write_text(yaml.dump(yaml_data))
+
+        # Patch the shared path to point to our temp agents dir
         with (
-            patch("builtins.open"),
-            patch("gobby.agents.definitions.yaml.safe_load", return_value=yaml_data),
             patch("gobby.agents.definitions.get_project_context", return_value=None),
+            patch("gobby.agents.definitions.Path") as mock_path_cls,
         ):
-            # Mock the home path and shared path
-            mock_shared = MagicMock()
-            mock_shared.exists.return_value = True
-            mock_file = MagicMock()
-            mock_file.exists.return_value = True
-            mock_shared.__truediv__ = MagicMock(return_value=mock_file)
+            # Path(__file__).parent.parent => base_dir
+            mock_base = MagicMock()
+            mock_install_shared = MagicMock()
+            mock_install_shared.exists.return_value = False
+            mock_install = MagicMock()
+            mock_install.__truediv__ = MagicMock(return_value=mock_install_shared)
+            mock_base.__truediv__ = MagicMock(return_value=mock_install)
+            mock_parent = MagicMock()
+            mock_parent.parent = mock_base
+            mock_file_path = MagicMock()
+            mock_file_path.parent = mock_parent
+            mock_path_cls.return_value = mock_file_path
 
-            mock_user = MagicMock()
-            mock_user.exists.return_value = False
+            # Path.home() / ".gobby" / "agents" => our temp agents dir
+            mock_home = MagicMock()
+            mock_gobby_dir = MagicMock()
+            mock_gobby_dir.__truediv__ = MagicMock(return_value=agents_dir)
+            mock_home.__truediv__ = MagicMock(return_value=mock_gobby_dir)
+            mock_path_cls.home.return_value = mock_home
 
-            with (
-                patch("gobby.agents.definitions.Path") as mock_path_cls,
-            ):
-                # Path(__file__).parent.parent => base_dir
-                mock_base = MagicMock()
-                mock_base.__truediv__ = MagicMock(return_value=mock_shared)
-                mock_parent = MagicMock()
-                mock_parent.parent = mock_base
-                mock_file_path = MagicMock()
-                mock_file_path.parent = mock_parent
-                mock_path_cls.return_value = mock_file_path
-                # Path.home() => user path
-                mock_path_cls.home.return_value = MagicMock()
-
-                agent = AgentDefinitionLoader.load_from_file("my-agent")
-                # The test verifies the static method is callable;
-                # exact filesystem mocking is complex, so we just verify no crash
-                # (the mocking chain may not fully resolve)
+            agent = AgentDefinitionLoader.load_from_file("my-agent")
+            assert agent is not None
+            assert agent.name == "my-agent"
+            assert agent.provider == "claude"
 
     def test_list_all_from_db(self, tmp_path: Path) -> None:
         """Test list_all returns all definitions from DB."""
