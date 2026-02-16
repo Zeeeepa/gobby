@@ -292,13 +292,26 @@ def install(
         click.echo(f"Created daemon config: {config_result['path']}")
 
     # Initialize database (ensures _personal project exists before daemon start)
+    db = None
     try:
         from gobby.cli.utils import init_local_storage
 
-        init_local_storage()
+        db = init_local_storage()
         click.echo("Database initialized")
     except (OSError, PermissionError, ValueError) as e:
         click.echo(f"Warning: Database init failed ({type(e).__name__}): {e}")
+
+    # Sync bundled content (skills, prompts, rules, agents) to database.
+    # This is the single import point — the daemon no longer syncs on startup.
+    if db is not None:
+        from gobby.cli.installers.shared import sync_bundled_content_to_db
+
+        sync_result = sync_bundled_content_to_db(db)
+        if sync_result["total_synced"] > 0:
+            click.echo(f"Synced {sync_result['total_synced']} bundled items to database")
+        if sync_result["errors"]:
+            for err in sync_result["errors"]:
+                click.echo(f"  Warning: {err}")
 
     # Install default external MCP servers (GitHub, Linear, context7)
     mcp_result = install_default_mcp_servers()

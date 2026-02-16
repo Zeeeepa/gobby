@@ -191,6 +191,29 @@ class RuleStore:
         self.db.execute("DELETE FROM rules WHERE id = ?", (rule_id,))
         return True
 
+    def get_rules_by_source_file(
+        self, source_file: str, tier: str | None = None
+    ) -> list[dict[str, Any]]:
+        """Get all rules from a given source file.
+
+        Args:
+            source_file: The source file path to match.
+            tier: Optional tier filter.
+
+        Returns:
+            List of rule dicts sorted by name.
+        """
+        conditions: list[str] = ["source_file = ?"]
+        params: list[Any] = [source_file]
+
+        if tier:
+            conditions.append("tier = ?")
+            params.append(tier)
+
+        sql = "SELECT * FROM rules WHERE " + " AND ".join(conditions) + " ORDER BY name"
+        rows = self.db.fetchall(sql, tuple(params))
+        return [_row_to_dict(row) for row in rows]
+
     def delete_rule_by_name(
         self,
         name: str,
