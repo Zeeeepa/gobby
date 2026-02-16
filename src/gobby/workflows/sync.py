@@ -10,9 +10,11 @@ from pathlib import Path
 from typing import Any
 
 import yaml
+from pydantic import ValidationError
 
 from gobby.storage.database import DatabaseProtocol
 from gobby.storage.workflow_definitions import LocalWorkflowDefinitionManager
+from gobby.workflows.definitions import PipelineDefinition, WorkflowDefinition
 
 __all__ = ["get_bundled_workflows_path", "sync_bundled_workflows"]
 
@@ -73,6 +75,20 @@ def sync_bundled_workflows(db: DatabaseProtocol) -> dict[str, Any]:
 
             if "name" not in data:
                 logger.warning(f"Skipping YAML without 'name' field: {yaml_file}")
+                continue
+
+            # Validate against Pydantic schema before any DB operations
+            schema_cls = (
+                PipelineDefinition
+                if data.get("type") == "pipeline"
+                else WorkflowDefinition
+            )
+            try:
+                schema_cls(**data)
+            except ValidationError as ve:
+                logger.warning(
+                    f"Skipping invalid workflow {yaml_file}: {ve}"
+                )
                 continue
 
             name = data["name"]
