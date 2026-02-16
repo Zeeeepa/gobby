@@ -61,12 +61,32 @@ class WorkflowLoader(WorkflowLoaderSyncMixin):
         return self._def_manager
 
     def _load_from_db(
-        self, name: str, project_id: str | None = None
+        self,
+        name: str,
+        project_id: str | None = None,
+        _visited: set[str] | None = None,
     ) -> WorkflowDefinition | PipelineDefinition | None:
         """Try to load a workflow definition from the database.
 
         Returns the parsed definition if found in DB, None otherwise.
+
+        Args:
+            name: Workflow name to load.
+            project_id: Optional project scope.
+            _visited: Set of already-visited names for cycle detection in
+                ``extends`` chains.  Callers should NOT pass this directly;
+                it is managed internally and seeded from the caller's
+                ``_inheritance_chain`` when available.
         """
+        if _visited is None:
+            _visited = set()
+
+        if name in _visited:
+            logger.error(f"Circular 'extends' detected in DB workflows: {name}")
+            raise ValueError(f"Circular 'extends' detected in DB workflows: {name}")
+
+        _visited.add(name)
+
         mgr = self.def_manager
         if mgr is None:
             return None
@@ -79,7 +99,7 @@ class WorkflowLoader(WorkflowLoaderSyncMixin):
             # Resolve extends from DB
             if "extends" in data:
                 parent_name = data["extends"]
-                parent_def = self._load_from_db(parent_name, project_id=project_id)
+                parent_def = self._load_from_db(parent_name, project_id=project_id, _visited=_visited)
                 if parent_def:
                     data = self._merge_workflows(parent_def.model_dump(), data)
                 else:
@@ -189,7 +209,8 @@ class WorkflowLoader(WorkflowLoaderSyncMixin):
 
         # DB lookup (the only runtime source)
         project_id = str(project_path) if project_path else None
-        db_definition = self._load_from_db(name, project_id=project_id)
+        visited = set(_inheritance_chain) if _inheritance_chain else None
+        db_definition = self._load_from_db(name, project_id=project_id, _visited=visited)
         if db_definition is not None:
             self._cache[cache_key] = _CachedEntry(definition=db_definition, path=None, mtime=0.0)
             return db_definition
@@ -235,7 +256,8 @@ class WorkflowLoader(WorkflowLoaderSyncMixin):
 
         # DB lookup
         project_id = str(project_path) if project_path else None
-        db_definition = self._load_from_db(name, project_id=project_id)
+        visited = set(_inheritance_chain) if _inheritance_chain else None
+        db_definition = self._load_from_db(name, project_id=project_id, _visited=visited)
         if db_definition is not None:
             if isinstance(db_definition, PipelineDefinition):
                 self._cache[cache_key] = _CachedEntry(
