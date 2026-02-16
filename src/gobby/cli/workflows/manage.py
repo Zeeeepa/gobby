@@ -41,7 +41,7 @@ def import_workflow(ctx: click.Context, source: str, name: str | None, is_global
 
     # Validate it's a valid workflow
     try:
-        with open(source_path) as f:
+        with open(source_path, encoding="utf-8") as f:
             data = yaml.safe_load(f)
 
         if not data or "name" not in data:

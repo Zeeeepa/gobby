@@ -151,8 +151,10 @@ async def execute_exec_step(command: str, context: dict[str, Any]) -> dict[str, 
     """Execute a shell command step.
 
     Commands are parsed using shlex.split and executed via create_subprocess_exec
-    to avoid shell injection vulnerabilities.
+    to avoid shell injection vulnerabilities.  A configurable timeout (default
+    300 s) is read from ``context["timeout_seconds"]``.
     """
+    timeout_seconds: float = context.get("timeout_seconds", 300)
     logger.info(f"Executing command: {command}")
 
     try:
@@ -170,7 +172,18 @@ async def execute_exec_step(command: str, context: dict[str, Any]) -> dict[str, 
             stderr=asyncio.subprocess.PIPE,
         )
 
-        stdout, stderr = await proc.communicate()
+        try:
+            stdout, stderr = await asyncio.wait_for(
+                proc.communicate(), timeout=timeout_seconds
+            )
+        except TimeoutError:
+            proc.kill()
+            await proc.wait()
+            return {
+                "stdout": "",
+                "stderr": f"Command timed out after {timeout_seconds}s",
+                "exit_code": -1,
+            }
 
         return {
             "stdout": stdout.decode("utf-8", errors="replace"),

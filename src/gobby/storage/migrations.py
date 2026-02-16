@@ -925,17 +925,18 @@ def _apply_baseline(db: LocalDatabase) -> None:
     """Apply baseline schema for new databases (flattened at v107)."""
     logger.info("Applying baseline schema (v107)")
 
-    # Execute baseline schema
-    for statement in BASELINE_SCHEMA.strip().split(";"):
-        statement = statement.strip()
-        if statement:
-            db.execute(statement)
+    with db.transaction() as conn:
+        # Execute baseline schema
+        for statement in BASELINE_SCHEMA.strip().split(";"):
+            statement = statement.strip()
+            if statement:
+                conn.execute(statement)
 
-    # Record baseline version
-    db.execute(
-        "INSERT INTO schema_version (version) VALUES (?)",
-        (BASELINE_VERSION,),
-    )
+        # Record baseline version
+        conn.execute(
+            "INSERT INTO schema_version (version) VALUES (?)",
+            (BASELINE_VERSION,),
+        )
 
     # Import bundled workflow definitions into the new table
     _import_bundled_workflows(db)
@@ -1024,7 +1025,10 @@ def run_migrations(db: LocalDatabase) -> int:
         msg = (
             f"Database version {current_version} is older than minimum "
             f"migration version {_MIN_MIGRATION_VERSION}. "
-            f"Upgrade not supported without legacy migrations."
+            f"Upgrade not supported without legacy migrations. "
+            f"To recover: 1) Back up ~/.gobby/gobby-hub.db, "
+            f"2) Delete the database file, 3) Restart the daemon "
+            f"(gobby restart) to reinitialize with a fresh schema."
         )
         logger.error(msg)
         raise MigrationUnsupportedError(msg)

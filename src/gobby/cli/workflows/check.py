@@ -113,6 +113,7 @@ def check_workflow(ctx: click.Context, name: str, json_format: bool) -> None:
 )
 @click.option("--result", "-r", help="Filter by result (allow, block, transition)")
 @click.option("--limit", "-n", default=50, help="Maximum entries to show (default: 50)")
+@click.option("--verbose", "-v", is_flag=True, help="Show full context for each entry")
 @click.option("--json", "json_format", is_flag=True, help="Output as JSON")
 @click.pass_context
 def audit_workflow(
@@ -121,6 +122,7 @@ def audit_workflow(
     event_type: str | None,
     result: str | None,
     limit: int,
+    verbose: bool,
     json_format: bool,
 ) -> None:
     """View workflow audit log (explainability/debugging)."""
@@ -194,5 +196,5 @@ def audit_workflow(
 
         if entry.reason:
             click.echo(f"  Reason: {entry.reason}")
-        if entry.context and hasattr(ctx, "verbose") and ctx.verbose:
+        if entry.context and verbose:
             click.echo(f"  Context: {entry.context}")

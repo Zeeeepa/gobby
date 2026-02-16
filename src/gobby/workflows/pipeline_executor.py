@@ -366,7 +366,7 @@ class PipelineExecutor:
         approved_by: str | None = None,
     ) -> PipelineExecution:
         """Approve a pipeline execution that is waiting for approval."""
-        execution = self.approval_manager.approve_step(token, approved_by)
+        execution = await self.approval_manager.approve_step(token, approved_by)
 
         # Resume execution
         if self.loader:
@@ -409,7 +409,7 @@ class PipelineExecutor:
         rejected_by: str | None = None,
     ) -> PipelineExecution:
         """Reject a pipeline execution that is waiting for approval."""
-        return self.approval_manager.reject_step(token, rejected_by)
+        return await self.approval_manager.reject_step(token, rejected_by)
 
     async def _execute_nested_pipeline(
         self,

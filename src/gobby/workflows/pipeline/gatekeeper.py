@@ -10,11 +10,13 @@ from gobby.workflows.pipeline_state import (
     ApprovalRequired,
     ExecutionStatus,
     PipelineExecution,
+    StepExecution,
     StepStatus,
 )
 
 if TYPE_CHECKING:
     from gobby.storage.pipelines import LocalPipelineExecutionManager
+    from gobby.workflows.definitions import PipelineDefinition, PipelineStep
 
 logger = logging.getLogger(__name__)
 
@@ -37,7 +39,7 @@ class ApprovalManager:
         if self.event_callback:
             try:
                 await self.event_callback(event, execution_id, **kwargs)
-            except Exception:
+            except (ValueError, RuntimeError, OSError):
                 logger.warning(
                     "Failed to emit pipeline event",
                     extra={"event": event, "execution_id": execution_id},
@@ -46,10 +48,10 @@ class ApprovalManager:
 
     async def check_approval_gate(
         self,
-        step: Any,
+        step: PipelineStep,
         execution: PipelineExecution,
-        step_execution: Any,
-        pipeline: Any,
+        step_execution: StepExecution,
+        pipeline: PipelineDefinition,
     ) -> None:
         """Check if a step has an approval gate and handle it.
 
@@ -127,7 +129,7 @@ class ApprovalManager:
             message=message,
         )
 
-    def approve_step(
+    async def approve_step(
         self,
         token: str,
         approved_by: str | None = None,
@@ -163,7 +165,7 @@ class ApprovalManager:
 
         return execution
 
-    def reject_step(
+    async def reject_step(
         self,
         token: str,
         rejected_by: str | None = None,

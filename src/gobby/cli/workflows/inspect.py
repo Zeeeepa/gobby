@@ -49,7 +49,7 @@ def list_workflows(
                 continue  # Project shadows global
 
             try:
-                with open(yaml_path) as f:
+                with open(yaml_path, encoding="utf-8") as f:
                     data = yaml.safe_load(f)
 
                 if not data:

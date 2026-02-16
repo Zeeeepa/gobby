@@ -3,6 +3,7 @@
 import logging
 import os
 import re
+from collections.abc import Mapping
 from typing import Any
 
 from gobby.workflows.safe_evaluator import SafeExpressionEvaluator
@@ -10,12 +11,48 @@ from gobby.workflows.templates import TemplateEngine
 
 logger = logging.getLogger(__name__)
 
+# Env-var suffixes that indicate sensitive values (case-insensitive check).
+_SENSITIVE_SUFFIXES = ("_SECRET", "_KEY", "_TOKEN", "_PASSWORD", "_CREDENTIAL", "_PRIVATE_KEY")
+
+# Specific env-var names that are always excluded.
+_SENSITIVE_NAMES = frozenset({
+    "DATABASE_URL",
+    "AWS_SECRET_ACCESS_KEY",
+})
+
+
+def _filter_env(
+    env: Mapping[str, str],
+    allowed_keys: frozenset[str] | None = None,
+) -> dict[str, str]:
+    """Return a copy of *env* with sensitive variables removed.
+
+    If *allowed_keys* is provided only those keys are included (explicit
+    whitelist).  Otherwise a suffix/name-based blocklist is applied.
+    """
+    if allowed_keys is not None:
+        return {k: v for k, v in env.items() if k in allowed_keys}
+    return {
+        k: v
+        for k, v in env.items()
+        if k not in _SENSITIVE_NAMES
+        and not any(k.upper().endswith(s) for s in _SENSITIVE_SUFFIXES)
+    }
+
 
 class StepRenderer:
     """Handles variable substitution and type coercion for pipeline steps."""
 
-    def __init__(self, template_engine: TemplateEngine | None = None):
+    def __init__(
+        self,
+        template_engine: TemplateEngine | None = None,
+        *,
+        allowed_env_keys: frozenset[str] | None = None,
+        strict_conditions: bool = False,
+    ):
         self.template_engine = template_engine
+        self.allowed_env_keys = allowed_env_keys
+        self.strict_conditions = strict_conditions
 
     def render_step(self, step: Any, context: dict[str, Any]) -> Any:
         """Render template variables in step fields.
@@ -30,11 +67,11 @@ class StepRenderer:
         if not self.template_engine:
             return step
 
-        # Build render context
+        # Build render context with filtered environment variables
         render_context = {
             "inputs": context.get("inputs", {}),
             "steps": context.get("steps", {}),
-            "env": os.environ,
+            "env": _filter_env(os.environ, self.allowed_env_keys),
         }
 
         # Create a copy of the step to avoid modifying the definition
@@ -179,6 +216,10 @@ class StepRenderer:
             evaluator = SafeExpressionEvaluator(eval_context, allowed_funcs)
             return evaluator.evaluate(step.condition)
         except Exception as e:
+            if self.strict_conditions:
+                raise ValueError(
+                    f"Condition evaluation failed for step {step.id}: {e}"
+                ) from e
             logger.warning(f"Condition evaluation failed for step {step.id}: {e}")
             # Default to running the step if condition evaluation fails
             return True

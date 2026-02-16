@@ -7,6 +7,10 @@ import click
 from gobby.cli.workflows import common
 from gobby.workflows.definitions import WorkflowState
 
+# Sentinel workflow name used when no real workflow is active but variables
+# still need a WorkflowState container (e.g. ad-hoc variable storage).
+LIFECYCLE_WORKFLOW_NAME = "__lifecycle__"
+
 
 @click.command("set-var")
 @click.argument("name")
@@ -58,7 +62,7 @@ def set_variable(
     if not state:
         state = WorkflowState(
             session_id=session_id,
-            workflow_name="__lifecycle__",
+            workflow_name=LIFECYCLE_WORKFLOW_NAME,
             step="",
             step_entered_at=datetime.now(UTC),
             variables={},
