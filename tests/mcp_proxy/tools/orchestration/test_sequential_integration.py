@@ -19,7 +19,8 @@ from gobby.workflows.actions import ActionExecutor
 from gobby.workflows.definitions import WorkflowState
 from gobby.workflows.engine import WorkflowEngine
 from gobby.workflows.evaluator import ConditionEvaluator
-from gobby.workflows.loader import _BUNDLED_WORKFLOWS_DIR, WorkflowLoader
+from gobby.storage.migrations import _BUNDLED_WORKFLOWS_DIR
+from gobby.workflows.loader import WorkflowLoader
 from gobby.workflows.state_manager import WorkflowStateManager
 from gobby.workflows.templates import TemplateEngine
 
