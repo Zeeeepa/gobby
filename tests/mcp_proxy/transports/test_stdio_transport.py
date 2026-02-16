@@ -21,7 +21,7 @@ from gobby.mcp_proxy.transports.stdio import (
     _expand_env_var,
 )
 
-pytestmark = [pytest.mark.unit, pytest.mark.asyncio]
+pytestmark = pytest.mark.unit
 
 
 # ---------------------------------------------------------------------------
@@ -203,6 +203,7 @@ class TestStdioInit:
 
 
 class TestStdioConnectAlreadyConnected:
+    @pytest.mark.asyncio
     async def test_returns_existing_session(self, conn: StdioTransportConnection) -> None:
         fake_session = MagicMock()
         conn._state = ConnectionState.CONNECTED
@@ -219,6 +220,7 @@ class TestStdioConnectAlreadyConnected:
 
 
 class TestStdioConnectSuccess:
+    @pytest.mark.asyncio
     @patch("gobby.mcp_proxy.transports.stdio.ClientSession")
     @patch("gobby.mcp_proxy.transports.stdio.stdio_client")
     async def test_full_connect(
@@ -249,6 +251,7 @@ class TestStdioConnectSuccess:
         assert conn._session_context is mock_session_ctx
         assert conn._transport_context is mock_transport_ctx
 
+    @pytest.mark.asyncio
     @patch("gobby.mcp_proxy.transports.stdio.ClientSession")
     @patch("gobby.mcp_proxy.transports.stdio.stdio_client")
     async def test_connect_creates_stdio_server_parameters(
@@ -279,6 +282,7 @@ class TestStdioConnectSuccess:
             assert params.args == ["--port", "5555"]
             assert params.env == {"KEY": "5555"}
 
+    @pytest.mark.asyncio
     @patch("gobby.mcp_proxy.transports.stdio.ClientSession")
     @patch("gobby.mcp_proxy.transports.stdio.stdio_client")
     async def test_connect_with_none_args_uses_empty_list(
@@ -312,6 +316,7 @@ class TestStdioConnectSuccess:
 
 
 class TestStdioConnectMissingCommand:
+    @pytest.mark.asyncio
     async def test_missing_command_raises_mcp_error(self) -> None:
         cfg = _make_config()
         cfg.command = None
@@ -332,6 +337,7 @@ class TestStdioConnectMissingCommand:
 
 
 class TestStdioConnectTransportFailure:
+    @pytest.mark.asyncio
     @patch("gobby.mcp_proxy.transports.stdio.stdio_client")
     async def test_transport_aenter_failure(
         self,
@@ -357,6 +363,7 @@ class TestStdioConnectTransportFailure:
 
 
 class TestStdioConnectSessionFailure:
+    @pytest.mark.asyncio
     @patch("gobby.mcp_proxy.transports.stdio.ClientSession")
     @patch("gobby.mcp_proxy.transports.stdio.stdio_client")
     async def test_session_aenter_failure_cleans_transport(
@@ -389,6 +396,7 @@ class TestStdioConnectSessionFailure:
 
 
 class TestStdioConnectInitializeFailure:
+    @pytest.mark.asyncio
     @patch("gobby.mcp_proxy.transports.stdio.ClientSession")
     @patch("gobby.mcp_proxy.transports.stdio.stdio_client")
     async def test_initialize_failure_cleans_both(
@@ -425,6 +433,7 @@ class TestStdioConnectInitializeFailure:
 
 
 class TestStdioConnectCleanupErrors:
+    @pytest.mark.asyncio
     @patch("gobby.mcp_proxy.transports.stdio.ClientSession")
     @patch("gobby.mcp_proxy.transports.stdio.stdio_client")
     async def test_session_cleanup_error_suppressed(
@@ -452,6 +461,7 @@ class TestStdioConnectCleanupErrors:
 
         assert conn.state == ConnectionState.FAILED
 
+    @pytest.mark.asyncio
     @patch("gobby.mcp_proxy.transports.stdio.ClientSession")
     @patch("gobby.mcp_proxy.transports.stdio.stdio_client")
     async def test_transport_cleanup_error_suppressed(
@@ -486,6 +496,7 @@ class TestStdioConnectCleanupErrors:
 
 
 class TestStdioConnectMCPErrorPassthrough:
+    @pytest.mark.asyncio
     @patch("gobby.mcp_proxy.transports.stdio.stdio_client")
     async def test_mcp_error_re_raised_directly(
         self,
@@ -510,6 +521,7 @@ class TestStdioConnectMCPErrorPassthrough:
 
 
 class TestStdioConnectEmptyErrorMessage:
+    @pytest.mark.asyncio
     @patch("gobby.mcp_proxy.transports.stdio.stdio_client")
     async def test_empty_str_exception_uses_type_name(
         self,
@@ -536,6 +548,7 @@ class TestStdioConnectEmptyErrorMessage:
 
 
 class TestStdioDisconnectNoContexts:
+    @pytest.mark.asyncio
     async def test_disconnect_clean_state(self, conn: StdioTransportConnection) -> None:
         await conn.disconnect()
         assert conn.state == ConnectionState.DISCONNECTED
@@ -550,6 +563,7 @@ class TestStdioDisconnectNoContexts:
 
 
 class TestStdioDisconnectBothContexts:
+    @pytest.mark.asyncio
     async def test_cleans_both_contexts(self, conn: StdioTransportConnection) -> None:
         mock_session_ctx = AsyncMock()
         mock_session_ctx.__aexit__ = AsyncMock(return_value=False)
@@ -577,6 +591,7 @@ class TestStdioDisconnectBothContexts:
 
 
 class TestStdioDisconnectSessionTimeout:
+    @pytest.mark.asyncio
     async def test_session_timeout_handled(self, conn: StdioTransportConnection) -> None:
         """TimeoutError during session close is caught gracefully."""
 
@@ -599,6 +614,7 @@ class TestStdioDisconnectSessionTimeout:
 
 
 class TestStdioDisconnectSessionRuntimeError:
+    @pytest.mark.asyncio
     async def test_cancel_scope_error_suppressed(self, conn: StdioTransportConnection) -> None:
         mock_session_ctx = AsyncMock()
         mock_session_ctx.__aexit__ = AsyncMock(side_effect=RuntimeError("cannot exit cancel scope"))
@@ -609,6 +625,7 @@ class TestStdioDisconnectSessionRuntimeError:
         assert conn._session_context is None
         assert conn.state == ConnectionState.DISCONNECTED
 
+    @pytest.mark.asyncio
     async def test_other_runtime_error_handled(self, conn: StdioTransportConnection) -> None:
         """Non-cancel-scope RuntimeError is still caught."""
         mock_session_ctx = AsyncMock()
@@ -627,6 +644,7 @@ class TestStdioDisconnectSessionRuntimeError:
 
 
 class TestStdioDisconnectSessionGenericError:
+    @pytest.mark.asyncio
     async def test_generic_exception_handled(self, conn: StdioTransportConnection) -> None:
         mock_session_ctx = AsyncMock()
         mock_session_ctx.__aexit__ = AsyncMock(side_effect=ValueError("weird"))
@@ -644,6 +662,7 @@ class TestStdioDisconnectSessionGenericError:
 
 
 class TestStdioDisconnectTransportTimeout:
+    @pytest.mark.asyncio
     async def test_transport_timeout_handled(self, conn: StdioTransportConnection) -> None:
         async def slow_exit(*args: Any) -> None:
             raise TimeoutError()
@@ -663,6 +682,7 @@ class TestStdioDisconnectTransportTimeout:
 
 
 class TestStdioDisconnectTransportRuntimeError:
+    @pytest.mark.asyncio
     async def test_cancel_scope_error_suppressed(self, conn: StdioTransportConnection) -> None:
         mock_transport_ctx = AsyncMock()
         mock_transport_ctx.__aexit__ = AsyncMock(side_effect=RuntimeError("cancel scope blah"))
@@ -672,6 +692,7 @@ class TestStdioDisconnectTransportRuntimeError:
         assert conn._transport_context is None
         assert conn.state == ConnectionState.DISCONNECTED
 
+    @pytest.mark.asyncio
     async def test_other_runtime_error_logged(self, conn: StdioTransportConnection) -> None:
         mock_transport_ctx = AsyncMock()
         mock_transport_ctx.__aexit__ = AsyncMock(
@@ -690,6 +711,7 @@ class TestStdioDisconnectTransportRuntimeError:
 
 
 class TestStdioDisconnectTransportGenericError:
+    @pytest.mark.asyncio
     async def test_generic_exception_handled(self, conn: StdioTransportConnection) -> None:
         mock_transport_ctx = AsyncMock()
         mock_transport_ctx.__aexit__ = AsyncMock(side_effect=IOError("broken pipe"))
@@ -706,6 +728,7 @@ class TestStdioDisconnectTransportGenericError:
 
 
 class TestStdioFullLifecycle:
+    @pytest.mark.asyncio
     @patch("gobby.mcp_proxy.transports.stdio.ClientSession")
     @patch("gobby.mcp_proxy.transports.stdio.stdio_client")
     async def test_connect_then_disconnect(

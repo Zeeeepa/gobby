@@ -49,7 +49,7 @@ class TestInstallSharedContent:
             # Don't create shared dir
             result = install_shared_content(cli_path, project_path)
 
-        assert result == {"workflows": [], "agents": [], "plugins": [], "prompts": [], "docs": []}
+        assert result == {"workflows": [], "agents": [], "plugins": [], "docs": []}
 
     def test_install_shared_workflows(self, temp_dir: Path) -> None:
         """Test installing shared workflows to .gobby/workflows/."""
@@ -170,12 +170,6 @@ class TestInstallSharedContent:
         plugins_dir.mkdir(parents=True)
         (plugins_dir / "plugin1.py").write_text("# Plugin 1")
 
-        # Create prompts
-        prompts_dir = shared_dir / "prompts"
-        prompts_dir.mkdir(parents=True)
-        (prompts_dir / "expansion").mkdir()
-        (prompts_dir / "expansion" / "system.md").write_text("# System prompt")
-
         # Create docs
         docs_dir = shared_dir / "docs"
         docs_dir.mkdir(parents=True)
@@ -192,11 +186,9 @@ class TestInstallSharedContent:
 
         assert result["workflows"] == ["workflow1.yaml"]
         assert result["plugins"] == ["plugin1.py"]
-        assert result["prompts"] == ["expansion/"]
         assert result["docs"] == ["guide.md"]
         # Verify project-scoped installation
         assert (project_path / ".gobby" / "plugins" / "plugin1.py").exists()
-        assert (project_path / ".gobby" / "prompts" / "expansion" / "system.md").exists()
 
 
 class TestInstallCliContent:

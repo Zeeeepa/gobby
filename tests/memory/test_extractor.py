@@ -89,10 +89,13 @@ class TestSessionMemoryExtractor:
     @pytest.fixture
     def extractor(self, mock_memory_manager, mock_session_manager, mock_llm_service):
         """Create an extractor instance with mocks."""
+        mock_loader = MagicMock()
+        mock_loader.render.return_value = "Extract memories from this session. Return JSON array."
         return SessionMemoryExtractor(
             memory_manager=mock_memory_manager,
             session_manager=mock_session_manager,
             llm_service=mock_llm_service,
+            prompt_loader=mock_loader,
         )
 
     def test_parse_llm_response_valid(self, extractor) -> None:
