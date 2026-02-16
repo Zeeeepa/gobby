@@ -113,7 +113,7 @@ def test_status_no_active(mock_state_manager) -> None:
     mock_state_manager.get_state.return_value = None
 
     runner = CliRunner()
-    with patch("gobby.cli.workflows.inspect.resolve_session_id", return_value="sess-123"):
+    with patch("gobby.cli.workflows.common.resolve_session_id", return_value="sess-123"):
         result = runner.invoke(workflows, ["status"])
 
     assert result.exit_code == 0
@@ -126,7 +126,7 @@ def test_set_workflow_success(mock_loader, mock_state_manager) -> None:
     mock_state_manager.get_state.return_value = None  # No existing workflow
 
     runner = CliRunner()
-    with patch("gobby.cli.workflows.control.resolve_session_id", return_value="sess-123"):
+    with patch("gobby.cli.workflows.common.resolve_session_id", return_value="sess-123"):
         result = runner.invoke(workflows, ["set", "test-workflow"])
 
     assert result.exit_code == 0
@@ -141,7 +141,7 @@ def test_clear_workflow(mock_state_manager) -> None:
     mock_state_manager.get_state.return_value = mock_state
 
     runner = CliRunner()
-    with patch("gobby.cli.workflows.control.resolve_session_id", return_value="sess-123"):
+    with patch("gobby.cli.workflows.common.resolve_session_id", return_value="sess-123"):
         result = runner.invoke(workflows, ["clear"], input="y\n")
 
     assert result.exit_code == 0

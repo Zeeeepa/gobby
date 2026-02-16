@@ -2,7 +2,7 @@
 
 from pathlib import Path
 
-from gobby.cli.utils import resolve_session_id as resolve_session_id  # noqa: F401
+from gobby.cli.utils import resolve_session_id as resolve_session_id
 from gobby.storage.database import LocalDatabase
 from gobby.workflows.loader import WorkflowLoader
 from gobby.workflows.state_manager import WorkflowStateManager

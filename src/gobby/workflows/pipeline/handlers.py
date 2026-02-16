@@ -148,12 +148,21 @@ async def execute_activate_workflow_step(
 
 
 async def execute_exec_step(command: str, context: dict[str, Any]) -> dict[str, Any]:
-    """Execute a shell command step."""
+    """Execute a shell command step.
+
+    Commands are parsed using shlex.split and executed via create_subprocess_exec
+    to avoid shell injection vulnerabilities.
+    """
+    logger.info(f"Executing command: {command}")
 
     try:
-        # TODO: This is where we should probably use a proper sandbox or execution service
-        # For now, it matches the original implementation
         args = shlex.split(command)
+        if not args:
+            return {
+                "stdout": "",
+                "stderr": "Empty command",
+                "exit_code": 1,
+            }
 
         proc = await asyncio.create_subprocess_exec(
             *args,
@@ -164,11 +173,12 @@ async def execute_exec_step(command: str, context: dict[str, Any]) -> dict[str, 
         stdout, stderr = await proc.communicate()
 
         return {
-            "stdout": stdout.decode().strip(),
-            "stderr": stderr.decode().strip(),
-            "exit_code": proc.returncode,
+            "stdout": stdout.decode("utf-8", errors="replace"),
+            "stderr": stderr.decode("utf-8", errors="replace"),
+            "exit_code": proc.returncode or 0,
         }
     except (OSError, ValueError) as e:
+        logger.error(f"Command execution failed: {e}", exc_info=True)
         return {
             "stdout": "",
             "stderr": str(e),
