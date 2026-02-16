@@ -57,29 +57,30 @@ class RuleStore:
 
         # Check for existing rule with same name+tier+project_id
         coalesce_pid = project_id or ""
-        existing = self.db.fetchone(
-            """SELECT id FROM rules
-               WHERE name = ? AND tier = ? AND COALESCE(project_id, '') = ?""",
-            (name, tier, coalesce_pid),
-        )
-
-        if existing:
-            rule_id = existing["id"]
-            self.db.execute(
-                """UPDATE rules
-                   SET definition = ?, source_file = ?, updated_at = ?
-                   WHERE id = ?""",
-                (definition_json, source_file, now, rule_id),
-            )
-        else:
-            rule_id = str(uuid.uuid4())
-            self.db.execute(
-                """INSERT INTO rules (id, name, tier, project_id, definition, source_file, created_at, updated_at)
-                   VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
-                (rule_id, name, tier, project_id, definition_json, source_file, now, now),
+        with self.db.transaction_immediate():
+            existing = self.db.fetchone(
+                """SELECT id FROM rules
+                   WHERE name = ? AND tier = ? AND COALESCE(project_id, '') = ?""",
+                (name, tier, coalesce_pid),
             )
 
-        row = self.db.fetchone("SELECT * FROM rules WHERE id = ?", (rule_id,))
+            if existing:
+                rule_id = existing["id"]
+                self.db.execute(
+                    """UPDATE rules
+                       SET definition = ?, source_file = ?, updated_at = ?
+                       WHERE id = ?""",
+                    (definition_json, source_file, now, rule_id),
+                )
+            else:
+                rule_id = str(uuid.uuid4())
+                self.db.execute(
+                    """INSERT INTO rules (id, name, tier, project_id, definition, source_file, created_at, updated_at)
+                       VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
+                    (rule_id, name, tier, project_id, definition_json, source_file, now, now),
+                )
+
+            row = self.db.fetchone("SELECT * FROM rules WHERE id = ?", (rule_id,))
         return _row_to_dict(row)
 
     def get_rule(
@@ -185,10 +186,11 @@ class RuleStore:
         Returns:
             True if deleted, False if not found.
         """
-        row = self.db.fetchone("SELECT id FROM rules WHERE id = ?", (rule_id,))
-        if not row:
-            return False
-        self.db.execute("DELETE FROM rules WHERE id = ?", (rule_id,))
+        with self.db.transaction_immediate():
+            row = self.db.fetchone("SELECT id FROM rules WHERE id = ?", (rule_id,))
+            if not row:
+                return False
+            self.db.execute("DELETE FROM rules WHERE id = ?", (rule_id,))
         return True
 
     def get_rules_by_source_file(
@@ -211,7 +213,8 @@ class RuleStore:
             params.append(tier)
 
         sql = "SELECT * FROM rules WHERE " + " AND ".join(conditions) + " ORDER BY name"
-        rows = self.db.fetchall(sql, tuple(params))
+        with self.db.transaction():
+            rows = self.db.fetchall(sql, tuple(params))
         return [_row_to_dict(row) for row in rows]
 
     def delete_rule_by_name(
@@ -231,14 +234,15 @@ class RuleStore:
             True if deleted, False if not found.
         """
         coalesce_pid = project_id or ""
-        row = self.db.fetchone(
-            """SELECT id FROM rules
-               WHERE name = ? AND tier = ? AND COALESCE(project_id, '') = ?""",
-            (name, tier, coalesce_pid),
-        )
-        if not row:
-            return False
-        self.db.execute("DELETE FROM rules WHERE id = ?", (row["id"],))
+        with self.db.transaction_immediate():
+            row = self.db.fetchone(
+                """SELECT id FROM rules
+                   WHERE name = ? AND tier = ? AND COALESCE(project_id, '') = ?""",
+                (name, tier, coalesce_pid),
+            )
+            if not row:
+                return False
+            self.db.execute("DELETE FROM rules WHERE id = ?", (row["id"],))
         return True
 
 

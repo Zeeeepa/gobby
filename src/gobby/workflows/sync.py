@@ -10,9 +10,11 @@ from pathlib import Path
 from typing import Any
 
 import yaml
+from pydantic import ValidationError
 
 from gobby.storage.database import DatabaseProtocol
 from gobby.storage.workflow_definitions import LocalWorkflowDefinitionManager
+from gobby.workflows.definitions import PipelineDefinition, WorkflowDefinition
 
 __all__ = ["get_bundled_workflows_path", "sync_bundled_workflows"]
 
@@ -56,7 +58,7 @@ def sync_bundled_workflows(db: DatabaseProtocol) -> dict[str, Any]:
     }
 
     if not workflows_path.exists():
-        logger.warning(f"Bundled workflows path not found: {workflows_path}")
+        logger.warning("Bundled workflows path not found", extra={"path": str(workflows_path)})
         result["errors"].append(f"Workflows path not found: {workflows_path}")
         return result
 
@@ -68,11 +70,26 @@ def sync_bundled_workflows(db: DatabaseProtocol) -> dict[str, Any]:
             data = yaml.safe_load(raw_content)
 
             if not isinstance(data, dict):
-                logger.warning(f"Skipping non-dict YAML file: {yaml_file}")
+                logger.warning("Skipping non-dict YAML file", extra={"workflow": str(yaml_file)})
                 continue
 
             if "name" not in data:
-                logger.warning(f"Skipping YAML without 'name' field: {yaml_file}")
+                logger.warning(
+                    "Skipping YAML without 'name' field", extra={"workflow": str(yaml_file)}
+                )
+                continue
+
+            # Validate against Pydantic schema before any DB operations
+            schema_cls = (
+                PipelineDefinition if data.get("type") == "pipeline" else WorkflowDefinition
+            )
+            try:
+                schema_cls(**data)
+            except ValidationError as ve:
+                logger.warning(
+                    "Skipping invalid workflow",
+                    extra={"workflow": str(yaml_file), "error": str(ve)},
+                )
                 continue
 
             name = data["name"]
@@ -94,12 +111,14 @@ def sync_bundled_workflows(db: DatabaseProtocol) -> dict[str, Any]:
                 if existing.source == "bundled":
                     # Compare definition_json content to detect changes
                     if existing.definition_json == definition_json:
-                        logger.debug(f"Workflow '{name}' already up to date, skipping")
+                        logger.debug(
+                            "Workflow already up to date, skipping", extra={"workflow": name}
+                        )
                         result["skipped"] += 1
                     else:
-                        # Delete and recreate to update
-                        manager.delete(existing.id)
-                        manager.create(
+                        # Atomic in-place update (preserves id, avoids data loss)
+                        manager.update(
+                            existing.id,
                             name=name,
                             definition_json=definition_json,
                             workflow_type=workflow_type,
@@ -111,12 +130,13 @@ def sync_bundled_workflows(db: DatabaseProtocol) -> dict[str, Any]:
                             sources=sources_list,
                             source="bundled",
                         )
-                        logger.info(f"Updated bundled workflow definition: {name}")
+                        logger.info("Updated bundled workflow definition", extra={"workflow": name})
                         result["updated"] += 1
                 else:
                     # Non-bundled workflow with same name exists — don't overwrite
                     logger.debug(
-                        f"Workflow '{name}' exists with source='{existing.source}', skipping"
+                        "Workflow exists with non-bundled source, skipping",
+                        extra={"workflow": name, "source": existing.source},
                     )
                     result["skipped"] += 1
                 continue
@@ -134,18 +154,26 @@ def sync_bundled_workflows(db: DatabaseProtocol) -> dict[str, Any]:
                 sources=sources_list,
                 source="bundled",
             )
-            logger.info(f"Synced bundled workflow definition: {name}")
+            logger.info("Synced bundled workflow definition", extra={"workflow": name})
             result["synced"] += 1
 
         except Exception as e:
             error_msg = f"Failed to sync workflow definition '{yaml_file}': {e}"
-            logger.error(error_msg)
+            logger.error(
+                "Failed to sync workflow definition",
+                extra={"workflow": str(yaml_file), "error": str(e)},
+            )
             result["errors"].append(error_msg)
 
     total = result["synced"] + result["updated"] + result["skipped"]
     logger.info(
-        f"Workflow definition sync complete: {result['synced']} synced, "
-        f"{result['updated']} updated, {result['skipped']} skipped, {total} total"
+        "Workflow definition sync complete",
+        extra={
+            "synced": result["synced"],
+            "updated": result["updated"],
+            "skipped": result["skipped"],
+            "total": total,
+        },
     )
 
     return result

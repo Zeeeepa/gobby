@@ -1219,35 +1219,140 @@ def _migrate_add_workflow_definitions(db: LocalDatabase) -> None:
 
 
 def _migrate_agent_definitions_add_scope(db: LocalDatabase) -> None:
-    """Add scope, source_path, version columns to agent_definitions (idempotent).
+    """Add scope, source_path, version columns with CHECK constraint to agent_definitions.
 
-    Backfills scope based on project_id presence and replaces old unique indexes
-    with a single composite index matching the prompts pattern.
+    Uses the safe table-recreate pattern because SQLite cannot add a CHECK
+    constraint via ALTER TABLE.  The new table enforces
+    ``CHECK(scope IN ('bundled', 'global', 'project'))`` matching the
+    baseline schema.  Existing rows are backfilled: rows with a non-NULL
+    ``project_id`` get ``scope='project'``; all others default to ``'global'``.
     """
-    columns = {row["name"] for row in db.fetchall("PRAGMA table_info(agent_definitions)")}
-    with db.transaction() as conn:
-        if "scope" not in columns:
+    # If the table already has the CHECK constraint (e.g. baseline), just fix indexes.
+    create_sql_row = db.fetchone(
+        "SELECT sql FROM sqlite_master WHERE type='table' AND name='agent_definitions'"
+    )
+    if create_sql_row and "CHECK" in (create_sql_row["sql"] or ""):
+        logger.debug("agent_definitions already has CHECK constraint, ensuring indexes")
+        with db.transaction() as conn:
+            conn.execute("DROP INDEX IF EXISTS idx_agent_defs_project_name")
+            conn.execute("DROP INDEX IF EXISTS idx_agent_defs_global_name")
             conn.execute(
-                "ALTER TABLE agent_definitions ADD COLUMN scope TEXT NOT NULL DEFAULT 'global'"
+                "CREATE UNIQUE INDEX IF NOT EXISTS idx_agent_defs_name_scope_project "
+                "ON agent_definitions(name, scope, COALESCE(project_id, ''))"
             )
-        if "source_path" not in columns:
-            conn.execute("ALTER TABLE agent_definitions ADD COLUMN source_path TEXT")
-        if "version" not in columns:
-            conn.execute("ALTER TABLE agent_definitions ADD COLUMN version TEXT DEFAULT '1.0'")
+        return
 
-        # Backfill scope from project_id
-        conn.execute(
-            "UPDATE agent_definitions SET scope = 'project' WHERE project_id IS NOT NULL AND scope = 'global'"
-        )
+    # --- Table-recreate: build new table with the CHECK constraint -----------
 
-        # Drop old unique indexes and create new composite one
-        conn.execute("DROP INDEX IF EXISTS idx_agent_defs_project_name")
-        conn.execute("DROP INDEX IF EXISTS idx_agent_defs_global_name")
-        conn.execute(
-            "CREATE UNIQUE INDEX IF NOT EXISTS idx_agent_defs_name_scope_project "
-            "ON agent_definitions(name, scope, COALESCE(project_id, ''))"
-        )
-    logger.info("Added scope, source_path, version columns to agent_definitions")
+    # Columns in the target schema (matches baseline, excluding scope/source_path/version
+    # which are handled specially below).
+    target_cols = [
+        "id",
+        "project_id",
+        "name",
+        "description",
+        "role",
+        "goal",
+        "personality",
+        "instructions",
+        "provider",
+        "model",
+        "mode",
+        "terminal",
+        "isolation",
+        "base_branch",
+        "timeout",
+        "max_turns",
+        "default_workflow",
+        "sandbox_config",
+        "skill_profile",
+        "workflows",
+        "lifecycle_variables",
+        "default_variables",
+        "enabled",
+        "created_at",
+        "updated_at",
+    ]
+
+    old_cols = {row["name"] for row in db.fetchall("PRAGMA table_info(agent_definitions)")}
+    # Only copy columns that exist in both the old table and the target schema.
+    common_cols = [c for c in target_cols if c in old_cols]
+
+    # Build SELECT expressions: common columns verbatim, plus derived scope,
+    # source_path, and version.
+    select_parts = list(common_cols)
+    if "scope" in old_cols:
+        select_parts.append("scope")
+    else:
+        select_parts.append("CASE WHEN project_id IS NOT NULL THEN 'project' ELSE 'global' END")
+    select_parts.append("source_path" if "source_path" in old_cols else "NULL")
+    select_parts.append("version" if "version" in old_cols else "'1.0'")
+
+    insert_cols = common_cols + ["scope", "source_path", "version"]
+
+    # Disable FK checks for the table-recreate (SQLite requirement: PRAGMA
+    # foreign_keys cannot be changed inside a transaction, so we bracket it).
+    db.execute("PRAGMA foreign_keys = OFF")
+    try:
+        with db.transaction() as conn:
+            # 1. Create new table with full schema including CHECK constraint
+            conn.execute("""
+                CREATE TABLE agent_definitions_new (
+                    id TEXT PRIMARY KEY,
+                    project_id TEXT REFERENCES projects(id) ON DELETE CASCADE,
+                    name TEXT NOT NULL,
+                    description TEXT,
+                    role TEXT,
+                    goal TEXT,
+                    personality TEXT,
+                    instructions TEXT,
+                    provider TEXT NOT NULL DEFAULT 'claude',
+                    model TEXT,
+                    mode TEXT NOT NULL DEFAULT 'headless',
+                    terminal TEXT DEFAULT 'auto',
+                    isolation TEXT,
+                    base_branch TEXT DEFAULT 'main',
+                    timeout REAL DEFAULT 120.0,
+                    max_turns INTEGER DEFAULT 10,
+                    default_workflow TEXT,
+                    sandbox_config TEXT,
+                    skill_profile TEXT,
+                    workflows TEXT,
+                    lifecycle_variables TEXT,
+                    default_variables TEXT,
+                    enabled INTEGER NOT NULL DEFAULT 1,
+                    scope TEXT NOT NULL DEFAULT 'global'
+                        CHECK(scope IN ('bundled', 'global', 'project')),
+                    source_path TEXT,
+                    version TEXT DEFAULT '1.0',
+                    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+                    updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+                )
+            """)
+
+            # 2. Copy existing rows with scope backfill
+            conn.execute(
+                f"INSERT INTO agent_definitions_new ({', '.join(insert_cols)}) "
+                f"SELECT {', '.join(select_parts)} FROM agent_definitions"
+            )
+
+            # 3. Drop old table (all its indexes are automatically dropped)
+            conn.execute("DROP TABLE agent_definitions")
+
+            # 4. Rename the new table into place
+            conn.execute("ALTER TABLE agent_definitions_new RENAME TO agent_definitions")
+
+            # 5. Recreate indexes (matching baseline schema)
+            conn.execute(
+                "CREATE UNIQUE INDEX idx_agent_defs_name_scope_project "
+                "ON agent_definitions(name, scope, COALESCE(project_id, ''))"
+            )
+            conn.execute("CREATE INDEX idx_agent_defs_project ON agent_definitions(project_id)")
+            conn.execute("CREATE INDEX idx_agent_defs_provider ON agent_definitions(provider)")
+    finally:
+        db.execute("PRAGMA foreign_keys = ON")
+
+    logger.info("Recreated agent_definitions with CHECK constraint on scope column")
 
 
 MIGRATIONS: list[tuple[int, str, MigrationAction]] = [

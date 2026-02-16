@@ -220,6 +220,8 @@ class ChatSession:
     _pending_answers: dict[str, str] | None = field(default=None, repr=False)
     _needs_history_injection: bool = field(default=False, repr=False)
     _message_manager: Any | None = field(default=None, repr=False)
+    _max_history_message_chars: int = field(default=2000, repr=False)
+    _max_history_total_chars: int = field(default=30_000, repr=False)
 
     # Lifecycle callbacks — set by ChatMixin to bridge SDK hooks to workflow engine
     _on_before_agent: Callable[[dict[str, Any]], Awaitable[dict[str, Any] | None]] | None = field(
@@ -457,8 +459,8 @@ class ChatSession:
             if not text_messages:
                 return None
 
-            max_msg_chars = 2000
-            max_total_chars = 30_000
+            max_msg_chars = self._max_history_message_chars
+            max_total_chars = self._max_history_total_chars
             parts: list[str] = []
             total = 0
 

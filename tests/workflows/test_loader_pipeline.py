@@ -5,12 +5,14 @@ LocalWorkflowDefinitionManager rather than written to YAML files.
 """
 
 import json
+from pathlib import Path
 
 import pytest
 
 from gobby.storage.database import LocalDatabase
 from gobby.storage.projects import LocalProjectManager
 from gobby.workflows.definitions import PipelineDefinition, WorkflowDefinition
+from gobby.storage.workflow_definitions import LocalWorkflowDefinitionManager
 from gobby.workflows.loader import WorkflowLoader
 from gobby.workflows.loader_validation import _validate_pipeline_references
 
@@ -18,7 +20,7 @@ pytestmark = pytest.mark.unit
 
 
 @pytest.fixture
-def db(tmp_path):
+def db(tmp_path: Path) -> LocalDatabase:
     from gobby.storage.migrations import run_migrations
 
     db_path = tmp_path / "test.db"
@@ -28,27 +30,25 @@ def db(tmp_path):
 
 
 @pytest.fixture(autouse=True)
-def _clean_bundled_workflows(db):
+def _clean_bundled_workflows(db: LocalDatabase) -> None:
     """Remove bundled workflows imported by migrations so tests start clean."""
     db.execute("DELETE FROM workflow_definitions WHERE source = 'bundled'")
 
 
 @pytest.fixture
-def project(db):
+def project(db: LocalDatabase):
     """Create a test project for FK-safe project-scoped workflow tests."""
     pm = LocalProjectManager(db)
     return pm.create(name="test-project", repo_path="/test/project")
 
 
 @pytest.fixture
-def def_manager(db):
-    from gobby.storage.workflow_definitions import LocalWorkflowDefinitionManager
-
+def def_manager(db: LocalDatabase) -> LocalWorkflowDefinitionManager:
     return LocalWorkflowDefinitionManager(db)
 
 
 @pytest.fixture
-def loader(db):
+def loader(db: LocalDatabase) -> WorkflowLoader:
     return WorkflowLoader(db=db)
 
 
@@ -60,15 +60,17 @@ class TestLoadPipeline:
         """Test loading a valid pipeline from DB returns PipelineDefinition."""
         def_manager.create(
             name="test-pipeline",
-            definition_json=json.dumps({
-                "name": "test-pipeline",
-                "type": "pipeline",
-                "description": "A test pipeline",
-                "steps": [
-                    {"id": "step1", "exec": "echo hello"},
-                    {"id": "step2", "exec": "echo world"},
-                ],
-            }),
+            definition_json=json.dumps(
+                {
+                    "name": "test-pipeline",
+                    "type": "pipeline",
+                    "description": "A test pipeline",
+                    "steps": [
+                        {"id": "step1", "exec": "echo hello"},
+                        {"id": "step2", "exec": "echo world"},
+                    ],
+                }
+            ),
             workflow_type="pipeline",
         )
 
@@ -91,11 +93,13 @@ class TestLoadPipeline:
         """Test loading a step workflow via load_pipeline returns None."""
         def_manager.create(
             name="step-workflow",
-            definition_json=json.dumps({
-                "name": "step-workflow",
-                "type": "step",
-                "steps": [{"name": "work", "allowed_tools": "all"}],
-            }),
+            definition_json=json.dumps(
+                {
+                    "name": "step-workflow",
+                    "type": "step",
+                    "steps": [{"name": "work", "allowed_tools": "all"}],
+                }
+            ),
             workflow_type="workflow",
         )
 
@@ -108,23 +112,27 @@ class TestLoadPipeline:
         # Global pipeline
         def_manager.create(
             name="deploy",
-            definition_json=json.dumps({
-                "name": "deploy",
-                "type": "pipeline",
-                "steps": [{"id": "step1", "exec": "echo global"}],
-            }),
+            definition_json=json.dumps(
+                {
+                    "name": "deploy",
+                    "type": "pipeline",
+                    "steps": [{"id": "step1", "exec": "echo global"}],
+                }
+            ),
             workflow_type="pipeline",
         )
 
         # Project-scoped pipeline (should override)
         def_manager.create(
             name="deploy",
-            definition_json=json.dumps({
-                "name": "deploy",
-                "type": "pipeline",
-                "description": "Project-specific deploy",
-                "steps": [{"id": "step1", "exec": "echo project"}],
-            }),
+            definition_json=json.dumps(
+                {
+                    "name": "deploy",
+                    "type": "pipeline",
+                    "description": "Project-specific deploy",
+                    "steps": [{"id": "step1", "exec": "echo project"}],
+                }
+            ),
             workflow_type="pipeline",
             project_id=project.id,
         )
@@ -139,16 +147,18 @@ class TestLoadPipeline:
         """Test loading pipeline with inputs and outputs schema."""
         def_manager.create(
             name="parameterized",
-            definition_json=json.dumps({
-                "name": "parameterized",
-                "type": "pipeline",
-                "inputs": {
-                    "files": {"type": "array", "description": "Files to process"},
-                    "mode": {"type": "string", "default": "fast"},
-                },
-                "outputs": {"result": "$final.output"},
-                "steps": [{"id": "final", "exec": "echo done"}],
-            }),
+            definition_json=json.dumps(
+                {
+                    "name": "parameterized",
+                    "type": "pipeline",
+                    "inputs": {
+                        "files": {"type": "array", "description": "Files to process"},
+                        "mode": {"type": "string", "default": "fast"},
+                    },
+                    "outputs": {"result": "$final.output"},
+                    "steps": [{"id": "final", "exec": "echo done"}],
+                }
+            ),
             workflow_type="pipeline",
         )
 
@@ -165,21 +175,23 @@ class TestLoadPipeline:
         """Test loading pipeline with approval gates."""
         def_manager.create(
             name="approval-pipeline",
-            definition_json=json.dumps({
-                "name": "approval-pipeline",
-                "type": "pipeline",
-                "steps": [
-                    {"id": "test", "exec": "pytest"},
-                    {
-                        "id": "deploy",
-                        "exec": "./deploy.sh",
-                        "approval": {
-                            "required": True,
-                            "message": "Approve deployment?",
+            definition_json=json.dumps(
+                {
+                    "name": "approval-pipeline",
+                    "type": "pipeline",
+                    "steps": [
+                        {"id": "test", "exec": "pytest"},
+                        {
+                            "id": "deploy",
+                            "exec": "./deploy.sh",
+                            "approval": {
+                                "required": True,
+                                "message": "Approve deployment?",
+                            },
                         },
-                    },
-                ],
-            }),
+                    ],
+                }
+            ),
             workflow_type="pipeline",
         )
 
@@ -198,17 +210,19 @@ class TestLoadPipeline:
         """Test loading pipeline with webhook configuration."""
         def_manager.create(
             name="webhook-pipeline",
-            definition_json=json.dumps({
-                "name": "webhook-pipeline",
-                "type": "pipeline",
-                "webhooks": {
-                    "on_complete": {
-                        "url": "https://example.com/done",
-                        "method": "POST",
+            definition_json=json.dumps(
+                {
+                    "name": "webhook-pipeline",
+                    "type": "pipeline",
+                    "webhooks": {
+                        "on_complete": {
+                            "url": "https://example.com/done",
+                            "method": "POST",
+                        },
                     },
-                },
-                "steps": [{"id": "work", "exec": "echo working"}],
-            }),
+                    "steps": [{"id": "work", "exec": "echo working"}],
+                }
+            ),
             workflow_type="pipeline",
         )
 
@@ -225,25 +239,29 @@ class TestLoadPipeline:
         # Base pipeline
         def_manager.create(
             name="base-pipeline",
-            definition_json=json.dumps({
-                "name": "base-pipeline",
-                "type": "pipeline",
-                "inputs": {"env": {"type": "string", "default": "staging"}},
-                "steps": [{"id": "setup", "exec": "echo setup"}],
-            }),
+            definition_json=json.dumps(
+                {
+                    "name": "base-pipeline",
+                    "type": "pipeline",
+                    "inputs": {"env": {"type": "string", "default": "staging"}},
+                    "steps": [{"id": "setup", "exec": "echo setup"}],
+                }
+            ),
             workflow_type="pipeline",
         )
 
         # Child pipeline extends base
         def_manager.create(
             name="child-pipeline",
-            definition_json=json.dumps({
-                "name": "child-pipeline",
-                "type": "pipeline",
-                "extends": "base-pipeline",
-                "inputs": {"env": {"default": "production"}},
-                "steps": [{"id": "deploy", "exec": "echo deploy"}],
-            }),
+            definition_json=json.dumps(
+                {
+                    "name": "child-pipeline",
+                    "type": "pipeline",
+                    "extends": "base-pipeline",
+                    "inputs": {"env": {"default": "production"}},
+                    "steps": [{"id": "deploy", "exec": "echo deploy"}],
+                }
+            ),
             workflow_type="pipeline",
         )
 
@@ -259,11 +277,13 @@ class TestLoadPipeline:
         """Test that pipelines are cached after first load."""
         def_manager.create(
             name="cached-pipeline",
-            definition_json=json.dumps({
-                "name": "cached-pipeline",
-                "type": "pipeline",
-                "steps": [{"id": "step1", "exec": "echo cached"}],
-            }),
+            definition_json=json.dumps(
+                {
+                    "name": "cached-pipeline",
+                    "type": "pipeline",
+                    "steps": [{"id": "step1", "exec": "echo cached"}],
+                }
+            ),
             workflow_type="pipeline",
         )
 
@@ -279,11 +299,13 @@ class TestLoadPipeline:
         """Test that clear_cache forces a fresh reload from DB."""
         row = def_manager.create(
             name="cached-pipeline",
-            definition_json=json.dumps({
-                "name": "cached-pipeline",
-                "type": "pipeline",
-                "steps": [{"id": "step1", "exec": "echo cached"}],
-            }),
+            definition_json=json.dumps(
+                {
+                    "name": "cached-pipeline",
+                    "type": "pipeline",
+                    "steps": [{"id": "step1", "exec": "echo cached"}],
+                }
+            ),
             workflow_type="pipeline",
         )
 
@@ -299,11 +321,13 @@ class TestLoadPipeline:
         def_manager.delete(row.id)
         def_manager.create(
             name="modified-pipeline",
-            definition_json=json.dumps({
-                "name": "modified-pipeline",
-                "type": "pipeline",
-                "steps": [{"id": "step1", "exec": "echo modified"}],
-            }),
+            definition_json=json.dumps(
+                {
+                    "name": "modified-pipeline",
+                    "type": "pipeline",
+                    "steps": [{"id": "step1", "exec": "echo modified"}],
+                }
+            ),
             workflow_type="pipeline",
         )
 
@@ -344,10 +368,12 @@ class TestLoadPipeline:
         """Test that a workflow without type=pipeline returns None from load_pipeline."""
         def_manager.create(
             name="no-type",
-            definition_json=json.dumps({
-                "name": "no-type",
-                "steps": [{"name": "work", "allowed_tools": "all"}],
-            }),
+            definition_json=json.dumps(
+                {
+                    "name": "no-type",
+                    "steps": [{"name": "work", "allowed_tools": "all"}],
+                }
+            ),
             workflow_type="workflow",
         )
 
@@ -536,11 +562,13 @@ class TestLoadWorkflowPipelineIntegration:
         """Test that load_workflow() auto-detects type=pipeline."""
         def_manager.create(
             name="auto-detect",
-            definition_json=json.dumps({
-                "name": "auto-detect",
-                "type": "pipeline",
-                "steps": [{"id": "step1", "exec": "echo hello"}],
-            }),
+            definition_json=json.dumps(
+                {
+                    "name": "auto-detect",
+                    "type": "pipeline",
+                    "steps": [{"id": "step1", "exec": "echo hello"}],
+                }
+            ),
             workflow_type="pipeline",
         )
 
@@ -558,14 +586,16 @@ class TestLoadWorkflowPipelineIntegration:
         """
         def_manager.create(
             name="validate-refs",
-            definition_json=json.dumps({
-                "name": "validate-refs",
-                "type": "pipeline",
-                "steps": [
-                    {"id": "step1", "prompt": "Use $step2.output"},
-                    {"id": "step2", "exec": "echo hello"},
-                ],
-            }),
+            definition_json=json.dumps(
+                {
+                    "name": "validate-refs",
+                    "type": "pipeline",
+                    "steps": [
+                        {"id": "step1", "prompt": "Use $step2.output"},
+                        {"id": "step2", "exec": "echo hello"},
+                    ],
+                }
+            ),
             workflow_type="pipeline",
         )
 
@@ -580,11 +610,13 @@ class TestLoadWorkflowPipelineIntegration:
         """Test that load_workflow() returns WorkflowDefinition for step type."""
         def_manager.create(
             name="step-workflow",
-            definition_json=json.dumps({
-                "name": "step-workflow",
-                "type": "step",
-                "steps": [{"name": "work", "allowed_tools": "all"}],
-            }),
+            definition_json=json.dumps(
+                {
+                    "name": "step-workflow",
+                    "type": "step",
+                    "steps": [{"name": "work", "allowed_tools": "all"}],
+                }
+            ),
             workflow_type="workflow",
         )
 
@@ -601,11 +633,13 @@ class TestLoadWorkflowPipelineIntegration:
         """Test that load_workflow() returns WorkflowDefinition for lifecycle type."""
         def_manager.create(
             name="lifecycle-workflow",
-            definition_json=json.dumps({
-                "name": "lifecycle-workflow",
-                "type": "lifecycle",
-                "triggers": {"on_session_start": []},
-            }),
+            definition_json=json.dumps(
+                {
+                    "name": "lifecycle-workflow",
+                    "type": "lifecycle",
+                    "triggers": {"on_session_start": []},
+                }
+            ),
             workflow_type="workflow",
         )
 
@@ -620,14 +654,16 @@ class TestLoadWorkflowPipelineIntegration:
         """Test load_workflow() succeeds for pipeline with valid references."""
         def_manager.create(
             name="valid-pipeline",
-            definition_json=json.dumps({
-                "name": "valid-pipeline",
-                "type": "pipeline",
-                "steps": [
-                    {"id": "analyze", "exec": "./analyze.sh"},
-                    {"id": "report", "prompt": "Generate report from $analyze.output"},
-                ],
-            }),
+            definition_json=json.dumps(
+                {
+                    "name": "valid-pipeline",
+                    "type": "pipeline",
+                    "steps": [
+                        {"id": "analyze", "exec": "./analyze.sh"},
+                        {"id": "report", "prompt": "Generate report from $analyze.output"},
+                    ],
+                }
+            ),
             workflow_type="pipeline",
         )
 
@@ -646,11 +682,13 @@ class TestDiscoverPipelineWorkflows:
         """Test that global pipelines (no project_id) are discovered."""
         def_manager.create(
             name="global-pipeline",
-            definition_json=json.dumps({
-                "name": "global-pipeline",
-                "type": "pipeline",
-                "steps": [{"id": "step1", "exec": "echo global"}],
-            }),
+            definition_json=json.dumps(
+                {
+                    "name": "global-pipeline",
+                    "type": "pipeline",
+                    "steps": [{"id": "step1", "exec": "echo global"}],
+                }
+            ),
             workflow_type="pipeline",
         )
 
@@ -667,11 +705,13 @@ class TestDiscoverPipelineWorkflows:
         """Test that project-scoped pipelines are discovered."""
         def_manager.create(
             name="project-pipeline",
-            definition_json=json.dumps({
-                "name": "project-pipeline",
-                "type": "pipeline",
-                "steps": [{"id": "step1", "exec": "echo project"}],
-            }),
+            definition_json=json.dumps(
+                {
+                    "name": "project-pipeline",
+                    "type": "pipeline",
+                    "steps": [{"id": "step1", "exec": "echo project"}],
+                }
+            ),
             workflow_type="pipeline",
             project_id=project.id,
         )
@@ -689,24 +729,28 @@ class TestDiscoverPipelineWorkflows:
         # Global pipeline
         def_manager.create(
             name="deploy",
-            definition_json=json.dumps({
-                "name": "deploy",
-                "type": "pipeline",
-                "description": "Global deploy",
-                "steps": [{"id": "step1", "exec": "echo global"}],
-            }),
+            definition_json=json.dumps(
+                {
+                    "name": "deploy",
+                    "type": "pipeline",
+                    "description": "Global deploy",
+                    "steps": [{"id": "step1", "exec": "echo global"}],
+                }
+            ),
             workflow_type="pipeline",
         )
 
         # Project pipeline with same name
         def_manager.create(
             name="deploy",
-            definition_json=json.dumps({
-                "name": "deploy",
-                "type": "pipeline",
-                "description": "Project deploy",
-                "steps": [{"id": "step1", "exec": "echo project"}],
-            }),
+            definition_json=json.dumps(
+                {
+                    "name": "deploy",
+                    "type": "pipeline",
+                    "description": "Project deploy",
+                    "steps": [{"id": "step1", "exec": "echo project"}],
+                }
+            ),
             workflow_type="pipeline",
             project_id=project.id,
         )
@@ -727,22 +771,26 @@ class TestDiscoverPipelineWorkflows:
         # Pipeline workflow
         def_manager.create(
             name="my-pipeline",
-            definition_json=json.dumps({
-                "name": "my-pipeline",
-                "type": "pipeline",
-                "steps": [{"id": "step1", "exec": "echo pipeline"}],
-            }),
+            definition_json=json.dumps(
+                {
+                    "name": "my-pipeline",
+                    "type": "pipeline",
+                    "steps": [{"id": "step1", "exec": "echo pipeline"}],
+                }
+            ),
             workflow_type="pipeline",
         )
 
         # Step workflow (should be ignored)
         def_manager.create(
             name="my-step",
-            definition_json=json.dumps({
-                "name": "my-step",
-                "type": "step",
-                "steps": [{"name": "work", "allowed_tools": "all"}],
-            }),
+            definition_json=json.dumps(
+                {
+                    "name": "my-step",
+                    "type": "step",
+                    "steps": [{"name": "work", "allowed_tools": "all"}],
+                }
+            ),
             workflow_type="workflow",
         )
 
@@ -759,11 +807,13 @@ class TestDiscoverPipelineWorkflows:
         """Test that result has correct DiscoveredWorkflow structure."""
         def_manager.create(
             name="structured-pipeline",
-            definition_json=json.dumps({
-                "name": "structured-pipeline",
-                "type": "pipeline",
-                "steps": [{"id": "step1", "exec": "echo test"}],
-            }),
+            definition_json=json.dumps(
+                {
+                    "name": "structured-pipeline",
+                    "type": "pipeline",
+                    "steps": [{"id": "step1", "exec": "echo test"}],
+                }
+            ),
             workflow_type="pipeline",
             priority=50,
         )
@@ -784,11 +834,13 @@ class TestDiscoverPipelineWorkflows:
         for i in range(3):
             def_manager.create(
                 name=f"pipeline-{i}",
-                definition_json=json.dumps({
-                    "name": f"pipeline-{i}",
-                    "type": "pipeline",
-                    "steps": [{"id": "step1", "exec": f"echo {i}"}],
-                }),
+                definition_json=json.dumps(
+                    {
+                        "name": f"pipeline-{i}",
+                        "type": "pipeline",
+                        "steps": [{"id": "step1", "exec": f"echo {i}"}],
+                    }
+                ),
                 workflow_type="pipeline",
             )
 

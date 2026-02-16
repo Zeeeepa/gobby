@@ -321,6 +321,107 @@ class TestAgentDefinitionLoader:
         assert names == {"agent-a", "agent-b"}
 
 
+class TestGetDbFallbackBehavior:
+    """Tests for AgentDefinitionLoader._get_db warning and strict mode."""
+
+    def test_get_db_warns_on_fallback(self) -> None:
+        """Test that _get_db emits a warning when falling back to LocalDatabase."""
+        loader = AgentDefinitionLoader()  # No db injected
+
+        with patch(
+            "gobby.storage.database.LocalDatabase"
+        ) as mock_local_db_cls, patch(
+            "gobby.agents.definitions.logger"
+        ) as mock_logger:
+            mock_local_db_cls.return_value = MagicMock()
+            db = loader._get_db()
+
+            assert db is not None
+            mock_logger.warning.assert_called_once()
+            warning_msg = mock_logger.warning.call_args[0][0]
+            assert "No database was injected" in warning_msg
+            assert "db=" in warning_msg
+
+    def test_get_db_warns_includes_default_path(self) -> None:
+        """Test that the fallback warning includes the default DB path."""
+        loader = AgentDefinitionLoader()
+
+        with patch(
+            "gobby.storage.database.LocalDatabase"
+        ) as mock_local_db_cls, patch(
+            "gobby.agents.definitions.logger"
+        ) as mock_logger:
+            mock_local_db_cls.return_value = MagicMock()
+            loader._get_db()
+
+            # The path is passed as the second positional arg (for %s formatting)
+            call_args = mock_logger.warning.call_args
+            fmt_str = call_args[0][0]
+            assert "%s" in fmt_str or "default path" in fmt_str.lower()
+
+    def test_get_db_no_warning_when_injected(self) -> None:
+        """Test that _get_db does NOT warn when a db is injected."""
+        mock_db = MagicMock()
+        loader = AgentDefinitionLoader(db=mock_db)
+
+        with patch("gobby.agents.definitions.logger") as mock_logger:
+            db = loader._get_db()
+
+            assert db is mock_db
+            mock_logger.warning.assert_not_called()
+
+    def test_get_db_strict_flag_raises(self) -> None:
+        """Test that strict=True raises RuntimeError when no db injected."""
+        loader = AgentDefinitionLoader(strict=True)
+
+        with pytest.raises(RuntimeError, match="requires an injected database"):
+            loader._get_db()
+
+    def test_get_db_strict_env_var_raises(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """Test that GOBBY_STRICT_DB_INJECTION=1 raises RuntimeError."""
+        monkeypatch.setenv("GOBBY_STRICT_DB_INJECTION", "1")
+        loader = AgentDefinitionLoader()
+
+        with pytest.raises(RuntimeError, match="requires an injected database"):
+            loader._get_db()
+
+    def test_get_db_strict_flag_no_effect_when_db_injected(self) -> None:
+        """Test that strict=True is fine when a db is actually injected."""
+        mock_db = MagicMock()
+        loader = AgentDefinitionLoader(db=mock_db, strict=True)
+
+        db = loader._get_db()
+        assert db is mock_db
+
+    def test_get_db_strict_env_no_effect_when_db_injected(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Test that GOBBY_STRICT_DB_INJECTION=1 is fine when db is injected."""
+        monkeypatch.setenv("GOBBY_STRICT_DB_INJECTION", "1")
+        mock_db = MagicMock()
+        loader = AgentDefinitionLoader(db=mock_db)
+
+        db = loader._get_db()
+        assert db is mock_db
+
+    def test_get_db_fallback_caches_instance(self) -> None:
+        """Test that fallback LocalDatabase is cached on subsequent calls."""
+        loader = AgentDefinitionLoader()
+
+        with patch(
+            "gobby.storage.database.LocalDatabase"
+        ) as mock_local_db_cls, patch("gobby.agents.definitions.logger"):
+            sentinel = MagicMock()
+            mock_local_db_cls.return_value = sentinel
+
+            db1 = loader._get_db()
+            db2 = loader._get_db()
+
+            assert db1 is db2 is sentinel
+            # LocalDatabase constructor called only once
+            mock_local_db_cls.assert_called_once()
+
+
 class TestGenericAgentDefinition:
     """Tests for the generic agent definition model."""
 

@@ -10,8 +10,6 @@ from gobby.storage.agent_definitions import LocalAgentDefinitionManager
 from gobby.storage.database import LocalDatabase
 from gobby.storage.migrations import run_migrations
 
-pytestmark = pytest.mark.unit
-
 
 def _setup_db(tmp_path: Path) -> LocalDatabase:
     """Create a fresh database with migrations applied."""
@@ -23,6 +21,7 @@ def _setup_db(tmp_path: Path) -> LocalDatabase:
 class TestSyncBundledAgents:
     """Tests for sync_bundled_agents function."""
 
+    @pytest.mark.unit
     def test_sync_creates_bundled_agents(self, tmp_path: Path) -> None:
         """Test that sync creates bundled agent definitions in the DB."""
         db = _setup_db(tmp_path)
@@ -51,6 +50,7 @@ class TestSyncBundledAgents:
         assert row.scope == "bundled"
         assert row.source_path == str(agents_dir / "test-agent.yaml")
 
+    @pytest.mark.unit
     def test_sync_skips_unchanged(self, tmp_path: Path) -> None:
         """Test that sync skips agents that haven't changed."""
         db = _setup_db(tmp_path)
@@ -72,6 +72,7 @@ class TestSyncBundledAgents:
             assert result2["skipped"] == 1
             assert result2["updated"] == 0
 
+    @pytest.mark.unit
     def test_sync_updates_changed(self, tmp_path: Path) -> None:
         """Test that sync updates agents when content changes."""
         db = _setup_db(tmp_path)
@@ -105,6 +106,7 @@ class TestSyncBundledAgents:
         defn = mgr.export_to_definition(row.id)
         assert defn.description == "Updated description"
 
+    @pytest.mark.unit
     def test_sync_multiple_agents(self, tmp_path: Path) -> None:
         """Test syncing multiple agent files."""
         db = _setup_db(tmp_path)
@@ -124,6 +126,7 @@ class TestSyncBundledAgents:
         assert result["synced"] == 2
         assert result["errors"] == []
 
+    @pytest.mark.unit
     def test_sync_missing_path(self, tmp_path: Path) -> None:
         """Test sync handles missing agents directory gracefully."""
         db = _setup_db(tmp_path)
@@ -138,6 +141,7 @@ class TestSyncBundledAgents:
         assert result["synced"] == 0
         assert len(result["errors"]) == 1
 
+    @pytest.mark.unit
     def test_sync_invalid_yaml(self, tmp_path: Path) -> None:
         """Test sync handles invalid YAML gracefully."""
         db = _setup_db(tmp_path)
@@ -152,6 +156,7 @@ class TestSyncBundledAgents:
         assert result["synced"] == 0
         assert len(result["errors"]) == 1
 
+    @pytest.mark.integration
     def test_sync_with_real_bundled_agents(self, tmp_path: Path) -> None:
         """Test that sync works with the actual bundled agents directory."""
         db = _setup_db(tmp_path)

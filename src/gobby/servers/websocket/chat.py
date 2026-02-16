@@ -167,11 +167,15 @@ class ChatMixin:
                     session._needs_history_injection = True
                     session._message_manager = message_manager
                     logger.info(
-                        f"Returning session detected (max_idx={max_idx}), "
-                        f"history injection enabled for {conversation_id[:8]}"
+                        "Returning session detected; history injection enabled",
+                        extra={"max_idx": max_idx, "conversation_id": conversation_id[:8]},
                     )
             except Exception as e:
-                logger.warning(f"Failed to check message history: {e}")
+                logger.warning(
+                    "Failed to check message history",
+                    extra={"conversation_id": conversation_id[:8]},
+                    exc_info=e,
+                )
 
         return session
 

@@ -7,6 +7,7 @@ lifecycle behavior, solving recursion loops in delegation.
 """
 
 import logging
+import os
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Literal
 
@@ -330,15 +331,44 @@ class AgentDefinitionLoader:
     File-scanning methods are retained as static helpers for the import endpoint.
     """
 
-    def __init__(self, db: "DatabaseProtocol | None" = None) -> None:
+    def __init__(self, db: "DatabaseProtocol | None" = None, *, strict: bool = False) -> None:
         self._db = db
+        self._strict = strict
 
     def _get_db(self) -> "DatabaseProtocol":
-        """Get DB, creating a lazy fallback if none was injected."""
+        """Get DB, raising or warning when no DB was injected.
+
+        When ``self._db`` is ``None``, this method falls back to creating a
+        :class:`~gobby.storage.database.LocalDatabase` using the default path
+        (``~/.gobby/gobby-hub.db``).  This fallback is convenient for ad-hoc
+        usage but can hide misconfiguration in production code paths.
+
+        Strict mode (either ``strict=True`` on the constructor or the
+        ``GOBBY_STRICT_DB_INJECTION=1`` environment variable) turns the
+        fallback into a hard error so that missing injection is caught early.
+
+        Raises:
+            RuntimeError: If strict mode is active and no DB was injected.
+        """
         if self._db is not None:
             return self._db
-        from gobby.storage.database import LocalDatabase
 
+        strict = self._strict or os.environ.get("GOBBY_STRICT_DB_INJECTION") == "1"
+        if strict:
+            raise RuntimeError(
+                "AgentDefinitionLoader requires an injected database, but none was "
+                "provided. Pass db= to the constructor or ensure the caller provides "
+                "a DatabaseProtocol instance."
+            )
+
+        from gobby.storage.database import DEFAULT_DB_PATH, LocalDatabase
+
+        logger.warning(
+            "AgentDefinitionLoader._get_db: No database was injected — falling back "
+            "to LocalDatabase (default path: %s). Callers should inject a database via "
+            "the db= constructor parameter to avoid implicit connections.",
+            DEFAULT_DB_PATH,
+        )
         self._db = LocalDatabase()
         return self._db
 

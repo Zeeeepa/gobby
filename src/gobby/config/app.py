@@ -37,6 +37,7 @@ from gobby.config.persistence import MemoryConfig, MemorySyncConfig
 from gobby.config.search import SearchConfig
 from gobby.config.servers import MCPClientProxyConfig, WebSocketSettings
 from gobby.config.sessions import (
+    ChatHistoryConfig,
     ContextInjectionConfig,
     MessageTrackingConfig,
     SessionLifecycleConfig,
@@ -331,6 +332,10 @@ class DaemonConfig(BaseModel):
     skills: SkillsConfig = Field(
         default_factory=SkillsConfig,
         description="Skills injection configuration",
+    )
+    chat_history: ChatHistoryConfig = Field(
+        default_factory=ChatHistoryConfig,
+        description="Chat history injection limits for session recreation",
     )
     message_tracking: MessageTrackingConfig = Field(
         default_factory=MessageTrackingConfig,

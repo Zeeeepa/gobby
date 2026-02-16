@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+import tempfile
+from collections.abc import Iterator
+from pathlib import Path
 from typing import TYPE_CHECKING
 
 import pytest
@@ -11,18 +14,35 @@ if TYPE_CHECKING:
     from gobby.workflows.loader import WorkflowLoader
 
 
-@pytest.fixture
-def workflow_db(temp_db: "LocalDatabase") -> "LocalDatabase":
-    """Populate temp_db with bundled workflows (and rules for imports) and return it."""
+@pytest.fixture(scope="module")
+def _workflow_tmp_dir() -> Iterator[Path]:
+    """Module-scoped temp directory for the workflow DB."""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        yield Path(tmpdir)
+
+
+@pytest.fixture(scope="module")
+def workflow_db(_workflow_tmp_dir: Path) -> Iterator["LocalDatabase"]:
+    """Populate a module-scoped DB with bundled workflows and return it.
+
+    Shared across all tests in a module to avoid expensive repeated syncs.
+    Tests using this fixture MUST NOT mutate the database.
+    """
+    from gobby.storage.database import LocalDatabase
+    from gobby.storage.migrations import run_migrations
     from gobby.workflows.rule_sync import sync_bundled_rules_sync
     from gobby.workflows.sync import sync_bundled_workflows
 
-    sync_bundled_rules_sync(temp_db)
-    sync_bundled_workflows(temp_db)
-    return temp_db
+    db_path = _workflow_tmp_dir / "test.db"
+    db = LocalDatabase(db_path)
+    run_migrations(db)
+    sync_bundled_rules_sync(db)
+    sync_bundled_workflows(db)
+    yield db
+    db.close()
 
 
-@pytest.fixture
+@pytest.fixture(scope="module")
 def db_loader(workflow_db: "LocalDatabase") -> "WorkflowLoader":
     """Return a WorkflowLoader backed by a DB with bundled workflows."""
     from gobby.workflows.loader import WorkflowLoader
