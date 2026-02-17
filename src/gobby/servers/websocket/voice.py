@@ -4,6 +4,10 @@ VoiceMixin provides STT/TTS integration for WebSocketServer.
 Voice layers on top of the existing chat pipeline — transcribed audio
 becomes a normal chat_message, and streamed text responses are
 optionally synthesized to speech.
+
+TTS uses a non-blocking architecture: text is sent to ElevenLabs
+without waiting for audio. A background listener reads audio chunks
+and forwards them to the client independently.
 """
 
 from __future__ import annotations
@@ -50,6 +54,12 @@ class VoiceMixin:
         # Sentence buffer per conversation
         self._sentence_buffers: dict[str, Any] = {}
 
+        # Track current request_id per conversation for the audio listener
+        self._tts_request_ids: dict[str, str] = {}
+
+        # Track websocket per conversation for the audio listener
+        self._tts_websockets: dict[str, Any] = {}
+
     def _get_voice_config(self) -> VoiceConfig | None:
         """Get voice config from daemon_config if available."""
         config = getattr(self, "daemon_config", None)
@@ -77,8 +87,8 @@ class VoiceMixin:
         self._whisper_stt = WhisperSTT(voice_config)
         return self._whisper_stt
 
-    def _get_tts(self, conversation_id: str) -> Any:
-        """Get or create a per-conversation ElevenLabsTTS instance."""
+    async def _get_or_connect_tts(self, conversation_id: str, websocket: Any) -> Any:
+        """Get or create and connect a per-conversation ElevenLabsTTS instance."""
         if conversation_id in self._tts_sessions:
             return self._tts_sessions[conversation_id]
 
@@ -89,7 +99,37 @@ class VoiceMixin:
         from gobby.voice.tts import ElevenLabsTTS
 
         tts = ElevenLabsTTS(voice_config)
+
+        # Store references before connecting so the callback can use them
         self._tts_sessions[conversation_id] = tts
+        self._tts_websockets[conversation_id] = websocket
+        audio_format = self._get_audio_format()
+
+        async def on_audio(chunk: Any) -> None:
+            """Forward audio chunks from ElevenLabs to the client."""
+            ws = self._tts_websockets.get(conversation_id)
+            request_id = self._tts_request_ids.get(conversation_id, "")
+            if not ws:
+                return
+            try:
+                await ws.send(
+                    json.dumps(
+                        {
+                            "type": "voice_audio_chunk",
+                            "conversation_id": conversation_id,
+                            "request_id": request_id,
+                            "audio_data": chunk.audio_base64,
+                            "is_final": chunk.is_final,
+                            "format": audio_format,
+                        }
+                    )
+                )
+            except (ConnectionClosed, ConnectionClosedError):
+                pass
+            except Exception as e:
+                logger.error(f"Error sending TTS audio to client: {e}")
+
+        await tts.connect(on_audio)
         return tts
 
     def _get_sentence_buffer(self, conversation_id: str) -> Any:
@@ -246,6 +286,8 @@ class VoiceMixin:
             if tts:
                 await tts.disconnect()
             self._sentence_buffers.pop(conversation_id, None)
+            self._tts_request_ids.pop(conversation_id, None)
+            self._tts_websockets.pop(conversation_id, None)
 
         await websocket.send(
             json.dumps(
@@ -269,11 +311,15 @@ class VoiceMixin:
         """Called from ChatMixin during TextChunk streaming to feed TTS.
 
         Buffers text into sentences and sends complete sentences to ElevenLabs.
+        Non-blocking — audio is forwarded by the background listener.
         """
         if not self._voice_enabled.get(conversation_id):
             return
 
-        tts = self._get_tts(conversation_id)
+        # Update request_id so the listener sends audio with the right ID
+        self._tts_request_ids[conversation_id] = request_id
+
+        tts = await self._get_or_connect_tts(conversation_id, websocket)
         if not tts or not tts.is_available:
             return
 
@@ -282,23 +328,9 @@ class VoiceMixin:
 
         for sentence in sentences:
             try:
-                async for chunk in tts.synthesize_stream(sentence):
-                    await websocket.send(
-                        json.dumps(
-                            {
-                                "type": "voice_audio_chunk",
-                                "conversation_id": conversation_id,
-                                "request_id": request_id,
-                                "audio_data": chunk.audio_base64,
-                                "is_final": False,
-                                "format": self._get_audio_format(),
-                            }
-                        )
-                    )
-            except (ConnectionClosed, ConnectionClosedError):
-                return
+                await tts.send_text(sentence)
             except Exception as e:
-                logger.error(f"TTS stream error: {e}")
+                logger.error(f"TTS send error: {e}")
 
     async def _voice_tts_flush(
         self,
@@ -310,7 +342,9 @@ class VoiceMixin:
         if not self._voice_enabled.get(conversation_id):
             return
 
-        tts = self._get_tts(conversation_id)
+        self._tts_request_ids[conversation_id] = request_id
+
+        tts = self._tts_sessions.get(conversation_id)
         if not tts or not tts.is_available:
             return
 
@@ -320,48 +354,10 @@ class VoiceMixin:
         try:
             # Send any remaining buffered text
             if remaining:
-                async for chunk in tts.synthesize_stream(remaining):
-                    await websocket.send(
-                        json.dumps(
-                            {
-                                "type": "voice_audio_chunk",
-                                "conversation_id": conversation_id,
-                                "request_id": request_id,
-                                "audio_data": chunk.audio_base64,
-                                "is_final": False,
-                                "format": self._get_audio_format(),
-                            }
-                        )
-                    )
+                await tts.send_text(remaining)
 
-            # Flush TTS connection
-            async for chunk in tts.flush():
-                await websocket.send(
-                    json.dumps(
-                        {
-                            "type": "voice_audio_chunk",
-                            "conversation_id": conversation_id,
-                            "request_id": request_id,
-                            "audio_data": chunk.audio_base64,
-                            "is_final": chunk.is_final,
-                            "format": self._get_audio_format(),
-                        }
-                    )
-                )
-
-            # Send final marker
-            await websocket.send(
-                json.dumps(
-                    {
-                        "type": "voice_audio_chunk",
-                        "conversation_id": conversation_id,
-                        "request_id": request_id,
-                        "audio_data": "",
-                        "is_final": True,
-                        "format": self._get_audio_format(),
-                    }
-                )
-            )
+            # Flush ElevenLabs buffer to generate remaining audio
+            await tts.send_flush()
 
         except (ConnectionClosed, ConnectionClosedError):
             pass
@@ -379,4 +375,6 @@ class VoiceMixin:
         self._tts_sessions.clear()
         self._voice_enabled.clear()
         self._sentence_buffers.clear()
+        self._tts_request_ids.clear()
+        self._tts_websockets.clear()
         logger.debug("Voice subsystem cleaned up")
