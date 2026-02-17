@@ -168,9 +168,9 @@ export function useVoice(
         const vad = await MicVAD.new({
           baseAssetPath: '/',
           onnxWASMBasePath: 'https://cdn.jsdelivr.net/npm/onnxruntime-web@1.24.1/dist/',
-          positiveSpeechThreshold: 0.7,
-          negativeSpeechThreshold: 0.35,
-          minSpeechFrames: 5,
+          positiveSpeechThreshold: 0.85,
+          negativeSpeechThreshold: 0.5,
+          minSpeechFrames: 8,
           redemptionFrames: 12,
           preSpeechPadFrames: 10,
           submitUserSpeechOnPause: false,
