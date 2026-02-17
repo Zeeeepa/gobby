@@ -80,7 +80,8 @@ class ElevenLabsTTS:
                 "text": " ",
                 "voice_settings": {
                     "stability": 0.5,
-                    "similarity_boost": 0.75,
+                    "similarity_boost": 1.0,
+                    "style": 0.0,
                     "speed": self._config.elevenlabs_speed,
                 },
                 "xi_api_key": self._config.elevenlabs_api_key,
