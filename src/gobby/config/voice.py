@@ -37,8 +37,8 @@ class VoiceConfig(BaseModel):
         description="ElevenLabs voice ID (default: Rachel).",
     )
     elevenlabs_model_id: str = Field(
-        default="eleven_v3",
-        description="ElevenLabs model ID for TTS.",
+        default="eleven_flash_v2_5",
+        description="ElevenLabs model ID for TTS (must support WebSocket streaming).",
     )
     elevenlabs_speed: float = Field(
         default=0.75,
