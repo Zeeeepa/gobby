@@ -43,6 +43,9 @@ def check_workflow(ctx: click.Context, name: str, json_format: bool) -> None:
     except httpx.TimeoutException:
         click.echo("Error: Request timed out. The daemon may be overloaded.", err=True)
         raise SystemExit(1) from None
+    except httpx.RequestError as e:
+        click.echo(f"Request error: {e}", err=True)
+        raise SystemExit(1) from None
     except (click.ClickException, ValueError, RuntimeError) as e:
         click.echo(f"Error: {e}", err=True)
         raise SystemExit(1) from None

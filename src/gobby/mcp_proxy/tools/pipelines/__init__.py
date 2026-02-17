@@ -103,7 +103,7 @@ def create_pipelines_registry(
         project_path: str | None = None,
     ) -> dict[str, Any]:
         if _loader is None:
-            return {"error": "Pipeline tools require a workflow loader"}
+            return {"success": False, "error": "Pipeline tools require a workflow loader"}
 
         from pathlib import Path
 
@@ -133,9 +133,16 @@ def create_pipelines_registry(
             "outputs": definition.outputs,
             "expose_as_tool": definition.expose_as_tool,
             "steps": [
-                {"id": s.id, "exec": s.exec, "prompt": s.prompt, "mcp": s.mcp.model_dump() if s.mcp else None}
+                {
+                    "id": s.id,
+                    "exec": s.exec,
+                    "prompt": s.prompt,
+                    "mcp": s.mcp.model_dump() if s.mcp else None,
+                }
                 for s in definition.steps
-            ] if definition.steps else [],
+            ]
+            if definition.steps
+            else [],
         }
 
     @registry.tool(
@@ -204,7 +211,7 @@ def create_pipelines_registry(
         project_id: str | None = None,
     ) -> dict[str, Any]:
         if _def_manager is None or _loader is None:
-            return {"error": "Pipeline definition tools require database connection"}
+            return {"success": False, "error": "Pipeline definition tools require database connection"}
         import yaml as _yaml
 
         try:
@@ -230,13 +237,21 @@ def create_pipelines_registry(
         yaml_content: str | None = None,
     ) -> dict[str, Any]:
         if _def_manager is None or _loader is None:
-            return {"error": "Pipeline definition tools require database connection"}
+            return {"success": False, "error": "Pipeline definition tools require database connection"}
         err = _require_pipeline(_def_manager, name, definition_id)
         if err:
             return err
         return update_workflow_definition(
-            _def_manager, _loader, name, definition_id,
-            description, enabled, priority, version, tags, yaml_content,
+            _def_manager,
+            _loader,
+            name,
+            definition_id,
+            description,
+            enabled,
+            priority,
+            version,
+            tags,
+            yaml_content,
         )
 
     @registry.tool(
@@ -249,7 +264,7 @@ def create_pipelines_registry(
         force: bool = False,
     ) -> dict[str, Any]:
         if _def_manager is None or _loader is None:
-            return {"error": "Pipeline definition tools require database connection"}
+            return {"success": False, "error": "Pipeline definition tools require database connection"}
         err = _require_pipeline(_def_manager, name, definition_id)
         if err:
             return err
@@ -264,7 +279,7 @@ def create_pipelines_registry(
         definition_id: str | None = None,
     ) -> dict[str, Any]:
         if _def_manager is None:
-            return {"error": "Pipeline definition tools require database connection"}
+            return {"success": False, "error": "Pipeline definition tools require database connection"}
         err = _require_pipeline(_def_manager, name, definition_id)
         if err:
             return err

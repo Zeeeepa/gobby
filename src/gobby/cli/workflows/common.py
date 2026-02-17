@@ -36,6 +36,10 @@ def get_state_manager(db: LocalDatabase | None = None) -> WorkflowStateManager:
 def _reset_state_manager_for_tests() -> None:
     """Reset cached state manager instances (for test isolation)."""
     global _db_instance, _state_manager_instance
+    if _db_instance is not None:
+        close_fn = getattr(_db_instance, "close", None)
+        if close_fn is not None:
+            close_fn()
     _db_instance = None
     _state_manager_instance = None
 

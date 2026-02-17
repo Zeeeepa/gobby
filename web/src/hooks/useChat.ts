@@ -608,11 +608,14 @@ export function useChat() {
   // Delete a conversation from backend and clean up local state
   const deleteConversation = useCallback((id: string, sessionId?: string) => {
     if (wsRef.current?.readyState === WebSocket.OPEN) {
-      wsRef.current.send(JSON.stringify({
+      const payload: Record<string, unknown> = {
         type: 'delete_chat',
         conversation_id: id,
-        session_id: sessionId,
-      }))
+      }
+      if (sessionId !== undefined) {
+        payload.session_id = sessionId
+      }
+      wsRef.current.send(JSON.stringify(payload))
     }
     localStorage.removeItem(chatStorageKey(id))
     // If deleting the active conversation, start a new one

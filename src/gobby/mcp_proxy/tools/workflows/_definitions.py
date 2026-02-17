@@ -76,7 +76,9 @@ def create_workflow_definition(
     """
     try:
         data = _validate_yaml(yaml_content)
-    except Exception as e:
+    except yaml.YAMLError as e:
+        return {"success": False, "error": f"YAML parse error: {e}"}
+    except (ValueError, TypeError) as e:
         return {"success": False, "error": f"Validation failed: {e}"}
 
     name = data["name"]
