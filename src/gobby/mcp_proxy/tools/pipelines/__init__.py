@@ -77,6 +77,50 @@ def create_pipelines_registry(
         return await list_pipelines(_loader, project_path)
 
     @registry.tool(
+        name="get_pipeline",
+        description="Get details about a specific pipeline definition including steps and inputs.",
+    )
+    async def _get_pipeline(
+        name: str,
+        project_path: str | None = None,
+    ) -> dict[str, Any]:
+        if _loader is None:
+            return {"error": "Pipeline tools require a workflow loader"}
+
+        from pathlib import Path
+
+        from gobby.utils.project_context import get_workflow_project_path
+        from gobby.workflows.definitions import PipelineDefinition
+
+        if not project_path:
+            discovered = get_workflow_project_path()
+            if discovered:
+                project_path = str(discovered)
+
+        proj = Path(project_path) if project_path else None
+        definition = await _loader.load_workflow(name, proj)
+
+        if not definition:
+            return {"success": False, "error": f"Pipeline '{name}' not found"}
+        if not isinstance(definition, PipelineDefinition):
+            return {"success": False, "error": f"'{name}' is a workflow, not a pipeline"}
+
+        return {
+            "success": True,
+            "name": definition.name,
+            "type": "pipeline",
+            "description": definition.description,
+            "version": definition.version,
+            "inputs": definition.inputs,
+            "outputs": definition.outputs,
+            "expose_as_tool": definition.expose_as_tool,
+            "steps": [
+                {"id": s.id, "exec": s.exec, "prompt": s.prompt, "mcp": s.mcp.model_dump() if s.mcp else None}
+                for s in definition.steps
+            ] if definition.steps else [],
+        }
+
+    @registry.tool(
         name="run_pipeline",
         description="Run a pipeline by name with given inputs.",
     )

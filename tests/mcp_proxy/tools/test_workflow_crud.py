@@ -433,6 +433,7 @@ class TestRegistryIntegration:
         registry = create_pipelines_registry(db=db)
         tool_names = [t["name"] for t in registry.list_tools()]
 
+        assert "get_pipeline" in tool_names
         assert "create_pipeline" in tool_names
         assert "update_pipeline" in tool_names
         assert "delete_pipeline" in tool_names
