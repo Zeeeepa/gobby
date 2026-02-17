@@ -454,3 +454,44 @@ class TestRegistryIntegration:
         tool_names = [t["name"] for t in registry.list_tools()]
 
         assert "create_pipeline" in tool_names
+
+
+# =============================================================================
+# Pipeline type filtering
+# =============================================================================
+
+
+class TestPipelineTypeFiltering:
+    """Pipeline CRUD wrappers reject non-pipeline definitions."""
+
+    def test_update_pipeline_rejects_workflow(
+        self, def_manager: LocalWorkflowDefinitionManager, loader: WorkflowLoader
+    ) -> None:
+        from gobby.mcp_proxy.tools.pipelines import _require_pipeline
+
+        create_workflow_definition(def_manager, loader, VALID_WORKFLOW_YAML)
+        err = _require_pipeline(def_manager, name="test-workflow")
+
+        assert err is not None
+        assert err["success"] is False
+        assert "not a pipeline" in err["error"]
+
+    def test_update_pipeline_accepts_pipeline(
+        self, def_manager: LocalWorkflowDefinitionManager, loader: WorkflowLoader
+    ) -> None:
+        from gobby.mcp_proxy.tools.pipelines import _require_pipeline
+
+        create_workflow_definition(def_manager, loader, VALID_PIPELINE_YAML)
+        err = _require_pipeline(def_manager, name="test-pipeline")
+
+        assert err is None
+
+    def test_require_pipeline_not_found(
+        self, def_manager: LocalWorkflowDefinitionManager,
+    ) -> None:
+        from gobby.mcp_proxy.tools.pipelines import _require_pipeline
+
+        err = _require_pipeline(def_manager, name="nonexistent")
+
+        assert err is not None
+        assert "not found" in err["error"]

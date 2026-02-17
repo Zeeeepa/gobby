@@ -31,6 +31,24 @@ from gobby.storage.workflow_definitions import LocalWorkflowDefinitionManager
 
 logger = logging.getLogger(__name__)
 
+
+def _require_pipeline(
+    def_manager: LocalWorkflowDefinitionManager,
+    name: str | None = None,
+    definition_id: str | None = None,
+) -> dict[str, Any] | None:
+    """Resolve a definition and verify it's a pipeline. Returns error dict or None."""
+    from gobby.mcp_proxy.tools.workflows._definitions import _resolve_definition
+
+    try:
+        row = _resolve_definition(def_manager, name, definition_id)
+    except ValueError as e:
+        return {"success": False, "error": str(e)}
+    if row.workflow_type != "pipeline":
+        return {"success": False, "error": f"'{row.name}' is a workflow, not a pipeline"}
+    return None
+
+
 __all__ = [
     "create_pipelines_registry",
 ]
@@ -213,6 +231,9 @@ def create_pipelines_registry(
     ) -> dict[str, Any]:
         if _def_manager is None or _loader is None:
             return {"error": "Pipeline definition tools require database connection"}
+        err = _require_pipeline(_def_manager, name, definition_id)
+        if err:
+            return err
         return update_workflow_definition(
             _def_manager, _loader, name, definition_id,
             description, enabled, priority, version, tags, yaml_content,
@@ -229,6 +250,9 @@ def create_pipelines_registry(
     ) -> dict[str, Any]:
         if _def_manager is None or _loader is None:
             return {"error": "Pipeline definition tools require database connection"}
+        err = _require_pipeline(_def_manager, name, definition_id)
+        if err:
+            return err
         return delete_workflow_definition(_def_manager, _loader, name, definition_id, force)
 
     @registry.tool(
@@ -241,6 +265,9 @@ def create_pipelines_registry(
     ) -> dict[str, Any]:
         if _def_manager is None:
             return {"error": "Pipeline definition tools require database connection"}
+        err = _require_pipeline(_def_manager, name, definition_id)
+        if err:
+            return err
         return export_workflow_definition(_def_manager, name, definition_id)
 
     return registry
