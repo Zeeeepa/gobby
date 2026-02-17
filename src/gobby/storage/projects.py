@@ -12,7 +12,8 @@ logger = logging.getLogger(__name__)
 
 ORPHANED_PROJECT_ID = "00000000-0000-0000-0000-000000000000"
 PERSONAL_PROJECT_ID = "00000000-0000-0000-0000-000000060887"
-SYSTEM_PROJECT_NAMES = frozenset({"_orphaned", "_migrated", "_personal", "gobby"})
+GLOBAL_PROJECT_ID = "00000000-0000-0000-0000-000000000002"
+SYSTEM_PROJECT_NAMES = frozenset({"_orphaned", "_migrated", "_personal", "_global", "gobby"})
 
 
 @dataclass

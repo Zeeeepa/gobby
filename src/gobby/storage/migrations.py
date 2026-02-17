@@ -72,6 +72,8 @@ INSERT INTO projects (id, name, repo_path, created_at, updated_at)
 VALUES ('00000000-0000-0000-0000-000000000001', '_migrated', NULL, datetime('now'), datetime('now'));
 INSERT INTO projects (id, name, repo_path, created_at, updated_at)
 VALUES ('00000000-0000-0000-0000-000000060887', '_personal', NULL, datetime('now'), datetime('now'));
+INSERT INTO projects (id, name, repo_path, created_at, updated_at)
+VALUES ('00000000-0000-0000-0000-000000000002', '_global', NULL, datetime('now'), datetime('now'));
 
 CREATE TABLE mcp_servers (
     id TEXT PRIMARY KEY,
@@ -909,7 +911,14 @@ def _import_bundled_workflows(db: LocalDatabase) -> None:
     logger.info(f"Imported {imported} bundled workflow definitions")
 
 
-MIGRATIONS: list[tuple[int, str, MigrationAction]] = []
+MIGRATIONS: list[tuple[int, str, MigrationAction]] = [
+    (
+        108,
+        "Add _global system project for system-wide MCP servers",
+        """INSERT OR IGNORE INTO projects (id, name, repo_path, created_at, updated_at)
+        VALUES ('00000000-0000-0000-0000-000000000002', '_global', NULL, datetime('now'), datetime('now'))""",
+    ),
+]
 
 
 def get_current_version(db: LocalDatabase) -> int:
