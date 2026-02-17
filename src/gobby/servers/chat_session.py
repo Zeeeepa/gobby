@@ -41,6 +41,7 @@ from claude_agent_sdk.types import (
     UserPromptSubmitHookSpecificOutput,
 )
 
+import gobby.llm.sdk_compat  # noqa: F401 — monkey-patch parse_message
 from gobby.llm.claude_models import (
     ChatEvent,
     DoneEvent,
@@ -218,6 +219,12 @@ class ChatSession:
     _pending_question: dict[str, Any] | None = field(default=None, repr=False)
     _pending_answer_event: asyncio.Event | None = field(default=None, repr=False)
     _pending_answers: dict[str, str] | None = field(default=None, repr=False)
+    _pending_approval: dict[str, Any] | None = field(default=None, repr=False)
+    _pending_approval_event: asyncio.Event | None = field(default=None, repr=False)
+    _pending_approval_decision: str | None = field(default=None, repr=False)
+    _approved_tools: set[str] = field(default_factory=set, repr=False)
+    _tool_approval_config: Any | None = field(default=None, repr=False)
+    _tool_approval_callback: Any | None = field(default=None, repr=False)
     _needs_history_injection: bool = field(default=False, repr=False)
     _message_manager: Any | None = field(default=None, repr=False)
     _max_history_message_chars: int = field(default=2000, repr=False)
@@ -392,9 +399,14 @@ class ChatSession:
     ) -> PermissionResultAllow:
         """Callback for tool permission checks.
 
-        Auto-approves all tools except AskUserQuestion, which blocks
-        until the user provides answers via provide_answer().
+        Auto-approves all tools except AskUserQuestion (which blocks
+        until the user provides answers via provide_answer()) and tools
+        matched by tool_approval policies (which block until approved).
         """
+        # Check tool approval (before AskUserQuestion, which has its own flow)
+        if tool_name != "AskUserQuestion" and self._needs_tool_approval(tool_name):
+            return await self._wait_for_tool_approval(tool_name, input_data)
+
         if tool_name != "AskUserQuestion":
             return PermissionResultAllow(updated_input=input_data)
 
@@ -433,6 +445,81 @@ class ChatSession:
     def has_pending_question(self) -> bool:
         """Whether an AskUserQuestion is currently awaiting a response."""
         return self._pending_question is not None
+
+    def _needs_tool_approval(self, tool_name: str) -> bool:
+        """Check if a tool requires user approval based on config."""
+        from fnmatch import fnmatch
+
+        config = self._tool_approval_config
+        if config is None or not config.enabled:
+            return False
+
+        # Already approved this session (approve_always)
+        if tool_name in self._approved_tools:
+            return False
+
+        # Extract server/tool from full tool name (e.g. mcp__gobby-tasks__create_task)
+        parts = tool_name.split("__")
+        server_name = parts[1] if len(parts) >= 3 else ""
+        short_tool = parts[-1] if parts else tool_name
+
+        # Check specific policies first
+        for policy in config.policies:
+            if fnmatch(server_name, policy.server_pattern) and fnmatch(short_tool, policy.tool_pattern):
+                return policy.policy != "auto"
+
+        # Fall back to default policy
+        return config.default_policy != "auto"
+
+    async def _wait_for_tool_approval(
+        self, tool_name: str, input_data: dict[str, Any]
+    ) -> PermissionResultAllow:
+        """Block until the user approves or rejects a tool call."""
+        self._pending_approval = {
+            "tool_name": tool_name,
+            "arguments": input_data,
+        }
+        self._pending_approval_decision = None
+        self._pending_approval_event = asyncio.Event()
+
+        # Notify the frontend via callback (set by the websocket handler)
+        if self._tool_approval_callback:
+            await self._tool_approval_callback(tool_name, input_data)
+
+        try:
+            await asyncio.wait_for(self._pending_approval_event.wait(), timeout=300.0)
+        except TimeoutError:
+            self._pending_approval_decision = "reject"
+            logger.warning(f"Tool approval timed out for {tool_name} in {self.conversation_id}")
+
+        decision = self._pending_approval_decision or "reject"
+
+        # Clear pending state
+        self._pending_approval = None
+        self._pending_approval_event = None
+        self._pending_approval_decision = None
+
+        if decision == "reject":
+            # Return with a rejection marker that the SDK will handle
+            return PermissionResultAllow(
+                updated_input={**input_data, "_rejected": True}
+            )
+
+        if decision == "approve_always":
+            self._approved_tools.add(tool_name)
+
+        return PermissionResultAllow(updated_input=input_data)
+
+    def provide_approval(self, decision: str) -> None:
+        """Provide approval decision for a pending tool call."""
+        self._pending_approval_decision = decision
+        if self._pending_approval_event is not None:
+            self._pending_approval_event.set()
+
+    @property
+    def has_pending_approval(self) -> bool:
+        """Whether a tool approval is currently awaiting a response."""
+        return self._pending_approval is not None
 
     async def _load_history_context(self) -> str | None:
         """Load prior conversation messages and format as context for injection.
@@ -526,6 +613,8 @@ class ChatSession:
 
             try:
                 async for message in self._client.receive_response():
+                    if message is None:
+                        continue
                     if isinstance(message, ResultMessage):
                         # Fallback: if no text was streamed (e.g. Opus thinking-only
                         # response), emit the ResultMessage.result as a TextChunk

@@ -23,6 +23,7 @@ from claude_agent_sdk import (
     query,
 )
 
+import gobby.llm.sdk_compat  # noqa: F401 — monkey-patch parse_message
 from gobby.llm.claude_models import (
     ChatEvent,
     DoneEvent,
@@ -99,6 +100,8 @@ async def stream_with_mcp_tools(
 
     try:
         async for message in query(prompt=prompt, options=options):
+            if message is None:
+                continue
             if isinstance(message, ResultMessage):
                 # Final result - extract metadata
                 cost_usd = getattr(message, "total_cost_usd", None)
