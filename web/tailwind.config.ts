@@ -1,5 +1,6 @@
 export default {
   content: ['./src/components/chat-v2/**/*.{ts,tsx}'],
+  important: true,
   corePlugins: { preflight: false },
   theme: {
     extend: {
