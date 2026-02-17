@@ -109,12 +109,6 @@ triggers:
     - action: synthesize_title
       when: "session.title == None"
 
-    # Re-synthesize title from transcript in background on subsequent prompts
-    - action: synthesize_title
-      background: true
-      source: transcript
-      when: "session.title != None"
-
     - action: memory_recall_relevant
       limit: 5
 

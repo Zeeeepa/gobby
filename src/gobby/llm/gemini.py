@@ -192,7 +192,7 @@ class GeminiProvider(LLMProvider):
         Generate text using Gemini via LiteLLM.
         """
         if not self._litellm:
-            return "Generation unavailable (LiteLLM not initialized)"
+            raise RuntimeError("Generation unavailable (LiteLLM not initialized)")
 
         model_name = model or "gemini-1.5-flash"
         litellm_model = self._get_model(model_name)
@@ -213,7 +213,7 @@ class GeminiProvider(LLMProvider):
             return response.choices[0].message.content or ""
         except Exception as e:
             self.logger.error(f"Failed to generate text with Gemini via LiteLLM: {e}")
-            return f"Generation failed: {e}"
+            raise RuntimeError(f"Failed to generate text with Gemini via LiteLLM: {e}") from e
 
     async def generate_json(
         self,

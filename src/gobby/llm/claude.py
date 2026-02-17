@@ -417,7 +417,7 @@ class ClaudeLLMProvider(LLMProvider):
         elif self._litellm:
             return await self._generate_text_litellm(prompt, system_prompt, model)
         else:
-            return "Generation unavailable (no LLM backend configured)"
+            raise RuntimeError("Generation unavailable (no LLM backend configured)")
 
     async def _generate_text_sdk(
         self,
@@ -428,7 +428,7 @@ class ClaudeLLMProvider(LLMProvider):
         """Generate text using Claude Agent SDK (subscription mode)."""
         cli_path = self._verify_cli_path()
         if not cli_path:
-            return "Generation unavailable (Claude CLI not found)"
+            raise RuntimeError("Generation unavailable (Claude CLI not found)")
 
         # Configure Claude Agent SDK
         # Use tools=[] to disable all tools for pure text generation
@@ -475,7 +475,7 @@ class ClaudeLLMProvider(LLMProvider):
             return await _run_query()
         except Exception as e:
             self.logger.error(f"Failed to generate text with Claude: {e}", exc_info=True)
-            return f"Generation failed: {e}"
+            raise RuntimeError(f"Failed to generate text with Claude: {e}") from e
 
     async def _generate_text_litellm(
         self,
@@ -485,7 +485,7 @@ class ClaudeLLMProvider(LLMProvider):
     ) -> str:
         """Generate text using LiteLLM (api_key mode)."""
         if not self._litellm:
-            return "Generation unavailable (LiteLLM not initialized)"
+            raise RuntimeError("Generation unavailable (LiteLLM not initialized)")
 
         model = model or "claude-haiku-4-5"
         litellm_model = f"anthropic/{model}"
@@ -505,7 +505,7 @@ class ClaudeLLMProvider(LLMProvider):
             return response.choices[0].message.content or ""
         except Exception as e:
             self.logger.error(f"Failed to generate text with LiteLLM: {e}", exc_info=True)
-            return f"Generation failed: {e}"
+            raise RuntimeError(f"Failed to generate text with LiteLLM: {e}") from e
 
     async def generate_json(
         self,
