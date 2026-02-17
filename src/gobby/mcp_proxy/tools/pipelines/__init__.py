@@ -211,7 +211,10 @@ def create_pipelines_registry(
         project_id: str | None = None,
     ) -> dict[str, Any]:
         if _def_manager is None or _loader is None:
-            return {"success": False, "error": "Pipeline definition tools require database connection"}
+            return {
+                "success": False,
+                "error": "Pipeline definition tools require database connection",
+            }
         import yaml as _yaml
 
         try:
@@ -237,7 +240,10 @@ def create_pipelines_registry(
         yaml_content: str | None = None,
     ) -> dict[str, Any]:
         if _def_manager is None or _loader is None:
-            return {"success": False, "error": "Pipeline definition tools require database connection"}
+            return {
+                "success": False,
+                "error": "Pipeline definition tools require database connection",
+            }
         err = _require_pipeline(_def_manager, name, definition_id)
         if err:
             return err
@@ -264,7 +270,10 @@ def create_pipelines_registry(
         force: bool = False,
     ) -> dict[str, Any]:
         if _def_manager is None or _loader is None:
-            return {"success": False, "error": "Pipeline definition tools require database connection"}
+            return {
+                "success": False,
+                "error": "Pipeline definition tools require database connection",
+            }
         err = _require_pipeline(_def_manager, name, definition_id)
         if err:
             return err
@@ -279,7 +288,10 @@ def create_pipelines_registry(
         definition_id: str | None = None,
     ) -> dict[str, Any]:
         if _def_manager is None:
-            return {"success": False, "error": "Pipeline definition tools require database connection"}
+            return {
+                "success": False,
+                "error": "Pipeline definition tools require database connection",
+            }
         err = _require_pipeline(_def_manager, name, definition_id)
         if err:
             return err
