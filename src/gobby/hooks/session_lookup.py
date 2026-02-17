@@ -124,6 +124,7 @@ class SessionLookupService:
                             jsonl_path=event.data.get("transcript_path"),
                             source=event.source.value,
                             project_path=cwd,
+                            terminal_context=event.data.get("terminal_context"),
                         )
 
         return platform_session_id
