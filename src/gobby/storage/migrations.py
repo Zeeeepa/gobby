@@ -37,7 +37,7 @@ MigrationAction = str | Callable[[LocalDatabase], None]
 # Baseline version - the schema state that is applied for new databases directly.
 # Must be bumped when BASELINE_SCHEMA is updated with columns from new migrations,
 # so that fresh databases don't re-run migrations already baked into the baseline.
-BASELINE_VERSION = 107
+BASELINE_VERSION = 109
 
 # Minimum migration version - databases older than this cannot be upgraded
 # because legacy migrations (pre-v108) have been removed.
@@ -799,6 +799,7 @@ CREATE TABLE config_store (
     key TEXT PRIMARY KEY,
     value TEXT NOT NULL,
     source TEXT NOT NULL DEFAULT 'user',
+    is_secret INTEGER NOT NULL DEFAULT 0,
     updated_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 CREATE INDEX idx_config_store_source ON config_store(source);
@@ -917,6 +918,11 @@ MIGRATIONS: list[tuple[int, str, MigrationAction]] = [
         "Add _global system project for system-wide MCP servers",
         """INSERT OR IGNORE INTO projects (id, name, repo_path, created_at, updated_at)
         VALUES ('00000000-0000-0000-0000-000000000002', '_global', NULL, datetime('now'), datetime('now'))""",
+    ),
+    (
+        109,
+        "Add is_secret column to config_store",
+        "ALTER TABLE config_store ADD COLUMN is_secret INTEGER NOT NULL DEFAULT 0",
     ),
 ]
 

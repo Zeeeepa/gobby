@@ -25,7 +25,13 @@ from gobby.config.app import (
 )
 from gobby.prompts.loader import PromptLoader
 from gobby.prompts.models import parse_frontmatter
-from gobby.storage.config_store import ConfigStore, flatten_config, unflatten_config
+from gobby.storage.config_store import (
+    ConfigStore,
+    config_key_to_secret_name,
+    flatten_config,
+    is_secret_key_name,
+    unflatten_config,
+)
 from gobby.storage.prompts import LocalPromptManager
 from gobby.storage.secrets import VALID_CATEGORIES, SecretStore
 from gobby.utils.metrics import get_metrics_collector
@@ -73,6 +79,7 @@ class ImportConfigRequest(BaseModel):
 
     config_store: dict[str, Any] | None = None
     config: dict[str, Any] | None = None  # Legacy: nested config dict (flattened on import)
+    config_secret_keys: list[str] | None = None
     prompts: dict[str, str] | None = None
 
 
@@ -131,37 +138,96 @@ def create_configuration_router(server: "HTTPServer") -> APIRouter:
 
     @router.get("/values")
     async def get_config_values() -> JSONResponse:
-        """Return current config as nested dict."""
+        """Return current config as nested dict with secrets masked."""
         metrics.inc_counter("http_requests_total")
         config = server.services.config
         values = config.model_dump(mode="json", exclude_none=True)
-        return JSONResponse(content=values)
+
+        # Collect secret keys from DB flag + auto-detection
+        config_store = _get_config_store()
+        secret_keys = set(config_store.get_secret_keys())
+        flat = flatten_config(values)
+        for key in flat:
+            if is_secret_key_name(key):
+                secret_keys.add(key)
+
+        # Mask secret values in the flat dict, then unflatten
+        for key in secret_keys:
+            if key in flat and flat[key] and flat[key] != "":
+                flat[key] = "********"
+        masked_values = unflatten_config(flat)
+
+        return JSONResponse(
+            content={"values": masked_values, "secret_keys": sorted(secret_keys)}
+        )
 
     @router.put("/values")
     async def save_config_values(request: SaveConfigRequest) -> JSONResponse:
         """Validate partial update, merge with existing, persist to DB.
 
+        Secret values are encrypted via SecretStore. Masked values
+        (``"********"``) are skipped; empty strings clear the secret.
+
         Returns {ok: true, requires_restart: true} on success.
         """
         metrics.inc_counter("http_requests_total")
         try:
-            # Load current config as dict
-            current = server.services.config.model_dump(mode="json", exclude_none=True)
-
-            # Deep merge: update current with new values
-            deep_merge(current, request.values)
-
-            # Validate the merged config
-            new_config = DaemonConfig(**current)
-
-            # Persist to DB: flatten the incoming partial update and store
             config_store = _get_config_store()
+            existing_secret_keys = set(config_store.get_secret_keys())
             flat_updates = flatten_config(request.values)
-            count = config_store.set_many(flat_updates, source="user")
+
+            # Separate secret keys from normal keys
+            secret_entries: dict[str, str] = {}
+            normal_entries: dict[str, Any] = {}
+            for key, value in flat_updates.items():
+                if is_secret_key_name(key) or key in existing_secret_keys:
+                    if value == "********":
+                        # Unchanged masked value — skip
+                        continue
+                    secret_entries[key] = value
+                else:
+                    normal_entries[key] = value
+
+            # For Pydantic validation, substitute secret values with $secret: refs
+            validation_flat = dict(flat_updates)
+            for key in secret_entries:
+                if secret_entries[key] == "" or secret_entries[key] is None:
+                    validation_flat.pop(key, None)
+                else:
+                    validation_flat[key] = f"$secret:{config_key_to_secret_name(key)}"
+            # Remove masked values from validation
+            validation_flat = {
+                k: v for k, v in validation_flat.items() if v != "********"
+            }
+
+            # Load current config, deep merge, validate
+            current = server.services.config.model_dump(mode="json", exclude_none=True)
+            deep_merge(current, unflatten_config(validation_flat))
+            DaemonConfig(**current)  # Validate merged config
+
+            # Persist normal (non-secret) keys
+            count = 0
+            if normal_entries:
+                count = config_store.set_many(normal_entries, source="user")
+
+            # Persist secret keys via SecretStore
+            secret_store = _get_secret_store()
+            for key, value in secret_entries.items():
+                str_value = str(value) if value is not None else ""
+                if str_value == "":
+                    config_store.clear_secret(key, secret_store)
+                else:
+                    config_store.set_secret(key, str_value, secret_store, source="user")
+                    count += 1
+
             logger.info(f"Config saved to DB ({count} keys)")
 
-            # Update in-memory config so subsequent reads reflect the change
-            server.services.config = new_config
+            # Update in-memory config with actual (decrypted) values
+            resolved = server.services.config.model_dump(mode="json", exclude_none=True)
+            deep_merge(resolved, unflatten_config({
+                k: v for k, v in flat_updates.items() if v != "********"
+            }))
+            server.services.config = DaemonConfig(**resolved)
 
             return JSONResponse(
                 content={
@@ -555,10 +621,14 @@ def create_configuration_router(server: "HTTPServer") -> APIRouter:
             store = _get_secret_store()
             secret_names = [s.to_dict() for s in store.list()]
 
+            # Config keys flagged as secrets (for import restoration)
+            config_secret_keys = config_store.get_secret_keys()
+
             return JSONResponse(
                 content={
                     "exported_at": datetime.now(UTC).isoformat(),
                     "config_store": flat_config,
+                    "config_secret_keys": config_secret_keys,
                     "prompts": prompt_overrides,
                     "secrets": secret_names,  # Names and metadata only, never values
                 }
@@ -608,6 +678,14 @@ def create_configuration_router(server: "HTTPServer") -> APIRouter:
                     count = config_store.set_many(diff, source="import") if diff else 0
                 summary_parts.append(f"config restored ({count} keys)")
                 config_imported = True
+
+            # Restore is_secret flags from export bundle
+            if request.config_secret_keys:
+                for key in request.config_secret_keys:
+                    config_store.db.execute(
+                        "UPDATE config_store SET is_secret = 1 WHERE key = ?",
+                        (key,),
+                    )
 
             # Import prompt overrides into database
             if request.prompts:

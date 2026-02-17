@@ -46,6 +46,7 @@ export function useConfiguration() {
   // Schema + Config
   const [schema, setSchema] = useState<Record<string, unknown> | null>(null)
   const [configValues, setConfigValues] = useState<Record<string, unknown>>({})
+  const [secretKeys, setSecretKeys] = useState<string[]>([])
   const [isLoading, setIsLoading] = useState(false)
 
   // Template (full defaults + DB overrides as YAML)
@@ -80,7 +81,14 @@ export function useConfiguration() {
       const res = await fetch('/api/config/values')
       if (res.ok) {
         const data = await res.json()
-        setConfigValues(data)
+        // New shape: { values, secret_keys }; legacy fallback: bare values dict
+        if (data.values && typeof data.values === 'object') {
+          setConfigValues(data.values)
+          setSecretKeys(data.secret_keys || [])
+        } else {
+          setConfigValues(data)
+          setSecretKeys([])
+        }
       }
     } catch (e) {
       console.error('Failed to fetch config values:', e)
@@ -310,6 +318,7 @@ export function useConfiguration() {
     // Schema + Config
     schema,
     configValues,
+    secretKeys,
     isLoading,
     fetchConfig,
     saveConfig,
