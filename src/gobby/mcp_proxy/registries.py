@@ -367,6 +367,7 @@ def setup_internal_registries(
             loader=workflow_loader,
             executor=pipeline_executor,
             execution_manager=pipeline_execution_manager,
+            db=db,
         )
         manager.add_registry(pipelines_registry)
         logger.debug("Pipelines registry initialized")

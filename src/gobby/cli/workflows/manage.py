@@ -1,6 +1,7 @@
 """Management commands for workflows."""
 
 import logging
+import os
 import shutil
 from pathlib import Path
 from urllib.parse import urlparse
@@ -35,8 +36,8 @@ def import_workflow(ctx: click.Context, source: str, name: str | None, is_global
         click.echo(f"File not found: {source}", err=True)
         raise SystemExit(1)
 
-    if not source_path.suffix == ".yaml":
-        click.echo("Workflow file must have .yaml extension.", err=True)
+    if source_path.suffix.lower() not in {".yaml", ".yml"}:
+        click.echo("Workflow file must have .yaml or .yml extension.", err=True)
         raise SystemExit(1)
 
     # Validate it's a valid workflow
@@ -104,18 +105,23 @@ def reload_workflows(ctx: click.Context) -> None:
             for proc in psutil.process_iter(["pid", "name", "cmdline"]):
                 try:
                     cmdline = proc.cmdline()
-                    if "gobby" in cmdline and "start" in cmdline:
-                        is_running = True
-                        break
-                    # Also check for "python -m gobby start" or similar
-                    if len(cmdline) >= 2 and cmdline[1].endswith("gobby") and "start" in cmdline:
+                    if not cmdline:
+                        continue
+                    # Check if the process is a gobby daemon
+                    cmd_base = os.path.basename(cmdline[0])
+                    has_gobby = (
+                        "gobby" in cmd_base
+                        or (len(cmdline) >= 3 and cmdline[1] == "-m" and cmdline[2] == "gobby")
+                        or (cmd_base == "uv" and "run" in cmdline[1:] and "gobby" in cmdline[1:])
+                    )
+                    has_start = "start" in cmdline[1:]
+                    if has_gobby and has_start:
                         is_running = True
                         break
                 except (psutil.NoSuchProcess, psutil.AccessDenied):
                     continue
         except psutil.Error:
-            # Fallback to connection attempt
-            is_running = True
+            is_running = False
 
         if is_running:
             try:
@@ -132,8 +138,7 @@ def reload_workflows(ctx: click.Context) -> None:
                 else:
                     click.echo(f"Daemon returned status {response.status_code}", err=True)
             except httpx.ConnectError:
-                # Daemon not actually running or listening
-                pass
+                click.echo("Could not reach daemon; reload may not have occurred.", err=True)
             except httpx.RequestError as e:
                 click.echo(f"Failed to communicate with daemon: {e}", err=True)
     except Exception as e:

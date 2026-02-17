@@ -574,7 +574,7 @@ def test_import_workflow_not_yaml(cli_runner, tmp_path) -> None:
     result = cli_runner.invoke(workflows, ["import", str(source_file)])
 
     assert result.exit_code == 1
-    assert ".yaml extension" in result.output
+    assert ".yaml or .yml extension" in result.output
 
 
 def test_import_workflow_file_not_found(cli_runner) -> None:

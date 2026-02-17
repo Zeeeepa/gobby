@@ -113,7 +113,7 @@ def show_workflow(ctx: click.Context, name: str, json_format: bool) -> None:
         raise SystemExit(1)
 
     if json_format:
-        click.echo(json.dumps(definition.dict(), indent=2, default=str))
+        click.echo(json.dumps(definition.model_dump(), indent=2, default=str))
         return
 
     click.echo(f"Workflow: {definition.name}")

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import logging
 import secrets
 from typing import TYPE_CHECKING, Any
@@ -81,14 +82,16 @@ class ApprovalManager:
         message = step.approval.message or f"Approval required for step '{step.id}'"
 
         # Update step status to WAITING_APPROVAL and store token
-        self.execution_manager.update_step_execution(
+        await asyncio.to_thread(
+            self.execution_manager.update_step_execution,
             step_execution_id=step_execution.id,
             status=StepStatus.WAITING_APPROVAL,
             approval_token=token,
         )
 
         # Update execution status to WAITING_APPROVAL
-        self.execution_manager.update_execution_status(
+        await asyncio.to_thread(
+            self.execution_manager.update_execution_status,
             execution_id=execution.id,
             status=ExecutionStatus.WAITING_APPROVAL,
             resume_token=token,

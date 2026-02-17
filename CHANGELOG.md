@@ -8,6 +8,30 @@ All notable changes to Gobby are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.18]
+
+### Breaking Changes
+
+- **Database migration baseline raised to v107.** The minimum supported database version is now v107 (`_MIN_MIGRATION_VERSION = 107`). Databases created before v107 will raise `MigrationUnsupportedError` on startup. Recovery: backup `~/.gobby/gobby-hub.db`, delete it, and restart the daemon to recreate from the current baseline schema.
+
+### Improvements
+
+- Null-safe audit log rendering when `entry.result` is None
+- Specific exception handlers in workflow CLI and pipeline modules
+- Cache DB/state manager instances in workflow CLI helpers
+- Pydantic v2 migration: `.dict()` → `.model_dump()` in workflow inspect
+- Accept `.yml` extension for workflow imports
+- Tighter daemon process detection in workflow reload
+- Informative error message when daemon unreachable during reload
+- Cache `value.lower()` in variable type parsing
+- Wrap blocking DB calls with `asyncio.to_thread` in pipeline gatekeeper
+- Preserve negative exit codes in pipeline exec steps
+- Wrap blocking `spawn_agent` with `asyncio.to_thread` in pipeline handlers
+- Expand sensitive variable filtering patterns in pipeline renderer
+- Add `VoiceTranscriptionMessage` type with runtime validation in web chat
+
+---
+
 ## [0.2.17] - 2026-02-15
 
 ### Features

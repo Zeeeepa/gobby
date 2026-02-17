@@ -85,7 +85,8 @@ async def execute_spawn_session_step(
     session_id = session.id if hasattr(session, "id") else str(session)
 
     try:
-        result = spawner.spawn_agent(
+        result = await asyncio.to_thread(
+            spawner.spawn_agent,
             cli=cli,
             cwd=cwd or ".",
             session_id=session_id,
@@ -186,7 +187,7 @@ async def execute_exec_step(command: str, context: dict[str, Any]) -> dict[str, 
         return {
             "stdout": stdout.decode("utf-8", errors="replace"),
             "stderr": stderr.decode("utf-8", errors="replace"),
-            "exit_code": proc.returncode or 0,
+            "exit_code": proc.returncode,
         }
     except (OSError, ValueError) as e:
         logger.error(f"Command execution failed: {e}", exc_info=True)

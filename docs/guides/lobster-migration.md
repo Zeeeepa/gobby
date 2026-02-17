@@ -20,6 +20,9 @@ Gobby's pipeline system offers **feature parity+ with Lobster**:
 | **MCP tool exposure** | No | Yes | `expose_as_tool: true` |
 | **Composable pipelines** | No | Yes | `invoke_pipeline` step type |
 | **Run from workflows** | No | Yes | `run_pipeline` action |
+| **MCP tool steps** | No | Yes | `mcp` step type for direct tool calls |
+| **Session spawning** | No | Yes | `spawn_session` step type |
+| **Workflow activation** | No | Yes | `activate_workflow` step type |
 
 ## Quick Migration Options
 
@@ -182,14 +185,14 @@ name: deploy
 type: pipeline
 
 webhooks:
-  on_approval_required:
+  on_approval_pending:
     url: https://hooks.slack.com/xxx
     method: POST
     body:
       text: "Deployment needs approval"
       execution_id: "{{ execution_id }}"
 
-  on_completed:
+  on_complete:
     url: https://api.pagerduty.com/resolve
     headers:
       Authorization: "Bearer {{ env.PD_TOKEN }}"
@@ -250,6 +253,28 @@ steps:
 
   - id: deploy
     invoke_pipeline: deploy-staging
+```
+
+### MCP Tool Steps
+
+Call MCP tools directly from pipeline steps without needing an LLM:
+
+```yaml
+steps:
+  - id: get-tasks
+    mcp:
+      server: gobby-tasks
+      tool: list_tasks
+      arguments:
+        status: open
+
+  - id: create-issue
+    mcp:
+      server: github
+      tool: create_issue
+      arguments:
+        title: "Tasks summary"
+        body: ${{ steps.get-tasks.output }}
 ```
 
 ### Run from Workflow Actions
@@ -367,7 +392,7 @@ inputs:
 
 # NEW: Webhook notifications
 webhooks:
-  on_approval_required:
+  on_approval_pending:
     url: https://slack.com/webhook
     body:
       text: "Deployment to {{ inputs.env }} needs approval"

@@ -628,6 +628,10 @@ class ChatMixin:
         session = self._chat_sessions.get(conversation_id)
         db_session_id = getattr(session, "db_session_id", None) if session else None
 
+        # Fall back to session_id from the message (for historical sessions not in memory)
+        if not db_session_id:
+            db_session_id = data.get("session_id")
+
         # Stop the ChatSession if active
         if session:
             await self._cancel_active_chat(conversation_id)

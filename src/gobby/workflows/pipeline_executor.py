@@ -103,7 +103,7 @@ class PipelineExecutor:
         if self.event_callback:
             try:
                 await self.event_callback(event, execution_id, **kwargs)
-            except Exception:
+            except (ValueError, RuntimeError, OSError):
                 logger.warning(
                     "Failed to emit pipeline event",
                     extra={"event": event, "execution_id": execution_id},

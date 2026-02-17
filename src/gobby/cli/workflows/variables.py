@@ -41,11 +41,12 @@ def set_variable(
 
     # Parse value type
     parsed_value: str | int | float | bool | None
-    if value.lower() == "null" or value.lower() == "none":
+    value_lower = value.lower()
+    if value_lower in ("null", "none"):
         parsed_value = None
-    elif value.lower() == "true":
+    elif value_lower == "true":
         parsed_value = True
-    elif value.lower() == "false":
+    elif value_lower == "false":
         parsed_value = False
     else:
         # Try int, then float, then string
