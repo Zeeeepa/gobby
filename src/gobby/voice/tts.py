@@ -77,6 +77,7 @@ class ElevenLabsTTS:
                 "voice_settings": {
                     "stability": 0.5,
                     "similarity_boost": 0.75,
+                    "speed": self._config.elevenlabs_speed,
                 },
                 "xi_api_key": self._config.elevenlabs_api_key,
                 "output_format": self._config.audio_format,

@@ -37,10 +37,18 @@ class VoiceConfig(BaseModel):
         description="ElevenLabs voice ID (default: Rachel).",
     )
     elevenlabs_model_id: str = Field(
-        default="eleven_turbo_v2_5",
+        default="eleven_v3",
         description="ElevenLabs model ID for TTS.",
+    )
+    elevenlabs_speed: float = Field(
+        default=0.75,
+        description="ElevenLabs TTS speed (0.5–2.0, default 0.75 = 25% slower).",
     )
     audio_format: str = Field(
         default="mp3_44100_128",
         description="Audio output format for TTS.",
+    )
+    whisper_prompt: str = Field(
+        default="Gobby",
+        description="Initial prompt for Whisper STT to bias vocabulary (e.g. proper nouns).",
     )

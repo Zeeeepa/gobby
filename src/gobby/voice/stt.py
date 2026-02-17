@@ -109,6 +109,7 @@ class WhisperSTT:
                     str(tmp_path),
                     vad_filter=True,
                     vad_parameters={"min_silence_duration_ms": 500},
+                    initial_prompt=self._config.whisper_prompt or None,
                 )
                 text = " ".join(seg.text.strip() for seg in segments)
                 logger.debug(
