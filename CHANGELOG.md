@@ -14,6 +14,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **Database migration baseline raised to v107.** The minimum supported database version is now v107 (`_MIN_MIGRATION_VERSION = 107`). Databases created before v107 will raise `MigrationUnsupportedError` on startup. Recovery: backup `~/.gobby/gobby-hub.db`, delete it, and restart the daemon to recreate from the current baseline schema.
 
+### Features
+
+- **CRUD MCP tools for workflow/pipeline definitions** — `create_workflow`, `update_workflow`, `delete_workflow`, `export_workflow` tools with Pydantic validation, bundled-definition protection, and loader cache invalidation (#8402)
+- **`get_pipeline` tool** with type filtering to retrieve pipeline details including steps, inputs, and outputs (#8404)
+- **Pipeline CRUD wrappers** — `create_pipeline`, `update_pipeline`, `delete_pipeline`, `export_pipeline` with type-guarded routing so pipeline tools reject workflow definitions and vice versa (#8404)
+
+### Bug Fixes
+
+- Add type filtering to pipeline CRUD wrappers to prevent incorrect cross-type results (#8405)
+- Fix chat UI issues — conversation titles, delete confirmation, `/clear` command, and config migration (#8406)
+- Fix CLI workflow issues — variable commands, inspect output, manage commands, and test coverage gaps (#8407)
+- Deduplicate memory entries in `.gobby/memories.jsonl` to reduce noisy recall (#8409)
+- Add `httpx.RequestError` handler in workflow check command for consistent error reporting (#8409)
+- Close DB connection in `_reset_state_manager_for_tests` before nulling globals (#8409)
+- Standardize pipeline error returns to always include `success: false` flag (#8409)
+- Narrow exception handling in workflow definition creation from broad `Exception` to `yaml.YAMLError` and `ValueError`/`TypeError` (#8409)
+- Only include `session_id` in `deleteConversation` WebSocket payload when defined (#8409)
+
 ### Improvements
 
 - Null-safe audit log rendering when `entry.result` is None
@@ -29,6 +47,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Wrap blocking `spawn_agent` with `asyncio.to_thread` in pipeline handlers
 - Expand sensitive variable filtering patterns in pipeline renderer
 - Add `VoiceTranscriptionMessage` type with runtime validation in web chat
+
+### Documentation
+
+- Update workflow, pipeline, and Lobster migration guides to match current codebase (#8408)
+
+### Tests
+
+- Add 33-test suite for workflow/pipeline CRUD tools covering create, update, delete, export, type filtering, and error paths (#8402)
 
 ---
 
