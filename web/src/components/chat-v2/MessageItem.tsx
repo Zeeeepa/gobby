@@ -62,7 +62,7 @@ export function MessageItem({ message, isStreaming = false, isThinking = false, 
         {message.content && (
           <div className="v2-message-content text-sm leading-relaxed text-foreground">
             <Markdown content={message.content} id={message.id} />
-            {isStreaming && <span className="v2-cursor inline-block w-2 h-4 bg-foreground animate-pulse ml-0.5" />}
+            {isStreaming && <><span>{' '}</span><span className="v2-cursor inline-block w-2 h-4 bg-foreground animate-pulse" /></>}
           </div>
         )}
       </div>
