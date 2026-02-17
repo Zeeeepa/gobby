@@ -37,7 +37,7 @@ def test_migrations_fresh_db(tmp_path) -> None:
     # Run migrations
     applied = run_migrations(db)
 
-    # Fresh databases apply baseline schema (v75) + incremental migrations
+    # Fresh databases apply baseline schema (v107) + incremental migrations
     expected_count = 1 + len([m for m in MIGRATIONS if m[0] > BASELINE_VERSION])
     assert applied == expected_count
 

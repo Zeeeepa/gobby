@@ -28,16 +28,16 @@ def cli_runner():
 
 
 def test_list_workflows_empty(cli_runner, mock_loader) -> None:
-    with patch("gobby.cli.workflows.get_workflow_loader", return_value=mock_loader):
-        with patch("gobby.cli.workflows.get_project_path", return_value=None):
+    with patch("gobby.cli.workflows.common.get_workflow_loader", return_value=mock_loader):
+        with patch("gobby.cli.workflows.common.get_project_path", return_value=None):
             result = cli_runner.invoke(workflows, ["list"])
             assert result.exit_code == 0
             assert "No workflows found" in result.output
 
 
 def test_list_workflows_found(cli_runner, mock_loader, tmp_path) -> None:
-    with patch("gobby.cli.workflows.get_workflow_loader", return_value=mock_loader):
-        with patch("gobby.cli.workflows.get_project_path", return_value=tmp_path):
+    with patch("gobby.cli.workflows.common.get_workflow_loader", return_value=mock_loader):
+        with patch("gobby.cli.workflows.common.get_project_path", return_value=tmp_path):
             # Mock glob
             wf_file = tmp_path / "test_wf.yaml"
             wf_file.write_text("name: Test Workflow\ntype: step\ndescription: A test")
@@ -55,8 +55,8 @@ def test_list_workflows_found(cli_runner, mock_loader, tmp_path) -> None:
 
 
 def test_show_workflow(cli_runner, mock_loader) -> None:
-    with patch("gobby.cli.workflows.get_workflow_loader", return_value=mock_loader):
-        with patch("gobby.cli.workflows.get_project_path", return_value=None):
+    with patch("gobby.cli.workflows.common.get_workflow_loader", return_value=mock_loader):
+        with patch("gobby.cli.workflows.common.get_project_path", return_value=None):
             defi = WorkflowDefinition(
                 name="test", steps=[WorkflowStep(name="step1", description="step desc")]
             )
@@ -73,21 +73,21 @@ def test_show_workflow(cli_runner, mock_loader) -> None:
 def test_status_no_session(cli_runner, mock_state_manager) -> None:
     import click
 
-    with patch("gobby.cli.workflows.get_state_manager", return_value=mock_state_manager):
+    with patch("gobby.cli.workflows.common.get_state_manager", return_value=mock_state_manager):
         # Mock resolve_session_id to raise no active session error
-        # The CLI catches this and does SystemExit(1) without message
+        # ClickException now propagates — Click's runner displays the message and exits 1
         with patch(
-            "gobby.cli.workflows.resolve_session_id",
+            "gobby.cli.workflows.common.resolve_session_id",
             side_effect=click.ClickException("No active session found"),
         ):
             result = cli_runner.invoke(workflows, ["status"])
-            # Exit code 1 indicates no session found
             assert result.exit_code == 1
+            assert "No active session found" in result.output
 
 
 def test_status_active(cli_runner, mock_state_manager) -> None:
-    with patch("gobby.cli.workflows.get_state_manager", return_value=mock_state_manager):
-        with patch("gobby.cli.workflows.resolve_session_id", return_value="sess1"):
+    with patch("gobby.cli.workflows.common.get_state_manager", return_value=mock_state_manager):
+        with patch("gobby.cli.workflows.common.resolve_session_id", return_value="sess1"):
             state = MagicMock(spec=WorkflowState)
             state.workflow_name = "active_wf"
             state.step = "step1"
@@ -106,10 +106,10 @@ def test_status_active(cli_runner, mock_state_manager) -> None:
 
 
 def test_set_workflow(cli_runner, mock_loader, mock_state_manager) -> None:
-    with patch("gobby.cli.workflows.get_workflow_loader", return_value=mock_loader):
-        with patch("gobby.cli.workflows.get_state_manager", return_value=mock_state_manager):
-            with patch("gobby.cli.workflows.get_project_path", return_value=None):
-                with patch("gobby.cli.workflows.resolve_session_id", return_value="sess1"):
+    with patch("gobby.cli.workflows.common.get_workflow_loader", return_value=mock_loader):
+        with patch("gobby.cli.workflows.common.get_state_manager", return_value=mock_state_manager):
+            with patch("gobby.cli.workflows.common.get_project_path", return_value=None):
+                with patch("gobby.cli.workflows.common.resolve_session_id", return_value="sess1"):
                     # Mock definition (enabled=False for on-demand activation)
                     defi = WorkflowDefinition(
                         name="new_wf", enabled=False, steps=[WorkflowStep(name="start")]
@@ -127,8 +127,8 @@ def test_set_workflow(cli_runner, mock_loader, mock_state_manager) -> None:
 
 
 def test_clear_workflow(cli_runner, mock_state_manager) -> None:
-    with patch("gobby.cli.workflows.get_state_manager", return_value=mock_state_manager):
-        with patch("gobby.cli.workflows.resolve_session_id", return_value="sess1"):
+    with patch("gobby.cli.workflows.common.get_state_manager", return_value=mock_state_manager):
+        with patch("gobby.cli.workflows.common.resolve_session_id", return_value="sess1"):
             state = MagicMock(spec=WorkflowState)
             state.workflow_name = "w1"
             mock_state_manager.get_state.return_value = state
@@ -147,8 +147,8 @@ def test_clear_workflow(cli_runner, mock_state_manager) -> None:
 
 def test_list_workflows_json_format(cli_runner, mock_loader, tmp_path) -> None:
     """Test list workflows with JSON output format."""
-    with patch("gobby.cli.workflows.get_workflow_loader", return_value=mock_loader):
-        with patch("gobby.cli.workflows.get_project_path", return_value=tmp_path):
+    with patch("gobby.cli.workflows.common.get_workflow_loader", return_value=mock_loader):
+        with patch("gobby.cli.workflows.common.get_project_path", return_value=tmp_path):
             wf_file = tmp_path / "my_workflow.yaml"
             wf_file.write_text("name: My Workflow\ntype: step\ndescription: Test")
             mock_loader.global_dirs = [tmp_path]
@@ -163,8 +163,8 @@ def test_list_workflows_json_format(cli_runner, mock_loader, tmp_path) -> None:
 
 def test_list_workflows_with_all_flag(cli_runner, mock_loader, tmp_path) -> None:
     """Test list workflows with --all flag."""
-    with patch("gobby.cli.workflows.get_workflow_loader", return_value=mock_loader):
-        with patch("gobby.cli.workflows.get_project_path", return_value=tmp_path):
+    with patch("gobby.cli.workflows.common.get_workflow_loader", return_value=mock_loader):
+        with patch("gobby.cli.workflows.common.get_project_path", return_value=tmp_path):
             wf_file = tmp_path / "lifecycle_wf.yaml"
             wf_file.write_text(
                 "name: Lifecycle\ntype: lifecycle\ndescription: A lifecycle workflow"
@@ -185,8 +185,8 @@ def test_list_workflows_with_all_flag(cli_runner, mock_loader, tmp_path) -> None
 
 def test_show_workflow_not_found(cli_runner, mock_loader) -> None:
     """Test show workflow when workflow not found."""
-    with patch("gobby.cli.workflows.get_workflow_loader", return_value=mock_loader):
-        with patch("gobby.cli.workflows.get_project_path", return_value=None):
+    with patch("gobby.cli.workflows.common.get_workflow_loader", return_value=mock_loader):
+        with patch("gobby.cli.workflows.common.get_project_path", return_value=None):
             mock_loader.load_workflow_sync.return_value = None
 
             result = cli_runner.invoke(workflows, ["show", "nonexistent"])
@@ -197,8 +197,8 @@ def test_show_workflow_not_found(cli_runner, mock_loader) -> None:
 
 def test_show_workflow_json_format(cli_runner, mock_loader) -> None:
     """Test show workflow with JSON output."""
-    with patch("gobby.cli.workflows.get_workflow_loader", return_value=mock_loader):
-        with patch("gobby.cli.workflows.get_project_path", return_value=None):
+    with patch("gobby.cli.workflows.common.get_workflow_loader", return_value=mock_loader):
+        with patch("gobby.cli.workflows.common.get_project_path", return_value=None):
             defi = WorkflowDefinition(
                 name="test",
                 steps=[WorkflowStep(name="step1", description="step desc")],
@@ -214,8 +214,8 @@ def test_show_workflow_json_format(cli_runner, mock_loader) -> None:
 
 def test_show_workflow_with_tools(cli_runner, mock_loader) -> None:
     """Test show workflow with allowed/blocked tools."""
-    with patch("gobby.cli.workflows.get_workflow_loader", return_value=mock_loader):
-        with patch("gobby.cli.workflows.get_project_path", return_value=None):
+    with patch("gobby.cli.workflows.common.get_workflow_loader", return_value=mock_loader):
+        with patch("gobby.cli.workflows.common.get_project_path", return_value=None):
             defi = WorkflowDefinition(
                 name="test",
                 steps=[
@@ -243,8 +243,8 @@ def test_show_workflow_with_tools(cli_runner, mock_loader) -> None:
 
 def test_status_json_format(cli_runner, mock_state_manager) -> None:
     """Test status with JSON output format."""
-    with patch("gobby.cli.workflows.get_state_manager", return_value=mock_state_manager):
-        with patch("gobby.cli.workflows.resolve_session_id", return_value="sess1"):
+    with patch("gobby.cli.workflows.common.get_state_manager", return_value=mock_state_manager):
+        with patch("gobby.cli.workflows.common.resolve_session_id", return_value="sess1"):
             state = MagicMock(spec=WorkflowState)
             state.workflow_name = "test_wf"
             state.step = "planning"
@@ -268,8 +268,8 @@ def test_status_json_format(cli_runner, mock_state_manager) -> None:
 
 def test_status_no_workflow(cli_runner, mock_state_manager) -> None:
     """Test status when no workflow is active."""
-    with patch("gobby.cli.workflows.get_state_manager", return_value=mock_state_manager):
-        with patch("gobby.cli.workflows.resolve_session_id", return_value="sess1"):
+    with patch("gobby.cli.workflows.common.get_state_manager", return_value=mock_state_manager):
+        with patch("gobby.cli.workflows.common.resolve_session_id", return_value="sess1"):
             mock_state_manager.get_state.return_value = None
 
             result = cli_runner.invoke(workflows, ["status", "--session", "sess1"])
@@ -280,8 +280,8 @@ def test_status_no_workflow(cli_runner, mock_state_manager) -> None:
 
 def test_status_disabled_workflow(cli_runner, mock_state_manager) -> None:
     """Test status showing disabled workflow."""
-    with patch("gobby.cli.workflows.get_state_manager", return_value=mock_state_manager):
-        with patch("gobby.cli.workflows.resolve_session_id", return_value="sess1"):
+    with patch("gobby.cli.workflows.common.get_state_manager", return_value=mock_state_manager):
+        with patch("gobby.cli.workflows.common.resolve_session_id", return_value="sess1"):
             state = MagicMock(spec=WorkflowState)
             state.workflow_name = "test_wf"
             state.step = "blocked"
@@ -307,10 +307,10 @@ def test_status_disabled_workflow(cli_runner, mock_state_manager) -> None:
 
 def test_set_workflow_lifecycle_rejected(cli_runner, mock_loader, mock_state_manager) -> None:
     """Test that always-on (enabled) workflows cannot be manually set."""
-    with patch("gobby.cli.workflows.get_workflow_loader", return_value=mock_loader):
-        with patch("gobby.cli.workflows.get_state_manager", return_value=mock_state_manager):
-            with patch("gobby.cli.workflows.get_project_path", return_value=None):
-                with patch("gobby.cli.workflows.resolve_session_id", return_value="sess1"):
+    with patch("gobby.cli.workflows.common.get_workflow_loader", return_value=mock_loader):
+        with patch("gobby.cli.workflows.common.get_state_manager", return_value=mock_state_manager):
+            with patch("gobby.cli.workflows.common.get_project_path", return_value=None):
+                with patch("gobby.cli.workflows.common.resolve_session_id", return_value="sess1"):
                     defi = WorkflowDefinition(name="lifecycle_wf", enabled=True)
                     mock_loader.load_workflow_sync.return_value = defi
 
@@ -324,10 +324,10 @@ def test_set_workflow_lifecycle_rejected(cli_runner, mock_loader, mock_state_man
 
 def test_set_workflow_already_active(cli_runner, mock_loader, mock_state_manager) -> None:
     """Test setting workflow when another is already active."""
-    with patch("gobby.cli.workflows.get_workflow_loader", return_value=mock_loader):
-        with patch("gobby.cli.workflows.get_state_manager", return_value=mock_state_manager):
-            with patch("gobby.cli.workflows.get_project_path", return_value=None):
-                with patch("gobby.cli.workflows.resolve_session_id", return_value="sess1"):
+    with patch("gobby.cli.workflows.common.get_workflow_loader", return_value=mock_loader):
+        with patch("gobby.cli.workflows.common.get_state_manager", return_value=mock_state_manager):
+            with patch("gobby.cli.workflows.common.get_project_path", return_value=None):
+                with patch("gobby.cli.workflows.common.resolve_session_id", return_value="sess1"):
                     defi = WorkflowDefinition(
                         name="new_wf", enabled=False, steps=[WorkflowStep(name="start")]
                     )
@@ -345,10 +345,10 @@ def test_set_workflow_already_active(cli_runner, mock_loader, mock_state_manager
 
 def test_set_workflow_with_initial_step(cli_runner, mock_loader, mock_state_manager) -> None:
     """Test setting workflow with specific initial step."""
-    with patch("gobby.cli.workflows.get_workflow_loader", return_value=mock_loader):
-        with patch("gobby.cli.workflows.get_state_manager", return_value=mock_state_manager):
-            with patch("gobby.cli.workflows.get_project_path", return_value=None):
-                with patch("gobby.cli.workflows.resolve_session_id", return_value="sess1"):
+    with patch("gobby.cli.workflows.common.get_workflow_loader", return_value=mock_loader):
+        with patch("gobby.cli.workflows.common.get_state_manager", return_value=mock_state_manager):
+            with patch("gobby.cli.workflows.common.get_project_path", return_value=None):
+                with patch("gobby.cli.workflows.common.resolve_session_id", return_value="sess1"):
                     defi = WorkflowDefinition(
                         name="multi_step",
                         enabled=False,
@@ -377,10 +377,10 @@ def test_set_workflow_with_initial_step(cli_runner, mock_loader, mock_state_mana
 
 def test_step_transition(cli_runner, mock_loader, mock_state_manager) -> None:
     """Test transitioning to a different step."""
-    with patch("gobby.cli.workflows.get_workflow_loader", return_value=mock_loader):
-        with patch("gobby.cli.workflows.get_state_manager", return_value=mock_state_manager):
-            with patch("gobby.cli.workflows.get_project_path", return_value=None):
-                with patch("gobby.cli.workflows.resolve_session_id", return_value="sess1"):
+    with patch("gobby.cli.workflows.common.get_workflow_loader", return_value=mock_loader):
+        with patch("gobby.cli.workflows.common.get_state_manager", return_value=mock_state_manager):
+            with patch("gobby.cli.workflows.common.get_project_path", return_value=None):
+                with patch("gobby.cli.workflows.common.resolve_session_id", return_value="sess1"):
                     defi = WorkflowDefinition(
                         name="test_wf",
                         steps=[WorkflowStep(name="plan"), WorkflowStep(name="implement")],
@@ -402,10 +402,10 @@ def test_step_transition(cli_runner, mock_loader, mock_state_manager) -> None:
 
 def test_step_invalid_step(cli_runner, mock_loader, mock_state_manager) -> None:
     """Test transitioning to invalid step."""
-    with patch("gobby.cli.workflows.get_workflow_loader", return_value=mock_loader):
-        with patch("gobby.cli.workflows.get_state_manager", return_value=mock_state_manager):
-            with patch("gobby.cli.workflows.get_project_path", return_value=None):
-                with patch("gobby.cli.workflows.resolve_session_id", return_value="sess1"):
+    with patch("gobby.cli.workflows.common.get_workflow_loader", return_value=mock_loader):
+        with patch("gobby.cli.workflows.common.get_state_manager", return_value=mock_state_manager):
+            with patch("gobby.cli.workflows.common.get_project_path", return_value=None):
+                with patch("gobby.cli.workflows.common.resolve_session_id", return_value="sess1"):
                     defi = WorkflowDefinition(
                         name="test_wf",
                         steps=[WorkflowStep(name="plan")],
@@ -427,8 +427,8 @@ def test_step_invalid_step(cli_runner, mock_loader, mock_state_manager) -> None:
 
 def test_step_no_workflow(cli_runner, mock_state_manager) -> None:
     """Test step command when no workflow is active."""
-    with patch("gobby.cli.workflows.get_state_manager", return_value=mock_state_manager):
-        with patch("gobby.cli.workflows.resolve_session_id", return_value="sess1"):
+    with patch("gobby.cli.workflows.common.get_state_manager", return_value=mock_state_manager):
+        with patch("gobby.cli.workflows.common.resolve_session_id", return_value="sess1"):
             mock_state_manager.get_state.return_value = None
 
             result = cli_runner.invoke(workflows, ["step", "plan", "--session", "sess1", "--force"])
@@ -444,8 +444,8 @@ def test_step_no_workflow(cli_runner, mock_state_manager) -> None:
 
 def test_reset_workflow(cli_runner, mock_state_manager) -> None:
     """Test resetting workflow to initial step."""
-    with patch("gobby.cli.workflows.get_state_manager", return_value=mock_state_manager):
-        with patch("gobby.cli.workflows.resolve_session_id", return_value="sess1"):
+    with patch("gobby.cli.workflows.common.get_state_manager", return_value=mock_state_manager):
+        with patch("gobby.cli.workflows.common.resolve_session_id", return_value="sess1"):
             state = MagicMock(spec=WorkflowState)
             state.workflow_name = "test_wf"
             state.step = "implement"
@@ -460,8 +460,8 @@ def test_reset_workflow(cli_runner, mock_state_manager) -> None:
 
 def test_reset_workflow_already_at_initial(cli_runner, mock_state_manager) -> None:
     """Test reset when already at initial step."""
-    with patch("gobby.cli.workflows.get_state_manager", return_value=mock_state_manager):
-        with patch("gobby.cli.workflows.resolve_session_id", return_value="sess1"):
+    with patch("gobby.cli.workflows.common.get_state_manager", return_value=mock_state_manager):
+        with patch("gobby.cli.workflows.common.resolve_session_id", return_value="sess1"):
             state = MagicMock(spec=WorkflowState)
             state.workflow_name = "test_wf"
             state.step = "plan"
@@ -481,8 +481,8 @@ def test_reset_workflow_already_at_initial(cli_runner, mock_state_manager) -> No
 
 def test_disable_workflow(cli_runner, mock_state_manager) -> None:
     """Test disabling a workflow."""
-    with patch("gobby.cli.workflows.get_state_manager", return_value=mock_state_manager):
-        with patch("gobby.cli.workflows.resolve_session_id", return_value="sess1"):
+    with patch("gobby.cli.workflows.common.get_state_manager", return_value=mock_state_manager):
+        with patch("gobby.cli.workflows.common.resolve_session_id", return_value="sess1"):
             state = MagicMock(spec=WorkflowState)
             state.workflow_name = "test_wf"
             state.disabled = False
@@ -498,8 +498,8 @@ def test_disable_workflow(cli_runner, mock_state_manager) -> None:
 
 def test_disable_already_disabled(cli_runner, mock_state_manager) -> None:
     """Test disabling an already disabled workflow."""
-    with patch("gobby.cli.workflows.get_state_manager", return_value=mock_state_manager):
-        with patch("gobby.cli.workflows.resolve_session_id", return_value="sess1"):
+    with patch("gobby.cli.workflows.common.get_state_manager", return_value=mock_state_manager):
+        with patch("gobby.cli.workflows.common.resolve_session_id", return_value="sess1"):
             state = MagicMock(spec=WorkflowState)
             state.workflow_name = "test_wf"
             state.disabled = True
@@ -513,8 +513,8 @@ def test_disable_already_disabled(cli_runner, mock_state_manager) -> None:
 
 def test_enable_workflow(cli_runner, mock_state_manager) -> None:
     """Test enabling a disabled workflow."""
-    with patch("gobby.cli.workflows.get_state_manager", return_value=mock_state_manager):
-        with patch("gobby.cli.workflows.resolve_session_id", return_value="sess1"):
+    with patch("gobby.cli.workflows.common.get_state_manager", return_value=mock_state_manager):
+        with patch("gobby.cli.workflows.common.resolve_session_id", return_value="sess1"):
             state = MagicMock(spec=WorkflowState)
             state.workflow_name = "test_wf"
             state.disabled = True
@@ -529,8 +529,8 @@ def test_enable_workflow(cli_runner, mock_state_manager) -> None:
 
 def test_enable_not_disabled(cli_runner, mock_state_manager) -> None:
     """Test enabling a workflow that's not disabled."""
-    with patch("gobby.cli.workflows.get_state_manager", return_value=mock_state_manager):
-        with patch("gobby.cli.workflows.resolve_session_id", return_value="sess1"):
+    with patch("gobby.cli.workflows.common.get_state_manager", return_value=mock_state_manager):
+        with patch("gobby.cli.workflows.common.resolve_session_id", return_value="sess1"):
             state = MagicMock(spec=WorkflowState)
             state.workflow_name = "test_wf"
             state.disabled = False
@@ -559,7 +559,7 @@ def test_import_workflow_file(cli_runner, tmp_path) -> None:
     gobby_dir = project_dir / ".gobby"
     gobby_dir.mkdir()
 
-    with patch("gobby.cli.workflows.get_project_path", return_value=project_dir):
+    with patch("gobby.cli.workflows.common.get_project_path", return_value=project_dir):
         result = cli_runner.invoke(workflows, ["import", str(source_file)])
 
         assert result.exit_code == 0
@@ -592,8 +592,8 @@ def test_import_workflow_file_not_found(cli_runner) -> None:
 
 def test_audit_no_entries(cli_runner, mock_state_manager) -> None:
     """Test audit with no entries."""
-    with patch("gobby.cli.workflows.get_state_manager", return_value=mock_state_manager):
-        with patch("gobby.cli.workflows.resolve_session_id", return_value="sess1"):
+    with patch("gobby.cli.workflows.common.get_state_manager", return_value=mock_state_manager):
+        with patch("gobby.cli.workflows.common.resolve_session_id", return_value="sess1"):
             with patch("gobby.storage.workflow_audit.WorkflowAuditManager") as MockAudit:
                 mock_audit = MagicMock()
                 mock_audit.get_entries.return_value = []
@@ -609,8 +609,8 @@ def test_audit_with_entries(cli_runner, mock_state_manager) -> None:
     """Test audit with entries."""
     from datetime import UTC, datetime
 
-    with patch("gobby.cli.workflows.get_state_manager", return_value=mock_state_manager):
-        with patch("gobby.cli.workflows.resolve_session_id", return_value="sess1"):
+    with patch("gobby.cli.workflows.common.get_state_manager", return_value=mock_state_manager):
+        with patch("gobby.cli.workflows.common.resolve_session_id", return_value="sess1"):
             with patch("gobby.storage.workflow_audit.WorkflowAuditManager") as MockAudit:
                 mock_entry = MagicMock()
                 mock_entry.id = "entry-1"
@@ -639,8 +639,8 @@ def test_audit_json_format(cli_runner, mock_state_manager) -> None:
     """Test audit with JSON output."""
     from datetime import UTC, datetime
 
-    with patch("gobby.cli.workflows.get_state_manager", return_value=mock_state_manager):
-        with patch("gobby.cli.workflows.resolve_session_id", return_value="sess1"):
+    with patch("gobby.cli.workflows.common.get_state_manager", return_value=mock_state_manager):
+        with patch("gobby.cli.workflows.common.resolve_session_id", return_value="sess1"):
             with patch("gobby.storage.workflow_audit.WorkflowAuditManager") as MockAudit:
                 mock_entry = MagicMock()
                 mock_entry.id = "entry-1"
@@ -673,12 +673,8 @@ def test_audit_json_format(cli_runner, mock_state_manager) -> None:
 
 def test_set_variable_string(cli_runner, mock_state_manager) -> None:
     """Test setting a string variable."""
-    with patch("gobby.cli.workflows.get_state_manager", return_value=mock_state_manager):
-        with patch("gobby.cli.workflows.LocalDatabase") as MockDB:
-            mock_db = MagicMock()
-            mock_db.fetchone.return_value = {"id": "sess1"}
-            MockDB.return_value = mock_db
-
+    with patch("gobby.cli.workflows.common.get_state_manager", return_value=mock_state_manager):
+        with patch("gobby.cli.workflows.common.resolve_session_id", return_value="sess1"):
             state = MagicMock(spec=WorkflowState)
             state.variables = {}
             mock_state_manager.get_state.return_value = state
@@ -691,12 +687,8 @@ def test_set_variable_string(cli_runner, mock_state_manager) -> None:
 
 def test_set_variable_boolean(cli_runner, mock_state_manager) -> None:
     """Test setting a boolean variable."""
-    with patch("gobby.cli.workflows.get_state_manager", return_value=mock_state_manager):
-        with patch("gobby.cli.workflows.LocalDatabase") as MockDB:
-            mock_db = MagicMock()
-            mock_db.fetchone.return_value = {"id": "sess1"}
-            MockDB.return_value = mock_db
-
+    with patch("gobby.cli.workflows.common.get_state_manager", return_value=mock_state_manager):
+        with patch("gobby.cli.workflows.common.resolve_session_id", return_value="sess1"):
             state = MagicMock(spec=WorkflowState)
             state.variables = {}
             mock_state_manager.get_state.return_value = state
@@ -713,12 +705,8 @@ def test_set_variable_boolean(cli_runner, mock_state_manager) -> None:
 
 def test_set_variable_integer(cli_runner, mock_state_manager) -> None:
     """Test setting an integer variable."""
-    with patch("gobby.cli.workflows.get_state_manager", return_value=mock_state_manager):
-        with patch("gobby.cli.workflows.LocalDatabase") as MockDB:
-            mock_db = MagicMock()
-            mock_db.fetchone.return_value = {"id": "sess1"}
-            MockDB.return_value = mock_db
-
+    with patch("gobby.cli.workflows.common.get_state_manager", return_value=mock_state_manager):
+        with patch("gobby.cli.workflows.common.resolve_session_id", return_value="sess1"):
             state = MagicMock(spec=WorkflowState)
             state.variables = {}
             mock_state_manager.get_state.return_value = state
@@ -733,12 +721,8 @@ def test_set_variable_integer(cli_runner, mock_state_manager) -> None:
 
 def test_set_variable_null(cli_runner, mock_state_manager) -> None:
     """Test setting a null variable."""
-    with patch("gobby.cli.workflows.get_state_manager", return_value=mock_state_manager):
-        with patch("gobby.cli.workflows.LocalDatabase") as MockDB:
-            mock_db = MagicMock()
-            mock_db.fetchone.return_value = {"id": "sess1"}
-            MockDB.return_value = mock_db
-
+    with patch("gobby.cli.workflows.common.get_state_manager", return_value=mock_state_manager):
+        with patch("gobby.cli.workflows.common.resolve_session_id", return_value="sess1"):
             state = MagicMock(spec=WorkflowState)
             state.variables = {"existing": "value"}
             mock_state_manager.get_state.return_value = state
@@ -755,12 +739,8 @@ def test_set_variable_null(cli_runner, mock_state_manager) -> None:
 
 def test_get_variable_specific(cli_runner, mock_state_manager) -> None:
     """Test getting a specific variable."""
-    with patch("gobby.cli.workflows.get_state_manager", return_value=mock_state_manager):
-        with patch("gobby.cli.workflows.LocalDatabase") as MockDB:
-            mock_db = MagicMock()
-            mock_db.fetchone.return_value = {"id": "sess1"}
-            MockDB.return_value = mock_db
-
+    with patch("gobby.cli.workflows.common.get_state_manager", return_value=mock_state_manager):
+        with patch("gobby.cli.workflows.common.resolve_session_id", return_value="sess1"):
             state = MagicMock(spec=WorkflowState)
             state.variables = {"my_var": "my_value"}
             mock_state_manager.get_state.return_value = state
@@ -773,12 +753,8 @@ def test_get_variable_specific(cli_runner, mock_state_manager) -> None:
 
 def test_get_variable_not_set(cli_runner, mock_state_manager) -> None:
     """Test getting a variable that's not set."""
-    with patch("gobby.cli.workflows.get_state_manager", return_value=mock_state_manager):
-        with patch("gobby.cli.workflows.LocalDatabase") as MockDB:
-            mock_db = MagicMock()
-            mock_db.fetchone.return_value = {"id": "sess1"}
-            MockDB.return_value = mock_db
-
+    with patch("gobby.cli.workflows.common.get_state_manager", return_value=mock_state_manager):
+        with patch("gobby.cli.workflows.common.resolve_session_id", return_value="sess1"):
             state = MagicMock(spec=WorkflowState)
             state.variables = {}
             mock_state_manager.get_state.return_value = state
@@ -791,12 +767,8 @@ def test_get_variable_not_set(cli_runner, mock_state_manager) -> None:
 
 def test_get_all_variables(cli_runner, mock_state_manager) -> None:
     """Test getting all variables."""
-    with patch("gobby.cli.workflows.get_state_manager", return_value=mock_state_manager):
-        with patch("gobby.cli.workflows.LocalDatabase") as MockDB:
-            mock_db = MagicMock()
-            mock_db.fetchone.return_value = {"id": "sess1"}
-            MockDB.return_value = mock_db
-
+    with patch("gobby.cli.workflows.common.get_state_manager", return_value=mock_state_manager):
+        with patch("gobby.cli.workflows.common.resolve_session_id", return_value="sess1"):
             state = MagicMock(spec=WorkflowState)
             state.variables = {"var1": "value1", "var2": 42}
             mock_state_manager.get_state.return_value = state
@@ -810,12 +782,8 @@ def test_get_all_variables(cli_runner, mock_state_manager) -> None:
 
 def test_get_all_variables_json(cli_runner, mock_state_manager) -> None:
     """Test getting all variables in JSON format."""
-    with patch("gobby.cli.workflows.get_state_manager", return_value=mock_state_manager):
-        with patch("gobby.cli.workflows.LocalDatabase") as MockDB:
-            mock_db = MagicMock()
-            mock_db.fetchone.return_value = {"id": "sess1"}
-            MockDB.return_value = mock_db
-
+    with patch("gobby.cli.workflows.common.get_state_manager", return_value=mock_state_manager):
+        with patch("gobby.cli.workflows.common.resolve_session_id", return_value="sess1"):
             state = MagicMock(spec=WorkflowState)
             state.variables = {"var1": "value1", "var2": 42}
             mock_state_manager.get_state.return_value = state
@@ -835,8 +803,8 @@ def test_get_all_variables_json(cli_runner, mock_state_manager) -> None:
 
 def test_clear_workflow_requires_confirmation(cli_runner, mock_state_manager) -> None:
     """Test clear workflow requires confirmation without --force."""
-    with patch("gobby.cli.workflows.get_state_manager", return_value=mock_state_manager):
-        with patch("gobby.cli.workflows.resolve_session_id", return_value="sess1"):
+    with patch("gobby.cli.workflows.common.get_state_manager", return_value=mock_state_manager):
+        with patch("gobby.cli.workflows.common.resolve_session_id", return_value="sess1"):
             state = MagicMock(spec=WorkflowState)
             state.workflow_name = "test_wf"
             mock_state_manager.get_state.return_value = state

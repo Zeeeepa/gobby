@@ -16,7 +16,7 @@ def runner():
 
 @pytest.fixture
 def mock_loader():
-    with patch("gobby.cli.workflows.get_workflow_loader") as m:
+    with patch("gobby.cli.workflows.common.get_workflow_loader") as m:
         loader = Mock()
         m.return_value = loader
         yield loader
@@ -24,7 +24,7 @@ def mock_loader():
 
 @pytest.fixture
 def mock_state_manager():
-    with patch("gobby.cli.workflows.get_state_manager") as m:
+    with patch("gobby.cli.workflows.common.get_state_manager") as m:
         manager = Mock()
         m.return_value = manager
         yield manager
@@ -32,7 +32,7 @@ def mock_state_manager():
 
 @pytest.fixture
 def mock_resolve_session():
-    with patch("gobby.cli.workflows.resolve_session_id") as m:
+    with patch("gobby.cli.workflows.common.resolve_session_id") as m:
         m.return_value = "sess-123"
         yield m
 
@@ -40,7 +40,7 @@ def mock_resolve_session():
 def test_list_workflows_empty(runner, mock_loader) -> None:
     mock_loader.global_dirs = []
     # patch get_project_path
-    with patch("gobby.cli.workflows.get_project_path", return_value=None):
+    with patch("gobby.cli.workflows.common.get_project_path", return_value=None):
         result = runner.invoke(workflows, ["list"])
         assert result.exit_code == 0
         assert "No workflows found" in result.output
@@ -48,7 +48,7 @@ def test_list_workflows_empty(runner, mock_loader) -> None:
 
 def test_show_workflow_not_found(runner, mock_loader) -> None:
     mock_loader.load_workflow_sync.return_value = None
-    with patch("gobby.cli.workflows.get_project_path", return_value=None):
+    with patch("gobby.cli.workflows.common.get_project_path", return_value=None):
         result = runner.invoke(workflows, ["show", "unknown"])
         assert result.exit_code == 1
         assert "Workflow 'unknown' not found" in result.output
@@ -87,7 +87,7 @@ def test_set_workflow_lifecycle_error(
     )
     mock_loader.load_workflow_sync.return_value = definition
 
-    with patch("gobby.cli.workflows.get_project_path", return_value=None):
+    with patch("gobby.cli.workflows.common.get_project_path", return_value=None):
         result = runner.invoke(workflows, ["set", "life-wf"])
         assert result.exit_code == 1
         assert "is a pipeline" in result.output
@@ -120,7 +120,7 @@ def test_reload_workflows_fallback(runner) -> None:
         mock_conf.side_effect = Exception("Config error")
 
         # Mock loader for fallback
-        with patch("gobby.cli.workflows.get_workflow_loader") as m_loader:
+        with patch("gobby.cli.workflows.common.get_workflow_loader") as m_loader:
             result = runner.invoke(workflows, ["reload"])
             assert result.exit_code == 0
             assert "Cleared local workflow cache" in result.output

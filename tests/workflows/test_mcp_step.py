@@ -1,7 +1,7 @@
 """Tests for MCP step type in pipeline definitions and executor.
 
 Tests MCPStepConfig model, PipelineStep with mcp field,
-_execute_mcp_step, and template rendering with type coercion.
+execute_mcp_step handler, and template rendering with type coercion.
 """
 
 from unittest.mock import AsyncMock, MagicMock
@@ -10,6 +10,7 @@ import pytest
 from pydantic import ValidationError
 
 from gobby.workflows.definitions import MCPStepConfig, PipelineStep
+from gobby.workflows.pipeline.handlers import execute_mcp_step
 
 pytestmark = pytest.mark.unit
 
@@ -171,22 +172,11 @@ def mock_tool_proxy():
 
 
 class TestExecuteMCPStep:
-    """Tests for PipelineExecutor._execute_mcp_step."""
+    """Tests for execute_mcp_step handler function."""
 
     @pytest.mark.asyncio
-    async def test_mcp_step_calls_tool_proxy(
-        self, mock_db, mock_execution_manager, mock_llm_service, mock_tool_proxy
-    ) -> None:
+    async def test_mcp_step_calls_tool_proxy(self, mock_tool_proxy) -> None:
         """Test that MCP step calls tool_proxy.call_tool with correct args."""
-        from gobby.workflows.pipeline_executor import PipelineExecutor
-
-        executor = PipelineExecutor(
-            db=mock_db,
-            execution_manager=mock_execution_manager,
-            llm_service=mock_llm_service,
-            tool_proxy_getter=lambda: mock_tool_proxy,
-        )
-
         step = PipelineStep(
             id="test_step",
             mcp=MCPStepConfig(
@@ -197,7 +187,7 @@ class TestExecuteMCPStep:
         )
 
         context: dict = {"inputs": {}, "steps": {}}
-        result = await executor._execute_mcp_step(step, context)
+        result = await execute_mcp_step(step, context, lambda: mock_tool_proxy)
 
         mock_tool_proxy.call_tool.assert_called_once_with(
             "gobby-tasks", "suggest_next_task", {"parent_task_id": "#123"}
@@ -206,43 +196,21 @@ class TestExecuteMCPStep:
         assert result["task_id"] == "#42"
 
     @pytest.mark.asyncio
-    async def test_mcp_step_no_arguments(
-        self, mock_db, mock_execution_manager, mock_llm_service, mock_tool_proxy
-    ) -> None:
+    async def test_mcp_step_no_arguments(self, mock_tool_proxy) -> None:
         """Test MCP step with no arguments passes empty dict."""
-        from gobby.workflows.pipeline_executor import PipelineExecutor
-
-        executor = PipelineExecutor(
-            db=mock_db,
-            execution_manager=mock_execution_manager,
-            llm_service=mock_llm_service,
-            tool_proxy_getter=lambda: mock_tool_proxy,
-        )
-
         step = PipelineStep(
             id="test_step",
             mcp=MCPStepConfig(server="gobby-agents", tool="wait_for_agent"),
         )
 
         context: dict = {"inputs": {}, "steps": {}}
-        await executor._execute_mcp_step(step, context)
+        await execute_mcp_step(step, context, lambda: mock_tool_proxy)
 
         mock_tool_proxy.call_tool.assert_called_once_with("gobby-agents", "wait_for_agent", {})
 
     @pytest.mark.asyncio
-    async def test_mcp_step_raises_without_tool_proxy_getter(
-        self, mock_db, mock_execution_manager, mock_llm_service
-    ) -> None:
+    async def test_mcp_step_raises_without_tool_proxy_getter(self) -> None:
         """Test that MCP step raises RuntimeError without tool_proxy_getter."""
-        from gobby.workflows.pipeline_executor import PipelineExecutor
-
-        executor = PipelineExecutor(
-            db=mock_db,
-            execution_manager=mock_execution_manager,
-            llm_service=mock_llm_service,
-            # No tool_proxy_getter
-        )
-
         step = PipelineStep(
             id="test_step",
             mcp=MCPStepConfig(server="s", tool="t"),
@@ -250,22 +218,11 @@ class TestExecuteMCPStep:
 
         context: dict = {"inputs": {}, "steps": {}}
         with pytest.raises(RuntimeError, match="requires tool_proxy_getter"):
-            await executor._execute_mcp_step(step, context)
+            await execute_mcp_step(step, context, None)
 
     @pytest.mark.asyncio
-    async def test_mcp_step_raises_when_tool_proxy_returns_none(
-        self, mock_db, mock_execution_manager, mock_llm_service
-    ) -> None:
+    async def test_mcp_step_raises_when_tool_proxy_returns_none(self) -> None:
         """Test that MCP step raises when tool_proxy_getter returns None."""
-        from gobby.workflows.pipeline_executor import PipelineExecutor
-
-        executor = PipelineExecutor(
-            db=mock_db,
-            execution_manager=mock_execution_manager,
-            llm_service=mock_llm_service,
-            tool_proxy_getter=lambda: None,
-        )
-
         step = PipelineStep(
             id="test_step",
             mcp=MCPStepConfig(server="s", tool="t"),
@@ -273,24 +230,13 @@ class TestExecuteMCPStep:
 
         context: dict = {"inputs": {}, "steps": {}}
         with pytest.raises(RuntimeError, match="returned None"):
-            await executor._execute_mcp_step(step, context)
+            await execute_mcp_step(step, context, lambda: None)
 
     @pytest.mark.asyncio
-    async def test_mcp_step_raises_on_failure_result(
-        self, mock_db, mock_execution_manager, mock_llm_service
-    ) -> None:
+    async def test_mcp_step_raises_on_failure_result(self) -> None:
         """Test that MCP step raises RuntimeError when result has success=False."""
-        from gobby.workflows.pipeline_executor import PipelineExecutor
-
         mock_proxy = AsyncMock()
         mock_proxy.call_tool = AsyncMock(return_value={"success": False, "error": "Tool not found"})
-
-        executor = PipelineExecutor(
-            db=mock_db,
-            execution_manager=mock_execution_manager,
-            llm_service=mock_llm_service,
-            tool_proxy_getter=lambda: mock_proxy,
-        )
 
         step = PipelineStep(
             id="failing_step",
@@ -299,7 +245,7 @@ class TestExecuteMCPStep:
 
         context: dict = {"inputs": {}, "steps": {}}
         with pytest.raises(RuntimeError, match="failed"):
-            await executor._execute_mcp_step(step, context)
+            await execute_mcp_step(step, context, lambda: mock_proxy)
 
 
 class TestMCPStepInPipelineExecute:
@@ -382,7 +328,7 @@ class TestMCPTemplateRendering:
             "steps": {},
         }
 
-        rendered = executor._render_step(step, context)
+        rendered = executor.renderer.render_step(step, context)
 
         # String value should be rendered
         assert rendered.mcp.arguments["prompt"] == "Work on Fix bug #42"
@@ -422,7 +368,7 @@ class TestMCPTemplateRendering:
             "steps": {},
         }
 
-        rendered = executor._render_step(step, context)
+        rendered = executor.renderer.render_step(step, context)
         assert rendered.mcp.arguments["force"] is True
         assert rendered.mcp.arguments["verbose"] is False
 
@@ -455,7 +401,7 @@ class TestMCPTemplateRendering:
             "steps": {},
         }
 
-        rendered = executor._render_step(step, context)
+        rendered = executor.renderer.render_step(step, context)
         assert rendered.mcp.arguments["param"] is None
 
     @pytest.mark.asyncio
@@ -487,7 +433,7 @@ class TestMCPTemplateRendering:
             "steps": {},
         }
 
-        rendered = executor._render_step(step, context)
+        rendered = executor.renderer.render_step(step, context)
         assert rendered.mcp.arguments["ratio"] == 0.75
         assert isinstance(rendered.mcp.arguments["ratio"], float)
 
@@ -525,7 +471,7 @@ class TestMCPTemplateRendering:
             "steps": {},
         }
 
-        rendered = executor._render_step(step, context)
+        rendered = executor.renderer.render_step(step, context)
         assert rendered.mcp.arguments["outer"]["inner_str"] == "test"
         assert rendered.mcp.arguments["outer"]["inner_num"] == 5
 
@@ -551,7 +497,7 @@ class TestMCPTemplateRendering:
         )
 
         context: dict = {"inputs": {"timeout": "300"}, "steps": {}}
-        rendered = executor._render_step(step, context)
+        rendered = executor.renderer.render_step(step, context)
 
         # Original should be unchanged
         assert step.mcp.arguments["timeout"] == "${{ inputs.timeout }}"

@@ -506,10 +506,15 @@ class ChatSession:
             self.last_activity = datetime.now(UTC)
 
             if isinstance(content, list):
-                # SDK expects str or AsyncIterable[dict] — wrap content blocks
-                # in an async generator yielding a single user message
+                # SDK streaming mode expects the transport protocol format:
+                # {"type": "user", "message": {"role": "user", "content": ...}}
+                # NOT just {"role": "user", "content": ...}
                 async def _content_blocks() -> AsyncIterator[dict[str, Any]]:
-                    yield {"role": "user", "content": content}
+                    yield {
+                        "type": "user",
+                        "message": {"role": "user", "content": content},
+                        "parent_tool_use_id": None,
+                    }
 
                 await self._client.query(_content_blocks())
             else:

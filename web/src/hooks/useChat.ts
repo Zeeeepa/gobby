@@ -245,6 +245,26 @@ export function useChat() {
         } else if (data.type === 'error' && (data as unknown as ErrorMessage).request_id) {
           handleErrorRef.current(data as unknown as ErrorMessage)
         } else if (data.type === 'voice_transcription' || data.type === 'voice_audio_chunk' || data.type === 'voice_status') {
+          // When STT transcription arrives, inject it as a user message and
+          // register the request_id so the assistant's response stream is accepted.
+          if (data.type === 'voice_transcription') {
+            const text = (data as Record<string, unknown>).text as string
+            const reqId = (data as Record<string, unknown>).request_id as string
+            if (text && reqId) {
+              activeRequestIdRef.current = reqId
+              setMessages((prev) => [
+                ...prev,
+                {
+                  id: `user-voice-${reqId}`,
+                  role: 'user' as const,
+                  content: text,
+                  timestamp: new Date(),
+                },
+              ])
+              setIsStreaming(true)
+              setIsThinking(true)
+            }
+          }
           handleVoiceMessageRef.current(data as Record<string, unknown>)
         } else if (data.type === 'connection_established') {
           const serverConversations = (data.conversation_ids as string[]) || []
