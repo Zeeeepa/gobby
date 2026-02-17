@@ -79,9 +79,9 @@ class ElevenLabsTTS:
             bos_message = {
                 "text": " ",
                 "voice_settings": {
-                    "stability": 0.5,
-                    "similarity_boost": 1.0,
-                    "style": 0.0,
+                    "stability": self._config.elevenlabs_stability,
+                    "similarity_boost": self._config.elevenlabs_similarity_boost,
+                    "style": self._config.elevenlabs_style,
                     "speed": self._config.elevenlabs_speed,
                 },
                 "xi_api_key": self._config.elevenlabs_api_key,
