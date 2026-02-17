@@ -15,10 +15,12 @@ logger = logging.getLogger(__name__)
 _SENSITIVE_SUFFIXES = ("_SECRET", "_KEY", "_TOKEN", "_PASSWORD", "_CREDENTIAL", "_PRIVATE_KEY")
 
 # Specific env-var names that are always excluded.
-_SENSITIVE_NAMES = frozenset({
-    "DATABASE_URL",
-    "AWS_SECRET_ACCESS_KEY",
-})
+_SENSITIVE_NAMES = frozenset(
+    {
+        "DATABASE_URL",
+        "AWS_SECRET_ACCESS_KEY",
+    }
+)
 
 
 def _filter_env(
@@ -35,8 +37,7 @@ def _filter_env(
     return {
         k: v
         for k, v in env.items()
-        if k not in _SENSITIVE_NAMES
-        and not any(k.upper().endswith(s) for s in _SENSITIVE_SUFFIXES)
+        if k not in _SENSITIVE_NAMES and not any(k.upper().endswith(s) for s in _SENSITIVE_SUFFIXES)
     }
 
 
@@ -217,9 +218,7 @@ class StepRenderer:
             return evaluator.evaluate(step.condition)
         except Exception as e:
             if self.strict_conditions:
-                raise ValueError(
-                    f"Condition evaluation failed for step {step.id}: {e}"
-                ) from e
+                raise ValueError(f"Condition evaluation failed for step {step.id}: {e}") from e
             logger.warning(f"Condition evaluation failed for step {step.id}: {e}")
             # Default to running the step if condition evaluation fails
             return True

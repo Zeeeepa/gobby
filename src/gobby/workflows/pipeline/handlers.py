@@ -173,9 +173,7 @@ async def execute_exec_step(command: str, context: dict[str, Any]) -> dict[str, 
         )
 
         try:
-            stdout, stderr = await asyncio.wait_for(
-                proc.communicate(), timeout=timeout_seconds
-            )
+            stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=timeout_seconds)
         except TimeoutError:
             proc.kill()
             await proc.wait()
