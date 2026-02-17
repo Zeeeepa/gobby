@@ -15,7 +15,7 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
-HIDDEN_PROJECT_NAMES = frozenset({"_orphaned", "_migrated"})
+HIDDEN_PROJECT_NAMES = frozenset({"_orphaned", "_migrated", "_global"})
 
 
 class ProjectUpdate(BaseModel):
