@@ -125,7 +125,7 @@ class TestCreateWorkflow:
         result = create_workflow_definition(def_manager, loader, "not: [valid: yaml: {{")
 
         assert result["success"] is False
-        assert "Validation failed" in result["error"]
+        assert "YAML parse error" in result["error"]
 
     def test_create_rejects_missing_name(
         self, def_manager: LocalWorkflowDefinitionManager, loader: WorkflowLoader
