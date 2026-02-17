@@ -2556,6 +2556,7 @@ body {
   border: none;
   border-radius: 0.5rem;
   color: var(--text-secondary);
+  font-family: inherit;
   font-size: calc(var(--font-size-base) * 0.9);
   font-weight: 500;
   cursor: pointer;
@@ -2788,7 +2789,7 @@ body {
 
 .session-name {
   font-size: calc(var(--font-size-base) * 0.85);
-  font-family: var(--font-mono);
+  font-family: inherit;
   color: var(--text-primary);
   overflow: hidden;
   text-overflow: ellipsis;
@@ -2798,7 +2799,7 @@ body {
 
 .session-name-input {
   font-size: calc(var(--font-size-base) * 0.85);
-  font-family: var(--font-mono);
+  font-family: inherit;
   color: var(--text-primary);
   background: var(--bg-primary);
   border: 1px solid var(--accent);
@@ -2835,7 +2836,7 @@ body {
 .session-pid {
   font-size: calc(var(--font-size-base) * 0.7);
   color: var(--text-muted);
-  font-family: var(--font-mono);
+  font-family: inherit;
 }
 
 .session-kill-btn {
