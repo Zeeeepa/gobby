@@ -155,6 +155,8 @@ export function useVoice(
       // Enable: create VAD and start listening
       try {
         const vad = await MicVAD.new({
+          baseAssetPath: '/',
+          onnxWASMBasePath: '/',
           positiveSpeechThreshold: 0.7,
           negativeSpeechThreshold: 0.35,
           minSpeechFrames: 5,
