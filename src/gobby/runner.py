@@ -227,6 +227,15 @@ class GobbyRunner:
                     )
                     logger.debug("MemorySyncManager initialized and listener attached")
 
+                    # Import synced memories before exporting
+                    # (e.g. from git on a new machine with more memories than local DB)
+                    try:
+                        imported = self.memory_sync_manager.import_sync()
+                        if imported > 0:
+                            logger.info(f"Imported {imported} memories from sync file")
+                    except Exception as e:
+                        logger.warning(f"Memory import failed: {e}")
+
                     # Force initial synchronous export
                     # Ensures disk state matches DB state before we start serving
                     try:

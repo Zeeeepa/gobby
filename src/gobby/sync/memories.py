@@ -185,6 +185,51 @@ class MemoryBackupManager:
     # Backward compatibility alias
     export_sync = backup_sync
 
+    def import_sync(self) -> int:
+        """
+        Import memories from filesystem synchronously (blocking).
+
+        Used on startup to restore memories from a synced JSONL file
+        (e.g. pulled from git on a new machine) before exporting.
+        Only imports if the JSONL file has more entries than the DB.
+        """
+        if not self.config.enabled or not self.memory_manager:
+            return 0
+
+        try:
+            memories_file = self._get_export_path()
+            if not memories_file.exists():
+                return 0
+
+            # Count lines in JSONL file
+            file_count = 0
+            with open(memories_file, encoding="utf-8") as f:
+                for line in f:
+                    if line.strip():
+                        file_count += 1
+
+            if file_count == 0:
+                return 0
+
+            # Count memories in DB
+            db_count = len(self.memory_manager.list_memories(limit=10000))
+
+            if file_count <= db_count:
+                logger.debug(
+                    f"Skipping memory import: DB has {db_count} memories, "
+                    f"file has {file_count}"
+                )
+                return 0
+
+            logger.info(
+                f"Importing memories from {memories_file}: "
+                f"file has {file_count}, DB has {db_count}"
+            )
+            return self._import_memories_sync(memories_file)
+        except Exception as e:
+            logger.warning(f"Failed to import memories: {e}")
+            return 0
+
     async def export_to_files(self) -> int:
         """
         Backup memories to filesystem as JSONL.
