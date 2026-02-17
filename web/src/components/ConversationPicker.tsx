@@ -83,7 +83,7 @@ export function ConversationPicker({
               <div className="terminals-empty-sidebar">No conversations</div>
             )}
             {filtered.map((session) => {
-              const title = session.title || `Chat #${session.ref}`
+              const title = session.title || `Chat ${session.ref}`
               const isActive = session.external_id === activeSessionId
               return (
                 <div

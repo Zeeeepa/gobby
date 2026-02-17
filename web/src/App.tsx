@@ -27,7 +27,7 @@ import type { GobbySession } from './hooks/useSessions'
 const HIDDEN_PROJECTS = new Set(['_orphaned', '_migrated'])
 
 export default function App() {
-  const { messages, conversationId, isConnected, isStreaming, isThinking, sendMessage, stopStreaming, deleteConversation, executeCommand, respondToQuestion, switchConversation, startNewChat, wsRef, handleVoiceMessageRef } = useChat()
+  const { messages, conversationId, isConnected, isStreaming, isThinking, sendMessage, stopStreaming, clearHistory, deleteConversation, executeCommand, respondToQuestion, switchConversation, startNewChat, wsRef, handleVoiceMessageRef } = useChat()
   const voice = useVoice(wsRef, conversationId)
   const { settings, modelInfo, modelsLoading, updateFontSize, updateModel, resetSettings } = useSettings()
   const { agents, selectedAgent, setSelectedAgent, sendInput, onOutput } = useTerminal()
@@ -123,6 +123,8 @@ export default function App() {
       if (cmd.server === '_local') {
         if (cmd.tool === 'open_settings') {
           setSettingsOpen(true)
+        } else if (cmd.tool === 'clear_history') {
+          clearHistory()
         }
         return
       }
@@ -130,7 +132,7 @@ export default function App() {
       return
     }
     sendMessage(content, settings.model, files, effectiveProjectId)
-  }, [parseCommand, executeCommand, sendMessage, settings.model, effectiveProjectId])
+  }, [parseCommand, executeCommand, sendMessage, clearHistory, settings.model, effectiveProjectId])
 
   // Chat page: only web-chat sessions are selectable
   const handleSelectConversation = useCallback((session: GobbySession) => {
@@ -138,7 +140,7 @@ export default function App() {
   }, [switchConversation])
 
   const handleDeleteConversation = useCallback((session: GobbySession) => {
-    deleteConversation(session.external_id)
+    deleteConversation(session.external_id, session.id)
     sessionsHook.refresh()
   }, [deleteConversation, sessionsHook])
 
@@ -175,11 +177,13 @@ export default function App() {
     if (cmd.server === '_local') {
       if (cmd.action === 'open_settings' || cmd.tool === 'open_settings') {
         setSettingsOpen(true)
+      } else if (cmd.action === 'clear_history' || cmd.tool === 'clear_history') {
+        clearHistory()
       }
       return
     }
     executeCommand(cmd.server, cmd.tool)
-  }, [executeCommand])
+  }, [executeCommand, clearHistory])
 
   const navItems = [
     { id: 'dashboard', label: 'Dashboard', icon: <DashboardIcon /> },
