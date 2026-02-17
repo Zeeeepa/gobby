@@ -12,13 +12,26 @@ from gobby.workflows.templates import TemplateEngine
 logger = logging.getLogger(__name__)
 
 # Env-var suffixes that indicate sensitive values (case-insensitive check).
-_SENSITIVE_SUFFIXES = ("_SECRET", "_KEY", "_TOKEN", "_PASSWORD", "_CREDENTIAL", "_PRIVATE_KEY")
+_SENSITIVE_SUFFIXES = (
+    "_SECRET",
+    "_KEY",
+    "_TOKEN",
+    "_PASSWORD",
+    "_CREDENTIAL",
+    "_PRIVATE_KEY",
+    "_AUTH",
+    "_OAUTH",
+    "_API_KEY",
+)
 
 # Specific env-var names that are always excluded.
 _SENSITIVE_NAMES = frozenset(
     {
         "DATABASE_URL",
         "AWS_SECRET_ACCESS_KEY",
+        "API_KEY",
+        "AUTH_TOKEN",
+        "OAUTH_TOKEN",
     }
 )
 
@@ -216,7 +229,7 @@ class StepRenderer:
             }
             evaluator = SafeExpressionEvaluator(eval_context, allowed_funcs)
             return evaluator.evaluate(step.condition)
-        except Exception as e:
+        except ValueError as e:
             if self.strict_conditions:
                 raise ValueError(f"Condition evaluation failed for step {step.id}: {e}") from e
             logger.warning(f"Condition evaluation failed for step {step.id}: {e}")

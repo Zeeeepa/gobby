@@ -43,9 +43,12 @@ def check_workflow(ctx: click.Context, name: str, json_format: bool) -> None:
     except httpx.TimeoutException:
         click.echo("Error: Request timed out. The daemon may be overloaded.", err=True)
         raise SystemExit(1) from None
-    except Exception as e:
+    except (click.ClickException, ValueError, RuntimeError) as e:
         click.echo(f"Error: {e}", err=True)
         raise SystemExit(1) from None
+    except Exception as e:
+        click.echo(f"Unexpected error: {e}", err=True)
+        raise
 
     if json_format:
         click.echo(json.dumps(result, indent=2, default=str))
@@ -169,6 +172,7 @@ def audit_workflow(
     for entry in entries:
         # Format: [timestamp] RESULT event_type
         timestamp_str = entry.timestamp.strftime("%Y-%m-%d %H:%M:%S")
+        result_str = entry.result or "unknown"
         result_color = {
             "allow": "green",
             "block": "red",
@@ -176,10 +180,10 @@ def audit_workflow(
             "approved": "green",
             "rejected": "red",
             "denied": "red",
-        }.get(entry.result, "white")
+        }.get(result_str, "white")
 
         click.secho(f"[{timestamp_str}] ", nl=False, dim=True)
-        click.secho(f"{entry.result.upper():<10}", fg=result_color, bold=True, nl=False)
+        click.secho(f"{result_str.upper():<10}", fg=result_color, bold=True, nl=False)
         click.secho(f" {entry.event_type:<12}", fg="cyan", nl=False)
 
         details = []

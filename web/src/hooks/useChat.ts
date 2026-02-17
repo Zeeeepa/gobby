@@ -110,6 +110,12 @@ interface ErrorMessage {
   message: string
 }
 
+interface VoiceTranscriptionMessage {
+  type: 'voice_transcription'
+  text: string
+  request_id: string
+}
+
 /** crypto.randomUUID() requires a secure context (HTTPS/localhost). Fall back for HTTP access (e.g. Tailscale IP). */
 function uuid(): string {
   if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
@@ -248,8 +254,9 @@ export function useChat() {
           // When STT transcription arrives, inject it as a user message and
           // register the request_id so the assistant's response stream is accepted.
           if (data.type === 'voice_transcription') {
-            const text = (data as Record<string, unknown>).text as string
-            const reqId = (data as Record<string, unknown>).request_id as string
+            const voiceMsg = data as unknown as VoiceTranscriptionMessage
+            const text = typeof voiceMsg.text === 'string' ? voiceMsg.text : ''
+            const reqId = typeof voiceMsg.request_id === 'string' ? voiceMsg.request_id : ''
             if (text && reqId) {
               activeRequestIdRef.current = reqId
               setMessages((prev) => [
