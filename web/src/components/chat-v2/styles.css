@@ -86,3 +86,8 @@
 
 .v2-message-content input[type="checkbox"] { margin-right: 0.5rem; }
 .v2-message-content li:has(> input[type="checkbox"]) { list-style: none; margin-left: -1.5rem; }
+
+/* Streaming cursor: keep caret inline with last text element */
+.v2-message-content:has(> .v2-cursor) > *:last-of-type:not(.v2-cursor) {
+  display: inline;
+}
