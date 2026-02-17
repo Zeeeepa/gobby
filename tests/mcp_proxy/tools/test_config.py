@@ -262,7 +262,10 @@ class TestConfigKeyToSecretName:
     """Tests for config_key_to_secret_name helper."""
 
     def test_simple_key(self) -> None:
-        assert config_key_to_secret_name("voice.elevenlabs_api_key") == "cfg__voice__elevenlabs_api_key"
+        assert (
+            config_key_to_secret_name("voice.elevenlabs_api_key")
+            == "cfg__voice__elevenlabs_api_key"
+        )
 
     def test_nested_key(self) -> None:
         assert config_key_to_secret_name("a.b.c") == "cfg__a__b__c"
@@ -340,9 +343,7 @@ class TestConfigStoreSecrets:
         keys = config_store.get_secret_keys()
         assert sorted(keys) == ["a.api_key", "b.password"]
 
-    def test_clear_secret(
-        self, config_store: ConfigStore, secret_store: SecretStore
-    ) -> None:
+    def test_clear_secret(self, config_store: ConfigStore, secret_store: SecretStore) -> None:
         """clear_secret removes from both config_store and secrets."""
         config_store.set_secret("voice.elevenlabs_api_key", "sk-test-123", secret_store)
         config_store.clear_secret("voice.elevenlabs_api_key", secret_store)
@@ -366,7 +367,10 @@ class TestSetConfigSecret:
 
     @pytest.fixture
     def config_registry_with_db(
-        self, temp_db: LocalDatabase, config_store: ConfigStore, config_state: dict[str, DaemonConfig]
+        self,
+        temp_db: LocalDatabase,
+        config_store: ConfigStore,
+        config_state: dict[str, DaemonConfig],
     ):
         """Create a config registry with db for secret support."""
         return create_config_registry(
@@ -397,7 +401,9 @@ class TestSetConfigSecret:
         raw = config_store.get("voice.elevenlabs_api_key")
         assert raw == "$secret:cfg__voice__elevenlabs_api_key"
 
-    def test_set_config_normal_unchanged(self, config_registry_with_db, config_store: ConfigStore) -> None:
+    def test_set_config_normal_unchanged(
+        self, config_registry_with_db, config_store: ConfigStore
+    ) -> None:
         """set_config without is_secret works as before."""
         tool = config_registry_with_db.get_tool("set_config")
         result = tool(key="daemon_port", value=61000)

@@ -166,9 +166,7 @@ class ConfigStore:
 
     def get_secret_keys(self) -> list[str]:
         """Return all config keys flagged as secrets."""
-        rows = self.db.fetchall(
-            "SELECT key FROM config_store WHERE is_secret = 1 ORDER BY key"
-        )
+        rows = self.db.fetchall("SELECT key FROM config_store WHERE is_secret = 1 ORDER BY key")
         return [row["key"] for row in rows]
 
     def clear_secret(self, key: str, secret_store: SecretStore) -> None:

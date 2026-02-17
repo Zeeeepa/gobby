@@ -157,9 +157,7 @@ def create_configuration_router(server: "HTTPServer") -> APIRouter:
                 flat[key] = "********"
         masked_values = unflatten_config(flat)
 
-        return JSONResponse(
-            content={"values": masked_values, "secret_keys": sorted(secret_keys)}
-        )
+        return JSONResponse(content={"values": masked_values, "secret_keys": sorted(secret_keys)})
 
     @router.put("/values")
     async def save_config_values(request: SaveConfigRequest) -> JSONResponse:
@@ -196,9 +194,7 @@ def create_configuration_router(server: "HTTPServer") -> APIRouter:
                 else:
                     validation_flat[key] = f"$secret:{config_key_to_secret_name(key)}"
             # Remove masked values from validation
-            validation_flat = {
-                k: v for k, v in validation_flat.items() if v != "********"
-            }
+            validation_flat = {k: v for k, v in validation_flat.items() if v != "********"}
 
             # Load current config, deep merge, validate
             current = server.services.config.model_dump(mode="json", exclude_none=True)
@@ -224,9 +220,10 @@ def create_configuration_router(server: "HTTPServer") -> APIRouter:
 
             # Update in-memory config with actual (decrypted) values
             resolved = server.services.config.model_dump(mode="json", exclude_none=True)
-            deep_merge(resolved, unflatten_config({
-                k: v for k, v in flat_updates.items() if v != "********"
-            }))
+            deep_merge(
+                resolved,
+                unflatten_config({k: v for k, v in flat_updates.items() if v != "********"}),
+            )
             server.services.config = DaemonConfig(**resolved)
 
             return JSONResponse(

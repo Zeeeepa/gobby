@@ -90,7 +90,9 @@ class TestGetConfigValues:
         assert data["values"]["daemon_port"] == 60887
         assert "websocket" in data["values"]
 
-    def test_values_contain_expected_keys(self, client: TestClient, real_config: DaemonConfig) -> None:
+    def test_values_contain_expected_keys(
+        self, client: TestClient, real_config: DaemonConfig
+    ) -> None:
         response = client.get("/api/config/values")
         values = response.json()["values"]
         expected = real_config.model_dump(mode="json", exclude_none=True)
@@ -532,9 +534,7 @@ class TestExportImport:
         assert isinstance(data["prompts"], dict)
         assert isinstance(data["secrets"], list)
 
-    def test_export_config_with_prompt_overrides(
-        self, client: TestClient, mock_machine_id
-    ) -> None:
+    def test_export_config_with_prompt_overrides(self, client: TestClient, mock_machine_id) -> None:
         # Insert a global override via the API
         client.put(
             "/api/config/prompts/expansion/system",
@@ -667,9 +667,7 @@ class TestSecretAwareConfig:
         data = response.json()
         assert "voice.elevenlabs_api_key" in data["secret_keys"]
 
-    def test_put_secret_value_encrypts(
-        self, client: TestClient, temp_db, mock_machine_id
-    ) -> None:
+    def test_put_secret_value_encrypts(self, client: TestClient, temp_db, mock_machine_id) -> None:
         """PUT with a secret-pattern key encrypts via SecretStore."""
         response = client.put(
             "/api/config/values",
@@ -692,9 +690,7 @@ class TestSecretAwareConfig:
         decrypted = secret_store.get("cfg__voice__elevenlabs_api_key")
         assert decrypted == "sk-test-789"
 
-    def test_put_masked_value_skipped(
-        self, client: TestClient, temp_db, mock_machine_id
-    ) -> None:
+    def test_put_masked_value_skipped(self, client: TestClient, temp_db, mock_machine_id) -> None:
         """PUT with '********' for a secret key skips the update."""
         # First set a secret
         store = ConfigStore(temp_db)
@@ -712,9 +708,7 @@ class TestSecretAwareConfig:
         decrypted = secret_store.get("cfg__voice__elevenlabs_api_key")
         assert decrypted == "sk-original"
 
-    def test_put_empty_secret_clears(
-        self, client: TestClient, temp_db, mock_machine_id
-    ) -> None:
+    def test_put_empty_secret_clears(self, client: TestClient, temp_db, mock_machine_id) -> None:
         """PUT with empty string for a secret key clears it."""
         store = ConfigStore(temp_db)
         secret_store = SecretStore(temp_db)
