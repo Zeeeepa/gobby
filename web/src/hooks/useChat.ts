@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
-import type { ChatMessage, ToolCall } from '../components/Message'
-import type { QueuedFile } from '../components/ChatInput'
+import type { ChatMessage, ToolCall } from '../types/chat'
+import type { QueuedFile } from '../types/chat'
 
 const CONVERSATION_ID_KEY = 'gobby-conversation-id'
 const MAX_STORED_MESSAGES = 100
@@ -75,7 +75,7 @@ interface ToolStatusMessage {
   message_id: string
   request_id?: string
   tool_call_id: string
-  status: 'calling' | 'completed' | 'error'
+  status: 'calling' | 'completed' | 'error' | 'pending_approval'
   tool_name?: string
   server_name?: string
   arguments?: Record<string, unknown>
@@ -754,6 +754,17 @@ export function useChat() {
     }))
   }, [])
 
+  // Respond to a tool approval request
+  const respondToApproval = useCallback((toolCallId: string, decision: 'approve' | 'reject' | 'approve_always') => {
+    if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) return
+    wsRef.current.send(JSON.stringify({
+      type: 'tool_approval_response',
+      conversation_id: conversationIdRef.current,
+      tool_call_id: toolCallId,
+      decision,
+    }))
+  }, [])
+
   // Connect on mount
   useEffect(() => {
     connect()
@@ -778,6 +789,7 @@ export function useChat() {
     deleteConversation,
     executeCommand,
     respondToQuestion,
+    respondToApproval,
     switchConversation,
     startNewChat,
     resumeSession,

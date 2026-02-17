@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter'
 import { oneDark } from 'react-syntax-highlighter/dist/esm/styles/prism'
-import type { ToolCall } from '../Message'
+import type { ToolCall } from '../../types/chat'
 import { cn } from '../../lib/utils'
 import { Badge } from './ui/Badge'
 import { Button } from './ui/Button'

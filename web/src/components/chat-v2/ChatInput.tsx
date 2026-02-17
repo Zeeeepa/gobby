@@ -1,5 +1,5 @@
 import { useState, useCallback, useRef, useEffect, useMemo, type KeyboardEvent } from 'react'
-import type { QueuedFile, ProjectOption } from '../ChatInput'
+import type { QueuedFile, ProjectOption } from '../../types/chat'
 import type { CommandInfo } from '../../hooks/useSlashCommands'
 import { cn } from '../../lib/utils'
 import { Button } from './ui/Button'

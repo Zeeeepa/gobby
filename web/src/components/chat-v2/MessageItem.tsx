@@ -1,4 +1,4 @@
-import type { ChatMessage } from '../Message'
+import type { ChatMessage } from '../../types/chat'
 import { cn } from '../../lib/utils'
 import { Markdown } from './Markdown'
 import { ThinkingBlock } from './ThinkingBlock'

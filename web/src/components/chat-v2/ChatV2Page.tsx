@@ -1,6 +1,6 @@
 import './styles.css'
 import { useCallback } from 'react'
-import type { ChatState, ConversationState, TerminalProps, ProjectProps, VoiceProps } from '../ChatPage'
+import type { ChatState, ConversationState, TerminalProps, ProjectProps, VoiceProps } from '../../types/chat'
 import { ConversationPicker } from '../ConversationPicker'
 import { TerminalPanel } from '../Terminal'
 import { useArtifacts } from '../../hooks/useArtifacts'
