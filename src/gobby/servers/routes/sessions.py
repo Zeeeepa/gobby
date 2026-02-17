@@ -563,6 +563,82 @@ def create_sessions_router(server: "HTTPServer") -> APIRouter:
             logger.error(f"Update session summary error: {e}", exc_info=True)
             raise HTTPException(status_code=500, detail=str(e)) from e
 
+    @router.post("/{session_id}/synthesize-title")
+    async def synthesize_session_title(session_id: str) -> dict[str, Any]:
+        """
+        Synthesize a title for a session from its recent messages.
+
+        Uses LLM to generate a short 3-5 word title based on conversation content.
+
+        Args:
+            session_id: Session ID
+
+        Returns:
+            Synthesized title
+        """
+        start_time = time.perf_counter()
+        metrics.inc_counter("http_requests_total")
+
+        try:
+            if server.session_manager is None:
+                raise HTTPException(status_code=503, detail="Session manager not available")
+            if server.llm_service is None:
+                raise HTTPException(status_code=503, detail="LLM service not available")
+            if server.message_manager is None:
+                raise HTTPException(status_code=503, detail="Message manager not available")
+
+            session = server.session_manager.get(session_id)
+            if session is None:
+                raise HTTPException(status_code=404, detail="Session not found")
+
+            # Read recent messages from DB
+            messages = await server.message_manager.get_messages(
+                session_id=session_id, limit=20, offset=0
+            )
+            if not messages:
+                raise HTTPException(status_code=422, detail="No messages to synthesize title from")
+
+            # Build a concise transcript for the LLM
+            transcript_lines = []
+            for msg in messages:
+                role = msg.get("role", "unknown")
+                content = msg.get("content", "")
+                if content and role in ("user", "assistant"):
+                    # Truncate long messages
+                    if len(content) > 300:
+                        content = content[:300] + "..."
+                    transcript_lines.append(f"{role}: {content}")
+
+            if not transcript_lines:
+                raise HTTPException(status_code=422, detail="No user/assistant messages found")
+
+            transcript = "\n".join(transcript_lines)
+            llm_prompt = (
+                "Create a short title (3-5 words) for this chat session based on "
+                "the conversation. Output ONLY the title, no quotes or explanation.\n\n"
+                f"Conversation:\n{transcript}"
+            )
+
+            provider = server.llm_service.get_default_provider()
+            title = await provider.generate_text(llm_prompt)
+            title = title.strip().strip('"').strip("'")
+
+            server.session_manager.update_title(session_id, title)
+
+            response_time_ms = (time.perf_counter() - start_time) * 1000
+            return {
+                "status": "success",
+                "title": title,
+                "response_time_ms": response_time_ms,
+            }
+
+        except HTTPException:
+            raise
+        except Exception as e:
+            metrics.inc_counter("http_requests_errors_total")
+            logger.error(f"Synthesize title error: {e}", exc_info=True)
+            raise HTTPException(status_code=500, detail=str(e)) from e
+
     @router.post("/{session_id}/generate-summary")
     async def generate_session_summary(session_id: str) -> dict[str, Any]:
         """

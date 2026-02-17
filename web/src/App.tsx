@@ -22,6 +22,7 @@ import { AgentDefinitionsPage } from './components/AgentDefinitionsPage'
 import { ConfigurationPage } from './components/ConfigurationPage'
 import { WorkflowsPage } from './components/WorkflowsPage'
 import { GitHubPage } from './components/GitHubPage'
+import { DashboardPage } from './components/DashboardPage'
 import { QuickCaptureTask } from './components/tasks/QuickCaptureTask'
 import { ChatV2Page } from './components/chat-v2/ChatV2Page'
 import type { GobbySession } from './hooks/useSessions'
@@ -44,6 +45,45 @@ export default function App() {
     try { return localStorage.getItem('gobby-chat-project') } catch { return null }
   })
   const [quickCaptureOpen, setQuickCaptureOpen] = useState(false)
+
+  // Auto-synthesize chat title when streaming completes
+  const wasStreamingRef = useRef(false)
+  const titleSynthesisCountRef = useRef(0) // messages since last synthesis
+
+  useEffect(() => {
+    // Detect streaming transition: true → false (response completed)
+    if (wasStreamingRef.current && !isStreaming) {
+      titleSynthesisCountRef.current += 1
+
+      // Find the current session's DB ID
+      const currentSession = sessionsHook.sessions.find(
+        (s) => s.external_id === conversationId && s.source === 'claude_sdk_web_chat'
+      )
+
+      if (currentSession) {
+        // Synthesize on first completion (no title) or every 4 completions
+        const needsTitle = !currentSession.title
+        const periodicUpdate = titleSynthesisCountRef.current >= 4
+
+        if (needsTitle || periodicUpdate) {
+          titleSynthesisCountRef.current = 0
+          const baseUrl = import.meta.env.VITE_API_BASE_URL || ''
+          fetch(`${baseUrl}/sessions/${currentSession.id}/synthesize-title`, { method: 'POST' })
+            .then((res) => res.ok ? res.json() : null)
+            .then((data) => {
+              if (data?.title) sessionsHook.refresh()
+            })
+            .catch((err) => console.error('Failed to synthesize title:', err))
+        }
+      }
+    }
+    wasStreamingRef.current = isStreaming
+  }, [isStreaming, conversationId, sessionsHook])
+
+  // Reset title synthesis counter on conversation switch
+  useEffect(() => {
+    titleSynthesisCountRef.current = 0
+  }, [conversationId])
 
   // Global keyboard chord: Cmd+K → t opens quick capture task creation
   const chordPendingRef = useRef(false)
@@ -375,6 +415,8 @@ export default function App() {
         <GitHubPage />
       ) : activeTab === 'configuration' ? (
         <ConfigurationPage />
+      ) : activeTab === 'dashboard' ? (
+        <DashboardPage />
       ) : (
         <ComingSoonPage title={navItems.find(i => i.id === activeTab)?.label ?? activeTab} />
       )}
