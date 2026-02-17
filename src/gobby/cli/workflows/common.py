@@ -33,6 +33,13 @@ def get_state_manager(db: LocalDatabase | None = None) -> WorkflowStateManager:
     return _state_manager_instance
 
 
+def _reset_state_manager_for_tests() -> None:
+    """Reset cached state manager instances (for test isolation)."""
+    global _db_instance, _state_manager_instance
+    _db_instance = None
+    _state_manager_instance = None
+
+
 def truncate_id(session_id: str, length: int = 12) -> str:
     """Truncate ID for display, appending '...' only if truncated."""
     return f"{session_id[:length]}..." if len(session_id) > length else session_id

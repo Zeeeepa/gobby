@@ -457,6 +457,87 @@ class TestRegistryIntegration:
 
 
 # =============================================================================
+# No-database error paths
+# =============================================================================
+
+
+class TestNoDatabaseError:
+    """CRUD tools return helpful errors when no database is connected."""
+
+    @pytest.mark.asyncio
+    async def test_create_workflow_no_db(self) -> None:
+        from gobby.mcp_proxy.tools.workflows import create_workflows_registry
+
+        registry = create_workflows_registry()
+        result = await registry.call("create_workflow", {"yaml_content": VALID_WORKFLOW_YAML})
+        assert "error" in result
+        assert "Definition tools require database connection" in result["error"]
+
+    @pytest.mark.asyncio
+    async def test_update_workflow_no_db(self) -> None:
+        from gobby.mcp_proxy.tools.workflows import create_workflows_registry
+
+        registry = create_workflows_registry()
+        result = await registry.call("update_workflow", {"name": "x", "description": "y"})
+        assert "error" in result
+        assert "Definition tools require database connection" in result["error"]
+
+    @pytest.mark.asyncio
+    async def test_delete_workflow_no_db(self) -> None:
+        from gobby.mcp_proxy.tools.workflows import create_workflows_registry
+
+        registry = create_workflows_registry()
+        result = await registry.call("delete_workflow", {"name": "x"})
+        assert "error" in result
+        assert "Definition tools require database connection" in result["error"]
+
+    @pytest.mark.asyncio
+    async def test_export_workflow_no_db(self) -> None:
+        from gobby.mcp_proxy.tools.workflows import create_workflows_registry
+
+        registry = create_workflows_registry()
+        result = await registry.call("export_workflow", {"name": "x"})
+        assert "error" in result
+        assert "Definition tools require database connection" in result["error"]
+
+    @pytest.mark.asyncio
+    async def test_create_pipeline_no_db(self) -> None:
+        from gobby.mcp_proxy.tools.pipelines import create_pipelines_registry
+
+        registry = create_pipelines_registry()
+        result = await registry.call("create_pipeline", {"yaml_content": VALID_PIPELINE_YAML})
+        assert "error" in result
+        assert "Pipeline definition tools require database connection" in result["error"]
+
+    @pytest.mark.asyncio
+    async def test_update_pipeline_no_db(self) -> None:
+        from gobby.mcp_proxy.tools.pipelines import create_pipelines_registry
+
+        registry = create_pipelines_registry()
+        result = await registry.call("update_pipeline", {"name": "x", "description": "y"})
+        assert "error" in result
+        assert "Pipeline definition tools require database connection" in result["error"]
+
+    @pytest.mark.asyncio
+    async def test_delete_pipeline_no_db(self) -> None:
+        from gobby.mcp_proxy.tools.pipelines import create_pipelines_registry
+
+        registry = create_pipelines_registry()
+        result = await registry.call("delete_pipeline", {"name": "x"})
+        assert "error" in result
+        assert "Pipeline definition tools require database connection" in result["error"]
+
+    @pytest.mark.asyncio
+    async def test_export_pipeline_no_db(self) -> None:
+        from gobby.mcp_proxy.tools.pipelines import create_pipelines_registry
+
+        registry = create_pipelines_registry()
+        result = await registry.call("export_pipeline", {"name": "x"})
+        assert "error" in result
+        assert "Pipeline definition tools require database connection" in result["error"]
+
+
+# =============================================================================
 # Pipeline type filtering
 # =============================================================================
 

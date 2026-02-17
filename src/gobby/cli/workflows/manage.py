@@ -109,8 +109,10 @@ def reload_workflows(ctx: click.Context) -> None:
                         continue
                     # Check if the process is a gobby daemon
                     cmd_base = os.path.basename(cmdline[0])
-                    has_gobby = "gobby" in cmd_base or (
-                        len(cmdline) >= 3 and cmdline[1] == "-m" and cmdline[2] == "gobby"
+                    has_gobby = (
+                        "gobby" in cmd_base
+                        or (len(cmdline) >= 3 and cmdline[1] == "-m" and cmdline[2] == "gobby")
+                        or (cmd_base == "uv" and "run" in cmdline[1:] and "gobby" in cmdline[1:])
                     )
                     has_start = "start" in cmdline[1:]
                     if has_gobby and has_start:

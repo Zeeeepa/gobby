@@ -46,9 +46,6 @@ def check_workflow(ctx: click.Context, name: str, json_format: bool) -> None:
     except (click.ClickException, ValueError, RuntimeError) as e:
         click.echo(f"Error: {e}", err=True)
         raise SystemExit(1) from None
-    except Exception as e:
-        click.echo(f"Unexpected error: {e}", err=True)
-        raise
 
     if json_format:
         click.echo(json.dumps(result, indent=2, default=str))
