@@ -63,13 +63,17 @@ class ElevenLabsTTS:
 
             voice_id = self._config.elevenlabs_voice_id
             model_id = self._config.elevenlabs_model_id
+            api_key = self._config.elevenlabs_api_key
             url = (
                 f"wss://api.elevenlabs.io/v1/text-to-speech/{voice_id}"
                 f"/stream-input?model_id={model_id}"
                 f"&optimize_streaming_latency=3"
             )
 
-            self._ws = await websockets.connect(url)
+            self._ws = await websockets.connect(
+                url,
+                additional_headers={"xi-api-key": api_key},
+            )
 
             # Send BOS (beginning of stream) message
             bos_message = {
