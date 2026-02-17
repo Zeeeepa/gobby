@@ -1,0 +1,101 @@
+import { useState, useEffect } from 'react'
+import type { PullRequest } from '../../hooks/useSourceControl'
+import { StatusBadge } from './StatusBadge'
+
+interface Props {
+  prNumber: number
+  summary: PullRequest | null
+  fetchDetail: (number: number) => Promise<Record<string, unknown> | null>
+  onClose: () => void
+}
+
+export function PullRequestDetail({ prNumber, summary, fetchDetail, onClose }: Props) {
+  const [detail, setDetail] = useState<Record<string, unknown> | null>(null)
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    setLoading(true)
+    fetchDetail(prNumber).then((d) => {
+      setDetail(d)
+      setLoading(false)
+    })
+  }, [prNumber, fetchDetail])
+
+  const body = (detail?.body as string) || ''
+  const htmlUrl = (detail?.html_url as string) || ''
+  const reviewers = (detail?.requested_reviewers as Array<{ login: string }>) || []
+  const labels = (detail?.labels as Array<{ name: string; color: string }>) || []
+
+  return (
+    <div className="sc-detail-panel">
+      <div className="sc-detail-panel__header">
+        <h3 className="sc-detail-panel__title">
+          #{prNumber} {summary?.title || ''}
+        </h3>
+        <button className="sc-detail-panel__close" onClick={onClose}>
+          &times;
+        </button>
+      </div>
+
+      {loading ? (
+        <div className="sc-detail-panel__body">
+          <p className="sc-text-muted">Loading...</p>
+        </div>
+      ) : (
+        <div className="sc-detail-panel__body">
+          <div className="sc-pr-detail__meta">
+            {summary && (
+              <div className="sc-pr-detail__status-row">
+                <StatusBadge status={summary.draft ? 'draft' : summary.state} />
+                <span className="sc-text-muted">
+                  {summary.author} &middot; {summary.head_branch} &rarr; {summary.base_branch}
+                </span>
+              </div>
+            )}
+
+            {labels.length > 0 && (
+              <div className="sc-pr-detail__labels">
+                {labels.map((l) => (
+                  <span
+                    key={l.name}
+                    className="sc-pr-detail__label"
+                    style={{ borderColor: `#${l.color}` }}
+                  >
+                    {l.name}
+                  </span>
+                ))}
+              </div>
+            )}
+
+            {reviewers.length > 0 && (
+              <div className="sc-pr-detail__reviewers">
+                <span className="sc-text-muted">Reviewers:</span>{' '}
+                {reviewers.map((r) => r.login).join(', ')}
+              </div>
+            )}
+          </div>
+
+          {body && (
+            <div className="sc-pr-detail__description">
+              <h4 className="sc-detail-panel__subtitle">Description</h4>
+              <pre className="sc-pr-detail__body">{body}</pre>
+            </div>
+          )}
+
+          {htmlUrl && (
+            <div className="sc-pr-detail__links">
+              <a
+                href={htmlUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="sc-btn sc-btn--sm"
+              >
+                View on GitHub
+              </a>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  )
+}

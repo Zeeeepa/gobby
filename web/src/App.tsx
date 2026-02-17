@@ -21,7 +21,9 @@ import { CronJobsPage } from './components/CronJobsPage'
 import { AgentDefinitionsPage } from './components/AgentDefinitionsPage'
 import { ConfigurationPage } from './components/ConfigurationPage'
 import { WorkflowsPage } from './components/WorkflowsPage'
+import { GitHubPage } from './components/GitHubPage'
 import { QuickCaptureTask } from './components/tasks/QuickCaptureTask'
+import { ChatV2Page } from './components/chat-v2/ChatV2Page'
 import type { GobbySession } from './hooks/useSessions'
 
 const HIDDEN_PROJECTS = new Set(['_orphaned', '_migrated'])
@@ -188,13 +190,14 @@ export default function App() {
   const navItems = [
     { id: 'dashboard', label: 'Dashboard', icon: <DashboardIcon /> },
     { id: 'chat', label: 'Chat', icon: <ChatIcon /> },
+    { id: 'chat-v2', label: 'Chat (new)', icon: <ChatV2Icon /> },
     { id: 'sessions', label: 'Sessions', icon: <SessionsIcon /> },
     { id: 'terminals', label: 'Terminals', icon: <TerminalIcon /> },
     { id: 'projects', label: 'Projects', icon: <ProjectsIcon />, separator: true },
     { id: 'tasks', label: 'Tasks', icon: <TasksIcon /> },
     { id: 'agents', label: 'Agent Definitions', icon: <AgentsIcon /> },
     { id: 'workflows', label: 'Workflows', icon: <WorkflowsIcon /> },
-    { id: 'worktrees', label: 'Worktrees/Clones', icon: <WorktreesIcon /> },
+    { id: 'worktrees', label: 'GitHub', icon: <GitHubIcon /> },
     { id: 'cron', label: 'Cron Jobs', icon: <CronIcon /> },
     { id: 'memory', label: 'Memory', icon: <MemoryIcon /> },
     { id: 'skills', label: 'Skills', icon: <SkillsIcon /> },
@@ -234,6 +237,54 @@ export default function App() {
 
       {activeTab === 'chat' ? (
         <ChatPage
+          chat={{
+            messages,
+            isStreaming,
+            isThinking,
+            isConnected,
+            onSend: handleSendMessage,
+            onStop: stopStreaming,
+            onRespondToQuestion: respondToQuestion,
+            onInputChange: handleInputChange,
+            filteredCommands,
+            onCommandSelect: handleCommandSelect,
+          }}
+          conversations={{
+            sessions: webChatSessions,
+            activeSessionId: conversationId,
+            onNewChat: startNewChat,
+            onSelectSession: handleSelectConversation,
+            onDeleteSession: handleDeleteConversation,
+          }}
+          terminal={{
+            isOpen: terminalOpen,
+            onToggle: () => setTerminalOpen(!terminalOpen),
+            agents,
+            selectedAgent,
+            onSelectAgent: setSelectedAgent,
+            onInput: sendInput,
+            onOutput,
+          }}
+          project={{
+            projects: projectOptions,
+            selectedProjectId: effectiveProjectId,
+            onProjectChange: setSelectedProjectId,
+          }}
+          voice={{
+            voiceMode: voice.voiceMode,
+            voiceAvailable: voice.voiceAvailable,
+            isRecording: voice.isRecording,
+            isTranscribing: voice.isTranscribing,
+            isSpeaking: voice.isSpeaking,
+            voiceError: voice.voiceError,
+            onToggleVoice: voice.toggleVoiceMode,
+            onStartRecording: voice.startRecording,
+            onStopRecording: voice.stopRecording,
+            onStopSpeaking: voice.stopSpeaking,
+          }}
+        />
+      ) : activeTab === 'chat-v2' ? (
+        <ChatV2Page
           chat={{
             messages,
             isStreaming,
@@ -320,6 +371,8 @@ export default function App() {
         <WorkflowsPage />
       ) : activeTab === 'mcp' ? (
         <McpPage />
+      ) : activeTab === 'worktrees' ? (
+        <GitHubPage />
       ) : activeTab === 'configuration' ? (
         <ConfigurationPage />
       ) : (
@@ -498,14 +551,10 @@ function CronIcon() {
   )
 }
 
-function WorktreesIcon() {
+function GitHubIcon() {
   return (
     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <circle cx="12" cy="18" r="3" />
-      <circle cx="6" cy="6" r="3" />
-      <circle cx="18" cy="6" r="3" />
-      <path d="M12 15V9" />
-      <path d="M9 7.5L12 9l3-1.5" />
+      <path d="M9 19c-5 1.5-5-2.5-7-3m14 6v-3.87a3.37 3.37 0 0 0-.94-2.61c3.14-.35 6.44-1.54 6.44-7A5.44 5.44 0 0 0 20 4.77 5.07 5.07 0 0 0 19.91 1S18.73.65 16 2.48a13.38 13.38 0 0 0-7 0C6.27.65 5.09 1 5.09 1A5.07 5.07 0 0 0 5 4.77a5.44 5.44 0 0 0-1.5 3.78c0 5.42 3.3 6.61 6.44 7A3.37 3.37 0 0 0 9 18.13V22" />
     </svg>
   )
 }
@@ -522,6 +571,16 @@ function McpIcon() {
       <line x1="18" y1="6" x2="14.5" y2="10" />
       <line x1="6" y1="18" x2="9.5" y2="14" />
       <line x1="18" y1="18" x2="14.5" y2="14" />
+    </svg>
+  )
+}
+
+function ChatV2Icon() {
+  return (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+      <path d="M8 10h8" />
+      <path d="M8 14h4" />
     </svg>
   )
 }
