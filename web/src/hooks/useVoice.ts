@@ -107,6 +107,14 @@ export function useVoice(
 
   // Check voice availability on mount
   useEffect(() => {
+    // getUserMedia requires a secure context (HTTPS or localhost).
+    // On plain HTTP (e.g. Tailscale IP), navigator.mediaDevices is undefined.
+    if (!window.isSecureContext) {
+      console.warn('Voice: disabled — requires secure context (HTTPS or localhost)')
+      setVoiceAvailable(false)
+      return
+    }
+
     fetch('/api/voice/status')
       .then(res => res.ok ? res.json() : null)
       .then(data => {
