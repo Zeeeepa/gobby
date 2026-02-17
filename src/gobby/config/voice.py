@@ -41,8 +41,8 @@ class VoiceConfig(BaseModel):
         description="ElevenLabs model ID for TTS (must support WebSocket streaming).",
     )
     elevenlabs_speed: float = Field(
-        default=0.75,
-        description="ElevenLabs TTS speed (0.5–2.0, default 0.75 = 25% slower).",
+        default=0.9,
+        description="ElevenLabs TTS speed (0.5–2.0, default 0.9 = 10% slower).",
     )
     audio_format: str = Field(
         default="mp3_44100_128",
