@@ -76,7 +76,7 @@ steps:                    # Required: List of steps
 
 ### Step Types
 
-Each step must have exactly one execution type: `exec`, `prompt`, or `invoke_pipeline`.
+Each step must have exactly one execution type: `exec`, `prompt`, `invoke_pipeline`, `mcp`, `spawn_session`, or `activate_workflow`.
 
 #### exec - Shell Command
 
@@ -106,6 +106,47 @@ Each step must have exactly one execution type: `exec`, `prompt`, or `invoke_pip
   condition: $build.status == 'success'
 ```
 
+#### mcp - MCP Tool Call
+
+Calls an MCP tool directly. Configure with `server`, `tool`, and optional `arguments`.
+
+```yaml
+- id: create-issue
+  mcp:
+    server: github
+    tool: create_issue
+    arguments:
+      title: "Bug report from pipeline"
+      body: ${{ steps.analyze.output.summary }}
+```
+
+#### spawn_session - Spawn CLI Session
+
+Spawns a CLI session via tmux. Configure with `cli` (default `"claude"`), `prompt`, `cwd`, `workflow_name`, and `agent_depth` (default `1`).
+
+```yaml
+- id: worker
+  spawn_session:
+    cli: claude
+    prompt: "Fix the bug described in $analyze.output"
+    cwd: /path/to/project
+    workflow_name: developer
+    agent_depth: 1
+```
+
+#### activate_workflow - Activate Workflow
+
+Activates a workflow on a session. Configure with `name` (required), `session_id` (required), and optional `variables`.
+
+```yaml
+- id: setup-workflow
+  activate_workflow:
+    name: developer
+    session_id: ${{ steps.worker.output.session_id }}
+    variables:
+      session_task: "#123"
+```
+
 ### Step Fields
 
 | Field | Type | Description |
@@ -114,6 +155,9 @@ Each step must have exactly one execution type: `exec`, `prompt`, or `invoke_pip
 | `exec` | string | Shell command to execute |
 | `prompt` | string | LLM prompt template |
 | `invoke_pipeline` | string | Pipeline name to invoke |
+| `mcp` | object | MCP tool call config (`server`, `tool`, `arguments`) |
+| `spawn_session` | object | Spawn CLI session config (`cli`, `prompt`, `cwd`, `workflow_name`, `agent_depth`) |
+| `activate_workflow` | object | Activate workflow config (`name`, `session_id`, `variables`) |
 | `condition` | string | Condition for step execution |
 | `input` | string | Explicit input reference (e.g., `$prev_step.output`) |
 | `approval` | object | Approval gate configuration |
@@ -141,8 +185,74 @@ steps:
 ### Reference Syntax
 
 - `$step_id.output` - Output from a previous step
+- `$step_id.output.field` - Nested field within a step's output
 - `$inputs.param` - Pipeline input parameter
 - `$step_id.status` - Step execution status
+
+## Template Syntax
+
+Pipelines support Jinja2-style template expressions for dynamic values in step fields.
+
+### Expression Syntax
+
+Use `${{ expression }}` to embed template expressions. Internally, `${{ }}` is converted to `{{ }}` for Jinja2 rendering.
+
+```yaml
+- id: greet
+  exec: echo "Deploying to ${{ inputs.environment }}"
+```
+
+### Available Variables
+
+| Variable | Description |
+|----------|-------------|
+| `inputs.<param>` | Pipeline input parameters |
+| `steps.<step_id>.output` | Output from a completed step |
+| `steps.<step_id>.output.<field>` | Nested field from step output |
+| `env.<VAR_NAME>` | Environment variable (with filtering, see below) |
+
+### Environment Variable Access
+
+Environment variables are available via `${{ env.VAR_NAME }}` in templates. Sensitive variables are automatically filtered out and will not be available.
+
+**Filtered by suffix** (case-insensitive): `_SECRET`, `_KEY`, `_TOKEN`, `_PASSWORD`, `_CREDENTIAL`, `_PRIVATE_KEY`, `_AUTH`, `_OAUTH`, `_API_KEY`
+
+**Filtered by name**: `DATABASE_URL`, `AWS_SECRET_ACCESS_KEY`, `API_KEY`, `AUTH_TOKEN`, `OAUTH_TOKEN`
+
+```yaml
+- id: notify
+  mcp:
+    server: slack
+    tool: post_message
+    arguments:
+      channel: "#deploys"
+      text: "Deployed version ${{ steps.build.output.version }}"
+      # This would be filtered: ${{ env.SLACK_API_TOKEN }}
+```
+
+### Type Coercion in MCP Arguments
+
+After template rendering, all values are strings. For MCP tool arguments, string values are automatically coerced to native types:
+
+| String Value | Coerced To | Type |
+|-------------|------------|------|
+| `"true"` / `"false"` | `True` / `False` | bool |
+| `"null"` / `"none"` | `None` | NoneType |
+| `"600"` | `600` | int |
+| `"3.14"` | `3.14` | float |
+
+This ensures MCP tools receive the correct types even when values come from template expressions:
+
+```yaml
+- id: configure
+  mcp:
+    server: myserver
+    tool: set_config
+    arguments:
+      timeout: ${{ inputs.timeout }}     # "600" -> 600
+      verbose: ${{ inputs.verbose }}     # "true" -> True
+      threshold: ${{ inputs.threshold }} # "3.14" -> 3.14
+```
 
 ## Approval Gates
 
@@ -193,16 +303,18 @@ name: deploy
 type: pipeline
 
 webhooks:
-  on_approval_required:
+  on_approval_pending:
     url: https://slack.com/webhook/xxx
     method: POST
-    body:
-      text: "Deployment needs approval: {{ execution_id }}"
+    headers: {}
 
-  on_completed:
+  on_complete:
     url: https://api.example.com/notify
     headers:
-      Authorization: "Bearer {{ env.API_TOKEN }}"
+      Authorization: "Bearer ${{ env.API_TOKEN }}"
+
+  on_failure:
+    url: https://api.example.com/notify-failure
 
 steps:
   - id: deploy
@@ -211,14 +323,15 @@ steps:
       required: true
 ```
 
-### Webhook Events
+### Webhook Config Fields
 
-- `on_started` - Pipeline execution started
-- `on_approval_required` - Waiting for approval
-- `on_approved` - Approval granted
-- `on_rejected` - Approval rejected
-- `on_completed` - Pipeline finished successfully
-- `on_failed` - Pipeline failed
+The `WebhookConfig` model supports these fields:
+
+- `on_approval_pending` -- Fires when a pipeline step is waiting for approval
+- `on_complete` -- Fires when the pipeline finishes successfully
+- `on_failure` -- Fires when the pipeline fails
+
+Each webhook endpoint accepts `url` (required), `method` (default `"POST"`), and `headers` (optional dict).
 
 ## MCP Tool Exposure
 
@@ -251,6 +364,49 @@ result = mcp__gobby__call_tool(
     arguments={"test_filter": "test_api"}
 )
 ```
+
+## MCP Tools
+
+The `gobby-pipelines` MCP server registers the following tools for pipeline management:
+
+| Tool | Description |
+|------|-------------|
+| `list_pipelines` | List available pipeline definitions |
+| `get_pipeline` | Get details about a specific pipeline (steps, inputs) |
+| `run_pipeline` | Run a pipeline by name with inputs |
+| `approve_pipeline` | Approve a waiting pipeline execution |
+| `reject_pipeline` | Reject a waiting pipeline execution |
+| `get_pipeline_status` | Get execution status including step details |
+| `create_pipeline` | Create from YAML content (must have `type: pipeline`) |
+| `update_pipeline` | Update by name or ID |
+| `delete_pipeline` | Delete by name or ID (bundled protected unless `force=True`) |
+| `export_pipeline` | Export as YAML content |
+
+Additionally, pipelines with `expose_as_tool: true` are automatically registered as dynamic MCP tools named `pipeline:<name>`. These tools accept the pipeline's declared inputs as arguments and run the pipeline when invoked.
+
+## Execution Status Reference
+
+### ExecutionStatus (pipeline-level)
+
+| Status | Description |
+|--------|-------------|
+| `pending` | Pipeline created, not yet started |
+| `running` | Pipeline is executing steps |
+| `waiting_approval` | Paused at an approval gate |
+| `completed` | All steps finished successfully |
+| `failed` | A step failed |
+| `cancelled` | Pipeline was rejected/cancelled |
+
+### StepStatus (step-level)
+
+| Status | Description |
+|--------|-------------|
+| `pending` | Step not yet started |
+| `running` | Step is executing |
+| `waiting_approval` | Step waiting for approval |
+| `completed` | Step finished successfully |
+| `failed` | Step failed |
+| `skipped` | Step skipped (condition was false) |
 
 ## CLI Reference
 

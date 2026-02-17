@@ -8,17 +8,18 @@ Workflows transform Gobby from a passive session tracker into an **enforcement l
 
 Gobby supports three types of workflows:
 
-### Lifecycle Workflows
+### Always-On Workflows
 
-Event-driven workflows that respond to session events without enforcing steps or tool restrictions.
+Event-driven workflows that respond to session events without enforcing steps or tool restrictions. Controlled by `enabled: true` (the default).
 
 **Characteristics:**
 
-- `type: lifecycle`
+- `enabled: true` (default) -- auto-activates on matching sessions
+- `priority: int` (default 100) -- evaluation order; lower values run first
 - No `steps` section
 - Only `triggers` section
 - Actions execute in sequence per event
-- **Multiple lifecycle workflows can be active simultaneously**
+- **Multiple always-on workflows can be active simultaneously**
 
 **Use cases:**
 
@@ -27,24 +28,28 @@ Event-driven workflows that respond to session events without enforcing steps or
 - Logging and analytics
 - Notifications
 
-### Step-Based Workflows
+> **Backward compatibility:** `type: lifecycle` in YAML is still accepted and treated as `enabled: true`. The `type` field is deprecated in favor of `enabled`/`priority`.
 
-State machine workflows that enforce steps with tool restrictions, transition conditions, and exit criteria.
+### On-Demand Workflows
+
+State machine workflows that enforce steps with tool restrictions, transition conditions, and exit criteria. Controlled by `enabled: false`.
 
 **Characteristics:**
 
-- `type: step` (default)
+- `enabled: false` -- must be activated explicitly (via CLI or MCP tool)
 - Has `steps` section with allowed/blocked tools
 - Has `transitions` and `exit_conditions`
-- **Only one step-based workflow active at a time per session**
-- Can coexist with lifecycle workflows
+- **Only one on-demand workflow active at a time per session**
+- Can coexist with always-on workflows
 
 **Use cases:**
 
 - Plan-and-Execute
-- ReAct (Reason-Act-Observe)
-- Plan-Act-Reflect
 - TDD (Test-Driven Development)
+- Code Review
+- Autonomous Task Execution
+
+> **Backward compatibility:** `type: step` in YAML is still accepted and treated as `enabled: false`. The `type` field is deprecated in favor of `enabled`/`priority`.
 
 ### Pipeline Workflows
 
@@ -56,7 +61,7 @@ Sequential execution workflows with typed data flow between steps, approval gate
 - Sequential step execution with `$step.output` data flow
 - Approval gates with resume tokens
 - Runs to completion or pauses at approval
-- Can be triggered from lifecycle/step workflows via `run_pipeline` action
+- Can be triggered from always-on/on-demand workflows via `run_pipeline` action
 
 **Use cases:**
 
@@ -69,10 +74,10 @@ See [Pipelines Guide](./pipelines.md) for complete documentation.
 
 ### Coexistence
 
-Lifecycle, step-based, and pipeline workflows work together:
+Always-on, on-demand, and pipeline workflows work together:
 
-- The `session-handoff` lifecycle workflow is always active (by default)
-- You can activate ONE step-based workflow (like `plan-execute`) on top
+- The `session-lifecycle` always-on workflow is always active (by default)
+- You can activate ONE on-demand workflow (like `developer`) on top
 - Multiple concurrent sessions can each have their own active workflow
 
 ## YAML Schema Reference
@@ -89,8 +94,21 @@ description: "Structured development with planning and reflection steps"
 # Optional: Semantic version string (default: "1.0")
 version: "1.0"
 
-# Optional: Workflow type - "step" (default) or "lifecycle"
+# Optional (deprecated): Workflow type - "step" (default) or "lifecycle"
+# Prefer using `enabled` instead. Kept for backward-compat YAML loading.
 type: step
+
+# Optional: Whether this workflow auto-activates (default: true)
+# true = always-on (lifecycle behavior), false = on-demand (step behavior)
+enabled: false
+
+# Optional: Evaluation order - lower values run first (default: 100)
+priority: 20
+
+# Optional: Filter by session source (e.g., only run for specific CLIs)
+sources:
+  - claude
+  - gemini
 
 # Optional: Inherit from another workflow
 extends: base-workflow
@@ -106,7 +124,50 @@ variables:
   plan_file_pattern: "**/*.plan.md"
   allowed_test_commands: ["pytest", "npm test"]
 
-# Required for step-based: Step definitions
+# Optional: Session-scoped shared variables (visible to all workflows in the session)
+session_variables:
+  shared_counter: 0
+  project_context: null
+
+# Optional: Named reusable rule definitions (referenced by check_rules on steps)
+rule_definitions:
+  no_push:
+    tools: [Bash]
+    command_pattern: "git\\s+push"
+    reason: "Pushing is not allowed in this workflow."
+    action: block
+  no_agent_spawn:
+    mcp_tools:
+      - gobby-agents:spawn_agent
+    reason: "Spawning agents is not allowed."
+    action: block
+
+# Optional: Cross-file rule imports (import named rules from other workflows)
+imports:
+  - worker-safety
+
+# Optional: Top-level tool blocking rules (evaluated before trigger-based block_tools)
+# Same format as block_tools action rules
+tool_rules:
+  - tools: [Bash]
+    command_pattern: "git\\s+push"
+    reason: "No pushing allowed"
+
+# Optional: Observers - watch events and set variables or invoke behaviors
+observers:
+  # YAML observer variant: on + match + set
+  - name: track-task-claims
+    on: after_tool
+    match:
+      mcp_server: gobby-tasks
+      mcp_tool: claim_task
+    set:
+      task_claimed: "true"
+  # Behavior ref variant
+  - name: plan-mode-detector
+    behavior: detect_plan_mode
+
+# Required for on-demand: Step definitions
 steps:
   - name: plan
     description: "Analyze requirements and create implementation plan"
@@ -144,7 +205,7 @@ steps:
       - type: user_approval
         prompt: "Plan complete. Ready to implement?"
 
-# Required for lifecycle: Trigger definitions
+# Required for always-on: Trigger definitions
 triggers:
   on_session_start:
     - action: load_workflow_state
@@ -155,6 +216,16 @@ triggers:
   on_session_end:
     - action: save_workflow_state
     - action: generate_handoff
+
+# Optional: Handler for premature stop attempts (on-demand workflows only)
+# Triggered when agent tries to stop but exit_condition is not met
+on_premature_stop:
+  action: guide_continuation    # guide_continuation | block | warn
+  message: "Task has incomplete subtasks. Continue or deactivate the workflow."
+  condition: "not task_tree_complete"  # Optional condition
+
+# Optional: Workflow-level exit expression (when true, workflow can end)
+exit_condition: "current_step == 'complete'"
 
 # Optional: Error handling
 on_error:
@@ -197,6 +268,7 @@ steps:
 steps:
   - name: step-name            # Required: Unique step identifier
     description: string        # Optional: Human description
+    status_message: string     # Optional: Template rendered after on_enter, returned as system_message
 
     on_enter:                  # Actions when entering step
       - action: action_name
@@ -209,16 +281,30 @@ steps:
     blocked_tools:             # Tools to block (checked first)
       - ToolName
 
+    # MCP-level tool restrictions (format: "server:tool" or "server:*")
+    allowed_mcp_tools:         # "all" OR list of server:tool patterns
+      - "gobby-tasks:list_tasks"
+      - "gobby-memory:*"
+
+    blocked_mcp_tools:         # MCP tools to block
+      - "gobby-tasks:close_task"
+
     rules:                     # Per-tool-call rules
       - when: "condition"
         action: block|allow|warn|require_approval
         message: "User message"
+
+    check_rules:               # Named rule references (from rule_definitions or imports)
+      - no_push
+      - no_agent_spawn
 
     transitions:               # Auto-transition triggers
       - to: step-name
         when: "condition"
         on_transition:
           - action: ...
+
+    exit_when: "expression"    # Expression shorthand AND-ed with exit_conditions
 
     exit_conditions:           # All must be met (AND logic)
       - type: user_approval
@@ -228,6 +314,21 @@ steps:
 
     on_exit:                   # Actions when exiting step
       - action: action_name
+
+    # MCP tool success/error handlers
+    on_mcp_success:            # Handlers when specific MCP tools succeed
+      - server: gobby-tasks
+        tool: claim_task
+        action: set_variable
+        variable: task_claimed
+        value: true
+
+    on_mcp_error:              # Handlers when specific MCP tools fail
+      - server: gobby-agents
+        tool: send_to_parent
+        action: set_variable
+        variable: parent_notified
+        value: true
 ```
 
 ### Exit Condition Types
@@ -240,93 +341,242 @@ steps:
 
 ### Available Actions
 
+Actions are organized by category. All actions are registered in `ActionExecutor`.
+
+#### Context
+
 | Action | Description |
 |--------|-------------|
+| `inject_context` | Inject context from source (previous summary, skills, memories, etc.) |
 | `inject_message` | Inject text into next prompt |
-| `inject_context` | Inject context from source |
-| `switch_mode` | Switch Claude Code mode (plan/normal) |
-| `set_variable` | Set workflow variable |
-| `increment_variable` | Increment numeric variable |
-| `enter_step` | Transition to a step |
+| `extract_handoff_context` | Extract structured context before compaction |
+
+#### Detection
+
+| Action | Description |
+|--------|-------------|
+| `detect_plan_mode_from_context` | Detect if agent is in plan mode from context |
+
+#### State
+
+| Action | Description |
+|--------|-------------|
 | `load_workflow_state` | Load state from storage |
 | `save_workflow_state` | Save state to storage |
-| `generate_handoff` | Generate session summary |
-| `call_llm` | Call LLM with prompt |
+| `set_variable` | Set workflow variable |
+| `increment_variable` | Increment numeric variable |
+| `mark_loop_complete` | Mark a loop iteration as complete |
+| `end_workflow` | End the active workflow |
+
+#### Session
+
+| Action | Description |
+|--------|-------------|
+| `start_new_session` | Start a new session |
+| `mark_session_status` | Mark session with a status |
+| `switch_mode` | Switch Claude Code mode (plan/normal) |
+
+#### Todo
+
+| Action | Description |
+|--------|-------------|
 | `write_todos` | Populate TodoWrite list |
 | `mark_todo_complete` | Mark todo item done |
-| `persist_tasks` | Create persistent tasks |
+
+#### Shell
+
+| Action | Description |
+|--------|-------------|
+| `shell` / `run` / `bash` | Execute a shell command (aliases for the same handler) |
+
+#### LLM
+
+| Action | Description |
+|--------|-------------|
+| `call_llm` | Call LLM with prompt |
+
+#### MCP
+
+| Action | Description |
+|--------|-------------|
 | `call_mcp_tool` | Call any MCP tool |
+
+#### Summary
+
+| Action | Description |
+|--------|-------------|
+| `synthesize_title` | Generate session title from first prompt |
+| `generate_summary` | Generate session summary |
+| `generate_handoff` | Generate session handoff for next session |
+
+#### Memory
+
+| Action | Description |
+|--------|-------------|
+| `memory_save` | Save a memory |
+| `memory_recall_relevant` | Inject relevant memories for user prompt |
+| `memory_sync_import` | Import memories from .gobby/memories.jsonl |
+| `memory_sync_export` | Export memories to .gobby/memories.jsonl |
+| `memory_extraction_gate` | Gate for memory extraction |
+| `memory_review_gate` | Gate for memory review |
+| `memory_extract_from_session` | Extract memories from session transcript |
+| `memory_inject_project_context` | Inject project-level memory context |
+| `reset_memory_injection_tracking` | Reset memory injection tracking state |
+
+#### Task Sync
+
+| Action | Description |
+|--------|-------------|
+| `task_sync_import` | Import tasks from .gobby/tasks.jsonl |
+| `task_sync_export` | Export tasks to .gobby/tasks.jsonl |
+| `persist_tasks` | Create persistent tasks from decomposition |
+| `get_workflow_tasks` | Get tasks associated with workflow |
+| `update_workflow_task` | Update a workflow task |
+
+#### Task Enforcement
+
+| Action | Description |
+|--------|-------------|
+| `block_tools` | Evaluate blocking rules on tool calls |
+| `block_stop` | Block session stop |
+| `require_active_task` | Require an active task before proceeding |
+| `require_task_complete` | Require task completion |
+| `require_commit_before_stop` | Block stop if uncommitted changes |
+| `require_task_review_or_close_before_stop` | Block stop if task still in_progress |
+| `validate_session_task_scope` | Validate session task scope |
+| `capture_baseline_dirty_files` | Record uncommitted files for commit detection |
+| `track_schema_lookup` | Track get_tool_schema calls for progressive disclosure |
+| `track_discovery_step` | Track discovery step completion |
+
+#### Stop Signals
+
+| Action | Description |
+|--------|-------------|
+| `check_stop_signal` | Check for pending stop signal |
+| `request_stop` | Request a stop signal |
+| `clear_stop_signal` | Clear a pending stop signal |
+
+#### Progress
+
+| Action | Description |
+|--------|-------------|
+| `start_progress_tracking` | Start tracking progress for a session |
+| `stop_progress_tracking` | Stop tracking progress |
+| `record_progress` | Record a progress event |
+| `detect_task_loop` | Detect if agent is stuck in a task loop |
+| `detect_stuck` | Detect if agent is stuck |
+| `record_task_selection` | Record task selection for loop detection |
+| `get_progress_summary` | Get progress summary for a session |
+
+#### Pipeline
+
+| Action | Description |
+|--------|-------------|
+| `run_pipeline` | Execute a pipeline by name |
+
+#### Webhook
+
+| Action | Description |
+|--------|-------------|
 | `webhook` | Send HTTP request to external service |
+
+#### Plugin
+
+| Action | Description |
+|--------|-------------|
 | `plugin:<name>:<action>` | Execute custom plugin action |
 
-See [Workflow Actions Reference](../architecture/workflow-actions.md) for full details.
+See [Workflow Actions Reference](./workflow-actions.md) for full details.
 See [Webhooks and Plugins Guide](webhooks-and-plugins.md) for webhook examples and plugin development.
 
-## Built-in Templates
+## Built-in Workflows
 
-Gobby ships with these workflow templates in `~/.gobby/workflows/templates/`:
+Gobby ships with these built-in workflows in `src/gobby/install/shared/workflows/`:
 
-### session-handoff (lifecycle)
+### session-lifecycle (always-on, priority 10)
 
-**Enabled by default.** Handles session summary generation and context handoff.
+**Enabled by default.** Unified session lifecycle and behavior enforcement. Handles session handoff, memory sync, task sync, progressive disclosure enforcement, and tool blocking rules.
 
 ```yaml
-type: lifecycle
+enabled: true
+priority: 10
+sources: [claude, gemini, codex, antigravity, cursor, windsurf, copilot, claude_sdk_web_chat]
 triggers:
-  on_session_end:
-    - action: generate_handoff
   on_session_start:
+    - action: capture_baseline_dirty_files
     - action: inject_context
       source: previous_session_summary
+    - action: memory_sync_import
+    - action: task_sync_import
+  on_session_end:
+    - action: generate_handoff
+    - action: memory_extract_from_session
+    - action: memory_sync_export
+    - action: task_sync_export
 ```
 
-### plan-execute (step)
+### headless-lifecycle (always-on, priority 10)
 
-Basic planning enforcement. Restricts to read-only tools until user approves.
+Lightweight lifecycle for headless/SDK clients without session_start/session_end hooks.
 
-**Steps:** `plan` -> `execute`
+```yaml
+enabled: true
+priority: 10
+sources: [claude_sdk, claude_sdk_web_chat]
+```
 
-### react (step)
+### developer (on-demand, priority 20)
 
-ReAct loop with observation capture. Each action's result is captured and injected into reasoning context.
+TDD developer workflow with full red/green/blue cycle.
 
-**Steps:** `reason` -> `act` -> `observe` (loop)
+**Steps:** `claim_task` -> `red` -> `green` -> `blue` -> `reflect` -> `commit` -> `report_to_parent` -> `shutdown` -> `complete`
 
-### plan-act-reflect (step)
+### auto-task (on-demand)
 
-Full reflection workflow. Automatically enters reflection step after N actions or on errors.
+Autonomous task execution workflow. Stays in `work` step until task tree is complete.
 
-**Steps:** `plan` -> `act` -> `reflect` (loop)
+### code-review (on-demand)
 
-### plan-to-tasks (step)
+Code review workflow for reviewing worker branch changes.
 
-Task decomposition workflow. Breaks a plan into atomic tasks and executes sequentially with verification gates.
+**Steps:** `fetch_changes` -> `review` -> `request_changes` -> `complete`
 
-**Steps:** `decompose` -> `execute` -> `verify` (loop) -> `complete`
+### generic (on-demand)
 
-### architect (step)
+Default workflow for spawned agents. Provides basic file and tool access while blocking recursive spawning.
 
-BMAD-inspired development workflow.
+### coordinator (pipeline)
 
-**Steps:** `requirements` -> `design` -> `implementation` -> `review`
+Deterministic coordinator loop using MCP tools. Finds work, creates clones, spawns developer/QA/merge agents, loops until no more ready tasks.
 
-### test-driven (step)
+### merge (on-demand)
 
-TDD workflow. Blocks implementation until test exists.
+Merge approved branch and cleanup isolation environment. Supports both clone and worktree isolation modes.
 
-**Steps:** `write-test` -> `implement` -> `refactor` (loop)
+### qa-reviewer (on-demand)
+
+QA reviewer workflow: review -> fix -> verify -> commit -> approve -> shutdown.
+
+### hello-world (pipeline)
+
+Minimal example pipeline that outputs "Hello World".
+
+### research-openclaw (pipeline)
+
+Research pipeline example.
 
 ## CLI Commands
 
 ### List Workflows
 
 ```bash
-gobby workflows list [--all] [--json]
+gobby workflows list [--all] [--global] [--json]
 ```
 
 | Option | Description |
 |--------|-------------|
-| `--all` | Show all workflows including step-based |
+| `--all`, `-a` | Show all workflows including on-demand |
+| `--global`, `-g` | Show only global workflows |
 | `--json` | Output as JSON |
 
 ### Show Workflow Details
@@ -338,10 +588,10 @@ gobby workflows show <name> [--json]
 ### Activate Workflow
 
 ```bash
-gobby workflows set <name> [--session ID] [--step INITIAL_STEP]
+gobby workflows set <name> [--session ID] [--step STEP]
 ```
 
-**Note:** Only for step-based workflows. Lifecycle workflows auto-run.
+**Note:** Only for on-demand workflows. Always-on workflows auto-run.
 
 ### Check Workflow Status
 
@@ -365,6 +615,66 @@ gobby workflows step <step-name> [--session ID] [--force]
 
 Skips normal exit conditions. Use when stuck.
 
+### Reset Workflow
+
+```bash
+gobby workflows reset [--session ID] [--force]
+```
+
+Resets the workflow to its initial step, clearing all step state and variables.
+
+### Disable Workflow Enforcement
+
+```bash
+gobby workflows disable [--session ID] [--reason TEXT]
+```
+
+Temporarily suspends tool restrictions and step enforcement.
+
+### Re-enable Workflow
+
+```bash
+gobby workflows enable [--session ID]
+```
+
+Re-enables a previously disabled workflow.
+
+### Validate Workflow Definition
+
+```bash
+gobby workflows check <name> [--json]
+```
+
+Runs structural and semantic checks (unreachable steps, dead-end steps, undefined transitions, etc.).
+
+### View Audit Log
+
+```bash
+gobby workflows audit [--session ID] [--type TYPE] [--result RESULT] [--limit N] [--verbose] [--json]
+```
+
+| Option | Description |
+|--------|-------------|
+| `--type`, `-t` | Filter by event type (tool_call, rule_eval, transition, approval) |
+| `--result`, `-r` | Filter by result (allow, block, transition) |
+| `--limit`, `-n` | Maximum entries to show (default: 50) |
+| `--verbose`, `-v` | Show full context for each entry |
+| `--json` | Output as JSON |
+
+### Set Variable
+
+```bash
+gobby workflows set-var <name> <value> [--session ID] [--json]
+```
+
+### Get Variable(s)
+
+```bash
+gobby workflows get-var [name] [--session ID] [--json]
+```
+
+If `name` is omitted, shows all variables.
+
 ### Import Workflow
 
 ```bash
@@ -375,33 +685,43 @@ Import from a local file (URL import coming soon).
 
 ## MCP Tools
 
-Workflow tools are available through the Gobby MCP server. Use progressive disclosure:
+Workflow tools are available through the `gobby-workflows` MCP server. Use progressive disclosure:
 
 ```python
 # 1. Discover workflow tools
-list_tools()  # Look for workflow-related tools
+list_tools("gobby-workflows")  # Look for workflow-related tools
 
 # 2. Get full schema
-get_tool_schema("gobby", "activate_workflow")
+get_tool_schema("gobby-workflows", "activate_workflow")
 
 # 3. Execute
-call_tool("gobby", "activate_workflow", {"name": "plan-act-reflect"})
+call_tool("gobby-workflows", "activate_workflow", {"name": "developer"})
 ```
 
 ### Available Workflow Tools
 
 | Tool | Description |
 |------|-------------|
-| `list_workflows` | List available workflow definitions |
-| `activate_workflow` | Start a step-based workflow |
-| `end_workflow` | Complete/terminate active workflow |
-| `get_workflow_status` | Get current step and state |
-| `request_step_transition` | Request transition to different step |
-| `create_handoff` | Create handoff for next session |
+| `list_workflows` | List available workflow definitions from project and global directories |
+| `get_workflow` | Get details about a specific workflow definition |
+| `activate_workflow` | Activate a workflow for a session (supports initial variables, resume) |
+| `end_workflow` | End a workflow (specify workflow name or defaults to current) |
+| `get_workflow_status` | Get workflow status (shows all active instances and session variables) |
+| `request_step_transition` | Request transition to a different step |
+| `set_variable` | Set variable scoped to workflow instance or session |
+| `get_variable` | Get variable(s) scoped to workflow instance or session |
+| `set_session_variable` | Set session-scoped shared variable (visible to all workflows) |
+| `evaluate_workflow` | Validate workflow definition (structural and semantic checks) |
+| `import_workflow` | Import a workflow from a file path |
+| `reload_cache` | Clear the workflow cache to pick up file changes |
+| `create_workflow` | Create a workflow from YAML content (validates with Pydantic) |
+| `update_workflow` | Update a workflow by name or ID (field updates and/or YAML replacement) |
+| `delete_workflow` | Delete a workflow by name or ID (bundled definitions protected unless force=True) |
+| `export_workflow` | Export a workflow definition as YAML content |
 
 ### Tool Filtering
 
-When a step-based workflow is active, tools are filtered:
+When an on-demand workflow is active, tools are filtered:
 
 - `allowed_tools: all` + `blocked_tools: [X, Y]` -> All tools except X, Y
 - `allowed_tools: [A, B, C]` -> Only A, B, C available
@@ -509,7 +829,7 @@ These variables control how Gobby behaves during a session:
 |----------|---------|-------------|
 | `require_task_before_edit` | `false` | Block Edit/Write tools unless a task is `in_progress` |
 | `require_commit_before_stop` | `true` | Block session stop if task has uncommitted changes |
-| `tdd_mode` | `true` | Generate test→implement task pairs during expansion |
+| `tdd_mode` | `true` | Generate test->implement task pairs during expansion |
 | `memory_injection_enabled` | `true` | Enable memory injection (controls `memory_inject` action) |
 | `memory_injection_limit` | `10` | Default limit for memory injection per query |
 | `memory_injection_min_importance` | `0.3` | Minimum importance threshold (0.0-1.0) for memory filtering |
@@ -519,7 +839,7 @@ These variables control how Gobby behaves during a session:
 
 ```yaml
 name: my-workflow
-type: lifecycle
+enabled: true
 
 variables:
   require_task_before_edit: true
@@ -562,8 +882,8 @@ This separation means you can have different behavior per workflow without modif
 ### What Resets
 
 - **Workflow state resets when session ends**
-- A new session starts fresh with no active step-based workflow
-- Lifecycle workflows restart automatically
+- A new session starts fresh with no active on-demand workflow
+- Always-on workflows restart automatically
 
 ### Cross-Session Continuity
 
@@ -752,7 +1072,7 @@ Matches the `server_name:tool_name` combination for MCP tools after translation:
 | `tools:` | Blocking the MCP wrapper | `[mcp__gobby__call_tool]` |
 | `mcp_tools:` | Blocking specific MCP tool calls | `[gobby-tasks:close_task]` |
 
-#### `command_pattern` / `command_not_pattern` — Bash command matching
+#### `command_pattern` / `command_not_pattern` -- Bash command matching
 
 For `tools: [Bash]` rules, you can add regex patterns that match the Bash tool's `command` parameter. These fields are **ignored for non-Bash tools**.
 
@@ -963,8 +1283,8 @@ The `inject_context` action supports multiple sources for injecting context into
 
 ## See Also
 
-- [Workflow Actions Reference](../architecture/workflow-actions.md)
+- [Workflow Actions Reference](./workflow-actions.md)
 - [Webhooks and Plugins Guide](webhooks-and-plugins.md)
-- [MCP Tools Reference](../architecture/mcp-tools.md)
-- [CLI Commands Reference](../architecture/cli-commands.md)
+- [MCP Tools Reference](./mcp-tools.md)
+- [CLI Commands Reference](./cli-commands.md)
 - [Task Management Guide](tasks.md)

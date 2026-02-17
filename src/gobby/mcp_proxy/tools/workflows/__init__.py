@@ -372,8 +372,16 @@ def create_workflows_registry(
         if _def_manager is None:
             return {"error": "Definition tools require database connection"}
         return update_workflow_definition(
-            _def_manager, _loader, name, definition_id,
-            description, enabled, priority, version, tags, yaml_content,
+            _def_manager,
+            _loader,
+            name,
+            definition_id,
+            description,
+            enabled,
+            priority,
+            version,
+            tags,
+            yaml_content,
         )
 
     @registry.tool(
