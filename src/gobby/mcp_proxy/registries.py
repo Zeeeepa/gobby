@@ -321,6 +321,7 @@ def setup_internal_registries(
             config=_config,
             config_store=config_store,
             config_setter=config_setter,
+            db=db,
         )
         manager.add_registry(config_registry)
         logger.debug("Config registry initialized")

@@ -584,10 +584,11 @@ def install_default_mcp_servers() -> dict[str, Any]:
     try:
         from gobby.storage.database import LocalDatabase
         from gobby.storage.mcp import LocalMCPManager
+        from gobby.storage.projects import GLOBAL_PROJECT_ID
 
         db = LocalDatabase()
         mcp_db = LocalMCPManager(db)
-        imported = mcp_db.import_from_mcp_json(mcp_config_path, project_id="global")
+        imported = mcp_db.import_from_mcp_json(mcp_config_path, project_id=GLOBAL_PROJECT_ID)
         if imported:
             logger.info(f"Synced {imported} MCP servers to database")
     except Exception as e:

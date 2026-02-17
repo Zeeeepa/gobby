@@ -84,13 +84,27 @@ class TestGetConfigValues:
         response = client.get("/api/config/values")
         assert response.status_code == 200
         data = response.json()
-        assert data["daemon_port"] == 60887
-        assert "websocket" in data
+        # New shape: {values, secret_keys}
+        assert "values" in data
+        assert "secret_keys" in data
+        assert data["values"]["daemon_port"] == 60887
+        assert "websocket" in data["values"]
 
-    def test_values_match_model_dump(self, client: TestClient, real_config: DaemonConfig) -> None:
+    def test_values_contain_expected_keys(
+        self, client: TestClient, real_config: DaemonConfig
+    ) -> None:
         response = client.get("/api/config/values")
+        values = response.json()["values"]
         expected = real_config.model_dump(mode="json", exclude_none=True)
-        assert response.json() == expected
+        # All non-secret keys should match
+        assert values["daemon_port"] == expected["daemon_port"]
+        assert values["websocket"] == expected["websocket"]
+
+    def test_secret_keys_auto_detected(self, client: TestClient) -> None:
+        """Keys matching secret patterns are reported in secret_keys."""
+        response = client.get("/api/config/values")
+        data = response.json()
+        assert "voice.elevenlabs_api_key" in data["secret_keys"]
 
 
 # ---------------------------------------------------------------------------
@@ -520,9 +534,7 @@ class TestExportImport:
         assert isinstance(data["prompts"], dict)
         assert isinstance(data["secrets"], list)
 
-    def test_export_config_with_prompt_overrides(
-        self, client: TestClient, mock_machine_id
-    ) -> None:
+    def test_export_config_with_prompt_overrides(self, client: TestClient, mock_machine_id) -> None:
         # Insert a global override via the API
         client.put(
             "/api/config/prompts/expansion/system",
@@ -639,3 +651,121 @@ class TestDeepMerge:
         updates = {"a": {"b": {"c": 99}}}
         deep_merge(base, updates)
         assert base == {"a": {"b": {"c": 99, "d": 2}}}
+
+
+# ---------------------------------------------------------------------------
+# Secret-aware config (GET masking, PUT interception)
+# ---------------------------------------------------------------------------
+
+
+class TestSecretAwareConfig:
+    """Tests for secret masking in GET /values and encryption in PUT /values."""
+
+    def test_get_values_masks_auto_detected_secrets(self, client: TestClient) -> None:
+        """Auto-detected secret keys (like elevenlabs_api_key) are masked."""
+        response = client.get("/api/config/values")
+        data = response.json()
+        assert "voice.elevenlabs_api_key" in data["secret_keys"]
+
+    def test_put_secret_value_encrypts(self, client: TestClient, temp_db, mock_machine_id) -> None:
+        """PUT with a secret-pattern key encrypts via SecretStore."""
+        response = client.put(
+            "/api/config/values",
+            json={"values": {"voice": {"elevenlabs_api_key": "sk-test-789"}}},
+        )
+        assert response.status_code == 200
+        assert response.json()["ok"] is True
+
+        # Verify the config_store has the $secret: reference
+        store = ConfigStore(temp_db)
+        raw = store.get("voice.elevenlabs_api_key")
+        assert raw is not None
+        assert raw.startswith("$secret:")
+
+        # Verify it's flagged as secret
+        assert "voice.elevenlabs_api_key" in store.get_secret_keys()
+
+        # Verify the actual value is encrypted in secrets table
+        secret_store = SecretStore(temp_db)
+        decrypted = secret_store.get("cfg__voice__elevenlabs_api_key")
+        assert decrypted == "sk-test-789"
+
+    def test_put_masked_value_skipped(self, client: TestClient, temp_db, mock_machine_id) -> None:
+        """PUT with '********' for a secret key skips the update."""
+        # First set a secret
+        store = ConfigStore(temp_db)
+        secret_store = SecretStore(temp_db)
+        store.set_secret("voice.elevenlabs_api_key", "sk-original", secret_store)
+
+        # Now PUT with masked value
+        response = client.put(
+            "/api/config/values",
+            json={"values": {"voice": {"elevenlabs_api_key": "********"}}},
+        )
+        assert response.status_code == 200
+
+        # Original secret should be unchanged
+        decrypted = secret_store.get("cfg__voice__elevenlabs_api_key")
+        assert decrypted == "sk-original"
+
+    def test_put_empty_secret_clears(self, client: TestClient, temp_db, mock_machine_id) -> None:
+        """PUT with empty string for a secret key clears it."""
+        store = ConfigStore(temp_db)
+        secret_store = SecretStore(temp_db)
+        store.set_secret("voice.elevenlabs_api_key", "sk-to-delete", secret_store)
+
+        response = client.put(
+            "/api/config/values",
+            json={"values": {"voice": {"elevenlabs_api_key": ""}}},
+        )
+        assert response.status_code == 200
+
+        # Secret should be cleared
+        assert store.get("voice.elevenlabs_api_key") is None
+        assert secret_store.get("cfg__voice__elevenlabs_api_key") is None
+
+    def test_get_values_masks_set_secret(
+        self, client: TestClient, temp_db, mock_machine_id
+    ) -> None:
+        """Secrets set via PUT are masked in subsequent GET."""
+        # Set a secret
+        client.put(
+            "/api/config/values",
+            json={"values": {"voice": {"elevenlabs_api_key": "sk-hidden"}}},
+        )
+
+        # GET should show masked value
+        response = client.get("/api/config/values")
+        data = response.json()
+        assert data["values"]["voice"]["elevenlabs_api_key"] == "********"
+
+    def test_export_includes_config_secret_keys(
+        self, client: TestClient, temp_db, mock_machine_id
+    ) -> None:
+        """Export bundle includes config_secret_keys list."""
+        store = ConfigStore(temp_db)
+        secret_store = SecretStore(temp_db)
+        store.set_secret("voice.elevenlabs_api_key", "sk-export", secret_store)
+
+        response = client.post("/api/config/export")
+        assert response.status_code == 200
+        data = response.json()
+        assert "config_secret_keys" in data
+        assert "voice.elevenlabs_api_key" in data["config_secret_keys"]
+
+    def test_import_restores_secret_flags(self, client: TestClient, temp_db) -> None:
+        """Import with config_secret_keys restores is_secret flags."""
+        response = client.post(
+            "/api/config/import",
+            json={
+                "config_store": {
+                    "daemon_port": 9999,
+                    "voice.elevenlabs_api_key": "$secret:cfg__voice__elevenlabs_api_key",
+                },
+                "config_secret_keys": ["voice.elevenlabs_api_key"],
+            },
+        )
+        assert response.status_code == 200
+
+        store = ConfigStore(temp_db)
+        assert "voice.elevenlabs_api_key" in store.get_secret_keys()

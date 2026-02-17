@@ -7,14 +7,47 @@ Resolution order: DB config_store > Pydantic defaults.
 YAML serves as import/export only after one-time migration.
 """
 
+from __future__ import annotations
+
 import json
 import logging
 from datetime import UTC, datetime
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from gobby.storage.database import DatabaseProtocol
 
+if TYPE_CHECKING:
+    from gobby.storage.secrets import SecretStore
+
 logger = logging.getLogger(__name__)
+
+# Suffixes that indicate a key holds a secret value
+_SECRET_SUFFIXES = (
+    "_api_key",
+    "_api_token",
+    "_api_secret",
+    "_secret",
+    "_password",
+    "_access_token",
+    "_auth_token",
+    "_secret_key",
+)
+
+
+def config_key_to_secret_name(key: str) -> str:
+    """Convert a dotted config key to a secret store name.
+
+    Example: ``voice.elevenlabs_api_key`` -> ``cfg__voice__elevenlabs_api_key``
+
+    The ``cfg__`` prefix avoids collisions with user-created secrets.
+    """
+    return "cfg__" + key.replace(".", "__")
+
+
+def is_secret_key_name(key: str) -> bool:
+    """Check if a config key name matches common secret patterns."""
+    last_part = key.rsplit(".", 1)[-1]
+    return any(last_part.endswith(suffix) for suffix in _SECRET_SUFFIXES)
 
 
 class ConfigStore:
@@ -94,6 +127,53 @@ class ConfigStore:
         else:
             rows = self.db.fetchall("SELECT key FROM config_store ORDER BY key")
         return [row["key"] for row in rows]
+
+    # -----------------------------------------------------------------
+    # Secret-aware methods
+    # -----------------------------------------------------------------
+
+    def set_secret(
+        self,
+        key: str,
+        plaintext_value: str,
+        secret_store: SecretStore,
+        source: str = "user",
+    ) -> None:
+        """Encrypt a config value via SecretStore and store a reference.
+
+        Stores ``$secret:cfg__<key>`` in config_store with ``is_secret=1``.
+        The actual value is encrypted in the ``secrets`` table.
+        """
+        secret_name = config_key_to_secret_name(key)
+        secret_store.set(
+            name=secret_name,
+            plaintext_value=plaintext_value,
+            category="general",
+            description=f"Config secret for {key}",
+        )
+        ref = f"$secret:{secret_name}"
+        now = datetime.now(UTC).isoformat()
+        self.db.execute(
+            """INSERT INTO config_store (key, value, source, is_secret, updated_at)
+               VALUES (?, ?, ?, 1, ?)
+               ON CONFLICT(key) DO UPDATE SET
+                   value = excluded.value,
+                   source = excluded.source,
+                   is_secret = 1,
+                   updated_at = excluded.updated_at""",
+            (key, json.dumps(ref), source, now),
+        )
+
+    def get_secret_keys(self) -> list[str]:
+        """Return all config keys flagged as secrets."""
+        rows = self.db.fetchall("SELECT key FROM config_store WHERE is_secret = 1 ORDER BY key")
+        return [row["key"] for row in rows]
+
+    def clear_secret(self, key: str, secret_store: SecretStore) -> None:
+        """Remove a secret from both config_store and the secrets table."""
+        secret_name = config_key_to_secret_name(key)
+        secret_store.delete(secret_name)
+        self.db.execute("DELETE FROM config_store WHERE key = ?", (key,))
 
 
 # =============================================================================

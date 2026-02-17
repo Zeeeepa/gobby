@@ -11,6 +11,18 @@ import './ConfigurationPage.css'
 type TabId = 'config' | 'secrets' | 'prompts' | 'template'
 
 // =============================================================================
+// Secret field detection
+// =============================================================================
+
+const SECRET_PATTERNS = ['api_key', 'api_token', 'api_secret', 'password', 'access_token', 'auth_token', 'secret_key']
+
+function isSecretField(path: string, secretKeys: string[]): boolean {
+  if (secretKeys.includes(path)) return true
+  const last = path.split('.').pop() || ''
+  return SECRET_PATTERNS.some(p => last.includes(p))
+}
+
+// =============================================================================
 // Helpers
 // =============================================================================
 
@@ -46,9 +58,10 @@ interface SchemaFieldProps {
   value: unknown
   onChange: (name: string, value: unknown) => void
   path: string
+  secretKeys?: string[]
 }
 
-function SchemaField({ name, fieldSchema, value, onChange, path }: SchemaFieldProps) {
+function SchemaField({ name, fieldSchema, value, onChange, path, secretKeys = [] }: SchemaFieldProps) {
   const type = getSchemaType(fieldSchema)
   const description = fieldSchema.description as string | undefined
   const enumValues = fieldSchema.enum as string[] | undefined
@@ -114,15 +127,21 @@ function SchemaField({ name, fieldSchema, value, onChange, path }: SchemaFieldPr
     )
   }
 
-  // Default: string input
+  // Default: string input (password for secret fields)
+  const secret = isSecretField(fullPath, secretKeys)
+  const isMasked = secret && value === '********'
   return (
     <div className="config-form-field">
-      <label className="config-field-label">{formatFieldName(name)}</label>
+      <label className="config-field-label">
+        {formatFieldName(name)}
+        {secret && <span className="config-secret-badge">encrypted</span>}
+      </label>
       {description && <span className="config-field-help">{description}</span>}
       <input
-        type="text"
+        type={secret ? 'password' : 'text'}
         className="config-input"
         value={String(value ?? '')}
+        placeholder={isMasked ? 'Enter new value to change' : undefined}
         onChange={e => onChange(fullPath, e.target.value)}
       />
     </div>
@@ -139,9 +158,10 @@ interface SchemaSectionProps {
   values: Record<string, unknown>
   onChange: (path: string, value: unknown) => void
   parentPath: string
+  secretKeys?: string[]
 }
 
-function SchemaSection({ name, sectionSchema, values, onChange, parentPath }: SchemaSectionProps) {
+function SchemaSection({ name, sectionSchema, values, onChange, parentPath, secretKeys = [] }: SchemaSectionProps) {
   const [open, setOpen] = useState(false)
   const props = getSchemaProperties(sectionSchema)
   const description = sectionSchema.description as string | undefined
@@ -173,6 +193,7 @@ function SchemaSection({ name, sectionSchema, values, onChange, parentPath }: Sc
                 values={(sectionValues[fieldName] || {}) as Record<string, unknown>}
                 onChange={onChange}
                 parentPath={path}
+                secretKeys={secretKeys}
               />
             )
           }
@@ -185,6 +206,7 @@ function SchemaSection({ name, sectionSchema, values, onChange, parentPath }: Sc
               value={sectionValues[fieldName]}
               onChange={onChange}
               path={path}
+              secretKeys={secretKeys}
             />
           )
         })}
@@ -204,9 +226,10 @@ interface ConfigFormTabProps {
   values: Record<string, unknown>
   onSave: (values: Record<string, unknown>) => Promise<{ ok: boolean; errors?: string[] }>
   onReset: () => Promise<boolean>
+  secretKeys?: string[]
 }
 
-function ConfigFormTab({ schema, values: initialValues, onSave, onReset }: ConfigFormTabProps) {
+function ConfigFormTab({ schema, values: initialValues, onSave, onReset, secretKeys = [] }: ConfigFormTabProps) {
   const [localValues, setLocalValues] = useState<Record<string, unknown>>(initialValues)
   const [saving, setSaving] = useState(false)
   const [errors, setErrors] = useState<string[]>([])
@@ -310,6 +333,7 @@ function ConfigFormTab({ schema, values: initialValues, onSave, onReset }: Confi
                   value={localValues[name]}
                   onChange={handleChange}
                   path=""
+                  secretKeys={secretKeys}
                 />
               ))}
             </div>
@@ -331,6 +355,7 @@ function ConfigFormTab({ schema, values: initialValues, onSave, onReset }: Confi
               values={(localValues[name] || {}) as Record<string, unknown>}
               onChange={handleChange}
               parentPath=""
+              secretKeys={secretKeys}
             />
           )
         })}
@@ -789,6 +814,7 @@ export function ConfigurationPage() {
             values={config.configValues}
             onSave={config.saveConfig}
             onReset={config.resetToDefaults}
+            secretKeys={config.secretKeys}
           />
         )}
         {activeTab === 'secrets' && (

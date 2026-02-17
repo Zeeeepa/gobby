@@ -337,6 +337,18 @@
   font-size: 12px;
 }
 
+.config-secret-badge {
+  display: inline-block;
+  margin-left: 6px;
+  padding: 1px 6px;
+  font-size: 10px;
+  font-weight: 500;
+  color: var(--text-tertiary);
+  background: var(--bg-tertiary);
+  border-radius: 3px;
+  vertical-align: middle;
+}
+
 .config-secret-actions {
   display: flex;
   gap: 6px;

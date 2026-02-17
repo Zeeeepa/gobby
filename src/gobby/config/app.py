@@ -632,27 +632,29 @@ def load_config(
         ValueError: If configuration is invalid or required fields are missing
     """
     if config_store is not None:
-        # Phase 2: DB-first resolution
+        # Phase 2: YAML base + DB overlay
+        # Always load YAML first so keys only defined there (e.g.
+        # llm_providers.claude) are preserved; then deep-merge DB
+        # values on top so DB overrides take precedence.
         from gobby.storage.config_store import unflatten_config
+
+        if config_file is None:
+            config_file = "~/.gobby/config.yaml"
+        config_path_p2 = Path(config_file).expanduser()
+        if config_path_p2.exists():
+            config_dict = load_yaml(config_file, secret_resolver=secret_resolver)
+        else:
+            config_dict = {}
 
         flat_db = config_store.get_all()
         if flat_db:
-            config_dict = unflatten_config(flat_db)
-            # Resolve $secret:NAME and ${VAR} patterns in stored values
+            db_dict = unflatten_config(flat_db)
+            # Resolve $secret:NAME and ${VAR} patterns in DB values
             if secret_resolver is not None or any(
                 isinstance(v, str) and ("$secret:" in v or "${" in v) for v in flat_db.values()
             ):
-                config_dict = _resolve_config_values(config_dict, secret_resolver)
-        else:
-            # DB config_store is empty — fall back to YAML so we don't
-            # lose settings from the config file (e.g. daemon_port, database_path).
-            if config_file is None:
-                config_file = "~/.gobby/config.yaml"
-            config_path_fb = Path(config_file).expanduser()
-            if config_path_fb.exists():
-                config_dict = load_yaml(config_file, secret_resolver=secret_resolver)
-            else:
-                config_dict = {}
+                db_dict = _resolve_config_values(db_dict, secret_resolver)
+            deep_merge(config_dict, db_dict)
     else:
         # Phase 1: YAML bootstrap (for database_path)
         if config_file is None:
