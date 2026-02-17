@@ -61,15 +61,21 @@ def _resolve_project(
 ) -> tuple[str | None, str | None]:
     """Resolve project_id to (repo_path, github_repo).
 
+    When project_id is None, falls back to the first project with a repo_path.
     Returns (None, None) if no project found.
     """
-    if not project_id:
-        return None, None
+    _HIDDEN = {"_orphaned", "_migrated"}
     try:
         pm = _get_project_manager(server)
-        project = pm.get(project_id)
-        if project:
-            return project.repo_path, project.github_repo
+        if project_id:
+            project = pm.get(project_id)
+            if project:
+                return project.repo_path, project.github_repo
+        else:
+            # No project specified — use first project with a repo_path
+            for p in pm.list():
+                if p.name not in _HIDDEN and p.repo_path:
+                    return p.repo_path, p.github_repo
     except Exception:
         pass
     return None, None
