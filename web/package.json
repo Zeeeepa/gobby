@@ -9,7 +9,7 @@
     "preview": "vite preview",
     "type-check": "tsc --noEmit",
     "lint": "eslint . --ext ts,tsx --report-unused-disable-directives --max-warnings 0",
-    "postinstall": "cp node_modules/@ricky0123/vad-web/dist/silero_vad_legacy.onnx node_modules/@ricky0123/vad-web/dist/vad.worklet.bundle.min.js node_modules/onnxruntime-web/dist/ort-wasm-simd-threaded.mjs node_modules/onnxruntime-web/dist/ort-wasm-simd-threaded.wasm node_modules/onnxruntime-web/dist/ort-wasm-simd-threaded.jsep.mjs node_modules/onnxruntime-web/dist/ort-wasm-simd-threaded.jsep.wasm public/"
+    "postinstall": "cp node_modules/@ricky0123/vad-web/dist/silero_vad_legacy.onnx node_modules/@ricky0123/vad-web/dist/vad.worklet.bundle.min.js public/"
   },
   "dependencies": {
     "@atlaskit/pragmatic-drag-and-drop": "^1.7.7",

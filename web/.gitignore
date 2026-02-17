@@ -3,8 +3,6 @@ dist/
 .vite/
 *.local
 
-# VAD/ONNX runtime assets (copied from node_modules by postinstall)
-public/*.wasm
+# VAD assets (copied from node_modules by postinstall)
 public/*.onnx
-public/*.mjs
 public/vad.worklet.bundle.min.js
