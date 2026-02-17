@@ -20,6 +20,14 @@ from gobby.mcp_proxy.tools.pipelines._execution import (
     reject_pipeline,
     run_pipeline,
 )
+from gobby.mcp_proxy.tools.workflows._definitions import (
+    create_workflow_definition,
+    delete_workflow_definition,
+    export_workflow_definition,
+    update_workflow_definition,
+)
+from gobby.storage.database import DatabaseProtocol
+from gobby.storage.workflow_definitions import LocalWorkflowDefinitionManager
 
 logger = logging.getLogger(__name__)
 
@@ -32,6 +40,7 @@ def create_pipelines_registry(
     loader: Any | None = None,
     executor: Any | None = None,
     execution_manager: Any | None = None,
+    db: DatabaseProtocol | None = None,
 ) -> InternalToolRegistry:
     """
     Create a pipeline tool registry with all pipeline-related tools.
@@ -40,6 +49,7 @@ def create_pipelines_registry(
         loader: WorkflowLoader instance for discovering pipelines
         executor: PipelineExecutor instance for running pipelines
         execution_manager: LocalPipelineExecutionManager for tracking executions
+        db: Database instance for definition CRUD operations
 
     Returns:
         InternalToolRegistry with pipeline tools registered
@@ -47,6 +57,7 @@ def create_pipelines_registry(
     _loader = loader
     _executor = executor
     _execution_manager = execution_manager
+    _def_manager = LocalWorkflowDefinitionManager(db) if db is not None else None
 
     registry = InternalToolRegistry(
         name="gobby-pipelines",
@@ -121,6 +132,72 @@ def create_pipelines_registry(
             execution_manager=_execution_manager,
             execution_id=execution_id,
         )
+
+    @registry.tool(
+        name="create_pipeline",
+        description="Create a pipeline definition from YAML content. YAML must have type: pipeline.",
+    )
+    def _create_pipeline(
+        yaml_content: str,
+        project_id: str | None = None,
+    ) -> dict[str, Any]:
+        if _def_manager is None or _loader is None:
+            return {"error": "Pipeline definition tools require database connection"}
+        import yaml as _yaml
+
+        try:
+            data = _yaml.safe_load(yaml_content)
+        except _yaml.YAMLError as e:
+            return {"success": False, "error": f"Invalid YAML: {e}"}
+        if not isinstance(data, dict) or data.get("type") != "pipeline":
+            return {"success": False, "error": "YAML must have 'type: pipeline'"}
+        return create_workflow_definition(_def_manager, _loader, yaml_content, project_id)
+
+    @registry.tool(
+        name="update_pipeline",
+        description="Update a pipeline definition by name or ID. Accepts field updates and/or full YAML replacement.",
+    )
+    def _update_pipeline(
+        name: str | None = None,
+        definition_id: str | None = None,
+        description: str | None = None,
+        enabled: bool | None = None,
+        priority: int | None = None,
+        version: str | None = None,
+        tags: list[str] | None = None,
+        yaml_content: str | None = None,
+    ) -> dict[str, Any]:
+        if _def_manager is None or _loader is None:
+            return {"error": "Pipeline definition tools require database connection"}
+        return update_workflow_definition(
+            _def_manager, _loader, name, definition_id,
+            description, enabled, priority, version, tags, yaml_content,
+        )
+
+    @registry.tool(
+        name="delete_pipeline",
+        description="Delete a pipeline definition by name or ID. Bundled definitions are protected unless force=True.",
+    )
+    def _delete_pipeline(
+        name: str | None = None,
+        definition_id: str | None = None,
+        force: bool = False,
+    ) -> dict[str, Any]:
+        if _def_manager is None or _loader is None:
+            return {"error": "Pipeline definition tools require database connection"}
+        return delete_workflow_definition(_def_manager, _loader, name, definition_id, force)
+
+    @registry.tool(
+        name="export_pipeline",
+        description="Export a pipeline definition as YAML content.",
+    )
+    def _export_pipeline(
+        name: str | None = None,
+        definition_id: str | None = None,
+    ) -> dict[str, Any]:
+        if _def_manager is None:
+            return {"error": "Pipeline definition tools require database connection"}
+        return export_workflow_definition(_def_manager, name, definition_id)
 
     return registry
 

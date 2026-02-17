@@ -20,6 +20,12 @@ via the downstream proxy pattern (call_tool, list_tools, get_tool_schema).
 from typing import Any
 
 from gobby.mcp_proxy.tools.internal import InternalToolRegistry
+from gobby.mcp_proxy.tools.workflows._definitions import (
+    create_workflow_definition,
+    delete_workflow_definition,
+    export_workflow_definition,
+    update_workflow_definition,
+)
 from gobby.mcp_proxy.tools.workflows._import import import_workflow, reload_cache
 from gobby.mcp_proxy.tools.workflows._lifecycle import (
     activate_workflow,
@@ -38,6 +44,7 @@ from gobby.mcp_proxy.tools.workflows._variables import (
 )
 from gobby.storage.database import DatabaseProtocol
 from gobby.storage.sessions import LocalSessionManager
+from gobby.storage.workflow_definitions import LocalWorkflowDefinitionManager
 from gobby.utils.project_context import get_workflow_project_path
 from gobby.workflows.loader import WorkflowLoader
 from gobby.workflows.state_manager import (
@@ -95,6 +102,7 @@ def create_workflows_registry(
     # Create multi-workflow managers
     _instance_manager = WorkflowInstanceManager(_db) if _db is not None else None
     _session_var_manager = SessionVariableManager(_db) if _db is not None else None
+    _def_manager = LocalWorkflowDefinitionManager(_db) if _db is not None else None
 
     registry = InternalToolRegistry(
         name="gobby-workflows",
@@ -334,5 +342,63 @@ def create_workflows_registry(
     )
     def _reload_cache() -> dict[str, Any]:
         return reload_cache(_loader)
+
+    @registry.tool(
+        name="create_workflow",
+        description="Create a workflow or pipeline definition from YAML content. Validates with Pydantic before inserting into the database.",
+    )
+    def _create_workflow(
+        yaml_content: str,
+        project_id: str | None = None,
+    ) -> dict[str, Any]:
+        if _def_manager is None:
+            return {"error": "Definition tools require database connection"}
+        return create_workflow_definition(_def_manager, _loader, yaml_content, project_id)
+
+    @registry.tool(
+        name="update_workflow",
+        description="Update a workflow or pipeline definition by name or ID. Accepts individual field updates and/or full YAML replacement.",
+    )
+    def _update_workflow(
+        name: str | None = None,
+        definition_id: str | None = None,
+        description: str | None = None,
+        enabled: bool | None = None,
+        priority: int | None = None,
+        version: str | None = None,
+        tags: list[str] | None = None,
+        yaml_content: str | None = None,
+    ) -> dict[str, Any]:
+        if _def_manager is None:
+            return {"error": "Definition tools require database connection"}
+        return update_workflow_definition(
+            _def_manager, _loader, name, definition_id,
+            description, enabled, priority, version, tags, yaml_content,
+        )
+
+    @registry.tool(
+        name="delete_workflow",
+        description="Delete a workflow or pipeline definition by name or ID. Bundled definitions are protected unless force=True.",
+    )
+    def _delete_workflow(
+        name: str | None = None,
+        definition_id: str | None = None,
+        force: bool = False,
+    ) -> dict[str, Any]:
+        if _def_manager is None:
+            return {"error": "Definition tools require database connection"}
+        return delete_workflow_definition(_def_manager, _loader, name, definition_id, force)
+
+    @registry.tool(
+        name="export_workflow",
+        description="Export a workflow or pipeline definition as YAML content.",
+    )
+    def _export_workflow(
+        name: str | None = None,
+        definition_id: str | None = None,
+    ) -> dict[str, Any]:
+        if _def_manager is None:
+            return {"error": "Definition tools require database connection"}
+        return export_workflow_definition(_def_manager, name, definition_id)
 
     return registry
