@@ -1,8 +1,10 @@
 import { useState, useCallback, useMemo } from 'react'
+import * as yaml from 'js-yaml'
 import { useWorkflows } from '../hooks/useWorkflows'
 import type { WorkflowDetail } from '../hooks/useWorkflows'
 import { WorkflowBuilder, type WorkflowSettings, type WorkflowVariable, type WorkflowRule } from './WorkflowBuilder'
 import { definitionToFlow, flowToDefinition, type FlowNode } from './workflowSerialization'
+import { CodeMirrorEditor } from './CodeMirrorEditor'
 import type { Node, Edge } from '@xyflow/react'
 import './WorkflowsPage.css'
 
@@ -59,6 +61,9 @@ export function WorkflowsPage() {
   const [createType, setCreateType] = useState<'workflow' | 'pipeline'>('workflow')
   const [showImportModal, setShowImportModal] = useState(false)
   const [editingWorkflow, setEditingWorkflow] = useState<WorkflowDetail | null>(null)
+  const [yamlEditorWf, setYamlEditorWf] = useState<WorkflowDetail | null>(null)
+  const [yamlContent, setYamlContent] = useState('')
+  const [yamlLoading, setYamlLoading] = useState(false)
 
   // Unique sources for filter chips
   const sources = useMemo(() => {
@@ -131,6 +136,26 @@ export function WorkflowsPage() {
       URL.revokeObjectURL(url)
     }
   }, [exportYaml])
+
+  const handleYamlEdit = useCallback(async (wf: WorkflowDetail) => {
+    setYamlLoading(true)
+    setYamlEditorWf(wf)
+    const yamlStr = await exportYaml(wf.id)
+    setYamlContent(yamlStr || '')
+    setYamlLoading(false)
+  }, [exportYaml])
+
+  const handleYamlSave = useCallback(async () => {
+    if (!yamlEditorWf) return
+    const parsed = yaml.load(yamlContent) as Record<string, unknown>
+    if (!parsed || typeof parsed !== 'object') throw new Error('Invalid YAML')
+    await updateWorkflow(yamlEditorWf.id, {
+      name: (parsed.name as string) || yamlEditorWf.name,
+      description: (parsed.description as string) || undefined,
+      definition_json: JSON.stringify(parsed),
+    })
+    setYamlEditorWf(null)
+  }, [yamlEditorWf, yamlContent, updateWorkflow])
 
   const handleToggleOverview = useCallback((filter: OverviewFilter) => {
     setOverviewFilter(prev => prev === filter ? null : filter)
@@ -457,34 +482,50 @@ export function WorkflowsPage() {
                     <button
                       type="button"
                       className="workflows-action-btn"
-                      onClick={() => setEditingWorkflow(wf)}
-                      title="Edit in visual builder"
-                    >
-                      Edit
-                    </button>
-                    <button
-                      type="button"
-                      className="workflows-action-btn"
-                      onClick={() => handleDuplicate(wf)}
-                      title="Duplicate"
-                    >
-                      Dup
-                    </button>
-                    <button
-                      type="button"
-                      className="workflows-action-btn"
-                      onClick={() => handleExport(wf)}
-                      title="Export YAML"
+                      onClick={() => handleYamlEdit(wf)}
+                      title="Edit as YAML"
                     >
                       YAML
                     </button>
                     <button
                       type="button"
-                      className="workflows-action-btn workflows-action-btn--danger"
+                      className="workflows-action-btn"
+                      onClick={() => setEditingWorkflow(wf)}
+                      title="Edit in visual builder"
+                    >
+                      Builder
+                    </button>
+                    <button
+                      type="button"
+                      className="workflows-action-icon"
+                      onClick={() => handleDuplicate(wf)}
+                      title="Duplicate"
+                    >
+                      <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                        <rect x="5.5" y="5.5" width="9" height="9" rx="1.5" />
+                        <path d="M10.5 5.5V2.5a1 1 0 0 0-1-1h-7a1 1 0 0 0-1 1v7a1 1 0 0 0 1 1h3" />
+                      </svg>
+                    </button>
+                    <button
+                      type="button"
+                      className="workflows-action-icon"
+                      onClick={() => handleExport(wf)}
+                      title="Download YAML"
+                    >
+                      <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M8 2v9m0 0L5 8m3 3 3-3M2.5 12.5v1a1 1 0 0 0 1 1h9a1 1 0 0 0 1-1v-1" />
+                      </svg>
+                    </button>
+                    <button
+                      type="button"
+                      className="workflows-action-icon workflows-action-icon--danger"
                       onClick={() => handleDelete(wf)}
                       title="Delete"
                     >
-                      Del
+                      <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M2.5 4.5h11M5.5 4.5V3a1 1 0 0 1 1-1h3a1 1 0 0 1 1 1v1.5M6.5 7v4.5M9.5 7v4.5" />
+                        <path d="M3.5 4.5 4 13a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1l.5-8.5" />
+                      </svg>
                     </button>
                   </div>
                 </div>
@@ -508,6 +549,18 @@ export function WorkflowsPage() {
         <ImportModal
           onClose={() => setShowImportModal(false)}
           onImport={importYaml}
+        />
+      )}
+
+      {/* YAML editor modal */}
+      {yamlEditorWf && (
+        <YamlEditorModal
+          workflowName={yamlEditorWf.name}
+          yamlContent={yamlContent}
+          loading={yamlLoading}
+          onChange={setYamlContent}
+          onSave={handleYamlSave}
+          onClose={() => setYamlEditorWf(null)}
         />
       )}
     </main>
@@ -594,6 +647,64 @@ function CreateModal({ type, onClose, onCreate }: {
           >
             {submitting ? 'Creating...' : 'Create'}
           </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function YamlEditorModal({ workflowName, yamlContent, loading, onChange, onSave, onClose }: {
+  workflowName: string
+  yamlContent: string
+  loading: boolean
+  onChange: (content: string) => void
+  onSave: () => Promise<void>
+  onClose: () => void
+}) {
+  const [saving, setSaving] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  const handleSave = async () => {
+    setError(null)
+    setSaving(true)
+    try {
+      await onSave()
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Invalid YAML')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return (
+    <div className="workflows-modal-overlay" onClick={onClose}>
+      <div className="workflows-yaml-modal" onClick={e => e.stopPropagation()}>
+        <div className="workflows-yaml-header">
+          <h3>Edit YAML — {workflowName}</h3>
+          <div className="workflows-yaml-header-actions">
+            {error && <span className="workflows-yaml-error">{error}</span>}
+            <button type="button" className="workflows-modal-cancel" onClick={onClose}>Cancel</button>
+            <button
+              type="button"
+              className="workflows-modal-submit"
+              onClick={handleSave}
+              disabled={saving || loading}
+            >
+              {saving ? 'Saving...' : 'Save'}
+            </button>
+          </div>
+        </div>
+        <div className="workflows-yaml-editor">
+          {loading ? (
+            <div className="workflows-loading">Loading YAML...</div>
+          ) : (
+            <CodeMirrorEditor
+              content={yamlContent}
+              language="yaml"
+              onChange={onChange}
+              onSave={handleSave}
+            />
+          )}
         </div>
       </div>
     </div>
