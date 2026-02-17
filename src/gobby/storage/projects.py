@@ -133,6 +133,51 @@ class LocalProjectManager:
             return project
         return self.create(name, repo_path, github_url)
 
+    def ensure_exists(
+        self,
+        project_id: str,
+        name: str,
+        repo_path: str | None = None,
+    ) -> Project:
+        """
+        Ensure a project with the given ID exists in the database.
+
+        This is used when syncing projects from project.json files that may have
+        been created on another machine. If the project doesn't exist, it's created
+        with the specified ID.
+
+        Args:
+            project_id: The project ID (from project.json)
+            name: Project name
+            repo_path: Local repository path
+
+        Returns:
+            The existing or newly created Project
+        """
+        project = self.get(project_id)
+        if project:
+            return project
+
+        now = datetime.now(UTC).isoformat()
+        self.db.execute(
+            """
+            INSERT INTO projects (id, name, repo_path, created_at, updated_at)
+            VALUES (?, ?, ?, ?, ?)
+            """,
+            (project_id, name, repo_path, now, now),
+        )
+
+        logger.info(f"Auto-registered project '{name}' ({project_id}) from project.json")
+
+        return Project(
+            id=project_id,
+            name=name,
+            repo_path=repo_path,
+            github_url=None,
+            created_at=now,
+            updated_at=now,
+        )
+
     def list(self, include_deleted: bool = False) -> list[Project]:
         """List all projects. Excludes soft-deleted projects by default."""
         if include_deleted:
