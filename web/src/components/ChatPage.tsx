@@ -48,13 +48,12 @@ export interface ProjectProps {
 export interface VoiceProps {
   voiceMode?: boolean
   voiceAvailable?: boolean
-  isRecording?: boolean
+  isListening?: boolean
+  isSpeechDetected?: boolean
   isTranscribing?: boolean
   isSpeaking?: boolean
   voiceError?: string | null
   onToggleVoice?: () => void
-  onStartRecording?: () => void
-  onStopRecording?: () => void
   onStopSpeaking?: () => void
 }
 
@@ -205,13 +204,12 @@ export function ChatPage({ chat, conversations, terminal, project, voice }: Chat
             onProjectChange={project.onProjectChange}
             voiceMode={voice.voiceMode}
             voiceAvailable={voice.voiceAvailable}
-            isRecording={voice.isRecording}
+            isListening={voice.isListening}
+            isSpeechDetected={voice.isSpeechDetected}
             isTranscribing={voice.isTranscribing}
             isSpeaking={voice.isSpeaking}
             voiceError={voice.voiceError}
             onToggleVoice={voice.onToggleVoice}
-            onStartRecording={voice.onStartRecording}
-            onStopRecording={voice.onStopRecording}
             onStopSpeaking={voice.onStopSpeaking}
           />
         </main>

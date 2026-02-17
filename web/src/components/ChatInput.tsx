@@ -28,13 +28,12 @@ interface ChatInputProps {
   // Voice props
   voiceMode?: boolean
   voiceAvailable?: boolean
-  isRecording?: boolean
+  isListening?: boolean
+  isSpeechDetected?: boolean
   isTranscribing?: boolean
   isSpeaking?: boolean
   voiceError?: string | null
   onToggleVoice?: () => void
-  onStartRecording?: () => void
-  onStopRecording?: () => void
   onStopSpeaking?: () => void
 }
 
@@ -51,13 +50,12 @@ export function ChatInput({
   onProjectChange,
   voiceMode = false,
   voiceAvailable = false,
-  isRecording = false,
+  isListening = false,
+  isSpeechDetected = false,
   isTranscribing = false,
   isSpeaking = false,
   voiceError,
   onToggleVoice,
-  onStartRecording,
-  onStopRecording,
   onStopSpeaking,
 }: ChatInputProps) {
   const [input, setInput] = useState('')
@@ -249,6 +247,32 @@ export function ChatInput({
         </div>
       )}
 
+      {voiceMode && isListening && !isSpeaking && !isTranscribing && (
+        <div className={`listening-indicator${isSpeechDetected ? ' speech-detected' : ''}`}>
+          {isSpeechDetected ? (
+            <>
+              <span className="speaking-bar" />
+              <span className="speaking-bar" />
+              <span className="speaking-bar" />
+              <span className="speaking-bar" />
+              <span className="speaking-label">Listening...</span>
+            </>
+          ) : (
+            <>
+              <span className="listening-pulse" />
+              <span className="speaking-label">Ready — speak to send</span>
+            </>
+          )}
+        </div>
+      )}
+
+      {voiceMode && isTranscribing && (
+        <div className="listening-indicator transcribing">
+          <SpinnerIcon />
+          <span className="speaking-label">Transcribing...</span>
+        </div>
+      )}
+
       {voiceMode && isSpeaking && onStopSpeaking && (
         <div className="speaking-indicator" onClick={onStopSpeaking} title="Click to stop">
           <span className="speaking-bar" />
@@ -270,36 +294,11 @@ export function ChatInput({
           value={input}
           onChange={(e) => handleChange(e.target.value)}
           onKeyDown={handleKeyDown}
-          placeholder={disabled ? 'Connecting...' : isStreaming ? 'Interrupt...' : voiceMode ? 'Voice mode on — hold mic to talk...' : 'Message or /command...'}
+          placeholder={disabled ? 'Connecting...' : isStreaming ? 'Interrupt...' : voiceMode ? 'Listening — speak to send...' : 'Message or /command...'}
           disabled={disabled}
           rows={1}
         />
-        {voiceMode && onStartRecording && onStopRecording ? (
-          <div className="chat-actions">
-            <button
-              className={`ptt-button${isRecording ? ' recording' : ''}${isTranscribing ? ' transcribing' : ''}`}
-              onMouseDown={onStartRecording}
-              onMouseUp={onStopRecording}
-              onMouseLeave={isRecording ? onStopRecording : undefined}
-              onTouchStart={(e) => { e.preventDefault(); onStartRecording() }}
-              onTouchEnd={(e) => { e.preventDefault(); onStopRecording() }}
-              disabled={disabled || isTranscribing}
-              title={isRecording ? 'Release to send' : isTranscribing ? 'Transcribing...' : 'Hold to talk'}
-              aria-label={isRecording ? 'Release to send' : 'Hold to talk'}
-            >
-              {isTranscribing ? <SpinnerIcon /> : <MicIcon />}
-            </button>
-            {hasInput && (
-              <button
-                className="send-button"
-                onClick={handleSubmit}
-                disabled={disabled || !hasInput}
-              >
-                <SendIcon />
-              </button>
-            )}
-          </div>
-        ) : isStreaming ? (
+        {isStreaming ? (
           <div className="chat-actions">
             {onStop && (
               <button

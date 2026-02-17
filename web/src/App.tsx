@@ -313,13 +313,12 @@ export default function App() {
           voice={{
             voiceMode: voice.voiceMode,
             voiceAvailable: voice.voiceAvailable,
-            isRecording: voice.isRecording,
+            isListening: voice.isListening,
+            isSpeechDetected: voice.isSpeechDetected,
             isTranscribing: voice.isTranscribing,
             isSpeaking: voice.isSpeaking,
             voiceError: voice.voiceError,
             onToggleVoice: voice.toggleVoiceMode,
-            onStartRecording: voice.startRecording,
-            onStopRecording: voice.stopRecording,
             onStopSpeaking: voice.stopSpeaking,
           }}
         />
@@ -361,13 +360,12 @@ export default function App() {
           voice={{
             voiceMode: voice.voiceMode,
             voiceAvailable: voice.voiceAvailable,
-            isRecording: voice.isRecording,
+            isListening: voice.isListening,
+            isSpeechDetected: voice.isSpeechDetected,
             isTranscribing: voice.isTranscribing,
             isSpeaking: voice.isSpeaking,
             voiceError: voice.voiceError,
             onToggleVoice: voice.toggleVoiceMode,
-            onStartRecording: voice.startRecording,
-            onStopRecording: voice.stopRecording,
             onStopSpeaking: voice.stopSpeaking,
           }}
         />
