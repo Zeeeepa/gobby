@@ -130,11 +130,22 @@ export function useVoice(
       .catch((err) => { console.error('Voice status check failed:', err); setVoiceAvailable(false) })
   }, [])
 
-  // Track speaking state from playback queue
+  // Track speaking state from playback queue and pause/resume VAD to prevent echo
   useEffect(() => {
+    let wasPlaying = false
     const interval = setInterval(() => {
       const playing = playbackQueueRef.current.isPlaying
       setIsSpeaking(playing)
+
+      // Pause VAD while TTS is playing to prevent feedback loop
+      if (playing && !wasPlaying && vadRef.current) {
+        vadRef.current.pause()
+        setIsListening(false)
+      } else if (!playing && wasPlaying && vadRef.current) {
+        vadRef.current.start()
+        setIsListening(true)
+      }
+      wasPlaying = playing
     }, 200)
     return () => clearInterval(interval)
   }, [])
