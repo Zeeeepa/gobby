@@ -362,12 +362,14 @@ def _create_pipeline_tool(
     pipeline_name = pipeline.name
 
     async def _execute_pipeline(**kwargs: Any) -> dict[str, Any]:
+        session_id = kwargs.pop("session_id", None)
         return await run_pipeline(
             loader=loader,
             executor=executor,
             name=pipeline_name,
             inputs=kwargs,
             project_id="",
+            session_id=session_id,
         )
 
     # Register the tool with the schema
@@ -419,6 +421,12 @@ def _build_input_schema(pipeline: Any) -> dict[str, Any]:
                 "type": "string",
                 "default": input_def,
             }
+
+    # Add session_id as an optional meta-parameter for all exposed pipelines
+    properties["session_id"] = {
+        "type": "string",
+        "description": "Session ID of the caller (for parent session tracking)",
+    }
 
     schema: dict[str, Any] = {
         "type": "object",
