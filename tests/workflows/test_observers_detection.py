@@ -1,4 +1,4 @@
-"""Tests for workflow detection helper functions."""
+"""Tests for detection functions in observers module."""
 
 from datetime import UTC, datetime
 from unittest.mock import MagicMock
@@ -6,13 +6,13 @@ from unittest.mock import MagicMock
 import pytest
 
 from gobby.hooks.events import HookEvent, HookEventType, SessionSource
+from gobby.workflows.actions import handle_detect_plan_mode_from_context
 from gobby.workflows.definitions import WorkflowState
-from gobby.workflows.detection_helpers import (
+from gobby.workflows.engine import process_mcp_handlers
+from gobby.workflows.observers import (
     detect_mcp_call,
     detect_plan_mode_from_context,
     detect_task_claim,
-    handle_detect_plan_mode_from_context,
-    process_mcp_handlers,
 )
 
 pytestmark = pytest.mark.unit

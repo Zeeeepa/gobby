@@ -21,9 +21,6 @@ from gobby.workflows.context_actions import (
     handle_inject_message,
 )
 from gobby.workflows.definitions import WorkflowState
-from gobby.workflows.detection_helpers import (
-    handle_detect_plan_mode_from_context,
-)
 from gobby.workflows.enforcement import (
     handle_block_stop,
     handle_block_tools,
@@ -49,6 +46,7 @@ from gobby.workflows.memory_actions import (
     handle_memory_sync_import,
     handle_reset_memory_injection_tracking,
 )
+from gobby.workflows.observers import detect_plan_mode_from_context
 from gobby.workflows.session_actions import (
     handle_mark_session_status,
     handle_start_new_session,
@@ -88,6 +86,24 @@ from gobby.workflows.todo_actions import (
 from gobby.workflows.webhook_actions import handle_webhook
 
 logger = logging.getLogger(__name__)
+
+
+async def handle_detect_plan_mode_from_context(
+    context: Any, **kwargs: Any
+) -> dict[str, Any] | None:
+    """Action handler for detect_plan_mode_from_context.
+
+    Reads the prompt from context.event_data and delegates to
+    detect_plan_mode_from_context for system-reminder-based plan mode detection.
+
+    This allows plan mode detection to be triggered from YAML workflow actions
+    instead of being hardcoded in the workflow engine.
+    """
+    prompt = ""
+    if context.event_data:
+        prompt = context.event_data.get("prompt", "") or ""
+    detect_plan_mode_from_context(prompt, context.state)
+    return None
 
 
 @dataclass
