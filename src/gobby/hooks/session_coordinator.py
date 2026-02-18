@@ -344,14 +344,37 @@ class SessionCoordinator:
                 or ""
             )
 
+            # Count tool calls and turns from session messages
+            tool_calls_count = 0
+            turns_used = 0
+            try:
+                db = self._agent_run_manager.db
+                row = db.fetchone(
+                    """
+                    SELECT
+                        COUNT(CASE WHEN tool_name IS NOT NULL THEN 1 END) AS tool_calls,
+                        COUNT(CASE WHEN role = 'assistant' THEN 1 END) AS turns
+                    FROM session_messages WHERE session_id = ?
+                    """,
+                    (session.id,),
+                )
+                if row:
+                    tool_calls_count = row["tool_calls"] or 0
+                    turns_used = row["turns"] or 0
+            except Exception as e:
+                self.logger.warning(f"Failed to count session stats for {session.id}: {e}")
+
             # Mark as success
             self._agent_run_manager.complete(
                 run_id=agent_run_id,
                 result=result,
-                tool_calls_count=0,
-                turns_used=0,
+                tool_calls_count=tool_calls_count,
+                turns_used=turns_used,
             )
-            self.logger.info(f"Completed agent run {agent_run_id}")
+            self.logger.info(
+                f"Completed agent run {agent_run_id} "
+                f"(tool_calls={tool_calls_count}, turns={turns_used})"
+            )
 
         except Exception as e:
             self.logger.error(f"Failed to complete agent run {agent_run_id}: {e}")
