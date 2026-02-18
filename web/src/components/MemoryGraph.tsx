@@ -90,8 +90,8 @@ function buildGraph(
   // Grid layout for disconnected nodes (or all nodes if no edges)
   if (disconnected.length > 0) {
     const cols = Math.ceil(Math.sqrt(disconnected.length))
-    const padX = NODE_WIDTH + 24
-    const padY = NODE_HEIGHT + 20
+    const padX = NODE_WIDTH + 60
+    const padY = NODE_HEIGHT + 40
     // Offset grid below the dagre layout
     const gridOffsetY = nodes.length > 0
       ? Math.max(...nodes.map(n => n.y)) + NODE_HEIGHT + 60

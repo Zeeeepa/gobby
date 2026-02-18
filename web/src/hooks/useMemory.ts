@@ -115,6 +115,7 @@ export function useMemory() {
         const data = await response.json()
         const items = (data.memories || []).map((m: Record<string, unknown>) => ({
           ...m,
+          importance: typeof m.importance === 'number' ? m.importance : 0.5,
           tags: normalizeTags(m.tags),
         })) as GobbyMemory[]
         setMemories(items)
@@ -298,6 +299,7 @@ export function useMemory() {
         return {
           memories: (data.memories || []).map((m: Record<string, unknown>) => ({
             ...m,
+            importance: typeof m.importance === 'number' ? m.importance : 0.5,
             tags: normalizeTags(m.tags),
           })) as GobbyMemory[],
           crossrefs: data.crossrefs || [],

@@ -18,6 +18,7 @@ from gobby.llm.resolver import ExecutorRegistry
 from gobby.mcp_proxy.manager import MCPClientManager
 from gobby.memory.manager import MemoryManager
 from gobby.memory.vectorstore import VectorStore
+from gobby.search.embeddings import generate_embedding
 from gobby.servers.http import HTTPServer
 from gobby.servers.websocket.models import WebSocketConfig
 from gobby.servers.websocket.server import WebSocketServer
@@ -183,10 +184,21 @@ class GobbyRunner:
                     url=self.config.memory.qdrant_url,
                     api_key=self.config.memory.qdrant_api_key,
                 )
+                embed_fn = None
+                if self.llm_service:
+                    from functools import partial
+
+                    embed_fn = partial(
+                        generate_embedding,
+                        model=self.config.memory.embedding_model,
+                    )
+
                 self.memory_manager = MemoryManager(
                     self.database,
                     self.config.memory,
+                    llm_service=self.llm_service,
                     vector_store=self.vector_store,
+                    embed_fn=embed_fn,
                 )
             except Exception as e:
                 logger.error(f"Failed to initialize MemoryManager: {e}")
