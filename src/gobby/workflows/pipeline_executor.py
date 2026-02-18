@@ -164,6 +164,7 @@ class PipelineExecutor:
         context: dict[str, Any] = {
             "inputs": inputs,
             "steps": {},  # Will hold step outputs as they complete
+            "session_id": session_id,
         }
 
         # Fetch existing steps if resuming
@@ -241,6 +242,7 @@ class PipelineExecutor:
                     step_execution_id=step_execution.id,
                     status=StepStatus.RUNNING,
                 )
+                step_execution.status = StepStatus.RUNNING
                 current_step_execution = step_execution
 
                 # Emit step_started event

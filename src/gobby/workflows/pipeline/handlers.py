@@ -76,6 +76,7 @@ async def execute_spawn_session_step(
     cwd = config.get("cwd")
     workflow_name = config.get("workflow_name")
     agent_depth = config.get("agent_depth", 1)
+    parent_session_id = config.get("parent_session_id") or context.get("session_id") or ""
 
     # Create a gobby session record
     session = session_manager.create_session(
@@ -90,7 +91,7 @@ async def execute_spawn_session_step(
             cli=cli,
             cwd=cwd or ".",
             session_id=session_id,
-            parent_session_id="",
+            parent_session_id=parent_session_id,
             agent_run_id=session_id,
             project_id=project_id,
             workflow_name=workflow_name,
