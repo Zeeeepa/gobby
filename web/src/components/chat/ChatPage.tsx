@@ -1,6 +1,6 @@
 import './styles.css'
 import { useCallback } from 'react'
-import type { ChatState, ConversationState, AgentPanelProps, ProjectProps, VoiceProps } from '../../types/chat'
+import type { ChatState, ConversationState, ProjectProps, VoiceProps } from '../../types/chat'
 import { ConversationPicker } from '../ConversationPicker'
 import { useArtifacts } from '../../hooks/useArtifacts'
 import { ArtifactContext } from './artifacts/ArtifactContext'
@@ -8,17 +8,15 @@ import { ArtifactPanel } from './artifacts/ArtifactPanel'
 import { ResizeHandle } from './artifacts/ResizeHandle'
 import { MessageList } from './MessageList'
 import { ChatInput } from './ChatInput'
-import { AgentStatusPanel } from './AgentStatusPanel'
 
 interface ChatPageProps {
   chat: ChatState
   conversations: ConversationState
-  agents: AgentPanelProps
   project: ProjectProps
   voice: VoiceProps
 }
 
-export function ChatPage({ chat, conversations, agents, project, voice }: ChatPageProps) {
+export function ChatPage({ chat, conversations, project, voice }: ChatPageProps) {
   const {
     activeArtifact,
     isPanelOpen,
@@ -42,6 +40,9 @@ export function ChatPage({ chat, conversations, agents, project, voice }: ChatPa
         onNewChat={conversations.onNewChat}
         onSelectSession={conversations.onSelectSession}
         onDeleteSession={conversations.onDeleteSession}
+        agents={conversations.agents}
+        selectedAgent={conversations.selectedAgent}
+        onSelectAgent={conversations.onSelectAgent}
       />
 
       <div className="flex flex-col flex-1 min-w-0">
@@ -92,15 +93,6 @@ export function ChatPage({ chat, conversations, agents, project, voice }: ChatPa
               </>
             )}
 
-            {/* Agent status panel */}
-            {agents.isOpen && (
-              <AgentStatusPanel
-                agents={agents.agents}
-                selectedAgent={agents.selectedAgent}
-                onSelectAgent={agents.onSelectAgent}
-                onClose={agents.onToggle}
-              />
-            )}
           </div>
         </ArtifactContext.Provider>
       </div>

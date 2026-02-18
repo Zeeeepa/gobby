@@ -51,12 +51,7 @@ export interface ConversationState {
   onNewChat: () => void
   onSelectSession: (session: GobbySession) => void
   onDeleteSession?: (session: GobbySession) => void
-}
-
-export interface AgentPanelProps {
-  isOpen: boolean
-  onToggle: () => void
-  agents: Array<{ run_id: string; provider: string; pid?: number; mode?: string }>
+  agents: Array<{ run_id: string; provider: string; pid?: number; mode?: string; started_at?: string }>
   selectedAgent: string | null
   onSelectAgent: (runId: string | null) => void
 }

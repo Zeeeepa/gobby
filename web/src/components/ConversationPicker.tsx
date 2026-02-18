@@ -1,6 +1,14 @@
 import type { GobbySession } from '../hooks/useSessions'
 import { formatRelativeTime } from '../utils/formatTime'
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useMemo } from 'react'
+
+interface AgentInfo {
+  run_id: string
+  provider: string
+  pid?: number
+  mode?: string
+  started_at?: string
+}
 
 interface ConversationPickerProps {
   sessions: GobbySession[]
@@ -8,6 +16,16 @@ interface ConversationPickerProps {
   onNewChat: () => void
   onSelectSession: (session: GobbySession) => void
   onDeleteSession?: (session: GobbySession) => void
+  agents?: AgentInfo[]
+  selectedAgent?: string | null
+  onSelectAgent?: (runId: string | null) => void
+}
+
+const PROVIDER_COLORS: Record<string, string> = {
+  claude: '#c084fc',
+  gemini: '#4ade80',
+  codex: '#3b82f6',
+  unknown: '#737373',
 }
 
 export function ConversationPicker({
@@ -16,6 +34,9 @@ export function ConversationPicker({
   onNewChat,
   onSelectSession,
   onDeleteSession,
+  agents = [],
+  selectedAgent = null,
+  onSelectAgent,
 }: ConversationPickerProps) {
   const [search, setSearch] = useState('')
   const [isOpen, setIsOpen] = useState(true)
@@ -78,6 +99,40 @@ export function ConversationPicker({
             />
           </div>
 
+          {agents.length > 0 && (
+            <div className="session-group">
+              <div className="session-group-label">Active Agents ({agents.length})</div>
+              {agents.map((agent) => (
+                <div
+                  key={agent.run_id}
+                  className={`session-item ${agent.run_id === selectedAgent ? 'attached' : ''}`}
+                  onClick={() => onSelectAgent?.(agent.run_id === selectedAgent ? null : agent.run_id)}
+                  role="button"
+                  tabIndex={0}
+                  onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onSelectAgent?.(agent.run_id === selectedAgent ? null : agent.run_id) } }}
+                >
+                  <div className="session-item-main">
+                    <span
+                      className="session-source-dot"
+                      style={{ background: PROVIDER_COLORS[agent.provider] ?? PROVIDER_COLORS.unknown }}
+                    />
+                    <span className="session-name">{agent.provider}</span>
+                    {agent.mode && (
+                      <span className="session-badge agent-badge">{agent.mode}</span>
+                    )}
+                  </div>
+                  <div className="session-item-actions">
+                    <span className="session-pid">
+                      <AgentUptime startedAt={agent.started_at} />
+                    </span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+
+          <div className="session-group">
+            <div className="session-group-label">Chats</div>
           <div className="sessions-list">
             {filtered.length === 0 && (
               <div className="terminals-empty-sidebar">No conversations</div>
@@ -119,10 +174,33 @@ export function ConversationPicker({
               )
             })}
           </div>
+          </div>
         </>
       )}
     </div>
   )
+}
+
+function AgentUptime({ startedAt }: { startedAt?: string }) {
+  const startTime = useMemo(
+    () => startedAt ? new Date(startedAt).getTime() : Date.now(),
+    [startedAt]
+  )
+  const [uptime, setUptime] = useState('0s')
+
+  useEffect(() => {
+    const update = () => {
+      const elapsed = Math.floor((Date.now() - startTime) / 1000)
+      if (elapsed < 60) setUptime(`${elapsed}s`)
+      else if (elapsed < 3600) setUptime(`${Math.floor(elapsed / 60)}m`)
+      else setUptime(`${Math.floor(elapsed / 3600)}h${Math.floor((elapsed % 3600) / 60)}m`)
+    }
+    update()
+    const interval = setInterval(update, 1000)
+    return () => clearInterval(interval)
+  }, [startTime])
+
+  return <>{uptime}</>
 }
 
 function TrashIcon() {
