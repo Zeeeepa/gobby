@@ -43,7 +43,20 @@ async def _execute_pipeline_background(
         logger.error(f"Background pipeline '{pipeline_name}' failed: {e}", exc_info=True)
         # Ensure execution is marked failed even if executor.execute didn't catch it
         try:
-            from gobby.workflows.pipeline_state import ExecutionStatus
+            from gobby.workflows.pipeline_state import ExecutionStatus, StepStatus
+
+            # Fallback: fix any steps stuck at 'running' status
+            try:
+                steps = executor.execution_manager.get_steps_for_execution(execution_id)
+                for step in steps:
+                    if step.status == StepStatus.RUNNING:
+                        executor.execution_manager.update_step_execution(
+                            step_execution_id=step.id,
+                            status=StepStatus.FAILED,
+                            error=str(e),
+                        )
+            except Exception:
+                logger.error("Failed to clean up stuck steps", exc_info=True)
 
             executor.execution_manager.update_execution_status(
                 execution_id=execution_id,
@@ -109,7 +122,12 @@ async def run_pipeline(
 
     task = asyncio.create_task(
         _execute_pipeline_background(
-            executor, pipeline, inputs, project_id, execution_id, name,
+            executor,
+            pipeline,
+            inputs,
+            project_id,
+            execution_id,
+            name,
             session_id=session_id,
         ),
         name=f"pipeline-{name}-{execution_id[:8]}",

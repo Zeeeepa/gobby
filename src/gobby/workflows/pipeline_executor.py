@@ -316,15 +316,24 @@ class PipelineExecutor:
                         error=str(e),
                     )
                 except Exception:
-                    logger.warning("Failed to mark step as failed", exc_info=True)
+                    logger.error(
+                        f"Failed to mark step {current_step_execution.id} as failed",
+                        exc_info=True,
+                    )
 
-            failed = self.execution_manager.update_execution_status(
-                execution_id=execution.id,
-                status=ExecutionStatus.FAILED,
-                outputs_json=json.dumps({"error": str(e)}),
-            )
-            if failed:
-                execution = failed
+            try:
+                failed = self.execution_manager.update_execution_status(
+                    execution_id=execution.id,
+                    status=ExecutionStatus.FAILED,
+                    outputs_json=json.dumps({"error": str(e)}),
+                )
+                if failed:
+                    execution = failed
+            except Exception:
+                logger.error(
+                    f"Failed to mark execution {execution.id} as failed",
+                    exc_info=True,
+                )
 
             # Emit pipeline_failed event
             await self._emit_event(
