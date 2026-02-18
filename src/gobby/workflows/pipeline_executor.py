@@ -160,9 +160,10 @@ class PipelineExecutor:
             step_count=len(pipeline.steps),
         )
 
-        # 3. Build execution context
+        # 3. Build execution context (merge defaults from pipeline definition)
+        merged_inputs = {**pipeline.inputs, **inputs}
         context: dict[str, Any] = {
-            "inputs": inputs,
+            "inputs": merged_inputs,
             "steps": {},  # Will hold step outputs as they complete
             "session_id": session_id,
         }
