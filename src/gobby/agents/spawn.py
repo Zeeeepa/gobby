@@ -110,6 +110,7 @@ def prepare_terminal_spawn(
     git_branch: str | None = None,
     prompt: str | None = None,
     max_agent_depth: int = 3,
+    agent_run_id: str | None = None,
 ) -> PreparedSpawn:
     """
     Prepare a terminal spawn by creating the child session.
@@ -156,8 +157,9 @@ def prepare_terminal_spawn(
     # Create the child session
     child_session = session_manager.create_child_session(config)
 
-    # Generate agent run ID
-    agent_run_id = f"run-{uuid.uuid4().hex[:12]}"
+    # Use provided agent_run_id or generate one (backward compat)
+    if not agent_run_id:
+        agent_run_id = f"run-{uuid.uuid4().hex[:12]}"
 
     # Persist agent_run_id to session record for hook-based lifecycle tracking
     session_manager._storage.update_terminal_pickup_metadata(

@@ -153,6 +153,13 @@ class TmuxSessionManager:
         # Sanitise name (tmux dislikes dots and colons)
         safe_name = "".join(c if c.isalnum() or c in "-_" else "-" for c in name)
 
+        # Fail fast if session already exists — never silently reuse
+        if await self.has_session(safe_name):
+            raise TmuxSessionError(
+                f"Session '{safe_name}' already exists on socket '{self._config.socket_name}'",
+                session_name=safe_name,
+            )
+
         args: list[str] = [
             "new-session",
             "-d",

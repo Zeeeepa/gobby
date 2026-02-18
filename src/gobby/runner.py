@@ -583,6 +583,7 @@ class GobbyRunner:
                     mode=data.get("mode"),
                     provider=data.get("provider"),
                     pid=data.get("pid"),
+                    tmux_session_name=data.get("tmux_session_name"),
                 )
             )
             task.add_done_callback(_log_broadcast_exception)
@@ -611,6 +612,32 @@ class GobbyRunner:
         # Set the callback on the pipeline executor
         self.pipeline_executor.event_callback = broadcast_pipeline_event
         logger.debug("Pipeline event broadcasting enabled")
+
+    async def _cleanup_stale_tmux_sessions(self) -> None:
+        """Kill tmux sessions on the gobby socket not backed by a registered agent."""
+        try:
+            from gobby.agents.registry import get_running_agent_registry
+            from gobby.agents.tmux.session_manager import TmuxSessionManager
+
+            mgr = TmuxSessionManager()
+            if not mgr.is_available():
+                return
+
+            sessions = await mgr.list_sessions()
+            if not sessions:
+                return
+
+            registry = get_running_agent_registry()
+            registered_names = {
+                a.tmux_session_name for a in registry.list_all() if a.tmux_session_name
+            }
+
+            for session in sessions:
+                if session.name not in registered_names:
+                    logger.info(f"Cleaning up stale tmux session: {session.name}")
+                    await mgr.kill_session(session.name)
+        except Exception as e:
+            logger.warning(f"Stale tmux session cleanup failed: {e}")
 
     async def _metrics_cleanup_loop(self) -> None:
         """Background loop for periodic metrics cleanup (every 24 hours)."""
@@ -688,6 +715,9 @@ class GobbyRunner:
                 logger.warning("MCP connection timed out")
             except Exception as e:
                 logger.error(f"MCP connection failed: {e}")
+
+            # Clean up stale tmux sessions from previous runs
+            await self._cleanup_stale_tmux_sessions()
 
             # Run metrics cleanup on startup
             try:

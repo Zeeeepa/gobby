@@ -14,6 +14,7 @@ import re
 import shlex
 import tempfile
 import time
+import uuid
 from pathlib import Path
 
 from gobby.agents.constants import get_terminal_env_vars
@@ -95,7 +96,9 @@ class TmuxSpawner(TerminalSpawnerBase):
         title: str | None = None,
     ) -> SpawnResult:
         """Async implementation of spawn."""
-        session_name = title or f"{self._config.session_prefix}-{int(time.time())}"
+        suffix = uuid.uuid4().hex[:8]
+        base = title or f"{self._config.session_prefix}-{int(time.time())}"
+        session_name = f"{base}-{suffix}"
         # Sanitise (TmuxSessionManager also sanitises, but normalise here
         # so the name we return is consistent).
         session_name = re.sub(r"[^a-zA-Z0-9_-]", "-", session_name)

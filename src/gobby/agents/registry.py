@@ -245,6 +245,7 @@ class RunningAgentRegistry:
                 "mode": agent.mode,
                 "provider": agent.provider,
                 "pid": agent.pid,
+                "tmux_session_name": agent.tmux_session_name,
             },
         )
 

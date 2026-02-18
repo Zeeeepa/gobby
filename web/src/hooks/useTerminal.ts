@@ -61,6 +61,26 @@ export function useTerminal() {
         type: 'subscribe',
         events: ['terminal_output', 'agent_event'],
       }))
+      // Fetch current running agents to recover any missed before WS connected
+      fetch('/api/agents/running')
+        .then(r => r.json())
+        .then(data => {
+          if (data.agents) {
+            const showModes = ['embedded', 'tmux', 'terminal']
+            setAgents(data.agents
+              .filter((a: RunningAgent) => showModes.includes(a.mode))
+              .map((a: RunningAgent) => ({
+                run_id: a.run_id,
+                session_id: a.session_id,
+                parent_session_id: a.parent_session_id,
+                mode: a.mode,
+                provider: a.provider,
+                pid: a.pid,
+                tmux_session_name: a.tmux_session_name,
+              })))
+          }
+        })
+        .catch(() => {}) // Non-fatal
     }
 
     ws.onclose = () => {
@@ -96,7 +116,7 @@ export function useTerminal() {
 
   // Handle agent lifecycle events
   const handleAgentEvent = useCallback((event: AgentEventMessage) => {
-    const showModes = ['embedded', 'tmux']
+    const showModes = ['embedded', 'tmux', 'terminal']
     if (event.event === 'agent_started' && showModes.includes(event.mode || '')) {
       // Add new agent (embedded or tmux)
       setAgents(prev => {
