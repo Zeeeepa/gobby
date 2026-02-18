@@ -288,7 +288,7 @@ def create_stdio_mcp_server() -> FastMCP:
 def register_proxy_tools(mcp: FastMCP, proxy: DaemonProxy) -> None:
     """Register proxy tools on the MCP server."""
 
-    @mcp.tool()
+    @mcp.tool()  # type: ignore[misc]
     async def list_mcp_servers() -> dict[str, Any]:
         """
         List all MCP servers configured in the daemon.
@@ -301,7 +301,7 @@ def register_proxy_tools(mcp: FastMCP, proxy: DaemonProxy) -> None:
         """
         return await proxy.list_mcp_servers()
 
-    @mcp.tool()
+    @mcp.tool()  # type: ignore[misc]
     async def list_tools(server_name: str) -> dict[str, Any]:
         """
         List tools from MCP servers.
@@ -317,7 +317,7 @@ def register_proxy_tools(mcp: FastMCP, proxy: DaemonProxy) -> None:
         """
         return await proxy.list_tools(server_name)
 
-    @mcp.tool()
+    @mcp.tool()  # type: ignore[misc]
     async def get_tool_schema(server_name: str, tool_name: str) -> dict[str, Any]:
         """
         Get full schema (inputSchema) for a specific MCP tool.
@@ -334,7 +334,7 @@ def register_proxy_tools(mcp: FastMCP, proxy: DaemonProxy) -> None:
         """
         return await proxy.get_tool_schema(server_name, tool_name)
 
-    @mcp.tool()
+    @mcp.tool()  # type: ignore[misc]
     async def call_tool(
         server_name: str,
         tool_name: str,
@@ -356,7 +356,7 @@ def register_proxy_tools(mcp: FastMCP, proxy: DaemonProxy) -> None:
         """
         return await proxy.call_tool(server_name, tool_name, arguments)
 
-    @mcp.tool()
+    @mcp.tool()  # type: ignore[misc]
     async def recommend_tools(
         task_description: str,
         agent_id: str | None = None,
@@ -389,7 +389,7 @@ def register_proxy_tools(mcp: FastMCP, proxy: DaemonProxy) -> None:
             cwd=cwd,
         )
 
-    @mcp.tool()
+    @mcp.tool()  # type: ignore[misc]
     async def search_tools(
         query: str,
         top_k: int = 10,
@@ -422,7 +422,7 @@ def register_proxy_tools(mcp: FastMCP, proxy: DaemonProxy) -> None:
             cwd=cwd,
         )
 
-    @mcp.tool()
+    @mcp.tool()  # type: ignore[misc]
     async def add_mcp_server(
         name: str,
         transport: str,
@@ -460,7 +460,7 @@ def register_proxy_tools(mcp: FastMCP, proxy: DaemonProxy) -> None:
             enabled=enabled,
         )
 
-    @mcp.tool()
+    @mcp.tool()  # type: ignore[misc]
     async def remove_mcp_server(name: str) -> dict[str, Any]:
         """
         Remove an MCP server from the daemon's configuration.
@@ -473,7 +473,7 @@ def register_proxy_tools(mcp: FastMCP, proxy: DaemonProxy) -> None:
         """
         return await proxy.remove_mcp_server(name)
 
-    @mcp.tool()
+    @mcp.tool()  # type: ignore[misc]
     async def import_mcp_server(
         from_project: str | None = None,
         servers: list[str] | None = None,
@@ -499,7 +499,7 @@ def register_proxy_tools(mcp: FastMCP, proxy: DaemonProxy) -> None:
             query=query,
         )
 
-    @mcp.tool()
+    @mcp.tool()  # type: ignore[misc]
     async def init_project(
         name: str,
         project_path: str | None = None,

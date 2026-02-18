@@ -9,15 +9,14 @@ See: https://docs.litellm.ai/docs/completion/token_usage
 from __future__ import annotations
 
 import logging
-import types
 from dataclasses import dataclass, field
 from typing import Any
 
-litellm: types.ModuleType | None
 try:
-    import litellm
+    import litellm as _litellm
 except ImportError:
-    litellm = None
+    _litellm = None  # type: ignore[assignment]
+litellm = _litellm
 
 logger = logging.getLogger(__name__)
 

@@ -482,7 +482,7 @@ def reindex_embeddings(ctx: click.Context) -> None:
         click.echo(f"Error: {result.get('error', 'Unknown error')}")
 
 
-def _get_daemon_client(ctx: click.Context) -> "DaemonClient":  # noqa: F821
+def _get_daemon_client(ctx: click.Context) -> "DaemonClient":  # type: ignore[name-defined]  # noqa: F821
     """Get a DaemonClient for calling daemon HTTP API."""
     from gobby.utils.daemon_client import DaemonClient
 

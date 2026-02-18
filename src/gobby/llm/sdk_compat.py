@@ -24,7 +24,7 @@ _original_parse_message = _message_parser.parse_message
 def _tolerant_parse_message(data: dict[str, Any]) -> object | None:
     """parse_message wrapper that returns None for unknown message types."""
     try:
-        return _original_parse_message(data)
+        return _original_parse_message(data)  # type: ignore[no-any-return]
     except MessageParseError:
         msg_type = data.get("type", "?") if isinstance(data, dict) else "?"
         logger.warning("Skipping unrecognized SDK message type: %s", msg_type)

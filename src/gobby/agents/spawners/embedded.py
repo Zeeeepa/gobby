@@ -100,7 +100,9 @@ class EmbeddedSpawner:
             pid = os.fork()
 
             if pid == 0:
-                # Child process
+                # Child process — fds are guaranteed non-None after pty.openpty()
+                assert master_fd is not None
+                assert slave_fd is not None
                 try:
                     # Close master fd in child - not needed
                     os.close(master_fd)
@@ -129,6 +131,7 @@ class EmbeddedSpawner:
                 os._exit(1)
             else:
                 # Parent process - close slave fd (child has its own copy)
+                assert slave_fd is not None
                 os.close(slave_fd)
                 slave_fd = None  # Mark as closed
 

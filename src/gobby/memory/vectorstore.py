@@ -66,10 +66,12 @@ class VectorStore:
                 self._client = await asyncio.to_thread(QdrantClient, path=self._path)
 
         # Check if collection exists; create if not
-        exists = await asyncio.to_thread(self._client.collection_exists, self._collection_name)
+        client = self._client
+        assert client is not None
+        exists = await asyncio.to_thread(client.collection_exists, self._collection_name)
         if not exists:
             await asyncio.to_thread(
-                self._client.create_collection,
+                client.create_collection,
                 collection_name=self._collection_name,
                 vectors_config=VectorParams(size=self._embedding_dim, distance=Distance.COSINE),
             )
@@ -173,7 +175,8 @@ class VectorStore:
         """Return the number of points in the collection."""
         client = self._ensure_client()
         result = await asyncio.to_thread(client.count, collection_name=self._collection_name)
-        return result.count
+        count: int = result.count
+        return count
 
     async def rebuild(
         self,

@@ -153,6 +153,7 @@ def create_pipelines_registry(
         name: str,
         inputs: dict[str, Any] | None = None,
         project_id: str | None = None,
+        session_id: str | None = None,
     ) -> dict[str, Any]:
         return await run_pipeline(
             loader=_loader,
@@ -160,6 +161,7 @@ def create_pipelines_registry(
             name=name,
             inputs=inputs or {},
             project_id=project_id or "",
+            session_id=session_id,
         )
 
     @registry.tool(

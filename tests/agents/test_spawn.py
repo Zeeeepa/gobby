@@ -20,7 +20,9 @@ from gobby.agents.spawn import (
 pytestmark = pytest.mark.unit
 
 
-def _make_session_manager(child_session_id: str = "child-sess-1", agent_depth: int = 1) -> MagicMock:
+def _make_session_manager(
+    child_session_id: str = "child-sess-1", agent_depth: int = 1
+) -> MagicMock:
     """Create a mock ChildSessionManager with working _storage."""
     mock = MagicMock()
     child_session = MagicMock()

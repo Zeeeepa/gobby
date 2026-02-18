@@ -468,10 +468,12 @@ class ChatSession:
             if fnmatch(server_name, policy.server_pattern) and fnmatch(
                 short_tool, policy.tool_pattern
             ):
-                return policy.policy != "auto"
+                needs_approval: bool = policy.policy != "auto"
+                return needs_approval
 
         # Fall back to default policy
-        return config.default_policy != "auto"
+        default_needs: bool = config.default_policy != "auto"
+        return default_needs
 
     async def _wait_for_tool_approval(
         self, tool_name: str, input_data: dict[str, Any]

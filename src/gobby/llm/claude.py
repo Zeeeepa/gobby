@@ -169,7 +169,8 @@ class ClaudeLLMProvider(LLMProvider):
 
             env = Environment(autoescape=False)  # nosec B701 - generating text prompts
             template = env.from_string(prompt_template)
-            return template.render(**formatted_context)
+            rendered: str = template.render(**formatted_context)
+            return rendered
         except ImportError:
             # Fallback to simple str.format if Jinja2 unavailable
             # Convert {{ }} to {} for str.format compatibility

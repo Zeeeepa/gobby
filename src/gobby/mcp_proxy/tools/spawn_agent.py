@@ -7,7 +7,9 @@ Spawns agents with configurable isolation modes:
 
 from __future__ import annotations
 
+import asyncio
 import logging
+import shutil
 import uuid
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Literal
@@ -31,6 +33,23 @@ if TYPE_CHECKING:
     from gobby.storage.tasks import LocalTaskManager
 
 logger = logging.getLogger(__name__)
+
+
+async def _check_tmux_session_alive(session_name: str) -> bool:
+    """Check if a tmux session is still alive after spawn."""
+    tmux_bin = shutil.which("tmux")
+    if not tmux_bin:
+        return True  # Can't check without tmux binary, assume alive
+    try:
+        proc = await asyncio.create_subprocess_exec(
+            tmux_bin, "has-session", "-t", session_name,
+            stdout=asyncio.subprocess.DEVNULL,
+            stderr=asyncio.subprocess.DEVNULL,
+        )
+        await proc.wait()
+        return proc.returncode == 0
+    except Exception:
+        return True  # If check itself fails, don't false-positive
 
 
 async def _handle_self_mode(
@@ -361,7 +380,7 @@ async def spawn_agent_impl(
         return {"success": False, "error": "Could not resolve project_path from context"}
 
     # 3. Validate parent_session_id and spawn depth
-    if parent_session_id is None:
+    if not parent_session_id:
         return {"success": False, "error": "parent_session_id is required"}
 
     can_spawn, reason, _depth = runner.can_spawn(parent_session_id)
@@ -572,6 +591,27 @@ async def spawn_agent_impl(
             runner.run_storage.update_child_session(run_id, spawn_result.child_session_id)
         except Exception as e:
             logger.warning(f"Failed to update child_session_id for {run_id}: {e}")
+
+        # Post-spawn health check: verify tmux session is still alive
+        if spawn_result.terminal_type == "tmux" and spawn_result.tmux_session_name:
+            await asyncio.sleep(0.5)
+            alive = await _check_tmux_session_alive(spawn_result.tmux_session_name)
+            if not alive:
+                logger.error(
+                    f"Agent {run_id} tmux session '{spawn_result.tmux_session_name}' "
+                    f"exited immediately after spawn"
+                )
+                agent_registry.remove(run_id, status="failed")
+                try:
+                    runner.run_storage.fail(
+                        run_id, error="Agent process exited immediately after spawn"
+                    )
+                except Exception as e:
+                    logger.warning(f"Failed to mark agent_run {run_id} as failed: {e}")
+                return {
+                    "success": False,
+                    "error": "Agent process exited immediately after spawn",
+                }
     else:
         # Spawn failed — remove pre-registered entry and mark DB record as failed
         agent_registry.remove(run_id, status="failed")

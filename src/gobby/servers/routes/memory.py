@@ -191,9 +191,7 @@ def create_memory_router(server: "HTTPServer") -> APIRouter:
                 project_id=project_id, limit=memory_limit * 10
             )
             crossrefs = [
-                c
-                for c in all_crossrefs
-                if c.source_id in memory_ids and c.target_id in memory_ids
+                c for c in all_crossrefs if c.source_id in memory_ids and c.target_id in memory_ids
             ]
             return {
                 "memories": [m.to_dict() for m in memories],

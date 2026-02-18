@@ -127,6 +127,9 @@ class StepRenderer:
         """
         if not isinstance(value, str):
             return value
+        # Empty string (e.g. Jinja2 rendered None → "")
+        if value == "":
+            return None
         # Boolean
         if value.lower() == "true":
             return True

@@ -149,7 +149,8 @@ class PromptLoader:
             env.filters["default"] = lambda v, d="": d if v is None else v
 
             template = env.from_string(template_str)
-            return template.render(**context)
+            rendered: str = template.render(**context)
+            return rendered
 
         except UndefinedError as e:
             logger.warning(f"Template rendering error (undefined variable): {e}")

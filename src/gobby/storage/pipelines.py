@@ -113,7 +113,7 @@ class LocalPipelineExecutionManager:
             Updated PipelineExecution or None if not found
         """
         now = datetime.now(UTC).isoformat()
-        completed_at = now if status == ExecutionStatus.COMPLETED else None
+        completed_at = now if status in (ExecutionStatus.COMPLETED, ExecutionStatus.FAILED) else None
 
         self.db.execute(
             """

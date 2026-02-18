@@ -19,6 +19,7 @@ from gobby.workflows.pipeline_state import (
     ApprovalRequired,
     ExecutionStatus,
     PipelineExecution,
+    StepExecution,
     StepStatus,
 )
 
@@ -171,6 +172,9 @@ class PipelineExecutor:
             steps = self.execution_manager.get_steps_for_execution(execution_id)
             existing_steps = {s.step_id: s for s in steps}
 
+        # Track current step for error handling
+        current_step_execution: StepExecution | None = None
+
         try:
             # 4. Iterate through steps in order
             for step in pipeline.steps:
@@ -229,6 +233,7 @@ class PipelineExecutor:
                         step_name=getattr(step, "name", step.id),
                         reason="condition not met",
                     )
+                    current_step_execution = None
                     continue
 
                 # Update step status to RUNNING
@@ -236,6 +241,7 @@ class PipelineExecutor:
                     step_execution_id=step_execution.id,
                     status=StepStatus.RUNNING,
                 )
+                current_step_execution = step_execution
 
                 # Emit step_started event
                 await self._emit_event(
@@ -260,8 +266,9 @@ class PipelineExecutor:
                 self.execution_manager.update_step_execution(
                     step_execution_id=step_execution.id,
                     status=StepStatus.COMPLETED,
-                    output_json=json.dumps(step_output) if step_output else None,
+                    output_json=json.dumps(step_output) if step_output is not None else None,
                 )
+                current_step_execution = None
 
                 # Emit step_completed event
                 await self._emit_event(
@@ -296,9 +303,22 @@ class PipelineExecutor:
 
         except Exception as e:
             logger.error(f"Pipeline execution failed: {e}", exc_info=True)
+
+            # Mark the currently-running step as FAILED
+            if current_step_execution and current_step_execution.status == StepStatus.RUNNING:
+                try:
+                    self.execution_manager.update_step_execution(
+                        step_execution_id=current_step_execution.id,
+                        status=StepStatus.FAILED,
+                        error=str(e),
+                    )
+                except Exception:
+                    logger.warning("Failed to mark step as failed", exc_info=True)
+
             failed = self.execution_manager.update_execution_status(
                 execution_id=execution.id,
                 status=ExecutionStatus.FAILED,
+                outputs_json=json.dumps({"error": str(e)}),
             )
             if failed:
                 execution = failed

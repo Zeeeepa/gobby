@@ -25,6 +25,7 @@ async def _execute_pipeline_background(
     project_id: str,
     execution_id: str,
     pipeline_name: str,
+    session_id: str | None = None,
 ) -> None:
     """Background task that runs a pre-created pipeline execution to completion."""
     try:
@@ -33,12 +34,24 @@ async def _execute_pipeline_background(
             inputs=inputs,
             project_id=project_id,
             execution_id=execution_id,
+            session_id=session_id,
         )
     except ApprovalRequired:
         # Expected — pipeline paused for approval, not an error
         pass
     except Exception as e:
         logger.error(f"Background pipeline '{pipeline_name}' failed: {e}", exc_info=True)
+        # Ensure execution is marked failed even if executor.execute didn't catch it
+        try:
+            from gobby.workflows.pipeline_state import ExecutionStatus
+
+            executor.execution_manager.update_execution_status(
+                execution_id=execution_id,
+                status=ExecutionStatus.FAILED,
+                outputs_json=json.dumps({"error": str(e)}),
+            )
+        except Exception:
+            logger.error("Failed to mark execution as failed", exc_info=True)
 
 
 async def run_pipeline(
@@ -47,6 +60,7 @@ async def run_pipeline(
     name: str,
     inputs: dict[str, Any],
     project_id: str,
+    session_id: str | None = None,
 ) -> dict[str, Any]:
     """
     Run a pipeline by name (fire-and-forget).
@@ -81,6 +95,7 @@ async def run_pipeline(
         execution = executor.execution_manager.create_execution(
             pipeline_name=name,
             inputs_json=json.dumps(inputs),
+            session_id=session_id,
         )
         execution_id = execution.id
     except Exception as e:
@@ -94,7 +109,8 @@ async def run_pipeline(
 
     task = asyncio.create_task(
         _execute_pipeline_background(
-            executor, pipeline, inputs, project_id, execution_id, name
+            executor, pipeline, inputs, project_id, execution_id, name,
+            session_id=session_id,
         ),
         name=f"pipeline-{name}-{execution_id[:8]}",
     )
