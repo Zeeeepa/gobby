@@ -153,7 +153,7 @@ def create_configuration_router(server: "HTTPServer") -> APIRouter:
 
         # Mask secret values in the flat dict, then unflatten
         for key in secret_keys:
-            if key in flat and flat[key] and flat[key] != "":
+            if flat.get(key, "") != "":
                 flat[key] = "********"
         masked_values = unflatten_config(flat)
 

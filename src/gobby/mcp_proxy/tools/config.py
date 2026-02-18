@@ -102,6 +102,13 @@ def create_config_registry(
         If ``is_secret`` is True, the value is encrypted via SecretStore and
         a ``$secret:`` reference is stored in config_store.
         """
+        if isinstance(value, (dict, list)):
+            return {
+                "success": False,
+                "error": f"Cannot set '{key}' to a {type(value).__name__}. "
+                "Use dotted keys to set nested values (e.g. 'section.key').",
+            }
+
         from gobby.config.app import DaemonConfig as DaemonConfigCls
         from gobby.config.app import deep_merge
 

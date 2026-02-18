@@ -13,6 +13,7 @@ import shutil
 from collections.abc import AsyncIterator, Awaitable, Callable
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
+from fnmatch import fnmatch
 from pathlib import Path
 from typing import Any, cast
 
@@ -448,7 +449,6 @@ class ChatSession:
 
     def _needs_tool_approval(self, tool_name: str) -> bool:
         """Check if a tool requires user approval based on config."""
-        from fnmatch import fnmatch
 
         config = self._tool_approval_config
         if config is None or not config.enabled:

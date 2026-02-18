@@ -23,7 +23,7 @@ from claude_agent_sdk import (
     query,
 )
 
-import gobby.llm.sdk_compat  # noqa: F401 — monkey-patch parse_message
+import gobby.llm.sdk_compat  # noqa: F401 — monkey-patches parse_message to handle unknown event types (e.g. rate_limit_event) that crash the SDK's async generator; see sdk_compat.py for details
 from gobby.llm.claude_models import (
     ChatEvent,
     DoneEvent,

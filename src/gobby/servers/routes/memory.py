@@ -235,18 +235,18 @@ def create_memory_router(server: "HTTPServer") -> APIRouter:
                     detail="KnowledgeGraphService not initialized (requires Neo4j + LLM)",
                 )
             memories = server.memory_manager.list_memories(project_id=project_id, limit=500)
-            entities_total = 0
+            successful_count = 0
             errors = 0
             for memory in memories:
                 try:
                     await kg.add_to_graph(memory.content)
-                    entities_total += 1
+                    successful_count += 1
                 except Exception as e:
                     logger.warning(f"KG extraction failed for {memory.id}: {e}")
                     errors += 1
             return {
-                "memories_processed": entities_total + errors,
-                "memories_extracted": entities_total,
+                "memories_processed": successful_count + errors,
+                "memories_extracted": successful_count,
                 "errors": errors,
             }
         except HTTPException:

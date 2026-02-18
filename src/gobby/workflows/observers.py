@@ -167,8 +167,6 @@ def detect_task_claim(
 
     # Auto-link task to session when claiming a task
     if inner_tool_name in ("update_task", "claim_task"):
-        arguments = tool_input.get("arguments", {}) or {}
-        task_id = arguments.get("task_id")
         if task_id and session_task_manager:
             try:
                 session_task_manager.link_task(state.session_id, task_id, "worked_on")
