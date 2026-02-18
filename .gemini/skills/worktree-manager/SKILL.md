@@ -5,7 +5,7 @@ description: Create, manage, and cleanup git worktrees with Claude Code agents a
 
 # Global Worktree Manager
 
-Manage parallel development across ALL projects using git worktrees with Claude Code agents. Each worktree is an isolated copy of the repo on a different branch, stored centrally at `~/tmp/worktrees/`.
+Manage parallel development across ALL projects using git worktrees with Claude Code agents. Each worktree is an isolated copy of the repo on a different branch, stored centrally at `~/.local/share/worktrees/`.
 
 **IMPORTANT**: You (Claude) can perform ALL operations manually using standard tools (jq, git, bash). Scripts are helpers, not requirements. If a script fails, fall back to manual operations described in this document.
 
@@ -28,9 +28,9 @@ Manage parallel development across ALL projects using git worktrees with Claude 
 | File | Purpose |
 |------|---------|
 | `~/.claude/worktree-registry.json` | **Global registry** - tracks all worktrees across all projects |
-| `~/.claude/skills/worktree-manager/config.json` | **Skill config** - terminal, shell, port range settings |
-| `~/.claude/skills/worktree-manager/scripts/` | **Helper scripts** - optional, can do everything manually |
-| `~/tmp/worktrees/` | **Worktree storage** - all worktrees live here |
+| `.gemini/skills/worktree-manager/config.json` | **Skill config** - terminal, shell, port range settings |
+| `.gemini/skills/worktree-manager/scripts/` | **Helper scripts** - optional, can do everything manually |
+| `~/.local/share/worktrees/` | **Worktree storage** - all worktrees live here |
 | `.claude/worktree.json` (per-project) | **Project config** - optional custom settings |
 
 ---
@@ -38,10 +38,10 @@ Manage parallel development across ALL projects using git worktrees with Claude 
 ## Core Concepts
 
 ### Centralized Worktree Storage
-All worktrees live in `~/tmp/worktrees/<project-name>/<branch-slug>/`
+All worktrees live in `~/.local/share/worktrees/<project-name>/<branch-slug>/`
 
 ```
-~/tmp/worktrees/
+~/.local/share/worktrees/
 ├── obsidian-ai-agent/
 │   ├── feature-auth/           # branch: feature/auth
 │   ├── feature-payments/       # branch: feature/payments
@@ -280,14 +280,14 @@ For EACH branch (can run in parallel):
    c. Slugify branch:
       BRANCH_SLUG=$(echo "feature/auth" | tr '/' '-')
    d. Determine worktree path:
-      WORKTREE_PATH=~/tmp/worktrees/$PROJECT/$BRANCH_SLUG
+      WORKTREE_PATH=~/.local/share/worktrees/$PROJECT/$BRANCH_SLUG
 
 2. ALLOCATE PORTS
-   Option A (script): ~/.claude/skills/worktree-manager/scripts/allocate-ports.sh 2
+   Option A (script): .gemini/skills/worktree-manager/scripts/allocate-ports.sh 2
    Option B (manual): Find 2 unused ports from 8100-8199, add to registry
 
 3. CREATE WORKTREE
-   mkdir -p ~/tmp/worktrees/$PROJECT
+   mkdir -p ~/.local/share/worktrees/$PROJECT
    git worktree add $WORKTREE_PATH -b $BRANCH
    # If branch exists already, omit -b flag
 
@@ -306,11 +306,11 @@ For EACH branch (can run in parallel):
    d. If FAILS: report error but continue with other worktrees
 
 7. REGISTER IN GLOBAL REGISTRY
-   Option A (script): ~/.claude/skills/worktree-manager/scripts/register.sh ...
+   Option A (script): .gemini/skills/worktree-manager/scripts/register.sh ...
    Option B (manual): Update ~/.claude/worktree-registry.json with jq
 
 8. LAUNCH AGENT
-   Option A (script): ~/.claude/skills/worktree-manager/scripts/launch-agent.sh $WORKTREE_PATH "task"
+   Option A (script): .gemini/skills/worktree-manager/scripts/launch-agent.sh $WORKTREE_PATH "task"
    Option B (manual): Open terminal manually, cd to path, run claude
 
 AFTER ALL COMPLETE:
@@ -322,8 +322,8 @@ AFTER ALL COMPLETE:
 
 **With script:**
 ```bash
-~/.claude/skills/worktree-manager/scripts/status.sh
-~/.claude/skills/worktree-manager/scripts/status.sh --project my-project
+.gemini/skills/worktree-manager/scripts/status.sh
+.gemini/skills/worktree-manager/scripts/status.sh --project my-project
 ```
 
 **Manual:**
@@ -360,7 +360,7 @@ tmux new-session -d -s "wt-$PROJECT-$BRANCH_SLUG" -c "$WORKTREE_PATH" "bash -c '
 
 **With script:**
 ```bash
-~/.claude/skills/worktree-manager/scripts/cleanup.sh my-project feature/auth --delete-branch
+.gemini/skills/worktree-manager/scripts/cleanup.sh my-project feature/auth --delete-branch
 ```
 
 **Manual cleanup:**
@@ -515,21 +515,21 @@ You:
 
 ## Script Reference
 
-Scripts are in `~/.claude/skills/worktree-manager/scripts/`
+Scripts are in `.gemini/skills/worktree-manager/scripts/`
 
 ### allocate-ports.sh
 ```bash
-~/.claude/skills/worktree-manager/scripts/allocate-ports.sh <count>
+.gemini/skills/worktree-manager/scripts/allocate-ports.sh <count>
 # Returns: space-separated port numbers (e.g., "8100 8101")
 # Automatically updates registry
 ```
 
 ### register.sh
 ```bash
-~/.claude/skills/worktree-manager/scripts/register.sh \
+.gemini/skills/worktree-manager/scripts/register.sh \
   <project> <branch> <branch-slug> <worktree-path> <repo-path> <ports> [task]
 # Example:
-~/.claude/skills/worktree-manager/scripts/register.sh \
+.gemini/skills/worktree-manager/scripts/register.sh \
   "my-project" "feature/auth" "feature-auth" \
   "$HOME/tmp/worktrees/my-project/feature-auth" \
   "/path/to/repo" "8100,8101" "Implement OAuth"
@@ -537,26 +537,26 @@ Scripts are in `~/.claude/skills/worktree-manager/scripts/`
 
 ### launch-agent.sh
 ```bash
-~/.claude/skills/worktree-manager/scripts/launch-agent.sh <worktree-path> [task]
+.gemini/skills/worktree-manager/scripts/launch-agent.sh <worktree-path> [task]
 # Opens new terminal window (Ghostty by default) with Claude Code
 ```
 
 ### status.sh
 ```bash
-~/.claude/skills/worktree-manager/scripts/status.sh [--project <name>]
+.gemini/skills/worktree-manager/scripts/status.sh [--project <name>]
 # Shows all worktrees, or filtered by project
 ```
 
 ### cleanup.sh
 ```bash
-~/.claude/skills/worktree-manager/scripts/cleanup.sh <project> <branch> [--delete-branch]
+.gemini/skills/worktree-manager/scripts/cleanup.sh <project> <branch> [--delete-branch]
 # Kills ports, removes worktree, updates registry
 # --delete-branch also removes local and remote git branches
 ```
 
 ### release-ports.sh
 ```bash
-~/.claude/skills/worktree-manager/scripts/release-ports.sh <port1> [port2] ...
+.gemini/skills/worktree-manager/scripts/release-ports.sh <port1> [port2] ...
 # Releases ports back to pool
 ```
 
@@ -564,27 +564,40 @@ Scripts are in `~/.claude/skills/worktree-manager/scripts/`
 
 ## Skill Config
 
-Location: `~/.claude/skills/worktree-manager/config.json`
+Location: `.gemini/skills/worktree-manager/config.json`
 
 ```json
 {
   "terminal": "ghostty",
   "shell": "bash",
-  "claudeCommand": "claude --dangerously-skip-permissions",
+  "claudeCommand": "claude",
   "portPool": {
     "start": 8100,
     "end": 8199
   },
   "portsPerWorktree": 2,
-  "worktreeBase": "~/tmp/worktrees",
-  "defaultCopyDirs": [".agents", ".env.example"]
+  "worktreeBase": "~/.local/share/worktrees",
+  "defaultCopyDirs": [".agents", ".env.example"],
+  "healthCheckTimeout": 30,
+  "healthCheckRetries": 6
 }
 ```
 
 **Options:**
 - **terminal**: `ghostty`, `iterm2`, `tmux`, `wezterm`, `kitty`, `alacritty`
 - **shell**: `bash`, `zsh`, `fish` (adjust syntax in claudeCommand if using fish)
-- **claudeCommand**: The command to launch Claude Code (default uses `--dangerously-skip-permissions` for autonomous operation)
+- **claudeCommand**: The command to launch Claude Code
+- **healthCheckTimeout**: Seconds to wait for health check (default: 30)
+- **healthCheckRetries**: Number of health check retry attempts (default: 6)
+
+### Security Considerations
+
+The `--dangerously-skip-permissions` flag bypasses Claude Code's permission prompts, allowing the agent to execute tools (file writes, shell commands, etc.) without user confirmation. **Risks:**
+- Agents can modify or delete any files accessible to the user
+- Shell commands run without review or approval
+- No guardrails against unintended destructive operations
+
+**When to use:** Only in fully isolated environments (ephemeral CI containers, sandboxed worktrees with no access to sensitive data). **When NOT to use:** On machines with credentials, production configs, or shared filesystems. Prefer the default (permissions enabled) for interactive development.
 
 ---
 
@@ -613,7 +626,7 @@ lsof -i :<port>
 ```bash
 # Compare registry to actual worktrees
 cat ~/.claude/worktree-registry.json | jq '.worktrees[].worktreePath'
-find ~/tmp/worktrees -maxdepth 2 -type d
+find ~/.local/share/worktrees -maxdepth 2 -type d
 
 # Remove orphaned entries or add missing ones
 ```
@@ -634,31 +647,31 @@ find ~/tmp/worktrees -maxdepth 2 -type d
 **You:**
 1. Detect project: `obsidian-ai-agent` (from git remote)
 2. Detect package manager: `uv` (found uv.lock)
-3. Allocate 4 ports: `~/.claude/skills/worktree-manager/scripts/allocate-ports.sh 4` → `8100 8101 8102 8103`
+3. Allocate 4 ports: `.gemini/skills/worktree-manager/scripts/allocate-ports.sh 4` → `8100 8101 8102 8103`
 4. Create worktrees:
    ```bash
-   mkdir -p ~/tmp/worktrees/obsidian-ai-agent
-   git worktree add ~/tmp/worktrees/obsidian-ai-agent/feature-dark-mode -b feature/dark-mode
-   git worktree add ~/tmp/worktrees/obsidian-ai-agent/fix-login-bug -b fix/login-bug
+   mkdir -p ~/.local/share/worktrees/obsidian-ai-agent
+   git worktree add ~/.local/share/worktrees/obsidian-ai-agent/feature-dark-mode -b feature/dark-mode
+   git worktree add ~/.local/share/worktrees/obsidian-ai-agent/fix-login-bug -b fix/login-bug
    ```
 5. Copy .agents/:
    ```bash
-   cp -r .agents ~/tmp/worktrees/obsidian-ai-agent/feature-dark-mode/
-   cp -r .agents ~/tmp/worktrees/obsidian-ai-agent/fix-login-bug/
+   cp -r .agents ~/.local/share/worktrees/obsidian-ai-agent/feature-dark-mode/
+   cp -r .agents ~/.local/share/worktrees/obsidian-ai-agent/fix-login-bug/
    ```
 6. Install deps in each worktree:
    ```bash
-   (cd ~/tmp/worktrees/obsidian-ai-agent/feature-dark-mode && uv sync)
-   (cd ~/tmp/worktrees/obsidian-ai-agent/fix-login-bug && uv sync)
+   (cd ~/.local/share/worktrees/obsidian-ai-agent/feature-dark-mode && uv sync)
+   (cd ~/.local/share/worktrees/obsidian-ai-agent/fix-login-bug && uv sync)
    ```
 7. Validate each (start server, health check, stop)
 8. Register both worktrees in `~/.claude/worktree-registry.json`
 9. Launch agents:
    ```bash
-   ~/.claude/skills/worktree-manager/scripts/launch-agent.sh \
-     ~/tmp/worktrees/obsidian-ai-agent/feature-dark-mode "Implement dark mode toggle"
-   ~/.claude/skills/worktree-manager/scripts/launch-agent.sh \
-     ~/tmp/worktrees/obsidian-ai-agent/fix-login-bug "Fix login redirect bug"
+   .gemini/skills/worktree-manager/scripts/launch-agent.sh \
+     ~/.local/share/worktrees/obsidian-ai-agent/feature-dark-mode "Implement dark mode toggle"
+   .gemini/skills/worktree-manager/scripts/launch-agent.sh \
+     ~/.local/share/worktrees/obsidian-ai-agent/fix-login-bug "Fix login redirect bug"
    ```
 10. Report:
     ```
@@ -666,8 +679,8 @@ find ~/tmp/worktrees -maxdepth 2 -type d
 
     | Branch | Ports | Path | Task |
     |--------|-------|------|------|
-    | feature/dark-mode | 8100, 8101 | ~/tmp/worktrees/.../feature-dark-mode | Implement dark mode |
-    | fix/login-bug | 8102, 8103 | ~/tmp/worktrees/.../fix-login-bug | Fix login redirect |
+    | feature/dark-mode | 8100, 8101 | ~/.local/share/worktrees/.../feature-dark-mode | Implement dark mode |
+    | fix/login-bug | 8102, 8103 | ~/.local/share/worktrees/.../fix-login-bug | Fix login redirect |
 
     Both agents running in Ghostty windows.
     ```

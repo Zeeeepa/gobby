@@ -34,13 +34,16 @@ export function MessageItem({ message, isStreaming = false, isThinking = false, 
       <div className="max-w-3xl mx-auto">
         <div className="flex items-center gap-2 mb-1.5">
           {message.role === 'assistant' && (
-            <img src="/logo.png" alt="" className="w-5 h-5 rounded" />
+            <img src="/logo.png" alt="App logo" className="w-5 h-5 rounded" onError={(e) => { (e.target as HTMLImageElement).style.display = 'none' }} />
           )}
           <span className="text-xs font-medium text-muted-foreground">
             {message.role === 'user' ? 'You' : message.role === 'assistant' ? 'Gobby' : 'System'}
           </span>
           <span className="text-xs text-muted-foreground/60">
-            {message.timestamp instanceof Date ? message.timestamp.toLocaleTimeString() : ''}
+            {(() => {
+              const date = message.timestamp instanceof Date ? message.timestamp : new Date(message.timestamp)
+              return !isNaN(date.getTime()) ? date.toLocaleTimeString() : ''
+            })()}
           </span>
         </div>
 

@@ -11,13 +11,13 @@ interface Props {
 
 type StatusFilter = string | null
 
+const STATUSES = ['active', 'stale', 'merged', 'abandoned'] as const
+
 export function WorktreesView({ worktrees, onDelete, onSync, onCleanup }: Props) {
   const [statusFilter, setStatusFilter] = useState<StatusFilter>(null)
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null)
   const [confirmCleanup, setConfirmCleanup] = useState(false)
   const [actionLoading, setActionLoading] = useState<string | null>(null)
-
-  const statuses = ['active', 'stale', 'merged', 'abandoned']
   const filtered = statusFilter
     ? worktrees.filter((w) => w.status === statusFilter)
     : worktrees
@@ -61,7 +61,7 @@ export function WorktreesView({ worktrees, onDelete, onSync, onCleanup }: Props)
           >
             All ({worktrees.length})
           </button>
-          {statuses.map((s) => {
+          {STATUSES.map((s) => {
             const count = worktrees.filter((w) => w.status === s).length
             if (count === 0) return null
             return (

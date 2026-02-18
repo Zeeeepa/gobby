@@ -185,7 +185,7 @@ class MemoryBackupManager:
     # Backward compatibility alias
     export_sync = backup_sync
 
-    def import_sync(self) -> int:
+    def import_sync(self, force: bool = False) -> int:
         """
         Import memories from filesystem synchronously (blocking).
 
@@ -214,7 +214,7 @@ class MemoryBackupManager:
             # Count memories in DB
             db_count = len(self.memory_manager.list_memories(limit=10000))
 
-            if file_count <= db_count:
+            if not force and file_count <= db_count:
                 logger.debug(
                     f"Skipping memory import: DB has {db_count} memories, file has {file_count}"
                 )

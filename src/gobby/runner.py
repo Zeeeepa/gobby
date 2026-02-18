@@ -5,6 +5,7 @@ import logging
 import os
 import signal
 import sys
+from collections.abc import Callable
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
@@ -184,7 +185,7 @@ class GobbyRunner:
                     url=self.config.memory.qdrant_url,
                     api_key=self.config.memory.qdrant_api_key,
                 )
-                embed_fn = None
+                embed_fn: Callable[..., Any] | None = None
                 if self.llm_service:
                     from functools import partial
 
@@ -245,7 +246,7 @@ class GobbyRunner:
                         imported = self.memory_sync_manager.import_sync()
                         if imported > 0:
                             logger.info(f"Imported {imported} memories from sync file")
-                    except Exception as e:
+                    except (OSError, ValueError) as e:
                         logger.warning(f"Memory import failed: {e}")
 
                     # Force initial synchronous export
@@ -253,7 +254,7 @@ class GobbyRunner:
                     try:
                         self.memory_sync_manager.export_sync()
                         logger.info("Initial memory sync export completed")
-                    except Exception as e:
+                    except (OSError, ValueError) as e:
                         logger.warning(f"Initial memory sync failed: {e}")
 
                 except Exception as e:

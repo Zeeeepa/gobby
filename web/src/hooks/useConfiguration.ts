@@ -82,7 +82,7 @@ export function useConfiguration() {
       if (res.ok) {
         const data = await res.json()
         // New shape: { values, secret_keys }; legacy fallback: bare values dict
-        if (data.values && typeof data.values === 'object') {
+        if (data.values && typeof data.values === 'object' && !Array.isArray(data.values)) {
           setConfigValues(data.values)
           setSecretKeys(data.secret_keys || [])
         } else {

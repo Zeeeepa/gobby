@@ -84,7 +84,8 @@ function ToolResultContent({ call }: { call: ToolCall }) {
   let resultStr: string
   try {
     resultStr = typeof call.result === 'string' ? call.result : JSON.stringify(call.result, null, 2)
-  } catch {
+  } catch (e) {
+    console.error('Failed to serialize tool call result:', e)
     resultStr = String(call.result)
   }
   const filePath = call.arguments?.file_path as string | undefined
@@ -349,6 +350,14 @@ function StatusIcon({ status }: { status: string }) {
       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-destructive-foreground">
         <line x1="18" y1="6" x2="6" y2="18" />
         <line x1="6" y1="6" x2="18" y2="18" />
+      </svg>
+    )
+  }
+  if (status === 'pending_approval') {
+    return (
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-warning-foreground">
+        <circle cx="12" cy="12" r="10" />
+        <polyline points="12 6 12 12 16 14" />
       </svg>
     )
   }

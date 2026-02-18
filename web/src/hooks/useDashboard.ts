@@ -41,11 +41,9 @@ export function useDashboard() {
         setError(null)
         setLastUpdated(new Date())
       } else {
-        setData(null)
         setError(`HTTP ${response.status}`)
       }
     } catch (e) {
-      setData(null)
       setError(String(e))
     }
   }, [])

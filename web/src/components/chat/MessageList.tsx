@@ -21,7 +21,7 @@ export function MessageList({ messages, isStreaming, isThinking, onRespondToQues
         el.scrollTop = el.scrollHeight
       }
     }
-  }, [messages, isThinking])
+  }, [messages.length, isThinking])
 
   return (
     <ScrollArea ref={scrollRef} className="flex-1 min-h-0">
@@ -47,7 +47,7 @@ export function MessageList({ messages, isStreaming, isThinking, onRespondToQues
             <div className="px-4 py-3">
               <div className="max-w-3xl mx-auto">
                 <div className="flex items-center gap-2 mb-1.5">
-                  <img src="/logo.png" alt="" className="w-5 h-5 rounded" />
+                  <img src="/logo.png" alt="App logo" className="w-5 h-5 rounded" onError={(e) => { (e.target as HTMLImageElement).style.display = 'none' }} />
                   <span className="text-xs font-medium text-muted-foreground">Gobby</span>
                 </div>
                 <div className="flex items-center gap-2 py-2">

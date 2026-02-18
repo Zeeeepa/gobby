@@ -17,7 +17,9 @@ export function SourceControlOverview({ status, prs, worktrees, ciRuns, onNaviga
 
   useEffect(() => {
     if (status?.current_branch) {
-      fetchCommits(status.current_branch, 5).then(setRecentCommits)
+      fetchCommits(status.current_branch, 5)
+        .then(setRecentCommits)
+        .catch((e) => console.error('Failed to fetch recent commits:', e))
     }
   }, [status?.current_branch, fetchCommits])
 
@@ -102,11 +104,11 @@ export function SourceControlOverview({ status, prs, worktrees, ciRuns, onNaviga
             <h4 className="sc-overview__subsection-title">Open Pull Requests</h4>
             <div className="sc-overview__list">
               {prs.slice(0, 3).map((pr) => (
-                <div key={pr.number} className="sc-overview__pr" onClick={() => onNavigate('prs')}>
+                <button type="button" key={pr.number} className="sc-overview__pr" onClick={() => onNavigate('prs')}>
                   <span className="sc-overview__pr-number">#{pr.number}</span>
                   <span className="sc-overview__pr-title">{pr.title}</span>
                   <span className="sc-overview__pr-author">{pr.author}</span>
-                </div>
+                </button>
               ))}
             </div>
           </div>

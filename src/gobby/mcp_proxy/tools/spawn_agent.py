@@ -8,6 +8,8 @@ Spawns agents with configurable isolation modes:
 from __future__ import annotations
 
 import logging
+import os
+import signal
 import uuid
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Literal
@@ -569,6 +571,14 @@ async def spawn_agent_impl(
             )
         except Exception as e:
             logger.error(f"Failed to create agent_run DB record for {spawn_result.run_id}: {e}")
+            # Clean up orphaned agent — remove from registry and attempt kill
+            agent_registry.remove(spawn_result.run_id, status="failed")
+            if spawn_result.pid:
+                try:
+                    os.kill(spawn_result.pid, signal.SIGTERM)
+                    logger.info(f"Killed orphaned agent process {spawn_result.pid}")
+                except OSError:
+                    logger.warning(f"Could not kill orphaned agent process {spawn_result.pid}")
             spawn_result.success = False
             spawn_result.error = f"Agent spawned but DB record failed: {e}"
 

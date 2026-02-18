@@ -37,17 +37,21 @@ export function BranchDetail({ branchName, currentBranch, fetchCommits, fetchDif
       setShowDiff(!showDiff)
       return
     }
-    const base = currentBranch || 'main'
-    const result = await fetchDiff(base, branchName)
-    setDiff(result)
-    setShowDiff(true)
+    try {
+      const base = currentBranch || 'main'
+      const result = await fetchDiff(base, branchName)
+      setDiff(result)
+      setShowDiff(true)
+    } catch (e) {
+      console.error('Failed to fetch diff:', e)
+    }
   }
 
   return (
     <div className="sc-detail-panel">
       <div className="sc-detail-panel__header">
         <h3 className="sc-detail-panel__title">{branchName}</h3>
-        <button className="sc-detail-panel__close" onClick={onClose}>
+        <button className="sc-detail-panel__close" onClick={onClose} aria-label="Close">
           &times;
         </button>
       </div>

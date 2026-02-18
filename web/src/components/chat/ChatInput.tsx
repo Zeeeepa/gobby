@@ -56,13 +56,14 @@ export function ChatInput({
   const showPalette = input.startsWith('/') && filteredCommands.length > 0
 
   // Revoke blob URLs on unmount to prevent memory leaks
+  const queuedFilesRef = useRef(queuedFiles)
+  queuedFilesRef.current = queuedFiles
   useEffect(() => {
     return () => {
-      queuedFiles.forEach((qf) => {
+      queuedFilesRef.current.forEach((qf) => {
         if (qf.previewUrl) URL.revokeObjectURL(qf.previewUrl)
       })
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   useEffect(() => {
@@ -180,6 +181,7 @@ export function ChatInput({
             onClick={() => fileInputRef.current?.click()}
             disabled={disabled}
             title="Attach file"
+            aria-label="Attach file"
           >
             <PaperclipIcon />
           </button>

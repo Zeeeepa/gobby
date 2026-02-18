@@ -153,8 +153,13 @@ export function WorkflowsPage() {
 
   const handleYamlSave = useCallback(async () => {
     if (!yamlEditorWf) return
-    const parsed = yaml.load(yamlContent, { schema: yaml.JSON_SCHEMA }) as Record<string, unknown>
-    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) throw new Error('Invalid YAML')
+    let parsed: Record<string, unknown>
+    try {
+      parsed = yaml.load(yamlContent, { schema: yaml.JSON_SCHEMA }) as Record<string, unknown>
+    } catch (e) {
+      throw new Error(`Invalid YAML: ${e instanceof Error ? e.message : String(e)}`)
+    }
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) throw new Error('Invalid YAML: expected an object')
     await updateWorkflow(yamlEditorWf.id, {
       name: (parsed.name as string) || yamlEditorWf.name,
       description: (parsed.description as string) || undefined,

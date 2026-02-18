@@ -52,9 +52,14 @@ def _set_cached(key: str, value: Any) -> None:
     _cache[key] = (time.time(), value)
 
 
-def _run_git(args: list[str], cwd: str, timeout: int = 10) -> subprocess.CompletedProcess[str]:
-    """Run a git command and return result."""
-    return subprocess.run(  # nosec B603, B607
+async def _run_git(
+    args: list[str], cwd: str, timeout: int = 10
+) -> subprocess.CompletedProcess[str]:
+    """Run a git command and return result (non-blocking)."""
+    import asyncio
+
+    return await asyncio.to_thread(
+        subprocess.run,  # nosec B603, B607
         ["git", *args],
         cwd=cwd,
         capture_output=True,
@@ -88,8 +93,8 @@ def _resolve_project(server: HTTPServer, project_id: str | None) -> tuple[str | 
             for p in pm.list():
                 if p.name not in _HIDDEN and p.repo_path:
                     return p.repo_path, p.github_repo
-    except Exception:
-        pass
+    except (ValueError, OSError, HTTPException) as e:
+        logger.debug(f"Failed to resolve project {project_id}: {e}")
     return None, None
 
 
@@ -147,10 +152,10 @@ def create_source_control_router(server: HTTPServer) -> APIRouter:
         branch_count = 0
         if repo_path:
             try:
-                r = _run_git(["branch", "--show-current"], repo_path)
+                r = await _run_git(["branch", "--show-current"], repo_path)
                 if r.returncode == 0:
                     current_branch = r.stdout.strip()
-                r2 = _run_git(["branch", "--list"], repo_path)
+                r2 = await _run_git(["branch", "--list"], repo_path)
                 if r2.returncode == 0:
                     branch_count = len(
                         [line for line in r2.stdout.strip().split("\n") if line.strip()]
@@ -192,12 +197,12 @@ def create_source_control_router(server: HTTPServer) -> APIRouter:
         current_branch = None
 
         try:
-            r = _run_git(["branch", "--show-current"], repo_path)
+            r = await _run_git(["branch", "--show-current"], repo_path)
             if r.returncode == 0:
                 current_branch = r.stdout.strip()
 
             # Local branches with details
-            r = _run_git(
+            r = await _run_git(
                 [
                     "for-each-ref",
                     "--format=%(refname:short)\t%(upstream:short)\t%(upstream:track)\t%(committerdate:iso8601)",
@@ -248,7 +253,7 @@ def create_source_control_router(server: HTTPServer) -> APIRouter:
                     )
 
             # Remote branches
-            r = _run_git(
+            r = await _run_git(
                 [
                     "for-each-ref",
                     "--format=%(refname:short)\t%(committerdate:iso8601)",
@@ -302,7 +307,7 @@ def create_source_control_router(server: HTTPServer) -> APIRouter:
 
         commits = []
         try:
-            r = _run_git(
+            r = await _run_git(
                 [
                     "log",
                     branch_name,
@@ -347,19 +352,19 @@ def create_source_control_router(server: HTTPServer) -> APIRouter:
 
         try:
             # Diff stat
-            stat_r = _run_git(
+            stat_r = await _run_git(
                 ["diff", "--stat", f"{base}...{head}"],
                 repo_path,
                 timeout=30,
             )
             # File list
-            files_r = _run_git(
+            files_r = await _run_git(
                 ["diff", "--name-status", f"{base}...{head}"],
                 repo_path,
                 timeout=30,
             )
             # Full patch
-            patch_r = _run_git(
+            patch_r = await _run_git(
                 ["diff", f"{base}...{head}"],
                 repo_path,
                 timeout=30,
@@ -585,13 +590,14 @@ def create_source_control_router(server: HTTPServer) -> APIRouter:
 
             try:
                 git_mgr = WorktreeGitManager(wt.worktree_path)
-            except ValueError:
-                git_mgr = None
-
-            if git_mgr is None and server.services.git_manager:
-                result = server.services.git_manager.delete_worktree(wt.worktree_path, force=True)
+                result = git_mgr.delete_worktree(wt.worktree_path, force=True)
                 if not result.success:
                     logger.warning(f"Git worktree deletion failed: {result.message}")
+            except ValueError:
+                # WorktreeGitManager couldn't init — fall back to server git_manager
+                result = server.services.git_manager.delete_worktree(wt.worktree_path, force=True)
+                if not result.success:
+                    logger.warning(f"Git worktree deletion failed (fallback): {result.message}")
 
         # Delete DB record
         deleted = server.services.worktree_storage.delete(worktree_id)

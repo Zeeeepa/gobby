@@ -24,7 +24,7 @@ export function PullRequestsView({ prs, githubAvailable, fetchPrs, fetchPrDetail
   const handleFilterChange = (f: PrFilter) => {
     setFilter(f)
     setSelectedPr(null)
-    fetchPrs(f === 'all' ? 'all' : f)
+    fetchPrs(f === 'all' ? 'all' : f).catch((e) => console.error('Failed to fetch PRs:', e))
   }
 
   return (

@@ -131,6 +131,12 @@ def create_config_registry(
 
                 secret_store = SecretStoreCls(db)
                 config_store.set_secret(key, str(value), secret_store, source="mcp")
+            elif is_secret:
+                return {
+                    "success": False,
+                    "error": f"Cannot store '{key}' as secret — database not available. "
+                    "Secrets require database for encryption.",
+                }
             else:
                 config_store.set(key, value, source="mcp")
 

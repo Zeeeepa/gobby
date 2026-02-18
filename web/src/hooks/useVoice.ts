@@ -108,7 +108,6 @@ export function useVoice(
   wsRefStable.current = wsRef
   const conversationIdRef = useRef(conversationId)
   conversationIdRef.current = conversationId
-  const playbackRef = useRef(playbackQueueRef.current)
 
   // Check voice availability on mount
   useEffect(() => {
@@ -178,7 +177,7 @@ export function useVoice(
           onSpeechStart: () => {
             setIsSpeechDetected(true)
             // Interrupt TTS if playing
-            playbackRef.current.stop()
+            playbackQueueRef.current.stop()
             setIsSpeaking(false)
           },
 
@@ -197,7 +196,7 @@ export function useVoice(
                 conversation_id: conversationIdRef.current,
                 audio_data: base64,
                 mime_type: 'audio/wav',
-                request_id: crypto.randomUUID?.() || `voice-${Date.now()}`,
+                request_id: crypto.randomUUID?.() || `voice-${Date.now()}-${Math.random().toString(36).slice(2)}`,
               }))
             }
           },

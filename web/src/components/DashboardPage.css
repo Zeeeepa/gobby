@@ -109,12 +109,12 @@
 
 .dash-status-badge--healthy {
   background: rgba(34, 197, 94, 0.12);
-  color: #22c55e;
+  color: var(--color-success, #22c55e);
 }
 
 .dash-status-badge--degraded {
   background: rgba(245, 158, 11, 0.12);
-  color: #fbbf24;
+  color: var(--color-warning, #fbbf24);
 }
 
 /* Stat grid (2x2) */

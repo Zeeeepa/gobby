@@ -153,16 +153,21 @@ class ConfigStore:
         )
         ref = f"$secret:{secret_name}"
         now = datetime.now(UTC).isoformat()
-        self.db.execute(
-            """INSERT INTO config_store (key, value, source, is_secret, updated_at)
-               VALUES (?, ?, ?, 1, ?)
-               ON CONFLICT(key) DO UPDATE SET
-                   value = excluded.value,
-                   source = excluded.source,
-                   is_secret = 1,
-                   updated_at = excluded.updated_at""",
-            (key, json.dumps(ref), source, now),
-        )
+        try:
+            self.db.execute(
+                """INSERT INTO config_store (key, value, source, is_secret, updated_at)
+                   VALUES (?, ?, ?, 1, ?)
+                   ON CONFLICT(key) DO UPDATE SET
+                       value = excluded.value,
+                       source = excluded.source,
+                       is_secret = 1,
+                       updated_at = excluded.updated_at""",
+                (key, json.dumps(ref), source, now),
+            )
+        except Exception:
+            # Rollback: remove secret written above to avoid inconsistency
+            secret_store.delete(secret_name)
+            raise
 
     def get_secret_keys(self) -> list[str]:
         """Return all config keys flagged as secrets."""
@@ -173,7 +178,16 @@ class ConfigStore:
         """Remove a secret from both config_store and the secrets table."""
         secret_name = config_key_to_secret_name(key)
         self.db.execute("DELETE FROM config_store WHERE key = ?", (key,))
-        secret_store.delete(secret_name)
+        try:
+            secret_store.delete(secret_name)
+        except Exception:
+            # DB record already deleted; log but don't re-raise
+            import logging
+
+            logging.getLogger(__name__).warning(
+                f"Config key '{key}' removed but secret '{secret_name}' cleanup failed"
+            )
+            raise
 
 
 # =============================================================================

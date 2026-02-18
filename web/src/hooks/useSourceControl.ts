@@ -118,6 +118,8 @@ export function useSourceControl() {
 
   const localPollRef = useRef<number | null>(null)
   const githubPollRef = useRef<number | null>(null)
+  const fetchLocalRef = useRef<() => Promise<void>>(() => Promise.resolve())
+  const fetchGitHubRef = useRef<() => Promise<void>>(() => Promise.resolve())
 
   const buildParams = useCallback(
     (extra?: Record<string, string>) => {
@@ -139,6 +141,8 @@ export function useSourceControl() {
       if (r.ok) {
         setStatus(await r.json())
         setError(null)
+      } else {
+        setError(`HTTP ${r.status}: ${r.statusText}`)
       }
     } catch (e) {
       const message = e instanceof Error ? e.message : String(e)
@@ -387,26 +391,30 @@ export function useSourceControl() {
     await Promise.all([fetchLocal(), fetchGitHub()])
   }, [fetchLocal, fetchGitHub])
 
+  // Keep refs updated with latest fetch functions
+  fetchLocalRef.current = fetchLocal
+  fetchGitHubRef.current = fetchGitHub
+
   // --- Effects ---
 
   // Local data: initial fetch + polling (5s)
   useEffect(() => {
     setIsLoading(true)
-    fetchLocal()
-    localPollRef.current = window.setInterval(fetchLocal, LOCAL_POLL_MS)
+    fetchLocalRef.current()
+    localPollRef.current = window.setInterval(() => fetchLocalRef.current(), LOCAL_POLL_MS)
     return () => {
       if (localPollRef.current) window.clearInterval(localPollRef.current)
     }
-  }, [fetchLocal])
+  }, [])
 
   // GitHub data: initial fetch + polling (30s)
   useEffect(() => {
-    fetchGitHub()
-    githubPollRef.current = window.setInterval(fetchGitHub, GITHUB_POLL_MS)
+    fetchGitHubRef.current()
+    githubPollRef.current = window.setInterval(() => fetchGitHubRef.current(), GITHUB_POLL_MS)
     return () => {
       if (githubPollRef.current) window.clearInterval(githubPollRef.current)
     }
-  }, [fetchGitHub])
+  }, [])
 
   return {
     // Data

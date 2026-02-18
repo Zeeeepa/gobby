@@ -15,10 +15,16 @@ export function PullRequestDetail({ prNumber, summary, fetchDetail, onClose }: P
 
   useEffect(() => {
     setLoading(true)
-    fetchDetail(prNumber).then((d) => {
-      setDetail(d)
-      setLoading(false)
-    })
+    fetchDetail(prNumber)
+      .then((d) => {
+        setDetail(d)
+      })
+      .catch((e) => {
+        console.error('Failed to fetch PR detail:', e)
+      })
+      .finally(() => {
+        setLoading(false)
+      })
   }, [prNumber, fetchDetail])
 
   const body = (detail?.body as string) || ''
@@ -32,7 +38,7 @@ export function PullRequestDetail({ prNumber, summary, fetchDetail, onClose }: P
         <h3 className="sc-detail-panel__title">
           #{prNumber} {summary?.title || ''}
         </h3>
-        <button className="sc-detail-panel__close" onClick={onClose}>
+        <button className="sc-detail-panel__close" onClick={onClose} aria-label="Close">
           &times;
         </button>
       </div>

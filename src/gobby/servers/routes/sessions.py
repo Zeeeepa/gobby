@@ -635,6 +635,7 @@ def create_sessions_router(server: "HTTPServer") -> APIRouter:
             }
 
         except HTTPException:
+            metrics.inc_counter("http_requests_errors_total")
             raise
         except Exception as e:
             metrics.inc_counter("http_requests_errors_total")

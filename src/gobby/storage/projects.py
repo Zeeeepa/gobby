@@ -155,21 +155,21 @@ class LocalProjectManager:
         Returns:
             The existing or newly created Project
         """
-        project = self.get(project_id)
-        if project:
-            return project
-
         now = datetime.now(UTC).isoformat()
         self.db.execute(
             """
-            INSERT INTO projects (id, name, repo_path, created_at, updated_at)
+            INSERT OR IGNORE INTO projects (id, name, repo_path, created_at, updated_at)
             VALUES (?, ?, ?, ?, ?)
             """,
             (project_id, name, repo_path, now, now),
         )
 
-        logger.info(f"Auto-registered project '{name}' ({project_id}) from project.json")
+        project = self.get(project_id)
+        if project:
+            return project
 
+        # Shouldn't happen after INSERT OR IGNORE, but be safe
+        logger.warning(f"Project '{name}' ({project_id}) not found after upsert")
         return Project(
             id=project_id,
             name=name,

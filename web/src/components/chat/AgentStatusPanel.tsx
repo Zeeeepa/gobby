@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { cn } from '../../lib/utils'
 
 interface AgentStatusPanelProps {
@@ -66,7 +66,10 @@ function AgentRow({
   onSelect: () => void
 }) {
   const [uptime, setUptime] = useState('0s')
-  const startTime = agent.started_at ? new Date(agent.started_at).getTime() : Date.now()
+  const startTime = useMemo(
+    () => agent.started_at ? new Date(agent.started_at).getTime() : Date.now(),
+    [agent.started_at]
+  )
 
   useEffect(() => {
     const interval = setInterval(() => {

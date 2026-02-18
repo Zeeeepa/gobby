@@ -37,7 +37,7 @@ export function ArtifactPanel({ artifact, width, onClose, onUpdateContent, onSet
     a.href = url
     a.download = `${artifact.title.replace(/\s+/g, '_')}.${ext}`
     a.click()
-    URL.revokeObjectURL(url)
+    setTimeout(() => URL.revokeObjectURL(url), 100)
   }, [content, artifact])
 
   return (

@@ -209,11 +209,14 @@ def create_configuration_router(server: "HTTPServer") -> APIRouter:
             # Persist secret keys via SecretStore
             secret_store = _get_secret_store()
             for key, value in secret_entries.items():
-                str_value = str(value) if value is not None else ""
-                if str_value == "":
+                if value is None or value == "":
                     config_store.clear_secret(key, secret_store)
+                elif not isinstance(value, str):
+                    raise HTTPException(
+                        400, f"Secret '{key}' must be a string, got {type(value).__name__}"
+                    )
                 else:
-                    config_store.set_secret(key, str_value, secret_store, source="user")
+                    config_store.set_secret(key, value, secret_store, source="user")
                     count += 1
 
             logger.info(f"Config saved to DB ({count} keys)")
@@ -678,11 +681,12 @@ def create_configuration_router(server: "HTTPServer") -> APIRouter:
 
             # Restore is_secret flags from export bundle
             if request.config_secret_keys:
-                for key in request.config_secret_keys:
-                    config_store.db.execute(
-                        "UPDATE config_store SET is_secret = 1 WHERE key = ?",
-                        (key,),
-                    )
+                with config_store.db.transaction():
+                    for key in request.config_secret_keys:
+                        config_store.db.execute(
+                            "UPDATE config_store SET is_secret = 1 WHERE key = ?",
+                            (key,),
+                        )
 
             # Import prompt overrides into database
             if request.prompts:

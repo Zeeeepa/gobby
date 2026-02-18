@@ -1,5 +1,4 @@
 {
-  "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$comment": "Optional project-specific configuration for worktree-manager. Place at .claude/worktree.json in your project root.",
   "ports": {
     "count": 2,
@@ -15,7 +14,7 @@
     "healthCheckTimeout": 30,
     "stop": "docker compose down"
   },
-  "copyDirs": [
+  "copyPaths": [
     ".agents",
     ".env.example"
   ],

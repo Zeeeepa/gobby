@@ -157,6 +157,9 @@ class ElevenLabsTTS:
         rather than waiting for the chunk_length_schedule buffer to fill.
         """
         if not self._connected or not self._ws:
+            self._logger.debug(
+                f"send_text skipped: connected={self._connected}, ws={self._ws is not None}"
+            )
             return
 
         await self._ws.send(

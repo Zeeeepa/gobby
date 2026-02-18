@@ -16,12 +16,21 @@ export const Textarea = forwardRef<HTMLTextAreaElement, TextareaProps>(
       else if (ref) (ref as React.MutableRefObject<HTMLTextAreaElement | null>).current = el
     }, [ref])
 
-    useEffect(() => {
+    const resize = useCallback(() => {
       if (!autoResize || !internalRef.current) return
       const el = internalRef.current
       el.style.height = 'auto'
       el.style.height = `${Math.min(el.scrollHeight, maxHeight)}px`
-    }, [props.value, autoResize, maxHeight])
+    }, [autoResize, maxHeight])
+
+    useEffect(() => {
+      resize()
+    }, [props.value, resize])
+
+    const handleChange = useCallback((e: React.ChangeEvent<HTMLTextAreaElement>) => {
+      onChange?.(e)
+      resize()
+    }, [onChange, resize])
 
     return (
       <textarea
@@ -34,7 +43,7 @@ export const Textarea = forwardRef<HTMLTextAreaElement, TextareaProps>(
           className
         )}
         ref={setRef}
-        onChange={onChange}
+        onChange={handleChange}
         {...props}
       />
     )

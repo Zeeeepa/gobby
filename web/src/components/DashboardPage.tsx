@@ -27,7 +27,7 @@ export function DashboardPage() {
               Updated {formatTime(lastUpdated)}
             </span>
           )}
-          <button className="dash-toolbar-btn" onClick={refresh}>
+          <button className="dash-toolbar-btn" onClick={refresh} disabled={isLoading}>
             Refresh
           </button>
         </div>
@@ -37,7 +37,7 @@ export function DashboardPage() {
         {isLoading && !data ? (
           <div className="dash-loading">Loading dashboard...</div>
         ) : error && !data ? (
-          <div className="dash-error">Failed to load: {error}</div>
+          <div className="dash-error">Failed to load: {error.slice(0, 200)}</div>
         ) : data ? (
           <div className="dash-grid">
             <SystemHealthCard data={data} />

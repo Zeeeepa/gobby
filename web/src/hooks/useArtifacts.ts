@@ -27,7 +27,7 @@ export function useArtifacts() {
     language?: string,
     title?: string,
   ): string => {
-    const id = `artifact-${crypto.randomUUID().slice(0, 8)}`
+    const id = `artifact-${(crypto.randomUUID?.() || `${Date.now()}-${Math.random().toString(36).slice(2)}`).slice(0, 8)}`
     const artifact: Artifact = {
       id,
       type,

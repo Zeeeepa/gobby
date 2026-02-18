@@ -26,7 +26,7 @@ export function CICDView({ runs, githubAvailable }: Props) {
               <th>Conclusion</th>
               <th>Event</th>
               <th>Created</th>
-              <th />
+              <th scope="col" aria-label="Actions" />
             </tr>
           </thead>
           <tbody>
@@ -48,7 +48,10 @@ export function CICDView({ runs, githubAvailable }: Props) {
                 </td>
                 <td className="sc-text-muted">{run.event}</td>
                 <td className="sc-text-muted">
-                  {new Date(run.created_at).toLocaleDateString()}
+                  {(() => {
+                    const d = new Date(run.created_at)
+                    return !isNaN(d.getTime()) ? d.toLocaleDateString() : '-'
+                  })()}
                 </td>
                 <td>
                   {run.html_url && (
