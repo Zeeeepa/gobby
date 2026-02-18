@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
@@ -63,7 +63,7 @@ class TestSpawnSessionExecution:
     @pytest.mark.asyncio
     async def test_spawn_session_creates_session(self) -> None:
         """spawn_session step creates a session via spawner."""
-        from gobby.workflows.definitions import PipelineDefinition, PipelineStep
+        from gobby.workflows.definitions import PipelineStep
         from gobby.workflows.pipeline_executor import PipelineExecutor
         from gobby.workflows.pipeline_state import ExecutionStatus
 
@@ -131,6 +131,59 @@ class TestSpawnSessionExecution:
 
         assert result is not None
         assert "error" in result
+
+    @pytest.mark.asyncio
+    async def test_spawn_session_sanitizes_none_parent_session_id(self) -> None:
+        """spawn_session sanitizes template-rendered 'None' parent_session_id."""
+        from gobby.workflows.pipeline.handlers import execute_spawn_session_step
+
+        mock_spawner = MagicMock()
+        mock_spawner.spawn_agent.return_value = MagicMock(tmux_session_name="tmux-1")
+
+        mock_session_mgr = MagicMock()
+        mock_session_mgr.create_session.return_value = MagicMock(id="child-sess")
+
+        step = MagicMock()
+        step.spawn_session = {
+            "cli": "claude",
+            "prompt": "Do work",
+            "parent_session_id": "None",  # Template-rendered None
+        }
+
+        result = await execute_spawn_session_step(
+            step, {"session_id": "ctx-sess"}, "proj-1", mock_spawner, mock_session_mgr
+        )
+
+        assert result["session_id"] == "child-sess"
+        call_kwargs = mock_spawner.spawn_agent.call_args
+        # "None" should be sanitized to empty string
+        assert call_kwargs.kwargs["parent_session_id"] == ""
+
+    @pytest.mark.asyncio
+    async def test_spawn_session_uses_context_session_id_as_fallback(self) -> None:
+        """spawn_session falls back to context session_id for parent."""
+        from gobby.workflows.pipeline.handlers import execute_spawn_session_step
+
+        mock_spawner = MagicMock()
+        mock_spawner.spawn_agent.return_value = MagicMock(tmux_session_name="tmux-1")
+
+        mock_session_mgr = MagicMock()
+        mock_session_mgr.create_session.return_value = MagicMock(id="child-sess")
+
+        step = MagicMock()
+        step.spawn_session = {
+            "cli": "claude",
+            "prompt": "Do work",
+            # No parent_session_id in config
+        }
+
+        result = await execute_spawn_session_step(
+            step, {"session_id": "parent-from-ctx"}, "proj-1", mock_spawner, mock_session_mgr
+        )
+
+        assert result["session_id"] == "child-sess"
+        call_kwargs = mock_spawner.spawn_agent.call_args
+        assert call_kwargs.kwargs["parent_session_id"] == "parent-from-ctx"
 
 
 class TestActivateWorkflowExecution:

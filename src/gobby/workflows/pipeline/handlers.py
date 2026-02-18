@@ -78,7 +78,9 @@ async def execute_spawn_session_step(
     agent_depth = config.get("agent_depth", 1)
     # Default to headless for pipeline agents so they exit after completing the prompt
     mode = config.get("mode", "headless")
-    parent_session_id = config.get("parent_session_id") or context.get("session_id") or ""
+    raw_parent = config.get("parent_session_id") or context.get("session_id") or ""
+    # Sanitize template-rendered invalid values (e.g., "None", "null")
+    parent_session_id = "" if raw_parent in ("None", "null") else raw_parent
 
     # Create a gobby session record
     session = session_manager.create_session(

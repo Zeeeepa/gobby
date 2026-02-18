@@ -80,12 +80,14 @@ def get_terminal_env_vars(
     """
     env = {
         GOBBY_SESSION_ID: session_id,
-        GOBBY_PARENT_SESSION_ID: parent_session_id,
         GOBBY_AGENT_RUN_ID: agent_run_id,
         GOBBY_PROJECT_ID: project_id,
         GOBBY_AGENT_DEPTH: str(agent_depth),
         GOBBY_MAX_AGENT_DEPTH: str(max_agent_depth),
     }
+
+    if parent_session_id:
+        env[GOBBY_PARENT_SESSION_ID] = parent_session_id
 
     if workflow_name:
         env[GOBBY_WORKFLOW_NAME] = workflow_name
