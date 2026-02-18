@@ -4,8 +4,9 @@ import type { GobbyMemory, MemoryGraphData, MemoryCrossRef } from '../hooks/useM
 
 interface MemoryGraphProps {
   memories: GobbyMemory[]
-  fetchGraphData: () => Promise<MemoryGraphData | null>
+  fetchGraphData: (memoryLimit?: number) => Promise<MemoryGraphData | null>
   onSelect: (memory: GobbyMemory) => void
+  memoryLimit?: number
 }
 
 interface GraphNode {
@@ -112,9 +113,9 @@ function buildGraph(
   return { nodes, edges }
 }
 
-export function MemoryGraph({ memories, fetchGraphData, onSelect }: MemoryGraphProps) {
+export function MemoryGraph({ memories, fetchGraphData, onSelect, memoryLimit }: MemoryGraphProps) {
   const svgRef = useRef<SVGSVGElement>(null)
-  const [graphData, setGraphData] = useState<{ crossrefs: MemoryCrossRef[] } | null>(null)
+  const [graphData, setGraphData] = useState<MemoryGraphData | null>(null)
   const [loading, setLoading] = useState(true)
   const [hoveredId, setHoveredId] = useState<string | null>(null)
   const [view, setView] = useState({ x: 0, y: 0, scale: 1 })
@@ -124,19 +125,22 @@ export function MemoryGraph({ memories, fetchGraphData, onSelect }: MemoryGraphP
   useEffect(() => {
     let cancelled = false
     setLoading(true)
-    fetchGraphData().then(data => {
+    fetchGraphData(memoryLimit).then(data => {
       if (!cancelled && data) {
-        setGraphData({ crossrefs: data.crossrefs })
+        setGraphData(data)
       }
       if (!cancelled) setLoading(false)
     })
     return () => { cancelled = true }
-  }, [fetchGraphData])
+  }, [fetchGraphData, memoryLimit])
+
+  // Use memories from the graph endpoint (which has its own limit) instead of the page-level prop
+  const graphMemories = graphData?.memories ?? memories
 
   const { nodes, edges } = useMemo(() => {
     if (!graphData) return { nodes: [], edges: [] }
-    return buildGraph(memories, graphData.crossrefs)
-  }, [memories, graphData])
+    return buildGraph(graphMemories, graphData.crossrefs)
+  }, [graphMemories, graphData])
 
   const nodeMap = useMemo(
     () => new Map(nodes.map(n => [n.id, n])),

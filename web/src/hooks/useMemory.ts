@@ -287,11 +287,12 @@ export function useMemory() {
     return null
   }, [])
 
-  const fetchGraphData = useCallback(async (): Promise<MemoryGraphData | null> => {
+  const fetchGraphData = useCallback(async (memoryLimit?: number): Promise<MemoryGraphData | null> => {
     try {
       const baseUrl = getBaseUrl()
       const params = new URLSearchParams()
       if (filters.projectId) params.set('project_id', filters.projectId)
+      if (memoryLimit !== undefined) params.set('memory_limit', String(memoryLimit))
 
       const response = await fetch(`${baseUrl}/memories/graph?${params}`)
       if (response.ok) {
