@@ -76,6 +76,8 @@ async def execute_spawn_session_step(
     cwd = config.get("cwd")
     workflow_name = config.get("workflow_name")
     agent_depth = config.get("agent_depth", 1)
+    # Default to headless for pipeline agents so they exit after completing the prompt
+    mode = config.get("mode", "headless")
     parent_session_id = config.get("parent_session_id") or context.get("session_id") or ""
 
     # Create a gobby session record
@@ -97,6 +99,7 @@ async def execute_spawn_session_step(
             workflow_name=workflow_name,
             agent_depth=agent_depth,
             prompt=prompt,
+            mode=mode,
         )
         return {
             "session_id": session_id,
