@@ -270,8 +270,8 @@ export function useSourceControl() {
   const deleteWorktree = useCallback(
     async (id: string): Promise<boolean> => {
       try {
-        const r = await fetch(`${getBaseUrl()}/api/source-control/worktrees/${id}/delete`, {
-          method: 'POST',
+        const r = await fetch(`${getBaseUrl()}/api/source-control/worktrees/${id}`, {
+          method: 'DELETE',
         })
         if (r.ok) {
           fetchWorktrees()
@@ -333,8 +333,8 @@ export function useSourceControl() {
   const deleteClone = useCallback(
     async (id: string): Promise<boolean> => {
       try {
-        const r = await fetch(`${getBaseUrl()}/api/source-control/clones/${id}/delete`, {
-          method: 'POST',
+        const r = await fetch(`${getBaseUrl()}/api/source-control/clones/${id}`, {
+          method: 'DELETE',
         })
         if (r.ok) {
           fetchClones()

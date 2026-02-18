@@ -569,7 +569,7 @@ def create_source_control_router(server: HTTPServer) -> APIRouter:
         stats = server.services.worktree_storage.count_by_status(project_id)
         return {"stats": stats}
 
-    @router.post("/worktrees/{worktree_id}/delete")
+    @router.delete("/worktrees/{worktree_id}")
     async def delete_worktree(worktree_id: str) -> dict[str, Any]:
         """Delete a worktree."""
         if not server.services.worktree_storage:
@@ -651,7 +651,7 @@ def create_source_control_router(server: HTTPServer) -> APIRouter:
         clones = server.services.clone_storage.list_clones(project_id=project_id)
         return {"clones": [c.to_dict() for c in clones]}
 
-    @router.post("/clones/{clone_id}/delete")
+    @router.delete("/clones/{clone_id}")
     async def delete_clone(clone_id: str) -> dict[str, Any]:
         """Delete a clone."""
         if not server.services.clone_storage:
