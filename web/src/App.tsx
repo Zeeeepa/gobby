@@ -565,4 +565,3 @@ function ConfigurationIcon() {
     </svg>
   )
 }
-
