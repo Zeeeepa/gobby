@@ -1,6 +1,7 @@
 import json
 import logging
 import sqlite3
+import uuid
 from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import UTC, datetime
@@ -8,7 +9,9 @@ from typing import Any, Literal
 
 from gobby.memory.protocol import MediaAttachment
 from gobby.storage.database import DatabaseProtocol
-from gobby.utils.id import generate_prefixed_id
+
+# Stable namespace for deterministic memory UUIDs (uuid5)
+MEMORY_UUID_NAMESPACE = uuid.UUID("a3b2c1d0-1234-5678-9abc-def012345678")
 
 # Re-export MediaAttachment for consumers that import from this module
 __all__ = ["Memory", "MemoryCrossRef", "LocalMemoryManager", "MediaAttachment"]
@@ -137,7 +140,7 @@ class LocalMemoryManager:
         normalized_content = content.strip()
         # Global dedup: ID based on content only (project_id stored but not in ID)
         # This aligns with content_exists() which checks globally
-        memory_id = generate_prefixed_id("mm", normalized_content)
+        memory_id = str(uuid.uuid5(MEMORY_UUID_NAMESPACE, normalized_content))
 
         # Check if memory already exists to avoid duplicate insert errors
         existing_row = self.db.fetchone("SELECT * FROM memories WHERE id = ?", (memory_id,))

@@ -119,7 +119,8 @@ class TestCreateMemory:
             memory_type="fact",
         )
 
-        assert memory.id.startswith("mm-")
+        import uuid
+        uuid.UUID(memory.id)  # validates UUID format
         assert memory.content == "Test fact"
         assert memory.memory_type == "fact"
 

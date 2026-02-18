@@ -29,7 +29,8 @@ async def test_create_memory(memory_manager):
         memory_type="fact",
         tags=["test"],
     )
-    assert memory.id.startswith("mm-")
+    import uuid
+    uuid.UUID(memory.id)  # validates UUID format
     assert memory.content == "Test remember"
 
 

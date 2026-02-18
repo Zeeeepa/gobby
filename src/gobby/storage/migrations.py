@@ -37,7 +37,7 @@ MigrationAction = str | Callable[[LocalDatabase], None]
 # Baseline version - the schema state that is applied for new databases directly.
 # Must be bumped when BASELINE_SCHEMA is updated with columns from new migrations,
 # so that fresh databases don't re-run migrations already baked into the baseline.
-BASELINE_VERSION = 109
+BASELINE_VERSION = 110
 
 # Minimum migration version - databases older than this cannot be upgraded
 # because legacy migrations (pre-v108) have been removed.
@@ -912,6 +912,48 @@ def _import_bundled_workflows(db: LocalDatabase) -> None:
     logger.info(f"Imported {imported} bundled workflow definitions")
 
 
+_MEMORY_UUID_NAMESPACE = uuid.UUID("a3b2c1d0-1234-5678-9abc-def012345678")
+
+
+def _migrate_memory_ids_to_uuid5(db: LocalDatabase) -> None:
+    """Convert mm-prefix memory IDs to deterministic UUID5 format.
+
+    Re-derives each ID from the stored content using the same uuid5 namespace
+    used by new memory creation, then updates all referencing tables.
+    """
+    rows = db.fetchall("SELECT id, content FROM memories WHERE id LIKE 'mm-%'")
+    if not rows:
+        logger.info("No mm-prefix memory IDs to migrate")
+        return
+
+    logger.info(f"Migrating {len(rows)} memory IDs from mm-prefix to UUID5")
+
+    with db.transaction() as conn:
+        for row in rows:
+            old_id = row["id"]
+            content = row["content"]
+            normalized = content.strip() if content else ""
+            new_id = str(uuid.uuid5(_MEMORY_UUID_NAMESPACE, normalized))
+
+            # Update primary table
+            conn.execute("UPDATE memories SET id = ? WHERE id = ?", (new_id, old_id))
+            # Update referencing tables
+            conn.execute(
+                "UPDATE memory_crossrefs SET source_id = ? WHERE source_id = ?",
+                (new_id, old_id),
+            )
+            conn.execute(
+                "UPDATE memory_crossrefs SET target_id = ? WHERE target_id = ?",
+                (new_id, old_id),
+            )
+            conn.execute(
+                "UPDATE session_memories SET memory_id = ? WHERE memory_id = ?",
+                (new_id, old_id),
+            )
+
+    logger.info(f"Migrated {len(rows)} memory IDs to UUID5 format")
+
+
 MIGRATIONS: list[tuple[int, str, MigrationAction]] = [
     (
         108,
@@ -923,6 +965,11 @@ MIGRATIONS: list[tuple[int, str, MigrationAction]] = [
         109,
         "Add is_secret column to config_store",
         "ALTER TABLE config_store ADD COLUMN is_secret INTEGER NOT NULL DEFAULT 0",
+    ),
+    (
+        110,
+        "Migrate memory IDs from mm-prefix to UUID5",
+        _migrate_memory_ids_to_uuid5,
     ),
 ]
 
