@@ -216,14 +216,12 @@ class MemoryBackupManager:
 
             if file_count <= db_count:
                 logger.debug(
-                    f"Skipping memory import: DB has {db_count} memories, "
-                    f"file has {file_count}"
+                    f"Skipping memory import: DB has {db_count} memories, file has {file_count}"
                 )
                 return 0
 
             logger.info(
-                f"Importing memories from {memories_file}: "
-                f"file has {file_count}, DB has {db_count}"
+                f"Importing memories from {memories_file}: file has {file_count}, DB has {db_count}"
             )
             return self._import_memories_sync(memories_file)
         except Exception as e:

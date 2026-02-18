@@ -465,11 +465,13 @@ class ChatSession:
 
         # Check specific policies first
         for policy in config.policies:
-            if fnmatch(server_name, policy.server_pattern) and fnmatch(short_tool, policy.tool_pattern):
-                return policy.policy != "auto"
+            if fnmatch(server_name, policy.server_pattern) and fnmatch(
+                short_tool, policy.tool_pattern
+            ):
+                return bool(policy.policy != "auto")
 
         # Fall back to default policy
-        return config.default_policy != "auto"
+        return bool(config.default_policy != "auto")
 
     async def _wait_for_tool_approval(
         self, tool_name: str, input_data: dict[str, Any]
@@ -501,9 +503,7 @@ class ChatSession:
 
         if decision == "reject":
             # Return with a rejection marker that the SDK will handle
-            return PermissionResultAllow(
-                updated_input={**input_data, "_rejected": True}
-            )
+            return PermissionResultAllow(updated_input={**input_data, "_rejected": True})
 
         if decision == "approve_always":
             self._approved_tools.add(tool_name)

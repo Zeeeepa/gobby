@@ -499,7 +499,7 @@ DEFAULT_MCP_SERVERS: list[dict[str, Any]] = [
         "name": "playwright",
         "transport": "stdio",
         "command": "npx",
-        "args": ["-y", "@anthropic/mcp-server-playwright"],
+        "args": ["-y", "@playwright/mcp@latest"],
         "description": "Playwright browser automation for testing",
     },
 ]

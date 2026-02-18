@@ -95,9 +95,7 @@ class ElevenLabsTTS:
 
             # Start background tasks
             self._keepalive_task = asyncio.create_task(self._keepalive_loop())
-            self._listener_task = asyncio.create_task(
-                self._audio_listener(on_audio)
-            )
+            self._listener_task = asyncio.create_task(self._audio_listener(on_audio))
 
             logger.debug("ElevenLabs TTS WebSocket connected")
 
@@ -141,9 +139,7 @@ class ElevenLabsTTS:
                             )
                         )
                     elif data.get("isFinal"):
-                        await on_audio(
-                            TTSAudioChunk(audio_base64="", is_final=True)
-                        )
+                        await on_audio(TTSAudioChunk(audio_base64="", is_final=True))
 
                 except asyncio.CancelledError:
                     raise
@@ -164,10 +160,12 @@ class ElevenLabsTTS:
             return
 
         await self._ws.send(
-            json.dumps({
-                "text": text + " ",
-                "try_trigger_generation": True,
-            })
+            json.dumps(
+                {
+                    "text": text + " ",
+                    "try_trigger_generation": True,
+                }
+            )
         )
 
     async def send_flush(self) -> None:

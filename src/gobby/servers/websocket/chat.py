@@ -135,6 +135,13 @@ class ChatMixin:
             conversation_id, HookEventType.STOP, data
         )
 
+        # Wire tool approval config if available
+        daemon_cfg = getattr(self, "daemon_config", None)
+        if daemon_cfg is not None:
+            tool_approval_cfg = getattr(daemon_cfg, "tool_approval", None)
+            if tool_approval_cfg is not None and tool_approval_cfg.enabled:
+                session._tool_approval_config = tool_approval_cfg
+
         await session.start(model=model)
         self._chat_sessions[conversation_id] = session
 
@@ -357,6 +364,25 @@ class ChatMixin:
             except Exception as e:
                 logger.warning(f"Failed to persist {role} message for {conversation_id[:8]}: {e}")
 
+        async def _emit_pending_approval(tool_name: str, arguments: dict[str, Any]) -> None:
+            """Emit pending_approval tool_status to the client."""
+            try:
+                await websocket.send(
+                    json.dumps(
+                        _base_msg(
+                            type="tool_status",
+                            message_id=assistant_message_id,
+                            conversation_id=conversation_id,
+                            tool_call_id=f"approval-{uuid4().hex[:8]}",
+                            status="pending_approval",
+                            tool_name=tool_name,
+                            arguments=arguments,
+                        )
+                    )
+                )
+            except (ConnectionClosed, ConnectionClosedError):
+                pass
+
         gen: AsyncIterator[Any] | None = None
         try:
             # Get or create ChatSession for this conversation
@@ -407,6 +433,9 @@ class ChatMixin:
                             )
                         )
                     )
+
+            # Wire tool approval callback for this request
+            session._tool_approval_callback = _emit_pending_approval
 
             # Persist user message to database
             user_text = content if isinstance(content, str) else json.dumps(content)
@@ -568,6 +597,26 @@ class ChatMixin:
             return
 
         session.provide_answer(answers)
+
+    async def _handle_tool_approval_response(self, websocket: Any, data: dict[str, Any]) -> None:
+        """Handle tool_approval_response message from the web UI.
+
+        Looks up the ChatSession by conversation_id and forwards the user's
+        approval decision to unblock the pending tool approval callback.
+        """
+        conversation_id = data.get("conversation_id")
+        decision = data.get("decision", "reject")
+
+        session = self._chat_sessions.get(conversation_id) if conversation_id else None
+        if session is None:
+            logger.warning(f"tool_approval_response for unknown conversation: {conversation_id}")
+            return
+
+        if not session.has_pending_approval:
+            logger.warning(f"tool_approval_response but no pending approval for {conversation_id}")
+            return
+
+        session.provide_approval(decision)
 
     async def _handle_clear_chat(self, websocket: Any, data: dict[str, Any]) -> None:
         """Handle clear_chat message: stop session, mark completed, notify frontend.
