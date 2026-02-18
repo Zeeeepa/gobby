@@ -8,6 +8,7 @@ interface AgentInfo {
   pid?: number
   mode?: string
   started_at?: string
+  tmux_session_name?: string
 }
 
 interface ConversationPickerProps {
@@ -17,8 +18,7 @@ interface ConversationPickerProps {
   onSelectSession: (session: GobbySession) => void
   onDeleteSession?: (session: GobbySession) => void
   agents?: AgentInfo[]
-  selectedAgent?: string | null
-  onSelectAgent?: (runId: string | null) => void
+  onNavigateToAgent?: (agent: AgentInfo) => void
 }
 
 const PROVIDER_COLORS: Record<string, string> = {
@@ -35,8 +35,7 @@ export function ConversationPicker({
   onSelectSession,
   onDeleteSession,
   agents = [],
-  selectedAgent = null,
-  onSelectAgent,
+  onNavigateToAgent,
 }: ConversationPickerProps) {
   const [search, setSearch] = useState('')
   const [isOpen, setIsOpen] = useState(true)
@@ -99,38 +98,6 @@ export function ConversationPicker({
             />
           </div>
 
-          {agents.length > 0 && (
-            <div className="session-group">
-              <div className="session-group-label">Active Agents ({agents.length})</div>
-              {agents.map((agent) => (
-                <div
-                  key={agent.run_id}
-                  className={`session-item ${agent.run_id === selectedAgent ? 'attached' : ''}`}
-                  onClick={() => onSelectAgent?.(agent.run_id === selectedAgent ? null : agent.run_id)}
-                  role="button"
-                  tabIndex={0}
-                  onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onSelectAgent?.(agent.run_id === selectedAgent ? null : agent.run_id) } }}
-                >
-                  <div className="session-item-main">
-                    <span
-                      className="session-source-dot"
-                      style={{ background: PROVIDER_COLORS[agent.provider] ?? PROVIDER_COLORS.unknown }}
-                    />
-                    <span className="session-name">{agent.provider}</span>
-                    {agent.mode && (
-                      <span className="session-badge agent-badge">{agent.mode}</span>
-                    )}
-                  </div>
-                  <div className="session-item-actions">
-                    <span className="session-pid">
-                      <AgentUptime startedAt={agent.started_at} />
-                    </span>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-
           <div className="session-group">
             <div className="session-group-label">Chats</div>
           <div className="sessions-list">
@@ -175,6 +142,38 @@ export function ConversationPicker({
             })}
           </div>
           </div>
+
+          {agents.length > 0 && (
+            <div className="session-group">
+              <div className="session-group-label">Active Agents ({agents.length})</div>
+              {agents.map((agent) => (
+                <div
+                  key={agent.run_id}
+                  className="session-item"
+                  onClick={() => onNavigateToAgent?.(agent)}
+                  role="button"
+                  tabIndex={0}
+                  onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onNavigateToAgent?.(agent) } }}
+                >
+                  <div className="session-item-main">
+                    <span
+                      className="session-source-dot"
+                      style={{ background: PROVIDER_COLORS[agent.provider] ?? PROVIDER_COLORS.unknown }}
+                    />
+                    <span className="session-name">{agent.provider}</span>
+                    {agent.mode && (
+                      <span className="session-badge agent-badge">{agent.mode}</span>
+                    )}
+                  </div>
+                  <div className="session-item-actions">
+                    <span className="session-pid">
+                      <AgentUptime startedAt={agent.started_at} />
+                    </span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
         </>
       )}
     </div>

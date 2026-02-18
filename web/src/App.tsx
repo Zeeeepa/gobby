@@ -32,7 +32,7 @@ export default function App() {
   const { messages, conversationId, isConnected, isStreaming, isThinking, sendMessage, stopStreaming, clearHistory, deleteConversation, executeCommand, respondToQuestion, switchConversation, startNewChat, wsRef, handleVoiceMessageRef } = useChat()
   const voice = useVoice(wsRef, conversationId)
   const { settings, modelInfo, modelsLoading, updateFontSize, updateModel, resetSettings } = useSettings()
-  const { agents, selectedAgent, setSelectedAgent } = useTerminal()
+  const { agents } = useTerminal()
   const tmux = useTmuxSessions()
   const { filteredCommands, parseCommand, filterCommands } = useSlashCommands()
   const sessionsHook = useSessions()
@@ -184,6 +184,14 @@ export default function App() {
     sessionsHook.refresh()
   }, [deleteConversation, sessionsHook])
 
+  /* Navigate to Terminals tab and attach agent's tmux session */
+  const handleNavigateToAgent = useCallback((agent: { run_id: string; tmux_session_name?: string }) => {
+    setActiveTab('terminals')
+    if (agent.tmux_session_name) {
+      tmux.attachSession(agent.tmux_session_name, 'gobby')
+    }
+  }, [tmux])
+
   /* "Ask Gobby about this session" from Sessions page */
   const handleAskGobby = useCallback((context: string) => {
     setActiveTab('chat')
@@ -293,8 +301,7 @@ export default function App() {
             onSelectSession: handleSelectConversation,
             onDeleteSession: handleDeleteConversation,
             agents,
-            selectedAgent,
-            onSelectAgent: setSelectedAgent,
+            onNavigateToAgent: handleNavigateToAgent,
           }}
           project={{
             projects: projectOptions,

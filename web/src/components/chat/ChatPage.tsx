@@ -41,8 +41,7 @@ export function ChatPage({ chat, conversations, project, voice }: ChatPageProps)
         onSelectSession={conversations.onSelectSession}
         onDeleteSession={conversations.onDeleteSession}
         agents={conversations.agents}
-        selectedAgent={conversations.selectedAgent}
-        onSelectAgent={conversations.onSelectAgent}
+        onNavigateToAgent={conversations.onNavigateToAgent}
       />
 
       <div className="flex flex-col flex-1 min-w-0">
