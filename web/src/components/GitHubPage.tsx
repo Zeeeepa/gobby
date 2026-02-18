@@ -70,11 +70,15 @@ export function GitHubPage() {
       </div>
 
       <div className="sc-page__tabs">
-        {TABS.map((tab) => (
+        {TABS.map((tab) => {
+          const disabled = tab.requiresGitHub && !sc.status?.github_available
+          return (
           <button
             key={tab.key}
             className={`sc-page__tab ${activeTab === tab.key ? 'sc-page__tab--active' : ''}`}
-            onClick={() => setActiveTab(tab.key)}
+            onClick={() => !disabled && setActiveTab(tab.key)}
+            disabled={disabled}
+            title={disabled ? 'Requires GitHub' : undefined}
           >
             {tab.label}
             {tab.key === 'prs' && sc.prs.length > 0 && (
@@ -84,7 +88,7 @@ export function GitHubPage() {
               <span className="sc-page__tab-badge">{sc.worktrees.length}</span>
             )}
           </button>
-        ))}
+        )})}
       </div>
 
       <div className="sc-page__content">

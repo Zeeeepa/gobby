@@ -14,7 +14,9 @@ type TabId = 'config' | 'secrets' | 'prompts' | 'template'
 // Secret field detection
 // =============================================================================
 
-const SECRET_PATTERNS = ['api_key', 'api_token', 'api_secret', 'password', 'access_token', 'auth_token', 'secret_key']
+const SECRET_PATTERNS = ['api_key', 'api_token', 'api_secret', 'password', 'access_token', 'auth_token', 'secret_key', 'secret', 'credentials', 'private_key', 'client_secret']
+
+const SECRET_MASK = '••••••••'
 
 function isSecretField(path: string, secretKeys: string[]): boolean {
   if (secretKeys.includes(path)) return true
