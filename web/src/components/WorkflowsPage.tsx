@@ -669,12 +669,15 @@ function YamlEditorModal({ workflowName, yamlContent, loading, onChange, onSave,
 }) {
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [isDirty, setIsDirty] = useState(false)
+  const wrappedOnChange = (content: string) => { setIsDirty(true); onChange(content) }
 
   const handleSave = async () => {
     setError(null)
     setSaving(true)
     try {
       await onSave()
+      setIsDirty(false)
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Invalid YAML')
     } finally {
@@ -682,14 +685,19 @@ function YamlEditorModal({ workflowName, yamlContent, loading, onChange, onSave,
     }
   }
 
+  const handleClose = () => {
+    if (isDirty && !window.confirm('You have unsaved changes. Discard them?')) return
+    onClose()
+  }
+
   return (
-    <div className="workflows-modal-overlay" onClick={onClose}>
+    <div className="workflows-modal-overlay" onClick={handleClose}>
       <div className="workflows-yaml-modal" onClick={e => e.stopPropagation()}>
         <div className="workflows-yaml-header">
           <h3>Edit YAML — {workflowName}</h3>
           <div className="workflows-yaml-header-actions">
             {error && <span className="workflows-yaml-error">{error}</span>}
-            <button type="button" className="workflows-modal-cancel" onClick={onClose}>Cancel</button>
+            <button type="button" className="workflows-modal-cancel" onClick={handleClose}>Cancel</button>
             <button
               type="button"
               className="workflows-modal-submit"
@@ -707,7 +715,7 @@ function YamlEditorModal({ workflowName, yamlContent, loading, onChange, onSave,
             <CodeMirrorEditor
               content={yamlContent}
               language="yaml"
-              onChange={onChange}
+              onChange={wrappedOnChange}
               onSave={handleSave}
             />
           )}

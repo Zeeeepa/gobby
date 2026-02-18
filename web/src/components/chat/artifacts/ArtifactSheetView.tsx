@@ -37,7 +37,7 @@ export function ArtifactSheetView({ content }: ArtifactSheetViewProps) {
   if (rows.length === 0) return <div className="p-4 text-muted-foreground">Empty data</div>
 
   const headers = rows[0]
-  const data = rows.slice(1)
+  const data = useMemo(() => rows.slice(1), [rows])
 
   const sorted = useMemo(() => {
     if (sortCol === null) return data
