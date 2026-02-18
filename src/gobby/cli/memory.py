@@ -482,6 +482,78 @@ def reindex_embeddings(ctx: click.Context) -> None:
         click.echo(f"Error: {result.get('error', 'Unknown error')}")
 
 
+def _get_daemon_client(ctx: click.Context) -> "DaemonClient":  # noqa: F821
+    """Get a DaemonClient for calling daemon HTTP API."""
+    from gobby.utils.daemon_client import DaemonClient
+
+    config: DaemonConfig = ctx.obj["config"]
+    return DaemonClient(host="localhost", port=config.daemon_port)
+
+
+@memory.command("rebuild-crossrefs")
+@click.option("--project", "-p", "project_ref", help="Project (name or UUID)")
+@click.pass_context
+def rebuild_crossrefs(ctx: click.Context, project_ref: str | None) -> None:
+    """Rebuild cross-references between memories (requires running daemon).
+
+    Uses vector similarity to find related memories and create links.
+    These links power the 2D memory graph visualization.
+
+    Examples:
+
+        gobby memory rebuild-crossrefs
+
+        gobby memory rebuild-crossrefs -p myproject
+    """
+    client = _get_daemon_client(ctx)
+    is_healthy, err = client.check_health()
+    if not is_healthy:
+        raise click.ClickException(f"Daemon not running: {err}")
+
+    click.echo("Rebuilding cross-references (this may take a while)...")
+    params = f"?project_id={project_ref}" if project_ref else ""
+    response = client.call_http_api(
+        f"/memories/crossrefs/rebuild{params}", method="POST", timeout=600.0
+    )
+    data = response.json()
+    click.echo(
+        f"Done: {data['memories_processed']} memories processed, "
+        f"{data['crossrefs_created']} crossrefs created"
+    )
+
+
+@memory.command("rebuild-graph")
+@click.option("--project", "-p", "project_ref", help="Project (name or UUID)")
+@click.pass_context
+def rebuild_graph(ctx: click.Context, project_ref: str | None) -> None:
+    """Extract entities from memories into the knowledge graph (requires running daemon).
+
+    Processes all memories through LLM entity extraction and stores
+    results in Neo4j. Powers the 3D knowledge graph visualization.
+
+    Examples:
+
+        gobby memory rebuild-graph
+
+        gobby memory rebuild-graph -p myproject
+    """
+    client = _get_daemon_client(ctx)
+    is_healthy, err = client.check_health()
+    if not is_healthy:
+        raise click.ClickException(f"Daemon not running: {err}")
+
+    click.echo("Rebuilding knowledge graph (this may take several minutes)...")
+    params = f"?project_id={project_ref}" if project_ref else ""
+    response = client.call_http_api(
+        f"/memories/graph/rebuild{params}", method="POST", timeout=600.0
+    )
+    data = response.json()
+    click.echo(
+        f"Done: {data['memories_extracted']}/{data['memories_processed']} memories extracted, "
+        f"{data['errors']} errors"
+    )
+
+
 def resolve_memory_id(manager: MemoryManager, memory_ref: str) -> str:
     """Resolve memory reference (UUID or prefix) to full ID."""
     # Try exact match first
