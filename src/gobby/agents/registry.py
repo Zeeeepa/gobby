@@ -132,16 +132,16 @@ class RunningAgentRegistry:
     Example:
         >>> registry = RunningAgentRegistry()
         >>> agent = RunningAgent(
-        ...     run_id="ar-123",
+        ...     run_id="run-123",
         ...     session_id="sess-456",
         ...     parent_session_id="sess-parent",
         ...     mode="terminal",
         ...     pid=12345,
         ... )
         >>> registry.add(agent)
-        >>> registry.get("ar-123")
+        >>> registry.get("run-123")
         RunningAgent(...)
-        >>> registry.remove("ar-123")
+        >>> registry.remove("run-123")
     """
 
     def __init__(self) -> None:

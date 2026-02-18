@@ -96,6 +96,11 @@ class AgentRunner:
         """Public accessor for the child session manager."""
         return self._child_session_manager
 
+    @property
+    def run_storage(self) -> LocalAgentRunManager:
+        """Public accessor for the agent run storage manager."""
+        return self._run_storage
+
     def get_executor(self, provider: str) -> AgentExecutor | None:
         """Get executor for a provider."""
         return self._executors.get(provider)

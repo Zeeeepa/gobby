@@ -96,6 +96,7 @@ class LocalAgentRunManager:
         workflow_name: str | None = None,
         model: str | None = None,
         child_session_id: str | None = None,
+        run_id: str | None = None,
     ) -> AgentRun:
         """
         Create a new agent run.
@@ -107,11 +108,13 @@ class LocalAgentRunManager:
             workflow_name: Optional workflow being executed.
             model: Optional model override.
             child_session_id: Optional child session for the agent.
+            run_id: Optional pre-generated run ID. If not provided, one is generated.
 
         Returns:
             Created AgentRun.
         """
-        run_id = f"ar-{uuid.uuid4().hex[:12]}"
+        if run_id is None:
+            run_id = f"run-{uuid.uuid4().hex[:12]}"
         now = datetime.now(UTC).isoformat()
 
         self.db.execute(

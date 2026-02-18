@@ -553,6 +553,23 @@ async def spawn_agent_impl(
         # Spawn failed — remove pre-registered entry
         agent_registry.remove(run_id, status="failed")
 
+    # 12b. Create agent_runs DB record for non-in-process modes
+    # The in-process path creates this via AgentRunner.prepare_run(), but
+    # terminal/embedded/headless modes bypass that entirely.
+    if spawn_result.success and effective_mode != "self":
+        try:
+            runner.run_storage.create(
+                run_id=spawn_result.run_id,
+                parent_session_id=parent_session_id,
+                provider=effective_provider,
+                prompt=enhanced_prompt,
+                workflow_name=effective_workflow,
+                model=effective_model,
+                child_session_id=spawn_result.child_session_id,
+            )
+        except Exception as e:
+            logger.error(f"Failed to create agent_run DB record for {spawn_result.run_id}: {e}")
+
     # 13. Return response with isolation metadata
     if not spawn_result.success:
         return {"success": False, "error": spawn_result.error or "Failed to spawn agent"}
