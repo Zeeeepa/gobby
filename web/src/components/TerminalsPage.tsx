@@ -4,6 +4,7 @@ import { FitAddon } from '@xterm/addon-fit'
 import '@xterm/xterm/css/xterm.css'
 import { TmuxSession } from '../hooks/useTmuxSessions'
 import { MenuIcon } from './Icons'
+import { MobileTerminalDrawer } from './MobileTerminalDrawer'
 
 interface TerminalsPageProps {
   sessions: TmuxSession[]
@@ -173,6 +174,15 @@ export function TerminalsPage({
 
       {/* Terminal area */}
       <div className="terminals-main">
+        <MobileTerminalDrawer
+          sessions={sessions}
+          attachedSession={attachedSession}
+          streamingId={streamingId}
+          terminalNames={terminalNames}
+          onAttach={handleAttach}
+          onCreate={() => createSession()}
+          onRefresh={refreshSessions}
+        />
         {streamingId ? (
           <TerminalView
             streamingId={streamingId}
@@ -586,4 +596,3 @@ function TrashIcon() {
     </svg>
   )
 }
-

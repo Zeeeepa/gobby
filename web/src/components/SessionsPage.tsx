@@ -5,6 +5,7 @@ import { useSessionDetail } from '../hooks/useSessionDetail'
 import { SessionDetail } from './SessionDetail'
 import { SourceIcon } from './SourceIcon'
 import { formatRelativeTime } from '../utils/formatTime'
+import { MobileSessionDrawer } from './MobileSessionDrawer'
 
 interface SessionsPageProps {
   sessions: GobbySession[]
@@ -195,6 +196,13 @@ export function SessionsPage({
 
       {/* Right panel: session detail or empty state */}
       <div className="sessions-main">
+        <MobileSessionDrawer
+          sessions={sessions}
+          selectedSessionId={selectedSessionId}
+          onSelectSession={setSelectedSessionId}
+          onRefresh={onRefresh}
+          isLoading={isLoading}
+        />
         {detail.session ? (
           <SessionDetail
             session={detail.session}
