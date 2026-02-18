@@ -8,6 +8,7 @@ import { ArtifactPanel } from './artifacts/ArtifactPanel'
 import { ResizeHandle } from './artifacts/ResizeHandle'
 import { MessageList } from './MessageList'
 import { ChatInput } from './ChatInput'
+import { MobileChatDrawer } from './MobileChatDrawer'
 
 interface ChatPageProps {
   chat: ChatState
@@ -45,6 +46,13 @@ export function ChatPage({ chat, conversations, project, voice }: ChatPageProps)
       />
 
       <div className="flex flex-col flex-1 min-w-0">
+        <MobileChatDrawer
+          sessions={conversations.sessions}
+          activeSessionId={conversations.activeSessionId}
+          onNewChat={conversations.onNewChat}
+          onSelectSession={conversations.onSelectSession}
+          onDeleteSession={conversations.onDeleteSession}
+        />
         <ArtifactContext.Provider value={{ openCodeAsArtifact }}>
           <div className="flex flex-1 min-h-0">
             {/* Chat column */}
