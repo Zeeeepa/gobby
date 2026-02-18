@@ -8,8 +8,6 @@ Spawns agents with configurable isolation modes:
 from __future__ import annotations
 
 import logging
-import os
-import signal
 import uuid
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Literal
@@ -485,7 +483,7 @@ async def spawn_agent_impl(
 
     # 9. Generate session and run IDs
     session_id = str(uuid.uuid4())
-    run_id = str(uuid.uuid4())
+    run_id = f"run-{uuid.uuid4().hex[:12]}"
 
     # 10. Build step_variables for workflow activation (e.g., assigned_task_id)
     step_variables: dict[str, Any] | None = None
@@ -503,6 +501,7 @@ async def spawn_agent_impl(
         terminal=effective_terminal,
         session_id=session_id,
         run_id=run_id,
+        agent_run_id=run_id,
         parent_session_id=parent_session_id,
         project_id=project_id,
         workflow=effective_workflow,
@@ -532,6 +531,23 @@ async def spawn_agent_impl(
         )
     )
 
+    # 11b. Create agent_runs DB record BEFORE spawn so that SessionStart
+    # hooks can find the agent_run immediately when the child process starts.
+    try:
+        runner.run_storage.create(
+            run_id=run_id,
+            parent_session_id=parent_session_id,
+            provider=effective_provider,
+            prompt=enhanced_prompt,
+            workflow_name=effective_workflow,
+            model=effective_model,
+            child_session_id=None,  # Updated after spawn
+        )
+    except Exception as e:
+        logger.error(f"Failed to create agent_run DB record: {e}")
+        agent_registry.remove(run_id, status="failed")
+        return {"success": False, "error": "Failed to create agent_run DB record"}
+
     spawn_result = await execute_spawn(spawn_request)
 
     # 12. Update or remove registry entry based on spawn result
@@ -539,7 +555,7 @@ async def spawn_agent_impl(
         # Re-register with full details from spawn result (pid, terminal_type, etc.)
         agent_registry.add(
             RunningAgent(
-                run_id=spawn_result.run_id,
+                run_id=run_id,
                 session_id=spawn_result.child_session_id,
                 parent_session_id=parent_session_id,
                 mode=effective_mode,
@@ -551,36 +567,18 @@ async def spawn_agent_impl(
                 worktree_id=isolation_ctx.worktree_id,
             )
         )
-    else:
-        # Spawn failed — remove pre-registered entry
-        agent_registry.remove(run_id, status="failed")
-
-    # 12b. Create agent_runs DB record for non-in-process modes
-    # The in-process path creates this via AgentRunner.prepare_run(), but
-    # terminal/embedded/headless modes bypass that entirely.
-    if spawn_result.success:
+        # Update child_session_id on the DB record now that spawn succeeded
         try:
-            runner.run_storage.create(
-                run_id=spawn_result.run_id,
-                parent_session_id=parent_session_id,
-                provider=effective_provider,
-                prompt=enhanced_prompt,
-                workflow_name=effective_workflow,
-                model=effective_model,
-                child_session_id=spawn_result.child_session_id,
-            )
+            runner.run_storage.update_child_session(run_id, spawn_result.child_session_id)
         except Exception as e:
-            logger.error(f"Failed to create agent_run DB record for {spawn_result.run_id}: {e}")
-            # Clean up orphaned agent — remove from registry and attempt kill
-            agent_registry.remove(spawn_result.run_id, status="failed")
-            if spawn_result.pid:
-                try:
-                    os.kill(spawn_result.pid, signal.SIGTERM)
-                    logger.info(f"Killed orphaned agent process {spawn_result.pid}")
-                except OSError:
-                    logger.warning(f"Could not kill orphaned agent process {spawn_result.pid}")
-            spawn_result.success = False
-            spawn_result.error = f"Agent spawned but DB record failed: {e}"
+            logger.warning(f"Failed to update child_session_id for {run_id}: {e}")
+    else:
+        # Spawn failed — remove pre-registered entry and mark DB record as failed
+        agent_registry.remove(run_id, status="failed")
+        try:
+            runner.run_storage.fail(run_id, error=spawn_result.error or "Spawn failed")
+        except Exception as e:
+            logger.warning(f"Failed to mark agent_run {run_id} as failed: {e}")
 
     # 13. Return response with isolation metadata
     if not spawn_result.success:
@@ -588,7 +586,7 @@ async def spawn_agent_impl(
 
     return {
         "success": True,
-        "run_id": spawn_result.run_id,
+        "run_id": run_id,
         "child_session_id": spawn_result.child_session_id,
         "status": spawn_result.status,
         "isolation": effective_isolation,

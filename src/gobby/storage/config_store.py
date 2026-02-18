@@ -182,12 +182,9 @@ class ConfigStore:
             secret_store.delete(secret_name)
         except Exception:
             # DB record already deleted; log but don't re-raise
-            import logging
-
-            logging.getLogger(__name__).warning(
+            logger.warning(
                 f"Config key '{key}' removed but secret '{secret_name}' cleanup failed"
             )
-            raise
 
 
 # =============================================================================

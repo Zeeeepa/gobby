@@ -606,6 +606,8 @@ class ChatMixin:
         """
         conversation_id = data.get("conversation_id")
         decision = data.get("decision", "reject")
+        if decision not in ("approve", "reject", "approve_always"):
+            decision = "reject"
 
         session = self._chat_sessions.get(conversation_id) if conversation_id else None
         if session is None:
