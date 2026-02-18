@@ -39,10 +39,7 @@ export default function App() {
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [terminalOpen, setTerminalOpen] = useState(true)
   const [activeTab, setActiveTab] = useState<string>('chat')
-  const [sidebarPinned, setSidebarPinned] = useState(() => {
-    try { return localStorage.getItem('gobby-sidebar-pinned') === 'true' } catch { return false }
-  })
-  const [sidebarOpen, setSidebarOpen] = useState(sidebarPinned)
+  const [sidebarOpen, setSidebarOpen] = useState(false)
   const [selectedProjectId, setSelectedProjectId] = useState<string | null>(() => {
     try { return localStorage.getItem('gobby-chat-project') } catch { return null }
   })
@@ -247,7 +244,7 @@ export default function App() {
   ]
 
   return (
-    <div className={`app ${sidebarPinned ? 'sidebar-pinned' : ''}`}>
+    <div className="app">
       <header className="header">
         <div className="header-brand">
           <button
@@ -272,15 +269,8 @@ export default function App() {
         items={navItems}
         activeItem={activeTab}
         isOpen={sidebarOpen}
-        pinned={sidebarPinned}
         onItemSelect={setActiveTab}
         onClose={() => setSidebarOpen(false)}
-        onTogglePin={() => {
-          const next = !sidebarPinned
-          setSidebarPinned(next)
-          localStorage.setItem('gobby-sidebar-pinned', String(next))
-          if (next) setSidebarOpen(true)
-        }}
       />
 
       {activeTab === 'chat' ? (
