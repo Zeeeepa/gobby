@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react'
 import { cn } from '../../lib/utils'
 
 interface AgentStatusPanelProps {
-  agents: Array<{ run_id: string; provider: string; pid?: number; mode?: string }>
+  agents: Array<{ run_id: string; provider: string; pid?: number; mode?: string; started_at?: string }>
   selectedAgent: string | null
   onSelectAgent: (runId: string | null) => void
   onClose: () => void
@@ -61,12 +61,12 @@ function AgentRow({
   isSelected,
   onSelect,
 }: {
-  agent: { run_id: string; provider: string; pid?: number; mode?: string }
+  agent: { run_id: string; provider: string; pid?: number; mode?: string; started_at?: string }
   isSelected: boolean
   onSelect: () => void
 }) {
   const [uptime, setUptime] = useState('0s')
-  const [startTime] = useState(() => Date.now())
+  const startTime = agent.started_at ? new Date(agent.started_at).getTime() : Date.now()
 
   useEffect(() => {
     const interval = setInterval(() => {

@@ -40,7 +40,7 @@ export function MessageItem({ message, isStreaming = false, isThinking = false, 
             {message.role === 'user' ? 'You' : message.role === 'assistant' ? 'Gobby' : 'System'}
           </span>
           <span className="text-xs text-muted-foreground/60">
-            {message.timestamp.toLocaleTimeString()}
+            {message.timestamp instanceof Date ? message.timestamp.toLocaleTimeString() : ''}
           </span>
         </div>
 

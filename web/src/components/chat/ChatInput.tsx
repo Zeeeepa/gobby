@@ -55,6 +55,16 @@ export function ChatInput({
 
   const showPalette = input.startsWith('/') && filteredCommands.length > 0
 
+  // Revoke blob URLs on unmount to prevent memory leaks
+  useEffect(() => {
+    return () => {
+      queuedFiles.forEach((qf) => {
+        if (qf.previewUrl) URL.revokeObjectURL(qf.previewUrl)
+      })
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
   useEffect(() => {
     const textarea = textareaRef.current
     if (textarea) {
@@ -269,8 +279,8 @@ export function ChatInput({
             {isSpeechDetected ? (
               <>
                 <div className="flex gap-0.5 items-end h-4">
-                  {[1, 2, 3, 4].map((i) => (
-                    <span key={i} className="w-1 bg-green-400 rounded-full animate-pulse" style={{ height: `${8 + Math.random() * 8}px`, animationDelay: `${i * 0.1}s` }} />
+                  {[10, 14, 8, 12].map((h, i) => (
+                    <span key={i} className="w-1 bg-green-400 rounded-full animate-pulse" style={{ height: `${h}px`, animationDelay: `${i * 0.1}s` }} />
                   ))}
                 </div>
                 <span className="text-sm text-green-400">Listening...</span>
@@ -299,8 +309,8 @@ export function ChatInput({
             onClick={onStopSpeaking}
           >
             <div className="flex gap-0.5 items-end h-4">
-              {[1, 2, 3, 4].map((i) => (
-                <span key={i} className="w-1 bg-accent rounded-full animate-pulse" style={{ height: `${8 + Math.random() * 8}px`, animationDelay: `${i * 0.1}s` }} />
+              {[12, 8, 14, 10].map((h, i) => (
+                <span key={i} className="w-1 bg-accent rounded-full animate-pulse" style={{ height: `${h}px`, animationDelay: `${i * 0.1}s` }} />
               ))}
             </div>
             <span className="text-sm text-accent">Speaking... (click to stop)</span>

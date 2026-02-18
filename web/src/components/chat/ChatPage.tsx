@@ -35,7 +35,7 @@ export function ChatPage({ chat, conversations, agents, project, voice }: ChatPa
   }, [createArtifact])
 
   return (
-    <div className="flex h-full overflow-hidden" style={{ background: '#0a0a0a', color: '#e5e5e5' }}>
+    <div className="flex h-full overflow-hidden bg-background text-foreground">
       <ConversationPicker
         sessions={conversations.sessions}
         activeSessionId={conversations.activeSessionId}
