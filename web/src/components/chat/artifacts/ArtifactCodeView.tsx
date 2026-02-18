@@ -14,14 +14,16 @@ export function ArtifactCodeView({ content, language = 'text', onChange }: Artif
   return (
     <div className="flex flex-col h-full">
       <div className="flex items-center justify-end px-2 py-1 border-b border-border">
-        <Button
-          size="sm"
-          variant="ghost"
-          onClick={() => setIsEditing(!isEditing)}
-          className="text-xs"
-        >
-          {isEditing ? 'View' : 'Edit'}
-        </Button>
+        {onChange && (
+          <Button
+            size="sm"
+            variant="ghost"
+            onClick={() => setIsEditing(!isEditing)}
+            className="text-xs"
+          >
+            {isEditing ? 'View' : 'Edit'}
+          </Button>
+        )}
       </div>
       <div className="flex-1 min-h-0 overflow-auto">
         <CodeMirrorEditor

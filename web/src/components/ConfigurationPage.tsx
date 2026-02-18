@@ -16,8 +16,6 @@ type TabId = 'config' | 'secrets' | 'prompts' | 'template'
 
 const SECRET_PATTERNS = ['api_key', 'api_token', 'api_secret', 'password', 'access_token', 'auth_token', 'secret_key', 'secret', 'credentials', 'private_key', 'client_secret']
 
-const SECRET_MASK = '••••••••'
-
 function isSecretField(path: string, secretKeys: string[]): boolean {
   if (secretKeys.includes(path)) return true
   const last = path.split('.').pop() || ''
@@ -131,7 +129,8 @@ function SchemaField({ name, fieldSchema, value, onChange, path, secretKeys = []
 
   // Default: string input (password for secret fields)
   const secret = isSecretField(fullPath, secretKeys)
-  const isMasked = secret && value === '********'
+  const BACKEND_SECRET_MASK = '********'
+  const isMasked = secret && value === BACKEND_SECRET_MASK
   return (
     <div className="config-form-field">
       <label className="config-field-label">

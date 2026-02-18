@@ -37,7 +37,6 @@ export default function App() {
   const { filteredCommands, parseCommand, filterCommands } = useSlashCommands()
   const sessionsHook = useSessions()
   const [settingsOpen, setSettingsOpen] = useState(false)
-  const [terminalOpen, setTerminalOpen] = useState(true)
   const [activeTab, setActiveTab] = useState<string>('chat')
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [selectedProjectId, setSelectedProjectId] = useState<string | null>(() => {
@@ -235,7 +234,7 @@ export default function App() {
     { id: 'tasks', label: 'Tasks', icon: <TasksIcon /> },
     { id: 'agents', label: 'Agent Definitions', icon: <AgentsIcon /> },
     { id: 'workflows', label: 'Workflows', icon: <WorkflowsIcon /> },
-    { id: 'worktrees', label: 'Source Control', icon: <GitHubIcon /> },
+    { id: 'source-control', label: 'Source Control', icon: <GitHubIcon /> },
     { id: 'cron', label: 'Cron Jobs', icon: <CronIcon /> },
     { id: 'memory', label: 'Memory', icon: <MemoryIcon /> },
     { id: 'skills', label: 'Skills', icon: <SkillsIcon /> },
@@ -293,10 +292,6 @@ export default function App() {
             onNewChat: startNewChat,
             onSelectSession: handleSelectConversation,
             onDeleteSession: handleDeleteConversation,
-          }}
-          agents={{
-            isOpen: terminalOpen,
-            onToggle: () => setTerminalOpen(!terminalOpen),
             agents,
             selectedAgent,
             onSelectAgent: setSelectedAgent,
@@ -358,7 +353,7 @@ export default function App() {
         <WorkflowsPage />
       ) : activeTab === 'mcp' ? (
         <McpPage />
-      ) : activeTab === 'worktrees' ? (
+      ) : activeTab === 'source-control' ? (
         <GitHubPage />
       ) : activeTab === 'configuration' ? (
         <ConfigurationPage />

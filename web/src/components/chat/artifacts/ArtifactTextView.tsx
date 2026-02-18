@@ -26,7 +26,7 @@ export function ArtifactTextView({ content, artifactId }: ArtifactTextViewProps)
         {showSource ? (
           <pre className="text-sm font-mono text-foreground whitespace-pre-wrap">{content}</pre>
         ) : (
-          <div className="prose prose-invert prose-sm max-w-none">
+          <div className="prose dark:prose-invert prose-sm max-w-none">
             <Markdown content={content} id={`artifact-text-${artifactId}`} />
           </div>
         )}

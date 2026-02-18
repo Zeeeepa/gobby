@@ -63,6 +63,7 @@ export function GitHubPage() {
             className="sc-page__refresh-btn"
             onClick={sc.refresh}
             title="Refresh"
+            aria-label="Refresh"
           >
             <RefreshIcon />
           </button>
@@ -94,48 +95,57 @@ export function GitHubPage() {
       <div className="sc-page__content">
         {sc.isLoading && !sc.status ? (
           <div className="sc-page__loading">Loading...</div>
-        ) : activeTab === 'overview' ? (
-          <SourceControlOverview
-            status={sc.status}
-            prs={sc.prs}
-            worktrees={sc.worktrees}
-            ciRuns={sc.ciRuns}
-            onNavigate={setActiveTab}
-            fetchCommits={sc.fetchCommits}
-          />
-        ) : activeTab === 'branches' ? (
-          <BranchesView
-            branches={sc.branches}
-            currentBranch={sc.status?.current_branch || null}
-            fetchCommits={sc.fetchCommits}
-            fetchDiff={sc.fetchDiff}
-          />
-        ) : activeTab === 'prs' ? (
-          <PullRequestsView
-            prs={sc.prs}
-            githubAvailable={sc.status?.github_available || false}
-            fetchPrs={sc.fetchPrs}
-            fetchPrDetail={sc.fetchPrDetail}
-          />
-        ) : activeTab === 'worktrees' ? (
-          <WorktreesView
-            worktrees={sc.worktrees}
-            onDelete={sc.deleteWorktree}
-            onSync={sc.syncWorktree}
-            onCleanup={sc.cleanupWorktrees}
-          />
-        ) : activeTab === 'clones' ? (
-          <ClonesView
-            clones={sc.clones}
-            onDelete={sc.deleteClone}
-            onSync={sc.syncClone}
-          />
-        ) : activeTab === 'cicd' ? (
-          <CICDView
-            runs={sc.ciRuns}
-            githubAvailable={sc.status?.github_available || false}
-          />
-        ) : null}
+        ) : (
+          {
+            overview: (
+              <SourceControlOverview
+                status={sc.status}
+                prs={sc.prs}
+                worktrees={sc.worktrees}
+                ciRuns={sc.ciRuns}
+                onNavigate={setActiveTab}
+                fetchCommits={sc.fetchCommits}
+              />
+            ),
+            branches: (
+              <BranchesView
+                branches={sc.branches}
+                currentBranch={sc.status?.current_branch || null}
+                fetchCommits={sc.fetchCommits}
+                fetchDiff={sc.fetchDiff}
+              />
+            ),
+            prs: (
+              <PullRequestsView
+                prs={sc.prs}
+                githubAvailable={sc.status?.github_available || false}
+                fetchPrs={sc.fetchPrs}
+                fetchPrDetail={sc.fetchPrDetail}
+              />
+            ),
+            worktrees: (
+              <WorktreesView
+                worktrees={sc.worktrees}
+                onDelete={sc.deleteWorktree}
+                onSync={sc.syncWorktree}
+                onCleanup={sc.cleanupWorktrees}
+              />
+            ),
+            clones: (
+              <ClonesView
+                clones={sc.clones}
+                onDelete={sc.deleteClone}
+                onSync={sc.syncClone}
+              />
+            ),
+            cicd: (
+              <CICDView
+                runs={sc.ciRuns}
+                githubAvailable={sc.status?.github_available || false}
+              />
+            ),
+          }[activeTab] ?? null
+        )}
       </div>
     </main>
   )

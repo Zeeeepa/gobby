@@ -99,7 +99,7 @@ export function ChatInput({
   const handleFilesSelected = useCallback((files: FileList | null) => {
     if (!files) return
     Array.from(files).forEach((file) => {
-      const id = `file-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
+      const id = crypto.randomUUID()
       const isImage = file.type.startsWith('image/')
       const previewUrl = isImage ? URL.createObjectURL(file) : null
       const reader = new FileReader()
