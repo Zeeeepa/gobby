@@ -121,10 +121,10 @@ export function SourceControlOverview({ status, prs, worktrees, ciRuns, onNaviga
             </h4>
             <div className="sc-overview__list">
               {staleWorktrees.map((wt) => (
-                <div key={wt.id} className="sc-overview__stale-wt" onClick={() => onNavigate('worktrees')}>
+                <button type="button" key={wt.id} className="sc-overview__stale-wt" onClick={() => onNavigate('worktrees')}>
                   <span>{wt.branch_name}</span>
                   <StatusBadge status="stale" />
-                </div>
+                </button>
               ))}
             </div>
           </div>

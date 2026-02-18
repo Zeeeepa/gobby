@@ -1,4 +1,4 @@
-interface StatusBadgeProps {
+export interface StatusBadgeProps {
   status: string
   size?: 'sm' | 'md'
 }

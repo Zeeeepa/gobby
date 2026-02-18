@@ -43,6 +43,7 @@ export function ClonesView({ clones, onDelete, onSync }: Props) {
         <button
           className={`sc-filter-chip ${!statusFilter ? 'sc-filter-chip--active' : ''}`}
           onClick={() => setStatusFilter(null)}
+          aria-pressed={!statusFilter}
         >
           All ({clones.length})
         </button>
@@ -54,6 +55,7 @@ export function ClonesView({ clones, onDelete, onSync }: Props) {
               key={s}
               className={`sc-filter-chip ${statusFilter === s ? 'sc-filter-chip--active' : ''}`}
               onClick={() => setStatusFilter(statusFilter === s ? null : s)}
+              aria-pressed={statusFilter === s}
             >
               {s} ({count})
             </button>

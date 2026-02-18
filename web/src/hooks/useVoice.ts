@@ -103,7 +103,9 @@ export function useVoice(
   const vadRef = useRef<MicVAD | null>(null)
   const playbackQueueRef = useRef(new AudioPlaybackQueue())
 
-  // Stable refs for callbacks that change across renders
+  // Stable refs for callbacks that change across renders.
+  // We use a ref + immediate assignment pattern so that long-lived callbacks
+  // (e.g. VAD onSpeechEnd) always see the latest value without re-subscribing.
   const wsRefStable = useRef(wsRef)
   wsRefStable.current = wsRef
   const conversationIdRef = useRef(conversationId)

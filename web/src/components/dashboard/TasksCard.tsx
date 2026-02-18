@@ -63,7 +63,6 @@ export function TasksCard({ tasks }: Props) {
                   strokeWidth={STROKE}
                   strokeDasharray={`${ring.length} ${CIRCUMFERENCE - ring.length}`}
                   strokeDashoffset={-ring.offset}
-                  strokeLinecap="round"
                   transform={`rotate(-90 ${SIZE / 2} ${SIZE / 2})`}
                 />
               ) : null

@@ -76,7 +76,10 @@ export function PullRequestsView({ prs, githubAvailable, fetchPrs, fetchPrDetail
                     <StatusBadge status={pr.draft ? 'draft' : pr.state} />
                   </td>
                   <td className="sc-text-muted">
-                    {new Date(pr.updated_at).toLocaleDateString()}
+                    {(() => {
+                      const d = new Date(pr.updated_at)
+                      return isNaN(d.getTime()) ? '-' : d.toLocaleDateString()
+                    })()}
                   </td>
                 </tr>
               ))}
