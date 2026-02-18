@@ -53,14 +53,12 @@ export interface ConversationState {
   onDeleteSession?: (session: GobbySession) => void
 }
 
-export interface TerminalProps {
+export interface AgentPanelProps {
   isOpen: boolean
   onToggle: () => void
   agents: Array<{ run_id: string; provider: string; pid?: number; mode?: string }>
   selectedAgent: string | null
   onSelectAgent: (runId: string | null) => void
-  onInput: (runId: string, data: string) => void
-  onOutput: (callback: (runId: string, data: string) => void) => void
 }
 
 export interface ProjectProps {

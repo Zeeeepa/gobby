@@ -23,7 +23,7 @@ import { WorkflowsPage } from './components/WorkflowsPage'
 import { GitHubPage } from './components/GitHubPage'
 import { DashboardPage } from './components/DashboardPage'
 import { QuickCaptureTask } from './components/tasks/QuickCaptureTask'
-import { ChatV2Page } from './components/chat-v2/ChatV2Page'
+import { ChatPage } from './components/chat/ChatPage'
 import type { GobbySession } from './hooks/useSessions'
 
 const HIDDEN_PROJECTS = new Set(['_orphaned', '_migrated'])
@@ -32,7 +32,7 @@ export default function App() {
   const { messages, conversationId, isConnected, isStreaming, isThinking, sendMessage, stopStreaming, clearHistory, deleteConversation, executeCommand, respondToQuestion, switchConversation, startNewChat, wsRef, handleVoiceMessageRef } = useChat()
   const voice = useVoice(wsRef, conversationId)
   const { settings, modelInfo, modelsLoading, updateFontSize, updateModel, resetSettings } = useSettings()
-  const { agents, selectedAgent, setSelectedAgent, sendInput, onOutput } = useTerminal()
+  const { agents, selectedAgent, setSelectedAgent } = useTerminal()
   const tmux = useTmuxSessions()
   const { filteredCommands, parseCommand, filterCommands } = useSlashCommands()
   const sessionsHook = useSessions()
@@ -228,7 +228,7 @@ export default function App() {
 
   const navItems = [
     { id: 'dashboard', label: 'Dashboard', icon: <DashboardIcon /> },
-    { id: 'chat', label: 'Chat', icon: <ChatV2Icon /> },
+    { id: 'chat', label: 'Chat', icon: <ChatIcon /> },
     { id: 'sessions', label: 'Sessions', icon: <SessionsIcon /> },
     { id: 'terminals', label: 'Terminals', icon: <TerminalIcon /> },
     { id: 'projects', label: 'Projects', icon: <ProjectsIcon />, separator: true },
@@ -274,7 +274,7 @@ export default function App() {
       />
 
       {activeTab === 'chat' ? (
-        <ChatV2Page
+        <ChatPage
           chat={{
             messages,
             isStreaming,
@@ -294,14 +294,12 @@ export default function App() {
             onSelectSession: handleSelectConversation,
             onDeleteSession: handleDeleteConversation,
           }}
-          terminal={{
+          agents={{
             isOpen: terminalOpen,
             onToggle: () => setTerminalOpen(!terminalOpen),
             agents,
             selectedAgent,
             onSelectAgent: setSelectedAgent,
-            onInput: sendInput,
-            onOutput,
           }}
           project={{
             projects: projectOptions,
@@ -549,7 +547,7 @@ function McpIcon() {
   )
 }
 
-function ChatV2Icon() {
+function ChatIcon() {
   return (
     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
       <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />

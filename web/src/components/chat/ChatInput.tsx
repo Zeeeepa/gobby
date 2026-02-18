@@ -4,7 +4,7 @@ import type { CommandInfo } from '../../hooks/useSlashCommands'
 import { cn } from '../../lib/utils'
 import { Button } from './ui/Button'
 
-interface ChatV2InputProps {
+interface ChatInputProps {
   onSend: (message: string, files?: QueuedFile[]) => void
   onStop?: () => void
   isStreaming?: boolean
@@ -26,7 +26,7 @@ interface ChatV2InputProps {
   onStopSpeaking?: () => void
 }
 
-export function ChatV2Input({
+export function ChatInput({
   onSend,
   onStop,
   isStreaming = false,
@@ -46,7 +46,7 @@ export function ChatV2Input({
   voiceError,
   onToggleVoice,
   onStopSpeaking,
-}: ChatV2InputProps) {
+}: ChatInputProps) {
   const [input, setInput] = useState('')
   const [selectedIndex, setSelectedIndex] = useState(0)
   const [queuedFiles, setQueuedFiles] = useState<QueuedFile[]>([])
