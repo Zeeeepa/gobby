@@ -30,8 +30,9 @@ export function ArtifactPanel({ artifact, width, onClose, onUpdateContent, onSet
   }, [content])
 
   const handleDownload = useCallback(() => {
-    const ext = artifact.type === 'code' ? (artifact.language || 'txt') : artifact.type === 'sheet' ? 'csv' : 'txt'
-    const blob = new Blob([content], { type: 'text/plain' })
+    const ext = artifact.type === 'code' ? (artifact.language || 'txt') : artifact.type === 'image' ? 'png' : artifact.type === 'sheet' ? 'csv' : 'txt'
+    const mimeType = artifact.type === 'image' ? 'application/octet-stream' : 'text/plain'
+    const blob = new Blob([content], { type: mimeType })
     const url = URL.createObjectURL(blob)
     const a = document.createElement('a')
     a.href = url

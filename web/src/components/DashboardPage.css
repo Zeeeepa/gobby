@@ -263,10 +263,10 @@
   flex-shrink: 0;
 }
 
-.dash-health-dot--healthy { background: #22c55e; }
-.dash-health-dot--degraded { background: #f59e0b; }
-.dash-health-dot--unhealthy { background: #ef4444; }
-.dash-health-dot--unknown { background: #737373; }
+.dash-health-dot--healthy { background: var(--status-healthy, #22c55e); }
+.dash-health-dot--degraded { background: var(--status-degraded, #f59e0b); }
+.dash-health-dot--unhealthy { background: var(--status-unhealthy, #ef4444); }
+.dash-health-dot--unknown { background: var(--status-unknown, #737373); }
 
 .dash-health-name {
   flex: 1;
