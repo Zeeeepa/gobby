@@ -622,6 +622,8 @@ def create_sessions_router(server: "HTTPServer") -> APIRouter:
             provider = server.llm_service.get_default_provider()
             title = await provider.generate_text(llm_prompt)
             title = title.strip().strip('"').strip("'")
+            if not title:
+                title = "Untitled Session"
 
             server.session_manager.update_title(session_id, title)
 

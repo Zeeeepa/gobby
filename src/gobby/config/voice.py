@@ -42,18 +42,26 @@ class VoiceConfig(BaseModel):
     )
     elevenlabs_stability: float = Field(
         default=0.5,
+        ge=0.0,
+        le=1.0,
         description="ElevenLabs voice stability (0.0–1.0).",
     )
     elevenlabs_similarity_boost: float = Field(
         default=1.0,
+        ge=0.0,
+        le=1.0,
         description="ElevenLabs voice similarity boost (0.0–1.0).",
     )
     elevenlabs_style: float = Field(
         default=0.0,
+        ge=0.0,
+        le=1.0,
         description="ElevenLabs style exaggeration (0.0–1.0).",
     )
     elevenlabs_speed: float = Field(
         default=0.9,
+        ge=0.5,
+        le=2.0,
         description="ElevenLabs TTS speed (0.5–2.0).",
     )
     audio_format: str = Field(

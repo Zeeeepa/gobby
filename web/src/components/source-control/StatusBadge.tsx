@@ -25,7 +25,8 @@ const STATUS_COLORS: Record<string, { bg: string; color: string }> = {
 }
 
 export function StatusBadge({ status, size = 'sm' }: StatusBadgeProps) {
-  const colors = STATUS_COLORS[status] || { bg: '#1a1a2e', color: '#a3a3a3' }
+  const key = status?.toLowerCase() ?? ''
+  const colors = STATUS_COLORS[key] || { bg: '#1a1a2e', color: '#a3a3a3' }
   return (
     <span
       className={`sc-badge sc-badge--${size}`}

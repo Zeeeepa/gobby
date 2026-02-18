@@ -81,7 +81,12 @@ const highlighterTheme = {
 }
 
 function ToolResultContent({ call }: { call: ToolCall }) {
-  const resultStr = typeof call.result === 'string' ? call.result : JSON.stringify(call.result, null, 2)
+  let resultStr: string
+  try {
+    resultStr = typeof call.result === 'string' ? call.result : JSON.stringify(call.result, null, 2)
+  } catch {
+    resultStr = String(call.result)
+  }
   const filePath = call.arguments?.file_path as string | undefined
 
   if (filePath) {

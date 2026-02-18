@@ -12,7 +12,7 @@ import os
 import re
 from collections.abc import Callable
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal
 
 import yaml
 from pydantic import BaseModel, Field, field_validator
@@ -49,6 +49,31 @@ from gobby.config.tasks import CompactHandoffConfig, GobbyTasksConfig, WorkflowC
 from gobby.config.tmux import TmuxConfig
 from gobby.config.voice import VoiceConfig
 from gobby.config.watchdog import WatchdogConfig
+
+
+class ToolApprovalPolicy(BaseModel):
+    """A single tool approval policy matching server/tool glob patterns."""
+
+    server_pattern: str = Field(default="*", description="Glob pattern for server name")
+    tool_pattern: str = Field(default="*", description="Glob pattern for tool name")
+    policy: Literal["auto", "approve_once", "always_ask"] = Field(
+        default="always_ask",
+        description="Approval policy: 'auto', 'approve_once', or 'always_ask'",
+    )
+
+
+class ToolApprovalConfig(BaseModel):
+    """Configuration for tool approval UI in web chat."""
+
+    enabled: bool = Field(default=False, description="Enable tool approval prompts")
+    default_policy: Literal["auto", "approve_once", "always_ask"] = Field(
+        default="auto",
+        description="Default policy: 'auto' (no prompts), 'approve_once', or 'always_ask'",
+    )
+    policies: list[ToolApprovalPolicy] = Field(
+        default_factory=list,
+        description="Per-tool approval policies (server/tool glob patterns)",
+    )
 
 
 class UIConfig(BaseModel):
@@ -380,6 +405,10 @@ class DaemonConfig(BaseModel):
     voice: VoiceConfig = Field(
         default_factory=VoiceConfig,
         description="Voice chat configuration (STT + TTS)",
+    )
+    tool_approval: ToolApprovalConfig = Field(
+        default_factory=ToolApprovalConfig,
+        description="Tool approval UI configuration for web chat",
     )
 
     def get_recommend_tools_config(self) -> RecommendToolsConfig:

@@ -387,9 +387,7 @@ function PaperclipIcon() {
 function SpinnerIcon() {
   return (
     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="animate-spin">
-      <circle cx="12" cy="12" r="10" strokeDasharray="32" strokeDashoffset="32">
-        <animateTransform attributeName="transform" type="rotate" from="0 12 12" to="360 12 12" dur="1s" repeatCount="indefinite" />
-      </circle>
+      <circle cx="12" cy="12" r="10" strokeDasharray="32" strokeDashoffset="32" />
     </svg>
   )
 }

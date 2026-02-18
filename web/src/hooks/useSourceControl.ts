@@ -141,6 +141,8 @@ export function useSourceControl() {
         setError(null)
       }
     } catch (e) {
+      const message = e instanceof Error ? e.message : String(e)
+      setError(message)
       console.error('Failed to fetch source control status:', e)
     }
   }, [buildParams])

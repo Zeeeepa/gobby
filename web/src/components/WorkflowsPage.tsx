@@ -140,15 +140,21 @@ export function WorkflowsPage() {
   const handleYamlEdit = useCallback(async (wf: WorkflowDetail) => {
     setYamlLoading(true)
     setYamlEditorWf(wf)
-    const yamlStr = await exportYaml(wf.id)
-    setYamlContent(yamlStr || '')
-    setYamlLoading(false)
+    try {
+      const yamlStr = await exportYaml(wf.id)
+      setYamlContent(yamlStr || '')
+    } catch (e) {
+      console.error('Failed to export YAML:', e)
+      setYamlContent('')
+    } finally {
+      setYamlLoading(false)
+    }
   }, [exportYaml])
 
   const handleYamlSave = useCallback(async () => {
     if (!yamlEditorWf) return
-    const parsed = yaml.load(yamlContent) as Record<string, unknown>
-    if (!parsed || typeof parsed !== 'object') throw new Error('Invalid YAML')
+    const parsed = yaml.load(yamlContent, { schema: yaml.JSON_SCHEMA }) as Record<string, unknown>
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) throw new Error('Invalid YAML')
     await updateWorkflow(yamlEditorWf.id, {
       name: (parsed.name as string) || yamlEditorWf.name,
       description: (parsed.description as string) || undefined,

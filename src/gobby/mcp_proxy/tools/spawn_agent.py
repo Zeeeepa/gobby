@@ -556,7 +556,7 @@ async def spawn_agent_impl(
     # 12b. Create agent_runs DB record for non-in-process modes
     # The in-process path creates this via AgentRunner.prepare_run(), but
     # terminal/embedded/headless modes bypass that entirely.
-    if spawn_result.success and effective_mode != "self":
+    if spawn_result.success:
         try:
             runner.run_storage.create(
                 run_id=spawn_result.run_id,
@@ -569,6 +569,8 @@ async def spawn_agent_impl(
             )
         except Exception as e:
             logger.error(f"Failed to create agent_run DB record for {spawn_result.run_id}: {e}")
+            spawn_result.success = False
+            spawn_result.error = f"Agent spawned but DB record failed: {e}"
 
     # 13. Return response with isolation metadata
     if not spawn_result.success:

@@ -20,15 +20,21 @@ export function ClonesView({ clones, onDelete, onSync }: Props) {
 
   const handleDelete = async (id: string) => {
     setActionLoading(id)
-    await onDelete(id)
-    setActionLoading(null)
-    setConfirmDelete(null)
+    try {
+      await onDelete(id)
+    } finally {
+      setActionLoading(null)
+      setConfirmDelete(null)
+    }
   }
 
   const handleSync = async (id: string) => {
     setActionLoading(id)
-    await onSync(id)
-    setActionLoading(null)
+    try {
+      await onSync(id)
+    } finally {
+      setActionLoading(null)
+    }
   }
 
   return (

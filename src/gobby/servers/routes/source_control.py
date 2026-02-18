@@ -3,9 +3,10 @@
 from __future__ import annotations
 
 import logging
+import re
 import subprocess  # nosec B404 - subprocess needed for git operations
 import time
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, cast
 
 from fastapi import APIRouter, HTTPException
 
@@ -21,24 +22,37 @@ logger = logging.getLogger(__name__)
 _cache: dict[str, tuple[float, Any]] = {}
 _GITHUB_TTL = 30.0
 _GIT_TTL = 10.0
+_MAX_CACHE_SIZE = 256
+
+# Strict regex for git ref names — blocks shell metacharacters and traversal
+_GIT_REF_RE = re.compile(r"^[a-zA-Z0-9._/\-]+$")
 
 
-def _get_cached(key: str, ttl: float) -> Any | None:
+def _validate_git_ref(ref: str, param_name: str = "ref") -> None:
+    """Validate a git ref name against injection attacks."""
+    if not ref or ".." in ref or ref.startswith("-") or not _GIT_REF_RE.match(ref):
+        raise HTTPException(400, f"Invalid git ref for {param_name}: {ref!r}")
+
+
+def _get_cached(key: str, ttl: float) -> dict[str, Any] | None:
     """Get a cached value if still valid."""
     entry = _cache.get(key)
     if entry and (time.time() - entry[0]) < ttl:
-        return entry[1]
+        return cast(dict[str, Any], entry[1])
     return None
 
 
 def _set_cached(key: str, value: Any) -> None:
     """Store a value in cache."""
+    if len(_cache) >= _MAX_CACHE_SIZE:
+        # Evict oldest entries
+        oldest = sorted(_cache, key=lambda k: _cache[k][0])[: _MAX_CACHE_SIZE // 4]
+        for k in oldest:
+            del _cache[k]
     _cache[key] = (time.time(), value)
 
 
-def _run_git(
-    args: list[str], cwd: str, timeout: int = 10
-) -> subprocess.CompletedProcess[str]:
+def _run_git(args: list[str], cwd: str, timeout: int = 10) -> subprocess.CompletedProcess[str]:
     """Run a git command and return result."""
     return subprocess.run(  # nosec B603, B607
         ["git", *args],
@@ -56,9 +70,7 @@ def _get_project_manager(server: HTTPServer) -> LocalProjectManager:
     return LocalProjectManager(server.session_manager.db)
 
 
-def _resolve_project(
-    server: HTTPServer, project_id: str | None
-) -> tuple[str | None, str | None]:
+def _resolve_project(server: HTTPServer, project_id: str | None) -> tuple[str | None, str | None]:
     """Resolve project_id to (repo_path, github_repo).
 
     When project_id is None, falls back to the first project with a repo_path.
@@ -88,9 +100,7 @@ def _get_github(server: HTTPServer) -> GitHubIntegration | None:
     return None
 
 
-async def _call_github_mcp(
-    server: HTTPServer, tool_name: str, arguments: dict[str, Any]
-) -> Any:
+async def _call_github_mcp(server: HTTPServer, tool_name: str, arguments: dict[str, Any]) -> Any:
     """Call a tool on the GitHub MCP server."""
     if not server.services.mcp_manager:
         raise HTTPException(503, "MCP manager not available")
@@ -151,9 +161,7 @@ def create_source_control_router(server: HTTPServer) -> APIRouter:
         worktree_count = 0
         clone_count = 0
         if server.services.worktree_storage:
-            wts = server.services.worktree_storage.list_worktrees(
-                project_id=project_id
-            )
+            wts = server.services.worktree_storage.list_worktrees(project_id=project_id)
             worktree_count = len(wts)
         if server.services.clone_storage:
             cls = server.services.clone_storage.list_clones(project_id=project_id)
@@ -211,25 +219,19 @@ def create_source_control_router(server: HTTPServer) -> APIRouter:
                     behind = 0
                     if "[ahead " in track:
                         try:
-                            ahead = int(
-                                track.split("[ahead ")[1].split("]")[0].split(",")[0]
-                            )
+                            ahead = int(track.split("[ahead ")[1].split("]")[0].split(",")[0])
                         except (ValueError, IndexError):
                             pass
                     if "behind " in track:
                         try:
-                            behind = int(
-                                track.split("behind ")[1].split("]")[0]
-                            )
+                            behind = int(track.split("behind ")[1].split("]")[0])
                         except (ValueError, IndexError):
                             pass
 
                     # Check if branch has a worktree
                     worktree_id = None
                     if server.services.worktree_storage and project_id:
-                        wt = server.services.worktree_storage.get_by_branch(
-                            project_id, name
-                        )
+                        wt = server.services.worktree_storage.get_by_branch(project_id, name)
                         if wt:
                             worktree_id = wt.id
 
@@ -264,11 +266,7 @@ def create_source_control_router(server: HTTPServer) -> APIRouter:
                     full_name = parts[0]
                     date = parts[1] if len(parts) > 1 else ""
                     # Strip origin/ prefix
-                    short = (
-                        full_name[7:]
-                        if full_name.startswith("origin/")
-                        else full_name
-                    )
+                    short = full_name[7:] if full_name.startswith("origin/") else full_name
                     if short == "HEAD" or short in local_names:
                         continue
                     branches.append(
@@ -297,6 +295,7 @@ def create_source_control_router(server: HTTPServer) -> APIRouter:
         limit: int = 20,
     ) -> dict[str, Any]:
         """List recent commits on a branch."""
+        _validate_git_ref(branch_name, "branch_name")
         repo_path, _ = _resolve_project(server, project_id)
         if not repo_path:
             return {"commits": []}
@@ -340,6 +339,8 @@ def create_source_control_router(server: HTTPServer) -> APIRouter:
         project_id: str | None = None,
     ) -> dict[str, Any]:
         """Get diff between two refs."""
+        _validate_git_ref(base, "base")
+        _validate_git_ref(head, "head")
         repo_path, _ = _resolve_project(server, project_id)
         if not repo_path:
             raise HTTPException(400, "No repository path for project")
@@ -371,16 +372,12 @@ def create_source_control_router(server: HTTPServer) -> APIRouter:
                         continue
                     parts = line.split("\t", 1)
                     if len(parts) == 2:
-                        files.append(
-                            {"status": parts[0], "path": parts[1]}
-                        )
+                        files.append({"status": parts[0], "path": parts[1]})
 
             return {
                 "diff_stat": stat_r.stdout if stat_r.returncode == 0 else "",
                 "files": files,
-                "patch": patch_r.stdout[:100000]
-                if patch_r.returncode == 0
-                else "",
+                "patch": patch_r.stdout[:100000] if patch_r.returncode == 0 else "",
             }
         except subprocess.TimeoutExpired:
             raise HTTPException(504, "Diff computation timed out") from None
@@ -522,7 +519,11 @@ def create_source_control_router(server: HTTPServer) -> APIRouter:
                 {"owner": owner, "repo": repo, "per_page": min(limit, 100)},
             )
             runs = []
-            workflow_runs = data.get("workflow_runs", []) if isinstance(data, dict) else (data if isinstance(data, list) else [])
+            workflow_runs = (
+                data.get("workflow_runs", [])
+                if isinstance(data, dict)
+                else (data if isinstance(data, list) else [])
+            )
             for run in workflow_runs:
                 runs.append(
                     {
@@ -554,9 +555,7 @@ def create_source_control_router(server: HTTPServer) -> APIRouter:
         if not server.services.worktree_storage:
             return {"worktrees": []}
 
-        wts = server.services.worktree_storage.list_worktrees(
-            project_id=project_id, status=status
-        )
+        wts = server.services.worktree_storage.list_worktrees(project_id=project_id, status=status)
         return {"worktrees": [wt.to_dict() for wt in wts]}
 
     @router.get("/worktrees/stats")
@@ -590,9 +589,7 @@ def create_source_control_router(server: HTTPServer) -> APIRouter:
                 git_mgr = None
 
             if git_mgr is None and server.services.git_manager:
-                result = server.services.git_manager.delete_worktree(
-                    wt.worktree_path, force=True
-                )
+                result = server.services.git_manager.delete_worktree(wt.worktree_path, force=True)
                 if not result.success:
                     logger.warning(f"Git worktree deletion failed: {result.message}")
 

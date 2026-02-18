@@ -172,8 +172,8 @@ class ConfigStore:
     def clear_secret(self, key: str, secret_store: SecretStore) -> None:
         """Remove a secret from both config_store and the secrets table."""
         secret_name = config_key_to_secret_name(key)
-        secret_store.delete(secret_name)
         self.db.execute("DELETE FROM config_store WHERE key = ?", (key,))
+        secret_store.delete(secret_name)
 
 
 # =============================================================================

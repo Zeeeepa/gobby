@@ -20,10 +20,16 @@ export function BranchDetail({ branchName, currentBranch, fetchCommits, fetchDif
     setLoading(true)
     setDiff(null)
     setShowDiff(false)
-    fetchCommits(branchName, 20).then((c) => {
-      setCommits(c)
-      setLoading(false)
-    })
+    fetchCommits(branchName, 20)
+      .then((c) => {
+        setCommits(c)
+      })
+      .catch((e) => {
+        console.error('Failed to fetch commits:', e)
+      })
+      .finally(() => {
+        setLoading(false)
+      })
   }, [branchName, fetchCommits])
 
   const handleViewDiff = async () => {

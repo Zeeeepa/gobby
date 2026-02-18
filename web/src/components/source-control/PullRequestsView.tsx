@@ -23,6 +23,7 @@ export function PullRequestsView({ prs, githubAvailable, fetchPrs, fetchPrDetail
 
   const handleFilterChange = (f: PrFilter) => {
     setFilter(f)
+    setSelectedPr(null)
     fetchPrs(f === 'all' ? 'all' : f)
   }
 

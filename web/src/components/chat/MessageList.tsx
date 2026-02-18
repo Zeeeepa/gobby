@@ -16,7 +16,10 @@ export function MessageList({ messages, isStreaming, isThinking, onRespondToQues
   useEffect(() => {
     const el = scrollRef.current
     if (el) {
-      el.scrollTop = el.scrollHeight
+      const distanceFromBottom = el.scrollHeight - el.scrollTop - el.clientHeight
+      if (distanceFromBottom < 100) {
+        el.scrollTop = el.scrollHeight
+      }
     }
   }, [messages, isThinking])
 

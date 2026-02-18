@@ -933,7 +933,7 @@ def _migrate_memory_ids_to_uuid5(db: LocalDatabase) -> None:
             old_id = row["id"]
             content = row["content"]
             normalized = content.strip() if content else ""
-            new_id = str(uuid.uuid5(_MEMORY_UUID_NAMESPACE, normalized))
+            new_id = str(uuid.uuid5(_MEMORY_UUID_NAMESPACE, normalized)) if normalized else old_id
 
             # Update primary table
             conn.execute("UPDATE memories SET id = ? WHERE id = ?", (new_id, old_id))
