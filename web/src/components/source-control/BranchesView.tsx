@@ -48,7 +48,7 @@ export function BranchesView({ branches, currentBranch, fetchCommits, fetchDiff 
                 </td>
                 <td>
                   {b.worktree_id && (
-                    <span className="sc-badge sc-badge--sm" style={{ background: '#1e1b4b', color: '#a78bfa' }}>
+                    <span className="sc-badge sc-badge--sm sc-badge--worktree">
                       worktree
                     </span>
                   )}
