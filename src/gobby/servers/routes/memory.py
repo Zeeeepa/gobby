@@ -221,6 +221,40 @@ def create_memory_router(server: "HTTPServer") -> APIRouter:
             logger.error(f"Failed to rebuild crossrefs: {e}")
             raise HTTPException(status_code=500, detail=str(e)) from e
 
+    @router.post("/graph/rebuild")
+    async def rebuild_knowledge_graph(
+        project_id: str | None = Query(None, description="Filter by project ID"),
+    ) -> dict[str, Any]:
+        """Extract entities from all existing memories into the knowledge graph."""
+        metrics.inc_counter("http_requests_total")
+        try:
+            kg = server.memory_manager.kg_service
+            if not kg:
+                raise HTTPException(
+                    status_code=400,
+                    detail="KnowledgeGraphService not initialized (requires Neo4j + LLM)",
+                )
+            memories = server.memory_manager.list_memories(project_id=project_id, limit=500)
+            entities_total = 0
+            errors = 0
+            for memory in memories:
+                try:
+                    await kg.add_to_graph(memory.content)
+                    entities_total += 1
+                except Exception as e:
+                    logger.warning(f"KG extraction failed for {memory.id}: {e}")
+                    errors += 1
+            return {
+                "memories_processed": entities_total + errors,
+                "memories_extracted": entities_total,
+                "errors": errors,
+            }
+        except HTTPException:
+            raise
+        except Exception as e:
+            logger.error(f"Failed to rebuild knowledge graph: {e}")
+            raise HTTPException(status_code=500, detail=str(e)) from e
+
     @router.get("/{memory_id}")
     def get_memory(memory_id: str) -> Any:
         """Get a specific memory by ID."""
