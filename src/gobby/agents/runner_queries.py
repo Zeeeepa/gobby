@@ -61,7 +61,7 @@ def cancel_run(runner: AgentRunner, run_id: str) -> bool:
     run = runner._run_storage.get(run_id)
     if not run:
         return False
-    if run.status != "running":
+    if run.status not in ("pending", "running"):
         return False
 
     runner._run_storage.cancel(run_id)
