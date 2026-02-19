@@ -3,7 +3,6 @@ import ForceGraph2D from 'react-force-graph-2d'
 import type { GobbyMemory, MemoryGraphData } from '../hooks/useMemory'
 
 interface MemoryGraphProps {
-  memories: GobbyMemory[]
   fetchGraphData: (memoryLimit?: number) => Promise<MemoryGraphData | null>
   onSelect: (memory: GobbyMemory) => void
   memoryLimit?: number

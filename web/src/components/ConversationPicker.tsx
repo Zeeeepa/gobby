@@ -180,10 +180,13 @@ export function ConversationPicker({
 }
 
 function AgentUptime({ startedAt }: { startedAt?: string }) {
-  const startTime = useMemo(
-    () => startedAt ? new Date(startedAt).getTime() : Date.now(),
-    [startedAt]
-  )
+  const startTime = useMemo(() => {
+    if (startedAt) {
+      const t = new Date(startedAt).getTime()
+      if (!Number.isNaN(t)) return t
+    }
+    return Date.now()
+  }, [startedAt])
   const [uptime, setUptime] = useState('0s')
 
   useEffect(() => {

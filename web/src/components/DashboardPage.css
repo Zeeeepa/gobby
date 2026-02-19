@@ -350,7 +350,7 @@
   align-items: center;
   justify-content: center;
   padding: 40px;
-  color: #ef4444;
+  color: var(--destructive, #ef4444);
   font-size: 13px;
 }
 

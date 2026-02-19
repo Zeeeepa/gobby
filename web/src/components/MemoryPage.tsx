@@ -340,7 +340,6 @@ export function MemoryPage() {
           </KnowledgeGraphErrorBoundary>
         ) : viewMode === 'graph' ? (
           <MemoryGraph
-            memories={filteredMemories}
             fetchGraphData={fetchGraphData}
             onSelect={handleSelect}
             memoryLimit={memoryGraphLimit}

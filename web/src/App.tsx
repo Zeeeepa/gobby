@@ -82,7 +82,7 @@ export default function App() {
       }
     }
     wasStreamingRef.current = isStreaming
-  }, [isStreaming, conversationId, sessionsHook])
+  }, [isStreaming, conversationId, sessionsHook.sessions, sessionsHook.refresh])
 
   // Reset title synthesis counter on conversation switch
   useEffect(() => {
