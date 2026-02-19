@@ -13,6 +13,29 @@ logger = logging.getLogger(__name__)
 _background_tasks: set[asyncio.Task[None]] = set()
 
 
+async def cleanup_background_tasks() -> None:
+    """Cancel and await all background pipeline tasks.
+
+    Called during daemon shutdown to ensure no fire-and-forget tasks
+    are left dangling.
+    """
+    if not _background_tasks:
+        return
+
+    tasks = list(_background_tasks)
+    logger.info(f"Cancelling {len(tasks)} background pipeline task(s)")
+
+    for task in tasks:
+        task.cancel()
+
+    results = await asyncio.gather(*tasks, return_exceptions=True)
+    for task, result in zip(tasks, results, strict=True):
+        if isinstance(result, Exception) and not isinstance(result, asyncio.CancelledError):
+            logger.warning(f"Pipeline task {task.get_name()} raised during shutdown: {result}")
+
+    _background_tasks.clear()
+
+
 class PipelineLoader(Protocol):
     async def load_pipeline(self, name: str) -> Any: ...
 

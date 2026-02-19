@@ -841,6 +841,16 @@ class GobbyRunner:
                 except (asyncio.CancelledError, TimeoutError):
                     logger.warning("WebSocket server shutdown timed out or cancelled")
 
+            # Cancel background pipeline tasks
+            try:
+                from gobby.mcp_proxy.tools.pipelines._execution import cleanup_background_tasks
+
+                await asyncio.wait_for(cleanup_background_tasks(), timeout=5.0)
+            except TimeoutError:
+                logger.warning("Pipeline background tasks cleanup timed out")
+            except Exception as e:
+                logger.warning(f"Pipeline background tasks cleanup failed: {e}")
+
             # Cancel metrics cleanup task
             if self._metrics_cleanup_task and not self._metrics_cleanup_task.done():
                 self._metrics_cleanup_task.cancel()
