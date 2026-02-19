@@ -93,7 +93,7 @@ export function ClonesView({ clones, onDelete, onSync }: Props) {
                 <div className="sc-card__field">
                   <span className="sc-card__label">Created</span>
                   <span className="sc-card__value sc-text-muted">
-                    {new Date(clone.created_at).toLocaleDateString()}
+                    {(() => { const d = new Date(clone.created_at); return isNaN(d.getTime()) ? '-' : d.toLocaleDateString() })()}
                   </span>
                 </div>
               </div>

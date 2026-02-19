@@ -1,5 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 
+const SHOW_MODES = ['embedded', 'tmux', 'terminal']
+
 interface WebSocketMessage {
   type: string
   [key: string]: unknown
@@ -66,9 +68,8 @@ export function useTerminal() {
         .then(r => r.json())
         .then(data => {
           if (data.agents) {
-            const showModes = ['embedded', 'tmux', 'terminal']
             setAgents(data.agents
-              .filter((a: RunningAgent) => showModes.includes(a.mode))
+              .filter((a: RunningAgent) => SHOW_MODES.includes(a.mode))
               .map((a: RunningAgent) => ({
                 run_id: a.run_id,
                 session_id: a.session_id,
@@ -80,7 +81,7 @@ export function useTerminal() {
               })))
           }
         })
-        .catch(() => {}) // Non-fatal
+        .catch((e) => console.debug('Failed to fetch running agents:', e))
     }
 
     ws.onclose = () => {
@@ -116,8 +117,7 @@ export function useTerminal() {
 
   // Handle agent lifecycle events
   const handleAgentEvent = useCallback((event: AgentEventMessage) => {
-    const showModes = ['embedded', 'tmux', 'terminal']
-    if (event.event === 'agent_started' && showModes.includes(event.mode || '')) {
+    if (event.event === 'agent_started' && SHOW_MODES.includes(event.mode || '')) {
       // Add new agent (embedded or tmux)
       setAgents(prev => {
         const exists = prev.some(a => a.run_id === event.run_id)

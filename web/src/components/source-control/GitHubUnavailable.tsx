@@ -1,4 +1,4 @@
-export function GitHubUnavailable() {
+export function GitHubUnavailable(): JSX.Element {
   return (
     <div className="sc-unavailable">
       <div className="sc-unavailable__icon">

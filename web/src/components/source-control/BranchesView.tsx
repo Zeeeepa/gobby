@@ -71,6 +71,15 @@ export function BranchesView({ branches, currentBranch, fetchCommits, fetchDiff 
             </button>
             {showRemote && (
               <table className="sc-table sc-table--remote">
+                <thead>
+                  <tr>
+                    <th>Branch</th>
+                    <th>Status</th>
+                    <th />
+                    <th />
+                    <th>Last Commit</th>
+                  </tr>
+                </thead>
                 <tbody>
                   {remoteBranches.map((b) => (
                     <tr

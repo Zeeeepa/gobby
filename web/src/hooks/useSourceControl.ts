@@ -278,8 +278,8 @@ export function useSourceControl() {
           method: 'DELETE',
         })
         if (r.ok) {
-          fetchWorktrees()
-          fetchStatus()
+          await fetchWorktrees()
+          await fetchStatus()
           return true
         }
       } catch (e) {
@@ -341,8 +341,8 @@ export function useSourceControl() {
           method: 'DELETE',
         })
         if (r.ok) {
-          fetchClones()
-          fetchStatus()
+          await fetchClones()
+          await fetchStatus()
           return true
         }
       } catch (e) {
