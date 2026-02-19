@@ -7,7 +7,6 @@ from __future__ import annotations
 
 import json
 import logging
-import warnings
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -129,18 +128,6 @@ async def discover_workflows(
     # Cache and return
     loader._discovery_cache[cache_key] = _CachedDiscovery(results=sorted_workflows)
     return sorted_workflows
-
-
-async def discover_lifecycle_workflows(
-    loader: WorkflowLoader, project_path: Path | str | None = None
-) -> list[DiscoveredWorkflow]:
-    """Deprecated: use discover_workflows() instead."""
-    warnings.warn(
-        "discover_lifecycle_workflows() is deprecated, use discover_workflows() instead.",
-        DeprecationWarning,
-        stacklevel=2,
-    )
-    return await discover_workflows(loader, project_path)
 
 
 async def discover_pipeline_workflows(

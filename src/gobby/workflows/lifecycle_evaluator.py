@@ -623,7 +623,7 @@ async def evaluate_all_lifecycle_workflows(
     project_path = event.cwd or (event.data.get("cwd") if event.data else None)
 
     # Discover all lifecycle workflows
-    workflows = await loader.discover_lifecycle_workflows(project_path)
+    workflows = await loader.discover_workflows(project_path)
 
     if not workflows:
         logger.debug("No lifecycle workflows discovered")

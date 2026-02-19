@@ -52,36 +52,21 @@ class TestSessionLifecycleUnifiedFormat:
         assert "require_task_before_edit" in v
         assert "require_uv" in v
 
-
-class TestHeadlessLifecycleUnifiedFormat:
-    """Tests for headless-lifecycle.yaml unified format fields."""
+    @pytest.mark.asyncio
+    async def test_sources_include_sdk(self, db_loader: WorkflowLoader) -> None:
+        """session-lifecycle.yaml sources include SDK sources (merged from headless-lifecycle)."""
+        definition = await db_loader.load_workflow("session-lifecycle")
+        assert definition is not None
+        assert "claude_sdk" in definition.sources
+        assert "claude_sdk_web_chat" in definition.sources
 
     @pytest.mark.asyncio
-    async def test_loads_with_enabled_true(self, db_loader: WorkflowLoader) -> None:
-        """headless-lifecycle.yaml loads with enabled=True."""
-        definition = await db_loader.load_workflow("headless-lifecycle")
+    async def test_session_initialized_variable(self, db_loader: WorkflowLoader) -> None:
+        """session-lifecycle.yaml has _session_initialized guard variable."""
+        definition = await db_loader.load_workflow("session-lifecycle")
         assert definition is not None
-        assert definition.enabled is True
-
-    @pytest.mark.asyncio
-    async def test_loads_with_priority_10(self, db_loader: WorkflowLoader) -> None:
-        """headless-lifecycle.yaml loads with priority=10."""
-        definition = await db_loader.load_workflow("headless-lifecycle")
-        assert definition is not None
-        assert definition.priority == 10
-
-    @pytest.mark.asyncio
-    async def test_session_variables_contains_shared_state(
-        self, db_loader: WorkflowLoader
-    ) -> None:
-        """headless-lifecycle.yaml session_variables contains shared state."""
-        definition = await db_loader.load_workflow("headless-lifecycle")
-        assert definition is not None
-        sv = definition.session_variables
-        assert "unlocked_tools" in sv
-        assert "servers_listed" in sv
-        assert "pre_existing_errors_triaged" in sv
-        assert "stop_attempts" in sv
+        assert "_session_initialized" in definition.variables
+        assert definition.variables["_session_initialized"] is False
 
 
 class TestLifecycleBackwardCompat:
