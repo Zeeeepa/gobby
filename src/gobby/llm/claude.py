@@ -243,6 +243,7 @@ class ClaudeLLMProvider(LLMProvider):
             max_turns=1,
             model=self.config.session_summary.model,
             allowed_tools=[],
+            mcp_servers={},
             permission_mode="default",
             cli_path=cli_path,
         )
@@ -330,6 +331,7 @@ class ClaudeLLMProvider(LLMProvider):
             max_turns=1,
             model=self.config.title_synthesis.model,
             allowed_tools=[],
+            mcp_servers={},
             permission_mode="default",
             cli_path=cli_path,
         )
@@ -439,6 +441,7 @@ class ClaudeLLMProvider(LLMProvider):
             model=model or "claude-sonnet-4-6",
             tools=[],  # Explicitly disable all tools
             allowed_tools=[],
+            mcp_servers={},
             permission_mode="default",
             cli_path=cli_path,
         )
@@ -889,6 +892,7 @@ class ClaudeLLMProvider(LLMProvider):
             model="claude-haiku-4-5",
             tools=[],
             allowed_tools=[],
+            mcp_servers={},
             permission_mode="default",
             cli_path=cli_path,
         )
