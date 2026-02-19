@@ -595,30 +595,25 @@ def create_source_control_router(server: HTTPServer) -> APIRouter:
         if server.services.git_manager:
             from gobby.worktrees.git import WorktreeGitManager
 
+            # Determine the best git manager: project-scoped or fallback
+            git_mgr = None
             try:
-                # WorktreeGitManager expects the repo root, not the worktree path
                 repo_path, _ = _resolve_project(server, wt.project_id)
                 if repo_path:
                     git_mgr = WorktreeGitManager(repo_path)
-                    result = git_mgr.delete_worktree(wt.worktree_path, force=True)
-                    if not result.success:
-                        logger.warning(f"Git worktree deletion failed: {result.message}")
-                else:
-                    result = server.services.git_manager.delete_worktree(
-                        wt.worktree_path, force=True
-                    )
-                    if not result.success:
-                        logger.warning(f"Git worktree deletion failed (fallback): {result.message}")
-            except ValueError:
-                # WorktreeGitManager couldn't init — fall back to server git_manager
-                result = server.services.git_manager.delete_worktree(wt.worktree_path, force=True)
+            except (ValueError, OSError):
+                pass
+
+            target = git_mgr or server.services.git_manager
+            try:
+                result = target.delete_worktree(wt.worktree_path, force=True)
                 if not result.success:
-                    logger.warning(f"Git worktree deletion failed (fallback): {result.message}")
+                    logger.warning(f"Git worktree deletion failed: {result.message}")
+            except Exception:
+                logger.warning("Git worktree deletion raised an exception", exc_info=True)
 
         # Delete DB record (even if git deletion had warnings)
-        git_deleted = True
-        if server.services.git_manager and result is not None:
-            git_deleted = result.success
+        git_deleted = result.success if result is not None else True
 
         deleted = server.services.worktree_storage.delete(worktree_id)
         response: dict[str, Any] = {
