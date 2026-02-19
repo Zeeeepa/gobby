@@ -29,7 +29,7 @@ import type { GobbySession } from './hooks/useSessions'
 const HIDDEN_PROJECTS = new Set(['_orphaned', '_migrated'])
 
 export default function App() {
-  const { messages, conversationId, isConnected, isStreaming, isThinking, sendMessage, sendMode, stopStreaming, clearHistory, deleteConversation, executeCommand, respondToQuestion, switchConversation, startNewChat, wsRef, handleVoiceMessageRef } = useChat()
+  const { messages, conversationId, isConnected, isStreaming, isThinking, sendMessage, sendMode, sendProjectChange, stopStreaming, clearHistory, deleteConversation, executeCommand, respondToQuestion, switchConversation, startNewChat, wsRef, handleVoiceMessageRef } = useChat()
   const voice = useVoice(wsRef, conversationId)
   const { settings, modelInfo, modelsLoading, updateFontSize, updateModel, updateChatMode, resetSettings } = useSettings()
   const { agents } = useTerminal()
@@ -153,6 +153,16 @@ export default function App() {
       else localStorage.removeItem('gobby-chat-project')
     } catch { /* noop */ }
   }, [selectedProjectId])
+
+  // Notify backend when the effective project changes so it restarts the
+  // CLI subprocess with the correct CWD.
+  const prevProjectRef = useRef<string | null>(null)
+  useEffect(() => {
+    if (effectiveProjectId && prevProjectRef.current !== null && effectiveProjectId !== prevProjectRef.current) {
+      sendProjectChange(effectiveProjectId)
+    }
+    prevProjectRef.current = effectiveProjectId ?? null
+  }, [effectiveProjectId, sendProjectChange])
 
   // Web-chat sessions only (for ConversationPicker in ChatPage)
   const webChatSessions = useMemo(

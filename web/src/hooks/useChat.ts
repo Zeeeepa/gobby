@@ -671,6 +671,17 @@ export function useChat() {
     }))
   }, [])
 
+  // Notify backend that the project changed — stops the CLI subprocess
+  // so the next chat_message recreates it with the correct CWD.
+  const sendProjectChange = useCallback((projectId: string) => {
+    if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) return
+    wsRef.current.send(JSON.stringify({
+      type: 'set_project',
+      project_id: projectId,
+      conversation_id: conversationIdRef.current,
+    }))
+  }, [])
+
   // Send a message (allowed even while streaming — cancels the active stream)
   const sendMessage = useCallback((content: string, model?: string | null, files?: QueuedFile[], projectId?: string | null): boolean => {
     console.log('sendMessage called:', content, 'model:', model, 'files:', files?.length)
@@ -813,6 +824,7 @@ export function useChat() {
     isThinking,
     sendMessage,
     sendMode,
+    sendProjectChange,
     stopStreaming,
     clearHistory,
     deleteConversation,
