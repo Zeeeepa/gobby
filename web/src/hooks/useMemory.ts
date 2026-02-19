@@ -6,6 +6,10 @@ function normalizeTags(tags: unknown): string[] | null {
   return null
 }
 
+function normalizeImportance(value: unknown): number {
+  return typeof value === 'number' ? value : 0.5
+}
+
 export interface MemoryCrossRef {
   source_id: string
   target_id: string
@@ -115,7 +119,7 @@ export function useMemory() {
         const data = await response.json()
         const items = (data.memories || []).map((m: Record<string, unknown>) => ({
           ...m,
-          importance: typeof m.importance === 'number' ? m.importance : 0.5,
+          importance: normalizeImportance(m.importance),
           tags: normalizeTags(m.tags),
         })) as GobbyMemory[]
         setMemories(items)
@@ -300,7 +304,7 @@ export function useMemory() {
         return {
           memories: (data.memories || []).map((m: Record<string, unknown>) => ({
             ...m,
-            importance: typeof m.importance === 'number' ? m.importance : 0.5,
+            importance: normalizeImportance(m.importance),
             tags: normalizeTags(m.tags),
           })) as GobbyMemory[],
           crossrefs: data.crossrefs || [],

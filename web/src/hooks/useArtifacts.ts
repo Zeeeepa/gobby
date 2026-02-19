@@ -7,12 +7,16 @@ function loadPanelWidth(): number {
   try {
     const stored = localStorage.getItem(PANEL_WIDTH_KEY)
     if (stored) return Math.max(300, Math.min(800, parseInt(stored, 10)))
-  } catch {}
+  } catch (e) {
+    if (process.env.NODE_ENV === 'development') console.warn(`Failed to load ${PANEL_WIDTH_KEY}:`, e)
+  }
   return 480
 }
 
 function savePanelWidth(width: number): void {
-  try { localStorage.setItem(PANEL_WIDTH_KEY, String(width)) } catch {}
+  try { localStorage.setItem(PANEL_WIDTH_KEY, String(width)) } catch (e) {
+    if (process.env.NODE_ENV === 'development') console.warn(`Failed to save ${PANEL_WIDTH_KEY}:`, e)
+  }
 }
 
 export function useArtifacts() {

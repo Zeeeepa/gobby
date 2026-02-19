@@ -49,10 +49,10 @@ export function TasksCard({ tasks }: Props) {
               strokeWidth={STROKE}
             />
             {/* Data segments */}
-            {rings.map((ring, i) =>
+            {rings.map((ring) =>
               ring.length > 0 ? (
                 <circle
-                  key={i}
+                  key={ring.color}
                   cx={SIZE / 2}
                   cy={SIZE / 2}
                   r={RADIUS}

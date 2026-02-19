@@ -103,7 +103,12 @@ export function ChatInput({
 
   const handleFilesSelected = useCallback((files: FileList | null) => {
     if (!files) return
+    const MAX_FILE_SIZE_BYTES = 5 * 1024 * 1024 // 5 MB
     Array.from(files).forEach((file) => {
+      if (file.size > MAX_FILE_SIZE_BYTES) {
+        console.warn(`File "${file.name}" exceeds ${MAX_FILE_SIZE_BYTES / 1024 / 1024}MB limit, skipping`)
+        return
+      }
       const id = crypto.randomUUID()
       const isImage = file.type.startsWith('image/')
       const previewUrl = isImage ? URL.createObjectURL(file) : null

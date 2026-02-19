@@ -60,6 +60,13 @@ export function SessionsCard({ sessions }: Props) {
                 <span className="dash-bar-label-value">{sessions[key]}</span>
               </div>
             ))}
+            {other > 0 && (
+              <div className="dash-bar-label">
+                <span className="dash-bar-label-dot" style={{ background: '#737373' }} />
+                <span className="dash-bar-label-text">Other</span>
+                <span className="dash-bar-label-value">{other}</span>
+              </div>
+            )}
           </div>
         </div>
       </div>

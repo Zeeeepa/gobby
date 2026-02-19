@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react'
+import { useEffect, useMemo, useRef } from 'react'
 import type { ChatMessage } from '../../types/chat'
 import { ScrollArea } from './ui/ScrollArea'
 import { MessageItem } from './MessageItem'
@@ -16,11 +16,11 @@ export function MessageList({ messages, isStreaming, isThinking, onRespondToQues
 
   // Compute a fingerprint that changes when messages are added OR mutated
   // (e.g. tool_status updates that modify toolCalls on existing messages)
-  const messageFingerprint = messages.reduce((acc, m) => {
+  const messageFingerprint = useMemo(() => messages.reduce((acc, m) => {
     const toolCount = m.toolCalls?.length ?? 0
     const lastStatus = m.toolCalls?.[toolCount - 1]?.status ?? ''
     return acc + m.id + ':' + toolCount + ':' + lastStatus + '|'
-  }, '')
+  }, ''), [messages])
 
   // Track whether user has manually scrolled away from bottom
   useEffect(() => {

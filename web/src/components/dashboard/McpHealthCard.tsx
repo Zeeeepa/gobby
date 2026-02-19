@@ -4,14 +4,10 @@ interface Props {
   mcpServers: AdminStatus['mcp_servers']
 }
 
-const HEALTH_CLASSES: Record<string, string> = {
-  healthy: 'healthy',
-  degraded: 'degraded',
-  unhealthy: 'unhealthy',
-}
+const VALID_HEALTH = new Set(['healthy', 'degraded', 'unhealthy'])
 
 function healthClass(health: string | null): string {
-  return (health && HEALTH_CLASSES[health]) || 'unknown'
+  return (health && VALID_HEALTH.has(health)) ? health : 'unknown'
 }
 
 export function McpHealthCard({ mcpServers }: Props) {
