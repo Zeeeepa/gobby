@@ -59,7 +59,7 @@ def create_canvas_registry(
 ```
 
 Three tools:
-- `render_canvas(content: str, canvas_id: str = "", title: str = "", blocking: bool = True)` — Sanitize HTML server-side (optional), store `CanvasState`, broadcast `canvas_event` with `event: "rendered"`, if blocking wait on `asyncio.Event` (600s timeout), return `{canvas_id, interaction: {action, payload, form_data}}` or `{canvas_id, status: "rendered"}` for non-blocking
+- `render_canvas(content: str, canvas_id: str = "", title: str = "", blocking: bool = True, timeout: int = 600)` — Sanitize HTML server-side (**mandatory** — strip `<script>`, `on*` handlers, `javascript:` URIs via server-side allowlist before storage), validate raw byte size against `MAX_CANVAS_SIZE`, store `CanvasState`, broadcast `canvas_event` with `event: "rendered"`, if blocking wait on `asyncio.Event` (configurable `timeout` in seconds, default 600, clamped to 1–3600), return `{canvas_id, interaction: {action, payload, form_data}}` or `{canvas_id, status: "rendered"}` for non-blocking
 - `update_canvas(canvas_id: str, content: str, mode: str = "replace")` — Update stored content, broadcast `canvas_event` with `event: "updated"`, return immediately
 - `clear_canvas(canvas_id: str)` — Remove canvas state, broadcast `event: "cleared"`
 
@@ -87,7 +87,7 @@ MAX_CANVAS_SIZE = 64 * 1024  # 64KB HTML content limit
 MAX_RENDER_RATE = 10  # renders per minute per conversation
 ```
 
-Enforce in `render_canvas`: reject with error if conversation exceeds `MAX_CANVASES_PER_CONVERSATION`, content exceeds `MAX_CANVAS_SIZE`, or rate limit hit. Periodic cleanup: a background task (or lazy sweep on next `render_canvas`) removes expired canvases where `completed=True` or `datetime.now() > expires_at`.
+Enforce in `render_canvas` **before sanitization**: check `len(content.encode('utf-8'))` against `MAX_CANVAS_SIZE` to reject oversized payloads early (before expensive sanitization). Then reject if conversation exceeds `MAX_CANVASES_PER_CONVERSATION` or rate limit hit. Background sweeper: register an `asyncio.create_task` on startup that runs every 60s to remove expired canvases (`completed=True` or `datetime.now() > expires_at`). Lazy sweep on `render_canvas` as a fallback if the background task isn't running.
 
 Expose a `resolve_interaction(canvas_id, action, payload, form_data)` method on the registry that the WebSocket handler can call to unblock.
 
@@ -134,6 +134,13 @@ async def _handle_canvas_interaction(self, websocket: Any, data: dict[str, Any])
         await self._send_error(websocket, "Canvas system not available")
         return
 
+    # Ownership check: verify the canvas belongs to this conversation
+    conversation_id = data.get("conversation_id")
+    canvas_state = canvas_registry.get_canvas(canvas_id)
+    if canvas_state and canvas_state.conversation_id != conversation_id:
+        await self._send_error(websocket, "Canvas does not belong to this conversation")
+        return
+
     try:
         canvas_registry.resolve_interaction(canvas_id, action, payload, form_data)
     except KeyError:
@@ -170,7 +177,19 @@ const ALLOWED_ATTRS = [
   'rows', 'cols', 'min', 'max', 'step', 'pattern', 'required',
 ]
 
-export function sanitizeCanvasHtml(html: string): string { ... }
+// Strip dangerous CSS properties (position, z-index, etc.) and validate URI schemes
+const FORBIDDEN_CSS_PROPERTIES = ['position', 'z-index', 'opacity', 'pointer-events', 'cursor']
+const ALLOWED_URI_SCHEMES = ['http:', 'https:', 'data:']
+
+export function sanitizeCanvasHtml(html: string): string {
+  const clean = DOMPurify.sanitize(html, {
+    ALLOWED_TAGS, ALLOWED_ATTR: ALLOWED_ATTRS,
+    ALLOWED_URI_REGEXP: /^(?:https?|data):/i,
+  })
+  // Post-process: strip forbidden CSS properties from inline styles
+  // Validate that href/src use allowed schemes only
+  ...
+}
 ```
 
 **New: `web/src/components/CanvasRenderer.tsx`** — Renders sanitized HTML with event delegation
@@ -189,6 +208,8 @@ Key behaviors:
 - `dangerouslySetInnerHTML` with DOMPurify-sanitized content
 - Delegated click handler on container: walk up DOM from `e.target` to find closest `[data-action]`, with max traversal depth (20 levels) to prevent pathological DOM structures from hanging the handler
 - Null-check `e.target` and verify it's within the container before traversal
+- **Client-side throttling**: Debounce interaction callbacks (300ms) to prevent rapid-fire clicks from flooding the WebSocket
+- **Payload-size validation**: Reject `data-payload` values exceeding 16KB before parsing
 - For `<form data-action="...">`: intercept submit, gather all named inputs
 - For `<select data-action="...">`: intercept change events
 - Parse `data-payload` with try/catch around `JSON.parse` — reject malformed JSON and log a warning rather than crashing the handler
@@ -225,15 +246,29 @@ const respondToCanvas = useCallback((
     console.warn('Canvas interaction dropped: WebSocket not connected')
     return
   }
+  // Validate conversationId is set before sending
+  const convId = conversationIdRef.current
+  if (!convId) {
+    console.warn('Canvas interaction dropped: no active conversation')
+    return
+  }
   // Optimistic UI: immediately mark canvas as completed locally
   updateCanvasStatus(canvasId, 'completed')
+  // Auto-revert after 5s if no server confirmation received
+  const revertTimeout = setTimeout(() => {
+    updateCanvasStatus(canvasId, 'active')
+    console.warn(`Canvas ${canvasId} interaction not confirmed, reverting`)
+  }, 5000)
   try {
     ws.send(JSON.stringify({
       type: 'canvas_interaction',
-      conversation_id: conversationIdRef.current,
+      conversation_id: convId,
       canvas_id: canvasId, action, payload, form_data: formData,
     }))
+    // Clear revert timeout on successful send (server confirmation
+    // handled via canvas_event message)
   } catch (e) {
+    clearTimeout(revertTimeout)
     // Revert optimistic update on send failure
     updateCanvasStatus(canvasId, 'active')
     console.error('Failed to send canvas interaction:', e)
@@ -248,7 +283,7 @@ Handle `canvas_event` messages for live updates to existing canvases.
 ### Phase 2: Live Updates + Side Panel
 
 - `update_canvas` broadcasts partial updates; frontend patches DOM by `canvas_id`
-- Non-blocking canvases: interactions injected as synthetic user messages instead of unblocking events
+- Non-blocking canvases: interactions injected as synthetic user messages instead of unblocking events. **Synthetic messages must be tagged with `{ source: 'canvas', canvas_id, metadata: { action, timestamp } }` to distinguish them from real user input.** Payloads must be sanitized (strip HTML, limit length) and rate-limited (max 1 synthetic message per canvas per second)
 - `CanvasPanel.tsx` — collapsible side panel (follows `TerminalPanel` pattern in `ChatPage.tsx`) for expanded/multi-canvas view
 
 ### Phase 3: Persistence + Templates
@@ -267,8 +302,8 @@ Handle `canvas_event` messages for live updates to existing canvases.
 </form>
 ```
 
-- `data-action` — declares this element triggers an interaction
-- `data-payload` — JSON string sent with the action. **Must be valid JSON.** The frontend parses with `JSON.parse` inside a try/catch; malformed values are ignored with a console warning. Agents should use `JSON.stringify()` to produce this value, never string concatenation, to prevent injection via crafted payloads
+- `data-action` — declares this element triggers an interaction. **Values must match `VALID_ACTION_PATTERN = /^[a-zA-Z][a-zA-Z0-9_-]{0,63}$/`** (alphanumeric + hyphens/underscores, 1-64 chars, starts with letter). The frontend rejects actions that don't match and logs a warning. This prevents injection of arbitrary strings as action names
+- `data-payload` — JSON string sent with the action. **Must be valid JSON.** The frontend parses with `JSON.parse` inside a try/catch; malformed values are ignored with a console warning. Maximum 16KB. Agents should use `JSON.stringify()` to produce this value, never string concatenation, to prevent injection via crafted payloads
 - `data-element-id` — for targeted updates via `update_canvas`
 
 ## Files Summary
@@ -294,6 +329,22 @@ Handle `canvas_event` messages for live updates to existing canvases.
 | `web/src/hooks/useChat.ts` | Add `respondToCanvas` + `canvas_event` handler |
 | `web/package.json` | Add `dompurify` dependency |
 
+## Audit Logging
+
+All canvas lifecycle events should be logged with structured fields for observability and debugging:
+
+```python
+logger.info("canvas_rendered", extra={
+    "canvas_id": canvas_id, "conversation_id": conversation_id,
+    "content_size": len(content), "blocking": blocking,
+})
+logger.info("canvas_interaction", extra={
+    "canvas_id": canvas_id, "action": action,
+    "conversation_id": conversation_id,
+})
+logger.info("canvas_expired", extra={"canvas_id": canvas_id})
+```
+
 ## Verification
 
 1. **Unit tests**: `tests/tools/test_canvas.py` — test render_canvas creates state, resolve_interaction unblocks, timeout returns error, clear_canvas cleans up
@@ -303,5 +354,7 @@ Handle `canvas_event` messages for live updates to existing canvases.
    - Button is clickable
    - Click sends `canvas_interaction` via WebSocket
    - Agent receives interaction result and continues
-4. **Security**: Verify `<script>alert(1)</script>` is stripped, `onclick` handlers are stripped, `javascript:` URIs are stripped
+4. **Security tests**: Verify `<script>alert(1)</script>` is stripped, `onclick` handlers are stripped, `javascript:` URIs are stripped, dangerous CSS properties (`position: fixed`, `z-index`) are removed, oversized content is rejected, invalid `data-action` values are rejected
 5. **Cross-CLI**: From a terminal Claude Code session, call `render_canvas` via MCP. Verify web UI shows the canvas and interaction flows back
+6. **Concurrency tests**: Verify concurrent `render_canvas` calls from the same conversation respect `MAX_CANVASES_PER_CONVERSATION`, concurrent interactions on the same canvas are handled (first wins, second gets error), and the background sweeper correctly cleans up expired canvases under load
+7. **Ownership tests**: Verify a canvas interaction from a different `conversation_id` is rejected
