@@ -361,7 +361,25 @@ export function useChat() {
 
     setMessages((prev) => {
       const idx = prev.findIndex((m) => m.id === status.message_id)
-      if (idx < 0) return prev
+      if (idx < 0) {
+        // Tool status arrived before any text/thinking — create the message
+        const newCall: ToolCall = {
+          id: status.tool_call_id,
+          tool_name: status.tool_name || 'unknown',
+          server_name: status.server_name || 'builtin',
+          status: status.status,
+          arguments: status.arguments,
+          result: status.result,
+          error: status.error,
+        }
+        return [...prev, {
+          id: status.message_id,
+          role: 'assistant' as const,
+          content: '',
+          timestamp: new Date(),
+          toolCalls: [newCall],
+        }]
+      }
 
       const updated = [...prev]
       const toolCalls = [...(updated[idx].toolCalls || [])]

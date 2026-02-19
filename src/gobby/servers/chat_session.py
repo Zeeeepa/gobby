@@ -658,11 +658,27 @@ class ChatSession:
                             for block in message.content:
                                 if isinstance(block, ToolResultBlock):
                                     is_error = getattr(block, "is_error", False)
+                                    # Serialize content safely — it can be str,
+                                    # list of content blocks, or other types
+                                    raw = block.content
+                                    if isinstance(raw, str):
+                                        content_str = raw
+                                    elif isinstance(raw, list):
+                                        parts = []
+                                        for item in raw:
+                                            text = getattr(item, "text", None)
+                                            if text is not None:
+                                                parts.append(text)
+                                            else:
+                                                parts.append(str(item))
+                                        content_str = "\n".join(parts)
+                                    else:
+                                        content_str = str(raw) if raw is not None else ""
                                     yield ToolResultEvent(
                                         tool_call_id=block.tool_use_id,
                                         success=not is_error,
-                                        result=block.content if not is_error else None,
-                                        error=str(block.content) if is_error else None,
+                                        result=content_str if not is_error else None,
+                                        error=content_str if is_error else None,
                                     )
                                     needs_spacing_before_text = True
 
