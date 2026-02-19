@@ -10,6 +10,7 @@ via the downstream proxy pattern (call_tool, list_tools, get_tool_schema).
 """
 
 import logging
+from collections.abc import Callable
 from typing import TYPE_CHECKING, Any
 
 from gobby.mcp_proxy.tools.internal import InternalToolRegistry
@@ -71,8 +72,8 @@ def _resolve_session_ref(ref: str, session_manager: LocalSessionManager | None) 
 
 def create_pipelines_registry(
     loader: Any | None = None,
-    executor: Any | None = None,
-    execution_manager: Any | None = None,
+    executor_getter: Callable[[], Any | None] | None = None,
+    execution_manager_getter: Callable[[], Any | None] | None = None,
     db: DatabaseProtocol | None = None,
     session_manager: LocalSessionManager | None = None,
 ) -> InternalToolRegistry:
@@ -81,8 +82,10 @@ def create_pipelines_registry(
 
     Args:
         loader: WorkflowLoader instance for discovering pipelines
-        executor: PipelineExecutor instance for running pipelines
-        execution_manager: LocalPipelineExecutionManager for tracking executions
+        executor_getter: Callable returning PipelineExecutor (or None) at call time.
+            Resolved lazily so the registry can be created before the executor exists.
+        execution_manager_getter: Callable returning LocalPipelineExecutionManager
+            (or None) at call time. Resolved lazily like executor_getter.
         db: Database instance for definition CRUD operations
         session_manager: Session manager for resolving session references
 
@@ -90,8 +93,8 @@ def create_pipelines_registry(
         InternalToolRegistry with pipeline tools registered
     """
     _loader = loader
-    _executor = executor
-    _execution_manager = execution_manager
+    _get_executor = executor_getter or (lambda: None)
+    _get_execution_manager = execution_manager_getter or (lambda: None)
     _def_manager = LocalWorkflowDefinitionManager(db) if db is not None else None
 
     def _resolve_session(ref: str) -> str:
@@ -104,7 +107,7 @@ def create_pipelines_registry(
     )
 
     # Register dynamic tools for pipelines with expose_as_tool=True
-    _register_exposed_pipeline_tools(registry, _loader, _executor, session_manager)
+    _register_exposed_pipeline_tools(registry, _loader, _get_executor, session_manager)
 
     @registry.tool(
         name="list_pipelines",
@@ -190,7 +193,7 @@ def create_pipelines_registry(
 
         return await run_pipeline(
             loader=_loader,
-            executor=_executor,
+            executor=_get_executor(),
             name=name,
             inputs=inputs or {},
             project_id=project_id,
@@ -206,7 +209,7 @@ def create_pipelines_registry(
         approved_by: str | None = None,
     ) -> dict[str, Any]:
         return await approve_pipeline(
-            executor=_executor,
+            executor=_get_executor(),
             token=token,
             approved_by=approved_by,
         )
@@ -220,7 +223,7 @@ def create_pipelines_registry(
         rejected_by: str | None = None,
     ) -> dict[str, Any]:
         return await reject_pipeline(
-            executor=_executor,
+            executor=_get_executor(),
             token=token,
             rejected_by=rejected_by,
         )
@@ -233,7 +236,7 @@ def create_pipelines_registry(
         execution_id: str,
     ) -> dict[str, Any]:
         return get_pipeline_status(
-            execution_manager=_execution_manager,
+            execution_manager=_get_execution_manager(),
             execution_id=execution_id,
         )
 
@@ -338,7 +341,7 @@ def create_pipelines_registry(
 def _register_exposed_pipeline_tools(
     registry: InternalToolRegistry,
     loader: Any | None,
-    executor: Any | None,
+    executor_getter: Callable[[], Any | None],
     session_manager: LocalSessionManager | None = None,
 ) -> None:
     """
@@ -349,7 +352,7 @@ def _register_exposed_pipeline_tools(
     Args:
         registry: The registry to add tools to
         loader: WorkflowLoader for discovering pipelines
-        executor: PipelineExecutor for running pipelines
+        executor_getter: Callable returning PipelineExecutor at call time
         session_manager: Session manager for resolving session references
     """
     if loader is None:
@@ -369,14 +372,14 @@ def _register_exposed_pipeline_tools(
         if not getattr(pipeline, "expose_as_tool", False):
             continue
 
-        _create_pipeline_tool(registry, pipeline, loader, executor, session_manager)
+        _create_pipeline_tool(registry, pipeline, loader, executor_getter, session_manager)
 
 
 def _create_pipeline_tool(
     registry: InternalToolRegistry,
     pipeline: Any,
     loader: Any,
-    executor: Any | None,
+    executor_getter: Callable[[], Any | None],
     session_manager: LocalSessionManager | None = None,
 ) -> None:
     """
@@ -386,7 +389,7 @@ def _create_pipeline_tool(
         registry: The registry to add the tool to
         pipeline: The PipelineDefinition to expose
         loader: WorkflowLoader for loading pipelines
-        executor: PipelineExecutor for running pipelines
+        executor_getter: Callable returning PipelineExecutor at call time
         session_manager: Session manager for resolving session references
     """
     tool_name = f"pipeline:{pipeline.name}"
@@ -418,7 +421,7 @@ def _create_pipeline_tool(
 
         return await run_pipeline(
             loader=loader,
-            executor=executor,
+            executor=executor_getter(),
             name=pipeline_name,
             inputs=kwargs,
             project_id=project_id,

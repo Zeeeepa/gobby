@@ -61,8 +61,8 @@ class TestCreatePipelinesRegistry:
 
         registry = create_pipelines_registry(
             loader=mock_loader,
-            executor=mock_executor,
-            execution_manager=mock_execution_manager,
+            executor_getter=lambda: mock_executor,
+            execution_manager_getter=lambda: mock_execution_manager,
         )
 
         assert isinstance(registry, InternalToolRegistry)
@@ -75,8 +75,8 @@ class TestCreatePipelinesRegistry:
 
         registry = create_pipelines_registry(
             loader=mock_loader,
-            executor=mock_executor,
-            execution_manager=mock_execution_manager,
+            executor_getter=lambda: mock_executor,
+            execution_manager_getter=lambda: mock_execution_manager,
         )
 
         tools = registry.list_tools()
@@ -90,8 +90,8 @@ class TestCreatePipelinesRegistry:
 
         registry = create_pipelines_registry(
             loader=mock_loader,
-            executor=mock_executor,
-            execution_manager=mock_execution_manager,
+            executor_getter=lambda: mock_executor,
+            execution_manager_getter=lambda: mock_execution_manager,
         )
 
         assert registry.name == "gobby-pipelines"
@@ -111,8 +111,8 @@ class TestListPipelinesTool:
 
         registry = create_pipelines_registry(
             loader=mock_loader,
-            executor=mock_executor,
-            execution_manager=mock_execution_manager,
+            executor_getter=lambda: mock_executor,
+            execution_manager_getter=lambda: mock_execution_manager,
         )
 
         # Reset mock after registry creation (which also calls discover for dynamic tools)
@@ -163,8 +163,8 @@ class TestListPipelinesTool:
 
         registry = create_pipelines_registry(
             loader=mock_loader,
-            executor=mock_executor,
-            execution_manager=mock_execution_manager,
+            executor_getter=lambda: mock_executor,
+            execution_manager_getter=lambda: mock_execution_manager,
         )
 
         result = await registry.call("list_pipelines", {})
@@ -208,8 +208,8 @@ class TestListPipelinesTool:
 
         registry = create_pipelines_registry(
             loader=mock_loader,
-            executor=mock_executor,
-            execution_manager=mock_execution_manager,
+            executor_getter=lambda: mock_executor,
+            execution_manager_getter=lambda: mock_execution_manager,
         )
 
         result = await registry.call("list_pipelines", {})
@@ -227,8 +227,8 @@ class TestListPipelinesTool:
 
         registry = create_pipelines_registry(
             loader=mock_loader,
-            executor=mock_executor,
-            execution_manager=mock_execution_manager,
+            executor_getter=lambda: mock_executor,
+            execution_manager_getter=lambda: mock_execution_manager,
         )
 
         # Reset mock after registry creation (which also calls discover for dynamic tools)
@@ -249,8 +249,8 @@ class TestListPipelinesTool:
 
         registry = create_pipelines_registry(
             loader=mock_loader,
-            executor=mock_executor,
-            execution_manager=mock_execution_manager,
+            executor_getter=lambda: mock_executor,
+            execution_manager_getter=lambda: mock_execution_manager,
         )
 
         result = await registry.call("list_pipelines", {})
@@ -270,8 +270,8 @@ class TestRunPipelineTool:
 
         registry = create_pipelines_registry(
             loader=mock_loader,
-            executor=mock_executor,
-            execution_manager=mock_execution_manager,
+            executor_getter=lambda: mock_executor,
+            execution_manager_getter=lambda: mock_execution_manager,
         )
 
         tools = registry.list_tools()
@@ -309,8 +309,8 @@ class TestRunPipelineTool:
 
         registry = create_pipelines_registry(
             loader=mock_loader,
-            executor=mock_executor,
-            execution_manager=mock_execution_manager,
+            executor_getter=lambda: mock_executor,
+            execution_manager_getter=lambda: mock_execution_manager,
         )
 
         await registry.call(
@@ -338,8 +338,8 @@ class TestRunPipelineTool:
 
         registry = create_pipelines_registry(
             loader=mock_loader,
-            executor=mock_executor,
-            execution_manager=mock_execution_manager,
+            executor_getter=lambda: mock_executor,
+            execution_manager_getter=lambda: mock_execution_manager,
         )
 
         result = await registry.call(
@@ -371,8 +371,8 @@ class TestRunPipelineTool:
 
         registry = create_pipelines_registry(
             loader=mock_loader,
-            executor=mock_executor,
-            execution_manager=mock_execution_manager,
+            executor_getter=lambda: mock_executor,
+            execution_manager_getter=lambda: mock_execution_manager,
         )
 
         result = await registry.call(
@@ -417,8 +417,8 @@ class TestRunPipelineTool:
 
         registry = create_pipelines_registry(
             loader=mock_loader,
-            executor=mock_executor,
-            execution_manager=mock_execution_manager,
+            executor_getter=lambda: mock_executor,
+            execution_manager_getter=lambda: mock_execution_manager,
         )
 
         result = await registry.call(
@@ -441,8 +441,8 @@ class TestRunPipelineTool:
 
         registry = create_pipelines_registry(
             loader=mock_loader,
-            executor=mock_executor,
-            execution_manager=mock_execution_manager,
+            executor_getter=lambda: mock_executor,
+            execution_manager_getter=lambda: mock_execution_manager,
         )
 
         result = await registry.call(
@@ -475,8 +475,8 @@ class TestRunPipelineTool:
 
         registry = create_pipelines_registry(
             loader=mock_loader,
-            executor=mock_executor,
-            execution_manager=mock_execution_manager,
+            executor_getter=lambda: mock_executor,
+            execution_manager_getter=lambda: mock_execution_manager,
         )
 
         result = await registry.call(
@@ -498,8 +498,8 @@ class TestRunPipelineTool:
 
         registry = create_pipelines_registry(
             loader=mock_loader,
-            executor=None,
-            execution_manager=mock_execution_manager,
+            executor_getter=lambda: None,
+            execution_manager_getter=lambda: mock_execution_manager,
         )
 
         result = await registry.call(
@@ -522,8 +522,8 @@ class TestApprovePipelineTool:
 
         registry = create_pipelines_registry(
             loader=mock_loader,
-            executor=mock_executor,
-            execution_manager=mock_execution_manager,
+            executor_getter=lambda: mock_executor,
+            execution_manager_getter=lambda: mock_execution_manager,
         )
 
         tools = registry.list_tools()
@@ -553,8 +553,8 @@ class TestApprovePipelineTool:
 
         registry = create_pipelines_registry(
             loader=mock_loader,
-            executor=mock_executor,
-            execution_manager=mock_execution_manager,
+            executor_getter=lambda: mock_executor,
+            execution_manager_getter=lambda: mock_execution_manager,
         )
 
         await registry.call(
@@ -590,8 +590,8 @@ class TestApprovePipelineTool:
 
         registry = create_pipelines_registry(
             loader=mock_loader,
-            executor=mock_executor,
-            execution_manager=mock_execution_manager,
+            executor_getter=lambda: mock_executor,
+            execution_manager_getter=lambda: mock_execution_manager,
         )
 
         result = await registry.call(
@@ -616,8 +616,8 @@ class TestApprovePipelineTool:
 
         registry = create_pipelines_registry(
             loader=mock_loader,
-            executor=mock_executor,
-            execution_manager=mock_execution_manager,
+            executor_getter=lambda: mock_executor,
+            execution_manager_getter=lambda: mock_execution_manager,
         )
 
         result = await registry.call(
@@ -635,8 +635,8 @@ class TestApprovePipelineTool:
 
         registry = create_pipelines_registry(
             loader=mock_loader,
-            executor=None,
-            execution_manager=mock_execution_manager,
+            executor_getter=lambda: None,
+            execution_manager_getter=lambda: mock_execution_manager,
         )
 
         result = await registry.call(
@@ -659,8 +659,8 @@ class TestRejectPipelineTool:
 
         registry = create_pipelines_registry(
             loader=mock_loader,
-            executor=mock_executor,
-            execution_manager=mock_execution_manager,
+            executor_getter=lambda: mock_executor,
+            execution_manager_getter=lambda: mock_execution_manager,
         )
 
         tools = registry.list_tools()
@@ -690,8 +690,8 @@ class TestRejectPipelineTool:
 
         registry = create_pipelines_registry(
             loader=mock_loader,
-            executor=mock_executor,
-            execution_manager=mock_execution_manager,
+            executor_getter=lambda: mock_executor,
+            execution_manager_getter=lambda: mock_execution_manager,
         )
 
         await registry.call(
@@ -726,8 +726,8 @@ class TestRejectPipelineTool:
 
         registry = create_pipelines_registry(
             loader=mock_loader,
-            executor=mock_executor,
-            execution_manager=mock_execution_manager,
+            executor_getter=lambda: mock_executor,
+            execution_manager_getter=lambda: mock_execution_manager,
         )
 
         result = await registry.call(
@@ -752,8 +752,8 @@ class TestRejectPipelineTool:
 
         registry = create_pipelines_registry(
             loader=mock_loader,
-            executor=mock_executor,
-            execution_manager=mock_execution_manager,
+            executor_getter=lambda: mock_executor,
+            execution_manager_getter=lambda: mock_execution_manager,
         )
 
         result = await registry.call(
@@ -771,8 +771,8 @@ class TestRejectPipelineTool:
 
         registry = create_pipelines_registry(
             loader=mock_loader,
-            executor=None,
-            execution_manager=mock_execution_manager,
+            executor_getter=lambda: None,
+            execution_manager_getter=lambda: mock_execution_manager,
         )
 
         result = await registry.call(
@@ -795,8 +795,8 @@ class TestGetPipelineStatusTool:
 
         registry = create_pipelines_registry(
             loader=mock_loader,
-            executor=mock_executor,
-            execution_manager=mock_execution_manager,
+            executor_getter=lambda: mock_executor,
+            execution_manager_getter=lambda: mock_execution_manager,
         )
 
         tools = registry.list_tools()
@@ -826,8 +826,8 @@ class TestGetPipelineStatusTool:
 
         registry = create_pipelines_registry(
             loader=mock_loader,
-            executor=mock_executor,
-            execution_manager=mock_execution_manager,
+            executor_getter=lambda: mock_executor,
+            execution_manager_getter=lambda: mock_execution_manager,
         )
 
         result = await registry.call(
@@ -882,8 +882,8 @@ class TestGetPipelineStatusTool:
 
         registry = create_pipelines_registry(
             loader=mock_loader,
-            executor=mock_executor,
-            execution_manager=mock_execution_manager,
+            executor_getter=lambda: mock_executor,
+            execution_manager_getter=lambda: mock_execution_manager,
         )
 
         result = await registry.call(
@@ -910,8 +910,8 @@ class TestGetPipelineStatusTool:
 
         registry = create_pipelines_registry(
             loader=mock_loader,
-            executor=mock_executor,
-            execution_manager=mock_execution_manager,
+            executor_getter=lambda: mock_executor,
+            execution_manager_getter=lambda: mock_execution_manager,
         )
 
         result = await registry.call(
@@ -931,8 +931,8 @@ class TestGetPipelineStatusTool:
 
         registry = create_pipelines_registry(
             loader=mock_loader,
-            executor=mock_executor,
-            execution_manager=None,
+            executor_getter=lambda: mock_executor,
+            execution_manager_getter=lambda: None,
         )
 
         result = await registry.call(
@@ -978,8 +978,8 @@ class TestDynamicPipelineTools:
 
         registry = create_pipelines_registry(
             loader=mock_loader,
-            executor=mock_executor,
-            execution_manager=mock_execution_manager,
+            executor_getter=lambda: mock_executor,
+            execution_manager_getter=lambda: mock_execution_manager,
         )
 
         tools = registry.list_tools()
@@ -1017,8 +1017,8 @@ class TestDynamicPipelineTools:
 
         registry = create_pipelines_registry(
             loader=mock_loader,
-            executor=mock_executor,
-            execution_manager=mock_execution_manager,
+            executor_getter=lambda: mock_executor,
+            execution_manager_getter=lambda: mock_execution_manager,
         )
 
         tools = registry.list_tools()
@@ -1056,8 +1056,8 @@ class TestDynamicPipelineTools:
 
         registry = create_pipelines_registry(
             loader=mock_loader,
-            executor=mock_executor,
-            execution_manager=mock_execution_manager,
+            executor_getter=lambda: mock_executor,
+            execution_manager_getter=lambda: mock_execution_manager,
         )
 
         # Use get_schema to get the full schema with description
@@ -1099,8 +1099,8 @@ class TestDynamicPipelineTools:
 
         registry = create_pipelines_registry(
             loader=mock_loader,
-            executor=mock_executor,
-            execution_manager=mock_execution_manager,
+            executor_getter=lambda: mock_executor,
+            execution_manager_getter=lambda: mock_execution_manager,
         )
 
         # Use get_schema to get the full schema with inputSchema
@@ -1157,8 +1157,8 @@ class TestDynamicPipelineTools:
 
         registry = create_pipelines_registry(
             loader=mock_loader,
-            executor=mock_executor,
-            execution_manager=mock_execution_manager,
+            executor_getter=lambda: mock_executor,
+            execution_manager_getter=lambda: mock_execution_manager,
         )
 
         result = await registry.call(
@@ -1226,8 +1226,8 @@ class TestDynamicPipelineTools:
 
         registry = create_pipelines_registry(
             loader=mock_loader,
-            executor=mock_executor,
-            execution_manager=mock_execution_manager,
+            executor_getter=lambda: mock_executor,
+            execution_manager_getter=lambda: mock_execution_manager,
         )
 
         tools = registry.list_tools()
