@@ -2,10 +2,14 @@ name: session-lifecycle
 description: "Unified session lifecycle and behavior enforcement"
 enabled: true
 priority: 10 # Run first - critical for handoff before other LLM calls
-sources: [claude, gemini, codex, antigravity, cursor, windsurf, copilot, claude_sdk_web_chat]
+sources: [claude, gemini, codex, antigravity, cursor, windsurf, copilot, claude_sdk, claude_sdk_web_chat]
 
 # Workflow-scoped variables (behavior settings)
 variables:
+  # First-run guard — CLI clients set this via on_session_start,
+  # SDK/headless clients via on_before_agent init block
+  _session_initialized: false
+
   # Debug: echo additionalContext to system_message for terminal visibility
   debug_echo_context: true
 
@@ -136,6 +140,14 @@ triggers:
     # Must run FIRST so baseline is captured before any modifications
     - action: capture_baseline_dirty_files
 
+    # Inject session identity so the agent knows its Gobby session ID
+    - action: inject_context
+      template: |
+        ## Session Context
+        - Gobby Session ID: {{ ('#' ~ session.seq_num|string) if session.seq_num else session.id }} <- Use this for MCP tool calls (session_id parameter)
+        - External ID: {{ session.external_id }} (CLI-native, rarely needed)
+        - Source: {{ session.source }}
+
     # Context handoff - inject previous session summary
     - action: inject_context
       when: "event.data.get('source') == 'clear'"
@@ -196,7 +208,72 @@ triggers:
         set_variable on gobby-workflows:
         set_variable(name="pre_existing_errors_triaged", value=true, session_id="<session_id>")
 
+    # Mark CLI session as initialized so on_before_agent init block is skipped
+    - action: set_variable
+      name: _session_initialized
+      value: true
+
   on_before_agent:
+    # --- First-run init for headless/SDK clients ---
+    # CLI clients receive on_session_start which sets _session_initialized = true,
+    # so this block only runs for SDK clients that never get session_start.
+    - action: set_variable
+      when: "not variables.get('_session_initialized')"
+      name: plan_mode
+      value: false
+
+    - action: capture_baseline_dirty_files
+      when: "not variables.get('_session_initialized')"
+
+    - action: memory_sync_import
+      when: "not variables.get('_session_initialized')"
+
+    - action: task_sync_import
+      when: "not variables.get('_session_initialized')"
+
+    - action: inject_context
+      when: "not variables.get('_session_initialized')"
+      template: |
+        ## Session Context
+        - Gobby Session ID: {{ ('#' ~ session.seq_num|string) if session.seq_num else session.id }} <- Use this for MCP tool calls (session_id parameter)
+        - External ID: {{ session.external_id }} (CLI-native, rarely needed)
+        - Source: {{ session.source }}
+
+    - action: inject_context
+      when: "not variables.get('_session_initialized')"
+      source: skills
+      filter: always_apply
+      template: |
+        {{ skills_list }}
+
+    - action: inject_context
+      when: "not variables.get('_session_initialized')"
+      source: task_context
+      template: |
+        {{ task_context }}
+
+    - action: inject_context
+      when: "not variables.get('_session_initialized')"
+      template: |
+        ## Pre-Existing Error/Warning/Failure Policy
+
+        If you encounter ANY pre-existing issues during your work — errors,
+        warnings, or failures (test failures, lint errors/warnings, type errors,
+        build failures, deprecation warnings) unrelated to your changes — you
+        MUST create a gobby task for each distinct issue before stopping.
+
+        After triaging all issues (or confirming none were found), call
+        set_variable on gobby-workflows:
+        set_variable(name="pre_existing_errors_triaged", value=true, session_id="<session_id>")
+
+    # Mark initialization complete (must be last init action)
+    - action: set_variable
+      when: "not variables.get('_session_initialized')"
+      name: _session_initialized
+      value: true
+
+    # --- Per-turn resets (run every prompt, all sources) ---
+
     # Reset stop attempts counter on user activity
     - action: set_variable
       name: stop_attempts
@@ -384,12 +461,30 @@ triggers:
     - action: task_sync_export
 
   on_pre_compact:
-    # Run compact handoff for:
-    # - Claude/other sources: always (single compact event)
-    # - Gemini: only on manual /compress (skip auto triggers which fire constantly)
-    #
-    # Condition: "not gemini" OR "gemini with manual trigger"
-    # Equivalent: skip only for "gemini with auto trigger"
+    # Reset _session_initialized so SDK/headless clients re-init after compact
+    # For CLI clients, on_session_start fires next and sets it back to true
+    - action: set_variable
+      name: _session_initialized
+      value: false
+
+    # Direct progressive disclosure resets
+    # SDK clients don't get on_session_start, so they need direct resets here.
+    # For CLI clients this is redundant (on_session_start also resets) but harmless.
+    # Respects Gemini auto-compress skip (only reset on manual /compress or non-gemini)
+    - action: set_variable
+      when: "event.source.value != 'gemini' or event.data.get('trigger') == 'manual'"
+      name: unlocked_tools
+      value: []
+    - action: set_variable
+      when: "event.source.value != 'gemini' or event.data.get('trigger') == 'manual'"
+      name: servers_listed
+      value: false
+    - action: set_variable
+      when: "event.source.value != 'gemini' or event.data.get('trigger') == 'manual'"
+      name: listed_servers
+      value: []
+    - action: reset_memory_injection_tracking
+      when: "event.source.value != 'gemini' or event.data.get('trigger') == 'manual'"
 
     # Set flag for pending context reset (checked in on_session_start for 'resume')
     # This allows on_session_start to distinguish manual vs auto compress for Gemini
