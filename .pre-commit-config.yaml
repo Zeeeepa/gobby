@@ -73,19 +73,6 @@ repos:
       - id: gitleaks
 
   # ==========================================================================
-  # Gobby task sync (runs last in pre-commit)
-  # ==========================================================================
-  - repo: local
-    hooks:
-      - id: gobby-task-sync
-        name: Gobby task sync
-        entry: gobby tasks sync --export --quiet
-        language: system
-        pass_filenames: false
-        always_run: true
-        stages: [pre-commit]
-
-  # ==========================================================================
   # Security checks (pre-push) - slower checks that run before pushing
   # These complement GitHub's CodeQL/Dependabot but catch issues locally
   # ==========================================================================
