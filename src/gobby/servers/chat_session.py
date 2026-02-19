@@ -273,6 +273,13 @@ class ChatSession:
         # Build SDK hooks from lifecycle callbacks
         sdk_hooks = self._build_sdk_hooks()
 
+        # Pass session context to the CLI subprocess so it attaches to the
+        # web chat's pre-created session instead of creating a new one.
+        env: dict[str, str] = {}
+        if self.db_session_id:
+            env["GOBBY_SESSION_ID"] = self.db_session_id
+            env["GOBBY_SOURCE"] = "claude_sdk_web_chat"
+
         options = ClaudeAgentOptions(
             system_prompt=system_prompt,
             max_turns=None,
@@ -283,6 +290,7 @@ class ChatSession:
             mcp_servers=mcp_config if mcp_config is not None else {},
             cwd=cwd,
             hooks=cast(Any, sdk_hooks) if sdk_hooks else None,
+            env=env or None,
         )
 
         self._client = ClaudeSDKClient(options=options)

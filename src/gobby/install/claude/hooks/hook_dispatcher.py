@@ -125,6 +125,24 @@ def get_terminal_context() -> dict[str, str | int | None]:
     return context
 
 
+def _detect_source() -> str:
+    """Detect the session source from environment variables.
+
+    Checks GOBBY_SOURCE first (set explicitly by Gobby, e.g. web chat subprocess),
+    then falls back to CLAUDE_CODE_ENTRYPOINT (set by the Agents SDK).
+
+    Returns:
+        'claude_sdk_web_chat' for web chat subprocesses,
+        'claude_sdk' for Agents SDK, 'claude' otherwise.
+    """
+    gobby_source = os.environ.get("GOBBY_SOURCE")
+    if gobby_source:
+        return gobby_source
+    if os.environ.get("CLAUDE_CODE_ENTRYPOINT") == "sdk-py":
+        return "claude_sdk"
+    return "claude"
+
+
 def parse_arguments() -> argparse.Namespace:
     """Parse command line arguments.
 
@@ -337,7 +355,7 @@ async def main() -> int:
                 json={
                     "hook_type": hook_type,
                     "input_data": input_data,
-                    "source": "claude",  # Required: identifies CLI source
+                    "source": _detect_source(),  # Detect CLI vs SDK entrypoint
                 },
                 timeout=90.0,  # LLM-powered hooks (pre-compact summary) need more time
             )

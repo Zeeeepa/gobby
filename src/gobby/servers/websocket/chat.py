@@ -155,10 +155,8 @@ class ChatMixin:
                 if chat_cfg is not None:
                     session.chat_mode = chat_cfg.default_mode
 
-        await session.start(model=model)
-        self._chat_sessions[conversation_id] = session
-
-        # Register in database so it appears in session list
+        # Register in database BEFORE start() so that db_session_id is available
+        # for the CLI subprocess env vars (GOBBY_SESSION_ID) during start().
         session_manager = getattr(self, "session_manager", None)
         if session_manager:
             try:
@@ -176,6 +174,9 @@ class ChatMixin:
                 )
             except Exception as e:
                 logger.warning(f"Failed to register web-chat session in DB: {e}")
+
+        await session.start(model=model)
+        self._chat_sessions[conversation_id] = session
 
         # Detect returning sessions and set up history injection
         message_manager = getattr(self, "message_manager", None)
@@ -226,7 +227,7 @@ class ChatMixin:
             source=SessionSource.CLAUDE_SDK_WEB_CHAT,
             timestamp=datetime.now(UTC),
             data=data,
-            metadata={"_platform_session_id": conversation_id},
+            metadata={"_platform_session_id": db_session_id},
         )
 
         try:
