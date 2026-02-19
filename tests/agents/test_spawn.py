@@ -24,13 +24,13 @@ pytestmark = pytest.mark.unit
 def _make_session_manager(
     child_session_id: str = "child-sess-1", agent_depth: int = 1
 ) -> MagicMock:
-    """Create a mock ChildSessionManager with working _storage."""
+    """Create a mock ChildSessionManager."""
     mock = MagicMock()
     child_session = MagicMock()
     child_session.id = child_session_id
     child_session.agent_depth = agent_depth
     mock.create_child_session.return_value = child_session
-    mock._storage.update_terminal_pickup_metadata.return_value = child_session
+    mock.update_terminal_pickup_metadata.return_value = child_session
     return mock
 
 
@@ -50,7 +50,7 @@ class TestPrepareTerminalSpawnMetadata:
         )
 
         assert isinstance(result, PreparedSpawn)
-        sm._storage.update_terminal_pickup_metadata.assert_called_once_with(
+        sm.update_terminal_pickup_metadata.assert_called_once_with(
             session_id="child-sess-1",
             agent_run_id=result.agent_run_id,
             workflow_name="plan-execute",
@@ -67,7 +67,7 @@ class TestPrepareTerminalSpawnMetadata:
             machine_id="machine-1",
         )
 
-        sm._storage.update_terminal_pickup_metadata.assert_called_once_with(
+        sm.update_terminal_pickup_metadata.assert_called_once_with(
             session_id="child-sess-1",
             agent_run_id=result.agent_run_id,
             workflow_name=None,
@@ -115,7 +115,7 @@ class TestPrepareGeminiSpawnMetadata:
             )
 
         assert isinstance(result, PreparedSpawn)
-        sm._storage.update_terminal_pickup_metadata.assert_called_once_with(
+        sm.update_terminal_pickup_metadata.assert_called_once_with(
             session_id="child-sess-1",
             agent_run_id=result.agent_run_id,
             workflow_name="auto-task",
@@ -142,7 +142,7 @@ class TestPrepareGeminiSpawnMetadata:
                 machine_id="machine-1",
             )
 
-        sm._storage.update_terminal_pickup_metadata.assert_called_once_with(
+        sm.update_terminal_pickup_metadata.assert_called_once_with(
             session_id="child-sess-1",
             agent_run_id=result.agent_run_id,
             workflow_name=None,
@@ -175,7 +175,7 @@ class TestPrepareCodexSpawnMetadata:
             )
 
         assert isinstance(result, PreparedSpawn)
-        sm._storage.update_terminal_pickup_metadata.assert_called_once_with(
+        sm.update_terminal_pickup_metadata.assert_called_once_with(
             session_id="child-sess-1",
             agent_run_id=result.agent_run_id,
             workflow_name="test-driven",
@@ -202,7 +202,7 @@ class TestPrepareCodexSpawnMetadata:
                 machine_id="machine-1",
             )
 
-        sm._storage.update_terminal_pickup_metadata.assert_called_once_with(
+        sm.update_terminal_pickup_metadata.assert_called_once_with(
             session_id="child-sess-1",
             agent_run_id=result.agent_run_id,
             workflow_name=None,
