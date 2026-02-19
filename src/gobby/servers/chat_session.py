@@ -16,7 +16,7 @@ from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from fnmatch import fnmatch
 from pathlib import Path
-from typing import Any, cast
+from typing import Any, TypedDict, cast
 
 from claude_agent_sdk import (
     AssistantMessage,
@@ -55,6 +55,14 @@ from gobby.llm.claude_models import (
 )
 
 logger = logging.getLogger(__name__)
+
+
+class PendingApproval(TypedDict):
+    """Pending tool-approval payload sent to the frontend."""
+
+    tool_name: str
+    arguments: dict[str, Any]
+
 
 # Fallback system prompt if the prompts system is unavailable
 _FALLBACK_SYSTEM_PROMPT = "You are Gobby, a helpful AI coding assistant."
@@ -190,10 +198,13 @@ def _response_to_stop_output(resp: dict[str, Any] | None) -> SyncHookJSONOutput:
             output["reason"] = resp["reason"]
     context = resp.get("context")
     if context:
-        output["hookSpecificOutput"] = cast(Any, {  # No SDK TypedDict for Stop
-            "hookEventName": "Stop",
-            "additionalContext": context,
-        })
+        output["hookSpecificOutput"] = cast(
+            Any,
+            {  # No SDK TypedDict for Stop
+                "hookEventName": "Stop",
+                "additionalContext": context,
+            },
+        )
     return output
 
 
@@ -204,10 +215,13 @@ def _response_to_compact_output(resp: dict[str, Any] | None) -> SyncHookJSONOutp
     output = SyncHookJSONOutput()
     context = resp.get("context")
     if context:
-        output["hookSpecificOutput"] = cast(Any, {  # No SDK TypedDict for PreCompact
-            "hookEventName": "PreCompact",
-            "additionalContext": context,
-        })
+        output["hookSpecificOutput"] = cast(
+            Any,
+            {  # No SDK TypedDict for PreCompact
+                "hookEventName": "PreCompact",
+                "additionalContext": context,
+            },
+        )
     return output
 
 
@@ -234,7 +248,7 @@ class ChatSession:
     _pending_question: dict[str, Any] | None = field(default=None, repr=False)
     _pending_answer_event: asyncio.Event | None = field(default=None, repr=False)
     _pending_answers: dict[str, str] | None = field(default=None, repr=False)
-    _pending_approval: dict[str, Any] | None = field(default=None, repr=False)
+    _pending_approval: PendingApproval | None = field(default=None, repr=False)
     _pending_approval_event: asyncio.Event | None = field(default=None, repr=False)
     _pending_approval_decision: str | None = field(default=None, repr=False)
     _approved_tools: set[str] = field(default_factory=set, repr=False)
@@ -285,7 +299,9 @@ class ChatSession:
         system_prompt += f"\n\n## Environment\n- Working directory: {cwd}\n"
         if self.db_session_id:
             session_ref = f"#{self.seq_num}" if self.seq_num else self.db_session_id
-            system_prompt += f"- Session ID: {session_ref} (use for session_id params in MCP tools)\n"
+            system_prompt += (
+                f"- Session ID: {session_ref} (use for session_id params in MCP tools)\n"
+            )
         if self.project_id:
             system_prompt += f"- Project ID: {self.project_id}\n"
 
@@ -311,7 +327,7 @@ class ChatSession:
             mcp_servers=mcp_config if mcp_config is not None else {},
             cwd=cwd,
             hooks=cast(Any, sdk_hooks) if sdk_hooks else None,
-            env=env,
+            env=env or None,
         )
 
         self._client = ClaudeSDKClient(options=options)

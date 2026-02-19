@@ -57,11 +57,10 @@ __all__ = [
 ]
 
 
-def _resolve_session_ref(
-    ref: str, session_manager: LocalSessionManager | None
-) -> str:
+def _resolve_session_ref(ref: str, session_manager: LocalSessionManager | None) -> str:
     """Resolve session reference (#N, N, UUID, or prefix) to UUID."""
     if session_manager is None:
+        logger.warning("session_manager is None; returning raw session ref %r", ref)
         return ref
     from gobby.utils.project_context import get_project_context
 

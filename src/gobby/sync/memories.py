@@ -198,13 +198,11 @@ class MemoryBackupManager:
             if not memories_file.exists():
                 return 0
 
-            # Count lines in JSONL file
-            file_count = 0
+            # Read file once — used for both counting and importing
             with open(memories_file, encoding="utf-8") as f:
-                for line in f:
-                    if line.strip():
-                        file_count += 1
+                lines = [line for line in f if line.strip()]
 
+            file_count = len(lines)
             if file_count == 0:
                 return 0
 
@@ -220,7 +218,7 @@ class MemoryBackupManager:
             logger.info(
                 f"Importing memories from {memories_file}: file has {file_count}, DB has {db_count}"
             )
-            return self._import_memories_sync(memories_file)
+            return self._import_memories_from_lines(lines)
         except Exception as e:
             logger.warning(f"Failed to import memories: {e}")
             return 0
@@ -253,37 +251,42 @@ class MemoryBackupManager:
         """Import memories from JSONL file (sync)."""
         if not self.memory_manager:
             return 0
+        with open(file_path, encoding="utf-8") as f:
+            lines = [line for line in f if line.strip()]
+        return self._import_memories_from_lines(lines)
+
+    def _import_memories_from_lines(self, lines: list[str]) -> int:
+        """Import memories from pre-read JSONL lines."""
+        if not self.memory_manager:
+            return 0
 
         count = 0
         skipped = 0
         try:
-            with open(file_path, encoding="utf-8") as f:
-                for line in f:
-                    if not line.strip():
+            for line in lines:
+                try:
+                    data = json.loads(line)
+                    content = data.get("content", "")
+
+                    # Skip if memory with identical content already exists
+                    if self.memory_manager.content_exists(content):
+                        skipped += 1
                         continue
-                    try:
-                        data = json.loads(line)
-                        content = data.get("content", "")
 
-                        # Skip if memory with identical content already exists
-                        if self.memory_manager.content_exists(content):
-                            skipped += 1
-                            continue
-
-                        # Use storage directly for sync import (skip auto-embedding)
-                        # Don't pass source_session_id — the session may not exist
-                        # on this machine (cross-machine sync via git)
-                        self.memory_manager.storage.create_memory(
-                            content=content,
-                            memory_type=data.get("type", "fact"),
-                            tags=data.get("tags", []),
-                            source_type="import",
-                        )
-                        count += 1
-                    except json.JSONDecodeError:
-                        logger.warning(f"Invalid JSON in memories file: {line[:50]}...")
-                    except Exception as e:
-                        logger.debug(f"Skipping memory import: {e}")
+                    # Use storage directly for sync import (skip auto-embedding)
+                    # Don't pass source_session_id — the session may not exist
+                    # on this machine (cross-machine sync via git)
+                    self.memory_manager.storage.create_memory(
+                        content=content,
+                        memory_type=data.get("type", "fact"),
+                        tags=data.get("tags", []),
+                        source_type="import",
+                    )
+                    count += 1
+                except json.JSONDecodeError:
+                    logger.warning(f"Invalid JSON in memories file: {line[:50]}...")
+                except Exception as e:
+                    logger.debug(f"Skipping memory import: {e}")
 
         except Exception as e:
             logger.error(f"Failed to import memories: {e}")

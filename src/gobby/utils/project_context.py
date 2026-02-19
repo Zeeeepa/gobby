@@ -90,8 +90,8 @@ def get_project_context(cwd: Path | None = None) -> dict[str, Any] | None:
                 data["project_path"] = str(root)
                 if data.get("id") == override_id:
                     return cast(dict[str, Any], data)
-            except Exception:
-                pass
+            except (FileNotFoundError, PermissionError, json.JSONDecodeError, OSError) as e:
+                logger.debug(f"Failed to read project.json for override ID {override_id}: {e}")
         # CWD doesn't match — return minimal context with just the ID
         return {"id": override_id}
 
@@ -105,7 +105,7 @@ def get_project_context(cwd: Path | None = None) -> dict[str, Any] | None:
             data = json.load(f)
         data["project_path"] = str(root)
         return cast(dict[str, Any], data)
-    except Exception as e:
+    except (FileNotFoundError, PermissionError, json.JSONDecodeError, OSError) as e:
         logger.warning(f"Failed to read project context: {e}")
         return None
 

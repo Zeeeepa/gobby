@@ -12,6 +12,7 @@ Classes:
 from __future__ import annotations
 
 import logging
+import sqlite3
 import threading
 import time
 from typing import TYPE_CHECKING, Any
@@ -359,7 +360,7 @@ class SessionCoordinator:
                     )
                     if msg_row:
                         result = msg_row["content"]
-                except Exception as e:
+                except (sqlite3.Error, ValueError) as e:
                     self.logger.warning(
                         f"Failed to get last assistant message for {session.id}: {e}"
                     )
@@ -381,7 +382,7 @@ class SessionCoordinator:
                 if row:
                     tool_calls_count = row["tool_calls"] or 0
                     turns_used = row["turns"] or 0
-            except Exception as e:
+            except (sqlite3.Error, ValueError) as e:
                 self.logger.warning(f"Failed to count session stats for {session.id}: {e}")
 
             # Mark as success

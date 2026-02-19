@@ -158,7 +158,7 @@ def prepare_terminal_spawn(
     child_session = session_manager.create_child_session(config)
 
     # Use provided agent_run_id or generate one (backward compat)
-    if not agent_run_id:
+    if agent_run_id is None:
         agent_run_id = f"run-{uuid.uuid4().hex[:12]}"
 
     # Persist agent_run_id to session record for hook-based lifecycle tracking

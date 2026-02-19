@@ -84,6 +84,8 @@ class ElevenLabsTTS:
                     "style": self._config.elevenlabs_style,
                     "speed": self._config.elevenlabs_speed,
                 },
+                # ElevenLabs WebSocket API requires the API key in both the
+                # connection header (xi-api-key) AND the BOS message payload.
                 "xi_api_key": self._config.elevenlabs_api_key,
                 "output_format": self._config.audio_format,
                 "generation_config": {

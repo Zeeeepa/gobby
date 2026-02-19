@@ -57,10 +57,10 @@ def compute_next_run(job: CronJob) -> datetime | None:
             last = datetime.fromisoformat(job.last_run_at)
             if last.tzinfo is None:
                 last = last.replace(tzinfo=ZoneInfo("UTC"))
-            next_dt = last + timedelta(seconds=job.interval_seconds)
+            next_interval: datetime = last + timedelta(seconds=job.interval_seconds)
         else:
-            next_dt = now + timedelta(seconds=job.interval_seconds)
-        return next_dt.astimezone(ZoneInfo("UTC"))  # type: ignore[return-value]
+            next_interval = now + timedelta(seconds=job.interval_seconds)
+        return next_interval.astimezone(ZoneInfo("UTC"))
 
     elif job.schedule_type == "once":
         if not job.run_at:

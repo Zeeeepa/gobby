@@ -96,7 +96,7 @@ class SessionEventHandlerMixin(EventHandlersBase):
         std_path = f"{tempfile.gettempdir()}/gobby-cursor-{session_id}.ndjson"
         if Path(std_path).exists():
             self.logger.debug(f"Found Cursor capture file: {std_path}")
-            return str(std_path)
+            return std_path
 
         return None
 

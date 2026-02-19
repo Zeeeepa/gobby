@@ -127,8 +127,8 @@ class VoiceMixin:
                 )
             except (ConnectionClosed, ConnectionClosedError):
                 pass
-            except Exception as e:
-                logger.error(f"Error sending TTS audio to client: {e}")
+            except Exception:
+                logger.exception("Error sending TTS audio to client")
 
         await tts.connect(on_audio)
         return tts
@@ -330,8 +330,8 @@ class VoiceMixin:
         for sentence in sentences:
             try:
                 await tts.send_text(sentence)
-            except Exception as e:
-                logger.error(f"TTS send error: {e}")
+            except Exception:
+                logger.exception("TTS send error")
 
     async def _voice_tts_flush(
         self,

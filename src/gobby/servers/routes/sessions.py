@@ -4,6 +4,7 @@ Session routes for Gobby HTTP server.
 Provides session registration, listing, lookup, and update endpoints.
 """
 
+import asyncio
 import logging
 import subprocess  # nosec B404 - subprocess needed for git commit counting
 import time
@@ -620,7 +621,7 @@ def create_sessions_router(server: "HTTPServer") -> APIRouter:
             )
 
             provider = server.llm_service.get_default_provider()
-            title = await provider.generate_text(llm_prompt)
+            title = await asyncio.wait_for(provider.generate_text(llm_prompt), timeout=10)
             title = title.strip().strip('"').strip("'")
             if not title:
                 title = "Untitled Session"

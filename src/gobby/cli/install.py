@@ -335,7 +335,7 @@ def install(
         vscode_result = configure_ide_terminal_title("Code")
         if vscode_result.get("added"):
             click.echo("Configured VS Code terminal title for tmux integration")
-    except (OSError, PermissionError, ValueError) as e:
+    except (ImportError, OSError, PermissionError, ValueError) as e:
         click.echo(f"Warning: Failed to configure VS Code terminal title: {e}")
 
     toggles = list(clis_to_install)

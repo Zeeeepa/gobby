@@ -38,7 +38,10 @@ logger = logging.getLogger(__name__)
 
 # Seconds to wait before checking if tmux session survived spawn.
 # Configurable via GOBBY_TMUX_HEALTH_CHECK_DELAY env var.
-TMUX_HEALTH_CHECK_DELAY = float(os.environ.get("GOBBY_TMUX_HEALTH_CHECK_DELAY", "0.5"))
+try:
+    TMUX_HEALTH_CHECK_DELAY = float(os.environ.get("GOBBY_TMUX_HEALTH_CHECK_DELAY", "0.5"))
+except (ValueError, TypeError):
+    TMUX_HEALTH_CHECK_DELAY = 0.5
 
 
 async def _check_tmux_session_alive(

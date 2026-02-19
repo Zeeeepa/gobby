@@ -245,6 +245,7 @@ class TestProjectRouting:
         ):
             mock_client = AsyncMock()
             mock_client_cls.return_value = mock_client
+            expected_cwd = str(Path.cwd())
 
             await session.start()
 
@@ -252,7 +253,7 @@ class TestProjectRouting:
             env = captured_options.get("env")
             assert env is None
             # CWD should fall back to Path.cwd() since _find_project_root returns None
-            assert captured_options["cwd"] == str(Path.cwd())
+            assert captured_options["cwd"] == expected_cwd
 
 
 class TestHistoryInjection:
@@ -353,8 +354,7 @@ class TestHistoryInjection:
         mock_manager = AsyncMock()
         # Each message is ~1100 chars, 30 messages = ~33KB > 30KB limit
         mock_manager.get_messages.return_value = [
-            {"role": "user", "content_type": "text", "content": "a" * 1100}
-            for _ in range(30)
+            {"role": "user", "content_type": "text", "content": "a" * 1100} for _ in range(30)
         ]
         session.db_session_id = "test-db-id"
         session._message_manager = mock_manager
@@ -393,8 +393,7 @@ class TestHistoryInjection:
         mock_manager = AsyncMock()
         # Each message is ~110 chars with role label, 10 messages = ~1100 > 500
         mock_manager.get_messages.return_value = [
-            {"role": "user", "content_type": "text", "content": "b" * 100}
-            for _ in range(10)
+            {"role": "user", "content_type": "text", "content": "b" * 100} for _ in range(10)
         ]
         session.db_session_id = "test-db-id"
         session._message_manager = mock_manager

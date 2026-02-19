@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import urllib.parse
 from typing import TYPE_CHECKING
 
 import click
@@ -518,7 +519,7 @@ def rebuild_crossrefs(ctx: click.Context, project_ref: str | None) -> None:
 
     click.echo("Rebuilding cross-references (this may take a while)...")
     project_id = resolve_project_ref(project_ref, exit_on_not_found=True) if project_ref else None
-    params = f"?project_id={project_id}" if project_id else ""
+    params = f"?project_id={urllib.parse.quote(str(project_id))}" if project_id else ""
     response = client.call_http_api(
         f"/memories/crossrefs/rebuild{params}", method="POST", timeout=600.0
     )
@@ -556,7 +557,7 @@ def rebuild_graph(ctx: click.Context, project_ref: str | None) -> None:
 
     click.echo("Rebuilding knowledge graph (this may take several minutes)...")
     project_id = resolve_project_ref(project_ref, exit_on_not_found=True) if project_ref else None
-    params = f"?project_id={project_id}" if project_id else ""
+    params = f"?project_id={urllib.parse.quote(str(project_id))}" if project_id else ""
     response = client.call_http_api(
         f"/memories/graph/rebuild{params}", method="POST", timeout=600.0
     )

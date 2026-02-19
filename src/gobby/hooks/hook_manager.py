@@ -663,6 +663,9 @@ class HookManager:
         This handles the case where project.json was created on another machine
         and the project ID doesn't exist in the local database.
         """
+        if self._session_manager is None:
+            return
+
         from gobby.storage.projects import LocalProjectManager
 
         project_id = str(project_context["id"])

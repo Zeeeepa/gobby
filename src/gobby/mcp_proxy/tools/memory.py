@@ -521,6 +521,7 @@ def create_memory_registry(
     )
     async def rebuild_crossrefs(
         project_id: str | None = None,
+        limit: int = 500,
     ) -> dict[str, Any]:
         """
         Rebuild cross-references for all existing memories.
@@ -530,9 +531,10 @@ def create_memory_registry(
 
         Args:
             project_id: Optional project ID to filter memories
+            limit: Maximum number of memories to process (default 500)
         """
         try:
-            memories = memory_manager.list_memories(project_id=project_id, limit=500)
+            memories = memory_manager.list_memories(project_id=project_id, limit=limit)
             total_created = 0
             for i, memory in enumerate(memories):
                 try:

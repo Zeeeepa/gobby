@@ -17,6 +17,7 @@ Test categories:
 from __future__ import annotations
 
 import logging
+import sqlite3
 import threading
 import time
 from typing import TYPE_CHECKING
@@ -321,7 +322,7 @@ class TestAgentRunCompletion:
         mock_agent_run_manager = MagicMock()
         mock_agent_run = MagicMock(status="running")
         mock_agent_run_manager.get.return_value = mock_agent_run
-        mock_agent_run_manager.db.fetchone.side_effect = Exception("DB error")
+        mock_agent_run_manager.db.fetchone.side_effect = sqlite3.OperationalError("DB error")
 
         coordinator = SessionCoordinator(agent_run_manager=mock_agent_run_manager)
 
