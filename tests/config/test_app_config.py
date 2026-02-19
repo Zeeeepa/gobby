@@ -1047,19 +1047,19 @@ class TestPluginsConfig:
         assert config.plugins["other-plugin"].enabled is False
 
 
-class TestMemorySyncConfig:
-    """Tests for MemorySyncConfig."""
+class TestMemoryBackupConfig:
+    """Tests for MemoryBackupConfig."""
 
     def test_default_values(self) -> None:
-        """Test default memory sync config."""
-        config = MemorySyncConfig()
+        """Test default memory backup config."""
+        config = MemoryBackupConfig()
         assert config.enabled is True
         assert config.export_debounce == 5.0
 
     def test_debounce_validation(self) -> None:
         """Test export debounce validation."""
         with pytest.raises(ValidationError):
-            MemorySyncConfig(export_debounce=-1.0)
+            MemoryBackupConfig(export_debounce=-1.0)
 
 
 class TestMetricsConfig:
@@ -1130,7 +1130,7 @@ class TestDaemonConfigComposition:
 
         # Memory
         assert isinstance(config.memory, MemoryConfig)
-        assert isinstance(config.memory_sync, MemorySyncConfig)
+        assert isinstance(config.memory_sync, MemoryBackupConfig)
 
     def test_getters_return_correct_configs(self) -> None:
         """Test all getter methods return correct configs."""
@@ -1198,7 +1198,7 @@ class TestAllConfigClassesInstantiate:
             SessionLifecycleConfig(),
             MetricsConfig(),
             MemoryConfig(),
-            MemorySyncConfig(),
+            MemoryBackupConfig(),
             DaemonConfig(),
         ]
 
