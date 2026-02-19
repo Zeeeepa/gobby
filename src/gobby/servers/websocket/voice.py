@@ -24,6 +24,7 @@ logger = logging.getLogger(__name__)
 
 if TYPE_CHECKING:
     from gobby.config.voice import VoiceConfig
+    from gobby.voice.tts import TTSAudioChunk
 
 
 class VoiceMixin:
@@ -105,7 +106,7 @@ class VoiceMixin:
         self._tts_websockets[conversation_id] = websocket
         audio_format = self._get_audio_format()
 
-        async def on_audio(chunk: Any) -> None:
+        async def on_audio(chunk: TTSAudioChunk) -> None:
             """Forward audio chunks from ElevenLabs to the client."""
             ws = self._tts_websockets.get(conversation_id)
             request_id = self._tts_request_ids.get(conversation_id, "")

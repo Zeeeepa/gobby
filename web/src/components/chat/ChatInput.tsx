@@ -332,6 +332,7 @@ export function ChatInput({
             onChange={(e) => handleChange(e.target.value)}
             onKeyDown={handleKeyDown}
             placeholder={disabled ? 'Connecting...' : isStreaming ? 'Interrupt...' : voiceMode ? 'Voice mode on...' : 'Message or /command...'}
+            aria-label={disabled ? 'Message input — connecting' : isStreaming ? 'Message input — streaming' : voiceMode ? 'Message input — voice mode' : 'Message input'}
             disabled={disabled}
             rows={1}
           />

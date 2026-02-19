@@ -670,7 +670,7 @@ class HookManager:
         repo_path = project_context.get("project_path")
 
         try:
-            db = self._session_manager._storage.db
+            db = self._session_manager.db
             project_manager = LocalProjectManager(db)
             project_manager.ensure_exists(project_id, project_name, repo_path)
         except (sqlite3.Error, ValueError) as e:

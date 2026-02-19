@@ -162,7 +162,7 @@ def prepare_terminal_spawn(
         agent_run_id = f"run-{uuid.uuid4().hex[:12]}"
 
     # Persist agent_run_id to session record for hook-based lifecycle tracking
-    session_manager._storage.update_terminal_pickup_metadata(
+    session_manager.update_terminal_pickup_metadata(
         session_id=child_session.id,
         agent_run_id=agent_run_id,
         workflow_name=workflow_name,
@@ -276,7 +276,7 @@ async def prepare_gemini_spawn_with_preflight(
     agent_run_id = f"run-{uuid.uuid4().hex[:12]}"
 
     # Persist agent_run_id to session record for hook-based lifecycle tracking
-    session_manager._storage.update_terminal_pickup_metadata(
+    session_manager.update_terminal_pickup_metadata(
         session_id=child_session.id,
         agent_run_id=agent_run_id,
         workflow_name=workflow_name,
@@ -394,7 +394,7 @@ async def prepare_codex_spawn_with_preflight(
     agent_run_id = f"run-{uuid.uuid4().hex[:12]}"
 
     # Persist agent_run_id to session record for hook-based lifecycle tracking
-    session_manager._storage.update_terminal_pickup_metadata(
+    session_manager.update_terminal_pickup_metadata(
         session_id=child_session.id,
         agent_run_id=agent_run_id,
         workflow_name=workflow_name,

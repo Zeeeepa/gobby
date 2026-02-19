@@ -59,6 +59,7 @@ class SessionManager:
         self._storage = session_storage
         self.logger = logger_instance or logger
         self._config = config
+        self.db = session_storage.db
 
         # Session caches with locks
         # Key is (external_id, source) tuple to prevent cross-CLI collisions
@@ -388,3 +389,18 @@ class SessionManager:
                 "parent_session_id": session.parent_session_id,
             }
         return None
+
+    def update_terminal_pickup_metadata(
+        self,
+        session_id: str,
+        agent_run_id: str | None = None,
+        workflow_name: str | None = None,
+        **kwargs: Any,
+    ) -> Any:
+        """Delegate to storage for terminal pickup metadata updates."""
+        return self._storage.update_terminal_pickup_metadata(
+            session_id=session_id,
+            agent_run_id=agent_run_id,
+            workflow_name=workflow_name,
+            **kwargs,
+        )

@@ -14,17 +14,19 @@ export function PullRequestDetail({ prNumber, summary, fetchDetail, onClose }: P
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
+    let cancelled = false
     setLoading(true)
     fetchDetail(prNumber)
       .then((d) => {
-        setDetail(d)
+        if (!cancelled) setDetail(d)
       })
       .catch((e) => {
-        console.error('Failed to fetch PR detail:', e)
+        if (!cancelled) console.error('Failed to fetch PR detail:', e)
       })
       .finally(() => {
-        setLoading(false)
+        if (!cancelled) setLoading(false)
       })
+    return () => { cancelled = true }
   }, [prNumber, fetchDetail])
 
   const body = (detail?.body as string) || ''

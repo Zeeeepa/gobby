@@ -37,7 +37,9 @@ export function ArtifactPanel({ artifact, width, onClose, onUpdateContent, onSet
     const a = document.createElement('a')
     a.href = url
     a.download = `${artifact.title.replace(/\s+/g, '_')}.${ext}`
+    document.body.appendChild(a)
     a.click()
+    document.body.removeChild(a)
     setTimeout(() => URL.revokeObjectURL(url), 100)
   }, [content, artifact])
 
