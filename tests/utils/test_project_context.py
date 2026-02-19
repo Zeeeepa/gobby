@@ -463,6 +463,78 @@ class TestGetVerificationConfig:
         assert result.custom["docs"] == "mkdocs build --strict"
 
 
+class TestGetProjectContextEnvOverride:
+    """Tests for GOBBY_PROJECT_ID environment variable override in get_project_context."""
+
+    def test_env_override_returns_minimal_context(self, tmp_path: Path, monkeypatch) -> None:
+        """When GOBBY_PROJECT_ID is set but no CWD project exists, return minimal context."""
+        monkeypatch.setenv("GOBBY_PROJECT_ID", "override-project-123")
+
+        # Isolate from real project roots
+        original_exists = Path.exists
+
+        def isolated_exists(self):
+            try:
+                self.relative_to(tmp_path)
+                return original_exists(self)
+            except ValueError:
+                return False
+
+        monkeypatch.setattr(Path, "exists", isolated_exists)
+
+        result = get_project_context(tmp_path)
+        assert result is not None
+        assert result == {"id": "override-project-123"}
+
+    def test_env_override_matching_cwd_returns_full_context(self, tmp_path: Path, monkeypatch) -> None:
+        """When GOBBY_PROJECT_ID matches CWD project, return full context."""
+        gobby_dir = tmp_path / ".gobby"
+        gobby_dir.mkdir()
+        project_data = {
+            "id": "matching-id",
+            "name": "My Project",
+            "created_at": "2024-01-01T00:00:00Z",
+        }
+        (gobby_dir / "project.json").write_text(json.dumps(project_data))
+
+        monkeypatch.setenv("GOBBY_PROJECT_ID", "matching-id")
+
+        result = get_project_context(tmp_path)
+        assert result is not None
+        assert result["id"] == "matching-id"
+        assert result["name"] == "My Project"
+        assert "project_path" in result
+        assert Path(result["project_path"]).resolve() == tmp_path.resolve()
+
+    def test_env_override_mismatched_cwd_returns_minimal(self, tmp_path: Path, monkeypatch) -> None:
+        """When GOBBY_PROJECT_ID differs from CWD project, return minimal context."""
+        gobby_dir = tmp_path / ".gobby"
+        gobby_dir.mkdir()
+        project_data = {"id": "cwd-project-id", "name": "CWD Project"}
+        (gobby_dir / "project.json").write_text(json.dumps(project_data))
+
+        monkeypatch.setenv("GOBBY_PROJECT_ID", "different-project-id")
+
+        result = get_project_context(tmp_path)
+        assert result is not None
+        assert result == {"id": "different-project-id"}
+
+    def test_no_env_override_uses_cwd(self, tmp_path: Path, monkeypatch) -> None:
+        """Without GOBBY_PROJECT_ID, standard CWD-based resolution is used."""
+        monkeypatch.delenv("GOBBY_PROJECT_ID", raising=False)
+
+        gobby_dir = tmp_path / ".gobby"
+        gobby_dir.mkdir()
+        project_data = {"id": "cwd-id", "name": "CWD Project"}
+        (gobby_dir / "project.json").write_text(json.dumps(project_data))
+
+        result = get_project_context(tmp_path)
+        assert result is not None
+        assert result["id"] == "cwd-id"
+        assert result["name"] == "CWD Project"
+        assert "project_path" in result
+
+
 class TestEdgeCases:
     """Tests for edge cases and error handling."""
 

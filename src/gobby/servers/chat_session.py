@@ -213,6 +213,8 @@ class ChatSession:
 
     conversation_id: str
     db_session_id: str | None = field(default=None)
+    project_id: str | None = field(default=None)
+    project_path: str | None = field(default=None)
     message_index: int = field(default=0)
     last_activity: datetime = field(default_factory=lambda: datetime.now(UTC))
     _client: ClaudeSDKClient | None = field(default=None, repr=False)
@@ -260,11 +262,13 @@ class ChatSession:
         mcp_config = _find_mcp_config()
         self._model = model
 
-        # Use the gobby project root if found (dev mode), otherwise cwd.
-        # TODO: Add project picker to UI for production so the user selects
-        # the project before chatting, and pass that path here instead.
-        project_root = _find_project_root()
-        cwd = str(project_root) if project_root else str(Path.cwd())
+        # Use the project's repo_path if available (set by web UI project selector),
+        # otherwise fall back to gobby project root (dev mode) or cwd.
+        if self.project_path:
+            cwd = self.project_path
+        else:
+            project_root = _find_project_root()
+            cwd = str(project_root) if project_root else str(Path.cwd())
 
         system_prompt = _load_chat_system_prompt()
         # Inject working directory so the agent doesn't hallucinate paths
@@ -279,6 +283,8 @@ class ChatSession:
         if self.db_session_id:
             env["GOBBY_SESSION_ID"] = self.db_session_id
             env["GOBBY_SOURCE"] = "claude_sdk_web_chat"
+        if self.project_id:
+            env["GOBBY_PROJECT_ID"] = self.project_id
 
         options = ClaudeAgentOptions(
             system_prompt=system_prompt,

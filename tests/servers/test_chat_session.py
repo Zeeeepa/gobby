@@ -1,6 +1,8 @@
 """Tests for ChatSession can_use_tool callback and pending question state."""
 
 import asyncio
+from pathlib import Path
+from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -183,6 +185,74 @@ class TestToolApproval:
 
         assert isinstance(result, PermissionResultDeny)
         assert "Write" in result.message
+
+
+class TestProjectRouting:
+    """Tests for project_id and project_path propagation in ChatSession.start()."""
+
+    @pytest.mark.asyncio
+    async def test_start_uses_project_path_as_cwd(self, session: ChatSession) -> None:
+        """When project_path is set, start() uses it as CWD and sets GOBBY_PROJECT_ID in env."""
+        session.project_id = "proj-abc"
+        session.project_path = "/home/user/my-project"
+        session.db_session_id = "db-session-1"
+
+        captured_options: dict[str, Any] = {}
+
+        def capture_options(**kwargs: Any) -> MagicMock:
+            captured_options.update(kwargs)
+            return MagicMock()
+
+        with (
+            patch("gobby.servers.chat_session._find_cli_path", return_value="/usr/bin/claude"),
+            patch("gobby.servers.chat_session._find_mcp_config", return_value=None),
+            patch(
+                "gobby.servers.chat_session._load_chat_system_prompt", return_value="test prompt"
+            ),
+            patch("gobby.servers.chat_session.ClaudeAgentOptions", side_effect=capture_options),
+            patch("gobby.servers.chat_session.ClaudeSDKClient") as mock_client_cls,
+        ):
+            mock_client = AsyncMock()
+            mock_client_cls.return_value = mock_client
+
+            await session.start()
+
+            assert captured_options["cwd"] == "/home/user/my-project"
+            assert captured_options["env"]["GOBBY_PROJECT_ID"] == "proj-abc"
+            assert captured_options["env"]["GOBBY_SESSION_ID"] == "db-session-1"
+
+    @pytest.mark.asyncio
+    async def test_start_falls_back_without_project_path(self, session: ChatSession) -> None:
+        """When project_path is not set, start() falls back to _find_project_root()."""
+        session.project_id = None
+        session.project_path = None
+
+        captured_options: dict[str, Any] = {}
+
+        def capture_options(**kwargs: Any) -> MagicMock:
+            captured_options.update(kwargs)
+            return MagicMock()
+
+        with (
+            patch("gobby.servers.chat_session._find_cli_path", return_value="/usr/bin/claude"),
+            patch("gobby.servers.chat_session._find_mcp_config", return_value=None),
+            patch("gobby.servers.chat_session._find_project_root", return_value=None),
+            patch(
+                "gobby.servers.chat_session._load_chat_system_prompt", return_value="test prompt"
+            ),
+            patch("gobby.servers.chat_session.ClaudeAgentOptions", side_effect=capture_options),
+            patch("gobby.servers.chat_session.ClaudeSDKClient") as mock_client_cls,
+        ):
+            mock_client = AsyncMock()
+            mock_client_cls.return_value = mock_client
+
+            await session.start()
+
+            # Should not have GOBBY_PROJECT_ID in env (env is None when empty)
+            env = captured_options.get("env")
+            assert env is None
+            # CWD should fall back to Path.cwd() since _find_project_root returns None
+            assert captured_options["cwd"] == str(Path.cwd())
 
 
 class TestHistoryInjection:

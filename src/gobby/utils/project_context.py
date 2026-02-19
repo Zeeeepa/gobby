@@ -6,6 +6,7 @@ from __future__ import annotations
 
 import json
 import logging
+import os
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, cast
 
@@ -55,6 +56,22 @@ def get_project_context(cwd: Path | None = None) -> dict[str, Any] | None:
         - project_path: Path to project root
         - verification: Optional dict with unit_tests, type_check, lint, integration, custom
     """
+    # Environment override (set by web chat subprocess for correct project routing)
+    override_id = os.environ.get("GOBBY_PROJECT_ID")
+    if override_id:
+        root = find_project_root(cwd)
+        if root:
+            try:
+                with open(root / ".gobby" / "project.json") as f:
+                    data = json.load(f)
+                data["project_path"] = str(root)
+                if data.get("id") == override_id:
+                    return cast(dict[str, Any], data)
+            except Exception:
+                pass
+        # CWD doesn't match — return minimal context with just the ID
+        return {"id": override_id}
+
     root = find_project_root(cwd)
     if not root:
         return None

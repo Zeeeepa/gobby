@@ -155,6 +155,11 @@ class ChatMixin:
                 if chat_cfg is not None:
                     session.chat_mode = chat_cfg.default_mode
 
+        # Set project context on session BEFORE start() so env vars and CWD
+        # are correctly configured for the CLI subprocess.
+        effective_pid = project_id or PERSONAL_PROJECT_ID
+        session.project_id = effective_pid
+
         # Register in database BEFORE start() so that db_session_id is available
         # for the CLI subprocess env vars (GOBBY_SESSION_ID) during start().
         session_manager = getattr(self, "session_manager", None)
@@ -174,6 +179,18 @@ class ChatMixin:
                 )
             except Exception as e:
                 logger.warning(f"Failed to register web-chat session in DB: {e}")
+
+        # Look up repo_path from DB so the subprocess CWD matches the selected project
+        if session_manager and not session.project_path:
+            try:
+                from gobby.storage.projects import LocalProjectManager
+
+                pm = LocalProjectManager(session_manager.db)
+                project = pm.get(effective_pid)
+                if project and project.repo_path:
+                    session.project_path = project.repo_path
+            except Exception as e:
+                logger.warning(f"Failed to look up project repo_path: {e}")
 
         await session.start(model=model)
         self._chat_sessions[conversation_id] = session
