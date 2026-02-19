@@ -14,6 +14,14 @@ const MemoizedBlock = memo(
 )
 MemoizedBlock.displayName = 'MemoizedBlock'
 
+function stableHash(s: string): string {
+  let h = 0
+  for (let i = 0; i < s.length; i++) {
+    h = ((h << 5) - h + s.charCodeAt(i)) | 0
+  }
+  return (h >>> 0).toString(36)
+}
+
 export function Markdown({ content, id }: { content: string; id: string }) {
   const blocks = useMemo(() => {
     const tokens = marked.lexer(content)
@@ -23,7 +31,7 @@ export function Markdown({ content, id }: { content: string; id: string }) {
   return (
     <>
       {blocks.map((block, i) => (
-        <MemoizedBlock key={`${id}-${i}-${block.length}`} content={block} />
+        <MemoizedBlock key={`${id}-${i}-${stableHash(block)}`} content={block} />
       ))}
     </>
   )

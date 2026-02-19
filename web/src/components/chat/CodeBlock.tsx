@@ -1,4 +1,4 @@
-import React, { useCallback, useState } from 'react'
+import React, { useCallback, useEffect, useRef, useState } from 'react'
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter'
 import { oneDark } from 'react-syntax-highlighter/dist/esm/styles/prism'
 import type { Components } from 'react-markdown'
@@ -32,8 +32,9 @@ interface CodeProps {
 function CodeBlockInner({ children, className }: CodeProps) {
   const [copied, setCopied] = useState(false)
   const { openCodeAsArtifact } = useArtifactContext()
+  const copyTimeoutRef = useRef<number | null>(null)
 
-  const match = /language-(\w+)/.exec(className || '')
+  const match = /language-([\w+#\-.]+)/.exec(className || '')
   const language = match ? match[1] : ''
   const codeString = String(children).replace(/\n$/, '')
   const isInline = !match && !String(children).includes('\n')
@@ -41,11 +42,18 @@ function CodeBlockInner({ children, className }: CodeProps) {
   const lineCount = codeString.split('\n').length
   const canOpenAsArtifact = lineCount >= MIN_ARTIFACT_LINES
 
+  useEffect(() => {
+    return () => {
+      if (copyTimeoutRef.current) clearTimeout(copyTimeoutRef.current)
+    }
+  }, [])
+
   const handleCopy = useCallback(async () => {
     try {
       await navigator.clipboard.writeText(codeString)
       setCopied(true)
-      setTimeout(() => setCopied(false), 2000)
+      if (copyTimeoutRef.current) clearTimeout(copyTimeoutRef.current)
+      copyTimeoutRef.current = window.setTimeout(() => setCopied(false), 2000)
     } catch {
       console.error('Failed to copy to clipboard')
     }

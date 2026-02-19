@@ -118,6 +118,10 @@ export function ChatInput({
         const base64 = result.split(',')[1] || null
         setQueuedFiles((prev) => [...prev, { id, file, previewUrl, base64 }])
       }
+      reader.onerror = () => {
+        if (previewUrl) URL.revokeObjectURL(previewUrl)
+        console.error(`Failed to read file "${file.name}"`)
+      }
       reader.readAsDataURL(file)
     })
   }, [])
@@ -228,12 +232,14 @@ export function ChatInput({
                     else setShowProjectSearch(!showProjectSearch)
                   }}
                   disabled={disabled}
+                  aria-haspopup="listbox"
+                  aria-expanded={showProjectSearch}
                 >
                   {selectedName ?? 'Project'}
                 </button>
               </div>
               {showProjectSearch && (
-                <div className="absolute bottom-full mb-1 left-0 w-48 rounded-md border border-border bg-background shadow-lg z-10">
+                <div className="absolute bottom-full mb-1 left-0 w-48 rounded-md border border-border bg-background shadow-lg z-10" role="listbox" aria-label="Project search results">
                   <input
                     className="w-full px-2 py-1.5 text-xs bg-transparent border-b border-border text-foreground placeholder:text-muted-foreground focus:outline-none"
                     placeholder="Search projects..."
@@ -243,12 +249,18 @@ export function ChatInput({
                       if (e.key === 'Escape') { setShowProjectSearch(false); setProjectSearch('') }
                       if (e.key === 'Enter' && filtered.length > 0) { onProjectChange?.(filtered[0].id); setShowProjectSearch(false); setProjectSearch('') }
                     }}
+                    role="combobox"
+                    aria-expanded={true}
+                    aria-controls="project-search-results"
+                    aria-autocomplete="list"
                     autoFocus
                   />
-                  <div className="max-h-32 overflow-y-auto">
+                  <div id="project-search-results" className="max-h-32 overflow-y-auto">
                     {filtered.map((p) => (
                       <button
                         key={p.id}
+                        role="option"
+                        aria-selected={p.id === selectedProjectId}
                         className={cn('w-full text-left px-2 py-1 text-xs hover:bg-muted', p.id === selectedProjectId && 'bg-accent/20 text-accent')}
                         onClick={() => { onProjectChange?.(p.id); setShowProjectSearch(false); setProjectSearch('') }}
                       >

@@ -5,11 +5,12 @@ interface ArtifactSheetViewProps {
 }
 
 function parseCSV(text: string): string[][] {
+  const trimmed = text.trim()
+  if (!trimmed) return []
   const rows: string[][] = []
   let cells: string[] = []
   let current = ''
   let inQuotes = false
-  const trimmed = text.trim()
   for (let i = 0; i < trimmed.length; i++) {
     const char = trimmed[i]
     if (inQuotes) {
