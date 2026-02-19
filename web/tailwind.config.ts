@@ -1,7 +1,8 @@
+import type { Config } from 'tailwindcss'
+
 export default {
   content: ['./src/**/*.{ts,tsx}'],
   important: true,
-  corePlugins: { preflight: false },
   theme: {
     extend: {
       colors: {
@@ -16,4 +17,4 @@ export default {
       },
     },
   },
-}
+} satisfies Config
