@@ -2019,3 +2019,180 @@ class TestEvaluateWorkflowsHelper:
 
         assert hasattr(EventHandlersBase, "_evaluate_workflows")
         assert callable(getattr(EventHandlersBase, "_evaluate_workflows"))
+
+
+class TestApplyDebugEcho:
+    """Tests for _apply_debug_echo helper on EventHandlersBase."""
+
+    def test_debug_echo_from_workflow_variables(self, mock_dependencies: dict) -> None:
+        """Test debug echo enabled via workflow_variables metadata."""
+        handlers = EventHandlers(**mock_dependencies)
+        response = HookResponse(decision="allow", context="injected context")
+        wf_response = HookResponse(
+            decision="allow",
+            metadata={"workflow_variables": {"debug_echo_context": True}},
+        )
+
+        handlers._apply_debug_echo(response, wf_response)
+
+        assert response.system_message is not None
+        assert "[DEBUG additionalContext]" in response.system_message
+        assert "injected context" in response.system_message
+
+    def test_debug_echo_from_workflow_config_fallback(self) -> None:
+        """Test debug echo enabled via WorkflowConfig when workflow_variables absent."""
+        mock_config = MagicMock()
+        mock_config.debug_echo_context = True
+
+        handlers = EventHandlers(workflow_config=mock_config)
+        response = HookResponse(decision="allow", context="some context")
+        wf_response = HookResponse(decision="allow")
+
+        handlers._apply_debug_echo(response, wf_response)
+
+        assert response.system_message is not None
+        assert "[DEBUG additionalContext]" in response.system_message
+        assert "some context" in response.system_message
+
+    def test_debug_echo_disabled(self, mock_dependencies: dict) -> None:
+        """Test no echo when debug_echo_context is False."""
+        handlers = EventHandlers(**mock_dependencies)
+        response = HookResponse(decision="allow", context="some context")
+        wf_response = HookResponse(
+            decision="allow",
+            metadata={"workflow_variables": {"debug_echo_context": False}},
+        )
+
+        handlers._apply_debug_echo(response, wf_response)
+
+        assert response.system_message is None
+
+    def test_debug_echo_empty_context(self, mock_dependencies: dict) -> None:
+        """Test no echo when context is empty."""
+        handlers = EventHandlers(**mock_dependencies)
+        response = HookResponse(decision="allow", context=None)
+        wf_response = HookResponse(
+            decision="allow",
+            metadata={"workflow_variables": {"debug_echo_context": True}},
+        )
+
+        handlers._apply_debug_echo(response, wf_response)
+
+        assert response.system_message is None
+
+    def test_debug_echo_appends_to_existing_system_message(
+        self, mock_dependencies: dict
+    ) -> None:
+        """Test echo appends to existing system_message rather than replacing."""
+        handlers = EventHandlers(**mock_dependencies)
+        response = HookResponse(
+            decision="allow",
+            context="new context",
+            system_message="Existing message",
+        )
+        wf_response = HookResponse(
+            decision="allow",
+            metadata={"workflow_variables": {"debug_echo_context": True}},
+        )
+
+        handlers._apply_debug_echo(response, wf_response)
+
+        assert response.system_message.startswith("Existing message")
+        assert "[DEBUG additionalContext]" in response.system_message
+        assert "new context" in response.system_message
+
+    def test_debug_echo_workflow_var_overrides_config(self) -> None:
+        """Test workflow variable False overrides config True."""
+        mock_config = MagicMock()
+        mock_config.debug_echo_context = True
+
+        handlers = EventHandlers(workflow_config=mock_config)
+        response = HookResponse(decision="allow", context="some context")
+        wf_response = HookResponse(
+            decision="allow",
+            metadata={"workflow_variables": {"debug_echo_context": False}},
+        )
+
+        handlers._apply_debug_echo(response, wf_response)
+
+        assert response.system_message is None
+
+    def test_debug_echo_exists_on_base(self) -> None:
+        """_apply_debug_echo is defined on EventHandlersBase."""
+        from gobby.hooks.event_handlers._base import EventHandlersBase
+
+        assert hasattr(EventHandlersBase, "_apply_debug_echo")
+        assert callable(EventHandlersBase._apply_debug_echo)
+
+    def test_before_agent_applies_debug_echo(self, mock_dependencies: dict) -> None:
+        """Test handle_before_agent applies debug echo when enabled."""
+        mock_dependencies["workflow_handler"].evaluate.return_value = HookResponse(
+            decision="allow",
+            context="agent context",
+            metadata={"workflow_variables": {"debug_echo_context": True}},
+        )
+
+        handlers = EventHandlers(**mock_dependencies)
+        event = make_event(
+            HookEventType.BEFORE_AGENT,
+            data={"prompt": "Hello"},
+        )
+
+        response = handlers.handle_before_agent(event)
+
+        assert response.system_message is not None
+        assert "[DEBUG additionalContext]" in response.system_message
+
+    def test_stop_applies_debug_echo(self, mock_dependencies: dict) -> None:
+        """Test handle_stop applies debug echo when enabled."""
+        mock_dependencies["workflow_handler"].evaluate.return_value = HookResponse(
+            decision="allow",
+            context="stop context",
+            metadata={"workflow_variables": {"debug_echo_context": True}},
+        )
+
+        handlers = EventHandlers(**mock_dependencies)
+        event = make_event(HookEventType.STOP)
+
+        response = handlers.handle_stop(event)
+
+        assert response.system_message is not None
+        assert "[DEBUG additionalContext]" in response.system_message
+
+    def test_before_tool_applies_debug_echo(self, mock_dependencies: dict) -> None:
+        """Test handle_before_tool applies debug echo when enabled."""
+        mock_dependencies["workflow_handler"].evaluate.return_value = HookResponse(
+            decision="allow",
+            context="tool context",
+            metadata={"workflow_variables": {"debug_echo_context": True}},
+        )
+
+        handlers = EventHandlers(**mock_dependencies)
+        event = make_event(
+            HookEventType.BEFORE_TOOL,
+            data={"tool_name": "Read"},
+        )
+
+        response = handlers.handle_before_tool(event)
+
+        assert response.system_message is not None
+        assert "[DEBUG additionalContext]" in response.system_message
+
+    def test_after_tool_applies_debug_echo(self, mock_dependencies: dict) -> None:
+        """Test handle_after_tool applies debug echo when enabled."""
+        mock_dependencies["workflow_handler"].evaluate.return_value = HookResponse(
+            decision="allow",
+            context="after tool context",
+            metadata={"workflow_variables": {"debug_echo_context": True}},
+        )
+
+        handlers = EventHandlers(**mock_dependencies)
+        event = make_event(
+            HookEventType.AFTER_TOOL,
+            data={"tool_name": "Read"},
+        )
+
+        response = handlers.handle_after_tool(event)
+
+        assert response.system_message is not None
+        assert "[DEBUG additionalContext]" in response.system_message

@@ -36,10 +36,12 @@ class ToolEventHandlerMixin(EventHandlersBase):
         if wf_response.decision != "allow":
             return wf_response
 
-        return HookResponse(
+        response = HookResponse(
             decision="allow",
             context="\n\n".join(context_parts) if context_parts else None,
         )
+        self._apply_debug_echo(response, wf_response)
+        return response
 
     def handle_after_tool(self, event: HookEvent) -> HookResponse:
         """Handle AFTER_TOOL event."""
@@ -99,6 +101,7 @@ class ToolEventHandlerMixin(EventHandlersBase):
         if wf_response.decision != "allow":
             return wf_response
         if wf_response.context:
+            self._apply_debug_echo(wf_response, wf_response)
             return wf_response
 
         return HookResponse(decision="allow")

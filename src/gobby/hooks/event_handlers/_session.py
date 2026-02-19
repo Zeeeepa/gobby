@@ -530,12 +530,9 @@ class SessionEventHandlerMixin(EventHandlersBase):
             session_ref = f"#{session.seq_num}"
 
         # Build system message (terminal display only)
-        if session_ref and session_ref != session_id:
-            system_message = f"\nGobby Session ID: {session_ref}"
-        else:
-            system_message = f"\nGobby Session ID: {session_id}"
-        system_message += " <- Use this for MCP tool calls (session_id parameter)"
-        system_message += f"\nExternal ID: {external_id} (CLI-native, rarely needed)"
+        # Session ID is now injected via inject_context in workflow YAML
+        # (session-lifecycle inject_context) so agents get it in additionalContext.
+        system_message = ""
 
         # Add active lifecycle workflows
         active_workflow_lines: list[str] = []
@@ -589,21 +586,11 @@ class SessionEventHandlerMixin(EventHandlersBase):
 
         final_context = "\n".join(context_parts) if context_parts else None
 
-        # Debug: echo additionalContext to system_message if enabled
-        # Workflow variable takes precedence over config
-        debug_echo = False
-        workflow_vars = (wf_response.metadata or {}).get("workflow_variables", {})
-        if workflow_vars.get("debug_echo_context") is not None:
-            debug_echo = bool(workflow_vars.get("debug_echo_context"))
-        elif self._workflow_config and self._workflow_config.debug_echo_context:
-            debug_echo = True
-
-        if debug_echo and final_context:
-            system_message += f"\n\n[DEBUG additionalContext]\n{final_context}"
-
-        return HookResponse(
+        response = HookResponse(
             decision="allow",
             context=final_context,
             system_message=system_message,
             metadata=metadata,
         )
+        self._apply_debug_echo(response, wf_response)
+        return response
