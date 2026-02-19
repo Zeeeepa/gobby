@@ -292,12 +292,28 @@ class GobbyRunner:
         # Initialize Clone Storage (local git clones for isolated development)
         self.clone_storage = LocalCloneManager(self.database)
 
-        # Project context is resolved per-session, not at daemon startup.
-        # See ServiceContainer.get_git_manager() / get_pipeline_executor() for lazy creation.
+        # Detect project context from cwd so daemon-level services (pipelines,
+        # clones) can register their MCP tools.  Per-session resolution can
+        # still override via ServiceContainer.
         self.git_manager: WorktreeGitManager | None = None
         self.project_id: str | None = None
+        try:
+            from gobby.utils.project_context import get_project_context
+            from gobby.worktrees.git import WorktreeGitManager as _WGM
 
-        # WorkflowLoader is project-agnostic; pipeline executor is created lazily per-project.
+            project_ctx = get_project_context(Path.cwd())
+            if project_ctx and project_ctx.get("id"):
+                self.project_id = str(project_ctx["id"])
+                project_path = project_ctx.get("project_path")
+                if project_path:
+                    self.git_manager = _WGM(str(project_path))
+                    logger.debug(
+                        f"Daemon project context: id={self.project_id}, " f"path={project_path}"
+                    )
+        except Exception as e:
+            logger.debug(f"Could not detect project context from cwd: {e}")
+
+        # WorkflowLoader is project-agnostic; pipeline executor needs project context.
         self.workflow_loader: WorkflowLoader | None = None
         self.pipeline_execution_manager: LocalPipelineExecutionManager | None = None
         self.pipeline_executor: PipelineExecutor | None = None
@@ -307,6 +323,27 @@ class GobbyRunner:
             self.workflow_loader = WorkflowLoader(db=self.database)
         except Exception as e:
             logger.warning(f"Failed to initialize workflow loader: {e}")
+
+        # Create pipeline executor at startup if we have project context
+        if self.workflow_loader is not None and self.project_id:
+            try:
+                from gobby.storage.pipelines import LocalPipelineExecutionManager as _LPEM
+                from gobby.workflows.pipeline_executor import PipelineExecutor as _PE
+                from gobby.workflows.templates import TemplateEngine
+
+                self.pipeline_execution_manager = _LPEM(
+                    db=self.database, project_id=self.project_id
+                )
+                self.pipeline_executor = _PE(
+                    db=self.database,
+                    execution_manager=self.pipeline_execution_manager,
+                    llm_service=self.llm_service,
+                    loader=self.workflow_loader,
+                    template_engine=TemplateEngine(),
+                )
+                logger.info("Pipeline executor initialized at startup")
+            except Exception as e:
+                logger.warning(f"Failed to initialize pipeline executor at startup: {e}")
 
         # Initialize Agent Runner (Phase 7 - Subagents)
         # Create executor registry for lazy executor creation
