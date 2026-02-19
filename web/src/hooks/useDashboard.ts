@@ -45,6 +45,7 @@ export function useDashboard() {
       }
     } catch (e) {
       setError(String(e))
+      setData(null)
     }
   }, [])
 

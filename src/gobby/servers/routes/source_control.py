@@ -5,6 +5,7 @@ from __future__ import annotations
 import logging
 import re
 import subprocess  # nosec B404 - subprocess needed for git operations
+import threading
 import time
 from typing import TYPE_CHECKING, Any, cast
 
@@ -22,6 +23,7 @@ MAX_PATCH_BYTES = 100_000
 
 # Simple TTL cache: key -> (timestamp, value)
 _cache: dict[str, tuple[float, Any]] = {}
+_cache_lock = threading.Lock()
 _GITHUB_TTL = 30.0
 _GIT_TTL = 10.0
 _MAX_CACHE_SIZE = 256
@@ -38,20 +40,22 @@ def _validate_git_ref(ref: str, param_name: str = "ref") -> None:
 
 def _get_cached(key: str, ttl: float) -> dict[str, Any] | None:
     """Get a cached value if still valid."""
-    entry = _cache.get(key)
-    if entry and (time.time() - entry[0]) < ttl:
-        return cast(dict[str, Any], entry[1])
-    return None
+    with _cache_lock:
+        entry = _cache.get(key)
+        if entry and (time.time() - entry[0]) < ttl:
+            return cast(dict[str, Any], entry[1])
+        return None
 
 
 def _set_cached(key: str, value: Any) -> None:
     """Store a value in cache."""
-    if len(_cache) >= _MAX_CACHE_SIZE:
-        # Evict oldest entries
-        oldest = sorted(_cache, key=lambda k: _cache[k][0])[: _MAX_CACHE_SIZE // 4]
-        for k in oldest:
-            del _cache[k]
-    _cache[key] = (time.time(), value)
+    with _cache_lock:
+        if len(_cache) >= _MAX_CACHE_SIZE:
+            # Evict oldest entries
+            oldest = sorted(_cache, key=lambda k: _cache[k][0])[: _MAX_CACHE_SIZE // 4]
+            for k in oldest:
+                del _cache[k]
+        _cache[key] = (time.time(), value)
 
 
 async def _run_git(
@@ -591,10 +595,19 @@ def create_source_control_router(server: HTTPServer) -> APIRouter:
             from gobby.worktrees.git import WorktreeGitManager
 
             try:
-                git_mgr = WorktreeGitManager(wt.worktree_path)
-                result = git_mgr.delete_worktree(wt.worktree_path, force=True)
-                if not result.success:
-                    logger.warning(f"Git worktree deletion failed: {result.message}")
+                # WorktreeGitManager expects the repo root, not the worktree path
+                repo_path, _ = _resolve_project(server, wt.project_id)
+                if repo_path:
+                    git_mgr = WorktreeGitManager(repo_path)
+                    result = git_mgr.delete_worktree(wt.worktree_path, force=True)
+                    if not result.success:
+                        logger.warning(f"Git worktree deletion failed: {result.message}")
+                else:
+                    result = server.services.git_manager.delete_worktree(
+                        wt.worktree_path, force=True
+                    )
+                    if not result.success:
+                        logger.warning(f"Git worktree deletion failed (fallback): {result.message}")
             except ValueError:
                 # WorktreeGitManager couldn't init — fall back to server git_manager
                 result = server.services.git_manager.delete_worktree(wt.worktree_path, force=True)

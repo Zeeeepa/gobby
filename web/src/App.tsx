@@ -67,11 +67,17 @@ export default function App() {
           titleSynthesisCountRef.current = 0
           const baseUrl = import.meta.env.VITE_API_BASE_URL || ''
           fetch(`${baseUrl}/sessions/${currentSession.id}/synthesize-title`, { method: 'POST' })
-            .then((res) => res.ok ? res.json() : null)
+            .then((res) => {
+              if (!res.ok) {
+                console.warn(`Title synthesis returned ${res.status}`)
+                return null
+              }
+              return res.json()
+            })
             .then((data) => {
               if (data?.title) sessionsHook.refresh()
             })
-            .catch((err) => console.error('Failed to synthesize title:', err))
+            .catch(() => { /* title synthesis is non-critical */ })
         }
       }
     }

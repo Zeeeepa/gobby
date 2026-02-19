@@ -69,7 +69,8 @@ def create_memory_router(server: "HTTPServer") -> APIRouter:
                 limit=limit,
                 offset=offset,
             )
-            return {"memories": [m.to_dict() for m in memories]}
+            total = server.memory_manager.count_memories(project_id=project_id)
+            return {"memories": [m.to_dict() for m in memories], "total_memories": total}
         except Exception as e:
             logger.error(f"Failed to list memories: {e}")
             raise HTTPException(status_code=500, detail=str(e)) from e

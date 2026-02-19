@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import type { SourceControlStatus, PullRequest, WorktreeInfo, CIWorkflowRun, GitCommit } from '../../hooks/useSourceControl'
 import type { SubTab } from '../GitHubPage'
 import { StatusBadge } from './StatusBadge'
@@ -14,14 +14,16 @@ interface Props {
 
 export function SourceControlOverview({ status, prs, worktrees, ciRuns, onNavigate, fetchCommits }: Props) {
   const [recentCommits, setRecentCommits] = useState<GitCommit[]>([])
+  const fetchCommitsRef = useRef(fetchCommits)
+  fetchCommitsRef.current = fetchCommits
 
   useEffect(() => {
     if (status?.current_branch) {
-      fetchCommits(status.current_branch, 5)
+      fetchCommitsRef.current(status.current_branch, 5)
         .then(setRecentCommits)
         .catch((e) => console.error('Failed to fetch recent commits:', e))
     }
-  }, [status?.current_branch, fetchCommits])
+  }, [status?.current_branch])
 
   const staleWorktrees = worktrees.filter((w) => w.status === 'stale')
   const activeWorktrees = worktrees.filter((w) => w.status === 'active')

@@ -9,7 +9,7 @@
     "preview": "vite preview",
     "type-check": "tsc --noEmit",
     "lint": "eslint . --ext ts,tsx --report-unused-disable-directives --max-warnings 0",
-    "postinstall": "cp node_modules/@ricky0123/vad-web/dist/silero_vad_legacy.onnx node_modules/@ricky0123/vad-web/dist/vad.worklet.bundle.min.js public/"
+    "postinstall": "node -e \"const fs=require('fs'),p=require('path');['silero_vad_legacy.onnx','vad.worklet.bundle.min.js'].forEach(f=>fs.copyFileSync(p.join('node_modules/@ricky0123/vad-web/dist',f),p.join('public',f)))\""
   },
   "dependencies": {
     "@atlaskit/pragmatic-drag-and-drop": "^1.7.7",

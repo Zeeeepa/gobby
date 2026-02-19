@@ -65,21 +65,27 @@ export function MessageList({ messages, isStreaming, isThinking, onRespondToQues
             />
           ))}
           {isThinking && (messages.length === 0 || messages[messages.length - 1].role === 'user') && (
-            <div className="px-4 py-3">
-              <div className="max-w-3xl mx-auto">
-                <div className="flex items-center gap-2 mb-1.5">
-                  <img src="/logo.png" alt="App logo" className="w-5 h-5 rounded" onError={(e) => { (e.target as HTMLImageElement).style.display = 'none' }} />
-                  <span className="text-xs font-medium text-muted-foreground">Gobby</span>
-                </div>
-                <div className="flex items-center gap-2 py-2">
-                  <div className="w-4 h-4 border-2 border-accent border-t-transparent rounded-full animate-spin" />
-                  <span className="text-sm text-muted-foreground">Thinking...</span>
-                </div>
-              </div>
-            </div>
+            <ThinkingIndicator />
           )}
         </>
       )}
     </ScrollArea>
+  )
+}
+
+function ThinkingIndicator() {
+  return (
+    <div className="px-4 py-3">
+      <div className="max-w-3xl mx-auto">
+        <div className="flex items-center gap-2 mb-1.5">
+          <img src="/logo.png" alt="App logo" className="w-5 h-5 rounded" onError={(e) => { (e.target as HTMLImageElement).style.display = 'none' }} />
+          <span className="text-xs font-medium text-muted-foreground">Gobby</span>
+        </div>
+        <div className="flex items-center gap-2 py-2">
+          <div className="w-4 h-4 border-2 border-accent border-t-transparent rounded-full animate-spin" />
+          <span className="text-sm text-muted-foreground">Thinking...</span>
+        </div>
+      </div>
+    </div>
   )
 }

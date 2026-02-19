@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import type { GitCommit, DiffResult } from '../../hooks/useSourceControl'
 import { DiffViewer } from './DiffViewer'
 
@@ -15,12 +15,15 @@ export function BranchDetail({ branchName, currentBranch, fetchCommits, fetchDif
   const [diff, setDiff] = useState<DiffResult | null>(null)
   const [showDiff, setShowDiff] = useState(false)
   const [loading, setLoading] = useState(true)
+  const [diffLoading, setDiffLoading] = useState(false)
+  const fetchCommitsRef = useRef(fetchCommits)
+  fetchCommitsRef.current = fetchCommits
 
   useEffect(() => {
     setLoading(true)
     setDiff(null)
     setShowDiff(false)
-    fetchCommits(branchName, 20)
+    fetchCommitsRef.current(branchName, 20)
       .then((c) => {
         setCommits(c)
       })
@@ -30,13 +33,14 @@ export function BranchDetail({ branchName, currentBranch, fetchCommits, fetchDif
       .finally(() => {
         setLoading(false)
       })
-  }, [branchName, fetchCommits])
+  }, [branchName])
 
   const handleViewDiff = async () => {
     if (diff) {
       setShowDiff(!showDiff)
       return
     }
+    setDiffLoading(true)
     try {
       const base = currentBranch || 'main'
       const result = await fetchDiff(base, branchName)
@@ -44,6 +48,8 @@ export function BranchDetail({ branchName, currentBranch, fetchCommits, fetchDif
       setShowDiff(true)
     } catch (e) {
       console.error('Failed to fetch diff:', e)
+    } finally {
+      setDiffLoading(false)
     }
   }
 
@@ -57,8 +63,8 @@ export function BranchDetail({ branchName, currentBranch, fetchCommits, fetchDif
       </div>
 
       <div className="sc-detail-panel__actions">
-        <button className="sc-btn sc-btn--sm" onClick={handleViewDiff}>
-          {showDiff ? 'Hide Diff' : `Diff vs ${currentBranch || 'main'}`}
+        <button className="sc-btn sc-btn--sm" onClick={handleViewDiff} disabled={diffLoading}>
+          {diffLoading ? 'Loading...' : showDiff ? 'Hide Diff' : `Diff vs ${currentBranch || 'main'}`}
         </button>
       </div>
 

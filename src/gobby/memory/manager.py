@@ -504,6 +504,10 @@ class MemoryManager:
                 logger.warning(f"VectorStore delete failed for {memory_id}: {e}")
         return result
 
+    def count_memories(self, project_id: str | None = None) -> int:
+        """Return the total number of memories using COUNT(*)."""
+        return self.storage.count_memories(project_id=project_id)
+
     def list_memories(
         self,
         project_id: str | None = None,

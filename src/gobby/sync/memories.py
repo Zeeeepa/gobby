@@ -212,7 +212,7 @@ class MemoryBackupManager:
                 return 0
 
             # Count memories in DB
-            db_count = len(self.memory_manager.list_memories(limit=10000))
+            db_count = self.memory_manager.count_memories()
 
             if not force and file_count <= db_count:
                 logger.debug(

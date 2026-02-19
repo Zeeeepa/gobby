@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import type { PullRequest } from '../../hooks/useSourceControl'
 import { StatusBadge } from './StatusBadge'
 
@@ -12,22 +12,26 @@ interface Props {
 export function PullRequestDetail({ prNumber, summary, fetchDetail, onClose }: Props) {
   const [detail, setDetail] = useState<Record<string, unknown> | null>(null)
   const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+  const fetchDetailRef = useRef(fetchDetail)
+  fetchDetailRef.current = fetchDetail
 
   useEffect(() => {
     let cancelled = false
     setLoading(true)
-    fetchDetail(prNumber)
+    setError(null)
+    fetchDetailRef.current(prNumber)
       .then((d) => {
         if (!cancelled) setDetail(d)
       })
       .catch((e) => {
-        if (!cancelled) console.error('Failed to fetch PR detail:', e)
+        if (!cancelled) setError(e instanceof Error ? e.message : String(e))
       })
       .finally(() => {
         if (!cancelled) setLoading(false)
       })
     return () => { cancelled = true }
-  }, [prNumber, fetchDetail])
+  }, [prNumber])
 
   const body = (detail?.body as string) || ''
   const htmlUrl = (detail?.html_url as string) || ''
@@ -48,6 +52,12 @@ export function PullRequestDetail({ prNumber, summary, fetchDetail, onClose }: P
       {loading ? (
         <div className="sc-detail-panel__body">
           <p className="sc-text-muted">Loading...</p>
+        </div>
+      ) : error ? (
+        <div className="sc-detail-panel__body">
+          <p className="sc-text-muted" style={{ color: 'var(--color-danger, #ef4444)' }}>
+            Failed to load PR details: {error}
+          </p>
         </div>
       ) : (
         <div className="sc-detail-panel__body">

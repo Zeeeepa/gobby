@@ -1,8 +1,6 @@
 type SegmentKey = 'open' | 'in_progress' | 'closed' | 'blocked'
 
-interface TaskCounts extends Record<SegmentKey, number> {
-  ready: number
-}
+type TaskCounts = Record<SegmentKey, number>
 
 interface Props {
   tasks: TaskCounts

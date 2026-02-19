@@ -1,10 +1,24 @@
+import { useMemo } from 'react'
 import type { DiffResult } from '../../hooks/useSourceControl'
 
 interface Props {
   diff: DiffResult
 }
 
+function classForLine(line: string): string {
+  if (line.startsWith('+') && !line.startsWith('+++')) return 'sc-diff__line sc-diff__line--added'
+  if (line.startsWith('-') && !line.startsWith('---')) return 'sc-diff__line sc-diff__line--removed'
+  if (line.startsWith('@@')) return 'sc-diff__line sc-diff__line--hunk'
+  if (line.startsWith('diff ')) return 'sc-diff__line sc-diff__line--header'
+  return 'sc-diff__line'
+}
+
 export function DiffViewer({ diff }: Props) {
+  const patchLines = useMemo(
+    () => diff.patch ? diff.patch.split('\n').map((line, i) => ({ key: i, className: classForLine(line), text: line })) : [],
+    [diff.patch],
+  )
+
   return (
     <div className="sc-diff">
       {diff.files.length > 0 && (
@@ -25,26 +39,14 @@ export function DiffViewer({ diff }: Props) {
         </div>
       )}
 
-      {diff.patch && (
+      {patchLines.length > 0 && (
         <div className="sc-diff__patch">
           <pre className="sc-diff__patch-content">
-            {diff.patch.split('\n').map((line, i) => {
-              let className = 'sc-diff__line'
-              if (line.startsWith('+') && !line.startsWith('+++')) {
-                className += ' sc-diff__line--added'
-              } else if (line.startsWith('-') && !line.startsWith('---')) {
-                className += ' sc-diff__line--removed'
-              } else if (line.startsWith('@@')) {
-                className += ' sc-diff__line--hunk'
-              } else if (line.startsWith('diff ')) {
-                className += ' sc-diff__line--header'
-              }
-              return (
-                <div key={i} className={className}>
-                  {line}
-                </div>
-              )
-            })}
+            {patchLines.map((l) => (
+              <div key={l.key} className={l.className}>
+                {l.text}
+              </div>
+            ))}
           </pre>
         </div>
       )}

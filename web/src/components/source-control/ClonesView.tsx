@@ -103,7 +103,7 @@ export function ClonesView({ clones, onDelete, onSync }: Props) {
                   onClick={() => handleSync(clone.id)}
                   disabled={actionLoading === clone.id}
                 >
-                  Sync
+                  {actionLoading === clone.id && confirmDelete !== clone.id ? 'Syncing...' : 'Sync'}
                 </button>
                 {confirmDelete === clone.id ? (
                   <>

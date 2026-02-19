@@ -397,7 +397,7 @@ export function useSourceControl() {
 
   // --- Effects ---
 
-  // Local data: initial fetch + polling (5s)
+  // Local data: initial fetch + polling (5s) — restarts on projectId change
   useEffect(() => {
     setIsLoading(true)
     fetchLocalRef.current()
@@ -405,16 +405,16 @@ export function useSourceControl() {
     return () => {
       if (localPollRef.current) window.clearInterval(localPollRef.current)
     }
-  }, [])
+  }, [projectId])
 
-  // GitHub data: initial fetch + polling (30s)
+  // GitHub data: initial fetch + polling (30s) — restarts on projectId change
   useEffect(() => {
     fetchGitHubRef.current()
     githubPollRef.current = window.setInterval(() => fetchGitHubRef.current(), GITHUB_POLL_MS)
     return () => {
       if (githubPollRef.current) window.clearInterval(githubPollRef.current)
     }
-  }, [])
+  }, [projectId])
 
   return {
     // Data

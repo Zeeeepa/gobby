@@ -44,12 +44,14 @@ export function WorktreesView({ worktrees, onDelete, onSync, onCleanup }: Props)
   const handleCleanup = async () => {
     setActionLoading('cleanup')
     try {
-      await onCleanup(24, false)
+      await onCleanup(cleanupHours, false)
     } finally {
       setActionLoading(null)
       setConfirmCleanup(false)
     }
   }
+
+  const [cleanupHours, setCleanupHours] = useState(24)
 
   return (
     <div className="sc-worktrees">
@@ -78,7 +80,16 @@ export function WorktreesView({ worktrees, onDelete, onSync, onCleanup }: Props)
         <div className="sc-worktrees__actions">
           {confirmCleanup ? (
             <div className="sc-worktrees__confirm">
-              <span className="sc-text-muted">Clean up stale worktrees?</span>
+              <span className="sc-text-muted">Older than</span>
+              <input
+                type="number"
+                min={1}
+                value={cleanupHours}
+                onChange={(e) => setCleanupHours(Math.max(1, Number(e.target.value)))}
+                className="sc-input sc-input--sm"
+                style={{ width: '4em' }}
+              />
+              <span className="sc-text-muted">hours?</span>
               <button
                 className="sc-btn sc-btn--sm sc-btn--danger"
                 onClick={handleCleanup}

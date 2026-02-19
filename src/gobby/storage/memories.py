@@ -291,6 +291,17 @@ class LocalMemoryManager:
         self._notify_listeners()
         return True
 
+    def count_memories(self, project_id: str | None = None) -> int:
+        """Return the total number of memories using COUNT(*)."""
+        if project_id:
+            row = self.db.fetchone(
+                "SELECT COUNT(*) AS cnt FROM memories WHERE project_id = ? OR project_id IS NULL",
+                (project_id,),
+            )
+        else:
+            row = self.db.fetchone("SELECT COUNT(*) AS cnt FROM memories")
+        return row["cnt"] if row else 0
+
     def list_memories(
         self,
         project_id: str | None = None,

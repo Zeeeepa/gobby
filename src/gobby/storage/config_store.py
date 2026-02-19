@@ -143,17 +143,18 @@ class ConfigStore:
 
         Stores ``$secret:cfg__<key>`` in config_store with ``is_secret=1``.
         The actual value is encrypted in the ``secrets`` table.
+        Both writes happen in a single transaction for consistency.
         """
         secret_name = config_key_to_secret_name(key)
-        secret_store.set(
-            name=secret_name,
-            plaintext_value=plaintext_value,
-            category="general",
-            description=f"Config secret for {key}",
-        )
         ref = f"$secret:{secret_name}"
         now = datetime.now(UTC).isoformat()
-        try:
+        with self.db.transaction():
+            secret_store.set(
+                name=secret_name,
+                plaintext_value=plaintext_value,
+                category="general",
+                description=f"Config secret for {key}",
+            )
             self.db.execute(
                 """INSERT INTO config_store (key, value, source, is_secret, updated_at)
                    VALUES (?, ?, ?, 1, ?)
@@ -164,10 +165,6 @@ class ConfigStore:
                        updated_at = excluded.updated_at""",
                 (key, json.dumps(ref), source, now),
             )
-        except Exception:
-            # Rollback: remove secret written above to avoid inconsistency
-            secret_store.delete(secret_name)
-            raise
 
     def get_secret_keys(self) -> list[str]:
         """Return all config keys flagged as secrets."""
