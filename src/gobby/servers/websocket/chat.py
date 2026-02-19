@@ -230,6 +230,7 @@ class ChatMixin:
         """
         workflow_handler = getattr(self, "workflow_handler", None)
         if not workflow_handler:
+            logger.warning("_fire_lifecycle: workflow_handler is None for %s", event_type)
             return None
 
         # Use the database session ID (not the external conversation_id) so that
@@ -237,6 +238,7 @@ class ChatMixin:
         # session_manager.get(session_id).
         session = self._chat_sessions.get(conversation_id)
         db_session_id = getattr(session, "db_session_id", None) or conversation_id
+        project_path = getattr(session, "project_path", None)
 
         event = HookEvent(
             event_type=event_type,
@@ -245,11 +247,18 @@ class ChatMixin:
             timestamp=datetime.now(UTC),
             data=data,
             metadata={"_platform_session_id": db_session_id},
+            cwd=project_path,
         )
 
         try:
             # WorkflowHookHandler.evaluate is sync (bridges to async internally)
             response: HookResponse = await asyncio.to_thread(workflow_handler.evaluate, event)
+            logger.debug(
+                "_fire_lifecycle: %s → decision=%s, context_len=%d",
+                event_type.name,
+                response.decision,
+                len(response.context) if response.context else 0,
+            )
             return {
                 "decision": response.decision,
                 "context": response.context,
@@ -257,7 +266,7 @@ class ChatMixin:
                 "system_message": response.system_message,
             }
         except Exception as e:
-            logger.error(f"Lifecycle evaluation failed for {event_type}: {e}", exc_info=True)
+            logger.error("Lifecycle evaluation failed for %s: %s", event_type, e, exc_info=True)
             return None
 
     async def _handle_chat_message(self, websocket: Any, data: dict[str, Any]) -> None:
