@@ -33,12 +33,8 @@ export function ArtifactSheetView({ content }: ArtifactSheetViewProps) {
   const rows = useMemo(() => parseCSV(content), [content])
   const [sortCol, setSortCol] = useState<number | null>(null)
   const [sortAsc, setSortAsc] = useState(true)
-
-  if (rows.length === 0) return <div className="p-4 text-muted-foreground">Empty data</div>
-
-  const headers = rows[0]
+  const headers = rows.length > 0 ? rows[0] : []
   const data = useMemo(() => rows.slice(1), [rows])
-
   const sorted = useMemo(() => {
     if (sortCol === null) return data
     return [...data].sort((a, b) => {
@@ -48,6 +44,8 @@ export function ArtifactSheetView({ content }: ArtifactSheetViewProps) {
       return sortAsc ? cmp : -cmp
     })
   }, [data, sortCol, sortAsc])
+
+  if (rows.length === 0) return <div className="p-4 text-muted-foreground">Empty data</div>
 
   const handleSort = (col: number) => {
     if (sortCol === col) setSortAsc(!sortAsc)
