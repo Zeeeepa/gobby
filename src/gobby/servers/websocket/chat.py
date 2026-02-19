@@ -687,6 +687,59 @@ class ChatMixin:
             self._pending_modes[conversation_id] = mode
             logger.debug(f"Chat mode '{mode}' queued for future conversation {(conversation_id or '')[:8]}")
 
+    async def _handle_set_project(self, websocket: Any, data: dict[str, Any]) -> None:
+        """Handle set_project message to switch the project for a conversation.
+
+        Stops the existing CLI subprocess so the next message creates a fresh
+        session with the correct CWD and project context. Conversation history
+        is preserved via database-backed history injection.
+
+        Message format:
+        {
+            "type": "set_project",
+            "project_id": "uuid-or-_personal",
+            "conversation_id": "stable-id"
+        }
+        """
+        conversation_id = data.get("conversation_id")
+        new_project_id = data.get("project_id")
+
+        if not conversation_id or not new_project_id:
+            await self._send_error(websocket, "set_project requires conversation_id and project_id")
+            return
+
+        session = self._chat_sessions.get(conversation_id)
+        old_project_id = getattr(session, "project_id", None) if session else None
+
+        if session:
+            await self._cancel_active_chat(conversation_id)
+            if session.db_session_id:
+                session_manager = getattr(self, "session_manager", None)
+                if session_manager:
+                    try:
+                        await asyncio.to_thread(
+                            session_manager.update, session.db_session_id, status="paused"
+                        )
+                    except Exception as e:
+                        logger.warning(f"Failed to update session status on project switch: {e}")
+            await session.stop()
+            self._chat_sessions.pop(conversation_id, None)
+
+        await websocket.send(
+            json.dumps(
+                {
+                    "type": "project_switched",
+                    "conversation_id": conversation_id,
+                    "old_project_id": old_project_id,
+                    "new_project_id": new_project_id,
+                }
+            )
+        )
+        logger.info(
+            f"Project switched for conversation {conversation_id[:8]}: "
+            f"{old_project_id} -> {new_project_id}"
+        )
+
     async def _handle_clear_chat(self, websocket: Any, data: dict[str, Any]) -> None:
         """Handle clear_chat message: stop session, mark completed, notify frontend.
 

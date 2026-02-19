@@ -226,6 +226,7 @@ class WebSocketServer(VoiceMixin, TmuxMixin, ChatMixin, HandlerMixin, AuthMixin,
                 "clear_chat": self._handle_clear_chat,
                 "delete_chat": self._handle_delete_chat,
                 "set_mode": self._handle_set_mode,
+                "set_project": self._handle_set_project,
                 "voice_audio": self._handle_voice_audio,
                 "voice_mode_toggle": self._handle_voice_mode_toggle,
             }
