@@ -161,6 +161,7 @@ export function WorkflowsPage() {
     }
     if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) throw new Error('Invalid YAML: expected an object')
     if (parsed.name !== undefined && typeof parsed.name !== 'string') throw new Error('Invalid YAML: "name" must be a string')
+    if (parsed.description !== undefined && typeof parsed.description !== 'string') throw new Error('Invalid YAML: "description" must be a string')
     if (parsed.steps !== undefined && !Array.isArray(parsed.steps)) throw new Error('Invalid YAML: "steps" must be an array')
     await updateWorkflow(yamlEditorWf.id, {
       name: (parsed.name as string) || yamlEditorWf.name,
@@ -677,7 +678,7 @@ function YamlEditorModal({ workflowName, yamlContent, loading, onChange, onSave,
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [isDirty, setIsDirty] = useState(false)
-  const wrappedOnChange = (content: string) => { setIsDirty(true); onChange(content) }
+  const wrappedOnChange = useCallback((content: string) => { setIsDirty(true); onChange(content) }, [onChange])
 
   const handleSave = async () => {
     setError(null)

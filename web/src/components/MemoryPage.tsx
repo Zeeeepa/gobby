@@ -99,7 +99,8 @@ export function MemoryPage() {
   const [knowledgeGraphLimit, setKnowledgeGraphLimit] = useState(DEFAULT_KNOWLEDGE_GRAPH_LIMIT)
 
   useEffect(() => {
-    fetch('/api/config/values')
+    const controller = new AbortController()
+    fetch('/api/config/values', { signal: controller.signal })
       .then(res => res.ok ? res.json() : null)
       .then(data => {
         if (!data) return
@@ -109,7 +110,8 @@ export function MemoryPage() {
         if (typeof memLimit === 'number' && memLimit >= 50) setMemoryGraphLimit(memLimit)
         if (typeof kgLimit === 'number' && kgLimit >= 50) setKnowledgeGraphLimit(kgLimit)
       })
-      .catch(() => { /* config fetch failed, use defaults */ })
+      .catch((e) => { if (e.name !== 'AbortError') console.debug('Config fetch failed:', e) })
+    return () => controller.abort()
   }, [])
 
   const [viewMode, setViewMode] = useState<ViewMode>(() => {

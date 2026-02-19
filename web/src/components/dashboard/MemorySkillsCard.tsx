@@ -1,4 +1,4 @@
-interface Props {
+export interface Props {
   memory: { count: number }
   skills: { total: number }
 }
