@@ -23,7 +23,7 @@ export function Markdown({ content, id }: { content: string; id: string }) {
   return (
     <>
       {blocks.map((block, i) => (
-        <MemoizedBlock key={`${id}-${i}`} content={block} />
+        <MemoizedBlock key={`${id}-${i}-${block.length}`} content={block} />
       ))}
     </>
   )

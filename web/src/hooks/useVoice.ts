@@ -103,11 +103,8 @@ export function useVoice(
   const vadRef = useRef<MicVAD | null>(null)
   const playbackQueueRef = useRef(new AudioPlaybackQueue())
 
-  // Stable refs for callbacks that change across renders.
-  // We use a ref + immediate assignment pattern so that long-lived callbacks
-  // (e.g. VAD onSpeechEnd) always see the latest value without re-subscribing.
-  const wsRefStable = useRef(wsRef)
-  wsRefStable.current = wsRef
+  // Stable ref for conversationId so long-lived callbacks (e.g. VAD onSpeechEnd)
+  // always see the latest value without re-subscribing.
   const conversationIdRef = useRef(conversationId)
   conversationIdRef.current = conversationId
 
@@ -192,7 +189,7 @@ export function useVoice(
             const wavBuffer = utils.encodeWAV(audio, 1, 16000, 1, 16)
             const base64 = utils.arrayBufferToBase64(wavBuffer)
 
-            const ws = wsRefStable.current.current
+            const ws = wsRef.current
             if (ws?.readyState === WebSocket.OPEN) {
               ws.send(JSON.stringify({
                 type: 'voice_audio',

@@ -1,5 +1,4 @@
 import { useState } from 'react'
-import { cn } from '../../lib/utils'
 import { Markdown } from './Markdown'
 
 interface ThinkingBlockProps {
@@ -12,22 +11,21 @@ export function ThinkingBlock({ content, messageId }: ThinkingBlockProps) {
 
   return (
     <div
-      className={cn(
-        'my-2 rounded-lg border border-border bg-muted/30 cursor-pointer',
-        expanded && 'cursor-default'
-      )}
-      tabIndex={0}
-      role="button"
-      aria-expanded={expanded}
-      onClick={() => setExpanded(!expanded)}
-      onKeyDown={(e) => {
-        if (e.key === 'Enter' || e.key === ' ') {
-          e.preventDefault()
-          setExpanded(!expanded)
-        }
-      }}
+      className="my-2 rounded-lg border border-border bg-muted/30"
     >
-      <div className="flex items-center gap-2 px-3 py-2 text-sm text-muted-foreground">
+      <div
+        className="flex items-center gap-2 px-3 py-2 text-sm text-muted-foreground cursor-pointer"
+        tabIndex={0}
+        role="button"
+        aria-expanded={expanded}
+        onClick={() => setExpanded(!expanded)}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault()
+            setExpanded(!expanded)
+          }
+        }}
+      >
         <span className="text-xs">{expanded ? '\u25BC' : '\u25B6'}</span>
         <span className="font-medium">Thinking</span>
       </div>

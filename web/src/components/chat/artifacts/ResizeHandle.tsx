@@ -1,4 +1,4 @@
-import { useCallback, useRef } from 'react'
+import { useCallback, useEffect, useRef } from 'react'
 import { cn } from '../../../lib/utils'
 
 interface ResizeHandleProps {
@@ -12,6 +12,8 @@ export function ResizeHandle({ onResize, panelWidth, minWidth = 300, maxWidth = 
   const isDragging = useRef(false)
   const startX = useRef(0)
   const startWidth = useRef(0)
+
+  const cleanupRef = useRef<(() => void) | null>(null)
 
   const startDrag = useCallback((clientX: number) => {
     isDragging.current = true
@@ -30,17 +32,25 @@ export function ResizeHandle({ onResize, panelWidth, minWidth = 300, maxWidth = 
 
     const handleEnd = () => {
       isDragging.current = false
+      cleanupRef.current = null
       document.removeEventListener('mousemove', handleMouseMove)
       document.removeEventListener('mouseup', handleEnd)
       document.removeEventListener('touchmove', handleTouchMove)
       document.removeEventListener('touchend', handleEnd)
     }
 
+    cleanupRef.current = handleEnd
+
     document.addEventListener('mousemove', handleMouseMove)
     document.addEventListener('mouseup', handleEnd)
     document.addEventListener('touchmove', handleTouchMove, { passive: false })
     document.addEventListener('touchend', handleEnd)
   }, [onResize, panelWidth, minWidth, maxWidth])
+
+  // Cleanup drag listeners if component unmounts mid-drag
+  useEffect(() => {
+    return () => { cleanupRef.current?.() }
+  }, [])
 
   const handleMouseDown = useCallback((e: React.MouseEvent) => {
     e.preventDefault()
