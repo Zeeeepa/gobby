@@ -292,7 +292,12 @@ class LocalMemoryManager:
         return True
 
     def count_memories(self, project_id: str | None = None) -> int:
-        """Return the total number of memories using COUNT(*)."""
+        """Return the total number of memories using COUNT(*).
+
+        When project_id is provided, includes both project-specific memories
+        and global memories (project_id IS NULL) since global memories are
+        accessible from any project context.
+        """
         if project_id:
             row = self.db.fetchone(
                 "SELECT COUNT(*) AS cnt FROM memories WHERE project_id = ? OR project_id IS NULL",

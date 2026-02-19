@@ -614,9 +614,20 @@ def create_source_control_router(server: HTTPServer) -> APIRouter:
                 if not result.success:
                     logger.warning(f"Git worktree deletion failed (fallback): {result.message}")
 
-        # Delete DB record
+        # Delete DB record (even if git deletion had warnings)
+        git_deleted = True
+        if server.services.git_manager:
+            # Check if any of the git deletion paths reported failure
+            try:
+                git_deleted = result.success  # type: ignore[possibly-undefined]
+            except NameError:
+                git_deleted = True  # No git deletion attempted
+
         deleted = server.services.worktree_storage.delete(worktree_id)
-        return {"success": deleted, "id": worktree_id}
+        response: dict[str, Any] = {"success": deleted, "id": worktree_id, "git_deleted": git_deleted}
+        if not git_deleted:
+            response["message"] = "Git worktree deletion failed but DB record was removed"
+        return response
 
     @router.post("/worktrees/cleanup")
     async def cleanup_worktrees(

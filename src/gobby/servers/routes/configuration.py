@@ -679,14 +679,14 @@ def create_configuration_router(server: "HTTPServer") -> APIRouter:
                 summary_parts.append(f"config restored ({count} keys)")
                 config_imported = True
 
-            # Restore is_secret flags from export bundle
+            # Restore is_secret flags from export bundle (batch update)
             if request.config_secret_keys:
-                with config_store.db.transaction():
-                    for key in request.config_secret_keys:
-                        config_store.db.execute(
-                            "UPDATE config_store SET is_secret = 1 WHERE key = ?",
-                            (key,),
-                        )
+                with config_store.db.transaction() as conn:
+                    placeholders = ",".join("?" for _ in request.config_secret_keys)
+                    conn.execute(
+                        f"UPDATE config_store SET is_secret = 1 WHERE key IN ({placeholders})",
+                        tuple(request.config_secret_keys),
+                    )
 
             # Import prompt overrides into database
             if request.prompts:

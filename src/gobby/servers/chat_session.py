@@ -575,7 +575,10 @@ class ChatSession:
             await asyncio.wait_for(self._pending_approval_event.wait(), timeout=300.0)
         except TimeoutError:
             self._pending_approval_decision = "reject"
-            logger.warning(f"Tool approval timed out for {tool_name} in {self.conversation_id}")
+            logger.warning(
+                "Tool approval timed out",
+                extra={"tool": tool_name, "conversation_id": self.conversation_id},
+            )
 
         decision = self._pending_approval_decision or "reject"
 
