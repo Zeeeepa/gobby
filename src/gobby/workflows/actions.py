@@ -25,7 +25,6 @@ from gobby.workflows.enforcement import (
     handle_block_stop,
     handle_block_tools,
     handle_capture_baseline_dirty_files,
-    handle_require_active_task,
     handle_require_commit_before_stop,
     handle_require_task_complete,
     handle_require_task_review_or_close_before_stop,
@@ -304,9 +303,6 @@ class ActionExecutor:
         async def block_tools(context: ActionContext, **kw: Any) -> dict[str, Any] | None:
             return await handle_block_tools(context, task_manager=tm, **kw)
 
-        async def require_active(context: ActionContext, **kw: Any) -> dict[str, Any] | None:
-            return await handle_require_active_task(context, task_manager=tm, **kw)
-
         async def require_complete(context: ActionContext, **kw: Any) -> dict[str, Any] | None:
             return await handle_require_task_complete(
                 context, task_manager=tm, template_engine=te, **kw
@@ -334,7 +330,6 @@ class ActionExecutor:
 
         self.register("block_stop", handle_block_stop)
         self.register("block_tools", block_tools)
-        self.register("require_active_task", require_active)
         self.register("require_task_complete", require_complete)
         self.register("require_commit_before_stop", require_commit)
         self.register("require_task_review_or_close_before_stop", require_review)

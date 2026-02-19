@@ -20,7 +20,6 @@ from gobby.workflows.enforcement.commit_policy import (
     require_task_review_or_close_before_stop,
 )
 from gobby.workflows.enforcement.task_policy import (
-    require_active_task,
     require_task_complete,
     validate_session_task_scope,
 )
@@ -35,7 +34,6 @@ __all__ = [
     "handle_block_stop",
     "handle_block_tools",
     "handle_capture_baseline_dirty_files",
-    "handle_require_active_task",
     "handle_require_commit_before_stop",
     "handle_require_task_complete",
     "handle_require_task_review_or_close_before_stop",
@@ -193,36 +191,6 @@ async def handle_block_tools(
         task_manager=task_manager,
         source=source,
         project_name=project_name,
-    )
-
-
-async def handle_require_active_task(
-    context: Any,
-    task_manager: LocalTaskManager | None = None,
-    **kwargs: Any,
-) -> dict[str, Any] | None:
-    """ActionHandler wrapper for require_active_task.
-
-    DEPRECATED: Use block_tools action with rules instead.
-    Kept for backward compatibility with existing workflows.
-    """
-    # Get project_id from session for project-scoped task filtering
-    current_session = None
-    project_id = None
-    if context.session_manager:
-        current_session = context.session_manager.get(context.session_id)
-        if current_session:
-            project_id = current_session.project_id
-
-    return await require_active_task(
-        task_manager=task_manager,
-        session_id=context.session_id,
-        config=context.config,
-        event_data=context.event_data,
-        project_id=project_id,
-        workflow_state=context.state,
-        session_manager=context.session_manager,
-        session_task_manager=context.session_task_manager,
     )
 
 

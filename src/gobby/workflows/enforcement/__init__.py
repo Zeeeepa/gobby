@@ -21,7 +21,6 @@ from gobby.workflows.enforcement.handlers import (
     handle_block_stop,
     handle_block_tools,
     handle_capture_baseline_dirty_files,
-    handle_require_active_task,
     handle_require_commit_before_stop,
     handle_require_task_complete,
     handle_require_task_review_or_close_before_stop,
@@ -30,7 +29,6 @@ from gobby.workflows.enforcement.handlers import (
     handle_validate_session_task_scope,
 )
 from gobby.workflows.enforcement.task_policy import (
-    require_active_task,
     require_task_complete,
     validate_session_task_scope,
 )
@@ -48,14 +46,12 @@ __all__ = [
     "require_commit_before_stop",
     "require_task_review_or_close_before_stop",
     # Task policy
-    "require_active_task",
     "require_task_complete",
     "validate_session_task_scope",
     # Handlers
     "handle_block_stop",
     "handle_block_tools",
     "handle_capture_baseline_dirty_files",
-    "handle_require_active_task",
     "handle_require_commit_before_stop",
     "handle_require_task_complete",
     "handle_require_task_review_or_close_before_stop",
