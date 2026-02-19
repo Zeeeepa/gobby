@@ -145,6 +145,10 @@ export function useSessions() {
     fetchSessions()
   }, [fetchSessions])
 
+  const removeSession = useCallback((id: string) => {
+    setSessions((prev) => prev.filter((s) => s.id !== id))
+  }, [])
+
   return {
     sessions,
     filteredSessions,
@@ -154,5 +158,6 @@ export function useSessions() {
     isLoading,
     error,
     refresh,
+    removeSession,
   }
 }

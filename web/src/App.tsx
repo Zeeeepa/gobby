@@ -187,8 +187,8 @@ export default function App() {
 
   const handleDeleteConversation = useCallback((session: GobbySession) => {
     deleteConversation(session.external_id, session.id)
-    sessionsHook.refresh()
-  }, [deleteConversation, sessionsHook])
+    sessionsHook.removeSession(session.id)
+  }, [deleteConversation, sessionsHook.removeSession])
 
   /* Navigate to Terminals tab and attach agent's tmux session */
   const handleNavigateToAgent = useCallback((agent: { run_id: string; tmux_session_name?: string }) => {
