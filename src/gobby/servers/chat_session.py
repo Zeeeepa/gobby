@@ -24,6 +24,7 @@ from claude_agent_sdk import (
     HookContext,
     HookMatcher,
     PermissionResultAllow,
+    PermissionResultDeny,
     ResultMessage,
     TextBlock,
     ThinkingBlock,
@@ -397,7 +398,7 @@ class ChatSession:
         tool_name: str,
         input_data: dict[str, Any],
         context: ToolPermissionContext,
-    ) -> PermissionResultAllow:
+    ) -> PermissionResultAllow | PermissionResultDeny:
         """Callback for tool permission checks.
 
         Auto-approves all tools except AskUserQuestion (which blocks
@@ -477,7 +478,7 @@ class ChatSession:
 
     async def _wait_for_tool_approval(
         self, tool_name: str, input_data: dict[str, Any]
-    ) -> PermissionResultAllow:
+    ) -> PermissionResultAllow | PermissionResultDeny:
         """Block until the user approves or rejects a tool call."""
         self._pending_approval = {
             "tool_name": tool_name,
@@ -504,8 +505,7 @@ class ChatSession:
         self._pending_approval_decision = None
 
         if decision == "reject":
-            # Return with a rejection marker that the SDK will handle
-            return PermissionResultAllow(updated_input={**input_data, "_rejected": True})
+            return PermissionResultDeny(message=f"User rejected tool call: {tool_name}")
 
         if decision == "approve_always":
             self._approved_tools.add(tool_name)

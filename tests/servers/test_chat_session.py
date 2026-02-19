@@ -130,6 +130,61 @@ class TestCanUseTool:
         assert result.updated_input["answers"] == answers
 
 
+class TestToolApproval:
+    """Tests for the tool approval flow."""
+
+    @pytest.mark.asyncio
+    async def test_tool_rejection_returns_deny(self, session: ChatSession) -> None:
+        """_wait_for_tool_approval should return PermissionResultDeny on rejection."""
+        from claude_agent_sdk import PermissionResultDeny
+
+        # Enable tool approval for all tools
+        config = MagicMock()
+        config.enabled = True
+        config.default_policy = "ask"
+        config.policies = []
+        session._tool_approval_config = config
+
+        async def reject_after_delay() -> None:
+            await asyncio.sleep(0.05)
+            session.provide_approval("reject")
+
+        task = asyncio.create_task(reject_after_delay())
+        result = await session._wait_for_tool_approval("Write", {"file_path": "/tmp/test"})
+        await task
+
+        assert isinstance(result, PermissionResultDeny)
+        assert "Write" in result.message
+
+    @pytest.mark.asyncio
+    async def test_tool_approval_returns_allow(self, session: ChatSession) -> None:
+        """_wait_for_tool_approval should return PermissionResultAllow on approval."""
+        from claude_agent_sdk import PermissionResultAllow
+
+        async def approve_after_delay() -> None:
+            await asyncio.sleep(0.05)
+            session.provide_approval("approve")
+
+        task = asyncio.create_task(approve_after_delay())
+        result = await session._wait_for_tool_approval("Write", {"file_path": "/tmp/test"})
+        await task
+
+        assert isinstance(result, PermissionResultAllow)
+        assert result.updated_input == {"file_path": "/tmp/test"}
+
+    @pytest.mark.asyncio
+    async def test_tool_timeout_returns_deny(self, session: ChatSession) -> None:
+        """_wait_for_tool_approval should return PermissionResultDeny on timeout."""
+        from claude_agent_sdk import PermissionResultDeny
+
+        # Patch the timeout to be very short
+        with patch("gobby.servers.chat_session.asyncio.wait_for", side_effect=TimeoutError):
+            result = await session._wait_for_tool_approval("Write", {"file_path": "/tmp/test"})
+
+        assert isinstance(result, PermissionResultDeny)
+        assert "Write" in result.message
+
+
 class TestHistoryInjection:
     """Tests for history injection on session recreation."""
 
