@@ -340,6 +340,8 @@ cat ~/.claude/worktree-registry.json | jq -r ".worktrees[] | select(.project == 
 
 If `launch-agent.sh` fails:
 
+> **Security Warning:** `--dangerously-skip-permissions` disables all permission prompts, allowing the agent to execute arbitrary commands, read/write any file, and make network requests without user approval. Only use this flag in isolated worktree environments where the agent's scope is limited to the task branch. Never use on a main/production branch or in a directory containing secrets or credentials that the agent should not access.
+
 **For Ghostty:**
 ```bash
 open -na "Ghostty.app" --args -e bash -c "cd '$WORKTREE_PATH' && claude --dangerously-skip-permissions"

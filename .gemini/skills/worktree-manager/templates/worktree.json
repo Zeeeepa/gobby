@@ -1,5 +1,5 @@
 {
-  "$comment": "Optional project-specific configuration for worktree-manager. Place at .claude/worktree.json in your project root.",
+  "$comment": "Optional project-specific worktree-manager config. Copy this template to <project-root>/.claude/worktree.json and customize for your project.",
   "ports": {
     "count": 2,
     "services": [
