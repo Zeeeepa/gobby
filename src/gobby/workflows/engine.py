@@ -166,7 +166,6 @@ def process_mcp_handlers(
                             f"Session {state.session_id}: Failed to render template "
                             f"in {handler_type} handler value: {e}"
                         )
-                        state.variables[variable] = None
                 else:
                     state.variables[variable] = value
                 logger.info(

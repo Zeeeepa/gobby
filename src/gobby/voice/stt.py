@@ -80,7 +80,9 @@ class WhisperSTT:
         # Minimum size varies by format: WAV has a 44-byte header so even
         # short speech produces ~1KB+, while WebM needs ~200 bytes for EBML
         # header + cluster.  Tiny blobs cause EOF errors in ffmpeg.
-        min_size = 500 if mime_type.startswith("audio/wav") else 200
+        normalized_mime = mime_type.split(";")[0].strip()
+        is_wav = normalized_mime in ("audio/wav", "audio/x-wav")
+        min_size = 500 if is_wav else 200
         if len(audio_bytes) < min_size:
             raise ValueError("Recording too short — try speaking a bit longer.")
 
@@ -91,6 +93,7 @@ class WhisperSTT:
             "audio/webm": ".webm",
             "audio/webm;codecs=opus": ".webm",
             "audio/wav": ".wav",
+            "audio/x-wav": ".wav",
             "audio/mp3": ".mp3",
             "audio/mpeg": ".mp3",
             "audio/ogg": ".ogg",

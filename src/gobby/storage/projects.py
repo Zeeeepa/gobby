@@ -168,15 +168,9 @@ class LocalProjectManager:
         if project:
             return project
 
-        # Shouldn't happen after INSERT OR IGNORE, but be safe
-        logger.warning(f"Project '{name}' ({project_id}) not found after upsert")
-        return Project(
-            id=project_id,
-            name=name,
-            repo_path=repo_path,
-            github_url=None,
-            created_at=now,
-            updated_at=now,
+        raise RuntimeError(
+            f"Project '{name}' ({project_id}) not found after INSERT OR IGNORE — "
+            "possible database inconsistency"
         )
 
     def list(self, include_deleted: bool = False) -> list[Project]:

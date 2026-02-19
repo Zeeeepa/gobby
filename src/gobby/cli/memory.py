@@ -515,10 +515,15 @@ def rebuild_crossrefs(ctx: click.Context, project_ref: str | None) -> None:
     response = client.call_http_api(
         f"/memories/crossrefs/rebuild{params}", method="POST", timeout=600.0
     )
-    data = response.json()
+    if not response.ok:
+        raise click.ClickException(f"Rebuild failed (HTTP {response.status_code}): {response.text}")
+    try:
+        data = response.json()
+    except ValueError as e:
+        raise click.ClickException(f"Invalid response from daemon: {e}") from e
     click.echo(
-        f"Done: {data['memories_processed']} memories processed, "
-        f"{data['crossrefs_created']} crossrefs created"
+        f"Done: {data.get('memories_processed', '?')} memories processed, "
+        f"{data.get('crossrefs_created', '?')} crossrefs created"
     )
 
 
@@ -547,10 +552,15 @@ def rebuild_graph(ctx: click.Context, project_ref: str | None) -> None:
     response = client.call_http_api(
         f"/memories/graph/rebuild{params}", method="POST", timeout=600.0
     )
-    data = response.json()
+    if not response.ok:
+        raise click.ClickException(f"Rebuild failed (HTTP {response.status_code}): {response.text}")
+    try:
+        data = response.json()
+    except ValueError as e:
+        raise click.ClickException(f"Invalid response from daemon: {e}") from e
     click.echo(
-        f"Done: {data['memories_extracted']}/{data['memories_processed']} memories extracted, "
-        f"{data['errors']} errors"
+        f"Done: {data.get('memories_extracted', '?')}/{data.get('memories_processed', '?')} "
+        f"memories extracted, {data.get('errors', '?')} errors"
     )
 
 

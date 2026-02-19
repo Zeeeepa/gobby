@@ -18,6 +18,8 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
+MAX_PATCH_BYTES = 100_000
+
 # Simple TTL cache: key -> (timestamp, value)
 _cache: dict[str, tuple[float, Any]] = {}
 _GITHUB_TTL = 30.0
@@ -160,8 +162,8 @@ def create_source_control_router(server: HTTPServer) -> APIRouter:
                     branch_count = len(
                         [line for line in r2.stdout.strip().split("\n") if line.strip()]
                     )
-            except Exception:
-                pass
+            except (OSError, ValueError) as e:
+                logger.warning(f"Failed to count branches: {e}")
 
         worktree_count = 0
         clone_count = 0
@@ -382,7 +384,7 @@ def create_source_control_router(server: HTTPServer) -> APIRouter:
             return {
                 "diff_stat": stat_r.stdout if stat_r.returncode == 0 else "",
                 "files": files,
-                "patch": patch_r.stdout[:100000] if patch_r.returncode == 0 else "",
+                "patch": patch_r.stdout[:MAX_PATCH_BYTES] if patch_r.returncode == 0 else "",
             }
         except subprocess.TimeoutExpired:
             raise HTTPException(504, "Diff computation timed out") from None

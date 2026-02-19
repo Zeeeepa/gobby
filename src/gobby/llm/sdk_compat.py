@@ -31,8 +31,14 @@ def _tolerant_parse_message(data: dict[str, Any]) -> object | None:
         return None
 
 
-# Patch both import sites so the tolerant version is used everywhere:
-# 1. Module-level import in _internal/client.py (InternalClient.process_query)
-_internal_client.parse_message = _tolerant_parse_message  # type: ignore[attr-defined,assignment]
-# 2. Module attribute for lazy imports in client.py (ClaudeSDKClient.receive_messages)
-_message_parser.parse_message = _tolerant_parse_message  # type: ignore[assignment]
+# Patch both import sites so the tolerant version is used everywhere.
+# Guard with hasattr in case SDK internals change.
+if hasattr(_internal_client, "parse_message"):
+    _internal_client.parse_message = _tolerant_parse_message  # type: ignore[attr-defined,assignment]
+else:
+    logger.warning("SDK internal structure changed: _internal.client.parse_message not found")
+
+if hasattr(_message_parser, "parse_message"):
+    _message_parser.parse_message = _tolerant_parse_message  # type: ignore[assignment]
+else:
+    logger.warning("SDK internal structure changed: _internal.message_parser.parse_message not found")

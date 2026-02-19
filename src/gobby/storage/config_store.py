@@ -177,12 +177,11 @@ class ConfigStore:
     def clear_secret(self, key: str, secret_store: SecretStore) -> None:
         """Remove a secret from both config_store and the secrets table."""
         secret_name = config_key_to_secret_name(key)
-        self.db.execute("DELETE FROM config_store WHERE key = ?", (key,))
         try:
             secret_store.delete(secret_name)
         except Exception:
-            # DB record already deleted; log but don't re-raise
-            logger.warning(f"Config key '{key}' removed but secret '{secret_name}' cleanup failed")
+            logger.warning(f"Secret '{secret_name}' cleanup failed for key '{key}'")
+        self.db.execute("DELETE FROM config_store WHERE key = ?", (key,))
 
 
 # =============================================================================
