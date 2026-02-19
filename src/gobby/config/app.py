@@ -21,6 +21,7 @@ from pydantic import BaseModel, Field, field_validator
 from gobby.config.cron import CronConfig
 from gobby.config.extensions import HookExtensionsConfig
 from gobby.config.features import (
+    ChatConfig,
     ImportMCPServerConfig,
     MemoryDedupDecisionConfig,
     MemoryEntityExtractionConfig,
@@ -421,6 +422,10 @@ class DaemonConfig(BaseModel):
     tool_approval: ToolApprovalConfig = Field(
         default_factory=ToolApprovalConfig,
         description="Tool approval UI configuration for web chat",
+    )
+    chat: ChatConfig = Field(
+        default_factory=ChatConfig,
+        description="Chat mode configuration (default mode for new sessions)",
     )
 
     def get_recommend_tools_config(self) -> RecommendToolsConfig:

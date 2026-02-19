@@ -1,9 +1,11 @@
 import { useState, useEffect, useCallback } from 'react'
+import type { ChatMode } from '../types/chat'
 
 export interface Settings {
   fontSize: number // Base font size in pixels (12-24)
   model: string | null // Selected LLM model
   provider: string | null // Selected LLM provider
+  chatMode: ChatMode // Active chat mode
 }
 
 export interface ModelInfo {
@@ -15,6 +17,7 @@ const DEFAULT_SETTINGS: Settings = {
   fontSize: 16,
   model: null,
   provider: null,
+  chatMode: 'bypass',
 }
 
 const STORAGE_KEY = 'gobby-settings'
@@ -94,6 +97,10 @@ export function useSettings() {
     setSettings((prev) => ({ ...prev, model, provider: 'claude' }))
   }, [])
 
+  const updateChatMode = useCallback((chatMode: ChatMode) => {
+    setSettings((prev) => ({ ...prev, chatMode }))
+  }, [])
+
   const resetSettings = useCallback(() => {
     setSettings({
       ...DEFAULT_SETTINGS,
@@ -108,6 +115,7 @@ export function useSettings() {
     modelsLoading,
     updateFontSize,
     updateModel,
+    updateChatMode,
     resetSettings,
   }
 }

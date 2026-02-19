@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
-import type { ChatMessage, ToolCall } from '../types/chat'
+import type { ChatMessage, ToolCall, ChatMode } from '../types/chat'
 import type { QueuedFile } from '../types/chat'
 
 const CONVERSATION_ID_KEY = 'gobby-conversation-id'
@@ -661,6 +661,16 @@ export function useChat() {
     setIsThinking(false)
   }, [])
 
+  // Send mode change to backend
+  const sendMode = useCallback((mode: ChatMode) => {
+    if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) return
+    wsRef.current.send(JSON.stringify({
+      type: 'set_mode',
+      mode,
+      conversation_id: conversationIdRef.current,
+    }))
+  }, [])
+
   // Send a message (allowed even while streaming — cancels the active stream)
   const sendMessage = useCallback((content: string, model?: string | null, files?: QueuedFile[], projectId?: string | null): boolean => {
     console.log('sendMessage called:', content, 'model:', model, 'files:', files?.length)
@@ -802,6 +812,7 @@ export function useChat() {
     isStreaming,
     isThinking,
     sendMessage,
+    sendMode,
     stopStreaming,
     clearHistory,
     deleteConversation,

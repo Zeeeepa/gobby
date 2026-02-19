@@ -15,6 +15,7 @@ Extracted from app.py using Strangler Fig pattern for code decomposition.
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 __all__ = [
+    "ChatConfig",
     "ToolSummarizerConfig",
     "RecommendToolsConfig",
     "ImportMCPServerConfig",
@@ -334,6 +335,24 @@ class ProjectVerificationConfig(BaseModel):
                 result[field] = cmd
         result.update(self.custom)
         return result
+
+
+class ChatConfig(BaseModel):
+    """Chat mode configuration."""
+
+    default_mode: str = Field(
+        default="bypass",
+        description="Default chat mode for new sessions. One of: normal, accept_edits, bypass, plan.",
+    )
+
+    @field_validator("default_mode")
+    @classmethod
+    def validate_default_mode(cls, v: str) -> str:
+        """Validate default_mode is a known chat mode."""
+        valid = {"normal", "accept_edits", "bypass", "plan"}
+        if v not in valid:
+            raise ValueError(f"default_mode must be one of {valid}, got '{v}'")
+        return v
 
 
 class HookStageConfig(BaseModel):

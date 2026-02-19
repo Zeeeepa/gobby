@@ -142,6 +142,19 @@ class ChatMixin:
             if tool_approval_cfg is not None and tool_approval_cfg.enabled:
                 session._tool_approval_config = tool_approval_cfg
 
+        # Apply pending chat mode (set before session existed)
+        pending_modes = getattr(self, "_pending_modes", {})
+        pending_mode = pending_modes.pop(conversation_id, None)
+        if pending_mode:
+            session.chat_mode = pending_mode
+        else:
+            # Apply configured default from daemon config
+            daemon_cfg = getattr(self, "daemon_config", None)
+            if daemon_cfg is not None:
+                chat_cfg = getattr(daemon_cfg, "chat", None)
+                if chat_cfg is not None:
+                    session.chat_mode = chat_cfg.default_mode
+
         await session.start(model=model)
         self._chat_sessions[conversation_id] = session
 
@@ -619,6 +632,34 @@ class ChatMixin:
             return
 
         session.provide_approval(decision)
+
+    async def _handle_set_mode(self, websocket: Any, data: dict[str, Any]) -> None:
+        """Handle set_mode message to change chat mode for a conversation.
+
+        Message format:
+        {
+            "type": "set_mode",
+            "mode": "normal" | "accept_edits" | "bypass" | "plan",
+            "conversation_id": "stable-id"
+        }
+        """
+        conversation_id = data.get("conversation_id")
+        mode = data.get("mode", "bypass")
+        valid_modes = {"normal", "accept_edits", "bypass", "plan"}
+        if mode not in valid_modes:
+            await self._send_error(websocket, f"Invalid mode: {mode}. Must be one of {valid_modes}")
+            return
+
+        session = self._chat_sessions.get(conversation_id) if conversation_id else None
+        if session is not None:
+            session.chat_mode = mode
+            logger.info(f"Chat mode set to '{mode}' for conversation {conversation_id[:8]}")
+        else:
+            # Store mode for when session is created
+            if not hasattr(self, "_pending_modes"):
+                self._pending_modes: dict[str, str] = {}
+            self._pending_modes[conversation_id] = mode
+            logger.debug(f"Chat mode '{mode}' queued for future conversation {(conversation_id or '')[:8]}")
 
     async def _handle_clear_chat(self, websocket: Any, data: dict[str, Any]) -> None:
         """Handle clear_chat message: stop session, mark completed, notify frontend.

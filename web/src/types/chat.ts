@@ -1,6 +1,21 @@
 import type { CommandInfo } from '../hooks/useSlashCommands'
 import type { GobbySession } from '../hooks/useSessions'
 
+export type ChatMode = 'normal' | 'accept_edits' | 'bypass' | 'plan'
+
+export interface ChatModeInfo {
+  id: ChatMode
+  label: string
+  description: string
+}
+
+export const CHAT_MODES: ChatModeInfo[] = [
+  { id: 'bypass', label: 'Bypass', description: 'Auto-approve all tools' },
+  { id: 'accept_edits', label: 'Accept Edits', description: 'Auto-approve edits, prompt for dangerous commands' },
+  { id: 'normal', label: 'Normal', description: 'Prompt for tool approvals per policy' },
+  { id: 'plan', label: 'Plan', description: 'Read-only, blocks file edits except plan files' },
+]
+
 export interface ToolCall {
   id: string
   tool_name: string
@@ -43,6 +58,8 @@ export interface ChatState {
   onInputChange: (value: string) => void
   filteredCommands: CommandInfo[]
   onCommandSelect: (cmd: CommandInfo) => void
+  mode: ChatMode
+  onModeChange: (mode: ChatMode) => void
 }
 
 export interface ConversationState {

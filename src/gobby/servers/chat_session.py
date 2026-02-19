@@ -9,6 +9,7 @@ WebSocket reconnections) rather than ephemeral client_id.
 import asyncio
 import logging
 import os
+import re
 import shutil
 from collections.abc import AsyncIterator, Awaitable, Callable
 from dataclasses import dataclass, field
@@ -225,6 +226,7 @@ class ChatSession:
     _pending_approval_event: asyncio.Event | None = field(default=None, repr=False)
     _pending_approval_decision: str | None = field(default=None, repr=False)
     _approved_tools: set[str] = field(default_factory=set, repr=False)
+    chat_mode: str = field(default="bypass", repr=False)
     _tool_approval_config: Any | None = field(default=None, repr=False)
     _tool_approval_callback: Any | None = field(default=None, repr=False)
     _needs_history_injection: bool = field(default=False, repr=False)
@@ -406,10 +408,13 @@ class ChatSession:
         matched by tool_approval policies (which block until approved).
         """
         # Check tool approval (before AskUserQuestion, which has its own flow)
-        if tool_name != "AskUserQuestion" and self._needs_tool_approval(tool_name):
-            return await self._wait_for_tool_approval(tool_name, input_data)
-
         if tool_name != "AskUserQuestion":
+            if self._needs_tool_approval(tool_name):
+                return await self._wait_for_tool_approval(tool_name, input_data)
+            # In accept_edits mode, auto-approved Bash still needs danger check
+            if self.chat_mode == "accept_edits" and tool_name == "Bash":
+                if self._is_dangerous_bash(input_data):
+                    return await self._wait_for_tool_approval(tool_name, input_data)
             return PermissionResultAllow(updated_input=input_data)
 
         # Store the pending question and block until answered
@@ -448,9 +453,48 @@ class ChatSession:
         """Whether an AskUserQuestion is currently awaiting a response."""
         return self._pending_question is not None
 
-    def _needs_tool_approval(self, tool_name: str) -> bool:
-        """Check if a tool requires user approval based on config."""
+    # Patterns that indicate dangerous bash commands (used by accept_edits mode)
+    _DANGEROUS_BASH_PATTERNS = re.compile(
+        r"(?:^|[;&|]\s*)(?:sudo|rm|chmod|chown|kill|killall|mkfs|dd|reboot|shutdown|halt|"
+        r"mv\s+/|>\s*/|git\s+(?:push|reset\s+--hard|clean\s+-f))\b",
+        re.MULTILINE,
+    )
 
+    def _needs_tool_approval(self, tool_name: str) -> bool:
+        """Check if a tool requires user approval based on chat mode and config.
+
+        Mode logic:
+        - bypass: Never prompt (auto-approve everything)
+        - accept_edits: Auto-approve Edit/Write/NotebookEdit and safe Bash.
+          Prompt for dangerous Bash and MCP call_tool.
+        - normal: Fall through to ToolApprovalConfig policy checks
+        - plan: Fall through to ToolApprovalConfig policy checks
+          (plan mode blocking is handled by the workflow engine, not here)
+        """
+        mode = self.chat_mode
+
+        # Bypass mode: no approvals ever
+        if mode == "bypass":
+            return False
+
+        # Accept-edits mode: auto-approve edits and safe bash
+        if mode == "accept_edits":
+            # Already approved this session
+            if tool_name in self._approved_tools:
+                return False
+            # Auto-approve file edit tools
+            if tool_name in ("Edit", "Write", "NotebookEdit"):
+                return False
+            # Bash: auto-approve unless dangerous patterns detected
+            # (actual command content check happens in _can_use_tool via input_data)
+            # For the approval gate check, we mark Bash as needing approval
+            # only when the config says so — the actual danger check is below
+            if tool_name == "Bash":
+                return False  # Handled by _is_dangerous_bash in _can_use_tool
+            # MCP call_tool and other tools: prompt
+            return True
+
+        # Normal / plan mode: use ToolApprovalConfig
         config = self._tool_approval_config
         if config is None or not config.enabled:
             return False
@@ -475,6 +519,13 @@ class ChatSession:
         # Fall back to default policy
         default_needs: bool = config.default_policy != "auto"
         return default_needs
+
+    def _is_dangerous_bash(self, input_data: dict[str, Any]) -> bool:
+        """Check if a Bash command matches dangerous patterns."""
+        command = input_data.get("command", "")
+        if not command:
+            return False
+        return bool(self._DANGEROUS_BASH_PATTERNS.search(command))
 
     async def _wait_for_tool_approval(
         self, tool_name: str, input_data: dict[str, Any]

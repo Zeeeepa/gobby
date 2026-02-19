@@ -37,6 +37,10 @@ variables:
 # Session-scoped shared variables (visible to all workflows in the session)
 # Reset on compact/clear since context is lost
 session_variables:
+  # Chat mode — controls tool approval behavior in web chat
+  # Set via set_mode WebSocket message; default from config (chat.default_mode)
+  chat_mode: bypass
+
   # List of server:tool combos that have been unlocked via get_tool_schema
   unlocked_tools: []
 

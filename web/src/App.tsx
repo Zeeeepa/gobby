@@ -29,9 +29,9 @@ import type { GobbySession } from './hooks/useSessions'
 const HIDDEN_PROJECTS = new Set(['_orphaned', '_migrated'])
 
 export default function App() {
-  const { messages, conversationId, isConnected, isStreaming, isThinking, sendMessage, stopStreaming, clearHistory, deleteConversation, executeCommand, respondToQuestion, switchConversation, startNewChat, wsRef, handleVoiceMessageRef } = useChat()
+  const { messages, conversationId, isConnected, isStreaming, isThinking, sendMessage, sendMode, stopStreaming, clearHistory, deleteConversation, executeCommand, respondToQuestion, switchConversation, startNewChat, wsRef, handleVoiceMessageRef } = useChat()
   const voice = useVoice(wsRef, conversationId)
-  const { settings, modelInfo, modelsLoading, updateFontSize, updateModel, resetSettings } = useSettings()
+  const { settings, modelInfo, modelsLoading, updateFontSize, updateModel, updateChatMode, resetSettings } = useSettings()
   const { agents } = useTerminal()
   const tmux = useTmuxSessions()
   const { filteredCommands, parseCommand, filterCommands } = useSlashCommands()
@@ -299,6 +299,8 @@ export default function App() {
             onInputChange: handleInputChange,
             filteredCommands,
             onCommandSelect: handleCommandSelect,
+            mode: settings.chatMode,
+            onModeChange: (mode) => { updateChatMode(mode); sendMode(mode) },
           }}
           conversations={{
             sessions: webChatSessions,

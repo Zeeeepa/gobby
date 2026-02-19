@@ -74,6 +74,8 @@ export function ChatPage({ chat, conversations, project, voice }: ChatPageProps)
                 projects={project.projects}
                 selectedProjectId={project.selectedProjectId}
                 onProjectChange={project.onProjectChange}
+                mode={chat.mode}
+                onModeChange={chat.onModeChange}
                 voiceMode={voice.voiceMode}
                 voiceAvailable={voice.voiceAvailable}
                 isListening={voice.isListening}

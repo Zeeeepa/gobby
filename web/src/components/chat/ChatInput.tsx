@@ -1,8 +1,9 @@
 import { useState, useCallback, useRef, useEffect, useMemo, type KeyboardEvent } from 'react'
-import type { QueuedFile, ProjectOption } from '../../types/chat'
+import type { QueuedFile, ProjectOption, ChatMode } from '../../types/chat'
 import type { CommandInfo } from '../../hooks/useSlashCommands'
 import { cn } from '../../lib/utils'
 import { Button } from './ui/Button'
+import { ModeSelector } from './ModeSelector'
 
 interface ChatInputProps {
   onSend: (message: string, files?: QueuedFile[]) => void
@@ -15,6 +16,8 @@ interface ChatInputProps {
   projects?: ProjectOption[]
   selectedProjectId?: string | null
   onProjectChange?: (projectId: string) => void
+  mode?: ChatMode
+  onModeChange?: (mode: ChatMode) => void
   voiceMode?: boolean
   voiceAvailable?: boolean
   isListening?: boolean
@@ -37,6 +40,8 @@ export function ChatInput({
   projects = [],
   selectedProjectId,
   onProjectChange,
+  mode = 'bypass',
+  onModeChange,
   voiceMode = false,
   voiceAvailable = false,
   isListening = false,
@@ -176,6 +181,9 @@ export function ChatInput({
 
         {/* Toolbar */}
         <div className="flex items-center gap-1 mb-2">
+          {onModeChange && (
+            <ModeSelector mode={mode} onModeChange={onModeChange} disabled={disabled} />
+          )}
           <button
             className="p-1.5 rounded text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
             onClick={() => fileInputRef.current?.click()}
