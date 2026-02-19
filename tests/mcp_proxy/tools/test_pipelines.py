@@ -315,7 +315,7 @@ class TestRunPipelineTool:
 
         await registry.call(
             "run_pipeline",
-            {"name": "deploy", "inputs": {}, "project_id": "proj-1"},
+            {"name": "deploy", "inputs": {}, "session_id": "sess-1"},
         )
 
         mock_loader.load_pipeline.assert_called_once_with("deploy")
@@ -344,7 +344,7 @@ class TestRunPipelineTool:
 
         result = await registry.call(
             "run_pipeline",
-            {"name": "deploy", "inputs": {"env": "prod"}, "project_id": "proj-1"},
+            {"name": "deploy", "inputs": {"env": "prod"}, "session_id": "sess-1"},
         )
 
         # Execution record pre-created
@@ -377,7 +377,7 @@ class TestRunPipelineTool:
 
         result = await registry.call(
             "run_pipeline",
-            {"name": "deploy", "inputs": {}, "project_id": "proj-1"},
+            {"name": "deploy", "inputs": {}, "session_id": "sess-1"},
         )
 
         assert result["success"] is True
@@ -423,7 +423,7 @@ class TestRunPipelineTool:
 
         result = await registry.call(
             "run_pipeline",
-            {"name": "deploy", "inputs": {}, "project_id": "proj-1"},
+            {"name": "deploy", "inputs": {}, "session_id": "sess-1"},
         )
 
         assert result["success"] is True
@@ -447,7 +447,7 @@ class TestRunPipelineTool:
 
         result = await registry.call(
             "run_pipeline",
-            {"name": "nonexistent", "inputs": {}, "project_id": "proj-1"},
+            {"name": "nonexistent", "inputs": {}, "session_id": "sess-1"},
         )
 
         assert result["success"] is False
@@ -481,7 +481,7 @@ class TestRunPipelineTool:
 
         result = await registry.call(
             "run_pipeline",
-            {"name": "deploy", "inputs": {}, "project_id": "proj-1"},
+            {"name": "deploy", "inputs": {}, "session_id": "sess-1"},
         )
 
         # Fire-and-forget: returns success/running immediately
@@ -504,7 +504,7 @@ class TestRunPipelineTool:
 
         result = await registry.call(
             "run_pipeline",
-            {"name": "deploy", "inputs": {}, "project_id": "proj-1"},
+            {"name": "deploy", "inputs": {}, "session_id": "sess-1"},
         )
 
         assert result["success"] is False
@@ -1163,7 +1163,7 @@ class TestDynamicPipelineTools:
 
         result = await registry.call(
             "pipeline:run-tests",
-            {"filter": "test_api"},
+            {"filter": "test_api", "session_id": "sess-1"},
         )
 
         assert result["success"] is True
