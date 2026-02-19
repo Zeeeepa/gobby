@@ -394,7 +394,24 @@ async def synthesize_title(
             if not turns:
                 return {"error": "Empty transcript"}
 
-            formatted_turns = format_turns_for_llm(turns)
+            # Filter out system turns — they contain tool definitions (MCP tools,
+            # etc.) that pollute title synthesis with irrelevant names like "Canva"
+            filtered_turns = []
+            for turn in turns:
+                # Claude Code format: nested message with role
+                msg = turn.get("message", {})
+                role = msg.get("role", turn.get("role", ""))
+                if role == "system":
+                    continue
+                # Gemini CLI format: type=system
+                if turn.get("type") == "system":
+                    continue
+                filtered_turns.append(turn)
+
+            if not filtered_turns:
+                return {"error": "No user/assistant turns in transcript"}
+
+            formatted_turns = format_turns_for_llm(filtered_turns)
 
             if not template:
                 template = (

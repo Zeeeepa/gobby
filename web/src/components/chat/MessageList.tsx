@@ -12,16 +12,37 @@ interface MessageListProps {
 
 export function MessageList({ messages, isStreaming, isThinking, onRespondToQuestion }: MessageListProps) {
   const scrollRef = useRef<HTMLDivElement>(null)
+  const userScrolledUpRef = useRef(false)
 
+  // Compute a fingerprint that changes when messages are added OR mutated
+  // (e.g. tool_status updates that modify toolCalls on existing messages)
+  const messageFingerprint = messages.reduce((acc, m) => {
+    const toolCount = m.toolCalls?.length ?? 0
+    const lastStatus = m.toolCalls?.[toolCount - 1]?.status ?? ''
+    return acc + m.id + ':' + toolCount + ':' + lastStatus + '|'
+  }, '')
+
+  // Track whether user has manually scrolled away from bottom
   useEffect(() => {
     const el = scrollRef.current
-    if (el) {
+    if (!el) return
+    const handleScroll = () => {
       const distanceFromBottom = el.scrollHeight - el.scrollTop - el.clientHeight
-      if (distanceFromBottom < 100) {
-        el.scrollTop = el.scrollHeight
-      }
+      userScrolledUpRef.current = distanceFromBottom > 150
     }
-  }, [messages.length, isThinking])
+    el.addEventListener('scroll', handleScroll, { passive: true })
+    return () => el.removeEventListener('scroll', handleScroll)
+  }, [])
+
+  // Auto-scroll when content changes (new messages, tool updates, streaming)
+  useEffect(() => {
+    const el = scrollRef.current
+    if (el && !userScrolledUpRef.current) {
+      requestAnimationFrame(() => {
+        el.scrollTop = el.scrollHeight
+      })
+    }
+  }, [messageFingerprint, isThinking, isStreaming])
 
   return (
     <ScrollArea ref={scrollRef} className="flex-1 min-h-0">
