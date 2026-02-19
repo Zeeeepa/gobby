@@ -381,26 +381,26 @@ class TestSetConfigSecret:
             db=temp_db,
         )
 
-    @patch("gobby.utils.machine_id.get_machine_id", return_value="test-machine-12345")
     def test_set_config_secret_encrypts(
-        self, _mock_mid, config_registry_with_db, config_store: ConfigStore, temp_db: LocalDatabase
+        self, config_registry_with_db, config_store: ConfigStore, temp_db: LocalDatabase
     ) -> None:
         """set_config with is_secret=True encrypts the value."""
-        tool = config_registry_with_db.get_tool("set_config")
-        result = tool(key="voice.elevenlabs_api_key", value="sk-test-456", is_secret=True)
+        with patch("gobby.utils.machine_id.get_machine_id", return_value="test-machine-12345"):
+            tool = config_registry_with_db.get_tool("set_config")
+            result = tool(key="voice.elevenlabs_api_key", value="sk-test-456", is_secret=True)
 
-        assert result["success"] is True
-        assert result["stored_as"] == "encrypted_secret"
-        assert "value" not in result  # Never expose secret in response
+            assert result["success"] is True
+            assert result["stored_as"] == "encrypted_secret"
+            assert "value" not in result  # Never expose secret in response
 
-        # Verify encrypted in secrets table
-        secret_store = SecretStore(temp_db)
-        decrypted = secret_store.get("cfg__voice__elevenlabs_api_key")
-        assert decrypted == "sk-test-456"
+            # Verify encrypted in secrets table
+            secret_store = SecretStore(temp_db)
+            decrypted = secret_store.get("cfg__voice__elevenlabs_api_key")
+            assert decrypted == "sk-test-456"
 
-        # Verify config_store has reference
-        raw = config_store.get("voice.elevenlabs_api_key")
-        assert raw == "$secret:cfg__voice__elevenlabs_api_key"
+            # Verify config_store has reference
+            raw = config_store.get("voice.elevenlabs_api_key")
+            assert raw == "$secret:cfg__voice__elevenlabs_api_key"
 
     def test_set_config_normal_unchanged(
         self, config_registry_with_db, config_store: ConfigStore
