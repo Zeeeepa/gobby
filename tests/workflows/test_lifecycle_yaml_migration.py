@@ -27,9 +27,7 @@ class TestSessionLifecycleUnifiedFormat:
         assert definition.priority == 10
 
     @pytest.mark.asyncio
-    async def test_session_variables_contains_shared_state(
-        self, db_loader: WorkflowLoader
-    ) -> None:
+    async def test_session_variables_contains_shared_state(self, db_loader: WorkflowLoader) -> None:
         """session-lifecycle.yaml session_variables contains shared state."""
         definition = await db_loader.load_workflow("session-lifecycle")
         assert definition is not None

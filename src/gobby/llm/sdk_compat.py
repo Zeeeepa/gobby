@@ -51,4 +51,6 @@ else:
 if hasattr(_message_parser, "parse_message"):
     _message_parser.parse_message = _tolerant_parse_message  # type: ignore[assignment]
 else:
-    logger.warning("SDK internal structure changed: _internal.message_parser.parse_message not found")
+    logger.warning(
+        "SDK internal structure changed: _internal.message_parser.parse_message not found"
+    )

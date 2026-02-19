@@ -77,11 +77,15 @@ def create_pipelines_router(server: "HTTPServer") -> APIRouter:
 
         project_id = request.project_id or ""
         if not project_id:
-            raise HTTPException(status_code=400, detail="project_id required for pipeline execution")
+            raise HTTPException(
+                status_code=400, detail="project_id required for pipeline execution"
+            )
 
         executor = server.services.get_pipeline_executor(project_id)
         if executor is None:
-            raise HTTPException(status_code=500, detail="Pipeline executor not available for project")
+            raise HTTPException(
+                status_code=500, detail="Pipeline executor not available for project"
+            )
 
         # Load the pipeline
         pipeline = await loader.load_pipeline(request.name)
@@ -175,9 +179,7 @@ def create_pipelines_router(server: "HTTPServer") -> APIRouter:
         from gobby.workflows.pipeline_state import ApprovalRequired
 
         # Look up the execution's project from the approval token
-        global_mgr = LocalPipelineExecutionManager(
-            db=server.services.database, project_id=""
-        )
+        global_mgr = LocalPipelineExecutionManager(db=server.services.database, project_id="")
         step = global_mgr.get_step_by_approval_token(token)
         if not step:
             raise HTTPException(status_code=404, detail="Invalid approval token")
@@ -228,9 +230,7 @@ def create_pipelines_router(server: "HTTPServer") -> APIRouter:
         from gobby.storage.pipelines import LocalPipelineExecutionManager
 
         # Look up the execution's project from the rejection token
-        global_mgr = LocalPipelineExecutionManager(
-            db=server.services.database, project_id=""
-        )
+        global_mgr = LocalPipelineExecutionManager(db=server.services.database, project_id="")
         step = global_mgr.get_step_by_approval_token(token)
         if not step:
             raise HTTPException(status_code=404, detail="Invalid rejection token")

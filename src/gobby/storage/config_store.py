@@ -181,7 +181,9 @@ class ConfigStore:
             except (KeyError, ValueError) as e:
                 logger.warning(f"Secret '{secret_name}' cleanup failed for key '{key}': {e}")
             except Exception as e:
-                logger.warning(f"Secret '{secret_name}' cleanup failed for key '{key}': {e}", exc_info=True)
+                logger.warning(
+                    f"Secret '{secret_name}' cleanup failed for key '{key}': {e}", exc_info=True
+                )
 
 
 # =============================================================================

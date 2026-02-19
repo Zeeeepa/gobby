@@ -486,7 +486,9 @@ class TestGetProjectContextEnvOverride:
         assert result is not None
         assert result == {"id": "override-project-123"}
 
-    def test_env_override_matching_cwd_returns_full_context(self, tmp_path: Path, monkeypatch) -> None:
+    def test_env_override_matching_cwd_returns_full_context(
+        self, tmp_path: Path, monkeypatch
+    ) -> None:
         """When GOBBY_PROJECT_ID matches CWD project, return full context."""
         gobby_dir = tmp_path / ".gobby"
         gobby_dir.mkdir()

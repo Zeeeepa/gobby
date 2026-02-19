@@ -2008,16 +2008,16 @@ class TestEvaluateWorkflowsHelper:
 
         for cls in [AgentEventHandlerMixin, SessionEventHandlerMixin, ToolEventHandlerMixin]:
             source = inspect.getsource(cls)
-            assert "handle_all_lifecycles" not in source, (
-                f"{cls.__name__} still calls handle_all_lifecycles directly"
-            )
+            assert (
+                "handle_all_lifecycles" not in source
+            ), f"{cls.__name__} still calls handle_all_lifecycles directly"
 
     def test_evaluate_workflows_helper_exists_on_base(self) -> None:
         """_evaluate_workflows is defined on EventHandlersBase."""
         from gobby.hooks.event_handlers._base import EventHandlersBase
 
         assert hasattr(EventHandlersBase, "_evaluate_workflows")
-        assert callable(getattr(EventHandlersBase, "_evaluate_workflows"))
+        assert callable(EventHandlersBase._evaluate_workflows)
 
 
 class TestApplyDebugEcho:
@@ -2079,9 +2079,7 @@ class TestApplyDebugEcho:
 
         assert response.system_message is None
 
-    def test_debug_echo_appends_to_existing_system_message(
-        self, mock_dependencies: dict
-    ) -> None:
+    def test_debug_echo_appends_to_existing_system_message(self, mock_dependencies: dict) -> None:
         """Test echo appends to existing system_message rather than replacing."""
         handlers = EventHandlers(**mock_dependencies)
         response = HookResponse(

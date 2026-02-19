@@ -34,7 +34,7 @@ from gobby.config.features import (
 )
 from gobby.config.llm_providers import LLMProviderConfig, LLMProvidersConfig
 from gobby.config.logging import LoggingSettings
-from gobby.config.persistence import MemoryConfig, MemoryBackupConfig
+from gobby.config.persistence import MemoryBackupConfig, MemoryConfig
 from gobby.config.servers import MCPClientProxyConfig, WebSocketSettings
 from gobby.config.sessions import (
     ContextInjectionConfig,

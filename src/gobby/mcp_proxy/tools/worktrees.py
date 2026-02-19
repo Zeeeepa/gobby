@@ -136,7 +136,11 @@ def _resolve_project_context(
                     return None, None, "No project_path provided and no project context available."
             return _git_manager_cache[resolved_path], ctx["id"], None
 
-    return None, None, "No project_path provided and no project context available. Pass project_path parameter."
+    return (
+        None,
+        None,
+        "No project_path provided and no project context available. Pass project_path parameter.",
+    )
 
 
 def _copy_project_json_to_worktree(

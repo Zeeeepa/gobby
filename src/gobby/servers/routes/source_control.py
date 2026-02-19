@@ -621,7 +621,11 @@ def create_source_control_router(server: HTTPServer) -> APIRouter:
             git_deleted = result.success
 
         deleted = server.services.worktree_storage.delete(worktree_id)
-        response: dict[str, Any] = {"success": deleted, "id": worktree_id, "git_deleted": git_deleted}
+        response: dict[str, Any] = {
+            "success": deleted,
+            "id": worktree_id,
+            "git_deleted": git_deleted,
+        }
         if not git_deleted:
             response["message"] = "Git worktree deletion failed but DB record was removed"
         return response

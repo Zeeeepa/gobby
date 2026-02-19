@@ -26,7 +26,7 @@ GOBBY_HOOK_END = "# <<< GOBBY HOOK END <<<"
 
 # Hook script templates - these get wrapped with markers
 HOOK_TEMPLATES = {
-    "pre-commit": """
+    "pre-commit": r"""
 # Gobby smart pre-commit wrapper
 # - Runs gobby verification commands (if configured)
 # - Runs pre-commit framework if available

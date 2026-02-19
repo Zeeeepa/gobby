@@ -408,9 +408,7 @@ def register_reviewer(
         effective_review_provider = (
             review_provider or workflow_vars.get("review_provider") or "claude"
         )
-        effective_review_model = (
-            review_model or workflow_vars.get("review_model") or "opus"
-        )
+        effective_review_model = review_model or workflow_vars.get("review_model") or "opus"
 
         reviews_spawned: list[dict[str, Any]] = []
         ready_for_cleanup: list[dict[str, Any]] = []

@@ -421,9 +421,7 @@ class HTTPServer:
                 and hasattr(app.state, "hook_manager")
                 and hasattr(app.state.hook_manager, "_workflow_handler")
             ):
-                ws_server.workflow_handler = (
-                    app.state.hook_manager._workflow_handler
-                )
+                ws_server.workflow_handler = app.state.hook_manager._workflow_handler
                 logger.debug("Workflow handler connected to WebSocket server")
 
             # Store server instance for dependency injection

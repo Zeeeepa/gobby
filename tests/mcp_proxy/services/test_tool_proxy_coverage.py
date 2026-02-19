@@ -330,9 +330,7 @@ class TestCallToolFallback:
             fallback_resolver=mock_fallback,
         )
 
-        with patch(
-            "gobby.utils.project_context.get_project_context", return_value=None
-        ):
+        with patch("gobby.utils.project_context.get_project_context", return_value=None):
             result = await proxy.call_tool("test-server", "failing_tool", {})
 
         assert result["success"] is False
