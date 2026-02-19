@@ -344,6 +344,26 @@ class SessionCoordinator:
                 or ""
             )
 
+            # Fallback: get last assistant message if no summary available
+            if not result:
+                try:
+                    db = self._agent_run_manager.db
+                    msg_row = db.fetchone(
+                        """
+                        SELECT content FROM session_messages
+                        WHERE session_id = ? AND role = 'assistant' AND tool_name IS NULL
+                        ORDER BY message_index DESC
+                        LIMIT 1
+                        """,
+                        (session.id,),
+                    )
+                    if msg_row:
+                        result = msg_row["content"]
+                except Exception as e:
+                    self.logger.warning(
+                        f"Failed to get last assistant message for {session.id}: {e}"
+                    )
+
             # Count tool calls and turns from session messages
             tool_calls_count = 0
             turns_used = 0
