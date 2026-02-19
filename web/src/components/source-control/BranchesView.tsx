@@ -35,6 +35,9 @@ export function BranchesView({ branches, currentBranch, fetchCommits, fetchDiff 
                 key={b.name}
                 className={`sc-table__row ${b.is_current ? 'sc-table__row--current' : ''} ${selectedBranch === b.name ? 'sc-table__row--selected' : ''}`}
                 onClick={() => setSelectedBranch(selectedBranch === b.name ? null : b.name)}
+                tabIndex={0}
+                role="button"
+                onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setSelectedBranch(selectedBranch === b.name ? null : b.name) } }}
               >
                 <td className="sc-table__cell--name">
                   {b.is_current && <span className="sc-branches__current-dot" />}
@@ -86,6 +89,9 @@ export function BranchesView({ branches, currentBranch, fetchCommits, fetchDiff 
                       key={b.name}
                       className={`sc-table__row ${selectedBranch === b.name ? 'sc-table__row--selected' : ''}`}
                       onClick={() => setSelectedBranch(selectedBranch === b.name ? null : b.name)}
+                      tabIndex={0}
+                      role="button"
+                      onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setSelectedBranch(selectedBranch === b.name ? null : b.name) } }}
                     >
                       <td className="sc-table__cell--name sc-text-muted">
                         origin/{b.name}

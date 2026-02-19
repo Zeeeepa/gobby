@@ -8,11 +8,13 @@ export const ScrollArea = forwardRef<HTMLDivElement, ScrollAreaProps>(
     return (
       <div
         ref={ref}
+        tabIndex={0}
         className={cn(
           'overflow-y-auto',
           '[&::-webkit-scrollbar]:w-2',
           '[&::-webkit-scrollbar-track]:bg-transparent',
           '[&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-border',
+          '[scrollbar-width:thin] [scrollbar-color:var(--border)_transparent]',
           className
         )}
         {...props}

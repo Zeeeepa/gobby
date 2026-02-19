@@ -32,7 +32,7 @@ export function SessionsCard({ sessions }: Props) {
           <div className="dash-bar-track">
             {total > 0 ? (
               <>
-                {SEGMENTS.map(({ key, color }) => {
+                {SEGMENTS.map(({ key, label, color }) => {
                   const value = sessions[key]
                   const pct = (value / total) * 100
                   return pct > 0 ? (
@@ -40,6 +40,8 @@ export function SessionsCard({ sessions }: Props) {
                       key={key}
                       className="dash-bar-segment"
                       style={{ width: `${pct}%`, background: color }}
+                      role="img"
+                      aria-label={`${label}: ${value} of ${total}`}
                     />
                   ) : null
                 })}
@@ -47,6 +49,8 @@ export function SessionsCard({ sessions }: Props) {
                   <div
                     className="dash-bar-segment"
                     style={{ width: `${(other / total) * 100}%`, background: '#737373' }}
+                    role="img"
+                    aria-label={`Other: ${other} of ${total}`}
                   />
                 )}
               </>

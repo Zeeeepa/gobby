@@ -11,6 +11,7 @@ interface ModeSelectorProps {
 
 export function ModeSelector({ mode, onModeChange, disabled }: ModeSelectorProps) {
   const [open, setOpen] = useState(false)
+  const [focusedIndex, setFocusedIndex] = useState(-1)
   const ref = useRef<HTMLDivElement>(null)
 
   // Close on click outside
@@ -44,15 +45,28 @@ export function ModeSelector({ mode, onModeChange, disabled }: ModeSelectorProps
       </button>
 
       {open && (
-        <div className="absolute bottom-full mb-1 left-0 w-52 rounded-md border border-border bg-background shadow-lg z-10">
-          {CHAT_MODES.map((m) => (
+        <div
+          className="absolute bottom-full mb-1 left-0 w-52 rounded-md border border-border bg-background shadow-lg z-10"
+          role="listbox"
+          aria-label="Chat modes"
+          onKeyDown={(e) => {
+            if (e.key === 'Escape') { setOpen(false); setFocusedIndex(-1) }
+            if (e.key === 'ArrowDown') { e.preventDefault(); setFocusedIndex((i) => Math.min(i + 1, CHAT_MODES.length - 1)) }
+            if (e.key === 'ArrowUp') { e.preventDefault(); setFocusedIndex((i) => Math.max(i - 1, 0)) }
+            if (e.key === 'Enter' && focusedIndex >= 0) { onModeChange(CHAT_MODES[focusedIndex].id); setOpen(false); setFocusedIndex(-1) }
+          }}
+        >
+          {CHAT_MODES.map((m, i) => (
             <button
               key={m.id}
+              role="option"
+              aria-selected={m.id === mode}
               className={cn(
                 'w-full flex items-center gap-2 px-3 py-2 text-left text-xs transition-colors',
-                m.id === mode ? 'bg-accent/20 text-foreground' : 'text-muted-foreground hover:bg-muted hover:text-foreground'
+                m.id === mode ? 'bg-accent/20 text-foreground' : 'text-muted-foreground hover:bg-muted hover:text-foreground',
+                i === focusedIndex && 'ring-1 ring-accent'
               )}
-              onClick={() => { onModeChange(m.id); setOpen(false) }}
+              onClick={() => { onModeChange(m.id); setOpen(false); setFocusedIndex(-1) }}
             >
               <ModeIcon mode={m.id} />
               <div>
@@ -97,6 +111,8 @@ function ModeIcon({ mode }: { mode: ChatMode }) {
           <path d="M15.09 14c.18-.98.65-1.74 1.41-2.5A4.65 4.65 0 0 0 18 8 6 6 0 0 0 6 8c0 1 .23 2.23 1.5 3.5A4.61 4.61 0 0 1 8.91 14" />
         </svg>
       )
+    default:
+      return null
   }
 }
 

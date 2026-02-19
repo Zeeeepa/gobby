@@ -27,6 +27,9 @@ export function MobileChatDrawer({
       <div
         className="mobile-chat-drawer-header"
         onClick={() => setIsOpen(!isOpen)}
+        role="button"
+        tabIndex={0}
+        onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setIsOpen(!isOpen) } }}
       >
         <span className="mobile-chat-drawer-title">
           {isOpen ? 'Chats' : activeTitle}

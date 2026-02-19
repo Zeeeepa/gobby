@@ -32,7 +32,7 @@ export const DialogContent = forwardRef<
       className={cn(
         'fixed left-1/2 top-1/2 z-50 -translate-x-1/2 -translate-y-1/2',
         'w-full max-w-lg rounded-lg border border-border bg-background p-6 shadow-lg',
-        'focus:outline-none',
+        'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent',
         className
       )}
       {...props}

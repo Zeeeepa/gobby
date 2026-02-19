@@ -514,6 +514,7 @@ export function WorkflowsPage() {
                       className="workflows-action-icon"
                       onClick={() => handleDuplicate(wf)}
                       title="Duplicate"
+                      aria-label="Duplicate workflow"
                     >
                       <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
                         <rect x="5.5" y="5.5" width="9" height="9" rx="1.5" />
@@ -525,6 +526,7 @@ export function WorkflowsPage() {
                       className="workflows-action-icon"
                       onClick={() => handleExport(wf)}
                       title="Download YAML"
+                      aria-label="Download workflow as YAML"
                     >
                       <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
                         <path d="M8 2v9m0 0L5 8m3 3 3-3M2.5 12.5v1a1 1 0 0 0 1 1h9a1 1 0 0 0 1-1v-1" />
@@ -535,6 +537,7 @@ export function WorkflowsPage() {
                       className="workflows-action-icon workflows-action-icon--danger"
                       onClick={() => handleDelete(wf)}
                       title="Delete"
+                      aria-label="Delete workflow"
                     >
                       <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
                         <path d="M2.5 4.5h11M5.5 4.5V3a1 1 0 0 1 1-1h3a1 1 0 0 1 1 1v1.5M6.5 7v4.5M9.5 7v4.5" />
