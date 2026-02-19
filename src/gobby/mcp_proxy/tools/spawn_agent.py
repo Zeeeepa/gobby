@@ -610,30 +610,47 @@ async def spawn_agent_impl(
         except Exception as e:
             logger.warning(f"Failed to update child_session_id for {run_id}: {e}")
 
-        # Post-spawn health check: verify tmux session is still alive
+        # Post-spawn health check: verify tmux session is still alive.
+        # Runs in background to avoid blocking the spawn response by 0.5s.
         if spawn_result.terminal_type == "tmux" and spawn_result.tmux_session_name:
-            await asyncio.sleep(TMUX_HEALTH_CHECK_DELAY)
-            tmux_cfg = TmuxConfig()  # picks up defaults (socket_name="gobby")
-            alive = await _check_tmux_session_alive(
-                spawn_result.tmux_session_name,
-                socket_name=tmux_cfg.socket_name,
-            )
-            if not alive:
-                logger.error(
-                    f"Agent {run_id} tmux session '{spawn_result.tmux_session_name}' "
-                    f"exited immediately after spawn"
-                )
-                agent_registry.remove(run_id, status="failed")
+
+            async def _deferred_health_check(
+                _run_id: str,
+                _tmux_name: str,
+                _delay: float,
+            ) -> None:
                 try:
-                    runner.run_storage.fail(
-                        run_id, error="Agent process exited immediately after spawn"
+                    await asyncio.sleep(_delay)
+                    tmux_cfg = TmuxConfig()
+                    alive = await _check_tmux_session_alive(
+                        _tmux_name, socket_name=tmux_cfg.socket_name
                     )
+                    if not alive:
+                        logger.error(
+                            f"Agent {_run_id} tmux session '{_tmux_name}' "
+                            f"exited immediately after spawn"
+                        )
+                        agent_registry.remove(_run_id, status="failed")
+                        try:
+                            runner.run_storage.fail(
+                                _run_id,
+                                error="Agent process exited immediately after spawn",
+                            )
+                        except Exception as e:
+                            logger.warning(
+                                f"Failed to mark agent_run {_run_id} as failed: {e}"
+                            )
+                except asyncio.CancelledError:
+                    pass
                 except Exception as e:
-                    logger.warning(f"Failed to mark agent_run {run_id} as failed: {e}")
-                return {
-                    "success": False,
-                    "error": "Agent process exited immediately after spawn",
-                }
+                    logger.warning(f"Deferred health check for {_run_id} failed: {e}")
+
+            asyncio.create_task(
+                _deferred_health_check(
+                    run_id, spawn_result.tmux_session_name, TMUX_HEALTH_CHECK_DELAY
+                ),
+                name=f"tmux-health-{run_id}",
+            )
     else:
         # Spawn failed — remove pre-registered entry and mark DB record as failed
         agent_registry.remove(run_id, status="failed")
