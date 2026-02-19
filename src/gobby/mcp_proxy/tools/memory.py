@@ -553,6 +553,7 @@ def create_memory_registry(
     )
     async def rebuild_knowledge_graph(
         project_id: str | None = None,
+        limit: int = 500,
     ) -> dict[str, Any]:
         """
         Rebuild the knowledge graph from all existing memories.
@@ -562,6 +563,7 @@ def create_memory_registry(
 
         Args:
             project_id: Optional project ID to filter memories
+            limit: Max memories to process (default 500)
         """
         try:
             kg = memory_manager.kg_service
@@ -570,7 +572,7 @@ def create_memory_registry(
                     "success": False,
                     "error": "KnowledgeGraphService not initialized (requires Neo4j + LLM)",
                 }
-            memories = memory_manager.list_memories(project_id=project_id, limit=500)
+            memories = memory_manager.list_memories(project_id=project_id, limit=limit)
             extracted = 0
             errors = 0
             for memory in memories:

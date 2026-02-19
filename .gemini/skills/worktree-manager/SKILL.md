@@ -81,7 +81,7 @@ Branch names are slugified for filesystem safety by replacing `/` with `-`:
       "repoPath": "/Users/rasmus/Projects/obsidian-ai-agent",
       "branch": "feature/auth",
       "branchSlug": "feature-auth",
-      "worktreePath": "/Users/rasmus/tmp/worktrees/obsidian-ai-agent/feature-auth",
+      "worktreePath": "~/.local/share/worktrees/obsidian-ai-agent/feature-auth",
       "ports": [8100, 8101],
       "createdAt": "2025-12-04T10:00:00Z",
       "validatedAt": "2025-12-04T10:02:00Z",
@@ -348,7 +348,7 @@ open -na "Ghostty.app" --args -e bash -c "cd '$WORKTREE_PATH' && claude --danger
 **For iTerm2:**
 ```bash
 osascript -e 'tell application "iTerm2" to create window with default profile' \
-  -e 'tell application "iTerm2" to tell current session of current window to write text "cd '"$WORKTREE_PATH"' && claude"'
+  -e 'tell application "iTerm2" to tell current session of current window to write text "cd '"$WORKTREE_PATH"' && claude --dangerously-skip-permissions"'
 ```
 
 **For tmux:**
@@ -424,7 +424,8 @@ elif [ -f "pnpm-lock.yaml" ]; then pnpm install
 elif [ -f "yarn.lock" ]; then yarn install
 elif [ -f "package-lock.json" ]; then npm install
 elif [ -f "uv.lock" ]; then uv sync
-elif [ -f "pyproject.toml" ]; then uv sync
+elif [ -f "poetry.lock" ]; then poetry install
+elif [ -f "pyproject.toml" ]; then pip install -e .
 elif [ -f "requirements.txt" ]; then pip install -r requirements.txt
 elif [ -f "go.mod" ]; then go mod download
 elif [ -f "Cargo.toml" ]; then cargo build
@@ -571,12 +572,14 @@ Location: `.gemini/skills/worktree-manager/config.json`
   "terminal": "ghostty",
   "shell": "bash",
   "claudeCommand": "claude",
+  "skipPermissions": false,
   "portPool": {
     "start": 8100,
     "end": 8199
   },
   "portsPerWorktree": 2,
   "worktreeBase": "~/.local/share/worktrees",
+  "registryPath": "~/.claude/worktree-registry.json",
   "defaultCopyDirs": [".agents", ".env.example"],
   "healthCheckTimeout": 30,
   "healthCheckRetries": 6
