@@ -48,7 +48,7 @@ def get_litellm_model(
     - No prefix -> OpenAI (default)
 
     Args:
-        model: The model name (e.g., "claude-sonnet-4-5", "gemini-2.0-flash")
+        model: The model name (e.g., "claude-sonnet-4-6", "gemini-2.0-flash")
         provider: The provider type (claude, gemini, codex, openai)
         auth_mode: The authentication mode (api_key, adc)
 
@@ -56,8 +56,8 @@ def get_litellm_model(
         LiteLLM-formatted model string with appropriate prefix.
 
     Examples:
-        >>> get_litellm_model("claude-sonnet-4-5", provider="claude")
-        "anthropic/claude-sonnet-4-5"
+        >>> get_litellm_model("claude-sonnet-4-6", provider="claude")
+        "anthropic/claude-sonnet-4-6"
         >>> get_litellm_model("gemini-2.0-flash", provider="gemini", auth_mode="api_key")
         "gemini/gemini-2.0-flash"
         >>> get_litellm_model("gemini-2.0-flash", provider="gemini", auth_mode="adc")
@@ -135,7 +135,7 @@ class LiteLLMExecutor(AgentExecutor):
 
     Example:
         >>> executor = LiteLLMExecutor(
-        ...     default_model="claude-sonnet-4-5",
+        ...     default_model="claude-sonnet-4-6",
         ...     provider="claude",
         ...     auth_mode="api_key",
         ... )
@@ -160,7 +160,7 @@ class LiteLLMExecutor(AgentExecutor):
 
         Args:
             default_model: Default model to use if not specified in run().
-                          Examples: "gpt-4o-mini", "claude-sonnet-4-5",
+                          Examples: "gpt-4o-mini", "claude-sonnet-4-6",
                           "gemini-2.0-flash"
             api_base: Optional custom API base URL (e.g., OpenRouter endpoint).
             api_keys: Optional dict of API keys to set in environment.

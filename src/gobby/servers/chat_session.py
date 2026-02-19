@@ -274,7 +274,7 @@ class ChatSession:
         options = ClaudeAgentOptions(
             system_prompt=system_prompt,
             max_turns=None,
-            model=model or "claude-sonnet-4-5",
+            model=model or "claude-sonnet-4-6",
             allowed_tools=["mcp__gobby__*"],
             can_use_tool=self._can_use_tool,
             cli_path=cli_path,

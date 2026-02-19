@@ -30,7 +30,7 @@ gobby-tasks:
     # Behavior settings (tdd_mode, etc.) are in workflow YAML variables.
     # See: .gobby/workflows/lifecycle/session-lifecycle.yaml
     provider: claude
-    model: claude-opus-4-5
+    model: claude-opus-4-6
     codebase_research_enabled: true
     research_max_steps: 10
     research_system_prompt: "You are a senior developer researching a codebase. Use tools to find relevant code."
@@ -42,7 +42,7 @@ gobby-tasks:
   validation:
     enabled: true
     provider: claude
-    model: claude-opus-4-5
+    model: claude-opus-4-6
     system_prompt: "You are a QA validator. Output ONLY valid JSON. No markdown, no explanation, no code blocks. Just the raw JSON object."
     criteria_system_prompt: "You are a QA engineer writing acceptance criteria. CRITICAL: Only include requirements explicitly stated in the task. Do NOT invent specific values, thresholds, timeouts, or edge cases that are not mentioned. Vague tasks get vague criteria. Use markdown checkboxes."
     # Custom prompt for generating validation criteria. Available placeholders: {title}, {description}
@@ -78,7 +78,7 @@ search:
 llm_providers:
   default_model: claude-opus-4-6
   claude:
-    models: claude-opus-4-6,claude-sonnet-4-5,claude-haiku-4-5
+    models: claude-opus-4-6,claude-sonnet-4-6,claude-haiku-4-5
     auth_mode: subscription
   # API keys - set via environment variables or uncomment and fill in below
   # api_keys:
@@ -253,7 +253,7 @@ title_synthesis:
 recommend_tools:
   enabled: true
   provider: claude
-  model: claude-sonnet-4-5
+  model: claude-sonnet-4-6
   prompt:
     'You are a tool recommendation assistant for Claude Code with access to
     MCP servers.

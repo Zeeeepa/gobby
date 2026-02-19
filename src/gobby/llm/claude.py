@@ -436,7 +436,7 @@ class ClaudeLLMProvider(LLMProvider):
         options = ClaudeAgentOptions(
             system_prompt=system_prompt or "You are a helpful assistant.",
             max_turns=1,
-            model=model or "claude-sonnet-4-5",
+            model=model or "claude-sonnet-4-6",
             tools=[],  # Explicitly disable all tools
             allowed_tools=[],
             permission_mode="default",
@@ -621,7 +621,7 @@ class ClaudeLLMProvider(LLMProvider):
                 Tools should be in format "mcp__{server}__{tool}" or patterns
                 like "mcp__gobby-tasks__*" for all tools from a server.
             system_prompt: Optional system prompt.
-            model: Optional model override (default: claude-sonnet-4-5).
+            model: Optional model override (default: claude-sonnet-4-6).
             max_turns: Maximum number of agentic turns (default: 10).
             tool_functions: Optional dict mapping server names to lists of tool
                 functions for in-process MCP servers. Example:
@@ -689,7 +689,7 @@ class ClaudeLLMProvider(LLMProvider):
         options = ClaudeAgentOptions(
             system_prompt=system_prompt or "You are a helpful assistant with access to MCP tools.",
             max_turns=max_turns,
-            model=model or "claude-sonnet-4-5",
+            model=model or "claude-sonnet-4-6",
             allowed_tools=allowed_tools,
             permission_mode="bypassPermissions",
             cli_path=cli_path,

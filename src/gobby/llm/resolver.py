@@ -339,7 +339,7 @@ def _create_claude_executor(
     from gobby.llm.claude_executor import ClaudeExecutor
 
     # Subscription mode only - api_key mode routes through LiteLLM
-    default_model = "claude-sonnet-4-20250514"
+    default_model = "claude-sonnet-4-6"
 
     if provider_config:
         # Get first model from comma-separated list if set
@@ -407,7 +407,7 @@ def _create_litellm_executor_for_provider(
 
     # Default models per provider
     default_models = {
-        "claude": "claude-sonnet-4-20250514",
+        "claude": "claude-sonnet-4-6",
         "gemini": "gemini-2.0-flash",
         "codex": "gpt-4o",
         "openai": "gpt-4o",

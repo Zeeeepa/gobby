@@ -184,7 +184,7 @@ class RecommendToolsConfig(BaseModel):
         description="LLM provider to use for tool recommendations",
     )
     model: str = Field(
-        default="claude-sonnet-4-5",
+        default="claude-sonnet-4-6",
         description="Model to use for tool recommendations",
     )
 
