@@ -10,7 +10,7 @@ via the downstream proxy pattern (call_tool, list_tools, get_tool_schema).
 """
 
 import logging
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from gobby.mcp_proxy.tools.internal import InternalToolRegistry
 from gobby.mcp_proxy.tools.pipelines._discovery import list_pipelines
@@ -28,6 +28,9 @@ from gobby.mcp_proxy.tools.workflows._definitions import (
 )
 from gobby.storage.database import DatabaseProtocol
 from gobby.storage.workflow_definitions import LocalWorkflowDefinitionManager
+
+if TYPE_CHECKING:
+    from gobby.storage.sessions import LocalSessionManager
 
 logger = logging.getLogger(__name__)
 
@@ -59,6 +62,7 @@ def create_pipelines_registry(
     executor: Any | None = None,
     execution_manager: Any | None = None,
     db: DatabaseProtocol | None = None,
+    session_manager: LocalSessionManager | None = None,
 ) -> InternalToolRegistry:
     """
     Create a pipeline tool registry with all pipeline-related tools.
@@ -68,6 +72,7 @@ def create_pipelines_registry(
         executor: PipelineExecutor instance for running pipelines
         execution_manager: LocalPipelineExecutionManager for tracking executions
         db: Database instance for definition CRUD operations
+        session_manager: Session manager for resolving session references
 
     Returns:
         InternalToolRegistry with pipeline tools registered
@@ -77,13 +82,23 @@ def create_pipelines_registry(
     _execution_manager = execution_manager
     _def_manager = LocalWorkflowDefinitionManager(db) if db is not None else None
 
+    def _resolve_session(ref: str) -> str:
+        """Resolve session reference (#N, N, UUID, or prefix) to UUID."""
+        if session_manager is None:
+            return ref
+        from gobby.utils.project_context import get_project_context
+
+        project_ctx = get_project_context()
+        project_id = project_ctx.get("id") if project_ctx else None
+        return str(session_manager.resolve_session_reference(ref, project_id))
+
     registry = InternalToolRegistry(
         name="gobby-pipelines",
         description="Pipeline management - list, run, and monitor pipeline executions",
     )
 
     # Register dynamic tools for pipelines with expose_as_tool=True
-    _register_exposed_pipeline_tools(registry, _loader, _executor)
+    _register_exposed_pipeline_tools(registry, _loader, _executor, session_manager)
 
     @registry.tool(
         name="list_pipelines",
@@ -147,21 +162,33 @@ def create_pipelines_registry(
 
     @registry.tool(
         name="run_pipeline",
-        description="Run a pipeline by name with given inputs.",
+        description="Run a pipeline by name with given inputs. Requires session_id; project_id is derived from the session.",
     )
     async def _run_pipeline(
         name: str,
+        session_id: str,
         inputs: dict[str, Any] | None = None,
-        project_id: str | None = None,
-        session_id: str | None = None,
     ) -> dict[str, Any]:
+        # Resolve session reference and derive project_id
+        try:
+            resolved_id = _resolve_session(session_id)
+        except ValueError as e:
+            return {"success": False, "error": f"Invalid session_id: {e}"}
+
+        project_id = ""
+        if session_manager is not None:
+            session = session_manager.get(resolved_id)
+            if session is None:
+                return {"success": False, "error": f"Session '{session_id}' not found"}
+            project_id = session.project_id
+
         return await run_pipeline(
             loader=_loader,
             executor=_executor,
             name=name,
             inputs=inputs or {},
-            project_id=project_id or "",
-            session_id=session_id,
+            project_id=project_id,
+            session_id=resolved_id,
         )
 
     @registry.tool(
@@ -306,6 +333,7 @@ def _register_exposed_pipeline_tools(
     registry: InternalToolRegistry,
     loader: Any | None,
     executor: Any | None,
+    session_manager: LocalSessionManager | None = None,
 ) -> None:
     """
     Register dynamic tools for pipelines with expose_as_tool=True.
@@ -316,6 +344,7 @@ def _register_exposed_pipeline_tools(
         registry: The registry to add tools to
         loader: WorkflowLoader for discovering pipelines
         executor: PipelineExecutor for running pipelines
+        session_manager: Session manager for resolving session references
     """
     if loader is None:
         logger.debug("Skipping dynamic pipeline tools: no loader")
@@ -334,7 +363,7 @@ def _register_exposed_pipeline_tools(
         if not getattr(pipeline, "expose_as_tool", False):
             continue
 
-        _create_pipeline_tool(registry, pipeline, loader, executor)
+        _create_pipeline_tool(registry, pipeline, loader, executor, session_manager)
 
 
 def _create_pipeline_tool(
@@ -342,6 +371,7 @@ def _create_pipeline_tool(
     pipeline: Any,
     loader: Any,
     executor: Any | None,
+    session_manager: LocalSessionManager | None = None,
 ) -> None:
     """
     Create a dynamic tool for a single pipeline.
@@ -351,6 +381,7 @@ def _create_pipeline_tool(
         pipeline: The PipelineDefinition to expose
         loader: WorkflowLoader for loading pipelines
         executor: PipelineExecutor for running pipelines
+        session_manager: Session manager for resolving session references
     """
     tool_name = f"pipeline:{pipeline.name}"
     description = pipeline.description or f"Run the {pipeline.name} pipeline"
@@ -363,13 +394,33 @@ def _create_pipeline_tool(
 
     async def _execute_pipeline(**kwargs: Any) -> dict[str, Any]:
         session_id = kwargs.pop("session_id", None)
+        if not session_id:
+            return {"success": False, "error": "session_id is required"}
+
+        # Resolve session reference and derive project_id
+        resolved_id = session_id
+        project_id = ""
+        if session_manager is not None:
+            from gobby.utils.project_context import get_project_context
+
+            project_ctx = get_project_context()
+            proj = project_ctx.get("id") if project_ctx else None
+            try:
+                resolved_id = str(session_manager.resolve_session_reference(session_id, proj))
+            except ValueError as e:
+                return {"success": False, "error": f"Invalid session_id: {e}"}
+            session = session_manager.get(resolved_id)
+            if session is None:
+                return {"success": False, "error": f"Session '{session_id}' not found"}
+            project_id = session.project_id
+
         return await run_pipeline(
             loader=loader,
             executor=executor,
             name=pipeline_name,
             inputs=kwargs,
-            project_id="",
-            session_id=session_id,
+            project_id=project_id,
+            session_id=resolved_id,
         )
 
     # Register the tool with the schema
@@ -422,11 +473,12 @@ def _build_input_schema(pipeline: Any) -> dict[str, Any]:
                 "default": input_def,
             }
 
-    # Add session_id as an optional meta-parameter for all exposed pipelines
+    # Add session_id as a required meta-parameter for all exposed pipelines
     properties["session_id"] = {
         "type": "string",
-        "description": "Session ID of the caller (for parent session tracking)",
+        "description": "Session ID of the caller (required; project_id is derived from this)",
     }
+    required.append("session_id")
 
     schema: dict[str, Any] = {
         "type": "object",

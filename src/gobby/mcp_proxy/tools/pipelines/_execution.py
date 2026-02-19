@@ -15,7 +15,15 @@ class PipelineLoader(Protocol):
 
 
 class PipelineExecutor(Protocol):
-    async def execute(self, *, pipeline: Any, inputs: dict[str, Any], project_id: str) -> Any: ...
+    async def execute(
+        self,
+        *,
+        pipeline: Any,
+        inputs: dict[str, Any],
+        project_id: str,
+        execution_id: str | None = None,
+        session_id: str | None = None,
+    ) -> Any: ...
 
 
 async def _execute_pipeline_background(

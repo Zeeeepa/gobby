@@ -369,6 +369,7 @@ def setup_internal_registries(
             executor=pipeline_executor,
             execution_manager=pipeline_execution_manager,
             db=db,
+            session_manager=local_session_manager,
         )
         manager.add_registry(pipelines_registry)
         logger.debug("Pipelines registry initialized")
