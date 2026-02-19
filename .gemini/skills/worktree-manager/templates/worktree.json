@@ -14,7 +14,7 @@
     "healthCheckTimeout": 30,
     "stop": "docker compose down"
   },
-  "copyPaths": [
+  "copyDirs": [
     ".agents",
     ".env.example"
   ],
