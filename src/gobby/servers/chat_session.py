@@ -190,10 +190,10 @@ def _response_to_stop_output(resp: dict[str, Any] | None) -> SyncHookJSONOutput:
             output["reason"] = resp["reason"]
     context = resp.get("context")
     if context:
-        output["hookSpecificOutput"] = {  # No SDK TypedDict for Stop
+        output["hookSpecificOutput"] = cast(Any, {  # No SDK TypedDict for Stop
             "hookEventName": "Stop",
             "additionalContext": context,
-        }
+        })
     return output
 
 
@@ -204,10 +204,10 @@ def _response_to_compact_output(resp: dict[str, Any] | None) -> SyncHookJSONOutp
     output = SyncHookJSONOutput()
     context = resp.get("context")
     if context:
-        output["hookSpecificOutput"] = {  # No SDK TypedDict for PreCompact
+        output["hookSpecificOutput"] = cast(Any, {  # No SDK TypedDict for PreCompact
             "hookEventName": "PreCompact",
             "additionalContext": context,
-        }
+        })
     return output
 
 
@@ -311,7 +311,7 @@ class ChatSession:
             mcp_servers=mcp_config if mcp_config is not None else {},
             cwd=cwd,
             hooks=cast(Any, sdk_hooks) if sdk_hooks else None,
-            env=env or None,
+            env=env,
         )
 
         self._client = ClaudeSDKClient(options=options)
@@ -751,9 +751,9 @@ class ChatSession:
                                     elif isinstance(raw, list):
                                         parts = []
                                         for item in raw:
-                                            text = getattr(item, "text", None)
-                                            if text is not None:
-                                                parts.append(text)
+                                            item_text: str | None = getattr(item, "text", None)
+                                            if item_text is not None:
+                                                parts.append(item_text)
                                             else:
                                                 parts.append(str(item))
                                         content_str = "\n".join(parts)

@@ -670,23 +670,23 @@ class ChatMixin:
             "conversation_id": "stable-id"
         }
         """
-        conversation_id = data.get("conversation_id")
-        mode = data.get("mode", "bypass")
+        conversation_id: str | None = data.get("conversation_id")
+        mode: str = str(data.get("mode", "bypass"))
         valid_modes = {"normal", "accept_edits", "bypass", "plan"}
         if mode not in valid_modes:
             await self._send_error(websocket, f"Invalid mode: {mode}. Must be one of {valid_modes}")
             return
 
         session = self._chat_sessions.get(conversation_id) if conversation_id else None
-        if session is not None:
+        if session is not None and conversation_id:
             session.chat_mode = mode
             logger.info(f"Chat mode set to '{mode}' for conversation {conversation_id[:8]}")
-        else:
+        elif conversation_id:
             # Store mode for when session is created
             if not hasattr(self, "_pending_modes"):
                 self._pending_modes: dict[str, str] = {}
             self._pending_modes[conversation_id] = mode
-            logger.debug(f"Chat mode '{mode}' queued for future conversation {(conversation_id or '')[:8]}")
+            logger.debug(f"Chat mode '{mode}' queued for future conversation {conversation_id[:8]}")
 
     async def _handle_set_project(self, websocket: Any, data: dict[str, Any]) -> None:
         """Handle set_project message to switch the project for a conversation.
