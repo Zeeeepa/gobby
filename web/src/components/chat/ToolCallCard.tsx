@@ -80,6 +80,70 @@ const highlighterTheme = {
   },
 }
 
+function ToolArgumentsContent({ args }: { args: Record<string, unknown> }) {
+  const filePath = args.file_path as string | undefined
+
+  // Write pattern: file_path + content
+  if (filePath && typeof args.content === 'string') {
+    const language = getLanguageFromPath(filePath)
+    return (
+      <div>
+        <div className="text-muted-foreground mb-1 font-medium">
+          Write <span className="font-mono text-foreground">{filePath}</span>
+        </div>
+        <SyntaxHighlighter
+          style={highlighterTheme}
+          language={language}
+          PreTag="div"
+          customStyle={{ margin: 0, borderRadius: '0.25rem', maxHeight: '24rem', overflow: 'auto' }}
+        >
+          {args.content as string}
+        </SyntaxHighlighter>
+      </div>
+    )
+  }
+
+  // Edit pattern: file_path + old_string + new_string
+  if (filePath && typeof args.old_string === 'string' && typeof args.new_string === 'string') {
+    const language = getLanguageFromPath(filePath)
+    return (
+      <div>
+        <div className="text-muted-foreground mb-1 font-medium">
+          Edit <span className="font-mono text-foreground">{filePath}</span>
+        </div>
+        <div className="text-muted-foreground mb-0.5 text-[0.65rem] uppercase tracking-wide">Old</div>
+        <SyntaxHighlighter
+          style={highlighterTheme}
+          language={language}
+          PreTag="div"
+          customStyle={{ margin: 0, borderRadius: '0.25rem', maxHeight: '12rem', overflow: 'auto', marginBottom: '0.5rem' }}
+        >
+          {args.old_string as string}
+        </SyntaxHighlighter>
+        <div className="text-muted-foreground mb-0.5 text-[0.65rem] uppercase tracking-wide">New</div>
+        <SyntaxHighlighter
+          style={highlighterTheme}
+          language={language}
+          PreTag="div"
+          customStyle={{ margin: 0, borderRadius: '0.25rem', maxHeight: '12rem', overflow: 'auto' }}
+        >
+          {args.new_string as string}
+        </SyntaxHighlighter>
+      </div>
+    )
+  }
+
+  // Fallback: raw JSON
+  return (
+    <div>
+      <div className="text-muted-foreground mb-1 font-medium">Arguments</div>
+      <pre className="bg-muted rounded p-2 overflow-x-auto text-foreground">
+        {JSON.stringify(args, null, 2)}
+      </pre>
+    </div>
+  )
+}
+
 function ToolResultContent({ call }: { call: ToolCall }) {
   let resultStr: string
   try {
@@ -162,12 +226,7 @@ function ToolCallItem({ call, onRespond }: { call: ToolCall; onRespond?: (toolCa
       {expanded && hasDetails && (
         <div className="border-t border-border px-3 py-2 text-xs space-y-2">
           {call.arguments && Object.keys(call.arguments).length > 0 && (
-            <div>
-              <div className="text-muted-foreground mb-1 font-medium">Arguments</div>
-              <pre className="bg-muted rounded p-2 overflow-x-auto text-foreground">
-                {JSON.stringify(call.arguments, null, 2)}
-              </pre>
-            </div>
+            <ToolArgumentsContent args={call.arguments} />
           )}
           {call.status === 'completed' && call.result !== undefined && (
             <div>
@@ -208,10 +267,8 @@ function ToolApprovalCard({ call, onRespond }: { call: ToolCall; onRespond?: (to
         <Badge variant="warning">Approval Required</Badge>
       </div>
       {call.arguments && Object.keys(call.arguments).length > 0 && (
-        <div className="px-3 pb-2">
-          <pre className="bg-black/20 rounded p-2 text-xs overflow-x-auto text-foreground">
-            {JSON.stringify(call.arguments, null, 2)}
-          </pre>
+        <div className="px-3 pb-2 text-xs">
+          <ToolArgumentsContent args={call.arguments} />
         </div>
       )}
       <div className="flex items-center gap-2 px-3 pb-2">
