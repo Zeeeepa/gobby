@@ -31,8 +31,18 @@ export function ArtifactPanel({ artifact, width, onClose, onUpdateContent, onSet
 
   const handleDownload = useCallback(() => {
     const ext = artifact.type === 'code' ? (artifact.language || 'txt') : artifact.type === 'image' ? 'png' : artifact.type === 'sheet' ? 'csv' : 'txt'
-    const mimeType = artifact.type === 'image' ? 'application/octet-stream' : 'text/plain'
-    const blob = new Blob([content], { type: mimeType })
+    let blob: Blob
+    if (artifact.type === 'image' && content.startsWith('data:')) {
+      const [header, b64] = content.split(',')
+      const mime = header.match(/data:(.*?);/)?.[1] || 'application/octet-stream'
+      const binary = atob(b64)
+      const bytes = new Uint8Array(binary.length)
+      for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i)
+      blob = new Blob([bytes], { type: mime })
+    } else {
+      const mimeType = artifact.type === 'image' ? 'application/octet-stream' : 'text/plain'
+      blob = new Blob([content], { type: mimeType })
+    }
     const url = URL.createObjectURL(blob)
     const a = document.createElement('a')
     a.href = url

@@ -149,7 +149,6 @@ class ChatMixin:
             session.chat_mode = pending_mode
         else:
             # Apply configured default from daemon config
-            daemon_cfg = getattr(self, "daemon_config", None)
             if daemon_cfg is not None:
                 chat_cfg = getattr(daemon_cfg, "chat", None)
                 if chat_cfg is not None:

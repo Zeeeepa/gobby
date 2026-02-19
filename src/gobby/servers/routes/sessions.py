@@ -625,7 +625,9 @@ def create_sessions_router(server: "HTTPServer") -> APIRouter:
             if not title:
                 title = "Untitled Session"
 
-            server.session_manager.update_title(session_id, title)
+            result = server.session_manager.update_title(session_id, title)
+            if result is None:
+                raise HTTPException(status_code=404, detail="Session not found")
 
             response_time_ms = (time.perf_counter() - start_time) * 1000
             return {

@@ -673,5 +673,5 @@ class HookManager:
             db = self._session_manager.db
             project_manager = LocalProjectManager(db)
             project_manager.ensure_exists(project_id, project_name, repo_path)
-        except (sqlite3.Error, ValueError) as e:
+        except (sqlite3.Error, ValueError, RuntimeError) as e:
             self.logger.warning(f"Failed to ensure project in database: {e}")

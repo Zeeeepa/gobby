@@ -574,8 +574,13 @@ class ChatSession:
 
         if decision == "approve_always":
             self._approved_tools.add(tool_name)
+            return PermissionResultAllow(updated_input=input_data)
 
-        return PermissionResultAllow(updated_input=input_data)
+        if decision == "approve":
+            return PermissionResultAllow(updated_input=input_data)
+
+        # Unknown decision value — treat as rejection
+        return PermissionResultDeny(message=f"User rejected tool call: {tool_name}")
 
     def provide_approval(self, decision: str) -> None:
         """Provide approval decision for a pending tool call."""

@@ -133,6 +133,7 @@ export function useVoice(
 
   // Track speaking state from playback queue and pause/resume VAD to prevent echo
   useEffect(() => {
+    if (!voiceMode) return
     let wasPlaying = false
     const interval = setInterval(() => {
       const playing = playbackQueueRef.current.isPlaying
@@ -149,7 +150,7 @@ export function useVoice(
       wasPlaying = playing
     }, 200)
     return () => clearInterval(interval)
-  }, [])
+  }, [voiceMode])
 
   const toggleVoiceMode = useCallback(async () => {
     const newMode = !voiceMode
@@ -232,13 +233,14 @@ export function useVoice(
     }
   }, [voiceMode, wsRef, conversationId])
 
-  // Cleanup VAD on unmount
+  // Cleanup VAD and playback on unmount
   useEffect(() => {
     return () => {
       if (vadRef.current) {
         vadRef.current.destroy()
         vadRef.current = null
       }
+      playbackQueueRef.current.stop()
     }
   }, [])
 

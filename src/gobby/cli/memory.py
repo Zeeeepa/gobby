@@ -433,7 +433,7 @@ def backup_memories(ctx: click.Context, output_path: str | None) -> None:
     """
     from pathlib import Path
 
-    from gobby.config.persistence import MemorySyncConfig
+    from gobby.config.persistence import MemoryBackupConfig
     from gobby.sync.memories import MemoryBackupManager
 
     manager = get_memory_manager(ctx)
@@ -444,7 +444,7 @@ def backup_memories(ctx: click.Context, output_path: str | None) -> None:
     else:
         export_path = Path(".gobby/memories.jsonl")
 
-    config = MemorySyncConfig(enabled=True, export_path=export_path)
+    config = MemoryBackupConfig(enabled=True, export_path=export_path)
     backup_mgr = MemoryBackupManager(
         db=manager.db,
         memory_manager=manager,
@@ -511,7 +511,8 @@ def rebuild_crossrefs(ctx: click.Context, project_ref: str | None) -> None:
         raise click.ClickException(f"Daemon not running: {err}")
 
     click.echo("Rebuilding cross-references (this may take a while)...")
-    params = f"?project_id={project_ref}" if project_ref else ""
+    project_id = resolve_project_ref(project_ref, exit_on_not_found=True) if project_ref else None
+    params = f"?project_id={project_id}" if project_id else ""
     response = client.call_http_api(
         f"/memories/crossrefs/rebuild{params}", method="POST", timeout=600.0
     )
@@ -548,7 +549,8 @@ def rebuild_graph(ctx: click.Context, project_ref: str | None) -> None:
         raise click.ClickException(f"Daemon not running: {err}")
 
     click.echo("Rebuilding knowledge graph (this may take several minutes)...")
-    params = f"?project_id={project_ref}" if project_ref else ""
+    project_id = resolve_project_ref(project_ref, exit_on_not_found=True) if project_ref else None
+    params = f"?project_id={project_id}" if project_id else ""
     response = client.call_http_api(
         f"/memories/graph/rebuild{params}", method="POST", timeout=600.0
     )

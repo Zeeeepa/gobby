@@ -6,26 +6,26 @@ interface ArtifactSheetViewProps {
 
 function parseCSV(text: string): string[][] {
   const rows: string[][] = []
-  const lines = text.trim().split(/\r?\n/)
-  for (const line of lines) {
-    const cells: string[] = []
-    let current = ''
-    let inQuotes = false
-    for (let i = 0; i < line.length; i++) {
-      const char = line[i]
-      if (inQuotes) {
-        if (char === '"' && line[i + 1] === '"') { current += '"'; i++ }
-        else if (char === '"') inQuotes = false
-        else current += char
-      } else {
-        if (char === '"') inQuotes = true
-        else if (char === ',') { cells.push(current); current = '' }
-        else current += char
-      }
+  let cells: string[] = []
+  let current = ''
+  let inQuotes = false
+  const trimmed = text.trim()
+  for (let i = 0; i < trimmed.length; i++) {
+    const char = trimmed[i]
+    if (inQuotes) {
+      if (char === '"' && trimmed[i + 1] === '"') { current += '"'; i++ }
+      else if (char === '"') inQuotes = false
+      else current += char
+    } else {
+      if (char === '"') inQuotes = true
+      else if (char === ',') { cells.push(current); current = '' }
+      else if (char === '\r' && trimmed[i + 1] === '\n') { cells.push(current); current = ''; rows.push(cells); cells = []; i++ }
+      else if (char === '\n') { cells.push(current); current = ''; rows.push(cells); cells = [] }
+      else current += char
     }
-    cells.push(current)
-    rows.push(cells)
   }
+  cells.push(current)
+  if (cells.length > 0 || current !== '') rows.push(cells)
   return rows
 }
 
