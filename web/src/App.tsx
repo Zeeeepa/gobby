@@ -258,7 +258,7 @@ export default function App() {
     { id: 'tasks', label: 'Tasks', icon: <TasksIcon /> },
     { id: 'agents', label: 'Agent Definitions', icon: <AgentsIcon /> },
     { id: 'workflows', label: 'Workflows', icon: <WorkflowsIcon /> },
-    { id: 'source-control', label: 'Source Control', icon: <GitHubIcon /> },
+    { id: 'source-control', label: 'GitHub', icon: <GitHubIcon /> },
     { id: 'cron', label: 'Cron Jobs', icon: <CronIcon /> },
     { id: 'memory', label: 'Memory', icon: <MemoryIcon /> },
     { id: 'skills', label: 'Skills', icon: <SkillsIcon /> },

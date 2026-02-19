@@ -99,7 +99,6 @@ export function ConversationPicker({
           </div>
 
           <div className="session-group">
-            <div className="session-group-label">Chats</div>
           <div className="sessions-list">
             {filtered.length === 0 && (
               <div className="terminals-empty-sidebar">No conversations</div>

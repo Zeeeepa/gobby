@@ -101,9 +101,9 @@ export function MemoryGraph({ fetchGraphData, onSelect, memoryLimit }: MemoryGra
   useEffect(() => {
     const fg = fgRef.current
     if (!fg) return
-    fg.d3Force('charge')?.strength(-80)
-    fg.d3Force('link')?.distance(50)
-    fg.d3Force('center')?.strength(0.05)
+    fg.d3Force('charge')?.strength(-200)
+    fg.d3Force('link')?.distance(120)
+    fg.d3Force('center')?.strength(0.03)
   }, [forceData])
 
   // Zoom to fit on first load

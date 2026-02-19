@@ -75,7 +75,7 @@ function KnowledgeIcon() {
 }
 
 type ViewMode = 'list' | 'graph' | 'knowledge'
-type OverviewFilter = 'total' | 'important' | 'needs_review' | 'recent' | null
+type OverviewFilter = 'fact' | 'preference' | 'pattern' | 'context' | 'recent' | null
 
 export function MemoryPage() {
   const {
@@ -153,10 +153,8 @@ export function MemoryPage() {
   const filteredMemories = useMemo(() => {
     let result = memories
 
-    if (overviewFilter === 'important') {
-      result = result.filter(m => m.importance >= 0.7)
-    } else if (overviewFilter === 'needs_review') {
-      result = result.filter(m => m.importance < 0.7)
+    if (overviewFilter === 'fact' || overviewFilter === 'preference' || overviewFilter === 'pattern' || overviewFilter === 'context') {
+      result = result.filter(m => m.memory_type === overviewFilter)
     } else if (overviewFilter === 'recent') {
       const cutoff = Date.now() - TWENTY_FOUR_HOURS_MS
       result = result.filter(m => new Date(m.created_at).getTime() > cutoff)

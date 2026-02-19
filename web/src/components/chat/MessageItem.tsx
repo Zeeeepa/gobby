@@ -58,15 +58,15 @@ export function MessageItem({ message, isStreaming = false, isThinking = false, 
           <ThinkingBlock content={message.thinkingContent} messageId={message.id} />
         )}
 
-        {message.toolCalls && message.toolCalls.length > 0 && (
-          <ToolCallCards toolCalls={message.toolCalls} onRespond={onRespondToQuestion} />
-        )}
-
         {message.content && (
           <div className="message-content text-sm leading-relaxed text-foreground">
             <Markdown content={message.content} id={message.id} />
             {isStreaming && <span className="cursor inline-block w-2 h-4 bg-foreground animate-pulse ml-1.5" />}
           </div>
+        )}
+
+        {message.toolCalls && message.toolCalls.length > 0 && (
+          <ToolCallCards toolCalls={message.toolCalls} onRespond={onRespondToQuestion} />
         )}
       </div>
     </div>
