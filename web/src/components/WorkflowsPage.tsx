@@ -160,6 +160,8 @@ export function WorkflowsPage() {
       throw new Error(`Invalid YAML: ${e instanceof Error ? e.message : String(e)}`)
     }
     if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) throw new Error('Invalid YAML: expected an object')
+    if (parsed.name !== undefined && typeof parsed.name !== 'string') throw new Error('Invalid YAML: "name" must be a string')
+    if (parsed.steps !== undefined && !Array.isArray(parsed.steps)) throw new Error('Invalid YAML: "steps" must be an array')
     await updateWorkflow(yamlEditorWf.id, {
       name: (parsed.name as string) || yamlEditorWf.name,
       description: (parsed.description as string) || undefined,
