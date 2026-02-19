@@ -303,8 +303,8 @@ export function useSourceControl() {
         if (r.ok) {
           const data = await r.json()
           if (!dryRun) {
-            fetchWorktrees()
-            fetchStatus()
+            await fetchWorktrees()
+            await fetchStatus()
           }
           return data.candidates || []
         }
@@ -323,7 +323,7 @@ export function useSourceControl() {
           method: 'POST',
         })
         if (r.ok) {
-          fetchWorktrees()
+          await fetchWorktrees()
           return true
         }
       } catch (e) {
@@ -360,7 +360,7 @@ export function useSourceControl() {
           method: 'POST',
         })
         if (r.ok) {
-          fetchClones()
+          await fetchClones()
           return true
         }
       } catch (e) {

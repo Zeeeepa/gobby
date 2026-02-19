@@ -6,7 +6,10 @@ const PANEL_WIDTH_KEY = 'gobby-artifact-panel-width'
 function loadPanelWidth(): number {
   try {
     const stored = localStorage.getItem(PANEL_WIDTH_KEY)
-    if (stored) return Math.max(300, Math.min(800, parseInt(stored, 10)))
+    if (stored) {
+      const parsed = parseInt(stored, 10)
+      if (!Number.isNaN(parsed)) return Math.max(300, Math.min(800, parsed))
+    }
   } catch (e) {
     if (process.env.NODE_ENV === 'development') console.warn(`Failed to load ${PANEL_WIDTH_KEY}:`, e)
   }

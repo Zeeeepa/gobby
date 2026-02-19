@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 
-const SHOW_MODES = ['embedded', 'tmux', 'terminal']
+const SHOW_MODES = ['embedded', 'tmux', 'terminal'] as const
 
 interface WebSocketMessage {
   type: string
@@ -65,11 +65,11 @@ export function useTerminal() {
       }))
       // Fetch current running agents to recover any missed before WS connected
       fetch('/api/agents/running')
-        .then(r => r.json())
+        .then(r => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json() })
         .then(data => {
           if (data.agents) {
             setAgents(data.agents
-              .filter((a: RunningAgent) => SHOW_MODES.includes(a.mode))
+              .filter((a: RunningAgent) => (SHOW_MODES as readonly string[]).includes(a.mode))
               .map((a: RunningAgent) => ({
                 run_id: a.run_id,
                 session_id: a.session_id,
@@ -117,7 +117,7 @@ export function useTerminal() {
 
   // Handle agent lifecycle events
   const handleAgentEvent = useCallback((event: AgentEventMessage) => {
-    if (event.event === 'agent_started' && SHOW_MODES.includes(event.mode || '')) {
+    if (event.event === 'agent_started' && (SHOW_MODES as readonly string[]).includes(event.mode || '')) {
       // Add new agent (embedded or tmux)
       setAgents(prev => {
         const exists = prev.some(a => a.run_id === event.run_id)

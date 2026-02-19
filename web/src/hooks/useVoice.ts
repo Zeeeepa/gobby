@@ -16,6 +16,7 @@ class AudioPlaybackQueue {
   private queue: string[] = []
   private playing = false
   private currentAudio: HTMLAudioElement | null = null
+  onPlayingChange: ((playing: boolean) => void) | null = null
 
   enqueue(audioBase64: string, format: string) {
     // Convert base64 to blob URL
@@ -35,6 +36,7 @@ class AudioPlaybackQueue {
     const url = URL.createObjectURL(blob)
     this.queue.push(url)
     this.playNext()
+    this.onPlayingChange?.(this.isPlaying)
   }
 
   private playNext() {
@@ -49,18 +51,21 @@ class AudioPlaybackQueue {
       this.playing = false
       this.currentAudio = null
       this.playNext()
+      this.onPlayingChange?.(this.isPlaying)
     }
     audio.onerror = () => {
       URL.revokeObjectURL(url)
       this.playing = false
       this.currentAudio = null
       this.playNext()
+      this.onPlayingChange?.(this.isPlaying)
     }
     audio.play().catch(() => {
       URL.revokeObjectURL(url)
       this.playing = false
       this.currentAudio = null
       this.playNext()
+      this.onPlayingChange?.(this.isPlaying)
     })
   }
 
@@ -75,6 +80,7 @@ class AudioPlaybackQueue {
     }
     this.queue = []
     this.playing = false
+    this.onPlayingChange?.(false)
   }
 
   get isPlaying() {
@@ -131,9 +137,10 @@ export function useVoice(
   // Track speaking state from playback queue and pause/resume VAD to prevent echo
   useEffect(() => {
     if (!voiceMode) return
+    const queue = playbackQueueRef.current
     let wasPlaying = false
-    const interval = setInterval(() => {
-      const playing = playbackQueueRef.current.isPlaying
+
+    queue.onPlayingChange = (playing) => {
       setIsSpeaking(playing)
 
       // Pause VAD while TTS is playing to prevent feedback loop
@@ -145,8 +152,8 @@ export function useVoice(
         setIsListening(true)
       }
       wasPlaying = playing
-    }, 200)
-    return () => clearInterval(interval)
+    }
+    return () => { queue.onPlayingChange = null }
   }, [voiceMode])
 
   const toggleVoiceMode = useCallback(async () => {
@@ -211,6 +218,10 @@ export function useVoice(
         setVoiceMode(true)
         setIsListening(true)
       } catch (err) {
+        if (vadRef.current) {
+          vadRef.current.destroy()
+          vadRef.current = null
+        }
         const msg = err instanceof Error ? err.message : 'Microphone access denied'
         setVoiceError(msg)
         console.error('Failed to start VAD:', err)
