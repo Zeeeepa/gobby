@@ -29,7 +29,9 @@ export function SourceControlOverview({ status, prs, worktrees, ciRuns, onNaviga
 
   const staleWorktrees = worktrees.filter((w) => w.status === 'stale')
   const activeWorktrees = worktrees.filter((w) => w.status === 'active')
-  const latestRun = ciRuns[0]
+  const latestRun = ciRuns.length > 0
+    ? ciRuns.reduce((latest, run) => run.created_at > latest.created_at ? run : latest)
+    : undefined
 
   return (
     <div className="sc-overview">

@@ -8,10 +8,16 @@ interface Props {
   onSync: (id: string) => Promise<boolean>
 }
 
+function formatDate(dateStr: string): string {
+  const d = new Date(dateStr)
+  return isNaN(d.getTime()) ? '-' : d.toLocaleDateString()
+}
+
 export function ClonesView({ clones, onDelete, onSync }: Props) {
   const [statusFilter, setStatusFilter] = useState<string | null>(null)
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null)
   const [actionLoading, setActionLoading] = useState<string | null>(null)
+  const [actionError, setActionError] = useState<string | null>(null)
 
   const statuses = ['active', 'syncing', 'stale', 'cleanup']
   const filtered = statusFilter
@@ -20,8 +26,11 @@ export function ClonesView({ clones, onDelete, onSync }: Props) {
 
   const handleDelete = async (id: string) => {
     setActionLoading(id)
+    setActionError(null)
     try {
       await onDelete(id)
+    } catch (e) {
+      setActionError(e instanceof Error ? e.message : 'Failed to delete clone')
     } finally {
       setActionLoading(null)
       setConfirmDelete(null)
@@ -39,6 +48,9 @@ export function ClonesView({ clones, onDelete, onSync }: Props) {
 
   return (
     <div className="sc-clones">
+      {actionError && (
+        <p className="sc-text-muted" style={{ color: 'var(--color-error)', padding: '8px 0' }}>{actionError}</p>
+      )}
       <div className="sc-filter-chips">
         <button
           className={`sc-filter-chip ${!statusFilter ? 'sc-filter-chip--active' : ''}`}
@@ -93,7 +105,7 @@ export function ClonesView({ clones, onDelete, onSync }: Props) {
                 <div className="sc-card__field">
                   <span className="sc-card__label">Created</span>
                   <span className="sc-card__value sc-text-muted">
-                    {(() => { const d = new Date(clone.created_at); return isNaN(d.getTime()) ? '-' : d.toLocaleDateString() })()}
+                    {formatDate(clone.created_at)}
                   </span>
                 </div>
               </div>

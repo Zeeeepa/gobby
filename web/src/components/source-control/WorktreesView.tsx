@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useMemo } from 'react'
 import type { WorktreeInfo } from '../../hooks/useSourceControl'
 import { StatusBadge } from './StatusBadge'
 
@@ -17,47 +17,55 @@ export function WorktreesView({ worktrees, onDelete, onSync, onCleanup }: Props)
   const [statusFilter, setStatusFilter] = useState<StatusFilter>(null)
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null)
   const [confirmCleanup, setConfirmCleanup] = useState(false)
-  const [actionLoading, setActionLoading] = useState<string | null>(null)
+  const [actionLoading, setActionLoading] = useState(new Set<string>())
   const [actionError, setActionError] = useState<string | null>(null)
   const [cleanupHours, setCleanupHours] = useState(24)
   const filtered = statusFilter
     ? worktrees.filter((w) => w.status === statusFilter)
     : worktrees
 
+  const statusCounts = useMemo(() => {
+    const counts = new Map<string, number>()
+    for (const w of worktrees) {
+      counts.set(w.status, (counts.get(w.status) || 0) + 1)
+    }
+    return counts
+  }, [worktrees])
+
   const handleDelete = async (id: string) => {
-    setActionLoading(id)
+    setActionLoading(prev => new Set(prev).add(id))
     setActionError(null)
     try {
       await onDelete(id)
     } catch (e) {
       setActionError(e instanceof Error ? e.message : 'Failed to delete worktree')
     } finally {
-      setActionLoading(null)
+      setActionLoading(prev => { const next = new Set(prev); next.delete(id); return next })
       setConfirmDelete(null)
     }
   }
 
   const handleSync = async (id: string) => {
-    setActionLoading(id)
+    setActionLoading(prev => new Set(prev).add(id))
     setActionError(null)
     try {
       await onSync(id)
     } catch (e) {
       setActionError(e instanceof Error ? e.message : 'Failed to sync worktree')
     } finally {
-      setActionLoading(null)
+      setActionLoading(prev => { const next = new Set(prev); next.delete(id); return next })
     }
   }
 
   const handleCleanup = async () => {
-    setActionLoading('cleanup')
+    setActionLoading(prev => new Set(prev).add('cleanup'))
     setActionError(null)
     try {
       await onCleanup(cleanupHours, false)
     } catch (e) {
       setActionError(e instanceof Error ? e.message : 'Failed to cleanup worktrees')
     } finally {
-      setActionLoading(null)
+      setActionLoading(prev => { const next = new Set(prev); next.delete('cleanup'); return next })
       setConfirmCleanup(false)
     }
   }
@@ -76,7 +84,7 @@ export function WorktreesView({ worktrees, onDelete, onSync, onCleanup }: Props)
             All ({worktrees.length})
           </button>
           {STATUSES.map((s) => {
-            const count = worktrees.filter((w) => w.status === s).length
+            const count = statusCounts.get(s) || 0
             if (count === 0) return null
             return (
               <button
@@ -100,14 +108,15 @@ export function WorktreesView({ worktrees, onDelete, onSync, onCleanup }: Props)
                 onChange={(e) => setCleanupHours(Math.max(1, Number(e.target.value)))}
                 className="sc-input sc-input--sm"
                 style={{ width: '4em' }}
+                aria-label="Cleanup threshold in hours"
               />
               <span className="sc-text-muted">hours?</span>
               <button
                 className="sc-btn sc-btn--sm sc-btn--danger"
                 onClick={handleCleanup}
-                disabled={actionLoading === 'cleanup'}
+                disabled={actionLoading.has('cleanup')}
               >
-                {actionLoading === 'cleanup' ? 'Cleaning...' : 'Confirm'}
+                {actionLoading.has('cleanup') ? 'Cleaning...' : 'Confirm'}
               </button>
               <button
                 className="sc-btn sc-btn--sm"
@@ -165,7 +174,7 @@ export function WorktreesView({ worktrees, onDelete, onSync, onCleanup }: Props)
                 <button
                   className="sc-btn sc-btn--sm"
                   onClick={() => handleSync(wt.id)}
-                  disabled={actionLoading === wt.id}
+                  disabled={actionLoading.has(wt.id)}
                 >
                   Sync
                 </button>
@@ -174,9 +183,9 @@ export function WorktreesView({ worktrees, onDelete, onSync, onCleanup }: Props)
                     <button
                       className="sc-btn sc-btn--sm sc-btn--danger"
                       onClick={() => handleDelete(wt.id)}
-                      disabled={actionLoading === wt.id}
+                      disabled={actionLoading.has(wt.id)}
                     >
-                      {actionLoading === wt.id ? 'Deleting...' : 'Confirm'}
+                      {actionLoading.has(wt.id) ? 'Deleting...' : 'Confirm'}
                     </button>
                     <button
                       className="sc-btn sc-btn--sm"

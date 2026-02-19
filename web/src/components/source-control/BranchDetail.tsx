@@ -17,6 +17,7 @@ export function BranchDetail({ branchName, currentBranch, fetchCommits, fetchDif
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [diffLoading, setDiffLoading] = useState(false)
+  const [diffError, setDiffError] = useState<string | null>(null)
   const fetchCommitsRef = useRef(fetchCommits)
   fetchCommitsRef.current = fetchCommits
 
@@ -45,13 +46,14 @@ export function BranchDetail({ branchName, currentBranch, fetchCommits, fetchDif
       return
     }
     setDiffLoading(true)
+    setDiffError(null)
     try {
       const base = currentBranch || 'main'
       const result = await fetchDiff(base, branchName)
       setDiff(result)
       setShowDiff(true)
     } catch (e) {
-      console.error('Failed to fetch diff:', e)
+      setDiffError(e instanceof Error ? e.message : 'Failed to fetch diff')
     } finally {
       setDiffLoading(false)
     }
@@ -71,6 +73,10 @@ export function BranchDetail({ branchName, currentBranch, fetchCommits, fetchDif
           {diffLoading ? 'Loading...' : showDiff ? 'Hide Diff' : `Diff vs ${currentBranch || 'main'}`}
         </button>
       </div>
+
+      {diffError && (
+        <p className="sc-text-muted" style={{ color: 'var(--color-error)', padding: '0 16px' }}>{diffError}</p>
+      )}
 
       {showDiff && diff && (
         <div className="sc-detail-panel__diff">
