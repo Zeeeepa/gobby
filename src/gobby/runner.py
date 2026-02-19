@@ -4,6 +4,7 @@ import asyncio
 import logging
 import os
 import signal
+import subprocess
 import sys
 from collections.abc import Callable
 from pathlib import Path
@@ -636,7 +637,7 @@ class GobbyRunner:
                 if session.name not in registered_names:
                     logger.info(f"Cleaning up stale tmux session: {session.name}")
                     await mgr.kill_session(session.name)
-        except Exception as e:
+        except (OSError, subprocess.SubprocessError) as e:
             logger.warning(f"Stale tmux session cleanup failed: {e}")
 
     async def _metrics_cleanup_loop(self) -> None:

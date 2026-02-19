@@ -163,6 +163,7 @@ def create_config_registry(
                 result["value"] = value
             return result
         except Exception as e:
+            logger.exception(f"Failed to set config key '{key}'")
             return {"success": False, "error": str(e)}
 
     @registry.tool(

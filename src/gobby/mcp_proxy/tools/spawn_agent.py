@@ -48,7 +48,9 @@ async def _check_tmux_session_alive(session_name: str) -> bool:
         )
         await proc.wait()
         return proc.returncode == 0
-    except Exception:
+    except asyncio.CancelledError:
+        raise
+    except OSError:
         return True  # If check itself fails, don't false-positive
 
 
@@ -593,8 +595,9 @@ async def spawn_agent_impl(
             logger.warning(f"Failed to update child_session_id for {run_id}: {e}")
 
         # Post-spawn health check: verify tmux session is still alive
+        TMUX_HEALTH_CHECK_DELAY = 0.5  # noqa: N806 — seconds to wait before checking tmux health
         if spawn_result.terminal_type == "tmux" and spawn_result.tmux_session_name:
-            await asyncio.sleep(0.5)
+            await asyncio.sleep(TMUX_HEALTH_CHECK_DELAY)
             alive = await _check_tmux_session_alive(spawn_result.tmux_session_name)
             if not alive:
                 logger.error(

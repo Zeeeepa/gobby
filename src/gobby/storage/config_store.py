@@ -176,8 +176,8 @@ class ConfigStore:
         secret_name = config_key_to_secret_name(key)
         try:
             secret_store.delete(secret_name)
-        except Exception:
-            logger.warning(f"Secret '{secret_name}' cleanup failed for key '{key}'")
+        except Exception as e:
+            logger.warning(f"Secret '{secret_name}' cleanup failed for key '{key}': {e}", exc_info=True)
         self.db.execute("DELETE FROM config_store WHERE key = ?", (key,))
 
 
