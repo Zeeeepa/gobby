@@ -679,14 +679,19 @@ def create_configuration_router(server: "HTTPServer") -> APIRouter:
                 summary_parts.append(f"config restored ({count} keys)")
                 config_imported = True
 
-            # Restore is_secret flags from export bundle (batch update)
+            # Restore is_secret flags from export bundle (batch update, chunked)
             if request.config_secret_keys:
+                # Validate keys are strings and chunk to avoid SQLite variable limits
+                valid_keys = [k for k in request.config_secret_keys if isinstance(k, str) and k]
+                chunk_size = 500
                 with config_store.db.transaction() as conn:
-                    placeholders = ",".join("?" for _ in request.config_secret_keys)
-                    conn.execute(
-                        f"UPDATE config_store SET is_secret = 1 WHERE key IN ({placeholders})",
-                        tuple(request.config_secret_keys),
-                    )
+                    for i in range(0, len(valid_keys), chunk_size):
+                        chunk = valid_keys[i : i + chunk_size]
+                        placeholders = ",".join("?" for _ in chunk)
+                        conn.execute(
+                            f"UPDATE config_store SET is_secret = 1 WHERE key IN ({placeholders})",
+                            tuple(chunk),
+                        )
 
             # Import prompt overrides into database
             if request.prompts:

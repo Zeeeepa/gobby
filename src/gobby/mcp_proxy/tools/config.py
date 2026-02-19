@@ -147,11 +147,12 @@ def create_config_registry(
             else:
                 config_store.set(key, value, source="mcp")
 
-            # Update in-memory config with the actual value (not the ref)
-            actual_nested = unflatten_config({key: value})
-            actual_dict = _current_config().model_dump(mode="json")
-            deep_merge(actual_dict, actual_nested)
-            new_config = DaemonConfigCls(**actual_dict)
+            # For secrets, rebuild config with actual value (not the $secret: ref)
+            if is_secret:
+                actual_nested = unflatten_config({key: value})
+                actual_dict = _current_config().model_dump(mode="json")
+                deep_merge(actual_dict, actual_nested)
+                new_config = DaemonConfigCls(**actual_dict)
 
             _state["config"] = new_config
             config_setter(new_config)

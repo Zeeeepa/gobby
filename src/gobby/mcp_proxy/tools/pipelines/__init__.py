@@ -57,6 +57,19 @@ __all__ = [
 ]
 
 
+def _resolve_session_ref(
+    ref: str, session_manager: LocalSessionManager | None
+) -> str:
+    """Resolve session reference (#N, N, UUID, or prefix) to UUID."""
+    if session_manager is None:
+        return ref
+    from gobby.utils.project_context import get_project_context
+
+    project_ctx = get_project_context()
+    project_id = project_ctx.get("id") if project_ctx else None
+    return str(session_manager.resolve_session_reference(ref, project_id))
+
+
 def create_pipelines_registry(
     loader: Any | None = None,
     executor: Any | None = None,
@@ -84,13 +97,7 @@ def create_pipelines_registry(
 
     def _resolve_session(ref: str) -> str:
         """Resolve session reference (#N, N, UUID, or prefix) to UUID."""
-        if session_manager is None:
-            return ref
-        from gobby.utils.project_context import get_project_context
-
-        project_ctx = get_project_context()
-        project_id = project_ctx.get("id") if project_ctx else None
-        return str(session_manager.resolve_session_reference(ref, project_id))
+        return _resolve_session_ref(ref, session_manager)
 
     registry = InternalToolRegistry(
         name="gobby-pipelines",
@@ -399,7 +406,7 @@ def _create_pipeline_tool(
 
         # Resolve session reference and derive project_id
         try:
-            resolved_id = _resolve_session(session_id)
+            resolved_id = _resolve_session_ref(session_id, session_manager)
         except ValueError as e:
             return {"success": False, "error": f"Invalid session_id: {e}"}
 

@@ -12,9 +12,19 @@ from __future__ import annotations
 import logging
 from typing import Any
 
+import claude_agent_sdk
 import claude_agent_sdk._internal.client as _internal_client
 import claude_agent_sdk._internal.message_parser as _message_parser
 from claude_agent_sdk._errors import MessageParseError
+
+# Warn if SDK version changes — private API monkey-patch may break
+_SDK_VERSION = getattr(claude_agent_sdk, "__version__", None)
+if _SDK_VERSION and not _SDK_VERSION.startswith("0.1."):
+    logging.getLogger(__name__).warning(
+        "claude-agent-sdk %s detected; monkey-patch targets 0.1.x internals — "
+        "verify parse_message compatibility",
+        _SDK_VERSION,
+    )
 
 logger = logging.getLogger(__name__)
 

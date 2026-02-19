@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import os
 import shutil
 import uuid
 from pathlib import Path
@@ -33,6 +34,10 @@ if TYPE_CHECKING:
     from gobby.storage.tasks import LocalTaskManager
 
 logger = logging.getLogger(__name__)
+
+# Seconds to wait before checking if tmux session survived spawn.
+# Configurable via GOBBY_TMUX_HEALTH_CHECK_DELAY env var.
+TMUX_HEALTH_CHECK_DELAY = float(os.environ.get("GOBBY_TMUX_HEALTH_CHECK_DELAY", "0.5"))
 
 
 async def _check_tmux_session_alive(session_name: str) -> bool:
@@ -595,7 +600,6 @@ async def spawn_agent_impl(
             logger.warning(f"Failed to update child_session_id for {run_id}: {e}")
 
         # Post-spawn health check: verify tmux session is still alive
-        TMUX_HEALTH_CHECK_DELAY = 0.5  # noqa: N806 — seconds to wait before checking tmux health
         if spawn_result.terminal_type == "tmux" and spawn_result.tmux_session_name:
             await asyncio.sleep(TMUX_HEALTH_CHECK_DELAY)
             alive = await _check_tmux_session_alive(spawn_result.tmux_session_name)
