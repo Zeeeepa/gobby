@@ -413,17 +413,23 @@ class LocalSessionManager:
         conditions = []
         params: list[Any] = []
 
+        # Always exclude soft-deleted sessions unless explicitly requested
+        if status == "deleted":
+            conditions.append("status = 'deleted'")
+        else:
+            conditions.append("status != 'deleted'")
+            if status:
+                conditions.append("status = ?")
+                params.append(status)
+
         if project_id:
             conditions.append("project_id = ?")
             params.append(project_id)
-        if status:
-            conditions.append("status = ?")
-            params.append(status)
         if source:
             conditions.append("source = ?")
             params.append(source)
 
-        where_clause = " AND ".join(conditions) if conditions else "1=1"
+        where_clause = " AND ".join(conditions)
         params.append(limit)
 
         rows = self.db.fetchall(
@@ -457,17 +463,23 @@ class LocalSessionManager:
         conditions = []
         params: list[Any] = []
 
+        # Always exclude soft-deleted sessions unless explicitly requested
+        if status == "deleted":
+            conditions.append("status = 'deleted'")
+        else:
+            conditions.append("status != 'deleted'")
+            if status:
+                conditions.append("status = ?")
+                params.append(status)
+
         if project_id:
             conditions.append("project_id = ?")
             params.append(project_id)
-        if status:
-            conditions.append("status = ?")
-            params.append(status)
         if source:
             conditions.append("source = ?")
             params.append(source)
 
-        where_clause = " AND ".join(conditions) if conditions else "1=1"
+        where_clause = " AND ".join(conditions)
 
         result = self.db.fetchone(
             f"SELECT COUNT(*) as count FROM sessions WHERE {where_clause}",  # nosec B608

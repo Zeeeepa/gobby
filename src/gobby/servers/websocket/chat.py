@@ -730,7 +730,8 @@ class ChatMixin:
             await session.stop()
             self._chat_sessions.pop(conversation_id, None)
 
-        # Delete from database
+        # Soft-delete from database (hard delete fails due to FK constraints
+        # from agent_runs, tasks, workflow_audit_log referencing sessions)
         if db_session_id:
             session_manager = getattr(self, "session_manager", None)
             message_manager = getattr(self, "message_manager", None)
@@ -738,9 +739,11 @@ class ChatMixin:
                 if message_manager:
                     await message_manager.delete(db_session_id)
                 if session_manager:
-                    await asyncio.to_thread(session_manager.delete, db_session_id)
+                    await asyncio.to_thread(
+                        session_manager.update, db_session_id, status="deleted"
+                    )
             except Exception as e:
-                logger.warning(f"Failed to delete session from DB: {e}")
+                logger.warning(f"Failed to soft-delete session from DB: {e}")
 
         # Notify frontend
         await websocket.send(
