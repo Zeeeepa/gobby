@@ -12,7 +12,6 @@ from gobby.workflows.pipeline.handlers import (
     execute_exec_step,
     execute_mcp_step,
     execute_prompt_step,
-    execute_spawn_session_step,
 )
 from gobby.workflows.pipeline.renderer import StepRenderer
 from gobby.workflows.pipeline_state import (
@@ -58,7 +57,6 @@ class PipelineExecutor:
         loader: Any | None = None,
         event_callback: PipelineEventCallback | None = None,
         tool_proxy_getter: Any | None = None,
-        spawner: Any | None = None,
         session_manager: Any | None = None,
     ):
         """Initialize the pipeline executor.
@@ -73,7 +71,6 @@ class PipelineExecutor:
             event_callback: Optional async callback for broadcasting events.
                            Signature: async def callback(event: str, execution_id: str, **kwargs)
             tool_proxy_getter: Optional callable returning ToolProxyService for MCP steps
-            spawner: Optional TmuxSpawner for spawn_session steps
             session_manager: Optional LocalSessionManager for session creation
         """
         self.db = db
@@ -83,7 +80,6 @@ class PipelineExecutor:
         self.loader = loader
         self.event_callback = event_callback
         self.tool_proxy_getter = tool_proxy_getter
-        self.spawner = spawner
         self.session_manager = session_manager
 
         self.renderer = StepRenderer(template_engine)
@@ -370,15 +366,6 @@ class PipelineExecutor:
         elif step.mcp:
             # Execute MCP tool call
             return await execute_mcp_step(rendered_step, context, self.tool_proxy_getter)
-        elif step.spawn_session:
-            # Spawn a CLI session via tmux
-            return await execute_spawn_session_step(
-                rendered_step,
-                context,
-                project_id,
-                self.spawner,
-                self.session_manager,
-            )
         elif step.activate_workflow:
             # Activate a workflow on a session
             return await execute_activate_workflow_step(
