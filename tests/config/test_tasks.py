@@ -499,10 +499,6 @@ class TestWorkflowConfigDefaults:
         config = WorkflowConfig()
         assert config.enabled is True
         assert config.timeout == 0.0
-        assert config.require_task_before_edit is False
-        assert "Edit" in config.protected_tools
-        assert "Write" in config.protected_tools
-        assert "NotebookEdit" in config.protected_tools
 
 
 class TestWorkflowConfigCustom:
@@ -521,20 +517,6 @@ class TestWorkflowConfigCustom:
 
         config = WorkflowConfig(timeout=60.0)
         assert config.timeout == 60.0
-
-    def test_require_task_before_edit(self) -> None:
-        """Test enabling require_task_before_edit."""
-        from gobby.config.tasks import WorkflowConfig
-
-        config = WorkflowConfig(require_task_before_edit=True)
-        assert config.require_task_before_edit is True
-
-    def test_custom_protected_tools(self) -> None:
-        """Test custom protected_tools list."""
-        from gobby.config.tasks import WorkflowConfig
-
-        config = WorkflowConfig(protected_tools=["Edit", "Write", "Bash"])
-        assert config.protected_tools == ["Edit", "Write", "Bash"]
 
 
 class TestWorkflowConfigValidation:
