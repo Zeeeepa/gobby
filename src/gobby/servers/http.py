@@ -405,21 +405,23 @@ class HTTPServer:
             logger.debug("HookManager initialized in daemon")
 
             # Wire up stop_registry to WebSocket server for stop_request handling
+            # Check both services container and direct attribute (runner sets both)
+            ws_server = self.services.websocket_server or self.websocket_server
             if (
-                self.services.websocket_server
+                ws_server
                 and hasattr(app.state, "hook_manager")
                 and hasattr(app.state.hook_manager, "_stop_registry")
             ):
-                self.services.websocket_server.stop_registry = app.state.hook_manager._stop_registry
+                ws_server.stop_registry = app.state.hook_manager._stop_registry
                 logger.debug("Stop registry connected to WebSocket server")
 
-            # Wire workflow handler to WebSocket server for headless lifecycle
+            # Wire workflow handler to WebSocket server for SDK lifecycle
             if (
-                self.services.websocket_server
+                ws_server
                 and hasattr(app.state, "hook_manager")
                 and hasattr(app.state.hook_manager, "_workflow_handler")
             ):
-                self.services.websocket_server.workflow_handler = (
+                ws_server.workflow_handler = (
                     app.state.hook_manager._workflow_handler
                 )
                 logger.debug("Workflow handler connected to WebSocket server")

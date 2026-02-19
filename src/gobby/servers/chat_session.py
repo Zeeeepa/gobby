@@ -365,6 +365,12 @@ class ChatSession:
                 tool_use_id: str | None,
                 ctx: HookContext,
             ) -> SyncHookJSONOutput:
+                # DEBUG: log raw SDK hook input keys to diagnose hook issues
+                logger.debug(
+                    "_pre_tool_hook raw inp keys=%s, tool_name=%r",
+                    list(inp.keys()) if isinstance(inp, dict) else type(inp).__name__,
+                    inp.get("tool_name") if isinstance(inp, dict) else "N/A",
+                )
                 data = {
                     "tool_name": inp.get("tool_name", ""),
                     "tool_input": inp.get("tool_input", {}),
@@ -485,7 +491,9 @@ class ChatSession:
     # Patterns that indicate dangerous bash commands (used by accept_edits mode)
     _DANGEROUS_BASH_PATTERNS = re.compile(
         r"(?:^|[;&|]\s*)(?:sudo|rm|chmod|chown|kill|killall|mkfs|dd|reboot|shutdown|halt|"
-        r"mv\s+/|>\s*/|git\s+(?:push|reset\s+--hard|clean\s+-f))\b",
+        r"systemctl|service|init|"
+        r"mv\s+/|>\s*/|git\s+(?:push|reset\s+--hard|clean\s+-f))\b"
+        r"|(?:curl|wget)\s+.*\|\s*(?:ba)?sh\b",
         re.MULTILINE,
     )
 

@@ -42,6 +42,7 @@ class ChatMixin:
     clients: dict[Any, dict[str, Any]]
     _chat_sessions: dict[str, ChatSession]
     _active_chat_tasks: dict[str, asyncio.Task[None]]
+    _pending_modes: dict[str, str]
 
     # Provided by HandlerMixin – declared here only for type checking
     # to avoid shadowing the real implementation at runtime (MRO).
@@ -251,6 +252,12 @@ class ChatMixin:
         )
 
         try:
+            # DEBUG: log event data to diagnose hook issues
+            logger.debug(
+                "_fire_lifecycle: %s event_data=%s",
+                event_type.name,
+                {k: (v if k != "tool_input" else "...") for k, v in (data or {}).items()},
+            )
             # WorkflowHookHandler.evaluate is sync (bridges to async internally)
             response: HookResponse = await asyncio.to_thread(workflow_handler.evaluate, event)
             logger.debug(
@@ -683,8 +690,6 @@ class ChatMixin:
             logger.info(f"Chat mode set to '{mode}' for conversation {conversation_id[:8]}")
         elif conversation_id:
             # Store mode for when session is created
-            if not hasattr(self, "_pending_modes"):
-                self._pending_modes: dict[str, str] = {}
             self._pending_modes[conversation_id] = mode
             logger.debug(f"Chat mode '{mode}' queued for future conversation {conversation_id[:8]}")
 

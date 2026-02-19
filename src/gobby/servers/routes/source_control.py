@@ -131,7 +131,7 @@ async def _call_github_mcp(server: HTTPServer, tool_name: str, arguments: dict[s
                         return item.text
         return result
     except Exception as e:
-        logger.warning(f"GitHub MCP call failed ({tool_name}): {e}")
+        logger.warning(f"GitHub MCP call failed ({tool_name}): {e}", exc_info=True)
         raise HTTPException(502, f"GitHub MCP call failed: {e}") from e
 
 
@@ -591,6 +591,7 @@ def create_source_control_router(server: HTTPServer) -> APIRouter:
             raise HTTPException(404, "Worktree not found")
 
         # Delete git worktree if git_manager is available
+        result = None
         if server.services.git_manager:
             from gobby.worktrees.git import WorktreeGitManager
 
@@ -616,12 +617,8 @@ def create_source_control_router(server: HTTPServer) -> APIRouter:
 
         # Delete DB record (even if git deletion had warnings)
         git_deleted = True
-        if server.services.git_manager:
-            # Check if any of the git deletion paths reported failure
-            try:
-                git_deleted = result.success  # type: ignore[possibly-undefined]
-            except NameError:
-                git_deleted = True  # No git deletion attempted
+        if server.services.git_manager and result is not None:
+            git_deleted = result.success
 
         deleted = server.services.worktree_storage.delete(worktree_id)
         response: dict[str, Any] = {"success": deleted, "id": worktree_id, "git_deleted": git_deleted}

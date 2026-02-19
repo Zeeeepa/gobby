@@ -465,6 +465,8 @@ class GobbyRunner:
             )
             # Pass WebSocket server reference to HTTP server for broadcasting
             self.http_server.websocket_server = self.websocket_server
+            # Also set on services container so lifespan can wire workflow_handler
+            self.http_server.services.websocket_server = self.websocket_server
             # Also update the HTTPServer's broadcaster to use the same websocket_server
             self.http_server.broadcaster.websocket_server = self.websocket_server
 

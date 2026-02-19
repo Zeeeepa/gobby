@@ -26,10 +26,7 @@ __all__ = [
     "MemorySyncManager",  # Backward compatibility alias
 ]
 
-# TODO: Rename MemorySyncConfig to MemoryBackupConfig in gobby.config.persistence
-# for consistency with MemoryBackupManager naming. Keeping current name for now
-# to minimize breaking changes across the codebase.
-from gobby.config.persistence import MemorySyncConfig
+from gobby.config.persistence import MemoryBackupConfig
 from gobby.memory.manager import MemoryManager
 from gobby.storage.database import DatabaseProtocol
 
@@ -53,7 +50,7 @@ class MemoryBackupManager:
         self,
         db: DatabaseProtocol,
         memory_manager: MemoryManager | None,
-        config: MemorySyncConfig,
+        config: MemoryBackupConfig,
     ):
         self.db = db
         self.memory_manager = memory_manager

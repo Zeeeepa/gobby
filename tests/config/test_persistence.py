@@ -25,14 +25,14 @@ class TestMemoryConfigImport:
         assert MemoryConfig is not None
 
 
-class TestMemorySyncConfigImport:
-    """Test that MemorySyncConfig can be imported from the persistence module."""
+class TestMemoryBackupConfigImport:
+    """Test that MemoryBackupConfig can be imported from the persistence module."""
 
     def test_import_from_persistence_module(self) -> None:
-        """Test importing MemorySyncConfig from config.persistence (RED phase target)."""
-        from gobby.config.persistence import MemorySyncConfig
+        """Test importing MemoryBackupConfig from config.persistence (RED phase target)."""
+        from gobby.config.persistence import MemoryBackupConfig
 
-        assert MemorySyncConfig is not None
+        assert MemoryBackupConfig is not None
 
 
 # =============================================================================
@@ -137,66 +137,66 @@ class TestMemoryConfigBackendValidator:
 
 
 # =============================================================================
-# MemorySyncConfig Tests
+# MemoryBackupConfig Tests
 # =============================================================================
 
 
-class TestMemorySyncConfigDefaults:
-    """Test MemorySyncConfig default values."""
+class TestMemoryBackupConfigDefaults:
+    """Test MemoryBackupConfig default values."""
 
     def test_default_instantiation(self) -> None:
-        """Test MemorySyncConfig creates with all defaults."""
+        """Test MemoryBackupConfig creates with all defaults."""
         from pathlib import Path
 
-        from gobby.config.persistence import MemorySyncConfig
+        from gobby.config.persistence import MemoryBackupConfig
 
-        config = MemorySyncConfig()
+        config = MemoryBackupConfig()
         assert config.enabled is True
         assert config.export_debounce == 5.0
         assert config.export_path == Path(".gobby/memories.jsonl")
 
 
-class TestMemorySyncConfigCustom:
-    """Test MemorySyncConfig with custom values."""
+class TestMemoryBackupConfigCustom:
+    """Test MemoryBackupConfig with custom values."""
 
     def test_disabled_sync(self) -> None:
         """Test disabling memory sync."""
-        from gobby.config.persistence import MemorySyncConfig
+        from gobby.config.persistence import MemoryBackupConfig
 
-        config = MemorySyncConfig(enabled=False)
+        config = MemoryBackupConfig(enabled=False)
         assert config.enabled is False
 
     def test_custom_debounce(self) -> None:
         """Test setting custom export debounce."""
-        from gobby.config.persistence import MemorySyncConfig
+        from gobby.config.persistence import MemoryBackupConfig
 
-        config = MemorySyncConfig(export_debounce=10.0)
+        config = MemoryBackupConfig(export_debounce=10.0)
         assert config.export_debounce == 10.0
 
     def test_custom_export_path(self) -> None:
         """Test setting custom export path."""
         from pathlib import Path
 
-        from gobby.config.persistence import MemorySyncConfig
+        from gobby.config.persistence import MemoryBackupConfig
 
-        config = MemorySyncConfig(export_path=Path("/custom/memories.jsonl"))
+        config = MemoryBackupConfig(export_path=Path("/custom/memories.jsonl"))
         assert config.export_path == Path("/custom/memories.jsonl")
 
 
-class TestMemorySyncConfigValidation:
-    """Test MemorySyncConfig validation."""
+class TestMemoryBackupConfigValidation:
+    """Test MemoryBackupConfig validation."""
 
     def test_export_debounce_non_negative(self) -> None:
         """Test that export_debounce must be non-negative."""
-        from gobby.config.persistence import MemorySyncConfig
+        from gobby.config.persistence import MemoryBackupConfig
 
         # Zero is allowed
-        config = MemorySyncConfig(export_debounce=0.0)
+        config = MemoryBackupConfig(export_debounce=0.0)
         assert config.export_debounce == 0.0
 
         # Negative is not
         with pytest.raises(ValidationError) as exc_info:
-            MemorySyncConfig(export_debounce=-1.0)
+            MemoryBackupConfig(export_debounce=-1.0)
         assert "non-negative" in str(exc_info.value).lower()
 
 

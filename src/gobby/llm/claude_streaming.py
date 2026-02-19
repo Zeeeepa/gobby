@@ -64,7 +64,7 @@ async def stream_with_mcp_tools(
         prompt: User prompt to process.
         allowed_tools: List of allowed MCP tool patterns.
         system_prompt: Optional system prompt.
-        model: Optional model override (default: claude-sonnet-4-6).
+        model: Optional model override (default: None, uses SDK default).
         max_turns: Maximum number of agentic turns (default: 10).
 
     Yields:

@@ -417,7 +417,7 @@ class SessionEventHandlerMixin(EventHandlersBase):
         if self._session_manager:
             self._session_manager.cache_session_mapping(
                 external_id=external_id,
-                source=cli_source if isinstance(cli_source, str) else str(cli_source),
+                source=cli_source,
                 session_id=existing_session.id,
             )
 

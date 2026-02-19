@@ -1,4 +1,7 @@
+from __future__ import annotations
+
 import asyncio
+from typing import TYPE_CHECKING
 
 import click
 
@@ -6,6 +9,9 @@ from gobby.cli.utils import resolve_project_ref
 from gobby.config.app import DaemonConfig
 from gobby.memory.manager import MemoryManager
 from gobby.storage.database import LocalDatabase
+
+if TYPE_CHECKING:
+    from gobby.utils.daemon_client import DaemonClient
 
 
 def get_memory_manager(ctx: click.Context) -> MemoryManager:
@@ -482,7 +488,7 @@ def reindex_embeddings(ctx: click.Context) -> None:
         click.echo(f"Error: {result.get('error', 'Unknown error')}")
 
 
-def _get_daemon_client(ctx: click.Context) -> "DaemonClient":  # type: ignore[name-defined]  # noqa: F821
+def _get_daemon_client(ctx: click.Context) -> DaemonClient:
     """Get a DaemonClient for calling daemon HTTP API."""
     from gobby.utils.daemon_client import DaemonClient
 
