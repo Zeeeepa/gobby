@@ -410,13 +410,6 @@ class GobbyRunner:
         # Ensure message_processor property is set (redundant but explicit):
         self.http_server.message_processor = self.message_processor
 
-        # Wire tool_proxy_getter to PipelineExecutor for MCP step support.
-        # Must happen after HTTPServer creation since tool_proxy lives on _tools_handler.
-        # For startup-created executors, wire directly; lazily-created executors
-        # get wired via ServiceContainer.get_pipeline_executor().
-        if self.pipeline_executor:
-            self.pipeline_executor.tool_proxy_getter = services.tool_proxy_getter
-
         # WebSocket Server (Optional)
         self.websocket_server: WebSocketServer | None = None
         if self.config.websocket and getattr(self.config.websocket, "enabled", True):

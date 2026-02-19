@@ -192,6 +192,5 @@ class ServiceContainer:
             return pe
 
         except Exception as e:
-            _logger = logging.getLogger(__name__)
             _logger.warning(f"Failed to lazily create PipelineExecutor: {e}")
             return None
