@@ -12,6 +12,7 @@ from typing import TYPE_CHECKING, Any
 
 import uvicorn
 
+from gobby.agents.lifecycle_monitor import AgentLifecycleMonitor
 from gobby.agents.runner import AgentRunner
 from gobby.app_context import ServiceContainer
 from gobby.config.app import load_config
@@ -330,6 +331,15 @@ class GobbyRunner:
             logger.debug(f"AgentRunner initialized with executors: {list(executors.keys())}")
         except Exception as e:
             logger.error(f"Failed to initialize AgentRunner: {e}")
+
+        # Agent Lifecycle Monitor (detect dead tmux sessions)
+        from gobby.agents.registry import get_running_agent_registry
+        from gobby.storage.agents import LocalAgentRunManager
+
+        self.agent_lifecycle_monitor = AgentLifecycleMonitor(
+            agent_registry=get_running_agent_registry(),
+            agent_run_manager=LocalAgentRunManager(self.database),
+        )
 
         # Session Lifecycle Manager (background jobs for expiring and processing)
         self.lifecycle_manager = SessionLifecycleManager(
@@ -728,6 +738,10 @@ class GobbyRunner:
             # Start Session Lifecycle Manager
             await self.lifecycle_manager.start()
 
+            # Start Agent Lifecycle Monitor (detect dead tmux sessions)
+            await self.agent_lifecycle_monitor.cleanup_orphaned_db_runs()
+            await self.agent_lifecycle_monitor.start()
+
             # Start Cron Scheduler
             if self.cron_scheduler:
                 await self.cron_scheduler.start()
@@ -802,6 +816,11 @@ class GobbyRunner:
                 await asyncio.wait_for(self.lifecycle_manager.stop(), timeout=2.0)
             except TimeoutError:
                 logger.warning("Lifecycle manager shutdown timed out")
+
+            try:
+                await asyncio.wait_for(self.agent_lifecycle_monitor.stop(), timeout=2.0)
+            except TimeoutError:
+                logger.warning("Agent lifecycle monitor shutdown timed out")
 
             if self.cron_scheduler:
                 try:

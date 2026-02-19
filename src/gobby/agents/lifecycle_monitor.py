@@ -1,0 +1,180 @@
+"""Background monitor for agent lifecycle.
+
+Detects when agent tmux sessions die without firing SESSION_END hooks
+and marks their DB records accordingly. This prevents ghost agents from
+appearing in the UI as 'active' indefinitely.
+
+Runs as a periodic background task alongside the session lifecycle manager.
+"""
+
+from __future__ import annotations
+
+import asyncio
+import logging
+from typing import TYPE_CHECKING
+
+from gobby.agents.registry import RunningAgentRegistry
+from gobby.agents.tmux.session_manager import TmuxSessionManager
+from gobby.storage.agents import LocalAgentRunManager
+
+if TYPE_CHECKING:
+    from gobby.hooks.session_coordinator import SessionCoordinator
+
+logger = logging.getLogger(__name__)
+
+
+class AgentLifecycleMonitor:
+    """Periodically checks if agent tmux sessions are still alive.
+
+    When a tmux session dies without firing SESSION_END hooks, this
+    monitor detects the orphan and:
+    - Marks the agent_runs DB record as 'error'
+    - Removes the agent from the in-memory registry
+    - Releases any associated worktrees
+    """
+
+    def __init__(
+        self,
+        agent_registry: RunningAgentRegistry,
+        agent_run_manager: LocalAgentRunManager,
+        session_coordinator: SessionCoordinator | None = None,
+        check_interval_seconds: float = 30.0,
+    ) -> None:
+        self._registry = agent_registry
+        self._agent_run_manager = agent_run_manager
+        self._session_coordinator = session_coordinator
+        self._check_interval = check_interval_seconds
+        self._tmux = TmuxSessionManager()
+        self._running = False
+        self._task: asyncio.Task[None] | None = None
+
+    async def start(self) -> None:
+        """Start the monitoring loop."""
+        if self._running:
+            return
+        self._running = True
+        self._task = asyncio.create_task(
+            self._check_loop(),
+            name="agent-lifecycle-monitor",
+        )
+        logger.info(f"AgentLifecycleMonitor started (interval={self._check_interval}s)")
+
+    async def stop(self) -> None:
+        """Stop the monitoring loop."""
+        self._running = False
+        if self._task:
+            self._task.cancel()
+            try:
+                await self._task
+            except asyncio.CancelledError:
+                pass
+            self._task = None
+        logger.info("AgentLifecycleMonitor stopped")
+
+    async def _check_loop(self) -> None:
+        """Periodic check loop."""
+        # Brief initial delay to let agents finish spawning on startup
+        await asyncio.sleep(5.0)
+
+        while self._running:
+            try:
+                await self.check_dead_agents()
+            except Exception as e:
+                logger.error(f"Agent lifecycle check error: {e}")
+
+            try:
+                await asyncio.sleep(self._check_interval)
+            except asyncio.CancelledError:
+                break
+
+    async def check_dead_agents(self) -> int:
+        """Check for dead tmux agents and clean up.
+
+        Returns:
+            Number of dead agents cleaned up.
+        """
+        agents = self._registry.list_all()
+
+        # Only check terminal-mode agents that have a tmux session name
+        tmux_agents = [a for a in agents if a.mode == "terminal" and a.tmux_session_name]
+
+        if not tmux_agents:
+            return 0
+
+        cleaned = 0
+        for agent in tmux_agents:
+            try:
+                tmux_name = agent.tmux_session_name
+                assert tmux_name is not None  # guaranteed by filter above
+                alive = await self._tmux.has_session(tmux_name)
+                if alive:
+                    continue
+
+                logger.info(
+                    f"Detected dead tmux session '{agent.tmux_session_name}' "
+                    f"for agent {agent.run_id}"
+                )
+
+                # Mark DB record as error if still in active status
+                db_run = self._agent_run_manager.get(agent.run_id)
+                if db_run and db_run.status in ("pending", "running"):
+                    self._agent_run_manager.fail(
+                        agent.run_id,
+                        error="tmux session died unexpectedly",
+                    )
+                    logger.info(f"Marked agent run {agent.run_id} as failed (dead tmux session)")
+
+                # Remove from in-memory registry
+                self._registry.remove(agent.run_id, status="failed")
+
+                # Release worktrees
+                if self._session_coordinator:
+                    try:
+                        self._session_coordinator.release_session_worktrees(agent.session_id)
+                    except Exception as e:
+                        logger.warning(
+                            f"Failed to release worktrees for agent {agent.run_id}: {e}"
+                        )
+
+                cleaned += 1
+
+            except Exception as e:
+                logger.warning(f"Error checking agent {agent.run_id}: {e}")
+
+        if cleaned > 0:
+            logger.info(f"Cleaned up {cleaned} dead agent(s)")
+
+        return cleaned
+
+    async def cleanup_orphaned_db_runs(self) -> int:
+        """One-shot cleanup for DB records orphaned after daemon restart.
+
+        Checks agent_runs still in 'running' status that have no
+        corresponding entry in the in-memory registry (meaning the daemon
+        restarted and lost track of them). Marks them as failed.
+
+        Returns:
+            Number of orphaned runs cleaned up.
+        """
+        running_runs = self._agent_run_manager.list_running()
+        if not running_runs:
+            return 0
+
+        cleaned = 0
+        for run in running_runs:
+            # If the run is tracked in the registry, it's being monitored normally
+            if self._registry.get(run.id):
+                continue
+
+            # Not in registry - this is an orphan from before daemon restart
+            self._agent_run_manager.fail(
+                run.id,
+                error="Orphaned agent run (daemon restarted while agent was running)",
+            )
+            logger.info(f"Cleaned up orphaned agent run {run.id}")
+            cleaned += 1
+
+        if cleaned > 0:
+            logger.info(f"Cleaned up {cleaned} orphaned agent run(s) from previous daemon session")
+
+        return cleaned
