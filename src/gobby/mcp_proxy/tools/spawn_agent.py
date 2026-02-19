@@ -23,6 +23,7 @@ from gobby.agents.isolation import (
 from gobby.agents.registry import RunningAgent, get_running_agent_registry
 from gobby.agents.sandbox import SandboxConfig
 from gobby.agents.spawn_executor import SpawnRequest, execute_spawn
+from gobby.config.tmux import TmuxConfig
 from gobby.mcp_proxy.tools.internal import InternalToolRegistry
 from gobby.mcp_proxy.tools.tasks import resolve_task_id_for_mcp
 from gobby.utils.machine_id import get_machine_id
@@ -40,14 +41,21 @@ logger = logging.getLogger(__name__)
 TMUX_HEALTH_CHECK_DELAY = float(os.environ.get("GOBBY_TMUX_HEALTH_CHECK_DELAY", "0.5"))
 
 
-async def _check_tmux_session_alive(session_name: str) -> bool:
+async def _check_tmux_session_alive(
+    session_name: str,
+    socket_name: str | None = None,
+) -> bool:
     """Check if a tmux session is still alive after spawn."""
     tmux_bin = shutil.which("tmux")
     if not tmux_bin:
         return True  # Can't check without tmux binary, assume alive
     try:
+        cmd = [tmux_bin]
+        if socket_name:
+            cmd.extend(["-L", socket_name])
+        cmd.extend(["has-session", "-t", session_name])
         proc = await asyncio.create_subprocess_exec(
-            tmux_bin, "has-session", "-t", session_name,
+            *cmd,
             stdout=asyncio.subprocess.DEVNULL,
             stderr=asyncio.subprocess.DEVNULL,
         )
@@ -602,7 +610,11 @@ async def spawn_agent_impl(
         # Post-spawn health check: verify tmux session is still alive
         if spawn_result.terminal_type == "tmux" and spawn_result.tmux_session_name:
             await asyncio.sleep(TMUX_HEALTH_CHECK_DELAY)
-            alive = await _check_tmux_session_alive(spawn_result.tmux_session_name)
+            tmux_cfg = TmuxConfig()  # picks up defaults (socket_name="gobby")
+            alive = await _check_tmux_session_alive(
+                spawn_result.tmux_session_name,
+                socket_name=tmux_cfg.socket_name,
+            )
             if not alive:
                 logger.error(
                     f"Agent {run_id} tmux session '{spawn_result.tmux_session_name}' "
