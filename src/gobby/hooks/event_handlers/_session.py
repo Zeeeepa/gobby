@@ -168,6 +168,13 @@ class SessionEventHandlerMixin(EventHandlersBase):
                             external_id=external_id,
                             terminal_context=terminal_context,
                         )
+                        # Cache mapping so subsequent hooks skip DB lookup
+                        if self._session_manager:
+                            self._session_manager.cache_session_mapping(
+                                external_id=external_id,
+                                source=cli_source,
+                                session_id=gobby_session_id_from_env,
+                            )
                         return self._handle_pre_created_session(
                             existing_session=existing_session,
                             external_id=external_id,
@@ -406,6 +413,14 @@ class SessionEventHandlerMixin(EventHandlersBase):
                 status="active",
             )
 
+        # Cache mapping so subsequent hooks skip DB lookup
+        if self._session_manager:
+            self._session_manager.cache_session_mapping(
+                external_id=external_id,
+                source=cli_source if isinstance(cli_source, str) else str(cli_source),
+                session_id=existing_session.id,
+            )
+
         session_id = existing_session.id
         parent_session_id = existing_session.parent_session_id
         machine_id = self._get_machine_id()
@@ -530,9 +545,12 @@ class SessionEventHandlerMixin(EventHandlersBase):
             session_ref = f"#{session.seq_num}"
 
         # Build system message (terminal display only)
-        # Session ID is now injected via inject_context in workflow YAML
-        # (session-lifecycle inject_context) so agents get it in additionalContext.
-        system_message = ""
+        if session_ref and session_ref != session_id:
+            system_message = f"\nGobby Session ID: {session_ref}"
+        else:
+            system_message = f"\nGobby Session ID: {session_id}"
+        system_message += " <- Use this for MCP tool calls (session_id parameter)"
+        system_message += f"\nExternal ID: {external_id} (CLI-native, rarely needed)"
 
         # Add active lifecycle workflows
         active_workflow_lines: list[str] = []
