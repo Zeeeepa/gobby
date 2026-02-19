@@ -172,6 +172,7 @@ class ChatMixin:
                     project_id=project_id or PERSONAL_PROJECT_ID,
                 )
                 session.db_session_id = db_session.id
+                session.seq_num = db_session.seq_num
                 logger.info(
                     f"Registered web-chat session {db_session.id} "
                     f"(conv={conversation_id[:8]}, project={project_id or PERSONAL_PROJECT_ID})"

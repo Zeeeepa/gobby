@@ -158,8 +158,10 @@ def _response_to_pre_tool_output(resp: dict[str, Any] | None) -> SyncHookJSONOut
         if resp.get("reason"):
             output["reason"] = resp["reason"]
     elif resp.get("context"):
-        # Inject context via reason field for PreToolUse (no additionalContext)
-        output["reason"] = resp["context"]
+        output["hookSpecificOutput"] = PreToolUseHookSpecificOutput(
+            hookEventName="PreToolUse",
+        )
+        output["hookSpecificOutput"]["additionalContext"] = resp["context"]  # type: ignore[typeddict-unknown-key]
     return output
 
 
@@ -186,6 +188,12 @@ def _response_to_stop_output(resp: dict[str, Any] | None) -> SyncHookJSONOutput:
         output["decision"] = "block"
         if resp.get("reason"):
             output["reason"] = resp["reason"]
+    context = resp.get("context")
+    if context:
+        output["hookSpecificOutput"] = {  # No SDK TypedDict for Stop
+            "hookEventName": "Stop",
+            "additionalContext": context,
+        }
     return output
 
 
@@ -196,9 +204,10 @@ def _response_to_compact_output(resp: dict[str, Any] | None) -> SyncHookJSONOutp
     output = SyncHookJSONOutput()
     context = resp.get("context")
     if context:
-        # PreCompact doesn't have hook-specific additionalContext,
-        # use reason to surface info to the agent
-        output["reason"] = context
+        output["hookSpecificOutput"] = {  # No SDK TypedDict for PreCompact
+            "hookEventName": "PreCompact",
+            "additionalContext": context,
+        }
     return output
 
 
@@ -213,6 +222,7 @@ class ChatSession:
 
     conversation_id: str
     db_session_id: str | None = field(default=None)
+    seq_num: int | None = field(default=None)
     project_id: str | None = field(default=None)
     project_path: str | None = field(default=None)
     message_index: int = field(default=0)
@@ -273,6 +283,11 @@ class ChatSession:
         system_prompt = _load_chat_system_prompt()
         # Inject working directory so the agent doesn't hallucinate paths
         system_prompt += f"\n\n## Environment\n- Working directory: {cwd}\n"
+        if self.db_session_id:
+            session_ref = f"#{self.seq_num}" if self.seq_num else self.db_session_id
+            system_prompt += f"- Session ID: {session_ref} (use for session_id params in MCP tools)\n"
+        if self.project_id:
+            system_prompt += f"- Project ID: {self.project_id}\n"
 
         # Build SDK hooks from lifecycle callbacks
         sdk_hooks = self._build_sdk_hooks()
