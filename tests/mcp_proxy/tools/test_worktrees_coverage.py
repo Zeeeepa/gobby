@@ -510,23 +510,29 @@ class TestResolveProjectContext:
 
     def test_no_project_path_no_defaults(self) -> None:
         """Test with no project path and no defaults."""
-        git_manager, project_id, error = _resolve_project_context(
-            project_path=None,
-            default_git_manager=None,
-            default_project_id=None,
-        )
+        from unittest.mock import patch
+
+        with patch("gobby.mcp_proxy.tools.worktrees.get_project_context", return_value=None):
+            git_manager, project_id, error = _resolve_project_context(
+                project_path=None,
+                default_git_manager=None,
+                default_project_id=None,
+            )
         assert error is not None
         assert "No project_path provided" in error
 
     def test_no_project_path_no_project_id(self) -> None:
         """Test with no project path and no project ID default."""
-        git_manager, project_id, error = _resolve_project_context(
-            project_path=None,
-            default_git_manager=MagicMock(),
-            default_project_id=None,
-        )
+        from unittest.mock import patch
+
+        with patch("gobby.mcp_proxy.tools.worktrees.get_project_context", return_value=None):
+            git_manager, project_id, error = _resolve_project_context(
+                project_path=None,
+                default_git_manager=MagicMock(),
+                default_project_id=None,
+            )
         assert error is not None
-        assert "no default project ID" in error
+        assert "No project_path provided" in error
 
     def test_with_defaults(self) -> None:
         """Test with valid defaults."""

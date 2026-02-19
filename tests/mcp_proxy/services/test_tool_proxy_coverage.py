@@ -3,7 +3,7 @@
 Targets uncovered lines: 97-104, 125, 133, 183, 188-220, 250-278, 280-309
 """
 
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
@@ -330,7 +330,10 @@ class TestCallToolFallback:
             fallback_resolver=mock_fallback,
         )
 
-        result = await proxy.call_tool("test-server", "failing_tool", {})
+        with patch(
+            "gobby.utils.project_context.get_project_context", return_value=None
+        ):
+            result = await proxy.call_tool("test-server", "failing_tool", {})
 
         assert result["success"] is False
         assert result["fallback_suggestions"] == []

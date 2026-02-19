@@ -40,7 +40,6 @@ from gobby.sync.tasks import TaskSyncManager
 from gobby.tasks.validation import TaskValidator
 from gobby.utils.logging import setup_file_logging
 from gobby.utils.machine_id import get_machine_id
-from gobby.worktrees.git import WorktreeGitManager
 
 os.environ["TOKENIZERS_PARALLELISM"] = "false"
 
@@ -61,6 +60,7 @@ if TYPE_CHECKING:
     from gobby.storage.pipelines import LocalPipelineExecutionManager
     from gobby.workflows.loader import WorkflowLoader
     from gobby.workflows.pipeline_executor import PipelineExecutor
+    from gobby.worktrees.git import WorktreeGitManager
 
 logger = logging.getLogger(__name__)
 
@@ -291,54 +291,21 @@ class GobbyRunner:
         # Initialize Clone Storage (local git clones for isolated development)
         self.clone_storage = LocalCloneManager(self.database)
 
-        # Initialize Git Manager for current project (if in a git repo)
+        # Project context is resolved per-session, not at daemon startup.
+        # See ServiceContainer.get_git_manager() / get_pipeline_executor() for lazy creation.
         self.git_manager: WorktreeGitManager | None = None
         self.project_id: str | None = None
-        try:
-            cwd = Path.cwd()
-            project_json = cwd / ".gobby" / "project.json"
-            if project_json.exists():
-                import json
 
-                project_data = json.loads(project_json.read_text())
-                repo_path = project_data.get("repo_path", str(cwd))
-                self.project_id = project_data.get("id")
-                self.git_manager = WorktreeGitManager(repo_path)
-                logger.info(f"Git manager initialized for project: {self.project_id}")
-        except Exception as e:
-            logger.debug(f"Could not initialize git manager: {e}")
-
-        # Initialize Pipeline Components
+        # WorkflowLoader is project-agnostic; pipeline executor is created lazily per-project.
         self.workflow_loader: WorkflowLoader | None = None
         self.pipeline_execution_manager: LocalPipelineExecutionManager | None = None
         self.pipeline_executor: PipelineExecutor | None = None
         try:
-            from gobby.storage.pipelines import LocalPipelineExecutionManager
             from gobby.workflows.loader import WorkflowLoader
-            from gobby.workflows.pipeline_executor import PipelineExecutor
-            from gobby.workflows.templates import TemplateEngine
 
             self.workflow_loader = WorkflowLoader(db=self.database)
-            if self.project_id:
-                self.pipeline_execution_manager = LocalPipelineExecutionManager(
-                    db=self.database,
-                    project_id=self.project_id,
-                )
-                if self.llm_service:
-                    self.pipeline_executor = PipelineExecutor(
-                        db=self.database,
-                        execution_manager=self.pipeline_execution_manager,
-                        llm_service=self.llm_service,
-                        loader=self.workflow_loader,
-                        template_engine=TemplateEngine(),
-                    )
-                    logger.debug("Pipeline executor initialized")
-                else:
-                    logger.debug("Pipeline executor not initialized: LLM service not available")
-            else:
-                logger.debug("Pipeline execution manager not initialized: no project context")
         except Exception as e:
-            logger.warning(f"Failed to initialize pipeline components: {e}")
+            logger.warning(f"Failed to initialize workflow loader: {e}")
 
         # Initialize Agent Runner (Phase 7 - Subagents)
         # Create executor registry for lazy executor creation
@@ -428,6 +395,7 @@ class GobbyRunner:
             config_store=self.config_store,
             prompt_manager=self.prompt_manager,
             dev_mode=self._dev_mode,
+            tool_proxy_getter=lambda: self.http_server.tool_proxy,
         )
 
         self.http_server = HTTPServer(
@@ -444,8 +412,10 @@ class GobbyRunner:
 
         # Wire tool_proxy_getter to PipelineExecutor for MCP step support.
         # Must happen after HTTPServer creation since tool_proxy lives on _tools_handler.
+        # For startup-created executors, wire directly; lazily-created executors
+        # get wired via ServiceContainer.get_pipeline_executor().
         if self.pipeline_executor:
-            self.pipeline_executor.tool_proxy_getter = lambda: self.http_server.tool_proxy
+            self.pipeline_executor.tool_proxy_getter = services.tool_proxy_getter
 
         # WebSocket Server (Optional)
         self.websocket_server: WebSocketServer | None = None

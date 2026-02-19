@@ -69,15 +69,19 @@ def create_pipelines_router(server: "HTTPServer") -> APIRouter:
         """
         from gobby.workflows.pipeline_state import ApprovalRequired
 
-        # Get loader and executor from services
+        # Get loader from services; executor is resolved per-project
         loader = server.services.workflow_loader
-        executor = server.services.pipeline_executor
 
         if loader is None:
             raise HTTPException(status_code=500, detail="Workflow loader not configured")
 
+        project_id = request.project_id or ""
+        if not project_id:
+            raise HTTPException(status_code=400, detail="project_id required for pipeline execution")
+
+        executor = server.services.get_pipeline_executor(project_id)
         if executor is None:
-            raise HTTPException(status_code=500, detail="Pipeline executor not configured")
+            raise HTTPException(status_code=500, detail="Pipeline executor not available for project")
 
         # Load the pipeline
         pipeline = await loader.load_pipeline(request.name)
@@ -125,11 +129,12 @@ def create_pipelines_router(server: "HTTPServer") -> APIRouter:
             200: Execution details with steps
             404: Execution not found
         """
-        # Get execution manager from services
-        execution_manager = server.services.pipeline_execution_manager
+        # Create lightweight execution manager for read-only queries
+        from gobby.storage.pipelines import LocalPipelineExecutionManager
 
-        if execution_manager is None:
-            raise HTTPException(status_code=500, detail="Pipeline execution manager not configured")
+        execution_manager = LocalPipelineExecutionManager(
+            db=server.services.database, project_id=""
+        )
 
         # Fetch execution
         execution = execution_manager.get_execution(execution_id)
@@ -166,12 +171,25 @@ def create_pipelines_router(server: "HTTPServer") -> APIRouter:
             202: Execution resumed but needs another approval
             404: Invalid token
         """
+        from gobby.storage.pipelines import LocalPipelineExecutionManager
         from gobby.workflows.pipeline_state import ApprovalRequired
 
-        executor = server.services.pipeline_executor
+        # Look up the execution's project from the approval token
+        global_mgr = LocalPipelineExecutionManager(
+            db=server.services.database, project_id=""
+        )
+        step = global_mgr.get_step_by_approval_token(token)
+        if not step:
+            raise HTTPException(status_code=404, detail="Invalid approval token")
+        execution_record = global_mgr.get_execution(step.execution_id)
+        if not execution_record:
+            raise HTTPException(status_code=404, detail="Execution not found")
 
+        executor = server.services.get_pipeline_executor(execution_record.project_id)
         if executor is None:
-            raise HTTPException(status_code=500, detail="Pipeline executor not configured")
+            raise HTTPException(
+                status_code=500, detail="Pipeline executor not available for project"
+            )
 
         try:
             execution = await executor.approve(token, approved_by=None)
@@ -207,10 +225,24 @@ def create_pipelines_router(server: "HTTPServer") -> APIRouter:
             200: Execution rejected/cancelled
             404: Invalid token
         """
-        executor = server.services.pipeline_executor
+        from gobby.storage.pipelines import LocalPipelineExecutionManager
 
+        # Look up the execution's project from the rejection token
+        global_mgr = LocalPipelineExecutionManager(
+            db=server.services.database, project_id=""
+        )
+        step = global_mgr.get_step_by_approval_token(token)
+        if not step:
+            raise HTTPException(status_code=404, detail="Invalid rejection token")
+        execution_record = global_mgr.get_execution(step.execution_id)
+        if not execution_record:
+            raise HTTPException(status_code=404, detail="Execution not found")
+
+        executor = server.services.get_pipeline_executor(execution_record.project_id)
         if executor is None:
-            raise HTTPException(status_code=500, detail="Pipeline executor not configured")
+            raise HTTPException(
+                status_code=500, detail="Pipeline executor not available for project"
+            )
 
         try:
             execution = await executor.reject(token, rejected_by=None)

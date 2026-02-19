@@ -121,12 +121,22 @@ def _resolve_project_context(
         return _git_manager_cache[resolved_path], resolved_project_id, None
 
     # Fall back to defaults
-    if default_git_manager is None:
-        return None, None, "No project_path provided and no default git manager configured."
-    if default_project_id is None:
-        return None, None, "No project_path provided and no default project ID configured."
+    if default_git_manager is not None and default_project_id is not None:
+        return default_git_manager, default_project_id, None
 
-    return default_git_manager, default_project_id, None
+    # Try resolving from context var (set per-MCP-call from session)
+    ctx = get_project_context()
+    if ctx and ctx.get("id"):
+        resolved_path = ctx.get("project_path")
+        if resolved_path:
+            if resolved_path not in _git_manager_cache:
+                try:
+                    _git_manager_cache[resolved_path] = WorktreeGitManager(resolved_path)
+                except ValueError:
+                    return None, None, "No project_path provided and no project context available."
+            return _git_manager_cache[resolved_path], ctx["id"], None
+
+    return None, None, "No project_path provided and no project context available. Pass project_path parameter."
 
 
 def _copy_project_json_to_worktree(

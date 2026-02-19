@@ -1,6 +1,6 @@
 """Tests for GobbyDaemonTools handler class in server.py."""
 
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
@@ -455,7 +455,8 @@ class TestGobbyDaemonToolsSemanticSearch:
         tools_handler._semantic_search = MagicMock()
         tools_handler._mcp_manager.project_id = None
 
-        result = await tools_handler.search_tools(query="find files")
+        with patch("gobby.mcp_proxy.server.get_project_context", return_value=None):
+            result = await tools_handler.search_tools(query="find files")
 
         assert result["success"] is False
         assert "No project_id" in result["error"]

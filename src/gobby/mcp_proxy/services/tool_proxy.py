@@ -367,6 +367,11 @@ class ToolProxyService:
             if self._fallback_resolver:
                 try:
                     project_id = self._mcp_manager.project_id
+                    if not project_id:
+                        from gobby.utils.project_context import get_project_context
+
+                        ctx = get_project_context()
+                        project_id = ctx.get("id") if ctx else None
                     if project_id:
                         suggestions = await self._fallback_resolver.find_alternatives_for_error(
                             server_name=server_name,
