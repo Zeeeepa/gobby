@@ -157,8 +157,11 @@ export function useSourceControl() {
       if (r.ok) {
         const data = await r.json()
         setBranches(data.branches || [])
+      } else {
+        setError(`Branches: HTTP ${r.status}`)
       }
     } catch (e) {
+      setError(e instanceof Error ? e.message : 'Failed to fetch branches')
       console.error('Failed to fetch branches:', e)
     }
   }, [buildParams])
@@ -172,8 +175,11 @@ export function useSourceControl() {
         if (r.ok) {
           const data = await r.json()
           setPrs(data.prs || [])
+        } else {
+          setError(`PRs: HTTP ${r.status}`)
         }
       } catch (e) {
+        setError(e instanceof Error ? e.message : 'Failed to fetch PRs')
         console.error('Failed to fetch PRs:', e)
       }
     },
@@ -186,8 +192,11 @@ export function useSourceControl() {
       if (r.ok) {
         const data = await r.json()
         setWorktrees(data.worktrees || [])
+      } else {
+        setError(`Worktrees: HTTP ${r.status}`)
       }
     } catch (e) {
+      setError(e instanceof Error ? e.message : 'Failed to fetch worktrees')
       console.error('Failed to fetch worktrees:', e)
     }
   }, [buildParams])
@@ -198,8 +207,11 @@ export function useSourceControl() {
       if (r.ok) {
         const data = await r.json()
         setClones(data.clones || [])
+      } else {
+        setError(`Clones: HTTP ${r.status}`)
       }
     } catch (e) {
+      setError(e instanceof Error ? e.message : 'Failed to fetch clones')
       console.error('Failed to fetch clones:', e)
     }
   }, [buildParams])
@@ -210,8 +222,11 @@ export function useSourceControl() {
       if (r.ok) {
         const data = await r.json()
         setCiRuns(data.runs || [])
+      } else {
+        setError(`CI runs: HTTP ${r.status}`)
       }
     } catch (e) {
+      setError(e instanceof Error ? e.message : 'Failed to fetch CI/CD runs')
       console.error('Failed to fetch CI/CD runs:', e)
     }
   }, [buildParams])
@@ -399,19 +414,24 @@ export function useSourceControl() {
 
   // Local data: initial fetch + polling (5s) — restarts on projectId change
   useEffect(() => {
+    let stale = false
     setIsLoading(true)
-    fetchLocalRef.current()
-    localPollRef.current = window.setInterval(() => fetchLocalRef.current(), LOCAL_POLL_MS)
+    setError(null)
+    if (!stale) fetchLocalRef.current()
+    localPollRef.current = window.setInterval(() => { if (!stale) fetchLocalRef.current() }, LOCAL_POLL_MS)
     return () => {
+      stale = true
       if (localPollRef.current) window.clearInterval(localPollRef.current)
     }
   }, [projectId])
 
   // GitHub data: initial fetch + polling (30s) — restarts on projectId change
   useEffect(() => {
-    fetchGitHubRef.current()
-    githubPollRef.current = window.setInterval(() => fetchGitHubRef.current(), GITHUB_POLL_MS)
+    let stale = false
+    if (!stale) fetchGitHubRef.current()
+    githubPollRef.current = window.setInterval(() => { if (!stale) fetchGitHubRef.current() }, GITHUB_POLL_MS)
     return () => {
+      stale = true
       if (githubPollRef.current) window.clearInterval(githubPollRef.current)
     }
   }, [projectId])

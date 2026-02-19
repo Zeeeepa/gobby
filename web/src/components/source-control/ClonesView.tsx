@@ -39,8 +39,11 @@ export function ClonesView({ clones, onDelete, onSync }: Props) {
 
   const handleSync = async (id: string) => {
     setActionLoading(id)
+    setActionError(null)
     try {
       await onSync(id)
+    } catch (e) {
+      setActionError(e instanceof Error ? e.message : 'Failed to sync clone')
     } finally {
       setActionLoading(null)
     }

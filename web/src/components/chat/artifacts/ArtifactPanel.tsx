@@ -40,10 +40,14 @@ export function ArtifactPanel({ artifact, width, onClose, onUpdateContent, onSet
         const header = content.slice(0, commaIdx)
         const b64 = content.slice(commaIdx + 1)
         const mime = header.match(/data:(.*?);/)?.[1] || 'application/octet-stream'
-        const binary = atob(b64)
-        const bytes = new Uint8Array(binary.length)
-        for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i)
-        blob = new Blob([bytes], { type: mime })
+        try {
+          const binary = atob(b64)
+          const bytes = new Uint8Array(binary.length)
+          for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i)
+          blob = new Blob([bytes], { type: mime })
+        } catch {
+          blob = new Blob([content], { type: 'application/octet-stream' })
+        }
       }
     } else {
       const mimeType = artifact.type === 'image' ? 'application/octet-stream' : 'text/plain'

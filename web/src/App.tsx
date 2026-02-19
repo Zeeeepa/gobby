@@ -47,6 +47,10 @@ export default function App() {
   // Auto-synthesize chat title when streaming completes
   const wasStreamingRef = useRef(false)
   const titleSynthesisCountRef = useRef(0) // messages since last synthesis
+  const sessionsRef = useRef(sessionsHook.sessions)
+  sessionsRef.current = sessionsHook.sessions
+  const refreshSessionsRef = useRef(sessionsHook.refresh)
+  refreshSessionsRef.current = sessionsHook.refresh
 
   useEffect(() => {
     // Detect streaming transition: true → false (response completed)
@@ -54,7 +58,7 @@ export default function App() {
       titleSynthesisCountRef.current += 1
 
       // Find the current session's DB ID
-      const currentSession = sessionsHook.sessions.find(
+      const currentSession = sessionsRef.current.find(
         (s) => s.external_id === conversationId && s.source === 'claude_sdk_web_chat'
       )
 
@@ -75,14 +79,14 @@ export default function App() {
               return res.json()
             })
             .then((data) => {
-              if (data?.title) sessionsHook.refresh()
+              if (data?.title) refreshSessionsRef.current()
             })
             .catch(() => { /* title synthesis is non-critical */ })
         }
       }
     }
     wasStreamingRef.current = isStreaming
-  }, [isStreaming, conversationId, sessionsHook.sessions, sessionsHook.refresh])
+  }, [isStreaming, conversationId])
 
   // Reset title synthesis counter on conversation switch
   useEffect(() => {

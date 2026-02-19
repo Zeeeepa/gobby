@@ -17,6 +17,7 @@ export function PullRequestsView({ prs, githubAvailable, fetchPrs, fetchPrDetail
   const [filter, setFilter] = useState<PrFilter>('open')
   const [selectedPr, setSelectedPr] = useState<number | null>(null)
   const [fetchError, setFetchError] = useState<string | null>(null)
+  const [filterLoading, setFilterLoading] = useState(false)
 
   if (!githubAvailable) {
     return <GitHubUnavailable />
@@ -26,9 +27,12 @@ export function PullRequestsView({ prs, githubAvailable, fetchPrs, fetchPrDetail
     setFilter(f)
     setSelectedPr(null)
     setFetchError(null)
-    fetchPrs(f === 'all' ? 'all' : f).catch((e) => {
-      setFetchError(e instanceof Error ? e.message : 'Failed to fetch pull requests')
-    })
+    setFilterLoading(true)
+    fetchPrs(f === 'all' ? 'all' : f)
+      .catch((e) => {
+        setFetchError(e instanceof Error ? e.message : 'Failed to fetch pull requests')
+      })
+      .finally(() => setFilterLoading(false))
   }
 
   return (
@@ -43,6 +47,7 @@ export function PullRequestsView({ prs, githubAvailable, fetchPrs, fetchPrDetail
               key={f}
               className={`sc-filter-chip ${filter === f ? 'sc-filter-chip--active' : ''}`}
               onClick={() => handleFilterChange(f)}
+              disabled={filterLoading}
             >
               {f}
             </button>

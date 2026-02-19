@@ -84,10 +84,16 @@ export function MemoryGraph({ fetchGraphData, onSelect, memoryLimit }: MemoryGra
   useEffect(() => {
     let cancelled = false
     setLoading(true)
-    fetchGraphData(memoryLimit).then(data => {
-      if (!cancelled && data) setGraphData(data)
-      if (!cancelled) setLoading(false)
-    })
+    fetchGraphData(memoryLimit)
+      .then(data => {
+        if (!cancelled && data) setGraphData(data)
+      })
+      .catch(e => {
+        if (!cancelled) console.error('Failed to fetch graph data:', e)
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false)
+      })
     return () => { cancelled = true }
   }, [fetchGraphData, memoryLimit])
 
@@ -107,12 +113,14 @@ export function MemoryGraph({ fetchGraphData, onSelect, memoryLimit }: MemoryGra
 
   // Zoom to fit on first load
   const hasZoomedRef = useRef(false)
+  const zoomTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   useEffect(() => {
     if (forceData.nodes.length > 0 && !hasZoomedRef.current) {
       hasZoomedRef.current = true
       // Wait for simulation to settle a bit
-      setTimeout(() => fgRef.current?.zoomToFit(400, 40), 500)
+      zoomTimeoutRef.current = setTimeout(() => fgRef.current?.zoomToFit(400, 40), 500)
     }
+    return () => { if (zoomTimeoutRef.current) clearTimeout(zoomTimeoutRef.current) }
   }, [forceData.nodes.length])
 
   const handleNodeClick = useCallback((node: any) => { // eslint-disable-line @typescript-eslint/no-explicit-any
