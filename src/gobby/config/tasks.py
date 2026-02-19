@@ -103,7 +103,7 @@ class TaskEnrichmentConfig(BaseModel):
         description="LLM provider to use for enrichment",
     )
     model: str = Field(
-        default="claude-3-5-haiku-latest",
+        default="haiku",
         description="Model to use for enrichment (lightweight model for speed)",
     )
     enable_code_research: bool = Field(
@@ -136,7 +136,7 @@ class TaskExpansionConfig(BaseModel):
         description="LLM provider to use for expansion",
     )
     model: str = Field(
-        default="claude-opus-4-6",
+        default="opus",
         description="Model to use for expansion",
     )
 
@@ -203,7 +203,7 @@ class TaskValidationConfig(BaseModel):
         description="LLM provider to use for validation",
     )
     model: str = Field(
-        default="claude-sonnet-4-6",
+        default="opus",
         description="Model to use for validation",
     )
     system_prompt: str = Field(

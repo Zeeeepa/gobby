@@ -30,7 +30,7 @@ gobby-tasks:
     # Behavior settings (tdd_mode, etc.) are in workflow YAML variables.
     # See: .gobby/workflows/lifecycle/session-lifecycle.yaml
     provider: claude
-    model: claude-opus-4-6
+    model: opus
     codebase_research_enabled: true
     research_max_steps: 10
     research_system_prompt: "You are a senior developer researching a codebase. Use tools to find relevant code."
@@ -42,7 +42,7 @@ gobby-tasks:
   validation:
     enabled: true
     provider: claude
-    model: claude-opus-4-6
+    model: opus
     system_prompt: "You are a QA validator. Output ONLY valid JSON. No markdown, no explanation, no code blocks. Just the raw JSON object."
     criteria_system_prompt: "You are a QA engineer writing acceptance criteria. CRITICAL: Only include requirements explicitly stated in the task. Do NOT invent specific values, thresholds, timeouts, or edge cases that are not mentioned. Vague tasks get vague criteria. Use markdown checkboxes."
     # Custom prompt for generating validation criteria. Available placeholders: {title}, {description}
@@ -76,7 +76,7 @@ search:
   embedding_weight: 0.6
   notify_on_fallback: true
 llm_providers:
-  default_model: claude-opus-4-6
+  default_model: opus
   claude:
     models: claude-opus-4-6,claude-sonnet-4-6,claude-haiku-4-5
     auth_mode: subscription
@@ -111,7 +111,7 @@ workflow:
 import_mcp_server:
   enabled: true
   provider: claude
-  model: claude-haiku-4-5
+  model: haiku
   github_fetch_prompt: |
     Fetch the README from this GitHub repository and extract MCP server configuration:
 
@@ -145,7 +145,7 @@ compact_handoff:
 session_summary:
   enabled: false
   provider: claude
-  model: claude-haiku-4-5
+  model: sonnet
   summary_file_path: ~/.gobby/session_summaries/
   prompt: 'Analyze this session transcript and create a comprehensive
     session summary.
@@ -239,7 +239,7 @@ session_summary:
 title_synthesis:
   enabled: true
   provider: claude
-  model: claude-haiku-4-5
+  model: haiku
   prompt: "Generate a concise 3-6 word title summarizing the user's intent.
 
     Use title case. Be specific and descriptive. Focus on the task/goal.
@@ -253,7 +253,7 @@ title_synthesis:
 recommend_tools:
   enabled: true
   provider: claude
-  model: claude-sonnet-4-6
+  model: sonnet
   prompt:
     'You are a tool recommendation assistant for Claude Code with access to
     MCP servers.
@@ -354,7 +354,7 @@ recommend_tools:
 tool_summarizer:
   enabled: true
   provider: claude
-  model: claude-haiku-4-5
+  model: haiku
   prompt: |
     Summarize this MCP tool description in 180 characters or less.
     Keep it to three sentences or less. Be concise and preserve the key functionality.

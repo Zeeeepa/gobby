@@ -102,7 +102,7 @@ class SessionSummaryConfig(BaseModel):
         description="LLM provider to use for session summary",
     )
     model: str = Field(
-        default="claude-haiku-4-5",
+        default="sonnet",
         description="Model to use for session summary generation",
     )
     prompt: str = Field(
@@ -147,7 +147,7 @@ class TitleSynthesisConfig(BaseModel):
         description="LLM provider to use for title synthesis",
     )
     model: str = Field(
-        default="claude-haiku-4-5",
+        default="haiku",
         description="Model to use for title synthesis",
     )
     prompt: str | None = Field(

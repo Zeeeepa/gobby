@@ -32,6 +32,29 @@ logger = logging.getLogger(__name__)
 ProviderType = Literal["claude", "gemini", "codex", "openai", "litellm"]
 AuthModeType = Literal["api_key", "adc"]
 
+# Shorthand aliases for Claude models — single source of truth for resolution
+MODEL_ALIASES: dict[str, str] = {
+    "opus": "claude-opus-4-6",
+    "sonnet": "claude-sonnet-4-6",
+    "haiku": "claude-haiku-4-5",
+}
+
+
+def resolve_model_alias(model: str) -> str:
+    """Resolve a shorthand model alias to a full model ID.
+
+    Used at the LiteLLM boundary where full model IDs are required.
+    The Claude Agent SDK handles shorthand natively, so this is only
+    needed for LiteLLM calls.
+
+    Args:
+        model: Model name, either shorthand ("opus") or full ("claude-opus-4-6").
+
+    Returns:
+        Full model ID suitable for LiteLLM.
+    """
+    return MODEL_ALIASES.get(model, model)
+
 
 def get_litellm_model(
     model: str,
@@ -65,6 +88,9 @@ def get_litellm_model(
         >>> get_litellm_model("gpt-4o", provider="codex")
         "gpt-4o"
     """
+    # Resolve shorthand aliases (opus -> claude-opus-4-6, etc.)
+    model = resolve_model_alias(model)
+
     # If model already has a prefix, assume it's already formatted
     if "/" in model:
         return model

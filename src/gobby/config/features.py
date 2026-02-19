@@ -16,6 +16,7 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 __all__ = [
     "ChatConfig",
+    "ReviewConfig",
     "ToolSummarizerConfig",
     "RecommendToolsConfig",
     "ImportMCPServerConfig",
@@ -42,7 +43,7 @@ class ToolSummarizerConfig(BaseModel):
         description="LLM provider to use for summarization",
     )
     model: str = Field(
-        default="claude-haiku-4-5",
+        default="haiku",
         description="Model to use for summarization (fast/cheap recommended)",
     )
 
@@ -83,7 +84,7 @@ class TaskDescriptionConfig(BaseModel):
         description="LLM provider to use for description generation",
     )
     model: str = Field(
-        default="claude-haiku-4-5",
+        default="haiku",
         description="Model to use for description generation (fast/cheap recommended)",
     )
     min_structured_length: int = Field(
@@ -122,7 +123,7 @@ class MemoryFactExtractionConfig(BaseModel):
         description="LLM provider to use for fact extraction",
     )
     model: str = Field(
-        default="claude-haiku-4-5",
+        default="haiku",
         description="Model to use for fact extraction (fast/cheap recommended)",
     )
     prompt_path: str | None = Field(
@@ -143,7 +144,7 @@ class MemoryDedupDecisionConfig(BaseModel):
         description="LLM provider to use for dedup decisions",
     )
     model: str = Field(
-        default="claude-haiku-4-5",
+        default="haiku",
         description="Model to use for dedup decisions (fast/cheap recommended)",
     )
     prompt_path: str | None = Field(
@@ -164,7 +165,7 @@ class MemoryEntityExtractionConfig(BaseModel):
         description="LLM provider to use for entity extraction",
     )
     model: str = Field(
-        default="claude-haiku-4-5",
+        default="haiku",
         description="Model to use for entity extraction (fast/cheap recommended)",
     )
     prompt_path: str | None = Field(
@@ -185,7 +186,7 @@ class RecommendToolsConfig(BaseModel):
         description="LLM provider to use for tool recommendations",
     )
     model: str = Field(
-        default="claude-sonnet-4-6",
+        default="sonnet",
         description="Model to use for tool recommendations",
     )
 
@@ -217,7 +218,7 @@ class ImportMCPServerConfig(BaseModel):
         description="LLM provider to use for config extraction",
     )
     model: str = Field(
-        default="claude-haiku-4-5",
+        default="haiku",
         description="Model to use for config extraction",
     )
 
@@ -337,9 +338,20 @@ class ProjectVerificationConfig(BaseModel):
         return result
 
 
+class ReviewConfig(BaseModel):
+    """Code review configuration."""
+
+    model: str = Field(default="opus", description="Model for code review")
+    provider: str = Field(default="claude", description="Provider for code review")
+
+
 class ChatConfig(BaseModel):
     """Chat mode configuration."""
 
+    model: str = Field(
+        default="opus",
+        description="Default model for chat sessions",
+    )
     default_mode: str = Field(
         default="bypass",
         description="Default chat mode for new sessions. One of: normal, accept_edits, bypass, plan.",

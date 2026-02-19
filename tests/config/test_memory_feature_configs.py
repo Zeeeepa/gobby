@@ -24,7 +24,7 @@ class TestMemoryFactExtractionConfig:
         config = MemoryFactExtractionConfig()
         assert config.enabled is True
         assert config.provider == "claude"
-        assert config.model == "claude-haiku-4-5"
+        assert config.model == "haiku"
 
     def test_prompt_path_default(self) -> None:
         """MemoryFactExtractionConfig has a prompt_path field."""
@@ -56,7 +56,7 @@ class TestMemoryDedupDecisionConfig:
         config = MemoryDedupDecisionConfig()
         assert config.enabled is True
         assert config.provider == "claude"
-        assert config.model == "claude-haiku-4-5"
+        assert config.model == "haiku"
 
     def test_prompt_path_default(self) -> None:
         """MemoryDedupDecisionConfig has a prompt_path field."""
@@ -88,7 +88,7 @@ class TestMemoryEntityExtractionConfig:
         config = MemoryEntityExtractionConfig()
         assert config.enabled is True
         assert config.provider == "claude"
-        assert config.model == "claude-haiku-4-5"
+        assert config.model == "haiku"
 
     def test_prompt_path_default(self) -> None:
         """MemoryEntityExtractionConfig has a prompt_path field."""

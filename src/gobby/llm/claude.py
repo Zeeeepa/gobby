@@ -438,7 +438,7 @@ class ClaudeLLMProvider(LLMProvider):
         options = ClaudeAgentOptions(
             system_prompt=system_prompt or "You are a helpful assistant.",
             max_turns=1,
-            model=model or "claude-sonnet-4-6",
+            model=model or "opus",
             tools=[],  # Explicitly disable all tools
             allowed_tools=[],
             mcp_servers={},
@@ -491,7 +491,9 @@ class ClaudeLLMProvider(LLMProvider):
         if not self._litellm:
             raise RuntimeError("Generation unavailable (LiteLLM not initialized)")
 
-        model = model or "claude-haiku-4-5"
+        from gobby.llm.litellm_executor import resolve_model_alias
+
+        model = resolve_model_alias(model or "haiku")
         litellm_model = f"anthropic/{model}"
 
         try:
@@ -575,7 +577,9 @@ class ClaudeLLMProvider(LLMProvider):
         if not self._litellm:
             raise RuntimeError("Generation unavailable (LiteLLM not initialized)")
 
-        model = model or "claude-haiku-4-5"
+        from gobby.llm.litellm_executor import resolve_model_alias
+
+        model = resolve_model_alias(model or "haiku")
         litellm_model = f"anthropic/{model}"
 
         try:
@@ -692,7 +696,7 @@ class ClaudeLLMProvider(LLMProvider):
         options = ClaudeAgentOptions(
             system_prompt=system_prompt or "You are a helpful assistant with access to MCP tools.",
             max_turns=max_turns,
-            model=model or "claude-sonnet-4-6",
+            model=model or "opus",
             allowed_tools=allowed_tools,
             permission_mode="bypassPermissions",
             cli_path=cli_path,
@@ -889,7 +893,7 @@ class ClaudeLLMProvider(LLMProvider):
         options = ClaudeAgentOptions(
             system_prompt="You are a vision assistant that describes images in detail.",
             max_turns=1,
-            model="claude-haiku-4-5",
+            model="haiku",
             tools=[],
             allowed_tools=[],
             mcp_servers={},
@@ -939,6 +943,8 @@ class ClaudeLLMProvider(LLMProvider):
         context: str | None = None,
     ) -> str:
         """Describe image using LiteLLM (api_key mode)."""
+        from gobby.llm.litellm_executor import resolve_model_alias
+
         if not self._litellm:
             return "Image description unavailable (LiteLLM not initialized)"
 
@@ -957,7 +963,7 @@ class ClaudeLLMProvider(LLMProvider):
             # Route through LiteLLM with anthropic prefix
             # Use same model as SDK path for consistency
             response = await self._litellm.acompletion(
-                model="anthropic/claude-haiku-4-5",
+                model=f"anthropic/{resolve_model_alias('haiku')}",
                 messages=[
                     {
                         "role": "user",

@@ -352,7 +352,7 @@ def create_admin_router(server: "HTTPServer") -> APIRouter:
         start_time = time.perf_counter()
 
         # Determine default model from config or fallback
-        default_model = "claude-opus-4-6"
+        default_model = "opus"
         if (
             server.services.config
             and server.services.config.llm_providers

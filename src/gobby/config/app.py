@@ -29,12 +29,13 @@ from gobby.config.features import (
     MetricsConfig,
     ProjectVerificationConfig,
     RecommendToolsConfig,
+    ReviewConfig,
     TaskDescriptionConfig,
     ToolSummarizerConfig,
 )
 from gobby.config.llm_providers import LLMProvidersConfig
 from gobby.config.logging import LoggingSettings
-from gobby.config.persistence import MemoryConfig, MemorySyncConfig
+from gobby.config.persistence import MemoryBackupConfig, MemoryConfig
 from gobby.config.search import SearchConfig
 from gobby.config.servers import MCPClientProxyConfig, WebSocketSettings
 from gobby.config.sessions import (
@@ -363,8 +364,8 @@ class DaemonConfig(BaseModel):
         default_factory=MemoryConfig,
         description="Memory system configuration",
     )
-    memory_sync: MemorySyncConfig = Field(
-        default_factory=MemorySyncConfig,
+    memory_sync: MemoryBackupConfig = Field(
+        default_factory=MemoryBackupConfig,
         description="Memory synchronization configuration",
     )
     skills: SkillsConfig = Field(
@@ -427,6 +428,10 @@ class DaemonConfig(BaseModel):
         default_factory=ChatConfig,
         description="Chat mode configuration (default mode for new sessions)",
     )
+    review: ReviewConfig = Field(
+        default_factory=ReviewConfig,
+        description="Code review configuration",
+    )
 
     def get_recommend_tools_config(self) -> RecommendToolsConfig:
         """Get recommend_tools configuration."""
@@ -452,7 +457,7 @@ class DaemonConfig(BaseModel):
         """Get memory configuration."""
         return self.memory
 
-    def get_memory_sync_config(self) -> MemorySyncConfig:
+    def get_memory_sync_config(self) -> MemoryBackupConfig:
         """Get memory sync configuration."""
         return self.memory_sync
 

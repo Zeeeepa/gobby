@@ -281,7 +281,7 @@ class TestSessionSummaryConfig:
         config = SessionSummaryConfig()
         assert config.enabled is True
         assert config.provider == "claude"
-        assert config.model == "claude-haiku-4-5"
+        assert config.model == "sonnet"
         # prompt now has a default template with placeholders
         assert config.prompt is not None
         assert "Generate a concise session summary" in config.prompt
@@ -730,7 +730,7 @@ class TestRecommendToolsConfig:
         config = RecommendToolsConfig()
         assert config.enabled is True
         assert config.provider == "claude"
-        assert config.model == "claude-sonnet-4-6"
+        assert config.model == "sonnet"
         assert config.prompt_path is None  # Uses default prompt from prompts/
 
 
@@ -742,7 +742,7 @@ class TestImportMCPServerConfig:
         config = ImportMCPServerConfig()
         assert config.enabled is True
         assert config.provider == "claude"
-        assert config.model == "claude-haiku-4-5"
+        assert config.model == "haiku"
         assert config.prompt_path is None  # Uses DEFAULT_IMPORT_MCP_SERVER_PROMPT
 
 
@@ -754,7 +754,7 @@ class TestTitleSynthesisConfig:
         config = TitleSynthesisConfig()
         assert config.enabled is True
         assert config.provider == "claude"
-        assert config.model == "claude-haiku-4-5"
+        assert config.model == "haiku"
         assert config.prompt is None
 
 
@@ -786,7 +786,7 @@ class TestTaskExpansionConfig:
         config = TaskExpansionConfig()
         assert config.enabled is True
         assert config.provider == "claude"
-        assert config.model == "claude-opus-4-5"  # Uses opus for complex task expansion
+        assert config.model == "opus"  # Uses opus for complex task expansion
         assert config.prompt_path is None  # Uses default prompt from prompts/
 
 
@@ -798,7 +798,7 @@ class TestTaskValidationConfig:
         config = TaskValidationConfig()
         assert config.enabled is True
         assert config.provider == "claude"
-        assert config.model == "claude-sonnet-4-6"
+        assert config.model == "opus"
         assert config.prompt_path is None  # Uses default prompt from prompts/
 
 
@@ -924,7 +924,7 @@ class TestToolSummarizerConfig:
         config = ToolSummarizerConfig()
         assert config.enabled is True
         assert config.provider == "claude"
-        assert config.model == "claude-haiku-4-5"
+        assert config.model == "haiku"
         assert config.prompt_path is None  # Uses default prompt from prompts/
 
 
