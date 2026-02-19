@@ -731,10 +731,13 @@ class ChatMixin:
                 if session_manager:
                     try:
                         await asyncio.to_thread(
-                            session_manager.update, session.db_session_id, status="paused"
+                            session_manager.update,
+                            session.db_session_id,
+                            status="paused",
+                            project_id=new_project_id,
                         )
                     except Exception as e:
-                        logger.warning(f"Failed to update session status on project switch: {e}")
+                        logger.warning(f"Failed to update session on project switch: {e}")
             await session.stop()
             self._chat_sessions.pop(conversation_id, None)
 
