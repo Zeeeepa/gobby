@@ -34,7 +34,7 @@ from gobby.config.features import (
 )
 from gobby.config.llm_providers import LLMProviderConfig, LLMProvidersConfig
 from gobby.config.logging import LoggingSettings
-from gobby.config.persistence import MemoryConfig, MemorySyncConfig
+from gobby.config.persistence import MemoryConfig, MemoryBackupConfig
 from gobby.config.servers import MCPClientProxyConfig, WebSocketSettings
 from gobby.config.sessions import (
     ContextInjectionConfig,
@@ -730,7 +730,7 @@ class TestRecommendToolsConfig:
         config = RecommendToolsConfig()
         assert config.enabled is True
         assert config.provider == "claude"
-        assert config.model == "claude-sonnet-4-5"
+        assert config.model == "claude-sonnet-4-6"
         assert config.prompt_path is None  # Uses default prompt from prompts/
 
 
@@ -798,7 +798,7 @@ class TestTaskValidationConfig:
         config = TaskValidationConfig()
         assert config.enabled is True
         assert config.provider == "claude"
-        assert config.model == "claude-sonnet-4-5"
+        assert config.model == "claude-sonnet-4-6"
         assert config.prompt_path is None  # Uses default prompt from prompts/
 
 
