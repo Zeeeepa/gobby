@@ -74,9 +74,20 @@ class CanvasState:
     pending_event: asyncio.Event | None  # for blocking mode
     interaction_result: dict | None
     created_at: datetime
+    expires_at: datetime  # created_at + timeout; for automatic cleanup
+    completed: bool = False  # True after interaction received or timeout
 ```
 
 Key: `_pending_canvases: dict[str, CanvasState]` shared between the tool functions and the resolve function that the WebSocket handler calls.
+
+Rate limiting and resource bounds:
+```python
+MAX_CANVASES_PER_CONVERSATION = 50  # prevent runaway agents
+MAX_CANVAS_SIZE = 64 * 1024  # 64KB HTML content limit
+MAX_RENDER_RATE = 10  # renders per minute per conversation
+```
+
+Enforce in `render_canvas`: reject with error if conversation exceeds `MAX_CANVASES_PER_CONVERSATION`, content exceeds `MAX_CANVAS_SIZE`, or rate limit hit. Periodic cleanup: a background task (or lazy sweep on next `render_canvas`) removes expired canvases where `completed=True` or `datetime.now() > expires_at`.
 
 Expose a `resolve_interaction(canvas_id, action, payload, form_data)` method on the registry that the WebSocket handler can call to unblock.
 
@@ -107,10 +118,29 @@ async def _handle_canvas_interaction(self, websocket: Any, data: dict[str, Any])
     payload = data.get("payload", {})
     form_data = data.get("form_data", {})
 
-    # Get canvas registry from the manager and call resolve_interaction
+    # Validate required fields
+    if not canvas_id or not isinstance(canvas_id, str):
+        await self._send_error(websocket, "canvas_interaction requires a valid canvas_id")
+        return
+    if not action or not isinstance(action, str):
+        await self._send_error(websocket, "canvas_interaction requires a valid action")
+        return
+    if not isinstance(payload, dict) or not isinstance(form_data, dict):
+        await self._send_error(websocket, "payload and form_data must be objects")
+        return
+
     canvas_registry = getattr(self, "_canvas_registry", None)
-    if canvas_registry:
+    if not canvas_registry:
+        await self._send_error(websocket, "Canvas system not available")
+        return
+
+    try:
         canvas_registry.resolve_interaction(canvas_id, action, payload, form_data)
+    except KeyError:
+        await self._send_error(websocket, f"Canvas {canvas_id} not found or already completed")
+    except Exception as e:
+        logger.error(f"Canvas interaction failed for {canvas_id}: {e}", exc_info=True)
+        await self._send_error(websocket, "Internal error processing canvas interaction")
 ```
 
 Wire `_canvas_registry` on WebSocketServer during HTTP server lifespan (same pattern as `workflow_handler`).
@@ -132,6 +162,14 @@ const ALLOWED_TAGS = [
   'details', 'summary',
 ]
 
+const ALLOWED_ATTRS = [
+  'class', 'id', 'style', 'type', 'name', 'value', 'placeholder',
+  'disabled', 'checked', 'selected', 'href', 'src', 'alt', 'title',
+  'data-action', 'data-payload', 'data-element-id',
+  'aria-label', 'aria-describedby', 'role',
+  'rows', 'cols', 'min', 'max', 'step', 'pattern', 'required',
+]
+
 export function sanitizeCanvasHtml(html: string): string { ... }
 ```
 
@@ -149,9 +187,11 @@ interface CanvasRendererProps {
 
 Key behaviors:
 - `dangerouslySetInnerHTML` with DOMPurify-sanitized content
-- Delegated click handler on container: walk up DOM from `e.target` to find closest `[data-action]`
+- Delegated click handler on container: walk up DOM from `e.target` to find closest `[data-action]`, with max traversal depth (20 levels) to prevent pathological DOM structures from hanging the handler
+- Null-check `e.target` and verify it's within the container before traversal
 - For `<form data-action="...">`: intercept submit, gather all named inputs
 - For `<select data-action="...">`: intercept change events
+- Parse `data-payload` with try/catch around `JSON.parse` — reject malformed JSON and log a warning rather than crashing the handler
 - When `status === 'completed'`: dim the canvas, show interaction result
 - Scoped CSS: `.canvas-container`, `.canvas-content`, themed buttons/inputs using existing CSS variables
 
@@ -180,11 +220,24 @@ const respondToCanvas = useCallback((
   canvasId: string, action: string,
   payload: Record<string, unknown>, formData: Record<string, string>
 ) => {
-  wsRef.current?.send(JSON.stringify({
-    type: 'canvas_interaction',
-    conversation_id: conversationIdRef.current,
-    canvas_id: canvasId, action, payload, form_data: formData,
-  }))
+  const ws = wsRef.current
+  if (!ws || ws.readyState !== WebSocket.OPEN) {
+    console.warn('Canvas interaction dropped: WebSocket not connected')
+    return
+  }
+  // Optimistic UI: immediately mark canvas as completed locally
+  updateCanvasStatus(canvasId, 'completed')
+  try {
+    ws.send(JSON.stringify({
+      type: 'canvas_interaction',
+      conversation_id: conversationIdRef.current,
+      canvas_id: canvasId, action, payload, form_data: formData,
+    }))
+  } catch (e) {
+    // Revert optimistic update on send failure
+    updateCanvasStatus(canvasId, 'active')
+    console.error('Failed to send canvas interaction:', e)
+  }
 }, [])
 ```
 
@@ -215,7 +268,7 @@ Handle `canvas_event` messages for live updates to existing canvases.
 ```
 
 - `data-action` — declares this element triggers an interaction
-- `data-payload` — JSON string sent with the action
+- `data-payload` — JSON string sent with the action. **Must be valid JSON.** The frontend parses with `JSON.parse` inside a try/catch; malformed values are ignored with a console warning. Agents should use `JSON.stringify()` to produce this value, never string concatenation, to prevent injection via crafted payloads
 - `data-element-id` — for targeted updates via `update_canvas`
 
 ## Files Summary
