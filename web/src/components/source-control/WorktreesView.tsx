@@ -18,14 +18,19 @@ export function WorktreesView({ worktrees, onDelete, onSync, onCleanup }: Props)
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null)
   const [confirmCleanup, setConfirmCleanup] = useState(false)
   const [actionLoading, setActionLoading] = useState<string | null>(null)
+  const [actionError, setActionError] = useState<string | null>(null)
+  const [cleanupHours, setCleanupHours] = useState(24)
   const filtered = statusFilter
     ? worktrees.filter((w) => w.status === statusFilter)
     : worktrees
 
   const handleDelete = async (id: string) => {
     setActionLoading(id)
+    setActionError(null)
     try {
       await onDelete(id)
+    } catch (e) {
+      setActionError(e instanceof Error ? e.message : 'Failed to delete worktree')
     } finally {
       setActionLoading(null)
       setConfirmDelete(null)
@@ -34,8 +39,11 @@ export function WorktreesView({ worktrees, onDelete, onSync, onCleanup }: Props)
 
   const handleSync = async (id: string) => {
     setActionLoading(id)
+    setActionError(null)
     try {
       await onSync(id)
+    } catch (e) {
+      setActionError(e instanceof Error ? e.message : 'Failed to sync worktree')
     } finally {
       setActionLoading(null)
     }
@@ -43,18 +51,22 @@ export function WorktreesView({ worktrees, onDelete, onSync, onCleanup }: Props)
 
   const handleCleanup = async () => {
     setActionLoading('cleanup')
+    setActionError(null)
     try {
       await onCleanup(cleanupHours, false)
+    } catch (e) {
+      setActionError(e instanceof Error ? e.message : 'Failed to cleanup worktrees')
     } finally {
       setActionLoading(null)
       setConfirmCleanup(false)
     }
   }
 
-  const [cleanupHours, setCleanupHours] = useState(24)
-
   return (
     <div className="sc-worktrees">
+      {actionError && (
+        <p className="sc-text-muted" style={{ color: 'var(--color-error)', padding: '8px 0' }}>{actionError}</p>
+      )}
       <div className="sc-worktrees__toolbar">
         <div className="sc-filter-chips">
           <button

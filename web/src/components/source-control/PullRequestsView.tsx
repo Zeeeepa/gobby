@@ -16,6 +16,7 @@ type PrFilter = 'open' | 'closed' | 'all'
 export function PullRequestsView({ prs, githubAvailable, fetchPrs, fetchPrDetail }: Props) {
   const [filter, setFilter] = useState<PrFilter>('open')
   const [selectedPr, setSelectedPr] = useState<number | null>(null)
+  const [fetchError, setFetchError] = useState<string | null>(null)
 
   if (!githubAvailable) {
     return <GitHubUnavailable />
@@ -24,11 +25,17 @@ export function PullRequestsView({ prs, githubAvailable, fetchPrs, fetchPrDetail
   const handleFilterChange = (f: PrFilter) => {
     setFilter(f)
     setSelectedPr(null)
-    fetchPrs(f === 'all' ? 'all' : f).catch((e) => console.error('Failed to fetch PRs:', e))
+    setFetchError(null)
+    fetchPrs(f === 'all' ? 'all' : f).catch((e) => {
+      setFetchError(e instanceof Error ? e.message : 'Failed to fetch pull requests')
+    })
   }
 
   return (
     <div className="sc-prs">
+      {fetchError && (
+        <p className="sc-text-muted" style={{ color: 'var(--color-error)', padding: '8px 0' }}>{fetchError}</p>
+      )}
       <div className="sc-prs__main">
         <div className="sc-filter-chips">
           {(['open', 'closed', 'all'] as PrFilter[]).map((f) => (

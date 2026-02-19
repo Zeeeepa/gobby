@@ -15,24 +15,28 @@ export function BranchDetail({ branchName, currentBranch, fetchCommits, fetchDif
   const [diff, setDiff] = useState<DiffResult | null>(null)
   const [showDiff, setShowDiff] = useState(false)
   const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
   const [diffLoading, setDiffLoading] = useState(false)
   const fetchCommitsRef = useRef(fetchCommits)
   fetchCommitsRef.current = fetchCommits
 
   useEffect(() => {
+    let cancelled = false
     setLoading(true)
+    setError(null)
     setDiff(null)
     setShowDiff(false)
     fetchCommitsRef.current(branchName, 20)
       .then((c) => {
-        setCommits(c)
+        if (!cancelled) setCommits(c)
       })
       .catch((e) => {
-        console.error('Failed to fetch commits:', e)
+        if (!cancelled) setError(e instanceof Error ? e.message : 'Failed to fetch commits')
       })
       .finally(() => {
-        setLoading(false)
+        if (!cancelled) setLoading(false)
       })
+    return () => { cancelled = true }
   }, [branchName])
 
   const handleViewDiff = async () => {
@@ -78,6 +82,8 @@ export function BranchDetail({ branchName, currentBranch, fetchCommits, fetchDif
         <h4 className="sc-detail-panel__subtitle">Recent Commits</h4>
         {loading ? (
           <p className="sc-text-muted">Loading...</p>
+        ) : error ? (
+          <p className="sc-text-muted" style={{ color: 'var(--color-error)' }}>{error}</p>
         ) : commits.length === 0 ? (
           <p className="sc-text-muted">No commits found</p>
         ) : (

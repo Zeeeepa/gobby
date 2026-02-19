@@ -18,11 +18,13 @@ export function SourceControlOverview({ status, prs, worktrees, ciRuns, onNaviga
   fetchCommitsRef.current = fetchCommits
 
   useEffect(() => {
+    let cancelled = false
     if (status?.current_branch) {
       fetchCommitsRef.current(status.current_branch, 5)
-        .then(setRecentCommits)
-        .catch((e) => console.error('Failed to fetch recent commits:', e))
+        .then((c) => { if (!cancelled) setRecentCommits(c) })
+        .catch((e) => { if (!cancelled) console.error('Failed to fetch recent commits:', e) })
     }
+    return () => { cancelled = true }
   }, [status?.current_branch])
 
   const staleWorktrees = worktrees.filter((w) => w.status === 'stale')

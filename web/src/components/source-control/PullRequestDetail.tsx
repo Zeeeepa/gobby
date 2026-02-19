@@ -20,6 +20,7 @@ export function PullRequestDetail({ prNumber, summary, fetchDetail, onClose }: P
     let cancelled = false
     setLoading(true)
     setError(null)
+    setDetail(null)
     fetchDetailRef.current(prNumber)
       .then((d) => {
         if (!cancelled) setDetail(d)
