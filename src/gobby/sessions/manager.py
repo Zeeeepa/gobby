@@ -59,7 +59,6 @@ class SessionManager:
         self._storage = session_storage
         self.logger = logger_instance or logger
         self._config = config
-        self.db = session_storage.db
 
         # Session caches with locks
         # Key is (external_id, source) tuple to prevent cross-CLI collisions
@@ -69,6 +68,11 @@ class SessionManager:
         self._session_mapping_lock = threading.Lock()
         self._session_metadata: dict[str, dict[str, Any]] = {}  # session_id -> metadata
         self._session_metadata_lock = threading.Lock()
+
+    @property
+    def db(self) -> Any:
+        """Database handle from the underlying storage layer."""
+        return self._storage.db
 
     def register_session(
         self,
