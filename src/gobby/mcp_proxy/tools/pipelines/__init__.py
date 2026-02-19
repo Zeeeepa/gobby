@@ -398,17 +398,13 @@ def _create_pipeline_tool(
             return {"success": False, "error": "session_id is required"}
 
         # Resolve session reference and derive project_id
-        resolved_id = session_id
+        try:
+            resolved_id = _resolve_session(session_id)
+        except ValueError as e:
+            return {"success": False, "error": f"Invalid session_id: {e}"}
+
         project_id = ""
         if session_manager is not None:
-            from gobby.utils.project_context import get_project_context
-
-            project_ctx = get_project_context()
-            proj = project_ctx.get("id") if project_ctx else None
-            try:
-                resolved_id = str(session_manager.resolve_session_reference(session_id, proj))
-            except ValueError as e:
-                return {"success": False, "error": f"Invalid session_id: {e}"}
             session = session_manager.get(resolved_id)
             if session is None:
                 return {"success": False, "error": f"Session '{session_id}' not found"}

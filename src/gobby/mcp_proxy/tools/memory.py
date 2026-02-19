@@ -16,6 +16,7 @@ via the downstream proxy pattern (call_tool).
 
 from __future__ import annotations
 
+import asyncio
 import logging
 from typing import TYPE_CHECKING, Any
 
@@ -533,12 +534,14 @@ def create_memory_registry(
         try:
             memories = memory_manager.list_memories(project_id=project_id, limit=500)
             total_created = 0
-            for memory in memories:
+            for i, memory in enumerate(memories):
                 try:
                     created = await memory_manager.rebuild_crossrefs_for_memory(memory)
                     total_created += created
                 except Exception as e:
                     logger.warning(f"Crossref failed for {memory.id}: {e}")
+                if i % 10 == 9:
+                    await asyncio.sleep(0)
             return {
                 "success": True,
                 "memories_processed": len(memories),
@@ -575,13 +578,15 @@ def create_memory_registry(
             memories = memory_manager.list_memories(project_id=project_id, limit=limit)
             extracted = 0
             errors = 0
-            for memory in memories:
+            for i, memory in enumerate(memories):
                 try:
                     await kg.add_to_graph(memory.content)
                     extracted += 1
                 except Exception as e:
                     logger.warning(f"KG extraction failed for {memory.id}: {e}")
                     errors += 1
+                if i % 10 == 9:
+                    await asyncio.sleep(0)
             return {
                 "success": True,
                 "memories_processed": extracted + errors,

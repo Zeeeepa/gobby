@@ -524,6 +524,12 @@ class ChatMixin:
                     if _voice_hook:
                         await _voice_hook(websocket, conversation_id, request_id, event.content)
                 elif isinstance(event, ToolCallEvent):
+                    # Flush accumulated text as a separate message before tool calls.
+                    # This prevents text segments from merging across tool boundaries
+                    # (e.g., "Want me to test it?Good call." running together).
+                    if accumulated_text.strip():
+                        await _persist_message(session, "assistant", accumulated_text)
+                        accumulated_text = ""
                     await websocket.send(
                         json.dumps(
                             _base_msg(
@@ -553,8 +559,9 @@ class ChatMixin:
                         )
                     )
                 elif isinstance(event, DoneEvent):
-                    # Persist assistant message to database
-                    await _persist_message(session, "assistant", accumulated_text)
+                    # Persist remaining assistant text (after last tool call, if any)
+                    if accumulated_text.strip():
+                        await _persist_message(session, "assistant", accumulated_text)
 
                     # Flush TTS if voice mode is active
                     _voice_flush = getattr(self, "_voice_tts_flush", None)
@@ -824,9 +831,7 @@ class ChatMixin:
                 if message_manager:
                     await message_manager.delete(db_session_id)
                 if session_manager:
-                    await asyncio.to_thread(
-                        session_manager.update, db_session_id, status="deleted"
-                    )
+                    await asyncio.to_thread(session_manager.update, db_session_id, status="deleted")
             except Exception as e:
                 logger.warning(f"Failed to soft-delete session from DB: {e}")
 

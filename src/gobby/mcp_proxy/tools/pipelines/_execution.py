@@ -9,6 +9,9 @@ from gobby.workflows.pipeline_state import ApprovalRequired
 
 logger = logging.getLogger(__name__)
 
+# Track background pipeline tasks so they can be awaited on shutdown
+_background_tasks: set[asyncio.Task[None]] = set()
+
 
 class PipelineLoader(Protocol):
     async def load_pipeline(self, name: str) -> Any: ...
@@ -124,7 +127,8 @@ async def run_pipeline(
 
     # Launch execution in background — passes execution_id so executor
     # resumes the pre-created record instead of creating a new one
-    def _log_exception(t: asyncio.Task[None]) -> None:
+    def _on_done(t: asyncio.Task[None]) -> None:
+        _background_tasks.discard(t)
         if not t.cancelled() and t.exception():
             logger.error(f"Pipeline background task failed: {t.exception()}")
 
@@ -140,7 +144,8 @@ async def run_pipeline(
         ),
         name=f"pipeline-{name}-{execution_id[:8]}",
     )
-    task.add_done_callback(_log_exception)
+    _background_tasks.add(task)
+    task.add_done_callback(_on_done)
 
     return {
         "success": True,
