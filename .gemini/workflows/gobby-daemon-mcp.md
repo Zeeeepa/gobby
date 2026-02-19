@@ -60,6 +60,12 @@ Execute the tool on the appropriate server.
 
 Use `gobby-tasks` for persistent task tracking.
 
+> **Note:** `mcp_call_tool`, `mcp_list_tools`, and `mcp_get_tool_schema` are
+> Gemini CLI's built-in MCP functions — no import or setup needed beyond having
+> the Gobby daemon running (`uv run gobby start`). The daemon's MCP proxy is
+> configured via `~/.gobby/config.yaml` and auto-discovered by Gemini CLI
+> through the `.gemini/settings.json` MCP server entry.
+
 ```python
 # Create a task
 mcp_call_tool(
