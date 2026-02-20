@@ -287,6 +287,8 @@ export function useChat() {
             }
           }
           handleVoiceMessageRef.current(data as Record<string, unknown>)
+        } else if (data.type === 'session_continued') {
+          console.log('Session continued:', data)
         } else if (data.type === 'connection_established') {
           const serverConversations = (data.conversation_ids as string[]) || []
           if (serverConversations.includes(conversationIdRef.current)) {
@@ -627,6 +629,59 @@ export function useChat() {
     setIsThinking(false)
   }, [])
 
+  // Continue a CLI/external session in the web chat UI with full history
+  const continueSessionInChat = useCallback(async (
+    sourceDbSessionId: string,
+    projectId?: string,
+  ): Promise<string> => {
+    const newConversationId = uuid()
+
+    // Save current conversation, switch to new one
+    saveMessagesForConversation(conversationIdRef.current, messagesRef.current)
+    conversationIdRef.current = newConversationId
+    setConversationId(newConversationId)
+    saveConversationId(newConversationId)
+    activeRequestIdRef.current = null
+    setIsStreaming(false)
+    setIsThinking(false)
+    setMessages([])
+
+    // Fetch source session's messages for display
+    const baseUrl = import.meta.env.VITE_API_BASE_URL || ''
+    try {
+      const res = await fetch(`${baseUrl}/sessions/${sourceDbSessionId}/messages?limit=100`)
+      if (res.ok) {
+        const data = await res.json()
+        const mapped: ChatMessage[] = (data.messages || [])
+          .filter((m: { role: string }) => m.role === 'user' || m.role === 'assistant')
+          .map((m: { id?: string; role: string; content: string; timestamp: string; message_index?: number }, i: number) => ({
+            id: m.id || `history-${i}`,
+            role: m.role as 'user' | 'assistant',
+            content: m.content,
+            timestamp: new Date(m.timestamp),
+          }))
+        if (mapped.length > 0) {
+          setMessages(mapped)
+          saveMessagesForConversation(newConversationId, mapped)
+        }
+      }
+    } catch (err) {
+      console.error('Failed to fetch source session messages:', err)
+    }
+
+    // Tell backend to prepare the continuation session
+    if (wsRef.current?.readyState === WebSocket.OPEN) {
+      wsRef.current.send(JSON.stringify({
+        type: 'continue_in_chat',
+        conversation_id: newConversationId,
+        source_session_id: sourceDbSessionId,
+        project_id: projectId,
+      }))
+    }
+
+    return newConversationId
+  }, [])
+
   // Clear chat history — notifies backend to teardown session, then resets frontend
   const clearHistory = useCallback(() => {
     const oldConversationId = conversationIdRef.current
@@ -861,6 +916,7 @@ export function useChat() {
     switchConversation,
     startNewChat,
     resumeSession,
+    continueSessionInChat,
     wsRef,
     handleVoiceMessageRef,
   }

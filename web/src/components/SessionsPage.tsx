@@ -15,6 +15,7 @@ interface SessionsPageProps {
   isLoading: boolean
   onRefresh: () => void
   onAskGobby?: (context: string) => void
+  onContinueInChat?: (session: GobbySession) => void
 }
 
 function sourceLabel(source: string): string {
@@ -35,6 +36,7 @@ export function SessionsPage({
   isLoading,
   onRefresh,
   onAskGobby,
+  onContinueInChat,
 }: SessionsPageProps) {
   const [sidebarOpen, setSidebarOpen] = useState(true)
   const [selectedSessionId, setSelectedSessionId] = useState<string | null>(null)
@@ -212,6 +214,7 @@ export function SessionsPage({
             isLoading={detail.isLoading}
             onLoadMore={detail.loadMore}
             onAskGobby={onAskGobby}
+            onContinueInChat={onContinueInChat}
             onGenerateSummary={detail.generateSummary}
             isGeneratingSummary={detail.isGeneratingSummary}
             allSessions={sessions}

@@ -1,3 +1,4 @@
+import { useState, useEffect, useRef } from 'react'
 import type { GobbySession } from '../hooks/useSessions'
 import type { SessionMessage } from '../hooks/useSessionDetail'
 import { SourceIcon } from './SourceIcon'
@@ -15,6 +16,7 @@ interface SessionDetailProps {
   isLoading: boolean
   onLoadMore: () => void
   onAskGobby?: (context: string) => void
+  onContinueInChat?: (session: GobbySession) => void
   onGenerateSummary: () => void
   isGeneratingSummary: boolean
   allSessions: GobbySession[]
@@ -41,6 +43,7 @@ export function SessionDetail({
   isLoading,
   onLoadMore,
   onAskGobby,
+  onContinueInChat,
   onGenerateSummary,
   isGeneratingSummary,
   allSessions,
@@ -163,16 +166,14 @@ export function SessionDetail({
         onSelectSession={onSelectSession}
       />
 
-      {/* Ask Gobby button */}
-      {onAskGobby && (
-        <div className="session-detail-actions">
-          <button
-            className="session-detail-ask-btn"
-            onClick={() => onAskGobby(`Tell me about session ${session.ref || 'unknown'} (${title}). Here's the summary:\n\n${session.summary_markdown || 'No summary available.'}`)}
-          >
-            <ChatIcon /> Ask Gobby about this session
-          </button>
-        </div>
+      {/* Ask Gobby dropdown */}
+      {(onAskGobby || onContinueInChat) && (
+        <SessionActions
+          session={session}
+          title={title}
+          onAskGobby={onAskGobby}
+          onContinueInChat={onContinueInChat}
+        />
       )}
 
       {/* Transcript */}
@@ -184,6 +185,90 @@ export function SessionDetail({
         onLoadMore={onLoadMore}
       />
     </div>
+  )
+}
+
+function SessionActions({
+  session,
+  title,
+  onAskGobby,
+  onContinueInChat,
+}: {
+  session: GobbySession
+  title: string
+  onAskGobby?: (context: string) => void
+  onContinueInChat?: (session: GobbySession) => void
+}) {
+  const [dropdownOpen, setDropdownOpen] = useState(false)
+  const dropdownRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    if (!dropdownOpen) return
+    const handleClickOutside = (e: MouseEvent) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
+        setDropdownOpen(false)
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => document.removeEventListener('mousedown', handleClickOutside)
+  }, [dropdownOpen])
+
+  const hasMessages = (session.message_count ?? 0) > 0
+
+  return (
+    <div className="session-detail-actions" ref={dropdownRef}>
+      <button
+        className="session-detail-ask-btn"
+        onClick={() => setDropdownOpen(!dropdownOpen)}
+      >
+        <ChatIcon /> Ask Gobby
+        <ChevronDownIcon />
+      </button>
+      {dropdownOpen && (
+        <div className="session-detail-dropdown">
+          {onContinueInChat && (
+            <button
+              className="session-detail-dropdown-item"
+              disabled={!hasMessages}
+              title={!hasMessages ? 'No messages recorded' : 'Continue this session in chat with full history'}
+              onClick={() => {
+                setDropdownOpen(false)
+                onContinueInChat(session)
+              }}
+            >
+              <ResumeIcon /> Resume Session
+            </button>
+          )}
+          {onAskGobby && (
+            <button
+              className="session-detail-dropdown-item"
+              onClick={() => {
+                setDropdownOpen(false)
+                onAskGobby(`Tell me about session ${session.ref || 'unknown'} (${title}). Here's the summary:\n\n${session.summary_markdown || 'No summary available.'}`)
+              }}
+            >
+              <ChatIcon /> New Chat with Summary
+            </button>
+          )}
+        </div>
+      )}
+    </div>
+  )
+}
+
+function ChevronDownIcon() {
+  return (
+    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <polyline points="6 9 12 15 18 9" />
+    </svg>
+  )
+}
+
+function ResumeIcon() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <polygon points="5 3 19 12 5 21 5 3" />
+    </svg>
   )
 }
 

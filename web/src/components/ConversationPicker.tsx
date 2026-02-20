@@ -1,4 +1,5 @@
 import type { GobbySession } from '../hooks/useSessions'
+import { SourceIcon } from './SourceIcon'
 import { formatRelativeTime } from '../utils/formatTime'
 import { useState, useEffect, useRef, useMemo } from 'react'
 
@@ -13,10 +14,12 @@ interface AgentInfo {
 
 interface ConversationPickerProps {
   sessions: GobbySession[]
+  recentCliSessions?: GobbySession[]
   activeSessionId: string | null
   onNewChat: () => void
   onSelectSession: (session: GobbySession) => void
   onDeleteSession?: (session: GobbySession) => void
+  onContinueSession?: (session: GobbySession) => void
   agents?: AgentInfo[]
   onNavigateToAgent?: (agent: AgentInfo) => void
 }
@@ -30,10 +33,12 @@ const PROVIDER_COLORS: Record<string, string> = {
 
 export function ConversationPicker({
   sessions,
+  recentCliSessions = [],
   activeSessionId,
   onNewChat,
   onSelectSession,
   onDeleteSession,
+  onContinueSession,
   agents = [],
   onNavigateToAgent,
 }: ConversationPickerProps) {
@@ -141,6 +146,37 @@ export function ConversationPicker({
             })}
           </div>
           </div>
+
+          {recentCliSessions.length > 0 && onContinueSession && (
+            <div className="session-group">
+              <div className="session-group-label">Recent CLI Sessions</div>
+              {recentCliSessions.map((session) => {
+                const title = session.title || `${session.source} #${session.ref}`
+                return (
+                  <div
+                    key={session.id}
+                    className="session-item"
+                    onClick={() => onContinueSession(session)}
+                    role="button"
+                    tabIndex={0}
+                    onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onContinueSession(session) } }}
+                  >
+                    <div className="session-item-main">
+                      <SourceIcon source={session.source} size={14} />
+                      <span className="session-name" title={title}>
+                        {title}
+                      </span>
+                    </div>
+                    <div className="session-item-actions">
+                      <span className="session-pid">
+                        {formatRelativeTime(session.updated_at)}
+                      </span>
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          )}
 
           {agents.length > 0 && (
             <div className="session-group">

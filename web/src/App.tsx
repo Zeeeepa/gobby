@@ -29,7 +29,7 @@ import type { GobbySession } from './hooks/useSessions'
 const HIDDEN_PROJECTS = new Set(['_orphaned', '_migrated'])
 
 export default function App() {
-  const { messages, conversationId, isConnected, isStreaming, isThinking, contextUsage, sendMessage, sendMode, sendProjectChange, stopStreaming, clearHistory, deleteConversation, executeCommand, respondToQuestion, switchConversation, startNewChat, wsRef, handleVoiceMessageRef } = useChat()
+  const { messages, conversationId, isConnected, isStreaming, isThinking, contextUsage, sendMessage, sendMode, sendProjectChange, stopStreaming, clearHistory, deleteConversation, executeCommand, respondToQuestion, switchConversation, startNewChat, continueSessionInChat, wsRef, handleVoiceMessageRef } = useChat()
   const voice = useVoice(wsRef, conversationId)
   const { settings, updateFontSize, updateModel, updateChatMode, updateTheme, resetSettings } = useSettings()
   const { agents } = useTerminal()
@@ -168,9 +168,17 @@ export default function App() {
     prevProjectRef.current = effectiveProjectId ?? null
   }, [effectiveProjectId, sendProjectChange])
 
-  // Web-chat sessions only (for ConversationPicker in ChatPage)
+  // Web-chat sessions for main conversation list
   const webChatSessions = useMemo(
     () => sessionsHook.filteredSessions.filter((s) => s.source === 'claude_sdk_web_chat'),
+    [sessionsHook.filteredSessions]
+  )
+
+  // Recent CLI/external sessions for "Continue from CLI" section (most recent 5)
+  const recentCliSessions = useMemo(
+    () => sessionsHook.filteredSessions
+      .filter((s) => s.source !== 'claude_sdk_web_chat')
+      .slice(0, 5),
     [sessionsHook.filteredSessions]
   )
 
@@ -237,6 +245,12 @@ export default function App() {
       }
     }, 0)
   }, [sendMessage, settings.model, isConnected])
+
+  /* "Resume Session" from Sessions page — continue CLI session in web chat */
+  const handleContinueInChat = useCallback(async (session: GobbySession) => {
+    setActiveTab('chat')
+    await continueSessionInChat(session.id, session.project_id)
+  }, [continueSessionInChat])
 
   // Wire voice message handler into useChat's WebSocket routing
   useEffect(() => {
@@ -327,10 +341,12 @@ export default function App() {
           }}
           conversations={{
             sessions: webChatSessions,
+            recentCliSessions,
             activeSessionId: conversationId,
             onNewChat: startNewChat,
             onSelectSession: handleSelectConversation,
             onDeleteSession: handleDeleteConversation,
+            onContinueSession: handleContinueInChat,
             agents,
             onNavigateToAgent: handleNavigateToAgent,
           }}
@@ -360,6 +376,7 @@ export default function App() {
           isLoading={sessionsHook.isLoading}
           onRefresh={sessionsHook.refresh}
           onAskGobby={handleAskGobby}
+          onContinueInChat={handleContinueInChat}
         />
       ) : activeTab === 'terminals' ? (
         <TerminalsPage

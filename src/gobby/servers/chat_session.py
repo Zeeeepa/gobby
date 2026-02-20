@@ -261,6 +261,7 @@ class ChatSession:
     _tool_approval_callback: Any | None = field(default=None, repr=False)
     _needs_history_injection: bool = field(default=False, repr=False)
     _message_manager: Any | None = field(default=None, repr=False)
+    _message_manager_source_session_id: str | None = field(default=None, repr=False)
     _max_history_message_chars: int = field(default=2000, repr=False)
     _max_history_total_chars: int = field(default=30_000, repr=False)
 
@@ -671,11 +672,14 @@ class ChatSession:
         Returns a formatted string with conversation history, or None if
         no messages exist or an error occurs.
         """
-        if not self._message_manager or not self.db_session_id:
+        if not self._message_manager:
+            return None
+        target_id = self._message_manager_source_session_id or self.db_session_id
+        if not target_id:
             return None
 
         try:
-            messages = await self._message_manager.get_messages(self.db_session_id, limit=50)
+            messages = await self._message_manager.get_messages(target_id, limit=50)
             if not messages:
                 return None
 

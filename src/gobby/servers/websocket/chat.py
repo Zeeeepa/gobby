@@ -688,6 +688,96 @@ class ChatMixin:
 
         session.provide_approval(decision)
 
+    async def _handle_continue_in_chat(self, websocket: Any, data: dict[str, Any]) -> None:
+        """Handle continue_in_chat message to resume a CLI session in the web chat UI.
+
+        Creates a new ChatSession that loads conversation history from a source
+        session (typically a CLI session), allowing the user to continue the
+        conversation in the web UI.
+
+        Message format:
+        {
+            "type": "continue_in_chat",
+            "conversation_id": "new-uuid",
+            "source_session_id": "db-uuid-of-source-session",
+            "project_id": "optional-override"
+        }
+        """
+        source_session_id = data.get("source_session_id")
+        if not source_session_id:
+            await self._send_error(websocket, "continue_in_chat requires source_session_id")
+            return
+
+        conversation_id = data.get("conversation_id") or str(uuid4())
+        project_id = data.get("project_id")
+
+        # Look up source session for project_id if not provided
+        session_manager = getattr(self, "session_manager", None)
+        if not project_id and session_manager:
+            try:
+                source_session = await asyncio.to_thread(session_manager.get, source_session_id)
+                if source_session:
+                    project_id = source_session.project_id
+            except Exception as e:
+                logger.warning(f"Failed to look up source session {source_session_id}: {e}")
+
+        # Create standard chat session
+        try:
+            session = await self._create_chat_session(
+                conversation_id, project_id=project_id
+            )
+        except Exception as e:
+            logger.error(f"Failed to create continuation session: {e}")
+            await self._send_error(websocket, f"Failed to create session: {e}")
+            return
+
+        # Set up cross-session history injection from the source session
+        message_manager = getattr(self, "message_manager", None)
+        if message_manager:
+            try:
+                max_idx = await message_manager.get_max_message_index(source_session_id)
+                if max_idx >= 0:
+                    session._message_manager_source_session_id = source_session_id
+                    session._needs_history_injection = True
+                    session._message_manager = message_manager
+                    logger.info(
+                        "Cross-session history injection enabled for continuation",
+                        extra={
+                            "source": source_session_id[:8],
+                            "target": conversation_id[:8],
+                            "max_idx": max_idx,
+                        },
+                    )
+            except Exception as e:
+                logger.warning(f"Failed to set up history injection: {e}")
+
+        # Set parent_session_id on the DB record for lineage tracking
+        if session.db_session_id and session_manager:
+            try:
+                await asyncio.to_thread(
+                    session_manager.update_parent_session_id,
+                    session.db_session_id,
+                    source_session_id,
+                )
+            except Exception as e:
+                logger.warning(f"Failed to set parent_session_id: {e}")
+
+        # Send confirmation
+        await websocket.send(
+            json.dumps(
+                {
+                    "type": "session_continued",
+                    "conversation_id": conversation_id,
+                    "source_session_id": source_session_id,
+                    "db_session_id": session.db_session_id,
+                }
+            )
+        )
+        logger.info(
+            f"Session continued: {source_session_id[:8]} -> {conversation_id[:8]} "
+            f"(db={session.db_session_id})"
+        )
+
     async def _handle_set_mode(self, websocket: Any, data: dict[str, Any]) -> None:
         """Handle set_mode message to change chat mode for a conversation.
 

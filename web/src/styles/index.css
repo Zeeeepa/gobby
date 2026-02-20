@@ -2187,6 +2187,7 @@ body {
 /* Actions */
 .session-detail-actions {
   margin-bottom: 1rem;
+  position: relative;
 }
 
 .session-detail-ask-btn {
@@ -2206,6 +2207,45 @@ body {
 
 .session-detail-ask-btn:hover {
   background: var(--accent-hover);
+}
+
+.session-detail-dropdown {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  margin-top: 0.25rem;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 0.5rem;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  z-index: 20;
+  min-width: 200px;
+  padding: 0.25rem;
+}
+
+.session-detail-dropdown-item {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  width: 100%;
+  padding: 0.5rem 0.75rem;
+  background: none;
+  border: none;
+  border-radius: 0.375rem;
+  color: var(--text-primary);
+  font-size: calc(var(--font-size-base) * 0.8125);
+  cursor: pointer;
+  transition: background 0.1s;
+  text-align: left;
+}
+
+.session-detail-dropdown-item:hover:not(:disabled) {
+  background: var(--hover);
+}
+
+.session-detail-dropdown-item:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
 }
 
 /* Transcript */

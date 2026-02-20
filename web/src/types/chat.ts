@@ -70,10 +70,12 @@ export interface ChatState {
 
 export interface ConversationState {
   sessions: GobbySession[]
+  recentCliSessions?: GobbySession[]
   activeSessionId: string | null
   onNewChat: () => void
   onSelectSession: (session: GobbySession) => void
   onDeleteSession?: (session: GobbySession) => void
+  onContinueSession?: (session: GobbySession) => void
   agents: Array<{ run_id: string; provider: string; pid?: number; mode?: string; started_at?: string; tmux_session_name?: string }>
   onNavigateToAgent: (agent: { run_id: string; tmux_session_name?: string }) => void
 }
