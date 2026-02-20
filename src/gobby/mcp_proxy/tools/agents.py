@@ -275,15 +275,9 @@ def create_agents_registry(
             close_terminal=close_terminal,
         )
 
-        # If agent not in registry, check if it already completed naturally
-        if not result.get("success") and "not found in registry" in result.get("error", ""):
-            db_run = runner.get_run(run_id)
-            if db_run and db_run.status in ("success", "error", "timeout", "cancelled"):
-                return {
-                    "success": True,
-                    "message": f"Agent already completed (status: {db_run.status})",
-                    "already_completed": True,
-                }
+        # Agent already exited — nothing to clean up
+        if result.get("already_completed"):
+            return result
 
         if result.get("success"):
             # Update database status
@@ -577,9 +571,7 @@ def create_agents_registry(
         if not run:
             return {"success": False, "error": f"Agent run {run_id} not found"}
 
-        terminal_statuses = {"success", "error", "timeout", "cancelled"}
-
-        if run.status in terminal_statuses:
+        if run.status not in ("pending", "running"):
             return {
                 "success": True,
                 "completed": True,
@@ -619,7 +611,7 @@ def create_agents_registry(
                     "error": "Agent run disappeared during wait",
                 }
 
-            if run.status in terminal_statuses:
+            if run.status not in ("pending", "running"):
                 return {
                     "success": True,
                     "completed": True,

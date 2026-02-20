@@ -565,7 +565,11 @@ class RunningAgentRegistry:
 
         agent = self.get(run_id)
         if not agent:
-            return {"success": False, "error": "Agent not found in registry"}
+            return {
+                "success": True,
+                "already_completed": True,
+                "message": f"Agent {run_id} not in registry (already exited)",
+            }
 
         # Handle in_process mode (asyncio.Task)
         if agent.mode == "in_process" and agent.task:
