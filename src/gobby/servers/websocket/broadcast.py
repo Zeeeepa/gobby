@@ -214,3 +214,23 @@ class BroadcastMixin:
             "timestamp": datetime.now(UTC).isoformat(),
         }
         await self.broadcast(message)
+
+    async def broadcast_tmux_session_event(
+        self,
+        event: str,
+        session_name: str,
+        socket: str,
+    ) -> None:
+        """Broadcast tmux session lifecycle event (created, killed).
+
+        Bridges agent spawn/stop events to the tmux_session_event type
+        that the Terminals page subscribes to for auto-refresh.
+        """
+        message = {
+            "type": "tmux_session_event",
+            "event": event,
+            "session_name": session_name,
+            "socket": socket,
+            "timestamp": datetime.now(UTC).isoformat(),
+        }
+        await self.broadcast(message)

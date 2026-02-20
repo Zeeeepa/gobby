@@ -287,6 +287,7 @@ class RunningAgentRegistry:
                     "parent_session_id": agent.parent_session_id,
                     "mode": agent.mode,
                     "provider": agent.provider,
+                    "tmux_session_name": agent.tmux_session_name,
                 },
             )
         return agent

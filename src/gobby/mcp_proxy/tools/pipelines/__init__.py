@@ -171,12 +171,19 @@ def create_pipelines_registry(
 
     @registry.tool(
         name="run_pipeline",
-        description="Run a pipeline by name with given inputs. Requires session_id; project_id is derived from the session.",
+        description=(
+            "Run a pipeline by name with given inputs. Requires session_id; "
+            "project_id is derived from the session. Set wait=true to block "
+            "until the pipeline completes and return full results with all "
+            "step outputs."
+        ),
     )
     async def _run_pipeline(
         name: str,
         session_id: str,
         inputs: dict[str, Any] | None = None,
+        wait: bool = False,
+        wait_timeout: int = 300,
     ) -> dict[str, Any]:
         # Resolve session reference and derive project_id
         try:
@@ -198,6 +205,8 @@ def create_pipelines_registry(
             inputs=inputs or {},
             project_id=project_id,
             session_id=resolved_id,
+            wait=wait,
+            wait_timeout=wait_timeout,
         )
 
     @registry.tool(
@@ -403,6 +412,8 @@ def _create_pipeline_tool(
 
     async def _execute_pipeline(**kwargs: Any) -> dict[str, Any]:
         session_id = kwargs.pop("session_id", None)
+        wait = kwargs.pop("wait", False)
+        wait_timeout = kwargs.pop("wait_timeout", 300)
         if not session_id:
             return {"success": False, "error": "session_id is required"}
 
@@ -426,6 +437,8 @@ def _create_pipeline_tool(
             inputs=kwargs,
             project_id=project_id,
             session_id=resolved_id,
+            wait=wait,
+            wait_timeout=wait_timeout,
         )
 
     # Register the tool with the schema
@@ -484,6 +497,18 @@ def _build_input_schema(pipeline: Any) -> dict[str, Any]:
         "description": "Session ID of the caller (required; project_id is derived from this)",
     }
     required.append("session_id")
+
+    # Add wait/wait_timeout as optional meta-parameters
+    properties["wait"] = {
+        "type": "boolean",
+        "description": "If true, block until pipeline completes and return full results (default: false)",
+        "default": False,
+    }
+    properties["wait_timeout"] = {
+        "type": "integer",
+        "description": "Max seconds to wait when wait=true (default: 300)",
+        "default": 300,
+    }
 
     schema: dict[str, Any] = {
         "type": "object",

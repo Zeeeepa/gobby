@@ -747,6 +747,7 @@ class TestRunningAgentRegistryEventCallbacks:
                 "parent_session_id": "parent-rm",
                 "mode": "headless",
                 "provider": "claude",
+                "tmux_session_name": None,
             },
         )
 
