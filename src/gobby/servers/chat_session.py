@@ -766,12 +766,7 @@ class ChatSession:
             tool_calls_count = 0
             needs_spacing_before_text = False
             has_text = False
-            # Accumulate usage across messages in a turn
-            total_input_tokens = 0
-            total_output_tokens = 0
-            total_cache_read = 0
-            total_cache_creation = 0
-            context_window: int | None = None
+            last_model: str | None = None
 
             try:
                 async for message in self._client.receive_response():
@@ -784,14 +779,23 @@ class ChatSession:
                             yield TextChunk(content=message.result)
                         cost_usd = getattr(message, "total_cost_usd", None)
                         duration_ms = getattr(message, "duration_ms", None)
-                        # Extract context window from modelUsage if available
-                        model_usage = getattr(message, "model_usage", None)
-                        if model_usage and isinstance(model_usage, dict):
-                            for _model_name, usage_info in model_usage.items():
-                                if isinstance(usage_info, dict):
-                                    cw = usage_info.get("contextWindow")
-                                    if cw:
-                                        context_window = cw
+                        # Extract token usage from ResultMessage.usage dict
+                        # (AssistantMessage does NOT carry usage in the SDK)
+                        usage = message.usage if isinstance(getattr(message, "usage", None), dict) else {}
+                        total_input_tokens = usage.get("input_tokens", 0) or 0
+                        total_output_tokens = usage.get("output_tokens", 0) or 0
+                        total_cache_read = usage.get("cache_read_input_tokens", 0) or 0
+                        total_cache_creation = usage.get("cache_creation_input_tokens", 0) or 0
+                        # Derive context window from model info via litellm
+                        context_window: int | None = None
+                        if last_model:
+                            try:
+                                from gobby.conductor.pricing import litellm as _llm
+                                if _llm:
+                                    model_info = _llm.get_model_info(model=last_model)
+                                    context_window = model_info.get("max_input_tokens")
+                            except Exception:
+                                pass
                         yield DoneEvent(
                             tool_calls_count=tool_calls_count,
                             cost_usd=cost_usd,
@@ -804,13 +808,8 @@ class ChatSession:
                         )
 
                     elif isinstance(message, AssistantMessage):
-                        # Accumulate usage from each assistant message
-                        usage = getattr(message, "usage", None)
-                        if usage:
-                            total_input_tokens += getattr(usage, "input_tokens", 0) or 0
-                            total_output_tokens += getattr(usage, "output_tokens", 0) or 0
-                            total_cache_read += getattr(usage, "cache_read_input_tokens", 0) or 0
-                            total_cache_creation += getattr(usage, "cache_creation_input_tokens", 0) or 0
+                        last_model = getattr(message, "model", None)
+                        logger.debug("AssistantMessage model=%s", last_model)
                         for block in message.content:
                             if isinstance(block, ThinkingBlock):
                                 yield ThinkingEvent(content=block.thinking)

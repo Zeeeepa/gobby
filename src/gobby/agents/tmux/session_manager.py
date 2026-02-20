@@ -222,6 +222,19 @@ class TmuxSessionManager:
             ]
         )
 
+        # Keep pane alive after process exits so capture-pane can retrieve output
+        args.extend(
+            [
+                ";",
+                "set-option",
+                "-w",
+                "-t",
+                safe_name,
+                "remain-on-exit",
+                "on",
+            ]
+        )
+
         rc, _stdout, stderr = await self._run(*args)
         if rc != 0:
             raise TmuxSessionError(

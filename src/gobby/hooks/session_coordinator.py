@@ -368,47 +368,50 @@ class SessionCoordinator:
                         f"Failed to get last assistant message for {session.id}: {e}"
                     )
 
-            # Fallback: capture terminal output from tmux session (if still alive)
+            # Fallback: capture terminal output from tmux session.
+            # remain-on-exit is set on agent sessions so the pane persists
+            # after the process exits, keeping the scrollback buffer available.
             if not result and tmux_session_name:
                 try:
-                    import asyncio
+                    import subprocess
 
-                    from gobby.agents.tmux.session_manager import TmuxSessionManager
+                    from gobby.agents.tmux.config import TmuxConfig
 
-                    mgr = TmuxSessionManager()
+                    tmux_cfg = TmuxConfig()
+                    cmd = [tmux_cfg.command]
+                    if tmux_cfg.socket_name:
+                        cmd.extend(["-L", tmux_cfg.socket_name])
+                    cmd.extend(["capture-pane", "-t", tmux_session_name, "-p", "-S", "-"])
 
-                    async def _capture() -> str:
-                        rc, stdout, _ = await mgr._run(
-                            "capture-pane", "-t", tmux_session_name, "-p", "-S", "-"
-                        )
-                        return stdout.strip() if rc == 0 else ""
-
-                    try:
-                        loop = asyncio.get_running_loop()
-                    except RuntimeError:
-                        loop = None
-
-                    if loop and loop.is_running():
-                        # Already in async context - schedule and wait
-                        import concurrent.futures
-
-                        with concurrent.futures.ThreadPoolExecutor() as pool:
-                            captured = pool.submit(
-                                lambda: asyncio.run(_capture())
-                            ).result(timeout=5.0)
-                    else:
-                        captured = asyncio.run(_capture())
-
-                    if captured:
-                        result = captured
+                    proc = subprocess.run(
+                        cmd, capture_output=True, timeout=5, text=True
+                    )
+                    if proc.returncode == 0 and proc.stdout.strip():
+                        result = proc.stdout.strip()
                         self.logger.info(
                             f"Captured result from tmux session '{tmux_session_name}' "
-                            f"for agent {agent_run_id} ({len(captured)} chars)"
+                            f"for agent {agent_run_id} ({len(result)} chars)"
                         )
                 except Exception as e:
                     self.logger.debug(
                         f"tmux capture-pane fallback failed for {tmux_session_name}: {e}"
                     )
+
+            # Clean up the tmux session (remain-on-exit keeps it alive for capture)
+            if tmux_session_name:
+                try:
+                    import subprocess
+
+                    from gobby.agents.tmux.config import TmuxConfig
+
+                    tmux_cfg = TmuxConfig()
+                    kill_cmd = [tmux_cfg.command]
+                    if tmux_cfg.socket_name:
+                        kill_cmd.extend(["-L", tmux_cfg.socket_name])
+                    kill_cmd.extend(["kill-session", "-t", tmux_session_name])
+                    subprocess.run(kill_cmd, capture_output=True, timeout=5)
+                except Exception:
+                    pass
 
             # Count tool calls and turns from session messages
             tool_calls_count = 0

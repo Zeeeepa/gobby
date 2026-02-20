@@ -592,6 +592,12 @@ class ChatMixin:
                         }
                     if event.context_window is not None:
                         done_msg["context_window"] = event.context_window
+                    logger.info(
+                        "DoneEvent context_window=%s input_tokens=%s output_tokens=%s",
+                        event.context_window,
+                        event.input_tokens,
+                        event.output_tokens,
+                    )
 
                     await websocket.send(json.dumps(done_msg))
 
