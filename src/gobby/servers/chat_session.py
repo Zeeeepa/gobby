@@ -333,7 +333,7 @@ class ChatSession:
             mcp_servers=mcp_config if mcp_config is not None else {},
             cwd=cwd,
             hooks=cast(Any, sdk_hooks) if sdk_hooks else None,
-            env=env or None,
+            env=env or {},
         )
 
         self._client = ClaudeSDKClient(options=options)
