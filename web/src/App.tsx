@@ -29,7 +29,7 @@ import type { GobbySession } from './hooks/useSessions'
 const HIDDEN_PROJECTS = new Set(['_orphaned', '_migrated'])
 
 export default function App() {
-  const { messages, conversationId, isConnected, isStreaming, isThinking, contextUsage, sendMessage, sendMode, sendProjectChange, stopStreaming, clearHistory, deleteConversation, executeCommand, respondToQuestion, switchConversation, startNewChat, continueSessionInChat, wsRef, handleVoiceMessageRef } = useChat()
+  const { messages, conversationId, sessionRef, isConnected, isStreaming, isThinking, contextUsage, sendMessage, sendMode, sendProjectChange, stopStreaming, clearHistory, deleteConversation, executeCommand, respondToQuestion, switchConversation, startNewChat, continueSessionInChat, wsRef, handleVoiceMessageRef } = useChat()
   const voice = useVoice(wsRef, conversationId)
   const { settings, updateFontSize, updateModel, updateChatMode, updateTheme, resetSettings } = useSettings()
   const { agents } = useTerminal()
@@ -326,6 +326,7 @@ export default function App() {
         <ChatPage
           chat={{
             messages,
+            sessionRef,
             isStreaming,
             isThinking,
             isConnected,

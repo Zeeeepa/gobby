@@ -387,6 +387,13 @@ class ChatMixin:
             msg["request_id"] = request_id
             return msg
 
+        def _session_ref() -> str | None:
+            """Get the session ref (#N) for the current conversation."""
+            s = self._chat_sessions.get(conversation_id)
+            if s and getattr(s, "seq_num", None):
+                return f"#{s.seq_num}"
+            return None
+
         async def _persist_message(session: Any, role: str, text: str) -> None:
             """Persist a chat message to the database (best-effort)."""
             message_manager = getattr(self, "message_manager", None)
@@ -439,6 +446,18 @@ class ChatMixin:
                     session = await self._create_chat_session(
                         conversation_id, model=model, project_id=project_id
                     )
+                    # Notify client of session identity
+                    ref = _session_ref()
+                    if ref:
+                        await websocket.send(
+                            json.dumps(
+                                _base_msg(
+                                    type="session_info",
+                                    conversation_id=conversation_id,
+                                    session_ref=ref,
+                                )
+                            )
+                        )
                 except Exception as e:
                     logger.error(f"Failed to start chat session: {e}")
                     await websocket.send(
@@ -582,6 +601,9 @@ class ChatMixin:
                         done=True,
                         tool_calls_count=event.tool_calls_count,
                     )
+                    ref = _session_ref()
+                    if ref:
+                        done_msg["session_ref"] = ref
                     # Include usage data if available
                     if event.input_tokens is not None:
                         done_msg["usage"] = {
@@ -729,9 +751,7 @@ class ChatMixin:
 
         # Create standard chat session
         try:
-            session = await self._create_chat_session(
-                conversation_id, project_id=project_id
-            )
+            session = await self._create_chat_session(conversation_id, project_id=project_id)
         except Exception as e:
             logger.error(f"Failed to create continuation session: {e}")
             await self._send_error(websocket, f"Failed to create session: {e}")

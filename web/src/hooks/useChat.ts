@@ -61,6 +61,7 @@ interface ChatStreamChunk {
   content: string
   done: boolean
   tool_calls_count?: number
+  session_ref?: string
   usage?: {
     input_tokens: number
     output_tokens: number
@@ -178,6 +179,9 @@ export function useChat() {
   const [isStreaming, setIsStreaming] = useState(false)
   const [isThinking, setIsThinking] = useState(false)
 
+  // Session ref tracking (e.g. "#158")
+  const [sessionRef, setSessionRef] = useState<string | null>(null)
+
   // Context usage tracking
   const [contextUsage, setContextUsage] = useState<{
     inputTokens: number
@@ -287,6 +291,9 @@ export function useChat() {
             }
           }
           handleVoiceMessageRef.current(data as Record<string, unknown>)
+        } else if (data.type === 'session_info') {
+          const ref = (data as Record<string, unknown>).session_ref as string | undefined
+          if (ref) setSessionRef(ref)
         } else if (data.type === 'session_continued') {
           console.log('Session continued:', data)
         } else if (data.type === 'connection_established') {
@@ -341,6 +348,10 @@ export function useChat() {
     if (chunk.done) {
       setIsStreaming(false)
       setIsThinking(false)
+      // Pick up session_ref from done message (fallback if session_info was missed)
+      if (chunk.session_ref) {
+        setSessionRef(chunk.session_ref)
+      }
       // Update context usage from usage data in done message.
       // input_tokens already represents the full context for this turn
       // (all prior messages + system prompt), so replace rather than accumulate.
@@ -547,6 +558,7 @@ export function useChat() {
     activeRequestIdRef.current = null
     setIsStreaming(false)
     setIsThinking(false)
+    setSessionRef(null)
 
     // Save current conversation's messages before switching (explicit save)
     if (conversationIdRef.current) {
@@ -601,6 +613,7 @@ export function useChat() {
     setConversationId(newId)
     saveConversationId(newId)
     setMessages([])
+    setSessionRef(null)
     setContextUsage({ inputTokens: 0, outputTokens: 0, contextWindow: null })
 
     activeRequestIdRef.current = null
@@ -902,6 +915,7 @@ export function useChat() {
   return {
     messages,
     conversationId,
+    sessionRef,
     isConnected,
     isStreaming,
     isThinking,

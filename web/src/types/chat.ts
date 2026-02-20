@@ -54,6 +54,7 @@ export interface ContextUsage {
 
 export interface ChatState {
   messages: ChatMessage[]
+  sessionRef: string | null
   isStreaming: boolean
   isThinking: boolean
   isConnected: boolean

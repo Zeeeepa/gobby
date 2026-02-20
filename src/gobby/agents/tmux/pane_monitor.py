@@ -132,7 +132,7 @@ class TmuxPaneMonitor:
         # 4. Fire session_end for agents whose tmux session is gone
         #    or whose pane process has exited (remain-on-exit keeps session alive)
         for agent in tmux_agents:
-            live_info = live_lookup.get(agent.tmux_session_name)
+            live_info = live_lookup.get(agent.tmux_session_name)  # type: ignore[arg-type]  # filtered to non-None on line 127
             if live_info and not live_info.pane_dead:
                 continue
             if agent.session_id in self._recently_ended:

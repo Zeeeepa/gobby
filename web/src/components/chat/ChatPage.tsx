@@ -62,6 +62,7 @@ export function ChatPage({ chat, conversations, project, voice }: ChatPageProps)
             <div className="flex flex-col flex-1 min-w-0">
               <MessageList
                 messages={chat.messages}
+                sessionRef={chat.sessionRef}
                 isStreaming={chat.isStreaming}
                 isThinking={chat.isThinking}
                 onRespondToQuestion={chat.onRespondToQuestion}
