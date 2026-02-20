@@ -58,7 +58,7 @@ __all__ = [
 ]
 
 
-def _resolve_session_ref(ref: str, session_manager: LocalSessionManager | None) -> str:
+def _resolve_session_ref(ref: str, session_manager: "LocalSessionManager | None") -> str:
     """Resolve session reference (#N, N, UUID, or prefix) to UUID."""
     if session_manager is None:
         logger.warning("session_manager is None; returning raw session ref %r", ref)
@@ -75,7 +75,7 @@ def create_pipelines_registry(
     executor_getter: Callable[[], Any | None] | None = None,
     execution_manager_getter: Callable[[], Any | None] | None = None,
     db: DatabaseProtocol | None = None,
-    session_manager: LocalSessionManager | None = None,
+    session_manager: "LocalSessionManager | None" = None,
 ) -> InternalToolRegistry:
     """
     Create a pipeline tool registry with all pipeline-related tools.
@@ -342,7 +342,7 @@ def _register_exposed_pipeline_tools(
     registry: InternalToolRegistry,
     loader: Any | None,
     executor_getter: Callable[[], Any | None],
-    session_manager: LocalSessionManager | None = None,
+    session_manager: "LocalSessionManager | None" = None,
 ) -> None:
     """
     Register dynamic tools for pipelines with expose_as_tool=True.
@@ -380,7 +380,7 @@ def _create_pipeline_tool(
     pipeline: Any,
     loader: Any,
     executor_getter: Callable[[], Any | None],
-    session_manager: LocalSessionManager | None = None,
+    session_manager: "LocalSessionManager | None" = None,
 ) -> None:
     """
     Create a dynamic tool for a single pipeline.
