@@ -573,6 +573,21 @@ class GobbyRunner:
                     task = asyncio.create_task(start_tmux_reader())
                     task.add_done_callback(_log_broadcast_exception)
 
+                    # Notify Terminals page so it auto-refreshes
+                    _created_name = session_name
+                    _ws = self.websocket_server
+
+                    async def broadcast_tmux_created() -> None:
+                        if _ws:
+                            await _ws.broadcast_tmux_session_event(
+                                event="session_created",
+                                session_name=_created_name,
+                                socket="gobby",
+                            )
+
+                    task = asyncio.create_task(broadcast_tmux_created())
+                    task.add_done_callback(_log_broadcast_exception)
+
             elif event_type in (
                 "agent_completed",
                 "agent_failed",
@@ -594,6 +609,21 @@ class GobbyRunner:
 
                 task = asyncio.create_task(stop_tmux_reader())
                 task.add_done_callback(_log_broadcast_exception)
+
+                # Notify Terminals page so it auto-refreshes
+                _killed_name = data.get("tmux_session_name")
+                _ws_kill = self.websocket_server
+                if _killed_name and _ws_kill:
+
+                    async def broadcast_tmux_killed() -> None:
+                        await _ws_kill.broadcast_tmux_session_event(
+                            event="session_killed",
+                            session_name=_killed_name,
+                            socket="gobby",
+                        )
+
+                    task = asyncio.create_task(broadcast_tmux_killed())
+                    task.add_done_callback(_log_broadcast_exception)
 
             # Create async task to broadcast and attach exception callback
             task = asyncio.create_task(

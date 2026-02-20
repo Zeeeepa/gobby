@@ -234,7 +234,11 @@ async def require_task_review_or_close_before_stop(
         return {
             "decision": "block",
             "reason": (
-                f"Task {task_ref} is still in_progress. Close it with close_task() before stopping."
+                f"Task {task_ref} is still in_progress. "
+                f"Commit your changes and close it with close_task(). "
+                f"Do NOT use mark_task_needs_review as a shortcut — "
+                f"only use needs_review when there is something genuinely "
+                f"critical the user must verify before closing."
             ),
             "task_id": claimed_task_id,
             "task_status": task.status,

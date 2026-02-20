@@ -108,13 +108,20 @@ async def run_pipeline(
     inputs: dict[str, Any],
     project_id: str,
     session_id: str | None = None,
+    wait: bool = False,
+    wait_timeout: int = 300,
 ) -> dict[str, Any]:
     """
-    Run a pipeline by name (fire-and-forget).
+    Run a pipeline by name.
 
-    Pre-creates the execution record, launches execution as a background
-    task, and returns the execution_id immediately. Use get_pipeline_status
-    to poll for completion.
+    When wait=False (default), the pipeline is launched as a background task
+    and the execution_id is returned immediately for polling via
+    get_pipeline_status.
+
+    When wait=True, the pipeline is awaited directly and the full execution
+    status (with all step outputs) is returned upon completion. If the
+    pipeline does not finish within wait_timeout seconds, partial results
+    are returned and the pipeline continues running in the background.
 
     Args:
         loader: WorkflowLoader instance
@@ -122,9 +129,12 @@ async def run_pipeline(
         name: Pipeline name to run
         inputs: Input values for the pipeline
         project_id: Project context for the execution
+        session_id: Optional session that triggered execution
+        wait: If True, block until pipeline completes (default: False)
+        wait_timeout: Max seconds to wait when wait=True (default: 300)
 
     Returns:
-        Dict with execution_id for status polling
+        Dict with execution_id and status/results
     """
     if not executor:
         return {"success": False, "error": "No executor configured"}
@@ -148,8 +158,8 @@ async def run_pipeline(
     except Exception as e:
         return {"success": False, "error": f"Failed to create execution record: {e}"}
 
-    # Launch execution in background — passes execution_id so executor
-    # resumes the pre-created record instead of creating a new one
+    # Always create a background task — this ensures the pipeline keeps
+    # running even if wait mode times out
     def _on_done(t: asyncio.Task[None]) -> None:
         _background_tasks.discard(t)
         if not t.cancelled() and t.exception():
@@ -169,6 +179,20 @@ async def run_pipeline(
     )
     _background_tasks.add(task)
     task.add_done_callback(_on_done)
+
+    if wait:
+        # Block until completion or timeout — asyncio.wait does NOT cancel
+        # the task on timeout, so the pipeline keeps running
+        done, _ = await asyncio.wait({task}, timeout=wait_timeout)
+
+        status = get_pipeline_status(executor.execution_manager, execution_id)
+        if not done:
+            status["timed_out"] = True
+            status["message"] = (
+                f"Pipeline still running after {wait_timeout}s. "
+                "Use get_pipeline_status to poll for completion."
+            )
+        return status
 
     return {
         "success": True,

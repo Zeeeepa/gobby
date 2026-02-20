@@ -798,7 +798,7 @@ class TestTaskValidationConfig:
         config = TaskValidationConfig()
         assert config.enabled is True
         assert config.provider == "claude"
-        assert config.model == "opus"
+        assert config.model == "sonnet"
         assert config.prompt_path is None  # Uses default prompt from prompts/
 
 

@@ -11857,6 +11857,21 @@ body {
   background: #10b981;
 }
 
+/* App-level toast */
+.app-toast {
+  position: fixed;
+  top: 60px;
+  right: 20px;
+  z-index: 1000;
+  background: #525252;
+  color: #fff;
+  padding: 0.5rem 1rem;
+  border-radius: 6px;
+  font-size: calc(var(--font-size-base) * 0.85);
+  cursor: pointer;
+  animation: fadeIn 0.2s ease;
+}
+
 /* Toolbar */
 .skills-toolbar {
   display: flex;
