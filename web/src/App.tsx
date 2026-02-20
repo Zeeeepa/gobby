@@ -29,7 +29,7 @@ import type { GobbySession } from './hooks/useSessions'
 const HIDDEN_PROJECTS = new Set(['_orphaned', '_migrated'])
 
 export default function App() {
-  const { messages, conversationId, isConnected, isStreaming, isThinking, sendMessage, sendMode, sendProjectChange, stopStreaming, clearHistory, deleteConversation, executeCommand, respondToQuestion, switchConversation, startNewChat, wsRef, handleVoiceMessageRef } = useChat()
+  const { messages, conversationId, isConnected, isStreaming, isThinking, contextUsage, sendMessage, sendMode, sendProjectChange, stopStreaming, clearHistory, deleteConversation, executeCommand, respondToQuestion, switchConversation, startNewChat, wsRef, handleVoiceMessageRef } = useChat()
   const voice = useVoice(wsRef, conversationId)
   const { settings, modelInfo, modelsLoading, updateFontSize, updateModel, updateChatMode, resetSettings } = useSettings()
   const { agents } = useTerminal()
@@ -183,8 +183,14 @@ export default function App() {
       if (cmd.server === '_local') {
         if (cmd.tool === 'open_settings') {
           setSettingsOpen(true)
+          return
         } else if (cmd.tool === 'clear_history') {
           clearHistory()
+          return
+        } else if (cmd.tool === 'compact_chat') {
+          // Send /compact as a regular message — the SDK handles it natively
+          sendMessage('/compact', settings.model, undefined, effectiveProjectId)
+          return
         }
         return
       }
@@ -247,11 +253,13 @@ export default function App() {
         setSettingsOpen(true)
       } else if (cmd.action === 'clear_history' || cmd.tool === 'clear_history') {
         clearHistory()
+      } else if (cmd.action === 'compact_chat' || cmd.tool === 'compact_chat') {
+        sendMessage('/compact', settings.model, undefined, effectiveProjectId)
       }
       return
     }
     executeCommand(cmd.server, cmd.tool)
-  }, [executeCommand, clearHistory])
+  }, [executeCommand, clearHistory, sendMessage, settings.model, effectiveProjectId])
 
   const navItems = [
     { id: 'dashboard', label: 'Dashboard', icon: <DashboardIcon /> },
@@ -307,6 +315,7 @@ export default function App() {
             isStreaming,
             isThinking,
             isConnected,
+            contextUsage,
             onSend: handleSendMessage,
             onStop: stopStreaming,
             onRespondToQuestion: respondToQuestion,

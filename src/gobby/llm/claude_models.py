@@ -93,6 +93,21 @@ class DoneEvent:
     duration_ms: float | None = None
     """Duration in milliseconds if available."""
 
+    input_tokens: int | None = None
+    """Input tokens used in this turn."""
+
+    output_tokens: int | None = None
+    """Output tokens generated in this turn."""
+
+    cache_read_input_tokens: int | None = None
+    """Tokens read from cache."""
+
+    cache_creation_input_tokens: int | None = None
+    """Tokens written to cache."""
+
+    context_window: int | None = None
+    """Max context window size for the model."""
+
 
 @dataclass
 class ThinkingEvent:

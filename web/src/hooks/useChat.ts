@@ -61,6 +61,13 @@ interface ChatStreamChunk {
   content: string
   done: boolean
   tool_calls_count?: number
+  usage?: {
+    input_tokens: number
+    output_tokens: number
+    cache_read_input_tokens?: number
+    cache_creation_input_tokens?: number
+  }
+  context_window?: number
 }
 
 interface ChatError {
@@ -170,6 +177,13 @@ export function useChat() {
   const [isConnected, setIsConnected] = useState(false)
   const [isStreaming, setIsStreaming] = useState(false)
   const [isThinking, setIsThinking] = useState(false)
+
+  // Context usage tracking
+  const [contextUsage, setContextUsage] = useState<{
+    inputTokens: number
+    outputTokens: number
+    contextWindow: number | null
+  }>({ inputTokens: 0, outputTokens: 0, contextWindow: null })
   const wsRef = useRef<WebSocket | null>(null)
   const reconnectTimeoutRef = useRef<number | null>(null)
 
@@ -325,6 +339,16 @@ export function useChat() {
     if (chunk.done) {
       setIsStreaming(false)
       setIsThinking(false)
+      // Update context usage from usage data in done message
+      if (chunk.usage) {
+        setContextUsage((prev) => ({
+          inputTokens: prev.inputTokens + (chunk.usage?.input_tokens ?? 0),
+          outputTokens: prev.outputTokens + (chunk.usage?.output_tokens ?? 0),
+          contextWindow: chunk.context_window ?? prev.contextWindow,
+        }))
+      } else if (chunk.context_window) {
+        setContextUsage((prev) => ({ ...prev, contextWindow: chunk.context_window ?? prev.contextWindow }))
+      }
     }
   }, [])
 
@@ -573,6 +597,7 @@ export function useChat() {
     setConversationId(newId)
     saveConversationId(newId)
     setMessages([])
+    setContextUsage({ inputTokens: 0, outputTokens: 0, contextWindow: null })
 
     activeRequestIdRef.current = null
     setIsStreaming(false)
@@ -614,6 +639,7 @@ export function useChat() {
     }
     // Reset frontend state
     setMessages([])
+    setContextUsage({ inputTokens: 0, outputTokens: 0, contextWindow: null })
     localStorage.removeItem(chatStorageKey(oldConversationId))
     activeRequestIdRef.current = null
     // Start a fresh conversation
@@ -822,6 +848,7 @@ export function useChat() {
     isConnected,
     isStreaming,
     isThinking,
+    contextUsage,
     sendMessage,
     sendMode,
     sendProjectChange,

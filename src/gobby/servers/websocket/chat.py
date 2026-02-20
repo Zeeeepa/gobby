@@ -568,18 +568,26 @@ class ChatMixin:
                     if _voice_flush:
                         await _voice_flush(websocket, conversation_id, request_id)
 
-                    await websocket.send(
-                        json.dumps(
-                            _base_msg(
-                                type="chat_stream",
-                                message_id=assistant_message_id,
-                                conversation_id=conversation_id,
-                                content="",
-                                done=True,
-                                tool_calls_count=event.tool_calls_count,
-                            )
-                        )
+                    done_msg = _base_msg(
+                        type="chat_stream",
+                        message_id=assistant_message_id,
+                        conversation_id=conversation_id,
+                        content="",
+                        done=True,
+                        tool_calls_count=event.tool_calls_count,
                     )
+                    # Include usage data if available
+                    if event.input_tokens is not None:
+                        done_msg["usage"] = {
+                            "input_tokens": event.input_tokens,
+                            "output_tokens": event.output_tokens,
+                            "cache_read_input_tokens": event.cache_read_input_tokens,
+                            "cache_creation_input_tokens": event.cache_creation_input_tokens,
+                        }
+                    if event.context_window is not None:
+                        done_msg["context_window"] = event.context_window
+
+                    await websocket.send(json.dumps(done_msg))
 
         except asyncio.CancelledError:
             # Stream was interrupted (stop button or new message replacing old)
