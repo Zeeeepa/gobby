@@ -1842,3 +1842,92 @@ def test_workflow_definitions_global_null_project(tmp_path) -> None:
     rows = db.fetchall("SELECT project_id FROM workflow_definitions WHERE source = 'bundled'")
     for row in rows:
         assert row["project_id"] is None, "Bundled workflows should have NULL project_id"
+
+
+def test_migration_110_memory_ids_to_uuid5_with_fk_children(tmp_path) -> None:
+    """Test migration 110 succeeds when memories have FK children.
+
+    Regression test: UPDATE memories SET id = ? used to fail with
+    FOREIGN KEY constraint because session_memories and memory_crossrefs
+    define ON DELETE CASCADE but not ON UPDATE CASCADE.
+    """
+    import uuid
+
+    db_path = tmp_path / "memory_fk.db"
+    db = LocalDatabase(db_path)
+
+    # Apply baseline (gets us to v107+) then run up to v109
+    run_migrations(db)
+    # Reset to v109 so we can test migration 110 in isolation
+    db.execute("DELETE FROM schema_version WHERE version >= 110")
+
+    # Insert test data with old mm-prefix IDs
+    project_id = str(uuid.uuid4())
+    session_id = str(uuid.uuid4())
+    memory_id = "mm-test-memory-001"
+    memory_id2 = "mm-test-memory-002"
+
+    db.execute(
+        "INSERT INTO projects (id, name, repo_path, created_at) VALUES (?, ?, ?, datetime('now'))",
+        (project_id, "test-proj", "/tmp/test"),
+    )
+    db.execute(
+        "INSERT INTO sessions (id, external_id, machine_id, source, project_id, created_at, updated_at) "
+        "VALUES (?, 'ext-1', 'machine-1', 'claude', ?, datetime('now'), datetime('now'))",
+        (session_id, project_id),
+    )
+    db.execute(
+        "INSERT INTO memories (id, project_id, memory_type, content, created_at, updated_at) "
+        "VALUES (?, ?, 'fact', 'test content one', datetime('now'), datetime('now'))",
+        (memory_id, project_id),
+    )
+    db.execute(
+        "INSERT INTO memories (id, project_id, memory_type, content, created_at, updated_at) "
+        "VALUES (?, ?, 'fact', 'test content two', datetime('now'), datetime('now'))",
+        (memory_id2, project_id),
+    )
+    # Add FK children
+    db.execute(
+        "INSERT INTO session_memories (session_id, memory_id, action, created_at) "
+        "VALUES (?, ?, 'created', datetime('now'))",
+        (session_id, memory_id),
+    )
+    db.execute(
+        "INSERT INTO memory_crossrefs (source_id, target_id, similarity) VALUES (?, ?, 0.9)",
+        (memory_id, memory_id2),
+    )
+
+    # Run migration 110 — this used to fail with FOREIGN KEY constraint
+    from gobby.storage.migrations import _migrate_memory_ids_to_uuid5
+
+    _migrate_memory_ids_to_uuid5(db)
+
+    # Verify old IDs are gone
+    assert db.fetchone("SELECT id FROM memories WHERE id = ?", (memory_id,)) is None
+    assert db.fetchone("SELECT id FROM memories WHERE id = ?", (memory_id2,)) is None
+
+    # Verify new UUID5 IDs exist
+    ns = uuid.UUID("a3b2c1d0-1234-5678-9abc-def012345678")
+    expected_id1 = str(uuid.uuid5(ns, "test content one"))
+    expected_id2 = str(uuid.uuid5(ns, "test content two"))
+
+    row1 = db.fetchone("SELECT id FROM memories WHERE id = ?", (expected_id1,))
+    assert row1 is not None, f"Memory should have new UUID5 id {expected_id1}"
+
+    row2 = db.fetchone("SELECT id FROM memories WHERE id = ?", (expected_id2,))
+    assert row2 is not None, f"Memory should have new UUID5 id {expected_id2}"
+
+    # Verify FK children were updated
+    sm = db.fetchone("SELECT memory_id FROM session_memories WHERE session_id = ?", (session_id,))
+    assert sm is not None
+    assert sm["memory_id"] == expected_id1
+
+    xref = db.fetchone(
+        "SELECT source_id, target_id FROM memory_crossrefs WHERE source_id = ?", (expected_id1,)
+    )
+    assert xref is not None
+    assert xref["target_id"] == expected_id2
+
+    # Verify FK enforcement is back on
+    fk_status = db.fetchone("PRAGMA foreign_keys")
+    assert fk_status[0] == 1, "Foreign keys should be re-enabled after migration"

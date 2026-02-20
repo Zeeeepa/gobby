@@ -926,44 +926,54 @@ def _migrate_memory_ids_to_uuid5(db: LocalDatabase) -> None:
     total_migrated = 0
     offset = 0
 
-    while True:
-        rows = db.fetchall(
-            "SELECT id, content FROM memories WHERE id LIKE 'mm-%' LIMIT ? OFFSET ?",
-            (BATCH_SIZE, offset),
-        )
-        if not rows:
-            break
+    # Disable FK checks for this migration — the child tables (session_memories,
+    # memory_crossrefs) use ON DELETE CASCADE but not ON UPDATE CASCADE, so
+    # changing memories.id would violate the FK constraint before we can update
+    # the children.  PRAGMA foreign_keys must be set outside a transaction.
+    db.execute("PRAGMA foreign_keys = OFF")
+    try:
+        while True:
+            rows = db.fetchall(
+                "SELECT id, content FROM memories WHERE id LIKE 'mm-%' LIMIT ? OFFSET ?",
+                (BATCH_SIZE, offset),
+            )
+            if not rows:
+                break
 
-        with db.transaction() as conn:
-            for row in rows:
-                old_id = row["id"]
-                content = row["content"]
-                normalized = content.strip() if content else ""
-                new_id = (
-                    str(uuid.uuid5(_MEMORY_UUID_NAMESPACE, normalized)) if normalized else old_id
-                )
+            with db.transaction() as conn:
+                for row in rows:
+                    old_id = row["id"]
+                    content = row["content"]
+                    normalized = content.strip() if content else ""
+                    new_id = (
+                        str(uuid.uuid5(_MEMORY_UUID_NAMESPACE, normalized))
+                        if normalized
+                        else old_id
+                    )
 
-                # Update primary table
-                conn.execute("UPDATE memories SET id = ? WHERE id = ?", (new_id, old_id))
-                # Update referencing tables
-                conn.execute(
-                    "UPDATE memory_crossrefs SET source_id = ? WHERE source_id = ?",
-                    (new_id, old_id),
-                )
-                conn.execute(
-                    "UPDATE memory_crossrefs SET target_id = ? WHERE target_id = ?",
-                    (new_id, old_id),
-                )
-                conn.execute(
-                    "UPDATE session_memories SET memory_id = ? WHERE memory_id = ?",
-                    (new_id, old_id),
-                )
+                    # Update primary table
+                    conn.execute("UPDATE memories SET id = ? WHERE id = ?", (new_id, old_id))
+                    # Update referencing tables
+                    conn.execute(
+                        "UPDATE memory_crossrefs SET source_id = ? WHERE source_id = ?",
+                        (new_id, old_id),
+                    )
+                    conn.execute(
+                        "UPDATE memory_crossrefs SET target_id = ? WHERE target_id = ?",
+                        (new_id, old_id),
+                    )
+                    conn.execute(
+                        "UPDATE session_memories SET memory_id = ? WHERE memory_id = ?",
+                        (new_id, old_id),
+                    )
 
-        total_migrated += len(rows)
-        # Don't increment offset — rows matching 'mm-%' shrink as we update them
+            total_migrated += len(rows)
+            # Don't increment offset — rows matching 'mm-%' shrink as we update them
 
-        if len(rows) < BATCH_SIZE:
-            break
+            if len(rows) < BATCH_SIZE:
+                break
+    finally:
+        db.execute("PRAGMA foreign_keys = ON")
 
     if total_migrated:
         logger.info(f"Migrated {total_migrated} memory IDs to UUID5 format")

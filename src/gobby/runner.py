@@ -101,6 +101,7 @@ class GobbyRunner:
             )
         self._shutdown_requested = False
         self._metrics_cleanup_task: asyncio.Task[None] | None = None
+        self._vector_rebuild_task: asyncio.Task[None] | None = None
 
         # Initialize local storage with dual-write if in project context
         self.database = self._init_database()
@@ -706,6 +707,18 @@ class GobbyRunner:
             except Exception as e:
                 logger.error(f"Error in metrics cleanup loop: {e}")
 
+    async def _rebuild_vector_store(
+        self, memory_dicts: list[dict[str, str]], embed_fn: Any
+    ) -> None:
+        """Rebuild VectorStore index in the background."""
+        try:
+            await self.vector_store.rebuild(memory_dicts, embed_fn)
+            logger.info("VectorStore rebuild complete")
+        except asyncio.CancelledError:
+            logger.info("VectorStore rebuild cancelled")
+        except Exception as e:
+            logger.error(f"VectorStore rebuild failed: {e}")
+
     def _check_memory_v2_migration(self) -> None:
         """Check if Memory V2 migration is needed and log a suggestion.
 
@@ -794,7 +807,7 @@ class GobbyRunner:
             # Check for pending Memory V2 migration
             self._check_memory_v2_migration()
 
-            # Initialize VectorStore (async) and rebuild if needed
+            # Initialize VectorStore and schedule rebuild in background if needed
             if self.vector_store:
                 try:
                     await self.vector_store.initialize()
@@ -802,16 +815,19 @@ class GobbyRunner:
                     if qdrant_count == 0 and self.memory_manager:
                         sqlite_memories = self.memory_manager.storage.list_memories(limit=10000)
                         if sqlite_memories:
-                            logger.info(
-                                f"Qdrant empty, rebuilding from {len(sqlite_memories)} SQLite memories..."
-                            )
-                            memory_dicts = [
-                                {"id": m.id, "content": m.content} for m in sqlite_memories
-                            ]
                             embed_fn = self.memory_manager.embed_fn
                             if embed_fn:
-                                await self.vector_store.rebuild(memory_dicts, embed_fn)
-                                logger.info("VectorStore rebuild complete")
+                                logger.info(
+                                    f"Qdrant empty, scheduling background rebuild from "
+                                    f"{len(sqlite_memories)} SQLite memories..."
+                                )
+                                memory_dicts = [
+                                    {"id": m.id, "content": m.content} for m in sqlite_memories
+                                ]
+                                self._vector_rebuild_task = asyncio.create_task(
+                                    self._rebuild_vector_store(memory_dicts, embed_fn),
+                                    name="vector-store-rebuild",
+                                )
                             else:
                                 logger.warning(
                                     "No embed_fn configured, skipping VectorStore rebuild"
@@ -946,6 +962,14 @@ class GobbyRunner:
                 self._metrics_cleanup_task.cancel()
                 try:
                     await asyncio.wait_for(self._metrics_cleanup_task, timeout=2.0)
+                except (asyncio.CancelledError, TimeoutError):
+                    pass
+
+            # Cancel vector store rebuild task
+            if self._vector_rebuild_task and not self._vector_rebuild_task.done():
+                self._vector_rebuild_task.cancel()
+                try:
+                    await asyncio.wait_for(self._vector_rebuild_task, timeout=2.0)
                 except (asyncio.CancelledError, TimeoutError):
                     pass
 
