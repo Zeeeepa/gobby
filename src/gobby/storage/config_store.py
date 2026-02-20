@@ -37,11 +37,13 @@ _SECRET_SUFFIXES = (
 def config_key_to_secret_name(key: str) -> str:
     """Convert a dotted config key to a secret store name.
 
-    Example: ``voice.elevenlabs_api_key`` -> ``cfg__voice__elevenlabs_api_key``
+    Uses the last segment of the dotted key as the natural secret name.
 
-    The ``cfg__`` prefix avoids collisions with user-created secrets.
+    Examples:
+        ``voice.elevenlabs_api_key`` -> ``elevenlabs_api_key``
+        ``secrets.OPENAI_API_KEY`` -> ``OPENAI_API_KEY``
     """
-    return "cfg__" + key.replace(".", "__")
+    return key.rsplit(".", 1)[-1]
 
 
 def is_secret_key_name(key: str) -> bool:
@@ -141,7 +143,7 @@ class ConfigStore:
     ) -> None:
         """Encrypt a config value via SecretStore and store a reference.
 
-        Stores ``$secret:cfg__<key>`` in config_store with ``is_secret=1``.
+        Stores ``$secret:<natural_name>`` in config_store with ``is_secret=1``.
         The actual value is encrypted in the ``secrets`` table.
         Both writes happen in a single transaction for consistency.
         """

@@ -687,7 +687,7 @@ class TestSecretAwareConfig:
 
         # Verify the actual value is encrypted in secrets table
         secret_store = SecretStore(temp_db)
-        decrypted = secret_store.get("cfg__voice__elevenlabs_api_key")
+        decrypted = secret_store.get("elevenlabs_api_key")
         assert decrypted == "sk-test-789"
 
     def test_put_masked_value_skipped(self, client: TestClient, temp_db, mock_machine_id) -> None:
@@ -705,7 +705,7 @@ class TestSecretAwareConfig:
         assert response.status_code == 200
 
         # Original secret should be unchanged
-        decrypted = secret_store.get("cfg__voice__elevenlabs_api_key")
+        decrypted = secret_store.get("elevenlabs_api_key")
         assert decrypted == "sk-original"
 
     def test_put_empty_secret_clears(self, client: TestClient, temp_db, mock_machine_id) -> None:
@@ -722,7 +722,7 @@ class TestSecretAwareConfig:
 
         # Secret should be cleared
         assert store.get("voice.elevenlabs_api_key") is None
-        assert secret_store.get("cfg__voice__elevenlabs_api_key") is None
+        assert secret_store.get("elevenlabs_api_key") is None
 
     def test_get_values_masks_set_secret(
         self, client: TestClient, temp_db, mock_machine_id
@@ -760,7 +760,7 @@ class TestSecretAwareConfig:
             json={
                 "config_store": {
                     "daemon_port": 9999,
-                    "voice.elevenlabs_api_key": "$secret:cfg__voice__elevenlabs_api_key",
+                    "voice.elevenlabs_api_key": "$secret:elevenlabs_api_key",
                 },
                 "config_secret_keys": ["voice.elevenlabs_api_key"],
             },
