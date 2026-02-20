@@ -1,11 +1,14 @@
 import { useState, useEffect, useCallback } from 'react'
 import type { ChatMode } from '../types/chat'
 
+export type Theme = 'dark' | 'light' | 'system'
+
 export interface Settings {
   fontSize: number // Base font size in pixels (12-24)
   model: string | null // Selected LLM model
   provider: string | null // Selected LLM provider
   chatMode: ChatMode // Active chat mode
+  theme: Theme // UI theme
 }
 
 export interface ModelInfo {
@@ -18,6 +21,7 @@ const DEFAULT_SETTINGS: Settings = {
   model: null,
   provider: null,
   chatMode: 'bypass',
+  theme: 'dark',
 }
 
 const STORAGE_KEY = 'gobby-settings'
@@ -80,6 +84,23 @@ export function useSettings() {
     )
   }, [settings.fontSize])
 
+  // Apply theme to document
+  useEffect(() => {
+    const applyTheme = (resolved: 'dark' | 'light') => {
+      document.documentElement.setAttribute('data-theme', resolved)
+    }
+
+    if (settings.theme === 'system') {
+      const mq = window.matchMedia('(prefers-color-scheme: dark)')
+      applyTheme(mq.matches ? 'dark' : 'light')
+      const handler = (e: MediaQueryListEvent) => applyTheme(e.matches ? 'dark' : 'light')
+      mq.addEventListener('change', handler)
+      return () => mq.removeEventListener('change', handler)
+    } else {
+      applyTheme(settings.theme)
+    }
+  }, [settings.theme])
+
   // Persist settings
   useEffect(() => {
     try {
@@ -101,6 +122,10 @@ export function useSettings() {
     setSettings((prev) => ({ ...prev, chatMode }))
   }, [])
 
+  const updateTheme = useCallback((theme: Theme) => {
+    setSettings((prev) => ({ ...prev, theme }))
+  }, [])
+
   const resetSettings = useCallback(() => {
     setSettings({
       ...DEFAULT_SETTINGS,
@@ -116,6 +141,7 @@ export function useSettings() {
     updateFontSize,
     updateModel,
     updateChatMode,
+    updateTheme,
     resetSettings,
   }
 }

@@ -31,7 +31,7 @@ const HIDDEN_PROJECTS = new Set(['_orphaned', '_migrated'])
 export default function App() {
   const { messages, conversationId, isConnected, isStreaming, isThinking, contextUsage, sendMessage, sendMode, sendProjectChange, stopStreaming, clearHistory, deleteConversation, executeCommand, respondToQuestion, switchConversation, startNewChat, wsRef, handleVoiceMessageRef } = useChat()
   const voice = useVoice(wsRef, conversationId)
-  const { settings, modelInfo, modelsLoading, updateFontSize, updateModel, updateChatMode, resetSettings } = useSettings()
+  const { settings, modelInfo, modelsLoading, updateFontSize, updateModel, updateChatMode, updateTheme, resetSettings } = useSettings()
   const { agents } = useTerminal()
   const tmux = useTmuxSessions()
   const { filteredCommands, parseCommand, filterCommands } = useSlashCommands()
@@ -411,6 +411,7 @@ export default function App() {
         modelsLoading={modelsLoading}
         onFontSizeChange={updateFontSize}
         onModelChange={updateModel}
+        onThemeChange={updateTheme}
         onReset={resetSettings}
       />
 

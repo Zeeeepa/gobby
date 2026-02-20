@@ -315,7 +315,7 @@ function ConfigFormTab({ schema, values: initialValues, onSave, onReset, secretK
       )}
       <div className="config-form">
         {errors.length > 0 && (
-          <div style={{ color: '#ef4444', fontSize: 13, marginBottom: 12 }}>
+          <div style={{ color: 'var(--color-error)', fontSize: 13, marginBottom: 12 }}>
             {errors.map((e, i) => <div key={i}>{e}</div>)}
           </div>
         )}

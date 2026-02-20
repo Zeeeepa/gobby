@@ -11,6 +11,16 @@
   --accent-color: #3b82f6;
 }
 
+[data-theme="light"] {
+  --bg-code: #f0f0f0;
+  --bg-muted: #e5e5e5;
+  --border-color: #d4d4d4;
+  --text-muted: #a3a3a3;
+  --text-secondary: #525252;
+  --text-primary: #171717;
+  --accent-color: #2563eb;
+}
+
 /* Markdown content styling */
 .message-content p {
   margin-bottom: 0.75rem;

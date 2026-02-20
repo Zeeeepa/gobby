@@ -1,4 +1,4 @@
-import type { Settings, ModelInfo } from '../hooks/useSettings'
+import type { Settings, ModelInfo, Theme } from '../hooks/useSettings'
 
 interface SettingsProps {
   isOpen: boolean
@@ -8,6 +8,7 @@ interface SettingsProps {
   modelsLoading: boolean
   onFontSizeChange: (size: number) => void
   onModelChange: (model: string) => void
+  onThemeChange: (theme: Theme) => void
   onReset: () => void
 }
 
@@ -19,6 +20,7 @@ export function Settings({
   modelsLoading,
   onFontSizeChange,
   onModelChange,
+  onThemeChange,
   onReset,
 }: SettingsProps) {
   if (!isOpen) return null
@@ -80,6 +82,21 @@ export function Settings({
             <div className="slider-labels">
               <span>12px</span>
               <span>48px</span>
+            </div>
+          </div>
+
+          <div className="setting-item">
+            <label>Theme</label>
+            <div className="theme-selector">
+              {(['dark', 'light', 'system'] as const).map((t) => (
+                <button
+                  key={t}
+                  className={`theme-option${settings.theme === t ? ' active' : ''}`}
+                  onClick={() => onThemeChange(t)}
+                >
+                  {t.charAt(0).toUpperCase() + t.slice(1)}
+                </button>
+              ))}
             </div>
           </div>
 

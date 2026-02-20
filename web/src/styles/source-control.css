@@ -158,6 +158,21 @@
   color: #a78bfa;
 }
 
+.sc-badge--green { background: #052e16; color: #4ade80; }
+.sc-badge--red { background: #450a0a; color: #f87171; }
+.sc-badge--amber { background: #451a03; color: #fbbf24; }
+.sc-badge--blue { background: #0c4a6e; color: #38bdf8; }
+.sc-badge--purple { background: #1e1b4b; color: #a78bfa; }
+.sc-badge--muted { background: #1a1a2e; color: #a3a3a3; }
+
+[data-theme="light"] .sc-badge--green { background: rgba(34, 197, 94, 0.12); color: #16a34a; }
+[data-theme="light"] .sc-badge--red { background: rgba(220, 38, 38, 0.1); color: #dc2626; }
+[data-theme="light"] .sc-badge--amber { background: rgba(217, 119, 6, 0.1); color: #b45309; }
+[data-theme="light"] .sc-badge--blue { background: rgba(37, 99, 235, 0.1); color: #2563eb; }
+[data-theme="light"] .sc-badge--purple { background: rgba(124, 58, 237, 0.1); color: #7c3aed; }
+[data-theme="light"] .sc-badge--muted { background: rgba(115, 115, 115, 0.1); color: #737373; }
+[data-theme="light"] .sc-badge--worktree { background: rgba(124, 58, 237, 0.1); color: #7c3aed; }
+
 .sc-btn {
   padding: 0.375rem 0.75rem;
   background: var(--bg-tertiary);
@@ -913,4 +928,27 @@
   border: 1px solid var(--border);
   border-radius: 0.375rem;
   color: var(--accent);
+}
+
+/* Light mode overrides */
+[data-theme="light"] .sc-page__branch-badge,
+[data-theme="light"] .sc-overview__card-badge {
+  background: rgba(124, 58, 237, 0.1);
+  color: #7c3aed;
+}
+[data-theme="light"] .sc-overview__card-badge--muted,
+[data-theme="light"] .sc-prs__draft-label {
+  background: rgba(115, 115, 115, 0.1);
+}
+[data-theme="light"] .sc-overview__card-badge--warning {
+  background: rgba(217, 119, 6, 0.1);
+  color: #b45309;
+}
+[data-theme="light"] .sc-btn--danger {
+  color: #dc2626;
+  border-color: rgba(220, 38, 38, 0.3);
+}
+[data-theme="light"] .sc-btn--danger:hover {
+  background: rgba(220, 38, 38, 0.08);
+  border-color: #dc2626;
 }
