@@ -56,6 +56,10 @@ from gobby.llm.claude_models import (
 
 logger = logging.getLogger(__name__)
 
+# Claude Code / Agent SDK hard-truncates additionalContext at 10K chars.
+# We cap slightly below to avoid the ugly "… [output truncated]" suffix.
+_ADDITIONAL_CONTEXT_LIMIT = 9_500
+
 
 class PendingApproval(TypedDict):
     """Pending tool-approval payload sent to the frontend."""
@@ -355,19 +359,26 @@ class ChatSession:
                 # Inject conversation history on first prompt of a recreated session
                 if self._needs_history_injection:
                     self._needs_history_injection = False
-                    history_ctx = await self._load_history_context()
-                    if history_ctx:
-                        existing = ""
-                        hook_specific = output.get("hookSpecificOutput")
-                        if hook_specific and isinstance(hook_specific, dict):
-                            existing = str(hook_specific.get("additionalContext", "") or "")
-                        combined = (
-                            (existing + "\n\n" + history_ctx).strip() if existing else history_ctx
+                    # Calculate budget: existing context gets priority, history fills the rest
+                    existing = ""
+                    hook_specific = output.get("hookSpecificOutput")
+                    if hook_specific and isinstance(hook_specific, dict):
+                        existing = str(hook_specific.get("additionalContext", "") or "")
+                    history_budget = _ADDITIONAL_CONTEXT_LIMIT - len(existing) - 4  # "\n\n" joiner
+                    if history_budget > 500:  # Only inject if meaningful space remains
+                        history_ctx = await self._load_history_context(
+                            max_total_chars=history_budget
                         )
-                        output["hookSpecificOutput"] = UserPromptSubmitHookSpecificOutput(
-                            hookEventName="UserPromptSubmit",
-                            additionalContext=combined,
-                        )
+                        if history_ctx:
+                            combined = (
+                                (existing + "\n\n" + history_ctx).strip()
+                                if existing
+                                else history_ctx
+                            )
+                            output["hookSpecificOutput"] = UserPromptSubmitHookSpecificOutput(
+                                hookEventName="UserPromptSubmit",
+                                additionalContext=combined,
+                            )
 
                 return output
 
@@ -635,8 +646,14 @@ class ChatSession:
         """Whether a tool approval is currently awaiting a response."""
         return self._pending_approval is not None
 
-    async def _load_history_context(self) -> str | None:
+    async def _load_history_context(self, max_total_chars: int | None = None) -> str | None:
         """Load prior conversation messages and format as context for injection.
+
+        Args:
+            max_total_chars: Override for maximum total characters. If None, uses
+                the instance default (_max_history_total_chars). Callers should pass
+                a budget that accounts for other additionalContext content to avoid
+                Claude Code's 10K truncation limit.
 
         Returns a formatted string with conversation history, or None if
         no messages exist or an error occurs.
@@ -661,7 +678,15 @@ class ChatSession:
                 return None
 
             max_msg_chars = self._max_history_message_chars
-            max_total_chars = self._max_history_total_chars
+            effective_max = (
+                max_total_chars if max_total_chars is not None else self._max_history_total_chars
+            )
+            # Reserve space for the XML wrapper + inter-entry separators (~180 chars)
+            wrapper_overhead = 200
+            content_budget = effective_max - wrapper_overhead
+            if content_budget <= 0:
+                return None
+
             parts: list[str] = []
             total = 0
 
@@ -671,7 +696,7 @@ class ChatSession:
                 if len(content) > max_msg_chars:
                     content = content[:max_msg_chars] + "..."
                 entry = f"{role_label} {content}"
-                if total + len(entry) > max_total_chars:
+                if total + len(entry) > content_budget:
                     break
                 parts.append(entry)
                 total += len(entry)

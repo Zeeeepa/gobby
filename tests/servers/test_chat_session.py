@@ -405,6 +405,39 @@ class TestHistoryInjection:
         assert count > 0
 
     @pytest.mark.asyncio
+    async def test_load_history_context_respects_budget_param(self, session: ChatSession) -> None:
+        """max_total_chars parameter should override instance default."""
+        mock_manager = AsyncMock()
+        # Each entry is ~110 chars with role label, 10 messages = ~1100 chars content
+        mock_manager.get_messages.return_value = [
+            {"role": "user", "content_type": "text", "content": "c" * 100} for _ in range(10)
+        ]
+        session.db_session_id = "test-db-id"
+        session._message_manager = mock_manager
+        # Instance default is 30K, but pass a tight budget
+        result = await session._load_history_context(max_total_chars=500)
+        assert result is not None
+        count = result.count("**User:**")
+        assert count < 10
+        assert count > 0
+        # Total result should be under the budget
+        assert len(result) <= 500
+
+    @pytest.mark.asyncio
+    async def test_load_history_context_returns_none_for_tiny_budget(
+        self, session: ChatSession
+    ) -> None:
+        """Returns None when budget is too small for even the wrapper."""
+        mock_manager = AsyncMock()
+        mock_manager.get_messages.return_value = [
+            {"role": "user", "content_type": "text", "content": "hello"},
+        ]
+        session.db_session_id = "test-db-id"
+        session._message_manager = mock_manager
+        result = await session._load_history_context(max_total_chars=100)
+        assert result is None
+
+    @pytest.mark.asyncio
     async def test_load_history_context_handles_error(self, session: ChatSession) -> None:
         """Returns None on error instead of raising."""
         mock_manager = AsyncMock()
