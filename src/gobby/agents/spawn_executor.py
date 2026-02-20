@@ -150,9 +150,13 @@ async def _spawn_claude_terminal(request: SpawnRequest) -> SpawnResult:
     gobby_session_id = spawn_context.session_id
 
     # Build command for Claude CLI
+    # Pass session_id so Claude uses --session-id flag, which allows the
+    # SessionStart hook to match this process to the pre-created session
+    # (and auto-activate the workflow, which delivers the prompt via on_enter).
     cmd = build_cli_command(
         cli="claude",
         prompt=request.prompt,
+        session_id=gobby_session_id,
         auto_approve=True,
         mode="terminal",
         model=request.model,
