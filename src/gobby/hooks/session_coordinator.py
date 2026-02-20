@@ -312,12 +312,15 @@ class SessionCoordinator:
         self.logger.debug(f"Completing agent run {agent_run_id} for session {session.id}")
 
         # Remove from in-memory running agents registry
+        # Capture tmux_session_name before removal for result fallback
+        tmux_session_name: str | None = None
         try:
             from gobby.agents.registry import get_running_agent_registry
 
             running_registry = get_running_agent_registry()
             removed = running_registry.remove(agent_run_id)
             if removed:
+                tmux_session_name = removed.tmux_session_name
                 self.logger.debug(f"Unregistered running agent {agent_run_id} from registry")
         except Exception as e:
             self.logger.warning(f"Failed to unregister agent from running registry: {e}")
@@ -332,7 +335,7 @@ class SessionCoordinator:
                 return
 
             # Skip if already completed
-            if agent_run.status in ("success", "error", "timeout", "cancelled"):
+            if agent_run.status not in ("pending", "running"):
                 self.logger.debug(
                     f"Agent run {agent_run_id} already in terminal state: {agent_run.status}"
                 )
@@ -363,6 +366,48 @@ class SessionCoordinator:
                 except (sqlite3.Error, ValueError) as e:
                     self.logger.warning(
                         f"Failed to get last assistant message for {session.id}: {e}"
+                    )
+
+            # Fallback: capture terminal output from tmux session (if still alive)
+            if not result and tmux_session_name:
+                try:
+                    import asyncio
+
+                    from gobby.agents.tmux.session_manager import TmuxSessionManager
+
+                    mgr = TmuxSessionManager()
+
+                    async def _capture() -> str:
+                        rc, stdout, _ = await mgr._run(
+                            "capture-pane", "-t", tmux_session_name, "-p", "-S", "-"
+                        )
+                        return stdout.strip() if rc == 0 else ""
+
+                    try:
+                        loop = asyncio.get_running_loop()
+                    except RuntimeError:
+                        loop = None
+
+                    if loop and loop.is_running():
+                        # Already in async context - schedule and wait
+                        import concurrent.futures
+
+                        with concurrent.futures.ThreadPoolExecutor() as pool:
+                            captured = pool.submit(
+                                lambda: asyncio.run(_capture())
+                            ).result(timeout=5.0)
+                    else:
+                        captured = asyncio.run(_capture())
+
+                    if captured:
+                        result = captured
+                        self.logger.info(
+                            f"Captured result from tmux session '{tmux_session_name}' "
+                            f"for agent {agent_run_id} ({len(captured)} chars)"
+                        )
+                except Exception as e:
+                    self.logger.debug(
+                        f"tmux capture-pane fallback failed for {tmux_session_name}: {e}"
                     )
 
             # Count tool calls and turns from session messages

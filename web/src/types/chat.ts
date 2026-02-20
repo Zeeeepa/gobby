@@ -1,7 +1,7 @@
 import type { CommandInfo } from '../hooks/useSlashCommands'
 import type { GobbySession } from '../hooks/useSessions'
 
-export type ChatMode = 'normal' | 'bypass' | 'plan'
+export type ChatMode = 'accept_edits' | 'bypass' | 'plan'
 
 export interface ChatModeInfo {
   id: ChatMode
@@ -11,7 +11,7 @@ export interface ChatModeInfo {
 
 export const CHAT_MODES: ChatModeInfo[] = [
   { id: 'plan', label: 'Plan', description: 'Read-only planning mode' },
-  { id: 'normal', label: 'Act', description: 'Prompt for tool approvals' },
+  { id: 'accept_edits', label: 'Act', description: 'Auto-approve edits, prompt for dangerous commands' },
   { id: 'bypass', label: 'Full Auto', description: 'Auto-approve all tools' },
 ]
 
@@ -46,11 +46,18 @@ export interface ProjectOption {
   name: string
 }
 
+export interface ContextUsage {
+  inputTokens: number
+  outputTokens: number
+  contextWindow: number | null
+}
+
 export interface ChatState {
   messages: ChatMessage[]
   isStreaming: boolean
   isThinking: boolean
   isConnected: boolean
+  contextUsage?: ContextUsage
   onSend: (content: string, files?: QueuedFile[]) => void
   onStop: () => void
   onRespondToQuestion: (toolCallId: string, answers: Record<string, string>) => void

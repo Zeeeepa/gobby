@@ -1,9 +1,10 @@
 import { useState, useCallback, useRef, useEffect, useMemo, type KeyboardEvent } from 'react'
-import type { QueuedFile, ProjectOption, ChatMode } from '../../types/chat'
+import type { QueuedFile, ProjectOption, ChatMode, ContextUsage } from '../../types/chat'
 import type { CommandInfo } from '../../hooks/useSlashCommands'
 import { cn } from '../../lib/utils'
 import { Button } from './ui/Button'
 import { ModeSelector } from './ModeSelector'
+import { ContextUsageIndicator } from './ContextUsageIndicator'
 
 interface ChatInputProps {
   onSend: (message: string, files?: QueuedFile[]) => void
@@ -27,6 +28,7 @@ interface ChatInputProps {
   voiceError?: string | null
   onToggleVoice?: () => void
   onStopSpeaking?: () => void
+  contextUsage?: ContextUsage
 }
 
 export function ChatInput({
@@ -40,7 +42,7 @@ export function ChatInput({
   projects = [],
   selectedProjectId,
   onProjectChange,
-  mode = 'bypass',
+  mode = 'accept_edits',
   onModeChange,
   voiceMode = false,
   voiceAvailable = false,
@@ -51,6 +53,7 @@ export function ChatInput({
   voiceError,
   onToggleVoice,
   onStopSpeaking,
+  contextUsage,
 }: ChatInputProps) {
   const [input, setInput] = useState('')
   const [selectedIndex, setSelectedIndex] = useState(0)
@@ -209,8 +212,17 @@ export function ChatInput({
               <MicIcon />
             </button>
           )}
+          {contextUsage && (
+            <div className="ml-auto">
+              <ContextUsageIndicator
+                inputTokens={contextUsage.inputTokens}
+                outputTokens={contextUsage.outputTokens}
+                contextWindow={contextUsage.contextWindow}
+              />
+            </div>
+          )}
           {projects.length > 0 && (
-            <div className="relative ml-auto">
+            <div className={cn("relative", !contextUsage && "ml-auto")}>
               <div className="flex rounded-md border border-border text-xs">
                 <button
                   className={cn('px-2 py-1 rounded-l-md transition-colors', isPersonal ? 'bg-accent text-accent-foreground' : 'text-muted-foreground hover:bg-muted')}

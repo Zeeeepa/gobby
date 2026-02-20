@@ -367,9 +367,16 @@ class RunningAgentRegistry:
         # Only use tmux if the pane actually exists and belongs to a running tmux session
         if ctx.get("tmux_pane"):
             try:
+                # Use -L gobby socket so we target Gobby's isolated tmux server
+                from gobby.agents.tmux.config import TmuxConfig
+
+                tmux_socket = TmuxConfig().socket_name or "gobby"
+
                 # Verify the pane exists before killing - prevents killing inherited/stale panes
                 rc, stdout, _ = await self._run_subprocess(
                     "tmux",
+                    "-L",
+                    tmux_socket,
                     "display-message",
                     "-t",
                     ctx["tmux_pane"],
@@ -380,6 +387,8 @@ class RunningAgentRegistry:
                 if rc == 0 and stdout.strip():
                     await self._run_subprocess(
                         "tmux",
+                        "-L",
+                        tmux_socket,
                         "kill-pane",
                         "-t",
                         ctx["tmux_pane"],
