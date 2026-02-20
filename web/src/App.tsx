@@ -174,14 +174,6 @@ export default function App() {
     [sessionsHook.filteredSessions]
   )
 
-  // Recent CLI/external sessions for "Continue from CLI" section (most recent 5)
-  const recentCliSessions = useMemo(
-    () => sessionsHook.filteredSessions
-      .filter((s) => s.source !== 'claude_sdk_web_chat')
-      .slice(0, 5),
-    [sessionsHook.filteredSessions]
-  )
-
   // Wrap sendMessage to include the selected model and handle slash commands
   const handleSendMessage = useCallback((content: string, files?: QueuedFile[]) => {
     // Check for slash command first
@@ -342,12 +334,10 @@ export default function App() {
           }}
           conversations={{
             sessions: webChatSessions,
-            recentCliSessions,
             activeSessionId: conversationId,
             onNewChat: startNewChat,
             onSelectSession: handleSelectConversation,
             onDeleteSession: handleDeleteConversation,
-            onContinueSession: handleContinueInChat,
             onRenameSession: sessionsHook.renameSession,
             agents,
             onNavigateToAgent: handleNavigateToAgent,

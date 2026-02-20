@@ -37,12 +37,10 @@ export function ChatPage({ chat, conversations, project, voice }: ChatPageProps)
     <div className="flex h-full overflow-hidden bg-background text-foreground">
       <ConversationPicker
         sessions={conversations.sessions}
-        recentCliSessions={conversations.recentCliSessions}
         activeSessionId={conversations.activeSessionId}
         onNewChat={conversations.onNewChat}
         onSelectSession={conversations.onSelectSession}
         onDeleteSession={conversations.onDeleteSession}
-        onContinueSession={conversations.onContinueSession}
         onRenameSession={conversations.onRenameSession}
         agents={conversations.agents}
         onNavigateToAgent={conversations.onNavigateToAgent}
