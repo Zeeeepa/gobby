@@ -8,6 +8,200 @@ All notable changes to Gobby are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.19]
+
+### Major Features
+
+#### Chat v2 Promoted to Primary Chat
+
+Replaced the original chat UI with a fully redesigned experience built on the Claude Agent SDK.
+
+- Promote Chat v2 to primary Chat tab, remove old Chat tab (#8440, #8456)
+- Markdown rendering with `@tailwindcss/typography` and custom prose styles (#8425, #8426, #8427)
+- Syntax highlighting and line numbers in tool call results (#8434)
+- Streaming caret appears inline with text (#8428, #8429, #8430)
+- Auto-synthesize chat title from first message (#8433)
+- Inline session title rename via double-click (#8662)
+- Show session ref in chat message header (#8664)
+- Display Write/Edit tool call content with syntax highlighting (#8537)
+- Split assistant text segments at tool call boundaries (#8595)
+- Tool call cards display when `tool_status` arrives before assistant message (#8538)
+- Filter system turns from title synthesis and improve auto-scroll (#8512)
+- Simplify chat sidebar to stay open like sessions sidebar (#8716)
+- Remove Recent CLI Sessions section from chat sidebar (#8717)
+
+#### Chat Modes and Context Management
+
+- Chat mode selector: Plan / Act / Full Auto (#8636, #8541)
+- Convert mode selector to segmented button group (#8638)
+- Act mode uses `accept_edits` behavior (#8637)
+- Context usage indicator with pie chart (#8631)
+- `/compact` slash command for context management (#8631)
+- Fix context usage tracking — replace tokens per turn instead of accumulating (#8699, #8661)
+- Cap conversation history to fit Claude's 10K `additionalContext` limit (#8634)
+- Bump `additionalContext` limit from 9500 to 9950 (#8635)
+
+#### Voice Chat Overhaul
+
+- Replace push-to-talk with continuous listening via client-side VAD using `@ricky0123/vad-web` (#8437)
+- Pause VAD while TTS is playing to prevent echo feedback loop (#8442)
+- Debounce VAD resume after TTS playback (#8666)
+- Decouple ElevenLabs TTS from text stream to fix sputtering (#8435)
+- Switch to `eleven_flash_v2_5` model with auth headers for WebSocket streaming (#8444)
+- Configurable `voice_settings` via VoiceConfig (speed, similarity, style) (#8449)
+- Reduce VAD sensitivity to avoid false triggers (#8447)
+- Serve VAD/ONNX assets locally, fall back to CDN for WASM (#8439, #8441)
+
+#### Source Control / GitHub Tab
+
+- New GitHub tab with source control UI — branches, PRs, worktrees, clones, CI/CD (#8422)
+- Extract source-control CSS and fix Tailwind config (#8512)
+- Source control component quality improvements (#8592, #8561, #8568)
+
+#### Project-Agnostic Daemon
+
+- Make daemon project-agnostic with per-session context resolution (#8601)
+- Propagate `project_id` from web UI project selector to MCP context (#8488)
+- Wire frontend project selector to send `set_project` WebSocket message (#8571, #8570)
+- Inject GOBBY_SESSION_ID env var into web chat CLI subprocess (#8555)
+- Inject session identity into web chat system prompt (#8572)
+- Set cwd on web chat lifecycle HookEvent (#8557)
+
+#### Pipeline System Improvements
+
+- Make `session_id` required on `run_pipeline`, derive `project_id` from session (#8509)
+- Pipeline-spawned agents default to headless mode (#8505)
+- Thread `parent_session_id` through pipeline spawn steps (#8498, #8500)
+- Forward `session_id` from `expose_as_tool` pipelines (#8500)
+- Merge pipeline default inputs with caller-provided inputs (#8503)
+- Pipeline error handler persists step failure to DB (#8502)
+- Allow `cancel_run` for pending agents (#8507)
+- Wire WebSocket events and tool proxy for lazily-created pipeline executors (#8607)
+- Initialize pipeline executor and git manager at daemon startup (#8627)
+- Always register `gobby-pipelines` and `gobby-clones` MCP servers at startup (#8630)
+
+### Features
+
+- Static model picker with Claude Opus/Sonnet/Haiku (#8655)
+- Use shorthand model names and default to opus (#8551)
+- Replace deprecated Claude 4.5 model IDs with 4.6 equivalents (#8534)
+- Theme selector in settings — dark / light / system (#8647)
+- Show 'session ended' overlay when tmux session dies (#8604)
+- Terminal list trash button, PID in top bar (#8646)
+- Show synthesized session title for terminals (#8654)
+- Improve terminal default display names (#8653)
+- Pin toggle to chats sidebar for desktop view (#8715)
+- Continue CLI session in web chat UI (#8657)
+- Mobile chat drawer for conversation sidebar (#8497)
+- Mobile min-height for terminals and drawer navigation for sidebars (#8499)
+- Move active agents below chats with terminal navigation (#8494)
+- YAML editor modal and reorganize workflow card buttons (#8431)
+- Configurable display limits for memory and knowledge graphs (#8485)
+- `rebuild_crossrefs` and `rebuild_knowledge_graph` MCP tools (#8471)
+- `rebuild-crossrefs` and `rebuild-graph` CLI commands (#8474)
+- POST `/memories/graph/rebuild` for bulk KG extraction (#8470)
+- Basic model-specific agent definitions (claude-cli-haiku/sonnet/opus, gemini-cli, researcher) (#8626)
+- Configure VS Code terminal title during `gobby install` (#8420)
+- Extract `_apply_debug_echo` helper and extend to all hook handlers (#8545)
+- Migration 111 for `cfg__` secret name refactor (#8658)
+- `add_total_input_tokens` to chat_session.py DoneEvent (#8701)
+
+### Bug Fixes
+
+- Handle unknown message types from Claude Agent SDK (`MessageParseError` on `rate_limit_event`) (#8450)
+- Soft-delete chat sessions to avoid FK constraint failures (#8549)
+- Add `mcp_servers={}` to internal SDK calls to prevent Canva MCP bleed (#8548)
+- Block native Claude Code task/todo tools in SDK web UI sessions (#8649)
+- Tool approval rejection returns `PermissionResultDeny` instead of Allow (#8530)
+- Plan mode edit exemption only applies to plan files (#8633)
+- Re-add TodoWrite to session-lifecycle `block_tools` (#8632)
+- Wire `require_task_before_edit` into `block_tools` when clause (#8540)
+- Pass `None` instead of empty dict for env in `ChatSession.start()` (#8712)
+- Context usage pie chart showing 0% due to prompt caching (#8673)
+- Agent result capture returns empty despite successful completion (#8629)
+- Create workflow state when `claim_task` finds no existing row (#8656)
+- Memory review gate self-clears to prevent infinite stop loop (#8643)
+- Drop `cfg__` prefix from secret naming convention (#8641)
+- TTS silent failure and config cleanup (#8640)
+- Agent status display and pipeline executor wiring (#8631)
+- Kill agent handles already-dead agents gracefully (#8628, #8608)
+- Deliver spawn prompt to workflow templates for pipeline agents (#8694)
+- Pass `session_id` to `build_cli_command` for Claude terminal agents (#8665)
+- Isolation_ctx variable scoping in `spawn_agent` (#8660)
+- Populate context usage tokens in web chat DoneEvent (#8639)
+- `generate_text` raises on failure instead of returning error strings (#8438)
+- `make_parent_session_id` optional for pipeline-spawned agents (#8506)
+- Count tool calls and turns for terminal-spawned agents (#8504)
+- Terminal-spawned agent lifecycle tracking (#8481)
+- Create `agent_runs` DB record for terminal/embedded/headless spawns (#8457)
+- Persist `agent_run_id` in terminal spawn path (#8473)
+- Wire `llm_service`/`embed_fn` into MemoryManager and fix graph display (#8458)
+- Migrate memory IDs from `mm-` prefix to UUID5 (#8459)
+- Import synced memories before exporting on daemon startup (#8452)
+- Don't pass `source_session_id` during memory import (#8454)
+- Replace dagre+SVG with `react-force-graph-2d` in MemoryGraph (#8493)
+- Batch `fetchall` in memory ID migration to prevent OOM (#8614)
+- Restore terminal display of session ID on SessionStart (#8556)
+- Hide `_global` project from UI and project selectors (#8423)
+- Resolve default project for GitHub tab (#8424)
+- Keep terminal sidebar pinned open on desktop (#8650)
+- Restore Agent Terminals header in sidebar (#8648)
+- Terminal titles in sidebar, title+ID in top bar (#8580)
+- Use sans-serif font in session and nav sidebars (#8451)
+- Center empty state text on sessions and terminals pages
+- React hooks above early return in ArtifactSheetView (#8531)
+- Rename `copyPaths` to `copyDirs` in worktree template (#8532)
+- Pass `db` to WorkflowLoader in `create_workflows_registry` (#8535)
+- Remove `gobby-task-sync` pre-commit hook to prevent infinite loop (#8596)
+- Make `clear_secret` fully atomic in config_store (#8613)
+- Add shutdown cleanup for background pipeline tasks (#8611)
+- Add `-L gobby` socket flag to tmux health check (#8600)
+- Update pipeline MCP tests to use `session_id` instead of `project_id` (#8610)
+- Resolve 31 test failures and 16 PytestWarnings (#8668)
+- Address 8 confirmed CodeRabbit findings from PR #204 (#8671)
+- 6 deferred CodeRabbit findings (memory, pipeline, config, spawn, sdk_compat) (#8581)
+- 9 critical CodeRabbit fixes + deferred task triage (#8579)
+- 10 high-priority CodeRabbit findings (#8563)
+- ~40 CodeRabbit findings across backend, frontend, config, and docs (#8472)
+- Multiple frontend quality batches: accessibility, ARIA, error handling, sanitization (#8589, #8590, #8591, #8592)
+- Frontend source control, React quality, chat improvements (#8558-#8562, #8567-#8568)
+- Backend data integrity, exception narrowing, logging (#8559, #8558, #8624)
+
+### Refactoring
+
+- Delete `headless-lifecycle.yaml` and remove deprecated `discover_lifecycle_workflows` (#8574)
+- Delete `detection_helpers.py` and inline into observers/engine/actions (#8468)
+- Remove deprecated `require_active_task` action (#8542)
+- Remove `spawn_session` dead code from pipeline system (#8511)
+- Consolidate `delete_worktree` git deletion branching (#8615)
+- Replace `public self.db` alias with property in SessionManager (#8612)
+- Rename `chat-v2` to `chat` directory (#8456)
+- Replace hardcoded colors with CSS variables (#8463)
+- Remove unused `type: ignore` comment in sdk_compat.py (#8702)
+
+### Performance
+
+- Move tmux health check to background task (#8617)
+
+### Documentation
+
+- Harden a2ui-canvas.md design doc (12 CodeRabbit findings) (#8618)
+- Add setup context to `mcp_call_tool` examples in Gemini workflow (#8623)
+- Gemini worktree skill security warning and template path clarification (#8594)
+
+### Tests
+
+- Fix `test_spawn.py` mock asserts on correct method (#8582)
+- Convert `@patch` decorator to context manager in test_config.py (#8616)
+- Rename `discover_lifecycle_workflows` to `discover_workflows` in tests (#8651)
+- Update test expectations for model assertions (#8543, #8547)
+- Replace `MemorySyncConfig` with `MemoryBackupConfig` in tests (#8552)
+- Remove `require_task_before_edit` and `protected_tools` from WorkflowConfig tests (#8554)
+- Update `generate_text` tests to expect RuntimeError (#8553)
+- Move inline uuid imports to module level in test files (#8467)
+
+---
+
 ## [0.2.18]
 
 ### Breaking Changes
