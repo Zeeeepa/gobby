@@ -333,7 +333,7 @@ class ChatSession:
             mcp_servers=mcp_config if mcp_config is not None else {},
             cwd=cwd,
             hooks=cast(Any, sdk_hooks) if sdk_hooks else None,
-            env=env,
+            env=env or None,
         )
 
         self._client = ClaudeSDKClient(options=options)
@@ -803,7 +803,9 @@ class ChatSession:
                                     context_window = model_info.get("max_input_tokens")
                             except (ImportError, KeyError, AttributeError, TypeError) as e:
                                 logger.debug(
-                                    "Could not derive context window for %s: %s", self._last_model, e
+                                    "Could not derive context window for %s: %s",
+                                    self._last_model,
+                                    e,
                                 )
 
                         logger.info(
