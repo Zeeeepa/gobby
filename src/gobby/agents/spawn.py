@@ -159,8 +159,14 @@ def prepare_terminal_spawn(
     if agent_run_id is None:
         agent_run_id = f"run-{uuid.uuid4().hex[:12]}"
 
-    # Create agent_runs record so the FK constraint on sessions.agent_run_id is satisfied
+    # Create agent_runs record so the FK constraint on sessions.agent_run_id is satisfied.
+    # Use INSERT OR IGNORE to tolerate pre-created rows (e.g. from spawn_agent_impl).
+    import logging as _logging
+
     from gobby.storage.agents import LocalAgentRunManager
+
+    _pts_logger = _logging.getLogger("agents.spawn.prepare_terminal_spawn")
+    _pts_logger.info(f"Creating agent_run {agent_run_id} for child_session {child_session.id}")
 
     agent_run_mgr = LocalAgentRunManager(session_manager._storage.db)
     agent_run_mgr.create(

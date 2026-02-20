@@ -848,6 +848,13 @@ class ChatSession:
                             elif isinstance(block, ToolUseBlock):
                                 tool_calls_count += 1
                                 server_name = _parse_server_name(block.name)
+                                # Set spacing flag eagerly — if the tool is denied
+                                # at the permission gate (e.g. task validation) the
+                                # SDK may not yield a ToolResultBlock, leaving the
+                                # flag unset and causing run-on text like
+                                # "commit.The commit".  ToolResultBlock re-sets it
+                                # harmlessly when it does arrive.
+                                needs_spacing_before_text = True
                                 yield ToolCallEvent(
                                     tool_call_id=block.id,
                                     tool_name=block.name,

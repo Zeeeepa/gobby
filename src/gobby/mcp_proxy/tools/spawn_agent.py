@@ -569,22 +569,10 @@ async def spawn_agent_impl(
         )
     )
 
-    # 11b. Create agent_runs DB record BEFORE spawn so that SessionStart
-    # hooks can find the agent_run immediately when the child process starts.
-    try:
-        runner.run_storage.create(
-            run_id=run_id,
-            parent_session_id=parent_session_id,
-            provider=effective_provider,
-            prompt=enhanced_prompt,
-            workflow_name=effective_workflow,
-            model=effective_model,
-            child_session_id=None,  # Updated after spawn
-        )
-    except Exception as e:
-        logger.error(f"Failed to create agent_run DB record: {e}")
-        agent_registry.remove(run_id, status="failed")
-        return {"success": False, "error": "Failed to create agent_run DB record"}
+    # NOTE: agent_runs DB record is created inside prepare_terminal_spawn()
+    # (called by execute_spawn).  Do NOT pre-create here — it causes a
+    # UNIQUE constraint violation since prepare_terminal_spawn also inserts
+    # with the same run_id.  See: agents/spawn.py:162
 
     spawn_result = await execute_spawn(spawn_request)
 

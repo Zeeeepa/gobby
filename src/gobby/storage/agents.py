@@ -119,7 +119,7 @@ class LocalAgentRunManager:
 
         self.db.execute(
             """
-            INSERT INTO agent_runs (
+            INSERT OR REPLACE INTO agent_runs (
                 id, parent_session_id, child_session_id, workflow_name,
                 provider, model, status, prompt, created_at, updated_at
             )

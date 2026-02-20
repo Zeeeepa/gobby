@@ -176,6 +176,10 @@ async def stream_with_mcp_tools(
                         tool_calls_count += 1
                         server_name = parse_server_name(block.name)
                         pending_tool_calls[block.id] = block.name
+                        # Set spacing flag eagerly — if the tool is denied
+                        # at the permission gate the SDK may not yield a
+                        # ToolResultBlock, causing run-on text.
+                        needs_spacing_before_text = True
                         yield ToolCallEvent(
                             tool_call_id=block.id,
                             tool_name=block.name,

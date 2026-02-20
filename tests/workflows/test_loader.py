@@ -1,7 +1,6 @@
 """Comprehensive tests for WorkflowLoader (DB-only runtime)."""
 
 import json
-import warnings
 from pathlib import Path
 from typing import Any
 from unittest.mock import MagicMock, patch
@@ -479,7 +478,11 @@ class TestMergeWorkflows:
 
     def test_simple_merge(self, loader: WorkflowLoader) -> None:
         """Test basic parent/child merge."""
-        parent: dict[str, Any] = {"name": "parent", "version": "1.0.0", "description": "Parent desc"}
+        parent: dict[str, Any] = {
+            "name": "parent",
+            "version": "1.0.0",
+            "description": "Parent desc",
+        }
         child: dict[str, Any] = {"name": "child", "version": "2.0"}
 
         result = loader._merge_workflows(parent, child)
@@ -1180,7 +1183,9 @@ class TestDiscoverWorkflows:
         """Test that when definition has 'type' but no 'enabled', enabled is derived from type."""
         def_manager.create(
             name="lifecycle-style",
-            definition_json=json.dumps({"name": "lifecycle-style", "version": "1.0", "type": "lifecycle"}),
+            definition_json=json.dumps(
+                {"name": "lifecycle-style", "version": "1.0", "type": "lifecycle"}
+            ),
             workflow_type="workflow",
         )
         def_manager.create(
@@ -1387,13 +1392,25 @@ class TestDBFirstLookup:
         """Test that DB entries shadow each other by name (project over global)."""
         def_manager.create(
             name="shadow-test",
-            definition_json=json.dumps({"name": "shadow-test", "description": "global", "steps": [{"name": "work", "allowed_tools": "all"}]}),
+            definition_json=json.dumps(
+                {
+                    "name": "shadow-test",
+                    "description": "global",
+                    "steps": [{"name": "work", "allowed_tools": "all"}],
+                }
+            ),
             workflow_type="workflow",
             priority=100,
         )
         def_manager.create(
             name="shadow-test",
-            definition_json=json.dumps({"name": "shadow-test", "description": "project", "steps": [{"name": "work", "allowed_tools": "all"}]}),
+            definition_json=json.dumps(
+                {
+                    "name": "shadow-test",
+                    "description": "project",
+                    "steps": [{"name": "work", "allowed_tools": "all"}],
+                }
+            ),
             workflow_type="workflow",
             priority=10,
             project_id=project.id,
@@ -1416,7 +1433,9 @@ class TestDBFirstLookup:
         """Test that discover only returns DB entries (no filesystem)."""
         def_manager.create(
             name="db-only",
-            definition_json=json.dumps({"name": "db-only", "steps": [{"name": "work", "allowed_tools": "all"}]}),
+            definition_json=json.dumps(
+                {"name": "db-only", "steps": [{"name": "work", "allowed_tools": "all"}]}
+            ),
             workflow_type="workflow",
         )
 

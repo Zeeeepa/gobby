@@ -722,7 +722,14 @@ class ClaudeLLMProvider(LLMProvider):
                 elif isinstance(message, AssistantMessage):
                     for block in message.content:
                         if isinstance(block, TextBlock):
-                            result_text += block.text
+                            # Ensure spacing between text from different
+                            # AssistantMessages (tool calls in between may
+                            # not yield ToolResultBlocks if denied).
+                            text = block.text
+                            if result_text and text:
+                                if not result_text[-1].isspace() and not text[0].isspace():
+                                    result_text += "\n\n"
+                            result_text += text
                         elif isinstance(block, ToolUseBlock):
                             # Track tool use
                             tool_call = ToolCall(
