@@ -149,10 +149,12 @@ export function ConversationPicker({
                 <div
                   key={agent.run_id}
                   className="session-item"
-                  onClick={() => onNavigateToAgent?.(agent)}
-                  role="button"
-                  tabIndex={0}
-                  onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onNavigateToAgent?.(agent) } }}
+                  {...(onNavigateToAgent ? {
+                    onClick: () => onNavigateToAgent(agent),
+                    role: 'button' as const,
+                    tabIndex: 0,
+                    onKeyDown: (e: React.KeyboardEvent) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onNavigateToAgent(agent) } },
+                  } : {})}
                 >
                   <div className="session-item-main">
                     <span
@@ -185,11 +187,12 @@ function AgentUptime({ startedAt }: { startedAt?: string }) {
       const t = new Date(startedAt).getTime()
       if (!Number.isNaN(t)) return t
     }
-    return Date.now()
+    return null
   }, [startedAt])
-  const [uptime, setUptime] = useState('0s')
+  const [uptime, setUptime] = useState(startTime ? '0s' : '—')
 
   useEffect(() => {
+    if (startTime === null) return
     const update = () => {
       const elapsed = Math.floor((Date.now() - startTime) / 1000)
       if (elapsed < 60) setUptime(`${elapsed}s`)

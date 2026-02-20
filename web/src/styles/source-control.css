@@ -829,10 +829,10 @@
   text-align: center;
 }
 
-.sc-diff__file-status--A { color: #4ade80; }
-.sc-diff__file-status--M { color: #fbbf24; }
-.sc-diff__file-status--D { color: #f87171; }
-.sc-diff__file-status--R { color: #a78bfa; }
+.sc-diff__file-status--A { color: var(--diff-added, #4ade80); }
+.sc-diff__file-status--M { color: var(--diff-modified, #fbbf24); }
+.sc-diff__file-status--D { color: var(--diff-deleted, #f87171); }
+.sc-diff__file-status--R { color: var(--diff-renamed, #a78bfa); }
 
 .sc-diff__file-path {
   font-family: var(--font-mono);

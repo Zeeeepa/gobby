@@ -146,6 +146,9 @@ export function WorkflowsPage() {
     } catch (e) {
       console.error('Failed to export YAML:', e)
       setYamlContent('')
+      window.alert(`Failed to export workflow YAML: ${e instanceof Error ? e.message : String(e)}`)
+      setYamlEditorWf(null)
+      return
     } finally {
       setYamlLoading(false)
     }
@@ -161,6 +164,7 @@ export function WorkflowsPage() {
     }
     if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) throw new Error('Invalid YAML: expected an object')
     if (parsed.name !== undefined && typeof parsed.name !== 'string') throw new Error('Invalid YAML: "name" must be a string')
+    if (typeof parsed.name === 'string' && !parsed.name.trim()) throw new Error('Invalid YAML: "name" must not be empty')
     if (parsed.description !== undefined && typeof parsed.description !== 'string') throw new Error('Invalid YAML: "description" must be a string')
     if (parsed.steps !== undefined && !Array.isArray(parsed.steps)) throw new Error('Invalid YAML: "steps" must be an array')
     await updateWorkflow(yamlEditorWf.id, {

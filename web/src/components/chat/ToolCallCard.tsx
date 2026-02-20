@@ -149,7 +149,7 @@ function ToolResultContent({ call }: { call: ToolCall }) {
   try {
     resultStr = typeof call.result === 'string' ? call.result : JSON.stringify(call.result, null, 2)
   } catch (e) {
-    console.error('Failed to serialize tool call result:', e)
+    if (process.env.NODE_ENV === 'development') console.error('Failed to serialize tool call result:', e)
     resultStr = String(call.result)
   }
   const filePath = call.arguments?.file_path as string | undefined

@@ -22,11 +22,11 @@ export function MobileTerminalDrawer({
 }: MobileTerminalDrawerProps) {
   const [isOpen, setIsOpen] = useState(false)
 
-  const attachedKey = attachedSession
-    ? sessions.find(s => s.name === attachedSession)
+  const attachedEntry = attachedSession
+    ? sessions.find(s => s.name === attachedSession && streamingId !== null)
     : null
-  const activeTitle = attachedKey
-    ? (terminalNames[`${attachedKey.socket}:${attachedKey.name}`] || attachedKey.pane_title || attachedKey.name)
+  const activeTitle = attachedEntry
+    ? (terminalNames[`${attachedEntry.socket}:${attachedEntry.name}`] || attachedEntry.pane_title || attachedEntry.name)
     : 'Terminals'
 
   const defaultSessions = sessions.filter(s => s.socket === 'default')
@@ -70,7 +70,7 @@ export function MobileTerminalDrawer({
       {isOpen && (
         <div className="mobile-chat-drawer-content">
           {sessions.length === 0 && (
-            <div style={{ padding: '0.75rem 1rem', color: 'var(--text-muted)', fontSize: 'calc(var(--font-size-base) * 0.85)' }}>
+            <div className="mobile-chat-drawer-empty">
               No terminals found
             </div>
           )}

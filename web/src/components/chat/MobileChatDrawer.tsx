@@ -49,7 +49,7 @@ export function MobileChatDrawer({
 
           <div className="mobile-chat-drawer-list">
             {sessions.length === 0 && (
-              <div style={{ padding: '0.75rem 1rem', color: 'var(--text-muted)', fontSize: 'calc(var(--font-size-base) * 0.85)' }}>
+              <div className="mobile-chat-drawer-empty">
                 No conversations
               </div>
             )}

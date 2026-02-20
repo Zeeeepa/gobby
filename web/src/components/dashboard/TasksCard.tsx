@@ -26,7 +26,7 @@ export function TasksCard({ tasks }: Props) {
     const value = tasks[key]
     const ratio = total > 0 ? value / total : 0
     const length = ratio * CIRCUMFERENCE
-    const ring = { color, length, offset }
+    const ring = { key, color, length, offset }
     offset += length
     return ring
   })
@@ -52,7 +52,7 @@ export function TasksCard({ tasks }: Props) {
             {rings.map((ring) =>
               ring.length > 0 ? (
                 <circle
-                  key={ring.color}
+                  key={ring.key}
                   cx={SIZE / 2}
                   cy={SIZE / 2}
                   r={RADIUS}

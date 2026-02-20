@@ -3,6 +3,11 @@ import type { GobbySession } from '../hooks/useSessions'
 import { SourceIcon } from './SourceIcon'
 import { formatRelativeTime } from '../utils/formatTime'
 
+function getModelBadge(model: string): string {
+  const parts = model.split('-')
+  return parts[parts.length - 1]
+}
+
 interface MobileSessionDrawerProps {
   sessions: GobbySession[]
   selectedSessionId: string | null
@@ -80,7 +85,7 @@ export function MobileSessionDrawer({
                   <div className="session-item-actions">
                     {session.model && (
                       <span className="session-detail-model-badge">
-                        {session.model.split('-').slice(-1)[0]}
+                        {getModelBadge(session.model)}
                       </span>
                     )}
                     <span className="session-meta-count">{session.message_count}msg</span>

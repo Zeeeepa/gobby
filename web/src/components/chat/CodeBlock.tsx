@@ -34,7 +34,7 @@ function CodeBlockInner({ children, className }: CodeProps) {
   const { openCodeAsArtifact } = useArtifactContext()
   const copyTimeoutRef = useRef<number | null>(null)
 
-  const match = /language-([\w+#\-.]+)/.exec(className || '')
+  const match = /language-([\w+#\-./]+)/.exec(className || '')
   const language = match ? match[1] : ''
   const codeString = String(children).replace(/\n$/, '')
   const isInline = !match && !String(children).includes('\n')

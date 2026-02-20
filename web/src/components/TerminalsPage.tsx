@@ -1,4 +1,4 @@
-import { useEffect, useRef, useCallback, useState } from 'react'
+import { useEffect, useRef, useCallback, useState, useMemo } from 'react'
 import { Terminal as XTerm } from '@xterm/xterm'
 import { FitAddon } from '@xterm/addon-fit'
 import '@xterm/xterm/css/xterm.css'
@@ -94,6 +94,16 @@ export function TerminalsPage({
 
   // Track attached session's socket for kill
   const attachedSocketRef = useRef<string>('default')
+
+  // Compute display name for the attached session
+  const attachedDisplayName = useMemo(() => {
+    if (!attachedSession) return null
+    const key = `${attachedSocketRef.current}:${attachedSession}`
+    const customName = terminalNames[key]
+    if (customName) return customName
+    const s = sessions.find(s => s.name === attachedSession && s.socket === attachedSocketRef.current)
+    return s?.pane_title || s?.window_name || null
+  }, [attachedSession, terminalNames, sessions])
 
   const handleAttach = useCallback((name: string, socket: string) => {
     attachSession(name, socket)
@@ -192,14 +202,7 @@ export function TerminalsPage({
             <TerminalView
               streamingId={streamingId}
               sessionName={attachedSession}
-              displayName={(() => {
-                if (!attachedSession) return null
-                const key = `${attachedSocketRef.current}:${attachedSession}`
-                const customName = terminalNames[key]
-                if (customName) return customName
-                const s = sessions.find(s => s.name === attachedSession && s.socket === attachedSocketRef.current)
-                return s?.pane_title || s?.window_name || null
-              })()}
+              displayName={attachedDisplayName}
               isInteractive={isInteractive && !sessionEnded}
               sidebarOpen={sidebarOpen}
               onSetInteractive={setIsInteractive}

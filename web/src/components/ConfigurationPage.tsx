@@ -10,6 +10,8 @@ import './ConfigurationPage.css'
 
 type TabId = 'config' | 'secrets' | 'prompts' | 'template'
 
+const BACKEND_SECRET_MASK = '********'
+
 // =============================================================================
 // Secret field detection
 // =============================================================================
@@ -129,7 +131,6 @@ function SchemaField({ name, fieldSchema, value, onChange, path, secretKeys = []
 
   // Default: string input (password for secret fields)
   const secret = isSecretField(fullPath, secretKeys)
-  const BACKEND_SECRET_MASK = '********'
   const isMasked = secret && value === BACKEND_SECRET_MASK
   return (
     <div className="config-form-field">

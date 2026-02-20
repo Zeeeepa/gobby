@@ -17,6 +17,10 @@ for (const file of FILES) {
     console.warn(`[copy-vad-assets] Source not found, skipping: ${src}`)
     continue
   }
-  fs.copyFileSync(src, dest)
-  console.log(`[copy-vad-assets] Copied ${file}`)
+  try {
+    fs.copyFileSync(src, dest)
+    console.log(`[copy-vad-assets] Copied ${file}`)
+  } catch (err) {
+    console.error(`[copy-vad-assets] Failed to copy ${file}: ${err.message}`)
+  }
 }

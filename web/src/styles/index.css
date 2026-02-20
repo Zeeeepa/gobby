@@ -2452,6 +2452,12 @@ body {
     border-bottom: 1px solid var(--border);
   }
 
+  .mobile-chat-drawer-empty {
+    padding: 0.75rem 1rem;
+    color: var(--text-muted);
+    font-size: calc(var(--font-size-base) * 0.85);
+  }
+
   .mobile-chat-drawer.collapsed .mobile-chat-drawer-header {
     border-bottom: none;
   }
@@ -8149,11 +8155,15 @@ body {
   color: var(--accent);
 }
 
-.task-overview-card--review .task-overview-count {
+.task-overview-card--progress .task-overview-count {
   color: #f59e0b;
 }
 
-.task-overview-card--stuck .task-overview-count {
+.task-overview-card--review .task-overview-count {
+  color: #a855f7;
+}
+
+.task-overview-card--escalated .task-overview-count {
   color: #ef4444;
 }
 

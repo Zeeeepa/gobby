@@ -11,6 +11,10 @@ import { MemoryDetail } from './MemoryDetail'
 
 const DEFAULT_MEMORY_GRAPH_LIMIT = 200
 const DEFAULT_KNOWLEDGE_GRAPH_LIMIT = 5000
+const GRAPH_LIMIT_MIN = 50
+const GRAPH_LIMIT_MAX = 1000
+const KNOWLEDGE_LIMIT_MAX = 5000
+const GRAPH_LIMIT_STEP = 50
 
 const KnowledgeGraph = lazy(() => import('./KnowledgeGraph').then(m => ({ default: m.KnowledgeGraph })))
 
@@ -279,13 +283,13 @@ export function MemoryPage() {
               Limit
               <input
                 type="number"
-                min={50}
-                max={viewMode === 'graph' ? 1000 : 5000}
-                step={50}
+                min={GRAPH_LIMIT_MIN}
+                max={viewMode === 'graph' ? GRAPH_LIMIT_MAX : KNOWLEDGE_LIMIT_MAX}
+                step={GRAPH_LIMIT_STEP}
                 value={viewMode === 'knowledge' ? knowledgeGraphLimit : memoryGraphLimit}
                 onChange={e => {
-                  const sliderMax = viewMode === 'graph' ? 1000 : 5000
-                  const v = Math.max(50, Math.min(sliderMax, Number(e.target.value) || 50))
+                  const sliderMax = viewMode === 'graph' ? GRAPH_LIMIT_MAX : KNOWLEDGE_LIMIT_MAX
+                  const v = Math.max(GRAPH_LIMIT_MIN, Math.min(sliderMax, Number(e.target.value) || GRAPH_LIMIT_MIN))
                   if (viewMode === 'knowledge') setKnowledgeGraphLimit(v)
                   else setMemoryGraphLimit(v)
                 }}
