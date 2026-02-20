@@ -799,14 +799,13 @@ class TestGenerateText:
 
     @pytest.mark.asyncio
     async def test_generate_text_no_cli(self, claude_config: DaemonConfig):
-        """Test generate_text returns fallback when CLI not found."""
+        """Test generate_text raises RuntimeError when no backend available."""
         with patch("gobby.llm.claude_cli.shutil.which", return_value=None):
             from gobby.llm.claude import ClaudeLLMProvider
 
             provider = ClaudeLLMProvider(claude_config)
-            result = await provider.generate_text(prompt="Hello")
-
-            assert "unavailable" in result.lower()
+            with pytest.raises(RuntimeError, match="unavailable"):
+                await provider.generate_text(prompt="Hello")
 
     @pytest.mark.asyncio
     async def test_generate_text_success(self, claude_config: DaemonConfig):
@@ -881,7 +880,7 @@ class TestGenerateText:
 
     @pytest.mark.asyncio
     async def test_generate_text_exception(self, claude_config: DaemonConfig):
-        """Test generate_text handles exceptions gracefully."""
+        """Test generate_text raises RuntimeError on SDK exceptions."""
 
         async def mock_query(prompt, options):
             raise RuntimeError("API error")
@@ -891,10 +890,8 @@ class TestGenerateText:
             from gobby.llm.claude import ClaudeLLMProvider
 
             provider = ClaudeLLMProvider(claude_config)
-            result = await provider.generate_text(prompt="Hello")
-
-            assert "failed" in result.lower()
-            assert "API error" in result
+            with pytest.raises(RuntimeError, match="API error"):
+                await provider.generate_text(prompt="Hello")
 
     @pytest.mark.asyncio
     async def test_generate_text_no_messages_warning(self, claude_config: DaemonConfig):

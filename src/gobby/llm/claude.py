@@ -169,7 +169,8 @@ class ClaudeLLMProvider(LLMProvider):
 
             env = Environment(autoescape=False)  # nosec B701 - generating text prompts
             template = env.from_string(prompt_template)
-            return template.render(**formatted_context)
+            rendered: str = template.render(**formatted_context)
+            return rendered
         except ImportError:
             # Fallback to simple str.format if Jinja2 unavailable
             # Convert {{ }} to {} for str.format compatibility
@@ -242,6 +243,7 @@ class ClaudeLLMProvider(LLMProvider):
             max_turns=1,
             model=self.config.session_summary.model,
             allowed_tools=[],
+            mcp_servers={},
             permission_mode="default",
             cli_path=cli_path,
         )
@@ -329,6 +331,7 @@ class ClaudeLLMProvider(LLMProvider):
             max_turns=1,
             model=self.config.title_synthesis.model,
             allowed_tools=[],
+            mcp_servers={},
             permission_mode="default",
             cli_path=cli_path,
         )
@@ -417,7 +420,7 @@ class ClaudeLLMProvider(LLMProvider):
         elif self._litellm:
             return await self._generate_text_litellm(prompt, system_prompt, model)
         else:
-            return "Generation unavailable (no LLM backend configured)"
+            raise RuntimeError("Generation unavailable (no LLM backend configured)")
 
     async def _generate_text_sdk(
         self,
@@ -428,16 +431,17 @@ class ClaudeLLMProvider(LLMProvider):
         """Generate text using Claude Agent SDK (subscription mode)."""
         cli_path = self._verify_cli_path()
         if not cli_path:
-            return "Generation unavailable (Claude CLI not found)"
+            raise RuntimeError("Generation unavailable (Claude CLI not found)")
 
         # Configure Claude Agent SDK
         # Use tools=[] to disable all tools for pure text generation
         options = ClaudeAgentOptions(
             system_prompt=system_prompt or "You are a helpful assistant.",
             max_turns=1,
-            model=model or "claude-sonnet-4-5",
+            model=model or "opus",
             tools=[],  # Explicitly disable all tools
             allowed_tools=[],
+            mcp_servers={},
             permission_mode="default",
             cli_path=cli_path,
         )
@@ -475,7 +479,7 @@ class ClaudeLLMProvider(LLMProvider):
             return await _run_query()
         except Exception as e:
             self.logger.error(f"Failed to generate text with Claude: {e}", exc_info=True)
-            return f"Generation failed: {e}"
+            raise RuntimeError(f"Failed to generate text with Claude: {e}") from e
 
     async def _generate_text_litellm(
         self,
@@ -485,9 +489,11 @@ class ClaudeLLMProvider(LLMProvider):
     ) -> str:
         """Generate text using LiteLLM (api_key mode)."""
         if not self._litellm:
-            return "Generation unavailable (LiteLLM not initialized)"
+            raise RuntimeError("Generation unavailable (LiteLLM not initialized)")
 
-        model = model or "claude-haiku-4-5"
+        from gobby.llm.litellm_executor import resolve_model_alias
+
+        model = resolve_model_alias(model or "haiku")
         litellm_model = f"anthropic/{model}"
 
         try:
@@ -505,7 +511,7 @@ class ClaudeLLMProvider(LLMProvider):
             return response.choices[0].message.content or ""
         except Exception as e:
             self.logger.error(f"Failed to generate text with LiteLLM: {e}", exc_info=True)
-            return f"Generation failed: {e}"
+            raise RuntimeError(f"Failed to generate text with LiteLLM: {e}") from e
 
     async def generate_json(
         self,
@@ -571,7 +577,9 @@ class ClaudeLLMProvider(LLMProvider):
         if not self._litellm:
             raise RuntimeError("Generation unavailable (LiteLLM not initialized)")
 
-        model = model or "claude-haiku-4-5"
+        from gobby.llm.litellm_executor import resolve_model_alias
+
+        model = resolve_model_alias(model or "haiku")
         litellm_model = f"anthropic/{model}"
 
         try:
@@ -620,7 +628,7 @@ class ClaudeLLMProvider(LLMProvider):
                 Tools should be in format "mcp__{server}__{tool}" or patterns
                 like "mcp__gobby-tasks__*" for all tools from a server.
             system_prompt: Optional system prompt.
-            model: Optional model override (default: claude-sonnet-4-5).
+            model: Optional model override (default: claude-sonnet-4-6).
             max_turns: Maximum number of agentic turns (default: 10).
             tool_functions: Optional dict mapping server names to lists of tool
                 functions for in-process MCP servers. Example:
@@ -688,7 +696,7 @@ class ClaudeLLMProvider(LLMProvider):
         options = ClaudeAgentOptions(
             system_prompt=system_prompt or "You are a helpful assistant with access to MCP tools.",
             max_turns=max_turns,
-            model=model or "claude-sonnet-4-5",
+            model=model or "opus",
             allowed_tools=allowed_tools,
             permission_mode="bypassPermissions",
             cli_path=cli_path,
@@ -714,7 +722,14 @@ class ClaudeLLMProvider(LLMProvider):
                 elif isinstance(message, AssistantMessage):
                     for block in message.content:
                         if isinstance(block, TextBlock):
-                            result_text += block.text
+                            # Ensure spacing between text from different
+                            # AssistantMessages (tool calls in between may
+                            # not yield ToolResultBlocks if denied).
+                            text = block.text
+                            if result_text and text:
+                                if not result_text[-1].isspace() and not text[0].isspace():
+                                    result_text += "\n\n"
+                            result_text += text
                         elif isinstance(block, ToolUseBlock):
                             # Track tool use
                             tool_call = ToolCall(
@@ -885,9 +900,10 @@ class ClaudeLLMProvider(LLMProvider):
         options = ClaudeAgentOptions(
             system_prompt="You are a vision assistant that describes images in detail.",
             max_turns=1,
-            model="claude-haiku-4-5",
+            model="haiku",
             tools=[],
             allowed_tools=[],
+            mcp_servers={},
             permission_mode="default",
             cli_path=cli_path,
         )
@@ -934,6 +950,8 @@ class ClaudeLLMProvider(LLMProvider):
         context: str | None = None,
     ) -> str:
         """Describe image using LiteLLM (api_key mode)."""
+        from gobby.llm.litellm_executor import resolve_model_alias
+
         if not self._litellm:
             return "Image description unavailable (LiteLLM not initialized)"
 
@@ -952,7 +970,7 @@ class ClaudeLLMProvider(LLMProvider):
             # Route through LiteLLM with anthropic prefix
             # Use same model as SDK path for consistency
             response = await self._litellm.acompletion(
-                model="anthropic/claude-haiku-4-5",
+                model=f"anthropic/{resolve_model_alias('haiku')}",
                 messages=[
                     {
                         "role": "user",

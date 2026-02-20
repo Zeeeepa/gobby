@@ -515,16 +515,6 @@ triggers:
     - action: task_sync_export
 ```
 
-### headless-lifecycle (always-on, priority 10)
-
-Lightweight lifecycle for headless/SDK clients without session_start/session_end hooks.
-
-```yaml
-enabled: true
-priority: 10
-sources: [claude_sdk, claude_sdk_web_chat]
-```
-
 ### developer (on-demand, priority 20)
 
 TDD developer workflow with full red/green/blue cycle.

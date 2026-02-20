@@ -5,14 +5,17 @@ Tests the config tools that provide read/write access to daemon configuration.
 """
 
 from pathlib import Path
+from unittest.mock import patch
 
 import pytest
 
 from gobby.config.app import DaemonConfig
 from gobby.mcp_proxy.tools.config import create_config_registry
-from gobby.storage.config_store import ConfigStore
+from gobby.mcp_proxy.tools.internal import InternalToolRegistry
+from gobby.storage.config_store import ConfigStore, config_key_to_secret_name, is_secret_key_name
 from gobby.storage.database import LocalDatabase
 from gobby.storage.migrations import run_migrations
+from gobby.storage.secrets import SecretStore
 
 pytestmark = pytest.mark.unit
 
@@ -249,3 +252,163 @@ class TestEnsureDefaults:
 
         assert result["success"] is False
         assert "No default keys" in result["error"]
+
+
+# ===========================================================================
+# Helper function tests
+# ===========================================================================
+
+
+class TestConfigKeyToSecretName:
+    """Tests for config_key_to_secret_name helper."""
+
+    def test_simple_key(self) -> None:
+        assert (
+            config_key_to_secret_name("voice.elevenlabs_api_key")
+            == "elevenlabs_api_key"
+        )
+
+    def test_nested_key(self) -> None:
+        assert config_key_to_secret_name("a.b.c") == "c"
+
+    def test_no_dots(self) -> None:
+        assert config_key_to_secret_name("api_key") == "api_key"
+
+
+class TestIsSecretKeyName:
+    """Tests for is_secret_key_name helper."""
+
+    def test_api_key_suffix(self) -> None:
+        assert is_secret_key_name("voice.elevenlabs_api_key") is True
+
+    def test_password_suffix(self) -> None:
+        assert is_secret_key_name("db.db_password") is True
+
+    def test_access_token_suffix(self) -> None:
+        assert is_secret_key_name("oauth.user_access_token") is True
+
+    def test_non_secret_key(self) -> None:
+        assert is_secret_key_name("daemon_port") is False
+
+    def test_non_secret_with_key_in_name(self) -> None:
+        assert is_secret_key_name("logging.level") is False
+
+
+# ===========================================================================
+# ConfigStore secret methods
+# ===========================================================================
+
+
+class TestConfigStoreSecrets:
+    """Tests for ConfigStore secret-aware methods."""
+
+    @pytest.fixture
+    def secret_store(self, temp_db: LocalDatabase) -> SecretStore:
+        with patch("gobby.utils.machine_id.get_machine_id", return_value="test-machine-12345"):
+            return SecretStore(temp_db)
+
+    def test_set_secret_stores_reference(
+        self, config_store: ConfigStore, secret_store: SecretStore
+    ) -> None:
+        """set_secret stores a $secret: reference in config_store."""
+        config_store.set_secret("voice.elevenlabs_api_key", "sk-test-123", secret_store)
+        raw = config_store.get("voice.elevenlabs_api_key")
+        assert raw == "$secret:elevenlabs_api_key"
+
+    def test_set_secret_encrypts_value(
+        self, config_store: ConfigStore, secret_store: SecretStore
+    ) -> None:
+        """set_secret encrypts the actual value in the secrets table."""
+        config_store.set_secret("voice.elevenlabs_api_key", "sk-test-123", secret_store)
+        decrypted = secret_store.get("elevenlabs_api_key")
+        assert decrypted == "sk-test-123"
+
+    def test_set_secret_marks_is_secret(
+        self, config_store: ConfigStore, secret_store: SecretStore
+    ) -> None:
+        """set_secret sets is_secret=1 in config_store."""
+        config_store.set_secret("voice.elevenlabs_api_key", "sk-test-123", secret_store)
+        keys = config_store.get_secret_keys()
+        assert "voice.elevenlabs_api_key" in keys
+
+    def test_get_secret_keys_empty(self, config_store: ConfigStore) -> None:
+        """get_secret_keys returns empty list when no secrets exist."""
+        assert config_store.get_secret_keys() == []
+
+    def test_get_secret_keys_multiple(
+        self, config_store: ConfigStore, secret_store: SecretStore
+    ) -> None:
+        """get_secret_keys returns all secret keys."""
+        config_store.set_secret("a.api_key", "val1", secret_store)
+        config_store.set_secret("b.password", "val2", secret_store)
+        keys = config_store.get_secret_keys()
+        assert sorted(keys) == ["a.api_key", "b.password"]
+
+    def test_clear_secret(self, config_store: ConfigStore, secret_store: SecretStore) -> None:
+        """clear_secret removes from both config_store and secrets."""
+        config_store.set_secret("voice.elevenlabs_api_key", "sk-test-123", secret_store)
+        config_store.clear_secret("voice.elevenlabs_api_key", secret_store)
+        assert config_store.get("voice.elevenlabs_api_key") is None
+        assert secret_store.get("elevenlabs_api_key") is None
+        assert config_store.get_secret_keys() == []
+
+    def test_normal_set_does_not_mark_secret(self, config_store: ConfigStore) -> None:
+        """Regular set() keeps is_secret=0."""
+        config_store.set("daemon_port", 9999)
+        assert config_store.get_secret_keys() == []
+
+
+# ===========================================================================
+# set_config with is_secret
+# ===========================================================================
+
+
+class TestSetConfigSecret:
+    """Tests for set_config tool with is_secret parameter."""
+
+    @pytest.fixture
+    def config_registry_with_db(
+        self,
+        temp_db: LocalDatabase,
+        config_store: ConfigStore,
+        config_state: dict[str, DaemonConfig],
+    ) -> InternalToolRegistry:
+        """Create a config registry with db for secret support."""
+        return create_config_registry(
+            config=config_state["config"],
+            config_store=config_store,
+            config_setter=lambda c: config_state.__setitem__("config", c),
+            db=temp_db,
+        )
+
+    def test_set_config_secret_encrypts(
+        self, config_registry_with_db, config_store: ConfigStore, temp_db: LocalDatabase
+    ) -> None:
+        """set_config with is_secret=True encrypts the value."""
+        with patch("gobby.utils.machine_id.get_machine_id", return_value="test-machine-12345"):
+            tool = config_registry_with_db.get_tool("set_config")
+            result = tool(key="voice.elevenlabs_api_key", value="sk-test-456", is_secret=True)
+
+            assert result["success"] is True
+            assert result["stored_as"] == "encrypted_secret"
+            assert "value" not in result  # Never expose secret in response
+
+            # Verify encrypted in secrets table
+            secret_store = SecretStore(temp_db)
+            decrypted = secret_store.get("elevenlabs_api_key")
+            assert decrypted == "sk-test-456"
+
+            # Verify config_store has reference
+            raw = config_store.get("voice.elevenlabs_api_key")
+            assert raw == "$secret:elevenlabs_api_key"
+
+    def test_set_config_normal_unchanged(
+        self, config_registry_with_db, config_store: ConfigStore
+    ) -> None:
+        """set_config without is_secret works as before."""
+        tool = config_registry_with_db.get_tool("set_config")
+        result = tool(key="daemon_port", value=61000)
+
+        assert result["success"] is True
+        assert result["value"] == 61000
+        assert config_store.get("daemon_port") == 61000

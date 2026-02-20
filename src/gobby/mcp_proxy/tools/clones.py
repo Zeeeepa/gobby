@@ -26,7 +26,7 @@ logger = logging.getLogger(__name__)
 
 def create_clones_registry(
     clone_storage: LocalCloneManager,
-    git_manager: CloneGitManager,
+    git_manager: CloneGitManager | None,
     project_id: str,
 ) -> InternalToolRegistry:
     """
@@ -34,7 +34,7 @@ def create_clones_registry(
 
     Args:
         clone_storage: Clone storage manager for CRUD operations
-        git_manager: Git manager for clone operations
+        git_manager: Git manager for clone operations (None when no git repo detected)
         project_id: Default project ID for new clones
 
     Returns:
@@ -68,6 +68,12 @@ def create_clones_registry(
         Returns:
             Dict with clone info or error
         """
+        if git_manager is None:
+            return {
+                "success": False,
+                "error": "Clone tools require a git repository context",
+            }
+
         try:
             # Get remote URL if not provided
             if not remote_url:
@@ -246,6 +252,12 @@ def create_clones_registry(
         Returns:
             Dict with success status
         """
+        if git_manager is None:
+            return {
+                "success": False,
+                "error": "Clone tools require a git repository context",
+            }
+
         clone = clone_storage.get(clone_id)
         if not clone:
             return {"success": False, "error": f"Clone not found: {clone_id}"}
@@ -326,6 +338,12 @@ def create_clones_registry(
         Returns:
             Dict with sync result
         """
+        if git_manager is None:
+            return {
+                "success": False,
+                "error": "Clone tools require a git repository context",
+            }
+
         clone = clone_storage.get(clone_id)
         if not clone:
             return {"success": False, "error": f"Clone not found: {clone_id}"}
@@ -402,6 +420,12 @@ def create_clones_registry(
         Returns:
             Dict with merge result and conflict info if any
         """
+        if git_manager is None:
+            return {
+                "success": False,
+                "error": "Clone tools require a git repository context",
+            }
+
         from datetime import UTC, datetime, timedelta
 
         clone = clone_storage.get(clone_id)

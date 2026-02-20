@@ -56,9 +56,10 @@ def test_setup_with_all_managers_none() -> None:
     )
 
     registries = manager.get_all_registries()
-    # Only workflows should be present (always enabled)
     registry_names = [r.name for r in registries]
+    # Always-on registries should be present
     assert "gobby-workflows" in registry_names
+    assert "gobby-pipelines" in registry_names
     # These should NOT be present when their managers are None
     assert "gobby-memory" not in registry_names
     assert "gobby-metrics" not in registry_names
@@ -374,15 +375,12 @@ def test_setup_with_pipeline_executor() -> None:
     """Test pipelines registry is created when pipeline_executor is provided."""
     mock_config = MagicMock()
     mock_config.get_gobby_tasks_config.return_value.enabled = False
-    pipeline_executor = MagicMock()
-    workflow_loader = MagicMock()
-    execution_manager = MagicMock()
 
     manager = setup_internal_registries(
         _config=mock_config,
-        pipeline_executor=pipeline_executor,
-        workflow_loader=workflow_loader,
-        pipeline_execution_manager=execution_manager,
+        pipeline_executor=MagicMock(),
+        workflow_loader=MagicMock(),
+        pipeline_execution_manager=MagicMock(),
     )
 
     registries = manager.get_all_registries()
@@ -390,8 +388,8 @@ def test_setup_with_pipeline_executor() -> None:
     assert "gobby-pipelines" in registry_names
 
 
-def test_setup_pipelines_not_created_without_executor() -> None:
-    """Test pipelines registry is not created when executor is None."""
+def test_setup_pipelines_always_registered_even_without_executor() -> None:
+    """Test pipelines registry is always created, even when executor is None."""
     mock_config = MagicMock()
     mock_config.get_gobby_tasks_config.return_value.enabled = False
 
@@ -402,22 +400,19 @@ def test_setup_pipelines_not_created_without_executor() -> None:
 
     registries = manager.get_all_registries()
     registry_names = [r.name for r in registries]
-    assert "gobby-pipelines" not in registry_names
+    assert "gobby-pipelines" in registry_names
 
 
 def test_setup_pipelines_tools_accessible() -> None:
     """Test that pipelines tools are accessible via registry."""
     mock_config = MagicMock()
     mock_config.get_gobby_tasks_config.return_value.enabled = False
-    pipeline_executor = MagicMock()
-    workflow_loader = MagicMock()
-    execution_manager = MagicMock()
 
     manager = setup_internal_registries(
         _config=mock_config,
-        pipeline_executor=pipeline_executor,
-        workflow_loader=workflow_loader,
-        pipeline_execution_manager=execution_manager,
+        pipeline_executor=MagicMock(),
+        workflow_loader=MagicMock(),
+        pipeline_execution_manager=MagicMock(),
     )
 
     # Find the pipelines registry
@@ -436,3 +431,65 @@ def test_setup_pipelines_tools_accessible() -> None:
     assert "get_pipeline_status" in tool_names
     assert "approve_pipeline" in tool_names
     assert "reject_pipeline" in tool_names
+
+
+# --- Clones Registry Tests ---
+
+
+def test_setup_clones_registered_without_git_manager() -> None:
+    """Test clones registry is created even when git_manager is None."""
+    mock_config = MagicMock()
+    mock_config.get_gobby_tasks_config.return_value.enabled = False
+
+    manager = setup_internal_registries(
+        _config=mock_config,
+        clone_storage=MagicMock(),
+        git_manager=None,
+        project_id="test-project",
+    )
+
+    registries = manager.get_all_registries()
+    registry_names = [r.name for r in registries]
+    assert "gobby-clones" in registry_names
+
+
+def test_setup_clones_registered_with_git_manager() -> None:
+    """Test clones registry is created when git_manager is available."""
+    mock_config = MagicMock()
+    mock_config.get_gobby_tasks_config.return_value.enabled = False
+    mock_git = MagicMock()
+    mock_git.repo_path = "/tmp/test-repo"
+
+    manager = setup_internal_registries(
+        _config=mock_config,
+        clone_storage=MagicMock(),
+        git_manager=mock_git,
+        project_id="test-project",
+    )
+
+    registries = manager.get_all_registries()
+    registry_names = [r.name for r in registries]
+    assert "gobby-clones" in registry_names
+
+
+def test_setup_pipelines_tools_accessible_without_executor() -> None:
+    """Test that pipelines tools are listed even when executor is None."""
+    mock_config = MagicMock()
+    mock_config.get_gobby_tasks_config.return_value.enabled = False
+
+    manager = setup_internal_registries(
+        _config=mock_config,
+        pipeline_executor=None,
+        workflow_loader=None,
+    )
+
+    pipelines_registry = None
+    for registry in manager.get_all_registries():
+        if registry.name == "gobby-pipelines":
+            pipelines_registry = registry
+            break
+
+    assert pipelines_registry is not None
+    tool_names = [t["name"] for t in pipelines_registry.list_tools()]
+    assert "list_pipelines" in tool_names
+    assert "run_pipeline" in tool_names

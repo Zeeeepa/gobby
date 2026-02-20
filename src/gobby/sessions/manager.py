@@ -69,6 +69,11 @@ class SessionManager:
         self._session_metadata: dict[str, dict[str, Any]] = {}  # session_id -> metadata
         self._session_metadata_lock = threading.Lock()
 
+    @property
+    def db(self) -> Any:
+        """Database handle from the underlying storage layer."""
+        return self._storage.db
+
     def register_session(
         self,
         external_id: str,
@@ -388,3 +393,18 @@ class SessionManager:
                 "parent_session_id": session.parent_session_id,
             }
         return None
+
+    def update_terminal_pickup_metadata(
+        self,
+        session_id: str,
+        agent_run_id: str | None = None,
+        workflow_name: str | None = None,
+        **kwargs: Any,
+    ) -> Any:
+        """Delegate to storage for terminal pickup metadata updates."""
+        return self._storage.update_terminal_pickup_metadata(
+            session_id=session_id,
+            agent_run_id=agent_run_id,
+            workflow_name=workflow_name,
+            **kwargs,
+        )

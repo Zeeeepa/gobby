@@ -4,6 +4,7 @@ Gobby Daemon Tools MCP Server.
 
 import json
 import logging
+from pathlib import Path
 from typing import Any
 
 from mcp.server.fastmcp import FastMCP
@@ -16,6 +17,7 @@ from gobby.mcp_proxy.services.recommendation import RecommendationService, Searc
 from gobby.mcp_proxy.services.server_mgmt import ServerManagementService
 from gobby.mcp_proxy.services.system import SystemService
 from gobby.mcp_proxy.services.tool_proxy import ToolProxyService
+from gobby.utils.project_context import get_project_context
 
 logger = logging.getLogger("gobby.mcp.server")
 
@@ -43,6 +45,7 @@ class GobbyDaemonTools:
         self.internal_manager = internal_manager
         self._mcp_manager = mcp_manager  # Store for project_id access
         self._semantic_search = semantic_search  # Store for direct search access
+        self._session_manager = session_manager  # Store for per-call project resolution
 
         # Initialize services
         self.system_service = SystemService(mcp_manager, daemon_port, websocket_port, start_time)
@@ -57,7 +60,7 @@ class GobbyDaemonTools:
             llm_service,
             mcp_manager,
             semantic_search=semantic_search,
-            project_id=mcp_manager.project_id,
+            project_id=None,  # Resolved per-call via get_project_context()
             config=config.recommend_tools if config else None,
         )
 
@@ -97,6 +100,47 @@ class GobbyDaemonTools:
 
     # --- Tool Proxying ---
 
+    def _resolve_and_set_project_context(self, session_id: str) -> Any:
+        """Look up session's project_id and set context var for this call."""
+        from gobby.utils.project_context import set_project_context
+
+        if not self._session_manager:
+            return None
+
+        session = self._session_manager.get(session_id)
+        if not session or not session.project_id:
+            return None
+
+        # Try to enrich with full project data from DB
+        try:
+            from gobby.storage.projects import LocalProjectManager
+
+            pm = LocalProjectManager(self._session_manager.db)
+            project = pm.get(session.project_id)
+            if project:
+                ctx: dict[str, Any] = {
+                    "id": project.id,
+                    "name": project.name,
+                    "project_path": project.repo_path,
+                }
+                # Enrich with project.json data if available
+                if project.repo_path:
+                    project_file = Path(project.repo_path) / ".gobby" / "project.json"
+                    if project_file.exists():
+                        try:
+                            import json as _json
+
+                            data = _json.loads(project_file.read_text())
+                            data["project_path"] = project.repo_path
+                            return set_project_context(data)
+                        except Exception:
+                            pass
+                return set_project_context(ctx)
+        except Exception:
+            pass
+
+        return set_project_context({"id": session.project_id})
+
     async def call_tool(
         self,
         server_name: str,
@@ -114,7 +158,17 @@ class GobbyDaemonTools:
         When session_id is provided and a workflow is active, checks that the
         tool is not blocked by the current workflow step's blocked_tools setting.
         """
-        result = await self.tool_proxy.call_tool(server_name, tool_name, arguments, session_id)
+        # Set session's project context for this call
+        token = None
+        if session_id:
+            token = self._resolve_and_set_project_context(session_id)
+        try:
+            result = await self.tool_proxy.call_tool(server_name, tool_name, arguments, session_id)
+        finally:
+            if token is not None:
+                from gobby.utils.project_context import reset_project_context
+
+                reset_project_context(token)
 
         # Check if result indicates an error:
         # - Old pattern: {"success": False, "error": ...}
@@ -249,6 +303,9 @@ class GobbyDaemonTools:
         """
         project_id = self._mcp_manager.project_id
         if not project_id:
+            ctx = get_project_context()
+            project_id = ctx.get("id") if ctx else None
+        if not project_id:
             return {
                 "success": False,
                 "error": "No project_id available. Run 'gobby init' first.",
@@ -308,6 +365,9 @@ class GobbyDaemonTools:
             }
 
         project_id = self._mcp_manager.project_id
+        if not project_id:
+            ctx = get_project_context()
+            project_id = ctx.get("id") if ctx else None
         if not project_id:
             return {
                 "success": False,

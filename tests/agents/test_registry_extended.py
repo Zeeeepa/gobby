@@ -54,10 +54,10 @@ class TestRunningAgentRegistryKill:
 
     @pytest.mark.asyncio
     async def test_kill_not_found(self, registry):
-        """Kill returns error if agent not found."""
+        """Kill returns success with already_completed if agent not in registry."""
         result = await registry.kill("nonexistent")
-        assert result["success"] is False
-        assert "not found" in result["error"]
+        assert result["success"] is True
+        assert result["already_completed"] is True
 
     @pytest.mark.asyncio
     async def test_kill_no_pid(self, registry):

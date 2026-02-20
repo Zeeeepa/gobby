@@ -1,9 +1,39 @@
 """Pipeline execution tools."""
 
+import asyncio
 import json
+import logging
 from typing import Any, Protocol
 
 from gobby.workflows.pipeline_state import ApprovalRequired
+
+logger = logging.getLogger(__name__)
+
+# Track background pipeline tasks so they can be awaited on shutdown
+_background_tasks: set[asyncio.Task[None]] = set()
+
+
+async def cleanup_background_tasks() -> None:
+    """Cancel and await all background pipeline tasks.
+
+    Called during daemon shutdown to ensure no fire-and-forget tasks
+    are left dangling.
+    """
+    if not _background_tasks:
+        return
+
+    tasks = list(_background_tasks)
+    logger.info(f"Cancelling {len(tasks)} background pipeline task(s)")
+
+    for task in tasks:
+        task.cancel()
+
+    results = await asyncio.gather(*tasks, return_exceptions=True)
+    for task, result in zip(tasks, results, strict=True):
+        if isinstance(result, Exception) and not isinstance(result, asyncio.CancelledError):
+            logger.warning(f"Pipeline task {task.get_name()} raised during shutdown: {result}")
+
+    _background_tasks.clear()
 
 
 class PipelineLoader(Protocol):
@@ -11,18 +41,80 @@ class PipelineLoader(Protocol):
 
 
 class PipelineExecutor(Protocol):
-    async def execute(self, *, pipeline: Any, inputs: dict[str, Any], project_id: str) -> Any: ...
+    async def execute(
+        self,
+        *,
+        pipeline: Any,
+        inputs: dict[str, Any],
+        project_id: str,
+        execution_id: str | None = None,
+        session_id: str | None = None,
+    ) -> Any: ...
+
+
+async def _execute_pipeline_background(
+    executor: Any,
+    pipeline: Any,
+    inputs: dict[str, Any],
+    project_id: str,
+    execution_id: str,
+    pipeline_name: str,
+    session_id: str | None = None,
+) -> None:
+    """Background task that runs a pre-created pipeline execution to completion."""
+    try:
+        await executor.execute(
+            pipeline=pipeline,
+            inputs=inputs,
+            project_id=project_id,
+            execution_id=execution_id,
+            session_id=session_id,
+        )
+    except ApprovalRequired:
+        # Expected — pipeline paused for approval, not an error
+        pass
+    except Exception as e:
+        logger.error(f"Background pipeline '{pipeline_name}' failed: {e}", exc_info=True)
+        # Ensure execution is marked failed even if executor.execute didn't catch it
+        try:
+            from gobby.workflows.pipeline_state import ExecutionStatus, StepStatus
+
+            # Fallback: fix any steps stuck at 'running' status
+            try:
+                steps = executor.execution_manager.get_steps_for_execution(execution_id)
+                for step in steps:
+                    if step.status == StepStatus.RUNNING:
+                        executor.execution_manager.update_step_execution(
+                            step_execution_id=step.id,
+                            status=StepStatus.FAILED,
+                            error=str(e),
+                        )
+            except Exception:
+                logger.error("Failed to clean up stuck steps", exc_info=True)
+
+            executor.execution_manager.update_execution_status(
+                execution_id=execution_id,
+                status=ExecutionStatus.FAILED,
+                outputs_json=json.dumps({"error": str(e)}),
+            )
+        except Exception:
+            logger.error("Failed to mark execution as failed", exc_info=True)
 
 
 async def run_pipeline(
     loader: PipelineLoader | None,
-    executor: PipelineExecutor | None,
+    executor: Any | None,
     name: str,
     inputs: dict[str, Any],
     project_id: str,
+    session_id: str | None = None,
 ) -> dict[str, Any]:
     """
-    Run a pipeline by name.
+    Run a pipeline by name (fire-and-forget).
+
+    Pre-creates the execution record, launches execution as a background
+    task, and returns the execution_id immediately. Use get_pipeline_status
+    to poll for completion.
 
     Args:
         loader: WorkflowLoader instance
@@ -32,7 +124,7 @@ async def run_pipeline(
         project_id: Project context for the execution
 
     Returns:
-        Dict with execution status and outputs or approval info
+        Dict with execution_id for status polling
     """
     if not executor:
         return {"success": False, "error": "No executor configured"}
@@ -45,42 +137,45 @@ async def run_pipeline(
     if not pipeline:
         return {"success": False, "error": f"Pipeline '{name}' not found"}
 
+    # Pre-create execution record so we can return the ID immediately
     try:
-        # Execute the pipeline
-        execution = await executor.execute(
-            pipeline=pipeline,
-            inputs=inputs,
-            project_id=project_id,
+        execution = executor.execution_manager.create_execution(
+            pipeline_name=name,
+            inputs_json=json.dumps(inputs),
+            session_id=session_id,
         )
-
-        # Parse outputs if available
-        outputs = None
-        if execution.outputs_json:
-            try:
-                outputs = json.loads(execution.outputs_json)
-            except json.JSONDecodeError:
-                outputs = execution.outputs_json
-
-        return {
-            "success": True,
-            "status": execution.status.value,
-            "execution_id": execution.id,
-            "outputs": outputs,
-        }
-
-    except ApprovalRequired as e:
-        # Pipeline paused waiting for approval
-        return {
-            "success": True,
-            "status": "waiting_approval",
-            "execution_id": e.execution_id,
-            "step_id": e.step_id,
-            "token": e.token,
-            "message": e.message,
-        }
-
+        execution_id = execution.id
     except Exception as e:
-        return {"success": False, "error": f"Execution failed: {e}"}
+        return {"success": False, "error": f"Failed to create execution record: {e}"}
+
+    # Launch execution in background — passes execution_id so executor
+    # resumes the pre-created record instead of creating a new one
+    def _on_done(t: asyncio.Task[None]) -> None:
+        _background_tasks.discard(t)
+        if not t.cancelled() and t.exception():
+            logger.error(f"Pipeline background task failed: {t.exception()}")
+
+    task = asyncio.create_task(
+        _execute_pipeline_background(
+            executor,
+            pipeline,
+            inputs,
+            project_id,
+            execution_id,
+            name,
+            session_id=session_id,
+        ),
+        name=f"pipeline-{name}-{execution_id[:8]}",
+    )
+    _background_tasks.add(task)
+    task.add_done_callback(_on_done)
+
+    return {
+        "success": True,
+        "status": "running",
+        "execution_id": execution_id,
+        "message": f"Pipeline '{name}' started. Poll status with get_pipeline_status.",
+    }
 
 
 async def approve_pipeline(

@@ -16,6 +16,7 @@ via the downstream proxy pattern (call_tool).
 
 from __future__ import annotations
 
+import asyncio
 import logging
 from typing import TYPE_CHECKING, Any
 
@@ -511,6 +512,89 @@ def create_memory_registry(
 
             results = await kg_service.search_graph(query, limit=limit)
             return {"success": True, "results": results}
+        except Exception as e:
+            return {"success": False, "error": str(e)}
+
+    @registry.tool(
+        name="rebuild_crossrefs",
+        description="Rebuild cross-references between all memories based on semantic similarity. Creates edges for the 2D memory graph.",
+    )
+    async def rebuild_crossrefs(
+        project_id: str | None = None,
+        limit: int = 500,
+    ) -> dict[str, Any]:
+        """
+        Rebuild cross-references for all existing memories.
+
+        Uses vector similarity to find related memories and create links.
+        These links power the 2D memory graph visualization.
+
+        Args:
+            project_id: Optional project ID to filter memories
+            limit: Maximum number of memories to process (default 500)
+        """
+        try:
+            memories = memory_manager.list_memories(project_id=project_id, limit=limit)
+            total_created = 0
+            for i, memory in enumerate(memories):
+                try:
+                    created = await memory_manager.rebuild_crossrefs_for_memory(memory)
+                    total_created += created
+                except Exception as e:
+                    logger.warning(f"Crossref failed for {memory.id}: {e}")
+                if i % 10 == 9:
+                    await asyncio.sleep(0)
+            return {
+                "success": True,
+                "memories_processed": len(memories),
+                "crossrefs_created": total_created,
+            }
+        except Exception as e:
+            return {"success": False, "error": str(e)}
+
+    @registry.tool(
+        name="rebuild_knowledge_graph",
+        description="Extract entities and relationships from all memories into the Neo4j knowledge graph. Powers the 3D graph visualization.",
+    )
+    async def rebuild_knowledge_graph(
+        project_id: str | None = None,
+        limit: int = 500,
+    ) -> dict[str, Any]:
+        """
+        Rebuild the knowledge graph from all existing memories.
+
+        Extracts entities and relationships using LLM and stores them in Neo4j.
+        This powers the 3D knowledge graph visualization.
+
+        Args:
+            project_id: Optional project ID to filter memories
+            limit: Max memories to process (default 500)
+        """
+        try:
+            kg = memory_manager.kg_service
+            if not kg:
+                return {
+                    "success": False,
+                    "error": "KnowledgeGraphService not initialized (requires Neo4j + LLM)",
+                }
+            memories = memory_manager.list_memories(project_id=project_id, limit=limit)
+            extracted = 0
+            errors = 0
+            for i, memory in enumerate(memories):
+                try:
+                    await kg.add_to_graph(memory.content)
+                    extracted += 1
+                except Exception as e:
+                    logger.warning(f"KG extraction failed for {memory.id}: {e}")
+                    errors += 1
+                if i % 10 == 9:
+                    await asyncio.sleep(0)
+            return {
+                "success": True,
+                "memories_processed": extracted + errors,
+                "memories_extracted": extracted,
+                "errors": errors,
+            }
         except Exception as e:
             return {"success": False, "error": str(e)}
 

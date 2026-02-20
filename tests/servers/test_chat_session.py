@@ -1,6 +1,8 @@
 """Tests for ChatSession can_use_tool callback and pending question state."""
 
 import asyncio
+from pathlib import Path
+from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -130,6 +132,130 @@ class TestCanUseTool:
         assert result.updated_input["answers"] == answers
 
 
+class TestToolApproval:
+    """Tests for the tool approval flow."""
+
+    @pytest.mark.asyncio
+    async def test_tool_rejection_returns_deny(self, session: ChatSession) -> None:
+        """_wait_for_tool_approval should return PermissionResultDeny on rejection."""
+        from claude_agent_sdk import PermissionResultDeny
+
+        # Enable tool approval for all tools
+        config = MagicMock()
+        config.enabled = True
+        config.default_policy = "ask"
+        config.policies = []
+        session._tool_approval_config = config
+
+        async def reject_after_delay() -> None:
+            await asyncio.sleep(0.05)
+            session.provide_approval("reject")
+
+        task = asyncio.create_task(reject_after_delay())
+        result = await session._wait_for_tool_approval("Write", {"file_path": "/tmp/test"})
+        await task
+
+        assert isinstance(result, PermissionResultDeny)
+        assert "Write" in result.message
+
+    @pytest.mark.asyncio
+    async def test_tool_approval_returns_allow(self, session: ChatSession) -> None:
+        """_wait_for_tool_approval should return PermissionResultAllow on approval."""
+        from claude_agent_sdk import PermissionResultAllow
+
+        async def approve_after_delay() -> None:
+            await asyncio.sleep(0.05)
+            session.provide_approval("approve")
+
+        task = asyncio.create_task(approve_after_delay())
+        result = await session._wait_for_tool_approval("Write", {"file_path": "/tmp/test"})
+        await task
+
+        assert isinstance(result, PermissionResultAllow)
+        assert result.updated_input == {"file_path": "/tmp/test"}
+
+    @pytest.mark.asyncio
+    async def test_tool_timeout_returns_deny(self, session: ChatSession) -> None:
+        """_wait_for_tool_approval should return PermissionResultDeny on timeout."""
+        from claude_agent_sdk import PermissionResultDeny
+
+        # Patch the timeout to be very short
+        with patch("gobby.servers.chat_session.asyncio.wait_for", side_effect=TimeoutError):
+            result = await session._wait_for_tool_approval("Write", {"file_path": "/tmp/test"})
+
+        assert isinstance(result, PermissionResultDeny)
+        assert "Write" in result.message
+
+
+class TestProjectRouting:
+    """Tests for project_id and project_path propagation in ChatSession.start()."""
+
+    @pytest.mark.asyncio
+    async def test_start_uses_project_path_as_cwd(self, session: ChatSession) -> None:
+        """When project_path is set, start() uses it as CWD and sets GOBBY_PROJECT_ID in env."""
+        session.project_id = "proj-abc"
+        session.project_path = "/home/user/my-project"
+        session.db_session_id = "db-session-1"
+
+        captured_options: dict[str, Any] = {}
+
+        def capture_options(**kwargs: Any) -> MagicMock:
+            captured_options.update(kwargs)
+            return MagicMock()
+
+        with (
+            patch("gobby.servers.chat_session._find_cli_path", return_value="/usr/bin/claude"),
+            patch("gobby.servers.chat_session._find_mcp_config", return_value=None),
+            patch(
+                "gobby.servers.chat_session._load_chat_system_prompt", return_value="test prompt"
+            ),
+            patch("gobby.servers.chat_session.ClaudeAgentOptions", side_effect=capture_options),
+            patch("gobby.servers.chat_session.ClaudeSDKClient") as mock_client_cls,
+        ):
+            mock_client = AsyncMock()
+            mock_client_cls.return_value = mock_client
+
+            await session.start()
+
+            assert captured_options["cwd"] == "/home/user/my-project"
+            assert captured_options["env"]["GOBBY_PROJECT_ID"] == "proj-abc"
+            assert captured_options["env"]["GOBBY_SESSION_ID"] == "db-session-1"
+
+    @pytest.mark.asyncio
+    async def test_start_falls_back_without_project_path(self, session: ChatSession) -> None:
+        """When project_path is not set, start() falls back to _find_project_root()."""
+        session.project_id = None
+        session.project_path = None
+
+        captured_options: dict[str, Any] = {}
+
+        def capture_options(**kwargs: Any) -> MagicMock:
+            captured_options.update(kwargs)
+            return MagicMock()
+
+        with (
+            patch("gobby.servers.chat_session._find_cli_path", return_value="/usr/bin/claude"),
+            patch("gobby.servers.chat_session._find_mcp_config", return_value=None),
+            patch("gobby.servers.chat_session._find_project_root", return_value=None),
+            patch(
+                "gobby.servers.chat_session._load_chat_system_prompt", return_value="test prompt"
+            ),
+            patch("gobby.servers.chat_session.ClaudeAgentOptions", side_effect=capture_options),
+            patch("gobby.servers.chat_session.ClaudeSDKClient") as mock_client_cls,
+        ):
+            mock_client = AsyncMock()
+            mock_client_cls.return_value = mock_client
+            expected_cwd = str(Path.cwd())
+
+            await session.start()
+
+            # Should not have GOBBY_PROJECT_ID in env (env is None when empty)
+            env = captured_options.get("env")
+            assert env is None
+            # CWD should fall back to Path.cwd() since _find_project_root returns None
+            assert captured_options["cwd"] == expected_cwd
+
+
 class TestHistoryInjection:
     """Tests for history injection on session recreation."""
 
@@ -228,8 +354,7 @@ class TestHistoryInjection:
         mock_manager = AsyncMock()
         # Each message is ~1100 chars, 30 messages = ~33KB > 30KB limit
         mock_manager.get_messages.return_value = [
-            {"role": "user", "content_type": "text", "content": "a" * 1100}
-            for _ in range(30)
+            {"role": "user", "content_type": "text", "content": "a" * 1100} for _ in range(30)
         ]
         session.db_session_id = "test-db-id"
         session._message_manager = mock_manager
@@ -268,8 +393,7 @@ class TestHistoryInjection:
         mock_manager = AsyncMock()
         # Each message is ~110 chars with role label, 10 messages = ~1100 > 500
         mock_manager.get_messages.return_value = [
-            {"role": "user", "content_type": "text", "content": "b" * 100}
-            for _ in range(10)
+            {"role": "user", "content_type": "text", "content": "b" * 100} for _ in range(10)
         ]
         session.db_session_id = "test-db-id"
         session._message_manager = mock_manager
@@ -279,6 +403,39 @@ class TestHistoryInjection:
         count = result.count("**User:**")
         assert count < 10
         assert count > 0
+
+    @pytest.mark.asyncio
+    async def test_load_history_context_respects_budget_param(self, session: ChatSession) -> None:
+        """max_total_chars parameter should override instance default."""
+        mock_manager = AsyncMock()
+        # Each entry is ~110 chars with role label, 10 messages = ~1100 chars content
+        mock_manager.get_messages.return_value = [
+            {"role": "user", "content_type": "text", "content": "c" * 100} for _ in range(10)
+        ]
+        session.db_session_id = "test-db-id"
+        session._message_manager = mock_manager
+        # Instance default is 30K, but pass a tight budget
+        result = await session._load_history_context(max_total_chars=500)
+        assert result is not None
+        count = result.count("**User:**")
+        assert count < 10
+        assert count > 0
+        # Total result should be under the budget
+        assert len(result) <= 500
+
+    @pytest.mark.asyncio
+    async def test_load_history_context_returns_none_for_tiny_budget(
+        self, session: ChatSession
+    ) -> None:
+        """Returns None when budget is too small for even the wrapper."""
+        mock_manager = AsyncMock()
+        mock_manager.get_messages.return_value = [
+            {"role": "user", "content_type": "text", "content": "hello"},
+        ]
+        session.db_session_id = "test-db-id"
+        session._message_manager = mock_manager
+        result = await session._load_history_context(max_total_chars=100)
+        assert result is None
 
     @pytest.mark.asyncio
     async def test_load_history_context_handles_error(self, session: ChatSession) -> None:

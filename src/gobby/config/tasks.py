@@ -103,7 +103,7 @@ class TaskEnrichmentConfig(BaseModel):
         description="LLM provider to use for enrichment",
     )
     model: str = Field(
-        default="claude-3-5-haiku-latest",
+        default="haiku",
         description="Model to use for enrichment (lightweight model for speed)",
     )
     enable_code_research: bool = Field(
@@ -136,7 +136,7 @@ class TaskExpansionConfig(BaseModel):
         description="LLM provider to use for expansion",
     )
     model: str = Field(
-        default="claude-opus-4-5",
+        default="opus",
         description="Model to use for expansion",
     )
 
@@ -203,7 +203,7 @@ class TaskValidationConfig(BaseModel):
         description="LLM provider to use for validation",
     )
     model: str = Field(
-        default="claude-sonnet-4-5",
+        default="sonnet",
         description="Model to use for validation",
     )
     system_prompt: str = Field(
@@ -666,14 +666,6 @@ class WorkflowConfig(BaseModel):
     timeout: float = Field(
         default=0.0,
         description="Timeout in seconds for workflow execution. 0 = no timeout (default)",
-    )
-    require_task_before_edit: bool = Field(
-        default=False,
-        description="Require an active gobby-task (in_progress) before allowing Edit/Write tools",
-    )
-    protected_tools: list[str] = Field(
-        default_factory=lambda: ["Edit", "Write", "Update", "NotebookEdit"],
-        description="Tools that require an active task when require_task_before_edit is enabled",
     )
     debug_echo_context: bool = Field(
         default=False,

@@ -17,7 +17,7 @@ logger = logging.getLogger(__name__)
 
 __all__ = [
     "MemoryConfig",
-    "MemorySyncConfig",
+    "MemoryBackupConfig",
 ]
 
 
@@ -139,14 +139,12 @@ class MemoryConfig(BaseModel):
         return self
 
 
-class MemorySyncConfig(BaseModel):
+class MemoryBackupConfig(BaseModel):
     """Memory backup configuration (filesystem export).
 
-    Note: This was previously named for "sync" but is actually a backup mechanism.
+    Note: This was previously named MemorySyncConfig.
     Memories are stored in the database via MemoryBackendProtocol; this config
     controls the JSONL backup file export (for disaster recovery/migration).
-
-    TODO: Consider renaming to MemoryBackupConfig in a future breaking change.
     """
 
     enabled: bool = Field(

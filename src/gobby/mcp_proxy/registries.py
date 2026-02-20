@@ -266,28 +266,25 @@ def setup_internal_registries(
 
     # Initialize clones registry if clone_storage is available
     if clone_storage is not None:
-        from gobby.clones.git import CloneGitManager
         from gobby.mcp_proxy.tools.clones import create_clones_registry
 
         # Create CloneGitManager from the same repo path as WorktreeGitManager
         clone_git_manager = None
         if git_manager is not None:
             try:
+                from gobby.clones.git import CloneGitManager
+
                 clone_git_manager = CloneGitManager(git_manager.repo_path)
             except Exception as e:
                 logger.warning(f"Failed to create CloneGitManager: {e}")
 
-        # Only create clones registry if we have a git manager
-        if clone_git_manager is not None:
-            clones_registry = create_clones_registry(
-                clone_storage=clone_storage,
-                git_manager=clone_git_manager,
-                project_id=project_id or "",
-            )
-            manager.add_registry(clones_registry)
-            logger.debug("Clones registry initialized")
-        else:
-            logger.debug("Clones registry not initialized: CloneGitManager not available")
+        clones_registry = create_clones_registry(
+            clone_storage=clone_storage,
+            git_manager=clone_git_manager,  # may be None; tools guard at call time
+            project_id=project_id or "",
+        )
+        manager.add_registry(clones_registry)
+        logger.debug("Clones registry initialized")
 
     # Initialize merge resolution registry if merge components are available
     if merge_storage is not None and merge_resolver is not None:
@@ -321,6 +318,7 @@ def setup_internal_registries(
             config=_config,
             config_store=config_store,
             config_setter=config_setter,
+            db=db,
         )
         manager.add_registry(config_registry)
         logger.debug("Config registry initialized")
@@ -359,18 +357,18 @@ def setup_internal_registries(
     else:
         logger.debug("Skills registry not initialized: db is None")
 
-    # Initialize pipelines registry if pipeline_executor is available
-    if pipeline_executor is not None:
-        from gobby.mcp_proxy.tools.pipelines import create_pipelines_registry
+    # Initialize pipelines registry (always registered; executor resolved lazily at tool call time)
+    from gobby.mcp_proxy.tools.pipelines import create_pipelines_registry
 
-        pipelines_registry = create_pipelines_registry(
-            loader=workflow_loader,
-            executor=pipeline_executor,
-            execution_manager=pipeline_execution_manager,
-            db=db,
-        )
-        manager.add_registry(pipelines_registry)
-        logger.debug("Pipelines registry initialized")
+    pipelines_registry = create_pipelines_registry(
+        loader=workflow_loader,
+        executor_getter=lambda: pipeline_executor,
+        execution_manager_getter=lambda: pipeline_execution_manager,
+        db=db,
+        session_manager=local_session_manager,
+    )
+    manager.add_registry(pipelines_registry)
+    logger.debug("Pipelines registry initialized")
 
     # Initialize cron registry if database is available
     if db is not None:

@@ -1,4 +1,8 @@
+from __future__ import annotations
+
 import asyncio
+import urllib.parse
+from typing import TYPE_CHECKING
 
 import click
 
@@ -6,6 +10,9 @@ from gobby.cli.utils import resolve_project_ref
 from gobby.config.app import DaemonConfig
 from gobby.memory.manager import MemoryManager
 from gobby.storage.database import LocalDatabase
+
+if TYPE_CHECKING:
+    from gobby.utils.daemon_client import DaemonClient
 
 
 def get_memory_manager(ctx: click.Context) -> MemoryManager:
@@ -433,7 +440,7 @@ def backup_memories(ctx: click.Context, output_path: str | None) -> None:
     """
     from pathlib import Path
 
-    from gobby.config.persistence import MemorySyncConfig
+    from gobby.config.persistence import MemoryBackupConfig
     from gobby.sync.memories import MemoryBackupManager
 
     manager = get_memory_manager(ctx)
@@ -444,7 +451,7 @@ def backup_memories(ctx: click.Context, output_path: str | None) -> None:
     else:
         export_path = Path(".gobby/memories.jsonl")
 
-    config = MemorySyncConfig(enabled=True, export_path=export_path)
+    config = MemoryBackupConfig(enabled=True, export_path=export_path)
     backup_mgr = MemoryBackupManager(
         db=manager.db,
         memory_manager=manager,
@@ -480,6 +487,90 @@ def reindex_embeddings(ctx: click.Context) -> None:
         click.echo(f"Reindexed {generated}/{total} memory embeddings.")
     else:
         click.echo(f"Error: {result.get('error', 'Unknown error')}")
+
+
+def _get_daemon_client(ctx: click.Context) -> DaemonClient:
+    """Get a DaemonClient for calling daemon HTTP API."""
+    from gobby.utils.daemon_client import DaemonClient
+
+    config: DaemonConfig = ctx.obj["config"]
+    return DaemonClient(host="localhost", port=config.daemon_port)
+
+
+@memory.command("rebuild-crossrefs")
+@click.option("--project", "-p", "project_ref", help="Project (name or UUID)")
+@click.pass_context
+def rebuild_crossrefs(ctx: click.Context, project_ref: str | None) -> None:
+    """Rebuild cross-references between memories (requires running daemon).
+
+    Uses vector similarity to find related memories and create links.
+    These links power the 2D memory graph visualization.
+
+    Examples:
+
+        gobby memory rebuild-crossrefs
+
+        gobby memory rebuild-crossrefs -p myproject
+    """
+    client = _get_daemon_client(ctx)
+    is_healthy, err = client.check_health()
+    if not is_healthy:
+        raise click.ClickException(f"Daemon not running: {err}")
+
+    click.echo("Rebuilding cross-references (this may take a while)...")
+    project_id = resolve_project_ref(project_ref, exit_on_not_found=True) if project_ref else None
+    params = f"?project_id={urllib.parse.quote(str(project_id))}" if project_id else ""
+    response = client.call_http_api(
+        f"/memories/crossrefs/rebuild{params}", method="POST", timeout=600.0
+    )
+    if not response.ok:
+        raise click.ClickException(f"Rebuild failed (HTTP {response.status_code}): {response.text}")
+    try:
+        data = response.json()
+    except ValueError as e:
+        raise click.ClickException(f"Invalid response from daemon: {e}") from e
+    click.echo(
+        f"Done: {data.get('memories_processed', '?')} memories processed, "
+        f"{data.get('crossrefs_created', '?')} crossrefs created"
+    )
+
+
+@memory.command("rebuild-graph")
+@click.option("--project", "-p", "project_ref", help="Project (name or UUID)")
+@click.pass_context
+def rebuild_graph(ctx: click.Context, project_ref: str | None) -> None:
+    """Extract entities from memories into the knowledge graph (requires running daemon).
+
+    Processes all memories through LLM entity extraction and stores
+    results in Neo4j. Powers the 3D knowledge graph visualization.
+
+    Examples:
+
+        gobby memory rebuild-graph
+
+        gobby memory rebuild-graph -p myproject
+    """
+    client = _get_daemon_client(ctx)
+    is_healthy, err = client.check_health()
+    if not is_healthy:
+        raise click.ClickException(f"Daemon not running: {err}")
+
+    click.echo("Rebuilding knowledge graph (this may take several minutes)...")
+    project_id = resolve_project_ref(project_ref, exit_on_not_found=True) if project_ref else None
+    params = f"?project_id={urllib.parse.quote(str(project_id))}" if project_id else ""
+    response = client.call_http_api(
+        f"/memories/graph/rebuild{params}", method="POST", timeout=600.0
+    )
+    if not response.ok:
+        raise click.ClickException(f"Rebuild failed (HTTP {response.status_code}): {response.text}")
+    try:
+        data = response.json()
+    except ValueError as e:
+        raise click.ClickException(f"Invalid response from daemon: {e}") from e
+    click.echo(
+        f"Done: {data.get('memories_extracted', '?')}/{data.get('memories_processed', '?')} "
+        f"memories extracted, {data.get('errors', '?')} errors"
+    )
 
 
 def resolve_memory_id(manager: MemoryManager, memory_ref: str) -> str:

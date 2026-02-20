@@ -59,10 +59,12 @@ class AgentEventHandlerMixin(EventHandlersBase):
         if wf_response.decision != "allow":
             return wf_response
 
-        return HookResponse(
+        response = HookResponse(
             decision="allow",
             context="\n\n".join(context_parts) if context_parts else None,
         )
+        self._apply_debug_echo(response, wf_response)
+        return response
 
     def _intercept_skill_command(self, prompt: str) -> str | None:
         """Intercept /gobby and /gobby:skillname commands.
@@ -258,10 +260,12 @@ class AgentEventHandlerMixin(EventHandlersBase):
         if wf_response.decision != "allow":
             return wf_response
 
-        return HookResponse(
+        response = HookResponse(
             decision="allow",
             context="\n\n".join(context_parts) if context_parts else None,
         )
+        self._apply_debug_echo(response, wf_response)
+        return response
 
     def handle_pre_compact(self, event: HookEvent) -> HookResponse:
         """Handle PRE_COMPACT event.

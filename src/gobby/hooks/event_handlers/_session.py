@@ -93,10 +93,10 @@ class SessionEventHandlerMixin(EventHandlersBase):
         session_id = input_data.get("session_id") or external_id or ""
         if not session_id or not re.match(r"^[a-zA-Z0-9._-]+$", session_id):
             return None
-        capture_path = f"{tempfile.gettempdir()}/gobby-cursor-{session_id}.ndjson"
-        if Path(capture_path).exists():
-            self.logger.debug(f"Found Cursor capture file: {capture_path}")
-            return capture_path
+        std_path = f"{tempfile.gettempdir()}/gobby-cursor-{session_id}.ndjson"
+        if Path(std_path).exists():
+            self.logger.debug(f"Found Cursor capture file: {std_path}")
+            return std_path
 
         return None
 
@@ -168,6 +168,13 @@ class SessionEventHandlerMixin(EventHandlersBase):
                             external_id=external_id,
                             terminal_context=terminal_context,
                         )
+                        # Cache mapping so subsequent hooks skip DB lookup
+                        if self._session_manager:
+                            self._session_manager.cache_session_mapping(
+                                external_id=external_id,
+                                source=cli_source,
+                                session_id=gobby_session_id_from_env,
+                            )
                         return self._handle_pre_created_session(
                             existing_session=existing_session,
                             external_id=external_id,
@@ -406,6 +413,14 @@ class SessionEventHandlerMixin(EventHandlersBase):
                 status="active",
             )
 
+        # Cache mapping so subsequent hooks skip DB lookup
+        if self._session_manager:
+            self._session_manager.cache_session_mapping(
+                external_id=external_id,
+                source=cli_source,
+                session_id=existing_session.id,
+            )
+
         session_id = existing_session.id
         parent_session_id = existing_session.parent_session_id
         machine_id = self._get_machine_id()
@@ -589,21 +604,11 @@ class SessionEventHandlerMixin(EventHandlersBase):
 
         final_context = "\n".join(context_parts) if context_parts else None
 
-        # Debug: echo additionalContext to system_message if enabled
-        # Workflow variable takes precedence over config
-        debug_echo = False
-        workflow_vars = (wf_response.metadata or {}).get("workflow_variables", {})
-        if workflow_vars.get("debug_echo_context") is not None:
-            debug_echo = bool(workflow_vars.get("debug_echo_context"))
-        elif self._workflow_config and self._workflow_config.debug_echo_context:
-            debug_echo = True
-
-        if debug_echo and final_context:
-            system_message += f"\n\n[DEBUG additionalContext]\n{final_context}"
-
-        return HookResponse(
+        response = HookResponse(
             decision="allow",
             context=final_context,
             system_message=system_message,
             metadata=metadata,
         )
+        self._apply_debug_echo(response, wf_response)
+        return response

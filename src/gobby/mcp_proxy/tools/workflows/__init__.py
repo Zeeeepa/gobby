@@ -82,7 +82,7 @@ def create_workflows_registry(
         tools requiring database access will return errors when called.
     """
     _db = db
-    _loader = loader or WorkflowLoader()
+    _loader = loader or WorkflowLoader(db=_db)
 
     # Create default managers only if db is provided
     if state_manager is not None:

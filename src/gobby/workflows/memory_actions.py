@@ -502,15 +502,10 @@ async def memory_review_gate(
     if not variables.get("pending_memory_review"):
         return None
 
-    # Resolve session ref: prefer #N format, fall back to UUID
-    session_ref = session_id
-    if session_manager:
-        try:
-            session = session_manager.get(session_id)
-            if session and session.seq_num:
-                session_ref = f"#{session.seq_num}"
-        except Exception:
-            logger.debug("Failed to resolve session ref", exc_info=True)
+    # Clear the flag so the gate only fires once per cycle (soft nudge).
+    # The agent's MCP set_variable writes to session scope, but this flag
+    # lives in workflow scope — so we clear it here to prevent infinite loops.
+    variables["pending_memory_review"] = False
 
     reason = (
         "Before stopping, briefly review what you learned this session.\n"
@@ -521,9 +516,7 @@ async def memory_review_gate(
         "- API/library gotchas, undocumented quirks\n"
         "- Project conventions, environment quirks\n"
         "\n"
-        "If nothing new was learned, that's fine.\n"
-        "**When done**, call:\n"
-        f'`set_variable(name="pending_memory_review", value=false, session_id="{session_ref}")` on gobby-workflows'
+        "If nothing new was learned, that's fine — just proceed to stop."
     )
 
     logger.info("memory_review_gate: Blocking stop for session %s", session_id)

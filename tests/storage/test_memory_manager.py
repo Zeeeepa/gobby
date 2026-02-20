@@ -1,3 +1,5 @@
+import uuid
+
 import pytest
 
 from gobby.config.persistence import MemoryConfig
@@ -29,7 +31,7 @@ async def test_create_memory(memory_manager):
         memory_type="fact",
         tags=["test"],
     )
-    assert memory.id.startswith("mm-")
+    uuid.UUID(memory.id)  # validates UUID format
     assert memory.content == "Test remember"
 
 

@@ -183,8 +183,14 @@ async def activate_workflow(
         instance_manager.save_instance(instance)
 
     # Merge session_variables declarations into shared session variables
+    # Override defaults with passed-in variables to prevent clobbering
     if session_var_manager and definition.session_variables:
-        session_var_manager.merge_variables(resolved_session_id, definition.session_variables)
+        session_vars_to_merge = dict(definition.session_variables)
+        if variables:
+            for k, v in variables.items():
+                if k in session_vars_to_merge:
+                    session_vars_to_merge[k] = v
+        session_var_manager.merge_variables(resolved_session_id, session_vars_to_merge)
 
     return {
         "success": True,

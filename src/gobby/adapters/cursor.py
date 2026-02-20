@@ -127,7 +127,7 @@ class CursorAdapter(BaseAdapter):
                 "tool_input": {"command": "npm install"},
                 "tool_use_id": "xyz789",
                 "cwd": "/path/to/project",
-                "model": "claude-sonnet-4-20250514",
+                "model": "claude-sonnet-4-6",
                 "agent_message": "Installing dependencies..."
             }
         }

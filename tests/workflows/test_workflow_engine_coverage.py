@@ -33,7 +33,7 @@ def make_event(
 def mock_loader():
     loader = Mock()
     loader.load_workflow = AsyncMock()
-    loader.discover_lifecycle_workflows = AsyncMock()
+    loader.discover_workflows = AsyncMock()
     return loader
 
 
@@ -260,7 +260,7 @@ async def test_handle_event_handle_approval(engine, mock_state_manager, mock_loa
 
 @pytest.mark.asyncio
 async def test_evaluate_lifecycle_workflows_none(engine, mock_loader):
-    mock_loader.discover_lifecycle_workflows.return_value = []
+    mock_loader.discover_workflows.return_value = []
 
     event = make_event(cwd="/tmp", metadata={"_platform_session_id": "sess-123"})
 
@@ -286,7 +286,7 @@ async def test_evaluate_lifecycle_workflows_blocked(
     discovered.definition = workflow
     discovered.name = "block-wf"
 
-    mock_loader.discover_lifecycle_workflows.return_value = [discovered]
+    mock_loader.discover_workflows.return_value = [discovered]
 
     # Mock action execution to block
     mock_action_executor.execute.return_value = {"decision": "block", "reason": "blocked by policy"}

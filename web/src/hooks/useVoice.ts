@@ -1,9 +1,11 @@
 import { useState, useCallback, useRef, useEffect } from 'react'
+import { MicVAD, utils } from '@ricky0123/vad-web'
 
 interface VoiceState {
   voiceMode: boolean
   voiceAvailable: boolean
-  isRecording: boolean
+  isListening: boolean
+  isSpeechDetected: boolean
   isTranscribing: boolean
   isSpeaking: boolean
   voiceError: string | null
@@ -14,6 +16,7 @@ class AudioPlaybackQueue {
   private queue: string[] = []
   private playing = false
   private currentAudio: HTMLAudioElement | null = null
+  onPlayingChange: ((playing: boolean) => void) | null = null
 
   enqueue(audioBase64: string, format: string) {
     // Convert base64 to blob URL
@@ -33,6 +36,7 @@ class AudioPlaybackQueue {
     const url = URL.createObjectURL(blob)
     this.queue.push(url)
     this.playNext()
+    this.onPlayingChange?.(this.isPlaying)
   }
 
   private playNext() {
@@ -47,18 +51,21 @@ class AudioPlaybackQueue {
       this.playing = false
       this.currentAudio = null
       this.playNext()
+      this.onPlayingChange?.(this.isPlaying)
     }
     audio.onerror = () => {
       URL.revokeObjectURL(url)
       this.playing = false
       this.currentAudio = null
       this.playNext()
+      this.onPlayingChange?.(this.isPlaying)
     }
     audio.play().catch(() => {
       URL.revokeObjectURL(url)
       this.playing = false
       this.currentAudio = null
       this.playNext()
+      this.onPlayingChange?.(this.isPlaying)
     })
   }
 
@@ -73,6 +80,7 @@ class AudioPlaybackQueue {
     }
     this.queue = []
     this.playing = false
+    this.onPlayingChange?.(false)
   }
 
   get isPlaying() {
@@ -82,8 +90,6 @@ class AudioPlaybackQueue {
 
 export interface UseVoiceReturn extends VoiceState {
   toggleVoiceMode: () => void
-  startRecording: () => void
-  stopRecording: () => void
   stopSpeaking: () => void
   handleVoiceMessage: (data: Record<string, unknown>) => void
 }
@@ -94,16 +100,19 @@ export function useVoice(
 ): UseVoiceReturn {
   const [voiceMode, setVoiceMode] = useState(false)
   const [voiceAvailable, setVoiceAvailable] = useState(false)
-  const [isRecording, setIsRecording] = useState(false)
+  const [isListening, setIsListening] = useState(false)
+  const [isSpeechDetected, setIsSpeechDetected] = useState(false)
   const [isTranscribing, setIsTranscribing] = useState(false)
   const [isSpeaking, setIsSpeaking] = useState(false)
   const [voiceError, setVoiceError] = useState<string | null>(null)
 
-  const mediaRecorderRef = useRef<MediaRecorder | null>(null)
-  const chunksRef = useRef<Blob[]>([])
-  const streamRef = useRef<MediaStream | null>(null)
+  const vadRef = useRef<MicVAD | null>(null)
   const playbackQueueRef = useRef(new AudioPlaybackQueue())
-  const recordingStartTimeRef = useRef<number>(0)
+
+  // Stable ref for conversationId so long-lived callbacks (e.g. VAD onSpeechEnd)
+  // always see the latest value without re-subscribing.
+  const conversationIdRef = useRef(conversationId)
+  conversationIdRef.current = conversationId
 
   // Check voice availability on mount
   useEffect(() => {
@@ -125,18 +134,52 @@ export function useVoice(
       .catch((err) => { console.error('Voice status check failed:', err); setVoiceAvailable(false) })
   }, [])
 
-  // Track speaking state from playback queue
+  // Track speaking state from playback queue and pause/resume VAD to prevent echo.
+  // Uses a debounced resume so VAD doesn't restart between streaming chunks or while
+  // speaker audio is still reverberating.
+  const resumeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   useEffect(() => {
-    const interval = setInterval(() => {
-      const playing = playbackQueueRef.current.isPlaying
-      setIsSpeaking(playing)
-    }, 200)
-    return () => clearInterval(interval)
-  }, [])
+    if (!voiceMode) return
+    const queue = playbackQueueRef.current
+    let wasPlaying = false
 
-  const toggleVoiceMode = useCallback(() => {
+    queue.onPlayingChange = (playing) => {
+      setIsSpeaking(playing)
+
+      if (playing && !wasPlaying && vadRef.current) {
+        // Cancel any pending resume — more audio arrived
+        if (resumeTimerRef.current) {
+          clearTimeout(resumeTimerRef.current)
+          resumeTimerRef.current = null
+        }
+        vadRef.current.pause()
+        setIsListening(false)
+      } else if (!playing && wasPlaying) {
+        // Debounce resume: wait for silence before restarting VAD.
+        // This covers the gap between streaming chunks AND lets speaker
+        // audio dissipate after TTS finishes.
+        if (resumeTimerRef.current) clearTimeout(resumeTimerRef.current)
+        resumeTimerRef.current = setTimeout(() => {
+          resumeTimerRef.current = null
+          if (vadRef.current && !queue.isPlaying) {
+            vadRef.current.start()
+            setIsListening(true)
+          }
+        }, 600)
+      }
+      wasPlaying = playing
+    }
+    return () => {
+      queue.onPlayingChange = null
+      if (resumeTimerRef.current) {
+        clearTimeout(resumeTimerRef.current)
+        resumeTimerRef.current = null
+      }
+    }
+  }, [voiceMode])
+
+  const toggleVoiceMode = useCallback(async () => {
     const newMode = !voiceMode
-    setVoiceMode(newMode)
     setVoiceError(null)
 
     if (wsRef.current?.readyState === WebSocket.OPEN) {
@@ -147,105 +190,97 @@ export function useVoice(
       }))
     }
 
-    if (!newMode) {
-      // Cleanup on disable
-      playbackQueueRef.current.stop()
-      setIsSpeaking(false)
-      if (mediaRecorderRef.current?.state === 'recording') {
-        mediaRecorderRef.current.stop()
-      }
-      if (streamRef.current) {
-        streamRef.current.getTracks().forEach(t => t.stop())
-        streamRef.current = null
-      }
-      setIsRecording(false)
-    }
-  }, [voiceMode, wsRef, conversationId])
+    if (newMode) {
+      // Enable: create VAD and start listening
+      try {
+        const vad = await MicVAD.new({
+          baseAssetPath: '/',
+          onnxWASMBasePath: 'https://cdn.jsdelivr.net/npm/onnxruntime-web@1.24.1/dist/',
+          positiveSpeechThreshold: 0.85,
+          negativeSpeechThreshold: 0.5,
+          minSpeechFrames: 8,
+          redemptionFrames: 12,
+          preSpeechPadFrames: 10,
+          submitUserSpeechOnPause: false,
 
-  const startRecording = useCallback(async () => {
-    if (!voiceMode) return
-    setVoiceError(null)
+          onSpeechStart: () => {
+            setIsSpeechDetected(true)
+            // Interrupt TTS if playing (barge-in)
+            playbackQueueRef.current.stop()
+            setIsSpeaking(false)
+            // Cancel any pending VAD resume — we're already listening
+            if (resumeTimerRef.current) {
+              clearTimeout(resumeTimerRef.current)
+              resumeTimerRef.current = null
+            }
+          },
 
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
-      streamRef.current = stream
-
-      // Stop any current TTS playback when user starts talking
-      playbackQueueRef.current.stop()
-      setIsSpeaking(false)
-
-      const mimeType = MediaRecorder.isTypeSupported('audio/webm;codecs=opus')
-        ? 'audio/webm;codecs=opus'
-        : 'audio/webm'
-
-      const recorder = new MediaRecorder(stream, { mimeType })
-      mediaRecorderRef.current = recorder
-      chunksRef.current = []
-
-      recorder.ondataavailable = (e) => {
-        if (e.data.size > 0) {
-          chunksRef.current.push(e.data)
-        }
-      }
-
-      recorder.onstop = () => {
-        const blob = new Blob(chunksRef.current, { type: mimeType })
-        chunksRef.current = []
-
-        // Convert to base64 and send
-        const reader = new FileReader()
-        reader.onload = () => {
-          const dataUrl = reader.result as string
-          const base64 = dataUrl.split(',')[1]
-          if (base64 && wsRef.current?.readyState === WebSocket.OPEN) {
-            wsRef.current.send(JSON.stringify({
-              type: 'voice_audio',
-              conversation_id: conversationId,
-              audio_data: base64,
-              mime_type: mimeType,
-              request_id: crypto.randomUUID?.() || `voice-${Date.now()}`,
-            }))
+          onSpeechEnd: (audio: Float32Array) => {
+            setIsSpeechDetected(false)
             setIsTranscribing(true)
-          }
+
+            // Encode to WAV (16kHz mono 16-bit) and send
+            const wavBuffer = utils.encodeWAV(audio, 1, 16000, 1, 16)
+            const base64 = utils.arrayBufferToBase64(wavBuffer)
+
+            const ws = wsRef.current
+            if (ws?.readyState === WebSocket.OPEN) {
+              ws.send(JSON.stringify({
+                type: 'voice_audio',
+                conversation_id: conversationIdRef.current,
+                audio_data: base64,
+                mime_type: 'audio/wav',
+                request_id: crypto.randomUUID?.() || `voice-${Date.now()}-${Math.random().toString(36).slice(2)}`,
+              }))
+            }
+          },
+
+          onVADMisfire: () => {
+            setIsSpeechDetected(false)
+          },
+        })
+
+        vadRef.current = vad
+        vad.start()
+        setVoiceMode(true)
+        setIsListening(true)
+      } catch (err) {
+        if (vadRef.current) {
+          vadRef.current.destroy()
+          vadRef.current = null
         }
-        reader.readAsDataURL(blob)
-
-        // Stop the media stream tracks
-        stream.getTracks().forEach(t => t.stop())
-        streamRef.current = null
+        const msg = err instanceof Error ? err.message : 'Microphone access denied'
+        setVoiceError(msg)
+        console.error('Failed to start VAD:', err)
       }
-
-      recorder.start()
-      recordingStartTimeRef.current = Date.now()
-      setIsRecording(true)
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : 'Microphone access denied'
-      setVoiceError(msg)
-      console.error('Failed to start recording:', err)
+    } else {
+      // Disable: destroy VAD and cleanup
+      if (resumeTimerRef.current) {
+        clearTimeout(resumeTimerRef.current)
+        resumeTimerRef.current = null
+      }
+      if (vadRef.current) {
+        vadRef.current.destroy()
+        vadRef.current = null
+      }
+      playbackQueueRef.current.stop()
+      setVoiceMode(false)
+      setIsListening(false)
+      setIsSpeechDetected(false)
+      setIsSpeaking(false)
+      setIsTranscribing(false)
     }
   }, [voiceMode, wsRef, conversationId])
 
-  const stopRecording = useCallback(() => {
-    const MIN_RECORDING_MS = 300
-    if (mediaRecorderRef.current?.state === 'recording') {
-      const elapsed = Date.now() - recordingStartTimeRef.current
-      if (elapsed < MIN_RECORDING_MS) {
-        // Too short — discard without sending to avoid EOF errors
-        mediaRecorderRef.current.ondataavailable = null
-        mediaRecorderRef.current.onstop = () => {
-          if (streamRef.current) {
-            streamRef.current.getTracks().forEach(t => t.stop())
-            streamRef.current = null
-          }
-        }
-        mediaRecorderRef.current.stop()
-        chunksRef.current = []
-        setIsRecording(false)
-        return
+  // Cleanup VAD and playback on unmount
+  useEffect(() => {
+    return () => {
+      if (vadRef.current) {
+        vadRef.current.destroy()
+        vadRef.current = null
       }
-      mediaRecorderRef.current.stop()
+      playbackQueueRef.current.stop()
     }
-    setIsRecording(false)
   }, [])
 
   const stopSpeaking = useCallback(() => {
@@ -287,13 +322,12 @@ export function useVoice(
   return {
     voiceMode,
     voiceAvailable,
-    isRecording,
+    isListening,
+    isSpeechDetected,
     isTranscribing,
     isSpeaking,
     voiceError,
     toggleVoiceMode,
-    startRecording,
-    stopRecording,
     stopSpeaking,
     handleVoiceMessage,
   }

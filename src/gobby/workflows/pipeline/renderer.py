@@ -86,6 +86,7 @@ class StepRenderer:
             "inputs": context.get("inputs", {}),
             "steps": context.get("steps", {}),
             "env": _filter_env(os.environ, self.allowed_env_keys),
+            "session_id": context.get("session_id"),
         }
 
         # Create a copy of the step to avoid modifying the definition
@@ -127,6 +128,9 @@ class StepRenderer:
         """
         if not isinstance(value, str):
             return value
+        # Empty string (e.g. Jinja2 rendered None → "")
+        if value == "":
+            return None
         # Boolean
         if value.lower() == "true":
             return True
@@ -219,6 +223,7 @@ class StepRenderer:
             eval_context = {
                 "inputs": context.get("inputs", {}),
                 "steps": context.get("steps", {}),
+                "session_id": context.get("session_id"),
             }
             # Allow common helper functions for conditions
             allowed_funcs: dict[str, Any] = {

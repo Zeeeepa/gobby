@@ -690,6 +690,21 @@ class TestAgentRunnerCancelRun:
         assert result is True
         runner._run_storage.cancel.assert_called_once_with("run-no-child")
 
+    def test_cancel_run_pending_agent(self, runner, mock_session_storage) -> None:
+        """cancel_run cancels a pending agent (not yet running)."""
+        mock_run = MagicMock()
+        mock_run.id = "run-pending"
+        mock_run.status = "pending"
+        mock_run.child_session_id = "sess-child"
+        runner._run_storage.get = MagicMock(return_value=mock_run)
+        runner._run_storage.cancel = MagicMock()
+
+        result = runner.cancel_run("run-pending")
+
+        assert result is True
+        runner._run_storage.cancel.assert_called_once_with("run-pending")
+        mock_session_storage.update_status.assert_called_once_with("sess-child", "cancelled")
+
 
 class TestAgentRunnerRegisterExecutor:
     """Tests for AgentRunner.register_executor()."""

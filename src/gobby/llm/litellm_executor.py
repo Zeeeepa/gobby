@@ -32,6 +32,29 @@ logger = logging.getLogger(__name__)
 ProviderType = Literal["claude", "gemini", "codex", "openai", "litellm"]
 AuthModeType = Literal["api_key", "adc"]
 
+# Shorthand aliases for Claude models — single source of truth for resolution
+MODEL_ALIASES: dict[str, str] = {
+    "opus": "claude-opus-4-6",
+    "sonnet": "claude-sonnet-4-6",
+    "haiku": "claude-haiku-4-5",
+}
+
+
+def resolve_model_alias(model: str) -> str:
+    """Resolve a shorthand model alias to a full model ID.
+
+    Used at the LiteLLM boundary where full model IDs are required.
+    The Claude Agent SDK handles shorthand natively, so this is only
+    needed for LiteLLM calls.
+
+    Args:
+        model: Model name, either shorthand ("opus") or full ("claude-opus-4-6").
+
+    Returns:
+        Full model ID suitable for LiteLLM.
+    """
+    return MODEL_ALIASES.get(model, model)
+
 
 def get_litellm_model(
     model: str,
@@ -48,7 +71,7 @@ def get_litellm_model(
     - No prefix -> OpenAI (default)
 
     Args:
-        model: The model name (e.g., "claude-sonnet-4-5", "gemini-2.0-flash")
+        model: The model name (e.g., "claude-sonnet-4-6", "gemini-2.0-flash")
         provider: The provider type (claude, gemini, codex, openai)
         auth_mode: The authentication mode (api_key, adc)
 
@@ -56,8 +79,8 @@ def get_litellm_model(
         LiteLLM-formatted model string with appropriate prefix.
 
     Examples:
-        >>> get_litellm_model("claude-sonnet-4-5", provider="claude")
-        "anthropic/claude-sonnet-4-5"
+        >>> get_litellm_model("claude-sonnet-4-6", provider="claude")
+        "anthropic/claude-sonnet-4-6"
         >>> get_litellm_model("gemini-2.0-flash", provider="gemini", auth_mode="api_key")
         "gemini/gemini-2.0-flash"
         >>> get_litellm_model("gemini-2.0-flash", provider="gemini", auth_mode="adc")
@@ -65,6 +88,9 @@ def get_litellm_model(
         >>> get_litellm_model("gpt-4o", provider="codex")
         "gpt-4o"
     """
+    # Resolve shorthand aliases (opus -> claude-opus-4-6, etc.)
+    model = resolve_model_alias(model)
+
     # If model already has a prefix, assume it's already formatted
     if "/" in model:
         return model
@@ -135,7 +161,7 @@ class LiteLLMExecutor(AgentExecutor):
 
     Example:
         >>> executor = LiteLLMExecutor(
-        ...     default_model="claude-sonnet-4-5",
+        ...     default_model="claude-sonnet-4-6",
         ...     provider="claude",
         ...     auth_mode="api_key",
         ... )
@@ -160,7 +186,7 @@ class LiteLLMExecutor(AgentExecutor):
 
         Args:
             default_model: Default model to use if not specified in run().
-                          Examples: "gpt-4o-mini", "claude-sonnet-4-5",
+                          Examples: "gpt-4o-mini", "claude-sonnet-4-6",
                           "gemini-2.0-flash"
             api_base: Optional custom API base URL (e.g., OpenRouter endpoint).
             api_keys: Optional dict of API keys to set in environment.

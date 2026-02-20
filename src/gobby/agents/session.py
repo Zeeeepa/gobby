@@ -223,6 +223,21 @@ class ChildSessionManager:
 
         return updated_child
 
+    def update_terminal_pickup_metadata(
+        self,
+        session_id: str,
+        agent_run_id: str | None = None,
+        workflow_name: str | None = None,
+        **kwargs: Any,
+    ) -> Any:
+        """Delegate to underlying storage for terminal pickup metadata updates."""
+        return self._storage.update_terminal_pickup_metadata(
+            session_id=session_id,
+            agent_run_id=agent_run_id,
+            workflow_name=workflow_name,
+            **kwargs,
+        )
+
     def get_child_sessions(self, parent_session_id: str) -> list[Session]:
         """
         Get all child sessions of a parent.

@@ -52,7 +52,7 @@ Example: `/gobby memory recall tag:security` → `search_memories(tags_any="secu
 Call `delete_memory` with:
 - `memory_id`: (required) The memory ID to delete
 
-Example: `/gobby memory forget mm-abc123` → `delete_memory(memory_id="mm-abc123")`
+Example: `/gobby memory forget a1b2c3d4-5678-9abc-def0-1234567890ab` → `delete_memory(memory_id="a1b2c3d4-5678-9abc-def0-1234567890ab")`
 
 ### `/gobby memory list` - List all memories
 Call `list_memories` with:
@@ -74,7 +74,7 @@ Call `get_memory` with:
 
 Returns full memory details including content, tags, and metadata.
 
-Example: `/gobby memory show mm-abc123` → `get_memory(memory_id="mm-abc123")`
+Example: `/gobby memory show a1b2c3d4-5678-9abc-def0-1234567890ab` → `get_memory(memory_id="a1b2c3d4-5678-9abc-def0-1234567890ab")`
 
 ### `/gobby memory update <memory-id>` - Update a memory
 Call `update_memory` with:
@@ -82,7 +82,7 @@ Call `update_memory` with:
 - `content`: New content (optional)
 - `tags`: New tags (optional)
 
-Example: `/gobby memory update mm-abc123 tags=critical,security` → `update_memory(memory_id="mm-abc123", tags="critical,security")`
+Example: `/gobby memory update a1b2c3d4-5678-9abc-def0-1234567890ab tags=critical,security` → `update_memory(memory_id="a1b2c3d4-5678-9abc-def0-1234567890ab", tags="critical,security")`
 
 ### `/gobby memory related <memory-id>` - Get related memories
 Call `get_related_memories` with:
@@ -92,7 +92,7 @@ Call `get_related_memories` with:
 
 Returns memories related via cross-references.
 
-Example: `/gobby memory related mm-abc123` → `get_related_memories(memory_id="mm-abc123")`
+Example: `/gobby memory related a1b2c3d4-5678-9abc-def0-1234567890ab` → `get_related_memories(memory_id="a1b2c3d4-5678-9abc-def0-1234567890ab")`
 
 ### `/gobby memory stats` - Show memory statistics
 Call `memory_stats` to retrieve:

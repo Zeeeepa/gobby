@@ -17,6 +17,7 @@ Test categories:
 from __future__ import annotations
 
 import logging
+import sqlite3
 import threading
 import time
 from typing import TYPE_CHECKING
@@ -291,6 +292,51 @@ class TestAgentRunCompletion:
             coordinator.complete_agent_run(mock_session)
 
             mock_registry.remove.assert_called_once_with("run-123")
+
+    def test_complete_agent_run_counts_tool_calls_from_messages(self) -> None:
+        """Test completing an agent run counts tool calls and turns from session_messages."""
+        mock_agent_run_manager = MagicMock()
+        mock_agent_run = MagicMock(status="running")
+        mock_agent_run_manager.get.return_value = mock_agent_run
+
+        # Mock DB to return tool call and turn counts
+        mock_row = {"tool_calls": 5, "turns": 3}
+        mock_agent_run_manager.db.fetchone.return_value = mock_row
+
+        coordinator = SessionCoordinator(agent_run_manager=mock_agent_run_manager)
+
+        mock_session = MagicMock()
+        mock_session.agent_run_id = "run-456"
+        mock_session.id = "sess-789"
+        mock_session.summary_markdown = "Done"
+        mock_session.compact_markdown = None
+
+        coordinator.complete_agent_run(mock_session)
+
+        call_kwargs = mock_agent_run_manager.complete.call_args[1]
+        assert call_kwargs["tool_calls_count"] == 5
+        assert call_kwargs["turns_used"] == 3
+
+    def test_complete_agent_run_defaults_counts_on_db_error(self) -> None:
+        """Test that tool call counts default to 0 if DB query fails."""
+        mock_agent_run_manager = MagicMock()
+        mock_agent_run = MagicMock(status="running")
+        mock_agent_run_manager.get.return_value = mock_agent_run
+        mock_agent_run_manager.db.fetchone.side_effect = sqlite3.OperationalError("DB error")
+
+        coordinator = SessionCoordinator(agent_run_manager=mock_agent_run_manager)
+
+        mock_session = MagicMock()
+        mock_session.agent_run_id = "run-456"
+        mock_session.id = "sess-789"
+        mock_session.summary_markdown = "Done"
+        mock_session.compact_markdown = None
+
+        coordinator.complete_agent_run(mock_session)
+
+        call_kwargs = mock_agent_run_manager.complete.call_args[1]
+        assert call_kwargs["tool_calls_count"] == 0
+        assert call_kwargs["turns_used"] == 0
 
 
 class TestWorktreeRelease:

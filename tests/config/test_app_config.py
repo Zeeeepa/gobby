@@ -34,7 +34,7 @@ from gobby.config.features import (
 )
 from gobby.config.llm_providers import LLMProviderConfig, LLMProvidersConfig
 from gobby.config.logging import LoggingSettings
-from gobby.config.persistence import MemoryConfig, MemorySyncConfig
+from gobby.config.persistence import MemoryBackupConfig, MemoryConfig
 from gobby.config.servers import MCPClientProxyConfig, WebSocketSettings
 from gobby.config.sessions import (
     ContextInjectionConfig,
@@ -281,7 +281,7 @@ class TestSessionSummaryConfig:
         config = SessionSummaryConfig()
         assert config.enabled is True
         assert config.provider == "claude"
-        assert config.model == "claude-haiku-4-5"
+        assert config.model == "sonnet"
         # prompt now has a default template with placeholders
         assert config.prompt is not None
         assert "Generate a concise session summary" in config.prompt
@@ -730,7 +730,7 @@ class TestRecommendToolsConfig:
         config = RecommendToolsConfig()
         assert config.enabled is True
         assert config.provider == "claude"
-        assert config.model == "claude-sonnet-4-5"
+        assert config.model == "sonnet"
         assert config.prompt_path is None  # Uses default prompt from prompts/
 
 
@@ -742,7 +742,7 @@ class TestImportMCPServerConfig:
         config = ImportMCPServerConfig()
         assert config.enabled is True
         assert config.provider == "claude"
-        assert config.model == "claude-haiku-4-5"
+        assert config.model == "haiku"
         assert config.prompt_path is None  # Uses DEFAULT_IMPORT_MCP_SERVER_PROMPT
 
 
@@ -754,7 +754,7 @@ class TestTitleSynthesisConfig:
         config = TitleSynthesisConfig()
         assert config.enabled is True
         assert config.provider == "claude"
-        assert config.model == "claude-haiku-4-5"
+        assert config.model == "haiku"
         assert config.prompt is None
 
 
@@ -786,7 +786,7 @@ class TestTaskExpansionConfig:
         config = TaskExpansionConfig()
         assert config.enabled is True
         assert config.provider == "claude"
-        assert config.model == "claude-opus-4-5"  # Uses opus for complex task expansion
+        assert config.model == "opus"  # Uses opus for complex task expansion
         assert config.prompt_path is None  # Uses default prompt from prompts/
 
 
@@ -798,7 +798,7 @@ class TestTaskValidationConfig:
         config = TaskValidationConfig()
         assert config.enabled is True
         assert config.provider == "claude"
-        assert config.model == "claude-sonnet-4-5"
+        assert config.model == "opus"
         assert config.prompt_path is None  # Uses default prompt from prompts/
 
 
@@ -924,7 +924,7 @@ class TestToolSummarizerConfig:
         config = ToolSummarizerConfig()
         assert config.enabled is True
         assert config.provider == "claude"
-        assert config.model == "claude-haiku-4-5"
+        assert config.model == "haiku"
         assert config.prompt_path is None  # Uses default prompt from prompts/
 
 
@@ -1047,19 +1047,19 @@ class TestPluginsConfig:
         assert config.plugins["other-plugin"].enabled is False
 
 
-class TestMemorySyncConfig:
-    """Tests for MemorySyncConfig."""
+class TestMemoryBackupConfig:
+    """Tests for MemoryBackupConfig."""
 
     def test_default_values(self) -> None:
-        """Test default memory sync config."""
-        config = MemorySyncConfig()
+        """Test default memory backup config."""
+        config = MemoryBackupConfig()
         assert config.enabled is True
         assert config.export_debounce == 5.0
 
     def test_debounce_validation(self) -> None:
         """Test export debounce validation."""
         with pytest.raises(ValidationError):
-            MemorySyncConfig(export_debounce=-1.0)
+            MemoryBackupConfig(export_debounce=-1.0)
 
 
 class TestMetricsConfig:
@@ -1130,7 +1130,7 @@ class TestDaemonConfigComposition:
 
         # Memory
         assert isinstance(config.memory, MemoryConfig)
-        assert isinstance(config.memory_sync, MemorySyncConfig)
+        assert isinstance(config.memory_sync, MemoryBackupConfig)
 
     def test_getters_return_correct_configs(self) -> None:
         """Test all getter methods return correct configs."""
@@ -1198,7 +1198,7 @@ class TestAllConfigClassesInstantiate:
             SessionLifecycleConfig(),
             MetricsConfig(),
             MemoryConfig(),
-            MemorySyncConfig(),
+            MemoryBackupConfig(),
             DaemonConfig(),
         ]
 

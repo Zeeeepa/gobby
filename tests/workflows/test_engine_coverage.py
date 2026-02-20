@@ -675,7 +675,7 @@ class TestCheckPrematureStop:
         container = MagicMock()
         container.definition = lifecycle_wf
         container.name = "lifecycle_wf"
-        mock_loader.discover_lifecycle_workflows.return_value = [container]
+        mock_loader.discover_workflows.return_value = [container]
 
         # Setup step workflow state for premature stop check
         state = WorkflowState(
@@ -952,7 +952,7 @@ class TestLifecycleWorkflowAfterToolTaskDetection:
         container = MagicMock()
         container.definition = lifecycle_wf
         container.name = "lifecycle_wf"
-        mock_loader.discover_lifecycle_workflows.return_value = [container]
+        mock_loader.discover_workflows.return_value = [container]
 
         mock_state_manager.get_state.return_value = None  # No existing state
 

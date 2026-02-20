@@ -1,7 +1,6 @@
 """Comprehensive tests for WorkflowLoader (DB-only runtime)."""
 
 import json
-import warnings
 from pathlib import Path
 from typing import Any
 from unittest.mock import MagicMock, patch
@@ -479,7 +478,11 @@ class TestMergeWorkflows:
 
     def test_simple_merge(self, loader: WorkflowLoader) -> None:
         """Test basic parent/child merge."""
-        parent: dict[str, Any] = {"name": "parent", "version": "1.0.0", "description": "Parent desc"}
+        parent: dict[str, Any] = {
+            "name": "parent",
+            "version": "1.0.0",
+            "description": "Parent desc",
+        }
         child: dict[str, Any] = {"name": "child", "version": "2.0"}
 
         result = loader._merge_workflows(parent, child)
@@ -727,7 +730,7 @@ class TestDiscoverLifecycleWorkflows:
         loader: WorkflowLoader,
         def_manager: LocalWorkflowDefinitionManager,
     ) -> None:
-        """Test that discover_lifecycle_workflows (deprecated alias) returns all types."""
+        """Test that discover_workflows returns all types (lifecycle + step)."""
         for name, wf_type in [("lifecycle_wf", "lifecycle"), ("step_wf", "step")]:
             data = {"name": name, "version": "1.0.0", "type": wf_type}
             def_manager.create(
@@ -736,9 +739,7 @@ class TestDiscoverLifecycleWorkflows:
                 workflow_type="workflow",
             )
 
-        with warnings.catch_warnings():
-            warnings.simplefilter("ignore", DeprecationWarning)
-            discovered = await loader.discover_lifecycle_workflows()
+        discovered = await loader.discover_workflows()
 
         assert len(discovered) == 2
         names = [w.name for w in discovered]
@@ -1120,12 +1121,12 @@ class TestDiscoverWorkflows:
         assert discovered[0].definition.sources == ["claude"]
 
     @pytest.mark.asyncio
-    async def test_discover_lifecycle_is_deprecated_alias(
+    async def test_discover_workflows_caching_consistency(
         self,
         loader: WorkflowLoader,
         def_manager: LocalWorkflowDefinitionManager,
     ) -> None:
-        """Test that discover_lifecycle_workflows() returns same results as discover_workflows()."""
+        """Test that discover_workflows() returns consistent results across calls."""
         for name, priority in [("test", 10), ("root-wf", 20)]:
             data = {"name": name, "version": "1.0"}
             def_manager.create(
@@ -1135,15 +1136,13 @@ class TestDiscoverWorkflows:
                 priority=priority,
             )
 
-        unified = await loader.discover_workflows()
-        # Clear discovery cache so the deprecated alias runs fresh
+        first = await loader.discover_workflows()
+        # Clear discovery cache so second call runs fresh
         loader._discovery_cache.clear()
 
-        with warnings.catch_warnings():
-            warnings.simplefilter("ignore", DeprecationWarning)
-            deprecated = await loader.discover_lifecycle_workflows()
+        second = await loader.discover_workflows()
 
-        assert [w.name for w in unified] == [w.name for w in deprecated]
+        assert [w.name for w in first] == [w.name for w in second]
 
     @pytest.mark.asyncio
     async def test_discover_project_shadows_global(
@@ -1184,7 +1183,9 @@ class TestDiscoverWorkflows:
         """Test that when definition has 'type' but no 'enabled', enabled is derived from type."""
         def_manager.create(
             name="lifecycle-style",
-            definition_json=json.dumps({"name": "lifecycle-style", "version": "1.0", "type": "lifecycle"}),
+            definition_json=json.dumps(
+                {"name": "lifecycle-style", "version": "1.0", "type": "lifecycle"}
+            ),
             workflow_type="workflow",
         )
         def_manager.create(
@@ -1391,13 +1392,25 @@ class TestDBFirstLookup:
         """Test that DB entries shadow each other by name (project over global)."""
         def_manager.create(
             name="shadow-test",
-            definition_json=json.dumps({"name": "shadow-test", "description": "global", "steps": [{"name": "work", "allowed_tools": "all"}]}),
+            definition_json=json.dumps(
+                {
+                    "name": "shadow-test",
+                    "description": "global",
+                    "steps": [{"name": "work", "allowed_tools": "all"}],
+                }
+            ),
             workflow_type="workflow",
             priority=100,
         )
         def_manager.create(
             name="shadow-test",
-            definition_json=json.dumps({"name": "shadow-test", "description": "project", "steps": [{"name": "work", "allowed_tools": "all"}]}),
+            definition_json=json.dumps(
+                {
+                    "name": "shadow-test",
+                    "description": "project",
+                    "steps": [{"name": "work", "allowed_tools": "all"}],
+                }
+            ),
             workflow_type="workflow",
             priority=10,
             project_id=project.id,
@@ -1420,7 +1433,9 @@ class TestDBFirstLookup:
         """Test that discover only returns DB entries (no filesystem)."""
         def_manager.create(
             name="db-only",
-            definition_json=json.dumps({"name": "db-only", "steps": [{"name": "work", "allowed_tools": "all"}]}),
+            definition_json=json.dumps(
+                {"name": "db-only", "steps": [{"name": "work", "allowed_tools": "all"}]}
+            ),
             workflow_type="workflow",
         )
 

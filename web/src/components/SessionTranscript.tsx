@@ -142,7 +142,7 @@ function ToolCallBlock({ toolCall }: { toolCall: NonNullable<TranscriptEntry['to
 }
 
 function TranscriptMessage({ entry }: { entry: TranscriptEntry }) {
-  const roleLabel = entry.role === 'user' ? 'User' : entry.role === 'assistant' ? 'Assistant' : 'Tool'
+  const roleLabel = entry.role === 'user' ? 'You' : entry.role === 'assistant' ? 'Gobby' : 'Tool'
 
   return (
     <div className={`transcript-message transcript-message-${entry.role}`}>

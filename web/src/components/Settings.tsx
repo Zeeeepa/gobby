@@ -1,13 +1,13 @@
-import type { Settings, ModelInfo } from '../hooks/useSettings'
+import type { Settings, Theme } from '../hooks/useSettings'
+import { MODEL_OPTIONS } from '../hooks/useSettings'
 
 interface SettingsProps {
   isOpen: boolean
   onClose: () => void
   settings: Settings
-  modelInfo: ModelInfo | null
-  modelsLoading: boolean
   onFontSizeChange: (size: number) => void
   onModelChange: (model: string) => void
+  onThemeChange: (theme: Theme) => void
   onReset: () => void
 }
 
@@ -15,19 +15,12 @@ export function Settings({
   isOpen,
   onClose,
   settings,
-  modelInfo,
-  modelsLoading,
   onFontSizeChange,
   onModelChange,
+  onThemeChange,
   onReset,
 }: SettingsProps) {
   if (!isOpen) return null
-
-  const models = modelInfo?.models || []
-
-  const handleModelChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
-    onModelChange(e.target.value)
-  }
 
   return (
     <>
@@ -43,24 +36,18 @@ export function Settings({
         <div className="settings-content">
           <div className="setting-item">
             <label htmlFor="model-select">Model</label>
-            {modelsLoading ? (
-              <span className="loading-text">Loading models...</span>
-            ) : models.length > 0 ? (
-              <select
-                id="model-select"
-                value={settings.model || ''}
-                onChange={handleModelChange}
-                className="model-select"
-              >
-                {models.map((model) => (
-                  <option key={model} value={model}>
-                    {model}
-                  </option>
-                ))}
-              </select>
-            ) : (
-              <span className="no-models-text">No models available</span>
-            )}
+            <select
+              id="model-select"
+              value={settings.model}
+              onChange={(e) => onModelChange(e.target.value)}
+              className="model-select"
+            >
+              {MODEL_OPTIONS.map(({ value, label }) => (
+                <option key={value} value={value}>
+                  {label}
+                </option>
+              ))}
+            </select>
           </div>
 
           <div className="setting-item">
@@ -80,6 +67,21 @@ export function Settings({
             <div className="slider-labels">
               <span>12px</span>
               <span>48px</span>
+            </div>
+          </div>
+
+          <div className="setting-item">
+            <label>Theme</label>
+            <div className="theme-selector">
+              {(['dark', 'light', 'system'] as const).map((t) => (
+                <button
+                  key={t}
+                  className={`theme-option${settings.theme === t ? ' active' : ''}`}
+                  onClick={() => onThemeChange(t)}
+                >
+                  {t.charAt(0).toUpperCase() + t.slice(1)}
+                </button>
+              ))}
             </div>
           </div>
 

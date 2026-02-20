@@ -4,8 +4,10 @@ Utilities for resolving project context.
 
 from __future__ import annotations
 
+import contextvars
 import json
 import logging
+import os
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, cast
 
@@ -13,6 +15,23 @@ if TYPE_CHECKING:
     from gobby.config.features import HooksConfig, ProjectVerificationConfig
 
 logger = logging.getLogger(__name__)
+
+# Per-async-task project context, set by MCP tool calls from session data.
+# Checked first by get_project_context() so daemon-level tools resolve the
+# calling session's project, not the daemon's cwd.
+_current_project_context: contextvars.ContextVar[dict[str, Any] | None] = contextvars.ContextVar(
+    "current_project_context", default=None
+)
+
+
+def set_project_context(ctx: dict[str, Any] | None) -> contextvars.Token[dict[str, Any] | None]:
+    """Set project context for the current async task (used by MCP tool calls)."""
+    return _current_project_context.set(ctx)
+
+
+def reset_project_context(token: contextvars.Token[dict[str, Any] | None]) -> None:
+    """Reset project context after tool call completes."""
+    _current_project_context.reset(token)
 
 
 def find_project_root(cwd: Path | None = None) -> Path | None:
@@ -55,6 +74,27 @@ def get_project_context(cwd: Path | None = None) -> dict[str, Any] | None:
         - project_path: Path to project root
         - verification: Optional dict with unit_tests, type_check, lint, integration, custom
     """
+    # 1. Check context var (set per-MCP-call from session)
+    ctx = _current_project_context.get()
+    if ctx is not None:
+        return ctx
+
+    # 2. Environment override (set by web chat subprocess for correct project routing)
+    override_id = os.environ.get("GOBBY_PROJECT_ID")
+    if override_id:
+        root = find_project_root(cwd)
+        if root:
+            try:
+                with open(root / ".gobby" / "project.json") as f:
+                    data = json.load(f)
+                data["project_path"] = str(root)
+                if data.get("id") == override_id:
+                    return cast(dict[str, Any], data)
+            except (FileNotFoundError, PermissionError, json.JSONDecodeError, OSError) as e:
+                logger.debug(f"Failed to read project.json for override ID {override_id}: {e}")
+        # CWD doesn't match — return minimal context with just the ID
+        return {"id": override_id}
+
     root = find_project_root(cwd)
     if not root:
         return None
@@ -65,7 +105,7 @@ def get_project_context(cwd: Path | None = None) -> dict[str, Any] | None:
             data = json.load(f)
         data["project_path"] = str(root)
         return cast(dict[str, Any], data)
-    except Exception as e:
+    except (FileNotFoundError, PermissionError, json.JSONDecodeError, OSError) as e:
         logger.warning(f"Failed to read project context: {e}")
         return None
 

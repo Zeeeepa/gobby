@@ -195,7 +195,8 @@ class SecretStore:
 
         try:
             fernet = self._get_fernet()
-            return fernet.decrypt(row["encrypted_value"].encode("utf-8")).decode("utf-8")
+            decrypted: str = fernet.decrypt(row["encrypted_value"].encode("utf-8")).decode("utf-8")
+            return decrypted
         except InvalidToken:
             logger.error(f"Failed to decrypt secret '{name}' — machine ID may have changed")
             return None

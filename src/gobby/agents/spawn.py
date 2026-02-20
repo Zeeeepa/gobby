@@ -28,7 +28,6 @@ from gobby.agents.spawners import (
     build_codex_command_with_resume,
     build_gemini_command_with_resume,
     create_prompt_file,
-    read_prompt_from_env,
 )
 from gobby.agents.spawners.base import EmbeddedPTYResult, HeadlessResult
 from gobby.agents.spawners.embedded import EmbeddedSpawner
@@ -60,7 +59,6 @@ __all__ = [
     "prepare_terminal_spawn",
     "prepare_gemini_spawn_with_preflight",
     "prepare_codex_spawn_with_preflight",
-    "read_prompt_from_env",
     "build_cli_command",
     "build_gemini_command_with_resume",
     "build_codex_command_with_resume",
@@ -110,6 +108,7 @@ def prepare_terminal_spawn(
     git_branch: str | None = None,
     prompt: str | None = None,
     max_agent_depth: int = 3,
+    agent_run_id: str | None = None,
 ) -> PreparedSpawn:
     """
     Prepare a terminal spawn by creating the child session.
@@ -156,8 +155,35 @@ def prepare_terminal_spawn(
     # Create the child session
     child_session = session_manager.create_child_session(config)
 
-    # Generate agent run ID
-    agent_run_id = f"run-{uuid.uuid4().hex[:12]}"
+    # Use provided agent_run_id or generate one (backward compat)
+    if agent_run_id is None:
+        agent_run_id = f"run-{uuid.uuid4().hex[:12]}"
+
+    # Create agent_runs record so the FK constraint on sessions.agent_run_id is satisfied.
+    # Use INSERT OR IGNORE to tolerate pre-created rows (e.g. from spawn_agent_impl).
+    import logging as _logging
+
+    from gobby.storage.agents import LocalAgentRunManager
+
+    _pts_logger = _logging.getLogger("agents.spawn.prepare_terminal_spawn")
+    _pts_logger.info(f"Creating agent_run {agent_run_id} for child_session {child_session.id}")
+
+    agent_run_mgr = LocalAgentRunManager(session_manager._storage.db)
+    agent_run_mgr.create(
+        parent_session_id=parent_session_id,
+        provider=source,
+        prompt=prompt or "",
+        workflow_name=workflow_name,
+        child_session_id=child_session.id,
+        run_id=agent_run_id,
+    )
+
+    # Persist agent_run_id to session record for hook-based lifecycle tracking
+    session_manager.update_terminal_pickup_metadata(
+        session_id=child_session.id,
+        agent_run_id=agent_run_id,
+        workflow_name=workflow_name,
+    )
 
     # Handle prompt - decide env var vs file
     prompt_env: str | None = None
@@ -265,6 +291,13 @@ async def prepare_gemini_spawn_with_preflight(
 
     # Generate agent run ID
     agent_run_id = f"run-{uuid.uuid4().hex[:12]}"
+
+    # Persist agent_run_id to session record for hook-based lifecycle tracking
+    session_manager.update_terminal_pickup_metadata(
+        session_id=child_session.id,
+        agent_run_id=agent_run_id,
+        workflow_name=workflow_name,
+    )
 
     # Handle prompt - decide env var vs file
     prompt_env: str | None = None
@@ -376,6 +409,13 @@ async def prepare_codex_spawn_with_preflight(
 
     # Generate agent run ID
     agent_run_id = f"run-{uuid.uuid4().hex[:12]}"
+
+    # Persist agent_run_id to session record for hook-based lifecycle tracking
+    session_manager.update_terminal_pickup_metadata(
+        session_id=child_session.id,
+        agent_run_id=agent_run_id,
+        workflow_name=workflow_name,
+    )
 
     # Handle prompt - decide env var vs file
     prompt_env: str | None = None

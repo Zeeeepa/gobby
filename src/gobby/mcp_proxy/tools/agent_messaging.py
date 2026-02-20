@@ -101,6 +101,32 @@ def add_messaging_tools(
                 msg.id,
             )
 
+            # Also write to agent_runs.result so get_agent_result can find it.
+            # This bridges the messaging system with the agent result system.
+            try:
+                db = session_manager.db
+                # Find the agent run for this child session
+                row = db.fetchone(
+                    "SELECT id FROM agent_runs WHERE child_session_id = ? "
+                    "ORDER BY created_at DESC LIMIT 1",
+                    (resolved_session_id,),
+                )
+                if row:
+                    from datetime import UTC, datetime
+
+                    now = datetime.now(UTC).isoformat()
+                    db.execute(
+                        "UPDATE agent_runs SET result = ?, updated_at = ? WHERE id = ?",
+                        (content, now, row["id"]),
+                    )
+                    logger.info(
+                        "Also wrote send_to_parent content to agent_runs.result for run %s",
+                        row["id"],
+                    )
+            except Exception as e:
+                # Non-fatal: the message was still sent successfully
+                logger.warning("Failed to write send_to_parent to agent_runs.result: %s", e)
+
             return {
                 "success": True,
                 "message": msg.to_dict(),

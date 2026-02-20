@@ -29,6 +29,7 @@ Example:
 
 import asyncio
 import logging
+import sqlite3
 import time
 from logging.handlers import RotatingFileHandler
 from pathlib import Path
@@ -645,6 +646,8 @@ class HookManager:
 
         project_context = get_project_context(working_dir)
         if project_context and project_context.get("id"):
+            # Ensure project exists in database (may have been created on another machine)
+            self._ensure_project_in_db(project_context)
             return str(project_context["id"])
 
         # No project.json found - use personal workspace
@@ -652,3 +655,26 @@ class HookManager:
 
         self.logger.info(f"No project context for {working_dir}, using personal workspace")
         return PERSONAL_PROJECT_ID
+
+    def _ensure_project_in_db(self, project_context: dict[str, Any]) -> None:
+        """
+        Ensure project from project.json exists in the database.
+
+        This handles the case where project.json was created on another machine
+        and the project ID doesn't exist in the local database.
+        """
+        if self._session_manager is None:
+            return
+
+        from gobby.storage.projects import LocalProjectManager
+
+        project_id = str(project_context["id"])
+        project_name = project_context.get("name", "unknown")
+        repo_path = project_context.get("project_path")
+
+        try:
+            db = self._session_manager.db
+            project_manager = LocalProjectManager(db)
+            project_manager.ensure_exists(project_id, project_name, repo_path)
+        except (sqlite3.Error, ValueError, RuntimeError) as e:
+            self.logger.warning(f"Failed to ensure project in database: {e}")

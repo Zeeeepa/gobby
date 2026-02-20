@@ -1,6 +1,6 @@
 [project]
 name = "gobby"
-version = "0.2.18"
+version = "0.2.19"
 description = "A local-first daemon to unify your AI coding tools. Session tracking and handoffs across Claude Code, Gemini CLI, and Codex. An MCP proxy that discovers tools without flooding context. Task management with dependencies, validation, and TDD expansion. Agent spawning and worktree orchestration. Persistent memory, extensible workflows, and hooks."
 readme = "README.md"
 license = "Apache-2.0"
@@ -32,14 +32,14 @@ dependencies = [
     "websockets>=15.0",
     "pyyaml>=6.0.3",
     "jinja2>=3.1.0",
-    "claude-agent-sdk>=0.1.18",
+    "claude-agent-sdk>=0.1.39",
     "wcwidth>=0.2.14",
     "tomli-w>=1.0.0",
     "msgspec>=0.20.0",
     # gitingest>=0.3.1 includes CVE-2024-56074 fix (commit 9996a06, Dec 2024)
     "gitingest>=0.3.1",
     # croniter for cron expression parsing (scheduler)
-    "croniter>=2.0.0",
+    "croniter>=6.0.0",
     # scikit-learn for TF-IDF search (used by task search and skill search)
     "scikit-learn>=1.0.0",
     "textual>=7.3.0",

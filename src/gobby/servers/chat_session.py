@@ -9,12 +9,14 @@ WebSocket reconnections) rather than ephemeral client_id.
 import asyncio
 import logging
 import os
+import re
 import shutil
 from collections.abc import AsyncIterator, Awaitable, Callable
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
+from fnmatch import fnmatch
 from pathlib import Path
-from typing import Any, cast
+from typing import Any, TypedDict, cast
 
 from claude_agent_sdk import (
     AssistantMessage,
@@ -23,6 +25,7 @@ from claude_agent_sdk import (
     HookContext,
     HookMatcher,
     PermissionResultAllow,
+    PermissionResultDeny,
     ResultMessage,
     TextBlock,
     ThinkingBlock,
@@ -41,6 +44,7 @@ from claude_agent_sdk.types import (
     UserPromptSubmitHookSpecificOutput,
 )
 
+import gobby.llm.sdk_compat  # noqa: F401 — monkey-patch parse_message
 from gobby.llm.claude_models import (
     ChatEvent,
     DoneEvent,
@@ -51,6 +55,18 @@ from gobby.llm.claude_models import (
 )
 
 logger = logging.getLogger(__name__)
+
+# Claude Code / Agent SDK hard-truncates additionalContext at 10K chars.
+# We cap slightly below to avoid the ugly "… [output truncated]" suffix.
+_ADDITIONAL_CONTEXT_LIMIT = 9_950
+
+
+class PendingApproval(TypedDict):
+    """Pending tool-approval payload sent to the frontend."""
+
+    tool_name: str
+    arguments: dict[str, Any]
+
 
 # Fallback system prompt if the prompts system is unavailable
 _FALLBACK_SYSTEM_PROMPT = "You are Gobby, a helpful AI coding assistant."
@@ -154,8 +170,10 @@ def _response_to_pre_tool_output(resp: dict[str, Any] | None) -> SyncHookJSONOut
         if resp.get("reason"):
             output["reason"] = resp["reason"]
     elif resp.get("context"):
-        # Inject context via reason field for PreToolUse (no additionalContext)
-        output["reason"] = resp["context"]
+        output["hookSpecificOutput"] = PreToolUseHookSpecificOutput(
+            hookEventName="PreToolUse",
+        )
+        output["hookSpecificOutput"]["additionalContext"] = resp["context"]  # type: ignore[typeddict-unknown-key]
     return output
 
 
@@ -182,6 +200,15 @@ def _response_to_stop_output(resp: dict[str, Any] | None) -> SyncHookJSONOutput:
         output["decision"] = "block"
         if resp.get("reason"):
             output["reason"] = resp["reason"]
+    context = resp.get("context")
+    if context:
+        output["hookSpecificOutput"] = cast(
+            Any,
+            {  # No SDK TypedDict for Stop
+                "hookEventName": "Stop",
+                "additionalContext": context,
+            },
+        )
     return output
 
 
@@ -192,9 +219,13 @@ def _response_to_compact_output(resp: dict[str, Any] | None) -> SyncHookJSONOutp
     output = SyncHookJSONOutput()
     context = resp.get("context")
     if context:
-        # PreCompact doesn't have hook-specific additionalContext,
-        # use reason to surface info to the agent
-        output["reason"] = context
+        output["hookSpecificOutput"] = cast(
+            Any,
+            {  # No SDK TypedDict for PreCompact
+                "hookEventName": "PreCompact",
+                "additionalContext": context,
+            },
+        )
     return output
 
 
@@ -209,6 +240,9 @@ class ChatSession:
 
     conversation_id: str
     db_session_id: str | None = field(default=None)
+    seq_num: int | None = field(default=None)
+    project_id: str | None = field(default=None)
+    project_path: str | None = field(default=None)
     message_index: int = field(default=0)
     last_activity: datetime = field(default_factory=lambda: datetime.now(UTC))
     _client: ClaudeSDKClient | None = field(default=None, repr=False)
@@ -218,8 +252,17 @@ class ChatSession:
     _pending_question: dict[str, Any] | None = field(default=None, repr=False)
     _pending_answer_event: asyncio.Event | None = field(default=None, repr=False)
     _pending_answers: dict[str, str] | None = field(default=None, repr=False)
+    _pending_approval: PendingApproval | None = field(default=None, repr=False)
+    _pending_approval_event: asyncio.Event | None = field(default=None, repr=False)
+    _pending_approval_decision: str | None = field(default=None, repr=False)
+    _approved_tools: set[str] = field(default_factory=set, repr=False)
+    chat_mode: str = field(default="bypass", repr=False)
+    _tool_approval_config: Any | None = field(default=None, repr=False)
+    _tool_approval_callback: Any | None = field(default=None, repr=False)
     _needs_history_injection: bool = field(default=False, repr=False)
+    _last_model: str | None = field(default=None, repr=False)
     _message_manager: Any | None = field(default=None, repr=False)
+    _message_manager_source_session_id: str | None = field(default=None, repr=False)
     _max_history_message_chars: int = field(default=2000, repr=False)
     _max_history_total_chars: int = field(default=30_000, repr=False)
 
@@ -249,29 +292,48 @@ class ChatSession:
         mcp_config = _find_mcp_config()
         self._model = model
 
-        # Use the gobby project root if found (dev mode), otherwise cwd.
-        # TODO: Add project picker to UI for production so the user selects
-        # the project before chatting, and pass that path here instead.
-        project_root = _find_project_root()
-        cwd = str(project_root) if project_root else str(Path.cwd())
+        # Use the project's repo_path if available (set by web UI project selector),
+        # otherwise fall back to gobby project root (dev mode) or cwd.
+        if self.project_path:
+            cwd = self.project_path
+        else:
+            project_root = _find_project_root()
+            cwd = str(project_root) if project_root else str(Path.cwd())
 
         system_prompt = _load_chat_system_prompt()
         # Inject working directory so the agent doesn't hallucinate paths
         system_prompt += f"\n\n## Environment\n- Working directory: {cwd}\n"
+        if self.db_session_id:
+            session_ref = f"#{self.seq_num}" if self.seq_num else self.db_session_id
+            system_prompt += (
+                f"- Session ID: {session_ref} (use for session_id params in MCP tools)\n"
+            )
+        if self.project_id:
+            system_prompt += f"- Project ID: {self.project_id}\n"
 
         # Build SDK hooks from lifecycle callbacks
         sdk_hooks = self._build_sdk_hooks()
 
+        # Pass session context to the CLI subprocess so it attaches to the
+        # web chat's pre-created session instead of creating a new one.
+        env: dict[str, str] = {}
+        if self.db_session_id:
+            env["GOBBY_SESSION_ID"] = self.db_session_id
+            env["GOBBY_SOURCE"] = "claude_sdk_web_chat"
+        if self.project_id:
+            env["GOBBY_PROJECT_ID"] = self.project_id
+
         options = ClaudeAgentOptions(
             system_prompt=system_prompt,
             max_turns=None,
-            model=model or "claude-sonnet-4-5",
+            model=model or "opus",
             allowed_tools=["mcp__gobby__*"],
             can_use_tool=self._can_use_tool,
             cli_path=cli_path,
             mcp_servers=mcp_config if mcp_config is not None else {},
             cwd=cwd,
             hooks=cast(Any, sdk_hooks) if sdk_hooks else None,
+            env=env or None,
         )
 
         self._client = ClaudeSDKClient(options=options)
@@ -299,19 +361,26 @@ class ChatSession:
                 # Inject conversation history on first prompt of a recreated session
                 if self._needs_history_injection:
                     self._needs_history_injection = False
-                    history_ctx = await self._load_history_context()
-                    if history_ctx:
-                        existing = ""
-                        hook_specific = output.get("hookSpecificOutput")
-                        if hook_specific and isinstance(hook_specific, dict):
-                            existing = str(hook_specific.get("additionalContext", "") or "")
-                        combined = (
-                            (existing + "\n\n" + history_ctx).strip() if existing else history_ctx
+                    # Calculate budget: existing context gets priority, history fills the rest
+                    existing = ""
+                    hook_specific = output.get("hookSpecificOutput")
+                    if hook_specific and isinstance(hook_specific, dict):
+                        existing = str(hook_specific.get("additionalContext", "") or "")
+                    history_budget = _ADDITIONAL_CONTEXT_LIMIT - len(existing) - 4  # "\n\n" joiner
+                    if history_budget > 500:  # Only inject if meaningful space remains
+                        history_ctx = await self._load_history_context(
+                            max_total_chars=history_budget
                         )
-                        output["hookSpecificOutput"] = UserPromptSubmitHookSpecificOutput(
-                            hookEventName="UserPromptSubmit",
-                            additionalContext=combined,
-                        )
+                        if history_ctx:
+                            combined = (
+                                (existing + "\n\n" + history_ctx).strip()
+                                if existing
+                                else history_ctx
+                            )
+                            output["hookSpecificOutput"] = UserPromptSubmitHookSpecificOutput(
+                                hookEventName="UserPromptSubmit",
+                                additionalContext=combined,
+                            )
 
                 return output
 
@@ -325,6 +394,12 @@ class ChatSession:
                 tool_use_id: str | None,
                 ctx: HookContext,
             ) -> SyncHookJSONOutput:
+                # DEBUG: log raw SDK hook input keys to diagnose hook issues
+                logger.debug(
+                    "_pre_tool_hook raw inp keys=%s, tool_name=%r",
+                    list(inp.keys()) if isinstance(inp, dict) else type(inp).__name__,
+                    inp.get("tool_name") if isinstance(inp, dict) else "N/A",
+                )
                 data = {
                     "tool_name": inp.get("tool_name", ""),
                     "tool_input": inp.get("tool_input", {}),
@@ -389,13 +464,32 @@ class ChatSession:
         tool_name: str,
         input_data: dict[str, Any],
         context: ToolPermissionContext,
-    ) -> PermissionResultAllow:
+    ) -> PermissionResultAllow | PermissionResultDeny:
         """Callback for tool permission checks.
 
-        Auto-approves all tools except AskUserQuestion, which blocks
-        until the user provides answers via provide_answer().
+        Auto-approves all tools except AskUserQuestion (which blocks
+        until the user provides answers via provide_answer()) and tools
+        matched by tool_approval policies (which block until approved).
         """
+        # Fire session-lifecycle evaluation for tool blocking.
+        # In the SDK path, the PreToolUse hook's permissionDecision="deny" is not
+        # respected because can_use_tool already granted permission. By checking
+        # here, we block tools at the SDK permission gate itself.
+        if self._on_pre_tool:
+            resp = await self._on_pre_tool({"tool_name": tool_name, "tool_input": input_data})
+            if resp and resp.get("decision") == "block":
+                return PermissionResultDeny(
+                    message=resp.get("reason", "Blocked by session lifecycle")
+                )
+
+        # Check tool approval (before AskUserQuestion, which has its own flow)
         if tool_name != "AskUserQuestion":
+            if self._needs_tool_approval(tool_name):
+                return await self._wait_for_tool_approval(tool_name, input_data)
+            # In accept_edits mode, auto-approved Bash still needs danger check
+            if self.chat_mode == "accept_edits" and tool_name == "Bash":
+                if self._is_dangerous_bash(input_data):
+                    return await self._wait_for_tool_approval(tool_name, input_data)
             return PermissionResultAllow(updated_input=input_data)
 
         # Store the pending question and block until answered
@@ -434,17 +528,157 @@ class ChatSession:
         """Whether an AskUserQuestion is currently awaiting a response."""
         return self._pending_question is not None
 
-    async def _load_history_context(self) -> str | None:
+    # Patterns that indicate dangerous bash commands (used by accept_edits mode)
+    _DANGEROUS_BASH_PATTERNS = re.compile(
+        r"(?:^|[;&|]\s*)(?:sudo|rm|chmod|chown|kill|killall|mkfs|dd|reboot|shutdown|halt|"
+        r"systemctl|service|init|"
+        r"mv\s+/|>\s*/|git\s+(?:push|reset\s+--hard|clean\s+-f))\b"
+        r"|(?:curl|wget)\s+.*\|\s*(?:ba)?sh\b",
+        re.MULTILINE,
+    )
+
+    def _needs_tool_approval(self, tool_name: str) -> bool:
+        """Check if a tool requires user approval based on chat mode and config.
+
+        Mode logic:
+        - bypass: Never prompt (auto-approve everything)
+        - accept_edits: Auto-approve Edit/Write/NotebookEdit and safe Bash.
+          Prompt for dangerous Bash and MCP call_tool.
+        - normal: Fall through to ToolApprovalConfig policy checks
+        - plan: Fall through to ToolApprovalConfig policy checks
+          (plan mode blocking is handled by the workflow engine, not here)
+        """
+        mode = self.chat_mode
+
+        # Bypass mode: no approvals ever
+        if mode == "bypass":
+            return False
+
+        # Accept-edits mode: auto-approve edits and safe bash
+        if mode == "accept_edits":
+            # Already approved this session
+            if tool_name in self._approved_tools:
+                return False
+            # Auto-approve file edit tools
+            if tool_name in ("Edit", "Write", "NotebookEdit"):
+                return False
+            # Bash: auto-approve unless dangerous patterns detected
+            # (actual command content check happens in _can_use_tool via input_data)
+            # For the approval gate check, we mark Bash as needing approval
+            # only when the config says so — the actual danger check is below
+            if tool_name == "Bash":
+                return False  # Handled by _is_dangerous_bash in _can_use_tool
+            # MCP call_tool and other tools: prompt
+            return True
+
+        # Normal / plan mode: use ToolApprovalConfig
+        config = self._tool_approval_config
+        if config is None or not config.enabled:
+            return False
+
+        # Already approved this session (approve_always)
+        if tool_name in self._approved_tools:
+            return False
+
+        # Extract server/tool from full tool name (e.g. mcp__gobby-tasks__create_task)
+        parts = tool_name.split("__")
+        server_name = parts[1] if len(parts) >= 3 else ""
+        short_tool = parts[-1] if parts else tool_name
+
+        # Check specific policies first
+        for policy in config.policies:
+            if fnmatch(server_name, policy.server_pattern) and fnmatch(
+                short_tool, policy.tool_pattern
+            ):
+                needs_approval: bool = policy.policy != "auto"
+                return needs_approval
+
+        # Fall back to default policy
+        default_needs: bool = config.default_policy != "auto"
+        return default_needs
+
+    def _is_dangerous_bash(self, input_data: dict[str, Any]) -> bool:
+        """Check if a Bash command matches dangerous patterns."""
+        command = input_data.get("command", "")
+        if not command:
+            return False
+        return bool(self._DANGEROUS_BASH_PATTERNS.search(command))
+
+    async def _wait_for_tool_approval(
+        self, tool_name: str, input_data: dict[str, Any]
+    ) -> PermissionResultAllow | PermissionResultDeny:
+        """Block until the user approves or rejects a tool call."""
+        self._pending_approval = {
+            "tool_name": tool_name,
+            "arguments": input_data,
+        }
+        self._pending_approval_decision = None
+        self._pending_approval_event = asyncio.Event()
+
+        # Notify the frontend via callback (set by the websocket handler)
+        if self._tool_approval_callback:
+            await self._tool_approval_callback(tool_name, input_data)
+
+        try:
+            await asyncio.wait_for(self._pending_approval_event.wait(), timeout=300.0)
+        except TimeoutError:
+            self._pending_approval_decision = "reject"
+            logger.warning(
+                "Tool approval timed out",
+                extra={"tool": tool_name, "conversation_id": self.conversation_id},
+            )
+
+        decision = self._pending_approval_decision or "reject"
+
+        # Clear pending state
+        self._pending_approval = None
+        self._pending_approval_event = None
+        self._pending_approval_decision = None
+
+        if decision == "reject":
+            return PermissionResultDeny(message=f"User rejected tool call: {tool_name}")
+
+        if decision == "approve_always":
+            self._approved_tools.add(tool_name)
+            return PermissionResultAllow(updated_input=input_data)
+
+        if decision == "approve":
+            return PermissionResultAllow(updated_input=input_data)
+
+        # Unknown decision value — treat as rejection
+        return PermissionResultDeny(message=f"User rejected tool call: {tool_name}")
+
+    def provide_approval(self, decision: str) -> None:
+        """Provide approval decision for a pending tool call."""
+        self._pending_approval_decision = decision
+        if self._pending_approval_event is not None:
+            self._pending_approval_event.set()
+
+    @property
+    def has_pending_approval(self) -> bool:
+        """Whether a tool approval is currently awaiting a response."""
+        return self._pending_approval is not None
+
+    async def _load_history_context(self, max_total_chars: int | None = None) -> str | None:
         """Load prior conversation messages and format as context for injection.
+
+        Args:
+            max_total_chars: Override for maximum total characters. If None, uses
+                the instance default (_max_history_total_chars). Callers should pass
+                a budget that accounts for other additionalContext content to avoid
+                Claude Code's 10K truncation limit.
 
         Returns a formatted string with conversation history, or None if
         no messages exist or an error occurs.
         """
-        if not self._message_manager or not self.db_session_id:
+        if not self._message_manager:
+            return None
+        target_id = self._message_manager_source_session_id or self.db_session_id
+        if not target_id:
             return None
 
         try:
-            messages = await self._message_manager.get_messages(self.db_session_id, limit=50)
+            messages = await self._message_manager.get_messages(target_id, limit=50)
             if not messages:
                 return None
 
@@ -460,7 +694,15 @@ class ChatSession:
                 return None
 
             max_msg_chars = self._max_history_message_chars
-            max_total_chars = self._max_history_total_chars
+            effective_max = (
+                max_total_chars if max_total_chars is not None else self._max_history_total_chars
+            )
+            # Reserve space for the XML wrapper + inter-entry separators (~180 chars)
+            wrapper_overhead = 200
+            content_budget = effective_max - wrapper_overhead
+            if content_budget <= 0:
+                return None
+
             parts: list[str] = []
             total = 0
 
@@ -470,7 +712,7 @@ class ChatSession:
                 if len(content) > max_msg_chars:
                     content = content[:max_msg_chars] + "..."
                 entry = f"{role_label} {content}"
-                if total + len(entry) > max_total_chars:
+                if total + len(entry) > content_budget:
                     break
                 parts.append(entry)
                 total += len(entry)
@@ -523,9 +765,10 @@ class ChatSession:
             tool_calls_count = 0
             needs_spacing_before_text = False
             has_text = False
-
             try:
                 async for message in self._client.receive_response():
+                    if message is None:
+                        continue
                     if isinstance(message, ResultMessage):
                         # Fallback: if no text was streamed (e.g. Opus thinking-only
                         # response), emit the ResultMessage.result as a TextChunk
@@ -533,13 +776,63 @@ class ChatSession:
                             yield TextChunk(content=message.result)
                         cost_usd = getattr(message, "total_cost_usd", None)
                         duration_ms = getattr(message, "duration_ms", None)
+                        # Extract token usage from ResultMessage.usage dict
+                        # (AssistantMessage does NOT carry usage in the SDK)
+                        _raw_usage = getattr(message, "usage", None)
+                        usage: dict[str, Any] = _raw_usage if isinstance(_raw_usage, dict) else {}
+                        uncached_input = usage.get("input_tokens", 0) or 0
+                        output_tokens = usage.get("output_tokens", 0) or 0
+                        cache_read = usage.get("cache_read_input_tokens", 0) or 0
+                        cache_creation = usage.get("cache_creation_input_tokens", 0) or 0
+                        # With prompt caching, input_tokens is often only 3-23 tokens.
+                        # The real context consumed = uncached + cache_read + cache_creation.
+                        total_input = uncached_input + cache_read + cache_creation
+
+                        # Prefer modelUsage.contextWindow stashed by sdk_compat
+                        # (authoritative from the CLI) over litellm lookup.
+                        context_window: int | None = None
+                        _model_usage = getattr(message, "_model_usage", None)
+                        if isinstance(_model_usage, dict):
+                            context_window = _model_usage.get("contextWindow")
+                        if context_window is None and self._last_model:
+                            try:
+                                from gobby.conductor.pricing import litellm as _llm
+
+                                if _llm:
+                                    model_info = _llm.get_model_info(model=self._last_model)
+                                    context_window = model_info.get("max_input_tokens")
+                            except (ImportError, KeyError, AttributeError, TypeError) as e:
+                                logger.debug(
+                                    "Could not derive context window for %s: %s",
+                                    self._last_model,
+                                    e,
+                                )
+
+                        logger.info(
+                            "DoneEvent: uncached=%d cache_read=%d cache_creation=%d "
+                            "total_input=%d output=%d context_window=%s",
+                            uncached_input,
+                            cache_read,
+                            cache_creation,
+                            total_input,
+                            output_tokens,
+                            context_window,
+                        )
                         yield DoneEvent(
                             tool_calls_count=tool_calls_count,
                             cost_usd=cost_usd,
                             duration_ms=duration_ms,
+                            input_tokens=uncached_input or None,
+                            output_tokens=output_tokens or None,
+                            cache_read_input_tokens=cache_read or None,
+                            cache_creation_input_tokens=cache_creation or None,
+                            total_input_tokens=total_input or None,
+                            context_window=context_window,
                         )
 
                     elif isinstance(message, AssistantMessage):
+                        self._last_model = getattr(message, "model", None)
+                        logger.debug("AssistantMessage model=%s", self._last_model)
                         for block in message.content:
                             if isinstance(block, ThinkingBlock):
                                 yield ThinkingEvent(content=block.thinking)
@@ -555,6 +848,13 @@ class ChatSession:
                             elif isinstance(block, ToolUseBlock):
                                 tool_calls_count += 1
                                 server_name = _parse_server_name(block.name)
+                                # Set spacing flag eagerly — if the tool is denied
+                                # at the permission gate (e.g. task validation) the
+                                # SDK may not yield a ToolResultBlock, leaving the
+                                # flag unset and causing run-on text like
+                                # "commit.The commit".  ToolResultBlock re-sets it
+                                # harmlessly when it does arrive.
+                                needs_spacing_before_text = True
                                 yield ToolCallEvent(
                                     tool_call_id=block.id,
                                     tool_name=block.name,
@@ -567,11 +867,27 @@ class ChatSession:
                             for block in message.content:
                                 if isinstance(block, ToolResultBlock):
                                     is_error = getattr(block, "is_error", False)
+                                    # Serialize content safely — it can be str,
+                                    # list of content blocks, or other types
+                                    raw = block.content
+                                    if isinstance(raw, str):
+                                        content_str = raw
+                                    elif isinstance(raw, list):
+                                        parts = []
+                                        for item in raw:
+                                            item_text: str | None = getattr(item, "text", None)
+                                            if item_text is not None:
+                                                parts.append(item_text)
+                                            else:
+                                                parts.append(str(item))
+                                        content_str = "\n".join(parts)
+                                    else:
+                                        content_str = str(raw) if raw is not None else ""
                                     yield ToolResultEvent(
                                         tool_call_id=block.tool_use_id,
                                         success=not is_error,
-                                        result=block.content if not is_error else None,
-                                        error=str(block.content) if is_error else None,
+                                        result=content_str if not is_error else None,
+                                        error=content_str if is_error else None,
                                     )
                                     needs_spacing_before_text = True
 

@@ -35,7 +35,7 @@ def register_reviewer(
         review_provider: Literal[
             "claude", "gemini", "codex", "antigravity", "cursor", "windsurf", "copilot"
         ] = "claude",
-        review_model: str | None = "claude-opus-4-5",
+        review_model: str | None = "opus",
         terminal: str = "auto",
         mode: str = "terminal",
         parent_session_id: str | None = None,
@@ -50,7 +50,7 @@ def register_reviewer(
         Args:
             task_id: Task reference: #N, N (seq_num), path (1.2.3), or UUID
             review_provider: LLM provider for review (default: claude)
-            review_model: Model for review (default: claude-opus-4-5 for thorough analysis)
+            review_model: Model for review (default: opus for thorough analysis)
             terminal: Terminal for terminal mode (default: auto)
             mode: Execution mode (terminal, embedded, headless)
             parent_session_id: Parent session ID for context (required)
@@ -301,8 +301,8 @@ def register_reviewer(
                 },
                 "review_model": {
                     "type": "string",
-                    "description": "Model for review (default: claude-opus-4-5 for thorough analysis)",
-                    "default": "claude-opus-4-5",
+                    "description": "Model for review (default: opus for thorough analysis)",
+                    "default": "opus",
                 },
                 "terminal": {
                     "type": "string",
@@ -408,9 +408,7 @@ def register_reviewer(
         effective_review_provider = (
             review_provider or workflow_vars.get("review_provider") or "claude"
         )
-        effective_review_model = (
-            review_model or workflow_vars.get("review_model") or "claude-opus-4-5"
-        )
+        effective_review_model = review_model or workflow_vars.get("review_model") or "opus"
 
         reviews_spawned: list[dict[str, Any]] = []
         ready_for_cleanup: list[dict[str, Any]] = []

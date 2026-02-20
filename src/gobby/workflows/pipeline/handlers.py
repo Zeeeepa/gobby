@@ -56,55 +56,6 @@ async def execute_mcp_step(
     return result
 
 
-async def execute_spawn_session_step(
-    rendered_step: Any,
-    context: dict[str, Any],
-    project_id: str,
-    spawner: Any | None,
-    session_manager: Any | None,
-) -> dict[str, Any]:
-    """Execute a spawn_session step — spawn a CLI session via tmux."""
-    config = rendered_step.spawn_session
-    if not spawner:
-        return {"error": "spawn_session requires a tmux spawner but none configured"}
-
-    if not session_manager:
-        return {"error": "spawn_session requires session_manager but none configured"}
-
-    cli = config.get("cli", "claude")
-    prompt = config.get("prompt")
-    cwd = config.get("cwd")
-    workflow_name = config.get("workflow_name")
-    agent_depth = config.get("agent_depth", 1)
-
-    # Create a gobby session record
-    session = session_manager.create_session(
-        platform=cli,
-        project_id=project_id,
-    )
-    session_id = session.id if hasattr(session, "id") else str(session)
-
-    try:
-        result = await asyncio.to_thread(
-            spawner.spawn_agent,
-            cli=cli,
-            cwd=cwd or ".",
-            session_id=session_id,
-            parent_session_id="",
-            agent_run_id=session_id,
-            project_id=project_id,
-            workflow_name=workflow_name,
-            agent_depth=agent_depth,
-            prompt=prompt,
-        )
-        return {
-            "session_id": session_id,
-            "tmux_session_name": getattr(result, "tmux_session_name", ""),
-        }
-    except (OSError, RuntimeError) as e:
-        return {"error": f"Failed to spawn session: {e}"}
-
-
 async def execute_activate_workflow_step(
     rendered_step: Any,
     context: dict[str, Any],

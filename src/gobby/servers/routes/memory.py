@@ -69,7 +69,8 @@ def create_memory_router(server: "HTTPServer") -> APIRouter:
                 limit=limit,
                 offset=offset,
             )
-            return {"memories": [m.to_dict() for m in memories]}
+            total = server.memory_manager.count_memories(project_id=project_id)
+            return {"memories": [m.to_dict() for m in memories], "total_memories": total}
         except Exception as e:
             logger.error(f"Failed to list memories: {e}")
             raise HTTPException(status_code=500, detail=str(e)) from e
@@ -178,8 +179,7 @@ def create_memory_router(server: "HTTPServer") -> APIRouter:
     @router.get("/graph")
     def memory_graph(
         project_id: str | None = Query(None, description="Filter by project ID"),
-        limit: int = Query(5000, description="Maximum crossrefs"),
-        memory_limit: int = Query(500, description="Maximum memories"),
+        memory_limit: int = Query(200, description="Max memories (most recent first)"),
     ) -> dict[str, Any]:
         """Get memory graph data (memories + crossrefs) for visualization."""
         metrics.inc_counter("http_requests_total")
@@ -187,9 +187,13 @@ def create_memory_router(server: "HTTPServer") -> APIRouter:
             memories = server.memory_manager.list_memories(
                 project_id=project_id, limit=memory_limit
             )
-            crossrefs = server.memory_manager.storage.get_all_crossrefs(
-                project_id=project_id, limit=limit
+            memory_ids = {m.id for m in memories}
+            all_crossrefs = server.memory_manager.storage.get_all_crossrefs(
+                project_id=project_id, limit=memory_limit * 10
             )
+            crossrefs = [
+                c for c in all_crossrefs if c.source_id in memory_ids and c.target_id in memory_ids
+            ]
             return {
                 "memories": [m.to_dict() for m in memories],
                 "crossrefs": [c.to_dict() for c in crossrefs],
@@ -219,6 +223,40 @@ def create_memory_router(server: "HTTPServer") -> APIRouter:
             }
         except Exception as e:
             logger.error(f"Failed to rebuild crossrefs: {e}")
+            raise HTTPException(status_code=500, detail=str(e)) from e
+
+    @router.post("/graph/rebuild")
+    async def rebuild_knowledge_graph(
+        project_id: str | None = Query(None, description="Filter by project ID"),
+    ) -> dict[str, Any]:
+        """Extract entities from all existing memories into the knowledge graph."""
+        metrics.inc_counter("http_requests_total")
+        try:
+            kg = server.memory_manager.kg_service
+            if not kg:
+                raise HTTPException(
+                    status_code=400,
+                    detail="KnowledgeGraphService not initialized (requires Neo4j + LLM)",
+                )
+            memories = server.memory_manager.list_memories(project_id=project_id, limit=500)
+            successful_count = 0
+            errors = 0
+            for memory in memories:
+                try:
+                    await kg.add_to_graph(memory.content)
+                    successful_count += 1
+                except Exception as e:
+                    logger.warning(f"KG extraction failed for {memory.id}: {e}")
+                    errors += 1
+            return {
+                "memories_processed": successful_count + errors,
+                "memories_extracted": successful_count,
+                "errors": errors,
+            }
+        except HTTPException:
+            raise
+        except Exception as e:
+            logger.error(f"Failed to rebuild knowledge graph: {e}")
             raise HTTPException(status_code=500, detail=str(e)) from e
 
     @router.get("/{memory_id}")

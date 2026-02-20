@@ -352,6 +352,7 @@ class LocalSessionManager:
         title: str | None = None,
         git_branch: str | None = None,
         terminal_context: dict[str, Any] | None = None,
+        project_id: str | None = None,
     ) -> Session | None:
         """
         Update multiple session fields at once.
@@ -364,6 +365,7 @@ class LocalSessionManager:
             title: New title (optional)
             git_branch: New git branch (optional)
             terminal_context: New terminal context (optional)
+            project_id: New project ID (optional)
 
         Returns:
             Updated Session or None if not found
@@ -382,6 +384,8 @@ class LocalSessionManager:
             values["git_branch"] = git_branch
         if terminal_context is not None:
             values["terminal_context"] = json.dumps(terminal_context)
+        if project_id is not None:
+            values["project_id"] = project_id
 
         if not values:
             return self.get(session_id)
@@ -413,17 +417,23 @@ class LocalSessionManager:
         conditions = []
         params: list[Any] = []
 
+        # Always exclude soft-deleted sessions unless explicitly requested
+        if status == "deleted":
+            conditions.append("status = 'deleted'")
+        else:
+            conditions.append("status != 'deleted'")
+            if status:
+                conditions.append("status = ?")
+                params.append(status)
+
         if project_id:
             conditions.append("project_id = ?")
             params.append(project_id)
-        if status:
-            conditions.append("status = ?")
-            params.append(status)
         if source:
             conditions.append("source = ?")
             params.append(source)
 
-        where_clause = " AND ".join(conditions) if conditions else "1=1"
+        where_clause = " AND ".join(conditions)
         params.append(limit)
 
         rows = self.db.fetchall(
@@ -457,17 +467,23 @@ class LocalSessionManager:
         conditions = []
         params: list[Any] = []
 
+        # Always exclude soft-deleted sessions unless explicitly requested
+        if status == "deleted":
+            conditions.append("status = 'deleted'")
+        else:
+            conditions.append("status != 'deleted'")
+            if status:
+                conditions.append("status = ?")
+                params.append(status)
+
         if project_id:
             conditions.append("project_id = ?")
             params.append(project_id)
-        if status:
-            conditions.append("status = ?")
-            params.append(status)
         if source:
             conditions.append("source = ?")
             params.append(source)
 
-        where_clause = " AND ".join(conditions) if conditions else "1=1"
+        where_clause = " AND ".join(conditions)
 
         result = self.db.fetchone(
             f"SELECT COUNT(*) as count FROM sessions WHERE {where_clause}",  # nosec B608

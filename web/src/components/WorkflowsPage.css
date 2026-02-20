@@ -341,6 +341,32 @@
   border-color: #7f1d1d;
 }
 
+/* Icon action buttons */
+.workflows-action-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: transparent;
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.workflows-action-icon:hover {
+  background: var(--bg-tertiary);
+  color: var(--text-primary);
+}
+
+.workflows-action-icon--danger:hover {
+  background: #3a1a1a;
+  color: #f87171;
+  border-color: #7f1d1d;
+}
+
 /* Create modal */
 .workflows-modal-overlay {
   position: fixed;
@@ -435,4 +461,52 @@
 
 .workflows-modal-submit:hover {
   background: var(--accent-hover);
+}
+
+/* YAML editor modal */
+.workflows-yaml-modal {
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  width: 800px;
+  max-width: 90vw;
+  height: 80vh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.workflows-yaml-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 20px;
+  border-bottom: 1px solid var(--border);
+}
+
+.workflows-yaml-header h3 {
+  margin: 0;
+  font-size: 14px;
+  color: var(--text-primary);
+  font-weight: 600;
+}
+
+.workflows-yaml-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.workflows-yaml-error {
+  font-size: 12px;
+  color: var(--color-error);
+}
+
+.workflows-yaml-editor {
+  flex: 1;
+  overflow: hidden;
+}
+
+.workflows-yaml-editor .codemirror-container {
+  height: 100%;
 }

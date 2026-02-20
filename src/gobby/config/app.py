@@ -12,7 +12,7 @@ import os
 import re
 from collections.abc import Callable
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal
 
 import yaml
 from pydantic import BaseModel, Field, field_validator
@@ -21,6 +21,7 @@ from pydantic import BaseModel, Field, field_validator
 from gobby.config.cron import CronConfig
 from gobby.config.extensions import HookExtensionsConfig
 from gobby.config.features import (
+    ChatConfig,
     ImportMCPServerConfig,
     MemoryDedupDecisionConfig,
     MemoryEntityExtractionConfig,
@@ -28,12 +29,13 @@ from gobby.config.features import (
     MetricsConfig,
     ProjectVerificationConfig,
     RecommendToolsConfig,
+    ReviewConfig,
     TaskDescriptionConfig,
     ToolSummarizerConfig,
 )
 from gobby.config.llm_providers import LLMProvidersConfig
 from gobby.config.logging import LoggingSettings
-from gobby.config.persistence import MemoryConfig, MemorySyncConfig
+from gobby.config.persistence import MemoryBackupConfig, MemoryConfig
 from gobby.config.search import SearchConfig
 from gobby.config.servers import MCPClientProxyConfig, WebSocketSettings
 from gobby.config.sessions import (
@@ -51,6 +53,31 @@ from gobby.config.voice import VoiceConfig
 from gobby.config.watchdog import WatchdogConfig
 
 
+class ToolApprovalPolicy(BaseModel):
+    """A single tool approval policy matching server/tool glob patterns."""
+
+    server_pattern: str = Field(default="*", description="Glob pattern for server name")
+    tool_pattern: str = Field(default="*", description="Glob pattern for tool name")
+    policy: Literal["auto", "approve_once", "always_ask"] = Field(
+        default="always_ask",
+        description="Approval policy: 'auto', 'approve_once', or 'always_ask'",
+    )
+
+
+class ToolApprovalConfig(BaseModel):
+    """Configuration for tool approval UI in web chat."""
+
+    enabled: bool = Field(default=False, description="Enable tool approval prompts")
+    default_policy: Literal["auto", "approve_once", "always_ask"] = Field(
+        default="auto",
+        description="Default policy: 'auto' (no prompts), 'approve_once', or 'always_ask'",
+    )
+    policies: list[ToolApprovalPolicy] = Field(
+        default_factory=list,
+        description="Per-tool approval policies (server/tool glob patterns)",
+    )
+
+
 class UIConfig(BaseModel):
     """Configuration for the web UI."""
 
@@ -60,6 +87,18 @@ class UIConfig(BaseModel):
     host: str = Field(default="localhost", description="Dev server host (dev mode only)")
     web_dir: str | None = Field(
         default=None, description="Path to web/ dir (auto-detected if None)"
+    )
+    memory_graph_limit: int = Field(
+        default=5000,
+        ge=50,
+        le=5000,
+        description="Default display limit for the 2D memory graph (nodes)",
+    )
+    knowledge_graph_limit: int = Field(
+        default=5000,
+        ge=50,
+        le=5000,
+        description="Default display limit for the 3D knowledge graph (entities)",
     )
 
     @field_validator("port")
@@ -325,8 +364,8 @@ class DaemonConfig(BaseModel):
         default_factory=MemoryConfig,
         description="Memory system configuration",
     )
-    memory_sync: MemorySyncConfig = Field(
-        default_factory=MemorySyncConfig,
+    memory_sync: MemoryBackupConfig = Field(
+        default_factory=MemoryBackupConfig,
         description="Memory synchronization configuration",
     )
     skills: SkillsConfig = Field(
@@ -381,6 +420,18 @@ class DaemonConfig(BaseModel):
         default_factory=VoiceConfig,
         description="Voice chat configuration (STT + TTS)",
     )
+    tool_approval: ToolApprovalConfig = Field(
+        default_factory=ToolApprovalConfig,
+        description="Tool approval UI configuration for web chat",
+    )
+    chat: ChatConfig = Field(
+        default_factory=ChatConfig,
+        description="Chat mode configuration (default mode for new sessions)",
+    )
+    review: ReviewConfig = Field(
+        default_factory=ReviewConfig,
+        description="Code review configuration",
+    )
 
     def get_recommend_tools_config(self) -> RecommendToolsConfig:
         """Get recommend_tools configuration."""
@@ -406,7 +457,7 @@ class DaemonConfig(BaseModel):
         """Get memory configuration."""
         return self.memory
 
-    def get_memory_sync_config(self) -> MemorySyncConfig:
+    def get_memory_sync_config(self) -> MemoryBackupConfig:
         """Get memory sync configuration."""
         return self.memory_sync
 
@@ -632,27 +683,29 @@ def load_config(
         ValueError: If configuration is invalid or required fields are missing
     """
     if config_store is not None:
-        # Phase 2: DB-first resolution
+        # Phase 2: YAML base + DB overlay
+        # Always load YAML first so keys only defined there (e.g.
+        # llm_providers.claude) are preserved; then deep-merge DB
+        # values on top so DB overrides take precedence.
         from gobby.storage.config_store import unflatten_config
+
+        if config_file is None:
+            config_file = "~/.gobby/config.yaml"
+        config_path_p2 = Path(config_file).expanduser()
+        if config_path_p2.exists():
+            config_dict = load_yaml(config_file, secret_resolver=secret_resolver)
+        else:
+            config_dict = {}
 
         flat_db = config_store.get_all()
         if flat_db:
-            config_dict = unflatten_config(flat_db)
-            # Resolve $secret:NAME and ${VAR} patterns in stored values
+            db_dict = unflatten_config(flat_db)
+            # Resolve $secret:NAME and ${VAR} patterns in DB values
             if secret_resolver is not None or any(
                 isinstance(v, str) and ("$secret:" in v or "${" in v) for v in flat_db.values()
             ):
-                config_dict = _resolve_config_values(config_dict, secret_resolver)
-        else:
-            # DB config_store is empty — fall back to YAML so we don't
-            # lose settings from the config file (e.g. daemon_port, database_path).
-            if config_file is None:
-                config_file = "~/.gobby/config.yaml"
-            config_path_fb = Path(config_file).expanduser()
-            if config_path_fb.exists():
-                config_dict = load_yaml(config_file, secret_resolver=secret_resolver)
-            else:
-                config_dict = {}
+                db_dict = _resolve_config_values(db_dict, secret_resolver)
+            deep_merge(config_dict, db_dict)
     else:
         # Phase 1: YAML bootstrap (for database_path)
         if config_file is None:

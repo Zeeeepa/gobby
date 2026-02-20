@@ -60,7 +60,7 @@ class ClaudeExecutor(AgentExecutor):
     def __init__(
         self,
         auth_mode: ClaudeAuthMode = "subscription",
-        default_model: str = "claude-sonnet-4-20250514",
+        default_model: str = "opus",
     ):
         """
         Initialize ClaudeExecutor for subscription mode.

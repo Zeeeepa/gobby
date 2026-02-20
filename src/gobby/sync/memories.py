@@ -26,10 +26,7 @@ __all__ = [
     "MemorySyncManager",  # Backward compatibility alias
 ]
 
-# TODO: Rename MemorySyncConfig to MemoryBackupConfig in gobby.config.persistence
-# for consistency with MemoryBackupManager naming. Keeping current name for now
-# to minimize breaking changes across the codebase.
-from gobby.config.persistence import MemorySyncConfig
+from gobby.config.persistence import MemoryBackupConfig
 from gobby.memory.manager import MemoryManager
 from gobby.storage.database import DatabaseProtocol
 
@@ -53,7 +50,7 @@ class MemoryBackupManager:
         self,
         db: DatabaseProtocol,
         memory_manager: MemoryManager | None,
-        config: MemorySyncConfig,
+        config: MemoryBackupConfig,
     ):
         self.db = db
         self.memory_manager = memory_manager
@@ -185,6 +182,47 @@ class MemoryBackupManager:
     # Backward compatibility alias
     export_sync = backup_sync
 
+    def import_sync(self, force: bool = False) -> int:
+        """
+        Import memories from filesystem synchronously (blocking).
+
+        Used on startup to restore memories from a synced JSONL file
+        (e.g. pulled from git on a new machine) before exporting.
+        Only imports if the JSONL file has more entries than the DB.
+        """
+        if not self.config.enabled or not self.memory_manager:
+            return 0
+
+        try:
+            memories_file = self._get_export_path()
+            if not memories_file.exists():
+                return 0
+
+            # Read file once — used for both counting and importing
+            with open(memories_file, encoding="utf-8") as f:
+                lines = [line for line in f if line.strip()]
+
+            file_count = len(lines)
+            if file_count == 0:
+                return 0
+
+            # Count memories in DB
+            db_count = self.memory_manager.count_memories()
+
+            if not force and file_count <= db_count:
+                logger.debug(
+                    f"Skipping memory import: DB has {db_count} memories, file has {file_count}"
+                )
+                return 0
+
+            logger.info(
+                f"Importing memories from {memories_file}: file has {file_count}, DB has {db_count}"
+            )
+            return self._import_memories_from_lines(lines)
+        except Exception as e:
+            logger.warning(f"Failed to import memories: {e}")
+            return 0
+
     async def export_to_files(self) -> int:
         """
         Backup memories to filesystem as JSONL.
@@ -213,36 +251,46 @@ class MemoryBackupManager:
         """Import memories from JSONL file (sync)."""
         if not self.memory_manager:
             return 0
+        try:
+            with open(file_path, encoding="utf-8") as f:
+                lines = [line for line in f if line.strip()]
+        except OSError as e:
+            logger.warning(f"Failed to import memories: {e}")
+            return 0
+        return self._import_memories_from_lines(lines)
+
+    def _import_memories_from_lines(self, lines: list[str]) -> int:
+        """Import memories from pre-read JSONL lines."""
+        if not self.memory_manager:
+            return 0
 
         count = 0
         skipped = 0
         try:
-            with open(file_path, encoding="utf-8") as f:
-                for line in f:
-                    if not line.strip():
+            for line in lines:
+                try:
+                    data = json.loads(line)
+                    content = data.get("content", "")
+
+                    # Skip if memory with identical content already exists
+                    if self.memory_manager.content_exists(content):
+                        skipped += 1
                         continue
-                    try:
-                        data = json.loads(line)
-                        content = data.get("content", "")
 
-                        # Skip if memory with identical content already exists
-                        if self.memory_manager.content_exists(content):
-                            skipped += 1
-                            continue
-
-                        # Use storage directly for sync import (skip auto-embedding)
-                        self.memory_manager.storage.create_memory(
-                            content=content,
-                            memory_type=data.get("type", "fact"),
-                            tags=data.get("tags", []),
-                            source_type=data.get("source", "import"),
-                            source_session_id=data.get("source_id"),
-                        )
-                        count += 1
-                    except json.JSONDecodeError:
-                        logger.warning(f"Invalid JSON in memories file: {line[:50]}...")
-                    except Exception as e:
-                        logger.debug(f"Skipping memory import: {e}")
+                    # Use storage directly for sync import (skip auto-embedding)
+                    # Don't pass source_session_id — the session may not exist
+                    # on this machine (cross-machine sync via git)
+                    self.memory_manager.storage.create_memory(
+                        content=content,
+                        memory_type=data.get("type", "fact"),
+                        tags=data.get("tags", []),
+                        source_type="import",
+                    )
+                    count += 1
+                except json.JSONDecodeError:
+                    logger.warning(f"Invalid JSON in memories file: {line[:50]}...")
+                except Exception as e:
+                    logger.debug(f"Skipping memory import: {e}")
 
         except Exception as e:
             logger.error(f"Failed to import memories: {e}")

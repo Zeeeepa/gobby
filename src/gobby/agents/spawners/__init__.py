@@ -32,7 +32,6 @@ from gobby.agents.spawners.headless import HeadlessSpawner
 from gobby.agents.spawners.prompt_manager import (
     MAX_ENV_PROMPT_LENGTH,
     create_prompt_file,
-    read_prompt_from_env,
 )
 
 __all__ = [
@@ -56,7 +55,6 @@ __all__ = [
     # Prompt management
     "MAX_ENV_PROMPT_LENGTH",
     "create_prompt_file",
-    "read_prompt_from_env",
 ]
 
 

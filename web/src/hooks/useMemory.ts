@@ -6,6 +6,10 @@ function normalizeTags(tags: unknown): string[] | null {
   return null
 }
 
+function normalizeImportance(value: unknown): number {
+  return typeof value === 'number' ? value : 0.5
+}
+
 export interface MemoryCrossRef {
   source_id: string
   target_id: string
@@ -115,6 +119,7 @@ export function useMemory() {
         const data = await response.json()
         const items = (data.memories || []).map((m: Record<string, unknown>) => ({
           ...m,
+          importance: normalizeImportance(m.importance),
           tags: normalizeTags(m.tags),
         })) as GobbyMemory[]
         setMemories(items)
@@ -286,11 +291,12 @@ export function useMemory() {
     return null
   }, [])
 
-  const fetchGraphData = useCallback(async (): Promise<MemoryGraphData | null> => {
+  const fetchGraphData = useCallback(async (memoryLimit?: number): Promise<MemoryGraphData | null> => {
     try {
       const baseUrl = getBaseUrl()
       const params = new URLSearchParams()
       if (filters.projectId) params.set('project_id', filters.projectId)
+      if (memoryLimit !== undefined) params.set('memory_limit', String(memoryLimit))
 
       const response = await fetch(`${baseUrl}/memories/graph?${params}`)
       if (response.ok) {
@@ -298,6 +304,7 @@ export function useMemory() {
         return {
           memories: (data.memories || []).map((m: Record<string, unknown>) => ({
             ...m,
+            importance: normalizeImportance(m.importance),
             tags: normalizeTags(m.tags),
           })) as GobbyMemory[],
           crossrefs: data.crossrefs || [],

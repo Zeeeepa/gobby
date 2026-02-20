@@ -187,6 +187,7 @@ class MCPServerImporter:
                 max_turns=3,
                 model=self.import_config.model,
                 allowed_tools=["WebFetch"],
+                mcp_servers={},
                 permission_mode="default",
             )
 
@@ -243,6 +244,7 @@ class MCPServerImporter:
                 max_turns=5,  # More turns for search + fetch
                 model=self.import_config.model,
                 allowed_tools=["WebSearch", "WebFetch"],
+                mcp_servers={},
                 permission_mode="default",
             )
 

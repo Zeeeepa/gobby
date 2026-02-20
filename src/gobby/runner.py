@@ -4,12 +4,15 @@ import asyncio
 import logging
 import os
 import signal
+import subprocess
 import sys
+from collections.abc import Callable
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 import uvicorn
 
+from gobby.agents.lifecycle_monitor import AgentLifecycleMonitor
 from gobby.agents.runner import AgentRunner
 from gobby.app_context import ServiceContainer
 from gobby.config.app import load_config
@@ -18,6 +21,7 @@ from gobby.llm.resolver import ExecutorRegistry
 from gobby.mcp_proxy.manager import MCPClientManager
 from gobby.memory.manager import MemoryManager
 from gobby.memory.vectorstore import VectorStore
+from gobby.search.embeddings import generate_embedding
 from gobby.servers.http import HTTPServer
 from gobby.servers.websocket.models import WebSocketConfig
 from gobby.servers.websocket.server import WebSocketServer
@@ -37,7 +41,6 @@ from gobby.sync.tasks import TaskSyncManager
 from gobby.tasks.validation import TaskValidator
 from gobby.utils.logging import setup_file_logging
 from gobby.utils.machine_id import get_machine_id
-from gobby.worktrees.git import WorktreeGitManager
 
 os.environ["TOKENIZERS_PARALLELISM"] = "false"
 
@@ -58,6 +61,7 @@ if TYPE_CHECKING:
     from gobby.storage.pipelines import LocalPipelineExecutionManager
     from gobby.workflows.loader import WorkflowLoader
     from gobby.workflows.pipeline_executor import PipelineExecutor
+    from gobby.worktrees.git import WorktreeGitManager
 
 logger = logging.getLogger(__name__)
 
@@ -183,10 +187,21 @@ class GobbyRunner:
                     url=self.config.memory.qdrant_url,
                     api_key=self.config.memory.qdrant_api_key,
                 )
+                embed_fn: Callable[..., Any] | None = None
+                if self.llm_service:
+                    from functools import partial
+
+                    embed_fn = partial(
+                        generate_embedding,
+                        model=self.config.memory.embedding_model,
+                    )
+
                 self.memory_manager = MemoryManager(
                     self.database,
                     self.config.memory,
+                    llm_service=self.llm_service,
                     vector_store=self.vector_store,
+                    embed_fn=embed_fn,
                 )
             except Exception as e:
                 logger.error(f"Failed to initialize MemoryManager: {e}")
@@ -227,12 +242,21 @@ class GobbyRunner:
                     )
                     logger.debug("MemorySyncManager initialized and listener attached")
 
+                    # Import synced memories before exporting
+                    # (e.g. from git on a new machine with more memories than local DB)
+                    try:
+                        imported = self.memory_sync_manager.import_sync()
+                        if imported > 0:
+                            logger.info(f"Imported {imported} memories from sync file")
+                    except (OSError, ValueError) as e:
+                        logger.warning(f"Memory import failed: {e}")
+
                     # Force initial synchronous export
                     # Ensures disk state matches DB state before we start serving
                     try:
                         self.memory_sync_manager.export_sync()
                         logger.info("Initial memory sync export completed")
-                    except Exception as e:
+                    except (OSError, ValueError) as e:
                         logger.warning(f"Initial memory sync failed: {e}")
 
                 except Exception as e:
@@ -268,54 +292,58 @@ class GobbyRunner:
         # Initialize Clone Storage (local git clones for isolated development)
         self.clone_storage = LocalCloneManager(self.database)
 
-        # Initialize Git Manager for current project (if in a git repo)
+        # Detect project context from cwd so daemon-level services (pipelines,
+        # clones) can register their MCP tools.  Per-session resolution can
+        # still override via ServiceContainer.
         self.git_manager: WorktreeGitManager | None = None
         self.project_id: str | None = None
         try:
-            cwd = Path.cwd()
-            project_json = cwd / ".gobby" / "project.json"
-            if project_json.exists():
-                import json
+            from gobby.utils.project_context import get_project_context
+            from gobby.worktrees.git import WorktreeGitManager as _WGM
 
-                project_data = json.loads(project_json.read_text())
-                repo_path = project_data.get("repo_path", str(cwd))
-                self.project_id = project_data.get("id")
-                self.git_manager = WorktreeGitManager(repo_path)
-                logger.info(f"Git manager initialized for project: {self.project_id}")
+            project_ctx = get_project_context(Path.cwd())
+            if project_ctx and project_ctx.get("id"):
+                self.project_id = str(project_ctx["id"])
+                project_path = project_ctx.get("project_path")
+                if project_path:
+                    self.git_manager = _WGM(str(project_path))
+                    logger.debug(
+                        f"Daemon project context: id={self.project_id}, path={project_path}"
+                    )
         except Exception as e:
-            logger.debug(f"Could not initialize git manager: {e}")
+            logger.debug(f"Could not detect project context from cwd: {e}")
 
-        # Initialize Pipeline Components
+        # WorkflowLoader is project-agnostic; pipeline executor needs project context.
         self.workflow_loader: WorkflowLoader | None = None
         self.pipeline_execution_manager: LocalPipelineExecutionManager | None = None
         self.pipeline_executor: PipelineExecutor | None = None
         try:
-            from gobby.storage.pipelines import LocalPipelineExecutionManager
             from gobby.workflows.loader import WorkflowLoader
-            from gobby.workflows.pipeline_executor import PipelineExecutor
-            from gobby.workflows.templates import TemplateEngine
 
             self.workflow_loader = WorkflowLoader(db=self.database)
-            if self.project_id:
-                self.pipeline_execution_manager = LocalPipelineExecutionManager(
-                    db=self.database,
-                    project_id=self.project_id,
-                )
-                if self.llm_service:
-                    self.pipeline_executor = PipelineExecutor(
-                        db=self.database,
-                        execution_manager=self.pipeline_execution_manager,
-                        llm_service=self.llm_service,
-                        loader=self.workflow_loader,
-                        template_engine=TemplateEngine(),
-                    )
-                    logger.debug("Pipeline executor initialized")
-                else:
-                    logger.debug("Pipeline executor not initialized: LLM service not available")
-            else:
-                logger.debug("Pipeline execution manager not initialized: no project context")
         except Exception as e:
-            logger.warning(f"Failed to initialize pipeline components: {e}")
+            logger.warning(f"Failed to initialize workflow loader: {e}")
+
+        # Create pipeline executor at startup if we have project context
+        if self.workflow_loader is not None and self.project_id:
+            try:
+                from gobby.storage.pipelines import LocalPipelineExecutionManager as _LPEM
+                from gobby.workflows.pipeline_executor import PipelineExecutor as _PE
+                from gobby.workflows.templates import TemplateEngine
+
+                self.pipeline_execution_manager = _LPEM(
+                    db=self.database, project_id=self.project_id
+                )
+                self.pipeline_executor = _PE(
+                    db=self.database,
+                    execution_manager=self.pipeline_execution_manager,
+                    llm_service=self.llm_service,
+                    loader=self.workflow_loader,
+                    template_engine=TemplateEngine(),
+                )
+                logger.info("Pipeline executor initialized at startup")
+            except Exception as e:
+                logger.warning(f"Failed to initialize pipeline executor at startup: {e}")
 
         # Initialize Agent Runner (Phase 7 - Subagents)
         # Create executor registry for lazy executor creation
@@ -340,6 +368,19 @@ class GobbyRunner:
             logger.debug(f"AgentRunner initialized with executors: {list(executors.keys())}")
         except Exception as e:
             logger.error(f"Failed to initialize AgentRunner: {e}")
+
+        # Agent Lifecycle Monitor (detect dead tmux sessions)
+        from gobby.agents.registry import get_running_agent_registry
+        from gobby.storage.agents import LocalAgentRunManager
+
+        try:
+            self.agent_lifecycle_monitor: AgentLifecycleMonitor | None = AgentLifecycleMonitor(
+                agent_registry=get_running_agent_registry(),
+                agent_run_manager=LocalAgentRunManager(self.database),
+            )
+        except Exception as e:
+            logger.warning(f"Failed to initialize AgentLifecycleMonitor: {e}")
+            self.agent_lifecycle_monitor = None
 
         # Session Lifecycle Manager (background jobs for expiring and processing)
         self.lifecycle_manager = SessionLifecycleManager(
@@ -405,9 +446,10 @@ class GobbyRunner:
             config_store=self.config_store,
             prompt_manager=self.prompt_manager,
             dev_mode=self._dev_mode,
+            tool_proxy_getter=lambda: self.http_server.tool_proxy,
         )
 
-        self.http_server = HTTPServer(
+        self.http_server: HTTPServer = HTTPServer(
             services=services,
             port=self.config.daemon_port,
             test_mode=self.config.test_mode,
@@ -419,9 +461,9 @@ class GobbyRunner:
         # Ensure message_processor property is set (redundant but explicit):
         self.http_server.message_processor = self.message_processor
 
-        # Wire tool_proxy_getter to PipelineExecutor for MCP step support.
-        # Must happen after HTTPServer creation since tool_proxy lives on _tools_handler.
-        if self.pipeline_executor:
+        # Wire tool_proxy_getter onto the startup-created pipeline executor.
+        # The executor was created before http_server existed, so we do it now.
+        if self.pipeline_executor is not None:
             self.pipeline_executor.tool_proxy_getter = lambda: self.http_server.tool_proxy
 
         # WebSocket Server (Optional)
@@ -442,6 +484,8 @@ class GobbyRunner:
             )
             # Pass WebSocket server reference to HTTP server for broadcasting
             self.http_server.websocket_server = self.websocket_server
+            # Also set on services container so lifespan can wire workflow_handler
+            self.http_server.services.websocket_server = self.websocket_server
             # Also update the HTTPServer's broadcaster to use the same websocket_server
             self.http_server.broadcaster.websocket_server = self.websocket_server
 
@@ -561,6 +605,7 @@ class GobbyRunner:
                     mode=data.get("mode"),
                     provider=data.get("provider"),
                     pid=data.get("pid"),
+                    tmux_session_name=data.get("tmux_session_name"),
                 )
             )
             task.add_done_callback(_log_broadcast_exception)
@@ -589,6 +634,32 @@ class GobbyRunner:
         # Set the callback on the pipeline executor
         self.pipeline_executor.event_callback = broadcast_pipeline_event
         logger.debug("Pipeline event broadcasting enabled")
+
+    async def _cleanup_stale_tmux_sessions(self) -> None:
+        """Kill tmux sessions on the gobby socket not backed by a registered agent."""
+        try:
+            from gobby.agents.registry import get_running_agent_registry
+            from gobby.agents.tmux.session_manager import TmuxSessionManager
+
+            mgr = TmuxSessionManager()
+            if not mgr.is_available():
+                return
+
+            sessions = await mgr.list_sessions()
+            if not sessions:
+                return
+
+            registry = get_running_agent_registry()
+            registered_names = {
+                a.tmux_session_name for a in registry.list_all() if a.tmux_session_name
+            }
+
+            for session in sessions:
+                if session.name not in registered_names:
+                    logger.info(f"Cleaning up stale tmux session: {session.name}")
+                    await mgr.kill_session(session.name)
+        except (OSError, subprocess.SubprocessError) as e:
+            logger.warning(f"Stale tmux session cleanup failed: {e}")
 
     async def _metrics_cleanup_loop(self) -> None:
         """Background loop for periodic metrics cleanup (every 24 hours)."""
@@ -655,6 +726,18 @@ class GobbyRunner:
         for sig in (signal.SIGTERM, signal.SIGINT):
             loop.add_signal_handler(sig, handle_shutdown)
 
+    def _cleanup_pid_file(self) -> None:
+        """Remove PID file if it points to our process."""
+        try:
+            pid_file = Path(os.environ.get("GOBBY_HOME", Path.home() / ".gobby")) / "gobby.pid"
+            if pid_file.exists():
+                stored_pid = int(pid_file.read_text().strip())
+                if stored_pid == os.getpid():
+                    pid_file.unlink(missing_ok=True)
+                    logger.debug("Cleaned up PID file")
+        except Exception as e:
+            logger.debug(f"PID file cleanup failed (non-fatal): {e}")
+
     async def run(self) -> None:
         try:
             self._setup_signal_handlers()
@@ -666,6 +749,9 @@ class GobbyRunner:
                 logger.warning("MCP connection timed out")
             except Exception as e:
                 logger.error(f"MCP connection failed: {e}")
+
+            # Clean up stale tmux sessions from previous runs
+            await self._cleanup_stale_tmux_sessions()
 
             # Run metrics cleanup on startup
             try:
@@ -709,6 +795,11 @@ class GobbyRunner:
 
             # Start Session Lifecycle Manager
             await self.lifecycle_manager.start()
+
+            # Start Agent Lifecycle Monitor (detect dead tmux sessions)
+            if self.agent_lifecycle_monitor:
+                await self.agent_lifecycle_monitor.cleanup_orphaned_db_runs()
+                await self.agent_lifecycle_monitor.start()
 
             # Start Cron Scheduler
             if self.cron_scheduler:
@@ -785,6 +876,12 @@ class GobbyRunner:
             except TimeoutError:
                 logger.warning("Lifecycle manager shutdown timed out")
 
+            if self.agent_lifecycle_monitor:
+                try:
+                    await asyncio.wait_for(self.agent_lifecycle_monitor.stop(), timeout=2.0)
+                except TimeoutError:
+                    logger.warning("Agent lifecycle monitor shutdown timed out")
+
             if self.cron_scheduler:
                 try:
                     await asyncio.wait_for(self.cron_scheduler.stop(), timeout=2.0)
@@ -803,6 +900,16 @@ class GobbyRunner:
                     await asyncio.wait_for(websocket_task, timeout=3.0)
                 except (asyncio.CancelledError, TimeoutError):
                     logger.warning("WebSocket server shutdown timed out or cancelled")
+
+            # Cancel background pipeline tasks
+            try:
+                from gobby.mcp_proxy.tools.pipelines._execution import cleanup_background_tasks
+
+                await asyncio.wait_for(cleanup_background_tasks(), timeout=5.0)
+            except TimeoutError:
+                logger.warning("Pipeline background tasks cleanup timed out")
+            except Exception as e:
+                logger.warning(f"Pipeline background tasks cleanup failed: {e}")
 
             # Cancel metrics cleanup task
             if self._metrics_cleanup_task and not self._metrics_cleanup_task.done():
@@ -845,10 +952,14 @@ class GobbyRunner:
             except TimeoutError:
                 logger.warning("MCP disconnect timed out")
 
+            # Clean up PID file on graceful shutdown
+            self._cleanup_pid_file()
+
             logger.info("Shutdown complete")
 
         except Exception as e:
             logger.error(f"Fatal error: {e}", exc_info=True)
+            self._cleanup_pid_file()
             sys.exit(1)
 
 

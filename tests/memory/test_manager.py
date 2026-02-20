@@ -8,6 +8,7 @@ Tests cover:
 - Statistics retrieval
 """
 
+import uuid
 from datetime import UTC, datetime
 from unittest.mock import MagicMock, patch
 
@@ -119,7 +120,7 @@ class TestCreateMemory:
             memory_type="fact",
         )
 
-        assert memory.id.startswith("mm-")
+        uuid.UUID(memory.id)  # validates UUID format
         assert memory.content == "Test fact"
         assert memory.memory_type == "fact"
 

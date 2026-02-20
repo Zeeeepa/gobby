@@ -20,7 +20,7 @@ pytestmark = pytest.mark.unit
 def mock_components():
     loader = MagicMock()
     loader.load_workflow = AsyncMock()
-    loader.discover_lifecycle_workflows = AsyncMock()
+    loader.discover_workflows = AsyncMock()
     state_manager = MagicMock()
     action_executor = AsyncMock()
     evaluator = MagicMock()
@@ -275,7 +275,7 @@ async def test_evaluate_lifecycle_full(engine, mock_components):
     discovered = MagicMock()
     discovered.definition = wf
     discovered.name = "lifecycle_wf"
-    loader.discover_lifecycle_workflows.return_value = [discovered]
+    loader.discover_workflows.return_value = [discovered]
 
     event = create_event(event_type=HookEventType.SESSION_START, data={"cwd": "/tmp"})
     loader.load_workflow.return_value = wf
@@ -303,7 +303,7 @@ async def test_evaluate_lifecycle_alias(engine, mock_components):
     discovered = MagicMock()
     discovered.definition = wf
     discovered.name = "alias_wf"
-    loader.discover_lifecycle_workflows.return_value = [discovered]
+    loader.discover_workflows.return_value = [discovered]
     loader.load_workflow.return_value = wf
 
     event = create_event(event_type=HookEventType.BEFORE_AGENT)

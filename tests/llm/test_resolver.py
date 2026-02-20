@@ -574,7 +574,7 @@ class TestCreateLitellmExecutorForProviderIntegration:
             assert executor.provider_name == "litellm"
             assert executor.provider == "claude"
             assert executor.auth_mode == "api_key"
-            assert "claude" in executor.default_model.lower()
+            assert executor.default_model == "opus"
 
     def test_creates_executor_for_gemini_adc(self) -> None:
         """Test creating LiteLLM executor for Gemini ADC mode."""
@@ -855,7 +855,7 @@ class TestExecutorCreationWithConfig:
 
             executor = _create_claude_executor(mock_config, None)
 
-            assert executor.default_model == "claude-sonnet-4-20250514"
+            assert executor.default_model == "opus"
 
     def test_claude_executor_with_whitespace_only_models(self) -> None:
         """Test Claude executor with whitespace-only models uses default."""
@@ -869,7 +869,7 @@ class TestExecutorCreationWithConfig:
 
             executor = _create_claude_executor(mock_config, None)
 
-            assert executor.default_model == "claude-sonnet-4-20250514"
+            assert executor.default_model == "opus"
 
     def test_claude_executor_always_subscription_mode(self) -> None:
         """Test Claude executor always uses subscription mode."""

@@ -11,7 +11,6 @@ from .loader_cache import (
     clear_cache,
 )
 from .loader_discovery import (
-    discover_lifecycle_workflows,
     discover_pipeline_workflows,
     discover_workflows,
 )
@@ -416,12 +415,6 @@ class WorkflowLoader(WorkflowLoaderSyncMixin):
     ) -> list[DiscoveredWorkflow]:
         """Discover all workflows from the database."""
         return await discover_workflows(self, project_path)
-
-    async def discover_lifecycle_workflows(
-        self, project_path: Path | str | None = None
-    ) -> list[DiscoveredWorkflow]:
-        """Deprecated: use discover_workflows() instead."""
-        return await discover_lifecycle_workflows(self, project_path)
 
     async def discover_pipeline_workflows(
         self, project_path: Path | str | None = None

@@ -3,7 +3,7 @@
 Targets uncovered lines: 202-233, 285-287
 """
 
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
@@ -61,10 +61,11 @@ class TestGetToolAlternatives:
             internal_manager=mock_internal_manager,
         )
 
-        result = await handler.get_tool_alternatives(
-            server_name="test-server",
-            tool_name="test-tool",
-        )
+        with patch("gobby.mcp_proxy.server.get_project_context", return_value=None):
+            result = await handler.get_tool_alternatives(
+                server_name="test-server",
+                tool_name="test-tool",
+            )
 
         assert result["success"] is False
         assert "No project_id" in result["error"]

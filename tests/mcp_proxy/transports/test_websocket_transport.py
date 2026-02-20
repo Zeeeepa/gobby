@@ -14,7 +14,7 @@ import pytest
 from gobby.mcp_proxy.models import ConnectionState, MCPError, MCPServerConfig
 from gobby.mcp_proxy.transports.websocket import WebSocketTransportConnection
 
-pytestmark = [pytest.mark.unit, pytest.mark.asyncio]
+pytestmark = pytest.mark.unit
 
 
 # ---------------------------------------------------------------------------
@@ -536,7 +536,7 @@ class TestWebSocketDisconnectTransportRuntimeError:
 class TestWebSocketDisconnectTransportGenericError:
     async def test_generic_exception_handled(self, conn: WebSocketTransportConnection) -> None:
         mock_transport_ctx = AsyncMock()
-        mock_transport_ctx.__aexit__ = AsyncMock(side_effect=IOError("broken pipe"))
+        mock_transport_ctx.__aexit__ = AsyncMock(side_effect=OSError("broken pipe"))
         conn._transport_context = mock_transport_ctx
 
         await conn.disconnect()

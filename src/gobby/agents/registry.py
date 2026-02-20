@@ -132,16 +132,16 @@ class RunningAgentRegistry:
     Example:
         >>> registry = RunningAgentRegistry()
         >>> agent = RunningAgent(
-        ...     run_id="ar-123",
+        ...     run_id="run-123",
         ...     session_id="sess-456",
         ...     parent_session_id="sess-parent",
         ...     mode="terminal",
         ...     pid=12345,
         ... )
         >>> registry.add(agent)
-        >>> registry.get("ar-123")
+        >>> registry.get("run-123")
         RunningAgent(...)
-        >>> registry.remove("ar-123")
+        >>> registry.remove("run-123")
     """
 
     def __init__(self) -> None:
@@ -245,6 +245,7 @@ class RunningAgentRegistry:
                 "mode": agent.mode,
                 "provider": agent.provider,
                 "pid": agent.pid,
+                "tmux_session_name": agent.tmux_session_name,
             },
         )
 
@@ -366,9 +367,16 @@ class RunningAgentRegistry:
         # Only use tmux if the pane actually exists and belongs to a running tmux session
         if ctx.get("tmux_pane"):
             try:
+                # Use -L gobby socket so we target Gobby's isolated tmux server
+                from gobby.agents.tmux.config import TmuxConfig
+
+                tmux_socket = TmuxConfig().socket_name or "gobby"
+
                 # Verify the pane exists before killing - prevents killing inherited/stale panes
                 rc, stdout, _ = await self._run_subprocess(
                     "tmux",
+                    "-L",
+                    tmux_socket,
                     "display-message",
                     "-t",
                     ctx["tmux_pane"],
@@ -379,6 +387,8 @@ class RunningAgentRegistry:
                 if rc == 0 and stdout.strip():
                     await self._run_subprocess(
                         "tmux",
+                        "-L",
+                        tmux_socket,
                         "kill-pane",
                         "-t",
                         ctx["tmux_pane"],
@@ -564,7 +574,11 @@ class RunningAgentRegistry:
 
         agent = self.get(run_id)
         if not agent:
-            return {"success": False, "error": "Agent not found in registry"}
+            return {
+                "success": True,
+                "already_completed": True,
+                "message": f"Agent {run_id} not in registry (already exited)",
+            }
 
         # Handle in_process mode (asyncio.Task)
         if agent.mode == "in_process" and agent.task:

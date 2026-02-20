@@ -37,10 +37,38 @@ class VoiceConfig(BaseModel):
         description="ElevenLabs voice ID (default: Rachel).",
     )
     elevenlabs_model_id: str = Field(
-        default="eleven_turbo_v2_5",
-        description="ElevenLabs model ID for TTS.",
+        default="eleven_flash_v2_5",
+        description="ElevenLabs model ID for TTS (must support WebSocket streaming). Note: eleven_v3 does NOT support WebSocket streaming.",
+    )
+    elevenlabs_stability: float = Field(
+        default=0.5,
+        ge=0.0,
+        le=1.0,
+        description="ElevenLabs voice stability (0.0–1.0).",
+    )
+    elevenlabs_similarity_boost: float = Field(
+        default=1.0,
+        ge=0.0,
+        le=1.0,
+        description="ElevenLabs voice similarity boost (0.0–1.0).",
+    )
+    elevenlabs_style: float = Field(
+        default=0.0,
+        ge=0.0,
+        le=1.0,
+        description="ElevenLabs style exaggeration (0.0–1.0).",
+    )
+    elevenlabs_speed: float = Field(
+        default=0.9,
+        ge=0.5,
+        le=2.0,
+        description="ElevenLabs TTS speed (0.5–2.0).",
     )
     audio_format: str = Field(
         default="mp3_44100_128",
         description="Audio output format for TTS.",
+    )
+    whisper_prompt: str = Field(
+        default="Gobby",
+        description="Initial prompt for Whisper STT to bias vocabulary (e.g. proper nouns).",
     )

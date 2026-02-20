@@ -46,6 +46,9 @@ class SpawnRequest:
     parent_session_id: str
     project_id: str
 
+    # Canonical agent_run_id from spawn_agent_impl (pre-generated)
+    agent_run_id: str | None = None
+
     # Optional fields
     workflow: str | None = None
     step_variables: dict[str, Any] | None = None  # Variables for step workflow activation
@@ -141,14 +144,19 @@ async def _spawn_claude_terminal(request: SpawnRequest) -> SpawnResult:
         prompt=request.prompt,
         max_agent_depth=request.max_agent_depth,
         git_branch=request.branch_name,
+        agent_run_id=request.agent_run_id,
     )
 
     gobby_session_id = spawn_context.session_id
 
     # Build command for Claude CLI
+    # Pass session_id so Claude uses --session-id flag, which allows the
+    # SessionStart hook to match this process to the pre-created session
+    # (and auto-activate the workflow, which delivers the prompt via on_enter).
     cmd = build_cli_command(
         cli="claude",
         prompt=request.prompt,
+        session_id=gobby_session_id,
         auto_approve=True,
         mode="terminal",
         model=request.model,
@@ -315,6 +323,7 @@ async def _spawn_gemini_terminal(request: SpawnRequest) -> SpawnResult:
         prompt=request.prompt,
         max_agent_depth=request.max_agent_depth,
         git_branch=request.branch_name,
+        agent_run_id=request.agent_run_id,
     )
 
     gobby_session_id = spawn_context.session_id

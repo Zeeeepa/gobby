@@ -21,6 +21,7 @@ from gobby.storage.config_store import flatten_config, unflatten_config
 if TYPE_CHECKING:
     from gobby.config.app import DaemonConfig
     from gobby.storage.config_store import ConfigStore
+    from gobby.storage.database import DatabaseProtocol
 
 logger = logging.getLogger(__name__)
 
@@ -31,6 +32,7 @@ def create_config_registry(
     config: DaemonConfig,
     config_store: ConfigStore,
     config_setter: Callable[[DaemonConfig], None],
+    db: DatabaseProtocol | None = None,
 ) -> InternalToolRegistry:
     """
     Create a config tool registry for reading/writing daemon configuration.
@@ -39,6 +41,7 @@ def create_config_registry(
         config: Current in-memory DaemonConfig
         config_store: DB-backed config key-value store
         config_setter: Callback to update in-memory config on ServiceContainer
+        db: Database for SecretStore access (optional, enables is_secret support)
 
     Returns:
         InternalToolRegistry with config tools registered
@@ -91,16 +94,36 @@ def create_config_registry(
 
     @registry.tool(
         name="set_config",
-        description="Set a config value by dotted key. Validates via DaemonConfig, persists to DB, and updates in-memory config.",
+        description="Set a config value by dotted key. Validates via DaemonConfig, persists to DB, and updates in-memory config. Pass is_secret=True to encrypt the value.",
     )
-    def set_config(key: str, value: Any) -> dict[str, Any]:
-        """Set a config value. Validates, persists to DB, updates in-memory."""
+    def set_config(key: str, value: Any, is_secret: bool = False) -> dict[str, Any]:
+        """Set a config value. Validates, persists to DB, updates in-memory.
+
+        If ``is_secret`` is True, the value is encrypted via SecretStore and
+        a ``$secret:`` reference is stored in config_store.
+        """
+        if isinstance(value, dict | list):
+            return {
+                "success": False,
+                "error": f"Cannot set '{key}' to a {type(value).__name__}. "
+                "Use dotted keys to set nested values (e.g. 'section.key').",
+            }
+
         from gobby.config.app import DaemonConfig as DaemonConfigCls
         from gobby.config.app import deep_merge
 
         try:
+            # For secret values, validate with the $secret: ref placeholder
+            if is_secret:
+                from gobby.storage.config_store import config_key_to_secret_name
+
+                ref = f"$secret:{config_key_to_secret_name(key)}"
+                validation_value = ref
+            else:
+                validation_value = value
+
             # Build a nested dict from the dotted key
-            update_nested = unflatten_config({key: value})
+            update_nested = unflatten_config({key: validation_value})
 
             # Deep-merge into current config dict
             current_dict = _current_config().model_dump(mode="json")
@@ -110,14 +133,38 @@ def create_config_registry(
             new_config = DaemonConfigCls(**current_dict)
 
             # Persist to DB
-            config_store.set(key, value, source="mcp")
+            if is_secret and db is not None:
+                from gobby.storage.secrets import SecretStore as SecretStoreCls
 
-            # Update in-memory config
+                secret_store = SecretStoreCls(db)
+                config_store.set_secret(key, str(value), secret_store, source="mcp")
+            elif is_secret:
+                return {
+                    "success": False,
+                    "error": f"Cannot store '{key}' as secret — database not available. "
+                    "Secrets require database for encryption.",
+                }
+            else:
+                config_store.set(key, value, source="mcp")
+
+            # For secrets, rebuild config with actual value (not the $secret: ref)
+            if is_secret:
+                actual_nested = unflatten_config({key: value})
+                actual_dict = _current_config().model_dump(mode="json")
+                deep_merge(actual_dict, actual_nested)
+                new_config = DaemonConfigCls(**actual_dict)
+
             _state["config"] = new_config
             config_setter(new_config)
 
-            return {"success": True, "key": key, "value": value}
+            result: dict[str, Any] = {"success": True, "key": key}
+            if is_secret:
+                result["stored_as"] = "encrypted_secret"
+            else:
+                result["value"] = value
+            return result
         except Exception as e:
+            logger.exception(f"Failed to set config key '{key}'")
             return {"success": False, "error": str(e)}
 
     @registry.tool(

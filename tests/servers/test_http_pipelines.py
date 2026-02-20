@@ -47,6 +47,9 @@ def http_server(
         pipeline_executor=mock_pipeline_executor,
         workflow_loader=mock_workflow_loader,
     )
+    # Route handler calls get_pipeline_executor(project_id) instead of accessing
+    # pipeline_executor directly
+    services.get_pipeline_executor = MagicMock(return_value=mock_pipeline_executor)
     return HTTPServer(
         services=services,
         port=60887,
@@ -108,7 +111,7 @@ class TestPipelinesRunEndpoint:
 
         response = client.post(
             "/api/pipelines/run",
-            json={"name": "nonexistent", "inputs": {}},
+            json={"name": "nonexistent", "inputs": {}, "project_id": "proj-1"},
         )
 
         assert response.status_code == 404
@@ -139,7 +142,7 @@ class TestPipelinesRunEndpoint:
 
         response = client.post(
             "/api/pipelines/run",
-            json={"name": "deploy", "inputs": {}},
+            json={"name": "deploy", "inputs": {}, "project_id": "proj-1"},
         )
 
         assert response.status_code == 202
@@ -167,7 +170,7 @@ class TestPipelinesRunEndpoint:
 
         response = client.post(
             "/api/pipelines/run",
-            json={"name": "deploy", "inputs": {}},
+            json={"name": "deploy", "inputs": {}, "project_id": "proj-1"},
         )
 
         assert response.status_code == 500
@@ -182,42 +185,7 @@ class TestPipelinesGetEndpoint:
         """Create a mock execution manager."""
         return MagicMock()
 
-    @pytest.fixture
-    def http_server_with_manager(
-        self,
-        session_storage: LocalSessionManager,
-        mock_pipeline_executor,
-        mock_workflow_loader,
-        mock_execution_manager,
-    ) -> HTTPServer:
-        """Create an HTTP server instance with execution manager."""
-        services = ServiceContainer(
-            config=None,
-            database=session_storage.db,
-            session_manager=session_storage,
-            task_manager=MagicMock(),
-            pipeline_executor=mock_pipeline_executor,
-            workflow_loader=mock_workflow_loader,
-        )
-        # Add execution manager via services attribute
-        services.pipeline_execution_manager = mock_execution_manager
-        return HTTPServer(
-            services=services,
-            port=60887,
-            test_mode=True,
-        )
-
-    @pytest.fixture
-    def client_with_manager(self, http_server_with_manager: HTTPServer) -> Iterator[TestClient]:
-        """Create a test client with execution manager."""
-        with patch("gobby.servers.http.HookManager") as MockHM:
-            mock_instance = MockHM.return_value
-            mock_instance._stop_registry = MagicMock()
-            mock_instance.shutdown = MagicMock()
-            with TestClient(http_server_with_manager.app) as client:
-                yield client
-
-    def test_get_execution_success(self, client_with_manager, http_server_with_manager) -> None:
+    def test_get_execution_success(self, client, mock_execution_manager) -> None:
         """Verify GET /api/pipelines/{id} returns execution details."""
         from gobby.workflows.pipeline_state import ExecutionStatus, PipelineExecution
 
@@ -229,12 +197,14 @@ class TestPipelinesGetEndpoint:
             created_at="2026-01-01T00:00:00Z",
             updated_at="2026-01-01T00:01:00Z",
         )
-        http_server_with_manager.services.pipeline_execution_manager.get_execution.return_value = (
-            mock_execution
-        )
-        http_server_with_manager.services.pipeline_execution_manager.get_steps_for_execution.return_value = []
+        mock_execution_manager.get_execution.return_value = mock_execution
+        mock_execution_manager.get_steps_for_execution.return_value = []
 
-        response = client_with_manager.get("/api/pipelines/pe-abc123")
+        with patch(
+            "gobby.storage.pipelines.LocalPipelineExecutionManager",
+            return_value=mock_execution_manager,
+        ):
+            response = client.get("/api/pipelines/pe-abc123")
 
         assert response.status_code == 200
         data = response.json()
@@ -242,9 +212,7 @@ class TestPipelinesGetEndpoint:
         assert data["pipeline_name"] == "deploy"
         assert data["status"] == "completed"
 
-    def test_get_execution_includes_steps(
-        self, client_with_manager, http_server_with_manager
-    ) -> None:
+    def test_get_execution_includes_steps(self, client, mock_execution_manager) -> None:
         """Verify GET /api/pipelines/{id} includes step_executions array."""
         from gobby.workflows.pipeline_state import (
             ExecutionStatus,
@@ -275,12 +243,14 @@ class TestPipelinesGetEndpoint:
                 status=StepStatus.RUNNING,
             ),
         ]
-        http_server_with_manager.services.pipeline_execution_manager.get_execution.return_value = (
-            mock_execution
-        )
-        http_server_with_manager.services.pipeline_execution_manager.get_steps_for_execution.return_value = mock_steps
+        mock_execution_manager.get_execution.return_value = mock_execution
+        mock_execution_manager.get_steps_for_execution.return_value = mock_steps
 
-        response = client_with_manager.get("/api/pipelines/pe-abc123")
+        with patch(
+            "gobby.storage.pipelines.LocalPipelineExecutionManager",
+            return_value=mock_execution_manager,
+        ):
+            response = client.get("/api/pipelines/pe-abc123")
 
         assert response.status_code == 200
         data = response.json()
@@ -291,13 +261,15 @@ class TestPipelinesGetEndpoint:
         assert data["steps"][1]["step_id"] == "test"
         assert data["steps"][1]["status"] == "running"
 
-    def test_get_execution_not_found(self, client_with_manager, http_server_with_manager) -> None:
+    def test_get_execution_not_found(self, client, mock_execution_manager) -> None:
         """Verify GET /api/pipelines/{id} returns 404 for unknown id."""
-        http_server_with_manager.services.pipeline_execution_manager.get_execution.return_value = (
-            None
-        )
+        mock_execution_manager.get_execution.return_value = None
 
-        response = client_with_manager.get("/api/pipelines/pe-nonexistent")
+        with patch(
+            "gobby.storage.pipelines.LocalPipelineExecutionManager",
+            return_value=mock_execution_manager,
+        ):
+            response = client.get("/api/pipelines/pe-nonexistent")
 
         assert response.status_code == 404
         assert "not found" in response.json()["detail"].lower()
@@ -306,7 +278,26 @@ class TestPipelinesGetEndpoint:
 class TestPipelinesApproveEndpoint:
     """Tests for POST /api/pipelines/approve/{token} endpoint."""
 
-    def test_approve_success(self, client, http_server) -> None:
+    @pytest.fixture
+    def mock_execution_manager(self):
+        """Create a mock execution manager for approve lookups."""
+        mgr = MagicMock()
+        # Default: step found, execution found
+        mock_step = MagicMock(execution_id="pe-abc123")
+        mgr.get_step_by_approval_token.return_value = mock_step
+        from gobby.workflows.pipeline_state import ExecutionStatus, PipelineExecution
+
+        mgr.get_execution.return_value = PipelineExecution(
+            id="pe-abc123",
+            pipeline_name="deploy",
+            project_id="proj-1",
+            status=ExecutionStatus.RUNNING,
+            created_at="2026-01-01T00:00:00Z",
+            updated_at="2026-01-01T00:01:00Z",
+        )
+        return mgr
+
+    def test_approve_success(self, client, http_server, mock_execution_manager) -> None:
         """Verify POST /api/pipelines/approve/{token} calls executor.approve()."""
         from gobby.workflows.pipeline_state import ExecutionStatus, PipelineExecution
 
@@ -320,7 +311,11 @@ class TestPipelinesApproveEndpoint:
         )
         http_server.services.pipeline_executor.approve = AsyncMock(return_value=mock_execution)
 
-        response = client.post("/api/pipelines/approve/approval-token-xyz")
+        with patch(
+            "gobby.storage.pipelines.LocalPipelineExecutionManager",
+            return_value=mock_execution_manager,
+        ):
+            response = client.post("/api/pipelines/approve/approval-token-xyz")
 
         assert response.status_code == 200
         http_server.services.pipeline_executor.approve.assert_called_once_with(
@@ -330,18 +325,22 @@ class TestPipelinesApproveEndpoint:
         assert data["status"] == "completed"
         assert data["execution_id"] == "pe-abc123"
 
-    def test_approve_invalid_token(self, client, http_server) -> None:
+    def test_approve_invalid_token(self, client, mock_execution_manager) -> None:
         """Verify POST /api/pipelines/approve/{token} returns 404 for invalid token."""
-        http_server.services.pipeline_executor.approve = AsyncMock(
-            side_effect=ValueError("Invalid token")
-        )
+        mock_execution_manager.get_step_by_approval_token.return_value = None
 
-        response = client.post("/api/pipelines/approve/invalid-token")
+        with patch(
+            "gobby.storage.pipelines.LocalPipelineExecutionManager",
+            return_value=mock_execution_manager,
+        ):
+            response = client.post("/api/pipelines/approve/invalid-token")
 
         assert response.status_code == 404
         assert "invalid" in response.json()["detail"].lower()
 
-    def test_approve_returns_next_approval(self, client, http_server) -> None:
+    def test_approve_returns_next_approval(
+        self, client, http_server, mock_execution_manager
+    ) -> None:
         """Verify POST /api/pipelines/approve returns 202 if more approvals needed."""
         from gobby.workflows.pipeline_state import ApprovalRequired
 
@@ -354,7 +353,11 @@ class TestPipelinesApproveEndpoint:
             )
         )
 
-        response = client.post("/api/pipelines/approve/approval-token-xyz")
+        with patch(
+            "gobby.storage.pipelines.LocalPipelineExecutionManager",
+            return_value=mock_execution_manager,
+        ):
+            response = client.post("/api/pipelines/approve/approval-token-xyz")
 
         assert response.status_code == 202
         data = response.json()
@@ -365,7 +368,25 @@ class TestPipelinesApproveEndpoint:
 class TestPipelinesRejectEndpoint:
     """Tests for POST /api/pipelines/reject/{token} endpoint."""
 
-    def test_reject_success(self, client, http_server) -> None:
+    @pytest.fixture
+    def mock_execution_manager(self):
+        """Create a mock execution manager for reject lookups."""
+        mgr = MagicMock()
+        mock_step = MagicMock(execution_id="pe-abc123")
+        mgr.get_step_by_approval_token.return_value = mock_step
+        from gobby.workflows.pipeline_state import ExecutionStatus, PipelineExecution
+
+        mgr.get_execution.return_value = PipelineExecution(
+            id="pe-abc123",
+            pipeline_name="deploy",
+            project_id="proj-1",
+            status=ExecutionStatus.RUNNING,
+            created_at="2026-01-01T00:00:00Z",
+            updated_at="2026-01-01T00:01:00Z",
+        )
+        return mgr
+
+    def test_reject_success(self, client, http_server, mock_execution_manager) -> None:
         """Verify POST /api/pipelines/reject/{token} calls executor.reject()."""
         from gobby.workflows.pipeline_state import ExecutionStatus, PipelineExecution
 
@@ -379,7 +400,11 @@ class TestPipelinesRejectEndpoint:
         )
         http_server.services.pipeline_executor.reject = AsyncMock(return_value=mock_execution)
 
-        response = client.post("/api/pipelines/reject/approval-token-xyz")
+        with patch(
+            "gobby.storage.pipelines.LocalPipelineExecutionManager",
+            return_value=mock_execution_manager,
+        ):
+            response = client.post("/api/pipelines/reject/approval-token-xyz")
 
         assert response.status_code == 200
         http_server.services.pipeline_executor.reject.assert_called_once_with(
@@ -389,13 +414,15 @@ class TestPipelinesRejectEndpoint:
         assert data["status"] == "failed"
         assert data["execution_id"] == "pe-abc123"
 
-    def test_reject_invalid_token(self, client, http_server) -> None:
+    def test_reject_invalid_token(self, client, mock_execution_manager) -> None:
         """Verify POST /api/pipelines/reject/{token} returns 404 for invalid token."""
-        http_server.services.pipeline_executor.reject = AsyncMock(
-            side_effect=ValueError("Invalid token")
-        )
+        mock_execution_manager.get_step_by_approval_token.return_value = None
 
-        response = client.post("/api/pipelines/reject/invalid-token")
+        with patch(
+            "gobby.storage.pipelines.LocalPipelineExecutionManager",
+            return_value=mock_execution_manager,
+        ):
+            response = client.post("/api/pipelines/reject/invalid-token")
 
         assert response.status_code == 404
         assert "invalid" in response.json()["detail"].lower()

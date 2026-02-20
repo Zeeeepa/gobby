@@ -1,6 +1,15 @@
 import type { GobbySession } from '../hooks/useSessions'
 import { formatRelativeTime } from '../utils/formatTime'
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useMemo } from 'react'
+
+interface AgentInfo {
+  run_id: string
+  provider: string
+  pid?: number
+  mode?: string
+  started_at?: string
+  tmux_session_name?: string
+}
 
 interface ConversationPickerProps {
   sessions: GobbySession[]
@@ -8,6 +17,16 @@ interface ConversationPickerProps {
   onNewChat: () => void
   onSelectSession: (session: GobbySession) => void
   onDeleteSession?: (session: GobbySession) => void
+  onRenameSession?: (id: string, title: string) => void
+  agents?: AgentInfo[]
+  onNavigateToAgent?: (agent: AgentInfo) => void
+}
+
+const PROVIDER_COLORS: Record<string, string> = {
+  claude: '#c084fc',
+  gemini: '#4ade80',
+  codex: '#3b82f6',
+  unknown: '#737373',
 }
 
 export function ConversationPicker({
@@ -16,21 +35,15 @@ export function ConversationPicker({
   onNewChat,
   onSelectSession,
   onDeleteSession,
+  onRenameSession,
+  agents = [],
+  onNavigateToAgent,
 }: ConversationPickerProps) {
   const [search, setSearch] = useState('')
   const [isOpen, setIsOpen] = useState(true)
-  const pickerRef = useRef<HTMLDivElement>(null)
-
-  useEffect(() => {
-    if (!isOpen) return
-    const handleClickOutside = (e: MouseEvent) => {
-      if (pickerRef.current && !pickerRef.current.contains(e.target as Node)) {
-        setIsOpen(false)
-      }
-    }
-    document.addEventListener('mousedown', handleClickOutside)
-    return () => document.removeEventListener('mousedown', handleClickOutside)
-  }, [isOpen])
+  const [editingId, setEditingId] = useState<string | null>(null)
+  const [editValue, setEditValue] = useState('')
+  const saveOnBlurRef = useRef(true)
 
   const filtered = search
     ? sessions.filter(
@@ -41,7 +54,7 @@ export function ConversationPicker({
     : sessions
 
   return (
-    <div ref={pickerRef} className={`conversation-picker ${isOpen ? '' : 'collapsed'}`}>
+    <div className={`conversation-picker ${isOpen ? '' : 'collapsed'}`}>
       <div className="conversation-picker-header">
         {isOpen && <span className="conversation-picker-title">Chats</span>}
         <div className="conversation-picker-actions">
@@ -78,6 +91,7 @@ export function ConversationPicker({
             />
           </div>
 
+          <div className="session-group">
           <div className="sessions-list">
             {filtered.length === 0 && (
               <div className="terminals-empty-sidebar">No conversations</div>
@@ -89,16 +103,53 @@ export function ConversationPicker({
                 <div
                   key={session.id}
                   className={`session-item ${isActive ? 'attached' : ''}`}
-                  onClick={() => onSelectSession(session)}
+                  onClick={() => { if (editingId !== session.id) onSelectSession(session) }}
                   role="button"
                   tabIndex={0}
-                  onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onSelectSession(session) } }}
+                  onKeyDown={e => { if (editingId !== session.id && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); onSelectSession(session) } }}
                 >
                   <div className="session-item-main">
                     <span className="session-source-dot web-chat" />
-                    <span className="session-name" title={title}>
-                      {title}
-                    </span>
+                    {editingId === session.id ? (
+                      <input
+                        className="session-name-input"
+                        value={editValue}
+                        onChange={e => setEditValue(e.target.value)}
+                        onBlur={() => {
+                          if (saveOnBlurRef.current && onRenameSession) {
+                            onRenameSession(session.id, editValue)
+                          }
+                          saveOnBlurRef.current = true
+                          setEditingId(null)
+                        }}
+                        onKeyDown={e => {
+                          if (e.key === 'Enter') {
+                            saveOnBlurRef.current = false
+                            if (onRenameSession) onRenameSession(session.id, editValue)
+                            setEditingId(null)
+                          } else if (e.key === 'Escape') {
+                            saveOnBlurRef.current = false
+                            setEditingId(null)
+                          }
+                        }}
+                        onClick={e => e.stopPropagation()}
+                        aria-label="Rename chat"
+                        autoFocus
+                      />
+                    ) : (
+                      <span
+                        className="session-name"
+                        title={title}
+                        onDoubleClick={e => {
+                          if (!onRenameSession) return
+                          e.stopPropagation()
+                          setEditingId(session.id)
+                          setEditValue(title)
+                        }}
+                      >
+                        {title}
+                      </span>
+                    )}
                   </div>
                   <div className="session-item-actions">
                     <span className="session-pid">
@@ -119,10 +170,71 @@ export function ConversationPicker({
               )
             })}
           </div>
+          </div>
+
+          {agents.length > 0 && (
+            <div className="session-group">
+              <div className="session-group-label">Active Agents ({agents.length})</div>
+              {agents.map((agent) => (
+                <div
+                  key={agent.run_id}
+                  className="session-item"
+                  {...(onNavigateToAgent ? {
+                    onClick: () => onNavigateToAgent(agent),
+                    role: 'button' as const,
+                    tabIndex: 0,
+                    onKeyDown: (e: React.KeyboardEvent) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onNavigateToAgent(agent) } },
+                  } : {})}
+                >
+                  <div className="session-item-main">
+                    <span
+                      className="session-source-dot"
+                      style={{ background: PROVIDER_COLORS[agent.provider] ?? PROVIDER_COLORS.unknown }}
+                    />
+                    <span className="session-name">{agent.provider}</span>
+                    {agent.mode && (
+                      <span className="session-badge agent-badge">{agent.mode}</span>
+                    )}
+                  </div>
+                  <div className="session-item-actions">
+                    <span className="session-pid">
+                      <AgentUptime startedAt={agent.started_at} />
+                    </span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
         </>
       )}
     </div>
   )
+}
+
+function AgentUptime({ startedAt }: { startedAt?: string }) {
+  const startTime = useMemo(() => {
+    if (startedAt) {
+      const t = new Date(startedAt).getTime()
+      if (!Number.isNaN(t)) return t
+    }
+    return null
+  }, [startedAt])
+  const [uptime, setUptime] = useState(startTime ? '0s' : '—')
+
+  useEffect(() => {
+    if (startTime === null) return
+    const update = () => {
+      const elapsed = Math.floor((Date.now() - startTime) / 1000)
+      if (elapsed < 60) setUptime(`${elapsed}s`)
+      else if (elapsed < 3600) setUptime(`${Math.floor(elapsed / 60)}m`)
+      else setUptime(`${Math.floor(elapsed / 3600)}h${Math.floor((elapsed % 3600) / 60)}m`)
+    }
+    update()
+    const interval = setInterval(update, 1000)
+    return () => clearInterval(interval)
+  }, [startTime])
+
+  return <>{uptime}</>
 }
 
 function TrashIcon() {
@@ -142,3 +254,4 @@ function PlusIcon() {
     </svg>
   )
 }
+

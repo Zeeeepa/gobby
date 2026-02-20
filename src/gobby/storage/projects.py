@@ -12,7 +12,8 @@ logger = logging.getLogger(__name__)
 
 ORPHANED_PROJECT_ID = "00000000-0000-0000-0000-000000000000"
 PERSONAL_PROJECT_ID = "00000000-0000-0000-0000-000000060887"
-SYSTEM_PROJECT_NAMES = frozenset({"_orphaned", "_migrated", "_personal", "gobby"})
+GLOBAL_PROJECT_ID = "00000000-0000-0000-0000-000000000002"
+SYSTEM_PROJECT_NAMES = frozenset({"_orphaned", "_migrated", "_personal", "_global", "gobby"})
 
 
 @dataclass
@@ -132,6 +133,45 @@ class LocalProjectManager:
         if project:
             return project
         return self.create(name, repo_path, github_url)
+
+    def ensure_exists(
+        self,
+        project_id: str,
+        name: str,
+        repo_path: str | None = None,
+    ) -> Project:
+        """
+        Ensure a project with the given ID exists in the database.
+
+        This is used when syncing projects from project.json files that may have
+        been created on another machine. If the project doesn't exist, it's created
+        with the specified ID.
+
+        Args:
+            project_id: The project ID (from project.json)
+            name: Project name
+            repo_path: Local repository path
+
+        Returns:
+            The existing or newly created Project
+        """
+        now = datetime.now(UTC).isoformat()
+        self.db.execute(
+            """
+            INSERT OR IGNORE INTO projects (id, name, repo_path, created_at, updated_at)
+            VALUES (?, ?, ?, ?, ?)
+            """,
+            (project_id, name, repo_path, now, now),
+        )
+
+        project = self.get(project_id)
+        if project:
+            return project
+
+        raise RuntimeError(
+            f"Project '{name}' ({project_id}) not found after INSERT OR IGNORE — "
+            "possible database inconsistency"
+        )
 
     def list(self, include_deleted: bool = False) -> list[Project]:
         """List all projects. Excludes soft-deleted projects by default."""

@@ -42,6 +42,7 @@ class ChatMixin:
     clients: dict[Any, dict[str, Any]]
     _chat_sessions: dict[str, ChatSession]
     _active_chat_tasks: dict[str, asyncio.Task[None]]
+    _pending_modes: dict[str, str]
 
     # Provided by HandlerMixin – declared here only for type checking
     # to avoid shadowing the real implementation at runtime (MRO).
@@ -135,10 +136,32 @@ class ChatMixin:
             conversation_id, HookEventType.STOP, data
         )
 
-        await session.start(model=model)
-        self._chat_sessions[conversation_id] = session
+        # Wire tool approval config if available
+        daemon_cfg = getattr(self, "daemon_config", None)
+        if daemon_cfg is not None:
+            tool_approval_cfg = getattr(daemon_cfg, "tool_approval", None)
+            if tool_approval_cfg is not None and tool_approval_cfg.enabled:
+                session._tool_approval_config = tool_approval_cfg
 
-        # Register in database so it appears in session list
+        # Apply pending chat mode (set before session existed)
+        pending_modes = getattr(self, "_pending_modes", {})
+        pending_mode = pending_modes.pop(conversation_id, None)
+        if pending_mode:
+            session.chat_mode = pending_mode
+        else:
+            # Apply configured default from daemon config
+            if daemon_cfg is not None:
+                chat_cfg = getattr(daemon_cfg, "chat", None)
+                if chat_cfg is not None:
+                    session.chat_mode = chat_cfg.default_mode
+
+        # Set project context on session BEFORE start() so env vars and CWD
+        # are correctly configured for the CLI subprocess.
+        effective_pid = project_id or PERSONAL_PROJECT_ID
+        session.project_id = effective_pid
+
+        # Register in database BEFORE start() so that db_session_id is available
+        # for the CLI subprocess env vars (GOBBY_SESSION_ID) during start().
         session_manager = getattr(self, "session_manager", None)
         if session_manager:
             try:
@@ -150,12 +173,28 @@ class ChatMixin:
                     project_id=project_id or PERSONAL_PROJECT_ID,
                 )
                 session.db_session_id = db_session.id
+                session.seq_num = db_session.seq_num
                 logger.info(
                     f"Registered web-chat session {db_session.id} "
                     f"(conv={conversation_id[:8]}, project={project_id or PERSONAL_PROJECT_ID})"
                 )
             except Exception as e:
                 logger.warning(f"Failed to register web-chat session in DB: {e}")
+
+        # Look up repo_path from DB so the subprocess CWD matches the selected project
+        if session_manager and not session.project_path:
+            try:
+                from gobby.storage.projects import LocalProjectManager
+
+                pm = LocalProjectManager(session_manager.db)
+                project = pm.get(effective_pid)
+                if project and project.repo_path:
+                    session.project_path = project.repo_path
+            except Exception as e:
+                logger.warning(f"Failed to look up project repo_path: {e}")
+
+        await session.start(model=model)
+        self._chat_sessions[conversation_id] = session
 
         # Detect returning sessions and set up history injection
         message_manager = getattr(self, "message_manager", None)
@@ -192,6 +231,7 @@ class ChatMixin:
         """
         workflow_handler = getattr(self, "workflow_handler", None)
         if not workflow_handler:
+            logger.warning("_fire_lifecycle: workflow_handler is None for %s", event_type)
             return None
 
         # Use the database session ID (not the external conversation_id) so that
@@ -199,6 +239,7 @@ class ChatMixin:
         # session_manager.get(session_id).
         session = self._chat_sessions.get(conversation_id)
         db_session_id = getattr(session, "db_session_id", None) or conversation_id
+        project_path = getattr(session, "project_path", None)
 
         event = HookEvent(
             event_type=event_type,
@@ -206,12 +247,25 @@ class ChatMixin:
             source=SessionSource.CLAUDE_SDK_WEB_CHAT,
             timestamp=datetime.now(UTC),
             data=data,
-            metadata={"_platform_session_id": conversation_id},
+            metadata={"_platform_session_id": db_session_id},
+            cwd=project_path,
         )
 
         try:
+            # DEBUG: log event data to diagnose hook issues
+            logger.debug(
+                "_fire_lifecycle: %s event_data=%s",
+                event_type.name,
+                {k: (v if k != "tool_input" else "...") for k, v in (data or {}).items()},
+            )
             # WorkflowHookHandler.evaluate is sync (bridges to async internally)
             response: HookResponse = await asyncio.to_thread(workflow_handler.evaluate, event)
+            logger.debug(
+                "_fire_lifecycle: %s → decision=%s, context_len=%d",
+                event_type.name,
+                response.decision,
+                len(response.context) if response.context else 0,
+            )
             return {
                 "decision": response.decision,
                 "context": response.context,
@@ -219,7 +273,7 @@ class ChatMixin:
                 "system_message": response.system_message,
             }
         except Exception as e:
-            logger.error(f"Lifecycle evaluation failed for {event_type}: {e}", exc_info=True)
+            logger.error("Lifecycle evaluation failed for %s: %s", event_type, e, exc_info=True)
             return None
 
     async def _handle_chat_message(self, websocket: Any, data: dict[str, Any]) -> None:
@@ -333,6 +387,13 @@ class ChatMixin:
             msg["request_id"] = request_id
             return msg
 
+        def _session_ref() -> str | None:
+            """Get the session ref (#N) for the current conversation."""
+            s = self._chat_sessions.get(conversation_id)
+            if s and getattr(s, "seq_num", None):
+                return f"#{s.seq_num}"
+            return None
+
         async def _persist_message(session: Any, role: str, text: str) -> None:
             """Persist a chat message to the database (best-effort)."""
             message_manager = getattr(self, "message_manager", None)
@@ -357,6 +418,25 @@ class ChatMixin:
             except Exception as e:
                 logger.warning(f"Failed to persist {role} message for {conversation_id[:8]}: {e}")
 
+        async def _emit_pending_approval(tool_name: str, arguments: dict[str, Any]) -> None:
+            """Emit pending_approval tool_status to the client."""
+            try:
+                await websocket.send(
+                    json.dumps(
+                        _base_msg(
+                            type="tool_status",
+                            message_id=assistant_message_id,
+                            conversation_id=conversation_id,
+                            tool_call_id=f"approval-{uuid4().hex[:8]}",
+                            status="pending_approval",
+                            tool_name=tool_name,
+                            arguments=arguments,
+                        )
+                    )
+                )
+            except (ConnectionClosed, ConnectionClosedError):
+                pass
+
         gen: AsyncIterator[Any] | None = None
         try:
             # Get or create ChatSession for this conversation
@@ -366,6 +446,18 @@ class ChatMixin:
                     session = await self._create_chat_session(
                         conversation_id, model=model, project_id=project_id
                     )
+                    # Notify client of session identity
+                    ref = _session_ref()
+                    if ref:
+                        await websocket.send(
+                            json.dumps(
+                                _base_msg(
+                                    type="session_info",
+                                    conversation_id=conversation_id,
+                                    session_ref=ref,
+                                )
+                            )
+                        )
                 except Exception as e:
                     logger.error(f"Failed to start chat session: {e}")
                     await websocket.send(
@@ -408,6 +500,9 @@ class ChatMixin:
                         )
                     )
 
+            # Wire tool approval callback for this request
+            session._tool_approval_callback = _emit_pending_approval
+
             # Persist user message to database
             user_text = content if isinstance(content, str) else json.dumps(content)
             await _persist_message(session, "user", user_text)
@@ -446,8 +541,17 @@ class ChatMixin:
                     # Feed TTS if voice mode is active
                     _voice_hook = getattr(self, "_voice_tts_hook", None)
                     if _voice_hook:
-                        await _voice_hook(websocket, conversation_id, request_id, event.content)
+                        try:
+                            await _voice_hook(websocket, conversation_id, request_id, event.content)
+                        except Exception:
+                            logger.debug("TTS hook error (non-fatal)", exc_info=True)
                 elif isinstance(event, ToolCallEvent):
+                    # Flush accumulated text as a separate message before tool calls.
+                    # This prevents text segments from merging across tool boundaries
+                    # (e.g., "Want me to test it?Good call." running together).
+                    if accumulated_text.strip():
+                        await _persist_message(session, "assistant", accumulated_text)
+                        accumulated_text = ""
                     await websocket.send(
                         json.dumps(
                             _base_msg(
@@ -477,26 +581,54 @@ class ChatMixin:
                         )
                     )
                 elif isinstance(event, DoneEvent):
-                    # Persist assistant message to database
-                    await _persist_message(session, "assistant", accumulated_text)
+                    # Persist remaining assistant text (after last tool call, if any)
+                    if accumulated_text.strip():
+                        await _persist_message(session, "assistant", accumulated_text)
 
                     # Flush TTS if voice mode is active
                     _voice_flush = getattr(self, "_voice_tts_flush", None)
                     if _voice_flush:
-                        await _voice_flush(websocket, conversation_id, request_id)
+                        try:
+                            await _voice_flush(websocket, conversation_id, request_id)
+                        except Exception:
+                            logger.debug("TTS flush error (non-fatal)", exc_info=True)
 
-                    await websocket.send(
-                        json.dumps(
-                            _base_msg(
-                                type="chat_stream",
-                                message_id=assistant_message_id,
-                                conversation_id=conversation_id,
-                                content="",
-                                done=True,
-                                tool_calls_count=event.tool_calls_count,
-                            )
-                        )
+                    done_msg = _base_msg(
+                        type="chat_stream",
+                        message_id=assistant_message_id,
+                        conversation_id=conversation_id,
+                        content="",
+                        done=True,
+                        tool_calls_count=event.tool_calls_count,
                     )
+                    ref = _session_ref()
+                    if ref:
+                        done_msg["session_ref"] = ref
+                    # Include usage data if available.
+                    # total_input_tokens = uncached + cache_read + cache_creation
+                    # (the real context size; input_tokens alone is tiny with caching)
+                    if event.total_input_tokens is not None or event.input_tokens is not None:
+                        done_msg["usage"] = {
+                            "input_tokens": event.input_tokens,
+                            "output_tokens": event.output_tokens,
+                            "cache_read_input_tokens": event.cache_read_input_tokens,
+                            "cache_creation_input_tokens": event.cache_creation_input_tokens,
+                            "total_input_tokens": event.total_input_tokens,
+                        }
+                    if event.context_window is not None:
+                        done_msg["context_window"] = event.context_window
+                    logger.info(
+                        "DoneEvent context_window=%s total_input=%s "
+                        "(uncached=%s cache_read=%s cache_creation=%s) output=%s",
+                        event.context_window,
+                        event.total_input_tokens,
+                        event.input_tokens,
+                        event.cache_read_input_tokens,
+                        event.cache_creation_input_tokens,
+                        event.output_tokens,
+                    )
+
+                    await websocket.send(json.dumps(done_msg))
 
         except asyncio.CancelledError:
             # Stream was interrupted (stop button or new message replacing old)
@@ -569,6 +701,198 @@ class ChatMixin:
 
         session.provide_answer(answers)
 
+    async def _handle_tool_approval_response(self, websocket: Any, data: dict[str, Any]) -> None:
+        """Handle tool_approval_response message from the web UI.
+
+        Looks up the ChatSession by conversation_id and forwards the user's
+        approval decision to unblock the pending tool approval callback.
+        """
+        conversation_id = data.get("conversation_id")
+        decision = data.get("decision", "reject")
+        if decision not in ("approve", "reject", "approve_always"):
+            decision = "reject"
+
+        session = self._chat_sessions.get(conversation_id) if conversation_id else None
+        if session is None:
+            logger.warning(f"tool_approval_response for unknown conversation: {conversation_id}")
+            return
+
+        if not session.has_pending_approval:
+            logger.warning(f"tool_approval_response but no pending approval for {conversation_id}")
+            return
+
+        session.provide_approval(decision)
+
+    async def _handle_continue_in_chat(self, websocket: Any, data: dict[str, Any]) -> None:
+        """Handle continue_in_chat message to resume a CLI session in the web chat UI.
+
+        Creates a new ChatSession that loads conversation history from a source
+        session (typically a CLI session), allowing the user to continue the
+        conversation in the web UI.
+
+        Message format:
+        {
+            "type": "continue_in_chat",
+            "conversation_id": "new-uuid",
+            "source_session_id": "db-uuid-of-source-session",
+            "project_id": "optional-override"
+        }
+        """
+        source_session_id = data.get("source_session_id")
+        if not source_session_id:
+            await self._send_error(websocket, "continue_in_chat requires source_session_id")
+            return
+
+        conversation_id = data.get("conversation_id") or str(uuid4())
+        project_id = data.get("project_id")
+
+        # Look up source session for project_id if not provided
+        session_manager = getattr(self, "session_manager", None)
+        if not project_id and session_manager:
+            try:
+                source_session = await asyncio.to_thread(session_manager.get, source_session_id)
+                if source_session:
+                    project_id = source_session.project_id
+            except Exception as e:
+                logger.warning(f"Failed to look up source session {source_session_id}: {e}")
+
+        # Create standard chat session
+        try:
+            session = await self._create_chat_session(conversation_id, project_id=project_id)
+        except Exception as e:
+            logger.error(f"Failed to create continuation session: {e}")
+            await self._send_error(websocket, f"Failed to create session: {e}")
+            return
+
+        # Set up cross-session history injection from the source session
+        message_manager = getattr(self, "message_manager", None)
+        if message_manager:
+            try:
+                max_idx = await message_manager.get_max_message_index(source_session_id)
+                if max_idx >= 0:
+                    session._message_manager_source_session_id = source_session_id
+                    session._needs_history_injection = True
+                    session._message_manager = message_manager
+                    logger.info(
+                        "Cross-session history injection enabled for continuation",
+                        extra={
+                            "source": source_session_id[:8],
+                            "target": conversation_id[:8],
+                            "max_idx": max_idx,
+                        },
+                    )
+            except Exception as e:
+                logger.warning(f"Failed to set up history injection: {e}")
+
+        # Set parent_session_id on the DB record for lineage tracking
+        if session.db_session_id and session_manager:
+            try:
+                await asyncio.to_thread(
+                    session_manager.update_parent_session_id,
+                    session.db_session_id,
+                    source_session_id,
+                )
+            except Exception as e:
+                logger.warning(f"Failed to set parent_session_id: {e}")
+
+        # Send confirmation
+        await websocket.send(
+            json.dumps(
+                {
+                    "type": "session_continued",
+                    "conversation_id": conversation_id,
+                    "source_session_id": source_session_id,
+                    "db_session_id": session.db_session_id,
+                }
+            )
+        )
+        logger.info(
+            f"Session continued: {source_session_id[:8]} -> {conversation_id[:8]} "
+            f"(db={session.db_session_id})"
+        )
+
+    async def _handle_set_mode(self, websocket: Any, data: dict[str, Any]) -> None:
+        """Handle set_mode message to change chat mode for a conversation.
+
+        Message format:
+        {
+            "type": "set_mode",
+            "mode": "normal" | "accept_edits" | "bypass" | "plan",
+            "conversation_id": "stable-id"
+        }
+        """
+        conversation_id: str | None = data.get("conversation_id")
+        mode: str = str(data.get("mode", "bypass"))
+        valid_modes = {"normal", "accept_edits", "bypass", "plan"}
+        if mode not in valid_modes:
+            await self._send_error(websocket, f"Invalid mode: {mode}. Must be one of {valid_modes}")
+            return
+
+        session = self._chat_sessions.get(conversation_id) if conversation_id else None
+        if session is not None and conversation_id:
+            session.chat_mode = mode
+            logger.info(f"Chat mode set to '{mode}' for conversation {conversation_id[:8]}")
+        elif conversation_id:
+            # Store mode for when session is created
+            self._pending_modes[conversation_id] = mode
+            logger.debug(f"Chat mode '{mode}' queued for future conversation {conversation_id[:8]}")
+
+    async def _handle_set_project(self, websocket: Any, data: dict[str, Any]) -> None:
+        """Handle set_project message to switch the project for a conversation.
+
+        Stops the existing CLI subprocess so the next message creates a fresh
+        session with the correct CWD and project context. Conversation history
+        is preserved via database-backed history injection.
+
+        Message format:
+        {
+            "type": "set_project",
+            "project_id": "uuid-or-_personal",
+            "conversation_id": "stable-id"
+        }
+        """
+        conversation_id = data.get("conversation_id")
+        new_project_id = data.get("project_id")
+
+        if not conversation_id or not new_project_id:
+            await self._send_error(websocket, "set_project requires conversation_id and project_id")
+            return
+
+        session = self._chat_sessions.get(conversation_id)
+        old_project_id = getattr(session, "project_id", None) if session else None
+
+        if session:
+            await self._cancel_active_chat(conversation_id)
+            if session.db_session_id:
+                session_manager = getattr(self, "session_manager", None)
+                if session_manager:
+                    try:
+                        await asyncio.to_thread(
+                            session_manager.update,
+                            session.db_session_id,
+                            status="paused",
+                            project_id=new_project_id,
+                        )
+                    except Exception as e:
+                        logger.warning(f"Failed to update session on project switch: {e}")
+            await session.stop()
+            self._chat_sessions.pop(conversation_id, None)
+
+        await websocket.send(
+            json.dumps(
+                {
+                    "type": "project_switched",
+                    "conversation_id": conversation_id,
+                    "old_project_id": old_project_id,
+                    "new_project_id": new_project_id,
+                }
+            )
+        )
+        logger.info(
+            f"Project switched for conversation {conversation_id[:8]}: "
+            f"{old_project_id} -> {new_project_id}"
+        )
+
     async def _handle_clear_chat(self, websocket: Any, data: dict[str, Any]) -> None:
         """Handle clear_chat message: stop session, mark completed, notify frontend.
 
@@ -638,7 +962,8 @@ class ChatMixin:
             await session.stop()
             self._chat_sessions.pop(conversation_id, None)
 
-        # Delete from database
+        # Soft-delete from database (hard delete fails due to FK constraints
+        # from agent_runs, tasks, workflow_audit_log referencing sessions)
         if db_session_id:
             session_manager = getattr(self, "session_manager", None)
             message_manager = getattr(self, "message_manager", None)
@@ -646,9 +971,9 @@ class ChatMixin:
                 if message_manager:
                     await message_manager.delete(db_session_id)
                 if session_manager:
-                    await asyncio.to_thread(session_manager.delete, db_session_id)
+                    await asyncio.to_thread(session_manager.update, db_session_id, status="deleted")
             except Exception as e:
-                logger.warning(f"Failed to delete session from DB: {e}")
+                logger.warning(f"Failed to soft-delete session from DB: {e}")
 
         # Notify frontend
         await websocket.send(

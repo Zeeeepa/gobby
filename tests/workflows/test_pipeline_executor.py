@@ -1362,3 +1362,64 @@ class TestRejectMethod:
         step_calls = mock_execution_manager.update_step_execution.call_args_list
         failed_calls = [c for c in step_calls if c.kwargs.get("status") == StepStatus.FAILED]
         assert len(failed_calls) >= 1
+
+
+class TestDefaultInputMerging:
+    """Tests for merging pipeline default inputs with caller-provided inputs."""
+
+    @pytest.mark.asyncio
+    async def test_default_inputs_used_when_caller_omits(
+        self, mock_db, mock_execution_manager, mock_llm_service
+    ) -> None:
+        """Test that pipeline definition defaults fill in missing caller inputs."""
+        from gobby.workflows.pipeline_executor import PipelineExecutor
+
+        pipeline = PipelineDefinition(
+            name="defaults-pipeline",
+            inputs={"city": "Little Rock", "state": "AR"},
+            steps=[PipelineStep(id="step1", exec="echo test")],
+        )
+
+        executor = PipelineExecutor(
+            db=mock_db,
+            execution_manager=mock_execution_manager,
+            llm_service=mock_llm_service,
+        )
+
+        await executor.execute(pipeline=pipeline, inputs={}, project_id="proj-123")
+
+        # Context inputs should contain the defaults
+        step_input_json = mock_execution_manager.create_step_execution.call_args.kwargs[
+            "input_json"
+        ]
+        context = json.loads(step_input_json)
+        assert context["inputs"]["city"] == "Little Rock"
+        assert context["inputs"]["state"] == "AR"
+
+    @pytest.mark.asyncio
+    async def test_caller_inputs_override_defaults(
+        self, mock_db, mock_execution_manager, mock_llm_service
+    ) -> None:
+        """Test that caller-provided inputs take precedence over defaults."""
+        from gobby.workflows.pipeline_executor import PipelineExecutor
+
+        pipeline = PipelineDefinition(
+            name="defaults-pipeline",
+            inputs={"city": "Little Rock", "state": "AR"},
+            steps=[PipelineStep(id="step1", exec="echo test")],
+        )
+
+        executor = PipelineExecutor(
+            db=mock_db,
+            execution_manager=mock_execution_manager,
+            llm_service=mock_llm_service,
+        )
+
+        await executor.execute(pipeline=pipeline, inputs={"city": "Memphis"}, project_id="proj-123")
+
+        step_input_json = mock_execution_manager.create_step_execution.call_args.kwargs[
+            "input_json"
+        ]
+        context = json.loads(step_input_json)
+        assert context["inputs"]["city"] == "Memphis"  # overridden
+        assert context["inputs"]["state"] == "AR"  # default preserved

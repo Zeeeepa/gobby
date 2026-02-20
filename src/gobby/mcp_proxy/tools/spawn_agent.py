@@ -7,7 +7,10 @@ Spawns agents with configurable isolation modes:
 
 from __future__ import annotations
 
+import asyncio
 import logging
+import os
+import shutil
 import uuid
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Literal
@@ -20,6 +23,7 @@ from gobby.agents.isolation import (
 from gobby.agents.registry import RunningAgent, get_running_agent_registry
 from gobby.agents.sandbox import SandboxConfig
 from gobby.agents.spawn_executor import SpawnRequest, execute_spawn
+from gobby.config.tmux import TmuxConfig
 from gobby.mcp_proxy.tools.internal import InternalToolRegistry
 from gobby.mcp_proxy.tools.tasks import resolve_task_id_for_mcp
 from gobby.utils.machine_id import get_machine_id
@@ -31,6 +35,39 @@ if TYPE_CHECKING:
     from gobby.storage.tasks import LocalTaskManager
 
 logger = logging.getLogger(__name__)
+
+# Seconds to wait before checking if tmux session survived spawn.
+# Configurable via GOBBY_TMUX_HEALTH_CHECK_DELAY env var.
+try:
+    TMUX_HEALTH_CHECK_DELAY = float(os.environ.get("GOBBY_TMUX_HEALTH_CHECK_DELAY", "0.5"))
+except (ValueError, TypeError):
+    TMUX_HEALTH_CHECK_DELAY = 0.5
+
+
+async def _check_tmux_session_alive(
+    session_name: str,
+    socket_name: str | None = None,
+) -> bool:
+    """Check if a tmux session is still alive after spawn."""
+    tmux_bin = shutil.which("tmux")
+    if not tmux_bin:
+        return True  # Can't check without tmux binary, assume alive
+    try:
+        cmd = [tmux_bin]
+        if socket_name:
+            cmd.extend(["-L", socket_name])
+        cmd.extend(["has-session", "-t", session_name])
+        proc = await asyncio.create_subprocess_exec(
+            *cmd,
+            stdout=asyncio.subprocess.DEVNULL,
+            stderr=asyncio.subprocess.DEVNULL,
+        )
+        await proc.wait()
+        return proc.returncode == 0
+    except asyncio.CancelledError:
+        raise
+    except OSError:
+        return True  # If check itself fails, don't false-positive
 
 
 async def _handle_self_mode(
@@ -361,7 +398,7 @@ async def spawn_agent_impl(
         return {"success": False, "error": "Could not resolve project_path from context"}
 
     # 3. Validate parent_session_id and spawn depth
-    if parent_session_id is None:
+    if not parent_session_id:
         return {"success": False, "error": "parent_session_id is required"}
 
     can_spawn, reason, _depth = runner.can_spawn(parent_session_id)
@@ -384,6 +421,7 @@ async def spawn_agent_impl(
             logger.warning(f"Failed to resolve task_id {task_id}: {e}")
 
     # 5. Handle clone_id reuse: skip isolation creation when an existing clone is provided
+    isolation_ctx = None
     if clone_id and clone_storage:
         existing_clone = clone_storage.get(clone_id)
         if not existing_clone:
@@ -426,9 +464,7 @@ async def spawn_agent_impl(
     )
 
     # 7. Prepare environment (worktree/clone creation) — skipped if clone_id was reused
-    if clone_id and clone_storage:
-        pass  # Already have isolation_ctx from clone lookup above
-    else:
+    if isolation_ctx is None:
         try:
             isolation_ctx = await handler.prepare_environment(spawn_config)
         except Exception as e:
@@ -483,14 +519,16 @@ async def spawn_agent_impl(
 
     # 9. Generate session and run IDs
     session_id = str(uuid.uuid4())
-    run_id = str(uuid.uuid4())
+    run_id = f"run-{uuid.uuid4().hex[:12]}"
 
-    # 10. Build step_variables for workflow activation (e.g., assigned_task_id)
-    step_variables: dict[str, Any] | None = None
+    # 10. Build step_variables for workflow activation (e.g., assigned_task_id, prompt)
+    step_variables: dict[str, Any] = {}
     if resolved_task_id:
-        step_variables = {
-            "assigned_task_id": f"#{task_seq_num}" if task_seq_num else resolved_task_id
-        }
+        step_variables["assigned_task_id"] = (
+            f"#{task_seq_num}" if task_seq_num else resolved_task_id
+        )
+    if enhanced_prompt:
+        step_variables["prompt"] = enhanced_prompt
 
     # 11. Execute spawn via SpawnExecutor
     spawn_request = SpawnRequest(
@@ -501,6 +539,7 @@ async def spawn_agent_impl(
         terminal=effective_terminal,
         session_id=session_id,
         run_id=run_id,
+        agent_run_id=run_id,
         parent_session_id=parent_session_id,
         project_id=project_id,
         workflow=effective_workflow,
@@ -530,6 +569,11 @@ async def spawn_agent_impl(
         )
     )
 
+    # NOTE: agent_runs DB record is created inside prepare_terminal_spawn()
+    # (called by execute_spawn).  Do NOT pre-create here — it causes a
+    # UNIQUE constraint violation since prepare_terminal_spawn also inserts
+    # with the same run_id.  See: agents/spawn.py:162
+
     spawn_result = await execute_spawn(spawn_request)
 
     # 12. Update or remove registry entry based on spawn result
@@ -537,7 +581,7 @@ async def spawn_agent_impl(
         # Re-register with full details from spawn result (pid, terminal_type, etc.)
         agent_registry.add(
             RunningAgent(
-                run_id=spawn_result.run_id,
+                run_id=run_id,
                 session_id=spawn_result.child_session_id,
                 parent_session_id=parent_session_id,
                 mode=effective_mode,
@@ -549,9 +593,58 @@ async def spawn_agent_impl(
                 worktree_id=isolation_ctx.worktree_id,
             )
         )
+        # Update child_session_id on the DB record now that spawn succeeded
+        try:
+            runner.run_storage.update_child_session(run_id, spawn_result.child_session_id)
+        except Exception as e:
+            logger.warning(f"Failed to update child_session_id for {run_id}: {e}")
+
+        # Post-spawn health check: verify tmux session is still alive.
+        # Runs in background to avoid blocking the spawn response by 0.5s.
+        if spawn_result.terminal_type == "tmux" and spawn_result.tmux_session_name:
+
+            async def _deferred_health_check(
+                _run_id: str,
+                _tmux_name: str,
+                _delay: float,
+            ) -> None:
+                try:
+                    await asyncio.sleep(_delay)
+                    tmux_cfg = TmuxConfig()
+                    alive = await _check_tmux_session_alive(
+                        _tmux_name, socket_name=tmux_cfg.socket_name
+                    )
+                    if not alive:
+                        logger.error(
+                            f"Agent {_run_id} tmux session '{_tmux_name}' "
+                            f"exited immediately after spawn"
+                        )
+                        agent_registry.remove(_run_id, status="failed")
+                        try:
+                            runner.run_storage.fail(
+                                _run_id,
+                                error="Agent process exited immediately after spawn",
+                            )
+                        except Exception as e:
+                            logger.warning(f"Failed to mark agent_run {_run_id} as failed: {e}")
+                except asyncio.CancelledError:
+                    pass
+                except Exception as e:
+                    logger.warning(f"Deferred health check for {_run_id} failed: {e}")
+
+            asyncio.create_task(
+                _deferred_health_check(
+                    run_id, spawn_result.tmux_session_name, TMUX_HEALTH_CHECK_DELAY
+                ),
+                name=f"tmux-health-{run_id}",
+            )
     else:
-        # Spawn failed — remove pre-registered entry
+        # Spawn failed — remove pre-registered entry and mark DB record as failed
         agent_registry.remove(run_id, status="failed")
+        try:
+            runner.run_storage.fail(run_id, error=spawn_result.error or "Spawn failed")
+        except Exception as e:
+            logger.warning(f"Failed to mark agent_run {run_id} as failed: {e}")
 
     # 13. Return response with isolation metadata
     if not spawn_result.success:
@@ -559,7 +652,7 @@ async def spawn_agent_impl(
 
     return {
         "success": True,
-        "run_id": spawn_result.run_id,
+        "run_id": run_id,
         "child_session_id": spawn_result.child_session_id,
         "status": spawn_result.status,
         "isolation": effective_isolation,

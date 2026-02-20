@@ -14,6 +14,7 @@ import re
 import shlex
 import tempfile
 import time
+import uuid
 from pathlib import Path
 
 from gobby.agents.constants import get_terminal_env_vars
@@ -95,7 +96,9 @@ class TmuxSpawner(TerminalSpawnerBase):
         title: str | None = None,
     ) -> SpawnResult:
         """Async implementation of spawn."""
-        session_name = title or f"{self._config.session_prefix}-{int(time.time())}"
+        suffix = uuid.uuid4().hex[:8]
+        base = title or f"{self._config.session_prefix}-{int(time.time())}"
+        session_name = f"{base}-{suffix}"
         # Sanitise (TmuxSessionManager also sanitises, but normalise here
         # so the name we return is consistent).
         session_name = re.sub(r"[^a-zA-Z0-9_-]", "-", session_name)
@@ -156,6 +159,7 @@ class TmuxSpawner(TerminalSpawnerBase):
         terminal: TerminalType | str = TerminalType.AUTO,
         prompt: str | None = None,
         sandbox_config: SandboxConfig | None = None,
+        mode: str = "terminal",
     ) -> SpawnResult:
         """Spawn a CLI agent in a new tmux session with Gobby env vars.
 
@@ -172,6 +176,7 @@ class TmuxSpawner(TerminalSpawnerBase):
             terminal: Deprecated, ignored. Will be removed in a future release.
             prompt: Optional initial prompt.
             sandbox_config: Optional sandbox configuration.
+            mode: Execution mode - "terminal" (interactive) or "headless" (exits after prompt).
 
         Returns:
             SpawnResult with success status.
@@ -201,7 +206,7 @@ class TmuxSpawner(TerminalSpawnerBase):
             session_id=session_id,
             auto_approve=True,
             working_directory=str(cwd) if cli == "codex" else None,
-            mode="terminal",
+            mode=mode,
             sandbox_args=sandbox_args,
         )
 

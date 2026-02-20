@@ -1,0 +1,85 @@
+interface ContextUsageIndicatorProps {
+  totalInputTokens: number
+  outputTokens: number
+  contextWindow: number | null
+  // Cache breakdown for tooltip
+  uncachedInputTokens?: number
+  cacheReadTokens?: number
+  cacheCreationTokens?: number
+}
+
+export function ContextUsageIndicator({
+  totalInputTokens,
+  outputTokens,
+  contextWindow,
+  uncachedInputTokens = 0,
+  cacheReadTokens = 0,
+  cacheCreationTokens = 0,
+}: ContextUsageIndicatorProps) {
+  const totalTokens = totalInputTokens + outputTokens
+  const percentage = contextWindow ? Math.min((totalTokens / contextWindow) * 100, 100) : 0
+  const displayPercent = Math.round(percentage)
+
+  // SVG pie/ring chart
+  const size = 20
+  const strokeWidth = 3
+  const radius = (size - strokeWidth) / 2
+  const circumference = 2 * Math.PI * radius
+  const dashOffset = circumference - (percentage / 100) * circumference
+
+  // Color based on usage: green < 50%, yellow 50-80%, red > 80%
+  const color = percentage > 80 ? 'var(--destructive, #ef4444)' : percentage > 50 ? 'var(--warning, #f59e0b)' : 'var(--success, #22c55e)'
+
+  const formatTokens = (n: number) => {
+    if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`
+    if (n >= 1_000) return `${(n / 1_000).toFixed(1)}K`
+    return String(n)
+  }
+
+  // Build tooltip with cache breakdown
+  const tooltipLines: string[] = []
+  if (contextWindow) {
+    tooltipLines.push(`Context: ${formatTokens(totalTokens)} / ${formatTokens(contextWindow)} tokens (${displayPercent}%)`)
+    tooltipLines.push('')
+    tooltipLines.push(`Input: ${formatTokens(totalInputTokens)}`)
+    if (cacheReadTokens > 0 || cacheCreationTokens > 0 || uncachedInputTokens > 0) {
+      tooltipLines.push(`  Cache read: ${formatTokens(cacheReadTokens)}`)
+      tooltipLines.push(`  Cache write: ${formatTokens(cacheCreationTokens)}`)
+      tooltipLines.push(`  Uncached: ${formatTokens(uncachedInputTokens)}`)
+    }
+    tooltipLines.push(`Output: ${formatTokens(outputTokens)}`)
+  } else {
+    tooltipLines.push('Context usage: waiting for first response...')
+  }
+
+  return (
+    <div
+      className="flex items-center gap-1.5 text-xs text-muted-foreground"
+      title={tooltipLines.join('\n')}
+    >
+      <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} className="shrink-0" style={{ transform: 'rotate(-90deg)' }}>
+        <circle
+          cx={size / 2}
+          cy={size / 2}
+          r={radius}
+          fill="none"
+          stroke="currentColor"
+          strokeWidth={strokeWidth}
+          opacity={0.15}
+        />
+        <circle
+          cx={size / 2}
+          cy={size / 2}
+          r={radius}
+          fill="none"
+          stroke={color}
+          strokeWidth={strokeWidth}
+          strokeDasharray={circumference}
+          strokeDashoffset={dashOffset}
+          strokeLinecap="round"
+        />
+      </svg>
+      <span className="tabular-nums">{displayPercent}%</span>
+    </div>
+  )
+}

@@ -13,11 +13,11 @@ import types
 from dataclasses import dataclass, field
 from typing import Any
 
-litellm: types.ModuleType | None
 try:
-    import litellm
+    import litellm as _litellm
 except ImportError:
-    litellm = None
+    _litellm = None  # type: ignore[assignment]
+litellm: types.ModuleType | None = _litellm
 
 logger = logging.getLogger(__name__)
 

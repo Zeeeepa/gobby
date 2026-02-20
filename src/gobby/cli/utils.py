@@ -782,9 +782,33 @@ def stop_daemon(quiet: bool = False) -> bool:
     # Check if process is actually running (handles zombies correctly)
     if not _is_process_alive(pid):
         if not quiet:
-            click.echo(f"Gobby daemon is not running (stale PID file with PID {pid})")
+            click.echo(f"Stale PID file (PID {pid} not running), scanning for orphaned daemons...")
         pid_file.unlink(missing_ok=True)
+        # Don't return early — scan for daemons on the port in case a different
+        # PID is running the daemon (e.g. watchdog restarted it, crash + restart)
+        killed = kill_all_gobby_daemons()
+        if killed > 0 and not quiet:
+            click.echo(f"Cleaned up {killed} orphaned daemon process(es)")
         return True
+
+    # Verify the PID is actually a gobby daemon before sending signals
+    # (PID reuse could mean it's a completely different process now)
+    try:
+        proc = psutil.Process(pid)
+        cmdline_str = " ".join(proc.cmdline())
+        if "gobby" not in cmdline_str.lower():
+            if not quiet:
+                click.echo(
+                    f"PID {pid} is not a gobby process (cmdline: {cmdline_str[:80]}), "
+                    f"removing stale PID file and scanning for orphaned daemons..."
+                )
+            pid_file.unlink(missing_ok=True)
+            killed = kill_all_gobby_daemons()
+            if killed > 0 and not quiet:
+                click.echo(f"Cleaned up {killed} orphaned daemon process(es)")
+            return True
+    except (psutil.NoSuchProcess, psutil.AccessDenied):
+        pass  # Process died or can't read cmdline — proceed with kill attempt
 
     try:
         # Send SIGTERM signal for graceful shutdown

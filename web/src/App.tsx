@@ -6,10 +6,9 @@ import { useTerminal } from './hooks/useTerminal'
 import { useTmuxSessions } from './hooks/useTmuxSessions'
 import { useSlashCommands } from './hooks/useSlashCommands'
 import { useSessions } from './hooks/useSessions'
-import type { QueuedFile } from './components/ChatInput'
+import type { QueuedFile } from './types/chat'
 import { Settings } from './components/Settings'
 import { Sidebar } from './components/Sidebar'
-import { ChatPage } from './components/ChatPage'
 import { SessionsPage } from './components/SessionsPage'
 import { TerminalsPage } from './components/TerminalsPage'
 import { MemoryPage } from './components/MemoryPage'
@@ -21,27 +20,78 @@ import { CronJobsPage } from './components/CronJobsPage'
 import { AgentDefinitionsPage } from './components/AgentDefinitionsPage'
 import { ConfigurationPage } from './components/ConfigurationPage'
 import { WorkflowsPage } from './components/WorkflowsPage'
+import { GitHubPage } from './components/GitHubPage'
+import { DashboardPage } from './components/DashboardPage'
 import { QuickCaptureTask } from './components/tasks/QuickCaptureTask'
+import { ChatPage } from './components/chat/ChatPage'
 import type { GobbySession } from './hooks/useSessions'
 
 const HIDDEN_PROJECTS = new Set(['_orphaned', '_migrated'])
 
 export default function App() {
-  const { messages, conversationId, isConnected, isStreaming, isThinking, sendMessage, stopStreaming, clearHistory, deleteConversation, executeCommand, respondToQuestion, switchConversation, startNewChat, wsRef, handleVoiceMessageRef } = useChat()
+  const { messages, conversationId, sessionRef, isConnected, isStreaming, isThinking, contextUsage, sendMessage, sendMode, sendProjectChange, stopStreaming, clearHistory, deleteConversation, executeCommand, respondToQuestion, switchConversation, startNewChat, continueSessionInChat, wsRef, handleVoiceMessageRef } = useChat()
   const voice = useVoice(wsRef, conversationId)
-  const { settings, modelInfo, modelsLoading, updateFontSize, updateModel, resetSettings } = useSettings()
-  const { agents, selectedAgent, setSelectedAgent, sendInput, onOutput } = useTerminal()
+  const { settings, updateFontSize, updateModel, updateChatMode, updateTheme, resetSettings } = useSettings()
+  const { agents } = useTerminal()
   const tmux = useTmuxSessions()
   const { filteredCommands, parseCommand, filterCommands } = useSlashCommands()
   const sessionsHook = useSessions()
   const [settingsOpen, setSettingsOpen] = useState(false)
-  const [terminalOpen, setTerminalOpen] = useState(true)
   const [activeTab, setActiveTab] = useState<string>('chat')
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [selectedProjectId, setSelectedProjectId] = useState<string | null>(() => {
     try { return localStorage.getItem('gobby-chat-project') } catch { return null }
   })
   const [quickCaptureOpen, setQuickCaptureOpen] = useState(false)
+
+  // Auto-synthesize chat title when streaming completes
+  const wasStreamingRef = useRef(false)
+  const titleSynthesisCountRef = useRef(0) // messages since last synthesis
+  const sessionsRef = useRef(sessionsHook.sessions)
+  sessionsRef.current = sessionsHook.sessions
+  const refreshSessionsRef = useRef(sessionsHook.refresh)
+  refreshSessionsRef.current = sessionsHook.refresh
+
+  useEffect(() => {
+    // Detect streaming transition: true → false (response completed)
+    if (wasStreamingRef.current && !isStreaming) {
+      titleSynthesisCountRef.current += 1
+
+      // Find the current session's DB ID
+      const currentSession = sessionsRef.current.find(
+        (s) => s.external_id === conversationId && s.source === 'claude_sdk_web_chat'
+      )
+
+      if (currentSession) {
+        // Synthesize on first completion (no title) or every 4 completions
+        const needsTitle = !currentSession.title
+        const periodicUpdate = titleSynthesisCountRef.current >= 4
+
+        if (needsTitle || periodicUpdate) {
+          titleSynthesisCountRef.current = 0
+          const baseUrl = import.meta.env.VITE_API_BASE_URL || ''
+          fetch(`${baseUrl}/sessions/${currentSession.id}/synthesize-title`, { method: 'POST' })
+            .then((res) => {
+              if (!res.ok) {
+                console.warn(`Title synthesis returned ${res.status}`)
+                return null
+              }
+              return res.json()
+            })
+            .then((data) => {
+              if (data?.title) refreshSessionsRef.current()
+            })
+            .catch(() => { /* title synthesis is non-critical */ })
+        }
+      }
+    }
+    wasStreamingRef.current = isStreaming
+  }, [isStreaming, conversationId])
+
+  // Reset title synthesis counter on conversation switch
+  useEffect(() => {
+    titleSynthesisCountRef.current = 0
+  }, [conversationId])
 
   // Global keyboard chord: Cmd+K → t opens quick capture task creation
   const chordPendingRef = useRef(false)
@@ -108,7 +158,17 @@ export default function App() {
     } catch { /* noop */ }
   }, [selectedProjectId])
 
-  // Web-chat sessions only (for ConversationPicker in ChatPage)
+  // Notify backend when the effective project changes so it restarts the
+  // CLI subprocess with the correct CWD.
+  const prevProjectRef = useRef<string | null>(null)
+  useEffect(() => {
+    if (effectiveProjectId && prevProjectRef.current !== null && effectiveProjectId !== prevProjectRef.current) {
+      sendProjectChange(effectiveProjectId)
+    }
+    prevProjectRef.current = effectiveProjectId ?? null
+  }, [effectiveProjectId, sendProjectChange])
+
+  // Web-chat sessions for main conversation list
   const webChatSessions = useMemo(
     () => sessionsHook.filteredSessions.filter((s) => s.source === 'claude_sdk_web_chat'),
     [sessionsHook.filteredSessions]
@@ -123,8 +183,14 @@ export default function App() {
       if (cmd.server === '_local') {
         if (cmd.tool === 'open_settings') {
           setSettingsOpen(true)
+          return
         } else if (cmd.tool === 'clear_history') {
           clearHistory()
+          return
+        } else if (cmd.tool === 'compact_chat') {
+          // Send /compact as a regular message — the SDK handles it natively
+          sendMessage('/compact', settings.model, undefined, effectiveProjectId)
+          return
         }
         return
       }
@@ -141,8 +207,16 @@ export default function App() {
 
   const handleDeleteConversation = useCallback((session: GobbySession) => {
     deleteConversation(session.external_id, session.id)
-    sessionsHook.refresh()
-  }, [deleteConversation, sessionsHook])
+    sessionsHook.removeSession(session.id)
+  }, [deleteConversation, sessionsHook.removeSession])
+
+  /* Navigate to Terminals tab and attach agent's tmux session */
+  const handleNavigateToAgent = useCallback((agent: { run_id: string; tmux_session_name?: string }) => {
+    setActiveTab('terminals')
+    if (agent.tmux_session_name) {
+      tmux.attachSession(agent.tmux_session_name, 'gobby')
+    }
+  }, [tmux])
 
   /* "Ask Gobby about this session" from Sessions page */
   const handleAskGobby = useCallback((context: string) => {
@@ -164,6 +238,12 @@ export default function App() {
     }, 0)
   }, [sendMessage, settings.model, isConnected])
 
+  /* "Resume Session" from Sessions page — continue CLI session in web chat */
+  const handleContinueInChat = useCallback(async (session: GobbySession) => {
+    setActiveTab('chat')
+    await continueSessionInChat(session.id, session.project_id)
+  }, [continueSessionInChat])
+
   // Wire voice message handler into useChat's WebSocket routing
   useEffect(() => {
     handleVoiceMessageRef.current = voice.handleVoiceMessage
@@ -179,11 +259,13 @@ export default function App() {
         setSettingsOpen(true)
       } else if (cmd.action === 'clear_history' || cmd.tool === 'clear_history') {
         clearHistory()
+      } else if (cmd.action === 'compact_chat' || cmd.tool === 'compact_chat') {
+        sendMessage('/compact', settings.model, undefined, effectiveProjectId)
       }
       return
     }
     executeCommand(cmd.server, cmd.tool)
-  }, [executeCommand, clearHistory])
+  }, [executeCommand, clearHistory, sendMessage, settings.model, effectiveProjectId])
 
   const navItems = [
     { id: 'dashboard', label: 'Dashboard', icon: <DashboardIcon /> },
@@ -194,7 +276,7 @@ export default function App() {
     { id: 'tasks', label: 'Tasks', icon: <TasksIcon /> },
     { id: 'agents', label: 'Agent Definitions', icon: <AgentsIcon /> },
     { id: 'workflows', label: 'Workflows', icon: <WorkflowsIcon /> },
-    { id: 'worktrees', label: 'Worktrees/Clones', icon: <WorktreesIcon /> },
+    { id: 'source-control', label: 'GitHub', icon: <GitHubIcon /> },
     { id: 'cron', label: 'Cron Jobs', icon: <CronIcon /> },
     { id: 'memory', label: 'Memory', icon: <MemoryIcon /> },
     { id: 'skills', label: 'Skills', icon: <SkillsIcon /> },
@@ -236,15 +318,19 @@ export default function App() {
         <ChatPage
           chat={{
             messages,
+            sessionRef,
             isStreaming,
             isThinking,
             isConnected,
+            contextUsage,
             onSend: handleSendMessage,
             onStop: stopStreaming,
             onRespondToQuestion: respondToQuestion,
             onInputChange: handleInputChange,
             filteredCommands,
             onCommandSelect: handleCommandSelect,
+            mode: settings.chatMode,
+            onModeChange: (mode) => { updateChatMode(mode); sendMode(mode) },
           }}
           conversations={{
             sessions: webChatSessions,
@@ -252,15 +338,9 @@ export default function App() {
             onNewChat: startNewChat,
             onSelectSession: handleSelectConversation,
             onDeleteSession: handleDeleteConversation,
-          }}
-          terminal={{
-            isOpen: terminalOpen,
-            onToggle: () => setTerminalOpen(!terminalOpen),
+            onRenameSession: sessionsHook.renameSession,
             agents,
-            selectedAgent,
-            onSelectAgent: setSelectedAgent,
-            onInput: sendInput,
-            onOutput,
+            onNavigateToAgent: handleNavigateToAgent,
           }}
           project={{
             projects: projectOptions,
@@ -270,13 +350,12 @@ export default function App() {
           voice={{
             voiceMode: voice.voiceMode,
             voiceAvailable: voice.voiceAvailable,
-            isRecording: voice.isRecording,
+            isListening: voice.isListening,
+            isSpeechDetected: voice.isSpeechDetected,
             isTranscribing: voice.isTranscribing,
             isSpeaking: voice.isSpeaking,
             voiceError: voice.voiceError,
             onToggleVoice: voice.toggleVoiceMode,
-            onStartRecording: voice.startRecording,
-            onStopRecording: voice.stopRecording,
             onStopSpeaking: voice.stopSpeaking,
           }}
         />
@@ -289,6 +368,8 @@ export default function App() {
           isLoading={sessionsHook.isLoading}
           onRefresh={sessionsHook.refresh}
           onAskGobby={handleAskGobby}
+          onContinueInChat={handleContinueInChat}
+          onRenameSession={sessionsHook.renameSession}
         />
       ) : activeTab === 'terminals' ? (
         <TerminalsPage
@@ -296,10 +377,12 @@ export default function App() {
           attachedSession={tmux.attachedSession}
           streamingId={tmux.streamingId}
           isLoading={tmux.isLoading}
+          sessionEnded={tmux.sessionEnded}
           attachSession={tmux.attachSession}
           createSession={tmux.createSession}
           killSession={tmux.killSession}
           refreshSessions={tmux.refreshSessions}
+          dismissEndedSession={tmux.dismissEndedSession}
           sendInput={tmux.sendInput}
           resizeTerminal={tmux.resizeTerminal}
           onOutput={tmux.onOutput}
@@ -320,8 +403,12 @@ export default function App() {
         <WorkflowsPage />
       ) : activeTab === 'mcp' ? (
         <McpPage />
+      ) : activeTab === 'source-control' ? (
+        <GitHubPage />
       ) : activeTab === 'configuration' ? (
         <ConfigurationPage />
+      ) : activeTab === 'dashboard' ? (
+        <DashboardPage />
       ) : (
         <ComingSoonPage title={navItems.find(i => i.id === activeTab)?.label ?? activeTab} />
       )}
@@ -330,10 +417,9 @@ export default function App() {
         isOpen={settingsOpen}
         onClose={() => setSettingsOpen(false)}
         settings={settings}
-        modelInfo={modelInfo}
-        modelsLoading={modelsLoading}
         onFontSizeChange={updateFontSize}
         onModelChange={updateModel}
+        onThemeChange={updateTheme}
         onReset={resetSettings}
       />
 
@@ -371,23 +457,6 @@ function DashboardIcon() {
       <rect x="14" y="3" width="7" height="5" />
       <rect x="14" y="12" width="7" height="9" />
       <rect x="3" y="16" width="7" height="5" />
-    </svg>
-  )
-}
-
-function ChatIcon() {
-  return (
-    <svg
-      width="18"
-      height="18"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    >
-      <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
     </svg>
   )
 }
@@ -498,14 +567,10 @@ function CronIcon() {
   )
 }
 
-function WorktreesIcon() {
+function GitHubIcon() {
   return (
     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <circle cx="12" cy="18" r="3" />
-      <circle cx="6" cy="6" r="3" />
-      <circle cx="18" cy="6" r="3" />
-      <path d="M12 15V9" />
-      <path d="M9 7.5L12 9l3-1.5" />
+      <path d="M9 19c-5 1.5-5-2.5-7-3m14 6v-3.87a3.37 3.37 0 0 0-.94-2.61c3.14-.35 6.44-1.54 6.44-7A5.44 5.44 0 0 0 20 4.77 5.07 5.07 0 0 0 19.91 1S18.73.65 16 2.48a13.38 13.38 0 0 0-7 0C6.27.65 5.09 1 5.09 1A5.07 5.07 0 0 0 5 4.77a5.44 5.44 0 0 0-1.5 3.78c0 5.42 3.3 6.61 6.44 7A3.37 3.37 0 0 0 9 18.13V22" />
     </svg>
   )
 }
@@ -526,6 +591,16 @@ function McpIcon() {
   )
 }
 
+function ChatIcon() {
+  return (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+      <path d="M8 10h8" />
+      <path d="M8 14h4" />
+    </svg>
+  )
+}
+
 function ConfigurationIcon() {
   return (
     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -534,4 +609,3 @@ function ConfigurationIcon() {
     </svg>
   )
 }
-

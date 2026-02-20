@@ -173,7 +173,7 @@ class TestLocalAgentRunManager:
         )
 
         assert agent_run.id is not None
-        assert agent_run.id.startswith("ar-")
+        assert agent_run.id.startswith("run-")
         assert agent_run.parent_session_id == sample_session["id"]
         assert agent_run.provider == "claude"
         assert agent_run.prompt == "Implement a feature"

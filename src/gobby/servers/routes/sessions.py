@@ -4,6 +4,7 @@ Session routes for Gobby HTTP server.
 Provides session registration, listing, lookup, and update endpoints.
 """
 
+import asyncio
 import logging
 import subprocess  # nosec B404 - subprocess needed for git commit counting
 import time
@@ -561,6 +562,128 @@ def create_sessions_router(server: "HTTPServer") -> APIRouter:
             raise
         except Exception as e:
             logger.error(f"Update session summary error: {e}", exc_info=True)
+            raise HTTPException(status_code=500, detail=str(e)) from e
+
+    @router.post("/{session_id}/synthesize-title")
+    async def synthesize_session_title(session_id: str) -> dict[str, Any]:
+        """
+        Synthesize a title for a session from its recent messages.
+
+        Uses LLM to generate a short 3-5 word title based on conversation content.
+
+        Args:
+            session_id: Session ID
+
+        Returns:
+            Synthesized title
+        """
+        start_time = time.perf_counter()
+        metrics.inc_counter("http_requests_total")
+
+        try:
+            if server.session_manager is None:
+                raise HTTPException(status_code=503, detail="Session manager not available")
+            if server.llm_service is None:
+                raise HTTPException(status_code=503, detail="LLM service not available")
+            if server.message_manager is None:
+                raise HTTPException(status_code=503, detail="Message manager not available")
+
+            session = server.session_manager.get(session_id)
+            if session is None:
+                raise HTTPException(status_code=404, detail="Session not found")
+
+            # Read recent messages from DB
+            messages = await server.message_manager.get_messages(
+                session_id=session_id, limit=20, offset=0
+            )
+            if not messages:
+                raise HTTPException(status_code=422, detail="No messages to synthesize title from")
+
+            # Build a concise transcript for the LLM
+            transcript_lines = []
+            for msg in messages:
+                role = msg.get("role", "unknown")
+                content = msg.get("content", "")
+                if content and role in ("user", "assistant"):
+                    # Truncate long messages
+                    if len(content) > 300:
+                        content = content[:300] + "..."
+                    transcript_lines.append(f"{role}: {content}")
+
+            if not transcript_lines:
+                raise HTTPException(status_code=422, detail="No user/assistant messages found")
+
+            transcript = "\n".join(transcript_lines)
+            llm_prompt = (
+                "Create a short title (3-5 words) for this chat session based on "
+                "the conversation. Output ONLY the title, no quotes or explanation.\n\n"
+                f"Conversation:\n{transcript}"
+            )
+
+            provider = server.llm_service.get_default_provider()
+            title = await asyncio.wait_for(provider.generate_text(llm_prompt), timeout=10)
+            title = title.strip().strip('"').strip("'")
+            if not title:
+                title = "Untitled Session"
+
+            result = server.session_manager.update_title(session_id, title)
+            if result is None:
+                raise HTTPException(status_code=404, detail="Session not found")
+
+            response_time_ms = (time.perf_counter() - start_time) * 1000
+            return {
+                "status": "success",
+                "title": title,
+                "response_time_ms": response_time_ms,
+            }
+
+        except HTTPException:
+            metrics.inc_counter("http_requests_errors_total")
+            raise
+        except Exception as e:
+            metrics.inc_counter("http_requests_errors_total")
+            logger.error(f"Synthesize title error: {e}", exc_info=True)
+            raise HTTPException(status_code=500, detail=str(e)) from e
+
+    @router.post("/{session_id}/rename")
+    async def rename_session(session_id: str, request: Request) -> dict[str, Any]:
+        """
+        Rename a session by setting a new title.
+
+        Args:
+            session_id: Session ID
+            request: Request with JSON body {"title": "..."}
+
+        Returns:
+            Updated title
+        """
+        metrics.inc_counter("http_requests_total")
+
+        try:
+            if server.session_manager is None:
+                raise HTTPException(status_code=503, detail="Session manager not available")
+
+            body = await request.json()
+            title = (body.get("title") or "").strip()
+            if not title:
+                raise HTTPException(status_code=400, detail="Title must not be empty")
+
+            session = server.session_manager.get(session_id)
+            if session is None:
+                raise HTTPException(status_code=404, detail="Session not found")
+
+            result = server.session_manager.update_title(session_id, title)
+            if result is None:
+                raise HTTPException(status_code=404, detail="Session not found")
+
+            return {"status": "success", "title": title}
+
+        except HTTPException:
+            metrics.inc_counter("http_requests_errors_total")
+            raise
+        except Exception as e:
+            metrics.inc_counter("http_requests_errors_total")
+            logger.error(f"Rename session error: {e}", exc_info=True)
             raise HTTPException(status_code=500, detail=str(e)) from e
 
     @router.post("/{session_id}/generate-summary")

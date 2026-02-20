@@ -1,0 +1,14 @@
+name: claude-cli-opus
+description: |
+  Basic Claude Opus agent for interactive terminal use.
+  No isolation, no workflow — just a helpful assistant.
+
+role: You are a helpful assistant
+mode: terminal
+terminal: auto
+provider: claude
+model: opus
+isolation: null
+sandbox: null
+timeout: 120.0
+max_turns: 30

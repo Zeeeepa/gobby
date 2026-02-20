@@ -1,224 +1,211 @@
 import { useState, useEffect, useRef, useMemo, useCallback } from 'react'
-import dagre from '@dagrejs/dagre'
-import type { GobbyMemory, MemoryGraphData, MemoryCrossRef } from '../hooks/useMemory'
+import ForceGraph2D from 'react-force-graph-2d'
+import type { GobbyMemory, MemoryGraphData } from '../hooks/useMemory'
 
 interface MemoryGraphProps {
-  memories: GobbyMemory[]
-  fetchGraphData: () => Promise<MemoryGraphData | null>
+  fetchGraphData: (memoryLimit?: number) => Promise<MemoryGraphData | null>
   onSelect: (memory: GobbyMemory) => void
+  memoryLimit?: number
 }
 
 interface GraphNode {
   id: string
+  name: string
   memory: GobbyMemory
-  x: number
-  y: number
+  color: string
+  val: number
 }
 
-interface GraphEdge {
-  from: string
-  to: string
-  similarity: number
+interface GraphLink {
+  source: string
+  target: string
+  value: number
 }
-
-const NODE_WIDTH = 180
-const NODE_HEIGHT = 44
 
 const TYPE_COLORS: Record<string, string> = {
-  fact: 'var(--accent)',
+  fact: '#60a5fa',
   preference: '#c084fc',
   pattern: '#34d399',
   context: '#fbbf24',
 }
 
 function getTypeColor(type: string): string {
-  return TYPE_COLORS[type] || 'var(--text-muted)'
+  return TYPE_COLORS[type] || '#8b8b8b'
 }
 
-function buildGraph(
-  memories: GobbyMemory[],
-  crossrefs: MemoryCrossRef[]
-): { nodes: GraphNode[]; edges: GraphEdge[] } {
-  const memoryMap = new Map(memories.map(m => [m.id, m]))
-  const edges: GraphEdge[] = []
+function buildForceData(
+  data: MemoryGraphData
+): { nodes: GraphNode[]; links: GraphLink[] } {
+  const memoryIds = new Set(data.memories.map(m => m.id))
 
-  for (const cr of crossrefs) {
-    if (memoryMap.has(cr.source_id) && memoryMap.has(cr.target_id)) {
-      edges.push({ from: cr.source_id, to: cr.target_id, similarity: cr.similarity })
-    }
-  }
+  const nodes: GraphNode[] = data.memories.map(m => ({
+    id: m.id,
+    name: m.content.length > 40 ? m.content.slice(0, 40) + '...' : m.content,
+    memory: m,
+    color: getTypeColor(m.memory_type),
+    val: 1 + m.importance * 3,
+  }))
 
-  // Find connected components
-  const connected = new Set<string>()
-  for (const edge of edges) {
-    connected.add(edge.from)
-    connected.add(edge.to)
-  }
+  const links: GraphLink[] = data.crossrefs
+    .filter(c => memoryIds.has(c.source_id) && memoryIds.has(c.target_id))
+    .map(c => ({
+      source: c.source_id,
+      target: c.target_id,
+      value: c.similarity,
+    }))
 
-  const connectedMemories = memories.filter(m => connected.has(m.id))
-  const disconnected = memories.filter(m => !connected.has(m.id))
-
-  // Use dagre for connected subgraph
-  const nodes: GraphNode[] = []
-
-  if (connectedMemories.length > 0) {
-    const g = new dagre.graphlib.Graph()
-    g.setGraph({ rankdir: 'TB', nodesep: 30, ranksep: 50, marginx: 30, marginy: 30 })
-    g.setDefaultEdgeLabel(() => ({}))
-
-    for (const m of connectedMemories) {
-      g.setNode(m.id, { width: NODE_WIDTH, height: NODE_HEIGHT })
-    }
-    for (const edge of edges) {
-      g.setEdge(edge.from, edge.to)
-    }
-
-    dagre.layout(g)
-
-    for (const m of connectedMemories) {
-      const nodeData = g.node(m.id)
-      if (!nodeData) continue
-      nodes.push({
-        id: m.id,
-        memory: m,
-        x: nodeData.x - NODE_WIDTH / 2,
-        y: nodeData.y - NODE_HEIGHT / 2,
-      })
-    }
-  }
-
-  // Grid layout for disconnected nodes (or all nodes if no edges)
-  if (disconnected.length > 0) {
-    const cols = Math.ceil(Math.sqrt(disconnected.length))
-    const padX = NODE_WIDTH + 24
-    const padY = NODE_HEIGHT + 20
-    // Offset grid below the dagre layout
-    const gridOffsetY = nodes.length > 0
-      ? Math.max(...nodes.map(n => n.y)) + NODE_HEIGHT + 60
-      : 30
-
-    for (let i = 0; i < disconnected.length; i++) {
-      const col = i % cols
-      const row = Math.floor(i / cols)
-      nodes.push({
-        id: disconnected[i].id,
-        memory: disconnected[i],
-        x: 30 + col * padX,
-        y: gridOffsetY + row * padY,
-      })
-    }
-  }
-
-  return { nodes, edges }
+  return { nodes, links }
 }
 
-export function MemoryGraph({ memories, fetchGraphData, onSelect }: MemoryGraphProps) {
-  const svgRef = useRef<SVGSVGElement>(null)
-  const [graphData, setGraphData] = useState<{ crossrefs: MemoryCrossRef[] } | null>(null)
+export function MemoryGraph({ fetchGraphData, onSelect, memoryLimit }: MemoryGraphProps) {
+  const containerRef = useRef<HTMLDivElement>(null)
+  const fgRef = useRef<any>(null) // eslint-disable-line @typescript-eslint/no-explicit-any
+  const [graphData, setGraphData] = useState<MemoryGraphData | null>(null)
   const [loading, setLoading] = useState(true)
-  const [hoveredId, setHoveredId] = useState<string | null>(null)
-  const [view, setView] = useState({ x: 0, y: 0, scale: 1 })
-  const [dragging, setDragging] = useState(false)
-  const dragStart = useRef<{ x: number; y: number; vx: number; vy: number } | null>(null)
+  const [dimensions, setDimensions] = useState({ width: 800, height: 600 })
 
+  // Track container size
+  useEffect(() => {
+    const container = containerRef.current
+    if (!container) return
+    const observer = new ResizeObserver(entries => {
+      for (const entry of entries) {
+        setDimensions({
+          width: entry.contentRect.width,
+          height: entry.contentRect.height,
+        })
+      }
+    })
+    observer.observe(container)
+    return () => observer.disconnect()
+  }, [])
+
+  // Fetch graph data
   useEffect(() => {
     let cancelled = false
     setLoading(true)
-    fetchGraphData().then(data => {
-      if (!cancelled && data) {
-        setGraphData({ crossrefs: data.crossrefs })
-      }
-      if (!cancelled) setLoading(false)
-    })
+    fetchGraphData(memoryLimit)
+      .then(data => {
+        if (!cancelled && data) setGraphData(data)
+      })
+      .catch(e => {
+        if (!cancelled) console.error('Failed to fetch graph data:', e)
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false)
+      })
     return () => { cancelled = true }
-  }, [fetchGraphData])
+  }, [fetchGraphData, memoryLimit])
 
-  const { nodes, edges } = useMemo(() => {
-    if (!graphData) return { nodes: [], edges: [] }
-    return buildGraph(memories, graphData.crossrefs)
-  }, [memories, graphData])
+  const forceData = useMemo(() => {
+    if (!graphData) return { nodes: [], links: [] }
+    return buildForceData(graphData)
+  }, [graphData])
 
-  const nodeMap = useMemo(
-    () => new Map(nodes.map(n => [n.id, n])),
-    [nodes]
-  )
-
-  // Pan & zoom
-  const handleMouseDown = useCallback((e: React.MouseEvent) => {
-    if (e.button !== 0) return
-    setDragging(true)
-    dragStart.current = { x: e.clientX, y: e.clientY, vx: view.x, vy: view.y }
-  }, [view.x, view.y])
-
-  const handleMouseMove = useCallback((e: React.MouseEvent) => {
-    if (!dragging || !dragStart.current) return
-    const dx = e.clientX - dragStart.current.x
-    const dy = e.clientY - dragStart.current.y
-    setView(v => ({ ...v, x: dragStart.current!.vx + dx, y: dragStart.current!.vy + dy }))
-  }, [dragging])
-
-  const handleMouseUp = useCallback(() => {
-    setDragging(false)
-    dragStart.current = null
-  }, [])
-
-  const handleWheel = useCallback((e: React.WheelEvent) => {
-    if (e.currentTarget.contains(e.target as Node)) e.preventDefault()
-    const rect = svgRef.current?.getBoundingClientRect()
-    if (!rect) return
-    const mx = e.clientX - rect.left
-    const my = e.clientY - rect.top
-    const delta = e.deltaY > 0 ? 0.9 : 1.1
-    setView(v => {
-      const newScale = Math.min(3, Math.max(0.2, v.scale * delta))
-      const ratio = newScale / v.scale
-      return {
-        scale: newScale,
-        x: mx - (mx - v.x) * ratio,
-        y: my - (my - v.y) * ratio,
-      }
-    })
-  }, [])
-
-  const zoomIn = () => setView(v => ({ ...v, scale: Math.min(3, v.scale * 1.2) }))
-  const zoomOut = () => setView(v => ({ ...v, scale: Math.max(0.2, v.scale / 1.2) }))
-
-  const fitView = useCallback(() => {
-    if (nodes.length === 0 || !svgRef.current) return
-    const rect = svgRef.current.getBoundingClientRect()
-    let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity
-    for (const n of nodes) {
-      minX = Math.min(minX, n.x)
-      minY = Math.min(minY, n.y)
-      maxX = Math.max(maxX, n.x + NODE_WIDTH)
-      maxY = Math.max(maxY, n.y + NODE_HEIGHT)
-    }
-    const gw = maxX - minX
-    const gh = maxY - minY
-    const scale = Math.min(rect.width / (gw + 60), rect.height / (gh + 60), 2) * 0.9
-    setView({
-      scale,
-      x: (rect.width - gw * scale) / 2 - minX * scale,
-      y: (rect.height - gh * scale) / 2 - minY * scale,
-    })
-  }, [nodes])
-
-  // Fit on first load
+  // Configure forces after data loads
   useEffect(() => {
-    if (nodes.length > 0) fitView()
-  }, [nodes.length, fitView]) // re-fit only when node count changes
+    const fg = fgRef.current
+    if (!fg) return
+    fg.d3Force('charge')?.strength(-200)
+    fg.d3Force('link')?.distance(120)
+    fg.d3Force('center')?.strength(0.03)
+  }, [forceData])
+
+  // Zoom to fit on first load
+  const hasZoomedRef = useRef(false)
+  const zoomTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  useEffect(() => {
+    if (forceData.nodes.length > 0 && !hasZoomedRef.current) {
+      hasZoomedRef.current = true
+      // Wait for simulation to settle a bit
+      zoomTimeoutRef.current = setTimeout(() => fgRef.current?.zoomToFit(400, 40), 500)
+    }
+    return () => { if (zoomTimeoutRef.current) clearTimeout(zoomTimeoutRef.current) }
+  }, [forceData.nodes.length])
+
+  const handleNodeClick = useCallback((node: any) => { // eslint-disable-line @typescript-eslint/no-explicit-any
+    if (node.memory) onSelect(node.memory)
+  }, [onSelect])
+
+  // Custom node rendering on canvas
+  const nodeCanvasObject = useCallback((node: any, ctx: CanvasRenderingContext2D, globalScale: number) => { // eslint-disable-line @typescript-eslint/no-explicit-any
+    const label = node.name as string
+    const color = node.color as string
+    const x = node.x as number
+    const y = node.y as number
+    const fontSize = Math.max(10 / globalScale, 2)
+    const nodeHeight = fontSize * 2.8
+    const padding = fontSize * 0.6
+
+    ctx.font = `${fontSize}px SF Mono, Menlo, monospace`
+    const textWidth = ctx.measureText(label).width
+    const nodeWidth = textWidth + padding * 2 + fontSize * 0.5 // room for type bar
+
+    // Background
+    const rx = x - nodeWidth / 2
+    const ry = y - nodeHeight / 2
+    ctx.fillStyle = 'rgba(30, 30, 35, 0.9)'
+    ctx.strokeStyle = color
+    ctx.lineWidth = 1.2 / globalScale
+    ctx.beginPath()
+    ctx.roundRect(rx, ry, nodeWidth, nodeHeight, 4 / globalScale)
+    ctx.fill()
+    ctx.stroke()
+
+    // Type color bar (left edge)
+    ctx.fillStyle = color
+    ctx.beginPath()
+    ctx.roundRect(rx, ry, 3 / globalScale, nodeHeight, [4 / globalScale, 0, 0, 4 / globalScale])
+    ctx.fill()
+
+    // Type label (small, top)
+    const typeSize = Math.max(fontSize * 0.65, 1.5)
+    ctx.font = `${typeSize}px SF Mono, Menlo, monospace`
+    ctx.fillStyle = 'rgba(180, 180, 190, 0.8)'
+    ctx.textAlign = 'left'
+    ctx.textBaseline = 'top'
+    ctx.fillText(
+      (node.memory as GobbyMemory).memory_type.toUpperCase(),
+      rx + 5 / globalScale,
+      ry + 2 / globalScale
+    )
+
+    // Content label (bottom)
+    ctx.font = `${fontSize}px SF Mono, Menlo, monospace`
+    ctx.fillStyle = 'rgba(230, 230, 240, 0.95)'
+    ctx.textAlign = 'left'
+    ctx.textBaseline = 'bottom'
+    ctx.fillText(label, rx + 5 / globalScale, ry + nodeHeight - 2 / globalScale)
+  }, [])
+
+  const nodePointerAreaPaint = useCallback((node: any, color: string, ctx: CanvasRenderingContext2D, globalScale: number) => { // eslint-disable-line @typescript-eslint/no-explicit-any
+    const fontSize = Math.max(10 / globalScale, 2)
+    const nodeHeight = fontSize * 2.8
+    const padding = fontSize * 0.6
+    ctx.font = `${fontSize}px SF Mono, Menlo, monospace`
+    const textWidth = ctx.measureText(node.name as string).width
+    const nodeWidth = textWidth + padding * 2 + fontSize * 0.5
+    ctx.fillStyle = color
+    ctx.fillRect(node.x - nodeWidth / 2, node.y - nodeHeight / 2, nodeWidth, nodeHeight)
+  }, [])
+
+  // Legend types
+  const legendTypes = useMemo(() => {
+    if (!graphData) return []
+    return [...new Set(graphData.memories.map(m => m.memory_type))]
+  }, [graphData])
 
   if (loading) {
     return (
-      <div className="memory-graph-container">
+      <div className="memory-graph-container" ref={containerRef}>
         <div className="memory-graph-empty">Loading graph data...</div>
       </div>
     )
   }
 
-  if (edges.length === 0 && nodes.length === 0) {
+  if (!graphData || (forceData.nodes.length === 0 && forceData.links.length === 0)) {
     return (
-      <div className="memory-graph-container">
+      <div className="memory-graph-container" ref={containerRef}>
         <div className="memory-graph-empty">
           <div className="memory-empty-icon">&#x1f578;</div>
           <div>No connections found</div>
@@ -230,114 +217,45 @@ export function MemoryGraph({ memories, fetchGraphData, onSelect }: MemoryGraphP
     )
   }
 
-  const legendTypes = [...new Set(nodes.map(n => n.memory.memory_type))]
-
   return (
-    <div className="memory-graph-container">
-      <svg
-        ref={svgRef}
-        className="memory-graph-svg"
-        onMouseDown={handleMouseDown}
-        onMouseMove={handleMouseMove}
-        onMouseUp={handleMouseUp}
-        onMouseLeave={handleMouseUp}
-        onWheel={handleWheel}
-        style={{ cursor: dragging ? 'grabbing' : 'grab' }}
-      >
-        <g transform={`translate(${view.x}, ${view.y}) scale(${view.scale})`}>
-          {/* Edges */}
-          {edges.map((edge, i) => {
-            const from = nodeMap.get(edge.from)
-            const to = nodeMap.get(edge.to)
-            if (!from || !to) return null
-            const x1 = from.x + NODE_WIDTH / 2
-            const y1 = from.y + NODE_HEIGHT
-            const x2 = to.x + NODE_WIDTH / 2
-            const y2 = to.y
-            const cy1 = y1 + (y2 - y1) * 0.4
-            const cy2 = y2 - (y2 - y1) * 0.4
-            const isHighlighted = hoveredId === edge.from || hoveredId === edge.to
-            const strokeWidth = 1 + edge.similarity * 2
-            return (
-              <path
-                key={i}
-                d={`M ${x1} ${y1} C ${x1} ${cy1}, ${x2} ${cy2}, ${x2} ${y2}`}
-                fill="none"
-                stroke={isHighlighted ? 'var(--accent)' : 'var(--border)'}
-                strokeWidth={isHighlighted ? strokeWidth + 0.5 : strokeWidth}
-                opacity={isHighlighted ? 1 : 0.5}
-              />
-            )
-          })}
-
-          {/* Nodes */}
-          {nodes.map(node => {
-            const color = getTypeColor(node.memory.memory_type)
-            const isHovered = hoveredId === node.id
-            const scale = 0.8 + node.memory.importance * 0.4
-            const w = NODE_WIDTH * scale
-            const h = NODE_HEIGHT * scale
-            const x = node.x + (NODE_WIDTH - w) / 2
-            const y = node.y + (NODE_HEIGHT - h) / 2
-            return (
-              <g
-                key={node.id}
-                transform={`translate(${x}, ${y})`}
-                onClick={e => { e.stopPropagation(); onSelect(node.memory) }}
-                onMouseEnter={() => setHoveredId(node.id)}
-                onMouseLeave={() => setHoveredId(null)}
-                style={{ cursor: 'pointer' }}
-              >
-                <rect
-                  width={w}
-                  height={h}
-                  rx={8}
-                  fill="var(--bg-secondary)"
-                  stroke={isHovered ? 'var(--accent)' : color}
-                  strokeWidth={isHovered ? 2 : 1.5}
-                />
-                {/* Type indicator bar */}
-                <rect x={0} y={0} width={4} height={h} rx={2} fill={color} />
-                {/* Type label */}
-                <text
-                  x={12}
-                  y={14}
-                  fontSize={9}
-                  fontFamily="var(--font-mono)"
-                  fill="var(--text-muted)"
-                  style={{ textTransform: 'uppercase' }}
-                >
-                  {node.memory.memory_type}
-                </text>
-                {/* Content preview */}
-                <text
-                  x={12}
-                  y={h - 10}
-                  fontSize={11}
-                  fontFamily="var(--font-sans)"
-                  fill="var(--text-primary)"
-                >
-                  {node.memory.content.length > 22
-                    ? node.memory.content.slice(0, 22) + '...'
-                    : node.memory.content}
-                </text>
-              </g>
-            )
-          })}
-        </g>
-      </svg>
+    <div className="memory-graph-container" ref={containerRef}>
+      <ForceGraph2D
+        ref={fgRef}
+        width={dimensions.width}
+        height={dimensions.height}
+        graphData={forceData}
+        nodeId="id"
+        nodeLabel=""
+        nodeCanvasObject={nodeCanvasObject}
+        nodePointerAreaPaint={nodePointerAreaPaint}
+        onNodeClick={handleNodeClick}
+        linkSource="source"
+        linkTarget="target"
+        linkColor={() => 'rgba(120, 120, 140, 0.3)'}
+        linkWidth={(link: any) => 0.5 + (link.value as number) * 2} // eslint-disable-line @typescript-eslint/no-explicit-any
+        linkDirectionalParticles={1}
+        linkDirectionalParticleSpeed={0.005}
+        linkDirectionalParticleWidth={2}
+        backgroundColor="rgba(0,0,0,0)"
+        enableNodeDrag={true}
+      />
 
       {/* Controls */}
       <div className="memory-graph-controls">
-        <button className="memory-graph-ctrl-btn" onClick={zoomIn} title="Zoom in">+</button>
-        <button className="memory-graph-ctrl-btn" onClick={zoomOut} title="Zoom out">&minus;</button>
-        <button className="memory-graph-ctrl-btn" onClick={fitView} title="Fit to view">&#x2318;</button>
-        <span className="memory-graph-ctrl-label">{Math.round(view.scale * 100)}%</span>
+        <button
+          className="memory-graph-ctrl-btn"
+          onClick={() => fgRef.current?.zoomToFit(400, 40)}
+          title="Zoom to fit"
+        >
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7" />
+          </svg>
+        </button>
       </div>
 
       {/* Info */}
       <div className="memory-graph-info">
-        {nodes.length} nodes &middot; {edges.length} edges
+        {forceData.nodes.length} nodes &middot; {forceData.links.length} edges
       </div>
 
       {/* Legend */}

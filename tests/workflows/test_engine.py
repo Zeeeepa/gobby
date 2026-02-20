@@ -1682,7 +1682,6 @@ class TestStatusMessage:
         assert "In step 2" in response.context
 
 
-@pytest.mark.asyncio
 class TestUnifiedEvaluatorDelegation:
     """Tests verifying engine delegates core evaluation to unified_evaluator."""
 
@@ -1690,17 +1689,17 @@ class TestUnifiedEvaluatorDelegation:
         """engine.py imports _evaluate_step_tool_rules from unified_evaluator."""
         import gobby.workflows.engine as engine_module
 
-        assert hasattr(engine_module, "_evaluate_step_tool_rules"), (
-            "engine.py should import _evaluate_step_tool_rules from unified_evaluator"
-        )
+        assert hasattr(
+            engine_module, "_evaluate_step_tool_rules"
+        ), "engine.py should import _evaluate_step_tool_rules from unified_evaluator"
 
     def test_transition_check_function_imported(self) -> None:
         """engine.py imports _evaluate_step_transitions from unified_evaluator."""
         import gobby.workflows.engine as engine_module
 
-        assert hasattr(engine_module, "_evaluate_step_transitions"), (
-            "engine.py should import _evaluate_step_transitions from unified_evaluator"
-        )
+        assert hasattr(
+            engine_module, "_evaluate_step_transitions"
+        ), "engine.py should import _evaluate_step_transitions from unified_evaluator"
 
     async def test_tool_block_delegates_to_unified_evaluator(
         self, workflow_engine, mock_state_manager, mock_loader

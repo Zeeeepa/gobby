@@ -6,6 +6,7 @@ import type { KnowledgeGraphData, KnowledgeEntity, KnowledgeRelationship } from 
 interface KnowledgeGraphProps {
   fetchKnowledgeGraph: (limit?: number) => Promise<KnowledgeGraphData | null>
   fetchEntityNeighbors: (name: string) => Promise<KnowledgeGraphData | null>
+  limit?: number
 }
 
 function numericId(id: unknown): number {
@@ -108,7 +109,7 @@ function buildForceData(data: KnowledgeGraphData): { nodes: GraphNode[]; links: 
   return { nodes, links }
 }
 
-export function KnowledgeGraph({ fetchKnowledgeGraph, fetchEntityNeighbors }: KnowledgeGraphProps) {
+export function KnowledgeGraph({ fetchKnowledgeGraph, fetchEntityNeighbors, limit }: KnowledgeGraphProps) {
   const containerRef = useRef<HTMLDivElement>(null)
   const fgRef = useRef<any>(null) // eslint-disable-line @typescript-eslint/no-explicit-any
   const [graphData, setGraphData] = useState<KnowledgeGraphData | null>(null)
@@ -164,16 +165,16 @@ export function KnowledgeGraph({ fetchKnowledgeGraph, fetchEntityNeighbors }: Kn
     return () => cancelAnimationFrame(raf)
   }, [animateIdle])
 
-  // Initial data fetch
+  // Initial data fetch (refetches when limit changes)
   useEffect(() => {
     let cancelled = false
     setLoading(true)
-    fetchKnowledgeGraph().then(data => {
+    fetchKnowledgeGraph(limit).then(data => {
       if (!cancelled && data) setGraphData(data)
       if (!cancelled) setLoading(false)
     })
     return () => { cancelled = true }
-  }, [fetchKnowledgeGraph])
+  }, [fetchKnowledgeGraph, limit])
 
   // Build force graph data
   const forceData = useMemo(() => {

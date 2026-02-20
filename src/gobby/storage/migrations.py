@@ -37,7 +37,7 @@ MigrationAction = str | Callable[[LocalDatabase], None]
 # Baseline version - the schema state that is applied for new databases directly.
 # Must be bumped when BASELINE_SCHEMA is updated with columns from new migrations,
 # so that fresh databases don't re-run migrations already baked into the baseline.
-BASELINE_VERSION = 107
+BASELINE_VERSION = 110
 
 # Minimum migration version - databases older than this cannot be upgraded
 # because legacy migrations (pre-v108) have been removed.
@@ -72,6 +72,8 @@ INSERT INTO projects (id, name, repo_path, created_at, updated_at)
 VALUES ('00000000-0000-0000-0000-000000000001', '_migrated', NULL, datetime('now'), datetime('now'));
 INSERT INTO projects (id, name, repo_path, created_at, updated_at)
 VALUES ('00000000-0000-0000-0000-000000060887', '_personal', NULL, datetime('now'), datetime('now'));
+INSERT INTO projects (id, name, repo_path, created_at, updated_at)
+VALUES ('00000000-0000-0000-0000-000000000002', '_global', NULL, datetime('now'), datetime('now'));
 
 CREATE TABLE mcp_servers (
     id TEXT PRIMARY KEY,
@@ -797,6 +799,7 @@ CREATE TABLE config_store (
     key TEXT PRIMARY KEY,
     value TEXT NOT NULL,
     source TEXT NOT NULL DEFAULT 'user',
+    is_secret INTEGER NOT NULL DEFAULT 0,
     updated_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 CREATE INDEX idx_config_store_source ON config_store(source);
@@ -909,7 +912,154 @@ def _import_bundled_workflows(db: LocalDatabase) -> None:
     logger.info(f"Imported {imported} bundled workflow definitions")
 
 
-MIGRATIONS: list[tuple[int, str, MigrationAction]] = []
+_MEMORY_UUID_NAMESPACE = uuid.UUID("a3b2c1d0-1234-5678-9abc-def012345678")
+
+
+def _migrate_memory_ids_to_uuid5(db: LocalDatabase) -> None:
+    """Convert mm-prefix memory IDs to deterministic UUID5 format.
+
+    Re-derives each ID from the stored content using the same uuid5 namespace
+    used by new memory creation, then updates all referencing tables.
+    Processes in batches to avoid loading all rows into memory at once.
+    """
+    BATCH_SIZE = 500
+    total_migrated = 0
+    offset = 0
+
+    while True:
+        rows = db.fetchall(
+            "SELECT id, content FROM memories WHERE id LIKE 'mm-%' LIMIT ? OFFSET ?",
+            (BATCH_SIZE, offset),
+        )
+        if not rows:
+            break
+
+        with db.transaction() as conn:
+            for row in rows:
+                old_id = row["id"]
+                content = row["content"]
+                normalized = content.strip() if content else ""
+                new_id = (
+                    str(uuid.uuid5(_MEMORY_UUID_NAMESPACE, normalized)) if normalized else old_id
+                )
+
+                # Update primary table
+                conn.execute("UPDATE memories SET id = ? WHERE id = ?", (new_id, old_id))
+                # Update referencing tables
+                conn.execute(
+                    "UPDATE memory_crossrefs SET source_id = ? WHERE source_id = ?",
+                    (new_id, old_id),
+                )
+                conn.execute(
+                    "UPDATE memory_crossrefs SET target_id = ? WHERE target_id = ?",
+                    (new_id, old_id),
+                )
+                conn.execute(
+                    "UPDATE session_memories SET memory_id = ? WHERE memory_id = ?",
+                    (new_id, old_id),
+                )
+
+        total_migrated += len(rows)
+        # Don't increment offset — rows matching 'mm-%' shrink as we update them
+
+        if len(rows) < BATCH_SIZE:
+            break
+
+    if total_migrated:
+        logger.info(f"Migrated {total_migrated} memory IDs to UUID5 format")
+    else:
+        logger.info("No mm-prefix memory IDs to migrate")
+
+
+def _migrate_secret_names_to_natural(db: LocalDatabase) -> None:
+    """Migrate cfg__ prefixed secret names to natural names.
+
+    The old convention stored config-derived secrets as:
+        voice.elevenlabs_api_key -> cfg__voice__elevenlabs_api_key
+
+    The new convention uses the last segment of the config key:
+        voice.elevenlabs_api_key -> elevenlabs_api_key
+
+    This migration:
+    1. Renames cfg__ secrets to natural names (or deletes duplicates)
+    2. Updates $secret: references in config_store
+    3. Fixes is_secret flags on config_store entries
+    """
+    rows = db.fetchall("SELECT id, name FROM secrets WHERE name LIKE 'cfg__%'")
+    if not rows:
+        logger.info("No cfg__ prefixed secrets to migrate")
+        return
+
+    migrated = 0
+    deleted = 0
+
+    with db.transaction() as conn:
+        for row in rows:
+            old_name = row["name"]
+            # Derive natural name: strip cfg__ prefix, replace __ with ., take last segment
+            stripped = old_name[len("cfg__") :]  # e.g. "voice__elevenlabs_api_key"
+            natural_name = stripped.replace("__", ".").rsplit(".", 1)[
+                -1
+            ]  # e.g. "elevenlabs_api_key"
+
+            # Check if a secret with the natural name already exists (use conn to stay in transaction)
+            existing = conn.execute(
+                "SELECT id FROM secrets WHERE name = ?", (natural_name,)
+            ).fetchone()
+
+            if existing:
+                # Natural name already exists — delete the cfg__ duplicate
+                conn.execute("DELETE FROM secrets WHERE name = ?", (old_name,))
+                deleted += 1
+                logger.debug(
+                    f"Deleted duplicate secret '{old_name}' ('{natural_name}' already exists)"
+                )
+            else:
+                # Rename cfg__ entry to natural name
+                conn.execute("UPDATE secrets SET name = ? WHERE name = ?", (natural_name, old_name))
+                migrated += 1
+                logger.debug(f"Renamed secret '{old_name}' -> '{natural_name}'")
+
+            # Update config_store references from $secret:old_name to $secret:natural_name
+            old_ref = json.dumps(f"$secret:{old_name}")
+            new_ref = json.dumps(f"$secret:{natural_name}")
+            conn.execute(
+                "UPDATE config_store SET value = ?, is_secret = 1 WHERE value = ?",
+                (new_ref, old_ref),
+            )
+
+        # Also fix any config_store entries that reference secrets but have is_secret=0
+        conn.execute(
+            """UPDATE config_store SET is_secret = 1
+               WHERE value LIKE '"$secret:%' AND is_secret = 0"""
+        )
+
+    logger.info(f"Secret name migration complete: {migrated} renamed, {deleted} duplicates removed")
+
+
+MIGRATIONS: list[tuple[int, str, MigrationAction]] = [
+    (
+        108,
+        "Add _global system project for system-wide MCP servers",
+        """INSERT OR IGNORE INTO projects (id, name, repo_path, created_at, updated_at)
+        VALUES ('00000000-0000-0000-0000-000000000002', '_global', NULL, datetime('now'), datetime('now'))""",
+    ),
+    (
+        109,
+        "Add is_secret column to config_store",
+        "ALTER TABLE config_store ADD COLUMN is_secret INTEGER NOT NULL DEFAULT 0",
+    ),
+    (
+        110,
+        "Migrate memory IDs from mm-prefix to UUID5",
+        _migrate_memory_ids_to_uuid5,
+    ),
+    (
+        111,
+        "Migrate cfg__ prefixed secret names to natural names",
+        _migrate_secret_names_to_natural,
+    ),
+]
 
 
 def get_current_version(db: LocalDatabase) -> int:

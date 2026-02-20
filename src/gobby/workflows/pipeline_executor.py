@@ -12,13 +12,13 @@ from gobby.workflows.pipeline.handlers import (
     execute_exec_step,
     execute_mcp_step,
     execute_prompt_step,
-    execute_spawn_session_step,
 )
 from gobby.workflows.pipeline.renderer import StepRenderer
 from gobby.workflows.pipeline_state import (
     ApprovalRequired,
     ExecutionStatus,
     PipelineExecution,
+    StepExecution,
     StepStatus,
 )
 
@@ -57,7 +57,6 @@ class PipelineExecutor:
         loader: Any | None = None,
         event_callback: PipelineEventCallback | None = None,
         tool_proxy_getter: Any | None = None,
-        spawner: Any | None = None,
         session_manager: Any | None = None,
     ):
         """Initialize the pipeline executor.
@@ -72,7 +71,6 @@ class PipelineExecutor:
             event_callback: Optional async callback for broadcasting events.
                            Signature: async def callback(event: str, execution_id: str, **kwargs)
             tool_proxy_getter: Optional callable returning ToolProxyService for MCP steps
-            spawner: Optional TmuxSpawner for spawn_session steps
             session_manager: Optional LocalSessionManager for session creation
         """
         self.db = db
@@ -82,7 +80,6 @@ class PipelineExecutor:
         self.loader = loader
         self.event_callback = event_callback
         self.tool_proxy_getter = tool_proxy_getter
-        self.spawner = spawner
         self.session_manager = session_manager
 
         self.renderer = StepRenderer(template_engine)
@@ -159,10 +156,12 @@ class PipelineExecutor:
             step_count=len(pipeline.steps),
         )
 
-        # 3. Build execution context
+        # 3. Build execution context (merge defaults from pipeline definition)
+        merged_inputs = {**pipeline.inputs, **inputs}
         context: dict[str, Any] = {
-            "inputs": inputs,
+            "inputs": merged_inputs,
             "steps": {},  # Will hold step outputs as they complete
+            "session_id": session_id,
         }
 
         # Fetch existing steps if resuming
@@ -170,6 +169,9 @@ class PipelineExecutor:
         if execution_id:
             steps = self.execution_manager.get_steps_for_execution(execution_id)
             existing_steps = {s.step_id: s for s in steps}
+
+        # Track current step for error handling
+        current_step_execution: StepExecution | None = None
 
         try:
             # 4. Iterate through steps in order
@@ -229,6 +231,7 @@ class PipelineExecutor:
                         step_name=getattr(step, "name", step.id),
                         reason="condition not met",
                     )
+                    current_step_execution = None
                     continue
 
                 # Update step status to RUNNING
@@ -236,6 +239,8 @@ class PipelineExecutor:
                     step_execution_id=step_execution.id,
                     status=StepStatus.RUNNING,
                 )
+                step_execution.status = StepStatus.RUNNING
+                current_step_execution = step_execution
 
                 # Emit step_started event
                 await self._emit_event(
@@ -260,8 +265,9 @@ class PipelineExecutor:
                 self.execution_manager.update_step_execution(
                     step_execution_id=step_execution.id,
                     status=StepStatus.COMPLETED,
-                    output_json=json.dumps(step_output) if step_output else None,
+                    output_json=json.dumps(step_output) if step_output is not None else None,
                 )
+                current_step_execution = None
 
                 # Emit step_completed event
                 await self._emit_event(
@@ -296,12 +302,34 @@ class PipelineExecutor:
 
         except Exception as e:
             logger.error(f"Pipeline execution failed: {e}", exc_info=True)
-            failed = self.execution_manager.update_execution_status(
-                execution_id=execution.id,
-                status=ExecutionStatus.FAILED,
-            )
-            if failed:
-                execution = failed
+
+            # Mark the currently-running step as FAILED
+            if current_step_execution and current_step_execution.status == StepStatus.RUNNING:
+                try:
+                    self.execution_manager.update_step_execution(
+                        step_execution_id=current_step_execution.id,
+                        status=StepStatus.FAILED,
+                        error=str(e),
+                    )
+                except Exception:
+                    logger.error(
+                        f"Failed to mark step {current_step_execution.id} as failed",
+                        exc_info=True,
+                    )
+
+            try:
+                failed = self.execution_manager.update_execution_status(
+                    execution_id=execution.id,
+                    status=ExecutionStatus.FAILED,
+                    outputs_json=json.dumps({"error": str(e)}),
+                )
+                if failed:
+                    execution = failed
+            except Exception:
+                logger.error(
+                    f"Failed to mark execution {execution.id} as failed",
+                    exc_info=True,
+                )
 
             # Emit pipeline_failed event
             await self._emit_event(
@@ -338,15 +366,6 @@ class PipelineExecutor:
         elif step.mcp:
             # Execute MCP tool call
             return await execute_mcp_step(rendered_step, context, self.tool_proxy_getter)
-        elif step.spawn_session:
-            # Spawn a CLI session via tmux
-            return await execute_spawn_session_step(
-                rendered_step,
-                context,
-                project_id,
-                self.spawner,
-                self.session_manager,
-            )
         elif step.activate_workflow:
             # Activate a workflow on a session
             return await execute_activate_workflow_step(

@@ -12,6 +12,7 @@ Classes:
 from __future__ import annotations
 
 import logging
+import sqlite3
 import threading
 import time
 from typing import TYPE_CHECKING, Any
@@ -311,12 +312,15 @@ class SessionCoordinator:
         self.logger.debug(f"Completing agent run {agent_run_id} for session {session.id}")
 
         # Remove from in-memory running agents registry
+        # Capture tmux_session_name before removal for result fallback
+        tmux_session_name: str | None = None
         try:
             from gobby.agents.registry import get_running_agent_registry
 
             running_registry = get_running_agent_registry()
             removed = running_registry.remove(agent_run_id)
             if removed:
+                tmux_session_name = removed.tmux_session_name
                 self.logger.debug(f"Unregistered running agent {agent_run_id} from registry")
         except Exception as e:
             self.logger.warning(f"Failed to unregister agent from running registry: {e}")
@@ -331,7 +335,7 @@ class SessionCoordinator:
                 return
 
             # Skip if already completed
-            if agent_run.status in ("success", "error", "timeout", "cancelled"):
+            if agent_run.status not in ("pending", "running"):
                 self.logger.debug(
                     f"Agent run {agent_run_id} already in terminal state: {agent_run.status}"
                 )
@@ -344,14 +348,121 @@ class SessionCoordinator:
                 or ""
             )
 
+            # Fallback: get last assistant message if no summary available
+            if not result:
+                try:
+                    db = self._agent_run_manager.db
+                    msg_row = db.fetchone(
+                        """
+                        SELECT content FROM session_messages
+                        WHERE session_id = ? AND role = 'assistant' AND tool_name IS NULL
+                        ORDER BY message_index DESC
+                        LIMIT 1
+                        """,
+                        (session.id,),
+                    )
+                    if msg_row:
+                        result = msg_row["content"]
+                except (sqlite3.Error, ValueError) as e:
+                    self.logger.warning(
+                        f"Failed to get last assistant message for {session.id}: {e}"
+                    )
+
+            # Fallback: check inter_session_messages for send_to_parent data
+            if not result:
+                try:
+                    db = self._agent_run_manager.db
+                    msg_row = db.fetchone(
+                        """
+                        SELECT content FROM inter_session_messages
+                        WHERE from_session = ?
+                        ORDER BY created_at DESC
+                        LIMIT 1
+                        """,
+                        (session.id,),
+                    )
+                    if msg_row:
+                        result = msg_row["content"]
+                        self.logger.info(f"Got result from inter_session_messages for {session.id}")
+                except Exception as e:
+                    self.logger.debug(
+                        f"inter_session_messages fallback failed for {session.id}: {e}"
+                    )
+
+            # Fallback: capture terminal output from tmux session.
+            # remain-on-exit is set on agent sessions so the pane persists
+            # after the process exits, keeping the scrollback buffer available.
+            if not result and tmux_session_name:
+                try:
+                    import subprocess
+
+                    from gobby.agents.tmux.config import TmuxConfig
+
+                    tmux_cfg = TmuxConfig()
+                    cmd = [tmux_cfg.command]
+                    if tmux_cfg.socket_name:
+                        cmd.extend(["-L", tmux_cfg.socket_name])
+                    cmd.extend(["capture-pane", "-t", tmux_session_name, "-p", "-S", "-"])
+
+                    proc = subprocess.run(cmd, capture_output=True, timeout=5, text=True)
+                    if proc.returncode == 0 and proc.stdout.strip():
+                        result = proc.stdout.strip()
+                        self.logger.info(
+                            f"Captured result from tmux session '{tmux_session_name}' "
+                            f"for agent {agent_run_id} ({len(result)} chars)"
+                        )
+                except Exception as e:
+                    self.logger.debug(
+                        f"tmux capture-pane fallback failed for {tmux_session_name}: {e}"
+                    )
+
+            # Clean up the tmux session (remain-on-exit keeps it alive for capture)
+            if tmux_session_name:
+                try:
+                    import subprocess
+
+                    from gobby.agents.tmux.config import TmuxConfig
+
+                    tmux_cfg = TmuxConfig()
+                    kill_cmd = [tmux_cfg.command]
+                    if tmux_cfg.socket_name:
+                        kill_cmd.extend(["-L", tmux_cfg.socket_name])
+                    kill_cmd.extend(["kill-session", "-t", tmux_session_name])
+                    subprocess.run(kill_cmd, capture_output=True, timeout=5)
+                except Exception:
+                    pass
+
+            # Count tool calls and turns from session messages
+            tool_calls_count = 0
+            turns_used = 0
+            try:
+                db = self._agent_run_manager.db
+                row = db.fetchone(
+                    """
+                    SELECT
+                        COUNT(CASE WHEN tool_name IS NOT NULL THEN 1 END) AS tool_calls,
+                        COUNT(CASE WHEN role = 'assistant' THEN 1 END) AS turns
+                    FROM session_messages WHERE session_id = ?
+                    """,
+                    (session.id,),
+                )
+                if row:
+                    tool_calls_count = row["tool_calls"] or 0
+                    turns_used = row["turns"] or 0
+            except (sqlite3.Error, ValueError) as e:
+                self.logger.warning(f"Failed to count session stats for {session.id}: {e}")
+
             # Mark as success
             self._agent_run_manager.complete(
                 run_id=agent_run_id,
                 result=result,
-                tool_calls_count=0,
-                turns_used=0,
+                tool_calls_count=tool_calls_count,
+                turns_used=turns_used,
             )
-            self.logger.info(f"Completed agent run {agent_run_id}")
+            self.logger.info(
+                f"Completed agent run {agent_run_id} "
+                f"(tool_calls={tool_calls_count}, turns={turns_used})"
+            )
 
         except Exception as e:
             self.logger.error(f"Failed to complete agent run {agent_run_id}: {e}")

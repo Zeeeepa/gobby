@@ -33,7 +33,6 @@ from gobby.agents.spawn import (
     TerminalType,
     TmuxSpawner,
     prepare_terminal_spawn,
-    read_prompt_from_env,
 )
 from gobby.storage.database import LocalDatabase
 from gobby.storage.migrations import run_migrations
@@ -321,69 +320,6 @@ class TestPrepareTerminalSpawn:
 
         for var in required_vars:
             assert var in result.env_vars
-
-
-class TestReadPromptFromEnv:
-    """Tests for read_prompt_from_env function."""
-
-    def test_returns_none_when_not_set(self, monkeypatch) -> None:
-        """Test returns None when no prompt environment variables set."""
-        monkeypatch.delenv(GOBBY_PROMPT, raising=False)
-        monkeypatch.delenv(GOBBY_PROMPT_FILE, raising=False)
-
-        result = read_prompt_from_env()
-
-        assert result is None
-
-    def test_reads_inline_prompt(self, monkeypatch) -> None:
-        """Test reads inline prompt from GOBBY_PROMPT."""
-        monkeypatch.setenv(GOBBY_PROMPT, "Implement the feature")
-        monkeypatch.delenv(GOBBY_PROMPT_FILE, raising=False)
-
-        result = read_prompt_from_env()
-
-        assert result == "Implement the feature"
-
-    def test_reads_prompt_from_file(self, monkeypatch) -> None:
-        """Test reads prompt from file specified in GOBBY_PROMPT_FILE."""
-        with tempfile.NamedTemporaryFile(mode="w", suffix=".txt", delete=False) as f:
-            f.write("This is a long prompt from file")
-            prompt_path = f.name
-
-        try:
-            monkeypatch.setenv(GOBBY_PROMPT_FILE, prompt_path)
-            monkeypatch.delenv(GOBBY_PROMPT, raising=False)
-
-            result = read_prompt_from_env()
-
-            assert result == "This is a long prompt from file"
-        finally:
-            Path(prompt_path).unlink()
-
-    def test_file_takes_priority(self, monkeypatch) -> None:
-        """Test that prompt file takes priority over inline prompt."""
-        with tempfile.NamedTemporaryFile(mode="w", suffix=".txt", delete=False) as f:
-            f.write("Prompt from file")
-            prompt_path = f.name
-
-        try:
-            monkeypatch.setenv(GOBBY_PROMPT_FILE, prompt_path)
-            monkeypatch.setenv(GOBBY_PROMPT, "Inline prompt")
-
-            result = read_prompt_from_env()
-
-            assert result == "Prompt from file"
-        finally:
-            Path(prompt_path).unlink()
-
-    def test_fallback_to_inline_when_file_missing(self, monkeypatch) -> None:
-        """Test falls back to inline prompt when file doesn't exist."""
-        monkeypatch.setenv(GOBBY_PROMPT_FILE, "/nonexistent/prompt.txt")
-        monkeypatch.setenv(GOBBY_PROMPT, "Fallback prompt")
-
-        result = read_prompt_from_env()
-
-        assert result == "Fallback prompt"
 
 
 class TestTmuxSpawnerDetection:

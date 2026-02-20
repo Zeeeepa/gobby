@@ -77,10 +77,14 @@ class WhisperSTT:
         Raises:
             ValueError: If the audio data is too small to be valid.
         """
-        # A valid WebM with audio needs at least a few hundred bytes
-        # (EBML header + cluster). Tiny blobs cause EOF errors in ffmpeg.
-        if len(audio_bytes) < 200:
-            raise ValueError("Recording too short — hold the button a bit longer and try again.")
+        # Minimum size varies by format: WAV has a 44-byte header so even
+        # short speech produces ~1KB+, while WebM needs ~200 bytes for EBML
+        # header + cluster.  Tiny blobs cause EOF errors in ffmpeg.
+        normalized_mime = mime_type.split(";")[0].strip()
+        is_wav = normalized_mime in ("audio/wav", "audio/x-wav")
+        min_size = 500 if is_wav else 200
+        if len(audio_bytes) < min_size:
+            raise ValueError("Recording too short — try speaking a bit longer.")
 
         model = await self._ensure_model()
 
@@ -89,6 +93,7 @@ class WhisperSTT:
             "audio/webm": ".webm",
             "audio/webm;codecs=opus": ".webm",
             "audio/wav": ".wav",
+            "audio/x-wav": ".wav",
             "audio/mp3": ".mp3",
             "audio/mpeg": ".mp3",
             "audio/ogg": ".ogg",
@@ -107,6 +112,7 @@ class WhisperSTT:
                     str(tmp_path),
                     vad_filter=True,
                     vad_parameters={"min_silence_duration_ms": 500},
+                    initial_prompt=self._config.whisper_prompt or None,
                 )
                 text = " ".join(seg.text.strip() for seg in segments)
                 logger.debug(

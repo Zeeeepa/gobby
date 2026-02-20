@@ -23,6 +23,7 @@ from claude_agent_sdk import (
     query,
 )
 
+import gobby.llm.sdk_compat  # noqa: F401 — monkey-patches parse_message to handle unknown event types (e.g. rate_limit_event) that crash the SDK's async generator; see sdk_compat.py for details
 from gobby.llm.claude_models import (
     ChatEvent,
     DoneEvent,
@@ -63,7 +64,7 @@ async def stream_with_mcp_tools(
         prompt: User prompt to process.
         allowed_tools: List of allowed MCP tool patterns.
         system_prompt: Optional system prompt.
-        model: Optional model override (default: claude-sonnet-4-5).
+        model: Optional model override (default: None, uses SDK default).
         max_turns: Maximum number of agentic turns (default: 10).
 
     Yields:
@@ -86,7 +87,7 @@ async def stream_with_mcp_tools(
     options = ClaudeAgentOptions(
         system_prompt=system_prompt or "You are Gobby, a helpful assistant with access to tools.",
         max_turns=max_turns,
-        model=model or "claude-sonnet-4-5",
+        model=model or "opus",
         allowed_tools=allowed_tools,
         permission_mode="bypassPermissions",
         cli_path=cli_path,
@@ -96,20 +97,68 @@ async def stream_with_mcp_tools(
     tool_calls_count = 0
     pending_tool_calls: dict[str, str] = {}  # Map tool_use_id -> tool_name
     needs_spacing_before_text = False  # Track if we need spacing before text
+    last_model: str | None = None
 
     try:
         async for message in query(prompt=prompt, options=options):
+            if message is None:
+                continue
             if isinstance(message, ResultMessage):
                 # Final result - extract metadata
                 cost_usd = getattr(message, "total_cost_usd", None)
                 duration_ms = getattr(message, "duration_ms", None)
+                # Extract token usage from ResultMessage.usage dict
+                # (AssistantMessage does NOT carry usage in the SDK)
+                _raw_usage = getattr(message, "usage", None)
+                usage: dict[str, Any] = _raw_usage if isinstance(_raw_usage, dict) else {}
+                uncached_input = usage.get("input_tokens", 0) or 0
+                output_tokens = usage.get("output_tokens", 0) or 0
+                cache_read = usage.get("cache_read_input_tokens", 0) or 0
+                cache_creation = usage.get("cache_creation_input_tokens", 0) or 0
+                # With prompt caching, input_tokens is often only 3-23 tokens.
+                # The real context consumed = uncached + cache_read + cache_creation.
+                total_input = uncached_input + cache_read + cache_creation
+
+                # Prefer modelUsage.contextWindow stashed by sdk_compat
+                # (authoritative from the CLI) over litellm lookup.
+                context_window: int | None = None
+                _model_usage = getattr(message, "_model_usage", None)
+                if isinstance(_model_usage, dict):
+                    context_window = _model_usage.get("contextWindow")
+                if context_window is None and last_model:
+                    try:
+                        from gobby.conductor.pricing import litellm as _llm
+
+                        if _llm:
+                            model_info = _llm.get_model_info(model=last_model)
+                            context_window = model_info.get("max_input_tokens")
+                    except (ImportError, KeyError, AttributeError, TypeError) as e:
+                        logger.debug("Could not derive context window for %s: %s", last_model, e)
+
+                logger.info(
+                    "DoneEvent: uncached=%d cache_read=%d cache_creation=%d "
+                    "total_input=%d output=%d context_window=%s",
+                    uncached_input,
+                    cache_read,
+                    cache_creation,
+                    total_input,
+                    output_tokens,
+                    context_window,
+                )
                 yield DoneEvent(
                     tool_calls_count=tool_calls_count,
                     cost_usd=cost_usd,
                     duration_ms=duration_ms,
+                    input_tokens=uncached_input or None,
+                    output_tokens=output_tokens or None,
+                    cache_read_input_tokens=cache_read or None,
+                    cache_creation_input_tokens=cache_creation or None,
+                    total_input_tokens=total_input or None,
+                    context_window=context_window,
                 )
 
             elif isinstance(message, AssistantMessage):
+                last_model = getattr(message, "model", None)
                 for block in message.content:
                     if isinstance(block, TextBlock):
                         # Add spacing before text that follows tool calls/results
@@ -127,6 +176,10 @@ async def stream_with_mcp_tools(
                         tool_calls_count += 1
                         server_name = parse_server_name(block.name)
                         pending_tool_calls[block.id] = block.name
+                        # Set spacing flag eagerly — if the tool is denied
+                        # at the permission gate the SDK may not yield a
+                        # ToolResultBlock, causing run-on text.
+                        needs_spacing_before_text = True
                         yield ToolCallEvent(
                             tool_call_id=block.id,
                             tool_name=block.name,

@@ -145,6 +145,29 @@ export function useSessions() {
     fetchSessions()
   }, [fetchSessions])
 
+  const removeSession = useCallback((id: string) => {
+    setSessions((prev) => prev.filter((s) => s.id !== id))
+  }, [])
+
+  const renameSession = useCallback(async (id: string, title: string) => {
+    setSessions((prev) => prev.map((s) => s.id === id ? { ...s, title } : s))
+    try {
+      const baseUrl = getBaseUrl()
+      const res = await fetch(`${baseUrl}/sessions/${id}/rename`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ title }),
+      })
+      if (!res.ok) {
+        console.error(`Rename failed: ${res.status}`)
+        fetchSessions()
+      }
+    } catch (e) {
+      console.error('Failed to rename session:', e)
+      fetchSessions()
+    }
+  }, [fetchSessions])
+
   return {
     sessions,
     filteredSessions,
@@ -154,5 +177,7 @@ export function useSessions() {
     isLoading,
     error,
     refresh,
+    removeSession,
+    renameSession,
   }
 }

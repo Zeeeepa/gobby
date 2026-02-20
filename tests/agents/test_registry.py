@@ -718,6 +718,7 @@ class TestRunningAgentRegistryEventCallbacks:
                 "mode": "terminal",
                 "provider": "gemini",
                 "pid": 9999,
+                "tmux_session_name": None,
             },
         )
 

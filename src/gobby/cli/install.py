@@ -328,6 +328,16 @@ def install(
     else:
         click.echo(f"Warning: Failed to configure MCP servers: {mcp_result['error']}")
 
+    # Configure VS Code terminal title (any CLI may run inside VS Code's terminal)
+    try:
+        from .installers.ide_config import configure_ide_terminal_title
+
+        vscode_result = configure_ide_terminal_title("Code")
+        if vscode_result.get("added"):
+            click.echo("Configured VS Code terminal title for tmux integration")
+    except (ImportError, OSError, PermissionError, ValueError) as e:
+        click.echo(f"Warning: Failed to configure VS Code terminal title: {e}")
+
     toggles = list(clis_to_install)
     if hooks_flag:
         toggles.append("git-hooks")

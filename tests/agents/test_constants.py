@@ -127,6 +127,28 @@ class TestGetTerminalEnvVars:
         assert result[GOBBY_AGENT_DEPTH] == "1"
         assert result[GOBBY_MAX_AGENT_DEPTH] == "3"
 
+    def test_omits_parent_session_id_when_empty(self) -> None:
+        """Function omits parent_session_id when empty string."""
+        result = get_terminal_env_vars(
+            session_id="sess-child",
+            parent_session_id="",
+            agent_run_id="run-123",
+            project_id="proj-abc",
+        )
+
+        assert GOBBY_PARENT_SESSION_ID not in result
+
+    def test_includes_parent_session_id_when_provided(self) -> None:
+        """Function includes parent_session_id when non-empty."""
+        result = get_terminal_env_vars(
+            session_id="sess-child",
+            parent_session_id="sess-parent",
+            agent_run_id="run-123",
+            project_id="proj-abc",
+        )
+
+        assert result[GOBBY_PARENT_SESSION_ID] == "sess-parent"
+
     def test_all_values_are_strings(self) -> None:
         """Function returns all values as strings."""
         result = get_terminal_env_vars(

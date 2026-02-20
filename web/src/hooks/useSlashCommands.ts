@@ -19,6 +19,7 @@ interface ParsedCommand {
 const LOCAL_COMMANDS: Array<{ name: string; description: string; action: string }> = [
   { name: 'settings', description: 'Open settings panel', action: 'open_settings' },
   { name: 'clear', description: 'Clear chat history', action: 'clear_history' },
+  { name: 'compact', description: 'Compact conversation history', action: 'compact_chat' },
 ]
 
 // Built-in aliases: /shortcut -> server.tool

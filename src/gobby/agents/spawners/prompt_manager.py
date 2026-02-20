@@ -95,31 +95,3 @@ def create_prompt_file(prompt: str, session_id: str) -> str:
 
     logger.debug(f"Created secure prompt file: {prompt_path}")
     return str(prompt_path)
-
-
-def read_prompt_from_env() -> str | None:
-    """
-    Read initial prompt from environment variables.
-
-    Checks GOBBY_PROMPT_FILE first (for long prompts),
-    then falls back to GOBBY_PROMPT (for short prompts).
-
-    Returns:
-        Prompt string or None if not set
-    """
-    from gobby.agents.constants import GOBBY_PROMPT, GOBBY_PROMPT_FILE
-
-    # Check for prompt file first
-    prompt_file = os.environ.get(GOBBY_PROMPT_FILE)
-    if prompt_file:
-        try:
-            prompt_path = Path(prompt_file)
-            if prompt_path.exists():
-                return prompt_path.read_text(encoding="utf-8")
-            else:
-                logger.warning(f"Prompt file not found: {prompt_file}")
-        except Exception as e:
-            logger.error(f"Error reading prompt file: {e}")
-
-    # Fall back to inline prompt
-    return os.environ.get(GOBBY_PROMPT)

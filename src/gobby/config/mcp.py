@@ -11,6 +11,7 @@ from pathlib import Path
 from typing import Any
 
 from gobby.mcp_proxy.manager import MCPServerConfig
+from gobby.storage.projects import GLOBAL_PROJECT_ID
 
 __all__ = ["MCPConfigManager", "MCPServerConfig"]
 
@@ -150,10 +151,10 @@ class MCPConfigManager:
                     continue
 
                 # Create MCPServerConfig with defaults for optional fields
-                # File-based configs use "global" as project_id since they're system-wide
+                # File-based configs use GLOBAL_PROJECT_ID since they're system-wide
                 server_config = MCPServerConfig(
                     name=server_dict["name"],
-                    project_id=server_dict.get("project_id", "global"),
+                    project_id=server_dict.get("project_id", GLOBAL_PROJECT_ID),
                     enabled=server_dict.get("enabled", True),
                     transport=server_dict.get("transport", "http"),
                     url=server_dict.get("url"),

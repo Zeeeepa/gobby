@@ -2,3 +2,7 @@ node_modules/
 dist/
 .vite/
 *.local
+
+# VAD assets (copied from node_modules by postinstall)
+public/*.onnx
+public/vad.worklet.bundle.min.js

@@ -608,11 +608,19 @@ def create_lifecycle_registry(ctx: RegistryContext) -> InternalToolRegistry:
         # Set task_claimed workflow variable (enables Edit/Write hooks)
         # This mirrors create_task behavior in _crud.py
         try:
+            from gobby.workflows.definitions import WorkflowState
+
             state = ctx.workflow_state_manager.get_state(resolved_session_id)
-            if state:
-                state.variables["task_claimed"] = True
-                state.variables["claimed_task_id"] = resolved_id  # Always use UUID
-                ctx.workflow_state_manager.save_state(state)
+            if not state:
+                state = WorkflowState(
+                    session_id=resolved_session_id,
+                    workflow_name="__lifecycle__",
+                    step="global",
+                    variables={},
+                )
+            state.variables["task_claimed"] = True
+            state.variables["claimed_task_id"] = resolved_id  # Always use UUID
+            ctx.workflow_state_manager.save_state(state)
         except Exception:
             pass  # nosec B110 - best-effort variable setting
 

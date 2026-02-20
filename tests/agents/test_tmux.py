@@ -159,8 +159,9 @@ class TestTmuxSessionManager:
     async def test_create_session_success(self) -> None:
         mgr = TmuxSessionManager()
         with patch.object(mgr, "_run", new_callable=AsyncMock) as mock_run:
-            # create_session calls _run twice: once for new-session, once for display-message (get_pane_pid)
+            # create_session calls _run three times: has_session, new-session, display-message (get_pane_pid)
             mock_run.side_effect = [
+                (1, "", ""),  # has_session → not found (rc=1)
                 (0, "", ""),  # new-session
                 (0, "12345\n", ""),  # display-message for pane_pid
             ]

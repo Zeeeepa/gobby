@@ -26,7 +26,7 @@ GOBBY_HOOK_END = "# <<< GOBBY HOOK END <<<"
 
 # Hook script templates - these get wrapped with markers
 HOOK_TEMPLATES = {
-    "pre-commit": """
+    "pre-commit": r"""
 # Gobby smart pre-commit wrapper
 # - Runs gobby verification commands (if configured)
 # - Runs pre-commit framework if available
@@ -84,6 +84,13 @@ fi
 # Gobby task sync - export tasks before commit
 if command -v gobby >/dev/null 2>&1; then
     gobby tasks sync --export --quiet 2>/dev/null || true
+    # Stage task file if modified by export
+    if git diff --name-only 2>/dev/null | grep -q "\.gobby/tasks.jsonl"; then
+        git add .gobby/tasks.jsonl 2>/dev/null || true
+    fi
+    if git diff --name-only 2>/dev/null | grep -q "\.gobby/tasks_meta.json"; then
+        git add .gobby/tasks_meta.json 2>/dev/null || true
+    fi
 fi
 """,
     "pre-push": """

@@ -1,5 +1,6 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
+import tailwindcss from '@tailwindcss/vite'
 
 const GOBBY_HTTP_PORT = process.env.GOBBY_DAEMON_PORT || '60887'
 const GOBBY_WS_PORT = process.env.GOBBY_WS_PORT || '60888'
@@ -7,7 +8,7 @@ const GOBBY_UI_HOST = process.env.GOBBY_UI_HOST || 'localhost'
 
 // https://vite.dev/config/
 export default defineConfig({
-  plugins: [react()],
+  plugins: [react(), tailwindcss()],
   resolve: {
     dedupe: ['@codemirror/state', '@codemirror/view', '@codemirror/language'],
   },

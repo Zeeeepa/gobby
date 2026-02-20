@@ -14,11 +14,6 @@ from .audit_helpers import (
     log_transition,
 )
 from .definitions import RuleDefinition, WorkflowDefinition, WorkflowState, WorkflowTransition
-from .detection_helpers import (
-    detect_mcp_call,
-    detect_task_claim,
-    process_mcp_handlers,
-)
 from .engine_activation import activate_workflow as _activate_workflow_fn
 from .engine_context import (
     _build_eval_context as _build_eval_context_fn,
@@ -56,6 +51,10 @@ from .lifecycle_evaluator import (
     process_action_result,
 )
 from .loader import WorkflowLoader
+from .observers import (
+    detect_mcp_call,
+    detect_task_claim,
+)
 from .premature_stop import check_premature_stop
 from .state_manager import WorkflowStateManager
 from .unified_evaluator import (
@@ -69,6 +68,7 @@ if TYPE_CHECKING:
     from gobby.storage.rules import RuleStore
 
     from .actions import ActionExecutor
+    from .templates import TemplateRenderer
 
 logger = logging.getLogger(__name__)
 
@@ -92,6 +92,93 @@ EXEMPT_TOOLS = frozenset(
         "mcp__gobby__search_tools",
     }
 )
+
+
+def process_mcp_handlers(
+    state: "WorkflowState",
+    server_name: str,
+    tool_name: str,
+    succeeded: bool,
+    on_mcp_success: list[dict[str, Any]],
+    on_mcp_error: list[dict[str, Any]],
+    template_engine: "TemplateRenderer | None" = None,
+) -> None:
+    """Process on_mcp_success/on_mcp_error handlers from workflow step definition.
+
+    When an MCP call completes, this checks if the current step has handlers
+    defined for that server/tool combination and executes matching actions.
+
+    Supported actions:
+    - set_variable: Set a workflow variable to a value
+
+    Args:
+        state: Current workflow state (modified in place)
+        server_name: MCP server that was called (e.g., "gobby-tasks")
+        tool_name: Tool that was called (e.g., "claim_task")
+        succeeded: Whether the MCP call succeeded
+        on_mcp_success: List of success handlers from step definition
+        on_mcp_error: List of error handlers from step definition
+
+    Example handler definition in YAML:
+        on_mcp_success:
+          - server: gobby-tasks
+            tool: claim_task
+            action: set_variable
+            variable: task_claimed
+            value: true
+    """
+    handlers = on_mcp_success if succeeded else on_mcp_error
+    handler_type = "on_mcp_success" if succeeded else "on_mcp_error"
+
+    for handler in handlers:
+        handler_server = handler.get("server", "")
+        handler_tool = handler.get("tool", "")
+
+        # Check if this handler matches the current MCP call
+        if handler_server != server_name:
+            continue
+        if handler_tool and handler_tool != tool_name:
+            continue
+
+        action = handler.get("action", "")
+
+        if action == "set_variable":
+            variable = handler.get("variable")
+            value = handler.get("value")
+            if variable:
+                # Render Jinja2 templates in value with MCP result context
+                if isinstance(value, str) and "{{" in value and template_engine:
+                    # Get the MCP result from tracked results
+                    mcp_results = state.variables.get("mcp_results", {})
+                    server_results = mcp_results.get(server_name, {})
+                    mcp_result = server_results.get(tool_name)
+                    try:
+                        value = template_engine.render(
+                            value,
+                            {
+                                "result": mcp_result,
+                                "variables": state.variables,
+                            },
+                        )
+                        state.variables[variable] = value
+                    except Exception as e:
+                        # Don't assign the raw template — leave existing value unchanged
+                        logger.warning(
+                            f"Session {state.session_id}: Failed to render template "
+                            f"in {handler_type} handler value={value!r}: {e}",
+                            exc_info=True,
+                        )
+                else:
+                    state.variables[variable] = value
+                logger.info(
+                    f"Session {state.session_id}: {handler_type} handler set "
+                    f"{variable}={value} (triggered by {server_name}/{tool_name})"
+                )
+        else:
+            logger.warning(
+                f"Session {state.session_id}: Unknown {handler_type} action '{action}' "
+                f"for {server_name}/{tool_name}"
+            )
 
 
 class WorkflowEngine:

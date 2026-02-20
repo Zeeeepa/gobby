@@ -88,6 +88,7 @@ async def _summarize_description_with_claude(description: str) -> str:
             max_turns=1,
             model=config.model,
             allowed_tools=[],
+            mcp_servers={},
             permission_mode="default",
         )
 
@@ -194,6 +195,7 @@ async def generate_server_description(
             max_turns=1,
             model=config.model,
             allowed_tools=[],
+            mcp_servers={},
             permission_mode="default",
         )
 

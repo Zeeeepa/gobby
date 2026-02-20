@@ -256,9 +256,10 @@ def create_agents_registry(
         if run_id is None:
             return {"success": False, "error": "Either run_id or session_id required"}
 
-        # Get agent info before killing
+        # Get agent info before killing (capture tmux_session_name for cleanup)
         agent = agent_registry.get(run_id)
         agent_session_id = agent.session_id if agent else resolved_session_id
+        tmux_session_name = agent.tmux_session_name if agent else None
 
         # Database fallback: if not in registry, look up from DB
         if agent_session_id is None:
@@ -275,9 +276,35 @@ def create_agents_registry(
             close_terminal=close_terminal,
         )
 
+        # Agent already exited — nothing to clean up
+        if result.get("already_completed"):
+            return result
+
         if result.get("success"):
-            # Update database status
-            runner.cancel_run(run_id)
+            # Self-termination (session_id path) → mark as success
+            # Parent-initiated kill (run_id path) → mark as cancelled
+            is_self_termination = resolved_session_id is not None
+            if is_self_termination:
+                runner.complete_run(run_id)
+            else:
+                runner.cancel_run(run_id)
+
+            # Clean up the tmux session (remain-on-exit keeps dead panes alive)
+            if not debug and tmux_session_name:
+                try:
+                    import subprocess
+
+                    from gobby.agents.tmux.config import TmuxConfig
+
+                    tmux_cfg = TmuxConfig()
+                    kill_cmd = [tmux_cfg.command]
+                    if tmux_cfg.socket_name:
+                        kill_cmd.extend(["-L", tmux_cfg.socket_name])
+                    kill_cmd.extend(["kill-session", "-t", tmux_session_name])
+                    subprocess.run(kill_cmd, capture_output=True, timeout=5)
+                    result["tmux_session_killed"] = True
+                except Exception as e:
+                    logger.debug(f"tmux session cleanup failed for {tmux_session_name}: {e}")
 
             # Delete workflow state unless debugging
             if not debug and agent_session_id:
@@ -567,9 +594,7 @@ def create_agents_registry(
         if not run:
             return {"success": False, "error": f"Agent run {run_id} not found"}
 
-        terminal_statuses = {"success", "error", "timeout", "cancelled"}
-
-        if run.status in terminal_statuses:
+        if run.status not in ("pending", "running"):
             return {
                 "success": True,
                 "completed": True,
@@ -609,7 +634,7 @@ def create_agents_registry(
                     "error": "Agent run disappeared during wait",
                 }
 
-            if run.status in terminal_statuses:
+            if run.status not in ("pending", "running"):
                 return {
                     "success": True,
                     "completed": True,

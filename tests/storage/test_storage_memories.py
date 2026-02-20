@@ -1,3 +1,5 @@
+import uuid
+
 import pytest
 
 from gobby.storage.database import LocalDatabase
@@ -26,7 +28,8 @@ def test_create_memory(memory_manager) -> None:
         memory_type="fact",
         tags=["test"],
     )
-    assert memory.id.startswith("mm-")
+    # Memory IDs are UUID5 (deterministic from content)
+    uuid.UUID(memory.id)  # validates format
     assert memory.content == "Test memory"
     assert memory.memory_type == "fact"
     assert memory.tags == ["test"]

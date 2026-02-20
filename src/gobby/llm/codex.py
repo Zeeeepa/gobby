@@ -247,7 +247,7 @@ class CodexProvider(LLMProvider):
         Generate text using Codex/OpenAI.
         """
         if not self._client:
-            return "Generation unavailable (Codex client not initialized)"
+            raise RuntimeError("Generation unavailable (Codex client not initialized)")
 
         try:
             response = await self._client.chat.completions.create(
@@ -264,7 +264,7 @@ class CodexProvider(LLMProvider):
             return response.choices[0].message.content or ""
         except Exception as e:
             self.logger.error(f"Failed to generate text with Codex: {e}")
-            return f"Generation failed: {e}"
+            raise RuntimeError(f"Failed to generate text with Codex: {e}") from e
 
     async def generate_json(
         self,

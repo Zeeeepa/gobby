@@ -27,6 +27,7 @@ class TmuxSessionInfo:
     pane_pid: int | None = None
     window_name: str | None = None
     pane_title: str | None = None
+    pane_dead: bool = False
 
 
 class TmuxSessionManager:
@@ -153,6 +154,13 @@ class TmuxSessionManager:
         # Sanitise name (tmux dislikes dots and colons)
         safe_name = "".join(c if c.isalnum() or c in "-_" else "-" for c in name)
 
+        # Fail fast if session already exists — never silently reuse
+        if await self.has_session(safe_name):
+            raise TmuxSessionError(
+                f"Session '{safe_name}' already exists on socket '{self._config.socket_name}'",
+                session_name=safe_name,
+            )
+
         args: list[str] = [
             "new-session",
             "-d",
@@ -215,6 +223,19 @@ class TmuxSessionManager:
             ]
         )
 
+        # Keep pane alive after process exits so capture-pane can retrieve output
+        args.extend(
+            [
+                ";",
+                "set-option",
+                "-w",
+                "-t",
+                safe_name,
+                "remain-on-exit",
+                "on",
+            ]
+        )
+
         rc, _stdout, stderr = await self._run(*args)
         if rc != 0:
             raise TmuxSessionError(
@@ -233,11 +254,11 @@ class TmuxSessionManager:
 
     async def list_sessions(self) -> list[TmuxSessionInfo]:
         """List all Gobby tmux sessions on the isolated socket."""
-        # Fetch name, pid, window name, and pane title in one go
+        # Fetch name, pid, window name, pane title, and pane_dead status in one go
         rc, stdout, _stderr = await self._run(
             "list-sessions",
             "-F",
-            "#{session_name}\t#{pane_pid}\t#{window_name}\t#{pane_title}",
+            "#{session_name}\t#{pane_pid}\t#{window_name}\t#{pane_title}\t#{pane_dead}",
         )
         if rc != 0:
             # No server running is rc=1 with "no server running"
@@ -254,12 +275,14 @@ class TmuxSessionManager:
                 pid = int(pid_str) if pid_str.isdigit() else None
                 window_name = parts[2] if len(parts) > 2 and parts[2] else None
                 pane_title = parts[3] if len(parts) > 3 and parts[3] else None
+                pane_dead = parts[4] == "1" if len(parts) > 4 else False
                 results.append(
                     TmuxSessionInfo(
                         name=name,
                         pane_pid=pid,
                         window_name=window_name,
                         pane_title=pane_title,
+                        pane_dead=pane_dead,
                     )
                 )
         return results

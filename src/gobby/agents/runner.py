@@ -96,6 +96,11 @@ class AgentRunner:
         """Public accessor for the child session manager."""
         return self._child_session_manager
 
+    @property
+    def run_storage(self) -> LocalAgentRunManager:
+        """Public accessor for the agent run storage manager."""
+        return self._run_storage
+
     def get_executor(self, provider: str) -> AgentExecutor | None:
         """Get executor for a provider."""
         return self._executors.get(provider)
@@ -604,6 +609,10 @@ class AgentRunner:
     def cancel_run(self, run_id: str) -> bool:
         """Cancel a running agent. Delegates to runner_queries."""
         return _queries.cancel_run(self, run_id)
+
+    def complete_run(self, run_id: str, result: str | None = None) -> bool:
+        """Complete a running agent (self-termination). Delegates to runner_queries."""
+        return _queries.complete_run(self, run_id, result=result)
 
     # -------------------------------------------------------------------------
     # In-memory Running Agents Management (delegated to RunTracker)

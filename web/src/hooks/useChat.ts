@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
-import type { ChatMessage, ToolCall } from '../components/Message'
-import type { QueuedFile } from '../components/ChatInput'
+import type { ChatMessage, ToolCall, ChatMode } from '../types/chat'
+import type { QueuedFile } from '../types/chat'
 
 const CONVERSATION_ID_KEY = 'gobby-conversation-id'
 const MAX_STORED_MESSAGES = 100
@@ -61,6 +61,15 @@ interface ChatStreamChunk {
   content: string
   done: boolean
   tool_calls_count?: number
+  session_ref?: string
+  usage?: {
+    input_tokens: number
+    output_tokens: number
+    cache_read_input_tokens?: number
+    cache_creation_input_tokens?: number
+    total_input_tokens?: number
+  }
+  context_window?: number
 }
 
 interface ChatError {
@@ -75,7 +84,7 @@ interface ToolStatusMessage {
   message_id: string
   request_id?: string
   tool_call_id: string
-  status: 'calling' | 'completed' | 'error'
+  status: 'calling' | 'completed' | 'error' | 'pending_approval'
   tool_name?: string
   server_name?: string
   arguments?: Record<string, unknown>
@@ -170,6 +179,21 @@ export function useChat() {
   const [isConnected, setIsConnected] = useState(false)
   const [isStreaming, setIsStreaming] = useState(false)
   const [isThinking, setIsThinking] = useState(false)
+
+  // Session ref tracking (e.g. "#158")
+  const [sessionRef, setSessionRef] = useState<string | null>(null)
+
+  // Context usage tracking — accumulated across turns.
+  // totalInputTokens = uncached + cacheRead + cacheCreation (the real context size).
+  const [contextUsage, setContextUsage] = useState<{
+    totalInputTokens: number
+    outputTokens: number
+    contextWindow: number | null
+    // Per-category breakdown for tooltip
+    uncachedInputTokens: number
+    cacheReadTokens: number
+    cacheCreationTokens: number
+  }>({ totalInputTokens: 0, outputTokens: 0, contextWindow: null, uncachedInputTokens: 0, cacheReadTokens: 0, cacheCreationTokens: 0 })
   const wsRef = useRef<WebSocket | null>(null)
   const reconnectTimeoutRef = useRef<number | null>(null)
 
@@ -273,6 +297,11 @@ export function useChat() {
             }
           }
           handleVoiceMessageRef.current(data as Record<string, unknown>)
+        } else if (data.type === 'session_info') {
+          const ref = (data as Record<string, unknown>).session_ref as string | undefined
+          if (ref) setSessionRef(ref)
+        } else if (data.type === 'session_continued') {
+          console.log('Session continued:', data)
         } else if (data.type === 'connection_established') {
           const serverConversations = (data.conversation_ids as string[]) || []
           if (serverConversations.includes(conversationIdRef.current)) {
@@ -325,6 +354,33 @@ export function useChat() {
     if (chunk.done) {
       setIsStreaming(false)
       setIsThinking(false)
+      // Pick up session_ref from done message (fallback if session_info was missed)
+      if (chunk.session_ref) {
+        setSessionRef(chunk.session_ref)
+      }
+      // Update context usage from usage data in done message.
+      // Each turn sends the full conversation to Claude, so the latest turn's
+      // total_input_tokens IS the current context size — replace, don't accumulate.
+      // Output tokens are genuinely incremental, so those accumulate.
+      if (chunk.usage) {
+        const u = chunk.usage
+        // Prefer total_input_tokens from backend; fall back to sum of parts
+        const turnTotal = u.total_input_tokens
+          ?? ((u.input_tokens ?? 0) + (u.cache_read_input_tokens ?? 0) + (u.cache_creation_input_tokens ?? 0))
+        setContextUsage((prev) => ({
+          // Input tokens: REPLACE with latest turn's values (each turn sends
+          // the full conversation, so the latest total IS the current context size)
+          totalInputTokens: turnTotal,
+          uncachedInputTokens: u.input_tokens ?? 0,
+          cacheReadTokens: u.cache_read_input_tokens ?? 0,
+          cacheCreationTokens: u.cache_creation_input_tokens ?? 0,
+          // Output tokens: ACCUMULATE (genuinely incremental per turn)
+          outputTokens: prev.outputTokens + (u.output_tokens ?? 0),
+          contextWindow: chunk.context_window ?? prev.contextWindow,
+        }))
+      } else if (chunk.context_window) {
+        setContextUsage((prev) => ({ ...prev, contextWindow: chunk.context_window ?? prev.contextWindow }))
+      }
     }
   }, [])
 
@@ -361,7 +417,25 @@ export function useChat() {
 
     setMessages((prev) => {
       const idx = prev.findIndex((m) => m.id === status.message_id)
-      if (idx < 0) return prev
+      if (idx < 0) {
+        // Tool status arrived before any text/thinking — create the message
+        const newCall: ToolCall = {
+          id: status.tool_call_id,
+          tool_name: status.tool_name || 'unknown',
+          server_name: status.server_name || 'builtin',
+          status: status.status,
+          arguments: status.arguments,
+          result: status.result,
+          error: status.error,
+        }
+        return [...prev, {
+          id: status.message_id,
+          role: 'assistant' as const,
+          content: '',
+          timestamp: new Date(),
+          toolCalls: [newCall],
+        }]
+      }
 
       const updated = [...prev]
       const toolCalls = [...(updated[idx].toolCalls || [])]
@@ -501,6 +575,7 @@ export function useChat() {
     activeRequestIdRef.current = null
     setIsStreaming(false)
     setIsThinking(false)
+    setSessionRef(null)
 
     // Save current conversation's messages before switching (explicit save)
     if (conversationIdRef.current) {
@@ -555,6 +630,8 @@ export function useChat() {
     setConversationId(newId)
     saveConversationId(newId)
     setMessages([])
+    setSessionRef(null)
+    setContextUsage({ totalInputTokens: 0, outputTokens: 0, contextWindow: null, uncachedInputTokens: 0, cacheReadTokens: 0, cacheCreationTokens: 0 })
 
     activeRequestIdRef.current = null
     setIsStreaming(false)
@@ -584,6 +661,59 @@ export function useChat() {
     setIsThinking(false)
   }, [])
 
+  // Continue a CLI/external session in the web chat UI with full history
+  const continueSessionInChat = useCallback(async (
+    sourceDbSessionId: string,
+    projectId?: string,
+  ): Promise<string> => {
+    const newConversationId = uuid()
+
+    // Save current conversation, switch to new one
+    saveMessagesForConversation(conversationIdRef.current, messagesRef.current)
+    conversationIdRef.current = newConversationId
+    setConversationId(newConversationId)
+    saveConversationId(newConversationId)
+    activeRequestIdRef.current = null
+    setIsStreaming(false)
+    setIsThinking(false)
+    setMessages([])
+
+    // Fetch source session's messages for display
+    const baseUrl = import.meta.env.VITE_API_BASE_URL || ''
+    try {
+      const res = await fetch(`${baseUrl}/sessions/${sourceDbSessionId}/messages?limit=100`)
+      if (res.ok) {
+        const data = await res.json()
+        const mapped: ChatMessage[] = (data.messages || [])
+          .filter((m: { role: string }) => m.role === 'user' || m.role === 'assistant')
+          .map((m: { id?: string; role: string; content: string; timestamp: string; message_index?: number }, i: number) => ({
+            id: m.id || `history-${i}`,
+            role: m.role as 'user' | 'assistant',
+            content: m.content,
+            timestamp: new Date(m.timestamp),
+          }))
+        if (mapped.length > 0) {
+          setMessages(mapped)
+          saveMessagesForConversation(newConversationId, mapped)
+        }
+      }
+    } catch (err) {
+      console.error('Failed to fetch source session messages:', err)
+    }
+
+    // Tell backend to prepare the continuation session
+    if (wsRef.current?.readyState === WebSocket.OPEN) {
+      wsRef.current.send(JSON.stringify({
+        type: 'continue_in_chat',
+        conversation_id: newConversationId,
+        source_session_id: sourceDbSessionId,
+        project_id: projectId,
+      }))
+    }
+
+    return newConversationId
+  }, [])
+
   // Clear chat history — notifies backend to teardown session, then resets frontend
   const clearHistory = useCallback(() => {
     const oldConversationId = conversationIdRef.current
@@ -596,6 +726,7 @@ export function useChat() {
     }
     // Reset frontend state
     setMessages([])
+    setContextUsage({ totalInputTokens: 0, outputTokens: 0, contextWindow: null, uncachedInputTokens: 0, cacheReadTokens: 0, cacheCreationTokens: 0 })
     localStorage.removeItem(chatStorageKey(oldConversationId))
     activeRequestIdRef.current = null
     // Start a fresh conversation
@@ -641,6 +772,27 @@ export function useChat() {
     activeRequestIdRef.current = null
     setIsStreaming(false)
     setIsThinking(false)
+  }, [])
+
+  // Send mode change to backend
+  const sendMode = useCallback((mode: ChatMode) => {
+    if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) return
+    wsRef.current.send(JSON.stringify({
+      type: 'set_mode',
+      mode,
+      conversation_id: conversationIdRef.current,
+    }))
+  }, [])
+
+  // Notify backend that the project changed — stops the CLI subprocess
+  // so the next chat_message recreates it with the correct CWD.
+  const sendProjectChange = useCallback((projectId: string) => {
+    if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) return
+    wsRef.current.send(JSON.stringify({
+      type: 'set_project',
+      project_id: projectId,
+      conversation_id: conversationIdRef.current,
+    }))
   }, [])
 
   // Send a message (allowed even while streaming — cancels the active stream)
@@ -754,6 +906,17 @@ export function useChat() {
     }))
   }, [])
 
+  // Respond to a tool approval request
+  const respondToApproval = useCallback((toolCallId: string, decision: 'approve' | 'reject' | 'approve_always') => {
+    if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) return
+    wsRef.current.send(JSON.stringify({
+      type: 'tool_approval_response',
+      conversation_id: conversationIdRef.current,
+      tool_call_id: toolCallId,
+      decision,
+    }))
+  }, [])
+
   // Connect on mount
   useEffect(() => {
     connect()
@@ -769,18 +932,24 @@ export function useChat() {
   return {
     messages,
     conversationId,
+    sessionRef,
     isConnected,
     isStreaming,
     isThinking,
+    contextUsage,
     sendMessage,
+    sendMode,
+    sendProjectChange,
     stopStreaming,
     clearHistory,
     deleteConversation,
     executeCommand,
     respondToQuestion,
+    respondToApproval,
     switchConversation,
     startNewChat,
     resumeSession,
+    continueSessionInChat,
     wsRef,
     handleVoiceMessageRef,
   }

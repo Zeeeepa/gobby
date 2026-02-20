@@ -53,6 +53,36 @@ class EventHandlersBase:
             self.logger.error(f"Failed to evaluate workflows: {e}", exc_info=True)
             return HookResponse(decision="allow")
 
+    def _apply_debug_echo(self, response: HookResponse, wf_response: HookResponse) -> None:
+        """Append additionalContext to system_message when debug_echo_context is enabled.
+
+        Reads the flag from workflow variables (priority) or WorkflowConfig (fallback).
+        Mutates ``response`` in place (HookResponse is a non-frozen dataclass).
+        """
+        debug_echo = False
+        workflow_vars = (wf_response.metadata or {}).get("workflow_variables", {})
+        if workflow_vars.get("debug_echo_context") is not None:
+            debug_echo = bool(workflow_vars["debug_echo_context"])
+        elif self._workflow_config and self._workflow_config.debug_echo_context:
+            debug_echo = True
+
+        if not debug_echo or not response.context:
+            self.logger.debug(
+                f"debug_echo_context: enabled={debug_echo}, "
+                f"context_len={len(response.context) if response.context else 0}"
+            )
+            return
+
+        echo_block = f"\n\n[DEBUG additionalContext]\n{response.context}"
+        if response.system_message:
+            response.system_message += echo_block
+        else:
+            response.system_message = echo_block
+
+        self.logger.debug(
+            f"debug_echo_context: appended {len(response.context)} chars to system_message"
+        )
+
     def _auto_activate_workflow(
         self,
         workflow_name: str,

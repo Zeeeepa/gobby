@@ -9,6 +9,13 @@ import { MemoryForm } from './MemoryForm'
 import type { MemoryFormData } from './MemoryForm'
 import { MemoryDetail } from './MemoryDetail'
 
+const DEFAULT_MEMORY_GRAPH_LIMIT = 200
+const DEFAULT_KNOWLEDGE_GRAPH_LIMIT = 5000
+const GRAPH_LIMIT_MIN = 50
+const GRAPH_LIMIT_MAX = 1000
+const KNOWLEDGE_LIMIT_MAX = 5000
+const GRAPH_LIMIT_STEP = 50
+
 const KnowledgeGraph = lazy(() => import('./KnowledgeGraph').then(m => ({ default: m.KnowledgeGraph })))
 
 class KnowledgeGraphErrorBoundary extends Component<
@@ -72,7 +79,7 @@ function KnowledgeIcon() {
 }
 
 type ViewMode = 'list' | 'graph' | 'knowledge'
-type OverviewFilter = 'total' | 'important' | 'needs_review' | 'recent' | null
+type OverviewFilter = 'fact' | 'preference' | 'pattern' | 'context' | 'recent' | null
 
 export function MemoryPage() {
   const {
@@ -90,6 +97,26 @@ export function MemoryPage() {
     fetchEntityNeighbors,
   } = useMemory()
   const neo4jStatus = useNeo4jStatus()
+
+  // Configurable graph limits (fetched from backend config, overridable per-session)
+  const [memoryGraphLimit, setMemoryGraphLimit] = useState(DEFAULT_MEMORY_GRAPH_LIMIT)
+  const [knowledgeGraphLimit, setKnowledgeGraphLimit] = useState(DEFAULT_KNOWLEDGE_GRAPH_LIMIT)
+
+  useEffect(() => {
+    const controller = new AbortController()
+    fetch('/api/config/values', { signal: controller.signal })
+      .then(res => res.ok ? res.json() : null)
+      .then(data => {
+        if (!data) return
+        const values = data.values ?? data
+        const memLimit = values?.['ui.memory_graph_limit']
+        const kgLimit = values?.['ui.knowledge_graph_limit']
+        if (typeof memLimit === 'number' && memLimit >= 50) setMemoryGraphLimit(memLimit)
+        if (typeof kgLimit === 'number' && kgLimit >= 50) setKnowledgeGraphLimit(kgLimit)
+      })
+      .catch((e) => { if (e.name !== 'AbortError') console.debug('Config fetch failed:', e) })
+    return () => controller.abort()
+  }, [])
 
   const [viewMode, setViewMode] = useState<ViewMode>(() => {
     try {
@@ -132,10 +159,8 @@ export function MemoryPage() {
   const filteredMemories = useMemo(() => {
     let result = memories
 
-    if (overviewFilter === 'important') {
-      result = result.filter(m => m.importance >= 0.7)
-    } else if (overviewFilter === 'needs_review') {
-      result = result.filter(m => m.importance < 0.7)
+    if (overviewFilter === 'fact' || overviewFilter === 'preference' || overviewFilter === 'pattern' || overviewFilter === 'context') {
+      result = result.filter(m => m.memory_type === overviewFilter)
     } else if (overviewFilter === 'recent') {
       const cutoff = Date.now() - TWENTY_FOUR_HOURS_MS
       result = result.filter(m => new Date(m.created_at).getTime() > cutoff)
@@ -253,6 +278,24 @@ export function MemoryPage() {
               </button>
             ))}
           </div>
+          {viewMode !== 'list' && (
+            <label className="memory-limit-control" title="Max nodes to display">
+              Limit
+              <input
+                type="number"
+                min={GRAPH_LIMIT_MIN}
+                max={viewMode === 'graph' ? GRAPH_LIMIT_MAX : KNOWLEDGE_LIMIT_MAX}
+                step={GRAPH_LIMIT_STEP}
+                value={viewMode === 'knowledge' ? knowledgeGraphLimit : memoryGraphLimit}
+                onChange={e => {
+                  const sliderMax = viewMode === 'graph' ? GRAPH_LIMIT_MAX : KNOWLEDGE_LIMIT_MAX
+                  const v = Math.max(GRAPH_LIMIT_MIN, Math.min(sliderMax, Number(e.target.value) || GRAPH_LIMIT_MIN))
+                  if (viewMode === 'knowledge') setKnowledgeGraphLimit(v)
+                  else setMemoryGraphLimit(v)
+                }}
+              />
+            </label>
+          )}
           <input
             className="memory-search"
             type="text"
@@ -297,14 +340,15 @@ export function MemoryPage() {
               <KnowledgeGraph
                 fetchKnowledgeGraph={fetchKnowledgeGraph}
                 fetchEntityNeighbors={fetchEntityNeighbors}
+                limit={knowledgeGraphLimit}
               />
             </Suspense>
           </KnowledgeGraphErrorBoundary>
         ) : viewMode === 'graph' ? (
           <MemoryGraph
-            memories={filteredMemories}
             fetchGraphData={fetchGraphData}
             onSelect={handleSelect}
+            memoryLimit={memoryGraphLimit}
           />
         ) : (
           <MemoryTable

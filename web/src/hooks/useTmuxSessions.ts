@@ -4,8 +4,10 @@ export interface TmuxSession {
   name: string
   socket: string
   pane_pid: number | null
+  pane_dead: boolean
   pane_title: string | null
   window_name: string | null
+  session_title: string | null
   agent_managed: boolean
   agent_run_id: string | null
   attached_bridge: string | null
@@ -16,11 +18,13 @@ interface TmuxSessionsResult {
   attachedSession: string | null
   streamingId: string | null
   isLoading: boolean
+  sessionEnded: boolean
   attachSession: (sessionName: string, socket: string) => void
   detachSession: () => void
   createSession: (name?: string, socket?: string) => void
   killSession: (sessionName: string, socket: string) => void
   refreshSessions: () => void
+  dismissEndedSession: () => void
   sendInput: (data: string) => void
   resizeTerminal: (rows: number, cols: number) => void
   onOutput: (callback: (runId: string, data: string) => void) => void
@@ -31,9 +35,22 @@ export function useTmuxSessions(): TmuxSessionsResult {
   const [attachedSession, setAttachedSession] = useState<string | null>(null)
   const [streamingId, setStreamingId] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(false)
+  const [sessionEnded, setSessionEnded] = useState(false)
   const wsRef = useRef<WebSocket | null>(null)
   const reconnectTimeoutRef = useRef<number | null>(null)
   const outputCallbackRef = useRef<((runId: string, data: string) => void) | null>(null)
+  const attachedSessionRef = useRef<string | null>(null)
+
+  // Keep ref in sync so handleMessage can read current value
+  useEffect(() => {
+    attachedSessionRef.current = attachedSession
+  }, [attachedSession])
+
+  const dismissEndedSession = useCallback(() => {
+    setSessionEnded(false)
+    setStreamingId(null)
+    setAttachedSession(null)
+  }, [])
 
   const connect = useCallback(() => {
     if (wsRef.current?.readyState === WebSocket.OPEN) return
@@ -77,10 +94,17 @@ export function useTmuxSessions(): TmuxSessionsResult {
 
   const handleMessage = useCallback((data: Record<string, unknown>) => {
     switch (data.type) {
-      case 'tmux_sessions_list':
-        setSessions(data.sessions as TmuxSession[])
+      case 'tmux_sessions_list': {
+        const newSessions = data.sessions as TmuxSession[]
+        setSessions(newSessions)
+        // Detect if the attached session has died
+        const attached = attachedSessionRef.current
+        if (attached && !newSessions.some(s => s.name === attached)) {
+          setSessionEnded(true)
+        }
         setIsLoading(false)
         break
+      }
 
       case 'tmux_attach_result':
         if (data.success) {
@@ -134,6 +158,7 @@ export function useTmuxSessions(): TmuxSessionsResult {
   const attachSession = useCallback((sessionName: string, socket: string) => {
     if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) return
     setIsLoading(true)
+    setSessionEnded(false)
     wsRef.current.send(JSON.stringify({
       type: 'tmux_attach',
       request_id: `attach-${Date.now()}`,
@@ -216,11 +241,13 @@ export function useTmuxSessions(): TmuxSessionsResult {
     attachedSession,
     streamingId,
     isLoading,
+    sessionEnded,
     attachSession,
     detachSession,
     createSession,
     killSession,
     refreshSessions,
+    dismissEndedSession,
     sendInput,
     resizeTerminal,
     onOutput,

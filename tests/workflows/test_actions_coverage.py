@@ -1207,40 +1207,6 @@ class TestHandlePersistTasks:
 
 
 # =============================================================================
-# Test Require Active Task Action
-# =============================================================================
-
-
-class TestHandleRequireActiveTask:
-    """Tests for _handle_require_active_task action."""
-
-    @pytest.mark.asyncio
-    async def test_require_active_task_delegated(
-        self, action_executor, action_context, session_manager, sample_project
-    ):
-        """Test require_active_task delegates to the action function."""
-        session = session_manager.register(
-            external_id="require-active-test",
-            machine_id="test-machine",
-            source="test-source",
-            project_id=sample_project["id"],
-        )
-        action_context.session_id = session.id
-
-        with patch("gobby.workflows.enforcement.handlers.require_active_task") as mock_require:
-            mock_require.return_value = None  # Allow
-
-            await action_executor.execute(
-                "require_active_task",
-                action_context,
-            )
-
-            mock_require.assert_called_once()
-            call_kwargs = mock_require.call_args.kwargs
-            assert call_kwargs["session_id"] == session.id
-
-
-# =============================================================================
 # Test Require Commit Before Stop Action
 # =============================================================================
 
