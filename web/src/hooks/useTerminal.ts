@@ -44,6 +44,31 @@ export function useTerminal() {
   const reconnectTimeoutRef = useRef<number | null>(null)
   const outputCallbackRef = useRef<((runId: string, data: string) => void) | null>(null)
 
+  // Fetch running agents from the API and replace local state (reconciliation)
+  const refreshAgents = useCallback(() => {
+    fetch('/api/agents/running')
+      .then(r => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json() })
+      .then(data => {
+        if (data.agents) {
+          const fresh: RunningAgent[] = data.agents
+            .filter((a: RunningAgent) => (SHOW_MODES as readonly string[]).includes(a.mode))
+            .map((a: RunningAgent) => ({
+              run_id: a.run_id,
+              session_id: a.session_id,
+              parent_session_id: a.parent_session_id,
+              mode: a.mode,
+              provider: a.provider,
+              pid: a.pid,
+              tmux_session_name: a.tmux_session_name,
+            }))
+          setAgents(fresh)
+          // Clear selection if the selected agent is no longer running
+          setSelectedAgent(prev => prev && fresh.some(a => a.run_id === prev) ? prev : null)
+        }
+      })
+      .catch((e) => console.debug('Failed to fetch running agents:', e))
+  }, [])
+
   // Connect to WebSocket
   const connect = useCallback(() => {
     if (wsRef.current?.readyState === WebSocket.OPEN) return
@@ -64,24 +89,7 @@ export function useTerminal() {
         events: ['terminal_output', 'agent_event'],
       }))
       // Fetch current running agents to recover any missed before WS connected
-      fetch('/api/agents/running')
-        .then(r => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json() })
-        .then(data => {
-          if (data.agents) {
-            setAgents(data.agents
-              .filter((a: RunningAgent) => (SHOW_MODES as readonly string[]).includes(a.mode))
-              .map((a: RunningAgent) => ({
-                run_id: a.run_id,
-                session_id: a.session_id,
-                parent_session_id: a.parent_session_id,
-                mode: a.mode,
-                provider: a.provider,
-                pid: a.pid,
-                tmux_session_name: a.tmux_session_name,
-              })))
-          }
-        })
-        .catch((e) => console.debug('Failed to fetch running agents:', e))
+      refreshAgents()
     }
 
     ws.onclose = () => {
@@ -171,6 +179,17 @@ export function useTerminal() {
     }
   }, [connect])
 
+  // Reconcile agent list when browser tab becomes visible (catches missed WS events)
+  useEffect(() => {
+    const handleVisibility = () => {
+      if (document.visibilityState === 'visible') {
+        refreshAgents()
+      }
+    }
+    document.addEventListener('visibilitychange', handleVisibility)
+    return () => document.removeEventListener('visibilitychange', handleVisibility)
+  }, [refreshAgents])
+
   return {
     isConnected,
     agents,
@@ -178,5 +197,6 @@ export function useTerminal() {
     setSelectedAgent,
     sendInput,
     onOutput,
+    refreshAgents,
   }
 }

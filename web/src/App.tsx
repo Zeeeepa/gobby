@@ -32,7 +32,7 @@ export default function App() {
   const { messages, conversationId, sessionRef, isConnected, isStreaming, isThinking, contextUsage, sendMessage, sendMode, sendProjectChange, stopStreaming, clearHistory, deleteConversation, executeCommand, respondToQuestion, switchConversation, startNewChat, continueSessionInChat, wsRef, handleVoiceMessageRef } = useChat()
   const voice = useVoice(wsRef, conversationId)
   const { settings, updateFontSize, updateModel, updateChatMode, updateTheme, resetSettings } = useSettings()
-  const { agents } = useTerminal()
+  const { agents, refreshAgents } = useTerminal()
   const tmux = useTmuxSessions()
   const { filteredCommands, parseCommand, filterCommands } = useSlashCommands()
   const sessionsHook = useSessions()
@@ -210,13 +210,26 @@ export default function App() {
     sessionsHook.removeSession(session.id)
   }, [deleteConversation, sessionsHook.removeSession])
 
+  // Refresh terminal list when switching to terminals tab
+  useEffect(() => {
+    if (activeTab === 'terminals') {
+      tmux.refreshSessions()
+    }
+  }, [activeTab, tmux.refreshSessions])
+
   /* Navigate to Terminals tab and attach agent's tmux session */
   const handleNavigateToAgent = useCallback((agent: { run_id: string; tmux_session_name?: string }) => {
-    setActiveTab('terminals')
-    if (agent.tmux_session_name) {
-      tmux.attachSession(agent.tmux_session_name, 'gobby')
+    if (!agent.tmux_session_name) return
+    // Verify the tmux session still exists before navigating
+    const sessionExists = tmux.sessions.some(s => s.name === agent.tmux_session_name)
+    if (!sessionExists) {
+      // Agent's session is gone — refresh agent list to clear stale entries
+      refreshAgents()
+      return
     }
-  }, [tmux])
+    setActiveTab('terminals')
+    tmux.attachSession(agent.tmux_session_name, 'gobby')
+  }, [tmux, refreshAgents])
 
   /* "Ask Gobby about this session" from Sessions page */
   const handleAskGobby = useCallback((context: string) => {

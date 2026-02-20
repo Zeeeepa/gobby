@@ -236,6 +236,17 @@ export function useTmuxSessions(): TmuxSessionsResult {
     }
   }, [connect])
 
+  // Refresh session list when browser tab becomes visible (catches missed events)
+  useEffect(() => {
+    const handleVisibility = () => {
+      if (document.visibilityState === 'visible') {
+        refreshSessions()
+      }
+    }
+    document.addEventListener('visibilitychange', handleVisibility)
+    return () => document.removeEventListener('visibilitychange', handleVisibility)
+  }, [refreshSessions])
+
   return {
     sessions,
     attachedSession,
