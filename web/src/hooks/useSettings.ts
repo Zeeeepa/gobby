@@ -5,21 +5,20 @@ export type Theme = 'dark' | 'light' | 'system'
 
 export interface Settings {
   fontSize: number // Base font size in pixels (12-24)
-  model: string | null // Selected LLM model
-  provider: string | null // Selected LLM provider
+  model: string // Selected LLM model short name
   chatMode: ChatMode // Active chat mode
   theme: Theme // UI theme
 }
 
-export interface ModelInfo {
-  models: string[]
-  default_model: string | null
-}
+export const MODEL_OPTIONS = [
+  { value: 'opus', label: 'Claude Opus' },
+  { value: 'sonnet', label: 'Claude Sonnet' },
+  { value: 'haiku', label: 'Claude Haiku' },
+] as const
 
 const DEFAULT_SETTINGS: Settings = {
   fontSize: 16,
-  model: null,
-  provider: null,
+  model: 'opus',
   chatMode: 'bypass',
   theme: 'dark',
 }
@@ -38,44 +37,6 @@ export function useSettings() {
     }
     return DEFAULT_SETTINGS
   })
-  const [modelInfo, setModelInfo] = useState<ModelInfo | null>(null)
-  const [modelsLoading, setModelsLoading] = useState(true)
-
-  // Fetch available Claude models on mount
-  useEffect(() => {
-    const fetchModels = async () => {
-      try {
-        const baseUrl = ''
-
-        const response = await fetch(`${baseUrl}/admin/models?provider=claude`)
-        if (response.ok) {
-          const data = await response.json()
-          // Flatten: { models: { claude: [...] }, default_model } -> { models: [...], default_model }
-          const claudeModels: string[] = data.models?.claude || []
-          setModelInfo({ models: claudeModels, default_model: data.default_model })
-
-          // Set defaults if not already set
-          setSettings(prev => {
-            if (!prev.model && data.default_model) {
-              return {
-                ...prev,
-                model: data.default_model,
-                provider: 'claude',
-              }
-            }
-            return prev
-          })
-        }
-      } catch (e) {
-        console.error('Failed to fetch models:', e)
-      } finally {
-        setModelsLoading(false)
-      }
-    }
-
-    fetchModels()
-  }, [])
-
   // Apply font size to document
   useEffect(() => {
     document.documentElement.style.setProperty(
@@ -115,7 +76,7 @@ export function useSettings() {
   }, [])
 
   const updateModel = useCallback((model: string) => {
-    setSettings((prev) => ({ ...prev, model, provider: 'claude' }))
+    setSettings((prev) => ({ ...prev, model }))
   }, [])
 
   const updateChatMode = useCallback((chatMode: ChatMode) => {
@@ -127,17 +88,11 @@ export function useSettings() {
   }, [])
 
   const resetSettings = useCallback(() => {
-    setSettings({
-      ...DEFAULT_SETTINGS,
-      model: modelInfo?.default_model || null,
-      provider: 'claude',
-    })
-  }, [modelInfo])
+    setSettings(DEFAULT_SETTINGS)
+  }, [])
 
   return {
     settings,
-    modelInfo,
-    modelsLoading,
     updateFontSize,
     updateModel,
     updateChatMode,

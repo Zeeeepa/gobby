@@ -95,14 +95,14 @@ export function TerminalsPage({
   // Track attached session's socket for kill
   const attachedSocketRef = useRef<string>('default')
 
-  // Compute display name and PID for the attached session
+  // Compute display name for the attached session
   const attachedDisplayName = useMemo(() => {
     if (!attachedSession) return null
     const key = `${attachedSocketRef.current}:${attachedSession}`
     const customName = terminalNames[key]
     if (customName) return customName
     const s = sessions.find(s => s.name === attachedSession && s.socket === attachedSocketRef.current)
-    return s?.pane_title || s?.window_name || null
+    return s?.session_title || null
   }, [attachedSession, terminalNames, sessions])
 
   const attachedPid = useMemo(() => {
@@ -299,7 +299,7 @@ function SessionGroup({ label, sessions, attachedSession, streamingId, terminalN
       {sessions.map((session) => {
         const isAttached = attachedSession === session.name && streamingId !== null
         const nameKey = `${session.socket}:${session.name}`
-        const displayName = terminalNames[nameKey] || session.pane_title || session.window_name || `Terminal ${session.name}`
+        const displayName = terminalNames[nameKey] || session.session_title || session.name
         const isEditing = editingKey === nameKey
 
         return (

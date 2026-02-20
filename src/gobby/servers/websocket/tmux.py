@@ -100,6 +100,19 @@ class TmuxMixin:
         sessions: list[dict[str, Any]] = []
         registry = get_running_agent_registry()
 
+        # Build pid -> session_title map from active Gobby sessions
+        pid_to_title: dict[int, str] = {}
+        session_mgr = getattr(self, "session_manager", None)
+        if session_mgr:
+            try:
+                for gs in session_mgr.list(status="active"):
+                    if gs.title and gs.terminal_context:
+                        ppid = gs.terminal_context.get("parent_pid")
+                        if ppid:
+                            pid_to_title[int(ppid)] = gs.title
+            except Exception:
+                pass  # Non-critical — fall back to other names
+
         for socket_name, mgr in [
             ("default", self._tmux_mgr_default),
             ("gobby", self._tmux_mgr_gobby),
@@ -127,6 +140,9 @@ class TmuxMixin:
                             attached_bridge = sid
                             break
 
+                    # Look up synthesized session title via pane PID
+                    session_title = pid_to_title.get(s.pane_pid) if s.pane_pid else None
+
                     sessions.append(
                         {
                             "name": s.name,
@@ -134,6 +150,7 @@ class TmuxMixin:
                             "pane_pid": s.pane_pid,
                             "pane_title": s.pane_title,
                             "window_name": s.window_name,
+                            "session_title": session_title,
                             "agent_managed": agent_managed,
                             "agent_run_id": agent_run_id,
                             "attached_bridge": attached_bridge,

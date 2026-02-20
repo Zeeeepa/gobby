@@ -26,7 +26,8 @@ export function MobileTerminalDrawer({
     ? sessions.find(s => s.name === attachedSession && streamingId !== null)
     : null
   const activeTitle = attachedEntry
-    ? (terminalNames[`${attachedEntry.socket}:${attachedEntry.name}`] || attachedEntry.pane_title || `Terminal ${attachedEntry.name}`)
+    ? (terminalNames[`${attachedEntry.socket}:${attachedEntry.name}`]
+      || attachedEntry.session_title || attachedEntry.name)
     : 'Terminals'
 
   const defaultSessions = sessions.filter(s => s.socket === 'default')
@@ -122,7 +123,7 @@ function DrawerGroup({
       {sessions.map((session) => {
         const isAttached = attachedSession === session.name && streamingId !== null
         const nameKey = `${session.socket}:${session.name}`
-        const displayName = terminalNames[nameKey] || session.pane_title || session.window_name || `Terminal ${session.name}`
+        const displayName = terminalNames[nameKey] || session.session_title || session.name
 
         return (
           <div
