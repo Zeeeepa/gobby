@@ -139,6 +139,9 @@
 [data-theme="light"] .session-dot.agent {
   background: #7c3aed;
 }
+[data-theme="light"] .session-dot.dead {
+  background: #a3a3a3;
+}
 
 /* Session source dots */
 [data-theme="light"] .session-source-dot.web-chat {
@@ -155,6 +158,10 @@
 [data-theme="light"] .agent-badge {
   background: rgba(139, 92, 246, 0.12);
   color: #7c3aed;
+}
+[data-theme="light"] .dead-badge {
+  background: rgba(0, 0, 0, 0.06);
+  color: #737373;
 }
 
 /* Delete/kill buttons */
@@ -1893,6 +1900,28 @@ body {
   min-width: 40px;
 }
 
+.conversation-picker.unpinned {
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  z-index: 20;
+  box-shadow: 2px 0 12px rgba(0, 0, 0, 0.25);
+}
+
+.conversation-picker.unpinned.collapsed {
+  box-shadow: none;
+}
+
+.pin-btn {
+  opacity: 0.6;
+  transition: opacity 0.15s;
+}
+
+.pin-btn:hover {
+  opacity: 1;
+}
+
 .conversation-picker-header {
   display: flex;
   align-items: center;
@@ -3120,6 +3149,10 @@ body {
   background: #c084fc;
 }
 
+.session-dot.dead {
+  background: #737373;
+}
+
 .session-name {
   font-size: calc(var(--font-size-base) * 0.85);
   font-family: inherit;
@@ -3156,6 +3189,11 @@ body {
 .agent-badge {
   background: #2e1065;
   color: #c084fc;
+}
+
+.dead-badge {
+  background: #292524;
+  color: #737373;
 }
 
 
