@@ -17,6 +17,7 @@ interface SessionDetailProps {
   onLoadMore: () => void
   onAskGobby?: (context: string) => void
   onContinueInChat?: (session: GobbySession) => void
+  onRenameSession?: (id: string, title: string) => void
   onGenerateSummary: () => void
   isGeneratingSummary: boolean
   allSessions: GobbySession[]
@@ -44,12 +45,20 @@ export function SessionDetail({
   onLoadMore,
   onAskGobby,
   onContinueInChat,
+  onRenameSession,
   onGenerateSummary,
   isGeneratingSummary,
   allSessions,
   onSelectSession,
 }: SessionDetailProps) {
   const title = session.title || `Session #${session.ref}`
+  const [isEditingTitle, setIsEditingTitle] = useState(false)
+  const [editValue, setEditValue] = useState('')
+  const saveOnBlurRef = useRef(true)
+
+  useEffect(() => {
+    setIsEditingTitle(false)
+  }, [session.id])
 
   return (
     <div className="session-detail">
@@ -57,7 +66,43 @@ export function SessionDetail({
       <div className="session-detail-header">
         <div className="session-detail-header-left">
           <SourceIcon source={session.source} size={18} />
-          <h2 className="session-detail-title">{title}</h2>
+          {isEditingTitle ? (
+            <input
+              className="session-detail-title-input"
+              value={editValue}
+              onChange={e => setEditValue(e.target.value)}
+              onBlur={() => {
+                if (saveOnBlurRef.current && onRenameSession) {
+                  onRenameSession(session.id, editValue)
+                }
+                saveOnBlurRef.current = true
+                setIsEditingTitle(false)
+              }}
+              onKeyDown={e => {
+                if (e.key === 'Enter') {
+                  saveOnBlurRef.current = false
+                  if (onRenameSession) onRenameSession(session.id, editValue)
+                  setIsEditingTitle(false)
+                } else if (e.key === 'Escape') {
+                  saveOnBlurRef.current = false
+                  setIsEditingTitle(false)
+                }
+              }}
+              aria-label="Rename session"
+              autoFocus
+            />
+          ) : (
+            <h2
+              className="session-detail-title"
+              onDoubleClick={() => {
+                if (!onRenameSession) return
+                setIsEditingTitle(true)
+                setEditValue(title)
+              }}
+            >
+              {title}
+            </h2>
+          )}
         </div>
         <div className="session-detail-header-right">
           <span className={`session-detail-status session-detail-status-${session.status}`}>

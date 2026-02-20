@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useRef } from 'react'
 import type { GobbySession, SessionFilters, ProjectInfo } from '../hooks/useSessions'
 import { KNOWN_SOURCES } from '../hooks/useSessions'
 import { useSessionDetail } from '../hooks/useSessionDetail'
@@ -16,6 +16,7 @@ interface SessionsPageProps {
   onRefresh: () => void
   onAskGobby?: (context: string) => void
   onContinueInChat?: (session: GobbySession) => void
+  onRenameSession?: (id: string, title: string) => void
 }
 
 function sourceLabel(source: string): string {
@@ -37,9 +38,13 @@ export function SessionsPage({
   onRefresh,
   onAskGobby,
   onContinueInChat,
+  onRenameSession,
 }: SessionsPageProps) {
   const [sidebarOpen, setSidebarOpen] = useState(true)
   const [selectedSessionId, setSelectedSessionId] = useState<string | null>(null)
+  const [editingId, setEditingId] = useState<string | null>(null)
+  const [editValue, setEditValue] = useState('')
+  const saveOnBlurRef = useRef(true)
 
   const detail = useSessionDetail(selectedSessionId)
 
@@ -163,17 +168,55 @@ export function SessionsPage({
                   {group.sessions.map((session) => {
                     const title = session.title || `Untitled #${session.ref}`
                     const isSelected = session.id === selectedSessionId
+                    const isEditing = editingId === session.id
                     return (
                       <div
                         key={session.id}
                         className={`session-item ${isSelected ? 'attached' : ''}`}
-                        onClick={() => setSelectedSessionId(session.id)}
+                        onClick={() => { if (!isEditing) setSelectedSessionId(session.id) }}
                       >
                         <div className="session-item-main">
                           <SourceIcon source={session.source} size={14} />
-                          <span className="session-name" title={title}>
-                            {title}
-                          </span>
+                          {isEditing ? (
+                            <input
+                              className="session-name-input"
+                              value={editValue}
+                              onChange={e => setEditValue(e.target.value)}
+                              onBlur={() => {
+                                if (saveOnBlurRef.current && onRenameSession) {
+                                  onRenameSession(session.id, editValue)
+                                }
+                                saveOnBlurRef.current = true
+                                setEditingId(null)
+                              }}
+                              onKeyDown={e => {
+                                if (e.key === 'Enter') {
+                                  saveOnBlurRef.current = false
+                                  if (onRenameSession) onRenameSession(session.id, editValue)
+                                  setEditingId(null)
+                                } else if (e.key === 'Escape') {
+                                  saveOnBlurRef.current = false
+                                  setEditingId(null)
+                                }
+                              }}
+                              onClick={e => e.stopPropagation()}
+                              aria-label="Rename session"
+                              autoFocus
+                            />
+                          ) : (
+                            <span
+                              className="session-name"
+                              title={title}
+                              onDoubleClick={e => {
+                                if (!onRenameSession) return
+                                e.stopPropagation()
+                                setEditingId(session.id)
+                                setEditValue(title)
+                              }}
+                            >
+                              {title}
+                            </span>
+                          )}
                         </div>
                         <div className="session-item-actions">
                           {session.model && (
@@ -215,6 +258,7 @@ export function SessionsPage({
             onLoadMore={detail.loadMore}
             onAskGobby={onAskGobby}
             onContinueInChat={onContinueInChat}
+            onRenameSession={onRenameSession}
             onGenerateSummary={detail.generateSummary}
             isGeneratingSummary={detail.isGeneratingSummary}
             allSessions={sessions}

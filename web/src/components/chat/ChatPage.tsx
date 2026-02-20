@@ -43,6 +43,7 @@ export function ChatPage({ chat, conversations, project, voice }: ChatPageProps)
         onSelectSession={conversations.onSelectSession}
         onDeleteSession={conversations.onDeleteSession}
         onContinueSession={conversations.onContinueSession}
+        onRenameSession={conversations.onRenameSession}
         agents={conversations.agents}
         onNavigateToAgent={conversations.onNavigateToAgent}
       />

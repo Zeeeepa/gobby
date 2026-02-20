@@ -347,6 +347,7 @@ export default function App() {
             onSelectSession: handleSelectConversation,
             onDeleteSession: handleDeleteConversation,
             onContinueSession: handleContinueInChat,
+            onRenameSession: sessionsHook.renameSession,
             agents,
             onNavigateToAgent: handleNavigateToAgent,
           }}
@@ -377,6 +378,7 @@ export default function App() {
           onRefresh={sessionsHook.refresh}
           onAskGobby={handleAskGobby}
           onContinueInChat={handleContinueInChat}
+          onRenameSession={sessionsHook.renameSession}
         />
       ) : activeTab === 'terminals' ? (
         <TerminalsPage

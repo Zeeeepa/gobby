@@ -20,6 +20,7 @@ interface ConversationPickerProps {
   onSelectSession: (session: GobbySession) => void
   onDeleteSession?: (session: GobbySession) => void
   onContinueSession?: (session: GobbySession) => void
+  onRenameSession?: (id: string, title: string) => void
   agents?: AgentInfo[]
   onNavigateToAgent?: (agent: AgentInfo) => void
 }
@@ -39,12 +40,16 @@ export function ConversationPicker({
   onSelectSession,
   onDeleteSession,
   onContinueSession,
+  onRenameSession,
   agents = [],
   onNavigateToAgent,
 }: ConversationPickerProps) {
   const [search, setSearch] = useState('')
   const [isOpen, setIsOpen] = useState(true)
   const pickerRef = useRef<HTMLDivElement>(null)
+  const [editingId, setEditingId] = useState<string | null>(null)
+  const [editValue, setEditValue] = useState('')
+  const saveOnBlurRef = useRef(true)
 
   useEffect(() => {
     if (!isOpen) return
@@ -115,16 +120,53 @@ export function ConversationPicker({
                 <div
                   key={session.id}
                   className={`session-item ${isActive ? 'attached' : ''}`}
-                  onClick={() => onSelectSession(session)}
+                  onClick={() => { if (editingId !== session.id) onSelectSession(session) }}
                   role="button"
                   tabIndex={0}
-                  onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onSelectSession(session) } }}
+                  onKeyDown={e => { if (editingId !== session.id && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); onSelectSession(session) } }}
                 >
                   <div className="session-item-main">
                     <span className="session-source-dot web-chat" />
-                    <span className="session-name" title={title}>
-                      {title}
-                    </span>
+                    {editingId === session.id ? (
+                      <input
+                        className="session-name-input"
+                        value={editValue}
+                        onChange={e => setEditValue(e.target.value)}
+                        onBlur={() => {
+                          if (saveOnBlurRef.current && onRenameSession) {
+                            onRenameSession(session.id, editValue)
+                          }
+                          saveOnBlurRef.current = true
+                          setEditingId(null)
+                        }}
+                        onKeyDown={e => {
+                          if (e.key === 'Enter') {
+                            saveOnBlurRef.current = false
+                            if (onRenameSession) onRenameSession(session.id, editValue)
+                            setEditingId(null)
+                          } else if (e.key === 'Escape') {
+                            saveOnBlurRef.current = false
+                            setEditingId(null)
+                          }
+                        }}
+                        onClick={e => e.stopPropagation()}
+                        aria-label="Rename chat"
+                        autoFocus
+                      />
+                    ) : (
+                      <span
+                        className="session-name"
+                        title={title}
+                        onDoubleClick={e => {
+                          if (!onRenameSession) return
+                          e.stopPropagation()
+                          setEditingId(session.id)
+                          setEditValue(title)
+                        }}
+                      >
+                        {title}
+                      </span>
+                    )}
                   </div>
                   <div className="session-item-actions">
                     <span className="session-pid">

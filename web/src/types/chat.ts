@@ -76,6 +76,7 @@ export interface ConversationState {
   onSelectSession: (session: GobbySession) => void
   onDeleteSession?: (session: GobbySession) => void
   onContinueSession?: (session: GobbySession) => void
+  onRenameSession?: (id: string, title: string) => void
   agents: Array<{ run_id: string; provider: string; pid?: number; mode?: string; started_at?: string; tmux_session_name?: string }>
   onNavigateToAgent: (agent: { run_id: string; tmux_session_name?: string }) => void
 }

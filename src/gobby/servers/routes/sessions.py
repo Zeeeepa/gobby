@@ -645,6 +645,47 @@ def create_sessions_router(server: "HTTPServer") -> APIRouter:
             logger.error(f"Synthesize title error: {e}", exc_info=True)
             raise HTTPException(status_code=500, detail=str(e)) from e
 
+    @router.post("/{session_id}/rename")
+    async def rename_session(session_id: str, request: Request) -> dict[str, Any]:
+        """
+        Rename a session by setting a new title.
+
+        Args:
+            session_id: Session ID
+            request: Request with JSON body {"title": "..."}
+
+        Returns:
+            Updated title
+        """
+        metrics.inc_counter("http_requests_total")
+
+        try:
+            if server.session_manager is None:
+                raise HTTPException(status_code=503, detail="Session manager not available")
+
+            body = await request.json()
+            title = (body.get("title") or "").strip()
+            if not title:
+                raise HTTPException(status_code=400, detail="Title must not be empty")
+
+            session = server.session_manager.get(session_id)
+            if session is None:
+                raise HTTPException(status_code=404, detail="Session not found")
+
+            result = server.session_manager.update_title(session_id, title)
+            if result is None:
+                raise HTTPException(status_code=404, detail="Session not found")
+
+            return {"status": "success", "title": title}
+
+        except HTTPException:
+            metrics.inc_counter("http_requests_errors_total")
+            raise
+        except Exception as e:
+            metrics.inc_counter("http_requests_errors_total")
+            logger.error(f"Rename session error: {e}", exc_info=True)
+            raise HTTPException(status_code=500, detail=str(e)) from e
+
     @router.post("/{session_id}/generate-summary")
     async def generate_session_summary(session_id: str) -> dict[str, Any]:
         """

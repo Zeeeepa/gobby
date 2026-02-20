@@ -2013,6 +2013,20 @@ body {
   white-space: nowrap;
 }
 
+.session-detail-title-input {
+  font-size: calc(var(--font-size-base) * 1.25);
+  font-weight: 600;
+  font-family: inherit;
+  color: var(--text-primary);
+  background: var(--bg-primary);
+  border: 1px solid var(--accent);
+  border-radius: 3px;
+  padding: 0 4px;
+  outline: none;
+  width: 100%;
+  min-width: 0;
+}
+
 .session-detail-header-right {
   display: flex;
   align-items: center;
