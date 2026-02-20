@@ -355,7 +355,7 @@ def agent_status(run_ref: str) -> None:
     if run.status == "running" and run.started_at:
         click.echo(f"   Running since: {run.started_at}")
         click.echo(f"   Turns used: {run.turns_used}")
-    elif run.status in ("success", "error", "timeout", "cancelled"):
+    elif run.status not in ("pending", "running"):
         if run.completed_at:
             click.echo(f"   Completed: {run.completed_at}")
         if run.error:

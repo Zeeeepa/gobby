@@ -457,6 +457,11 @@ class GobbyRunner:
         # Ensure message_processor property is set (redundant but explicit):
         self.http_server.message_processor = self.message_processor
 
+        # Wire tool_proxy_getter onto the startup-created pipeline executor.
+        # The executor was created before http_server existed, so we do it now.
+        if self.pipeline_executor is not None:
+            self.pipeline_executor.tool_proxy_getter = lambda: self.http_server.tool_proxy
+
         # WebSocket Server (Optional)
         self.websocket_server: WebSocketServer | None = None
         if self.config.websocket and getattr(self.config.websocket, "enabled", True):
