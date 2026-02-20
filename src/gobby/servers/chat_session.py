@@ -469,6 +469,19 @@ class ChatSession:
         until the user provides answers via provide_answer()) and tools
         matched by tool_approval policies (which block until approved).
         """
+        # Fire session-lifecycle evaluation for tool blocking.
+        # In the SDK path, the PreToolUse hook's permissionDecision="deny" is not
+        # respected because can_use_tool already granted permission. By checking
+        # here, we block tools at the SDK permission gate itself.
+        if self._on_pre_tool:
+            resp = await self._on_pre_tool(
+                {"tool_name": tool_name, "tool_input": input_data}
+            )
+            if resp and resp.get("decision") == "block":
+                return PermissionResultDeny(
+                    reason=resp.get("reason", "Blocked by session lifecycle")
+                )
+
         # Check tool approval (before AskUserQuestion, which has its own flow)
         if tool_name != "AskUserQuestion":
             if self._needs_tool_approval(tool_name):
