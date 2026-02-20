@@ -1003,7 +1003,9 @@ def _migrate_secret_names_to_natural(db: LocalDatabase) -> None:
             ]  # e.g. "elevenlabs_api_key"
 
             # Check if a secret with the natural name already exists (use conn to stay in transaction)
-            existing = conn.execute("SELECT id FROM secrets WHERE name = ?", (natural_name,)).fetchone()
+            existing = conn.execute(
+                "SELECT id FROM secrets WHERE name = ?", (natural_name,)
+            ).fetchone()
 
             if existing:
                 # Natural name already exists — delete the cfg__ duplicate

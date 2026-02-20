@@ -95,5 +95,3 @@ def create_prompt_file(prompt: str, session_id: str) -> str:
 
     logger.debug(f"Created secure prompt file: {prompt_path}")
     return str(prompt_path)
-
-
