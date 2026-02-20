@@ -781,13 +781,21 @@ class ChatSession:
                         # (AssistantMessage does NOT carry usage in the SDK)
                         _raw_usage = getattr(message, "usage", None)
                         usage: dict[str, Any] = _raw_usage if isinstance(_raw_usage, dict) else {}
-                        total_input_tokens = usage.get("input_tokens", 0) or 0
-                        total_output_tokens = usage.get("output_tokens", 0) or 0
-                        total_cache_read = usage.get("cache_read_input_tokens", 0) or 0
-                        total_cache_creation = usage.get("cache_creation_input_tokens", 0) or 0
-                        # Derive context window from model info via litellm
+                        uncached_input = usage.get("input_tokens", 0) or 0
+                        output_tokens = usage.get("output_tokens", 0) or 0
+                        cache_read = usage.get("cache_read_input_tokens", 0) or 0
+                        cache_creation = usage.get("cache_creation_input_tokens", 0) or 0
+                        # With prompt caching, input_tokens is often only 3-23 tokens.
+                        # The real context consumed = uncached + cache_read + cache_creation.
+                        total_input = uncached_input + cache_read + cache_creation
+
+                        # Prefer modelUsage.contextWindow stashed by sdk_compat
+                        # (authoritative from the CLI) over litellm lookup.
                         context_window: int | None = None
-                        if last_model:
+                        _model_usage = getattr(message, "_model_usage", None)
+                        if isinstance(_model_usage, dict):
+                            context_window = _model_usage.get("contextWindow")
+                        if context_window is None and last_model:
                             try:
                                 from gobby.conductor.pricing import litellm as _llm
 
@@ -795,15 +803,29 @@ class ChatSession:
                                     model_info = _llm.get_model_info(model=last_model)
                                     context_window = model_info.get("max_input_tokens")
                             except (ImportError, KeyError, AttributeError, TypeError) as e:
-                                logger.debug("Could not derive context window for %s: %s", last_model, e)
+                                logger.debug(
+                                    "Could not derive context window for %s: %s", last_model, e
+                                )
+
+                        logger.info(
+                            "DoneEvent: uncached=%d cache_read=%d cache_creation=%d "
+                            "total_input=%d output=%d context_window=%s",
+                            uncached_input,
+                            cache_read,
+                            cache_creation,
+                            total_input,
+                            output_tokens,
+                            context_window,
+                        )
                         yield DoneEvent(
                             tool_calls_count=tool_calls_count,
                             cost_usd=cost_usd,
                             duration_ms=duration_ms,
-                            input_tokens=total_input_tokens or None,
-                            output_tokens=total_output_tokens or None,
-                            cache_read_input_tokens=total_cache_read or None,
-                            cache_creation_input_tokens=total_cache_creation or None,
+                            input_tokens=uncached_input or None,
+                            output_tokens=output_tokens or None,
+                            cache_read_input_tokens=cache_read or None,
+                            cache_creation_input_tokens=cache_creation or None,
+                            total_input_tokens=total_input or None,
                             context_window=context_window,
                         )
 
