@@ -766,6 +766,12 @@ class ChatSession:
             tool_calls_count = 0
             needs_spacing_before_text = False
             has_text = False
+            # Accumulate usage across messages in a turn
+            total_input_tokens = 0
+            total_output_tokens = 0
+            total_cache_read = 0
+            total_cache_creation = 0
+            context_window: int | None = None
 
             try:
                 async for message in self._client.receive_response():
@@ -778,13 +784,33 @@ class ChatSession:
                             yield TextChunk(content=message.result)
                         cost_usd = getattr(message, "total_cost_usd", None)
                         duration_ms = getattr(message, "duration_ms", None)
+                        # Extract context window from modelUsage if available
+                        model_usage = getattr(message, "model_usage", None)
+                        if model_usage and isinstance(model_usage, dict):
+                            for _model_name, usage_info in model_usage.items():
+                                if isinstance(usage_info, dict):
+                                    cw = usage_info.get("contextWindow")
+                                    if cw:
+                                        context_window = cw
                         yield DoneEvent(
                             tool_calls_count=tool_calls_count,
                             cost_usd=cost_usd,
                             duration_ms=duration_ms,
+                            input_tokens=total_input_tokens or None,
+                            output_tokens=total_output_tokens or None,
+                            cache_read_input_tokens=total_cache_read or None,
+                            cache_creation_input_tokens=total_cache_creation or None,
+                            context_window=context_window,
                         )
 
                     elif isinstance(message, AssistantMessage):
+                        # Accumulate usage from each assistant message
+                        usage = getattr(message, "usage", None)
+                        if usage:
+                            total_input_tokens += getattr(usage, "input_tokens", 0) or 0
+                            total_output_tokens += getattr(usage, "output_tokens", 0) or 0
+                            total_cache_read += getattr(usage, "cache_read_input_tokens", 0) or 0
+                            total_cache_creation += getattr(usage, "cache_creation_input_tokens", 0) or 0
                         for block in message.content:
                             if isinstance(block, ThinkingBlock):
                                 yield ThinkingEvent(content=block.thinking)
