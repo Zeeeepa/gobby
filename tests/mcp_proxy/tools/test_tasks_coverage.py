@@ -691,6 +691,67 @@ class TestCreateTaskTool:
                     "test-session", "550e8400-e29b-41d4-a716-446655440021", "claimed"
                 )
 
+    @pytest.mark.asyncio
+    async def test_create_task_with_claim_sets_task_claimed_when_no_state(
+        self, mock_task_manager, mock_sync_manager
+    ):
+        """create_task(claim=True) must create workflow state and set task_claimed
+        even when no workflow_states row exists (get_state returns None).
+
+        Regression test for #8642.
+        """
+        with (
+            patch(
+                "gobby.mcp_proxy.tools.tasks._context.SessionTaskManager"
+            ) as MockSessionTaskManager,
+            patch("gobby.mcp_proxy.tools.tasks._context.LocalSessionManager") as MockSessionManager,
+            patch(
+                "gobby.mcp_proxy.tools.tasks._context.WorkflowStateManager"
+            ) as MockWSManager,
+        ):
+            mock_st_instance = MagicMock()
+            MockSessionTaskManager.return_value = mock_st_instance
+
+            mock_session_manager = MagicMock()
+            mock_session_manager.resolve_session_reference.return_value = "test-session"
+            MockSessionManager.return_value = mock_session_manager
+
+            # Workflow state manager returns None (no row exists)
+            mock_ws_manager = MagicMock()
+            mock_ws_manager.get_state.return_value = None
+            MockWSManager.return_value = mock_ws_manager
+
+            registry = create_task_registry(mock_task_manager, mock_sync_manager)
+
+            mock_task = MagicMock()
+            mock_task.id = "550e8400-e29b-41d4-a716-446655440021"
+            mock_task.seq_num = 101
+            mock_task.status = "in_progress"
+            mock_task.assignee = "test-session"
+            mock_task_manager.create_task_with_decomposition.return_value = {
+                "task": {"id": "550e8400-e29b-41d4-a716-446655440021"},
+            }
+            mock_task_manager.get_task.return_value = mock_task
+            mock_task_manager.update_task.return_value = mock_task
+
+            with patch("gobby.mcp_proxy.tools.tasks._crud.get_project_context") as mock_ctx:
+                mock_ctx.return_value = {"id": "proj-1"}
+
+                result = await registry.call(
+                    "create_task",
+                    {"title": "New Task", "session_id": "test-session", "claim": True},
+                )
+
+                assert result["id"] == "550e8400-e29b-41d4-a716-446655440021"
+
+                # save_state must have been called with a new WorkflowState
+                mock_ws_manager.save_state.assert_called_once()
+                saved_state = mock_ws_manager.save_state.call_args[0][0]
+                assert saved_state.variables["task_claimed"] is True
+                assert saved_state.variables["claimed_task_id"] == mock_task.id
+                assert saved_state.session_id == "test-session"
+                assert saved_state.workflow_name == "__lifecycle__"
+
 
 # =============================================================================
 # get_task Tool Tests
