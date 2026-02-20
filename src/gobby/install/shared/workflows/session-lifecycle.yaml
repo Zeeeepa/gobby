@@ -325,7 +325,7 @@ triggers:
         # Block file edits without active task (replaces require_active_task)
         # Allow plan file writes during plan mode (/.claude/plans/ path check)
         - tools: [Edit, Write, NotebookEdit]
-          when: "variables.get('require_task_before_edit') and not task_claimed and not plan_mode and not is_plan_file(tool_input.get('file_path', ''), source)"
+          when: "variables.get('require_task_before_edit') and not task_claimed and not (plan_mode and is_plan_file(tool_input.get('file_path', ''), source))"
           reason: |
             You must create or claim a task before editing files. This is required. DO NOT stop or ask the user - just create/claim a task and then retry your edit.
             - create_task(title, description, session_id, claim=True) - Create and auto-claim new task.
