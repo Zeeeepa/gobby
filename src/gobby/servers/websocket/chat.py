@@ -522,7 +522,10 @@ class ChatMixin:
                     # Feed TTS if voice mode is active
                     _voice_hook = getattr(self, "_voice_tts_hook", None)
                     if _voice_hook:
-                        await _voice_hook(websocket, conversation_id, request_id, event.content)
+                        try:
+                            await _voice_hook(websocket, conversation_id, request_id, event.content)
+                        except Exception:
+                            logger.debug("TTS hook error (non-fatal)", exc_info=True)
                 elif isinstance(event, ToolCallEvent):
                     # Flush accumulated text as a separate message before tool calls.
                     # This prevents text segments from merging across tool boundaries
@@ -566,7 +569,10 @@ class ChatMixin:
                     # Flush TTS if voice mode is active
                     _voice_flush = getattr(self, "_voice_tts_flush", None)
                     if _voice_flush:
-                        await _voice_flush(websocket, conversation_id, request_id)
+                        try:
+                            await _voice_flush(websocket, conversation_id, request_id)
+                        except Exception:
+                            logger.debug("TTS flush error (non-fatal)", exc_info=True)
 
                     done_msg = _base_msg(
                         type="chat_stream",

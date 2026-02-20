@@ -91,7 +91,11 @@ class VoiceMixin:
     async def _get_or_connect_tts(self, conversation_id: str, websocket: Any) -> Any:
         """Get or create and connect a per-conversation ElevenLabsTTS instance."""
         if conversation_id in self._tts_sessions:
-            return self._tts_sessions[conversation_id]
+            tts = self._tts_sessions[conversation_id]
+            if tts._connected:
+                return tts
+            # Previous connection failed — remove stale entry and retry
+            self._tts_sessions.pop(conversation_id, None)
 
         voice_config = self._get_voice_config()
         if not voice_config or not voice_config.enabled or not voice_config.elevenlabs_api_key:
@@ -101,8 +105,7 @@ class VoiceMixin:
 
         tts = ElevenLabsTTS(voice_config)
 
-        # Store references before connecting so the callback can use them
-        self._tts_sessions[conversation_id] = tts
+        # Store websocket ref before connecting so the callback can use it
         self._tts_websockets[conversation_id] = websocket
         audio_format = self._get_audio_format()
 
@@ -130,7 +133,29 @@ class VoiceMixin:
             except Exception:
                 logger.exception("Error sending TTS audio to client")
 
-        await tts.connect(on_audio)
+        try:
+            await tts.connect(on_audio)
+        except Exception as e:
+            logger.error(f"TTS connection failed for {conversation_id[:8]}: {e}")
+            self._tts_websockets.pop(conversation_id, None)
+            # Notify client that TTS is unavailable
+            try:
+                await websocket.send(
+                    json.dumps(
+                        {
+                            "type": "voice_status",
+                            "conversation_id": conversation_id,
+                            "status": "error",
+                            "error": f"Text-to-speech unavailable: {e}",
+                        }
+                    )
+                )
+            except (ConnectionClosed, ConnectionClosedError):
+                pass
+            return None
+
+        # Only cache after successful connection
+        self._tts_sessions[conversation_id] = tts
         return tts
 
     def _get_sentence_buffer(self, conversation_id: str) -> Any:
