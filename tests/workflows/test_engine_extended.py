@@ -17,7 +17,9 @@ pytestmark = pytest.mark.unit
 
 @pytest.fixture
 def mock_loader():
-    return MagicMock(spec=WorkflowLoader)
+    loader = MagicMock(spec=WorkflowLoader)
+    loader.discover_workflows = AsyncMock(return_value=[])
+    return loader
 
 
 @pytest.fixture
@@ -209,7 +211,7 @@ class TestWorkflowEngineExtended:
         container = MagicMock()
         container.definition = wf
 
-        mock_loader.discover_lifecycle_workflows.return_value = [container]
+        mock_loader.discover_workflows.return_value = [container]
 
         # Mock evaluator
         def eval_side_effect(condition, context):
@@ -257,7 +259,7 @@ class TestWorkflowEngineExtended:
         container.definition = wf
         container.name = "blocker"
 
-        mock_loader.discover_lifecycle_workflows.return_value = [container]
+        mock_loader.discover_workflows.return_value = [container]
 
         # Action returns block decision
         workflow_engine.action_executor.execute.return_value = {
@@ -329,7 +331,7 @@ class TestWorkflowEngineExtended:
         assert state.approval_condition_id == "cond1"
 
     async def test_no_lifecycle_workflows(self, workflow_engine, mock_loader):
-        mock_loader.discover_lifecycle_workflows.return_value = []
+        mock_loader.discover_workflows.return_value = []
         event = HookEvent(
             event_type=HookEventType.SESSION_START,
             session_id="sess1",
@@ -357,7 +359,7 @@ class TestWorkflowEngineExtended:
 
         container = MagicMock()
         container.definition = wf
-        mock_loader.discover_lifecycle_workflows.return_value = [container]
+        mock_loader.discover_workflows.return_value = [container]
 
         # Action returns system_message
         mock_action_executor.execute.return_value = {
@@ -394,7 +396,7 @@ class TestWorkflowEngineExtended:
         container.definition = wf
         container.name = "allow_wf"
 
-        mock_loader.discover_lifecycle_workflows.return_value = [container]
+        mock_loader.discover_workflows.return_value = [container]
 
         # Action returns data but no block decision
         workflow_engine.action_executor.execute.return_value = {
@@ -429,7 +431,7 @@ class TestWorkflowEngineExtended:
 
         container = MagicMock()
         container.definition = wf
-        mock_loader.discover_lifecycle_workflows.return_value = [container]
+        mock_loader.discover_workflows.return_value = [container]
 
         mock_evaluator.evaluate.return_value = False
 
@@ -460,7 +462,7 @@ class TestWorkflowEngineExtended:
 
         container = MagicMock()
         container.definition = wf
-        mock_loader.discover_lifecycle_workflows.return_value = [container]
+        mock_loader.discover_workflows.return_value = [container]
 
         mock_action_executor.execute.side_effect = Exception("Action Failed")
 
@@ -510,7 +512,7 @@ class TestWorkflowEngineExtended:
 
         container = MagicMock()
         container.definition = wf
-        mock_loader.discover_lifecycle_workflows.return_value = [container]
+        mock_loader.discover_workflows.return_value = [container]
 
         # Mock execute to return data
         mock_action_executor.execute.side_effect = [{"key1": "val1"}, {"key2": "val2"}]
@@ -573,7 +575,7 @@ class TestWorkflowEngineExtended:
         wf2.triggers = {"on_before_tool": [{"action": "act2", "param": "p2"}]}
         wf2.observers = []
 
-        # discover_lifecycle_workflows returns a container with .definition
+        # discover_workflows returns a container with .definition
         container1 = MagicMock()
         container1.definition = wf1
         container1.name = "wf1"
@@ -582,7 +584,7 @@ class TestWorkflowEngineExtended:
         container2.definition = wf2
         container2.name = "wf2"
 
-        mock_loader.discover_lifecycle_workflows.return_value = [container1, container2]
+        mock_loader.discover_workflows.return_value = [container1, container2]
 
         # Mock action execution
         mock_action_executor.execute.side_effect = [
