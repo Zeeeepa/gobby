@@ -171,7 +171,7 @@ export function ChatInput({
 
   return (
     <div className="border-t border-border bg-background px-4 py-3">
-      <div className="max-w-[900px] mx-auto">
+      <div className="max-w-3xl mx-auto">
         {/* Command palette */}
         {showPalette && (
           <div className="mb-2 rounded-lg border border-border bg-muted overflow-hidden max-h-48 overflow-y-auto">
@@ -193,6 +193,9 @@ export function ChatInput({
 
         {/* Toolbar */}
         <div className="flex items-center gap-1 mb-2">
+          {onModeChange && (
+            <ModeSelector mode={mode} onModeChange={onModeChange} disabled={disabled} />
+          )}
           <button
             className="p-1.5 rounded text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
             onClick={() => fileInputRef.current?.click()}
@@ -212,17 +215,14 @@ export function ChatInput({
               <MicIcon />
             </button>
           )}
-          {contextUsage && (
-            <div className="ml-auto">
-              <ContextUsageIndicator
-                inputTokens={contextUsage.inputTokens}
-                outputTokens={contextUsage.outputTokens}
-                contextWindow={contextUsage.contextWindow}
-              />
-            </div>
-          )}
+          <div className="flex items-center gap-2 ml-auto">
+          <ContextUsageIndicator
+            inputTokens={contextUsage?.inputTokens ?? 0}
+            outputTokens={contextUsage?.outputTokens ?? 0}
+            contextWindow={contextUsage?.contextWindow ?? null}
+          />
           {projects.length > 0 && (
-            <div className={cn("relative", !contextUsage && "ml-auto")}>
+            <div className="relative">
               <div className="flex rounded-md border border-border text-xs">
                 <button
                   className={cn('px-2 py-1 rounded-l-md transition-colors', isPersonal ? 'bg-accent text-accent-foreground' : 'text-muted-foreground hover:bg-muted')}
@@ -282,6 +282,7 @@ export function ChatInput({
               )}
             </div>
           )}
+          </div>
           <input ref={fileInputRef} type="file" multiple className="hidden" onChange={(e) => { handleFilesSelected(e.target.files); e.target.value = '' }} />
         </div>
 
@@ -359,9 +360,6 @@ export function ChatInput({
 
         {/* Input row */}
         <div className="flex items-end gap-2">
-          {onModeChange && (
-            <ModeSelector mode={mode} onModeChange={onModeChange} disabled={disabled} />
-          )}
           <textarea
             ref={textareaRef}
             className="flex-1 bg-muted rounded-lg px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground resize-none focus:outline-none focus:ring-2 focus:ring-accent min-h-[40px]"
