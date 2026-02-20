@@ -43,6 +43,8 @@ export default function App() {
     try { return localStorage.getItem('gobby-chat-project') } catch { return null }
   })
   const [quickCaptureOpen, setQuickCaptureOpen] = useState(false)
+  const [toastMessage, setToastMessage] = useState<string | null>(null)
+  const toastTimerRef = useRef<number | null>(null)
 
   // Auto-synthesize chat title when streaming completes
   const wasStreamingRef = useRef(false)
@@ -210,6 +212,12 @@ export default function App() {
     sessionsHook.removeSession(session.id)
   }, [deleteConversation, sessionsHook.removeSession])
 
+  const showToast = useCallback((msg: string, durationMs = 3000) => {
+    if (toastTimerRef.current) clearTimeout(toastTimerRef.current)
+    setToastMessage(msg)
+    toastTimerRef.current = window.setTimeout(() => setToastMessage(null), durationMs)
+  }, [])
+
   // Refresh terminal list when switching to terminals tab
   useEffect(() => {
     if (activeTab === 'terminals') {
@@ -223,13 +231,14 @@ export default function App() {
     // Verify the tmux session still exists before navigating
     const sessionExists = tmux.sessions.some(s => s.name === agent.tmux_session_name)
     if (!sessionExists) {
-      // Agent's session is gone — refresh agent list to clear stale entries
+      // Agent's session is gone — refresh agent list to clear stale entries and notify user
       refreshAgents()
+      showToast('Agent session has ended')
       return
     }
     setActiveTab('terminals')
     tmux.attachSession(agent.tmux_session_name, 'gobby')
-  }, [tmux, refreshAgents])
+  }, [tmux, refreshAgents, showToast])
 
   /* "Ask Gobby about this session" from Sessions page */
   const handleAskGobby = useCallback((context: string) => {
@@ -440,6 +449,12 @@ export default function App() {
         isOpen={quickCaptureOpen}
         onClose={() => setQuickCaptureOpen(false)}
       />
+
+      {toastMessage && (
+        <div className="app-toast" onClick={() => setToastMessage(null)}>
+          {toastMessage}
+        </div>
+      )}
     </div>
   )
 }

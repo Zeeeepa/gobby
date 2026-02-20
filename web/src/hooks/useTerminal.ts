@@ -61,7 +61,12 @@ export function useTerminal() {
               pid: a.pid,
               tmux_session_name: a.tmux_session_name,
             }))
-          setAgents(fresh)
+          // Only update state if the list actually changed (avoid flicker)
+          setAgents(prev => {
+            const prevIds = prev.map(a => a.run_id).sort().join(',')
+            const freshIds = fresh.map(a => a.run_id).sort().join(',')
+            return prevIds === freshIds ? prev : fresh
+          })
           // Clear selection if the selected agent is no longer running
           setSelectedAgent(prev => prev && fresh.some(a => a.run_id === prev) ? prev : null)
         }
@@ -179,15 +184,22 @@ export function useTerminal() {
     }
   }, [connect])
 
-  // Reconcile agent list when browser tab becomes visible (catches missed WS events)
+  // Reconcile agent list when browser tab becomes visible or network restores
+  // (catches missed WS events during backgrounding or brief disconnects)
+  // Note: WS onopen already calls refreshAgents() on reconnect — these are additional safety nets
   useEffect(() => {
     const handleVisibility = () => {
       if (document.visibilityState === 'visible') {
         refreshAgents()
       }
     }
+    const handleOnline = () => refreshAgents()
     document.addEventListener('visibilitychange', handleVisibility)
-    return () => document.removeEventListener('visibilitychange', handleVisibility)
+    window.addEventListener('online', handleOnline)
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibility)
+      window.removeEventListener('online', handleOnline)
+    }
   }, [refreshAgents])
 
   return {
