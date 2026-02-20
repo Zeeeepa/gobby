@@ -217,9 +217,12 @@ export function ChatInput({
           )}
           <div className="flex items-center gap-2 ml-auto">
           <ContextUsageIndicator
-            inputTokens={contextUsage?.inputTokens ?? 0}
+            totalInputTokens={contextUsage?.totalInputTokens ?? 0}
             outputTokens={contextUsage?.outputTokens ?? 0}
             contextWindow={contextUsage?.contextWindow ?? null}
+            uncachedInputTokens={contextUsage?.uncachedInputTokens ?? 0}
+            cacheReadTokens={contextUsage?.cacheReadTokens ?? 0}
+            cacheCreationTokens={contextUsage?.cacheCreationTokens ?? 0}
           />
           {projects.length > 0 && (
             <div className="relative">

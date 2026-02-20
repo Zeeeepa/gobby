@@ -1,11 +1,22 @@
 interface ContextUsageIndicatorProps {
-  inputTokens: number
+  totalInputTokens: number
   outputTokens: number
   contextWindow: number | null
+  // Cache breakdown for tooltip
+  uncachedInputTokens?: number
+  cacheReadTokens?: number
+  cacheCreationTokens?: number
 }
 
-export function ContextUsageIndicator({ inputTokens, outputTokens, contextWindow }: ContextUsageIndicatorProps) {
-  const totalTokens = inputTokens + outputTokens
+export function ContextUsageIndicator({
+  totalInputTokens,
+  outputTokens,
+  contextWindow,
+  uncachedInputTokens = 0,
+  cacheReadTokens = 0,
+  cacheCreationTokens = 0,
+}: ContextUsageIndicatorProps) {
+  const totalTokens = totalInputTokens + outputTokens
   const percentage = contextWindow ? Math.min((totalTokens / contextWindow) * 100, 100) : 0
   const displayPercent = Math.round(percentage)
 
@@ -21,14 +32,30 @@ export function ContextUsageIndicator({ inputTokens, outputTokens, contextWindow
 
   const formatTokens = (n: number) => {
     if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`
-    if (n >= 1_000) return `${(n / 1_000).toFixed(0)}K`
+    if (n >= 1_000) return `${(n / 1_000).toFixed(1)}K`
     return String(n)
+  }
+
+  // Build tooltip with cache breakdown
+  const tooltipLines: string[] = []
+  if (contextWindow) {
+    tooltipLines.push(`Context: ${formatTokens(totalTokens)} / ${formatTokens(contextWindow)} tokens (${displayPercent}%)`)
+    tooltipLines.push('')
+    tooltipLines.push(`Input: ${formatTokens(totalInputTokens)}`)
+    if (cacheReadTokens > 0 || cacheCreationTokens > 0 || uncachedInputTokens > 0) {
+      tooltipLines.push(`  Cache read: ${formatTokens(cacheReadTokens)}`)
+      tooltipLines.push(`  Cache write: ${formatTokens(cacheCreationTokens)}`)
+      tooltipLines.push(`  Uncached: ${formatTokens(uncachedInputTokens)}`)
+    }
+    tooltipLines.push(`Output: ${formatTokens(outputTokens)}`)
+  } else {
+    tooltipLines.push('Context usage: waiting for first response...')
   }
 
   return (
     <div
       className="flex items-center gap-1.5 text-xs text-muted-foreground"
-      title={contextWindow ? `Context: ${formatTokens(totalTokens)} / ${formatTokens(contextWindow)} tokens (${displayPercent}%)\nInput: ${formatTokens(inputTokens)} | Output: ${formatTokens(outputTokens)}` : 'Context usage: 0%'}
+      title={tooltipLines.join('\n')}
     >
       <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} className="shrink-0" style={{ transform: 'rotate(-90deg)' }}>
         <circle

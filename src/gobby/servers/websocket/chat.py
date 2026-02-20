@@ -604,20 +604,27 @@ class ChatMixin:
                     ref = _session_ref()
                     if ref:
                         done_msg["session_ref"] = ref
-                    # Include usage data if available
-                    if event.input_tokens is not None:
+                    # Include usage data if available.
+                    # total_input_tokens = uncached + cache_read + cache_creation
+                    # (the real context size; input_tokens alone is tiny with caching)
+                    if event.total_input_tokens is not None or event.input_tokens is not None:
                         done_msg["usage"] = {
                             "input_tokens": event.input_tokens,
                             "output_tokens": event.output_tokens,
                             "cache_read_input_tokens": event.cache_read_input_tokens,
                             "cache_creation_input_tokens": event.cache_creation_input_tokens,
+                            "total_input_tokens": event.total_input_tokens,
                         }
                     if event.context_window is not None:
                         done_msg["context_window"] = event.context_window
                     logger.info(
-                        "DoneEvent context_window=%s input_tokens=%s output_tokens=%s",
+                        "DoneEvent context_window=%s total_input=%s "
+                        "(uncached=%s cache_read=%s cache_creation=%s) output=%s",
                         event.context_window,
+                        event.total_input_tokens,
                         event.input_tokens,
+                        event.cache_read_input_tokens,
+                        event.cache_creation_input_tokens,
                         event.output_tokens,
                     )
 

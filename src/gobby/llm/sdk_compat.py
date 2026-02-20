@@ -1,8 +1,11 @@
 """Compatibility patches for claude-agent-sdk.
 
-Monkey-patches parse_message to skip unknown message types (e.g.
-rate_limit_event) instead of raising MessageParseError, which would
-kill the entire streaming generator.
+Monkey-patches parse_message to:
+1. Skip unknown message types (e.g. rate_limit_event) instead of raising
+   MessageParseError, which would kill the entire streaming generator.
+2. Stash ``modelUsage`` from the CLI's result JSON on ``ResultMessage``.
+   The SDK drops this field, but it carries the authoritative
+   ``contextWindow`` for the model (more reliable than litellm lookups).
 
 Import this module before using the SDK streaming APIs.
 """
@@ -15,6 +18,7 @@ from typing import Any
 import claude_agent_sdk
 import claude_agent_sdk._internal.client as _internal_client
 import claude_agent_sdk._internal.message_parser as _message_parser
+from claude_agent_sdk import ResultMessage
 from claude_agent_sdk._errors import MessageParseError
 
 # Warn if SDK version changes — private API monkey-patch may break
@@ -32,13 +36,26 @@ _original_parse_message = _message_parser.parse_message
 
 
 def _tolerant_parse_message(data: dict[str, Any]) -> object | None:
-    """parse_message wrapper that returns None for unknown message types."""
+    """parse_message wrapper that returns None for unknown message types.
+
+    Also stashes ``modelUsage`` from the raw JSON onto ``ResultMessage``
+    instances so callers can access ``contextWindow`` without litellm.
+    """
     try:
-        return _original_parse_message(data)
+        parsed = _original_parse_message(data)
     except MessageParseError:
         msg_type = data.get("type", "?") if isinstance(data, dict) else "?"
         logger.warning("Skipping unrecognized SDK message type: %s", msg_type)
         return None
+
+    # Stash modelUsage on ResultMessage — SDK drops it during parsing
+    if isinstance(parsed, ResultMessage) and isinstance(data, dict):
+        model_usage = data.get("modelUsage")
+        if model_usage and isinstance(model_usage, dict):
+            parsed._model_usage = model_usage  # type: ignore[attr-defined]
+            logger.debug("Stashed modelUsage on ResultMessage: %s", model_usage)
+
+    return parsed  # type: ignore[no-any-return]
 
 
 # Patch both import sites so the tolerant version is used everywhere.

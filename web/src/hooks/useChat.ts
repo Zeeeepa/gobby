@@ -67,6 +67,7 @@ interface ChatStreamChunk {
     output_tokens: number
     cache_read_input_tokens?: number
     cache_creation_input_tokens?: number
+    total_input_tokens?: number
   }
   context_window?: number
 }
@@ -182,12 +183,17 @@ export function useChat() {
   // Session ref tracking (e.g. "#158")
   const [sessionRef, setSessionRef] = useState<string | null>(null)
 
-  // Context usage tracking
+  // Context usage tracking — accumulated across turns.
+  // totalInputTokens = uncached + cacheRead + cacheCreation (the real context size).
   const [contextUsage, setContextUsage] = useState<{
-    inputTokens: number
+    totalInputTokens: number
     outputTokens: number
     contextWindow: number | null
-  }>({ inputTokens: 0, outputTokens: 0, contextWindow: null })
+    // Per-category breakdown for tooltip
+    uncachedInputTokens: number
+    cacheReadTokens: number
+    cacheCreationTokens: number
+  }>({ totalInputTokens: 0, outputTokens: 0, contextWindow: null, uncachedInputTokens: 0, cacheReadTokens: 0, cacheCreationTokens: 0 })
   const wsRef = useRef<WebSocket | null>(null)
   const reconnectTimeoutRef = useRef<number | null>(null)
 
@@ -353,13 +359,21 @@ export function useChat() {
         setSessionRef(chunk.session_ref)
       }
       // Update context usage from usage data in done message.
-      // input_tokens already represents the full context for this turn
-      // (all prior messages + system prompt), so replace rather than accumulate.
+      // The SDK reports per-query() usage (one query per user message).
+      // Use total_input_tokens (uncached + cache_read + cache_creation) — the
+      // real context size. Plain input_tokens is often only 3-23 with caching.
       if (chunk.usage) {
+        const u = chunk.usage
+        // Prefer total_input_tokens from backend; fall back to sum of parts
+        const turnTotal = u.total_input_tokens
+          ?? ((u.input_tokens ?? 0) + (u.cache_read_input_tokens ?? 0) + (u.cache_creation_input_tokens ?? 0))
         setContextUsage((prev) => ({
-          inputTokens: chunk.usage?.input_tokens ?? 0,
-          outputTokens: chunk.usage?.output_tokens ?? 0,
+          totalInputTokens: prev.totalInputTokens + turnTotal,
+          outputTokens: prev.outputTokens + (u.output_tokens ?? 0),
           contextWindow: chunk.context_window ?? prev.contextWindow,
+          uncachedInputTokens: prev.uncachedInputTokens + (u.input_tokens ?? 0),
+          cacheReadTokens: prev.cacheReadTokens + (u.cache_read_input_tokens ?? 0),
+          cacheCreationTokens: prev.cacheCreationTokens + (u.cache_creation_input_tokens ?? 0),
         }))
       } else if (chunk.context_window) {
         setContextUsage((prev) => ({ ...prev, contextWindow: chunk.context_window ?? prev.contextWindow }))
@@ -614,7 +628,7 @@ export function useChat() {
     saveConversationId(newId)
     setMessages([])
     setSessionRef(null)
-    setContextUsage({ inputTokens: 0, outputTokens: 0, contextWindow: null })
+    setContextUsage({ totalInputTokens: 0, outputTokens: 0, contextWindow: null, uncachedInputTokens: 0, cacheReadTokens: 0, cacheCreationTokens: 0 })
 
     activeRequestIdRef.current = null
     setIsStreaming(false)
@@ -709,7 +723,7 @@ export function useChat() {
     }
     // Reset frontend state
     setMessages([])
-    setContextUsage({ inputTokens: 0, outputTokens: 0, contextWindow: null })
+    setContextUsage({ totalInputTokens: 0, outputTokens: 0, contextWindow: null, uncachedInputTokens: 0, cacheReadTokens: 0, cacheCreationTokens: 0 })
     localStorage.removeItem(chatStorageKey(oldConversationId))
     activeRequestIdRef.current = null
     // Start a fresh conversation

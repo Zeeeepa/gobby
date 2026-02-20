@@ -47,9 +47,13 @@ export interface ProjectOption {
 }
 
 export interface ContextUsage {
-  inputTokens: number
+  totalInputTokens: number
   outputTokens: number
   contextWindow: number | null
+  // Cache breakdown for tooltip
+  uncachedInputTokens: number
+  cacheReadTokens: number
+  cacheCreationTokens: number
 }
 
 export interface ChatState {

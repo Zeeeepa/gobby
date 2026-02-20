@@ -94,7 +94,7 @@ class DoneEvent:
     """Duration in milliseconds if available."""
 
     input_tokens: int | None = None
-    """Input tokens used in this turn."""
+    """Non-cached input tokens (often very small with prompt caching)."""
 
     output_tokens: int | None = None
     """Output tokens generated in this turn."""
@@ -104,6 +104,14 @@ class DoneEvent:
 
     cache_creation_input_tokens: int | None = None
     """Tokens written to cache."""
+
+    total_input_tokens: int | None = None
+    """Sum of input_tokens + cache_read + cache_creation.
+
+    This is the real context size consumed this turn. With Claude Code's
+    aggressive prompt caching, ``input_tokens`` alone is often only 3-23
+    tokens — the bulk lives in cache_read/cache_creation.
+    """
 
     context_window: int | None = None
     """Max context window size for the model."""
