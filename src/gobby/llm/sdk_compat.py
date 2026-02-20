@@ -34,7 +34,7 @@ _original_parse_message = _message_parser.parse_message
 def _tolerant_parse_message(data: dict[str, Any]) -> object | None:
     """parse_message wrapper that returns None for unknown message types."""
     try:
-        return _original_parse_message(data)  # type: ignore[no-any-return]
+        return _original_parse_message(data)
     except MessageParseError:
         msg_type = data.get("type", "?") if isinstance(data, dict) else "?"
         logger.warning("Skipping unrecognized SDK message type: %s", msg_type)
@@ -44,7 +44,7 @@ def _tolerant_parse_message(data: dict[str, Any]) -> object | None:
 # Patch both import sites so the tolerant version is used everywhere.
 # Guard with hasattr in case SDK internals change.
 if hasattr(_internal_client, "parse_message"):
-    _internal_client.parse_message = _tolerant_parse_message  # type: ignore[attr-defined,assignment]
+    _internal_client.parse_message = _tolerant_parse_message
 else:
     logger.warning("SDK internal structure changed: _internal.client.parse_message not found")
 

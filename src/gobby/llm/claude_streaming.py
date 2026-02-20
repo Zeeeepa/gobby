@@ -109,7 +109,8 @@ async def stream_with_mcp_tools(
                 duration_ms = getattr(message, "duration_ms", None)
                 # Extract token usage from ResultMessage.usage dict
                 # (AssistantMessage does NOT carry usage in the SDK)
-                usage = message.usage if isinstance(getattr(message, "usage", None), dict) else {}
+                _raw_usage = getattr(message, "usage", None)
+                usage: dict[str, Any] = _raw_usage if isinstance(_raw_usage, dict) else {}
                 total_input_tokens = usage.get("input_tokens", 0) or 0
                 total_output_tokens = usage.get("output_tokens", 0) or 0
                 total_cache_read = usage.get("cache_read_input_tokens", 0) or 0
@@ -119,6 +120,7 @@ async def stream_with_mcp_tools(
                 if last_model:
                     try:
                         from gobby.conductor.pricing import litellm as _llm
+
                         if _llm:
                             model_info = _llm.get_model_info(model=last_model)
                             context_window = model_info.get("max_input_tokens")

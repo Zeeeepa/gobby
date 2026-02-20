@@ -308,7 +308,7 @@ class GobbyRunner:
                 if project_path:
                     self.git_manager = _WGM(str(project_path))
                     logger.debug(
-                        f"Daemon project context: id={self.project_id}, " f"path={project_path}"
+                        f"Daemon project context: id={self.project_id}, path={project_path}"
                     )
         except Exception as e:
             logger.debug(f"Could not detect project context from cwd: {e}")
@@ -445,7 +445,7 @@ class GobbyRunner:
             tool_proxy_getter=lambda: self.http_server.tool_proxy,
         )
 
-        self.http_server = HTTPServer(
+        self.http_server: HTTPServer = HTTPServer(
             services=services,
             port=self.config.daemon_port,
             test_mode=self.config.test_mode,

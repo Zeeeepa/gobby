@@ -727,7 +727,7 @@ class TestDiscoverLifecycleWorkflows:
         loader: WorkflowLoader,
         def_manager: LocalWorkflowDefinitionManager,
     ) -> None:
-        """Test that discover_lifecycle_workflows (deprecated alias) returns all types."""
+        """Test that discover_workflows returns all types (lifecycle + step)."""
         for name, wf_type in [("lifecycle_wf", "lifecycle"), ("step_wf", "step")]:
             data = {"name": name, "version": "1.0.0", "type": wf_type}
             def_manager.create(
@@ -736,9 +736,7 @@ class TestDiscoverLifecycleWorkflows:
                 workflow_type="workflow",
             )
 
-        with warnings.catch_warnings():
-            warnings.simplefilter("ignore", DeprecationWarning)
-            discovered = await loader.discover_lifecycle_workflows()
+        discovered = await loader.discover_workflows()
 
         assert len(discovered) == 2
         names = [w.name for w in discovered]
@@ -1120,12 +1118,12 @@ class TestDiscoverWorkflows:
         assert discovered[0].definition.sources == ["claude"]
 
     @pytest.mark.asyncio
-    async def test_discover_lifecycle_is_deprecated_alias(
+    async def test_discover_workflows_caching_consistency(
         self,
         loader: WorkflowLoader,
         def_manager: LocalWorkflowDefinitionManager,
     ) -> None:
-        """Test that discover_lifecycle_workflows() returns same results as discover_workflows()."""
+        """Test that discover_workflows() returns consistent results across calls."""
         for name, priority in [("test", 10), ("root-wf", 20)]:
             data = {"name": name, "version": "1.0"}
             def_manager.create(
@@ -1135,15 +1133,13 @@ class TestDiscoverWorkflows:
                 priority=priority,
             )
 
-        unified = await loader.discover_workflows()
-        # Clear discovery cache so the deprecated alias runs fresh
+        first = await loader.discover_workflows()
+        # Clear discovery cache so second call runs fresh
         loader._discovery_cache.clear()
 
-        with warnings.catch_warnings():
-            warnings.simplefilter("ignore", DeprecationWarning)
-            deprecated = await loader.discover_lifecycle_workflows()
+        second = await loader.discover_workflows()
 
-        assert [w.name for w in unified] == [w.name for w in deprecated]
+        assert [w.name for w in first] == [w.name for w in second]
 
     @pytest.mark.asyncio
     async def test_discover_project_shadows_global(

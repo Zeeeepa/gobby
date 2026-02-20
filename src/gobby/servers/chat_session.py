@@ -332,7 +332,7 @@ class ChatSession:
             mcp_servers=mcp_config if mcp_config is not None else {},
             cwd=cwd,
             hooks=cast(Any, sdk_hooks) if sdk_hooks else None,
-            env=env or None,
+            env=env,
         )
 
         self._client = ClaudeSDKClient(options=options)
@@ -475,12 +475,10 @@ class ChatSession:
         # respected because can_use_tool already granted permission. By checking
         # here, we block tools at the SDK permission gate itself.
         if self._on_pre_tool:
-            resp = await self._on_pre_tool(
-                {"tool_name": tool_name, "tool_input": input_data}
-            )
+            resp = await self._on_pre_tool({"tool_name": tool_name, "tool_input": input_data})
             if resp and resp.get("decision") == "block":
                 return PermissionResultDeny(
-                    reason=resp.get("reason", "Blocked by session lifecycle")
+                    message=resp.get("reason", "Blocked by session lifecycle")
                 )
 
         # Check tool approval (before AskUserQuestion, which has its own flow)
@@ -781,7 +779,8 @@ class ChatSession:
                         duration_ms = getattr(message, "duration_ms", None)
                         # Extract token usage from ResultMessage.usage dict
                         # (AssistantMessage does NOT carry usage in the SDK)
-                        usage = message.usage if isinstance(getattr(message, "usage", None), dict) else {}
+                        _raw_usage = getattr(message, "usage", None)
+                        usage: dict[str, Any] = _raw_usage if isinstance(_raw_usage, dict) else {}
                         total_input_tokens = usage.get("input_tokens", 0) or 0
                         total_output_tokens = usage.get("output_tokens", 0) or 0
                         total_cache_read = usage.get("cache_read_input_tokens", 0) or 0
@@ -791,6 +790,7 @@ class ChatSession:
                         if last_model:
                             try:
                                 from gobby.conductor.pricing import litellm as _llm
+
                                 if _llm:
                                     model_info = _llm.get_model_info(model=last_model)
                                     context_window = model_info.get("max_input_tokens")

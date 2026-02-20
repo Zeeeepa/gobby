@@ -134,7 +134,10 @@ export function useVoice(
       .catch((err) => { console.error('Voice status check failed:', err); setVoiceAvailable(false) })
   }, [])
 
-  // Track speaking state from playback queue and pause/resume VAD to prevent echo
+  // Track speaking state from playback queue and pause/resume VAD to prevent echo.
+  // Uses a debounced resume so VAD doesn't restart between streaming chunks or while
+  // speaker audio is still reverberating.
+  const resumeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   useEffect(() => {
     if (!voiceMode) return
     const queue = playbackQueueRef.current
@@ -143,17 +146,36 @@ export function useVoice(
     queue.onPlayingChange = (playing) => {
       setIsSpeaking(playing)
 
-      // Pause VAD while TTS is playing to prevent feedback loop
       if (playing && !wasPlaying && vadRef.current) {
+        // Cancel any pending resume — more audio arrived
+        if (resumeTimerRef.current) {
+          clearTimeout(resumeTimerRef.current)
+          resumeTimerRef.current = null
+        }
         vadRef.current.pause()
         setIsListening(false)
-      } else if (!playing && wasPlaying && vadRef.current) {
-        vadRef.current.start()
-        setIsListening(true)
+      } else if (!playing && wasPlaying) {
+        // Debounce resume: wait for silence before restarting VAD.
+        // This covers the gap between streaming chunks AND lets speaker
+        // audio dissipate after TTS finishes.
+        if (resumeTimerRef.current) clearTimeout(resumeTimerRef.current)
+        resumeTimerRef.current = setTimeout(() => {
+          resumeTimerRef.current = null
+          if (vadRef.current && !queue.isPlaying) {
+            vadRef.current.start()
+            setIsListening(true)
+          }
+        }, 600)
       }
       wasPlaying = playing
     }
-    return () => { queue.onPlayingChange = null }
+    return () => {
+      queue.onPlayingChange = null
+      if (resumeTimerRef.current) {
+        clearTimeout(resumeTimerRef.current)
+        resumeTimerRef.current = null
+      }
+    }
   }, [voiceMode])
 
   const toggleVoiceMode = useCallback(async () => {
@@ -183,9 +205,14 @@ export function useVoice(
 
           onSpeechStart: () => {
             setIsSpeechDetected(true)
-            // Interrupt TTS if playing
+            // Interrupt TTS if playing (barge-in)
             playbackQueueRef.current.stop()
             setIsSpeaking(false)
+            // Cancel any pending VAD resume — we're already listening
+            if (resumeTimerRef.current) {
+              clearTimeout(resumeTimerRef.current)
+              resumeTimerRef.current = null
+            }
           },
 
           onSpeechEnd: (audio: Float32Array) => {
@@ -228,6 +255,10 @@ export function useVoice(
       }
     } else {
       // Disable: destroy VAD and cleanup
+      if (resumeTimerRef.current) {
+        clearTimeout(resumeTimerRef.current)
+        resumeTimerRef.current = null
+      }
       if (vadRef.current) {
         vadRef.current.destroy()
         vadRef.current = null
