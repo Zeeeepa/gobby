@@ -162,8 +162,8 @@ class TestVectorStoreInitialization:
 
     @pytest.mark.asyncio
     async def test_default_qdrant_path(self) -> None:
-        """Default qdrant_path should resolve to ~/.gobby/qdrant/."""
+        """Default qdrant_path should resolve to ~/.gobby/services/qdrant/."""
         from pathlib import Path
 
-        default_path = str(Path.home() / ".gobby" / "qdrant")
+        default_path = str(Path.home() / ".gobby" / "services" / "qdrant")
         assert "qdrant" in default_path

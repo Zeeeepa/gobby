@@ -47,7 +47,7 @@ class MemoryConfig(BaseModel):
         description=(
             "Directory path for embedded Qdrant storage (on-disk, zero Docker). "
             "Mutually exclusive with qdrant_url. "
-            "Default set by runner to ~/.gobby/qdrant/"
+            "Default set by runner to ~/.gobby/services/qdrant/"
         ),
     )
     qdrant_url: str | None = Field(
