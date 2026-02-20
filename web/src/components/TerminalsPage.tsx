@@ -114,7 +114,6 @@ export function TerminalsPage({
   const handleAttach = useCallback((name: string, socket: string) => {
     attachSession(name, socket)
     attachedSocketRef.current = socket
-    setSidebarOpen(false)
   }, [attachSession])
 
   const handleKill = useCallback((sessionName: string, socket: string) => {
