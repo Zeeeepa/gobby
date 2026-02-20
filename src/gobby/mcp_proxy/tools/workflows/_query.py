@@ -263,6 +263,27 @@ def get_workflow_status(
             for inst in instances
         ]
 
+        # Also check workflow_states for lifecycle workflows.
+        # Lifecycle workflows (always-on, enabled: true) persist state in
+        # workflow_states but NOT in workflow_instances. Without this check,
+        # get_workflow_status would report has_workflow=false even when a
+        # lifecycle workflow is actively enforcing rules via hooks.
+        lifecycle_state = state_manager.get_state(resolved_session_id)
+        if lifecycle_state:
+            # Only add if not already represented in workflow_instances
+            instance_names = {w["workflow_name"] for w in workflows}
+            if lifecycle_state.workflow_name not in instance_names:
+                workflows.append(
+                    {
+                        "workflow_name": lifecycle_state.workflow_name,
+                        "enabled": True,
+                        "priority": 0,  # lifecycle workflows run first
+                        "current_step": lifecycle_state.step,
+                        "variables": lifecycle_state.variables,
+                        "source": "lifecycle",
+                    }
+                )
+
         return {
             "success": True,
             "has_workflow": len(workflows) > 0,

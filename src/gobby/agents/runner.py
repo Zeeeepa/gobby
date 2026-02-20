@@ -610,6 +610,10 @@ class AgentRunner:
         """Cancel a running agent. Delegates to runner_queries."""
         return _queries.cancel_run(self, run_id)
 
+    def complete_run(self, run_id: str, result: str | None = None) -> bool:
+        """Complete a running agent (self-termination). Delegates to runner_queries."""
+        return _queries.complete_run(self, run_id, result=result)
+
     # -------------------------------------------------------------------------
     # In-memory Running Agents Management (delegated to RunTracker)
     # -------------------------------------------------------------------------

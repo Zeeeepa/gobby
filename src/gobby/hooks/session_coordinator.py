@@ -368,6 +368,27 @@ class SessionCoordinator:
                         f"Failed to get last assistant message for {session.id}: {e}"
                     )
 
+            # Fallback: check inter_session_messages for send_to_parent data
+            if not result:
+                try:
+                    db = self._agent_run_manager.db
+                    msg_row = db.fetchone(
+                        """
+                        SELECT content FROM inter_session_messages
+                        WHERE from_session = ?
+                        ORDER BY created_at DESC
+                        LIMIT 1
+                        """,
+                        (session.id,),
+                    )
+                    if msg_row:
+                        result = msg_row["content"]
+                        self.logger.info(f"Got result from inter_session_messages for {session.id}")
+                except Exception as e:
+                    self.logger.debug(
+                        f"inter_session_messages fallback failed for {session.id}: {e}"
+                    )
+
             # Fallback: capture terminal output from tmux session.
             # remain-on-exit is set on agent sessions so the pane persists
             # after the process exits, keeping the scrollback buffer available.

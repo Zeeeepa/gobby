@@ -4,6 +4,7 @@ export interface TmuxSession {
   name: string
   socket: string
   pane_pid: number | null
+  pane_dead: boolean
   pane_title: string | null
   window_name: string | null
   session_title: string | null

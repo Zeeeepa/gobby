@@ -76,3 +76,45 @@ def cancel_run(runner: AgentRunner, run_id: str) -> bool:
     runner._tracker.untrack(run_id)
 
     return True
+
+
+def complete_run(runner: AgentRunner, run_id: str, result: str | None = None) -> bool:
+    """
+    Complete a running agent (mark as success).
+
+    Used for clean self-termination, as opposed to cancel_run which is
+    for forced cancellation by a parent.
+
+    If no result is provided, checks for an existing result that may have
+    been set earlier (e.g. via send_to_parent writing to agent_runs.result).
+
+    Args:
+        runner: The AgentRunner instance.
+        run_id: The agent run ID.
+        result: Optional result text. If None, preserves any existing result.
+
+    Returns:
+        True if the run was completed, False otherwise.
+    """
+    run = runner._run_storage.get(run_id)
+    if not run:
+        return False
+    if run.status not in ("pending", "running"):
+        return False
+
+    # Use provided result, or preserve existing result from send_to_parent
+    final_result = result if result is not None else (run.result or "")
+
+    runner._run_storage.complete(
+        run_id=run_id,
+        result=final_result,
+        tool_calls_count=run.tool_calls_count,
+        turns_used=run.turns_used,
+    )
+
+    runner.logger.info(f"Completed agent run {run_id} (self-termination)")
+
+    # Remove from in-memory tracking
+    runner._tracker.untrack(run_id)
+
+    return True

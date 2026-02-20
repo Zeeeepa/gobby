@@ -726,6 +726,18 @@ class GobbyRunner:
         for sig in (signal.SIGTERM, signal.SIGINT):
             loop.add_signal_handler(sig, handle_shutdown)
 
+    def _cleanup_pid_file(self) -> None:
+        """Remove PID file if it points to our process."""
+        try:
+            pid_file = Path(os.environ.get("GOBBY_HOME", Path.home() / ".gobby")) / "gobby.pid"
+            if pid_file.exists():
+                stored_pid = int(pid_file.read_text().strip())
+                if stored_pid == os.getpid():
+                    pid_file.unlink(missing_ok=True)
+                    logger.debug("Cleaned up PID file")
+        except Exception as e:
+            logger.debug(f"PID file cleanup failed (non-fatal): {e}")
+
     async def run(self) -> None:
         try:
             self._setup_signal_handlers()
@@ -940,10 +952,14 @@ class GobbyRunner:
             except TimeoutError:
                 logger.warning("MCP disconnect timed out")
 
+            # Clean up PID file on graceful shutdown
+            self._cleanup_pid_file()
+
             logger.info("Shutdown complete")
 
         except Exception as e:
             logger.error(f"Fatal error: {e}", exc_info=True)
+            self._cleanup_pid_file()
             sys.exit(1)
 
 

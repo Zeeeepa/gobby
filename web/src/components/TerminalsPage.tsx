@@ -309,7 +309,7 @@ function SessionGroup({ label, sessions, attachedSession, streamingId, terminalN
             onClick={() => !isEditing && onAttach(session.name, session.socket)}
           >
             <div className="session-item-main">
-              <span className={`session-dot ${session.socket === 'gobby' ? 'agent' : 'user'}`} />
+              <span className={`session-dot ${session.pane_dead ? 'dead' : session.socket === 'gobby' ? 'agent' : 'user'}`} />
               {isEditing ? (
                 <input
                   className="session-name-input"
@@ -359,6 +359,9 @@ function SessionGroup({ label, sessions, attachedSession, streamingId, terminalN
               )}
               {session.agent_managed && (
                 <span className="session-badge agent-badge">agent</span>
+              )}
+              {session.pane_dead && (
+                <span className="session-badge dead-badge">exited</span>
               )}
             </div>
             <div className="session-item-actions">
