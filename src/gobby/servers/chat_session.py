@@ -260,6 +260,7 @@ class ChatSession:
     _tool_approval_config: Any | None = field(default=None, repr=False)
     _tool_approval_callback: Any | None = field(default=None, repr=False)
     _needs_history_injection: bool = field(default=False, repr=False)
+    _last_model: str | None = field(default=None, repr=False)
     _message_manager: Any | None = field(default=None, repr=False)
     _message_manager_source_session_id: str | None = field(default=None, repr=False)
     _max_history_message_chars: int = field(default=2000, repr=False)
@@ -764,8 +765,6 @@ class ChatSession:
             tool_calls_count = 0
             needs_spacing_before_text = False
             has_text = False
-            last_model: str | None = None
-
             try:
                 async for message in self._client.receive_response():
                     if message is None:
@@ -795,16 +794,16 @@ class ChatSession:
                         _model_usage = getattr(message, "_model_usage", None)
                         if isinstance(_model_usage, dict):
                             context_window = _model_usage.get("contextWindow")
-                        if context_window is None and last_model:
+                        if context_window is None and self._last_model:
                             try:
                                 from gobby.conductor.pricing import litellm as _llm
 
                                 if _llm:
-                                    model_info = _llm.get_model_info(model=last_model)
+                                    model_info = _llm.get_model_info(model=self._last_model)
                                     context_window = model_info.get("max_input_tokens")
                             except (ImportError, KeyError, AttributeError, TypeError) as e:
                                 logger.debug(
-                                    "Could not derive context window for %s: %s", last_model, e
+                                    "Could not derive context window for %s: %s", self._last_model, e
                                 )
 
                         logger.info(
@@ -830,8 +829,8 @@ class ChatSession:
                         )
 
                     elif isinstance(message, AssistantMessage):
-                        last_model = getattr(message, "model", None)
-                        logger.debug("AssistantMessage model=%s", last_model)
+                        self._last_model = getattr(message, "model", None)
+                        logger.debug("AssistantMessage model=%s", self._last_model)
                         for block in message.content:
                             if isinstance(block, ThinkingBlock):
                                 yield ThinkingEvent(content=block.thinking)
