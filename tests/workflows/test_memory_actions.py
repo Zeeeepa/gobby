@@ -963,7 +963,7 @@ class TestMemoryReviewGate:
 
     @pytest.mark.asyncio
     async def test_blocks_when_pending_review(self):
-        """Test gate blocks when pending_memory_review is true."""
+        """Test gate blocks when pending_memory_review is true and clears the flag."""
         mock_mm = MagicMock()
         mock_mm.config.enabled = True
 
@@ -978,7 +978,9 @@ class TestMemoryReviewGate:
 
         assert result is not None
         assert result["decision"] == "block"
-        assert "pending_memory_review" in result["reason"]
+        assert "create_memory" in result["reason"]
+        # Gate should self-clear to prevent infinite loops
+        assert state.variables["pending_memory_review"] is False
 
     @pytest.mark.asyncio
     async def test_allows_when_no_pending_review(self):
@@ -1040,28 +1042,30 @@ class TestMemoryReviewGate:
         assert result is None
 
     @pytest.mark.asyncio
-    async def test_resolves_session_ref(self):
-        """Test gate resolves session #N ref for the nudge message."""
+    async def test_self_clearing_allows_second_stop(self):
+        """Test gate fires once then allows the next stop attempt."""
         mock_mm = MagicMock()
         mock_mm.config.enabled = True
-
-        mock_sm = MagicMock()
-        mock_session = MagicMock()
-        mock_session.seq_num = 42
-        mock_sm.get.return_value = mock_session
 
         state = WorkflowState(session_id="test-session", workflow_name="test", step="test")
         state.variables = {"pending_memory_review": True}
 
+        # First call: blocks and clears the flag
         result = await memory_review_gate(
             memory_manager=mock_mm,
             session_id="test-session",
-            session_manager=mock_sm,
             state=state,
         )
-
         assert result is not None
-        assert "#42" in result["reason"]
+        assert result["decision"] == "block"
+
+        # Second call: flag cleared, allows stop
+        result = await memory_review_gate(
+            memory_manager=mock_mm,
+            session_id="test-session",
+            state=state,
+        )
+        assert result is None
 
 
 # =============================================================================
