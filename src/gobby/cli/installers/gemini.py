@@ -16,10 +16,9 @@ from gobby.cli.utils import get_install_dir
 
 from .mcp_config import configure_mcp_server_json, remove_mcp_server_json
 from .shared import (
-    _install_file,
-    _is_dev_mode,
     install_cli_content,
     install_shared_content,
+    install_shared_hooks,
 )
 from .skill_install import install_router_skills_as_gemini_skills
 
@@ -57,23 +56,14 @@ def install_gemini(project_path: Path) -> dict[str, Any]:
     # Get source files
     install_dir = get_install_dir()
     gemini_install_dir = install_dir / "gemini"
-    install_hooks_dir = gemini_install_dir / "hooks"
     source_hooks_template = gemini_install_dir / "hooks-template.json"
-
-    # Verify source files exist
-    dispatcher_file = install_hooks_dir / "hook_dispatcher.py"
-    if not dispatcher_file.exists():
-        result["error"] = f"Missing hook dispatcher: {dispatcher_file}"
-        return result
 
     if not source_hooks_template.exists():
         result["error"] = f"Missing hooks template: {source_hooks_template}"
         return result
 
-    # Install hook dispatcher (symlink in dev mode, copy otherwise)
-    dev_mode = _is_dev_mode(project_path)
-    target_dispatcher = hooks_dir / "hook_dispatcher.py"
-    _install_file(dispatcher_file, target_dispatcher, dev_mode=dev_mode, executable=True)
+    # Install shared hook files (hook_dispatcher.py, validate_settings.py)
+    install_shared_hooks(hooks_dir, project_path)
 
     # Install shared content (workflows)
     shared = install_shared_content(gemini_path, project_path)

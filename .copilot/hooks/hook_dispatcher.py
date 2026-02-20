@@ -1,1 +1,1 @@
-../../src/gobby/install/copilot/hooks/hook_dispatcher.py
+../../src/gobby/install/shared/hooks/hook_dispatcher.py

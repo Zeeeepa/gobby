@@ -83,6 +83,44 @@ def _install_file(source: Path, target: Path, dev_mode: bool, executable: bool =
             target.chmod(0o755)
 
 
+def install_shared_hooks(hooks_dir: Path, project_path: Path) -> list[str]:
+    """Install shared hook files (hook_dispatcher.py, validate_settings.py).
+
+    Both files are installed from src/install/shared/hooks/ to the
+    CLI-specific hooks directory (e.g., .claude/hooks/, .gemini/hooks/).
+
+    In dev mode, creates symlinks; otherwise copies files.
+
+    Args:
+        hooks_dir: Target CLI hooks directory (e.g., project_path/.claude/hooks/)
+        project_path: Path to project root (for dev mode detection)
+
+    Returns:
+        List of installed filenames
+    """
+    shared_hooks_dir = get_install_dir() / "shared" / "hooks"
+    dev_mode = _is_dev_mode(project_path)
+    installed: list[str] = []
+
+    hook_files = {
+        "hook_dispatcher.py": True,  # Make executable
+        "validate_settings.py": True,  # Make executable
+    }
+
+    hooks_dir.mkdir(parents=True, exist_ok=True)
+
+    for filename, make_executable in hook_files.items():
+        source_file = shared_hooks_dir / filename
+        if not source_file.exists():
+            logger.warning(f"Shared hook file not found: {source_file}")
+            continue
+        target_file = hooks_dir / filename
+        _install_file(source_file, target_file, dev_mode=dev_mode, executable=make_executable)
+        installed.append(filename)
+
+    return installed
+
+
 def install_shared_content(cli_path: Path, project_path: Path) -> dict[str, list[str]]:
     """Install shared content from src/install/shared/.
 

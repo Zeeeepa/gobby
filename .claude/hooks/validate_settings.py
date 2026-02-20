@@ -1,1 +1,1 @@
-../../src/gobby/install/claude/hooks/validate_settings.py
+../../src/gobby/install/shared/hooks/validate_settings.py

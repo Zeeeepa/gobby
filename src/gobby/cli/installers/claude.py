@@ -18,10 +18,9 @@ from gobby.cli.utils import get_install_dir
 
 from .mcp_config import configure_mcp_server_json, remove_mcp_server_json
 from .shared import (
-    _install_file,
-    _is_dev_mode,
     install_cli_content,
     install_shared_content,
+    install_shared_hooks,
 )
 from .skill_install import backup_gobby_skills, install_router_skills_as_commands
 
@@ -65,37 +64,16 @@ def install_claude(project_path: Path) -> dict[str, Any]:
     # Get source files
     install_dir = get_install_dir()
     claude_install_dir = install_dir / "claude"
-    install_hooks_dir = claude_install_dir / "hooks"
-
-    # Hook files to copy
-    hook_files = {
-        "hook_dispatcher.py": True,  # Make executable
-        "validate_settings.py": True,  # Make executable
-    }
 
     source_hooks_template = claude_install_dir / "hooks-template.json"
 
-    # Verify all source files exist
-    missing_files = []
-    for filename in hook_files.keys():
-        source_file = install_hooks_dir / filename
-        if not source_file.exists():
-            missing_files.append(str(source_file))
-
     if not source_hooks_template.exists():
-        missing_files.append(str(source_hooks_template))
-
-    if missing_files:
-        result["error"] = f"Missing source files: {missing_files}"
+        result["error"] = f"Missing source files: [{source_hooks_template}]"
         return result
 
-    # Install hook files (symlink in dev mode, copy otherwise)
+    # Install shared hook files (hook_dispatcher.py, validate_settings.py)
     try:
-        dev_mode = _is_dev_mode(project_path)
-        for filename, make_executable in hook_files.items():
-            source_file = install_hooks_dir / filename
-            target_file = hooks_dir / filename
-            _install_file(source_file, target_file, dev_mode=dev_mode, executable=make_executable)
+        install_shared_hooks(hooks_dir, project_path)
     except OSError as e:
         logger.error(f"Failed to install hook files: {e}")
         result["error"] = f"Failed to install hook files: {e}"
