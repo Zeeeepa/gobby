@@ -58,7 +58,7 @@ logger = logging.getLogger(__name__)
 
 # Claude Code / Agent SDK hard-truncates additionalContext at 10K chars.
 # We cap slightly below to avoid the ugly "… [output truncated]" suffix.
-_ADDITIONAL_CONTEXT_LIMIT = 9_500
+_ADDITIONAL_CONTEXT_LIMIT = 9_950
 
 
 class PendingApproval(TypedDict):
