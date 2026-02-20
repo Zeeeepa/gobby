@@ -33,8 +33,10 @@ workflows:
         on_enter:
           - action: inject_message
             content: |
-              RESEARCH TASK: Execute the task described below. When finished,
-              use send_to_parent to report your findings, then shut down.
+              RESEARCH TASK:
+              {{ variables.prompt | default('Execute the task assigned to you.') }}
+
+              When finished, use send_to_parent to report your findings, then shut down.
 
         allowed_tools:
           - WebSearch
@@ -76,7 +78,7 @@ workflows:
           - action: inject_message
             content: |
               Research complete and parent notified. Call kill_agent to terminate.
-              mcp__gobby__call_tool(server_name="gobby-agents", tool_name="kill_agent", arguments={"session_id": "{{ session_id }}"})
+              mcp__gobby__call_tool(server_name="gobby-agents", tool_name="kill_agent", arguments={"session_id": "{{ session.id }}"})
 
         allowed_tools:
           - mcp__gobby__call_tool

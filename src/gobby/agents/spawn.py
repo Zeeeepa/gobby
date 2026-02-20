@@ -28,7 +28,6 @@ from gobby.agents.spawners import (
     build_codex_command_with_resume,
     build_gemini_command_with_resume,
     create_prompt_file,
-    read_prompt_from_env,
 )
 from gobby.agents.spawners.base import EmbeddedPTYResult, HeadlessResult
 from gobby.agents.spawners.embedded import EmbeddedSpawner
@@ -60,7 +59,6 @@ __all__ = [
     "prepare_terminal_spawn",
     "prepare_gemini_spawn_with_preflight",
     "prepare_codex_spawn_with_preflight",
-    "read_prompt_from_env",
     "build_cli_command",
     "build_gemini_command_with_resume",
     "build_codex_command_with_resume",

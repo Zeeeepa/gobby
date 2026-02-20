@@ -521,12 +521,14 @@ async def spawn_agent_impl(
     session_id = str(uuid.uuid4())
     run_id = f"run-{uuid.uuid4().hex[:12]}"
 
-    # 10. Build step_variables for workflow activation (e.g., assigned_task_id)
-    step_variables: dict[str, Any] | None = None
+    # 10. Build step_variables for workflow activation (e.g., assigned_task_id, prompt)
+    step_variables: dict[str, Any] = {}
     if resolved_task_id:
-        step_variables = {
-            "assigned_task_id": f"#{task_seq_num}" if task_seq_num else resolved_task_id
-        }
+        step_variables["assigned_task_id"] = (
+            f"#{task_seq_num}" if task_seq_num else resolved_task_id
+        )
+    if enhanced_prompt:
+        step_variables["prompt"] = enhanced_prompt
 
     # 11. Execute spawn via SpawnExecutor
     spawn_request = SpawnRequest(
