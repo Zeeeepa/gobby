@@ -45,33 +45,10 @@ export function ConversationPicker({
   onNavigateToAgent,
 }: ConversationPickerProps) {
   const [search, setSearch] = useState('')
-  const [isPinned, setIsPinned] = useState(() => {
-    const saved = localStorage.getItem('sidebar-pinned')
-    return saved !== null ? saved === 'true' : true
-  })
-  const [isOpen, setIsOpen] = useState(isPinned)
-  const pickerRef = useRef<HTMLDivElement>(null)
+  const [isOpen, setIsOpen] = useState(true)
   const [editingId, setEditingId] = useState<string | null>(null)
   const [editValue, setEditValue] = useState('')
   const saveOnBlurRef = useRef(true)
-
-  const togglePin = () => {
-    const next = !isPinned
-    setIsPinned(next)
-    localStorage.setItem('sidebar-pinned', String(next))
-    if (next) setIsOpen(true)
-  }
-
-  useEffect(() => {
-    if (!isOpen || isPinned) return
-    const handleClickOutside = (e: MouseEvent) => {
-      if (pickerRef.current && !pickerRef.current.contains(e.target as Node)) {
-        setIsOpen(false)
-      }
-    }
-    document.addEventListener('mousedown', handleClickOutside)
-    return () => document.removeEventListener('mousedown', handleClickOutside)
-  }, [isOpen, isPinned])
 
   const filtered = search
     ? sessions.filter(
@@ -82,29 +59,19 @@ export function ConversationPicker({
     : sessions
 
   return (
-    <div ref={pickerRef} className={`conversation-picker ${isOpen ? '' : 'collapsed'} ${!isPinned ? 'unpinned' : ''}`}>
+    <div className={`conversation-picker ${isOpen ? '' : 'collapsed'}`}>
       <div className="conversation-picker-header">
         {isOpen && <span className="conversation-picker-title">Chats</span>}
         <div className="conversation-picker-actions">
           {isOpen && (
-            <>
-              <button
-                type="button"
-                className="terminals-action-btn"
-                onClick={onNewChat}
-                title="New Chat"
-              >
-                <PlusIcon />
-              </button>
-              <button
-                type="button"
-                className="terminals-action-btn pin-btn"
-                onClick={togglePin}
-                title={isPinned ? 'Unpin sidebar' : 'Pin sidebar'}
-              >
-                <PinIcon pinned={isPinned} />
-              </button>
-            </>
+            <button
+              type="button"
+              className="terminals-action-btn"
+              onClick={onNewChat}
+              title="New Chat"
+            >
+              <PlusIcon />
+            </button>
           )}
           <button
             type="button"
@@ -324,21 +291,3 @@ function PlusIcon() {
   )
 }
 
-function PinIcon({ pinned }: { pinned: boolean }) {
-  if (pinned) {
-    return (
-      <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-        <path d="M9 4v6l-2 4v2h10v-2l-2-4V4" />
-        <line x1="12" y1="16" x2="12" y2="21" />
-        <line x1="8" y1="4" x2="16" y2="4" />
-      </svg>
-    )
-  }
-  return (
-    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" style={{ transform: 'rotate(45deg)' }}>
-      <path d="M9 4v6l-2 4v2h10v-2l-2-4V4" />
-      <line x1="12" y1="16" x2="12" y2="21" />
-      <line x1="8" y1="4" x2="16" y2="4" />
-    </svg>
-  )
-}

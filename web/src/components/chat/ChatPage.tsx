@@ -34,7 +34,7 @@ export function ChatPage({ chat, conversations, project, voice }: ChatPageProps)
   }, [createArtifact])
 
   return (
-    <div className="flex h-full overflow-hidden bg-background text-foreground relative">
+    <div className="flex h-full overflow-hidden bg-background text-foreground">
       <ConversationPicker
         sessions={conversations.sessions}
         recentCliSessions={conversations.recentCliSessions}

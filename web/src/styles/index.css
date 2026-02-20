@@ -1900,28 +1900,6 @@ body {
   min-width: 40px;
 }
 
-.conversation-picker.unpinned {
-  position: absolute;
-  left: 0;
-  top: 0;
-  bottom: 0;
-  z-index: 20;
-  box-shadow: 2px 0 12px rgba(0, 0, 0, 0.25);
-}
-
-.conversation-picker.unpinned.collapsed {
-  box-shadow: none;
-}
-
-.pin-btn {
-  opacity: 0.6;
-  transition: opacity 0.15s;
-}
-
-.pin-btn:hover {
-  opacity: 1;
-}
-
 .conversation-picker-header {
   display: flex;
   align-items: center;
