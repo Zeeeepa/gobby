@@ -1682,7 +1682,6 @@ class TestStatusMessage:
         assert "In step 2" in response.context
 
 
-@pytest.mark.asyncio
 class TestUnifiedEvaluatorDelegation:
     """Tests verifying engine delegates core evaluation to unified_evaluator."""
 

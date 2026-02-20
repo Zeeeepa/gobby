@@ -251,8 +251,12 @@ class MemoryBackupManager:
         """Import memories from JSONL file (sync)."""
         if not self.memory_manager:
             return 0
-        with open(file_path, encoding="utf-8") as f:
-            lines = [line for line in f if line.strip()]
+        try:
+            with open(file_path, encoding="utf-8") as f:
+                lines = [line for line in f if line.strip()]
+        except OSError as e:
+            logger.warning(f"Failed to import memories: {e}")
+            return 0
         return self._import_memories_from_lines(lines)
 
     def _import_memories_from_lines(self, lines: list[str]) -> int:

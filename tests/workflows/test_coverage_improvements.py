@@ -184,8 +184,8 @@ async def test_claude_cli_missing(mock_config):
         provider = ClaudeLLMProvider(mock_config)
         assert provider._claude_cli_path is None
 
-        result = await provider.generate_text("test")
-        assert "Generation unavailable" in result
+        with pytest.raises(RuntimeError, match="Generation unavailable"):
+            await provider.generate_text("test")
 
 
 @pytest.mark.asyncio

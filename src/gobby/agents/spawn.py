@@ -161,6 +161,19 @@ def prepare_terminal_spawn(
     if agent_run_id is None:
         agent_run_id = f"run-{uuid.uuid4().hex[:12]}"
 
+    # Create agent_runs record so the FK constraint on sessions.agent_run_id is satisfied
+    from gobby.storage.agents import LocalAgentRunManager
+
+    agent_run_mgr = LocalAgentRunManager(session_manager._storage.db)
+    agent_run_mgr.create(
+        parent_session_id=parent_session_id,
+        provider=source,
+        prompt=prompt or "",
+        workflow_name=workflow_name,
+        child_session_id=child_session.id,
+        run_id=agent_run_id,
+    )
+
     # Persist agent_run_id to session record for hook-based lifecycle tracking
     session_manager.update_terminal_pickup_metadata(
         session_id=child_session.id,

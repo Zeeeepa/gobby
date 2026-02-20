@@ -9,7 +9,7 @@ import pytest
 
 from gobby.config.persistence import MemoryConfig
 
-pytestmark = [pytest.mark.unit, pytest.mark.asyncio]
+pytestmark = pytest.mark.unit
 
 
 def _make_manager(

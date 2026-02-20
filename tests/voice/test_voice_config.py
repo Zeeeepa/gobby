@@ -12,7 +12,7 @@ class TestVoiceConfig:
         assert config.whisper_compute_type == "int8"
         assert config.elevenlabs_api_key == ""
         assert config.elevenlabs_voice_id == "21m00Tcm4TlvDq8ikWAM"
-        assert config.elevenlabs_model_id == "eleven_turbo_v2_5"
+        assert config.elevenlabs_model_id == "eleven_flash_v2_5"
         assert config.audio_format == "mp3_44100_128"
 
     def test_custom_values(self):

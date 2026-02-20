@@ -64,7 +64,7 @@ class _MockDiscovered:
 def _mock_loader(workflows: list[WorkflowDefinition]) -> MagicMock:
     loader = MagicMock()
     discovered = [_MockDiscovered(w) for w in workflows]
-    loader.discover_lifecycle_workflows = AsyncMock(return_value=discovered)
+    loader.discover_workflows = AsyncMock(return_value=discovered)
     return loader
 
 
