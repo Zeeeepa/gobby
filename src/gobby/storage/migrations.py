@@ -969,6 +969,67 @@ def _migrate_memory_ids_to_uuid5(db: LocalDatabase) -> None:
         logger.info("No mm-prefix memory IDs to migrate")
 
 
+
+def _migrate_secret_names_to_natural(db: LocalDatabase) -> None:
+    """Migrate cfg__ prefixed secret names to natural names.
+
+    The old convention stored config-derived secrets as:
+        voice.elevenlabs_api_key -> cfg__voice__elevenlabs_api_key
+
+    The new convention uses the last segment of the config key:
+        voice.elevenlabs_api_key -> elevenlabs_api_key
+
+    This migration:
+    1. Renames cfg__ secrets to natural names (or deletes duplicates)
+    2. Updates $secret: references in config_store
+    3. Fixes is_secret flags on config_store entries
+    """
+    rows = db.fetchall("SELECT id, name FROM secrets WHERE name LIKE 'cfg__%'")
+    if not rows:
+        logger.info("No cfg__ prefixed secrets to migrate")
+        return
+
+    migrated = 0
+    deleted = 0
+
+    with db.transaction() as conn:
+        for row in rows:
+            old_name = row["name"]
+            # Derive natural name: strip cfg__ prefix, replace __ with ., take last segment
+            stripped = old_name[len("cfg__"):]  # e.g. "voice__elevenlabs_api_key"
+            natural_name = stripped.replace("__", ".").rsplit(".", 1)[-1]  # e.g. "elevenlabs_api_key"
+
+            # Check if a secret with the natural name already exists
+            existing = db.fetchone("SELECT id FROM secrets WHERE name = ?", (natural_name,))
+
+            if existing:
+                # Natural name already exists — delete the cfg__ duplicate
+                conn.execute("DELETE FROM secrets WHERE name = ?", (old_name,))
+                deleted += 1
+                logger.debug(f"Deleted duplicate secret '{old_name}' ('{natural_name}' already exists)")
+            else:
+                # Rename cfg__ entry to natural name
+                conn.execute("UPDATE secrets SET name = ? WHERE name = ?", (natural_name, old_name))
+                migrated += 1
+                logger.debug(f"Renamed secret '{old_name}' -> '{natural_name}'")
+
+            # Update config_store references from $secret:old_name to $secret:natural_name
+            old_ref = json.dumps(f"$secret:{old_name}")
+            new_ref = json.dumps(f"$secret:{natural_name}")
+            conn.execute(
+                "UPDATE config_store SET value = ?, is_secret = 1 WHERE value = ?",
+                (new_ref, old_ref),
+            )
+
+        # Also fix any config_store entries that reference secrets but have is_secret=0
+        conn.execute(
+            """UPDATE config_store SET is_secret = 1
+               WHERE value LIKE '"$secret:%' AND is_secret = 0"""
+        )
+
+    logger.info(f"Secret name migration complete: {migrated} renamed, {deleted} duplicates removed")
+
+
 MIGRATIONS: list[tuple[int, str, MigrationAction]] = [
     (
         108,
@@ -985,6 +1046,11 @@ MIGRATIONS: list[tuple[int, str, MigrationAction]] = [
         110,
         "Migrate memory IDs from mm-prefix to UUID5",
         _migrate_memory_ids_to_uuid5,
+    ),
+    (
+        111,
+        "Migrate cfg__ prefixed secret names to natural names",
+        _migrate_secret_names_to_natural,
     ),
 ]
 

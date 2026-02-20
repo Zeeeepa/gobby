@@ -265,14 +265,14 @@ class TestConfigKeyToSecretName:
     def test_simple_key(self) -> None:
         assert (
             config_key_to_secret_name("voice.elevenlabs_api_key")
-            == "cfg__voice__elevenlabs_api_key"
+            == "elevenlabs_api_key"
         )
 
     def test_nested_key(self) -> None:
-        assert config_key_to_secret_name("a.b.c") == "cfg__a__b__c"
+        assert config_key_to_secret_name("a.b.c") == "c"
 
     def test_no_dots(self) -> None:
-        assert config_key_to_secret_name("api_key") == "cfg__api_key"
+        assert config_key_to_secret_name("api_key") == "api_key"
 
 
 class TestIsSecretKeyName:
@@ -313,14 +313,14 @@ class TestConfigStoreSecrets:
         """set_secret stores a $secret: reference in config_store."""
         config_store.set_secret("voice.elevenlabs_api_key", "sk-test-123", secret_store)
         raw = config_store.get("voice.elevenlabs_api_key")
-        assert raw == "$secret:cfg__voice__elevenlabs_api_key"
+        assert raw == "$secret:elevenlabs_api_key"
 
     def test_set_secret_encrypts_value(
         self, config_store: ConfigStore, secret_store: SecretStore
     ) -> None:
         """set_secret encrypts the actual value in the secrets table."""
         config_store.set_secret("voice.elevenlabs_api_key", "sk-test-123", secret_store)
-        decrypted = secret_store.get("cfg__voice__elevenlabs_api_key")
+        decrypted = secret_store.get("elevenlabs_api_key")
         assert decrypted == "sk-test-123"
 
     def test_set_secret_marks_is_secret(
@@ -349,7 +349,7 @@ class TestConfigStoreSecrets:
         config_store.set_secret("voice.elevenlabs_api_key", "sk-test-123", secret_store)
         config_store.clear_secret("voice.elevenlabs_api_key", secret_store)
         assert config_store.get("voice.elevenlabs_api_key") is None
-        assert secret_store.get("cfg__voice__elevenlabs_api_key") is None
+        assert secret_store.get("elevenlabs_api_key") is None
         assert config_store.get_secret_keys() == []
 
     def test_normal_set_does_not_mark_secret(self, config_store: ConfigStore) -> None:
@@ -395,12 +395,12 @@ class TestSetConfigSecret:
 
             # Verify encrypted in secrets table
             secret_store = SecretStore(temp_db)
-            decrypted = secret_store.get("cfg__voice__elevenlabs_api_key")
+            decrypted = secret_store.get("elevenlabs_api_key")
             assert decrypted == "sk-test-456"
 
             # Verify config_store has reference
             raw = config_store.get("voice.elevenlabs_api_key")
-            assert raw == "$secret:cfg__voice__elevenlabs_api_key"
+            assert raw == "$secret:elevenlabs_api_key"
 
     def test_set_config_normal_unchanged(
         self, config_registry_with_db, config_store: ConfigStore
