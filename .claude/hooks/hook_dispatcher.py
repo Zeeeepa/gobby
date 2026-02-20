@@ -1,1 +1,1 @@
-/Users/josh/Projects/gobby/src/gobby/install/claude/hooks/hook_dispatcher.py
+../../src/gobby/install/claude/hooks/hook_dispatcher.py

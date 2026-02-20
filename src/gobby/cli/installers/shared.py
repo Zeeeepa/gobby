@@ -50,7 +50,8 @@ def _install_resource_dir(source: Path, target: Path, dev_mode: bool) -> None:
         shutil.rmtree(target)
 
     if dev_mode:
-        os.symlink(source.resolve(), target)
+        rel_path = os.path.relpath(source.resolve(), target.parent.resolve())
+        os.symlink(rel_path, target)
     else:
         copytree(source, target)
 
@@ -58,7 +59,7 @@ def _install_resource_dir(source: Path, target: Path, dev_mode: bool) -> None:
 def _install_file(source: Path, target: Path, dev_mode: bool, executable: bool = False) -> None:
     """Install a single file, using symlink in dev mode or copy otherwise.
 
-    In dev mode, creates a symlink from target -> source.
+    In dev mode, creates a relative symlink from target -> source.
     In normal mode, copies the file. Symlinks inherit permissions from the
     source, so chmod is only applied to copies.
 
@@ -74,7 +75,8 @@ def _install_file(source: Path, target: Path, dev_mode: bool, executable: bool =
         target.unlink()
 
     if dev_mode:
-        os.symlink(source.resolve(), target)
+        rel_path = os.path.relpath(source.resolve(), target.parent.resolve())
+        os.symlink(rel_path, target)
     else:
         copy2(source, target)
         if executable:
