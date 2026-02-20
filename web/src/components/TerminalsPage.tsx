@@ -11,10 +11,12 @@ interface TerminalsPageProps {
   attachedSession: string | null
   streamingId: string | null
   isLoading: boolean
+  sessionEnded: boolean
   attachSession: (sessionName: string, socket: string) => void
   createSession: (name?: string, socket?: string) => void
   killSession: (sessionName: string, socket: string) => void
   refreshSessions: () => void
+  dismissEndedSession: () => void
   sendInput: (data: string) => void
   resizeTerminal: (rows: number, cols: number) => void
   onOutput: (callback: (runId: string, data: string) => void) => void
@@ -41,10 +43,12 @@ export function TerminalsPage({
   attachedSession,
   streamingId,
   isLoading,
+  sessionEnded,
   attachSession,
   createSession,
   killSession,
   refreshSessions,
+  dismissEndedSession,
   sendInput,
   resizeTerminal,
   onOutput,
@@ -184,30 +188,47 @@ export function TerminalsPage({
           onRefresh={refreshSessions}
         />
         {streamingId ? (
-          <TerminalView
-            streamingId={streamingId}
-            sessionName={attachedSession}
-            displayName={(() => {
-              if (!attachedSession) return null
-              const key = `${attachedSocketRef.current}:${attachedSession}`
-              const customName = terminalNames[key]
-              if (customName) return customName
-              const s = sessions.find(s => s.name === attachedSession && s.socket === attachedSocketRef.current)
-              return s?.pane_title || s?.window_name || null
-            })()}
-            isInteractive={isInteractive}
-            sidebarOpen={sidebarOpen}
-            onSetInteractive={setIsInteractive}
-            onToggleSidebar={() => setSidebarOpen(!sidebarOpen)}
-            sendInput={sendInput}
-            resizeTerminal={resizeTerminal}
-            onOutput={onOutput}
-            onKill={() => {
-              if (attachedSession) {
-                handleKill(attachedSession, attachedSocketRef.current)
-              }
-            }}
-          />
+          <div className="terminals-terminal-outer">
+            <TerminalView
+              streamingId={streamingId}
+              sessionName={attachedSession}
+              displayName={(() => {
+                if (!attachedSession) return null
+                const key = `${attachedSocketRef.current}:${attachedSession}`
+                const customName = terminalNames[key]
+                if (customName) return customName
+                const s = sessions.find(s => s.name === attachedSession && s.socket === attachedSocketRef.current)
+                return s?.pane_title || s?.window_name || null
+              })()}
+              isInteractive={isInteractive && !sessionEnded}
+              sidebarOpen={sidebarOpen}
+              onSetInteractive={setIsInteractive}
+              onToggleSidebar={() => setSidebarOpen(!sidebarOpen)}
+              sendInput={sendInput}
+              resizeTerminal={resizeTerminal}
+              onOutput={onOutput}
+              onKill={() => {
+                if (attachedSession) {
+                  handleKill(attachedSession, attachedSocketRef.current)
+                }
+              }}
+            />
+            {sessionEnded && (
+              <div className="terminals-ended-overlay">
+                <div className="terminals-ended-card">
+                  <TerminalIcon size={32} />
+                  <h3>Session ended</h3>
+                  <p>The terminal session has exited.</p>
+                  <button
+                    className="terminals-create-btn"
+                    onClick={dismissEndedSession}
+                  >
+                    Dismiss
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
         ) : (
           <div className="terminals-empty">
             {!sidebarOpen && (

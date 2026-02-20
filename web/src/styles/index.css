@@ -2965,6 +2965,54 @@ body {
   background: var(--accent-hover);
 }
 
+/* Outer wrapper for terminal + session-ended overlay */
+.terminals-terminal-outer {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  position: relative;
+}
+
+.terminals-ended-overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.65);
+  z-index: 10;
+}
+
+.terminals-ended-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 2rem 2.5rem;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  border-radius: 0.75rem;
+  text-align: center;
+  color: var(--text-muted);
+}
+
+.terminals-ended-card svg {
+  opacity: 0.5;
+}
+
+.terminals-ended-card h3 {
+  font-size: calc(var(--font-size-base) * 1.125);
+  font-weight: 500;
+  color: var(--text-secondary);
+  margin: 0;
+}
+
+.terminals-ended-card p {
+  font-size: calc(var(--font-size-base) * 0.875);
+  margin: 0;
+}
+
 /* Terminal view (attached) */
 .terminals-terminal-wrapper {
   flex: 1;

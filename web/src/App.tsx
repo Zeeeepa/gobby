@@ -358,10 +358,12 @@ export default function App() {
           attachedSession={tmux.attachedSession}
           streamingId={tmux.streamingId}
           isLoading={tmux.isLoading}
+          sessionEnded={tmux.sessionEnded}
           attachSession={tmux.attachSession}
           createSession={tmux.createSession}
           killSession={tmux.killSession}
           refreshSessions={tmux.refreshSessions}
+          dismissEndedSession={tmux.dismissEndedSession}
           sendInput={tmux.sendInput}
           resizeTerminal={tmux.resizeTerminal}
           onOutput={tmux.onOutput}
