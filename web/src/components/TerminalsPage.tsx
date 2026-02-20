@@ -95,7 +95,7 @@ export function TerminalsPage({
   // Track attached session's socket for kill
   const attachedSocketRef = useRef<string>('default')
 
-  // Compute display name for the attached session
+  // Compute display name and PID for the attached session
   const attachedDisplayName = useMemo(() => {
     if (!attachedSession) return null
     const key = `${attachedSocketRef.current}:${attachedSession}`
@@ -104,6 +104,12 @@ export function TerminalsPage({
     const s = sessions.find(s => s.name === attachedSession && s.socket === attachedSocketRef.current)
     return s?.pane_title || s?.window_name || null
   }, [attachedSession, terminalNames, sessions])
+
+  const attachedPid = useMemo(() => {
+    if (!attachedSession) return null
+    const s = sessions.find(s => s.name === attachedSession && s.socket === attachedSocketRef.current)
+    return s?.pane_pid ?? null
+  }, [attachedSession, sessions])
 
   const handleAttach = useCallback((name: string, socket: string) => {
     attachSession(name, socket)
@@ -161,25 +167,25 @@ export function TerminalsPage({
 
             {defaultSessions.length > 0 && (
               <SessionGroup
-                label="Your Terminals"
                 sessions={defaultSessions}
                 attachedSession={attachedSession}
                 streamingId={streamingId}
                 terminalNames={terminalNames}
                 onAttach={handleAttach}
                 onRename={handleRename}
+                onKill={handleKill}
               />
             )}
 
             {gobbySessions.length > 0 && (
               <SessionGroup
-                label="Agent Terminals"
                 sessions={gobbySessions}
                 attachedSession={attachedSession}
                 streamingId={streamingId}
                 terminalNames={terminalNames}
                 onAttach={handleAttach}
                 onRename={handleRename}
+                onKill={handleKill}
               />
             )}
           </div>
@@ -203,6 +209,7 @@ export function TerminalsPage({
               streamingId={streamingId}
               sessionName={attachedSession}
               displayName={attachedDisplayName}
+              panePid={attachedPid}
               isInteractive={isInteractive && !sessionEnded}
               sidebarOpen={sidebarOpen}
               onSetInteractive={setIsInteractive}
@@ -210,11 +217,6 @@ export function TerminalsPage({
               sendInput={sendInput}
               resizeTerminal={resizeTerminal}
               onOutput={onOutput}
-              onKill={() => {
-                if (attachedSession) {
-                  handleKill(attachedSession, attachedSocketRef.current)
-                }
-              }}
             />
             {sessionEnded && (
               <div className="terminals-ended-overlay">
@@ -276,23 +278,22 @@ export function TerminalsPage({
 // -- Subcomponents --
 
 interface SessionGroupProps {
-  label: string
   sessions: TmuxSession[]
   attachedSession: string | null
   streamingId: string | null
   terminalNames: Record<string, string>
   onAttach: (name: string, socket: string) => void
   onRename: (key: string, newName: string) => void
+  onKill: (sessionName: string, socket: string) => void
 }
 
-function SessionGroup({ label, sessions, attachedSession, streamingId, terminalNames, onAttach, onRename }: SessionGroupProps) {
+function SessionGroup({ sessions, attachedSession, streamingId, terminalNames, onAttach, onRename, onKill }: SessionGroupProps) {
   const [editingKey, setEditingKey] = useState<string | null>(null)
   const [editValue, setEditValue] = useState('')
   const saveOnBlurRef = useRef(true)
 
   return (
     <div className="session-group">
-      <div className="session-group-label">{label}</div>
       {sessions.map((session) => {
         const isAttached = attachedSession === session.name && streamingId !== null
         const nameKey = `${session.socket}:${session.name}`
@@ -359,9 +360,14 @@ function SessionGroup({ label, sessions, attachedSession, streamingId, terminalN
               )}
             </div>
             <div className="session-item-actions">
-              {session.pane_pid && (
-                <span className="session-pid">PID {session.pane_pid}</span>
-              )}
+              <button
+                type="button"
+                className="session-delete-btn"
+                title="Kill terminal"
+                onClick={(e) => { e.stopPropagation(); onKill(session.name, session.socket) }}
+              >
+                <TrashIcon />
+              </button>
             </div>
           </div>
         )
@@ -374,6 +380,7 @@ interface TerminalViewProps {
   streamingId: string
   sessionName: string | null
   displayName: string | null
+  panePid: number | null
   isInteractive: boolean
   sidebarOpen: boolean
   onSetInteractive: (interactive: boolean) => void
@@ -381,13 +388,13 @@ interface TerminalViewProps {
   sendInput: (data: string) => void
   resizeTerminal: (rows: number, cols: number) => void
   onOutput: (callback: (runId: string, data: string) => void) => void
-  onKill: () => void
 }
 
 function TerminalView({
   streamingId,
   sessionName,
   displayName,
+  panePid,
   isInteractive,
   sidebarOpen,
   onSetInteractive,
@@ -395,7 +402,6 @@ function TerminalView({
   sendInput,
   resizeTerminal,
   onOutput,
-  onKill,
 }: TerminalViewProps) {
   const containerRef = useRef<HTMLDivElement>(null)
   const terminalRef = useRef<XTerm | null>(null)
@@ -555,6 +561,9 @@ function TerminalView({
           )}
           <TerminalIcon size={14} />
           {displayName ? `${displayName} (${sessionName})` : sessionName || 'Terminal'}
+          {panePid && (
+            <span className="session-pid">PID {panePid}</span>
+          )}
           {!isInteractive && (
             <span className="read-only-badge">read-only</span>
           )}
@@ -569,9 +578,6 @@ function TerminalView({
               Attach
             </button>
           )}
-          <button className="terminals-kill-btn" onClick={onKill} title="Kill terminal">
-            <TrashIcon />
-          </button>
         </div>
       </div>
       <div className="terminals-terminal-container">

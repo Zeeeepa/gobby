@@ -77,7 +77,6 @@ export function MobileTerminalDrawer({
 
           {defaultSessions.length > 0 && (
             <DrawerGroup
-              label="Your Terminals"
               sessions={defaultSessions}
               attachedSession={attachedSession}
               streamingId={streamingId}
@@ -88,7 +87,6 @@ export function MobileTerminalDrawer({
 
           {gobbySessions.length > 0 && (
             <DrawerGroup
-              label="Agent Terminals"
               sessions={gobbySessions}
               attachedSession={attachedSession}
               streamingId={streamingId}
@@ -103,14 +101,12 @@ export function MobileTerminalDrawer({
 }
 
 function DrawerGroup({
-  label,
   sessions,
   attachedSession,
   streamingId,
   terminalNames,
   onAttach,
 }: {
-  label: string
   sessions: TmuxSession[]
   attachedSession: string | null
   streamingId: string | null
@@ -119,7 +115,6 @@ function DrawerGroup({
 }) {
   return (
     <div className="mobile-chat-drawer-list">
-      <div className="session-group-label" style={{ padding: '0.375rem 1rem' }}>{label}</div>
       {sessions.map((session) => {
         const isAttached = attachedSession === session.name && streamingId !== null
         const nameKey = `${session.socket}:${session.name}`
@@ -139,11 +134,6 @@ function DrawerGroup({
               <span className="session-name">{displayName}</span>
               {session.agent_managed && (
                 <span className="session-badge agent-badge">agent</span>
-              )}
-            </div>
-            <div className="session-item-actions">
-              {session.pane_pid && (
-                <span className="session-pid">PID {session.pane_pid}</span>
               )}
             </div>
           </div>
