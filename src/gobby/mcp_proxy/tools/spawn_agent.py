@@ -421,6 +421,7 @@ async def spawn_agent_impl(
             logger.warning(f"Failed to resolve task_id {task_id}: {e}")
 
     # 5. Handle clone_id reuse: skip isolation creation when an existing clone is provided
+    isolation_ctx = None
     if clone_id and clone_storage:
         existing_clone = clone_storage.get(clone_id)
         if not existing_clone:
@@ -463,9 +464,7 @@ async def spawn_agent_impl(
     )
 
     # 7. Prepare environment (worktree/clone creation) — skipped if clone_id was reused
-    if clone_id and clone_storage:
-        pass  # Already have isolation_ctx from clone lookup above
-    else:
+    if isolation_ctx is None:
         try:
             isolation_ctx = await handler.prepare_environment(spawn_config)
         except Exception as e:
@@ -637,9 +636,7 @@ async def spawn_agent_impl(
                                 error="Agent process exited immediately after spawn",
                             )
                         except Exception as e:
-                            logger.warning(
-                                f"Failed to mark agent_run {_run_id} as failed: {e}"
-                            )
+                            logger.warning(f"Failed to mark agent_run {_run_id} as failed: {e}")
                 except asyncio.CancelledError:
                     pass
                 except Exception as e:
