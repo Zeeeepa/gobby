@@ -162,7 +162,7 @@ def process_mcp_handlers(
                         )
                         state.variables[variable] = value
                     except Exception as e:
-                        state.variables[variable] = value
+                        # Don't assign the raw template — leave existing value unchanged
                         logger.warning(
                             f"Session {state.session_id}: Failed to render template "
                             f"in {handler_type} handler value={value!r}: {e}",

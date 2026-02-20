@@ -118,7 +118,7 @@ export function useTerminal() {
   // Handle agent lifecycle events
   const handleAgentEvent = useCallback((event: AgentEventMessage) => {
     if (event.event === 'agent_started' && (SHOW_MODES as readonly string[]).includes(event.mode || '')) {
-      // Add new agent (embedded or tmux)
+      // Add new agent (embedded, tmux, or terminal)
       setAgents(prev => {
         const exists = prev.some(a => a.run_id === event.run_id)
         if (exists) return prev

@@ -88,7 +88,7 @@ export function MobileSessionDrawer({
                         {getModelBadge(session.model)}
                       </span>
                     )}
-                    <span className="session-meta-count">{session.message_count}msg</span>
+                    <span className="session-meta-count">{session.message_count} msg</span>
                     <span className="session-pid">
                       {formatRelativeTime(session.updated_at)}
                     </span>

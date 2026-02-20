@@ -116,9 +116,11 @@ class AgentLifecycleMonitor:
                 )
 
                 # Mark DB record as error if still in active status
-                db_run = self._agent_run_manager.get(agent.run_id)
+                # These are sync DB calls — run off the event loop to avoid blocking
+                db_run = await asyncio.to_thread(self._agent_run_manager.get, agent.run_id)
                 if db_run and db_run.status in ("pending", "running"):
-                    self._agent_run_manager.fail(
+                    await asyncio.to_thread(
+                        self._agent_run_manager.fail,
                         agent.run_id,
                         error="tmux session died unexpectedly",
                     )
@@ -132,9 +134,7 @@ class AgentLifecycleMonitor:
                     try:
                         self._session_coordinator.release_session_worktrees(agent.session_id)
                     except Exception as e:
-                        logger.warning(
-                            f"Failed to release worktrees for agent {agent.run_id}: {e}"
-                        )
+                        logger.warning(f"Failed to release worktrees for agent {agent.run_id}: {e}")
 
                 cleaned += 1
 
@@ -156,7 +156,8 @@ class AgentLifecycleMonitor:
         Returns:
             Number of orphaned runs cleaned up.
         """
-        running_runs = self._agent_run_manager.list_running()
+        # Sync DB calls — run off the event loop to avoid blocking
+        running_runs = await asyncio.to_thread(self._agent_run_manager.list_running)
         if not running_runs:
             return 0
 
@@ -167,7 +168,8 @@ class AgentLifecycleMonitor:
                 continue
 
             # Not in registry - this is an orphan from before daemon restart
-            self._agent_run_manager.fail(
+            await asyncio.to_thread(
+                self._agent_run_manager.fail,
                 run.id,
                 error="Orphaned agent run (daemon restarted while agent was running)",
             )

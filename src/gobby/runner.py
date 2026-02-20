@@ -373,10 +373,14 @@ class GobbyRunner:
         from gobby.agents.registry import get_running_agent_registry
         from gobby.storage.agents import LocalAgentRunManager
 
-        self.agent_lifecycle_monitor = AgentLifecycleMonitor(
-            agent_registry=get_running_agent_registry(),
-            agent_run_manager=LocalAgentRunManager(self.database),
-        )
+        try:
+            self.agent_lifecycle_monitor: AgentLifecycleMonitor | None = AgentLifecycleMonitor(
+                agent_registry=get_running_agent_registry(),
+                agent_run_manager=LocalAgentRunManager(self.database),
+            )
+        except Exception as e:
+            logger.warning(f"Failed to initialize AgentLifecycleMonitor: {e}")
+            self.agent_lifecycle_monitor = None
 
         # Session Lifecycle Manager (background jobs for expiring and processing)
         self.lifecycle_manager = SessionLifecycleManager(
@@ -781,8 +785,9 @@ class GobbyRunner:
             await self.lifecycle_manager.start()
 
             # Start Agent Lifecycle Monitor (detect dead tmux sessions)
-            await self.agent_lifecycle_monitor.cleanup_orphaned_db_runs()
-            await self.agent_lifecycle_monitor.start()
+            if self.agent_lifecycle_monitor:
+                await self.agent_lifecycle_monitor.cleanup_orphaned_db_runs()
+                await self.agent_lifecycle_monitor.start()
 
             # Start Cron Scheduler
             if self.cron_scheduler:
@@ -859,10 +864,11 @@ class GobbyRunner:
             except TimeoutError:
                 logger.warning("Lifecycle manager shutdown timed out")
 
-            try:
-                await asyncio.wait_for(self.agent_lifecycle_monitor.stop(), timeout=2.0)
-            except TimeoutError:
-                logger.warning("Agent lifecycle monitor shutdown timed out")
+            if self.agent_lifecycle_monitor:
+                try:
+                    await asyncio.wait_for(self.agent_lifecycle_monitor.stop(), timeout=2.0)
+                except TimeoutError:
+                    logger.warning("Agent lifecycle monitor shutdown timed out")
 
             if self.cron_scheduler:
                 try:

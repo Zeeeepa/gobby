@@ -794,8 +794,8 @@ class ChatSession:
                                 if _llm:
                                     model_info = _llm.get_model_info(model=last_model)
                                     context_window = model_info.get("max_input_tokens")
-                            except Exception:
-                                pass
+                            except (ImportError, KeyError, AttributeError, TypeError) as e:
+                                logger.debug("Could not derive context window for %s: %s", last_model, e)
                         yield DoneEvent(
                             tool_calls_count=tool_calls_count,
                             cost_usd=cost_usd,

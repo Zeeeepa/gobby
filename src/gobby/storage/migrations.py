@@ -939,7 +939,9 @@ def _migrate_memory_ids_to_uuid5(db: LocalDatabase) -> None:
                 old_id = row["id"]
                 content = row["content"]
                 normalized = content.strip() if content else ""
-                new_id = str(uuid.uuid5(_MEMORY_UUID_NAMESPACE, normalized)) if normalized else old_id
+                new_id = (
+                    str(uuid.uuid5(_MEMORY_UUID_NAMESPACE, normalized)) if normalized else old_id
+                )
 
                 # Update primary table
                 conn.execute("UPDATE memories SET id = ? WHERE id = ?", (new_id, old_id))
@@ -969,7 +971,6 @@ def _migrate_memory_ids_to_uuid5(db: LocalDatabase) -> None:
         logger.info("No mm-prefix memory IDs to migrate")
 
 
-
 def _migrate_secret_names_to_natural(db: LocalDatabase) -> None:
     """Migrate cfg__ prefixed secret names to natural names.
 
@@ -996,17 +997,21 @@ def _migrate_secret_names_to_natural(db: LocalDatabase) -> None:
         for row in rows:
             old_name = row["name"]
             # Derive natural name: strip cfg__ prefix, replace __ with ., take last segment
-            stripped = old_name[len("cfg__"):]  # e.g. "voice__elevenlabs_api_key"
-            natural_name = stripped.replace("__", ".").rsplit(".", 1)[-1]  # e.g. "elevenlabs_api_key"
+            stripped = old_name[len("cfg__") :]  # e.g. "voice__elevenlabs_api_key"
+            natural_name = stripped.replace("__", ".").rsplit(".", 1)[
+                -1
+            ]  # e.g. "elevenlabs_api_key"
 
-            # Check if a secret with the natural name already exists
-            existing = db.fetchone("SELECT id FROM secrets WHERE name = ?", (natural_name,))
+            # Check if a secret with the natural name already exists (use conn to stay in transaction)
+            existing = conn.execute("SELECT id FROM secrets WHERE name = ?", (natural_name,)).fetchone()
 
             if existing:
                 # Natural name already exists — delete the cfg__ duplicate
                 conn.execute("DELETE FROM secrets WHERE name = ?", (old_name,))
                 deleted += 1
-                logger.debug(f"Deleted duplicate secret '{old_name}' ('{natural_name}' already exists)")
+                logger.debug(
+                    f"Deleted duplicate secret '{old_name}' ('{natural_name}' already exists)"
+                )
             else:
                 # Rename cfg__ entry to natural name
                 conn.execute("UPDATE secrets SET name = ? WHERE name = ?", (natural_name, old_name))
