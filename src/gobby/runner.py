@@ -575,13 +575,15 @@ class GobbyRunner:
 
                     # Notify Terminals page so it auto-refreshes
                     _created_name = session_name
+                    _ws = self.websocket_server
 
                     async def broadcast_tmux_created() -> None:
-                        await self.websocket_server.broadcast_tmux_session_event(
-                            event="session_created",
-                            session_name=_created_name,
-                            socket="gobby",
-                        )
+                        if _ws:
+                            await _ws.broadcast_tmux_session_event(
+                                event="session_created",
+                                session_name=_created_name,
+                                socket="gobby",
+                            )
 
                     task = asyncio.create_task(broadcast_tmux_created())
                     task.add_done_callback(_log_broadcast_exception)
@@ -610,10 +612,11 @@ class GobbyRunner:
 
                 # Notify Terminals page so it auto-refreshes
                 _killed_name = data.get("tmux_session_name")
-                if _killed_name:
+                _ws_kill = self.websocket_server
+                if _killed_name and _ws_kill:
 
                     async def broadcast_tmux_killed() -> None:
-                        await self.websocket_server.broadcast_tmux_session_event(
+                        await _ws_kill.broadcast_tmux_session_event(
                             event="session_killed",
                             session_name=_killed_name,
                             socket="gobby",
