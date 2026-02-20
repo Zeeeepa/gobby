@@ -383,9 +383,7 @@ class SessionCoordinator:
                         cmd.extend(["-L", tmux_cfg.socket_name])
                     cmd.extend(["capture-pane", "-t", tmux_session_name, "-p", "-S", "-"])
 
-                    proc = subprocess.run(
-                        cmd, capture_output=True, timeout=5, text=True
-                    )
+                    proc = subprocess.run(cmd, capture_output=True, timeout=5, text=True)
                     if proc.returncode == 0 and proc.stdout.strip():
                         result = proc.stdout.strip()
                         self.logger.info(

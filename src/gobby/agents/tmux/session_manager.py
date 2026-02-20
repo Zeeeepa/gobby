@@ -27,6 +27,7 @@ class TmuxSessionInfo:
     pane_pid: int | None = None
     window_name: str | None = None
     pane_title: str | None = None
+    pane_dead: bool = False
 
 
 class TmuxSessionManager:
@@ -253,11 +254,11 @@ class TmuxSessionManager:
 
     async def list_sessions(self) -> list[TmuxSessionInfo]:
         """List all Gobby tmux sessions on the isolated socket."""
-        # Fetch name, pid, window name, and pane title in one go
+        # Fetch name, pid, window name, pane title, and pane_dead status in one go
         rc, stdout, _stderr = await self._run(
             "list-sessions",
             "-F",
-            "#{session_name}\t#{pane_pid}\t#{window_name}\t#{pane_title}",
+            "#{session_name}\t#{pane_pid}\t#{window_name}\t#{pane_title}\t#{pane_dead}",
         )
         if rc != 0:
             # No server running is rc=1 with "no server running"
@@ -274,12 +275,14 @@ class TmuxSessionManager:
                 pid = int(pid_str) if pid_str.isdigit() else None
                 window_name = parts[2] if len(parts) > 2 and parts[2] else None
                 pane_title = parts[3] if len(parts) > 3 and parts[3] else None
+                pane_dead = parts[4] == "1" if len(parts) > 4 else False
                 results.append(
                     TmuxSessionInfo(
                         name=name,
                         pane_pid=pid,
                         window_name=window_name,
                         pane_title=pane_title,
+                        pane_dead=pane_dead,
                     )
                 )
         return results

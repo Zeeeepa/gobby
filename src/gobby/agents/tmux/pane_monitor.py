@@ -112,14 +112,14 @@ class TmuxPaneMonitor:
         for sid in expired:
             del self._recently_ended[sid]
 
-        # 2. Get live tmux session names
+        # 2. Get live tmux sessions (includes pane_dead status)
         mgr = TmuxSessionManager(self._config)
         try:
             live_sessions = await mgr.list_sessions()
         except Exception:
             logger.warning("TmuxPaneMonitor: failed to list tmux sessions", exc_info=True)
             return
-        live_names = {s.name for s in live_sessions}
+        live_lookup = {s.name: s for s in live_sessions}
 
         # 3. Get all agents with a tmux_session_name
         registry = get_running_agent_registry()
@@ -130,8 +130,10 @@ class TmuxPaneMonitor:
             return
 
         # 4. Fire session_end for agents whose tmux session is gone
+        #    or whose pane process has exited (remain-on-exit keeps session alive)
         for agent in tmux_agents:
-            if agent.tmux_session_name in live_names:
+            live_info = live_lookup.get(agent.tmux_session_name)
+            if live_info and not live_info.pane_dead:
                 continue
             if agent.session_id in self._recently_ended:
                 continue
