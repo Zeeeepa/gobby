@@ -341,11 +341,13 @@ export function useChat() {
     if (chunk.done) {
       setIsStreaming(false)
       setIsThinking(false)
-      // Update context usage from usage data in done message
+      // Update context usage from usage data in done message.
+      // input_tokens already represents the full context for this turn
+      // (all prior messages + system prompt), so replace rather than accumulate.
       if (chunk.usage) {
         setContextUsage((prev) => ({
-          inputTokens: prev.inputTokens + (chunk.usage?.input_tokens ?? 0),
-          outputTokens: prev.outputTokens + (chunk.usage?.output_tokens ?? 0),
+          inputTokens: chunk.usage?.input_tokens ?? 0,
+          outputTokens: chunk.usage?.output_tokens ?? 0,
           contextWindow: chunk.context_window ?? prev.contextWindow,
         }))
       } else if (chunk.context_window) {
