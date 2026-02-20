@@ -359,21 +359,24 @@ export function useChat() {
         setSessionRef(chunk.session_ref)
       }
       // Update context usage from usage data in done message.
-      // The SDK reports per-query() usage (one query per user message).
-      // Use total_input_tokens (uncached + cache_read + cache_creation) — the
-      // real context size. Plain input_tokens is often only 3-23 with caching.
+      // Each turn sends the full conversation to Claude, so the latest turn's
+      // total_input_tokens IS the current context size — replace, don't accumulate.
+      // Output tokens are genuinely incremental, so those accumulate.
       if (chunk.usage) {
         const u = chunk.usage
         // Prefer total_input_tokens from backend; fall back to sum of parts
         const turnTotal = u.total_input_tokens
           ?? ((u.input_tokens ?? 0) + (u.cache_read_input_tokens ?? 0) + (u.cache_creation_input_tokens ?? 0))
         setContextUsage((prev) => ({
-          totalInputTokens: prev.totalInputTokens + turnTotal,
+          // Input tokens: REPLACE with latest turn's values (each turn sends
+          // the full conversation, so the latest total IS the current context size)
+          totalInputTokens: turnTotal,
+          uncachedInputTokens: u.input_tokens ?? 0,
+          cacheReadTokens: u.cache_read_input_tokens ?? 0,
+          cacheCreationTokens: u.cache_creation_input_tokens ?? 0,
+          // Output tokens: ACCUMULATE (genuinely incremental per turn)
           outputTokens: prev.outputTokens + (u.output_tokens ?? 0),
           contextWindow: chunk.context_window ?? prev.contextWindow,
-          uncachedInputTokens: prev.uncachedInputTokens + (u.input_tokens ?? 0),
-          cacheReadTokens: prev.cacheReadTokens + (u.cache_read_input_tokens ?? 0),
-          cacheCreationTokens: prev.cacheCreationTokens + (u.cache_creation_input_tokens ?? 0),
         }))
       } else if (chunk.context_window) {
         setContextUsage((prev) => ({ ...prev, contextWindow: chunk.context_window ?? prev.contextWindow }))
