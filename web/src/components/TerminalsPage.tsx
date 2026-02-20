@@ -179,6 +179,7 @@ export function TerminalsPage({
 
             {gobbySessions.length > 0 && (
               <SessionGroup
+                label="Agent Terminals"
                 sessions={gobbySessions}
                 attachedSession={attachedSession}
                 streamingId={streamingId}
@@ -278,6 +279,7 @@ export function TerminalsPage({
 // -- Subcomponents --
 
 interface SessionGroupProps {
+  label?: string
   sessions: TmuxSession[]
   attachedSession: string | null
   streamingId: string | null
@@ -287,13 +289,14 @@ interface SessionGroupProps {
   onKill: (sessionName: string, socket: string) => void
 }
 
-function SessionGroup({ sessions, attachedSession, streamingId, terminalNames, onAttach, onRename, onKill }: SessionGroupProps) {
+function SessionGroup({ label, sessions, attachedSession, streamingId, terminalNames, onAttach, onRename, onKill }: SessionGroupProps) {
   const [editingKey, setEditingKey] = useState<string | null>(null)
   const [editValue, setEditValue] = useState('')
   const saveOnBlurRef = useRef(true)
 
   return (
     <div className="session-group">
+      {label && <div className="session-group-label">{label}</div>}
       {sessions.map((session) => {
         const isAttached = attachedSession === session.name && streamingId !== null
         const nameKey = `${session.socket}:${session.name}`
