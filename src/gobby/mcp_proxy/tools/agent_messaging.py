@@ -104,10 +104,7 @@ def add_messaging_tools(
             # Also write to agent_runs.result so get_agent_result can find it.
             # This bridges the messaging system with the agent result system.
             try:
-                from gobby.storage.agents import LocalAgentRunManager
-
-                db = session_manager._db
-                agent_run_mgr = LocalAgentRunManager(db)
+                db = session_manager.db
                 # Find the agent run for this child session
                 row = db.fetchone(
                     "SELECT id FROM agent_runs WHERE child_session_id = ? "
