@@ -314,8 +314,8 @@ triggers:
     # Unified tool blocking with multiple rules
     - action: block_tools
       rules:
-        # Block CC native task tools entirely - use gobby-tasks MCP tools instead
-        - tools: [TaskCreate, TaskUpdate, TaskGet, TaskList]
+        # Block CC native task/todo tools entirely - use gobby-tasks MCP tools instead
+        - tools: [TaskCreate, TaskUpdate, TaskGet, TaskList, TodoWrite]
           reason: |
             CC native task tools are disabled. Use gobby-tasks MCP tools instead:
             - create_task(title, description, session_id, claim=True) - Create and auto-claim new task.
