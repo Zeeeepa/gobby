@@ -190,9 +190,6 @@ export function ChatInput({
 
         {/* Toolbar */}
         <div className="flex items-center gap-1 mb-2">
-          {onModeChange && (
-            <ModeSelector mode={mode} onModeChange={onModeChange} disabled={disabled} />
-          )}
           <button
             className="p-1.5 rounded text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
             onClick={() => fileInputRef.current?.click()}
@@ -350,6 +347,9 @@ export function ChatInput({
 
         {/* Input row */}
         <div className="flex items-end gap-2">
+          {onModeChange && (
+            <ModeSelector mode={mode} onModeChange={onModeChange} disabled={disabled} />
+          )}
           <textarea
             ref={textareaRef}
             className="flex-1 bg-muted rounded-lg px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground resize-none focus:outline-none focus:ring-2 focus:ring-accent min-h-[40px]"
