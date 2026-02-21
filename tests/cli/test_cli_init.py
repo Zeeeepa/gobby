@@ -633,6 +633,61 @@ class TestInitCwdHandling:
         assert cwd_arg is not None
         assert isinstance(cwd_arg, Path)
 
+    @patch("gobby.cli.init.initialize_project")
+    @patch("gobby.cli.load_config")
+    def test_init_with_path_option(
+        self,
+        mock_load_config: MagicMock,
+        mock_initialize: MagicMock,
+        runner: CliRunner,
+        mock_config: MagicMock,
+        mock_init_result_new: InitResult,
+        temp_dir: Path,
+    ) -> None:
+        """Test that init -C uses the specified directory instead of cwd."""
+        mock_load_config.return_value = mock_config
+        mock_initialize.return_value = mock_init_result_new
+
+        target_dir = temp_dir / "target-project"
+        target_dir.mkdir()
+
+        result = runner.invoke(cli, ["init", "-C", str(target_dir)])
+
+        assert result.exit_code == 0
+        call_args = mock_initialize.call_args
+        cwd_arg = call_args.kwargs.get("cwd") or call_args[1].get("cwd")
+        assert cwd_arg == target_dir.resolve()
+
+    @patch("gobby.cli.init.initialize_project")
+    @patch("gobby.cli.load_config")
+    def test_init_with_long_path_option(
+        self,
+        mock_load_config: MagicMock,
+        mock_initialize: MagicMock,
+        runner: CliRunner,
+        mock_config: MagicMock,
+        mock_init_result_new: InitResult,
+        temp_dir: Path,
+    ) -> None:
+        """Test that init --path works the same as -C."""
+        mock_load_config.return_value = mock_config
+        mock_initialize.return_value = mock_init_result_new
+
+        target_dir = temp_dir / "target-project-long"
+        target_dir.mkdir()
+
+        result = runner.invoke(cli, ["init", "--path", str(target_dir)])
+
+        assert result.exit_code == 0
+        call_args = mock_initialize.call_args
+        cwd_arg = call_args.kwargs.get("cwd") or call_args[1].get("cwd")
+        assert cwd_arg == target_dir.resolve()
+
+    def test_init_with_nonexistent_path(self, runner: CliRunner) -> None:
+        """Test that init -C with nonexistent path fails."""
+        result = runner.invoke(cli, ["init", "-C", "/nonexistent/path"])
+        assert result.exit_code != 0
+
 
 class TestVerificationCommandsDataclass:
     """Tests for VerificationCommands dataclass behavior in CLI context."""

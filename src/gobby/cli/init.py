@@ -16,10 +16,20 @@ logger = logging.getLogger(__name__)
 @click.command()
 @click.option("--name", "-n", help="Project name")
 @click.option("--github-url", "-g", help="GitHub repository URL")
+@click.option(
+    "-C",
+    "--path",
+    "working_dir",
+    type=click.Path(exists=True, file_okay=False, dir_okay=True, path_type=Path),
+    default=None,
+    help="Target directory (default: current directory)",
+)
 @click.pass_context
-def init(ctx: click.Context, name: str | None, github_url: str | None) -> None:
+def init(
+    ctx: click.Context, name: str | None, github_url: str | None, working_dir: Path | None
+) -> None:
     """Initialize a new Gobby project in the current directory."""
-    cwd = Path.cwd()
+    cwd = working_dir.resolve() if working_dir else Path.cwd()
 
     try:
         result = initialize_project(cwd=cwd, name=name, github_url=github_url)

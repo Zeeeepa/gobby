@@ -190,6 +190,14 @@ def _is_copilot_cli_installed() -> bool:
     is_flag=True,
     help="Install hooks per-project instead of globally (legacy behavior)",
 )
+@click.option(
+    "-C",
+    "--path",
+    "working_dir",
+    type=click.Path(exists=True, file_okay=False, dir_okay=True, path_type=Path),
+    default=None,
+    help="Target directory (default: current directory)",
+)
 def install(
     claude_flag: bool,
     gemini_flag: bool,
@@ -203,6 +211,7 @@ def install(
     neo4j_flag: bool,
     neo4j_password: str | None,
     project_flag: bool,
+    working_dir: Path | None,
 ) -> None:
     """Install Gobby hooks to AI coding CLIs and Git.
 
@@ -211,7 +220,7 @@ def install(
     Use --claude, --gemini, --codex to install only to specific CLIs.
     Use --hooks to install Git hooks for task auto-sync.
     """
-    project_path = Path.cwd()
+    project_path = working_dir.resolve() if working_dir else Path.cwd()
     mode = "project" if project_flag else "global"
 
     # Determine which CLIs to install
@@ -782,6 +791,14 @@ def install(
     is_flag=True,
     help="Uninstall per-project hooks from current directory (instead of global)",
 )
+@click.option(
+    "-C",
+    "--path",
+    "working_dir",
+    type=click.Path(exists=True, file_okay=False, dir_okay=True, path_type=Path),
+    default=None,
+    help="Target directory (default: current directory)",
+)
 @click.confirmation_option(prompt="Are you sure you want to uninstall Gobby hooks?")
 def uninstall(
     claude_flag: bool,
@@ -794,6 +811,7 @@ def uninstall(
     neo4j_flag: bool,
     volumes_flag: bool,
     project_flag: bool,
+    working_dir: Path | None,
 ) -> None:
     """Uninstall Gobby hooks from AI coding CLIs.
 
@@ -801,7 +819,7 @@ def uninstall(
     Use --project to uninstall per-project hooks from the current directory.
     Use --claude, --gemini, --codex, --cursor, --windsurf, or --copilot to uninstall only from specific CLIs.
     """
-    project_path = Path.cwd()
+    project_path = working_dir.resolve() if working_dir else Path.cwd()
 
     # Determine which CLIs to uninstall
     # If no flags specified, act like --all
