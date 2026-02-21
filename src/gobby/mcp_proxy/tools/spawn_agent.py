@@ -73,8 +73,11 @@ async def _check_tmux_session_alive(
             stdout=asyncio.subprocess.DEVNULL,
             stderr=asyncio.subprocess.DEVNULL,
         )
-        await proc.wait()
+        await asyncio.wait_for(proc.wait(), timeout=5.0)
         return proc.returncode == 0
+    except TimeoutError:
+        proc.kill()
+        return True  # Timed out, assume alive
     except asyncio.CancelledError:
         raise
     except OSError:
