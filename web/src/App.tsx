@@ -343,15 +343,15 @@ export default function App() {
           <img src="/logo.png" alt="Gobby logo" className="header-logo" />
           <span className="header-title">Gobby</span>
         </div>
-        {projectOptions.length > 0 && (
-          <ProjectSelector
-            projects={projectOptions}
-            selectedProjectId={effectiveProjectId}
-            onProjectChange={setSelectedProjectId}
-            dropDirection="down"
-          />
-        )}
         <div className="header-actions">
+          {projectOptions.length > 0 && (
+            <ProjectSelector
+              projects={projectOptions}
+              selectedProjectId={effectiveProjectId}
+              onProjectChange={setSelectedProjectId}
+              dropDirection="down"
+            />
+          )}
           <span className={`status ${isConnected ? 'connected' : 'disconnected'}`}>
             {isConnected ? 'Connected' : 'Disconnected'}
           </span>
