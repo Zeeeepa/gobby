@@ -19,9 +19,12 @@ interface ChatPageProps {
 }
 
 export function ChatPage({ chat, conversations, project, voice }: ChatPageProps) {
-  const activeTitle = conversations.sessions.find(
+  const activeSession = conversations.sessions.find(
     s => s.external_id === conversations.activeSessionId
-  )?.title ?? null
+  )
+  const activeTitle = activeSession?.title ?? null
+  const effectiveSessionRef = chat.sessionRef
+    ?? (activeSession?.seq_num != null ? `#${activeSession.seq_num}` : null)
 
   const {
     activeArtifact,
@@ -64,7 +67,7 @@ export function ChatPage({ chat, conversations, project, voice }: ChatPageProps)
             {/* Chat column */}
             <div className="flex flex-col flex-1 min-w-0">
               <SessionStatusBar
-                sessionRef={chat.sessionRef}
+                sessionRef={effectiveSessionRef}
                 title={activeTitle}
                 mode={chat.mode}
               />
