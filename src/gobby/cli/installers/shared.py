@@ -300,14 +300,19 @@ def _copy_docs(source: Path, target: Path, installed: dict[str, list[str]]) -> N
             installed["docs"].append(doc_file.name)
 
 
-def sync_bundled_content_to_db(db: "DatabaseProtocol") -> dict[str, Any]:
+def sync_bundled_content_to_db(
+    db: "DatabaseProtocol",
+    skip_types: set[str] | None = None,
+) -> dict[str, Any]:
     """Sync all bundled content (skills, prompts, rules, agents, workflows) to the database.
 
     Called during ``gobby install`` as the single import point.
-    The daemon no longer syncs on startup.
+    The daemon no longer syncs on startup (except in dev mode).
 
     Args:
         db: Database connection implementing DatabaseProtocol.
+        skip_types: Optional set of content type names to skip (e.g. ``{"workflows"}``).
+            Used by the integrity checker to block tampered types.
 
     Returns:
         Dict with total_synced count and any errors.
@@ -328,6 +333,10 @@ def sync_bundled_content_to_db(db: "DatabaseProtocol") -> dict[str, Any]:
     ]
 
     for content_type, module_path, func_name in sync_targets:
+        if skip_types and content_type in skip_types:
+            logger.debug(f"Skipping sync of bundled {content_type}")
+            result["details"][content_type] = {"skipped": True}
+            continue
         try:
             module = __import__(module_path, fromlist=[func_name])
             sync_fn = getattr(module, func_name)

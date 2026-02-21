@@ -128,13 +128,19 @@ class GobbyRunner:
         self.task_manager = LocalTaskManager(self.database)
         self.session_task_manager = SessionTaskManager(self.database)
 
-        # Bundled content (skills, prompts, rules, agents) is synced to the DB
-        # during `gobby install`, not on every daemon startup.  See
-        # src/gobby/cli/install.py -> sync_bundled_content_to_db().
-
         from gobby.utils.dev import is_dev_mode
 
         self._dev_mode = is_dev_mode(Path.cwd())
+
+        # In dev mode, auto-sync bundled content so YAML edits are picked up
+        # on every daemon restart without needing a full `gobby install`.
+        if self._dev_mode:
+            from gobby.cli.installers.shared import sync_bundled_content_to_db
+
+            sync_result = sync_bundled_content_to_db(self.database)
+            total = sync_result["total_synced"]
+            if total > 0:
+                logger.info(f"Dev mode: synced {total} bundled items on startup")
 
         # Initialize Prompt Manager
         from gobby.storage.prompts import LocalPromptManager

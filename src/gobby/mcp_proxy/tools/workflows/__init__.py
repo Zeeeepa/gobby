@@ -338,10 +338,10 @@ def create_workflows_registry(
 
     @registry.tool(
         name="reload_cache",
-        description="Clear the workflow cache. Use this after modifying workflow YAML files.",
+        description="Clear the workflow cache and re-sync bundled workflows to DB. Use this after modifying workflow YAML files.",
     )
     def _reload_cache() -> dict[str, Any]:
-        return reload_cache(_loader)
+        return reload_cache(_loader, db=_db)
 
     @registry.tool(
         name="create_workflow",
