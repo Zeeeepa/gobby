@@ -6,6 +6,7 @@ import os
 import shutil
 import subprocess  # nosec B404 - subprocess needed to run bundled Node app
 import sys
+from pathlib import Path
 
 import click
 
@@ -32,14 +33,7 @@ def setup() -> None:
 
     # Pass context to the Ink app via environment variables
     env = os.environ.copy()
-    env["GOBBY_HOME"] = str(get_install_dir().parent.parent / ".gobby")
-    gobby_home_env = os.environ.get("GOBBY_HOME")
-    if gobby_home_env:
-        env["GOBBY_HOME"] = gobby_home_env
-    else:
-        from pathlib import Path
-
-        env["GOBBY_HOME"] = str(Path.home() / ".gobby")
+    env["GOBBY_HOME"] = os.environ.get("GOBBY_HOME") or str(Path.home() / ".gobby")
     env["GOBBY_INSTALL_DIR"] = str(get_install_dir())
     gobby_bin = shutil.which("gobby")
     if gobby_bin:
