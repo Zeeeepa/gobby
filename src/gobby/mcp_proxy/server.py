@@ -4,6 +4,7 @@ Gobby Daemon Tools MCP Server.
 
 import json
 import logging
+import sqlite3
 from pathlib import Path
 from typing import Any
 
@@ -128,16 +129,14 @@ class GobbyDaemonTools:
                     project_file = Path(project.repo_path) / ".gobby" / "project.json"
                     if project_file.exists():
                         try:
-                            import json as _json
-
-                            data = _json.loads(project_file.read_text())
+                            data = json.loads(project_file.read_text())
                             data["project_path"] = project.repo_path
                             return set_project_context(data)
-                        except Exception:
-                            pass
+                        except (json.JSONDecodeError, OSError) as e:
+                            logger.debug("Failed to read project.json at %s: %s", project_file, e)
                 return set_project_context(ctx)
-        except Exception:
-            pass
+        except (ImportError, OSError, sqlite3.Error) as e:
+            logger.debug("Failed to enrich project context for session %s: %s", session_id, e)
 
         return set_project_context({"id": session.project_id})
 
