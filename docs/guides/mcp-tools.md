@@ -669,7 +669,7 @@ call_tool("gobby-merge", "merge_apply", {})
 | `list_clones` | List clones with status filter |
 | `delete_clone` | Delete clone and files |
 | `sync_clone` | Sync with remote repository |
-| `merge_clone_to_target` | Merge clone branch to target |
+| `merge_clone` | Merge clone branch to target |
 
 ---
 

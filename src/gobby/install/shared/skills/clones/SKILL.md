@@ -122,7 +122,7 @@ Example: `/gobby clones sync clone-abc123 pull` -> `sync_clone(clone_id="clone-a
 Example: `/gobby clones sync clone-abc123 push` -> `sync_clone(clone_id="clone-abc123", direction="push")`
 
 ### `/gobby clones merge <clone-id>` - Merge clone to target branch
-Call `merge_clone_to_target` with:
+Call `merge_clone` with:
 - `clone_id`: (required) Clone ID to merge
 - `target_branch`: Target branch to merge into (default: main)
 
@@ -133,8 +133,8 @@ Performs:
 
 On success, sets cleanup_after to 7 days. If conflicts occur, use gobby-merge tools to resolve.
 
-Example: `/gobby clones merge clone-abc123` -> `merge_clone_to_target(clone_id="clone-abc123")`
-Example: `/gobby clones merge clone-abc123 develop` -> `merge_clone_to_target(clone_id="clone-abc123", target_branch="develop")`
+Example: `/gobby clones merge clone-abc123` -> `merge_clone(clone_id="clone-abc123")`
+Example: `/gobby clones merge clone-abc123 develop` -> `merge_clone(clone_id="clone-abc123", target_branch="develop")`
 
 ### `/gobby clones delete <clone-id>` - Delete a clone
 Call `delete_clone` with:

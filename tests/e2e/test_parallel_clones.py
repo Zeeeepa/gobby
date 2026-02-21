@@ -57,7 +57,7 @@ class TestCloneToolsAvailability:
             "list_clones",
             "delete_clone",
             "sync_clone",
-            "merge_clone_to_target",
+            "merge_clone",
             # Note: spawn_agent_in_clone was deprecated and replaced by unified
             # spawn_agent tool in gobby-agents with isolation="clone" parameter
         ]
@@ -354,7 +354,7 @@ class TestCloneLifecycle:
         assert result.get("success") is False
         assert "not found" in result.get("error", "").lower()
 
-    def test_merge_clone_to_target_not_found(
+    def test_merge_clone_not_found(
         self,
         daemon_instance: DaemonInstance,
         mcp_client: MCPTestClient,
@@ -362,7 +362,7 @@ class TestCloneLifecycle:
         """Test merging a non-existent clone returns error."""
         raw_result = mcp_client.call_tool(
             server_name="gobby-clones",
-            tool_name="merge_clone_to_target",
+            tool_name="merge_clone",
             arguments={"clone_id": "nonexistent-clone-id"},
         )
         result = unwrap_result(raw_result)

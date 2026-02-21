@@ -33,7 +33,7 @@ steps:
       - action: call_mcp_tool
         when: "variables.get('isolation_mode') == 'clone'"
         server_name: gobby-clones
-        tool_name: merge_clone_to_target
+        tool_name: merge_clone
         arguments:
           clone_id: "{{ variables.clone_id }}"
           target_branch: "{{ variables.target_branch }}"

@@ -369,7 +369,7 @@ Gobby exposes tools via MCP that your AI coding assistant can use:
 `create_worktree`, `list_worktrees`, `delete_worktree`, `merge_worktree`
 
 **Clones** (`gobby-clones`)
-`create_clone`, `list_clones`, `delete_clone`, `merge_clone_to_target`
+`create_clone`, `list_clones`, `delete_clone`, `merge_clone`
 
 **Pipelines** (`gobby-pipelines`)
 `list_pipelines`, `run_pipeline`, `approve_pipeline`, `reject_pipeline`, `get_pipeline_status`

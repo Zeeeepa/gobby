@@ -1335,7 +1335,7 @@ New drag-and-drop workflow editor built with @xyflow/react.
 - New `gobby-clones` MCP server for isolated parallel development
 - `CloneGitManager` for git clone operations
 - `spawn_agent_in_clone` tool for running agents in isolated clones
-- `merge_clone_to_target` tool with conflict detection
+- `merge_clone` tool with conflict detection
 - Clone storage layer with database migration
 - Clone CLI commands (`gobby clones list/create/delete`)
 - Updated `parallel-orchestrator` and `sequential-orchestrator` workflows

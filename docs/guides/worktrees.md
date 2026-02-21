@@ -424,7 +424,7 @@ call_tool(server_name="gobby-clones", tool_name="sync_clone", arguments={
 })
 
 # Merge to target
-call_tool(server_name="gobby-clones", tool_name="merge_clone_to_target", arguments={
+call_tool(server_name="gobby-clones", tool_name="merge_clone", arguments={
     "clone_id": "<clone_id>",
     "target_branch": "main"
 })

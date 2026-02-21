@@ -291,7 +291,7 @@ def merge_clone(clone_ref: str, target_branch: str, json_format: bool) -> None:
 
     try:
         response = httpx.post(
-            f"{daemon_url}/mcp/gobby-clones/tools/merge_clone_to_target",
+            f"{daemon_url}/mcp/gobby-clones/tools/merge_clone",
             json={"clone_id": clone_id, "target_branch": target_branch},
             timeout=120.0,
         )

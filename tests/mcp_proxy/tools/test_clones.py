@@ -6,7 +6,7 @@ Tests for the gobby-clones MCP server tools:
 - list_clones
 - delete_clone
 - sync_clone
-- merge_clone_to_target
+- merge_clone
 """
 
 from pathlib import Path
@@ -403,7 +403,7 @@ class TestSyncClone:
 
 
 class TestMergeCloneToTarget:
-    """Tests for merge_clone_to_target tool."""
+    """Tests for merge_clone tool."""
 
     @pytest.mark.asyncio
     async def test_merge_clone_success(self, registry, mock_clone_storage, mock_git_manager):
@@ -437,7 +437,7 @@ class TestMergeCloneToTarget:
         )
 
         result = await registry.call(
-            "merge_clone_to_target",
+            "merge_clone",
             {"clone_id": "clone-123", "target_branch": "main"},
         )
 
@@ -453,7 +453,7 @@ class TestMergeCloneToTarget:
         mock_clone_storage.get.return_value = None
 
         result = await registry.call(
-            "merge_clone_to_target",
+            "merge_clone",
             {"clone_id": "nonexistent", "target_branch": "main"},
         )
 
@@ -486,7 +486,7 @@ class TestMergeCloneToTarget:
         )
 
         result = await registry.call(
-            "merge_clone_to_target",
+            "merge_clone",
             {"clone_id": "clone-123", "target_branch": "main"},
         )
 
@@ -524,7 +524,7 @@ class TestMergeCloneToTarget:
         )
 
         result = await registry.call(
-            "merge_clone_to_target",
+            "merge_clone",
             {"clone_id": "clone-123", "target_branch": "main"},
         )
 
@@ -563,7 +563,7 @@ class TestMergeCloneToTarget:
         )
 
         result = await registry.call(
-            "merge_clone_to_target",
+            "merge_clone",
             {"clone_id": "clone-123", "target_branch": "main"},
         )
 

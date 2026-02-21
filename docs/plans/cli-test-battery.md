@@ -649,7 +649,7 @@ Systematic testing of all CLI commands with corresponding MCP tools to ensure co
 | CLONE_REF | `gobby clones merge <id>` | Merges clone |
 | `--target/-t` | `gobby clones merge <id> -t develop` | Target branch |
 | `--json` | `gobby clones merge <id> --json` | Valid JSON |
-| MCP equivalent | `merge_clone_to_target` | Compare behavior |
+| MCP equivalent | `merge_clone` | Compare behavior |
 
 ### 9.5 `clones delete`
 | Flag | Test Command | Success Criteria |

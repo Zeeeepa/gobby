@@ -398,8 +398,8 @@ def create_clones_registry(
         func=sync_clone,
     )
 
-    # ===== merge_clone_to_target =====
-    async def merge_clone_to_target(
+    # ===== merge_clone =====
+    async def merge_clone(
         clone_id: str,
         target_branch: str = "main",
     ) -> dict[str, Any]:
@@ -489,7 +489,7 @@ def create_clones_registry(
         }
 
     registry.register(
-        name="merge_clone_to_target",
+        name="merge_clone",
         description="Merge clone branch to target branch in main repository",
         input_schema={
             "type": "object",
@@ -506,7 +506,344 @@ def create_clones_registry(
             },
             "required": ["clone_id"],
         },
-        func=merge_clone_to_target,
+        func=merge_clone,
+    )
+
+    # ===== claim_clone =====
+    async def claim_clone(
+        clone_id: str,
+        session_id: str,
+    ) -> dict[str, Any]:
+        """
+        Claim a clone for an agent session.
+
+        Args:
+            clone_id: Clone ID to claim
+            session_id: Session ID claiming ownership
+
+        Returns:
+            Dict with success status
+        """
+        clone = clone_storage.get(clone_id)
+        if not clone:
+            return {"success": False, "error": f"Clone not found: {clone_id}"}
+
+        if clone.agent_session_id and clone.agent_session_id != session_id:
+            return {
+                "success": False,
+                "error": f"Clone already claimed by session '{clone.agent_session_id}'",
+            }
+
+        updated = clone_storage.claim(clone_id, session_id)
+        if not updated:
+            return {"success": False, "error": "Failed to claim clone"}
+
+        return {"success": True}
+
+    registry.register(
+        name="claim_clone",
+        description="Claim ownership of a clone for an agent session",
+        input_schema={
+            "type": "object",
+            "properties": {
+                "clone_id": {
+                    "type": "string",
+                    "description": "Clone ID to claim",
+                },
+                "session_id": {
+                    "type": "string",
+                    "description": "Session ID claiming ownership",
+                },
+            },
+            "required": ["clone_id", "session_id"],
+        },
+        func=claim_clone,
+    )
+
+    # ===== release_clone =====
+    async def release_clone(clone_id: str) -> dict[str, Any]:
+        """
+        Release a clone from its current owner.
+
+        Args:
+            clone_id: Clone ID to release
+
+        Returns:
+            Dict with success status
+        """
+        clone = clone_storage.get(clone_id)
+        if not clone:
+            return {"success": False, "error": f"Clone not found: {clone_id}"}
+
+        updated = clone_storage.release(clone_id)
+        if not updated:
+            return {"success": False, "error": "Failed to release clone"}
+
+        return {"success": True}
+
+    registry.register(
+        name="release_clone",
+        description="Release ownership of a clone",
+        input_schema={
+            "type": "object",
+            "properties": {
+                "clone_id": {
+                    "type": "string",
+                    "description": "Clone ID to release",
+                },
+            },
+            "required": ["clone_id"],
+        },
+        func=release_clone,
+    )
+
+    # ===== get_clone_by_task =====
+    async def get_clone_by_task(task_id: str) -> dict[str, Any]:
+        """
+        Get clone linked to a specific task.
+
+        Args:
+            task_id: Task ID to look up
+
+        Returns:
+            Dict with clone details or not found
+        """
+        clone = clone_storage.get_by_task(task_id)
+        if not clone:
+            return {"success": False, "error": f"No clone linked to task '{task_id}'"}
+
+        return {"success": True, "clone": clone.to_dict()}
+
+    registry.register(
+        name="get_clone_by_task",
+        description="Get clone linked to a specific task",
+        input_schema={
+            "type": "object",
+            "properties": {
+                "task_id": {
+                    "type": "string",
+                    "description": "Task ID to look up",
+                },
+            },
+            "required": ["task_id"],
+        },
+        func=get_clone_by_task,
+    )
+
+    # ===== link_task_to_clone =====
+    async def link_task_to_clone(
+        clone_id: str,
+        task_id: str,
+    ) -> dict[str, Any]:
+        """
+        Link a task to an existing clone.
+
+        Args:
+            clone_id: Clone ID
+            task_id: Task ID to link
+
+        Returns:
+            Dict with success status
+        """
+        clone = clone_storage.get(clone_id)
+        if not clone:
+            return {"success": False, "error": f"Clone not found: {clone_id}"}
+
+        updated = clone_storage.update(clone_id, task_id=task_id)
+        if not updated:
+            return {"success": False, "error": "Failed to link task to clone"}
+
+        return {"success": True}
+
+    registry.register(
+        name="link_task_to_clone",
+        description="Link a task to an existing clone",
+        input_schema={
+            "type": "object",
+            "properties": {
+                "clone_id": {
+                    "type": "string",
+                    "description": "Clone ID",
+                },
+                "task_id": {
+                    "type": "string",
+                    "description": "Task ID to link",
+                },
+            },
+            "required": ["clone_id", "task_id"],
+        },
+        func=link_task_to_clone,
+    )
+
+    # ===== get_clone_stats =====
+    async def get_clone_stats() -> dict[str, Any]:
+        """
+        Get clone statistics for the project.
+
+        Returns:
+            Dict with counts by status
+        """
+        counts = clone_storage.count_by_status(project_id)
+
+        return {
+            "success": True,
+            "project_id": project_id,
+            "counts": counts,
+            "total": sum(counts.values()),
+        }
+
+    registry.register(
+        name="get_clone_stats",
+        description="Get clone statistics (counts by status) for the project",
+        input_schema={
+            "type": "object",
+            "properties": {},
+        },
+        func=get_clone_stats,
+    )
+
+    # ===== detect_stale_clones =====
+    async def detect_stale_clones(
+        hours: int | str = 24,
+        limit: int | str = 50,
+    ) -> dict[str, Any]:
+        """
+        Find clones with no activity for a period.
+
+        Args:
+            hours: Hours of inactivity threshold (default: 24)
+            limit: Maximum results (default: 50)
+
+        Returns:
+            Dict with list of stale clones
+        """
+        hours = int(hours) if isinstance(hours, str) else hours
+        limit = int(limit) if isinstance(limit, str) else limit
+
+        stale = clone_storage.find_stale(
+            project_id=project_id,
+            hours=hours,
+            limit=limit,
+        )
+
+        return {
+            "success": True,
+            "stale_clones": [
+                {
+                    "id": c.id,
+                    "branch_name": c.branch_name,
+                    "clone_path": c.clone_path,
+                    "updated_at": c.updated_at,
+                    "task_id": c.task_id,
+                }
+                for c in stale
+            ],
+            "count": len(stale),
+            "threshold_hours": hours,
+        }
+
+    registry.register(
+        name="detect_stale_clones",
+        description="Find clones with no activity for a period",
+        input_schema={
+            "type": "object",
+            "properties": {
+                "hours": {
+                    "type": "integer",
+                    "description": "Hours of inactivity threshold",
+                    "default": 24,
+                },
+                "limit": {
+                    "type": "integer",
+                    "description": "Maximum results",
+                    "default": 50,
+                },
+            },
+        },
+        func=detect_stale_clones,
+    )
+
+    # ===== cleanup_stale_clones =====
+    async def cleanup_stale_clones(
+        hours: int | str = 24,
+        dry_run: bool | str = True,
+        delete_files: bool | str = False,
+    ) -> dict[str, Any]:
+        """
+        Mark and optionally delete stale clones.
+
+        Args:
+            hours: Hours of inactivity threshold (default: 24)
+            dry_run: If True, only report what would be cleaned (default: True)
+            delete_files: If True, also delete clone files (default: False)
+
+        Returns:
+            Dict with cleanup results
+        """
+        hours = int(hours) if isinstance(hours, str) else hours
+        dry_run = dry_run in (True, "true", "True", "1") if isinstance(dry_run, str) else dry_run
+        delete_files = (
+            delete_files in (True, "true", "True", "1")
+            if isinstance(delete_files, str)
+            else delete_files
+        )
+
+        stale = clone_storage.cleanup_stale(
+            project_id=project_id,
+            hours=hours,
+            dry_run=dry_run,
+        )
+
+        results = []
+        for c in stale:
+            result_item: dict[str, Any] = {
+                "id": c.id,
+                "branch_name": c.branch_name,
+                "clone_path": c.clone_path,
+                "marked_stale": not dry_run,
+                "files_deleted": False,
+            }
+
+            if delete_files and not dry_run and git_manager:
+                git_result = git_manager.delete_clone(c.clone_path, force=True)
+                result_item["files_deleted"] = git_result.success
+                if not git_result.success:
+                    result_item["delete_error"] = git_result.error or "Unknown error"
+
+            results.append(result_item)
+
+        return {
+            "success": True,
+            "dry_run": dry_run,
+            "cleaned": results,
+            "count": len(results),
+            "threshold_hours": hours,
+        }
+
+    registry.register(
+        name="cleanup_stale_clones",
+        description="Mark and optionally delete stale clones",
+        input_schema={
+            "type": "object",
+            "properties": {
+                "hours": {
+                    "type": "integer",
+                    "description": "Hours of inactivity threshold",
+                    "default": 24,
+                },
+                "dry_run": {
+                    "type": "boolean",
+                    "description": "If true, only report what would be cleaned",
+                    "default": True,
+                },
+                "delete_files": {
+                    "type": "boolean",
+                    "description": "If true, also delete clone files on disk",
+                    "default": False,
+                },
+            },
+        },
+        func=cleanup_stale_clones,
     )
 
     return registry

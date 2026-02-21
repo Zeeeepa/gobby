@@ -374,3 +374,92 @@ class LocalCloneManager:
             Updated Clone or None if not found
         """
         return self.update(clone_id, agent_session_id=None)
+
+    def count_by_status(self, project_id: str) -> dict[str, int]:
+        """
+        Get count of clones by status for a project.
+
+        Args:
+            project_id: Project ID
+
+        Returns:
+            Dict mapping status to count
+        """
+        rows = self.db.fetchall(
+            """
+            SELECT status, COUNT(*) as count
+            FROM clones
+            WHERE project_id = ?
+            GROUP BY status
+            """,
+            (project_id,),
+        )
+        return {row["status"]: row["count"] for row in rows}
+
+    def find_stale(
+        self,
+        project_id: str,
+        hours: int = 24,
+        limit: int = 50,
+    ) -> list[Clone]:
+        """
+        Find clones that are stale (no activity for N hours).
+
+        Finds active clones with no agent_session_id and updated_at
+        older than the threshold.
+
+        Args:
+            project_id: Project ID
+            hours: Hours of inactivity threshold
+            limit: Maximum number of results
+
+        Returns:
+            List of stale Clone instances
+        """
+        from datetime import timedelta
+
+        cutoff = (datetime.now(UTC) - timedelta(hours=hours)).isoformat()
+
+        rows = self.db.fetchall(
+            """
+            SELECT * FROM clones
+            WHERE project_id = ?
+              AND status = ?
+              AND agent_session_id IS NULL
+              AND updated_at < ?
+            ORDER BY updated_at ASC
+            LIMIT ?
+            """,
+            (project_id, CloneStatus.ACTIVE.value, cutoff, limit),
+        )
+        return [Clone.from_row(row) for row in rows]
+
+    def cleanup_stale(
+        self,
+        project_id: str,
+        hours: int = 24,
+        dry_run: bool = True,
+    ) -> list[Clone]:
+        """
+        Mark stale clones for cleanup.
+
+        Args:
+            project_id: Project ID
+            hours: Hours of inactivity threshold
+            dry_run: If True, just return candidates without updating
+
+        Returns:
+            List of clones marked/to be marked as stale.
+            When dry_run is False, returns refreshed clones with updated status.
+        """
+        stale = self.find_stale(project_id, hours)
+
+        if not dry_run:
+            updated: list[Clone] = []
+            for clone in stale:
+                result = self.mark_stale(clone.id)
+                if result is not None:
+                    updated.append(result)
+            return updated
+
+        return stale
