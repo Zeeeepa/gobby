@@ -1873,7 +1873,7 @@ body {
 .conversation-picker {
   width: var(--sidebar-width);
   min-width: var(--sidebar-width);
-  background: var(--bg-secondary);
+  background: var(--bg-tertiary);
   border-right: 1px solid var(--border);
   display: flex;
   flex-direction: column;
@@ -2762,7 +2762,7 @@ details:not([open]) > .session-metadata-toggle .session-metadata-chevron {
   left: 0;
   width: var(--sidebar-width);
   height: 100%;
-  background: var(--bg-secondary);
+  background: var(--bg-tertiary);
   border-right: 1px solid var(--border);
   z-index: 61;
   transform: translateX(-100%);

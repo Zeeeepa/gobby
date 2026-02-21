@@ -16,7 +16,7 @@ export function SessionStatusBar({ sessionRef, title, mode }: SessionStatusBarPr
   const { dot, label, restriction } = MODE_CONFIG[mode]
 
   return (
-    <div className="flex items-center justify-between px-4 py-1.5 bg-muted/50 border-b border-border text-xs">
+    <div className="flex items-center justify-between px-4 py-1.5 bg-muted border-b border-border text-xs">
       <div className="flex items-center gap-1.5 min-w-0">
         {sessionRef && (
           <span className="font-mono text-accent shrink-0">{sessionRef}</span>
