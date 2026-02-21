@@ -27,6 +27,95 @@ from .skill_install import backup_gobby_skills, install_router_skills_as_command
 
 logger = logging.getLogger(__name__)
 
+# Hook types that Gobby registers (must match hooks-template.json)
+_GOBBY_HOOK_TYPES = [
+    "SessionStart",
+    "SessionEnd",
+    "UserPromptSubmit",
+    "PreToolUse",
+    "PostToolUse",
+    "PreCompact",
+    "Notification",
+    "Stop",
+    "SubagentStart",
+    "SubagentStop",
+    "PermissionRequest",
+]
+
+
+def _clean_project_hooks(project_path: Path) -> list[str]:
+    """Remove gobby hooks from project-level .claude/settings.json.
+
+    When hooks are installed globally, project-level hooks cause duplicates
+    because Claude Code merges both levels. This removes gobby hook entries
+    from the project settings to prevent double-firing.
+
+    Args:
+        project_path: Path to the project root
+
+    Returns:
+        List of hook types that were removed
+    """
+    settings_file = project_path / ".claude" / "settings.json"
+    if not settings_file.exists():
+        return []
+
+    try:
+        with open(settings_file) as f:
+            settings = json.load(f)
+    except (json.JSONDecodeError, OSError) as e:
+        logger.warning(f"Could not read project settings for hook cleanup: {e}")
+        return []
+
+    if "hooks" not in settings:
+        return []
+
+    removed: list[str] = []
+    for hook_type in _GOBBY_HOOK_TYPES:
+        if hook_type not in settings["hooks"]:
+            continue
+        # Only remove if the hook commands reference hook_dispatcher.py (ours)
+        hooks_list = settings["hooks"][hook_type]
+        is_gobby = any(
+            "hook_dispatcher.py" in hook.get("command", "")
+            for entry in hooks_list
+            for hook in entry.get("hooks", [])
+        )
+        if is_gobby:
+            del settings["hooks"][hook_type]
+            removed.append(hook_type)
+
+    if not removed:
+        return []
+
+    # Remove empty hooks dict
+    if not settings["hooks"]:
+        del settings["hooks"]
+
+    try:
+        fd, temp_path = tempfile.mkstemp(
+            dir=str(settings_file.parent), suffix=".tmp", prefix="settings_"
+        )
+        try:
+            with os.fdopen(fd, "w") as f:
+                json.dump(settings, f, indent=2)
+                f.flush()
+                os.fsync(f.fileno())
+            os.replace(temp_path, settings_file)
+        except Exception:
+            if os.path.exists(temp_path):
+                os.unlink(temp_path)
+            raise
+    except OSError as e:
+        logger.warning(f"Failed to clean project-level hooks: {e}")
+        return []
+
+    logger.info(
+        f"Cleaned {len(removed)} gobby hook(s) from project settings "
+        f"(now using global hooks): {', '.join(removed)}"
+    )
+    return removed
+
 
 def install_claude(project_path: Path, mode: str = "global") -> dict[str, Any]:
     """Install Gobby integration for Claude Code (hooks, workflows).
@@ -84,6 +173,10 @@ def install_claude(project_path: Path, mode: str = "global") -> dict[str, Any]:
     try:
         if mode == "global":
             install_global_hooks()
+            # Clean up project-level hooks to prevent double-firing
+            cleaned = _clean_project_hooks(project_path)
+            if cleaned:
+                result["project_hooks_cleaned"] = cleaned
         else:
             install_shared_hooks(hooks_dir, project_path)
     except OSError as e:
@@ -283,21 +376,7 @@ def uninstall_claude(project_path: Path) -> dict[str, Any]:
         return result
 
     if "hooks" in settings:
-        hook_types = [
-            "SessionStart",
-            "SessionEnd",
-            "UserPromptSubmit",
-            "PreToolUse",
-            "PostToolUse",
-            "PreCompact",
-            "Notification",
-            "Stop",
-            "SubagentStart",
-            "SubagentStop",
-            "PermissionRequest",
-        ]
-
-        for hook_type in hook_types:
+        for hook_type in _GOBBY_HOOK_TYPES:
             if hook_type in settings["hooks"]:
                 del settings["hooks"][hook_type]
                 hooks_removed.append(hook_type)

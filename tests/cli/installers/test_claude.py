@@ -1076,6 +1076,152 @@ class TestInstallClaudeEdgeCases:
         assert isinstance(result["mcp_already_configured"], bool)
 
 
+class TestCleanProjectHooks:
+    """Tests for _clean_project_hooks (global mode cleanup)."""
+
+    @pytest.fixture
+    def temp_project(self, temp_dir: Path) -> Path:
+        """Create a temporary project directory."""
+        project = temp_dir / "test-project"
+        project.mkdir()
+        return project
+
+    def test_clean_project_hooks_removes_gobby_hooks(self, temp_project: Path) -> None:
+        """Test that gobby hooks are removed from project settings."""
+        from gobby.cli.installers.claude import _clean_project_hooks
+
+        claude_path = temp_project / ".claude"
+        claude_path.mkdir(parents=True)
+        settings = {
+            "hooks": {
+                "SessionStart": [
+                    {"hooks": [{"type": "command", "command": "python hook_dispatcher.py --type=session-start"}]}
+                ],
+                "PreToolUse": [
+                    {"matcher": "*", "hooks": [{"type": "command", "command": "python hook_dispatcher.py --type=pre-tool-use"}]}
+                ],
+            },
+            "allowedTools": ["tool1"],
+        }
+        (claude_path / "settings.json").write_text(json.dumps(settings))
+
+        removed = _clean_project_hooks(temp_project)
+
+        assert "SessionStart" in removed
+        assert "PreToolUse" in removed
+
+        with open(claude_path / "settings.json") as f:
+            updated = json.load(f)
+        assert "hooks" not in updated  # empty hooks dict removed
+        assert updated["allowedTools"] == ["tool1"]
+
+    def test_clean_project_hooks_preserves_non_gobby_hooks(self, temp_project: Path) -> None:
+        """Test that non-gobby hooks are preserved."""
+        from gobby.cli.installers.claude import _clean_project_hooks
+
+        claude_path = temp_project / ".claude"
+        claude_path.mkdir(parents=True)
+        settings = {
+            "hooks": {
+                "SessionStart": [
+                    {"hooks": [{"type": "command", "command": "python hook_dispatcher.py --type=session-start"}]}
+                ],
+                "PreToolUse": [
+                    {"matcher": "*", "hooks": [{"type": "command", "command": "my-custom-linter"}]}
+                ],
+            }
+        }
+        (claude_path / "settings.json").write_text(json.dumps(settings))
+
+        removed = _clean_project_hooks(temp_project)
+
+        assert "SessionStart" in removed
+        assert "PreToolUse" not in removed  # not a gobby hook
+
+        with open(claude_path / "settings.json") as f:
+            updated = json.load(f)
+        assert "PreToolUse" in updated["hooks"]
+
+    def test_clean_project_hooks_no_settings_file(self, temp_project: Path) -> None:
+        """Test cleanup when no project settings.json exists."""
+        from gobby.cli.installers.claude import _clean_project_hooks
+
+        removed = _clean_project_hooks(temp_project)
+        assert removed == []
+
+    def test_clean_project_hooks_no_hooks_section(self, temp_project: Path) -> None:
+        """Test cleanup when settings has no hooks."""
+        from gobby.cli.installers.claude import _clean_project_hooks
+
+        claude_path = temp_project / ".claude"
+        claude_path.mkdir(parents=True)
+        (claude_path / "settings.json").write_text(json.dumps({"allowedTools": []}))
+
+        removed = _clean_project_hooks(temp_project)
+        assert removed == []
+
+    @patch("gobby.cli.installers.claude.get_install_dir")
+    @patch("gobby.cli.installers.claude.install_shared_content")
+    @patch("gobby.cli.installers.claude.install_cli_content")
+    @patch("gobby.cli.installers.claude.configure_mcp_server_json")
+    @patch("gobby.cli.installers.claude.install_global_hooks")
+    def test_global_install_cleans_project_hooks(
+        self,
+        mock_global_hooks: MagicMock,
+        mock_mcp_config: MagicMock,
+        mock_cli_content: MagicMock,
+        mock_shared_content: MagicMock,
+        mock_get_install_dir: MagicMock,
+        temp_project: Path,
+        temp_dir: Path,
+    ) -> None:
+        """Test that global install cleans up project-level hooks."""
+        from gobby.cli.installers.claude import install_claude
+
+        install_dir = temp_dir / "install"
+        claude_dir = install_dir / "claude"
+        claude_dir.mkdir(parents=True)
+        hooks_template = {
+            "hooks": {
+                "SessionStart": [{"hooks": [{"type": "command", "command": "test"}]}],
+            }
+        }
+        (claude_dir / "hooks-template.json").write_text(json.dumps(hooks_template))
+
+        mock_get_install_dir.return_value = install_dir
+        mock_shared_content.return_value = {"plugins": []}
+        mock_cli_content.return_value = {"commands": []}
+        mock_mcp_config.return_value = {"success": True, "added": True}
+        mock_global_hooks.return_value = ["hook_dispatcher.py"]
+
+        # Create project-level hooks that should be cleaned
+        project_claude = temp_project / ".claude"
+        project_claude.mkdir(parents=True)
+        project_settings = {
+            "hooks": {
+                "SessionStart": [
+                    {"hooks": [{"type": "command", "command": "python hook_dispatcher.py --type=session-start"}]}
+                ],
+            }
+        }
+        (project_claude / "settings.json").write_text(json.dumps(project_settings))
+
+        mock_home = temp_dir / "home"
+        mock_home.mkdir()
+
+        with patch.object(Path, "home", return_value=mock_home):
+            result = install_claude(temp_project, mode="global")
+
+        assert result["success"] is True
+        assert "project_hooks_cleaned" in result
+        assert "SessionStart" in result["project_hooks_cleaned"]
+
+        # Verify project settings were cleaned
+        with open(project_claude / "settings.json") as f:
+            updated = json.load(f)
+        assert "hooks" not in updated or "SessionStart" not in updated.get("hooks", {})
+
+
 class TestUninstallClaudeEdgeCases:
     """Edge case tests for uninstall_claude."""
 
