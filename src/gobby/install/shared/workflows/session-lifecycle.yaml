@@ -7,7 +7,7 @@ sources: [claude, gemini, codex, antigravity, cursor, windsurf, copilot, claude_
 # Workflow-scoped variables (behavior settings)
 variables:
   # Debug: echo additionalContext to system_message for terminal visibility
-  debug_echo_context: true
+  debug_echo_context: false
 
   # Task enforcement - require active task before file modifications
   require_task_before_edit: true
