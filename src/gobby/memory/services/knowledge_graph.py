@@ -324,29 +324,37 @@ class KnowledgeGraphService:
             if not entity_rows:
                 return []
 
-            # For each entity, find linked memory IDs via MENTIONED_IN
+            # Batch-fetch memory IDs for all entities in one query
+            entity_names = [r.get("name", "") for r in entity_rows if r.get("name")]
+            memory_map: dict[str, list[str]] = {n: [] for n in entity_names}
+
+            if entity_names:
+                try:
+                    mem_rows = await self._neo4j.query(
+                        "UNWIND $names AS entity_name "
+                        "MATCH ({name: entity_name})-[:MENTIONED_IN]->(m:Memory) "
+                        "RETURN entity_name, m.memory_id AS memory_id",
+                        {"names": entity_names},
+                    )
+                    for r in mem_rows:
+                        name = r.get("entity_name", "")
+                        mid = r.get("memory_id")
+                        if name in memory_map and mid:
+                            memory_map[name].append(mid)
+                except Exception as e:
+                    logger.debug(f"Failed to batch-fetch memory links: {e}")
+
             results = []
             for row in entity_rows:
                 name = row.get("name", "")
                 if not name:
                     continue
-                memory_ids: list[str] = []
-                try:
-                    mem_rows = await self._neo4j.query(
-                        "MATCH ({name: $name})-[:MENTIONED_IN]->(m:Memory) "
-                        "RETURN m.memory_id AS memory_id",
-                        {"name": name},
-                    )
-                    memory_ids = [r["memory_id"] for r in mem_rows if r.get("memory_id")]
-                except Exception as e:
-                    logger.debug(f"Failed to get memory links for {name}: {e}")
-
                 results.append(
                     {
                         "name": name,
                         "labels": row.get("labels", []),
                         "score": row.get("score", 0.0),
-                        "memory_ids": memory_ids,
+                        "memory_ids": memory_map.get(name, []),
                     }
                 )
 

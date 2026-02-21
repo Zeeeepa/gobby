@@ -156,9 +156,12 @@ class TestSearchEntitiesByVector:
                 {"name": "Python", "labels": ["Tool", "_Entity"], "score": 0.9, "props": {}},
             ]
         )
-        # Memory lookup for "Python" (ensure_vector_index is directly mocked, not via query)
+        # Batch memory lookup via UNWIND (ensure_vector_index is directly mocked, not via query)
         mock_neo4j.query = AsyncMock(
-            return_value=[{"memory_id": "mem-001"}, {"memory_id": "mem-002"}],
+            return_value=[
+                {"entity_name": "Python", "memory_id": "mem-001"},
+                {"entity_name": "Python", "memory_id": "mem-002"},
+            ],
         )
 
         results = await service.search_entities_by_vector(
