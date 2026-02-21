@@ -1,3 +1,4 @@
+import { memo } from 'react'
 import type { ChatMessage } from '../../types/chat'
 import { cn } from '../../lib/utils'
 import { Markdown } from './Markdown'
@@ -11,7 +12,7 @@ interface MessageItemProps {
   onRespondToQuestion?: (toolCallId: string, answers: Record<string, string>) => void
 }
 
-export function MessageItem({ message, isStreaming = false, isThinking = false, onRespondToQuestion }: MessageItemProps) {
+export const MessageItem = memo(function MessageItem({ message, isStreaming = false, isThinking = false, onRespondToQuestion }: MessageItemProps) {
   const isCommandResult = message.role === 'system' && message.toolCalls?.length && !message.content
   const isModelSwitch = message.role === 'system' && message.id.startsWith('model-switch-')
 
@@ -71,4 +72,4 @@ export function MessageItem({ message, isStreaming = false, isThinking = false, 
       </div>
     </div>
   )
-}
+})

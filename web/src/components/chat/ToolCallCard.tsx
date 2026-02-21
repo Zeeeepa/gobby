@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { memo, useMemo, useState } from 'react'
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter'
 import { oneDark } from 'react-syntax-highlighter/dist/esm/styles/prism'
 import type { ToolCall } from '../../types/chat'
@@ -150,22 +150,22 @@ function ToolArgumentsContent({ args }: { args: Record<string, unknown> }) {
 }
 
 function ToolResultContent({ call }: { call: ToolCall }) {
-  let resultStr: string
-  try {
-    if (typeof call.result === 'string') {
-      // Try to pretty-print if it's a JSON string
-      try {
-        resultStr = JSON.stringify(JSON.parse(call.result), null, 2)
-      } catch {
-        resultStr = call.result
+  const resultStr = useMemo(() => {
+    try {
+      if (typeof call.result === 'string') {
+        try {
+          return JSON.stringify(JSON.parse(call.result), null, 2)
+        } catch {
+          return call.result
+        }
+      } else {
+        return JSON.stringify(call.result, null, 2)
       }
-    } else {
-      resultStr = JSON.stringify(call.result, null, 2)
+    } catch (e) {
+      if (process.env.NODE_ENV === 'development') console.error('Failed to serialize tool call result:', e)
+      return String(call.result)
     }
-  } catch (e) {
-    if (process.env.NODE_ENV === 'development') console.error('Failed to serialize tool call result:', e)
-    resultStr = String(call.result)
-  }
+  }, [call.result])
   const filePath = call.arguments?.file_path as string | undefined
 
   if (filePath) {
@@ -218,7 +218,7 @@ function ToolResultContent({ call }: { call: ToolCall }) {
   )
 }
 
-function ToolCallItem({ call, onRespond }: { call: ToolCall; onRespond?: (toolCallId: string, answers: Record<string, string>) => void }) {
+const ToolCallItem = memo(function ToolCallItem({ call, onRespond }: { call: ToolCall; onRespond?: (toolCallId: string, answers: Record<string, string>) => void }) {
   const [expanded, setExpanded] = useState(false)
   const displayName = formatToolName(call.tool_name)
 
@@ -272,7 +272,7 @@ function ToolCallItem({ call, onRespond }: { call: ToolCall; onRespond?: (toolCa
       )}
     </div>
   )
-}
+})
 
 function ToolApprovalCard({ call, onRespond }: { call: ToolCall; onRespond?: (toolCallId: string, answers: Record<string, string>) => void }) {
   const displayName = formatToolName(call.tool_name)
@@ -447,7 +447,7 @@ function StatusIcon({ status }: { status: string }) {
   return null
 }
 
-export function ToolCallCards({ toolCalls, onRespond }: ToolCallCardProps) {
+export const ToolCallCards = memo(function ToolCallCards({ toolCalls, onRespond }: ToolCallCardProps) {
   if (!toolCalls.length) return null
   return (
     <div className="my-1">
@@ -456,4 +456,4 @@ export function ToolCallCards({ toolCalls, onRespond }: ToolCallCardProps) {
       ))}
     </div>
   )
-}
+})
