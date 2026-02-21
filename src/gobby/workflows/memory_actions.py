@@ -554,7 +554,7 @@ async def handle_memory_recall_with_synthesis(
         session_id=context.session_id,
         prompt_text=prompt_text,
         project_id=kwargs.get("project_id"),
-        limit=kwargs.get("limit", 3),
+        limit=kwargs.get("limit", 5),
         state=context.state,
         db=context.db,
     )
