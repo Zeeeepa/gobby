@@ -645,13 +645,16 @@ export function useChat() {
           const s = data?.session
           if (!s || conversationIdRef.current !== id) return
           if (s.usage_input_tokens > 0 || s.usage_output_tokens > 0 || s.context_window) {
+            const totalIn = s.usage_input_tokens ?? 0
+            const cacheRead = s.usage_cache_read_tokens ?? 0
+            const cacheCreation = s.usage_cache_creation_tokens ?? 0
             setContextUsage({
-              totalInputTokens: s.usage_input_tokens ?? 0,
+              totalInputTokens: totalIn,
               outputTokens: s.usage_output_tokens ?? 0,
               contextWindow: s.context_window ?? null,
-              uncachedInputTokens: s.usage_input_tokens ?? 0,
-              cacheReadTokens: s.usage_cache_read_tokens ?? 0,
-              cacheCreationTokens: s.usage_cache_creation_tokens ?? 0,
+              uncachedInputTokens: totalIn - cacheRead - cacheCreation,
+              cacheReadTokens: cacheRead,
+              cacheCreationTokens: cacheCreation,
             })
           }
         })
@@ -749,13 +752,16 @@ export function useChat() {
         const sessionData = await sessionRes.json()
         const s = sessionData?.session
         if (s && (s.usage_input_tokens > 0 || s.usage_output_tokens > 0 || s.context_window)) {
+          const totalIn = s.usage_input_tokens ?? 0
+          const cacheRead = s.usage_cache_read_tokens ?? 0
+          const cacheCreation = s.usage_cache_creation_tokens ?? 0
           setContextUsage({
-            totalInputTokens: s.usage_input_tokens ?? 0,
+            totalInputTokens: totalIn,
             outputTokens: s.usage_output_tokens ?? 0,
             contextWindow: s.context_window ?? null,
-            uncachedInputTokens: s.usage_input_tokens ?? 0,
-            cacheReadTokens: s.usage_cache_read_tokens ?? 0,
-            cacheCreationTokens: s.usage_cache_creation_tokens ?? 0,
+            uncachedInputTokens: totalIn - cacheRead - cacheCreation,
+            cacheReadTokens: cacheRead,
+            cacheCreationTokens: cacheCreation,
           })
         }
       }

@@ -16,8 +16,9 @@ export function ContextUsageIndicator({
   cacheReadTokens = 0,
   cacheCreationTokens = 0,
 }: ContextUsageIndicatorProps) {
-  const totalTokens = totalInputTokens + outputTokens
-  const percentage = contextWindow ? Math.min((totalTokens / contextWindow) * 100, 100) : 0
+  // Context window is an INPUT limit — output tokens don't occupy it.
+  // Only input tokens (uncached + cache_read + cache_creation) count toward context load.
+  const percentage = contextWindow ? Math.min((totalInputTokens / contextWindow) * 100, 100) : 0
   const displayPercent = Math.round(percentage)
 
   // SVG pie/ring chart
@@ -39,7 +40,7 @@ export function ContextUsageIndicator({
   // Build tooltip with cache breakdown
   const tooltipLines: string[] = []
   if (contextWindow) {
-    tooltipLines.push(`Context: ${formatTokens(totalTokens)} / ${formatTokens(contextWindow)} tokens (${displayPercent}%)`)
+    tooltipLines.push(`Context: ${formatTokens(totalInputTokens)} / ${formatTokens(contextWindow)} tokens (${displayPercent}%)`)
     tooltipLines.push('')
     tooltipLines.push(`Input: ${formatTokens(totalInputTokens)}`)
     if (cacheReadTokens > 0 || cacheCreationTokens > 0 || uncachedInputTokens > 0) {
