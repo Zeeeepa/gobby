@@ -54,8 +54,8 @@ def _tolerant_parse_message(data: dict[str, Any]) -> object | None:
         # Parse rate_limit_event for structured logging
         if msg_type == "rate_limit_event" and isinstance(data, dict):
             _last_rate_limit = data
-            retry_after = data.get("retry_after") or data.get("retryAfter")
-            resets_at = data.get("resets_at") or data.get("resetsAt")
+            retry_after = data.get("retry_after") if "retry_after" in data else data.get("retryAfter")
+            resets_at = data.get("resets_at") if "resets_at" in data else data.get("resetsAt")
             limit = data.get("limit")
             remaining = data.get("remaining")
             logger.info(
