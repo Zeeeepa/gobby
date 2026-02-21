@@ -6,13 +6,12 @@ import { ToolCallCards } from './ToolCallCard'
 
 interface MessageItemProps {
   message: ChatMessage
-  sessionRef?: string | null
   isStreaming?: boolean
   isThinking?: boolean
   onRespondToQuestion?: (toolCallId: string, answers: Record<string, string>) => void
 }
 
-export function MessageItem({ message, sessionRef, isStreaming = false, isThinking = false, onRespondToQuestion }: MessageItemProps) {
+export function MessageItem({ message, isStreaming = false, isThinking = false, onRespondToQuestion }: MessageItemProps) {
   const isCommandResult = message.role === 'system' && message.toolCalls?.length && !message.content
   const isModelSwitch = message.role === 'system' && message.id.startsWith('model-switch-')
 
@@ -38,7 +37,7 @@ export function MessageItem({ message, sessionRef, isStreaming = false, isThinki
             <img src="/logo.png" alt="App logo" className="w-5 h-5 rounded" onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none' }} />
           )}
           <span className="text-xs font-medium text-muted-foreground">
-            {message.role === 'user' ? 'You' : message.role === 'assistant' ? `Gobby${sessionRef ? ` ${sessionRef}` : ''}` : 'System'}
+            {message.role === 'user' ? 'You' : message.role === 'assistant' ? 'Gobby' : 'System'}
           </span>
           <span className="text-xs text-muted-foreground/60">
             {(() => {

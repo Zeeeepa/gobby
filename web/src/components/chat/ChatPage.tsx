@@ -72,7 +72,6 @@ export function ChatPage({ chat, conversations, voice }: ChatPageProps) {
               />
               <MessageList
                 messages={chat.messages}
-                sessionRef={chat.sessionRef}
                 isStreaming={chat.isStreaming}
                 isThinking={chat.isThinking}
                 onRespondToQuestion={chat.onRespondToQuestion}
