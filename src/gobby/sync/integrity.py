@@ -83,9 +83,7 @@ def verify_bundled_integrity(install_dir: Path) -> IntegrityResult:
     try:
         rel_shared = shared_dir.resolve().relative_to(repo_root_path.resolve())
     except ValueError:
-        result.errors.append(
-            f"Shared dir {shared_dir} is not under repo root {repo_root_path}"
-        )
+        result.errors.append(f"Shared dir {shared_dir} is not under repo root {repo_root_path}")
         result.git_available = False
         return result
 
@@ -121,9 +119,7 @@ def verify_bundled_integrity(install_dir: Path) -> IntegrityResult:
     result.dirty_files = sorted(dirty)
 
     if untracked:
-        result.untracked_files = sorted(
-            f.strip() for f in untracked.splitlines() if f.strip()
-        )
+        result.untracked_files = sorted(f.strip() for f in untracked.splitlines() if f.strip())
 
     # Build clean file list from tracked files minus dirty ones
     all_tracked = run_git_command(
@@ -137,9 +133,7 @@ def verify_bundled_integrity(install_dir: Path) -> IntegrityResult:
     return result
 
 
-def get_dirty_content_types(
-    dirty_files: list[str], install_dir: Path
-) -> set[str]:
+def get_dirty_content_types(dirty_files: list[str], install_dir: Path) -> set[str]:
     """Map dirty file paths to content type names.
 
     Given a list of paths relative to the repo root (as returned by
@@ -155,9 +149,7 @@ def get_dirty_content_types(
     """
     shared_dir = install_dir / "shared"
     try:
-        repo_root = run_git_command(
-            ["git", "rev-parse", "--show-toplevel"], cwd=shared_dir
-        )
+        repo_root = run_git_command(["git", "rev-parse", "--show-toplevel"], cwd=shared_dir)
     except Exception:
         repo_root = None
 

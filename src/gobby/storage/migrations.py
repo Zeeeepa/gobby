@@ -37,7 +37,7 @@ MigrationAction = str | Callable[[LocalDatabase], None]
 # Baseline version - the schema state that is applied for new databases directly.
 # Must be bumped when BASELINE_SCHEMA is updated with columns from new migrations,
 # so that fresh databases don't re-run migrations already baked into the baseline.
-BASELINE_VERSION = 112
+BASELINE_VERSION = 113
 
 # Minimum migration version - databases older than this cannot be upgraded
 # because legacy migrations (pre-v108) have been removed.
@@ -230,6 +230,7 @@ CREATE TABLE sessions (
     usage_cache_creation_tokens INTEGER DEFAULT 0,
     usage_cache_read_tokens INTEGER DEFAULT 0,
     usage_total_cost_usd REAL DEFAULT 0.0,
+    context_window INTEGER,
     terminal_context TEXT,
     seq_num INTEGER,
     model TEXT,
@@ -1074,6 +1075,11 @@ MIGRATIONS: list[tuple[int, str, MigrationAction]] = [
         112,
         "Add digest_markdown column to sessions",
         "ALTER TABLE sessions ADD COLUMN digest_markdown TEXT",
+    ),
+    (
+        113,
+        "Add context_window column to sessions",
+        "ALTER TABLE sessions ADD COLUMN context_window INTEGER",
     ),
 ]
 

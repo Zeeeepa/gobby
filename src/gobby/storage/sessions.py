@@ -599,6 +599,7 @@ class LocalSessionManager:
         cache_creation_tokens: int,
         cache_read_tokens: int,
         total_cost_usd: float,
+        context_window: int | None = None,
     ) -> bool:
         """Update session usage statistics."""
         query = """
@@ -609,6 +610,7 @@ class LocalSessionManager:
             usage_cache_creation_tokens = ?,
             usage_cache_read_tokens = ?,
             usage_total_cost_usd = ?,
+            context_window = COALESCE(?, context_window),
             updated_at = datetime('now')
         WHERE id = ?
         """
@@ -622,6 +624,7 @@ class LocalSessionManager:
                         cache_creation_tokens,
                         cache_read_tokens,
                         total_cost_usd,
+                        context_window,
                         session_id,
                     ),
                 )

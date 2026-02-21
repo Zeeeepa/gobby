@@ -31,6 +31,11 @@ def init(ctx: click.Context, name: str | None, github_url: str | None) -> None:
         click.echo(f"Project already initialized: {result.project_name}")
         click.echo(f"  Project ID: {result.project_id}")
     else:
+        # Hint for first-time users
+        setup_state = Path("~/.gobby/setup_state.json").expanduser()
+        if not setup_state.exists():
+            click.echo("Tip: For first-time setup, try `gobby setup` for a guided experience.")
+            click.echo()
         click.echo(f"Initialized project '{result.project_name}' in {cwd}")
         click.echo(f"  Project ID: {result.project_id}")
         click.echo(f"  Config: {cwd / '.gobby' / 'project.json'}")

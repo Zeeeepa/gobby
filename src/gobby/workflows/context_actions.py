@@ -409,7 +409,11 @@ def extract_handoff_context(
                 len(markdown),
                 session_id,
             )
-            return {"handoff_context_extracted": True, "markdown_length": len(markdown), "source": "digest"}
+            return {
+                "handoff_context_extracted": True,
+                "markdown_length": len(markdown),
+                "source": "digest",
+            }
 
         # Fallback: full transcript analysis when digest is empty
         from gobby.sessions.analyzer import TranscriptAnalyzer

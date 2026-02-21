@@ -597,6 +597,7 @@ export function useChat() {
     setIsStreaming(false)
     setIsThinking(false)
     setSessionRef(null)
+    setContextUsage({ totalInputTokens: 0, outputTokens: 0, contextWindow: null, uncachedInputTokens: 0, cacheReadTokens: 0, cacheCreationTokens: 0 })
 
     // Save current conversation's messages before switching (explicit save)
     if (conversationIdRef.current) {
@@ -636,6 +637,25 @@ export function useChat() {
           }
         })
         .catch(err => console.error('Failed to fetch session messages:', err))
+
+      // Hydrate context usage from persisted session data
+      fetch(`${baseUrl}/sessions/${dbSessionId}`)
+        .then(res => res.ok ? res.json() : null)
+        .then(data => {
+          const s = data?.session
+          if (!s || conversationIdRef.current !== id) return
+          if (s.usage_input_tokens > 0 || s.usage_output_tokens > 0 || s.context_window) {
+            setContextUsage({
+              totalInputTokens: s.usage_input_tokens ?? 0,
+              outputTokens: s.usage_output_tokens ?? 0,
+              contextWindow: s.context_window ?? null,
+              uncachedInputTokens: s.usage_input_tokens ?? 0,
+              cacheReadTokens: s.usage_cache_read_tokens ?? 0,
+              cacheCreationTokens: s.usage_cache_creation_tokens ?? 0,
+            })
+          }
+        })
+        .catch(() => {})
     } else {
       setMessages([])
     }
@@ -720,6 +740,27 @@ export function useChat() {
       }
     } catch (err) {
       console.error('Failed to fetch source session messages:', err)
+    }
+
+    // Hydrate context usage from source session
+    try {
+      const sessionRes = await fetch(`${baseUrl}/sessions/${sourceDbSessionId}`)
+      if (sessionRes.ok) {
+        const sessionData = await sessionRes.json()
+        const s = sessionData?.session
+        if (s && (s.usage_input_tokens > 0 || s.usage_output_tokens > 0 || s.context_window)) {
+          setContextUsage({
+            totalInputTokens: s.usage_input_tokens ?? 0,
+            outputTokens: s.usage_output_tokens ?? 0,
+            contextWindow: s.context_window ?? null,
+            uncachedInputTokens: s.usage_input_tokens ?? 0,
+            cacheReadTokens: s.usage_cache_read_tokens ?? 0,
+            cacheCreationTokens: s.usage_cache_creation_tokens ?? 0,
+          })
+        }
+      }
+    } catch {
+      // Best-effort — don't block continuation
     }
 
     // Tell backend to prepare the continuation session

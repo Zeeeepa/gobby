@@ -179,10 +179,7 @@ def clean_project_hooks(settings_file: Path) -> list[str]:
         logger.warning(f"Failed to clean project-level hooks from {settings_file}: {e}")
         return []
 
-    logger.info(
-        f"Cleaned {len(removed)} gobby hook(s) from {settings_file}: "
-        f"{', '.join(removed)}"
-    )
+    logger.info(f"Cleaned {len(removed)} gobby hook(s) from {settings_file}: {', '.join(removed)}")
     return removed
 
 

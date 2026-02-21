@@ -19,9 +19,7 @@ VALID_CONTENT_TYPES = {"skills", "prompts", "rules", "agents", "workflows"}
 
 @click.command("sync")
 @click.option("--force", is_flag=True, help="Skip integrity check even in production mode.")
-@click.option(
-    "--verify-only", is_flag=True, help="Only run integrity check, don't sync."
-)
+@click.option("--verify-only", is_flag=True, help="Only run integrity check, don't sync.")
 @click.option(
     "--type",
     "types",
@@ -77,9 +75,7 @@ def sync(
             )
             if tampered:
                 skip_types = tampered
-                click.echo(
-                    f"  Blocking tampered content types: {', '.join(sorted(tampered))}"
-                )
+                click.echo(f"  Blocking tampered content types: {', '.join(sorted(tampered))}")
 
         if verify_only:
             sys.exit(0 if (not result.git_available or result.all_clean) else 1)

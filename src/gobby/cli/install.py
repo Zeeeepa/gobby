@@ -179,6 +179,12 @@ def _is_copilot_cli_installed() -> bool:
     help="Install Neo4j knowledge graph backend (Docker-based)",
 )
 @click.option(
+    "--neo4j-password",
+    "neo4j_password",
+    default=None,
+    help="Set a custom Neo4j password (default: auto-generated)",
+)
+@click.option(
     "--project",
     "project_flag",
     is_flag=True,
@@ -195,6 +201,7 @@ def install(
     all_flag: bool,
     antigravity_flag: bool,
     neo4j_flag: bool,
+    neo4j_password: str | None,
     project_flag: bool,
 ) -> None:
     """Install Gobby hooks to AI coding CLIs and Git.
@@ -634,7 +641,7 @@ def install(
         click.echo("Neo4j Knowledge Graph")
         click.echo("-" * 40)
 
-        result = install_neo4j()
+        result = install_neo4j(password=neo4j_password)
         results["neo4j"] = result
 
         if result["success"]:
@@ -669,12 +676,8 @@ def install(
             click.echo("-" * 40)
             click.echo("Migration Notice")
             click.echo("-" * 40)
-            click.echo(
-                f"Per-project hooks detected for: {', '.join(per_project_hooks)}"
-            )
-            click.echo(
-                "Run 'gobby uninstall --project' to clean up per-project hooks."
-            )
+            click.echo(f"Per-project hooks detected for: {', '.join(per_project_hooks)}")
+            click.echo("Run 'gobby uninstall --project' to clean up per-project hooks.")
             click.echo("")
 
     # Summary
@@ -831,7 +834,9 @@ def uninstall(
             gemini_settings = Path.home() / ".gemini" / "settings.json"
             cursor_hooks = Path.home() / ".cursor" / "hooks.json"
             windsurf_hooks = Path.home() / ".codeium" / "windsurf" / "hooks.json"
-            copilot_hooks = project_path / ".copilot" / "hooks.json"  # Copilot is always per-project
+            copilot_hooks = (
+                project_path / ".copilot" / "hooks.json"
+            )  # Copilot is always per-project
 
         codex_notify = Path.home() / ".gobby" / "hooks" / "codex" / "hook_dispatcher.py"
 

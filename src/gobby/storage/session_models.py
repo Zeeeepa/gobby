@@ -48,6 +48,7 @@ class Session:
     usage_cache_creation_tokens: int = 0
     usage_cache_read_tokens: int = 0
     usage_total_cost_usd: float = 0.0
+    context_window: int | None = None
     model: str | None = None  # LLM model used (e.g., "claude-3-5-sonnet-20241022")
     # Terminal context (JSON blob with tty, parent_pid, term_session_id, etc.)
     terminal_context: dict[str, Any] | None = None
@@ -89,6 +90,7 @@ class Session:
             usage_cache_creation_tokens=row["usage_cache_creation_tokens"] or 0,
             usage_cache_read_tokens=row["usage_cache_read_tokens"] or 0,
             usage_total_cost_usd=row["usage_total_cost_usd"] or 0.0,
+            context_window=row["context_window"] if "context_window" in row.keys() else None,
             model=row["model"] if "model" in row.keys() else None,
             terminal_context=cls._parse_terminal_context(row["terminal_context"]),
             seq_num=row["seq_num"] if "seq_num" in row.keys() else None,
@@ -158,6 +160,7 @@ class Session:
             "usage_cache_creation_tokens": self.usage_cache_creation_tokens,
             "usage_cache_read_tokens": self.usage_cache_read_tokens,
             "usage_total_cost_usd": self.usage_total_cost_usd,
+            "context_window": self.context_window,
             "model": self.model,
             "terminal_context": self.terminal_context,
             "had_edits": self.had_edits,

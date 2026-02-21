@@ -289,9 +289,7 @@ class TaskSyncManager:
 
             # Bulk-load existing task metadata in one query to avoid per-task SELECTs
             existing_tasks: dict[str, dict[str, Any]] = {}
-            for row in self.db.fetchall(
-                "SELECT id, updated_at, seq_num, path_cache FROM tasks"
-            ):
+            for row in self.db.fetchall("SELECT id, updated_at, seq_num, path_cache FROM tasks"):
                 existing_tasks[row["id"]] = {
                     "updated_at": row["updated_at"],
                     "seq_num": row["seq_num"],
