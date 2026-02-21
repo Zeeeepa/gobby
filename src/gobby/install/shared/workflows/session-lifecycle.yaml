@@ -35,11 +35,11 @@ variables:
 session_variables:
   # Chat mode — controls tool approval behavior in web chat
   # Set via set_mode WebSocket message; default from config (chat.default_mode)
-  chat_mode: bypass
+  chat_mode: plan
 
   # Numeric autonomy level — single source of truth for plan/act/auto mode
   # 0=Plan (read-only), 1=Act (approve edits), 2=Full Auto (bypass)
-  mode_level: 2
+  mode_level: 0
 
   # List of server:tool combos that have been unlocked via get_tool_schema
   unlocked_tools: []

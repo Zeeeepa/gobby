@@ -353,7 +353,7 @@ class ChatConfig(BaseModel):
         description="Default model for chat sessions",
     )
     default_mode: str = Field(
-        default="bypass",
+        default="plan",
         description="Default chat mode for new sessions. One of: normal, accept_edits, bypass, plan.",
     )
 

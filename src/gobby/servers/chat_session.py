@@ -90,7 +90,7 @@ class ChatSession(ChatSessionPermissionsMixin):
     _pending_approval_event: asyncio.Event | None = field(default=None, repr=False)
     _pending_approval_decision: str | None = field(default=None, repr=False)
     _approved_tools: set[str] = field(default_factory=set, repr=False)
-    chat_mode: str = field(default="bypass", repr=False)
+    chat_mode: str = field(default="plan", repr=False)
     _plan_approved: bool = field(default=False, repr=False)
     _plan_feedback: str | None = field(default=None, repr=False)
     _tool_approval_config: Any | None = field(default=None, repr=False)
