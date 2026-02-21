@@ -26,6 +26,7 @@ workflows:
     variables:
       research_complete: false
       parent_notified: false
+      send_failed: false
 
     steps:
       - name: work
@@ -65,7 +66,7 @@ workflows:
           - server: gobby-agents
             tool: send_to_parent
             action: set_variable
-            variable: parent_notified
+            variable: send_failed
             value: true
 
         transitions:
