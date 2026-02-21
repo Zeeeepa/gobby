@@ -68,12 +68,24 @@ If `pending=True`, skip to **Phase 4** immediately.
    task_id = result["task"]["id"]
    ```
 
-3. **Get task details**:
+3. **Parse plan sections**: If the plan uses `### N.N` task headings, extract each section's
+   content. These sections will be used verbatim as subtask descriptions in Phase 3.
+   ```python
+   # Parse heading-based plan sections
+   # Each ### N.N section's content → subtask description
+   plan_sections = {}  # {"1.1": "full section content...", "1.2": "..."}
+   for heading in re.finditer(r'^### (\d+\.\d+)\s+', content, re.MULTILINE):
+       section_num = heading.group(1)
+       # Extract content from this heading to the next ### or ## heading
+       plan_sections[section_num] = extract_section_content(content, heading)
+   ```
+
+4. **Get task details**:
    ```python
    task = call_tool("gobby-tasks", "get_task", {"task_id": "<ref>"})
    ```
 
-4. **Check for existing children** and handle re-expansion:
+5. **Check for existing children** and handle re-expansion:
    ```python
    children = call_tool("gobby-tasks", "list_tasks", {"parent_task_id": task_id})
    if children["tasks"]:
@@ -182,11 +194,19 @@ Example analysis approach:
 Think through the decomposition with these requirements:
 
 **Requirements**:
-1. **TDD Workflow in Descriptions**: Every `code` AND `config` task description MUST include explicit TDD steps
-2. **Atomicity**: Each task should be completable in 10-30 minutes
-3. **Categories**: Use `code`, `config`, `docs`, `research`, `planning`, `manual`
-4. **No separate test tasks**: TDD is embedded in each code/config task, not separate tasks
-5. **Dependencies**: Use indices (0-based) to reference earlier subtasks
+1. **Preserve plan content**: If the parent task contains a plan with `### N.N` sections, each subtask description MUST include the FULL content from the corresponding plan section. Do NOT summarize, condense, or paraphrase.
+2. **TDD prefix**: Prepend a 3-4 line TDD header (test file, implementation file, red-green cycle), then include the full plan section content below a `---` separator.
+3. **Anti-summarization**: The plan author wrote specific code examples, model definitions, SQL schemas, YAML configs, and file paths for a reason. Every line from the plan section must appear in the subtask description.
+4. **Atomicity**: Each task should be completable in 10-30 minutes
+5. **Categories**: Use `code`, `config`, `docs`, `research`, `planning`, `manual`
+6. **No separate test tasks**: TDD is embedded in each code/config task, not separate tasks
+7. **Dependencies**: Use indices (0-based) to reference earlier subtasks
+
+**Do NOT**:
+- Replace plan section content with a brief summary
+- Omit code examples, schemas, or configs from the plan
+- Write descriptions shorter than the plan section they correspond to
+- Paraphrase implementation specs that the plan author wrote verbatim
 
 **Spec format**:
 ```python
@@ -197,7 +217,29 @@ spec = {
             "category": "code",
             "depends_on": [],
             "validation": "Tests pass. User model exists with hash_password method.",
-            "description": "TDD: 1) Write tests for User model in tests/test_user.py covering creation and hash_password(). 2) Run tests (expect fail). 3) Implement User model in models/user.py. 4) Run tests (expect pass).",
+            "description": (
+                "TDD: 1) Write tests in tests/test_user.py.\n"
+                "     2) Run tests (expect fail).\n"
+                "     3) Implement in models/user.py.\n"
+                "     4) Run tests (expect pass).\n"
+                "\n---\n\n"
+                "Target: `models/user.py`\n\n"
+                "Add User model with bcrypt password hashing:\n\n"
+                "class User(Base):\n"
+                "    __tablename__ = 'users'\n"
+                "    id: Mapped[int] = mapped_column(primary_key=True)\n"
+                "    email: Mapped[str] = mapped_column(String(255), unique=True)\n"
+                "    password_hash: Mapped[str] = mapped_column(String(60))\n\n"
+                "    def hash_password(self, raw: str) -> None: ...\n"
+                "    def verify_password(self, raw: str) -> bool: ...\n\n"
+                "Migration: alembic/versions/001_add_users.py\n"
+                "CREATE TABLE users (\n"
+                "    id INTEGER PRIMARY KEY,\n"
+                "    email VARCHAR(255) UNIQUE NOT NULL,\n"
+                "    password_hash VARCHAR(60) NOT NULL\n"
+                ");\n\n"
+                "Edge cases: duplicate email (409), empty password (422)"
+            ),
             "priority": 2
         },
         {
@@ -205,14 +247,20 @@ spec = {
             "category": "code",
             "depends_on": [0],  # Depends on User model
             "validation": "Tests pass. POST /login returns JWT on valid credentials.",
-            "description": "TDD: 1) Write tests for POST /login in tests/test_auth.py covering valid/invalid credentials. 2) Run tests (expect fail). 3) Implement login route in api/auth.py. 4) Run tests (expect pass)."
-        },
-        {
-            "title": "Add logout endpoint",
-            "category": "code",
-            "depends_on": [1],  # Depends on login
-            "validation": "Tests pass. POST /logout invalidates session.",
-            "description": "TDD: 1) Write tests for POST /logout in tests/test_auth.py. 2) Run tests (expect fail). 3) Implement logout in api/auth.py. 4) Run tests (expect pass)."
+            "description": (
+                "TDD: 1) Write tests in tests/test_auth.py.\n"
+                "     2) Run tests (expect fail).\n"
+                "     3) Implement in api/auth.py.\n"
+                "     4) Run tests (expect pass).\n"
+                "\n---\n\n"
+                "Target: `api/auth.py`\n\n"
+                "POST /login endpoint:\n"
+                "- Accept {'email': str, 'password': str} JSON body\n"
+                "- Look up user by email, verify with user.verify_password()\n"
+                "- Return {'token': jwt_token, 'expires_in': 3600} on success\n"
+                "- Return 401 with {'error': 'invalid_credentials'} on failure\n"
+                "- JWT payload: {'sub': user.id, 'exp': now + 1h}"
+            )
         }
     ]
 }
@@ -242,19 +290,22 @@ This creates all subtasks and wires dependencies in one transaction.
 
 ### Phase 5: Report
 
-Show the created task tree with refs and dependencies:
+Show the created task tree with refs, dependencies, and description sizes:
 
 ```
 Created 3 subtasks for #42 "Implement user authentication":
 
 #43 [code] Add User model with password hashing
     └─ validation: Tests pass. User model exists with hash_password method.
+    └─ description: (27 lines — TDD header + full plan section content)
 
 #44 [code] Implement login endpoint (depends on #43)
     └─ validation: Tests pass. POST /login returns JWT on valid credentials.
+    └─ description: (18 lines — TDD header + full plan section content)
 
 #45 [code] Add logout endpoint (depends on #44)
     └─ validation: Tests pass. POST /logout invalidates session.
+    └─ description: (14 lines — TDD header + full plan section content)
 
 Use `suggest_next_task` to get the first ready task.
 ```
@@ -272,38 +323,48 @@ Use `suggest_next_task` to get the first ready task.
 
 ## TDD Approach
 
-TDD workflow MUST be embedded in every `code` AND `config` task description:
+TDD workflow MUST be embedded in every `code` AND `config` task description,
+followed by the **full plan section content**.
 
-**Required description format for code tasks**:
+**Two-part description structure**:
 ```
-TDD: 1) Write tests for <feature> in <test_file> covering <scenarios>.
+TDD: 1) Write tests in <test_file>.
      2) Run tests (expect fail).
-     3) Implement <feature> in <source_file>.
+     3) Implement in <source_file>.
      4) Run tests (expect pass).
+
+---
+
+{FULL plan section content — code examples, schemas, configs, file paths,
+behavioral specs. EVERYTHING from the plan section for this task.}
 ```
 
-**Required description format for config tasks**:
+The TDD header is 3-4 lines. The plan content may be 5-100+ lines.
+
+**Config tasks follow the same pattern**:
 ```
-TDD: 1) Write tests in <test_file> verifying: <config_loads>, <defaults_correct>,
-     <validation_works>, <system_respects_config>.
+TDD: 1) Write tests in <test_file> verifying: config loads, defaults correct,
+        validation works, system respects config.
      2) Run tests (expect fail).
-     3) Create/update <config_file> with <settings>.
+     3) Create/update <config_file>.
      4) Run tests (expect pass).
+
+---
+
+{FULL plan section content for this config task...}
 ```
 
-**Config tasks that need tests**:
-- YAML workflow definitions → test loading, tool filtering, step transitions
-- Schema/config class changes → test parsing, defaults, validation
-- Environment variable handling → test presence/absence behavior
-
-**Why explicit TDD steps?**
-- Agents skip tests when descriptions don't mention them
-- "Tests pass" in validation is not enough - agents may write implementation first
+**Why this two-part structure?**
+- The TDD header tells the agent the red-green workflow
+- The plan content tells the agent WHAT to build — code, schemas, specs
+- Without the plan content, agents guess at implementation details and guess wrong
 - Explicit test file paths guide agents to correct locations
 - "expect fail" / "expect pass" enforces red-green cycle
-- Config bugs are hard to debug without tests proving behavior
 
 **Do NOT**:
+- Replace plan section content with a brief summary
+- Omit code examples, schemas, or configs from the plan
+- Write descriptions shorter than the plan section they correspond to
 - Create separate `[TEST]` and `[IMPL]` tasks
 - Say only "write tests" without specifying what to test
 - Omit test file paths from descriptions
@@ -374,9 +435,23 @@ Phase 5: Task tree created:
 User: /gobby expand docs/auth-plan.md
 
 Agent: Reading plan file...
+Parsing plan sections: found 6 task headings (### N.N)
 Creating root epic from plan...
 Created epic #50 "User Authentication System"
 
 Phase 2: Analyzing codebase...
-...
+[Glob, Grep, Read calls visible here]
+
+Phase 3: Generating subtasks...
+Preserving plan section content for each subtask:
+  1.1 "Add User model" → 27 lines (TDD header + model class + migration SQL)
+  1.2 "Implement login" → 18 lines (TDD header + endpoint spec + JWT details)
+  1.3 "Add logout"      → 14 lines (TDD header + session invalidation spec)
+  2.1 "Add config"      → 22 lines (TDD header + YAML schema + defaults)
+  2.2 "Add middleware"   → 31 lines (TDD header + auth flow + error codes)
+  2.3 "Add rate limit"  → 19 lines (TDD header + rate limit config + headers)
+Saving expansion spec with 6 subtasks...
+
+Phase 4: Executing expansion...
+Created 6 subtasks.
 ```
