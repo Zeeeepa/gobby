@@ -827,3 +827,221 @@ async def test_sync_worktree_failure(registry, mock_worktree_storage, mock_git_m
     result = await registry.call("sync_worktree", {"worktree_id": "wt-1"})
     assert result["success"] is False
     assert "Sync failed" in result["error"]
+
+
+# ========== merge_worktree tests ==========
+
+
+@pytest.mark.asyncio
+async def test_merge_worktree_success(registry, mock_worktree_storage, mock_git_manager):
+    """Merge worktree successfully."""
+    wt = Worktree(
+        id="wt-1",
+        project_id="proj-1",
+        branch_name="feature/test",
+        worktree_path="/tmp/wt1",
+        base_branch="main",
+        status="active",
+        created_at="",
+        updated_at="",
+        task_id=None,
+        agent_session_id=None,
+        merged_at=None,
+    )
+    mock_worktree_storage.get.return_value = wt
+    mock_git_manager.merge_branch.return_value = MagicMock(
+        success=True, output="Merge made", error=None
+    )
+    mock_worktree_storage.mark_merged.return_value = True
+
+    result = await registry.call(
+        "merge_worktree", {"worktree_id": "wt-1", "target_branch": "main"}
+    )
+
+    assert result["success"] is True
+    assert "feature/test" in result["message"]
+    assert "main" in result["message"]
+    mock_git_manager.merge_branch.assert_called_once_with(
+        source_branch="feature/test", target_branch="main", push=True
+    )
+    mock_worktree_storage.mark_merged.assert_called_once_with("wt-1")
+
+
+@pytest.mark.asyncio
+async def test_merge_worktree_not_found(registry, mock_worktree_storage):
+    """Merge fails when worktree not found."""
+    mock_worktree_storage.get.return_value = None
+
+    result = await registry.call(
+        "merge_worktree", {"worktree_id": "missing", "target_branch": "main"}
+    )
+
+    assert result["success"] is False
+    assert "not found" in result["error"]
+
+
+@pytest.mark.asyncio
+async def test_merge_worktree_default_target_branch(
+    registry, mock_worktree_storage, mock_git_manager
+):
+    """Merge defaults target_branch to worktree's base_branch."""
+    wt = Worktree(
+        id="wt-1",
+        project_id="proj-1",
+        branch_name="feature/test",
+        worktree_path="/tmp/wt1",
+        base_branch="develop",
+        status="active",
+        created_at="",
+        updated_at="",
+        task_id=None,
+        agent_session_id=None,
+        merged_at=None,
+    )
+    mock_worktree_storage.get.return_value = wt
+    mock_git_manager.merge_branch.return_value = MagicMock(
+        success=True, output="Merge made", error=None
+    )
+    mock_worktree_storage.mark_merged.return_value = True
+
+    result = await registry.call("merge_worktree", {"worktree_id": "wt-1"})
+
+    assert result["success"] is True
+    mock_git_manager.merge_branch.assert_called_once_with(
+        source_branch="feature/test", target_branch="develop", push=True
+    )
+
+
+@pytest.mark.asyncio
+async def test_merge_worktree_conflict(registry, mock_worktree_storage, mock_git_manager):
+    """Merge detects conflicts."""
+    wt = Worktree(
+        id="wt-1",
+        project_id="proj-1",
+        branch_name="feature/test",
+        worktree_path="/tmp/wt1",
+        base_branch="main",
+        status="active",
+        created_at="",
+        updated_at="",
+        task_id=None,
+        agent_session_id=None,
+        merged_at=None,
+    )
+    mock_worktree_storage.get.return_value = wt
+    mock_git_manager.merge_branch.return_value = MagicMock(
+        success=False, error="merge_conflict", message="Merge conflict in 2 files",
+        output="src/foo.py\nsrc/bar.py"
+    )
+
+    result = await registry.call(
+        "merge_worktree", {"worktree_id": "wt-1", "target_branch": "main"}
+    )
+
+    assert result["success"] is False
+    assert result["has_conflicts"] is True
+    assert len(result["conflicted_files"]) == 2
+    mock_worktree_storage.mark_merged.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_merge_worktree_non_conflict_failure(
+    registry, mock_worktree_storage, mock_git_manager
+):
+    """Merge fails with non-conflict error."""
+    wt = Worktree(
+        id="wt-1",
+        project_id="proj-1",
+        branch_name="feature/test",
+        worktree_path="/tmp/wt1",
+        base_branch="main",
+        status="active",
+        created_at="",
+        updated_at="",
+        task_id=None,
+        agent_session_id=None,
+        merged_at=None,
+    )
+    mock_worktree_storage.get.return_value = wt
+    mock_git_manager.merge_branch.return_value = MagicMock(
+        success=False, error="Failed to fetch", message="Failed to fetch"
+    )
+
+    result = await registry.call(
+        "merge_worktree", {"worktree_id": "wt-1", "target_branch": "main"}
+    )
+
+    assert result["success"] is False
+    assert result["has_conflicts"] is False
+    mock_worktree_storage.mark_merged.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_merge_worktree_with_delete_branch(
+    registry, mock_worktree_storage, mock_git_manager
+):
+    """Merge deletes branch when delete_branch=True."""
+    wt = Worktree(
+        id="wt-1",
+        project_id="proj-1",
+        branch_name="feature/test",
+        worktree_path="/tmp/wt1",
+        base_branch="main",
+        status="active",
+        created_at="",
+        updated_at="",
+        task_id=None,
+        agent_session_id=None,
+        merged_at=None,
+    )
+    mock_worktree_storage.get.return_value = wt
+    mock_git_manager.merge_branch.return_value = MagicMock(
+        success=True, output="Merge made", error=None
+    )
+    mock_worktree_storage.mark_merged.return_value = True
+    mock_git_manager._run_git.return_value = MagicMock(returncode=0)
+
+    result = await registry.call(
+        "merge_worktree",
+        {"worktree_id": "wt-1", "target_branch": "main", "delete_branch": True},
+    )
+
+    assert result["success"] is True
+    mock_git_manager._run_git.assert_called_once()
+    call_args = mock_git_manager._run_git.call_args[0][0]
+    assert "branch" in call_args
+    assert "-d" in call_args
+    assert "feature/test" in call_args
+
+
+@pytest.mark.asyncio
+async def test_merge_worktree_no_push(registry, mock_worktree_storage, mock_git_manager):
+    """Merge without push."""
+    wt = Worktree(
+        id="wt-1",
+        project_id="proj-1",
+        branch_name="feature/test",
+        worktree_path="/tmp/wt1",
+        base_branch="main",
+        status="active",
+        created_at="",
+        updated_at="",
+        task_id=None,
+        agent_session_id=None,
+        merged_at=None,
+    )
+    mock_worktree_storage.get.return_value = wt
+    mock_git_manager.merge_branch.return_value = MagicMock(
+        success=True, output="Merge made", error=None
+    )
+    mock_worktree_storage.mark_merged.return_value = True
+
+    result = await registry.call(
+        "merge_worktree",
+        {"worktree_id": "wt-1", "target_branch": "main", "push": False},
+    )
+
+    assert result["success"] is True
+    mock_git_manager.merge_branch.assert_called_once_with(
+        source_branch="feature/test", target_branch="main", push=False
+    )

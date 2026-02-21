@@ -1684,3 +1684,304 @@ class TestWorktreeGitManagerGetDefaultBranch:
 
         # Should fall back to "main"
         assert branch == "main"
+
+
+class TestWorktreeGitManagerMergeBranch:
+    """Tests for WorktreeGitManager.merge_branch method."""
+
+    @pytest.fixture
+    def manager(self, tmp_path):
+        """Create manager with temp directory."""
+        return WorktreeGitManager(tmp_path)
+
+    def _mock_rev_parse(self, branch="feature/test"):
+        """Helper: mock for initial rev-parse --abbrev-ref HEAD."""
+        return subprocess.CompletedProcess(
+            args=["git", "rev-parse"], returncode=0, stdout=f"{branch}\n", stderr=""
+        )
+
+    def _mock_success(self, args_hint="git"):
+        """Helper: generic successful CompletedProcess."""
+        return subprocess.CompletedProcess(
+            args=[args_hint], returncode=0, stdout="", stderr=""
+        )
+
+    def _mock_failure(self, stderr="error", args_hint="git"):
+        """Helper: generic failed CompletedProcess."""
+        return subprocess.CompletedProcess(
+            args=[args_hint], returncode=1, stdout="", stderr=stderr
+        )
+
+    @patch("subprocess.run")
+    def test_merge_success_with_push(self, mock_run, manager) -> None:
+        """Merge succeeds with push."""
+        mock_run.side_effect = [
+            self._mock_rev_parse("feature/test"),  # rev-parse HEAD
+            self._mock_success(),  # fetch origin
+            self._mock_success(),  # checkout main
+            self._mock_success(),  # pull origin main
+            subprocess.CompletedProcess(
+                args=["git", "merge"], returncode=0, stdout="Merge made by recursive\n", stderr=""
+            ),  # merge --no-ff
+            self._mock_success(),  # push origin main
+            self._mock_success(),  # checkout feature/test (finally)
+        ]
+
+        result = manager.merge_branch("feature/test", "main", push=True)
+
+        assert result.success is True
+        assert "Successfully merged" in result.message
+        assert "feature/test" in result.message
+        assert "main" in result.message
+
+    @patch("subprocess.run")
+    def test_merge_success_no_push(self, mock_run, manager) -> None:
+        """Merge succeeds without push."""
+        mock_run.side_effect = [
+            self._mock_rev_parse("feature/test"),  # rev-parse HEAD
+            self._mock_success(),  # fetch origin
+            self._mock_success(),  # checkout main
+            self._mock_success(),  # pull origin main
+            subprocess.CompletedProcess(
+                args=["git", "merge"], returncode=0, stdout="Merge made\n", stderr=""
+            ),  # merge --no-ff
+            # No push call
+            self._mock_success(),  # checkout feature/test (finally)
+        ]
+
+        result = manager.merge_branch("feature/test", "main", push=False)
+
+        assert result.success is True
+        assert "Successfully merged" in result.message
+
+    @patch("subprocess.run")
+    def test_merge_fetch_failure(self, mock_run, manager) -> None:
+        """Merge fails when fetch fails."""
+        mock_run.side_effect = [
+            self._mock_rev_parse("feature/test"),  # rev-parse HEAD
+            subprocess.CompletedProcess(
+                args=["git", "fetch"],
+                returncode=128,
+                stdout="",
+                stderr="fatal: could not reach remote",
+            ),  # fetch fails
+        ]
+
+        result = manager.merge_branch("feature/test", "main")
+
+        assert result.success is False
+        assert "Failed to fetch" in result.message
+        assert "could not reach remote" in result.error
+
+    @patch("subprocess.run")
+    def test_merge_checkout_failure(self, mock_run, manager) -> None:
+        """Merge fails when checkout fails."""
+        mock_run.side_effect = [
+            self._mock_rev_parse("feature/test"),  # rev-parse HEAD
+            self._mock_success(),  # fetch origin
+            subprocess.CompletedProcess(
+                args=["git", "checkout"],
+                returncode=1,
+                stdout="",
+                stderr="error: pathspec 'main' did not match",
+            ),  # checkout fails
+        ]
+
+        result = manager.merge_branch("feature/test", "main")
+
+        assert result.success is False
+        assert "Failed to checkout" in result.message
+
+    @patch("subprocess.run")
+    def test_merge_pull_failure(self, mock_run, manager) -> None:
+        """Merge fails when pull fails."""
+        mock_run.side_effect = [
+            self._mock_rev_parse("feature/test"),  # rev-parse HEAD
+            self._mock_success(),  # fetch origin
+            self._mock_success(),  # checkout main
+            subprocess.CompletedProcess(
+                args=["git", "pull"],
+                returncode=1,
+                stdout="",
+                stderr="error: cannot pull with rebase",
+            ),  # pull fails
+            self._mock_success(),  # checkout feature/test (finally)
+        ]
+
+        result = manager.merge_branch("feature/test", "main")
+
+        assert result.success is False
+        assert "Failed to pull" in result.message
+
+    @patch("subprocess.run")
+    def test_merge_conflict(self, mock_run, manager) -> None:
+        """Merge detects conflicts and aborts."""
+        mock_run.side_effect = [
+            self._mock_rev_parse("feature/test"),  # rev-parse HEAD
+            self._mock_success(),  # fetch origin
+            self._mock_success(),  # checkout main
+            self._mock_success(),  # pull origin main
+            subprocess.CompletedProcess(
+                args=["git", "merge"],
+                returncode=1,
+                stdout="CONFLICT (content): Merge conflict in src/foo.py",
+                stderr="",
+            ),  # merge fails with conflict
+            subprocess.CompletedProcess(
+                args=["git", "diff"],
+                returncode=0,
+                stdout="src/foo.py\nsrc/bar.py\n",
+                stderr="",
+            ),  # diff --name-only --diff-filter=U
+            self._mock_success(),  # merge --abort
+            self._mock_success(),  # checkout feature/test (finally)
+        ]
+
+        result = manager.merge_branch("feature/test", "main")
+
+        assert result.success is False
+        assert result.error == "merge_conflict"
+        assert "2 files" in result.message
+        assert "src/foo.py" in result.output
+        assert "src/bar.py" in result.output
+
+    @patch("subprocess.run")
+    def test_merge_non_conflict_failure(self, mock_run, manager) -> None:
+        """Merge fails with non-conflict error."""
+        mock_run.side_effect = [
+            self._mock_rev_parse("feature/test"),  # rev-parse HEAD
+            self._mock_success(),  # fetch origin
+            self._mock_success(),  # checkout main
+            self._mock_success(),  # pull origin main
+            subprocess.CompletedProcess(
+                args=["git", "merge"],
+                returncode=1,
+                stdout="",
+                stderr="fatal: refusing to merge unrelated histories",
+            ),  # merge fails without conflict
+            self._mock_success(),  # merge --abort
+            self._mock_success(),  # checkout feature/test (finally)
+        ]
+
+        result = manager.merge_branch("feature/test", "main")
+
+        assert result.success is False
+        assert "Merge failed" in result.message
+        assert "unrelated histories" in result.error
+
+    @patch("subprocess.run")
+    def test_merge_push_failure(self, mock_run, manager) -> None:
+        """Merge succeeds but push fails (still reports success=True)."""
+        mock_run.side_effect = [
+            self._mock_rev_parse("feature/test"),  # rev-parse HEAD
+            self._mock_success(),  # fetch origin
+            self._mock_success(),  # checkout main
+            self._mock_success(),  # pull origin main
+            subprocess.CompletedProcess(
+                args=["git", "merge"], returncode=0, stdout="Merge made\n", stderr=""
+            ),  # merge succeeds
+            subprocess.CompletedProcess(
+                args=["git", "push"],
+                returncode=1,
+                stdout="",
+                stderr="error: push rejected",
+            ),  # push fails
+            self._mock_success(),  # checkout feature/test (finally)
+        ]
+
+        result = manager.merge_branch("feature/test", "main", push=True)
+
+        assert result.success is True
+        assert "push failed" in result.message
+        assert result.error == "error: push rejected"
+
+    @patch("subprocess.run")
+    def test_merge_timeout(self, mock_run, manager) -> None:
+        """Merge handles timeout."""
+        mock_run.side_effect = [
+            self._mock_rev_parse("feature/test"),  # rev-parse HEAD
+            self._mock_success(),  # fetch origin
+            self._mock_success(),  # checkout main
+            self._mock_success(),  # pull origin main
+            subprocess.TimeoutExpired(cmd="git merge", timeout=60),  # merge times out
+            self._mock_success(),  # merge --abort (in except)
+            self._mock_success(),  # checkout feature/test (finally)
+        ]
+
+        result = manager.merge_branch("feature/test", "main")
+
+        assert result.success is False
+        assert "timed out" in result.message
+        assert result.error == "timeout"
+
+    @patch("subprocess.run")
+    def test_merge_generic_exception(self, mock_run, manager) -> None:
+        """Merge handles generic exception."""
+        mock_run.side_effect = [
+            self._mock_rev_parse("feature/test"),  # rev-parse HEAD
+            self._mock_success(),  # fetch origin
+            self._mock_success(),  # checkout main
+            self._mock_success(),  # pull origin main
+            Exception("Unexpected git crash"),  # merge raises
+            self._mock_success(),  # merge --abort (in except)
+            self._mock_success(),  # checkout feature/test (finally)
+        ]
+
+        result = manager.merge_branch("feature/test", "main")
+
+        assert result.success is False
+        assert "Merge error" in result.message
+        assert result.error == "Unexpected git crash"
+
+    @patch("subprocess.run")
+    def test_merge_restores_original_branch(self, mock_run, manager) -> None:
+        """Merge restores original branch in finally block."""
+        mock_run.side_effect = [
+            self._mock_rev_parse("feature/other"),  # on a different branch
+            self._mock_success(),  # fetch origin
+            self._mock_success(),  # checkout main
+            self._mock_success(),  # pull origin main
+            subprocess.CompletedProcess(
+                args=["git", "merge"], returncode=0, stdout="Merge made\n", stderr=""
+            ),  # merge succeeds
+            self._mock_success(),  # push origin main
+            self._mock_success(),  # checkout feature/other (finally)
+        ]
+
+        result = manager.merge_branch("feature/test", "main", push=True)
+
+        assert result.success is True
+        # Verify the last call was checkout back to feature/other
+        last_call = mock_run.call_args_list[-1]
+        assert "checkout" in last_call[0][0]
+        assert "feature/other" in last_call[0][0]
+
+    @patch("subprocess.run")
+    def test_merge_conflict_in_stderr(self, mock_run, manager) -> None:
+        """Merge detects conflict from stderr."""
+        mock_run.side_effect = [
+            self._mock_rev_parse("feature/test"),  # rev-parse HEAD
+            self._mock_success(),  # fetch origin
+            self._mock_success(),  # checkout main
+            self._mock_success(),  # pull origin main
+            subprocess.CompletedProcess(
+                args=["git", "merge"],
+                returncode=1,
+                stdout="",
+                stderr="CONFLICT (modify/delete): src/foo.py",
+            ),  # merge fails with conflict in stderr
+            subprocess.CompletedProcess(
+                args=["git", "diff"],
+                returncode=0,
+                stdout="src/foo.py\n",
+                stderr="",
+            ),  # diff --name-only
+            self._mock_success(),  # merge --abort
+            self._mock_success(),  # checkout feature/test (finally)
+        ]
+
+        result = manager.merge_branch("feature/test", "main")
+
+        assert result.success is False
+        assert result.error == "merge_conflict"
+        assert "1 files" in result.message
