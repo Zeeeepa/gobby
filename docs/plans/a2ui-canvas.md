@@ -18,7 +18,7 @@ Gobby already has the foundational pattern: `AskUserQuestion` blocks the agent, 
 
 **WebSocket disconnection handling:** When a WebSocket disconnects, the `on_disconnect` handler calls `canvas_registry.cancel_conversation_canvases(conversation_id)` to cancel any pending canvases for that conversation. For each pending canvas: mark `completed=True`, set `interaction_result={"error": "websocket_disconnected"}`, and trigger `pending_event.set()` to wake the awaiting coroutine. This ensures blocking `render_canvas` calls receive an immediate error instead of waiting for timeout.
 
-**Security?** Server-side: `nh3` (Rust-backed ammonia) for allowlist sanitization — strip `<script>`, `on*` handlers, `javascript:` URIs before storage. Client-side: DOMPurify as defense-in-depth with strict allowlist. No Bleach (unmaintained).
+**Security?** Server-side: `nh3>=0.3.3` (Rust-backed ammonia) for allowlist sanitization — strip `<script>`, `on*` handlers, `javascript:` URIs before storage. Client-side: DOMPurify as defense-in-depth with strict allowlist. No Bleach (unmaintained).
 
 ## Data Flow
 
@@ -93,7 +93,7 @@ MAX_RENDER_RATE = 10                # renders per minute per conversation
 MAX_PAYLOAD_DEPTH = 10              # max nesting depth for payload/form_data
 ```
 
-**Sliding-window rate limiter**: Maintain a per-conversation timestamp list (`_render_timestamps: dict[str, list[datetime]]`). On each `render_canvas` call, prune timestamps older than 1 minute, reject if `len >= MAX_RENDER_RATE`, otherwise append `now()`. Thread-safe via the per-canvas lock.
+**Sliding-window rate limiter**: Maintain a per-conversation timestamp list (`_render_timestamps: dict[str, list[datetime]]`). On each `render_canvas` call, prune timestamps older than 1 minute, reject if `len >= MAX_RENDER_RATE`, otherwise append `now()`. Thread-safe via a dedicated per-conversation `asyncio.Lock` (`_rate_limit_locks: dict[str, asyncio.Lock]`), **not** the per-canvas lock — multiple concurrent `render_canvas` calls for different canvases in the same conversation would use different per-canvas locks, leaving the shared timestamp list unprotected.
 
 Enforce in `render_canvas` **before sanitization**: check `len(content.encode('utf-8'))` against `MAX_CANVAS_SIZE` to reject oversized payloads early. Then reject if conversation exceeds `MAX_CANVASES_PER_CONVERSATION`, global count exceeds `MAX_TOTAL_CANVASES`, or rate limit hit.
 
@@ -172,7 +172,7 @@ Depth validation helper:
 ```python
 def _validate_payload_depth(obj: Any, max_depth: int = 10, current_depth: int = 0) -> bool:
     """Reject too-deep nesting in payload/form_data to prevent resource exhaustion."""
-    if current_depth > max_depth:
+    if current_depth >= max_depth:
         return False
     if isinstance(obj, dict):
         return all(_validate_payload_depth(v, max_depth, current_depth + 1) for v in obj.values())
@@ -248,7 +248,7 @@ export function sanitizeCanvasHtml(html: string): string {
 }
 
 function validatePayloadDepth(obj: unknown, maxDepth = 10, depth = 0): boolean {
-  if (depth > maxDepth) return false
+  if (depth >= maxDepth) return false
   if (Array.isArray(obj)) return obj.every(v => validatePayloadDepth(v, maxDepth, depth + 1))
   if (obj && typeof obj === 'object')
     return Object.values(obj).every(v => validatePayloadDepth(v, maxDepth, depth + 1))
