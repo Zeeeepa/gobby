@@ -591,7 +591,7 @@ def create_memory_registry(
                     await asyncio.sleep(0)
             return {
                 "success": True,
-                "memories_processed": extracted + errors,
+                "memories_processed": len(memories),
                 "memories_extracted": extracted,
                 "errors": errors,
             }
