@@ -62,7 +62,7 @@ def validate_commit_requirements(
                 '- Task is no longer needed: reason="obsolete"\n'
                 '- Task duplicates another: reason="duplicate"\n'
                 '- Decided not to do it: reason="wont_fix"\n'
-                '- Changes outside repo (e.g., ~/.gobby/config.yaml): reason="out_of_repo"'
+                '- Changes outside repo (e.g., ~/.gobby/bootstrap.yaml): reason="out_of_repo"'
             ),
         )
 

@@ -7,6 +7,7 @@ from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import pytest
+import yaml
 from click.testing import CliRunner
 
 from gobby.cli import cli
@@ -25,28 +26,28 @@ pytestmark = pytest.mark.unit
 class TestEnsureDaemonConfig:
     """Tests for _ensure_daemon_config function."""
 
-    def test_config_already_exists(self, temp_dir: Path) -> None:
-        """Test when config file already exists."""
-        config_path = temp_dir / ".gobby" / "config.yaml"
-        config_path.parent.mkdir(parents=True, exist_ok=True)
-        config_path.write_text("existing: config\n")
+    def test_bootstrap_already_exists(self, temp_dir: Path) -> None:
+        """Test when bootstrap file already exists."""
+        bootstrap_path = temp_dir / ".gobby" / "bootstrap.yaml"
+        bootstrap_path.parent.mkdir(parents=True, exist_ok=True)
+        bootstrap_path.write_text("daemon_port: 60887\n")
 
-        with patch.object(Path, "expanduser", return_value=config_path):
+        with patch.object(Path, "expanduser", return_value=bootstrap_path):
             result = _ensure_daemon_config()
 
         assert result["created"] is False
-        assert result["path"] == str(config_path)
+        assert result["path"] == str(bootstrap_path)
         assert "source" not in result
 
-    def test_config_created_from_shared_template(self, temp_dir: Path) -> None:
-        """Test creating config from shared template."""
-        config_path = temp_dir / ".gobby" / "config.yaml"
-        shared_config = temp_dir / "install" / "shared" / "config" / "config.yaml"
-        shared_config.parent.mkdir(parents=True, exist_ok=True)
-        shared_config.write_text("shared: template\n")
+    def test_bootstrap_created_from_shared_template(self, temp_dir: Path) -> None:
+        """Test creating bootstrap from shared template."""
+        bootstrap_path = temp_dir / ".gobby" / "bootstrap.yaml"
+        shared_bootstrap = temp_dir / "install" / "shared" / "config" / "bootstrap.yaml"
+        shared_bootstrap.parent.mkdir(parents=True, exist_ok=True)
+        shared_bootstrap.write_text("daemon_port: 60887\nbind_host: localhost\n")
 
         with (
-            patch.object(Path, "expanduser", return_value=config_path),
+            patch.object(Path, "expanduser", return_value=bootstrap_path),
             patch(
                 "gobby.cli.install.get_install_dir",
                 return_value=temp_dir / "install",
@@ -55,46 +56,38 @@ class TestEnsureDaemonConfig:
             result = _ensure_daemon_config()
 
         assert result["created"] is True
-        assert result["path"] == str(config_path)
+        assert result["path"] == str(bootstrap_path)
         assert result["source"] == "shared"
-        assert config_path.exists()
-        assert config_path.read_text() == "shared: template\n"
+        assert bootstrap_path.exists()
+        assert "daemon_port: 60887" in bootstrap_path.read_text()
         # Check permissions
-        assert (config_path.stat().st_mode & 0o777) == 0o600
+        assert (bootstrap_path.stat().st_mode & 0o777) == 0o600
 
-    def test_config_generated_from_pydantic_defaults(self, temp_dir: Path) -> None:
-        """Test generating config from Pydantic defaults when no template exists."""
-        config_path = temp_dir / ".gobby" / "config.yaml"
+    def test_bootstrap_generated_as_fallback(self, temp_dir: Path) -> None:
+        """Test generating bootstrap from defaults when no template exists."""
+        bootstrap_path = temp_dir / ".gobby" / "bootstrap.yaml"
         install_dir = temp_dir / "install"
         install_dir.mkdir(parents=True, exist_ok=True)
-        # No shared config template - don't create shared/config/config.yaml
+        # No shared bootstrap template
 
         # Set up the parent directory so mkdir works
-        config_path.parent.mkdir(parents=True, exist_ok=True)
-
-        def mock_generate_side_effect(path: str) -> None:
-            """Simulate generate_default_config creating the file."""
-            Path(path).write_text("generated: config\n")
-
-        mock_generate = MagicMock(side_effect=mock_generate_side_effect)
+        bootstrap_path.parent.mkdir(parents=True, exist_ok=True)
 
         with (
-            patch.object(Path, "expanduser", return_value=config_path),
+            patch.object(Path, "expanduser", return_value=bootstrap_path),
             patch(
                 "gobby.cli.install.get_install_dir",
                 return_value=install_dir,
-            ),
-            # Patch at the source location since it's imported inside the function
-            patch(
-                "gobby.config.app.generate_default_config",
-                mock_generate,
             ),
         ):
             result = _ensure_daemon_config()
 
         assert result["created"] is True
         assert result["source"] == "generated"
-        mock_generate.assert_called_once_with(str(config_path))
+        assert bootstrap_path.exists()
+        content = yaml.safe_load(bootstrap_path.read_text())
+        assert content["daemon_port"] == 60887
+        assert content["bind_host"] == "localhost"
 
 
 class TestCLIDetectionFunctions:

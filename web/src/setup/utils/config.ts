@@ -3,26 +3,36 @@ import { join } from "path";
 import { parse, stringify } from "yaml";
 import { getGobbyHome } from "./state.js";
 
-function configPath(): string {
-  return join(getGobbyHome(), "config.yaml");
+function bootstrapPath(): string {
+  return join(getGobbyHome(), "bootstrap.yaml");
 }
 
-export function readConfig(): Record<string, unknown> {
+export function readBootstrap(): Record<string, unknown> {
   try {
-    const raw = readFileSync(configPath(), "utf-8");
+    const raw = readFileSync(bootstrapPath(), "utf-8");
     return (parse(raw) as Record<string, unknown>) || {};
   } catch (e: unknown) {
     if (e && typeof e === "object" && "code" in e && (e as { code: string }).code !== "ENOENT") {
-      console.error("Failed to read config:", e);
+      console.error("Failed to read bootstrap config:", e);
     }
     return {};
   }
 }
 
-export function writeConfig(data: Record<string, unknown>): void {
+export function writeBootstrap(data: Record<string, unknown>): void {
   const dir = getGobbyHome();
   mkdirSync(dir, { recursive: true });
-  writeFileSync(configPath(), stringify(data), { mode: 0o600 });
+  writeFileSync(bootstrapPath(), stringify(data), { mode: 0o600 });
+}
+
+/** @deprecated Use readBootstrap() instead */
+export function readConfig(): Record<string, unknown> {
+  return readBootstrap();
+}
+
+/** @deprecated Use writeBootstrap() instead */
+export function writeConfig(data: Record<string, unknown>): void {
+  writeBootstrap(data);
 }
 
 export function patchPorts(
@@ -30,18 +40,15 @@ export function patchPorts(
   wsPort: number,
   uiPort: number,
 ): void {
-  const data = readConfig() as Record<string, Record<string, unknown>>;
-  if (!data.daemon) data.daemon = {};
-  data.daemon.port = httpPort;
-  if (!data.websocket) data.websocket = {};
-  data.websocket.port = wsPort;
-  if (!data.ui) data.ui = {};
-  data.ui.port = uiPort;
-  writeConfig(data);
+  const data = readBootstrap();
+  data.daemon_port = httpPort;
+  data.websocket_port = wsPort;
+  data.ui_port = uiPort;
+  writeBootstrap(data);
 }
 
 export function setBindHost(host: string): void {
-  const data = readConfig();
+  const data = readBootstrap();
   data.bind_host = host;
-  writeConfig(data);
+  writeBootstrap(data);
 }

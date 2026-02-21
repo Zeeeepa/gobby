@@ -59,6 +59,7 @@ class TestInstallClaude:
         home.mkdir()
         return home
 
+    @patch("gobby.cli.installers.claude.install_global_hooks")
     @patch("gobby.cli.installers.claude.get_install_dir")
     @patch("gobby.cli.installers.claude.install_shared_content")
     @patch("gobby.cli.installers.claude.install_cli_content")
@@ -69,6 +70,7 @@ class TestInstallClaude:
         mock_cli_content: MagicMock,
         mock_shared_content: MagicMock,
         mock_get_install_dir: MagicMock,
+        mock_global_hooks: MagicMock,
         temp_project: Path,
         mock_install_dir: Path,
         mock_home_dir: Path,
@@ -77,6 +79,7 @@ class TestInstallClaude:
         from gobby.cli.installers.claude import install_claude
 
         mock_get_install_dir.return_value = mock_install_dir
+        mock_global_hooks.return_value = ["hook_dispatcher.py", "validate_settings.py"]
         mock_shared_content.return_value = {
             "plugins": [],
             "docs": [],
@@ -99,12 +102,10 @@ class TestInstallClaude:
 
         # Verify .claude directory structure was created
         assert (temp_project / ".claude").exists()
-        assert (temp_project / ".claude" / "hooks").exists()
         assert (temp_project / ".claude" / "settings.json").exists()
 
-        # Verify hook files were copied
-        assert (temp_project / ".claude" / "hooks" / "hook_dispatcher.py").exists()
-        assert (temp_project / ".claude" / "hooks" / "validate_settings.py").exists()
+        # Verify global hooks were installed
+        mock_global_hooks.assert_called_once()
 
     @patch("gobby.cli.installers.claude.get_install_dir")
     def test_install_claude_missing_source_files(
@@ -445,7 +446,7 @@ class TestInstallClaude:
             settings = json.load(f)
 
         command = settings["hooks"]["SessionStart"][0]["hooks"][0]["command"]
-        assert str((temp_project / ".claude" / "hooks").resolve()) in command
+        assert str((mock_home_dir / ".gobby" / "hooks").resolve()) in command
         assert "$HOOKS_DIR" not in command
 
     @patch("gobby.cli.installers.claude.get_install_dir")
@@ -480,8 +481,7 @@ class TestInstallClaude:
         assert result["success"] is False
         assert "Failed to parse hooks template" in result["error"]
 
-    @patch("gobby.cli.installers.shared._is_dev_mode", return_value=False)
-    @patch("gobby.cli.installers.shared.get_install_dir")
+    @patch("gobby.cli.installers.claude.install_global_hooks")
     @patch("gobby.cli.installers.claude.get_install_dir")
     @patch("gobby.cli.installers.claude.install_shared_content")
     @patch("gobby.cli.installers.claude.install_cli_content")
@@ -492,22 +492,21 @@ class TestInstallClaude:
         mock_cli_content: MagicMock,
         mock_shared_content: MagicMock,
         mock_get_install_dir: MagicMock,
-        mock_shared_get_install_dir: MagicMock,
-        mock_dev_mode: MagicMock,
+        mock_global_hooks: MagicMock,
         temp_project: Path,
         mock_install_dir: Path,
         mock_home_dir: Path,
     ) -> None:
-        """Test that existing hook files are overwritten."""
+        """Test that install succeeds when existing project hook files exist."""
         from gobby.cli.installers.claude import install_claude
 
         mock_get_install_dir.return_value = mock_install_dir
-        mock_shared_get_install_dir.return_value = mock_install_dir
+        mock_global_hooks.return_value = ["hook_dispatcher.py", "validate_settings.py"]
         mock_shared_content.return_value = {"workflows": [], "plugins": []}
         mock_cli_content.return_value = {"workflows": [], "commands": []}
         mock_mcp_config.return_value = {"success": True, "added": False}
 
-        # Create existing hook file
+        # Create existing hook file (legacy per-project hooks)
         hooks_dir = temp_project / ".claude" / "hooks"
         hooks_dir.mkdir(parents=True)
         existing_hook = hooks_dir / "hook_dispatcher.py"
@@ -518,10 +517,10 @@ class TestInstallClaude:
 
         assert result["success"] is True
 
-        # Verify file was overwritten
-        new_content = existing_hook.read_text()
-        assert new_content == "# mock hook dispatcher"
+        # Global hooks were installed
+        mock_global_hooks.assert_called_once()
 
+    @patch("gobby.cli.installers.claude.install_global_hooks")
     @patch("gobby.cli.installers.claude.get_install_dir")
     @patch("gobby.cli.installers.claude.install_shared_content")
     @patch("gobby.cli.installers.claude.install_cli_content")
@@ -532,14 +531,16 @@ class TestInstallClaude:
         mock_cli_content: MagicMock,
         mock_shared_content: MagicMock,
         mock_get_install_dir: MagicMock,
+        mock_global_hooks: MagicMock,
         temp_project: Path,
         mock_install_dir: Path,
         mock_home_dir: Path,
     ) -> None:
-        """Test that hook files are made executable."""
+        """Test that global hook installation is called during install."""
         from gobby.cli.installers.claude import install_claude
 
         mock_get_install_dir.return_value = mock_install_dir
+        mock_global_hooks.return_value = ["hook_dispatcher.py", "validate_settings.py"]
         mock_shared_content.return_value = {"workflows": [], "plugins": []}
         mock_cli_content.return_value = {"workflows": [], "commands": []}
         mock_mcp_config.return_value = {"success": True, "added": False}
@@ -548,11 +549,7 @@ class TestInstallClaude:
             result = install_claude(temp_project, mode="project")
 
         assert result["success"] is True
-
-        # Check file permissions (0o755 = rwxr-xr-x)
-        hook_file = temp_project / ".claude" / "hooks" / "hook_dispatcher.py"
-        mode = hook_file.stat().st_mode & 0o777
-        assert mode == 0o755
+        mock_global_hooks.assert_called_once()
 
 
 class TestUninstallClaude:

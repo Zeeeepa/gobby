@@ -37,36 +37,44 @@ logger = logging.getLogger(__name__)
 
 
 def _ensure_daemon_config() -> dict[str, Any]:
-    """Ensure daemon config exists at ~/.gobby/config.yaml.
+    """Ensure bootstrap config exists at ~/.gobby/bootstrap.yaml.
 
-    If config doesn't exist, copies the shared config template.
+    If bootstrap.yaml doesn't exist, copies the shared template.
+    Bootstrap.yaml contains only the 5 pre-DB settings; all other
+    configuration is managed via the DB (config_store) + Pydantic defaults.
 
     Returns:
         Dict with 'created' (bool) and 'path' (str) keys
     """
-    config_path = Path("~/.gobby/config.yaml").expanduser()
+    bootstrap_path = Path("~/.gobby/bootstrap.yaml").expanduser()
 
-    if config_path.exists():
-        return {"created": False, "path": str(config_path)}
+    if bootstrap_path.exists():
+        return {"created": False, "path": str(bootstrap_path)}
 
     # Ensure directory exists
-    config_path.parent.mkdir(parents=True, exist_ok=True)
+    bootstrap_path.parent.mkdir(parents=True, exist_ok=True)
 
-    # Copy shared config template
-    shared_config = get_install_dir() / "shared" / "config" / "config.yaml"
-    if shared_config.exists():
-        copy2(shared_config, config_path)
-        # Set restrictive permissions
-        config_path.chmod(0o600)
-        return {"created": True, "path": str(config_path), "source": "shared"}
+    # Copy shared bootstrap template
+    shared_bootstrap = get_install_dir() / "shared" / "config" / "bootstrap.yaml"
+    if shared_bootstrap.exists():
+        copy2(shared_bootstrap, bootstrap_path)
+        bootstrap_path.chmod(0o600)
+        return {"created": True, "path": str(bootstrap_path), "source": "shared"}
 
-    # Fallback: generate from Pydantic defaults
-    from gobby.config.app import generate_default_config
+    # Fallback: write minimal defaults directly
+    import yaml
 
-    generate_default_config(str(config_path))
-    # Set restrictive permissions (same as copied template)
-    config_path.chmod(0o600)
-    return {"created": True, "path": str(config_path), "source": "generated"}
+    defaults = {
+        "database_path": "~/.gobby/gobby-hub.db",
+        "daemon_port": 60887,
+        "bind_host": "localhost",
+        "websocket_port": 60888,
+        "ui_port": 60889,
+    }
+    with open(bootstrap_path, "w") as f:
+        yaml.safe_dump(defaults, f, default_flow_style=False, sort_keys=False)
+    bootstrap_path.chmod(0o600)
+    return {"created": True, "path": str(bootstrap_path), "source": "generated"}
 
 
 def _is_claude_code_installed() -> bool:

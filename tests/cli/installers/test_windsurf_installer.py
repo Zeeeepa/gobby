@@ -1,8 +1,7 @@
 """Tests for the Windsurf installer module.
 
 Exercises the real install_windsurf() and uninstall_windsurf() functions
-with real filesystem operations. Only get_install_dir() and _is_dev_mode()
-are mocked.
+with real filesystem operations. Only get_install_dir() is mocked.
 
 Targets 90%+ statement coverage of src/gobby/cli/installers/windsurf.py.
 """
@@ -76,7 +75,6 @@ class TestInstallWindsurf:
         """Full install on a clean project directory."""
         with (
             patch("gobby.cli.installers.windsurf.get_install_dir", return_value=install_dir),
-            patch("gobby.cli.installers.shared._is_dev_mode", return_value=False),
             patch(
                 "gobby.cli.installers.windsurf.install_shared_content",
                 return_value={
@@ -102,8 +100,6 @@ class TestInstallWindsurf:
 
         # Verify directory structure
         assert (project / ".windsurf").is_dir()
-        assert (project / ".windsurf" / "hooks").is_dir()
-        assert (project / ".windsurf" / "hooks" / "hook_dispatcher.py").exists()
 
         # Verify hooks.json content
         hooks_file = project / ".windsurf" / "hooks.json"
@@ -119,15 +115,14 @@ class TestInstallWindsurf:
         # Verify $HOOKS_DIR was replaced
         cmd = data["hooks"]["pre_save"][0]["command"]
         assert "$HOOKS_DIR" not in cmd
-        assert str((project / ".windsurf" / "hooks").resolve()) in cmd
+        assert "hook_dispatcher.py" in cmd
 
     def test_missing_hook_dispatcher(self, project: Path, tmp_path: Path) -> None:
         """Succeeds but dispatcher is not installed when source is missing.
 
-        install_shared_hooks() logs a warning for missing files but doesn't
-        fail - it returns an empty list.  The install still succeeds because
-        the hooks-template.json is present, but hook_dispatcher.py won't
-        exist in the target hooks directory.
+        install_global_hooks() handles missing source files gracefully.
+        The install still succeeds because the hooks-template.json is
+        present, but no hook files will be copied.
         """
         install_dir = tmp_path / "install"
         windsurf_dir = install_dir / "windsurf"
@@ -136,15 +131,12 @@ class TestInstallWindsurf:
 
         with (
             patch("gobby.cli.installers.windsurf.get_install_dir", return_value=install_dir),
-            patch("gobby.cli.installers.shared.get_install_dir", return_value=install_dir),
         ):
             result = install_windsurf(project, mode="project")
 
         assert result["success"] is True
         # Template had no hooks, so nothing was merged
         assert result["hooks_installed"] == []
-        # Dispatcher was never copied because the source file was missing
-        assert not (project / ".windsurf" / "hooks" / "hook_dispatcher.py").exists()
 
     def test_missing_hooks_template(self, project: Path, tmp_path: Path) -> None:
         """Fails when hooks-template.json is missing."""
@@ -173,12 +165,11 @@ class TestInstallWindsurf:
         assert "Missing source files" in result["error"]
 
     def test_install_file_oserror(self, project: Path, install_dir: Path) -> None:
-        """Fails when _install_file raises OSError."""
+        """Fails when install_global_hooks raises OSError."""
         with (
             patch("gobby.cli.installers.windsurf.get_install_dir", return_value=install_dir),
-            patch("gobby.cli.installers.shared._is_dev_mode", return_value=False),
             patch(
-                "gobby.cli.installers.shared._install_file",
+                "gobby.cli.installers.windsurf.install_global_hooks",
                 side_effect=OSError("Permission denied"),
             ),
         ):
@@ -191,7 +182,6 @@ class TestInstallWindsurf:
         """install_shared_content failure does not block hooks installation."""
         with (
             patch("gobby.cli.installers.windsurf.get_install_dir", return_value=install_dir),
-            patch("gobby.cli.installers.shared._is_dev_mode", return_value=False),
             patch(
                 "gobby.cli.installers.windsurf.install_shared_content",
                 side_effect=RuntimeError("Shared content kaboom"),
@@ -207,7 +197,6 @@ class TestInstallWindsurf:
         """Shared content result missing optional keys handled via .get()."""
         with (
             patch("gobby.cli.installers.windsurf.get_install_dir", return_value=install_dir),
-            patch("gobby.cli.installers.shared._is_dev_mode", return_value=False),
             patch(
                 "gobby.cli.installers.windsurf.install_shared_content",
                 return_value={"workflows": ["w.yaml"]},
@@ -231,7 +220,6 @@ class TestInstallWindsurf:
 
         with (
             patch("gobby.cli.installers.windsurf.get_install_dir", return_value=install_dir),
-            patch("gobby.cli.installers.shared._is_dev_mode", return_value=False),
             patch(
                 "gobby.cli.installers.windsurf.install_shared_content",
                 return_value={
@@ -268,7 +256,6 @@ class TestInstallWindsurf:
 
         with (
             patch("gobby.cli.installers.windsurf.get_install_dir", return_value=install_dir),
-            patch("gobby.cli.installers.shared._is_dev_mode", return_value=False),
             patch(
                 "gobby.cli.installers.windsurf.install_shared_content",
                 return_value={
@@ -299,7 +286,6 @@ class TestInstallWindsurf:
         try:
             with (
                 patch("gobby.cli.installers.windsurf.get_install_dir", return_value=install_dir),
-                patch("gobby.cli.installers.shared._is_dev_mode", return_value=False),
                 patch(
                     "gobby.cli.installers.windsurf.install_shared_content",
                     return_value={
@@ -332,7 +318,6 @@ class TestInstallWindsurf:
         try:
             with (
                 patch("gobby.cli.installers.windsurf.get_install_dir", return_value=install_dir),
-                patch("gobby.cli.installers.shared._is_dev_mode", return_value=False),
                 patch(
                     "gobby.cli.installers.windsurf.install_shared_content",
                     return_value={
@@ -362,7 +347,6 @@ class TestInstallWindsurf:
 
         with (
             patch("gobby.cli.installers.windsurf.get_install_dir", return_value=install_dir),
-            patch("gobby.cli.installers.shared._is_dev_mode", return_value=False),
             patch(
                 "gobby.cli.installers.windsurf.install_shared_content",
                 return_value={
@@ -387,7 +371,6 @@ class TestInstallWindsurf:
 
         with (
             patch("gobby.cli.installers.windsurf.get_install_dir", return_value=install_dir),
-            patch("gobby.cli.installers.shared._is_dev_mode", return_value=False),
             patch(
                 "gobby.cli.installers.windsurf.install_shared_content",
                 return_value={
@@ -415,7 +398,6 @@ class TestInstallWindsurf:
 
         with (
             patch("gobby.cli.installers.windsurf.get_install_dir", return_value=install_dir),
-            patch("gobby.cli.installers.shared._is_dev_mode", return_value=False),
             patch(
                 "gobby.cli.installers.windsurf.install_shared_content",
                 return_value={
@@ -445,7 +427,6 @@ class TestInstallWindsurf:
         """Atomic write failure with no backup (fresh install) just returns error."""
         with (
             patch("gobby.cli.installers.windsurf.get_install_dir", return_value=install_dir),
-            patch("gobby.cli.installers.shared._is_dev_mode", return_value=False),
             patch(
                 "gobby.cli.installers.windsurf.install_shared_content",
                 return_value={
@@ -474,7 +455,6 @@ class TestInstallWindsurf:
 
         with (
             patch("gobby.cli.installers.windsurf.get_install_dir", return_value=install_dir),
-            patch("gobby.cli.installers.shared._is_dev_mode", return_value=False),
             patch(
                 "gobby.cli.installers.windsurf.install_shared_content",
                 return_value={
@@ -492,29 +472,6 @@ class TestInstallWindsurf:
         with open(windsurf_path / "hooks.json") as f:
             data = json.load(f)
         assert "hooks" in data
-
-    def test_dev_mode_uses_symlinks(self, project: Path, install_dir: Path) -> None:
-        """In dev mode, _install_file is called with dev_mode=True."""
-        with (
-            patch("gobby.cli.installers.windsurf.get_install_dir", return_value=install_dir),
-            patch("gobby.cli.installers.shared._is_dev_mode", return_value=True),
-            patch("gobby.cli.installers.shared._install_file") as mock_install_file,
-            patch(
-                "gobby.cli.installers.windsurf.install_shared_content",
-                return_value={
-                    "workflows": [],
-                    "agents": [],
-                    "plugins": [],
-                    "prompts": [],
-                    "docs": [],
-                },
-            ),
-        ):
-            result = install_windsurf(project, mode="project")
-
-        assert result["success"] is True
-        call_kwargs = mock_install_file.call_args
-        assert call_kwargs[1]["dev_mode"] is True
 
     def test_hooks_json_open_oserror_after_backup(self, project: Path, install_dir: Path) -> None:
         """OSError on open() reading hooks.json (after backup succeeds) returns error.
@@ -539,7 +496,6 @@ class TestInstallWindsurf:
         try:
             with (
                 patch("gobby.cli.installers.windsurf.get_install_dir", return_value=install_dir),
-                patch("gobby.cli.installers.shared._is_dev_mode", return_value=False),
                 patch(
                     "gobby.cli.installers.windsurf.install_shared_content",
                     return_value={
@@ -582,7 +538,6 @@ class TestInstallWindsurf:
 
         with (
             patch("gobby.cli.installers.windsurf.get_install_dir", return_value=install_dir),
-            patch("gobby.cli.installers.shared._is_dev_mode", return_value=False),
             patch(
                 "gobby.cli.installers.windsurf.install_shared_content",
                 return_value={
@@ -615,7 +570,6 @@ class TestInstallWindsurf:
 
         with (
             patch("gobby.cli.installers.windsurf.get_install_dir", return_value=install_dir),
-            patch("gobby.cli.installers.shared._is_dev_mode", return_value=False),
             patch(
                 "gobby.cli.installers.windsurf.install_shared_content",
                 return_value={

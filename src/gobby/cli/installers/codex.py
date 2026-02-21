@@ -7,6 +7,7 @@ for OpenAI Codex CLI.
 
 import json
 import logging
+import os
 import re
 from pathlib import Path
 from typing import Any
@@ -16,7 +17,6 @@ from gobby.cli.utils import get_install_dir
 from .mcp_config import configure_mcp_server_toml, remove_mcp_server_toml
 from .shared import (
     _install_file,
-    _is_dev_mode,
     install_cli_content,
     install_shared_content,
 )
@@ -53,12 +53,14 @@ def install_codex_notify(project_path: Path) -> dict[str, Any]:
         return result
 
     # Install hook dispatcher to ~/.gobby/hooks/codex/hook_dispatcher.py
-    notify_dir = Path.home() / ".gobby" / "hooks" / "codex"
+    hooks_base = Path(
+        os.environ.get("GOBBY_HOOKS_DIR", str(Path.home() / ".gobby" / "hooks"))
+    )
+    notify_dir = hooks_base / "codex"
     notify_dir.mkdir(parents=True, exist_ok=True)
     target_notify = notify_dir / "hook_dispatcher.py"
 
-    dev_mode = _is_dev_mode(project_path)
-    _install_file(source_notify, target_notify, dev_mode=dev_mode, executable=True)
+    _install_file(source_notify, target_notify, executable=True)
     files_installed.append(str(target_notify))
 
     # Install shared content - workflows to {project_path}/.gobby/

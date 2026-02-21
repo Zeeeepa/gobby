@@ -160,7 +160,7 @@ class ClaudeLLMProvider(LLMProvider):
         if not prompt_template:
             raise ValueError(
                 "prompt_template is required for generate_summary. "
-                "Configure 'session_summary.prompt' in ~/.gobby/config.yaml"
+                "Configure 'session_summary.prompt' via gobby-config MCP tools"
             )
 
         # Render with Jinja2 (templates use {{ variable }} syntax)

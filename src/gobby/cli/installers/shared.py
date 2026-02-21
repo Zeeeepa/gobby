@@ -26,63 +26,25 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
-def _is_dev_mode(project_path: Path) -> bool:
-    """Detect if running inside the gobby source repo.
+def _install_file(source: Path, target: Path, executable: bool = False) -> None:
+    """Install a single file by copying.
 
-    When the project IS the gobby source repo, we use symlinks instead of
-    copies so that .gobby/ and install/shared/ stay in sync during development.
-    """
-    from gobby.utils.dev import is_dev_mode
-
-    return is_dev_mode(project_path)
-
-
-def _install_resource_dir(source: Path, target: Path, dev_mode: bool) -> None:
-    """Install a resource directory, handling existing symlinks safely.
-
-    In dev mode, creates a symlink from target -> source.
-    In normal mode, copies the directory tree.
-
-    Safely handles existing symlinks by unlinking (not following) before
-    replacing, which prevents shutil.rmtree from destroying source files.
-    """
-    if target.is_symlink():
-        os.unlink(target)  # Safe: removes symlink, not target
-    elif target.exists():
-        shutil.rmtree(target)
-
-    if dev_mode:
-        rel_path = os.path.relpath(source.resolve(), target.parent.resolve())
-        os.symlink(rel_path, target)
-    else:
-        copytree(source, target)
-
-
-def _install_file(source: Path, target: Path, dev_mode: bool, executable: bool = False) -> None:
-    """Install a single file, using symlink in dev mode or copy otherwise.
-
-    In dev mode, creates a relative symlink from target -> source.
-    In normal mode, copies the file. Symlinks inherit permissions from the
-    source, so chmod is only applied to copies.
+    Safely handles existing symlinks by unlinking before replacing,
+    to support migration from dev-mode symlinks to copies.
 
     Args:
         source: Source file path
         target: Target file path
-        dev_mode: If True, create symlink; if False, copy
-        executable: If True (and not dev_mode), chmod 0o755 after copying
+        executable: If True, chmod 0o755 after copying
     """
     if target.is_symlink():
         os.unlink(target)
     elif target.exists():
         target.unlink()
 
-    if dev_mode:
-        rel_path = os.path.relpath(source.resolve(), target.parent.resolve())
-        os.symlink(rel_path, target)
-    else:
-        copy2(source, target)
-        if executable:
-            target.chmod(0o755)
+    copy2(source, target)
+    if executable:
+        target.chmod(0o755)
 
 
 def install_global_hooks() -> list[str]:
@@ -95,7 +57,9 @@ def install_global_hooks() -> list[str]:
         List of installed filenames
     """
     shared_hooks_dir = get_install_dir() / "shared" / "hooks"
-    global_hooks_dir = Path.home() / ".gobby" / "hooks"
+    global_hooks_dir = Path(
+        os.environ.get("GOBBY_HOOKS_DIR", str(Path.home() / ".gobby" / "hooks"))
+    )
     global_hooks_dir.mkdir(parents=True, exist_ok=True)
     installed: list[str] = []
 
@@ -183,44 +147,6 @@ def clean_project_hooks(settings_file: Path) -> list[str]:
     return removed
 
 
-def install_shared_hooks(hooks_dir: Path, project_path: Path) -> list[str]:
-    """Install shared hook files (hook_dispatcher.py, validate_settings.py).
-
-    Both files are installed from src/install/shared/hooks/ to the
-    CLI-specific hooks directory (e.g., .claude/hooks/, .gemini/hooks/).
-
-    In dev mode, creates symlinks; otherwise copies files.
-
-    Args:
-        hooks_dir: Target CLI hooks directory (e.g., project_path/.claude/hooks/)
-        project_path: Path to project root (for dev mode detection)
-
-    Returns:
-        List of installed filenames
-    """
-    shared_hooks_dir = get_install_dir() / "shared" / "hooks"
-    dev_mode = _is_dev_mode(project_path)
-    installed: list[str] = []
-
-    hook_files = {
-        "hook_dispatcher.py": True,  # Make executable
-        "validate_settings.py": True,  # Make executable
-    }
-
-    hooks_dir.mkdir(parents=True, exist_ok=True)
-
-    for filename, make_executable in hook_files.items():
-        source_file = shared_hooks_dir / filename
-        if not source_file.exists():
-            logger.warning(f"Shared hook file not found: {source_file}")
-            continue
-        target_file = hooks_dir / filename
-        _install_file(source_file, target_file, dev_mode=dev_mode, executable=make_executable)
-        installed.append(filename)
-
-    return installed
-
-
 def install_shared_content(cli_path: Path, project_path: Path) -> dict[str, list[str]]:
     """Install shared content from src/install/shared/.
 
@@ -231,8 +157,7 @@ def install_shared_content(cli_path: Path, project_path: Path) -> dict[str, list
     They are synced to the database during ``gobby install`` via
     :func:`sync_bundled_content_to_db`, NOT copied to ``.gobby/``.
 
-    In dev mode (running inside the gobby source repo), symlinks are created
-    instead of copies so that .gobby/ and install/shared/ stay in sync.
+    Safely handles migration from dev-mode symlinks to copies.
 
     Args:
         cli_path: Path to CLI config directory (e.g., .claude, .gemini)
@@ -242,14 +167,10 @@ def install_shared_content(cli_path: Path, project_path: Path) -> dict[str, list
         Dict with lists of installed items by type
     """
     shared_dir = get_install_dir() / "shared"
-    dev_mode = _is_dev_mode(project_path)
     installed: dict[str, list[str]] = {
         "plugins": [],
         "docs": [],
     }
-
-    if dev_mode:
-        logger.info("Dev mode detected: using symlinks instead of copies")
 
     # Only plugins and docs are file-based; workflows/agents/rules/prompts/skills
     # are DB-managed and synced via sync_bundled_content_to_db().
@@ -265,18 +186,15 @@ def install_shared_content(cli_path: Path, project_path: Path) -> dict[str, list
 
         target = project_path / ".gobby" / target_name
 
-        if dev_mode:
-            # Symlink the entire directory
-            target.parent.mkdir(parents=True, exist_ok=True)
-            _install_resource_dir(source, target, dev_mode=True)
-            installed[type_key].append(f"{source_name}/ -> (symlink)")
-        else:
-            # Copy files individually
-            target.mkdir(parents=True, exist_ok=True)
-            if type_key == "plugins":
-                _copy_plugins(source, target, installed)
-            elif type_key == "docs":
-                _copy_docs(source, target, installed)
+        # Migrate from symlink to copy if needed
+        if target.is_symlink():
+            os.unlink(target)
+
+        target.mkdir(parents=True, exist_ok=True)
+        if type_key == "plugins":
+            _copy_plugins(source, target, installed)
+        elif type_key == "docs":
+            _copy_docs(source, target, installed)
 
     return installed
 

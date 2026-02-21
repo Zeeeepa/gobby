@@ -59,7 +59,7 @@ def _get_or_create_machine_id() -> str:
 
     Strategy:
     1. Read from file if present
-    2. Migrate from config.yaml if present there (one-time migration)
+    2. Generate new ID and save to file (legacy config.yaml migration removed)
     3. Generate new ID and save to file
 
     Returns:

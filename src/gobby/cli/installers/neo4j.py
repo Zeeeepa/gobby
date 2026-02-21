@@ -190,18 +190,29 @@ def _update_config(
     neo4j_url: str | None = None,
     neo4j_auth: str | None = None,
 ) -> None:
-    """Update daemon config with Neo4j settings.
+    """Update daemon config with Neo4j settings via ConfigStore.
 
-    Writes to YAML during install (DB may not exist yet).
-    The daemon migrates plaintext neo4j_auth into the encrypted
-    secret store on first start (see runner.py migrate_secrets).
+    Writes to the DB config_store so the daemon picks up values
+    on next start. If neo4j_auth is provided, it is stored as an
+    encrypted secret via SecretStore.
     """
     try:
-        from gobby.config.app import load_config, save_config
+        from gobby.config.app import load_config
+        from gobby.storage.config_store import ConfigStore
+        from gobby.storage.database import LocalDatabase
+        from gobby.storage.secrets import SecretStore
 
         config = load_config()
-        config.memory.neo4j_url = neo4j_url
-        config.memory.neo4j_auth = neo4j_auth
-        save_config(config)
+        db_path = Path(config.database_path).expanduser()
+        db = LocalDatabase(db_path)
+        try:
+            store = ConfigStore(db)
+            if neo4j_url:
+                store.set("memory.neo4j_url", neo4j_url, source="install")
+            if neo4j_auth:
+                secret_store = SecretStore(db)
+                store.set_secret("memory.neo4j_auth", neo4j_auth, secret_store, source="install")
+        finally:
+            db.close()
     except (ImportError, OSError, ValueError) as e:
         logger.warning(f"Failed to update config: {e}")

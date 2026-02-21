@@ -20,7 +20,6 @@ from .shared import (
     install_cli_content,
     install_global_hooks,
     install_shared_content,
-    install_shared_hooks,
 )
 from .skill_install import install_router_skills_as_gemini_skills
 
@@ -49,19 +48,15 @@ def install_gemini(project_path: Path, mode: str = "global") -> dict[str, Any]:
         "error": None,
     }
 
+    hooks_dir = Path.home() / ".gobby" / "hooks"
     if mode == "global":
-        hooks_dir = Path.home() / ".gobby" / "hooks"
         gemini_path = Path.home() / ".gemini"
-        settings_file = gemini_path / "settings.json"
     else:
         gemini_path = project_path / ".gemini"
-        settings_file = gemini_path / "settings.json"
-        hooks_dir = gemini_path / "hooks"
+    settings_file = gemini_path / "settings.json"
 
     # Ensure directories exist
     gemini_path.mkdir(parents=True, exist_ok=True)
-    if mode == "project":
-        hooks_dir.mkdir(parents=True, exist_ok=True)
 
     # Get source files
     install_dir = get_install_dir()
@@ -72,15 +67,12 @@ def install_gemini(project_path: Path, mode: str = "global") -> dict[str, Any]:
         result["error"] = f"Missing hooks template: {source_hooks_template}"
         return result
 
-    # Install hook files
-    if mode == "global":
-        install_global_hooks()
-        # Clean up project-level hooks to prevent double-firing
-        cleaned = clean_project_hooks(project_path / ".gemini" / "settings.json")
-        if cleaned:
-            result["project_hooks_cleaned"] = cleaned
-    else:
-        install_shared_hooks(hooks_dir, project_path)
+    # Install hook files (always global)
+    install_global_hooks()
+    # Clean up project-level hooks to prevent double-firing
+    cleaned = clean_project_hooks(project_path / ".gemini" / "settings.json")
+    if cleaned:
+        result["project_hooks_cleaned"] = cleaned
 
     # Install shared content (plugins) - project-scoped
     content_path = gemini_path if mode == "project" else project_path / ".gemini"

@@ -11,7 +11,7 @@ This is a reference implementation showing best practices for plugin development
 
 Installation:
     1. Copy this file to ~/.gobby/plugins/example_notify.py
-    2. Enable in ~/.gobby/config.yaml:
+    2. Enable via gobby-config MCP tools or web UI:
        hook_extensions:
          plugins:
            enabled: true

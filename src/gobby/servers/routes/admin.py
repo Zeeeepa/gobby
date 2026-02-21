@@ -53,7 +53,7 @@ def _discover_models() -> dict[str, list[str]]:
 
 
 def _fallback_models_from_config(server: "HTTPServer") -> dict[str, list[str]]:
-    """Fall back to config.yaml model lists when LiteLLM is unavailable."""
+    """Fall back to configured model lists when LiteLLM is unavailable."""
     result: dict[str, list[str]] = {}
     if server.services.config and server.services.config.llm_providers:
         llm_config = server.services.config.llm_providers

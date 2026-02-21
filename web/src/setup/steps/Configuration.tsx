@@ -27,7 +27,7 @@ export function Configuration({ state, setState, onNext }: StepProps): React.Rea
   const commit = (finalPorts: typeof ports): void => {
     setPhase("saving");
 
-    // Write ports to config.yaml
+    // Write ports to bootstrap.yaml
     if (
       finalPorts.http !== 60887 ||
       finalPorts.ws !== 60888 ||

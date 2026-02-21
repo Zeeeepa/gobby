@@ -305,7 +305,7 @@ triggers:
             - Task is no longer needed: reason="obsolete"
             - Task duplicates another: reason="duplicate"
             - Decided not to do it: reason="wont_fix"
-            - Changes outside repo (e.g., ~/.gobby/config.yaml): reason="out_of_repo"
+            - Changes outside repo (e.g., ~/.gobby/bootstrap.yaml): reason="out_of_repo"
 
         # Block skip_validation when a commit is attached (work was done = must validate)
         - mcp_tools: ["gobby-tasks:close_task"]

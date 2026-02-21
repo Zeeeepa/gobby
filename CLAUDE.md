@@ -169,7 +169,7 @@ src/gobby/
 
 | Path | Purpose |
 | --- | --- |
-| `~/.gobby/config.yaml` | Daemon configuration |
+| `~/.gobby/bootstrap.yaml` | Pre-DB bootstrap settings (5 fields: ports, db_path, bind_host) |
 | `~/.gobby/gobby-hub.db` | SQLite database |
 | `~/.gobby/logs/` | Log files |
 | `.gobby/project.json` | Project metadata |

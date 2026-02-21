@@ -15,7 +15,7 @@ from typing import Any
 
 from gobby.cli.utils import get_install_dir
 
-from .shared import install_shared_content, install_shared_hooks
+from .shared import install_global_hooks, install_shared_content
 
 logger = logging.getLogger(__name__)
 
@@ -50,11 +50,10 @@ def install_copilot(project_path: Path, mode: str = "global") -> dict[str, Any]:
 
     copilot_path = project_path / ".copilot"
     hooks_file = copilot_path / "hooks.json"
+    hooks_dir = Path.home() / ".gobby" / "hooks"
 
     # Ensure .copilot subdirectories exist
     copilot_path.mkdir(parents=True, exist_ok=True)
-    hooks_dir = copilot_path / "hooks"
-    hooks_dir.mkdir(parents=True, exist_ok=True)
 
     # Get source files
     install_dir = get_install_dir()
@@ -66,9 +65,9 @@ def install_copilot(project_path: Path, mode: str = "global") -> dict[str, Any]:
         result["error"] = f"Missing source files: [{source_hooks_template}]"
         return result
 
-    # Install shared hook files (hook_dispatcher.py, validate_settings.py)
+    # Install shared hook files (always global)
     try:
-        install_shared_hooks(hooks_dir, project_path)
+        install_global_hooks()
     except OSError as e:
         logger.error(f"Failed to install hook files: {e}")
         result["error"] = f"Failed to install hook files: {e}"

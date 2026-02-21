@@ -22,7 +22,7 @@ import aiofiles
 import httpx
 
 DEFAULT_DAEMON_PORT = 60887
-DEFAULT_CONFIG_PATH = "~/.gobby/config.yaml"
+DEFAULT_BOOTSTRAP_PATH = "~/.gobby/bootstrap.yaml"
 DEBUG_ENV_VAR = "GOBBY_CODEX_NOTIFY_DEBUG"
 
 
@@ -53,14 +53,14 @@ async def _get_daemon_url() -> str:
     if _cached_daemon_url is not None:
         return _cached_daemon_url
 
-    config_path = Path(DEFAULT_CONFIG_PATH).expanduser()
+    bootstrap_path = Path(DEFAULT_BOOTSTRAP_PATH).expanduser()
 
     port = DEFAULT_DAEMON_PORT
-    if config_path.exists():
+    if bootstrap_path.exists():
         try:
             import yaml
 
-            async with aiofiles.open(config_path, encoding="utf-8") as f:
+            async with aiofiles.open(bootstrap_path, encoding="utf-8") as f:
                 content = await f.read()
             config = yaml.safe_load(content) or {}
             port = int(config.get("daemon_port", DEFAULT_DAEMON_PORT))

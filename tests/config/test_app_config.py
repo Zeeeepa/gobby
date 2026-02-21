@@ -13,7 +13,7 @@ from gobby.config.app import (
     DaemonConfig,
     apply_cli_overrides,
     expand_env_vars,
-    generate_default_config,
+    export_config_to_yaml,
     load_config,
     load_yaml,
     save_config,
@@ -555,18 +555,18 @@ class TestLoadConfig:
         )
         assert config.daemon_port == 9000
 
-    def test_create_default_config(self, temp_dir: Path) -> None:
-        """Test creating default config file."""
+    def test_create_default_is_noop(self, temp_dir: Path) -> None:
+        """Test create_default is ignored (kept for API compat)."""
         config_file = temp_dir / "new_config.yaml"
         assert not config_file.exists()
 
-        load_config(config_file=str(config_file), create_default=True)
-        assert config_file.exists()
+        # create_default no longer creates files; bootstrap defaults are used
+        config = load_config(config_file=str(config_file), create_default=True)
+        assert config.daemon_port == 60887  # Pydantic default
 
-    def test_load_config_with_none_path_uses_default(self, temp_dir: Path, monkeypatch) -> None:
-        """Test loading config with config_file=None uses default path."""
-        # Mock the default path to point to our temp directory
-        default_path = temp_dir / ".gobby" / "config.yaml"
+    def test_load_config_with_none_path_uses_bootstrap(self, temp_dir: Path, monkeypatch) -> None:
+        """Test loading config with config_file=None reads bootstrap.yaml."""
+        default_path = temp_dir / ".gobby" / "bootstrap.yaml"
         default_path.parent.mkdir(parents=True, exist_ok=True)
         default_path.write_text(yaml.dump({"daemon_port": 7777}))
 
@@ -585,44 +585,89 @@ class TestLoadConfig:
         assert config.daemon_port == 7777
 
     def test_load_config_validation_error(self, temp_dir: Path) -> None:
-        """Test load_config raises ValueError on invalid configuration."""
-        config_file = temp_dir / "invalid_config.yaml"
+        """Test load_config raises ValueError on invalid bootstrap configuration."""
+        bootstrap_file = temp_dir / "bootstrap.yaml"
         # Write invalid port value (out of range)
-        config_file.write_text(yaml.dump({"daemon_port": 80}))
+        bootstrap_file.write_text(yaml.dump({"daemon_port": 80}))
 
         with pytest.raises(ValueError, match="Configuration validation failed"):
-            load_config(config_file=str(config_file))
+            load_config(config_file=str(bootstrap_file))
 
-    def test_load_config_validation_error_invalid_type(self, temp_dir: Path) -> None:
-        """Test load_config raises ValueError on invalid type."""
-        config_file = temp_dir / "bad_type.yaml"
-        # Write string instead of int for port
-        config_file.write_text("daemon_port: not_a_number")
+    def test_load_config_invalid_type_falls_back_to_defaults(
+        self, temp_dir: Path
+    ) -> None:
+        """Test load_config falls back to defaults when bootstrap has invalid type."""
+        bootstrap_file = temp_dir / "bootstrap.yaml"
+        # Write string instead of int for port — bootstrap silently falls back
+        bootstrap_file.write_text("daemon_port: not_a_number")
 
-        with pytest.raises(ValueError, match="Configuration validation failed"):
-            load_config(config_file=str(config_file))
+        config = load_config(config_file=str(bootstrap_file))
+        # Bootstrap swallows the int() conversion error and returns defaults
+        assert config.daemon_port == 60887
 
 
-class TestGenerateDefaultConfig:
-    """Tests for generate_default_config function."""
+class TestBootstrapConfig:
+    """Tests for bootstrap configuration loading."""
 
-    def test_generates_file(self, temp_dir: Path) -> None:
-        """Test generating default config file."""
-        config_file = temp_dir / "generated.yaml"
-        generate_default_config(str(config_file))
+    def test_load_defaults_when_missing(self, temp_dir: Path) -> None:
+        """Test bootstrap returns defaults when file is missing."""
+        from gobby.config.bootstrap import load_bootstrap
 
-        assert config_file.exists()
-        content = yaml.safe_load(config_file.read_text())
-        assert "daemon_port" in content
-        assert "websocket" in content
-        assert "logging" in content
+        bootstrap = load_bootstrap(str(temp_dir / "nonexistent.yaml"))
+        assert bootstrap.daemon_port == 60887
+        assert bootstrap.database_path == "~/.gobby/gobby-hub.db"
+        assert bootstrap.bind_host == "localhost"
+        assert bootstrap.websocket_port == 60888
+        assert bootstrap.ui_port == 60889
 
-    def test_creates_parent_directory(self, temp_dir: Path) -> None:
-        """Test creating parent directory for config file."""
-        config_file = temp_dir / "subdir" / "config.yaml"
-        generate_default_config(str(config_file))
+    def test_load_from_yaml(self, temp_dir: Path) -> None:
+        """Test bootstrap reads values from YAML file."""
+        from gobby.config.bootstrap import load_bootstrap
 
-        assert config_file.exists()
+        bootstrap_file = temp_dir / "bootstrap.yaml"
+        bootstrap_file.write_text(
+            "database_path: /custom/db.sqlite\n"
+            "daemon_port: 9999\n"
+            "bind_host: 0.0.0.0\n"
+            "websocket_port: 9998\n"
+            "ui_port: 9997\n"
+        )
+        bootstrap = load_bootstrap(str(bootstrap_file))
+        assert bootstrap.daemon_port == 9999
+        assert bootstrap.database_path == "/custom/db.sqlite"
+        assert bootstrap.bind_host == "0.0.0.0"
+        assert bootstrap.websocket_port == 9998
+        assert bootstrap.ui_port == 9997
+
+    def test_to_config_dict(self) -> None:
+        """Test bootstrap converts to DaemonConfig-compatible dict."""
+        from gobby.config.bootstrap import BootstrapConfig
+
+        bootstrap = BootstrapConfig(daemon_port=7777, websocket_port=7778)
+        d = bootstrap.to_config_dict()
+        assert d["daemon_port"] == 7777
+        assert d["websocket"]["port"] == 7778
+        assert d["bind_host"] == "localhost"
+
+    def test_partial_yaml(self, temp_dir: Path) -> None:
+        """Test bootstrap fills defaults for missing fields."""
+        from gobby.config.bootstrap import load_bootstrap
+
+        bootstrap_file = temp_dir / "bootstrap.yaml"
+        bootstrap_file.write_text("daemon_port: 5555\n")
+        bootstrap = load_bootstrap(str(bootstrap_file))
+        assert bootstrap.daemon_port == 5555
+        assert bootstrap.database_path == "~/.gobby/gobby-hub.db"  # default
+
+    def test_legacy_config_path_redirects(self, temp_dir: Path) -> None:
+        """Test that passing a config.yaml path finds bootstrap.yaml in same dir."""
+        from gobby.config.bootstrap import load_bootstrap
+
+        bootstrap_file = temp_dir / "bootstrap.yaml"
+        bootstrap_file.write_text("daemon_port: 4444\n")
+        # Pass legacy config.yaml path — should find bootstrap.yaml instead
+        bootstrap = load_bootstrap(str(temp_dir / "config.yaml"))
+        assert bootstrap.daemon_port == 4444
 
 
 @pytest.mark.no_config_protection
@@ -687,7 +732,7 @@ class TestSaveConfigTestGuard:
         monkeypatch.setenv("GOBBY_TEST_PROTECT", "1")
 
         with pytest.raises(
-            RuntimeError, match="save_config.*would write to production path.*during tests"
+            RuntimeError, match="export_config_to_yaml.*would write to production path.*during tests"
         ):
             save_config(default_config, config_file=None)
 
@@ -1145,20 +1190,25 @@ class TestDaemonConfigComposition:
         assert config.get_metrics_config() is config.metrics
 
     def test_yaml_round_trip(self, temp_dir: Path) -> None:
-        """Test config survives YAML serialization round-trip."""
+        """Test config survives YAML export and reimport."""
         config = DaemonConfig(
             daemon_port=9000,
             logging=LoggingSettings(level="debug"),
             memory=MemoryConfig(crossref_threshold=0.8),
         )
 
-        # Save
+        # Export to YAML
         config_file = temp_dir / "roundtrip.yaml"
         save_config(config, str(config_file))
 
-        # Load
-        loaded = load_config(config_file=str(config_file))
+        # Verify YAML content is valid and preserves values
+        raw = yaml.safe_load(config_file.read_text())
+        assert raw["daemon_port"] == 9000
+        assert raw["logging"]["level"] == "debug"
+        assert raw["memory"]["crossref_threshold"] == 0.8
 
+        # Verify it can be loaded back into DaemonConfig
+        loaded = DaemonConfig(**raw)
         assert loaded.daemon_port == 9000
         assert loaded.logging.level == "debug"
         assert loaded.memory.crossref_threshold == 0.8

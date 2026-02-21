@@ -22,7 +22,6 @@ from .shared import (
     install_cli_content,
     install_global_hooks,
     install_shared_content,
-    install_shared_hooks,
 )
 from .skill_install import backup_gobby_skills, install_router_skills_as_commands
 
@@ -66,19 +65,15 @@ def install_claude(project_path: Path, mode: str = "global") -> dict[str, Any]:
         "error": None,
     }
 
+    hooks_dir = Path.home() / ".gobby" / "hooks"
     if mode == "global":
-        hooks_dir = Path.home() / ".gobby" / "hooks"
         claude_path = Path.home() / ".claude"
-        settings_file = claude_path / "settings.json"
     else:
         claude_path = project_path / ".claude"
-        settings_file = claude_path / "settings.json"
-        hooks_dir = claude_path / "hooks"
+    settings_file = claude_path / "settings.json"
 
     # Ensure directories exist
     claude_path.mkdir(parents=True, exist_ok=True)
-    if mode == "project":
-        hooks_dir.mkdir(parents=True, exist_ok=True)
 
     # Backup existing gobby skills (now auto-synced from database)
     skills_dir = claude_path / "skills"
@@ -96,16 +91,13 @@ def install_claude(project_path: Path, mode: str = "global") -> dict[str, Any]:
         result["error"] = f"Missing source files: [{source_hooks_template}]"
         return result
 
-    # Install hook files
+    # Install hook files (always global)
     try:
-        if mode == "global":
-            install_global_hooks()
-            # Clean up project-level hooks to prevent double-firing
-            cleaned = clean_project_hooks(project_path / ".claude" / "settings.json")
-            if cleaned:
-                result["project_hooks_cleaned"] = cleaned
-        else:
-            install_shared_hooks(hooks_dir, project_path)
+        install_global_hooks()
+        # Clean up project-level hooks to prevent double-firing
+        cleaned = clean_project_hooks(project_path / ".claude" / "settings.json")
+        if cleaned:
+            result["project_hooks_cleaned"] = cleaned
     except OSError as e:
         logger.error(f"Failed to install hook files: {e}")
         result["error"] = f"Failed to install hook files: {e}"

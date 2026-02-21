@@ -175,7 +175,7 @@ def setup_file_logging(verbose: bool = False) -> None:
     Args:
         verbose: If True, override config level to DEBUG
 
-    Log file paths and rotation settings are loaded from ~/.gobby/config.yaml:
+    Log file paths and rotation settings are loaded from daemon configuration:
         - logging.level: Log level (DEBUG, INFO, WARNING, ERROR, CRITICAL)
         - logging.format: Log format (text or json)
         - logging.client: Main log file path
@@ -280,7 +280,7 @@ def setup_mcp_logging(verbose: bool = False) -> tuple[logging.Logger, logging.Lo
     Returns:
         Tuple of (mcp_server_logger, mcp_client_logger)
 
-    Log file paths are loaded from ~/.gobby/config.yaml:
+    Log file paths are loaded from daemon configuration:
         - logging.mcp_server: MCP server log file path
         - logging.mcp_client: MCP client log file path
     """

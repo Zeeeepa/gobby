@@ -30,7 +30,7 @@ def check_tasks_enabled() -> None:
     try:
         config = load_config()
         if not config.gobby_tasks.enabled:
-            click.echo("Error: gobby-tasks is disabled in config.yaml", err=True)
+            click.echo("Error: gobby-tasks is disabled in configuration", err=True)
             sys.exit(1)
     except (FileNotFoundError, AttributeError, ImportError):
         # Expected errors if config missing or invalid

@@ -206,6 +206,8 @@ def protect_production_resources(
     safe_log_error = safe_logs_dir / "gobby-error.log"
     safe_log_mcp_server = safe_logs_dir / "mcp-server.log"
     safe_log_mcp_client = safe_logs_dir / "mcp-client.log"
+    safe_hooks_dir = temp_dir / "hooks"
+    safe_hooks_dir.mkdir(exist_ok=True)
 
     # Set environment variables as a first line of defense
     safe_config_file = safe_logs_dir / "config-test.yaml"
@@ -217,6 +219,7 @@ def protect_production_resources(
         "GOBBY_LOGGING_CLIENT_ERROR": str(safe_log_error),
         "GOBBY_LOGGING_MCP_SERVER": str(safe_log_mcp_server),
         "GOBBY_LOGGING_MCP_CLIENT": str(safe_log_mcp_client),
+        "GOBBY_HOOKS_DIR": str(safe_hooks_dir),
     }
 
     with patch.dict(os.environ, env_vars):

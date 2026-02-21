@@ -20,7 +20,6 @@ from .shared import (
     clean_project_hooks,
     install_global_hooks,
     install_shared_content,
-    install_shared_hooks,
 )
 
 logger = logging.getLogger(__name__)
@@ -45,19 +44,15 @@ def install_cursor(project_path: Path, mode: str = "global") -> dict[str, Any]:
         "error": None,
     }
 
+    hooks_dir = Path.home() / ".gobby" / "hooks"
     if mode == "global":
-        hooks_dir = Path.home() / ".gobby" / "hooks"
         cursor_path = Path.home() / ".cursor"
-        hooks_file = cursor_path / "hooks.json"
     else:
         cursor_path = project_path / ".cursor"
-        hooks_file = cursor_path / "hooks.json"
-        hooks_dir = cursor_path / "hooks"
+    hooks_file = cursor_path / "hooks.json"
 
     # Ensure directories exist
     cursor_path.mkdir(parents=True, exist_ok=True)
-    if mode == "project":
-        hooks_dir.mkdir(parents=True, exist_ok=True)
 
     # Get source files
     install_dir = get_install_dir()
@@ -69,16 +64,13 @@ def install_cursor(project_path: Path, mode: str = "global") -> dict[str, Any]:
         result["error"] = f"Missing source files: [{source_hooks_template}]"
         return result
 
-    # Install hook files
+    # Install hook files (always global)
     try:
-        if mode == "global":
-            install_global_hooks()
-            # Clean up project-level hooks to prevent double-firing
-            cleaned = clean_project_hooks(project_path / ".cursor" / "hooks.json")
-            if cleaned:
-                result["project_hooks_cleaned"] = cleaned
-        else:
-            install_shared_hooks(hooks_dir, project_path)
+        install_global_hooks()
+        # Clean up project-level hooks to prevent double-firing
+        cleaned = clean_project_hooks(project_path / ".cursor" / "hooks.json")
+        if cleaned:
+            result["project_hooks_cleaned"] = cleaned
     except OSError as e:
         logger.error(f"Failed to install hook files: {e}")
         result["error"] = f"Failed to install hook files: {e}"

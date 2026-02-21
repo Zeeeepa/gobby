@@ -36,7 +36,7 @@ import aiofiles
 
 # Default daemon configuration
 DEFAULT_DAEMON_PORT = 60887
-DEFAULT_CONFIG_PATH = "~/.gobby/config.yaml"
+DEFAULT_BOOTSTRAP_PATH = "~/.gobby/bootstrap.yaml"
 
 _cached_daemon_url: str | None = None
 
@@ -137,9 +137,9 @@ def detect_cli(args: argparse.Namespace) -> CLIConfig:
 
 
 async def get_daemon_url() -> str:
-    """Get the daemon HTTP URL from config file.
+    """Get the daemon HTTP URL from bootstrap config.
 
-    Reads daemon_port from ~/.gobby/config.yaml if it exists,
+    Reads daemon_port from ~/.gobby/bootstrap.yaml if it exists,
     otherwise uses the default port 60887. Result is cached
     for the lifetime of the process to avoid redundant file I/O.
 
@@ -150,13 +150,13 @@ async def get_daemon_url() -> str:
     if _cached_daemon_url is not None:
         return _cached_daemon_url
 
-    config_path = Path(DEFAULT_CONFIG_PATH).expanduser()
+    bootstrap_path = Path(DEFAULT_BOOTSTRAP_PATH).expanduser()
 
-    if config_path.exists():
+    if bootstrap_path.exists():
         try:
             import yaml
 
-            async with aiofiles.open(config_path, encoding="utf-8") as f:
+            async with aiofiles.open(bootstrap_path, encoding="utf-8") as f:
                 content = await f.read()
             config = yaml.safe_load(content) or {}
             port = config.get("daemon_port", DEFAULT_DAEMON_PORT)

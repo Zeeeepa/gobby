@@ -64,7 +64,7 @@ export function SkillHubBrowser({ hubs, hubResults, onFetchHubs, onSearch, onIns
 
       {hubs.length === 0 && (
         <div className="skill-hub-empty">
-          <p>No skill hubs configured. Add hubs in <code>~/.gobby/config.yaml</code> under <code>skills.hubs</code>.</p>
+          <p>No skill hubs configured. Add hubs via the CLI: <code>gobby skills hub add</code></p>
         </div>
       )}
 

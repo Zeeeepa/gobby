@@ -471,7 +471,7 @@ def plugins_list(ctx: click.Context, json_format: bool) -> None:
 
     if not enabled:
         click.echo("Plugin system is disabled in configuration.")
-        click.echo("Enable with: plugins.enabled: true in ~/.gobby/config.yaml")
+        click.echo("Enable with: gobby-config set plugins.enabled true")
         return
 
     if not plugins_list:
@@ -571,7 +571,7 @@ def webhooks_list(ctx: click.Context, json_format: bool) -> None:
     if not endpoints:
         click.echo("No webhook endpoints configured.")
         click.echo()
-        click.echo("Configure webhooks in ~/.gobby/config.yaml:")
+        click.echo("Configure webhooks via gobby-config MCP tools or the web UI:")
         click.echo("  hook_extensions:")
         click.echo("    webhooks:")
         click.echo("      endpoints:")
