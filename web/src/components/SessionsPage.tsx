@@ -1,5 +1,5 @@
 import { useState, useMemo, useRef } from 'react'
-import type { GobbySession, SessionFilters, ProjectInfo } from '../hooks/useSessions'
+import type { GobbySession, SessionFilters } from '../hooks/useSessions'
 import { KNOWN_SOURCES } from '../hooks/useSessions'
 import { useSessionDetail } from '../hooks/useSessionDetail'
 import { SessionDetail } from './SessionDetail'
@@ -9,7 +9,6 @@ import { MobileSessionDrawer } from './MobileSessionDrawer'
 
 interface SessionsPageProps {
   sessions: GobbySession[]
-  projects: ProjectInfo[]
   filters: SessionFilters
   onFiltersChange: (filters: SessionFilters) => void
   isLoading: boolean
@@ -31,7 +30,6 @@ function sourceLabel(source: string): string {
 
 export function SessionsPage({
   sessions,
-  projects,
   filters,
   onFiltersChange,
   isLoading,
@@ -121,20 +119,6 @@ export function SessionsPage({
                   {KNOWN_SOURCES.map((s) => (
                     <option key={s} value={s}>
                       {sourceLabel(s)}
-                    </option>
-                  ))}
-                </select>
-                <select
-                  className="sessions-filter-select"
-                  value={filters.projectId || ''}
-                  onChange={(e) =>
-                    onFiltersChange({ ...filters, projectId: e.target.value || null })
-                  }
-                >
-                  <option value="">All Projects</option>
-                  {projects.map((p) => (
-                    <option key={p.id} value={p.id}>
-                      {p.name}
                     </option>
                   ))}
                 </select>

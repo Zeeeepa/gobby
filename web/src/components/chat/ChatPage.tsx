@@ -1,6 +1,6 @@
 import './styles.css'
 import { useCallback } from 'react'
-import type { ChatState, ConversationState, ProjectProps, VoiceProps } from '../../types/chat'
+import type { ChatState, ConversationState, VoiceProps } from '../../types/chat'
 import { ConversationPicker } from '../ConversationPicker'
 import { useArtifacts } from '../../hooks/useArtifacts'
 import { ArtifactContext } from './artifacts/ArtifactContext'
@@ -14,11 +14,10 @@ import { SessionStatusBar } from './SessionStatusBar'
 interface ChatPageProps {
   chat: ChatState
   conversations: ConversationState
-  project: ProjectProps
   voice: VoiceProps
 }
 
-export function ChatPage({ chat, conversations, project, voice }: ChatPageProps) {
+export function ChatPage({ chat, conversations, voice }: ChatPageProps) {
   const activeSession = conversations.sessions.find(
     s => s.external_id === conversations.activeSessionId
   )
@@ -89,9 +88,6 @@ export function ChatPage({ chat, conversations, project, voice }: ChatPageProps)
                 onInputChange={chat.onInputChange}
                 filteredCommands={chat.filteredCommands}
                 onCommandSelect={chat.onCommandSelect}
-                projects={project.projects}
-                selectedProjectId={project.selectedProjectId}
-                onProjectChange={project.onProjectChange}
                 mode={chat.mode}
                 onModeChange={chat.onModeChange}
                 contextUsage={chat.contextUsage}

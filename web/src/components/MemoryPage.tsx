@@ -81,7 +81,11 @@ function KnowledgeIcon() {
 type ViewMode = 'list' | 'graph' | 'knowledge'
 type OverviewFilter = 'fact' | 'preference' | 'pattern' | 'context' | 'recent' | null
 
-export function MemoryPage() {
+interface MemoryPageProps {
+  projectId?: string | null
+}
+
+export function MemoryPage({ projectId }: MemoryPageProps = {}) {
   const {
     memories,
     stats,
@@ -96,6 +100,11 @@ export function MemoryPage() {
     fetchKnowledgeGraph,
     fetchEntityNeighbors,
   } = useMemory()
+
+  // Sync global project filter into the hook's server-side filtering
+  useEffect(() => {
+    setFilters(f => ({ ...f, projectId: projectId ?? null }))
+  }, [projectId, setFilters])
   const neo4jStatus = useNeo4jStatus()
 
   // Configurable graph limits (fetched from backend config, overridable per-session)
