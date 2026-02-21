@@ -141,9 +141,7 @@ class LocalWorkflowDefinitionManager:
 
         return self.get(definition_id)
 
-    def get(
-        self, definition_id: str, include_deleted: bool = False
-    ) -> WorkflowDefinitionRow:
+    def get(self, definition_id: str, include_deleted: bool = False) -> WorkflowDefinitionRow:
         """Get a workflow definition by primary key."""
         sql = "SELECT * FROM workflow_definitions WHERE id = ?"
         if not include_deleted:

@@ -275,9 +275,7 @@ def restore_workflow_definition(
         Dict with success status and restored definition metadata
     """
     try:
-        row = _resolve_definition(
-            def_manager, name, definition_id, include_deleted=True
-        )
+        row = _resolve_definition(def_manager, name, definition_id, include_deleted=True)
     except ValueError as e:
         return {"success": False, "error": str(e)}
 

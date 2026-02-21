@@ -223,9 +223,7 @@ class LocalAgentDefinitionManager:
 
         return self.get(definition_id)
 
-    def get(
-        self, definition_id: str, include_deleted: bool = False
-    ) -> AgentDefinitionRow:
+    def get(self, definition_id: str, include_deleted: bool = False) -> AgentDefinitionRow:
         """Get an agent definition by primary key."""
         sql = "SELECT * FROM agent_definitions WHERE id = ?"
         if not include_deleted:
@@ -272,9 +270,7 @@ class LocalAgentDefinitionManager:
             )
         return AgentDefinitionRow.from_row(row) if row else None
 
-    def get_bundled(
-        self, name: str, include_deleted: bool = False
-    ) -> AgentDefinitionRow | None:
+    def get_bundled(self, name: str, include_deleted: bool = False) -> AgentDefinitionRow | None:
         """Get the bundled version of an agent definition (ignoring overrides)."""
         sql = "SELECT * FROM agent_definitions WHERE name = ? AND scope = 'bundled'"
         if not include_deleted:

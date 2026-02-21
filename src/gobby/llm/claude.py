@@ -364,14 +364,10 @@ class ClaudeLLMProvider(LLMProvider):
             return result_text
 
         def _on_retry(attempt: int, error: Exception) -> None:
-            self.logger.warning(
-                f"generate_text failed (attempt {attempt + 1}), retrying: {error}"
-            )
+            self.logger.warning(f"generate_text failed (attempt {attempt + 1}), retrying: {error}")
 
         try:
-            return await self._retry_async(
-                _run_query, max_retries=3, delay=2.0, on_retry=_on_retry
-            )
+            return await self._retry_async(_run_query, max_retries=3, delay=2.0, on_retry=_on_retry)
         except Exception as e:
             self.logger.error(f"Failed to generate text with Claude: {e}", exc_info=True)
             raise RuntimeError(f"Failed to generate text with Claude: {e}") from e

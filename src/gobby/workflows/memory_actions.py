@@ -376,7 +376,7 @@ async def memory_background_digest_and_synthesize(
         digest_body = new_digest
         for line in new_digest.splitlines():
             if line.startswith("**Title**:"):
-                title = line[len("**Title**:"):].strip().strip('"').strip("'")
+                title = line[len("**Title**:") :].strip().strip('"').strip("'")
                 break
 
         # Strip the Title line from the digest before persisting
