@@ -278,7 +278,7 @@ class AgentEventHandlerMixin(EventHandlersBase):
             if state:
                 mode_level = state.variables.get("mode_level")
                 if mode_level is not None:
-                    return mode_level == 0
+                    return bool(mode_level == 0)
                 return bool(state.variables.get("plan_mode"))
         except Exception:
             pass
