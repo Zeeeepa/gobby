@@ -132,8 +132,8 @@ def _resolve_project_context(
             if resolved_path not in _git_manager_cache:
                 try:
                     _git_manager_cache[resolved_path] = WorktreeGitManager(resolved_path)
-                except ValueError:
-                    return None, None, "No project_path provided and no project context available."
+                except ValueError as e:
+                    return None, None, f"Failed to initialize git manager for {resolved_path}: {e}"
             return _git_manager_cache[resolved_path], ctx["id"], None
 
     return (
