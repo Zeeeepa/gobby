@@ -584,7 +584,7 @@ async def main() -> int:
 
             # Only print output if there's something meaningful to show
             # Empty dicts cause some CLIs to show "hook success: Success"
-            if result and result != {}:
+            if result:
                 print(json.dumps(result))
 
             return 0

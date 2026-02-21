@@ -343,6 +343,11 @@ class LocalAgentDefinitionManager:
 
     def restore(self, definition_id: str) -> AgentDefinitionRow:
         """Restore a soft-deleted agent definition."""
+        existing_row = self.db.fetchone(
+            "SELECT scope FROM agent_definitions WHERE id = ?", (definition_id,)
+        )
+        if existing_row:
+            self._check_bundled_writable(existing_row["scope"])
         now = datetime.now(UTC).isoformat()
         with self.db.transaction() as conn:
             cursor = conn.execute(
@@ -355,6 +360,8 @@ class LocalAgentDefinitionManager:
 
     def purge_deleted(self, older_than_days: int = 30) -> int:
         """Hard-delete rows that were soft-deleted more than older_than_days ago."""
+        if older_than_days < 1:
+            raise ValueError(f"older_than_days must be >= 1, got {older_than_days}")
         with self.db.transaction() as conn:
             cursor = conn.execute(
                 "DELETE FROM agent_definitions WHERE deleted_at IS NOT NULL AND deleted_at < datetime('now', ?)",

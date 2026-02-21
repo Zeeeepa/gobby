@@ -5,6 +5,7 @@ CLI commands for hook extensions (hooks, plugins, webhooks).
 from __future__ import annotations
 
 import json
+import logging
 import os
 import sys
 from typing import TYPE_CHECKING
@@ -12,6 +13,8 @@ from typing import TYPE_CHECKING
 import click
 
 from gobby.cli.mcp_proxy import call_mcp_api, check_daemon_running, get_daemon_client
+
+logger = logging.getLogger(__name__)
 
 if TYPE_CHECKING:
     from gobby.hooks.events import HookEventType
@@ -281,8 +284,8 @@ def hooks_status(json_format: bool) -> None:
             with open(project_json_path) as f:
                 project_config = json.load(f)
             hooks_disabled = project_config.get("hooks_disabled", False)
-        except (json.JSONDecodeError, OSError):
-            pass
+        except (json.JSONDecodeError, OSError) as e:
+            logger.debug(f"Failed to read project config {project_json_path}: {e}")
 
     # Check env var
     env_disabled = bool(os.environ.get("GOBBY_HOOKS_DISABLED"))

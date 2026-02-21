@@ -1043,8 +1043,8 @@ def uninstall(
             if fpath.exists():
                 try:
                     fpath.unlink()
-                except OSError:
-                    pass  # nosec B110 - best-effort cleanup
+                except OSError as e:
+                    click.echo(f"  Warning: could not remove {fpath}: {e}", err=True)
         click.echo("Removed global hook dispatchers from ~/.gobby/hooks/")
         click.echo("")
 

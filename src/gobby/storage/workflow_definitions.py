@@ -222,6 +222,8 @@ class LocalWorkflowDefinitionManager:
 
     def purge_deleted(self, older_than_days: int = 30) -> int:
         """Hard-delete rows that were soft-deleted more than older_than_days ago."""
+        if older_than_days < 1:
+            raise ValueError(f"older_than_days must be >= 1, got {older_than_days}")
         with self.db.transaction() as conn:
             cursor = conn.execute(
                 "DELETE FROM workflow_definitions WHERE deleted_at IS NOT NULL AND deleted_at < datetime('now', ?)",

@@ -37,7 +37,7 @@ def _resolve_neo4j_auth() -> str:
         config = load_config(create_default=False)
         if config.memory.neo4j_auth:
             return config.memory.neo4j_auth
-    except Exception:
+    except (OSError, ValueError, AttributeError):
         pass
     return f"neo4j:{_generate_password()}"
 
