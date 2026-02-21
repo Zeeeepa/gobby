@@ -1,1 +1,0 @@
-../../src/gobby/install/shared/hooks/validate_settings.py

@@ -1062,7 +1062,9 @@ def uninstall(
 
     # Remove global hooks directory for global uninstall
     if not project_flag:
-        global_hooks_dir = Path.home() / ".gobby" / "hooks"
+        global_hooks_dir = Path(
+            os.environ.get("GOBBY_HOOKS_DIR", str(Path.home() / ".gobby" / "hooks"))
+        )
         # Only remove hook_dispatcher.py and validate_settings.py, not codex/ subdir
         for fname in ("hook_dispatcher.py", "validate_settings.py"):
             fpath = global_hooks_dir / fname
