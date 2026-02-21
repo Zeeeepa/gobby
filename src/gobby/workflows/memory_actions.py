@@ -314,11 +314,13 @@ async def memory_background_digest_and_synthesize(
     limit: int = 20,
     llm_service: Any | None = None,
     db: Any | None = None,
+    config: Any | None = None,
 ) -> dict[str, Any] | None:
-    """Phase 2 (background): Update rolling session digest.
+    """Phase 2 (background): Update rolling session digest and title.
 
     Runs asynchronously after Phase 1 completes. Updates the session digest
     which is used by Phase 1 to enrich search queries on subsequent turns.
+    Also generates/refreshes the session title from the digest output.
 
     Args:
         memory_manager: The memory manager instance
@@ -329,6 +331,7 @@ async def memory_background_digest_and_synthesize(
         limit: Unused (kept for interface compatibility)
         llm_service: LLM service for digest generation
         db: Database (unused, kept for interface compatibility)
+        config: DaemonConfig for digest provider/model selection
 
     Returns:
         Dict with digest status, or None
@@ -337,6 +340,11 @@ async def memory_background_digest_and_synthesize(
         return None
 
     if not prompt_text or not llm_service:
+        return None
+
+    # Check DigestConfig.enabled
+    digest_config = getattr(config, "digest", None) if config else None
+    if digest_config and not digest_config.enabled:
         return None
 
     # Skip for very short prompts or commands
@@ -348,25 +356,64 @@ async def memory_background_digest_and_synthesize(
         session = session_manager.get(session_id)
         previous_digest = getattr(session, "digest_markdown", None) or "" if session else ""
 
-        # 2. Update digest via LLM
-        provider = llm_service.get_default_provider()
+        # 2. Resolve provider/model from DigestConfig or fall back to default
+        if digest_config:
+            try:
+                provider, model, _ = llm_service.get_provider_for_feature(digest_config)
+            except (ValueError, Exception):
+                provider = llm_service.get_default_provider()
+                model = None
+        else:
+            provider = llm_service.get_default_provider()
+            model = None
 
         digest_prompt = _build_digest_update_prompt(previous_digest, prompt_text)
-        new_digest = await provider.generate_text(digest_prompt)
+        new_digest = await provider.generate_text(digest_prompt, model=model)
         new_digest = new_digest.strip()
 
-        # 3. Persist digest to session.digest_markdown
-        session_manager.update_digest_markdown(session_id, new_digest)
+        # 3. Parse title from digest output and persist separately
+        title = None
+        digest_body = new_digest
+        for line in new_digest.splitlines():
+            if line.startswith("**Title**:"):
+                title = line[len("**Title**:"):].strip().strip('"').strip("'")
+                break
+
+        # Strip the Title line from the digest before persisting
+        if title:
+            digest_lines = [ln for ln in new_digest.splitlines() if not ln.startswith("**Title**:")]
+            digest_body = "\n".join(digest_lines).strip()
+
+        # 4. Persist digest to session.digest_markdown
+        session_manager.update_digest_markdown(session_id, digest_body)
         logger.info(
             "memory_background_digest: Updated digest (%d chars) for session %s",
-            len(new_digest),
+            len(digest_body),
             session_id,
         )
 
-        return {
+        result: dict[str, Any] = {
             "digest_updated": True,
-            "digest_length": len(new_digest),
+            "digest_length": len(digest_body),
         }
+
+        # 5. Update title if parsed from digest
+        if title:
+            session_manager.update_title(session_id, title)
+            result["title_updated"] = title
+            logger.info(
+                "memory_background_digest: Updated title to '%s' for session %s",
+                title,
+                session_id,
+            )
+
+            # Rename tmux window to match new title
+            if session:
+                from gobby.workflows.summary_actions import _rename_tmux_window
+
+                await _rename_tmux_window(session, title)
+
+        return result
 
     except Exception as e:
         logger.error(
@@ -391,6 +438,7 @@ def _build_digest_update_prompt(previous_digest: str, current_prompt: str) -> st
         "\n## Instructions\n"
         "Update the digest to reflect the current state of the session. "
         "Output ONLY the updated digest in this exact format (no other text):\n\n"
+        "**Title**: [3-5 word session title reflecting current work]\n"
         "**Task**: [What the session is working on, including task refs like #N]\n"
         "**Decisions**: [Key technical decisions made so far]\n"
         "**Context**: [Files being edited, APIs being used, systems involved]\n"
@@ -529,6 +577,7 @@ async def handle_memory_background_digest_and_synthesize(
         limit=kwargs.get("limit", 20),
         llm_service=context.llm_service,
         db=context.db,
+        config=context.config,
     )
 
 

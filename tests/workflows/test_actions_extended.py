@@ -117,38 +117,6 @@ async def test_action_error(action_executor, action_context):
     assert "Handler Error" in result["error"]
 
 
-@pytest.mark.asyncio
-async def test_synthesize_title(action_executor, action_context, mock_services, tmp_path):
-    # Setup session and transcript
-    session = MagicMock()
-    session.jsonl_path = str(tmp_path / "transcript.jsonl")
-    mock_services["session_manager"].get.return_value = session
-
-    # Create valid transcript file
-    import json
-
-    with open(session.jsonl_path, "w") as f:
-        f.write(json.dumps({"role": "user", "content": "hi"}) + "\n")
-
-    mock_provider = AsyncMock()
-    mock_provider.generate_text.return_value = '"New Title"'
-    mock_services["llm_service"].get_default_provider.return_value = mock_provider
-    mock_services["template_engine"].render.return_value = "Prompt"
-
-    result = await action_executor.execute("synthesize_title", action_context)
-
-    assert result["title_synthesized"] == "New Title"
-    mock_services["session_manager"].update_title.assert_called_with("test-session", "New Title")
-
-
-@pytest.mark.asyncio
-async def test_synthesize_title_error(action_executor, action_context, mock_services):
-    # Missing services
-    action_context.llm_service = None
-    result = await action_executor.execute("synthesize_title", action_context)
-    assert "error" in result
-
-
 @pytest.mark.skip(reason="Mocking issues with subprocess")
 @pytest.mark.asyncio
 async def test_start_new_session(action_executor, action_context, mock_services, sample_project):

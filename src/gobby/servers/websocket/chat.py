@@ -254,8 +254,7 @@ class ChatMixin:
             return None
 
         # Use the database session ID (not the external conversation_id) so that
-        # workflow actions like synthesize_title can look up the session via
-        # session_manager.get(session_id).
+        # workflow actions can look up the session via session_manager.get(session_id).
         session = self._chat_sessions.get(conversation_id)
         db_session_id = getattr(session, "db_session_id", None) or conversation_id
         project_path = getattr(session, "project_path", None)

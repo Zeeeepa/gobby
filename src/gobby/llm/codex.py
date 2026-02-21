@@ -133,15 +133,13 @@ class CodexProvider(LLMProvider):
         Get the model to use for a specific task.
 
         Args:
-            task: Task type ("summary" or "title")
+            task: Task type ("summary")
 
         Returns:
             Model name string
         """
         if task == "summary":
             return self.config.session_summary.model or "gpt-4o"
-        elif task == "title":
-            return self.config.title_synthesis.model or "gpt-4o-mini"
         else:
             return "gpt-4o"
 
@@ -202,40 +200,6 @@ class CodexProvider(LLMProvider):
         except Exception as e:
             self.logger.error(f"Failed to generate summary with Codex: {e}")
             return f"Session summary generation failed: {e}"
-
-    async def synthesize_title(
-        self, user_prompt: str, prompt_template: str | None = None
-    ) -> str | None:
-        """
-        Synthesize session title using Codex/OpenAI.
-        """
-        if not self._client:
-            return None
-
-        # Build prompt - prompt_template is required
-        if not prompt_template:
-            raise ValueError(
-                "prompt_template is required for synthesize_title. "
-                "Configure 'title_synthesis.prompt' in ~/.gobby/config.yaml"
-            )
-        prompt = prompt_template.format(user_prompt=user_prompt)
-
-        try:
-            response = await self._client.chat.completions.create(
-                model=self._get_model("title"),
-                messages=[
-                    {
-                        "role": "system",
-                        "content": "You are a session title generator. Create concise, descriptive titles.",
-                    },
-                    {"role": "user", "content": prompt},
-                ],
-                max_tokens=50,
-            )
-            return (response.choices[0].message.content or "").strip()
-        except Exception as e:
-            self.logger.error(f"Failed to synthesize title with Codex: {e}")
-            return None
 
     async def generate_text(
         self,

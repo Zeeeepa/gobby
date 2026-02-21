@@ -70,7 +70,6 @@ from gobby.workflows.stop_signal_actions import (
 from gobby.workflows.summary_actions import (
     handle_generate_handoff,
     handle_generate_summary,
-    handle_synthesize_title,
 )
 from gobby.workflows.task_sync_actions import (
     handle_get_workflow_tasks,
@@ -260,7 +259,6 @@ class ActionExecutor:
         self.register("call_mcp_tool", handle_call_mcp_tool)
 
         # --- Summary actions ---
-        self.register("synthesize_title", handle_synthesize_title)
         self.register("generate_summary", handle_generate_summary)
         self.register("generate_handoff", handle_generate_handoff)
 

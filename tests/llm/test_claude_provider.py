@@ -7,7 +7,7 @@ import pytest
 
 from gobby.config.app import DaemonConfig
 from gobby.config.llm_providers import LLMProviderConfig, LLMProvidersConfig
-from gobby.config.sessions import SessionSummaryConfig, TitleSynthesisConfig
+from gobby.config.sessions import SessionSummaryConfig
 from gobby.llm.claude import ClaudeLLMProvider
 
 pytestmark = pytest.mark.unit
@@ -63,7 +63,6 @@ def claude_config():
             claude=LLMProviderConfig(models="claude-3-5-sonnet"),
         ),
         session_summary=SessionSummaryConfig(enabled=True),
-        title_synthesis=TitleSynthesisConfig(enabled=True),
     )
 
 
@@ -109,37 +108,6 @@ async def test_generate_summary_no_cli(claude_config):
         provider = ClaudeLLMProvider(claude_config)
         summary = await provider.generate_summary({}, prompt_template="test")
         assert "unavailable" in summary.lower()
-
-
-@pytest.mark.asyncio
-async def test_synthesize_title_success(claude_config):
-    async def mock_query(prompt, options):
-        yield MockAssistantMessage([MockTextBlock("New Title")])
-
-    with mock_claude_sdk(mock_query):
-        provider = ClaudeLLMProvider(claude_config)
-        title = await provider.synthesize_title("prompt", prompt_template="{user_prompt}")
-        assert title == "New Title"
-
-
-@pytest.mark.asyncio
-async def test_synthesize_title_retry(claude_config):
-    # Fail twice, succeed third time
-    attempts = 0
-
-    async def mock_query(prompt, options):
-        nonlocal attempts
-        attempts += 1
-        if attempts < 3:
-            raise Exception("Fail")
-        yield MockAssistantMessage([MockTextBlock("Success Title")])
-
-    with mock_claude_sdk(mock_query):
-        provider = ClaudeLLMProvider(claude_config)
-        with patch("asyncio.sleep", AsyncMock()):  # skip sleep
-            title = await provider.synthesize_title("prompt", prompt_template="test")
-            assert title == "Success Title"
-            assert attempts == 3
 
 
 @pytest.mark.asyncio
@@ -194,7 +162,6 @@ def api_key_config():
             api_keys={"ANTHROPIC_API_KEY": "sk-ant-test-key"},
         ),
         session_summary=SessionSummaryConfig(enabled=True),
-        title_synthesis=TitleSynthesisConfig(enabled=True),
     )
 
 
@@ -296,20 +263,6 @@ async def test_generate_summary_api_key_mode(api_key_config):
             context, prompt_template="Summarize: {transcript_summary}"
         )
         assert summary == "Session summary via LiteLLM"
-        assert mock_litellm.call_count == 1
-
-
-@pytest.mark.asyncio
-async def test_synthesize_title_api_key_mode(api_key_config):
-    """Test synthesize_title uses LiteLLM in api_key mode."""
-    mock_litellm = MockLiteLLM("Title via LiteLLM")
-
-    with patch("gobby.llm.claude_cli.shutil.which", return_value=None):
-        provider = ClaudeLLMProvider(api_key_config)
-        provider._litellm = mock_litellm
-
-        title = await provider.synthesize_title("prompt", prompt_template="{user_prompt}")
-        assert title == "Title via LiteLLM"
         assert mock_litellm.call_count == 1
 
 

@@ -4,7 +4,7 @@ Session configuration module.
 Contains session-related Pydantic config models:
 - ContextInjectionConfig: Subagent context injection settings
 - SessionSummaryConfig: Session summary generation settings
-- TitleSynthesisConfig: Session title synthesis settings
+- DigestConfig: Rolling digest and title generation settings
 - MessageTrackingConfig: Session message tracking settings
 - SessionLifecycleConfig: Session lifecycle management settings
 
@@ -16,8 +16,8 @@ from pydantic import BaseModel, Field, field_validator
 __all__ = [
     "ChatHistoryConfig",
     "ContextInjectionConfig",
+    "DigestConfig",
     "SessionSummaryConfig",
-    "TitleSynthesisConfig",
     "MessageTrackingConfig",
     "SessionLifecycleConfig",
 ]
@@ -135,24 +135,20 @@ Be concise. Focus on what the next agent needs to know to continue effectively."
     )
 
 
-class TitleSynthesisConfig(BaseModel):
-    """Title synthesis configuration."""
+class DigestConfig(BaseModel):
+    """Rolling digest and title generation configuration."""
 
     enabled: bool = Field(
         default=True,
-        description="Enable title synthesis for sessions",
+        description="Enable background digest and title generation",
     )
     provider: str = Field(
         default="claude",
-        description="LLM provider to use for title synthesis",
+        description="LLM provider to use for digest generation",
     )
     model: str = Field(
         default="haiku",
-        description="Model to use for title synthesis",
-    )
-    prompt: str | None = Field(
-        default=None,
-        description="Custom prompt template for title synthesis",
+        description="Model to use for digest generation",
     )
 
 

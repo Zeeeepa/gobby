@@ -235,9 +235,7 @@ triggers:
       name: pre_existing_errors_triaged
       value: false
 
-    # Title synthesis on first prompt (foreground)
-    - action: synthesize_title
-      when: "session.title == None"
+    # Title is generated as a side effect of the background digest (turn 1 onward)
 
     # Phase 1: Search memories using current prompt + digest enrichment (blocking)
     - action: memory_recall_with_synthesis

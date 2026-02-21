@@ -4,7 +4,7 @@ import pytest
 
 from gobby.config.app import DaemonConfig
 from gobby.config.llm_providers import LLMProviderConfig, LLMProvidersConfig
-from gobby.config.sessions import SessionSummaryConfig, TitleSynthesisConfig
+from gobby.config.sessions import SessionSummaryConfig
 
 pytestmark = pytest.mark.unit
 
@@ -18,7 +18,6 @@ def litellm_config() -> DaemonConfig:
             api_keys={"OPENAI_API_KEY": "sk-test-key", "MISTRAL_API_KEY": "mistral-test"},
         ),
         session_summary=SessionSummaryConfig(model="gpt-4o-mini"),
-        title_synthesis=TitleSynthesisConfig(model="gpt-4o-mini"),
     )
 
 
@@ -79,13 +78,6 @@ class TestLiteLLMProviderProperties:
         provider = LiteLLMProvider(litellm_config)
         assert provider._get_model("summary") == "gpt-4o-mini"
 
-    def test_get_model_title(self, litellm_config: DaemonConfig) -> None:
-        """Test _get_model for title task."""
-        from gobby.llm.litellm import LiteLLMProvider
-
-        provider = LiteLLMProvider(litellm_config)
-        assert provider._get_model("title") == "gpt-4o-mini"
-
     def test_get_model_unknown(self, litellm_config: DaemonConfig) -> None:
         """Test _get_model for unknown task defaults to gpt-4o-mini."""
         from gobby.llm.litellm import LiteLLMProvider
@@ -122,29 +114,3 @@ class TestLiteLLMProviderGenerateSummary:
             await provider.generate_summary({"transcript_summary": "test"})
 
 
-class TestLiteLLMProviderSynthesizeTitle:
-    """Tests for synthesize_title method."""
-
-    @pytest.mark.asyncio
-    async def test_synthesize_title_no_litellm(self, litellm_config: DaemonConfig):
-        """Test synthesize_title returns None when litellm not initialized."""
-        from gobby.llm.litellm import LiteLLMProvider
-
-        provider = LiteLLMProvider(litellm_config)
-        provider._litellm = None
-
-        result = await provider.synthesize_title(
-            "test prompt", prompt_template="Generate title: {user_prompt}"
-        )
-
-        assert result is None
-
-    @pytest.mark.asyncio
-    async def test_synthesize_title_no_template(self, litellm_config: DaemonConfig):
-        """Test synthesize_title raises when no template provided."""
-        from gobby.llm.litellm import LiteLLMProvider
-
-        provider = LiteLLMProvider(litellm_config)
-
-        with pytest.raises(ValueError, match="prompt_template is required"):
-            await provider.synthesize_title("test prompt")

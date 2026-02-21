@@ -38,10 +38,10 @@ from gobby.config.persistence import MemoryBackupConfig, MemoryConfig
 from gobby.config.servers import MCPClientProxyConfig, WebSocketSettings
 from gobby.config.sessions import (
     ContextInjectionConfig,
+    DigestConfig,
     MessageTrackingConfig,
     SessionLifecycleConfig,
     SessionSummaryConfig,
-    TitleSynthesisConfig,
 )
 from gobby.config.tasks import (
     CompactHandoffConfig,
@@ -746,16 +746,15 @@ class TestImportMCPServerConfig:
         assert config.prompt_path is None  # Uses DEFAULT_IMPORT_MCP_SERVER_PROMPT
 
 
-class TestTitleSynthesisConfig:
-    """Tests for TitleSynthesisConfig."""
+class TestDigestConfig:
+    """Tests for DigestConfig."""
 
     def test_default_values(self) -> None:
-        """Test default title synthesis config."""
-        config = TitleSynthesisConfig()
+        """Test default digest config."""
+        config = DigestConfig()
         assert config.enabled is True
         assert config.provider == "claude"
         assert config.model == "haiku"
-        assert config.prompt is None
 
 
 class TestWebSocketBroadcastConfig:
@@ -1115,7 +1114,7 @@ class TestDaemonConfigComposition:
 
         # LLM
         assert isinstance(config.llm_providers, LLMProvidersConfig)
-        assert isinstance(config.title_synthesis, TitleSynthesisConfig)
+        assert isinstance(config.digest, DigestConfig)
         assert isinstance(config.recommend_tools, RecommendToolsConfig)
 
         # Hooks
@@ -1184,7 +1183,7 @@ class TestAllConfigClassesInstantiate:
             GobbyTasksConfig(),
             LLMProviderConfig(models="test-model"),  # Required field
             LLMProvidersConfig(),
-            TitleSynthesisConfig(),
+            DigestConfig(),
             WebSocketBroadcastConfig(),
             WebhookEndpointConfig(name="test", url="https://test.com"),  # Required
             WebhooksConfig(),

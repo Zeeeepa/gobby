@@ -41,10 +41,10 @@ from gobby.config.servers import MCPClientProxyConfig, WebSocketSettings
 from gobby.config.sessions import (
     ChatHistoryConfig,
     ContextInjectionConfig,
+    DigestConfig,
     MessageTrackingConfig,
     SessionLifecycleConfig,
     SessionSummaryConfig,
-    TitleSynthesisConfig,
 )
 from gobby.config.skills import SkillsConfig
 from gobby.config.tasks import CompactHandoffConfig, GobbyTasksConfig, WorkflowConfig
@@ -320,9 +320,9 @@ class DaemonConfig(BaseModel):
         default_factory=LLMProvidersConfig,
         description="Multi-provider LLM configuration",
     )
-    title_synthesis: TitleSynthesisConfig = Field(
-        default_factory=TitleSynthesisConfig,
-        description="Title synthesis configuration",
+    digest: DigestConfig = Field(
+        default_factory=DigestConfig,
+        description="Rolling digest and title generation configuration",
     )
     recommend_tools: RecommendToolsConfig = Field(
         default_factory=RecommendToolsConfig,

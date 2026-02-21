@@ -24,7 +24,6 @@ from gobby.workflows.git_utils import (
 
 if TYPE_CHECKING:
     from gobby.workflows.actions import ActionContext
-    from gobby.workflows.templates import TemplateRenderer
 
 logger = logging.getLogger(__name__)
 
@@ -335,110 +334,6 @@ async def _rename_tmux_window(session: Any, title: str) -> None:
         logger.debug(f"_rename_tmux_window: {e}")
 
 
-async def synthesize_title(
-    session_manager: Any,
-    session_id: str,
-    llm_service: Any,
-    transcript_processor: Any,
-    template_engine: TemplateRenderer,
-    template: str | None = None,
-    prompt: str | None = None,
-) -> dict[str, Any] | None:
-    """Synthesize and set a session title.
-
-    Args:
-        session_manager: The session manager instance
-        session_id: Current session ID
-        llm_service: LLM service instance
-        transcript_processor: Transcript processor instance
-        template_engine: Template engine for rendering
-        template: Optional prompt template
-        prompt: Optional user prompt to generate title from (preferred over transcript)
-
-    Returns:
-        Dict with title_synthesized or error
-    """
-    if not llm_service:
-        return {"error": "Missing LLM service"}
-
-    current_session = session_manager.get(session_id)
-    if not current_session:
-        return {"error": "Session not found"}
-
-    try:
-        # If prompt provided directly, use it (preferred path)
-        if prompt:
-            llm_prompt = (
-                "Create a short title (3-5 words) for this coding session based on "
-                "the user's first message. Output ONLY the title, no quotes or explanation.\n\n"
-                f"User message: {prompt}"
-            )
-        else:
-            # Fall back to reading transcript
-            transcript_path = getattr(current_session, "jsonl_path", None)
-            if not transcript_path:
-                return {"error": "No transcript path and no prompt provided"}
-
-            turns = []
-            path = Path(transcript_path)
-            if path.exists():
-                async with aiofiles.open(path, encoding="utf-8") as f:
-                    i = 0
-                    async for line in f:
-                        if i >= 20:
-                            break
-                        if line.strip():
-                            turns.append(json.loads(line))
-                            i += 1
-
-            if not turns:
-                return {"error": "Empty transcript"}
-
-            # Filter out system turns — they contain tool definitions (MCP tools,
-            # etc.) that pollute title synthesis with irrelevant names like "Canva"
-            filtered_turns = []
-            for turn in turns:
-                # Claude Code format: nested message with role
-                msg = turn.get("message", {})
-                role = msg.get("role", turn.get("role", ""))
-                if role == "system":
-                    continue
-                # Gemini CLI format: type=system
-                if turn.get("type") == "system":
-                    continue
-                filtered_turns.append(turn)
-
-            if not filtered_turns:
-                return {"error": "No user/assistant turns in transcript"}
-
-            formatted_turns = format_turns_for_llm(filtered_turns)
-
-            if not template:
-                template = (
-                    "Create a short, concise title (3-5 words) for this coding session "
-                    "based on the transcript.\n\nTranscript:\n{{ transcript }}"
-                )
-
-            llm_prompt = template_engine.render(template, {"transcript": formatted_turns})
-
-        provider = llm_service.get_default_provider()
-        title = await provider.generate_text(llm_prompt)
-
-        # Clean title (remove quotes, etc)
-        title = title.strip().strip('"').strip("'")
-
-        session_manager.update_title(session_id, title)
-
-        # Rename tmux window to match synthesized title
-        await _rename_tmux_window(current_session, title)
-
-        return {"title_synthesized": title}
-
-    except Exception as e:
-        logger.error(f"synthesize_title: Failed: {e}")
-        return {"error": str(e)}
-
-
 async def generate_summary(
     session_manager: Any,
     session_id: str,
@@ -532,7 +427,9 @@ async def generate_summary(
         structured_context = f"Session Digest:\n{digest_markdown}"
         real_commits = get_recent_git_commits()
         if real_commits:
-            commit_lines = [f"  - {c.get('hash', '')[:7]} {c.get('message', '')}" for c in real_commits[:10]]
+            commit_lines = [
+                f"  - {c.get('hash', '')[:7]} {c.get('message', '')}" for c in real_commits[:10]
+            ]
             structured_context += "\n\nRecent Commits:\n" + "\n".join(commit_lines)
     else:
         # Fallback: full transcript analysis
@@ -646,24 +543,6 @@ async def generate_handoff(
 
 # --- ActionHandler-compatible wrappers ---
 # These match the ActionHandler protocol: (context: ActionContext, **kwargs) -> dict | None
-
-
-async def handle_synthesize_title(context: ActionContext, **kwargs: Any) -> dict[str, Any] | None:
-    """ActionHandler wrapper for synthesize_title."""
-    # When source=transcript, skip prompt extraction to force the transcript fallback path
-    prompt = None
-    if kwargs.get("source") != "transcript" and context.event_data:
-        prompt = context.event_data.get("prompt") or context.event_data.get("prompt_text")
-
-    return await synthesize_title(
-        session_manager=context.session_manager,
-        session_id=context.session_id,
-        llm_service=context.llm_service,
-        transcript_processor=context.transcript_processor,
-        template_engine=context.template_engine,
-        template=kwargs.get("template"),
-        prompt=prompt,
-    )
 
 
 async def handle_generate_summary(context: ActionContext, **kwargs: Any) -> dict[str, Any] | None:

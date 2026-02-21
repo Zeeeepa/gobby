@@ -34,6 +34,9 @@ logger = logging.getLogger(__name__)
 
 _original_parse_message = _message_parser.parse_message
 
+# Last rate limit event — stored for potential future use by callers
+_last_rate_limit: dict[str, Any] | None = None
+
 
 def _tolerant_parse_message(data: dict[str, Any]) -> object | None:
     """parse_message wrapper that returns None for unknown message types.
@@ -41,11 +44,29 @@ def _tolerant_parse_message(data: dict[str, Any]) -> object | None:
     Also stashes ``modelUsage`` from the raw JSON onto ``ResultMessage``
     instances so callers can access ``contextWindow`` without litellm.
     """
+    global _last_rate_limit
+
     try:
         parsed = _original_parse_message(data)
     except MessageParseError:
         msg_type = data.get("type", "?") if isinstance(data, dict) else "?"
-        logger.warning("Skipping unrecognized SDK message type: %s", msg_type)
+
+        # Parse rate_limit_event for structured logging
+        if msg_type == "rate_limit_event" and isinstance(data, dict):
+            _last_rate_limit = data
+            retry_after = data.get("retry_after") or data.get("retryAfter")
+            resets_at = data.get("resets_at") or data.get("resetsAt")
+            limit = data.get("limit")
+            remaining = data.get("remaining")
+            logger.info(
+                "Rate limit event: retry_after=%s resets_at=%s limit=%s remaining=%s",
+                retry_after,
+                resets_at,
+                limit,
+                remaining,
+            )
+        else:
+            logger.warning("Skipping unrecognized SDK message type: %s", msg_type)
         return None
 
     # Stash modelUsage on ResultMessage — SDK drops it during parsing

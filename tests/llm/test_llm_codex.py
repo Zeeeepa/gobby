@@ -8,7 +8,7 @@ import pytest
 
 from gobby.config.app import DaemonConfig
 from gobby.config.llm_providers import LLMProviderConfig, LLMProvidersConfig
-from gobby.config.sessions import SessionSummaryConfig, TitleSynthesisConfig
+from gobby.config.sessions import SessionSummaryConfig
 
 pytestmark = pytest.mark.unit
 
@@ -21,7 +21,6 @@ def codex_config() -> DaemonConfig:
             codex=LLMProviderConfig(models="gpt-4o", auth_mode="subscription"),
         ),
         session_summary=SessionSummaryConfig(model="gpt-4o"),
-        title_synthesis=TitleSynthesisConfig(model="gpt-4o-mini"),
     )
 
 
@@ -85,14 +84,6 @@ class TestCodexProviderProperties:
             provider = CodexProvider(codex_config)
             assert provider._get_model("summary") == "gpt-4o"
 
-    def test_get_model_title(self, codex_config: DaemonConfig, tmp_path: Path) -> None:
-        """Test _get_model for title task."""
-        with patch("gobby.llm.codex.Path.home", return_value=tmp_path):
-            from gobby.llm.codex import CodexProvider
-
-            provider = CodexProvider(codex_config)
-            assert provider._get_model("title") == "gpt-4o-mini"
-
     def test_get_model_unknown(self, codex_config: DaemonConfig, tmp_path: Path) -> None:
         """Test _get_model for unknown task defaults to gpt-4o."""
         with patch("gobby.llm.codex.Path.home", return_value=tmp_path):
@@ -132,37 +123,6 @@ class TestCodexProviderGenerateSummary:
 
             with pytest.raises(ValueError, match="prompt_template is required"):
                 await provider.generate_summary({"transcript_summary": "test"})
-
-
-class TestCodexProviderSynthesizeTitle:
-    """Tests for synthesize_title method."""
-
-    @pytest.mark.asyncio
-    async def test_synthesize_title_no_client(self, codex_config: DaemonConfig, tmp_path: Path):
-        """Test synthesize_title returns None when client not initialized."""
-        with patch("gobby.llm.codex.Path.home", return_value=tmp_path):
-            from gobby.llm.codex import CodexProvider
-
-            provider = CodexProvider(codex_config)
-            provider._client = None
-
-            result = await provider.synthesize_title(
-                "test prompt", prompt_template="Generate title: {user_prompt}"
-            )
-
-            assert result is None
-
-    @pytest.mark.asyncio
-    async def test_synthesize_title_no_template(self, codex_config: DaemonConfig, tmp_path: Path):
-        """Test synthesize_title raises when no template provided."""
-        with patch("gobby.llm.codex.Path.home", return_value=tmp_path):
-            from gobby.llm.codex import CodexProvider
-
-            provider = CodexProvider(codex_config)
-            provider._client = MagicMock()
-
-            with pytest.raises(ValueError, match="prompt_template is required"):
-                await provider.synthesize_title("test prompt")
 
 
 class TestCodexProviderGetApiKey:

@@ -291,118 +291,6 @@ class ClaudeLLMProvider(LLMProvider):
             self.logger.error(f"Failed to generate summary with LiteLLM: {e}")
             return f"Session summary generation failed: {e}"
 
-    async def synthesize_title(
-        self, user_prompt: str, prompt_template: str | None = None
-    ) -> str | None:
-        """
-        Synthesize session title using Claude.
-
-        Always tries SDK first, falls back to LiteLLM only if CLI is unavailable.
-        """
-        cli_path = self._verify_cli_path()
-        if cli_path:
-            return await self._synthesize_title_sdk(user_prompt, prompt_template)
-        elif self._litellm:
-            return await self._synthesize_title_litellm(user_prompt, prompt_template)
-        else:
-            return None
-
-    async def _synthesize_title_sdk(
-        self, user_prompt: str, prompt_template: str | None = None
-    ) -> str | None:
-        """
-        Synthesize session title using Claude.
-        """
-        cli_path = self._verify_cli_path()
-        if not cli_path:
-            return None
-
-        # Build prompt - prompt_template is required
-        if not prompt_template:
-            raise ValueError(
-                "prompt_template is required for synthesize_title. "
-                "Configure 'title_synthesis.prompt' in ~/.gobby/config.yaml"
-            )
-        prompt = prompt_template.format(user_prompt=user_prompt)
-
-        # Configure Claude Agent SDK
-        options = ClaudeAgentOptions(
-            system_prompt="You are a session title generator. Create concise, descriptive titles.",
-            max_turns=1,
-            model=self.config.title_synthesis.model,
-            allowed_tools=[],
-            mcp_servers={},
-            permission_mode="default",
-            cli_path=cli_path,
-        )
-
-        # Run async query
-        async def _run_query() -> str:
-            title_text = ""
-            async for message in query(prompt=prompt, options=options):
-                if isinstance(message, AssistantMessage):
-                    for block in message.content:
-                        if isinstance(block, TextBlock):
-                            title_text = block.text
-            return title_text.strip()
-
-        def _on_retry(attempt: int, error: Exception) -> None:
-            self.logger.warning(
-                f"Title synthesis failed (attempt {attempt + 1}), retrying: {error}"
-            )
-
-        try:
-            result = await self._retry_async(
-                _run_query, max_retries=3, delay=1.0, on_retry=_on_retry
-            )
-            return cast(str, result)
-        except Exception as e:
-            self.logger.error(f"Failed to synthesize title with Claude: {e}")
-            return None
-
-    async def _synthesize_title_litellm(
-        self, user_prompt: str, prompt_template: str | None = None
-    ) -> str | None:
-        """Synthesize session title using LiteLLM (api_key mode)."""
-        if not self._litellm:
-            return None
-
-        # Build prompt - prompt_template is required
-        if not prompt_template:
-            raise ValueError(
-                "prompt_template is required for synthesize_title. "
-                "Configure 'title_synthesis.prompt' in ~/.gobby/config.yaml"
-            )
-        prompt = prompt_template.format(user_prompt=user_prompt)
-
-        async def _run_query() -> str:
-            response = await self._litellm.acompletion(
-                model=f"anthropic/{self.config.title_synthesis.model}",
-                messages=[
-                    {
-                        "role": "system",
-                        "content": "You are a session title generator. Create concise, descriptive titles.",
-                    },
-                    {"role": "user", "content": prompt},
-                ],
-                max_tokens=100,
-            )
-            return (response.choices[0].message.content or "").strip()
-
-        def _on_retry(attempt: int, error: Exception) -> None:
-            self.logger.warning(
-                f"Title synthesis failed (attempt {attempt + 1}), retrying: {error}"
-            )
-
-        try:
-            result = await self._retry_async(
-                _run_query, max_retries=3, delay=1.0, on_retry=_on_retry
-            )
-            return cast(str, result)
-        except Exception as e:
-            self.logger.error(f"Failed to synthesize title with LiteLLM: {e}")
-            return None
-
     async def generate_text(
         self,
         prompt: str,
@@ -475,8 +363,15 @@ class ClaudeLLMProvider(LLMProvider):
                 self.logger.warning(f"generate_text: {message_count} messages but no text content")
             return result_text
 
+        def _on_retry(attempt: int, error: Exception) -> None:
+            self.logger.warning(
+                f"generate_text failed (attempt {attempt + 1}), retrying: {error}"
+            )
+
         try:
-            return await _run_query()
+            return await self._retry_async(
+                _run_query, max_retries=3, delay=2.0, on_retry=_on_retry
+            )
         except Exception as e:
             self.logger.error(f"Failed to generate text with Claude: {e}", exc_info=True)
             raise RuntimeError(f"Failed to generate text with Claude: {e}") from e
