@@ -1,12 +1,22 @@
-import { readdirSync, statSync, existsSync } from "fs";
+import { readdir, stat, access } from "fs/promises";
+import { constants } from "fs";
 import { homedir } from "os";
 import { join } from "path";
 
 const CODE_DIRS = ["Projects", "code", "dev", "src", "repos", "Developer"];
 
-function isDir(p: string): boolean {
+async function isDir(p: string): Promise<boolean> {
   try {
-    return statSync(p).isDirectory();
+    return (await stat(p)).isDirectory();
+  } catch {
+    return false;
+  }
+}
+
+async function exists(p: string): Promise<boolean> {
+  try {
+    await access(p, constants.F_OK);
+    return true;
   } catch {
     return false;
   }
@@ -17,34 +27,34 @@ function sorted(items: string[]): string[] {
 }
 
 /** Scan common code directories 2 levels deep for uninitialized git repos. */
-export function findRepos(): string[] {
+export async function findRepos(): Promise<string[]> {
   const home = homedir();
   const repos: string[] = [];
 
   for (const dirname of CODE_DIRS) {
     const codeDir = join(home, dirname);
-    if (!isDir(codeDir)) continue;
+    if (!(await isDir(codeDir))) continue;
 
     try {
-      for (const child of sorted(readdirSync(codeDir))) {
+      for (const child of sorted(await readdir(codeDir))) {
         if (child.startsWith(".")) continue;
         const childPath = join(codeDir, child);
-        if (!isDir(childPath)) continue;
+        if (!(await isDir(childPath))) continue;
 
-        if (isDir(join(childPath, ".git"))) {
-          if (!existsSync(join(childPath, ".gobby", "project.json"))) {
+        if (await isDir(join(childPath, ".git"))) {
+          if (!(await exists(join(childPath, ".gobby", "project.json")))) {
             repos.push(childPath);
           }
         } else {
           // Level 2 (org-grouped repos like ~/Projects/myorg/repo)
           try {
-            for (const grandchild of sorted(readdirSync(childPath))) {
+            for (const grandchild of sorted(await readdir(childPath))) {
               if (grandchild.startsWith(".")) continue;
               const gcPath = join(childPath, grandchild);
               if (
-                isDir(gcPath) &&
-                isDir(join(gcPath, ".git")) &&
-                !existsSync(join(gcPath, ".gobby", "project.json"))
+                (await isDir(gcPath)) &&
+                (await isDir(join(gcPath, ".git"))) &&
+                !(await exists(join(gcPath, ".gobby", "project.json")))
               ) {
                 repos.push(gcPath);
               }

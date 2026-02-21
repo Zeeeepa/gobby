@@ -18,10 +18,14 @@ export function ProjectDiscovery({ state, setState, onNext }: StepProps): React.
   const [selected, setSelected] = useState<string[]>([]);
 
   useEffect(() => {
-    const found = findRepos();
-    setRepos(found);
-    setScanning(false);
-    setPhase(found.length > 0 ? "select" : "done");
+    let cancelled = false;
+    findRepos().then((found) => {
+      if (cancelled) return;
+      setRepos(found);
+      setScanning(false);
+      setPhase(found.length > 0 ? "select" : "done");
+    });
+    return () => { cancelled = true; };
   }, []);
 
   const finish = (projects: string[]): void => {
