@@ -410,6 +410,18 @@ uv run ruff check src/     # Lint
 uv run mypy src/           # Type check
 ```
 
+### Using Gobby in other projects (from source)
+
+If you're running Gobby from a source checkout, use `uv run --project` to run commands in other project directories:
+
+```bash
+cd /path/to/other/project
+uv run --project ~/Projects/gobby gobby init
+uv run --project ~/Projects/gobby gobby install
+```
+
+The `--project` flag tells uv to use the Gobby installation from your source repo while operating in the current directory.
+
 Coverage threshold: 80%. We're serious about it.
 
 ## Contributing
