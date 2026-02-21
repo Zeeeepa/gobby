@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { Text, Box } from "ink";
 import Spinner from "ink-spinner";
-import { execSync } from "child_process";
+import { exec } from "child_process";
 import { isGobbyInstalled } from "../utils/gobby.js";
 import { detectTool } from "../utils/detect.js";
 import { StatusMessage } from "../components/StatusMessage.js";
@@ -32,22 +32,28 @@ export function Bootstrap({ onNext }: StepProps): React.ReactElement {
     }
 
     setPhase("installing");
-    try {
-      execSync("uv tool install gobby", {
-        encoding: "utf-8",
-        timeout: 120000,
-      });
+  }, []);
+
+  // Run install asynchronously so the spinner can render
+  useEffect(() => {
+    if (phase !== "installing") return;
+
+    const child = exec("uv tool install gobby", { encoding: "utf-8", timeout: 120000 }, (err) => {
+      if (err) {
+        setError(err.message);
+        setPhase("error");
+        return;
+      }
       if (isGobbyInstalled()) {
         setPhase("done");
       } else {
         setError("Installation completed but gobby not found in PATH");
         setPhase("error");
       }
-    } catch (e: unknown) {
-      setError(e instanceof Error ? e.message : "Installation failed");
-      setPhase("error");
-    }
-  }, []);
+    });
+
+    return () => { child.kill(); };
+  }, [phase]);
 
   useEffect(() => {
     if (phase === "done") {
