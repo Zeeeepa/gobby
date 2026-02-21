@@ -106,7 +106,7 @@ export function PipelineEditor({ pipeline, updateWorkflow, onBack, onExport }: P
   const [name, setName] = useState(pipeline.name)
   const [description, setDescription] = useState(pipeline.description ?? '')
   const [steps, setSteps] = useState<PipelineStep[]>(initSteps)
-  const [expandedIdx, setExpandedIdx] = useState<number | null>(null)
+  const [expandedId, setExpandedId] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
   const [isDirty, setDirty] = useState(false)
 
@@ -131,7 +131,7 @@ export function PipelineEditor({ pipeline, updateWorkflow, onBack, onExport }: P
     (index: number) => {
       if (!window.confirm('Delete this step?')) return
       setSteps((prev) => prev.filter((_, i) => i !== index))
-      setExpandedIdx(null)
+      setExpandedId(null)
       markDirty()
     },
     [markDirty],
@@ -146,7 +146,6 @@ export function PipelineEditor({ pipeline, updateWorkflow, onBack, onExport }: P
         ;[next[index], next[target]] = [next[target], next[index]]
         return next
       })
-      setExpandedIdx((prev) => (prev === index ? index + direction : prev))
       markDirty()
     },
     [markDirty],
@@ -157,7 +156,7 @@ export function PipelineEditor({ pipeline, updateWorkflow, onBack, onExport }: P
       const ids = steps.map((s) => s.id)
       const step = createDefaultStep(type, ids)
       setSteps((prev) => [...prev, step])
-      setExpandedIdx(steps.length)
+      setExpandedId(step.id)
       markDirty()
     },
     [steps, markDirty],
@@ -276,14 +275,14 @@ export function PipelineEditor({ pipeline, updateWorkflow, onBack, onExport }: P
 
         {steps.map((step, idx) => {
           const type = detectStepType(step)
-          const isExpanded = expandedIdx === idx
+          const isExpanded = expandedId === step.id
 
           return (
-            <div className="pipeline-editor-step" key={idx}>
+            <div className="pipeline-editor-step" key={step.id}>
               {/* Collapsed header */}
               <div
                 className="pipeline-editor-step-header"
-                onClick={() => setExpandedIdx(isExpanded ? null : idx)}
+                onClick={() => setExpandedId(isExpanded ? null : step.id)}
               >
                 <span
                   className="pipeline-editor-type-badge"
