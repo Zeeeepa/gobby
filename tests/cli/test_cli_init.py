@@ -561,16 +561,15 @@ class TestInitOutputFormat:
             result = runner.invoke(cli, ["init"])
 
         assert result.exit_code == 0
-        # Check output structure
+        # Check output structure — find lines by content rather than index
+        # since a conditional "Tip:" line may appear before the project info
         output_lines = result.output.strip().split("\n")
-        assert len(output_lines) >= 2
-        # First line should have project name
-        assert "format-test-project" in output_lines[0]
-        # Second line should have project ID
-        assert "Project ID:" in output_lines[1]
-        assert "proj-format-test" in output_lines[1]
-        # Third line should have config path
-        assert "Config:" in output_lines[2]
+        init_line = next(l for l in output_lines if "format-test-project" in l)
+        id_line = next(l for l in output_lines if "Project ID:" in l)
+        config_line = next(l for l in output_lines if "Config:" in l)
+        assert "format-test-project" in init_line
+        assert "proj-format-test" in id_line
+        assert config_line is not None
 
     @patch("gobby.cli.init.initialize_project")
     @patch("gobby.cli.load_config")
