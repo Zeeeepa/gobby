@@ -132,7 +132,7 @@ class ChatSessionPermissionsMixin:
             await asyncio.wait_for(self._pending_answer_event.wait(), timeout=600.0)
         except TimeoutError:
             self._pending_answers = {"error": "Timed out waiting for user response"}
-            logger.warning(f"AskUserQuestion timed out for session {self.conversation_id}")
+            logger.warning("AskUserQuestion timed out for session %s", self.conversation_id)
 
         result = PermissionResultAllow(
             updated_input={

@@ -816,7 +816,7 @@ class ChatMixin:
 
         session = self._chat_sessions.get(conversation_id_raw) if conversation_id_raw else None
         if session is None or conversation_id_raw is None:
-            logger.warning(f"plan_approval_response for unknown conversation: {conversation_id_raw}")
+            logger.warning("plan_approval_response for unknown conversation: %s", conversation_id_raw)
             return
         conversation_id: str = conversation_id_raw
 
@@ -837,13 +837,13 @@ class ChatMixin:
             except (ConnectionClosed, ConnectionClosedError):
                 pass
             logger.info(
-                f"Plan approved for conversation {conversation_id[:8]}, switched to accept_edits"
+                "Plan approved for conversation %s, switched to accept_edits", conversation_id[:8]
             )
         elif decision == "request_changes":
             feedback = data.get("feedback", "")
             if feedback:
                 session.set_plan_feedback(feedback)
-            logger.info(f"Plan changes requested for conversation {conversation_id[:8]}")
+            logger.info("Plan changes requested for conversation %s", conversation_id[:8])
 
     async def _handle_continue_in_chat(self, websocket: Any, data: dict[str, Any]) -> None:
         """Handle continue_in_chat message to resume a CLI session in the web chat UI.
