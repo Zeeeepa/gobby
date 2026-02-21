@@ -37,7 +37,7 @@ session_variables:
   # Set via set_mode WebSocket message; default from config (chat.default_mode)
   chat_mode: bypass
 
-  # Numeric autonomy level derived from chat_mode + plan_mode
+  # Numeric autonomy level — single source of truth for plan/act/auto mode
   # 0=Plan (read-only), 1=Act (approve edits), 2=Full Auto (bypass)
   mode_level: 2
 
@@ -104,13 +104,7 @@ triggers:
           something genuinely critical the user must verify before closing.
 
   on_session_start:
-    # Clear plan_mode on new sessions - don't inherit from parent session
-    # This prevents implementation sessions from inheriting plan_mode=True
-    # from planning sessions that created the plan
-    - action: set_variable
-      when: "event.data.get('source') in ['clear', 'compact', 'startup']"
-      name: plan_mode
-      value: false
+    # Reset mode_level on new sessions — don't inherit plan mode from parent session
     - action: set_variable
       when: "event.data.get('source') in ['clear', 'compact', 'startup']"
       name: mode_level
@@ -343,19 +337,11 @@ triggers:
             Rewrite your command with `uv` and retry.
 
   on_after_tool:
-    # Detect Claude Code plan mode entry/exit
-    - action: set_variable
-      name: plan_mode
-      value: true
-      when: "event.data.get('tool_name') == 'EnterPlanMode'"
+    # Detect Claude Code plan mode entry/exit via mode_level
     - action: set_variable
       name: mode_level
       value: 0
       when: "event.data.get('tool_name') == 'EnterPlanMode'"
-    - action: set_variable
-      name: plan_mode
-      value: false
-      when: "event.data.get('tool_name') == 'ExitPlanMode'"
     - action: set_variable
       name: mode_level
       value: "{{ {'plan': 0, 'accept_edits': 1, 'normal': 1}.get(variables.get('chat_mode', 'bypass'), 2) }}"

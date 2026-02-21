@@ -217,7 +217,8 @@ def _evaluate_block_condition(
     Supports simple Python expressions with access to:
     - variables: workflow state variables dict
     - task_claimed: shorthand for variables.get('task_claimed')
-    - plan_mode: shorthand for variables.get('plan_mode')
+    - plan_mode: shorthand for mode_level == 0 (plan mode active)
+    - mode_level: autonomy level (0=Plan, 1=Act, 2=Full Auto)
     - tool_input: the tool's input arguments (for MCP tool checks)
     - session_has_dirty_files: whether session has NEW dirty files (beyond baseline)
     - task_has_commits: whether the current task has linked commits
@@ -243,8 +244,9 @@ def _evaluate_block_condition(
     context = {
         "variables": variables,
         "task_claimed": variables.get("task_claimed", False),
-        "plan_mode": variables.get("plan_mode", False),
+        # mode_level is the single source of truth; plan_mode is a convenience alias
         "mode_level": variables.get("mode_level", 2),
+        "plan_mode": variables.get("mode_level", 2) == 0,
         "event": event_data or {},
         "tool_input": tool_input or {},
         "session_has_dirty_files": session_has_dirty_files,
@@ -267,7 +269,7 @@ def _evaluate_block_condition(
         f"block_condition eval: condition='{condition}', "
         f"stop_attempts={variables.get('stop_attempts', 0)}, "
         f"task_claimed={variables.get('task_claimed')}, "
-        f"plan_mode={variables.get('plan_mode')}"
+        f"mode_level={variables.get('mode_level', 2)}"
     )
 
     try:
@@ -307,7 +309,7 @@ async def block_tools(
 
     Condition evaluation has access to:
       - variables: workflow state variables
-      - task_claimed, plan_mode: shortcuts
+      - task_claimed, plan_mode, mode_level: shortcuts
       - tool_input: the MCP tool's arguments (for checking commit_sha etc.)
       - session_has_dirty_files: whether session has NEW dirty files beyond baseline
       - task_has_commits: whether the claimed task has linked commits

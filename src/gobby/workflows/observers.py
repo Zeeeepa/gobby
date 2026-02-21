@@ -35,14 +35,11 @@ BehaviorFn = Callable[..., Coroutine[Any, Any, None]]
 _MODE_LEVEL_MAP = {"plan": 0, "accept_edits": 1, "normal": 1, "bypass": 2}
 
 
-def compute_mode_level(chat_mode: str, plan_mode: bool) -> int:
-    """Derive numeric mode_level from chat_mode and plan_mode.
+def compute_mode_level(chat_mode: str) -> int:
+    """Derive numeric mode_level from chat_mode.
 
     Returns 0 (Plan), 1 (Act), or 2 (Full Auto).
-    plan_mode=True always forces level 0 regardless of chat_mode.
     """
-    if plan_mode:
-        return 0
     return _MODE_LEVEL_MAP.get(chat_mode, 2)
 
 
@@ -194,7 +191,7 @@ def detect_plan_mode_from_context(prompt: str, state: "WorkflowState") -> None:
 
     Claude Code injects system reminders like "Plan mode is active" when the user
     enters plan mode via the UI (not via the EnterPlanMode tool). This function
-    detects those reminders and sets the plan_mode variable accordingly.
+    detects those reminders and sets mode_level accordingly.
 
     IMPORTANT: Only matches indicators within <system-reminder> tags to avoid
     false positives from handoff context or user messages that mention plan mode.
@@ -221,11 +218,10 @@ def detect_plan_mode_from_context(prompt: str, state: "WorkflowState") -> None:
     # Check if plan mode is indicated in system reminders only
     for indicator in plan_mode_indicators:
         if indicator in reminder_text:
-            if not state.variables.get("plan_mode"):
-                state.variables["plan_mode"] = True
+            if state.variables.get("mode_level") != 0:
                 state.variables["mode_level"] = 0
                 logger.info(
-                    f"Session {state.session_id}: plan_mode=True, mode_level=0 "
+                    f"Session {state.session_id}: mode_level=0 (plan) "
                     f"(detected from system reminder: '{indicator}')"
                 )
             return
@@ -238,13 +234,11 @@ def detect_plan_mode_from_context(prompt: str, state: "WorkflowState") -> None:
 
     for indicator in exit_indicators:
         if indicator in reminder_text:
-            if state.variables.get("plan_mode"):
-                state.variables["plan_mode"] = False
+            if state.variables.get("mode_level") == 0:
                 chat_mode = state.variables.get("chat_mode", "bypass")
-                state.variables["mode_level"] = compute_mode_level(chat_mode, False)
+                state.variables["mode_level"] = compute_mode_level(chat_mode)
                 logger.info(
-                    f"Session {state.session_id}: plan_mode=False, "
-                    f"mode_level={state.variables['mode_level']} "
+                    f"Session {state.session_id}: mode_level={state.variables['mode_level']} "
                     f"(detected from system reminder: '{indicator}')"
                 )
             return

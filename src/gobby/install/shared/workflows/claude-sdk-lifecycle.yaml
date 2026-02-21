@@ -16,10 +16,6 @@ triggers:
     # first on_before_agent turn instead.
     - action: set_variable
       when: "not variables.get('_sdk_initialized')"
-      name: plan_mode
-      value: false
-    - action: set_variable
-      when: "not variables.get('_sdk_initialized')"
       name: mode_level
       value: 2
 

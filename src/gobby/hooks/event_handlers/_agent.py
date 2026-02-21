@@ -266,20 +266,13 @@ class AgentEventHandlerMixin(EventHandlersBase):
         )
 
     def _is_plan_mode(self, session_id: str | None) -> bool:
-        """Check if plan_mode is active for this session.
-
-        Prefers mode_level (0 = plan) when available, falling back
-        to the boolean plan_mode variable.
-        """
+        """Check if plan mode is active for this session (mode_level == 0)."""
         if not session_id or not self._workflow_handler:
             return False
         try:
             state = self._workflow_handler.engine.state_manager.get_state(session_id)
             if state:
-                mode_level = state.variables.get("mode_level")
-                if mode_level is not None:
-                    return bool(mode_level == 0)
-                return bool(state.variables.get("plan_mode"))
+                return state.variables.get("mode_level", 2) == 0
         except Exception:
             pass
         return False

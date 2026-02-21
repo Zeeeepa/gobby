@@ -83,7 +83,7 @@ class TestConditionEvaluator:
 
     def test_boolean_and_expression(self, evaluator) -> None:
         """Boolean 'and' with variable access — used in workflow when clauses."""
-        context = {"task_claimed": True, "plan_mode": False}
+        context = {"task_claimed": True, "mode_level": 2, "plan_mode": False}
         assert evaluator.evaluate("task_claimed and not plan_mode", context) is True
         assert evaluator.evaluate("task_claimed and plan_mode", context) is False
 

@@ -961,13 +961,10 @@ class ChatMixin:
                     from gobby.workflows.observers import compute_mode_level
 
                     sm = workflow_handler.engine.state_manager
-                    state = sm.get_state(db_sid)
-                    if state:
-                        plan_mode = state.variables.get("plan_mode", False)
-                        sm.merge_variables(
-                            db_sid,
-                            {"chat_mode": mode, "mode_level": compute_mode_level(mode, plan_mode)},
-                        )
+                    sm.merge_variables(
+                        db_sid,
+                        {"chat_mode": mode, "mode_level": compute_mode_level(mode)},
+                    )
                 except Exception as e:
                     logger.warning(f"Failed to sync mode_level on mode change: {e}")
             logger.info(f"Chat mode set to '{mode}' for conversation {conversation_id[:8]}")

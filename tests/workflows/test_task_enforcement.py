@@ -1757,7 +1757,7 @@ class TestBlockTools:
         from gobby.workflows.enforcement import block_tools
 
         workflow_state.variables["task_claimed"] = False
-        workflow_state.variables["plan_mode"] = False
+        workflow_state.variables["mode_level"] = 2  # Full Auto, not plan mode
 
         rules = [
             {
@@ -1783,7 +1783,7 @@ class TestBlockTools:
         from gobby.workflows.enforcement import block_tools
 
         workflow_state.variables["task_claimed"] = True
-        workflow_state.variables["plan_mode"] = False
+        workflow_state.variables["mode_level"] = 2  # Full Auto, not plan mode
 
         rules = [
             {
@@ -1803,11 +1803,11 @@ class TestBlockTools:
 
     @pytest.mark.asyncio
     async def test_block_tools_plan_mode_allows_edit(self, workflow_state):
-        """Allows edit tools when in plan mode."""
+        """Allows edit tools when in plan mode (mode_level=0)."""
         from gobby.workflows.enforcement import block_tools
 
         workflow_state.variables["task_claimed"] = False
-        workflow_state.variables["plan_mode"] = True
+        workflow_state.variables["mode_level"] = 0  # Plan mode
 
         rules = [
             {
@@ -1831,7 +1831,7 @@ class TestBlockTools:
         from gobby.workflows.enforcement import block_tools
 
         workflow_state.variables["task_claimed"] = False
-        workflow_state.variables["plan_mode"] = False
+        workflow_state.variables["mode_level"] = 2  # Full Auto, not plan mode
 
         rules = [
             {
@@ -1964,12 +1964,12 @@ class TestEvaluateBlockCondition:
         from gobby.workflows.enforcement.blocking import _evaluate_block_condition
 
         workflow_state.variables["task_claimed"] = False
-        workflow_state.variables["plan_mode"] = False
+        workflow_state.variables["mode_level"] = 2  # Full Auto, not plan mode
         assert (
             _evaluate_block_condition("not task_claimed and not plan_mode", workflow_state) is True
         )
 
-        workflow_state.variables["plan_mode"] = True
+        workflow_state.variables["mode_level"] = 0  # Plan mode
         assert (
             _evaluate_block_condition("not task_claimed and not plan_mode", workflow_state) is False
         )
