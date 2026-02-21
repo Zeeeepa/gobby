@@ -157,13 +157,8 @@ triggers:
     # Must run FIRST so baseline is captured before any modifications
     - action: capture_baseline_dirty_files
 
-    # Inject session identity so the agent knows its Gobby session ID
-    - action: inject_context
-      template: |
-        ## Session Context
-        - Gobby Session ID: {{ ('#' ~ session.seq_num|string) if session.seq_num else session.id }} <- Use this for MCP tool calls (session_id parameter)
-        - External ID: {{ session.external_id }} (CLI-native, rarely needed)
-        - Source: {{ session.source }}
+    # Session identity is injected by the adapter/hook route for CLI clients.
+    # SDK clients get it via on_before_agent init block below.
 
     # Context handoff - inject previous session summary
     - action: inject_context
