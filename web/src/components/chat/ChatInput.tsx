@@ -175,6 +175,9 @@ export function ChatInput({
 
         {/* Toolbar */}
         <div className="flex items-center gap-1 mb-2">
+          {onModeChange && (
+            <ModeSelector mode={mode} onModeChange={onModeChange} disabled={disabled} />
+          )}
           <button
             className="p-1.5 rounded text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
             onClick={() => fileInputRef.current?.click()}
@@ -203,9 +206,6 @@ export function ChatInput({
             cacheReadTokens={contextUsage?.cacheReadTokens ?? 0}
             cacheCreationTokens={contextUsage?.cacheCreationTokens ?? 0}
           />
-          {onModeChange && (
-            <ModeSelector mode={mode} onModeChange={onModeChange} disabled={disabled} />
-          )}
           </div>
           <input ref={fileInputRef} type="file" multiple className="hidden" onChange={(e) => { handleFilesSelected(e.target.files); e.target.value = '' }} />
         </div>
