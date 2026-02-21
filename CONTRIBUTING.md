@@ -23,7 +23,7 @@ cd gobby
 # Install dependencies
 uv sync
 
-# Initialize project
+# Initialize project (use -C to target a different directory)
 uv run gobby init
 
 # Install hooks for detected CLIs

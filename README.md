@@ -412,15 +412,14 @@ uv run mypy src/           # Type check
 
 ### Using Gobby in other projects (from source)
 
-If you're running Gobby from a source checkout, use `uv run --project` to run commands in other project directories:
+If you're running Gobby from a source checkout, use `-C` to target another project directory:
 
 ```bash
-cd /path/to/other/project
-uv run --project ~/Projects/gobby gobby init
-uv run --project ~/Projects/gobby gobby install
+uv run --project ~/Projects/gobby gobby init -C /path/to/other/project
+uv run --project ~/Projects/gobby gobby install -C /path/to/other/project
 ```
 
-The `--project` flag tells uv to use the Gobby installation from your source repo while operating in the current directory.
+The `--project` flag tells uv to use the Gobby installation from your source repo, and `-C` tells Gobby which directory to operate on.
 
 Coverage threshold: 80%. We're serious about it.
 
