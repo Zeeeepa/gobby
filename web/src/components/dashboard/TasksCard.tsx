@@ -1,4 +1,4 @@
-type SegmentKey = 'open' | 'in_progress' | 'closed' | 'blocked'
+type SegmentKey = 'open' | 'in_progress' | 'closed' | 'blocked' | 'ready'
 
 type TaskCounts = Record<SegmentKey, number>
 
@@ -11,6 +11,7 @@ const SEGMENTS: readonly { key: SegmentKey; label: string; color: string }[] = [
   { key: 'in_progress', label: 'In Progress', color: '#f59e0b' },
   { key: 'closed', label: 'Closed', color: '#22c55e' },
   { key: 'blocked', label: 'Blocked', color: '#ef4444' },
+  { key: 'ready', label: 'Ready', color: '#8b5cf6' },
 ]
 
 const RADIUS = 36
