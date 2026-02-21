@@ -15,6 +15,8 @@ export interface SetupState {
   projects: string[];
   firewall_configured: boolean;
   tailscale_configured: boolean;
+  neo4j_installed: boolean;
+  neo4j_password_set: boolean;
   personal_dir_created: boolean;
   desktop_shortcut_created: boolean;
 }
@@ -32,6 +34,8 @@ const DEFAULT_STATE: SetupState = {
   projects: [],
   firewall_configured: false,
   tailscale_configured: false,
+  neo4j_installed: false,
+  neo4j_password_set: false,
   personal_dir_created: false,
   desktop_shortcut_created: false,
 };
@@ -46,8 +50,9 @@ const V1_STEP_MAP: Record<number, string> = {
   6: "tailscale",
   7: "projects",
   8: "hooks",
-  9: "personal",
-  10: "launch",
+  9: "services",
+  10: "personal",
+  11: "launch",
 };
 
 export function getGobbyHome(): string {

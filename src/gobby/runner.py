@@ -120,6 +120,9 @@ class GobbyRunner:
             config_store=self.config_store,
         )
 
+        # Migrate plaintext secrets from YAML into encrypted SecretStore
+        self._migrate_yaml_secrets()
+
         self.session_manager = LocalSessionManager(self.database)
         self.message_manager = LocalSessionMessageManager(self.database)
         self.task_manager = LocalTaskManager(self.database)
@@ -529,6 +532,87 @@ class GobbyRunner:
 
         logger.info(f"Database: {hub_db_path}")
         return hub_db
+
+    def _migrate_yaml_secrets(self) -> None:
+        """Migrate plaintext secrets from YAML config into encrypted SecretStore.
+
+        Checks known secret fields (e.g. memory.neo4j_auth) and, if they contain
+        a plaintext value (not a $secret: reference or None), encrypts them into
+        the SecretStore and rewrites the YAML to use a $secret: reference.
+        """
+        import yaml
+
+        # Fields to check: (config attribute path, config key for secret store)
+        secret_fields = [
+            ("memory.neo4j_auth", "neo4j_auth"),
+        ]
+
+        config_file = self._config_file or str(Path.home() / ".gobby" / "config.yaml")
+        config_path = Path(config_file).expanduser()
+
+        if not config_path.exists():
+            return
+
+        migrated_any = False
+
+        for attr_path, secret_name in secret_fields:
+            # Navigate the config object to get the current value
+            parts = attr_path.split(".")
+            obj: Any = self.config
+            try:
+                for part in parts:
+                    obj = getattr(obj, part)
+            except AttributeError:
+                continue
+
+            value = obj
+            if value is None:
+                continue
+
+            # Skip if already a $secret: reference
+            if isinstance(value, str) and value.startswith("$secret:"):
+                continue
+
+            # Encrypt into SecretStore and update config_store
+            try:
+                self.config_store.set_secret(
+                    attr_path, value, self.secret_store, source="migration"
+                )
+                logger.info(f"Migrated plaintext secret '{attr_path}' into encrypted store")
+            except Exception as e:
+                logger.error(f"Failed to encrypt secret '{attr_path}': {e}")
+                continue
+
+            # Update the YAML file to replace plaintext with $secret: reference
+            try:
+                with open(config_path) as f:
+                    yaml_content = yaml.safe_load(f) or {}
+
+                # Navigate YAML dict and replace the value
+                yaml_obj = yaml_content
+                for part in parts[:-1]:
+                    if part not in yaml_obj or not isinstance(yaml_obj[part], dict):
+                        yaml_obj[part] = {}
+                    yaml_obj = yaml_obj[part]
+
+                yaml_obj[parts[-1]] = f"$secret:{secret_name}"
+
+                with open(config_path, "w") as f:
+                    yaml.safe_dump(yaml_content, f, default_flow_style=False, sort_keys=False)
+
+                config_path.chmod(0o600)
+                migrated_any = True
+                logger.info(f"Updated YAML: '{attr_path}' -> '$secret:{secret_name}'")
+            except Exception as e:
+                logger.error(f"Failed to update YAML for '{attr_path}': {e}")
+
+        # Reload config so resolved values are available for the rest of startup
+        if migrated_any:
+            self.config = load_config(
+                config_file=self._config_file,
+                secret_resolver=self.secret_store.get,
+                config_store=self.config_store,
+            )
 
     def _setup_agent_event_broadcasting(self) -> None:
         """Set up WebSocket broadcasting for agent lifecycle events, PTY reading, and tmux streaming."""

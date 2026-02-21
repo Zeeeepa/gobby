@@ -199,6 +199,10 @@ ${cliRows}
 |------|------|--------|
 ${projectRows}
 
+## Services
+- Neo4j: ${state.neo4j_installed ? "installed (Docker)" : "not installed"}
+- Neo4j password: ${state.neo4j_password_set ? "custom" : state.neo4j_installed ? "auto-generated" : "n/a"}
+
 ## Personal Workspace
 - Path: ~/.gobby/personal/
 - Desktop shortcut: ${state.desktop_shortcut_created ? "~/Desktop/Gobby Personal" : "not created"}

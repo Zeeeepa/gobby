@@ -14,6 +14,7 @@ import { NetworkSecurity } from "./steps/NetworkSecurity.js";
 import { Tailscale } from "./steps/Tailscale.js";
 import { ProjectDiscovery } from "./steps/ProjectDiscovery.js";
 import { CliHooks } from "./steps/CliHooks.js";
+import { Services } from "./steps/Services.js";
 import { PersonalWorkspace } from "./steps/PersonalWorkspace.js";
 import { Launch } from "./steps/Launch.js";
 
@@ -47,6 +48,12 @@ const STEPS: StepDef[] = [
   },
   { id: "projects", label: "Project Discovery", component: ProjectDiscovery },
   { id: "hooks", label: "CLI Hooks", component: CliHooks },
+  {
+    id: "services",
+    label: "Services",
+    component: Services,
+    skipIf: (s) => !s.detected_tools?.docker,
+  },
   { id: "personal", label: "Personal Workspace", component: PersonalWorkspace },
   { id: "launch", label: "Launch", component: Launch },
 ];

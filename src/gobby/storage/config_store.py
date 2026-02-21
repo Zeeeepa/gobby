@@ -31,6 +31,7 @@ _SECRET_SUFFIXES = (
     "_access_token",
     "_auth_token",
     "_secret_key",
+    "_auth",
 )
 
 
