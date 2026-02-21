@@ -29,8 +29,8 @@ import logging
 import os
 import sys
 from dataclasses import dataclass
-from typing import Any
 from pathlib import Path
+from typing import Any
 
 import aiofiles
 
@@ -354,7 +354,9 @@ def parse_arguments() -> argparse.Namespace:
 # ── Hook Logging ────────────────────────────────────────────────────────
 
 
-def log_hook_details(logger: logging.Logger, hook_type: str, input_data: dict[str, Any], debug_mode: bool) -> None:
+def log_hook_details(
+    logger: logging.Logger, hook_type: str, input_data: dict[str, Any], debug_mode: bool
+) -> None:
     """Log hook-specific details.
 
     Uses normalized hook names to handle different naming conventions

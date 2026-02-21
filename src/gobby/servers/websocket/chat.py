@@ -816,7 +816,9 @@ class ChatMixin:
 
         session = self._chat_sessions.get(conversation_id_raw) if conversation_id_raw else None
         if session is None or conversation_id_raw is None:
-            logger.warning("plan_approval_response for unknown conversation: %s", conversation_id_raw)
+            logger.warning(
+                "plan_approval_response for unknown conversation: %s", conversation_id_raw
+            )
             return
         conversation_id: str = conversation_id_raw
 

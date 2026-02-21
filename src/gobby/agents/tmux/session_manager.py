@@ -25,6 +25,7 @@ class TmuxSessionInfo:
     name: str
     created_at: float = field(default_factory=time.time)
     pane_pid: int | None = None
+    pane_id: str | None = None
     window_name: str | None = None
     pane_title: str | None = None
     pane_dead: bool = False
@@ -254,11 +255,11 @@ class TmuxSessionManager:
 
     async def list_sessions(self) -> list[TmuxSessionInfo]:
         """List all Gobby tmux sessions on the isolated socket."""
-        # Fetch name, pid, window name, pane title, and pane_dead status in one go
+        # Fetch name, pid, pane_id, window name, pane title, and pane_dead status in one go
         rc, stdout, _stderr = await self._run(
             "list-sessions",
             "-F",
-            "#{session_name}\t#{pane_pid}\t#{window_name}\t#{pane_title}\t#{pane_dead}",
+            "#{session_name}\t#{pane_pid}\t#{pane_id}\t#{window_name}\t#{pane_title}\t#{pane_dead}",
         )
         if rc != 0:
             # No server running is rc=1 with "no server running"
@@ -273,13 +274,15 @@ class TmuxSessionManager:
                 name = parts[0]
                 pid_str = parts[1]
                 pid = int(pid_str) if pid_str.isdigit() else None
-                window_name = parts[2] if len(parts) > 2 and parts[2] else None
-                pane_title = parts[3] if len(parts) > 3 and parts[3] else None
-                pane_dead = parts[4] == "1" if len(parts) > 4 else False
+                pane_id = parts[2] if len(parts) > 2 and parts[2] else None
+                window_name = parts[3] if len(parts) > 3 and parts[3] else None
+                pane_title = parts[4] if len(parts) > 4 and parts[4] else None
+                pane_dead = parts[5] == "1" if len(parts) > 5 else False
                 results.append(
                     TmuxSessionInfo(
                         name=name,
                         pane_pid=pid,
+                        pane_id=pane_id,
                         window_name=window_name,
                         pane_title=pane_title,
                         pane_dead=pane_dead,

@@ -102,7 +102,7 @@ export function TerminalsPage({
     const customName = terminalNames[key]
     if (customName) return customName
     const s = sessions.find(s => s.name === attachedSession && s.socket === attachedSocketRef.current)
-    return s?.session_title || null
+    return s?.session_title || s?.pane_title || s?.window_name || null
   }, [attachedSession, terminalNames, sessions])
 
   const attachedPid = useMemo(() => {
@@ -299,7 +299,7 @@ function SessionGroup({ label, sessions, attachedSession, streamingId, terminalN
       {sessions.map((session) => {
         const isAttached = attachedSession === session.name && streamingId !== null
         const nameKey = `${session.socket}:${session.name}`
-        const displayName = terminalNames[nameKey] || session.session_title || session.name
+        const displayName = terminalNames[nameKey] || session.session_title || session.pane_title || session.window_name || session.name
         const isEditing = editingKey === nameKey
 
         return (

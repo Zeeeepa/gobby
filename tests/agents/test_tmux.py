@@ -198,12 +198,19 @@ class TestTmuxSessionManager:
     async def test_list_sessions_with_entries(self) -> None:
         mgr = TmuxSessionManager()
         with patch.object(mgr, "_run", new_callable=AsyncMock) as mock_run:
-            mock_run.return_value = (0, "session1\t100\nsession2\t200\n", "")
+            # Format: session_name\tpane_pid\tpane_id\twindow_name\tpane_title\tpane_dead
+            mock_run.return_value = (
+                0,
+                "session1\t100\t%1\tzsh\t\t0\nsession2\t200\t%2\tzsh\t\t0\n",
+                "",
+            )
             result = await mgr.list_sessions()
             assert len(result) == 2
             assert result[0].name == "session1"
             assert result[0].pane_pid == 100
+            assert result[0].pane_id == "%1"
             assert result[1].name == "session2"
+            assert result[1].pane_id == "%2"
 
     @pytest.mark.asyncio
     async def test_has_session(self) -> None:
@@ -332,6 +339,7 @@ class TestTmuxSessionInfo:
         info = TmuxSessionInfo(name="test")
         assert info.name == "test"
         assert info.pane_pid is None
+        assert info.pane_id is None
         assert info.window_name is None
         assert info.created_at > 0
 

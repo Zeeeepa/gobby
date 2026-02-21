@@ -367,7 +367,9 @@ class ClaudeLLMProvider(LLMProvider):
             self.logger.warning(f"generate_text failed (attempt {attempt + 1}), retrying: {error}")
 
         try:
-            result: str = await self._retry_async(_run_query, max_retries=3, delay=2.0, on_retry=_on_retry)
+            result: str = await self._retry_async(
+                _run_query, max_retries=3, delay=2.0, on_retry=_on_retry
+            )
             return result
         except Exception as e:
             self.logger.error(f"Failed to generate text with Claude: {e}", exc_info=True)

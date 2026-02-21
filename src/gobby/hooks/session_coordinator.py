@@ -430,9 +430,7 @@ class SessionCoordinator:
                     kill_cmd.extend(["kill-session", "-t", tmux_session_name])
                     subprocess.run(kill_cmd, capture_output=True, timeout=5)
                 except Exception as e:
-                    self.logger.debug(
-                        f"tmux kill-session failed for {tmux_session_name}: {e}"
-                    )
+                    self.logger.debug(f"tmux kill-session failed for {tmux_session_name}: {e}")
 
             # Count tool calls and turns from session messages
             tool_calls_count = 0
