@@ -819,6 +819,8 @@ class GobbyRunner:
     ) -> None:
         """Rebuild VectorStore index in the background."""
         try:
+            if self.vector_store is None:
+                return
             await self.vector_store.rebuild(memory_dicts, embed_fn)
             logger.info("VectorStore rebuild complete")
         except asyncio.CancelledError:

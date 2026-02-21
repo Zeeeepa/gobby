@@ -811,13 +811,14 @@ class ChatMixin:
             "feedback": "optional feedback text"
         }
         """
-        conversation_id = data.get("conversation_id")
+        conversation_id_raw: str | None = data.get("conversation_id")
         decision = data.get("decision", "")
 
-        session = self._chat_sessions.get(conversation_id) if conversation_id else None
-        if session is None:
-            logger.warning(f"plan_approval_response for unknown conversation: {conversation_id}")
+        session = self._chat_sessions.get(conversation_id_raw) if conversation_id_raw else None
+        if session is None or conversation_id_raw is None:
+            logger.warning(f"plan_approval_response for unknown conversation: {conversation_id_raw}")
             return
+        conversation_id: str = conversation_id_raw
 
         if decision == "approve":
             session.approve_plan()

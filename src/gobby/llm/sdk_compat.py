@@ -76,7 +76,7 @@ def _tolerant_parse_message(data: dict[str, Any]) -> object | None:
             parsed._model_usage = model_usage  # type: ignore[attr-defined]
             logger.debug("Stashed modelUsage on ResultMessage: %s", model_usage)
 
-    return parsed  # type: ignore[no-any-return]
+    return parsed
 
 
 # Patch both import sites so the tolerant version is used everywhere.

@@ -101,6 +101,8 @@ class ChatSession(ChatSessionPermissionsMixin):
     _message_manager_source_session_id: str | None = field(default=None, repr=False)
     _max_history_message_chars: int = field(default=2000, repr=False)
     _max_history_total_chars: int = field(default=30_000, repr=False)
+    _accumulated_output_tokens: int = field(default=0, repr=False)
+    _accumulated_cost_usd: float = field(default=0.0, repr=False)
 
     # Lifecycle callbacks — set by ChatMixin to bridge SDK hooks to workflow engine
     _on_before_agent: Callable[[dict[str, Any]], Awaitable[dict[str, Any] | None]] | None = field(

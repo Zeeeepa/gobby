@@ -824,7 +824,7 @@ def create_admin_router(server: "HTTPServer") -> APIRouter:
         if not state_path.exists():
             return {"exists": False}
         try:
-            data = json.loads(state_path.read_text())
+            data: dict[str, Any] = json.loads(state_path.read_text())
             data["exists"] = True
             return data
         except (json.JSONDecodeError, OSError) as exc:

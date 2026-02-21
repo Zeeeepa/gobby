@@ -25,9 +25,11 @@ Exit Codes:
 import argparse
 import asyncio
 import json
+import logging
 import os
 import sys
 from dataclasses import dataclass
+from typing import Any
 from pathlib import Path
 
 import aiofiles
@@ -256,7 +258,7 @@ def _detect_source(config: CLIConfig) -> str:
 # ── Block Detection (unified across all CLIs) ──────────────────────────
 
 
-def is_blocked(result: dict) -> bool:
+def is_blocked(result: dict[str, Any]) -> bool:
     """Check if daemon response indicates a block/deny.
 
     Checks all block patterns used across CLIs:
@@ -274,7 +276,7 @@ def is_blocked(result: dict) -> bool:
     return False
 
 
-def extract_reason(result: dict) -> str:
+def extract_reason(result: dict[str, Any]) -> str:
     """Extract block reason from daemon response.
 
     Checks all reason fields used across CLIs in priority order:
@@ -352,7 +354,7 @@ def parse_arguments() -> argparse.Namespace:
 # ── Hook Logging ────────────────────────────────────────────────────────
 
 
-def log_hook_details(logger, hook_type: str, input_data: dict, debug_mode: bool) -> None:
+def log_hook_details(logger: logging.Logger, hook_type: str, input_data: dict[str, Any], debug_mode: bool) -> None:
     """Log hook-specific details.
 
     Uses normalized hook names to handle different naming conventions
@@ -454,7 +456,7 @@ def log_hook_details(logger, hook_type: str, input_data: dict, debug_mode: bool)
 # ── Main ────────────────────────────────────────────────────────────────
 
 
-def _find_project_config(cwd: str) -> dict | None:
+def _find_project_config(cwd: str) -> dict[str, Any] | None:
     """Walk up from cwd to find .gobby/project.json and return parsed content.
 
     Uses stdlib only (no external deps). Returns None if not found or invalid.
@@ -465,7 +467,8 @@ def _find_project_config(cwd: str) -> dict | None:
         if project_json.is_file():
             try:
                 with open(project_json) as f:
-                    return json.load(f)
+                    data: dict[str, Any] = json.load(f)
+                    return data
             except (json.JSONDecodeError, OSError):
                 return None
         parent = current.parent
@@ -524,8 +527,6 @@ async def main() -> int:
             return 0
 
     # Setup logger for dispatcher
-    import logging
-
     logger = logging.getLogger(config.logger_name)
     if debug_mode:
         logging.basicConfig(level=logging.DEBUG)

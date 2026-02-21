@@ -152,7 +152,7 @@ def decode_llm_response[T](
 
     try:
         # msgspec.json.decode returns Any at runtime when using TypeVar
-        return msgspec.json.decode(json_str.encode(), type=response_type, strict=strict)  # type: ignore[no-any-return]
+        return msgspec.json.decode(json_str.encode(), type=response_type, strict=strict)
     except msgspec.ValidationError as e:
         logger.warning(f"Invalid LLM response structure: {e}")
         return None

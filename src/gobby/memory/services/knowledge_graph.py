@@ -435,7 +435,7 @@ class KnowledgeGraphService:
         to substring match. Returns empty list if Neo4j is unreachable.
         """
         # Try vector search first
-        if self._embed_fn:
+        if self._embed_fn is not None:
             try:
                 embedding = await self._embed_fn(query)
                 results = await self.search_entities_by_vector(
