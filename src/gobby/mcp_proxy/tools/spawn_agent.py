@@ -647,14 +647,14 @@ async def spawn_agent_impl(
                 except Exception as e:
                     logger.warning(f"Deferred health check for {_run_id} failed: {e}")
 
-            task = asyncio.create_task(
+            health_task = asyncio.create_task(
                 _deferred_health_check(
                     run_id, spawn_result.tmux_session_name, TMUX_HEALTH_CHECK_DELAY
                 ),
                 name=f"tmux-health-{run_id}",
             )
-            _health_check_tasks.add(task)
-            task.add_done_callback(_health_check_tasks.discard)
+            _health_check_tasks.add(health_task)
+            health_task.add_done_callback(_health_check_tasks.discard)
     else:
         # Spawn failed — remove pre-registered entry and mark DB record as failed
         agent_registry.remove(run_id, status="failed")

@@ -261,7 +261,7 @@ triggers:
             - list_ready_tasks() - List available tasks.
 
         # Block file edits without active task (replaces require_active_task)
-        # Allow plan file writes during plan mode (/.claude/plans/ path check)
+        # Allow plan file writes during plan mode (/.claude/plans/ and /.gobby/plans/ path check)
         - tools: [Edit, Write, NotebookEdit]
           when: "variables.get('require_task_before_edit') and not task_claimed and not (plan_mode and is_plan_file(tool_input.get('file_path', ''), source))"
           reason: |

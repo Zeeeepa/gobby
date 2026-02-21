@@ -272,7 +272,7 @@ class AgentEventHandlerMixin(EventHandlersBase):
         try:
             state = self._workflow_handler.engine.state_manager.get_state(session_id)
             if state:
-                return state.variables.get("mode_level", 2) == 0
+                return bool(state.variables.get("mode_level", 2) == 0)
         except Exception:
             pass
         return False
