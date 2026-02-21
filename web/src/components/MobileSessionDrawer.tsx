@@ -32,7 +32,11 @@ export function MobileSessionDrawer({
     <div className={`mobile-chat-drawer ${isOpen ? '' : 'collapsed'}`}>
       <div
         className="mobile-chat-drawer-header"
+        role="button"
+        tabIndex={0}
+        aria-expanded={isOpen}
         onClick={() => setIsOpen(!isOpen)}
+        onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setIsOpen(!isOpen) } }}
       >
         <span className="mobile-chat-drawer-title">
           <SessionsIcon />
