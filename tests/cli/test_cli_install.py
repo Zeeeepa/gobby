@@ -927,6 +927,10 @@ class TestUninstallCommand:
         assert result.exit_code == 0
         assert "(no codex integration found to remove)" in result.output
 
+    @patch("gobby.cli.install.uninstall_windsurf")
+    @patch("gobby.cli.install.uninstall_cursor")
+    @patch("gobby.cli.install.uninstall_copilot")
+    @patch("gobby.cli.install.uninstall_codex_notify")
     @patch("gobby.cli.install.uninstall_claude")
     @patch("gobby.cli.install.uninstall_gemini")
     @patch("gobby.cli.load_config")
@@ -935,6 +939,10 @@ class TestUninstallCommand:
         mock_load_config: MagicMock,
         mock_uninstall_gemini: MagicMock,
         mock_uninstall_claude: MagicMock,
+        _mock_uninstall_codex: MagicMock,
+        _mock_uninstall_copilot: MagicMock,
+        _mock_uninstall_cursor: MagicMock,
+        _mock_uninstall_windsurf: MagicMock,
         runner: CliRunner,
         temp_dir: Path,
     ) -> None:
@@ -949,6 +957,26 @@ class TestUninstallCommand:
         mock_uninstall_gemini.return_value = {
             "success": True,
             "hooks_removed": ["SessionStart"],
+            "files_removed": [],
+        }
+        _mock_uninstall_codex.return_value = {
+            "success": True,
+            "files_removed": [],
+            "config_updated": False,
+        }
+        _mock_uninstall_copilot.return_value = {
+            "success": True,
+            "hooks_removed": [],
+            "files_removed": [],
+        }
+        _mock_uninstall_cursor.return_value = {
+            "success": True,
+            "hooks_removed": [],
+            "files_removed": [],
+        }
+        _mock_uninstall_windsurf.return_value = {
+            "success": True,
+            "hooks_removed": [],
             "files_removed": [],
         }
 
@@ -1015,6 +1043,10 @@ class TestUninstallCommand:
         assert result.exit_code == 0
         mock_uninstall_claude.assert_called_once()
 
+    @patch("gobby.cli.install.uninstall_windsurf")
+    @patch("gobby.cli.install.uninstall_cursor")
+    @patch("gobby.cli.install.uninstall_copilot")
+    @patch("gobby.cli.install.uninstall_codex_notify")
     @patch("gobby.cli.install.uninstall_claude")
     @patch("gobby.cli.install.uninstall_gemini")
     @patch("gobby.cli.load_config")
@@ -1023,6 +1055,10 @@ class TestUninstallCommand:
         mock_load_config: MagicMock,
         mock_uninstall_gemini: MagicMock,
         mock_uninstall_claude: MagicMock,
+        _mock_uninstall_codex: MagicMock,
+        _mock_uninstall_copilot: MagicMock,
+        _mock_uninstall_cursor: MagicMock,
+        _mock_uninstall_windsurf: MagicMock,
         runner: CliRunner,
         temp_dir: Path,
     ) -> None:
@@ -1037,6 +1073,26 @@ class TestUninstallCommand:
         mock_uninstall_gemini.return_value = {
             "success": True,
             "hooks_removed": ["SessionStart"],
+            "files_removed": [],
+        }
+        _mock_uninstall_codex.return_value = {
+            "success": True,
+            "files_removed": [],
+            "config_updated": False,
+        }
+        _mock_uninstall_copilot.return_value = {
+            "success": True,
+            "hooks_removed": [],
+            "files_removed": [],
+        }
+        _mock_uninstall_cursor.return_value = {
+            "success": True,
+            "hooks_removed": [],
+            "files_removed": [],
+        }
+        _mock_uninstall_windsurf.return_value = {
+            "success": True,
+            "hooks_removed": [],
             "files_removed": [],
         }
 
