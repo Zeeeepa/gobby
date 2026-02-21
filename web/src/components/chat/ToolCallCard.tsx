@@ -133,13 +133,18 @@ function ToolArgumentsContent({ args }: { args: Record<string, unknown> }) {
     )
   }
 
-  // Fallback: raw JSON
+  // Fallback: syntax-highlighted JSON
   return (
     <div>
       <div className="text-muted-foreground mb-1 font-medium">Arguments</div>
-      <pre className="bg-muted rounded p-2 overflow-x-auto text-foreground">
+      <SyntaxHighlighter
+        style={highlighterTheme}
+        language="json"
+        PreTag="div"
+        customStyle={{ margin: 0, borderRadius: '0.25rem', maxHeight: '24rem', overflow: 'auto' }}
+      >
         {JSON.stringify(args, null, 2)}
-      </pre>
+      </SyntaxHighlighter>
     </div>
   )
 }
@@ -147,7 +152,16 @@ function ToolArgumentsContent({ args }: { args: Record<string, unknown> }) {
 function ToolResultContent({ call }: { call: ToolCall }) {
   let resultStr: string
   try {
-    resultStr = typeof call.result === 'string' ? call.result : JSON.stringify(call.result, null, 2)
+    if (typeof call.result === 'string') {
+      // Try to pretty-print if it's a JSON string
+      try {
+        resultStr = JSON.stringify(JSON.parse(call.result), null, 2)
+      } catch {
+        resultStr = call.result
+      }
+    } else {
+      resultStr = JSON.stringify(call.result, null, 2)
+    }
   } catch (e) {
     if (process.env.NODE_ENV === 'development') console.error('Failed to serialize tool call result:', e)
     resultStr = String(call.result)
