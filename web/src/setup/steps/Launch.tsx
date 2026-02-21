@@ -16,13 +16,17 @@ export function Launch({ state, setState, onNext }: StepProps): React.ReactEleme
   const [healthy, setHealthy] = useState(false);
 
   useEffect(() => {
+    let cancelled = false;
+
     const run = async (): Promise<void> => {
       // Start daemon
       runGobby(["start"], { timeout: 15000 });
+      if (cancelled) return;
       setPhase("waiting");
 
       // Wait for health
       const ok = await checkHealth(state.ports.http, 30000);
+      if (cancelled) return;
       setHealthy(ok);
 
       // Write INITIAL_SETUP.md
@@ -51,10 +55,15 @@ export function Launch({ state, setState, onNext }: StepProps): React.ReactEleme
         /* browser open is best-effort */
       }
 
+      if (cancelled) return;
       setPhase("done");
     };
 
     run();
+
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   if (phase === "starting") {

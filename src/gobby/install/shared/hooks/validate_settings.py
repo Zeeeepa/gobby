@@ -230,7 +230,7 @@ def validate(config: ValidationConfig) -> int:
         if config.nested:
             # Claude/Gemini: nested structure with "hooks" array
             first_config = hook_configs[0]
-            if "hooks" not in first_config:
+            if not isinstance(first_config.get("hooks"), list) or not first_config["hooks"]:
                 print(f"No 'hooks' array in {hook_type} configuration")
                 return 1
             command = first_config["hooks"][0].get("command", "")

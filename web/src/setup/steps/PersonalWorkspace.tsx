@@ -1,6 +1,7 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { Text, Box } from "ink";
 import SelectInput from "ink-select-input";
+import Spinner from "ink-spinner";
 import { mkdirSync, symlinkSync, existsSync, unlinkSync, lstatSync } from "fs";
 import { join } from "path";
 import { homedir } from "os";
@@ -30,7 +31,8 @@ export function PersonalWorkspace({ state, setState, onNext }: StepProps): React
     setTimeout(onNext, 300);
   };
 
-  if (phase === "init") {
+  useEffect(() => {
+    if (phase !== "init") return;
     // Create personal dir and init project
     mkdirSync(personalDir, { recursive: true });
     const r = runGobby(["init", "--name", "_personal"], {
@@ -43,6 +45,14 @@ export function PersonalWorkspace({ state, setState, onNext }: StepProps): React
       : `  Personal workspace: ${personalDir}`;
     setInitMsg(msg);
     setPhase("shortcut");
+  }, [phase]);
+
+  if (phase === "init") {
+    return (
+      <Text>
+        <Spinner type="dots" /> Creating personal workspace...
+      </Text>
+    );
   }
 
   if (phase === "shortcut") {

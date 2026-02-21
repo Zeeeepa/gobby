@@ -252,8 +252,13 @@ class ChatSessionPermissionsMixin:
         """Store user feedback for plan revision."""
         self._plan_feedback = feedback
 
-    def _get_plan_mode_context(self) -> str | None:
-        """Return plan mode system context for additionalContext injection."""
+    def _consume_plan_mode_context(self) -> str | None:
+        """Return plan mode system context for additionalContext injection.
+
+        NOTE: This method has a side effect — it clears ``_plan_feedback``
+        after injecting it so the feedback is only sent once.  The name
+        ``_consume_`` signals this mutation to callers.
+        """
         if self.chat_mode != "plan":
             return None
 

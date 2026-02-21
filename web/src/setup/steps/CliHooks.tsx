@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { Text, Box } from "ink";
 import Spinner from "ink-spinner";
 import { runGobby } from "../utils/gobby.js";
@@ -28,6 +28,7 @@ const CLI_FLAGS: Record<string, string> = {
 export function CliHooks({ state, setState, onNext }: StepProps): React.ReactElement {
   const [phase, setPhase] = useState<"select" | "installing" | "done">("select");
   const [results, setResults] = useState<string[]>([]);
+  const [selected, setSelected] = useState<string[]>([]);
 
   const detected = state.detected_tools;
   const available = Object.keys(CLI_LABELS).filter((k) => detected[k]);
@@ -45,6 +46,36 @@ export function CliHooks({ state, setState, onNext }: StepProps): React.ReactEle
     setTimeout(onNext, 300);
   };
 
+  // Auto-advance when no CLIs detected
+  useEffect(() => {
+    if (available.length > 0 || phase !== "select") return;
+    const timer = setTimeout(() => finish([]), 300);
+    return () => clearTimeout(timer);
+  }, [available.length, phase]);
+
+  // Run install after render so the spinner is visible
+  useEffect(() => {
+    if (phase !== "installing") return;
+
+    const flags = selected.map((k) => CLI_FLAGS[k]).filter(Boolean);
+    const r = runGobby(["install", ...flags], { timeout: 60000 });
+
+    const lines: string[] = [];
+    const installed: string[] = [];
+    if (r.success) {
+      for (const k of selected) {
+        lines.push(`  Installed: ${CLI_LABELS[k]}`);
+        installed.push(k);
+      }
+    } else {
+      lines.push(`  Install output: ${r.output.trim().slice(0, 200)}`);
+    }
+
+    setResults(lines);
+    setPhase("done");
+    finish(installed);
+  }, [phase]);
+
   if (available.length === 0) {
     if (phase === "select") {
       return (
@@ -55,11 +86,6 @@ export function CliHooks({ state, setState, onNext }: StepProps): React.ReactEle
               {"  "}Run gobby install later when you have CLIs installed.
             </Text>
           </Box>
-          {/* Auto-advance */}
-          {(() => {
-            setTimeout(() => finish([]), 300);
-            return null;
-          })()}
         </Box>
       );
     }
@@ -76,34 +102,13 @@ export function CliHooks({ state, setState, onNext }: StepProps): React.ReactEle
             label: CLI_LABELS[k],
             value: k,
           }))}
-          onSubmit={(selected) => {
-            if (selected.length === 0) {
+          onSubmit={(sel) => {
+            if (sel.length === 0) {
               finish([]);
               return;
             }
-
+            setSelected(sel);
             setPhase("installing");
-
-            // Build gobby install flags
-            const flags = selected
-              .map((k) => CLI_FLAGS[k])
-              .filter(Boolean);
-            const r = runGobby(["install", ...flags], { timeout: 60000 });
-
-            const lines: string[] = [];
-            const installed: string[] = [];
-            if (r.success) {
-              for (const k of selected) {
-                lines.push(`  Installed: ${CLI_LABELS[k]}`);
-                installed.push(k);
-              }
-            } else {
-              lines.push(`  Install output: ${r.output.trim().slice(0, 200)}`);
-            }
-
-            setResults(lines);
-            setPhase("done");
-            finish(installed);
           }}
         />
       </Box>

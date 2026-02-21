@@ -77,6 +77,7 @@ async def _check_tmux_session_alive(
         return proc.returncode == 0
     except TimeoutError:
         proc.kill()
+        await proc.wait()  # Reap the process to avoid zombie
         return True  # Timed out, assume alive
     except asyncio.CancelledError:
         raise

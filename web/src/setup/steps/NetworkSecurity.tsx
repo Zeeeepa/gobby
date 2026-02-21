@@ -3,7 +3,7 @@ import { Text, Box } from "ink";
 import SelectInput from "ink-select-input";
 import Spinner from "ink-spinner";
 import { spawnSync } from "child_process";
-import { existsSync, readFileSync, writeFileSync } from "fs";
+import { existsSync, readFileSync, writeFileSync, unlinkSync } from "fs";
 import { join } from "path";
 import { tmpdir } from "os";
 import { StatusMessage } from "../components/StatusMessage.js";
@@ -90,6 +90,8 @@ export function NetworkSecurity({ state, setState, onNext }: StepProps): React.R
               } catch {
                 setResult("failed");
                 finish(false);
+              } finally {
+                try { unlinkSync(tmpScript); } catch { /* best-effort cleanup */ }
               }
               setPhase("done");
             }}

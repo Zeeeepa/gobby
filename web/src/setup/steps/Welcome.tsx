@@ -31,11 +31,15 @@ export function Welcome({ state, setState, onNext }: StepProps): React.ReactElem
             ]}
             onSelect={(item) => {
               if (item.value === "fresh") {
-                setState((prev) => ({
-                  ...prev,
-                  completed_step_id: null,
-                  started_at: new Date().toISOString(),
-                }));
+                setState((prev) => {
+                  const next = {
+                    ...prev,
+                    completed_step_id: null,
+                    started_at: new Date().toISOString(),
+                  };
+                  saveState(next);
+                  return next;
+                });
               }
               setAskingResume(false);
               onNext();

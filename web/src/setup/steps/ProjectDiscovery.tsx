@@ -15,6 +15,7 @@ export function ProjectDiscovery({ state, setState, onNext }: StepProps): React.
   const [repos, setRepos] = useState<string[]>([]);
   const [phase, setPhase] = useState<"scan" | "select" | "init" | "done">("scan");
   const [initResults, setInitResults] = useState<string[]>([]);
+  const [selected, setSelected] = useState<string[]>([]);
 
   useEffect(() => {
     const found = findRepos();
@@ -36,6 +37,23 @@ export function ProjectDiscovery({ state, setState, onNext }: StepProps): React.
     setTimeout(onNext, 300);
   };
 
+  // Run init after render so the spinner is visible
+  useEffect(() => {
+    if (phase !== "init") return;
+    const results: string[] = [];
+    for (const repoPath of selected) {
+      const r = runGobby(["init"], { cwd: repoPath, timeout: 15000 });
+      if (r.success) {
+        results.push(`  Initialized: ${basename(repoPath)}`);
+      } else {
+        results.push(`  Failed: ${basename(repoPath)}: ${r.output.trim().slice(0, 80)}`);
+      }
+    }
+    setInitResults(results);
+    setPhase("done");
+    finish(selected);
+  }, [phase]);
+
   if (scanning) {
     return (
       <Text>
@@ -56,25 +74,13 @@ export function ProjectDiscovery({ state, setState, onNext }: StepProps): React.
             label: `${basename(r)}  ${displayPath(r)}`,
             value: r,
           }))}
-          onSubmit={(selected) => {
-            if (selected.length === 0) {
+          onSubmit={(sel) => {
+            if (sel.length === 0) {
               finish([]);
               return;
             }
-
+            setSelected(sel);
             setPhase("init");
-            const results: string[] = [];
-            for (const repoPath of selected) {
-              const r = runGobby(["init"], { cwd: repoPath, timeout: 15000 });
-              if (r.success) {
-                results.push(`  Initialized: ${basename(repoPath)}`);
-              } else {
-                results.push(`  Failed: ${basename(repoPath)}: ${r.output.trim().slice(0, 80)}`);
-              }
-            }
-            setInitResults(results);
-            setPhase("done");
-            finish(selected);
           }}
         />
       </Box>

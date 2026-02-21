@@ -198,7 +198,7 @@ class ChatSession(ChatSessionPermissionsMixin):
                 output = _response_to_prompt_output(resp)
 
                 # Inject plan mode context into additionalContext
-                plan_ctx = self._get_plan_mode_context()
+                plan_ctx = self._consume_plan_mode_context()
                 if plan_ctx:
                     hook_specific = output.get("hookSpecificOutput")
                     existing = ""
