@@ -160,10 +160,9 @@ class TestVectorStoreInitialization:
 
         vs.rebuild.assert_not_called()
 
-    @pytest.mark.asyncio
-    async def test_default_qdrant_path(self) -> None:
-        """Default qdrant_path should resolve to ~/.gobby/services/qdrant/."""
-        from pathlib import Path
+    def test_default_qdrant_path_config_is_none(self) -> None:
+        """Config default for qdrant_path should be None (runner provides fallback)."""
+        from gobby.config.persistence import MemoryConfig
 
-        default_path = str(Path.home() / ".gobby" / "services" / "qdrant")
-        assert "qdrant" in default_path
+        config = MemoryConfig()
+        assert config.qdrant_path is None

@@ -5,12 +5,16 @@ from __future__ import annotations
 from pathlib import Path
 from unittest.mock import patch
 
+import pytest
+
 from gobby.sync.integrity import (
     CONTENT_TYPE_DIRS,
     IntegrityResult,
     get_dirty_content_types,
     verify_bundled_integrity,
 )
+
+pytestmark = pytest.mark.unit
 
 
 class TestIntegrityResult:

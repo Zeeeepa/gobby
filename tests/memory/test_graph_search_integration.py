@@ -262,11 +262,16 @@ class TestFindRelatedMemoryIds:
         """find_related_memory_ids clamps max_hops to 1-3."""
         mock_neo4j.query = AsyncMock(return_value=[])
 
+        # Upper bound: 10 → 3
         await service.find_related_memory_ids(entity_names=["A"], max_hops=10)
-
-        # Verify the query uses max 3 hops
         call_args = mock_neo4j.query.call_args
         assert "*1..3" in call_args[0][0]
+
+        # Lower bound: 0 → 1
+        mock_neo4j.query.reset_mock()
+        await service.find_related_memory_ids(entity_names=["A"], max_hops=0)
+        call_args = mock_neo4j.query.call_args
+        assert "*1..1" in call_args[0][0]
 
     async def test_graceful_degradation_on_connection_error(
         self,
