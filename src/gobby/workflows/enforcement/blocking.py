@@ -244,6 +244,7 @@ def _evaluate_block_condition(
         "variables": variables,
         "task_claimed": variables.get("task_claimed", False),
         "plan_mode": variables.get("plan_mode", False),
+        "mode_level": variables.get("mode_level", 2),
         "event": event_data or {},
         "tool_input": tool_input or {},
         "session_has_dirty_files": session_has_dirty_files,
@@ -466,7 +467,8 @@ async def block_tools(
             ):
                 continue
 
-        reason = rule.get("reason", f"Tool '{tool_name}' is blocked.")
+        default_reason = kwargs.get("default_reason", f"Tool '{tool_name}' is blocked.")
+        reason = rule.get("reason", default_reason)
 
         # Render Jinja2 template variables in reason message
         if "{{" in reason:

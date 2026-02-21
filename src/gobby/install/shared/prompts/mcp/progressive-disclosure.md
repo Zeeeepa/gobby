@@ -1,16 +1,9 @@
-"""Gobby MCP server instructions.
-
-Provides XML-structured instructions that teach agents how to use Gobby correctly.
-These instructions are injected into the MCP server via FastMCP's `instructions` parameter.
-"""
-
-import logging
-
-from gobby.prompts.sync import get_bundled_prompts_path
-
-logger = logging.getLogger(__name__)
-
-_FALLBACK_INSTRUCTIONS = """<gobby_system>
+---
+name: mcp-progressive-disclosure
+description: MCP server instructions for progressive tool disclosure
+version: "1.0"
+---
+<gobby_system>
 
 <tool_discovery>
 Progressive disclosure is ENFORCED — each step gates the next:
@@ -53,29 +46,4 @@ RIGHT — Just-in-time discovery:
 - NEVER load all tool schemas upfront — use progressive disclosure
 </rules>
 
-</gobby_system>"""
-
-
-def build_gobby_instructions() -> str:
-    """Build instructions for Gobby MCP server.
-
-    Loads instructions from the bundled prompt file on disk. Falls back to the
-    hardcoded string if the file is missing (e.g., editable install without
-    the prompts directory).
-
-    Returns:
-        XML-structured instructions string
-    """
-    prompt_file = get_bundled_prompts_path() / "mcp" / "progressive-disclosure.md"
-    if prompt_file.exists():
-        try:
-            raw = prompt_file.read_text(encoding="utf-8")
-            # Strip frontmatter (between --- delimiters) to get just the content
-            if raw.startswith("---"):
-                parts = raw.split("---", 2)
-                if len(parts) >= 3:
-                    return parts[2].strip()
-            return raw.strip()
-        except OSError:
-            logger.warning("Failed to read prompt file %s, using fallback", prompt_file)
-    return _FALLBACK_INSTRUCTIONS
+</gobby_system>
