@@ -185,7 +185,19 @@ function ToolResultContent({ call }: { call: ToolCall }) {
     }
   }
 
-  return (
+  // Detect if result looks like JSON for syntax highlighting
+  const looksLikeJson = resultStr.trimStart().startsWith('{') || resultStr.trimStart().startsWith('[')
+
+  return looksLikeJson ? (
+    <SyntaxHighlighter
+      style={highlighterTheme}
+      language="json"
+      PreTag="div"
+      customStyle={{ margin: 0, borderRadius: '0.25rem', maxHeight: '24rem', overflow: 'auto' }}
+    >
+      {resultStr}
+    </SyntaxHighlighter>
+  ) : (
     <pre className="bg-muted rounded p-2 overflow-x-auto text-foreground max-h-96 overflow-y-auto font-mono text-xs">
       {resultStr}
     </pre>
