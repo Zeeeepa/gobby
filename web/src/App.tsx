@@ -293,6 +293,12 @@ export default function App() {
     setOnModeChanged(updateChatMode)
   }, [updateChatMode, setOnModeChanged])
 
+  // Reset mode to Plan on conversation switch (mode is per-conversation, not global)
+  useEffect(() => {
+    updateChatMode('plan')
+    sendMode('plan')
+  }, [conversationId]) // eslint-disable-line react-hooks/exhaustive-deps
+
   const handleInputChange = useCallback((value: string) => {
     filterCommands(value)
   }, [filterCommands])

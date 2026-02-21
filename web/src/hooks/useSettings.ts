@@ -19,7 +19,7 @@ export const MODEL_OPTIONS = [
 const DEFAULT_SETTINGS: Settings = {
   fontSize: 16,
   model: 'opus',
-  chatMode: 'bypass',
+  chatMode: 'plan',
   theme: 'dark',
 }
 
@@ -62,10 +62,11 @@ export function useSettings() {
     }
   }, [settings.theme])
 
-  // Persist settings
+  // Persist settings (exclude chatMode — it's per-conversation, not global)
   useEffect(() => {
     try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(settings))
+      const { chatMode: _, ...persistable } = settings
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(persistable))
     } catch (e) {
       console.error('Failed to save settings:', e)
     }
