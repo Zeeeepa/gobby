@@ -11,7 +11,7 @@ from gobby.memory.neo4j_client import (
     Neo4jConnectionError,
 )
 
-pytestmark = pytest.mark.unit
+pytestmark = [pytest.mark.unit, pytest.mark.asyncio]
 
 
 @pytest.fixture

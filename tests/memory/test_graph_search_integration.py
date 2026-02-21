@@ -11,7 +11,7 @@ from gobby.memory.services.knowledge_graph import (
     KnowledgeGraphService,
 )
 
-pytestmark = pytest.mark.unit
+pytestmark = [pytest.mark.unit, pytest.mark.asyncio]
 
 
 @pytest.fixture
