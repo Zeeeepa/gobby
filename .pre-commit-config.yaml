@@ -47,22 +47,19 @@ repos:
 
   # ==========================================================================
   # Type checking (mypy)
-  # Note: Runs on staged Python files in src/ only
-  # To check entire codebase: uv run mypy src/
+  # Uses `uv run` so mypy sees the full project environment and module graph.
+  # Runs on the entire src/ package (not individual files) to avoid false
+  # positives from missing cross-module type inference.
   # ==========================================================================
-  - repo: https://github.com/pre-commit/mirrors-mypy
-    rev: v1.14.1
+  - repo: local
     hooks:
       - id: mypy
-        # Only check src/ files that are staged
+        name: mypy
+        entry: uv run mypy src/
+        language: system
+        pass_filenames: false
         files: ^src/.*\.py$
-        args: [--config-file=pyproject.toml, --ignore-missing-imports]
-        additional_dependencies:
-          - types-PyYAML>=6.0.12.12
-          - pydantic>=2.9.0
-          - fastapi>=0.115.0
-          - click>=8.1.0
-          - httpx>=0.27.0
+        types: [python]
 
   # ==========================================================================
   # Security - secrets detection
