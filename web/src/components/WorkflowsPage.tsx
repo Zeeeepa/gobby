@@ -2,10 +2,8 @@ import { useState, useCallback, useMemo } from 'react'
 import * as yaml from 'js-yaml'
 import { useWorkflows } from '../hooks/useWorkflows'
 import type { WorkflowDetail } from '../hooks/useWorkflows'
-import { WorkflowBuilder, type WorkflowSettings, type WorkflowVariable, type WorkflowRule } from './WorkflowBuilder'
-import { definitionToFlow, flowToDefinition, type FlowNode } from './workflowSerialization'
+import { PipelineEditor } from './PipelineEditor'
 import { CodeMirrorEditor } from './CodeMirrorEditor'
-import type { Node, Edge } from '@xyflow/react'
 import './WorkflowsPage.css'
 
 type OverviewFilter = 'total' | 'workflows' | 'pipelines' | 'active' | null
@@ -188,132 +186,13 @@ export function WorkflowsPage() {
     }
   }, [])
 
-  const handleSave = useCallback(async (nodes: Node[], edges: Edge[], name: string) => {
-    if (!editingWorkflow) return
-    const isPipeline = editingWorkflow.workflow_type === 'pipeline'
-    const { definition, canvasJson } = flowToDefinition(nodes as FlowNode[], edges, isPipeline)
-    // Merge non-canvas fields from original definition
-    try {
-      const origDef = JSON.parse(editingWorkflow.definition_json)
-      // Preserve top-level fields not managed by the canvas
-      for (const key of ['name', 'description', 'version', 'type', 'enabled', 'priority', 'sources', 'settings', 'variables', 'session_variables', 'imports', 'inputs', 'outputs', 'webhooks', 'expose_as_tool']) {
-        if (key in origDef && !(key in definition)) {
-          definition[key] = origDef[key]
-        }
-      }
-    } catch {
-      // ignore parse errors
-    }
-    definition.name = name
-    await updateWorkflow(editingWorkflow.id, {
-      name,
-      definition_json: JSON.stringify(definition),
-      canvas_json: canvasJson,
-    })
-    // Update local editing state with new data
-    setEditingWorkflow((prev) => prev ? {
-      ...prev,
-      name,
-      definition_json: JSON.stringify(definition),
-      canvas_json: canvasJson,
-    } : null)
-  }, [editingWorkflow, updateWorkflow])
-
-  const handleSettingsSave = useCallback(async (settings: WorkflowSettings) => {
-    if (!editingWorkflow) return
-    // Update definition_json with variables, rules, exit_condition
-    let defJson = editingWorkflow.definition_json
-    try {
-      const def = JSON.parse(defJson)
-      // Variables -> object
-      if (settings.variables.length > 0) {
-        const vars: Record<string, string> = {}
-        for (const v of settings.variables) vars[v.key] = v.value
-        def.variables = vars
-      } else {
-        delete def.variables
-      }
-      // Rules
-      if (settings.rules.length > 0) {
-        def.rules = settings.rules.map((r) => ({
-          name: r.name,
-          when: r.when,
-          action: r.action,
-          message: r.message || undefined,
-        }))
-      } else {
-        delete def.rules
-      }
-      // Exit condition
-      if (settings.exitCondition) {
-        def.exit_condition = settings.exitCondition
-      } else {
-        delete def.exit_condition
-      }
-      defJson = JSON.stringify(def)
-    } catch {
-      // ignore parse errors
-    }
-    await updateWorkflow(editingWorkflow.id, {
-      name: settings.name,
-      description: settings.description,
-      enabled: settings.enabled,
-      sources: settings.sources,
-      definition_json: defJson,
-    })
-    setEditingWorkflow((prev) => prev ? {
-      ...prev,
-      name: settings.name,
-      description: settings.description,
-      enabled: settings.enabled,
-      priority: settings.priority,
-      sources: settings.sources,
-      definition_json: defJson,
-    } : null)
-  }, [editingWorkflow, updateWorkflow])
-
   if (editingWorkflow) {
-    const wfType = (editingWorkflow.workflow_type as 'workflow' | 'pipeline') || 'workflow'
-    let initDef: Record<string, unknown> = {}
-    try {
-      initDef = JSON.parse(editingWorkflow.definition_json)
-    } catch {
-      // empty def fallback
-    }
-    const { nodes: initNodes, edges: initEdges } = definitionToFlow(initDef, editingWorkflow.canvas_json)
-
-    // Extract variables, rules, exit_condition from definition
-    const defVariables: WorkflowVariable[] = initDef.variables
-      ? Object.entries(initDef.variables as Record<string, string>).map(([key, value]) => ({ key, value: String(value) }))
-      : []
-    const defRules: WorkflowRule[] = Array.isArray(initDef.rules)
-      ? (initDef.rules as Record<string, unknown>[]).map((r) => ({
-          name: (r.name as string) ?? '',
-          when: (r.when as string) ?? '',
-          action: (r.action as string) ?? 'block',
-          message: (r.message as string) ?? '',
-        }))
-      : []
-    const defExitCondition = (initDef.exit_condition as string) ?? ''
-
     return (
-      <WorkflowBuilder
-        workflowId={editingWorkflow.id}
-        workflowName={editingWorkflow.name}
-        workflowType={wfType}
-        description={editingWorkflow.description ?? ''}
-        enabled={editingWorkflow.enabled}
-        priority={editingWorkflow.priority}
-        sources={editingWorkflow.sources}
-        variables={defVariables}
-        rules={defRules}
-        exitCondition={defExitCondition}
-        initialNodes={initNodes}
-        initialEdges={initEdges}
+      <PipelineEditor
+        pipeline={editingWorkflow}
         onBack={() => { setEditingWorkflow(null); fetchWorkflows() }}
-        onSave={handleSave}
+        updateWorkflow={updateWorkflow}
         onExport={() => handleExport(editingWorkflow)}
-        onSettingsSave={handleSettingsSave}
       />
     )
   }
@@ -505,14 +384,16 @@ export function WorkflowsPage() {
                     >
                       YAML
                     </button>
-                    <button
-                      type="button"
-                      className="workflows-action-btn"
-                      onClick={() => setEditingWorkflow(wf)}
-                      title="Edit in visual builder"
-                    >
-                      Builder
-                    </button>
+                    {wf.workflow_type === 'pipeline' && (
+                      <button
+                        type="button"
+                        className="workflows-action-btn"
+                        onClick={() => setEditingWorkflow(wf)}
+                        title="Edit pipeline steps"
+                      >
+                        Edit
+                      </button>
+                    )}
                     <button
                       type="button"
                       className="workflows-action-icon"
