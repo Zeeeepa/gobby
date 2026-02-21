@@ -34,11 +34,11 @@ export function AboutYou({ state, setState, onNext }: StepProps): React.ReactEle
               const next = {
                 ...prev,
                 user_name: finalName,
-                completed_step_id: "about-you",
+                completed_step_id: "about-you" as const,
               };
-              saveState(next);
               return next;
             });
+            saveState({ ...state, user_name: finalName, completed_step_id: "about-you" });
             setSubmitted(true);
             setTimeout(onNext, 300);
           }}

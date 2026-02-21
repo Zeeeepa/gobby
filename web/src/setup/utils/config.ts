@@ -11,7 +11,10 @@ export function readConfig(): Record<string, unknown> {
   try {
     const raw = readFileSync(configPath(), "utf-8");
     return (parse(raw) as Record<string, unknown>) || {};
-  } catch {
+  } catch (e: unknown) {
+    if (e && typeof e === "object" && "code" in e && (e as { code: string }).code !== "ENOENT") {
+      console.error("Failed to read config:", e);
+    }
     return {};
   }
 }

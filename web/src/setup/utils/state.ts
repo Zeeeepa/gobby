@@ -21,7 +21,8 @@ export interface SetupState {
   desktop_shortcut_created: boolean;
 }
 
-const DEFAULT_STATE: SetupState = {
+function createDefaultState(): SetupState {
+  return {
   version: 2,
   started_at: new Date().toISOString(),
   completed_at: null,
@@ -38,7 +39,8 @@ const DEFAULT_STATE: SetupState = {
   neo4j_password_set: false,
   personal_dir_created: false,
   desktop_shortcut_created: false,
-};
+  };
+}
 
 /** Step ID map for migrating v1 (numeric) state to v2 (string IDs). */
 const V1_STEP_MAP: Record<number, string> = {
@@ -79,9 +81,9 @@ export function loadState(): SetupState {
       delete parsed.completed_step;
     }
 
-    return { ...DEFAULT_STATE, ...parsed };
+    return { ...createDefaultState(), ...parsed };
   } catch {
-    return { ...DEFAULT_STATE, started_at: new Date().toISOString() };
+    return createDefaultState();
   }
 }
 

@@ -57,7 +57,7 @@ export function detectTool(tool: string): string | null {
         const ver = parseVersion(out);
         if (ver) {
           const [major, minor] = ver.split(".").map(Number);
-          if (major >= 3 && minor >= 13) return ver;
+          if (major > 3 || (major === 3 && minor >= 13)) return ver;
         }
       } catch {
         /* try next */

@@ -84,7 +84,8 @@ function computeStepDisplay(
 }
 
 export function App(): React.ReactElement {
-  const [state, setStateRaw] = useState<SetupState>(() => loadState());
+  const [initialState] = useState<SetupState>(() => loadState());
+  const [state, setStateRaw] = useState<SetupState>(initialState);
   const stateRef = useRef(state);
 
   const setState = useCallback(
@@ -100,13 +101,12 @@ export function App(): React.ReactElement {
 
   // Compute initial step index: resume after last completed step
   const [currentIdx, setCurrentIdx] = useState<number>(() => {
-    const initial = loadState();
-    if (!initial.completed_step_id) return findNextActive(0, initial);
+    if (!initialState.completed_step_id) return findNextActive(0, initialState);
     const completedIdx = STEPS.findIndex(
-      (s) => s.id === initial.completed_step_id,
+      (s) => s.id === initialState.completed_step_id,
     );
-    if (completedIdx < 0) return findNextActive(0, initial);
-    return findNextActive(completedIdx + 1, initial);
+    if (completedIdx < 0) return findNextActive(0, initialState);
+    return findNextActive(completedIdx + 1, initialState);
   });
 
   const onNext = useCallback(() => {
