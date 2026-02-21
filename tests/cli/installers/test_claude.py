@@ -1088,7 +1088,7 @@ class TestCleanProjectHooks:
 
     def test_clean_project_hooks_removes_gobby_hooks(self, temp_project: Path) -> None:
         """Test that gobby hooks are removed from project settings."""
-        from gobby.cli.installers.claude import _clean_project_hooks
+        from gobby.cli.installers.shared import clean_project_hooks
 
         claude_path = temp_project / ".claude"
         claude_path.mkdir(parents=True)
@@ -1105,7 +1105,7 @@ class TestCleanProjectHooks:
         }
         (claude_path / "settings.json").write_text(json.dumps(settings))
 
-        removed = _clean_project_hooks(temp_project)
+        removed = clean_project_hooks(temp_project / ".claude" / "settings.json")
 
         assert "SessionStart" in removed
         assert "PreToolUse" in removed
@@ -1117,7 +1117,7 @@ class TestCleanProjectHooks:
 
     def test_clean_project_hooks_preserves_non_gobby_hooks(self, temp_project: Path) -> None:
         """Test that non-gobby hooks are preserved."""
-        from gobby.cli.installers.claude import _clean_project_hooks
+        from gobby.cli.installers.shared import clean_project_hooks
 
         claude_path = temp_project / ".claude"
         claude_path.mkdir(parents=True)
@@ -1133,7 +1133,7 @@ class TestCleanProjectHooks:
         }
         (claude_path / "settings.json").write_text(json.dumps(settings))
 
-        removed = _clean_project_hooks(temp_project)
+        removed = clean_project_hooks(temp_project / ".claude" / "settings.json")
 
         assert "SessionStart" in removed
         assert "PreToolUse" not in removed  # not a gobby hook
@@ -1144,20 +1144,20 @@ class TestCleanProjectHooks:
 
     def test_clean_project_hooks_no_settings_file(self, temp_project: Path) -> None:
         """Test cleanup when no project settings.json exists."""
-        from gobby.cli.installers.claude import _clean_project_hooks
+        from gobby.cli.installers.shared import clean_project_hooks
 
-        removed = _clean_project_hooks(temp_project)
+        removed = clean_project_hooks(temp_project / ".claude" / "settings.json")
         assert removed == []
 
     def test_clean_project_hooks_no_hooks_section(self, temp_project: Path) -> None:
         """Test cleanup when settings has no hooks."""
-        from gobby.cli.installers.claude import _clean_project_hooks
+        from gobby.cli.installers.shared import clean_project_hooks
 
         claude_path = temp_project / ".claude"
         claude_path.mkdir(parents=True)
         (claude_path / "settings.json").write_text(json.dumps({"allowedTools": []}))
 
-        removed = _clean_project_hooks(temp_project)
+        removed = clean_project_hooks(temp_project / ".claude" / "settings.json")
         assert removed == []
 
     @patch("gobby.cli.installers.claude.get_install_dir")

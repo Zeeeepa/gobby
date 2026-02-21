@@ -17,6 +17,7 @@ from gobby.cli.utils import get_install_dir
 
 from .ide_config import configure_ide_terminal_title
 from .shared import (
+    clean_project_hooks,
     install_global_hooks,
     install_shared_content,
     install_shared_hooks,
@@ -72,6 +73,10 @@ def install_cursor(project_path: Path, mode: str = "global") -> dict[str, Any]:
     try:
         if mode == "global":
             install_global_hooks()
+            # Clean up project-level hooks to prevent double-firing
+            cleaned = clean_project_hooks(project_path / ".cursor" / "hooks.json")
+            if cleaned:
+                result["project_hooks_cleaned"] = cleaned
         else:
             install_shared_hooks(hooks_dir, project_path)
     except OSError as e:

@@ -9,9 +9,11 @@ they are synced from bundled YAML to the database during ``gobby install``
 via :func:`sync_bundled_content_to_db`, NOT copied to ``.gobby/`` on disk.
 """
 
+import json
 import logging
 import os
 import shutil
+import tempfile
 from pathlib import Path
 from shutil import copy2, copytree
 from typing import TYPE_CHECKING, Any
@@ -114,6 +116,74 @@ def install_global_hooks() -> list[str]:
         installed.append(filename)
 
     return installed
+
+
+def clean_project_hooks(settings_file: Path) -> list[str]:
+    """Remove gobby hooks from a project-level settings/hooks JSON file.
+
+    When hooks are installed globally, project-level hooks cause duplicates
+    because CLIs merge both levels. This identifies gobby hooks by checking
+    if any command string in the hook entry references ``hook_dispatcher.py``,
+    which works across all CLI config formats (Claude settings.json, Gemini
+    settings.json, Cursor hooks.json, Windsurf hooks.json).
+
+    Args:
+        settings_file: Path to the project-level JSON config file
+
+    Returns:
+        List of hook types that were removed
+    """
+    if not settings_file.exists():
+        return []
+
+    try:
+        with open(settings_file) as f:
+            settings = json.load(f)
+    except (json.JSONDecodeError, OSError) as e:
+        logger.warning(f"Could not read project settings for hook cleanup: {e}")
+        return []
+
+    if "hooks" not in settings:
+        return []
+
+    removed: list[str] = []
+    for hook_type in list(settings["hooks"].keys()):
+        # Serialize the entry and check for our dispatcher signature
+        entry_str = json.dumps(settings["hooks"][hook_type])
+        if "hook_dispatcher.py" in entry_str:
+            del settings["hooks"][hook_type]
+            removed.append(hook_type)
+
+    if not removed:
+        return []
+
+    # Remove empty hooks dict
+    if not settings["hooks"]:
+        del settings["hooks"]
+
+    try:
+        fd, temp_path = tempfile.mkstemp(
+            dir=str(settings_file.parent), suffix=".tmp", prefix="settings_"
+        )
+        try:
+            with os.fdopen(fd, "w") as f:
+                json.dump(settings, f, indent=2)
+                f.flush()
+                os.fsync(f.fileno())
+            os.replace(temp_path, settings_file)
+        except Exception:
+            if os.path.exists(temp_path):
+                os.unlink(temp_path)
+            raise
+    except OSError as e:
+        logger.warning(f"Failed to clean project-level hooks from {settings_file}: {e}")
+        return []
+
+    logger.info(
+        f"Cleaned {len(removed)} gobby hook(s) from {settings_file}: "
+        f"{', '.join(removed)}"
+    )
+    return removed
 
 
 def install_shared_hooks(hooks_dir: Path, project_path: Path) -> list[str]:

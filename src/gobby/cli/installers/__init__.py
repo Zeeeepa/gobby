@@ -15,6 +15,7 @@ from .git_hooks import install_git_hooks
 from .mcp_config import install_default_mcp_servers
 from .neo4j import install_neo4j, uninstall_neo4j
 from .shared import (
+    clean_project_hooks,
     install_cli_content,
     install_global_hooks,
     install_shared_content,
@@ -23,6 +24,7 @@ from .windsurf import install_windsurf, uninstall_windsurf
 
 __all__ = [
     # Shared
+    "clean_project_hooks",
     "install_shared_content",
     "install_cli_content",
     "install_global_hooks",

@@ -16,6 +16,7 @@ from gobby.cli.utils import get_install_dir
 
 from .mcp_config import configure_mcp_server_json, remove_mcp_server_json
 from .shared import (
+    clean_project_hooks,
     install_cli_content,
     install_global_hooks,
     install_shared_content,
@@ -74,6 +75,10 @@ def install_gemini(project_path: Path, mode: str = "global") -> dict[str, Any]:
     # Install hook files
     if mode == "global":
         install_global_hooks()
+        # Clean up project-level hooks to prevent double-firing
+        cleaned = clean_project_hooks(project_path / ".gemini" / "settings.json")
+        if cleaned:
+            result["project_hooks_cleaned"] = cleaned
     else:
         install_shared_hooks(hooks_dir, project_path)
 

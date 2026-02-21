@@ -18,6 +18,7 @@ from gobby.cli.utils import get_install_dir
 
 from .mcp_config import configure_mcp_server_json, remove_mcp_server_json
 from .shared import (
+    clean_project_hooks,
     install_cli_content,
     install_global_hooks,
     install_shared_content,
@@ -41,80 +42,6 @@ _GOBBY_HOOK_TYPES = [
     "SubagentStop",
     "PermissionRequest",
 ]
-
-
-def _clean_project_hooks(project_path: Path) -> list[str]:
-    """Remove gobby hooks from project-level .claude/settings.json.
-
-    When hooks are installed globally, project-level hooks cause duplicates
-    because Claude Code merges both levels. This removes gobby hook entries
-    from the project settings to prevent double-firing.
-
-    Args:
-        project_path: Path to the project root
-
-    Returns:
-        List of hook types that were removed
-    """
-    settings_file = project_path / ".claude" / "settings.json"
-    if not settings_file.exists():
-        return []
-
-    try:
-        with open(settings_file) as f:
-            settings = json.load(f)
-    except (json.JSONDecodeError, OSError) as e:
-        logger.warning(f"Could not read project settings for hook cleanup: {e}")
-        return []
-
-    if "hooks" not in settings:
-        return []
-
-    removed: list[str] = []
-    for hook_type in _GOBBY_HOOK_TYPES:
-        if hook_type not in settings["hooks"]:
-            continue
-        # Only remove if the hook commands reference hook_dispatcher.py (ours)
-        hooks_list = settings["hooks"][hook_type]
-        is_gobby = any(
-            "hook_dispatcher.py" in hook.get("command", "")
-            for entry in hooks_list
-            for hook in entry.get("hooks", [])
-        )
-        if is_gobby:
-            del settings["hooks"][hook_type]
-            removed.append(hook_type)
-
-    if not removed:
-        return []
-
-    # Remove empty hooks dict
-    if not settings["hooks"]:
-        del settings["hooks"]
-
-    try:
-        fd, temp_path = tempfile.mkstemp(
-            dir=str(settings_file.parent), suffix=".tmp", prefix="settings_"
-        )
-        try:
-            with os.fdopen(fd, "w") as f:
-                json.dump(settings, f, indent=2)
-                f.flush()
-                os.fsync(f.fileno())
-            os.replace(temp_path, settings_file)
-        except Exception:
-            if os.path.exists(temp_path):
-                os.unlink(temp_path)
-            raise
-    except OSError as e:
-        logger.warning(f"Failed to clean project-level hooks: {e}")
-        return []
-
-    logger.info(
-        f"Cleaned {len(removed)} gobby hook(s) from project settings "
-        f"(now using global hooks): {', '.join(removed)}"
-    )
-    return removed
 
 
 def install_claude(project_path: Path, mode: str = "global") -> dict[str, Any]:
@@ -174,7 +101,7 @@ def install_claude(project_path: Path, mode: str = "global") -> dict[str, Any]:
         if mode == "global":
             install_global_hooks()
             # Clean up project-level hooks to prevent double-firing
-            cleaned = _clean_project_hooks(project_path)
+            cleaned = clean_project_hooks(project_path / ".claude" / "settings.json")
             if cleaned:
                 result["project_hooks_cleaned"] = cleaned
         else:
