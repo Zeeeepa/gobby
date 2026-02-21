@@ -9,6 +9,7 @@ These tools are registered with the InternalToolRegistry and accessed
 via the downstream proxy pattern (call_tool, list_tools, get_tool_schema).
 """
 
+import asyncio
 import logging
 from collections.abc import Callable
 from typing import TYPE_CHECKING, Any
@@ -193,7 +194,7 @@ def create_pipelines_registry(
 
         project_id = ""
         if session_manager is not None:
-            session = session_manager.get(resolved_id)
+            session = await asyncio.to_thread(session_manager.get, resolved_id)
             if session is None:
                 return {"success": False, "error": f"Session '{session_id}' not found"}
             project_id = session.project_id
@@ -425,7 +426,7 @@ def _create_pipeline_tool(
 
         project_id = ""
         if session_manager is not None:
-            session = session_manager.get(resolved_id)
+            session = await asyncio.to_thread(session_manager.get, resolved_id)
             if session is None:
                 return {"success": False, "error": f"Session '{session_id}' not found"}
             project_id = session.project_id
