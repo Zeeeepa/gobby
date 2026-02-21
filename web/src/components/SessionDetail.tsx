@@ -6,7 +6,7 @@ import { BranchIcon, ChatIcon, SummaryIcon } from './Icons'
 import { MemoizedMarkdown } from './MemoizedMarkdown'
 import { SessionTranscript } from './SessionTranscript'
 import { SessionLineage } from './SessionLineage'
-import { formatDuration, formatTokens, formatCost } from '../utils/formatTime'
+import { DURATION_INVALID, formatDuration, formatTokens, formatCost } from '../utils/formatTime'
 
 interface SessionDetailProps {
   session: GobbySession
@@ -41,7 +41,7 @@ function formatCompactStats(session: GobbySession): string {
   if (session.usage_output_tokens > 0) parts.push(`${formatTokens(session.usage_output_tokens)} out`)
   if (session.usage_total_cost_usd > 0) parts.push(formatCost(session.usage_total_cost_usd))
   const dur = formatDuration(session.created_at, session.updated_at)
-  if (dur !== '\u2014') parts.push(dur)
+  if (dur !== DURATION_INVALID) parts.push(dur)
   if ((session.commit_count ?? 0) > 0) parts.push(`${session.commit_count} commits`)
   if ((session.tasks_closed ?? 0) > 0) parts.push(`${session.tasks_closed} tasks`)
   if ((session.memories_created ?? 0) > 0) parts.push(`${session.memories_created} memories`)
@@ -154,7 +154,7 @@ export function SessionDetail({
             {!session.summary_markdown && !isGeneratingSummary && (
               <button
                 className="session-detail-generate-btn"
-                onClick={(e) => { e.preventDefault(); onGenerateSummary() }}
+                onClick={(e) => { e.preventDefault(); e.stopPropagation(); onGenerateSummary() }}
               >
                 <SummaryIcon /> Generate
               </button>
@@ -162,7 +162,7 @@ export function SessionDetail({
             {session.summary_markdown && !isGeneratingSummary && (
               <button
                 className="session-detail-regenerate-btn"
-                onClick={(e) => { e.preventDefault(); onGenerateSummary() }}
+                onClick={(e) => { e.preventDefault(); e.stopPropagation(); onGenerateSummary() }}
                 title="Regenerate summary"
                 aria-label="Regenerate summary"
               >

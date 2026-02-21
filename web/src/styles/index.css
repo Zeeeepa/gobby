@@ -11258,13 +11258,13 @@ details:not([open]) > .session-metadata-toggle .session-metadata-chevron {
   color: #ef4444;
 }
 .agent-defs-btn--restore {
-  color: #4ade80;
-  border-color: #166534;
+  color: var(--color-success-foreground);
+  border-color: var(--color-success);
 }
 .agent-defs-btn--restore:hover {
-  background: #1a3a2a;
-  color: #4ade80;
-  border-color: #22c55e;
+  background: var(--color-success);
+  color: var(--color-success-foreground);
+  border-color: var(--color-success-foreground);
 }
 .agent-defs-show-deleted {
   display: flex;

@@ -272,9 +272,9 @@
 }
 
 .pipeline-editor-step-action--danger:hover {
-  background: #3a1a1a;
-  color: #f87171;
-  border-color: #7f1d1d;
+  background: var(--color-destructive);
+  color: var(--color-destructive-foreground);
+  border-color: var(--color-destructive);
 }
 
 /* Form fields */
@@ -388,9 +388,9 @@
 }
 
 .pipeline-editor-kv-remove:hover {
-  background: #7f1d1d;
-  border-color: #991b1b;
-  color: #fca5a5;
+  background: var(--color-destructive);
+  border-color: var(--color-destructive);
+  color: var(--color-destructive-foreground);
 }
 
 .pipeline-editor-kv-add {

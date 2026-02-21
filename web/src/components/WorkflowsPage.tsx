@@ -120,13 +120,19 @@ export function WorkflowsPage() {
 
   const handleDelete = useCallback(async (wf: WorkflowDetail) => {
     if (!window.confirm(`Delete "${wf.name}"?`)) return
-    await deleteWorkflow(wf.id)
-    fetchWorkflows({ include_deleted: showDeleted })
+    try {
+      await deleteWorkflow(wf.id)
+    } finally {
+      fetchWorkflows({ include_deleted: showDeleted })
+    }
   }, [deleteWorkflow, fetchWorkflows, showDeleted])
 
   const handleRestore = useCallback(async (wf: WorkflowDetail) => {
-    await restoreWorkflow(wf.id)
-    fetchWorkflows({ include_deleted: showDeleted })
+    try {
+      await restoreWorkflow(wf.id)
+    } finally {
+      fetchWorkflows({ include_deleted: showDeleted })
+    }
   }, [restoreWorkflow, fetchWorkflows, showDeleted])
 
   const handleDuplicate = useCallback(async (wf: WorkflowDetail) => {

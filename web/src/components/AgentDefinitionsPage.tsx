@@ -430,6 +430,7 @@ export function AgentDefinitionsPage() {
               type="checkbox"
               checked={showDeleted}
               onChange={e => setShowDeleted(e.target.checked)}
+              aria-label="Show deleted agent definitions"
             />
             Show deleted
           </label>

@@ -36,7 +36,7 @@ export function MobileSessionDrawer({
         tabIndex={0}
         aria-expanded={isOpen}
         onClick={() => setIsOpen(!isOpen)}
-        onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setIsOpen(!isOpen) } }}
+        onKeyDown={(e) => { if (e.target === e.currentTarget && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); setIsOpen(!isOpen) } }}
       >
         <span className="mobile-chat-drawer-title">
           <SessionsIcon />
