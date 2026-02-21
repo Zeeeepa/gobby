@@ -204,10 +204,11 @@ def uninstall_windsurf(project_path: Path, mode: str = "project") -> dict[str, A
 
     if mode == "global":
         windsurf_path = Path.home() / ".codeium" / "windsurf"
+        hooks_dir = Path.home() / ".gobby" / "hooks"
     else:
         windsurf_path = project_path / ".windsurf"
+        hooks_dir = windsurf_path / "hooks"
     hooks_file = windsurf_path / "hooks.json"
-    hooks_dir = windsurf_path / "hooks"
 
     # Remove hook dispatcher
     dispatcher = hooks_dir / "hook_dispatcher.py"
