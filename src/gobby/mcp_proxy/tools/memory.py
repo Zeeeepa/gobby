@@ -582,7 +582,7 @@ def create_memory_registry(
             errors = 0
             for i, memory in enumerate(memories):
                 try:
-                    await kg.add_to_graph(memory.content)
+                    await kg.add_to_graph(memory.content, memory_id=memory.id)
                     extracted += 1
                 except Exception as e:
                     logger.warning(f"KG extraction failed for {memory.id}: {e}")

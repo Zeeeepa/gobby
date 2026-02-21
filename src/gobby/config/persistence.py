@@ -66,7 +66,7 @@ class MemoryConfig(BaseModel):
         ),
     )
     neo4j_url: str | None = Field(
-        default=None,
+        default="http://localhost:8474",
         description=(
             "Neo4j HTTP API URL for knowledge graph visualization. "
             "Example: 'http://localhost:7474' or 'http://localhost:8474'"
@@ -76,6 +76,7 @@ class MemoryConfig(BaseModel):
         default=None,
         description=(
             "Neo4j authentication in 'user:password' format. "
+            "Set automatically during 'gobby install neo4j'. "
             "Supports ${ENV_VAR} pattern for env var expansion at load time."
         ),
     )
@@ -98,6 +99,18 @@ class MemoryConfig(BaseModel):
     access_debounce_seconds: int = Field(
         default=60,
         description="Minimum seconds between access stat updates for the same memory",
+    )
+    neo4j_graph_search: bool = Field(
+        default=True,
+        description="Enable graph-augmented search (Neo4j entity vector search merged with Qdrant via RRF)",
+    )
+    neo4j_graph_min_score: float = Field(
+        default=0.5,
+        description="Minimum entity vector similarity score for graph search (0.0-1.0)",
+    )
+    neo4j_rrf_k: int = Field(
+        default=60,
+        description="RRF constant for merging Qdrant and graph results (higher = more uniform weighting)",
     )
 
     @field_validator("crossref_threshold")

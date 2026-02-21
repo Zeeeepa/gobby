@@ -143,13 +143,6 @@ triggers:
     - action: reset_memory_injection_tracking
       when: "event.data.get('source') in ['clear', 'compact'] or (event.data.get('source') == 'resume' and variables.get('pending_context_reset'))"
 
-    # Clear synthesized memory context on context loss
-    # Forces Phase 1 to fall back to raw search on next turn
-    - action: set_variable
-      when: "event.data.get('source') in ['clear', 'compact'] or (event.data.get('source') == 'resume' and variables.get('pending_context_reset'))"
-      name: _synthesized_memory_context
-      value: null
-
     # Clear pending_context_reset flag after use (Gemini resume flow)
     - action: set_variable
       when: "variables.get('pending_context_reset')"
@@ -246,9 +239,9 @@ triggers:
     - action: synthesize_title
       when: "session.title == None"
 
-    # Phase 1: Quick recall + inject previous turn's synthesis (blocking)
+    # Phase 1: Search memories using current prompt + digest enrichment (blocking)
     - action: memory_recall_with_synthesis
-      limit: 3
+      limit: 5
 
     # Phase 2: Update digest + synthesize memories (background, zero latency)
     - action: memory_background_digest_and_synthesize
@@ -444,12 +437,6 @@ triggers:
       value: []
     - action: reset_memory_injection_tracking
       when: "event.source.value != 'gemini' or event.data.get('trigger') == 'manual'"
-
-    # Clear synthesized memory context on compact
-    - action: set_variable
-      when: "event.source.value != 'gemini' or event.data.get('trigger') == 'manual'"
-      name: _synthesized_memory_context
-      value: null
 
     # Set flag for pending context reset (checked in on_session_start for 'resume')
     # This allows on_session_start to distinguish manual vs auto compress for Gemini

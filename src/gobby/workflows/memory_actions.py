@@ -4,7 +4,6 @@ Extracted from actions.py as part of strangler fig decomposition.
 These functions handle memory injection, extraction, saving, and recall.
 """
 
-import json
 import logging
 from typing import Any
 
@@ -251,15 +250,15 @@ async def memory_recall_with_synthesis(
     session_id: str,
     prompt_text: str | None = None,
     project_id: str | None = None,
-    limit: int = 3,
+    limit: int = 5,
     state: Any | None = None,
     db: Any | None = None,
 ) -> dict[str, Any] | None:
-    """Phase 1 (blocking): Inject previous turn's synthesized context + raw fallback.
+    """Phase 1 (blocking): Search memories using current prompt + digest enrichment.
 
-    On turn 2+, injects the synthesized memory context produced by the background
-    Phase 2 of the previous turn. Falls back to raw vector search on turn 1 or
-    if no synthesis is available yet.
+    Performs a blocking vector search using the current prompt text, enriched
+    with the session digest when available. Uses existing memory_recall_relevant
+    for search, dedup, and formatting via build_memory_context.
 
     Args:
         memory_manager: The memory manager instance
@@ -267,9 +266,9 @@ async def memory_recall_with_synthesis(
         session_id: Current session ID
         prompt_text: The user's prompt text
         project_id: Override project ID
-        limit: Max memories for raw fallback
-        state: WorkflowState for accessing synthesis from previous turn
-        db: Database for reading session variables
+        limit: Max memories to retrieve
+        state: WorkflowState for deduplication tracking
+        db: Database (unused, kept for interface compatibility)
 
     Returns:
         Dict with inject_context and count, or None if disabled
@@ -284,36 +283,22 @@ async def memory_recall_with_synthesis(
     if len(prompt_text.strip()) < 10 or prompt_text.strip().startswith("/"):
         return None
 
-    # Check for synthesized context from previous turn's background Phase 2
-    # Read from session_variables (where Phase 2 persists it via SessionVariableManager)
-    synthesized = None
-    if db is not None:
-        try:
-            from gobby.workflows.state_manager import SessionVariableManager
-
-            svm = SessionVariableManager(db)
-            session_vars = svm.get_variables(session_id)
-            synthesized = session_vars.get("_synthesized_memory_context")
-        except Exception as e:
-            logger.debug("memory_recall_with_synthesis: Failed to read session vars: %s", e)
-
-    if synthesized:
-        logger.info(
-            "memory_recall_with_synthesis: Injecting synthesized context (%d chars)",
-            len(synthesized),
+    # Enrich query with session digest for better search relevance
+    search_query = prompt_text
+    session = session_manager.get(session_id) if session_manager else None
+    digest = getattr(session, "digest_markdown", None) if session else None
+    if digest:
+        search_query = f"{prompt_text}\n\n{digest}"
+        logger.debug(
+            "memory_recall_with_synthesis: Enriched query with digest (%d chars)",
+            len(digest),
         )
-        return {
-            "inject_context": f"<project-memory>\n{synthesized}\n</project-memory>",
-            "injected": True,
-            "source": "synthesis",
-        }
 
-    # Fallback: raw vector search (turn 1 or background not ready)
     return await memory_recall_relevant(
         memory_manager=memory_manager,
         session_manager=session_manager,
         session_id=session_id,
-        prompt_text=prompt_text,
+        prompt_text=search_query,
         project_id=project_id,
         limit=limit,
         state=state,
@@ -330,11 +315,10 @@ async def memory_background_digest_and_synthesize(
     llm_service: Any | None = None,
     db: Any | None = None,
 ) -> dict[str, Any] | None:
-    """Phase 2 (background): Update rolling digest and synthesize memories.
+    """Phase 2 (background): Update rolling session digest.
 
-    Runs asynchronously after Phase 1 completes. Updates the session digest,
-    uses it for improved vector search, then synthesizes results with memory
-    ID refs. Stores synthesis in session variables for next turn's Phase 1.
+    Runs asynchronously after Phase 1 completes. Updates the session digest
+    which is used by Phase 1 to enrich search queries on subsequent turns.
 
     Args:
         memory_manager: The memory manager instance
@@ -342,12 +326,12 @@ async def memory_background_digest_and_synthesize(
         session_id: Current session ID
         prompt_text: The user's prompt text
         project_id: Override project ID
-        limit: Max memories for digest-based search
-        llm_service: LLM service for Haiku calls
-        db: Database for session variable persistence
+        limit: Unused (kept for interface compatibility)
+        llm_service: LLM service for digest generation
+        db: Database (unused, kept for interface compatibility)
 
     Returns:
-        Dict with digest and synthesis status, or None
+        Dict with digest status, or None
     """
     if not memory_manager or not memory_manager.config.enabled:
         return None
@@ -359,14 +343,8 @@ async def memory_background_digest_and_synthesize(
     if len(prompt_text.strip()) < 10 or prompt_text.strip().startswith("/"):
         return None
 
-    # Resolve project_id
-    if not project_id:
-        session = session_manager.get(session_id)
-        if session:
-            project_id = session.project_id
-
     try:
-        # 1. Load current digest from session record (not workflow state)
+        # 1. Load current digest from session record
         session = session_manager.get(session_id)
         previous_digest = getattr(session, "digest_markdown", None) or "" if session else ""
 
@@ -385,44 +363,9 @@ async def memory_background_digest_and_synthesize(
             session_id,
         )
 
-        # 4. Vector search using digest as query
-        memories = await memory_manager.search_memories(
-            query=new_digest,
-            project_id=project_id,
-            limit=limit,
-            search_mode="auto",
-        )
-
-        if not memories:
-            logger.debug("memory_background_digest: No memories found for digest search")
-            return {"digest_updated": True, "synthesis": False, "count": 0}
-
-        # 5. Synthesize results via LLM
-        memories_json = json.dumps(
-            [{"id": m.id, "content": m.content, "type": m.memory_type} for m in memories],
-            indent=2,
-        )
-        synthesis_prompt = _build_synthesis_prompt(new_digest, memories_json)
-        synthesis = await provider.generate_text(synthesis_prompt)
-        synthesis = synthesis.strip()
-
-        # 6. Store synthesis in session variables for next turn's Phase 1
-        if db is not None:
-            from gobby.workflows.state_manager import SessionVariableManager
-
-            svm = SessionVariableManager(db)
-            svm.set_variable(session_id, "_synthesized_memory_context", synthesis)
-            logger.info(
-                "memory_background_digest: Stored synthesis (%d chars) for next turn",
-                len(synthesis),
-            )
-
         return {
             "digest_updated": True,
-            "synthesis": True,
             "digest_length": len(new_digest),
-            "memories_searched": len(memories),
-            "synthesis_length": len(synthesis),
         }
 
     except Exception as e:
@@ -457,22 +400,6 @@ def _build_digest_update_prompt(previous_digest: str, current_prompt: str) -> st
         'If a field has no content yet, write "None yet".'
     )
     return "\n".join(parts)
-
-
-def _build_synthesis_prompt(digest: str, memories_json: str) -> str:
-    """Build the memory synthesis prompt inline (avoids DB lookup in background)."""
-    return (
-        "You are synthesizing project memories into concise context for a coding session.\n\n"
-        f"## Current Session Digest\n{digest}\n\n"
-        f"## Retrieved Memories\n{memories_json}\n\n"
-        "## Instructions\n"
-        "Synthesize the most relevant memories into 3-5 concise sentences of actionable context. "
-        "For each memory you reference, include `(ref: mem-XXXXX)` using the first 5 characters "
-        "of its ID.\n\n"
-        "Prioritize memories that are directly relevant to the current session digest. "
-        "Skip memories that are generic or unrelated.\n\n"
-        "Output ONLY the synthesized context (no headers, no markdown formatting, no XML tags)."
-    )
 
 
 def reset_memory_injection_tracking(state: Any | None = None) -> dict[str, Any]:

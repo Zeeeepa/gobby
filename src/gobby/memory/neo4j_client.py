@@ -393,6 +393,60 @@ class Neo4jClient:
         )
         return await self.query(cypher, {"name": node_name, "embedding": embedding})
 
+    async def ensure_vector_index(
+        self,
+        index_name: str = "entity_embedding_index",
+        dimensions: int = 1536,
+        similarity: str = "cosine",
+    ) -> None:
+        """Create a vector index on _Entity nodes if it doesn't exist.
+
+        Args:
+            index_name: Name for the vector index
+            dimensions: Embedding vector dimensions
+            similarity: Similarity function (cosine, euclidean)
+        """
+        _validate_cypher_identifier(index_name, "index name")
+        cypher = (
+            f"CREATE VECTOR INDEX {index_name} IF NOT EXISTS "
+            "FOR (n:_Entity) ON (n.embedding) "
+            "OPTIONS {indexConfig: {"
+            f"`vector.dimensions`: {int(dimensions)}, "
+            f"`vector.similarity_function`: '{similarity}'"
+            "}}"
+        )
+        await self.query(cypher)
+
+    async def vector_search(
+        self,
+        query_embedding: list[float],
+        index_name: str = "entity_embedding_index",
+        limit: int = 10,
+        min_score: float = 0.5,
+    ) -> list[dict[str, Any]]:
+        """Search for entities using vector similarity.
+
+        Args:
+            query_embedding: The query embedding vector
+            index_name: Name of the vector index to search
+            limit: Maximum number of results
+            min_score: Minimum similarity score threshold
+
+        Returns:
+            List of dicts with name, labels, score, and properties
+        """
+        _validate_cypher_identifier(index_name, "index name")
+        cypher = (
+            f"CALL db.index.vector.queryNodes('{index_name}', $limit, $embedding) "
+            "YIELD node, score WHERE score >= $min_score "
+            "RETURN node.name AS name, labels(node) AS labels, score, "
+            "properties(node) AS props"
+        )
+        return await self.query(
+            cypher,
+            {"embedding": query_embedding, "limit": limit, "min_score": min_score},
+        )
+
     async def ping(self) -> bool:
         """Check if Neo4j is reachable."""
         try:

@@ -9,6 +9,7 @@ from gobby.workflows.memory_actions import (
     memory_extract_from_session,
     memory_inject_project_context,
     memory_recall_relevant,
+    memory_recall_with_synthesis,
     memory_review_gate,
     memory_save,
     memory_sync_export,
@@ -1355,3 +1356,197 @@ class TestMemoryInjectProjectContext:
 
         assert result is not None
         assert "error" in result
+
+
+# =============================================================================
+# MEMORY RECALL WITH SYNTHESIS TESTS (rewritten: current-prompt search)
+# =============================================================================
+
+
+class TestMemoryRecallWithSynthesis:
+    """Tests for the rewritten memory_recall_with_synthesis."""
+
+    @pytest.mark.asyncio
+    async def test_searches_using_current_prompt(self):
+        """memory_recall_with_synthesis searches based on current prompt, not stale synthesis."""
+        mock_mm = MagicMock()
+        mock_mm.config.enabled = True
+
+        m1 = MagicMock()
+        m1.id = "mem-001"
+        m1.memory_type = "fact"
+        m1.content = "Python uses indentation"
+        mock_mm.search_memories = AsyncMock(return_value=[m1])
+
+        mock_sm = MagicMock()
+        mock_session = MagicMock()
+        mock_session.project_id = "proj-123"
+        mock_session.digest_markdown = None
+        mock_sm.get.return_value = mock_session
+
+        result = await memory_recall_with_synthesis(
+            memory_manager=mock_mm,
+            session_manager=mock_sm,
+            session_id="test-session",
+            prompt_text="How does Python handle indentation?",
+        )
+
+        assert result is not None
+        assert result["injected"] is True
+        assert result["count"] == 1
+        mock_mm.search_memories.assert_called_once()
+        call_kwargs = mock_mm.search_memories.call_args[1]
+        assert "indentation" in call_kwargs["query"]
+
+    @pytest.mark.asyncio
+    async def test_enriches_query_with_digest(self):
+        """memory_recall_with_synthesis enriches search query with session digest."""
+        mock_mm = MagicMock()
+        mock_mm.config.enabled = True
+        mock_mm.search_memories = AsyncMock(return_value=[])
+
+        mock_sm = MagicMock()
+        mock_session = MagicMock()
+        mock_session.project_id = "proj-123"
+        mock_session.digest_markdown = "**Task**: Working on memory system\n**Domain**: memory"
+        mock_sm.get.return_value = mock_session
+
+        await memory_recall_with_synthesis(
+            memory_manager=mock_mm,
+            session_manager=mock_sm,
+            session_id="test-session",
+            prompt_text="Fix the staleness bug",
+        )
+
+        call_kwargs = mock_mm.search_memories.call_args[1]
+        query = call_kwargs["query"]
+        assert "Fix the staleness bug" in query
+        assert "memory system" in query
+
+    @pytest.mark.asyncio
+    async def test_fallback_to_prompt_only_without_digest(self):
+        """memory_recall_with_synthesis uses prompt-only when no digest available."""
+        mock_mm = MagicMock()
+        mock_mm.config.enabled = True
+        mock_mm.search_memories = AsyncMock(return_value=[])
+
+        mock_sm = MagicMock()
+        mock_session = MagicMock()
+        mock_session.project_id = "proj-123"
+        mock_session.digest_markdown = None
+        mock_sm.get.return_value = mock_session
+
+        await memory_recall_with_synthesis(
+            memory_manager=mock_mm,
+            session_manager=mock_sm,
+            session_id="test-session",
+            prompt_text="What is the architecture?",
+        )
+
+        call_kwargs = mock_mm.search_memories.call_args[1]
+        assert call_kwargs["query"] == "What is the architecture?"
+
+    @pytest.mark.asyncio
+    async def test_returns_none_when_disabled(self):
+        """memory_recall_with_synthesis returns None when memory disabled."""
+        mock_mm = MagicMock()
+        mock_mm.config.enabled = False
+
+        result = await memory_recall_with_synthesis(
+            memory_manager=mock_mm,
+            session_manager=MagicMock(),
+            session_id="test-session",
+            prompt_text="test prompt text here",
+        )
+
+        assert result is None
+
+    @pytest.mark.asyncio
+    async def test_skips_short_prompts(self):
+        """memory_recall_with_synthesis skips very short prompts."""
+        mock_mm = MagicMock()
+        mock_mm.config.enabled = True
+
+        result = await memory_recall_with_synthesis(
+            memory_manager=mock_mm,
+            session_manager=MagicMock(),
+            session_id="test-session",
+            prompt_text="hi",
+        )
+
+        assert result is None
+
+    @pytest.mark.asyncio
+    async def test_skips_slash_commands(self):
+        """memory_recall_with_synthesis skips slash commands."""
+        mock_mm = MagicMock()
+        mock_mm.config.enabled = True
+
+        result = await memory_recall_with_synthesis(
+            memory_manager=mock_mm,
+            session_manager=MagicMock(),
+            session_id="test-session",
+            prompt_text="/clear session",
+        )
+
+        assert result is None
+
+    @pytest.mark.asyncio
+    async def test_deduplication_via_state(self):
+        """memory_recall_with_synthesis passes state for deduplication."""
+        mock_mm = MagicMock()
+        mock_mm.config.enabled = True
+
+        m1 = MagicMock()
+        m1.id = "mem-001"
+        m1.memory_type = "fact"
+        m1.content = "Test fact"
+        mock_mm.search_memories = AsyncMock(return_value=[m1])
+
+        mock_sm = MagicMock()
+        mock_session = MagicMock()
+        mock_session.project_id = "proj-123"
+        mock_session.digest_markdown = None
+        mock_sm.get.return_value = mock_session
+
+        state = WorkflowState(
+            session_id="test-session",
+            workflow_name="test",
+            step="test",
+        )
+
+        result = await memory_recall_with_synthesis(
+            memory_manager=mock_mm,
+            session_manager=mock_sm,
+            session_id="test-session",
+            prompt_text="some longer prompt text",
+            state=state,
+        )
+
+        assert result is not None
+        assert result["count"] == 1
+        assert "mem-001" in state.variables.get("_injected_memory_ids", [])
+
+    @pytest.mark.asyncio
+    async def test_uses_limit_parameter(self):
+        """memory_recall_with_synthesis passes limit to memory_recall_relevant."""
+        mock_mm = MagicMock()
+        mock_mm.config.enabled = True
+        mock_mm.search_memories = AsyncMock(return_value=[])
+
+        mock_sm = MagicMock()
+        mock_session = MagicMock()
+        mock_session.project_id = "proj-123"
+        mock_session.digest_markdown = None
+        mock_sm.get.return_value = mock_session
+
+        await memory_recall_with_synthesis(
+            memory_manager=mock_mm,
+            session_manager=mock_sm,
+            session_id="test-session",
+            prompt_text="test query with enough length",
+            limit=7,
+        )
+
+        call_kwargs = mock_mm.search_memories.call_args[1]
+        assert call_kwargs["limit"] == 7
