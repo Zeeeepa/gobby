@@ -13,6 +13,8 @@ interface ToolTableProps {
 }
 
 export function ToolTable({ tools }: ToolTableProps): React.ReactElement {
+  if (tools.length === 0) return <></>;
+
   const nameW = Math.max(...tools.map((t) => t.name.length), 8) + 2;
   const statusW = 14;
   const verW = Math.max(...tools.map((t) => (t.version || "---").length), 9) + 2;
