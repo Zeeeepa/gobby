@@ -113,8 +113,22 @@ export function useSourceControl() {
   const [ciRuns, setCiRuns] = useState<CIWorkflowRun[]>([])
 
   const [isLoading, setIsLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
+  const [errors, setErrors] = useState<Record<string, string>>({})
   const [projectId, setProjectId] = useState<string | null>(null)
+
+  const setFetcherError = useCallback((key: string, message: string | null) => {
+    setErrors(prev => {
+      if (message === null) {
+        if (!(key in prev)) return prev
+        const next = { ...prev }
+        delete next[key]
+        return next
+      }
+      return { ...prev, [key]: message }
+    })
+  }, [])
+
+  const error = Object.values(errors).length > 0 ? Object.values(errors).join('; ') : null
 
   const localPollRef = useRef<number | null>(null)
   const githubPollRef = useRef<number | null>(null)
@@ -140,16 +154,16 @@ export function useSourceControl() {
       const r = await fetch(`${getBaseUrl()}/api/source-control/status?${buildParams()}`)
       if (r.ok) {
         setStatus(await r.json())
-        setError(null)
+        setFetcherError('status', null)
       } else {
-        setError(`HTTP ${r.status}: ${r.statusText}`)
+        setFetcherError('status', `HTTP ${r.status}: ${r.statusText}`)
       }
     } catch (e) {
       const message = e instanceof Error ? e.message : String(e)
-      setError(message)
+      setFetcherError('status', message)
       console.error('Failed to fetch source control status:', e)
     }
-  }, [buildParams])
+  }, [buildParams, setFetcherError])
 
   const fetchBranches = useCallback(async () => {
     try {
@@ -157,14 +171,15 @@ export function useSourceControl() {
       if (r.ok) {
         const data = await r.json()
         setBranches(data.branches || [])
+        setFetcherError('branches', null)
       } else {
-        setError(`Branches: HTTP ${r.status}`)
+        setFetcherError('branches', `Branches: HTTP ${r.status}`)
       }
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Failed to fetch branches')
+      setFetcherError('branches', e instanceof Error ? e.message : 'Failed to fetch branches')
       console.error('Failed to fetch branches:', e)
     }
-  }, [buildParams])
+  }, [buildParams, setFetcherError])
 
   const fetchPrs = useCallback(
     async (state = 'open') => {
@@ -175,15 +190,16 @@ export function useSourceControl() {
         if (r.ok) {
           const data = await r.json()
           setPrs(data.prs || [])
+          setFetcherError('prs', null)
         } else {
-          setError(`PRs: HTTP ${r.status}`)
+          setFetcherError('prs', `PRs: HTTP ${r.status}`)
         }
       } catch (e) {
-        setError(e instanceof Error ? e.message : 'Failed to fetch PRs')
+        setFetcherError('prs', e instanceof Error ? e.message : 'Failed to fetch PRs')
         console.error('Failed to fetch PRs:', e)
       }
     },
-    [buildParams]
+    [buildParams, setFetcherError]
   )
 
   const fetchWorktrees = useCallback(async () => {
@@ -192,14 +208,15 @@ export function useSourceControl() {
       if (r.ok) {
         const data = await r.json()
         setWorktrees(data.worktrees || [])
+        setFetcherError('worktrees', null)
       } else {
-        setError(`Worktrees: HTTP ${r.status}`)
+        setFetcherError('worktrees', `Worktrees: HTTP ${r.status}`)
       }
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Failed to fetch worktrees')
+      setFetcherError('worktrees', e instanceof Error ? e.message : 'Failed to fetch worktrees')
       console.error('Failed to fetch worktrees:', e)
     }
-  }, [buildParams])
+  }, [buildParams, setFetcherError])
 
   const fetchClones = useCallback(async () => {
     try {
@@ -207,14 +224,15 @@ export function useSourceControl() {
       if (r.ok) {
         const data = await r.json()
         setClones(data.clones || [])
+        setFetcherError('clones', null)
       } else {
-        setError(`Clones: HTTP ${r.status}`)
+        setFetcherError('clones', `Clones: HTTP ${r.status}`)
       }
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Failed to fetch clones')
+      setFetcherError('clones', e instanceof Error ? e.message : 'Failed to fetch clones')
       console.error('Failed to fetch clones:', e)
     }
-  }, [buildParams])
+  }, [buildParams, setFetcherError])
 
   const fetchCiRuns = useCallback(async () => {
     try {
@@ -222,14 +240,15 @@ export function useSourceControl() {
       if (r.ok) {
         const data = await r.json()
         setCiRuns(data.runs || [])
+        setFetcherError('ciRuns', null)
       } else {
-        setError(`CI runs: HTTP ${r.status}`)
+        setFetcherError('ciRuns', `CI runs: HTTP ${r.status}`)
       }
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Failed to fetch CI/CD runs')
+      setFetcherError('ciRuns', e instanceof Error ? e.message : 'Failed to fetch CI/CD runs')
       console.error('Failed to fetch CI/CD runs:', e)
     }
-  }, [buildParams])
+  }, [buildParams, setFetcherError])
 
   // --- On-demand fetchers ---
 
@@ -416,7 +435,7 @@ export function useSourceControl() {
   useEffect(() => {
     let stale = false
     setIsLoading(true)
-    setError(null)
+    setErrors({})
     if (!stale) fetchLocalRef.current()
     localPollRef.current = window.setInterval(() => { if (!stale) fetchLocalRef.current() }, LOCAL_POLL_MS)
     return () => {
