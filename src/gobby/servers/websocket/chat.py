@@ -139,12 +139,14 @@ class ChatMixin:
         # Wire mode-change callback so agent-initiated plan mode transitions
         # (EnterPlanMode/ExitPlanMode) are broadcast to all connected clients
         async def _notify_mode_changed(mode: str, reason: str) -> None:
-            msg = json.dumps({
-                "type": "mode_changed",
-                "conversation_id": conversation_id,
-                "mode": mode,
-                "reason": reason,
-            })
+            msg = json.dumps(
+                {
+                    "type": "mode_changed",
+                    "conversation_id": conversation_id,
+                    "mode": mode,
+                    "reason": reason,
+                }
+            )
             for ws in list(self.clients.keys()):
                 try:
                     await ws.send(msg)
@@ -409,6 +411,7 @@ class ChatMixin:
 
         assistant_message_id = f"assistant-{uuid4().hex[:12]}"
         accumulated_text = ""
+        after_tool_call = False  # Track tool→text transitions to prevent sentence collisions
 
         def _base_msg(**fields: Any) -> dict[str, Any]:
             """Build a response dict, always including request_id for stream correlation."""
@@ -555,14 +558,23 @@ class ChatMixin:
                         )
                     )
                 elif isinstance(event, TextChunk):
-                    accumulated_text += event.content
+                    # Prevent sentence collisions after tool calls by injecting
+                    # a separator when the model resumes text output.
+                    # Without this: "What do you think?Ok, let me do that."
+                    # With this:    "What do you think?\n\nOk, let me do that."
+                    content = event.content
+                    if after_tool_call:
+                        after_tool_call = False
+                        if accumulated_text and not accumulated_text.endswith(("\n", " ")):
+                            content = "\n\n" + content
+                    accumulated_text += content
                     await websocket.send(
                         json.dumps(
                             _base_msg(
                                 type="chat_stream",
                                 message_id=assistant_message_id,
                                 conversation_id=conversation_id,
-                                content=event.content,
+                                content=content,
                                 done=False,
                             )
                         )
@@ -596,6 +608,7 @@ class ChatMixin:
                         )
                     )
                 elif isinstance(event, ToolResultEvent):
+                    after_tool_call = True
                     await websocket.send(
                         json.dumps(
                             _base_msg(
@@ -658,6 +671,38 @@ class ChatMixin:
                     )
 
                     await websocket.send(json.dumps(done_msg))
+
+                    # Persist usage to DB (best-effort)
+                    db_sid = getattr(session, "db_session_id", None)
+                    session_manager = getattr(self, "session_manager", None)
+                    if (
+                        db_sid
+                        and session_manager
+                        and (
+                            event.total_input_tokens is not None or event.output_tokens is not None
+                        )
+                    ):
+                        try:
+                            prev_output = getattr(session, "_accumulated_output_tokens", 0)
+                            new_output = prev_output + (event.output_tokens or 0)
+                            session._accumulated_output_tokens = new_output
+
+                            prev_cost = getattr(session, "_accumulated_cost_usd", 0.0)
+                            new_cost = prev_cost + (event.cost_usd or 0.0)
+                            session._accumulated_cost_usd = new_cost
+
+                            await asyncio.to_thread(
+                                session_manager.update_usage,
+                                db_sid,
+                                input_tokens=event.total_input_tokens or 0,
+                                output_tokens=new_output,
+                                cache_creation_tokens=event.cache_creation_input_tokens or 0,
+                                cache_read_tokens=event.cache_read_input_tokens or 0,
+                                total_cost_usd=new_cost,
+                                context_window=event.context_window,
+                            )
+                        except Exception:
+                            logger.debug("Failed to persist usage for %s", db_sid, exc_info=True)
 
         except asyncio.CancelledError:
             # Stream was interrupted (stop button or new message replacing old)
@@ -791,7 +836,9 @@ class ChatMixin:
                 )
             except (ConnectionClosed, ConnectionClosedError):
                 pass
-            logger.info(f"Plan approved for conversation {conversation_id[:8]}, switched to accept_edits")
+            logger.info(
+                f"Plan approved for conversation {conversation_id[:8]}, switched to accept_edits"
+            )
         elif decision == "request_changes":
             feedback = data.get("feedback", "")
             if feedback:
