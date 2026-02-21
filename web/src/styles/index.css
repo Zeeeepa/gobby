@@ -11257,6 +11257,27 @@ details:not([open]) > .session-metadata-toggle .session-metadata-chevron {
   border-color: #ef4444;
   color: #ef4444;
 }
+.agent-defs-btn--restore {
+  color: #4ade80;
+  border-color: #166534;
+}
+.agent-defs-btn--restore:hover {
+  background: #1a3a2a;
+  color: #4ade80;
+  border-color: #22c55e;
+}
+.agent-defs-show-deleted {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+  color: var(--text-secondary);
+  cursor: pointer;
+  user-select: none;
+}
+.agent-defs-show-deleted input {
+  cursor: pointer;
+}
 .agent-defs-btn:disabled {
   opacity: 0.4;
   cursor: not-allowed;
@@ -11366,6 +11387,16 @@ details:not([open]) > .session-metadata-toggle .session-metadata-chevron {
 .agent-def-card--expanded {
   border-color: var(--accent);
   grid-column: 1 / -1;
+}
+.agent-def-card--deleted {
+  opacity: 0.5;
+  border-style: dashed;
+}
+.agent-def-card--deleted:hover {
+  opacity: 0.7;
+}
+.agent-def-name--deleted {
+  text-decoration: line-through;
 }
 
 /* Card header (collapsed) */

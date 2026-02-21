@@ -37,7 +37,7 @@ MigrationAction = str | Callable[[LocalDatabase], None]
 # Baseline version - the schema state that is applied for new databases directly.
 # Must be bumped when BASELINE_SCHEMA is updated with columns from new migrations,
 # so that fresh databases don't re-run migrations already baked into the baseline.
-BASELINE_VERSION = 113
+BASELINE_VERSION = 114
 
 # Minimum migration version - databases older than this cannot be upgraded
 # because legacy migrations (pre-v108) have been removed.
@@ -740,6 +740,7 @@ CREATE TABLE agent_definitions (
         CHECK(scope IN ('bundled', 'global', 'project')),
     source_path TEXT,
     version TEXT DEFAULT '1.0',
+    deleted_at TEXT,
     created_at TEXT NOT NULL DEFAULT (datetime('now')),
     updated_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
@@ -820,6 +821,7 @@ CREATE TABLE workflow_definitions (
     canvas_json TEXT,
     source TEXT DEFAULT 'custom',
     tags TEXT,
+    deleted_at TEXT,
     created_at TEXT NOT NULL DEFAULT (datetime('now')),
     updated_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
@@ -1080,6 +1082,11 @@ MIGRATIONS: list[tuple[int, str, MigrationAction]] = [
         113,
         "Add context_window column to sessions",
         "ALTER TABLE sessions ADD COLUMN context_window INTEGER",
+    ),
+    (
+        114,
+        "Add deleted_at column to agent_definitions and workflow_definitions",
+        "ALTER TABLE agent_definitions ADD COLUMN deleted_at TEXT; ALTER TABLE workflow_definitions ADD COLUMN deleted_at TEXT",
     ),
 ]
 

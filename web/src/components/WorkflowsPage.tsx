@@ -1,4 +1,4 @@
-import { useState, useCallback, useMemo } from 'react'
+import { useState, useCallback, useMemo, useEffect } from 'react'
 import * as yaml from 'js-yaml'
 import { useWorkflows } from '../hooks/useWorkflows'
 import type { WorkflowDetail } from '../hooks/useWorkflows'
@@ -48,6 +48,7 @@ export function WorkflowsPage() {
     toggleEnabled,
     importYaml,
     exportYaml,
+    restoreWorkflow,
   } = useWorkflows()
 
   const [searchText, setSearchText] = useState('')
@@ -62,6 +63,7 @@ export function WorkflowsPage() {
   const [yamlEditorWf, setYamlEditorWf] = useState<WorkflowDetail | null>(null)
   const [yamlContent, setYamlContent] = useState('')
   const [yamlLoading, setYamlLoading] = useState(false)
+  const [showDeleted, setShowDeleted] = useState(false)
 
   // Unique sources for filter chips
   const sources = useMemo(() => {
@@ -111,10 +113,21 @@ export function WorkflowsPage() {
     return result
   }, [workflows, overviewFilter, typeFilter, sourceFilter, enabledFilter, searchText])
 
+  // Re-fetch when showDeleted changes
+  useEffect(() => {
+    fetchWorkflows({ include_deleted: showDeleted })
+  }, [fetchWorkflows, showDeleted])
+
   const handleDelete = useCallback(async (wf: WorkflowDetail) => {
     if (!window.confirm(`Delete "${wf.name}"?`)) return
     await deleteWorkflow(wf.id)
-  }, [deleteWorkflow])
+    fetchWorkflows({ include_deleted: showDeleted })
+  }, [deleteWorkflow, fetchWorkflows, showDeleted])
+
+  const handleRestore = useCallback(async (wf: WorkflowDetail) => {
+    await restoreWorkflow(wf.id)
+    fetchWorkflows({ include_deleted: showDeleted })
+  }, [restoreWorkflow, fetchWorkflows, showDeleted])
 
   const handleDuplicate = useCallback(async (wf: WorkflowDetail) => {
     const newName = window.prompt('New name:', `${wf.name}-copy`)
@@ -213,10 +226,18 @@ export function WorkflowsPage() {
             value={searchText}
             onChange={e => setSearchText(e.target.value)}
           />
+          <label className="workflows-show-deleted">
+            <input
+              type="checkbox"
+              checked={showDeleted}
+              onChange={e => setShowDeleted(e.target.checked)}
+            />
+            Show deleted
+          </label>
           <button
             type="button"
             className="workflows-toolbar-btn"
-            onClick={() => fetchWorkflows()}
+            onClick={() => fetchWorkflows({ include_deleted: showDeleted })}
             title="Refresh"
             disabled={isLoading}
           >
@@ -336,9 +357,9 @@ export function WorkflowsPage() {
         ) : (
           <div className="workflows-grid">
             {filteredWorkflows.map(wf => (
-              <div className="workflows-card" key={wf.id}>
+              <div className={`workflows-card${wf.deleted_at ? ' workflows-card--deleted' : ''}`} key={wf.id}>
                 <div className="workflows-card-header">
-                  <span className="workflows-card-name">{wf.name}</span>
+                  <span className={`workflows-card-name${wf.deleted_at ? ' workflows-card-name--deleted' : ''}`}>{wf.name}</span>
                   <span className={`workflows-card-type workflows-card-type--${wf.workflow_type}`}>
                     {wf.workflow_type}
                   </span>
@@ -365,71 +386,86 @@ export function WorkflowsPage() {
                 </div>
 
                 <div className="workflows-card-footer">
-                  <div
-                    className="workflows-toggle"
-                    onClick={() => toggleEnabled(wf.id)}
-                  >
-                    <div className={`workflows-toggle-track ${wf.enabled ? 'workflows-toggle-track--on' : ''}`}>
-                      <div className="workflows-toggle-knob" />
-                    </div>
-                    <span>{wf.enabled ? 'On' : 'Off'}</span>
-                  </div>
-
-                  <div className="workflows-card-actions">
-                    <button
-                      type="button"
-                      className="workflows-action-btn"
-                      onClick={() => handleYamlEdit(wf)}
-                      title="Edit as YAML"
-                    >
-                      YAML
-                    </button>
-                    {wf.workflow_type === 'pipeline' && (
+                  {wf.deleted_at ? (
+                    <div className="workflows-card-actions">
                       <button
                         type="button"
-                        className="workflows-action-btn"
-                        onClick={() => setEditingWorkflow(wf)}
-                        title="Edit pipeline steps"
+                        className="workflows-action-btn workflows-action-btn--restore"
+                        onClick={() => handleRestore(wf)}
+                        title="Restore this workflow"
                       >
-                        Edit
+                        Restore
                       </button>
-                    )}
-                    <button
-                      type="button"
-                      className="workflows-action-icon"
-                      onClick={() => handleDuplicate(wf)}
-                      title="Duplicate"
-                      aria-label="Duplicate workflow"
-                    >
-                      <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-                        <rect x="5.5" y="5.5" width="9" height="9" rx="1.5" />
-                        <path d="M10.5 5.5V2.5a1 1 0 0 0-1-1h-7a1 1 0 0 0-1 1v7a1 1 0 0 0 1 1h3" />
-                      </svg>
-                    </button>
-                    <button
-                      type="button"
-                      className="workflows-action-icon"
-                      onClick={() => handleExport(wf)}
-                      title="Download YAML"
-                      aria-label="Download workflow as YAML"
-                    >
-                      <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-                        <path d="M8 2v9m0 0L5 8m3 3 3-3M2.5 12.5v1a1 1 0 0 0 1 1h9a1 1 0 0 0 1-1v-1" />
-                      </svg>
-                    </button>
-                    <button
-                      type="button"
-                      className="workflows-action-icon workflows-action-icon--danger"
-                      onClick={() => handleDelete(wf)}
-                      title="Delete"
-                      aria-label="Delete workflow"
-                    >
-                      <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-                        <path d="M2.5 4.5h11M5.5 4.5V3a1 1 0 0 1 1-1h3a1 1 0 0 1 1 1v1.5M6.5 7v4.5M9.5 7v4.5" />
-                        <path d="M3.5 4.5 4 13a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1l.5-8.5" />
-                      </svg>
-                    </button>
-                  </div>
+                    </div>
+                  ) : (
+                    <>
+                      <div
+                        className="workflows-toggle"
+                        onClick={() => toggleEnabled(wf.id)}
+                      >
+                        <div className={`workflows-toggle-track ${wf.enabled ? 'workflows-toggle-track--on' : ''}`}>
+                          <div className="workflows-toggle-knob" />
+                        </div>
+                        <span>{wf.enabled ? 'On' : 'Off'}</span>
+                      </div>
+
+                      <div className="workflows-card-actions">
+                        <button
+                          type="button"
+                          className="workflows-action-btn"
+                          onClick={() => handleYamlEdit(wf)}
+                          title="Edit as YAML"
+                        >
+                          YAML
+                        </button>
+                        {wf.workflow_type === 'pipeline' && (
+                          <button
+                            type="button"
+                            className="workflows-action-btn"
+                            onClick={() => setEditingWorkflow(wf)}
+                            title="Edit pipeline steps"
+                          >
+                            Edit
+                          </button>
+                        )}
+                        <button
+                          type="button"
+                          className="workflows-action-icon"
+                          onClick={() => handleDuplicate(wf)}
+                          title="Duplicate"
+                          aria-label="Duplicate workflow"
+                        >
+                          <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                            <rect x="5.5" y="5.5" width="9" height="9" rx="1.5" />
+                            <path d="M10.5 5.5V2.5a1 1 0 0 0-1-1h-7a1 1 0 0 0-1 1v7a1 1 0 0 0 1 1h3" />
+                          </svg>
+                        </button>
+                        <button
+                          type="button"
+                          className="workflows-action-icon"
+                          onClick={() => handleExport(wf)}
+                          title="Download YAML"
+                          aria-label="Download workflow as YAML"
+                        >
+                          <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                            <path d="M8 2v9m0 0L5 8m3 3 3-3M2.5 12.5v1a1 1 0 0 0 1 1h9a1 1 0 0 0 1-1v-1" />
+                          </svg>
+                        </button>
+                        <button
+                          type="button"
+                          className="workflows-action-icon workflows-action-icon--danger"
+                          onClick={() => handleDelete(wf)}
+                          title="Delete"
+                          aria-label="Delete workflow"
+                        >
+                          <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                            <path d="M2.5 4.5h11M5.5 4.5V3a1 1 0 0 1 1-1h3a1 1 0 0 1 1 1v1.5M6.5 7v4.5M9.5 7v4.5" />
+                            <path d="M3.5 4.5 4 13a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1l.5-8.5" />
+                          </svg>
+                        </button>
+                      </div>
+                    </>
+                  )}
                 </div>
               </div>
             ))}

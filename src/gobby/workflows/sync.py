@@ -104,10 +104,19 @@ def sync_bundled_workflows(db: DatabaseProtocol) -> dict[str, Any]:
             priority = data.get("priority", 100)
             sources_list = data.get("sources")
 
-            # Check if workflow already exists (global scope)
-            existing = manager.get_by_name(name)
+            # Check if workflow already exists (global scope, including soft-deleted)
+            existing = manager.get_by_name(name, include_deleted=True)
 
             if existing is not None:
+                # If user soft-deleted it, respect their intent — skip sync
+                if existing.deleted_at is not None:
+                    logger.debug(
+                        "Workflow is soft-deleted, skipping sync",
+                        extra={"workflow": name},
+                    )
+                    result["skipped"] += 1
+                    continue
+
                 if existing.source == "bundled":
                     # Compare definition_json content to detect changes
                     if existing.definition_json == definition_json:

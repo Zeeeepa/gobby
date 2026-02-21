@@ -33,6 +33,7 @@ interface AgentDefInfo {
   source_path: string | null
   db_id: string | null
   overridden_by: string | null
+  deleted_at: string | null
 }
 
 interface WorkflowSummary {
@@ -164,6 +165,7 @@ export function AgentDefinitionsPage() {
   const [importingName, setImportingName] = useState<string | null>(null)
   const [importResult, setImportResult] = useState<{ name: string; ok: boolean } | null>(null)
   const [toastMessage, setToastMessage] = useState<{ text: string; type: 'success' | 'error' } | null>(null)
+  const [showDeleted, setShowDeleted] = useState(false)
 
   const showToast = useCallback((text: string, type: 'success' | 'error') => {
     setToastMessage({ text, type })
@@ -176,10 +178,11 @@ export function AgentDefinitionsPage() {
     base_branch: 'main', timeout: 120, max_turns: 10,
   })
 
-  const fetchDefinitions = useCallback(async () => {
+  const fetchDefinitions = useCallback(async (includeDeleted = false) => {
     setLoading(true)
     try {
-      const res = await fetch(`${getBaseUrl()}/api/agents/definitions`)
+      const params = includeDeleted ? '?include_deleted=true' : ''
+      const res = await fetch(`${getBaseUrl()}/api/agents/definitions${params}`)
       const data = await res.json()
       if (data.status === 'success') {
         setDefinitions(data.definitions)
@@ -191,7 +194,7 @@ export function AgentDefinitionsPage() {
     }
   }, [])
 
-  useEffect(() => { fetchDefinitions() }, [fetchDefinitions])
+  useEffect(() => { fetchDefinitions(showDeleted) }, [fetchDefinitions, showDeleted])
 
   const [providerModels, setProviderModels] = useState(PROVIDER_MODELS)
 
@@ -250,7 +253,7 @@ export function AgentDefinitionsPage() {
           provider: 'claude', model: '', mode: 'headless', terminal: 'auto', isolation: '',
           base_branch: 'main', timeout: 120, max_turns: 10,
         })
-        fetchDefinitions()
+        fetchDefinitions(showDeleted)
         showToast(`Agent "${createForm.name}" created`, 'success')
       } else {
         showToast('Failed to create agent definition', 'error')
@@ -316,7 +319,7 @@ export function AgentDefinitionsPage() {
           provider: 'claude', model: '', mode: 'headless', terminal: 'auto', isolation: '',
           base_branch: 'main', timeout: 120, max_turns: 10,
         })
-        fetchDefinitions()
+        fetchDefinitions(showDeleted)
         showToast(`Agent "${createForm.name}" updated`, 'success')
       } else {
         showToast('Failed to update agent definition', 'error')
@@ -334,7 +337,7 @@ export function AgentDefinitionsPage() {
         method: 'DELETE',
       })
       if (res.ok) {
-        fetchDefinitions()
+        fetchDefinitions(showDeleted)
         showToast('Agent definition deleted', 'success')
       } else {
         showToast('Failed to delete agent definition', 'error')
@@ -342,6 +345,23 @@ export function AgentDefinitionsPage() {
     } catch (e) {
       console.error('Failed to delete agent definition:', e)
       showToast('Failed to delete agent definition', 'error')
+    }
+  }
+
+  const handleRestore = async (dbId: string) => {
+    try {
+      const res = await fetch(`${getBaseUrl()}/api/agents/definitions/${dbId}/restore`, {
+        method: 'POST',
+      })
+      if (res.ok) {
+        fetchDefinitions(showDeleted)
+        showToast('Agent definition restored', 'success')
+      } else {
+        showToast('Failed to restore agent definition', 'error')
+      }
+    } catch (e) {
+      console.error('Failed to restore agent definition:', e)
+      showToast('Failed to restore agent definition', 'error')
     }
   }
 
@@ -357,7 +377,7 @@ export function AgentDefinitionsPage() {
         method: 'POST',
       })
       setImportResult({ name, ok: res.ok })
-      if (res.ok) fetchDefinitions()
+      if (res.ok) fetchDefinitions(showDeleted)
     } catch (e) {
       console.error('Failed to import agent definition:', e)
       setImportResult({ name, ok: false })
@@ -405,7 +425,15 @@ export function AgentDefinitionsPage() {
               <option key={p} value={p}>{p}</option>
             ))}
           </select>
-          <button className="agent-defs-btn" onClick={fetchDefinitions} title="Refresh">
+          <label className="agent-defs-show-deleted">
+            <input
+              type="checkbox"
+              checked={showDeleted}
+              onChange={e => setShowDeleted(e.target.checked)}
+            />
+            Show deleted
+          </label>
+          <button className="agent-defs-btn" onClick={() => fetchDefinitions(showDeleted)} title="Refresh">
             <RefreshIcon />
           </button>
           <button
@@ -646,7 +674,7 @@ export function AgentDefinitionsPage() {
             return (
               <div
                 key={d.name}
-                className={`agent-def-card${isExpanded ? ' agent-def-card--expanded' : ''}`}
+                className={`agent-def-card${isExpanded ? ' agent-def-card--expanded' : ''}${item.deleted_at ? ' agent-def-card--deleted' : ''}`}
               >
                 {/* Collapsed header */}
                 <button
@@ -654,7 +682,7 @@ export function AgentDefinitionsPage() {
                   onClick={() => setExpandedName(isExpanded ? null : d.name)}
                 >
                   <div className="agent-def-header-top">
-                    <span className="agent-def-name">{d.name}</span>
+                    <span className={`agent-def-name${item.deleted_at ? ' agent-def-name--deleted' : ''}`}>{d.name}</span>
                     <span className="agent-def-chevron">{isExpanded ? '\u25B2' : '\u25BC'}</span>
                   </div>
                   {d.description && (
@@ -804,43 +832,54 @@ export function AgentDefinitionsPage() {
 
                     {/* Actions */}
                     <div className="agent-def-actions">
-                      <button
-                        className="agent-defs-btn"
-                        onClick={() => handleExport(d.name)}
-                        title="Download as YAML file"
-                      >
-                        Export YAML
-                      </button>
-                      {isDb && item.db_id && (
+                      {item.deleted_at ? (
+                        <button
+                          className="agent-defs-btn agent-defs-btn--restore"
+                          onClick={() => item.db_id && handleRestore(item.db_id)}
+                        >
+                          Restore
+                        </button>
+                      ) : (
                         <>
                           <button
                             className="agent-defs-btn"
-                            onClick={() => handleEdit(item)}
+                            onClick={() => handleExport(d.name)}
+                            title="Download as YAML file"
                           >
-                            Edit
+                            Export YAML
                           </button>
-                          <button
-                            className="agent-defs-btn agent-defs-btn--danger"
-                            onClick={() => handleDelete(item.db_id!)}
-                          >
-                            Delete
-                          </button>
-                        </>
-                      )}
-                      {!isDb && (
-                        <>
-                          <button
-                            className="agent-defs-btn"
-                            onClick={() => handleImport(d.name)}
-                            disabled={importingName === d.name}
-                            title="Copy this file-based definition into the DB for customization"
-                          >
-                            {importingName === d.name ? 'Importing...' : 'Import to DB'}
-                          </button>
-                          {importResult?.name === d.name && (
-                            <span className={`agent-def-import-result ${importResult.ok ? 'agent-def-import-result--ok' : 'agent-def-import-result--err'}`}>
-                              {importResult.ok ? 'Imported successfully' : 'Import failed'}
-                            </span>
+                          {isDb && item.db_id && (
+                            <>
+                              <button
+                                className="agent-defs-btn"
+                                onClick={() => handleEdit(item)}
+                              >
+                                Edit
+                              </button>
+                              <button
+                                className="agent-defs-btn agent-defs-btn--danger"
+                                onClick={() => handleDelete(item.db_id!)}
+                              >
+                                Delete
+                              </button>
+                            </>
+                          )}
+                          {!isDb && (
+                            <>
+                              <button
+                                className="agent-defs-btn"
+                                onClick={() => handleImport(d.name)}
+                                disabled={importingName === d.name}
+                                title="Copy this file-based definition into the DB for customization"
+                              >
+                                {importingName === d.name ? 'Importing...' : 'Import to DB'}
+                              </button>
+                              {importResult?.name === d.name && (
+                                <span className={`agent-def-import-result ${importResult.ok ? 'agent-def-import-result--ok' : 'agent-def-import-result--err'}`}>
+                                  {importResult.ok ? 'Imported successfully' : 'Import failed'}
+                                </span>
+                              )}
+                            </>
                           )}
                         </>
                       )}

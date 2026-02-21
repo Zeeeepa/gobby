@@ -80,10 +80,16 @@ def sync_bundled_agents(db: DatabaseProtocol) -> dict[str, Any]:
             # Parse into AgentDefinition to validate
             agent_def = AgentDefinition(**data)
 
-            # Check if agent already exists (bundled scope)
-            existing = manager.get_bundled(name)
+            # Check if agent already exists (bundled scope, including soft-deleted)
+            existing = manager.get_bundled(name, include_deleted=True)
 
             if existing is not None:
+                # If user soft-deleted it, respect their intent — skip sync
+                if existing.deleted_at is not None:
+                    logger.debug(f"Agent definition '{name}' is soft-deleted, skipping sync")
+                    result["skipped"] += 1
+                    continue
+
                 # Compare full serialized definitions to detect any change
                 existing_def = manager.export_to_definition(existing.id)
                 existing_json = existing_def.model_dump_json(exclude_none=False)

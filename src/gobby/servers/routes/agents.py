@@ -99,12 +99,13 @@ def create_agents_router(server: "HTTPServer") -> APIRouter:
     @router.get("/definitions")
     async def list_definitions(
         project_id: str | None = Query(None),
+        include_deleted: bool = Query(False),
     ) -> dict[str, Any]:
         """List all agent definitions (merged from files + DB, with source tags)."""
         metrics.inc_counter("http_requests_total")
         try:
             loader = _get_loader()
-            items = loader.list_all(project_id=project_id)
+            items = loader.list_all(project_id=project_id, include_deleted=include_deleted)
             return {
                 "status": "success",
                 "definitions": [i.to_api_dict() for i in items],
@@ -224,7 +225,7 @@ def create_agents_router(server: "HTTPServer") -> APIRouter:
 
     @router.delete("/definitions/{definition_id}")
     async def delete_definition(definition_id: str) -> dict[str, Any]:
-        """Delete a DB-backed agent definition."""
+        """Delete a DB-backed agent definition (soft-delete)."""
         metrics.inc_counter("http_requests_total")
         try:
             manager = _get_manager()
@@ -236,6 +237,20 @@ def create_agents_router(server: "HTTPServer") -> APIRouter:
             raise
         except Exception as e:
             logger.error(f"Error deleting agent definition: {e}", exc_info=True)
+            raise HTTPException(status_code=500, detail=str(e)) from e
+
+    @router.post("/definitions/{definition_id}/restore")
+    async def restore_definition(definition_id: str) -> dict[str, Any]:
+        """Restore a soft-deleted agent definition."""
+        metrics.inc_counter("http_requests_total")
+        try:
+            manager = _get_manager()
+            row = manager.restore(definition_id)
+            return {"status": "success", "definition": row.to_dict()}
+        except ValueError as e:
+            raise HTTPException(status_code=404, detail=str(e)) from e
+        except Exception as e:
+            logger.error(f"Error restoring agent definition: {e}", exc_info=True)
             raise HTTPException(status_code=500, detail=str(e)) from e
 
     # -------------------------------------------------------------------------

@@ -47,6 +47,7 @@ class AgentDefinitionRow:
     version: str = "1.0"
     lifecycle_variables: dict[str, Any] = field(default_factory=dict)
     default_variables: dict[str, Any] = field(default_factory=dict)
+    deleted_at: str | None = None
 
     @classmethod
     def from_row(cls, row: sqlite3.Row) -> "AgentDefinitionRow":
@@ -88,6 +89,7 @@ class AgentDefinitionRow:
             enabled=bool(row["enabled"]),
             created_at=row["created_at"],
             updated_at=row["updated_at"],
+            deleted_at=row["deleted_at"] if "deleted_at" in row.keys() else None,
         )
 
     def to_dict(self) -> dict[str, Any]:
@@ -120,6 +122,7 @@ class AgentDefinitionRow:
             "enabled": self.enabled,
             "created_at": self.created_at,
             "updated_at": self.updated_at,
+            "deleted_at": self.deleted_at,
         }
 
 
@@ -220,20 +223,31 @@ class LocalAgentDefinitionManager:
 
         return self.get(definition_id)
 
-    def get(self, definition_id: str) -> AgentDefinitionRow:
+    def get(
+        self, definition_id: str, include_deleted: bool = False
+    ) -> AgentDefinitionRow:
         """Get an agent definition by primary key."""
-        row = self.db.fetchone("SELECT * FROM agent_definitions WHERE id = ?", (definition_id,))
+        sql = "SELECT * FROM agent_definitions WHERE id = ?"
+        if not include_deleted:
+            sql += " AND deleted_at IS NULL"
+        row = self.db.fetchone(sql, (definition_id,))
         if not row:
             raise ValueError(f"Agent definition {definition_id} not found")
         return AgentDefinitionRow.from_row(row)
 
-    def get_by_name(self, name: str, project_id: str | None = None) -> AgentDefinitionRow | None:
+    def get_by_name(
+        self,
+        name: str,
+        project_id: str | None = None,
+        include_deleted: bool = False,
+    ) -> AgentDefinitionRow | None:
         """Get an agent definition by name with precedence: project > global > bundled."""
+        deleted_filter = "" if include_deleted else " AND deleted_at IS NULL"
         if project_id:
             row = self.db.fetchone(
-                """
+                f"""
                 SELECT * FROM agent_definitions
-                WHERE name = ? AND (project_id = ? OR project_id IS NULL)
+                WHERE name = ? AND (project_id = ? OR project_id IS NULL){deleted_filter}
                 ORDER BY CASE scope
                     WHEN 'project' THEN 1
                     WHEN 'global' THEN 2
@@ -245,9 +259,9 @@ class LocalAgentDefinitionManager:
             )
         else:
             row = self.db.fetchone(
-                """
+                f"""
                 SELECT * FROM agent_definitions
-                WHERE name = ? AND project_id IS NULL
+                WHERE name = ? AND project_id IS NULL{deleted_filter}
                 ORDER BY CASE scope
                     WHEN 'global' THEN 1
                     WHEN 'bundled' THEN 2
@@ -258,12 +272,14 @@ class LocalAgentDefinitionManager:
             )
         return AgentDefinitionRow.from_row(row) if row else None
 
-    def get_bundled(self, name: str) -> AgentDefinitionRow | None:
+    def get_bundled(
+        self, name: str, include_deleted: bool = False
+    ) -> AgentDefinitionRow | None:
         """Get the bundled version of an agent definition (ignoring overrides)."""
-        row = self.db.fetchone(
-            "SELECT * FROM agent_definitions WHERE name = ? AND scope = 'bundled'",
-            (name,),
-        )
+        sql = "SELECT * FROM agent_definitions WHERE name = ? AND scope = 'bundled'"
+        if not include_deleted:
+            sql += " AND deleted_at IS NULL"
+        row = self.db.fetchone(sql, (name,))
         return AgentDefinitionRow.from_row(row) if row else None
 
     def update(self, definition_id: str, **fields: Any) -> AgentDefinitionRow:
@@ -296,7 +312,26 @@ class LocalAgentDefinitionManager:
         return self.get(definition_id)
 
     def delete(self, definition_id: str) -> bool:
-        """Delete an agent definition from the database.
+        """Soft-delete an agent definition by setting deleted_at.
+
+        Raises:
+            ValueError: If bundled and not in dev mode.
+        """
+        existing_row = self.db.fetchone(
+            "SELECT scope FROM agent_definitions WHERE id = ?", (definition_id,)
+        )
+        if existing_row:
+            self._check_bundled_writable(existing_row["scope"])
+        now = datetime.now(UTC).isoformat()
+        with self.db.transaction() as conn:
+            cursor = conn.execute(
+                "UPDATE agent_definitions SET deleted_at = ?, updated_at = ? WHERE id = ? AND deleted_at IS NULL",
+                (now, now, definition_id),
+            )
+            return cursor.rowcount > 0
+
+    def hard_delete(self, definition_id: str) -> bool:
+        """Permanently delete an agent definition from the database.
 
         Raises:
             ValueError: If bundled and not in dev mode.
@@ -310,33 +345,65 @@ class LocalAgentDefinitionManager:
             cursor = conn.execute("DELETE FROM agent_definitions WHERE id = ?", (definition_id,))
             return cursor.rowcount > 0
 
-    def list_by_project(self, project_id: str) -> list[AgentDefinitionRow]:
+    def restore(self, definition_id: str) -> AgentDefinitionRow:
+        """Restore a soft-deleted agent definition."""
+        now = datetime.now(UTC).isoformat()
+        with self.db.transaction() as conn:
+            cursor = conn.execute(
+                "UPDATE agent_definitions SET deleted_at = NULL, updated_at = ? WHERE id = ? AND deleted_at IS NOT NULL",
+                (now, definition_id),
+            )
+            if cursor.rowcount == 0:
+                raise ValueError(f"Agent definition {definition_id} not found or not deleted")
+        return self.get(definition_id)
+
+    def purge_deleted(self, older_than_days: int = 30) -> int:
+        """Hard-delete rows that were soft-deleted more than older_than_days ago."""
+        with self.db.transaction() as conn:
+            cursor = conn.execute(
+                "DELETE FROM agent_definitions WHERE deleted_at IS NOT NULL AND deleted_at < datetime('now', ?)",
+                (f"-{older_than_days} days",),
+            )
+            count = cursor.rowcount
+        if count:
+            logger.info(f"Purged {count} soft-deleted agent definitions")
+        return count
+
+    def list_by_project(
+        self, project_id: str, include_deleted: bool = False
+    ) -> list[AgentDefinitionRow]:
         """List project-scoped agent definitions."""
-        rows = self.db.fetchall(
-            "SELECT * FROM agent_definitions WHERE project_id = ? ORDER BY name",
-            (project_id,),
-        )
+        sql = "SELECT * FROM agent_definitions WHERE project_id = ?"
+        if not include_deleted:
+            sql += " AND deleted_at IS NULL"
+        sql += " ORDER BY name"
+        rows = self.db.fetchall(sql, (project_id,))
         return [AgentDefinitionRow.from_row(r) for r in rows]
 
-    def list_global(self) -> list[AgentDefinitionRow]:
+    def list_global(self, include_deleted: bool = False) -> list[AgentDefinitionRow]:
         """List global agent templates (project_id IS NULL)."""
-        rows = self.db.fetchall(
-            "SELECT * FROM agent_definitions WHERE project_id IS NULL ORDER BY name",
-        )
+        sql = "SELECT * FROM agent_definitions WHERE project_id IS NULL"
+        if not include_deleted:
+            sql += " AND deleted_at IS NULL"
+        sql += " ORDER BY name"
+        rows = self.db.fetchall(sql)
         return [AgentDefinitionRow.from_row(r) for r in rows]
 
-    def list_all(self, project_id: str | None = None) -> list[AgentDefinitionRow]:
+    def list_all(
+        self, project_id: str | None = None, include_deleted: bool = False
+    ) -> list[AgentDefinitionRow]:
         """List all agent definitions (project-scoped + global)."""
+        deleted_filter = "" if include_deleted else " AND deleted_at IS NULL"
         if project_id:
             rows = self.db.fetchall(
-                """SELECT * FROM agent_definitions
-                WHERE project_id = ? OR project_id IS NULL
+                f"""SELECT * FROM agent_definitions
+                WHERE (project_id = ? OR project_id IS NULL){deleted_filter}
                 ORDER BY name""",
                 (project_id,),
             )
         else:
             rows = self.db.fetchall(
-                "SELECT * FROM agent_definitions ORDER BY name",
+                f"SELECT * FROM agent_definitions WHERE 1=1{deleted_filter} ORDER BY name",
             )
         return [AgentDefinitionRow.from_row(r) for r in rows]
 

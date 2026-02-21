@@ -32,6 +32,7 @@ class WorkflowDefinitionRow:
     sources: list[str] | None = None
     tags: list[str] | None = None
     canvas_json: str | None = None
+    deleted_at: str | None = None
 
     @classmethod
     def from_row(cls, row: Row) -> "WorkflowDefinitionRow":
@@ -60,6 +61,7 @@ class WorkflowDefinitionRow:
             tags=_parse_json_list(row["tags"]),
             created_at=row["created_at"],
             updated_at=row["updated_at"],
+            deleted_at=row["deleted_at"] if "deleted_at" in row.keys() else None,
         )
 
     def to_dict(self) -> dict[str, Any]:
@@ -79,6 +81,7 @@ class WorkflowDefinitionRow:
             "tags": self.tags,
             "created_at": self.created_at,
             "updated_at": self.updated_at,
+            "deleted_at": self.deleted_at,
         }
 
 
@@ -138,25 +141,36 @@ class LocalWorkflowDefinitionManager:
 
         return self.get(definition_id)
 
-    def get(self, definition_id: str) -> WorkflowDefinitionRow:
+    def get(
+        self, definition_id: str, include_deleted: bool = False
+    ) -> WorkflowDefinitionRow:
         """Get a workflow definition by primary key."""
-        row = self.db.fetchone("SELECT * FROM workflow_definitions WHERE id = ?", (definition_id,))
+        sql = "SELECT * FROM workflow_definitions WHERE id = ?"
+        if not include_deleted:
+            sql += " AND deleted_at IS NULL"
+        row = self.db.fetchone(sql, (definition_id,))
         if not row:
             raise ValueError(f"Workflow definition {definition_id} not found")
         return WorkflowDefinitionRow.from_row(row)
 
-    def get_by_name(self, name: str, project_id: str | None = None) -> WorkflowDefinitionRow | None:
+    def get_by_name(
+        self,
+        name: str,
+        project_id: str | None = None,
+        include_deleted: bool = False,
+    ) -> WorkflowDefinitionRow | None:
         """Get a workflow definition by name (project-scoped first, then global fallback)."""
+        deleted_filter = "" if include_deleted else " AND deleted_at IS NULL"
         if project_id:
             row = self.db.fetchone(
-                "SELECT * FROM workflow_definitions WHERE name = ? AND project_id = ?",
+                f"SELECT * FROM workflow_definitions WHERE name = ? AND project_id = ?{deleted_filter}",
                 (name, project_id),
             )
             if row:
                 return WorkflowDefinitionRow.from_row(row)
         # Fall back to global
         row = self.db.fetchone(
-            "SELECT * FROM workflow_definitions WHERE name = ? AND project_id IS NULL",
+            f"SELECT * FROM workflow_definitions WHERE name = ? AND project_id IS NULL{deleted_filter}",
             (name,),
         )
         return WorkflowDefinitionRow.from_row(row) if row else None
@@ -181,20 +195,58 @@ class LocalWorkflowDefinitionManager:
         return self.get(definition_id)
 
     def delete(self, definition_id: str) -> bool:
-        """Delete a workflow definition from the database."""
+        """Soft-delete a workflow definition by setting deleted_at."""
+        now = datetime.now(UTC).isoformat()
+        with self.db.transaction() as conn:
+            cursor = conn.execute(
+                "UPDATE workflow_definitions SET deleted_at = ?, updated_at = ? WHERE id = ? AND deleted_at IS NULL",
+                (now, now, definition_id),
+            )
+            return cursor.rowcount > 0
+
+    def hard_delete(self, definition_id: str) -> bool:
+        """Permanently delete a workflow definition from the database."""
         with self.db.transaction() as conn:
             cursor = conn.execute("DELETE FROM workflow_definitions WHERE id = ?", (definition_id,))
             return cursor.rowcount > 0
+
+    def restore(self, definition_id: str) -> WorkflowDefinitionRow:
+        """Restore a soft-deleted workflow definition."""
+        now = datetime.now(UTC).isoformat()
+        with self.db.transaction() as conn:
+            cursor = conn.execute(
+                "UPDATE workflow_definitions SET deleted_at = NULL, updated_at = ? WHERE id = ? AND deleted_at IS NOT NULL",
+                (now, definition_id),
+            )
+            if cursor.rowcount == 0:
+                raise ValueError(f"Workflow definition {definition_id} not found or not deleted")
+        return self.get(definition_id)
+
+    def purge_deleted(self, older_than_days: int = 30) -> int:
+        """Hard-delete rows that were soft-deleted more than older_than_days ago."""
+        with self.db.transaction() as conn:
+            cursor = conn.execute(
+                "DELETE FROM workflow_definitions WHERE deleted_at IS NOT NULL AND deleted_at < datetime('now', ?)",
+                (f"-{older_than_days} days",),
+            )
+            count = cursor.rowcount
+        if count:
+            logger.info(f"Purged {count} soft-deleted workflow definitions")
+        return count
 
     def list_all(
         self,
         project_id: str | None = None,
         workflow_type: str | None = None,
         enabled: bool | None = None,
+        include_deleted: bool = False,
     ) -> list[WorkflowDefinitionRow]:
         """List workflow definitions with optional filters."""
         conditions: list[str] = []
         params: list[Any] = []
+
+        if not include_deleted:
+            conditions.append("deleted_at IS NULL")
 
         if project_id:
             conditions.append("(project_id = ? OR project_id IS NULL)")

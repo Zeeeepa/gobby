@@ -24,12 +24,13 @@ def _resolve_definition(
     def_manager: LocalWorkflowDefinitionManager,
     name: str | None = None,
     definition_id: str | None = None,
+    include_deleted: bool = False,
 ) -> WorkflowDefinitionRow:
     """Resolve a definition by name or ID. Raises ValueError if not found."""
     if definition_id:
-        return def_manager.get(definition_id)
+        return def_manager.get(definition_id, include_deleted=include_deleted)
     if name:
-        row = def_manager.get_by_name(name)
+        row = def_manager.get_by_name(name, include_deleted=include_deleted)
         if row is None:
             raise ValueError(f"Workflow definition '{name}' not found")
         return row
@@ -253,6 +254,55 @@ def delete_workflow_definition(
     logger.info("Deleted workflow definition '%s' (id=%s)", row.name, row.id)
 
     return {"success": True, "deleted": {"id": row.id, "name": row.name}}
+
+
+def restore_workflow_definition(
+    def_manager: LocalWorkflowDefinitionManager,
+    loader: WorkflowLoader,
+    name: str | None = None,
+    definition_id: str | None = None,
+) -> dict[str, Any]:
+    """
+    Restore a soft-deleted workflow/pipeline definition.
+
+    Args:
+        def_manager: Definition storage manager
+        loader: WorkflowLoader (cache is cleared after restore)
+        name: Resolve definition by name
+        definition_id: Resolve definition by ID
+
+    Returns:
+        Dict with success status and restored definition metadata
+    """
+    try:
+        row = _resolve_definition(
+            def_manager, name, definition_id, include_deleted=True
+        )
+    except ValueError as e:
+        return {"success": False, "error": str(e)}
+
+    if row.deleted_at is None:
+        return {"success": False, "error": f"Definition '{row.name}' is not deleted"}
+
+    try:
+        restored = def_manager.restore(row.id)
+    except Exception as e:
+        return {"success": False, "error": f"Restore failed: {e}"}
+
+    loader.clear_cache()
+    logger.info("Restored workflow definition '%s' (id=%s)", restored.name, restored.id)
+
+    return {
+        "success": True,
+        "definition": {
+            "id": restored.id,
+            "name": restored.name,
+            "workflow_type": restored.workflow_type,
+            "description": restored.description,
+            "version": restored.version,
+            "enabled": restored.enabled,
+        },
+    }
 
 
 def export_workflow_definition(
