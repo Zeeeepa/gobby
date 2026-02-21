@@ -63,6 +63,9 @@ export function useSlashCommands() {
           }
         }
 
+        // Sort MCP tool entries alphabetically before pinning local/alias entries
+        cmds.sort((a, b) => a.name.localeCompare(b.name))
+
         // Add local commands at the top
         for (const local of LOCAL_COMMANDS) {
           cmds.unshift({

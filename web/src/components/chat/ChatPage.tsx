@@ -58,12 +58,26 @@ export function ChatPage({ chat, conversations, project, voice }: ChatPageProps)
           <div className="flex flex-1 min-h-0">
             {/* Chat column */}
             <div className="flex flex-col flex-1 min-w-0">
+              {chat.mode === 'plan' && (
+                <div className="flex items-center gap-2 px-4 py-2 bg-[var(--bg-tertiary)] border-b border-[var(--border)] text-sm">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-accent shrink-0">
+                    <path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z" />
+                    <path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z" />
+                  </svg>
+                  <span className="text-muted-foreground">Plan mode</span>
+                  <span className="text-muted-foreground/60">&mdash;</span>
+                  <span className="text-muted-foreground/60">read-only, no file edits</span>
+                </div>
+              )}
               <MessageList
                 messages={chat.messages}
                 sessionRef={chat.sessionRef}
                 isStreaming={chat.isStreaming}
                 isThinking={chat.isThinking}
                 onRespondToQuestion={chat.onRespondToQuestion}
+                planPendingApproval={chat.planPendingApproval}
+                onApprovePlan={chat.onApprovePlan}
+                onRequestPlanChanges={chat.onRequestPlanChanges}
               />
               <ChatInput
                 onSend={chat.onSend}

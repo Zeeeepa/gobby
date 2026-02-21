@@ -245,7 +245,7 @@ docs/archive/
 
 # Claude backup files
 *.backup
-scripts/
+/scripts/
 .last-run.json
 playwright-report/
 

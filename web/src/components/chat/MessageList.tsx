@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef } from 'react'
 import type { ChatMessage } from '../../types/chat'
 import { ScrollArea } from './ui/ScrollArea'
 import { MessageItem } from './MessageItem'
+import { PlanApprovalBar } from './PlanApprovalBar'
 
 interface MessageListProps {
   messages: ChatMessage[]
@@ -9,9 +10,12 @@ interface MessageListProps {
   isStreaming: boolean
   isThinking: boolean
   onRespondToQuestion?: (toolCallId: string, answers: Record<string, string>) => void
+  planPendingApproval?: boolean
+  onApprovePlan?: () => void
+  onRequestPlanChanges?: (feedback: string) => void
 }
 
-export function MessageList({ messages, sessionRef, isStreaming, isThinking, onRespondToQuestion }: MessageListProps) {
+export function MessageList({ messages, sessionRef, isStreaming, isThinking, onRespondToQuestion, planPendingApproval, onApprovePlan, onRequestPlanChanges }: MessageListProps) {
   const scrollRef = useRef<HTMLDivElement>(null)
   const userScrolledUpRef = useRef(false)
 
@@ -68,6 +72,9 @@ export function MessageList({ messages, sessionRef, isStreaming, isThinking, onR
           ))}
           {isThinking && (messages.length === 0 || messages[messages.length - 1].role === 'user') && (
             <ThinkingIndicator sessionRef={sessionRef} />
+          )}
+          {planPendingApproval && !isStreaming && onApprovePlan && onRequestPlanChanges && (
+            <PlanApprovalBar onApprove={onApprovePlan} onRequestChanges={onRequestPlanChanges} />
           )}
         </>
       )}

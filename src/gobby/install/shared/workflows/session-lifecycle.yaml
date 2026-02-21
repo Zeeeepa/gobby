@@ -41,6 +41,10 @@ session_variables:
   # Set via set_mode WebSocket message; default from config (chat.default_mode)
   chat_mode: bypass
 
+  # Numeric autonomy level derived from chat_mode + plan_mode
+  # 0=Plan (read-only), 1=Act (approve edits), 2=Full Auto (bypass)
+  mode_level: 2
+
   # List of server:tool combos that have been unlocked via get_tool_schema
   unlocked_tools: []
 
@@ -96,7 +100,7 @@ triggers:
     # Agents must close_task() or set to review before stopping
     # Skip in plan mode or if escape hatch triggered (3+ consecutive stop attempts)
     - action: require_task_review_or_close_before_stop
-      when: "not variables.get('plan_mode') and variables.get('stop_attempts', 0) < variables.get('max_stop_attempts', 3)"
+      when: "variables.get('mode_level', 2) >= 1 and variables.get('stop_attempts', 0) < variables.get('max_stop_attempts', 3)"
 
   on_session_start:
     # Clear plan_mode on new sessions - don't inherit from parent session
@@ -106,6 +110,10 @@ triggers:
       when: "event.data.get('source') in ['clear', 'compact', 'startup']"
       name: plan_mode
       value: false
+    - action: set_variable
+      when: "event.data.get('source') in ['clear', 'compact', 'startup']"
+      name: mode_level
+      value: 2
 
     # Reset unlocked_tools on context loss
     # Agent must re-learn schemas after context compaction
@@ -225,6 +233,10 @@ triggers:
       when: "not variables.get('_session_initialized')"
       name: plan_mode
       value: false
+    - action: set_variable
+      when: "not variables.get('_session_initialized')"
+      name: mode_level
+      value: 2
 
     - action: capture_baseline_dirty_files
       when: "not variables.get('_session_initialized')"
@@ -405,8 +417,16 @@ triggers:
       value: true
       when: "event.data.get('tool_name') == 'EnterPlanMode'"
     - action: set_variable
+      name: mode_level
+      value: 0
+      when: "event.data.get('tool_name') == 'EnterPlanMode'"
+    - action: set_variable
       name: plan_mode
       value: false
+      when: "event.data.get('tool_name') == 'ExitPlanMode'"
+    - action: set_variable
+      name: mode_level
+      value: "{{ {'plan': 0, 'accept_edits': 1, 'normal': 1}.get(variables.get('chat_mode', 'bypass'), 2) }}"
       when: "event.data.get('tool_name') == 'ExitPlanMode'"
 
     # Reset stop attempts counter on successful native tool use

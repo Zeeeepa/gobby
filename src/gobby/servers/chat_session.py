@@ -60,6 +60,24 @@ logger = logging.getLogger(__name__)
 # We cap slightly below to avoid the ugly "… [output truncated]" suffix.
 _ADDITIONAL_CONTEXT_LIMIT = 9_950
 
+# Tools that are blocked in plan mode (write operations)
+_PLAN_MODE_BLOCKED_TOOLS: frozenset[str] = frozenset({"Edit", "Write", "NotebookEdit"})
+
+# Bash commands that perform write/destructive operations (blocked in plan mode).
+# Read-only commands (ls, cat, grep, git status/log/diff, find, head, tail) pass through.
+_PLAN_FILE_PATTERN = re.compile(r"^.*[/\\]\.claude[/\\]plans[/\\].*\.md$")
+
+_BASH_WRITE_PATTERNS = re.compile(
+    r"(?:^|[;&|]\s*)(?:"
+    r"rm\b|mv\b|cp\b|mkdir\b|touch\b|chmod\b|chown\b"
+    r"|sed\s+-i\b|pip\s+install\b|npm\s+install\b|yarn\s+add\b"
+    r"|git\s+(?:add|commit|push|reset|clean|checkout|merge|rebase|cherry-pick)\b"
+    r")"
+    r"|>\s*[^\s]"  # output redirection
+    r"|>>\s*[^\s]",  # append redirection
+    re.MULTILINE,
+)
+
 
 class PendingApproval(TypedDict):
     """Pending tool-approval payload sent to the frontend."""
@@ -257,6 +275,8 @@ class ChatSession:
     _pending_approval_decision: str | None = field(default=None, repr=False)
     _approved_tools: set[str] = field(default_factory=set, repr=False)
     chat_mode: str = field(default="bypass", repr=False)
+    _plan_approved: bool = field(default=False, repr=False)
+    _plan_feedback: str | None = field(default=None, repr=False)
     _tool_approval_config: Any | None = field(default=None, repr=False)
     _tool_approval_callback: Any | None = field(default=None, repr=False)
     _needs_history_injection: bool = field(default=False, repr=False)
@@ -280,6 +300,9 @@ class ChatSession:
         default=None, repr=False
     )
     _on_stop: Callable[[dict[str, Any]], Awaitable[dict[str, Any] | None]] | None = field(
+        default=None, repr=False
+    )
+    _on_mode_changed: Callable[[str, str], Awaitable[None]] | None = field(
         default=None, repr=False
     )
 
@@ -357,6 +380,19 @@ class ChatSession:
                 data = {"prompt_text": inp.get("prompt", ""), "source": "claude_sdk_web_chat"}
                 resp = await cb(data)
                 output = _response_to_prompt_output(resp)
+
+                # Inject plan mode context into additionalContext
+                plan_ctx = self._get_plan_mode_context()
+                if plan_ctx:
+                    hook_specific = output.get("hookSpecificOutput")
+                    existing = ""
+                    if hook_specific and isinstance(hook_specific, dict):
+                        existing = str(hook_specific.get("additionalContext", "") or "")
+                    combined = (existing + "\n\n" + plan_ctx).strip() if existing else plan_ctx
+                    output["hookSpecificOutput"] = UserPromptSubmitHookSpecificOutput(
+                        hookEventName="UserPromptSubmit",
+                        additionalContext=combined,
+                    )
 
                 # Inject conversation history on first prompt of a recreated session
                 if self._needs_history_injection:
@@ -471,6 +507,40 @@ class ChatSession:
         until the user provides answers via provide_answer()) and tools
         matched by tool_approval policies (which block until approved).
         """
+        # Agent-initiated plan mode transitions
+        if tool_name == "EnterPlanMode":
+            self.set_chat_mode("plan")
+            if self._on_mode_changed:
+                await self._on_mode_changed("plan", "agent_requested")
+            return PermissionResultAllow(updated_input=input_data)
+        if tool_name == "ExitPlanMode":
+            self.set_chat_mode("accept_edits")
+            if self._on_mode_changed:
+                await self._on_mode_changed("accept_edits", "agent_exited_plan")
+            return PermissionResultAllow(updated_input=input_data)
+
+        # Plan mode: block write tools until the plan is approved
+        if self.chat_mode == "plan" and not self._plan_approved:
+            if tool_name in _PLAN_MODE_BLOCKED_TOOLS:
+                # Allow writes to plan files (e.g. ~/.claude/plans/*.md)
+                if tool_name in ("Write", "Edit"):
+                    file_path = input_data.get("file_path", "")
+                    if _PLAN_FILE_PATTERN.match(file_path):
+                        return PermissionResultAllow(updated_input=input_data)
+                return PermissionResultDeny(
+                    message=(
+                        f"Plan mode is active — {tool_name} is blocked. "
+                        "Present your plan to the user for approval before making changes."
+                    )
+                )
+            if tool_name == "Bash" and self._is_write_bash(input_data):
+                return PermissionResultDeny(
+                    message=(
+                        "Plan mode is active — write/destructive Bash commands are blocked. "
+                        "Present your plan to the user for approval before making changes."
+                    )
+                )
+
         # Fire session-lifecycle evaluation for tool blocking.
         # In the SDK path, the PreToolUse hook's permissionDecision="deny" is not
         # respected because can_use_tool already granted permission. By checking
@@ -603,6 +673,69 @@ class ChatSession:
         if not command:
             return False
         return bool(self._DANGEROUS_BASH_PATTERNS.search(command))
+
+    def _is_write_bash(self, input_data: dict[str, Any]) -> bool:
+        """Check if a Bash command performs write/destructive operations (plan mode)."""
+        command = input_data.get("command", "")
+        if not command:
+            return False
+        return bool(_BASH_WRITE_PATTERNS.search(command))
+
+    def set_chat_mode(self, mode: str) -> None:
+        """Set chat mode, resetting plan state when entering plan mode."""
+        self.chat_mode = mode
+        if mode == "plan":
+            self._plan_approved = False
+            self._plan_feedback = None
+        elif mode != "plan":
+            # Leaving plan mode — clear plan state
+            self._plan_approved = False
+            self._plan_feedback = None
+
+    def approve_plan(self) -> None:
+        """Mark the current plan as approved, unlocking write tools."""
+        self._plan_approved = True
+
+    def set_plan_feedback(self, feedback: str) -> None:
+        """Store user feedback for plan revision."""
+        self._plan_feedback = feedback
+
+    def _get_plan_mode_context(self) -> str | None:
+        """Return plan mode system context for additionalContext injection."""
+        if self.chat_mode != "plan":
+            return None
+
+        if self._plan_approved:
+            return (
+                "<plan-mode status=\"approved\">\n"
+                "The user has approved your plan. You may now execute it.\n"
+                "Write tools (Edit, Write, NotebookEdit, write Bash) are unblocked.\n"
+                "</plan-mode>"
+            )
+
+        parts = [
+            "<plan-mode status=\"active\">",
+            "You are in PLAN MODE. Your role is to research and design, not execute.",
+            "",
+            "ALLOWED: Read, Glob, Grep, read-only Bash (ls, cat, grep, git status/log/diff, find), Write/Edit to ~/.claude/plans/*.md",
+            "BLOCKED: Edit, Write, NotebookEdit, write/destructive Bash (rm, mv, git add/commit/push, redirects)",
+            "",
+            "Present a structured plan with:",
+            "1. Summary of changes needed",
+            "2. Files to modify and what changes to make",
+            "3. Implementation order",
+            "4. Verification steps",
+            "",
+            "The user will approve or request changes before you proceed.",
+        ]
+
+        if self._plan_feedback:
+            parts.append("")
+            parts.append(f"USER FEEDBACK on previous plan:\n{self._plan_feedback}")
+            self._plan_feedback = None  # Clear after injection
+
+        parts.append("</plan-mode>")
+        return "\n".join(parts)
 
     async def _wait_for_tool_approval(
         self, tool_name: str, input_data: dict[str, Any]

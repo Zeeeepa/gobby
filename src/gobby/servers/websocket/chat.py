@@ -136,6 +136,23 @@ class ChatMixin:
             conversation_id, HookEventType.STOP, data
         )
 
+        # Wire mode-change callback so agent-initiated plan mode transitions
+        # (EnterPlanMode/ExitPlanMode) are broadcast to all connected clients
+        async def _notify_mode_changed(mode: str, reason: str) -> None:
+            msg = json.dumps({
+                "type": "mode_changed",
+                "conversation_id": conversation_id,
+                "mode": mode,
+                "reason": reason,
+            })
+            for ws in list(self.clients.keys()):
+                try:
+                    await ws.send(msg)
+                except (ConnectionClosed, ConnectionClosedError):
+                    pass
+
+        session._on_mode_changed = _notify_mode_changed
+
         # Wire tool approval config if available
         daemon_cfg = getattr(self, "daemon_config", None)
         if daemon_cfg is not None:
@@ -240,6 +257,18 @@ class ChatMixin:
         session = self._chat_sessions.get(conversation_id)
         db_session_id = getattr(session, "db_session_id", None) or conversation_id
         project_path = getattr(session, "project_path", None)
+
+        # Normalize MCP fields (CLI adapters do this; web chat has no adapter)
+        if data:
+            tool_name = data.get("tool_name", "")
+            if tool_name in ("call_tool", "mcp__gobby__call_tool"):
+                tool_input = data.get("tool_input") or {}
+                if "mcp_server" not in data:
+                    data["mcp_server"] = tool_input.get("server_name")
+                if "mcp_tool" not in data:
+                    data["mcp_tool"] = tool_input.get("tool_name")
+            if "tool_response" in data and "tool_output" not in data:
+                data["tool_output"] = data["tool_response"]
 
         event = HookEvent(
             event_type=event_type,
@@ -723,6 +752,52 @@ class ChatMixin:
 
         session.provide_approval(decision)
 
+    async def _handle_plan_approval_response(self, websocket: Any, data: dict[str, Any]) -> None:
+        """Handle plan_approval_response message from the web UI.
+
+        Processes the user's decision on a proposed plan:
+        - "approve": Unlock write tools and transition to accept_edits mode
+        - "request_changes": Store feedback for the next prompt injection
+
+        Message format:
+        {
+            "type": "plan_approval_response",
+            "conversation_id": "stable-id",
+            "decision": "approve" | "request_changes",
+            "feedback": "optional feedback text"
+        }
+        """
+        conversation_id = data.get("conversation_id")
+        decision = data.get("decision", "")
+
+        session = self._chat_sessions.get(conversation_id) if conversation_id else None
+        if session is None:
+            logger.warning(f"plan_approval_response for unknown conversation: {conversation_id}")
+            return
+
+        if decision == "approve":
+            session.approve_plan()
+            session.set_chat_mode("accept_edits")
+            try:
+                await websocket.send(
+                    json.dumps(
+                        {
+                            "type": "mode_changed",
+                            "conversation_id": conversation_id,
+                            "mode": "accept_edits",
+                            "reason": "plan_approved",
+                        }
+                    )
+                )
+            except (ConnectionClosed, ConnectionClosedError):
+                pass
+            logger.info(f"Plan approved for conversation {conversation_id[:8]}, switched to accept_edits")
+        elif decision == "request_changes":
+            feedback = data.get("feedback", "")
+            if feedback:
+                session.set_plan_feedback(feedback)
+            logger.info(f"Plan changes requested for conversation {conversation_id[:8]}")
+
     async def _handle_continue_in_chat(self, websocket: Any, data: dict[str, Any]) -> None:
         """Handle continue_in_chat message to resume a CLI session in the web chat UI.
 
@@ -830,7 +905,24 @@ class ChatMixin:
 
         session = self._chat_sessions.get(conversation_id) if conversation_id else None
         if session is not None and conversation_id:
-            session.chat_mode = mode
+            session.set_chat_mode(mode)
+            # Sync mode_level to workflow state
+            workflow_handler = getattr(self, "workflow_handler", None)
+            db_sid = getattr(session, "db_session_id", None)
+            if workflow_handler and db_sid:
+                try:
+                    from gobby.workflows.observers import compute_mode_level
+
+                    sm = workflow_handler.engine.state_manager
+                    state = sm.get_state(db_sid)
+                    if state:
+                        plan_mode = state.variables.get("plan_mode", False)
+                        sm.merge_variables(
+                            db_sid,
+                            {"chat_mode": mode, "mode_level": compute_mode_level(mode, plan_mode)},
+                        )
+                except Exception as e:
+                    logger.warning(f"Failed to sync mode_level on mode change: {e}")
             logger.info(f"Chat mode set to '{mode}' for conversation {conversation_id[:8]}")
         elif conversation_id:
             # Store mode for when session is created

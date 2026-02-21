@@ -183,6 +183,16 @@ export function useChat() {
   // Session ref tracking (e.g. "#158")
   const [sessionRef, setSessionRef] = useState<string | null>(null)
 
+  // Plan mode approval tracking
+  const [planPendingApproval, setPlanPendingApproval] = useState(false)
+  const currentModeRef = useRef<ChatMode>('accept_edits')
+
+  // Callback for backend-initiated mode changes (e.g. agent EnterPlanMode)
+  const onModeChangedRef = useRef<((mode: ChatMode) => void) | null>(null)
+  const setOnModeChanged = useCallback((fn: (mode: ChatMode) => void) => {
+    onModeChangedRef.current = fn
+  }, [])
+
   // Context usage tracking — accumulated across turns.
   // totalInputTokens = uncached + cacheRead + cacheCreation (the real context size).
   const [contextUsage, setContextUsage] = useState<{
@@ -297,6 +307,13 @@ export function useChat() {
             }
           }
           handleVoiceMessageRef.current(data as Record<string, unknown>)
+        } else if (data.type === 'mode_changed') {
+          const newMode = (data as Record<string, unknown>).mode as ChatMode | undefined
+          if (newMode) {
+            currentModeRef.current = newMode
+            setPlanPendingApproval(false)
+            onModeChangedRef.current?.(newMode)
+          }
         } else if (data.type === 'session_info') {
           const ref = (data as Record<string, unknown>).session_ref as string | undefined
           if (ref) setSessionRef(ref)
@@ -354,6 +371,10 @@ export function useChat() {
     if (chunk.done) {
       setIsStreaming(false)
       setIsThinking(false)
+      // Show plan approval UI if we just finished streaming in plan mode
+      if (currentModeRef.current === 'plan') {
+        setPlanPendingApproval(true)
+      }
       // Pick up session_ref from done message (fallback if session_info was missed)
       if (chunk.session_ref) {
         setSessionRef(chunk.session_ref)
@@ -777,6 +798,8 @@ export function useChat() {
   // Send mode change to backend
   const sendMode = useCallback((mode: ChatMode) => {
     if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) return
+    currentModeRef.current = mode
+    setPlanPendingApproval(false)
     wsRef.current.send(JSON.stringify({
       type: 'set_mode',
       mode,
@@ -917,6 +940,29 @@ export function useChat() {
     }))
   }, [])
 
+  // Approve the current plan — tells backend to unlock write tools
+  const approvePlan = useCallback(() => {
+    if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) return
+    wsRef.current.send(JSON.stringify({
+      type: 'plan_approval_response',
+      conversation_id: conversationIdRef.current,
+      decision: 'approve',
+    }))
+    setPlanPendingApproval(false)
+  }, [])
+
+  // Request changes to the plan with feedback
+  const requestPlanChanges = useCallback((feedback: string) => {
+    if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) return
+    wsRef.current.send(JSON.stringify({
+      type: 'plan_approval_response',
+      conversation_id: conversationIdRef.current,
+      decision: 'request_changes',
+      feedback,
+    }))
+    setPlanPendingApproval(false)
+  }, [])
+
   // Connect on mount
   useEffect(() => {
     connect()
@@ -946,10 +992,14 @@ export function useChat() {
     executeCommand,
     respondToQuestion,
     respondToApproval,
+    planPendingApproval,
+    approvePlan,
+    requestPlanChanges,
     switchConversation,
     startNewChat,
     resumeSession,
     continueSessionInChat,
+    setOnModeChanged,
     wsRef,
     handleVoiceMessageRef,
   }

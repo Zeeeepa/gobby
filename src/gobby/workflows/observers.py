@@ -32,6 +32,20 @@ _jinja_env = SandboxedEnvironment()
 BehaviorFn = Callable[..., Coroutine[Any, Any, None]]
 
 
+_MODE_LEVEL_MAP = {"plan": 0, "accept_edits": 1, "normal": 1, "bypass": 2}
+
+
+def compute_mode_level(chat_mode: str, plan_mode: bool) -> int:
+    """Derive numeric mode_level from chat_mode and plan_mode.
+
+    Returns 0 (Plan), 1 (Act), or 2 (Full Auto).
+    plan_mode=True always forces level 0 regardless of chat_mode.
+    """
+    if plan_mode:
+        return 0
+    return _MODE_LEVEL_MAP.get(chat_mode, 2)
+
+
 # =============================================================================
 # Detection functions
 # =============================================================================
@@ -209,8 +223,9 @@ def detect_plan_mode_from_context(prompt: str, state: "WorkflowState") -> None:
         if indicator in reminder_text:
             if not state.variables.get("plan_mode"):
                 state.variables["plan_mode"] = True
+                state.variables["mode_level"] = 0
                 logger.info(
-                    f"Session {state.session_id}: plan_mode=True "
+                    f"Session {state.session_id}: plan_mode=True, mode_level=0 "
                     f"(detected from system reminder: '{indicator}')"
                 )
             return
@@ -225,8 +240,11 @@ def detect_plan_mode_from_context(prompt: str, state: "WorkflowState") -> None:
         if indicator in reminder_text:
             if state.variables.get("plan_mode"):
                 state.variables["plan_mode"] = False
+                chat_mode = state.variables.get("chat_mode", "bypass")
+                state.variables["mode_level"] = compute_mode_level(chat_mode, False)
                 logger.info(
-                    f"Session {state.session_id}: plan_mode=False "
+                    f"Session {state.session_id}: plan_mode=False, "
+                    f"mode_level={state.variables['mode_level']} "
                     f"(detected from system reminder: '{indicator}')"
                 )
             return

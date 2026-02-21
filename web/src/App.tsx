@@ -29,7 +29,7 @@ import type { GobbySession } from './hooks/useSessions'
 const HIDDEN_PROJECTS = new Set(['_orphaned', '_migrated'])
 
 export default function App() {
-  const { messages, conversationId, sessionRef, isConnected, isStreaming, isThinking, contextUsage, sendMessage, sendMode, sendProjectChange, stopStreaming, clearHistory, deleteConversation, executeCommand, respondToQuestion, switchConversation, startNewChat, continueSessionInChat, wsRef, handleVoiceMessageRef } = useChat()
+  const { messages, conversationId, sessionRef, isConnected, isStreaming, isThinking, contextUsage, sendMessage, sendMode, sendProjectChange, stopStreaming, clearHistory, deleteConversation, executeCommand, respondToQuestion, planPendingApproval, approvePlan, requestPlanChanges, switchConversation, startNewChat, continueSessionInChat, setOnModeChanged, wsRef, handleVoiceMessageRef } = useChat()
   const voice = useVoice(wsRef, conversationId)
   const { settings, updateFontSize, updateModel, updateChatMode, updateTheme, resetSettings } = useSettings()
   const { agents, refreshAgents } = useTerminal()
@@ -271,6 +271,12 @@ export default function App() {
     handleVoiceMessageRef.current = voice.handleVoiceMessage
   }, [voice.handleVoiceMessage, handleVoiceMessageRef])
 
+  // Wire backend-initiated mode changes (e.g. agent EnterPlanMode/ExitPlanMode)
+  // to update the settings slider
+  useEffect(() => {
+    setOnModeChanged(updateChatMode)
+  }, [updateChatMode, setOnModeChanged])
+
   const handleInputChange = useCallback((value: string) => {
     filterCommands(value)
   }, [filterCommands])
@@ -353,6 +359,9 @@ export default function App() {
             onCommandSelect: handleCommandSelect,
             mode: settings.chatMode,
             onModeChange: (mode) => { updateChatMode(mode); sendMode(mode) },
+            planPendingApproval,
+            onApprovePlan: approvePlan,
+            onRequestPlanChanges: requestPlanChanges,
           }}
           conversations={{
             sessions: webChatSessions,
