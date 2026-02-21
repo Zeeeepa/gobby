@@ -1061,7 +1061,7 @@ def uninstall(
         click.echo("")
 
     # Remove global hooks directory for global uninstall
-    if not project_flag:
+    if not project_flag and all_flag:
         global_hooks_dir = Path(
             os.environ.get("GOBBY_HOOKS_DIR", str(Path.home() / ".gobby" / "hooks"))
         )

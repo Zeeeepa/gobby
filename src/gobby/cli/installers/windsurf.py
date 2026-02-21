@@ -202,14 +202,15 @@ def uninstall_windsurf(project_path: Path, mode: str = "project") -> dict[str, A
         hooks_dir = windsurf_path / "hooks"
     hooks_file = windsurf_path / "hooks.json"
 
-    # Remove hook dispatcher
-    dispatcher = hooks_dir / "hook_dispatcher.py"
-    if dispatcher.exists():
-        try:
-            dispatcher.unlink()
-            result["files_removed"].append(str(dispatcher))
-        except OSError as e:
-            logger.warning(f"Failed to remove {dispatcher}: {e}")
+    # Remove hook dispatcher (only in project mode — global dispatcher is shared)
+    if mode != "global":
+        dispatcher = hooks_dir / "hook_dispatcher.py"
+        if dispatcher.exists():
+            try:
+                dispatcher.unlink()
+                result["files_removed"].append(str(dispatcher))
+            except OSError as e:
+                logger.warning(f"Failed to remove {dispatcher}: {e}")
 
     # Remove hooks from hooks.json
     if hooks_file.exists():
