@@ -1,0 +1,130 @@
+import React, { useState, useCallback, useRef } from "react";
+import { Box } from "ink";
+import { StepHeader } from "./components/StepHeader.js";
+import { loadState, type SetupState } from "./utils/state.js";
+import type { StepProps } from "./types.js";
+
+// Step components
+import { Bootstrap } from "./steps/Bootstrap.js";
+import { Welcome } from "./steps/Welcome.js";
+import { AboutYou } from "./steps/AboutYou.js";
+import { SystemCheck } from "./steps/SystemCheck.js";
+import { Configuration } from "./steps/Configuration.js";
+import { NetworkSecurity } from "./steps/NetworkSecurity.js";
+import { Tailscale } from "./steps/Tailscale.js";
+import { ProjectDiscovery } from "./steps/ProjectDiscovery.js";
+import { CliHooks } from "./steps/CliHooks.js";
+import { PersonalWorkspace } from "./steps/PersonalWorkspace.js";
+import { Launch } from "./steps/Launch.js";
+
+interface StepDef {
+  id: string;
+  label: string;
+  component: React.ComponentType<StepProps>;
+  skipIf?: (state: SetupState) => boolean;
+  /** If true, this step doesn't show a numbered header (e.g. welcome, bootstrap) */
+  hideHeader?: boolean;
+}
+
+const STEPS: StepDef[] = [
+  {
+    id: "bootstrap",
+    label: "Bootstrap",
+    component: Bootstrap,
+    skipIf: () => !!process.env.GOBBY_SKIP_BOOTSTRAP,
+    hideHeader: true,
+  },
+  { id: "welcome", label: "Welcome", component: Welcome, hideHeader: true },
+  { id: "about-you", label: "About You", component: AboutYou },
+  { id: "syscheck", label: "System Check", component: SystemCheck },
+  { id: "config", label: "Configuration", component: Configuration },
+  { id: "firewall", label: "Network Security", component: NetworkSecurity },
+  {
+    id: "tailscale",
+    label: "Tailscale",
+    component: Tailscale,
+    skipIf: (s) => !s.detected_tools?.tailscale,
+  },
+  { id: "projects", label: "Project Discovery", component: ProjectDiscovery },
+  { id: "hooks", label: "CLI Hooks", component: CliHooks },
+  { id: "personal", label: "Personal Workspace", component: PersonalWorkspace },
+  { id: "launch", label: "Launch", component: Launch },
+];
+
+/** Find the next non-skipped step index starting from `from` (inclusive). */
+function findNextActive(from: number, state: SetupState): number {
+  for (let i = from; i < STEPS.length; i++) {
+    const step = STEPS[i];
+    if (!step.skipIf?.(state)) return i;
+  }
+  return STEPS.length; // past end = done
+}
+
+/** Compute the display number for a step (only counting non-hidden, non-skipped steps). */
+function computeStepDisplay(
+  stepIdx: number,
+  state: SetupState,
+): { stepNumber: number; totalSteps: number } {
+  let count = 0;
+  let stepNumber = 0;
+  for (let i = 0; i < STEPS.length; i++) {
+    const s = STEPS[i];
+    if (s.hideHeader || s.skipIf?.(state)) continue;
+    count++;
+    if (i === stepIdx) stepNumber = count;
+  }
+  return { stepNumber, totalSteps: count };
+}
+
+export function App(): React.ReactElement {
+  const [state, setStateRaw] = useState<SetupState>(() => loadState());
+  const stateRef = useRef(state);
+
+  const setState = useCallback(
+    (fn: (prev: SetupState) => SetupState) => {
+      setStateRaw((prev) => {
+        const next = fn(prev);
+        stateRef.current = next;
+        return next;
+      });
+    },
+    [],
+  );
+
+  // Compute initial step index: resume after last completed step
+  const [currentIdx, setCurrentIdx] = useState<number>(() => {
+    const initial = loadState();
+    if (!initial.completed_step_id) return findNextActive(0, initial);
+    const completedIdx = STEPS.findIndex(
+      (s) => s.id === initial.completed_step_id,
+    );
+    if (completedIdx < 0) return findNextActive(0, initial);
+    return findNextActive(completedIdx + 1, initial);
+  });
+
+  const onNext = useCallback(() => {
+    setCurrentIdx((prev) => findNextActive(prev + 1, stateRef.current));
+  }, []);
+
+  // Done?
+  if (currentIdx >= STEPS.length) {
+    return <Box />;
+  }
+
+  const step = STEPS[currentIdx];
+  const StepComponent = step.component;
+  const { stepNumber, totalSteps } = computeStepDisplay(currentIdx, state);
+
+  return (
+    <Box flexDirection="column">
+      {!step.hideHeader && (
+        <StepHeader
+          stepNumber={stepNumber}
+          totalSteps={totalSteps}
+          title={step.label}
+        />
+      )}
+      <StepComponent state={state} setState={setState} onNext={onNext} />
+    </Box>
+  );
+}

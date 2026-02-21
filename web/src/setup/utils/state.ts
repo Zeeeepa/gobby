@@ -1,0 +1,87 @@
+import { readFileSync, writeFileSync, mkdirSync } from "fs";
+import { homedir } from "os";
+import { join } from "path";
+
+export interface SetupState {
+  version: number;
+  started_at: string;
+  completed_at: string | null;
+  completed_step_id: string | null;
+  user_name: string | null;
+  ports: { http: number; ws: number; ui: number };
+  detected_tools: Record<string, boolean>;
+  tool_versions: Record<string, string>;
+  installed_clis: string[];
+  projects: string[];
+  firewall_configured: boolean;
+  tailscale_configured: boolean;
+  personal_dir_created: boolean;
+  desktop_shortcut_created: boolean;
+}
+
+const DEFAULT_STATE: SetupState = {
+  version: 2,
+  started_at: new Date().toISOString(),
+  completed_at: null,
+  completed_step_id: null,
+  user_name: null,
+  ports: { http: 60887, ws: 60888, ui: 60889 },
+  detected_tools: {},
+  tool_versions: {},
+  installed_clis: [],
+  projects: [],
+  firewall_configured: false,
+  tailscale_configured: false,
+  personal_dir_created: false,
+  desktop_shortcut_created: false,
+};
+
+/** Step ID map for migrating v1 (numeric) state to v2 (string IDs). */
+const V1_STEP_MAP: Record<number, string> = {
+  1: "welcome",
+  2: "about-you",
+  3: "syscheck",
+  4: "config",
+  5: "firewall",
+  6: "tailscale",
+  7: "projects",
+  8: "hooks",
+  9: "personal",
+  10: "launch",
+};
+
+export function getGobbyHome(): string {
+  return process.env.GOBBY_HOME || join(homedir(), ".gobby");
+}
+
+function statePath(): string {
+  return join(getGobbyHome(), "setup_state.json");
+}
+
+export function loadState(): SetupState {
+  try {
+    const raw = readFileSync(statePath(), "utf-8");
+    const parsed = JSON.parse(raw);
+
+    // Migrate v1 numeric completed_step → v2 string completed_step_id
+    if (
+      parsed.version === 1 &&
+      typeof parsed.completed_step === "number"
+    ) {
+      parsed.completed_step_id =
+        V1_STEP_MAP[parsed.completed_step] || null;
+      parsed.version = 2;
+      delete parsed.completed_step;
+    }
+
+    return { ...DEFAULT_STATE, ...parsed };
+  } catch {
+    return { ...DEFAULT_STATE, started_at: new Date().toISOString() };
+  }
+}
+
+export function saveState(state: SetupState): void {
+  const dir = getGobbyHome();
+  mkdirSync(dir, { recursive: true });
+  writeFileSync(statePath(), JSON.stringify(state, null, 2));
+}

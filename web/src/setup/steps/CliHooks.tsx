@@ -1,0 +1,128 @@
+import React, { useState } from "react";
+import { Text, Box } from "ink";
+import Spinner from "ink-spinner";
+import { runGobby } from "../utils/gobby.js";
+import { MultiSelect } from "../components/MultiSelect.js";
+import { StatusMessage } from "../components/StatusMessage.js";
+import { saveState } from "../utils/state.js";
+import type { StepProps } from "../types.js";
+
+const CLI_LABELS: Record<string, string> = {
+  claude: "Claude Code",
+  gemini: "Gemini CLI",
+  codex: "Codex",
+  cursor: "Cursor",
+  windsurf: "Windsurf",
+  copilot: "Copilot CLI",
+};
+
+const CLI_FLAGS: Record<string, string> = {
+  claude: "--claude",
+  gemini: "--gemini",
+  codex: "--codex",
+  cursor: "--cursor",
+  windsurf: "--windsurf",
+  copilot: "--copilot",
+};
+
+export function CliHooks({ state, setState, onNext }: StepProps): React.ReactElement {
+  const [phase, setPhase] = useState<"select" | "installing" | "done">("select");
+  const [results, setResults] = useState<string[]>([]);
+
+  const detected = state.detected_tools;
+  const available = Object.keys(CLI_LABELS).filter((k) => detected[k]);
+
+  const finish = (installed: string[]): void => {
+    setState((prev) => {
+      const next = {
+        ...prev,
+        installed_clis: installed,
+        completed_step_id: "hooks" as const,
+      };
+      saveState(next);
+      return next;
+    });
+    setTimeout(onNext, 300);
+  };
+
+  if (available.length === 0) {
+    if (phase === "select") {
+      return (
+        <Box flexDirection="column">
+          <Text dimColor>{"  "}No AI coding CLIs detected. Skipping hook installation.</Text>
+          <Box marginTop={1}>
+            <Text dimColor>
+              {"  "}Run gobby install later when you have CLIs installed.
+            </Text>
+          </Box>
+          {/* Auto-advance */}
+          {(() => {
+            setTimeout(() => finish([]), 300);
+            return null;
+          })()}
+        </Box>
+      );
+    }
+    return <Text dimColor>{"  "}Skipped.</Text>;
+  }
+
+  if (phase === "select") {
+    return (
+      <Box flexDirection="column">
+        <Text>{"  "}Detected CLIs — select which to install hooks for:</Text>
+        <Text> </Text>
+        <MultiSelect
+          items={available.map((k) => ({
+            label: CLI_LABELS[k],
+            value: k,
+          }))}
+          onSubmit={(selected) => {
+            if (selected.length === 0) {
+              finish([]);
+              return;
+            }
+
+            setPhase("installing");
+
+            // Build gobby install flags
+            const flags = selected
+              .map((k) => CLI_FLAGS[k])
+              .filter(Boolean);
+            const r = runGobby(["install", ...flags], { timeout: 60000 });
+
+            const lines: string[] = [];
+            const installed: string[] = [];
+            if (r.success) {
+              for (const k of selected) {
+                lines.push(`  Installed: ${CLI_LABELS[k]}`);
+                installed.push(k);
+              }
+            } else {
+              lines.push(`  Install output: ${r.output.trim().slice(0, 200)}`);
+            }
+
+            setResults(lines);
+            setPhase("done");
+            finish(installed);
+          }}
+        />
+      </Box>
+    );
+  }
+
+  if (phase === "installing") {
+    return (
+      <Text>
+        <Spinner type="dots" /> Installing hooks...
+      </Text>
+    );
+  }
+
+  return (
+    <Box flexDirection="column">
+      {results.map((line, i) => (
+        <Text key={i}>{line}</Text>
+      ))}
+    </Box>
+  );
+}
