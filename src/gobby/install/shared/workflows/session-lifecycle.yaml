@@ -101,6 +101,11 @@ triggers:
     # Skip in plan mode or if escape hatch triggered (3+ consecutive stop attempts)
     - action: require_task_review_or_close_before_stop
       when: "variables.get('mode_level', 2) >= 1 and variables.get('stop_attempts', 0) < variables.get('max_stop_attempts', 3)"
+      messages:
+        task_still_in_progress: |
+          Task {{ task_ref }} is still in_progress. Commit your changes and close it with close_task().
+          Do NOT use mark_task_needs_review as a shortcut — only use needs_review when there is
+          something genuinely critical the user must verify before closing.
 
   on_session_start:
     # Clear plan_mode on new sessions - don't inherit from parent session

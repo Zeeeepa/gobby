@@ -1,12 +1,55 @@
 from __future__ import annotations
 
+import logging
 import re
+from typing import Any
 
 from gobby.hooks.event_handlers._base import EventHandlersBase
 from gobby.hooks.events import HookEvent, HookResponse, SessionSource
 
+logger = logging.getLogger(__name__)
+
 # Pattern for /gobby or /gobby:skillname with optional args
 _GOBBY_CMD_PATTERN = re.compile(r"^/gobby(?::(\S+))?\s*(.*)?$", re.IGNORECASE | re.DOTALL)
+
+
+def _load_agent_prompt(
+    name: str,
+    context: dict[str, Any] | None = None,
+    fallback: str = "",
+) -> str:
+    """Load an agent prompt from bundled files, render if templated.
+
+    Falls back to the hardcoded string if the file is missing (e.g.,
+    editable install without the prompts directory).
+    """
+    from gobby.prompts.sync import get_bundled_prompts_path
+
+    prompt_file = get_bundled_prompts_path() / "agent" / f"{name}.md"
+    if not prompt_file.exists():
+        return fallback
+
+    try:
+        raw = prompt_file.read_text(encoding="utf-8")
+        # Strip YAML frontmatter
+        if raw.startswith("---"):
+            parts = raw.split("---", 2)
+            if len(parts) >= 3:
+                content = parts[2].strip()
+            else:
+                content = raw.strip()
+        else:
+            content = raw.strip()
+
+        # Render Jinja2 templates if context provided
+        if context and "{{" in content:
+            from gobby.workflows.templates import TemplateEngine
+
+            return TemplateEngine().render(content, context)
+        return content
+    except Exception:
+        logger.debug("Failed to load agent prompt %s, using fallback", name, exc_info=True)
+        return fallback
 
 
 class AgentEventHandlerMixin(EventHandlersBase):
@@ -130,7 +173,8 @@ class AgentEventHandlerMixin(EventHandlersBase):
             return None
 
         skill, score = matches[0]
-        return f'Relevant skill available: `get_skill(name="{skill.name}")` on `gobby-skills`'
+        fallback = f'Relevant skill available: `get_skill(name="{skill.name}")` on `gobby-skills`'
+        return _load_agent_prompt("skill-hint", {"skill_name": skill.name}, fallback)
 
     def _generate_help_content(self) -> str:
         """Generate help content listing all available skills."""
@@ -138,33 +182,28 @@ class AgentEventHandlerMixin(EventHandlersBase):
             raise RuntimeError("skill_manager not initialized")
         skills = self._skill_manager.discover_core_skills()
 
-        lines = [
-            "# Gobby Skills",
-            "",
-            "Invoke skills directly with `/gobby:skillname` syntax:",
-            "",
-        ]
-
         # Sort alphabetically, skip always-apply skills (they're auto-injected)
         user_skills = sorted(
             [s for s in skills if not s.is_always_apply()],
             key=lambda s: s.name,
         )
 
+        skill_lines = []
         for skill in user_skills:
             desc = skill.description.split(".")[0] if skill.description else ""
-            lines.append(f"- `/gobby:{skill.name}` — {desc}")
+            skill_lines.append(f"- `/gobby:{skill.name}` — {desc}")
+        skills_list = "\n".join(skill_lines)
 
-        lines.extend(
-            [
-                "",
-                "**MCP access**: `list_skills()` / `get_skill(name)` on `gobby-skills`.",
-                "**Hub search**: `search_hub(query)` on `gobby-skills`.",
-                "**MCP tools**: `list_mcp_servers()` for tool discovery.",
-            ]
+        fallback = (
+            "# Gobby Skills\n\n"
+            "Invoke skills directly with `/gobby:skillname` syntax:\n\n"
+            f"{skills_list}\n\n"
+            "**MCP access**: `list_skills()` / `get_skill(name)` on `gobby-skills`.\n"
+            "**Hub search**: `search_hub(query)` on `gobby-skills`.\n"
+            "**MCP tools**: `list_mcp_servers()` for tool discovery."
         )
 
-        return "\n".join(lines)
+        return _load_agent_prompt("help-content", {"skills_list": skills_list}, fallback)
 
     def _skill_not_found_context(self, name: str) -> str:
         """Generate context for an unrecognized skill name."""
@@ -174,22 +213,28 @@ class AgentEventHandlerMixin(EventHandlersBase):
 
         # Find close matches (name contains or starts with input)
         name_lower = name.lower()
-        close = [
+        close = sorted(
             s.name
             for s in skills
             if not s.is_always_apply()
             and (name_lower in s.name.lower() or s.name.lower().startswith(name_lower))
-        ]
+        )[:5]
 
+        # Build fallback
         lines = [f"Skill '{name}' not found."]
         if close:
             lines.append("")
             lines.append("Did you mean:")
-            for match in sorted(close)[:5]:
+            for match in close:
                 lines.append(f"  - `/gobby:{match}`")
-
         lines.extend(["", "Run `/gobby` or `/gobby help` to see all available skills."])
-        return "\n".join(lines)
+        fallback = "\n".join(lines)
+
+        return _load_agent_prompt(
+            "skill-not-found",
+            {"skill_name": name, "close_matches": close},
+            fallback,
+        )
 
     def handle_after_agent(self, event: HookEvent) -> HookResponse:
         """Handle AFTER_AGENT event."""

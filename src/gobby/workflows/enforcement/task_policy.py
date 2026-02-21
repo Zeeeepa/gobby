@@ -18,6 +18,23 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
+def _resolve_message(
+    messages: dict[str, str] | None,
+    key: str,
+    default: str,
+    context: dict[str, Any] | None = None,
+) -> str:
+    """Resolve a configurable message, falling back to a hardcoded default."""
+    if not messages or key not in messages:
+        return default
+    template = messages[key]
+    if "{{" in template and context:
+        from gobby.workflows.templates import TemplateEngine
+
+        return TemplateEngine().render(template, context)
+    return template
+
+
 def _is_uuid(value: str) -> bool:
     """Check if a string is a valid UUID (not a ref like #123)."""
     try:
@@ -34,6 +51,7 @@ async def require_task_complete(
     event_data: dict[str, Any] | None = None,
     project_id: str | None = None,
     workflow_state: WorkflowState | None = None,
+    messages: dict[str, str] | None = None,
 ) -> dict[str, Any] | None:
     """
     Block agent from stopping until task(s) (and their subtasks) are complete.
@@ -146,13 +164,19 @@ async def require_task_complete(
         # Case 1: No incomplete subtasks, but task not closed (leaf task or parent with all done)
         if not incomplete:
             logger.info(f"require_task_complete: Task '{task_id}' needs closing")
+            default_reason = (
+                f"Task '{parent_task.title}' is ready to close.\n"
+                f'close_task(task_id="{task_id}")'
+                f"{multi_task_suffix}"
+            )
+            ctx = {
+                "task_title": parent_task.title,
+                "task_id": task_id,
+                "multi_task_suffix": multi_task_suffix,
+            }
             return {
                 "decision": "block",
-                "reason": (
-                    f"Task '{parent_task.title}' is ready to close.\n"
-                    f'close_task(task_id="{task_id}")'
-                    f"{multi_task_suffix}"
-                ),
+                "reason": _resolve_message(messages, "task_ready_to_close", default_reason, ctx),
             }
 
         # Case 2: Has incomplete subtasks, agent has no claimed task
@@ -160,13 +184,21 @@ async def require_task_complete(
             logger.info(
                 f"require_task_complete: No claimed task, {len(incomplete)} incomplete subtasks"
             )
+            default_reason = (
+                f"'{parent_task.title}' has {len(incomplete)} incomplete subtask(s).\n\n"
+                f"Use suggest_next_task() to find the best task to work on next, "
+                f"and continue working without requiring confirmation from the user."
+                f"{multi_task_suffix}"
+            )
+            ctx = {
+                "task_title": parent_task.title,
+                "incomplete_count": len(incomplete),
+                "multi_task_suffix": multi_task_suffix,
+            }
             return {
                 "decision": "block",
-                "reason": (
-                    f"'{parent_task.title}' has {len(incomplete)} incomplete subtask(s).\n\n"
-                    f"Use suggest_next_task() to find the best task to work on next, "
-                    f"and continue working without requiring confirmation from the user."
-                    f"{multi_task_suffix}"
+                "reason": _resolve_message(
+                    messages, "task_incomplete_no_claim", default_reason, ctx
                 ),
             }
 
@@ -179,38 +211,61 @@ async def require_task_complete(
                 logger.info(
                     f"require_task_complete: Claimed task '{claimed_task_id}' still incomplete"
                 )
+                default_reason = (
+                    f"Your current task is not yet complete. "
+                    f"Finish and close it before stopping:\n"
+                    f'close_task(task_id="{claimed_task_id}")\n\n'
+                    f"'{parent_task.title}' still has {len(incomplete)} incomplete subtask(s)."
+                    f"{multi_task_suffix}"
+                )
+                ctx = {
+                    "claimed_task_id": claimed_task_id,
+                    "task_title": parent_task.title,
+                    "incomplete_count": len(incomplete),
+                    "multi_task_suffix": multi_task_suffix,
+                }
                 return {
                     "decision": "block",
-                    "reason": (
-                        f"Your current task is not yet complete. "
-                        f"Finish and close it before stopping:\n"
-                        f'close_task(task_id="{claimed_task_id}")\n\n'
-                        f"'{parent_task.title}' still has {len(incomplete)} incomplete subtask(s)."
-                        f"{multi_task_suffix}"
+                    "reason": _resolve_message(
+                        messages, "task_claimed_incomplete", default_reason, ctx
                     ),
                 }
             else:
                 # Claimed task is not under this parent - remind about parent work
                 logger.info("require_task_complete: Claimed task not under parent, redirecting")
+                default_reason = (
+                    f"'{parent_task.title}' has {len(incomplete)} incomplete subtask(s).\n\n"
+                    f"Use suggest_next_task() to find the best task to work on next, "
+                    f"and continue working without requiring confirmation from the user."
+                    f"{multi_task_suffix}"
+                )
+                ctx = {
+                    "task_title": parent_task.title,
+                    "incomplete_count": len(incomplete),
+                    "multi_task_suffix": multi_task_suffix,
+                }
                 return {
                     "decision": "block",
-                    "reason": (
-                        f"'{parent_task.title}' has {len(incomplete)} incomplete subtask(s).\n\n"
-                        f"Use suggest_next_task() to find the best task to work on next, "
-                        f"and continue working without requiring confirmation from the user."
-                        f"{multi_task_suffix}"
+                    "reason": _resolve_message(
+                        messages, "task_redirect_to_parent", default_reason, ctx
                     ),
                 }
 
         # Fallback: shouldn't reach here, but block with generic message
         logger.info(f"require_task_complete: Generic block for task '{task_id}'")
+        default_reason = (
+            f"'{parent_task.title}' is not yet complete. "
+            f"{len(incomplete)} subtask(s) remaining."
+            f"{multi_task_suffix}"
+        )
+        ctx = {
+            "task_title": parent_task.title,
+            "incomplete_count": len(incomplete),
+            "multi_task_suffix": multi_task_suffix,
+        }
         return {
             "decision": "block",
-            "reason": (
-                f"'{parent_task.title}' is not yet complete. "
-                f"{len(incomplete)} subtask(s) remaining."
-                f"{multi_task_suffix}"
-            ),
+            "reason": _resolve_message(messages, "task_generic_incomplete", default_reason, ctx),
         }
 
     except Exception as e:
@@ -223,6 +278,7 @@ async def validate_session_task_scope(
     task_manager: LocalTaskManager | None,
     workflow_state: WorkflowState | None,
     event_data: dict[str, Any] | None = None,
+    messages: dict[str, str] | None = None,
 ) -> dict[str, Any] | None:
     """
     Block claiming a task that is not a descendant of session_task.
@@ -332,12 +388,20 @@ async def validate_session_task_scope(
         scope_desc = ", ".join(session_task_ids)
         suggestion = "Use `suggest_next_task()` with one of the scoped parent IDs to find tasks within scope."
 
+    default_reason = (
+        f"Cannot claim task '{task_id}' - it is not within the session_task scope.\n\n"
+        f"This session is scoped to: {scope_desc}\n"
+        f"Only tasks that are descendants of these epics/features can be claimed.\n\n"
+        f"{suggestion}"
+    )
+    reason = _resolve_message(
+        messages,
+        "scope_out_of_scope_claim",
+        default_reason,
+        {"task_id": task_id, "scope_desc": scope_desc, "suggestion": suggestion},
+    )
+
     return {
         "decision": "block",
-        "reason": (
-            f"Cannot claim task '{task_id}' - it is not within the session_task scope.\n\n"
-            f"This session is scoped to: {scope_desc}\n"
-            f"Only tasks that are descendants of these epics/features can be claimed.\n\n"
-            f"{suggestion}"
-        ),
+        "reason": reason,
     }
