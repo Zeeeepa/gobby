@@ -319,6 +319,20 @@ class LocalSessionManager:
         )
         return self.get(session_id)
 
+    def update_digest_markdown(self, session_id: str, digest_markdown: str) -> Session | None:
+        """Update session rolling digest markdown."""
+        now = datetime.now(UTC).isoformat()
+        self.db.execute(
+            """
+            UPDATE sessions
+            SET digest_markdown = ?,
+                updated_at = ?
+            WHERE id = ?
+            """,
+            (digest_markdown, now, session_id),
+        )
+        return self.get(session_id)
+
     def update_compact_markdown(self, session_id: str, compact_markdown: str) -> Session | None:
         """Update session compact handoff markdown."""
         now = datetime.now(UTC).isoformat()

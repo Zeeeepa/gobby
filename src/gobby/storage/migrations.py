@@ -37,7 +37,7 @@ MigrationAction = str | Callable[[LocalDatabase], None]
 # Baseline version - the schema state that is applied for new databases directly.
 # Must be bumped when BASELINE_SCHEMA is updated with columns from new migrations,
 # so that fresh databases don't re-run migrations already baked into the baseline.
-BASELINE_VERSION = 110
+BASELINE_VERSION = 112
 
 # Minimum migration version - databases older than this cannot be upgraded
 # because legacy migrations (pre-v108) have been removed.
@@ -234,6 +234,7 @@ CREATE TABLE sessions (
     seq_num INTEGER,
     model TEXT,
     had_edits BOOLEAN DEFAULT 0,
+    digest_markdown TEXT,
     created_at TEXT NOT NULL DEFAULT (datetime('now')),
     updated_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
@@ -1068,6 +1069,11 @@ MIGRATIONS: list[tuple[int, str, MigrationAction]] = [
         111,
         "Migrate cfg__ prefixed secret names to natural names",
         _migrate_secret_names_to_natural,
+    ),
+    (
+        112,
+        "Add digest_markdown column to sessions",
+        "ALTER TABLE sessions ADD COLUMN digest_markdown TEXT",
     ),
 ]
 

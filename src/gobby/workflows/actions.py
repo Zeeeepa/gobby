@@ -35,10 +35,12 @@ from gobby.workflows.enforcement import (
 from gobby.workflows.llm_actions import handle_call_llm
 from gobby.workflows.mcp_actions import handle_call_mcp_tool
 from gobby.workflows.memory_actions import (
+    handle_memory_background_digest_and_synthesize,
     handle_memory_extract_from_session,
     handle_memory_extraction_gate,
     handle_memory_inject_project_context,
     handle_memory_recall_relevant,
+    handle_memory_recall_with_synthesis,
     handle_memory_review_gate,
     handle_memory_save,
     handle_memory_sync_export,
@@ -265,6 +267,11 @@ class ActionExecutor:
         # --- Memory actions ---
         self.register("memory_save", handle_memory_save)
         self.register("memory_recall_relevant", handle_memory_recall_relevant)
+        self.register("memory_recall_with_synthesis", handle_memory_recall_with_synthesis)
+        self.register(
+            "memory_background_digest_and_synthesize",
+            handle_memory_background_digest_and_synthesize,
+        )
         self.register("memory_sync_import", handle_memory_sync_import)
         self.register("memory_sync_export", handle_memory_sync_export)
         self.register("memory_extraction_gate", handle_memory_extraction_gate)

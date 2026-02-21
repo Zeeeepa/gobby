@@ -382,6 +382,36 @@ def extract_handoff_context(
         return {"error": "No transcript path"}
 
     try:
+        # Check if session has a rolling digest — use it as the narrative portion
+        digest = getattr(current_session, "digest_markdown", None)
+        if isinstance(digest, str) and digest.strip():
+            # Build compact context from digest + structured data
+            sections: list[str] = [f"### Session Digest\n{digest}"]
+
+            # Append real-time git status
+            git_status = get_git_status()
+            if git_status:
+                sections.append(f"### Uncommitted Changes\n```\n{git_status}\n```")
+
+            real_commits = get_recent_git_commits()
+            if real_commits:
+                commit_lines = ["### Commits This Session"]
+                for commit in real_commits:
+                    commit_lines.append(
+                        f"- `{commit.get('hash', '')[:7]}` {commit.get('message', '')}"
+                    )
+                sections.append("\n".join(commit_lines))
+
+            markdown = "\n\n".join(sections)
+            session_manager.update_compact_markdown(session_id, markdown)
+            logger.debug(
+                "Saved digest-based compact handoff (%d chars) to session %s",
+                len(markdown),
+                session_id,
+            )
+            return {"handoff_context_extracted": True, "markdown_length": len(markdown), "source": "digest"}
+
+        # Fallback: full transcript analysis when digest is empty
         from gobby.sessions.analyzer import TranscriptAnalyzer
 
         path = Path(transcript_path)

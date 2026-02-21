@@ -526,15 +526,24 @@ async def generate_summary(
     file_changes = get_file_changes()
     git_diff_summary = get_git_diff_summary()
 
-    # Extract structured context from transcript analysis
-    analyzer = TranscriptAnalyzer()
-    handoff_ctx = analyzer.extract_handoff_context(turns, max_turns=150)
-    real_commits = get_recent_git_commits()
-    if real_commits:
-        handoff_ctx.git_commits = real_commits
-    if not handoff_ctx.git_status:
-        handoff_ctx.git_status = git_status
-    structured_context = _format_structured_context(handoff_ctx)
+    # Use digest as structured context if available (cheaper than transcript analysis)
+    digest_markdown = getattr(current_session, "digest_markdown", None)
+    if isinstance(digest_markdown, str) and digest_markdown.strip():
+        structured_context = f"Session Digest:\n{digest_markdown}"
+        real_commits = get_recent_git_commits()
+        if real_commits:
+            commit_lines = [f"  - {c.get('hash', '')[:7]} {c.get('message', '')}" for c in real_commits[:10]]
+            structured_context += "\n\nRecent Commits:\n" + "\n".join(commit_lines)
+    else:
+        # Fallback: full transcript analysis
+        analyzer = TranscriptAnalyzer()
+        handoff_ctx = analyzer.extract_handoff_context(turns, max_turns=150)
+        real_commits = get_recent_git_commits()
+        if real_commits:
+            handoff_ctx.git_commits = real_commits
+        if not handoff_ctx.git_status:
+            handoff_ctx.git_status = git_status
+        structured_context = _format_structured_context(handoff_ctx)
 
     # 3. Call LLM
     try:
