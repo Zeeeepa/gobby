@@ -31,9 +31,15 @@ class TestInstallClaude:
         hooks_dir = claude_dir / "hooks"
         hooks_dir.mkdir(parents=True)
 
-        # Create mock hook files
+        # Create mock hook files (legacy location)
         (hooks_dir / "hook_dispatcher.py").write_text("# mock hook dispatcher")
         (hooks_dir / "validate_settings.py").write_text("# mock validate settings")
+
+        # Create shared hooks (used by install_shared_hooks)
+        shared_hooks_dir = install_dir / "shared" / "hooks"
+        shared_hooks_dir.mkdir(parents=True)
+        (shared_hooks_dir / "hook_dispatcher.py").write_text("# mock hook dispatcher")
+        (shared_hooks_dir / "validate_settings.py").write_text("# mock validate settings")
 
         # Create hooks-template.json
         hooks_template = {
@@ -81,7 +87,7 @@ class TestInstallClaude:
         mock_mcp_config.return_value = {"success": True, "added": True}
 
         with patch.object(Path, "home", return_value=mock_home_dir):
-            result = install_claude(temp_project)
+            result = install_claude(temp_project, mode="project")
 
         assert result["success"] is True
         assert result["error"] is None
@@ -115,7 +121,7 @@ class TestInstallClaude:
         (install_dir / "claude" / "hooks").mkdir(parents=True)
         mock_get_install_dir.return_value = install_dir
 
-        result = install_claude(temp_project)
+        result = install_claude(temp_project, mode="project")
 
         assert result["success"] is False
         assert "Missing source files" in result["error"]
@@ -140,7 +146,7 @@ class TestInstallClaude:
 
         mock_get_install_dir.return_value = install_dir
 
-        result = install_claude(temp_project)
+        result = install_claude(temp_project, mode="project")
 
         assert result["success"] is False
         assert "Missing source files" in result["error"]
@@ -178,7 +184,7 @@ class TestInstallClaude:
         (claude_path / "settings.json").write_text(json.dumps(existing_settings))
 
         with patch.object(Path, "home", return_value=mock_home_dir):
-            result = install_claude(temp_project)
+            result = install_claude(temp_project, mode="project")
 
         assert result["success"] is True
 
@@ -221,7 +227,7 @@ class TestInstallClaude:
         (claude_path / "settings.json").write_text(json.dumps(original_content))
 
         with patch.object(Path, "home", return_value=mock_home_dir):
-            result = install_claude(temp_project)
+            result = install_claude(temp_project, mode="project")
 
         assert result["success"] is True
 
@@ -259,7 +265,7 @@ class TestInstallClaude:
         claude_path.mkdir(parents=True)
         (claude_path / "settings.json").write_text("{ invalid json }")
 
-        result = install_claude(temp_project)
+        result = install_claude(temp_project, mode="project")
 
         assert result["success"] is False
         assert "Failed to parse settings.json" in result["error"]
@@ -279,7 +285,7 @@ class TestInstallClaude:
         mock_get_install_dir.return_value = mock_install_dir
         mock_shared_content.side_effect = Exception("Shared content error")
 
-        result = install_claude(temp_project)
+        result = install_claude(temp_project, mode="project")
 
         assert result["success"] is False
         assert "Failed to install shared content" in result["error"]
@@ -302,7 +308,7 @@ class TestInstallClaude:
         mock_shared_content.return_value = {"workflows": [], "plugins": []}
         mock_cli_content.side_effect = Exception("CLI content error")
 
-        result = install_claude(temp_project)
+        result = install_claude(temp_project, mode="project")
 
         assert result["success"] is False
         assert "Failed to install CLI content" in result["error"]
@@ -330,7 +336,7 @@ class TestInstallClaude:
         mock_mcp_config.return_value = {"success": False, "error": "MCP config failed"}
 
         with patch.object(Path, "home", return_value=mock_home_dir):
-            result = install_claude(temp_project)
+            result = install_claude(temp_project, mode="project")
 
         # Installation should still succeed
         assert result["success"] is True
@@ -363,7 +369,7 @@ class TestInstallClaude:
         }
 
         with patch.object(Path, "home", return_value=mock_home_dir):
-            result = install_claude(temp_project)
+            result = install_claude(temp_project, mode="project")
 
         assert result["success"] is True
         assert result["mcp_configured"] is False
@@ -384,7 +390,7 @@ class TestInstallClaude:
         mock_get_install_dir.return_value = mock_install_dir
         mock_copy2.side_effect = OSError("Permission denied")
 
-        result = install_claude(temp_project)
+        result = install_claude(temp_project, mode="project")
 
         assert result["success"] is False
         assert "Failed to install hook files" in result["error"]
@@ -393,7 +399,7 @@ class TestInstallClaude:
     @patch("gobby.cli.installers.claude.install_shared_content")
     @patch("gobby.cli.installers.claude.install_cli_content")
     @patch("gobby.cli.installers.claude.configure_mcp_server_json")
-    def test_install_claude_project_path_replacement(
+    def test_install_claude_hooks_dir_replacement(
         self,
         mock_mcp_config: MagicMock,
         mock_cli_content: MagicMock,
@@ -403,10 +409,10 @@ class TestInstallClaude:
         mock_home_dir: Path,
         temp_dir: Path,
     ) -> None:
-        """Test that $PROJECT_PATH is replaced in hooks template."""
+        """Test that $HOOKS_DIR is replaced in hooks template."""
         from gobby.cli.installers.claude import install_claude
 
-        # Create install dir with $PROJECT_PATH in template
+        # Create install dir with $HOOKS_DIR in template
         install_dir = temp_dir / "install"
         claude_dir = install_dir / "claude"
         hooks_dir = claude_dir / "hooks"
@@ -418,7 +424,7 @@ class TestInstallClaude:
         hooks_template = {
             "hooks": {
                 "SessionStart": [
-                    {"hooks": [{"type": "command", "command": 'python "$PROJECT_PATH/hook.py"'}]}
+                    {"hooks": [{"type": "command", "command": 'python "$HOOKS_DIR/hook.py"'}]}
                 ]
             }
         }
@@ -430,17 +436,17 @@ class TestInstallClaude:
         mock_mcp_config.return_value = {"success": True, "added": False}
 
         with patch.object(Path, "home", return_value=mock_home_dir):
-            result = install_claude(temp_project)
+            result = install_claude(temp_project, mode="project")
 
         assert result["success"] is True
 
-        # Verify $PROJECT_PATH was replaced
+        # Verify $HOOKS_DIR was replaced
         with open(temp_project / ".claude" / "settings.json") as f:
             settings = json.load(f)
 
         command = settings["hooks"]["SessionStart"][0]["hooks"][0]["command"]
-        assert str(temp_project.resolve()) in command
-        assert "$PROJECT_PATH" not in command
+        assert str((temp_project / ".claude" / "hooks").resolve()) in command
+        assert "$HOOKS_DIR" not in command
 
     @patch("gobby.cli.installers.claude.get_install_dir")
     @patch("gobby.cli.installers.claude.install_shared_content")
@@ -469,11 +475,13 @@ class TestInstallClaude:
         mock_shared_content.return_value = {"workflows": [], "plugins": []}
         mock_cli_content.return_value = {"workflows": [], "commands": []}
 
-        result = install_claude(temp_project)
+        result = install_claude(temp_project, mode="project")
 
         assert result["success"] is False
         assert "Failed to parse hooks template" in result["error"]
 
+    @patch("gobby.cli.installers.shared._is_dev_mode", return_value=False)
+    @patch("gobby.cli.installers.shared.get_install_dir")
     @patch("gobby.cli.installers.claude.get_install_dir")
     @patch("gobby.cli.installers.claude.install_shared_content")
     @patch("gobby.cli.installers.claude.install_cli_content")
@@ -484,6 +492,8 @@ class TestInstallClaude:
         mock_cli_content: MagicMock,
         mock_shared_content: MagicMock,
         mock_get_install_dir: MagicMock,
+        mock_shared_get_install_dir: MagicMock,
+        mock_dev_mode: MagicMock,
         temp_project: Path,
         mock_install_dir: Path,
         mock_home_dir: Path,
@@ -492,6 +502,7 @@ class TestInstallClaude:
         from gobby.cli.installers.claude import install_claude
 
         mock_get_install_dir.return_value = mock_install_dir
+        mock_shared_get_install_dir.return_value = mock_install_dir
         mock_shared_content.return_value = {"workflows": [], "plugins": []}
         mock_cli_content.return_value = {"workflows": [], "commands": []}
         mock_mcp_config.return_value = {"success": True, "added": False}
@@ -503,7 +514,7 @@ class TestInstallClaude:
         existing_hook.write_text("# old content")
 
         with patch.object(Path, "home", return_value=mock_home_dir):
-            result = install_claude(temp_project)
+            result = install_claude(temp_project, mode="project")
 
         assert result["success"] is True
 
@@ -534,7 +545,7 @@ class TestInstallClaude:
         mock_mcp_config.return_value = {"success": True, "added": False}
 
         with patch.object(Path, "home", return_value=mock_home_dir):
-            result = install_claude(temp_project)
+            result = install_claude(temp_project, mode="project")
 
         assert result["success"] is True
 
@@ -976,7 +987,7 @@ class TestInstallClaudeEdgeCases:
         mock_home.mkdir()
 
         with patch.object(Path, "home", return_value=mock_home):
-            result = install_claude(temp_project)
+            result = install_claude(temp_project, mode="project")
 
         assert result["success"] is True
 
@@ -1009,7 +1020,7 @@ class TestInstallClaudeEdgeCases:
         mock_home.mkdir()
 
         with patch.object(Path, "home", return_value=mock_home):
-            result = install_claude(unicode_project)
+            result = install_claude(unicode_project, mode="project")
 
         assert result["success"] is True
 
@@ -1039,7 +1050,7 @@ class TestInstallClaudeEdgeCases:
         mock_home.mkdir()
 
         with patch.object(Path, "home", return_value=mock_home):
-            result = install_claude(temp_project)
+            result = install_claude(temp_project, mode="project")
 
         # Verify all expected keys are present
         expected_keys = {

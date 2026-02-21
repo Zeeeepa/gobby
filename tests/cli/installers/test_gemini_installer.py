@@ -38,10 +38,10 @@ class TestInstallGemini:
         template_content = {
             "hooks": {
                 "SessionStart": {
-                    "command": "uv run python $PROJECT_PATH/.gemini/hooks/hook_dispatcher.py"
+                    "command": "uv run python $HOOKS_DIR/hook_dispatcher.py"
                 },
                 "SessionEnd": {
-                    "command": "uv run python $PROJECT_PATH/.gemini/hooks/hook_dispatcher.py"
+                    "command": "uv run python $HOOKS_DIR/hook_dispatcher.py"
                 },
             }
         }
@@ -88,7 +88,7 @@ class TestInstallGemini:
             patch("gobby.cli.installers.gemini.which", return_value="/usr/local/bin/uv"),
             patch.object(Path, "home", return_value=temp_dir),
         ):
-            result = install_gemini(project_path)
+            result = install_gemini(project_path, mode="project")
 
             assert result["success"] is True
             assert result["error"] is None
@@ -116,10 +116,10 @@ class TestInstallGemini:
         gemini_dir.mkdir(parents=True)
 
         with patch("gobby.cli.installers.gemini.get_install_dir", return_value=install_dir):
-            result = install_gemini(project_path)
+            result = install_gemini(project_path, mode="project")
 
             assert result["success"] is False
-            assert "Missing hook dispatcher" in result["error"]
+            assert "Missing hooks template" in result["error"]
 
     def test_install_gemini_missing_template(self, project_path: Path, temp_dir: Path) -> None:
         """Test installation fails when hooks template is missing."""
@@ -133,7 +133,7 @@ class TestInstallGemini:
         dispatcher.write_text("print('dispatcher')")
 
         with patch("gobby.cli.installers.gemini.get_install_dir", return_value=install_dir):
-            result = install_gemini(project_path)
+            result = install_gemini(project_path, mode="project")
 
             assert result["success"] is False
             assert "Missing hooks template" in result["error"]
@@ -171,7 +171,7 @@ class TestInstallGemini:
         ):
             mock_time.time.return_value = 1234567890
 
-            result = install_gemini(project_path)
+            result = install_gemini(project_path, mode="project")
 
             assert result["success"] is True
 
@@ -216,7 +216,7 @@ class TestInstallGemini:
         ):
             mock_time.time.return_value = 1234567890
 
-            result = install_gemini(project_path)
+            result = install_gemini(project_path, mode="project")
 
             # Should still succeed, treating invalid JSON as empty
             assert result["success"] is True
@@ -235,7 +235,7 @@ class TestInstallGemini:
         template_content = {
             "hooks": {
                 "SessionStart": {
-                    "command": "uv run python $PROJECT_PATH/.gemini/hooks/hook_dispatcher.py"
+                    "command": "uv run python $HOOKS_DIR/hook_dispatcher.py"
                 },
             }
         }
@@ -255,7 +255,7 @@ class TestInstallGemini:
             patch("gobby.cli.installers.gemini.which", return_value="/custom/path/to/uv"),
             patch.object(Path, "home", return_value=temp_dir),
         ):
-            result = install_gemini(project_path)
+            result = install_gemini(project_path, mode="project")
 
             assert result["success"] is True
 
@@ -290,7 +290,7 @@ class TestInstallGemini:
             patch("gobby.cli.installers.gemini.which", return_value=None),
             patch.object(Path, "home", return_value=temp_dir),
         ):
-            result = install_gemini(project_path)
+            result = install_gemini(project_path, mode="project")
 
             assert result["success"] is True
 
@@ -317,7 +317,7 @@ class TestInstallGemini:
             patch("gobby.cli.installers.gemini.which", return_value="/usr/local/bin/uv"),
             patch.object(Path, "home", return_value=temp_dir),
         ):
-            result = install_gemini(project_path)
+            result = install_gemini(project_path, mode="project")
 
             assert result["success"] is True
             assert result["mcp_configured"] is False
@@ -346,7 +346,7 @@ class TestInstallGemini:
             patch("gobby.cli.installers.gemini.which", return_value="/usr/local/bin/uv"),
             patch.object(Path, "home", return_value=temp_dir),
         ):
-            result = install_gemini(project_path)
+            result = install_gemini(project_path, mode="project")
 
             # Installation should still succeed (MCP config is non-fatal)
             assert result["success"] is True
@@ -375,7 +375,7 @@ class TestInstallGemini:
             patch("gobby.cli.installers.gemini.which", return_value="/usr/local/bin/uv"),
             patch.object(Path, "home", return_value=temp_dir),
         ):
-            result = install_gemini(project_path)
+            result = install_gemini(project_path, mode="project")
 
             assert result["success"] is True
             assert (project_path / ".gemini").exists()
@@ -404,7 +404,7 @@ class TestInstallGemini:
             patch("gobby.cli.installers.gemini.which", return_value="/usr/local/bin/uv"),
             patch.object(Path, "home", return_value=temp_dir),
         ):
-            result = install_gemini(project_path)
+            result = install_gemini(project_path, mode="project")
 
             assert result["success"] is True
 
@@ -444,7 +444,7 @@ class TestInstallGemini:
             patch("gobby.cli.installers.gemini.which", return_value="/usr/local/bin/uv"),
             patch.object(Path, "home", return_value=temp_dir),
         ):
-            result = install_gemini(project_path)
+            result = install_gemini(project_path, mode="project")
 
             assert result["success"] is True
 
@@ -461,7 +461,7 @@ class TestInstallGemini:
         mock_cli_content: dict,
         temp_dir: Path,
     ) -> None:
-        """Test that $PROJECT_PATH is substituted with absolute path."""
+        """Test that $HOOKS_DIR is substituted with absolute path."""
         with (
             patch("gobby.cli.installers.gemini.get_install_dir", return_value=mock_install_dir),
             patch(
@@ -476,7 +476,7 @@ class TestInstallGemini:
             patch("gobby.cli.installers.gemini.which", return_value=None),
             patch.object(Path, "home", return_value=temp_dir),
         ):
-            result = install_gemini(project_path)
+            result = install_gemini(project_path, mode="project")
 
             assert result["success"] is True
 
@@ -484,9 +484,9 @@ class TestInstallGemini:
             with open(settings_file) as f:
                 settings = json.load(f)
 
-            # Check that $PROJECT_PATH was replaced with actual path
+            # Check that $HOOKS_DIR was replaced with actual path
             hook_command = settings["hooks"]["SessionStart"]["command"]
-            assert "$PROJECT_PATH" not in hook_command
+            assert "$HOOKS_DIR" not in hook_command
             assert str(project_path.resolve()) in hook_command
 
     def test_install_gemini_preserves_existing_hooks(
@@ -526,7 +526,7 @@ class TestInstallGemini:
         ):
             mock_time.time.return_value = 1234567890
 
-            result = install_gemini(project_path)
+            result = install_gemini(project_path, mode="project")
 
             assert result["success"] is True
 
@@ -934,7 +934,7 @@ class TestInstallGeminiEdgeCases:
         template_content = {
             "hooks": {
                 "SessionStart": {
-                    "command": "uv run python $PROJECT_PATH/.gemini/hooks/hook_dispatcher.py"
+                    "command": "uv run python $HOOKS_DIR/hook_dispatcher.py"
                 },
             }
         }
@@ -967,7 +967,7 @@ class TestInstallGeminiEdgeCases:
             patch("gobby.cli.installers.gemini.which", return_value=None),
             patch.object(Path, "home", return_value=temp_dir),
         ):
-            result = install_gemini(project_path)
+            result = install_gemini(project_path, mode="project")
 
             assert result["success"] is True
             assert result["workflows_installed"] == []
@@ -994,7 +994,7 @@ class TestInstallGeminiEdgeCases:
             patch("gobby.cli.installers.gemini.which", return_value=None),
             patch.object(Path, "home", return_value=temp_dir),
         ):
-            result = install_gemini(project_path)
+            result = install_gemini(project_path, mode="project")
 
             assert result["success"] is True
             assert result["plugins_installed"] == []
@@ -1024,7 +1024,7 @@ class TestInstallGeminiEdgeCases:
             patch("gobby.cli.installers.gemini.which", return_value=None),
             patch.object(Path, "home", return_value=temp_dir),
         ):
-            result = install_gemini(project_path)
+            result = install_gemini(project_path, mode="project")
 
             assert result["success"] is True
             assert result["commands_installed"] == []

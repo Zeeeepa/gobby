@@ -17,6 +17,7 @@ from gobby.cli.utils import get_install_dir
 
 from .ide_config import configure_ide_terminal_title
 from .shared import (
+    install_global_hooks,
     install_shared_content,
     install_shared_hooks,
 )
@@ -24,11 +25,13 @@ from .shared import (
 logger = logging.getLogger(__name__)
 
 
-def install_windsurf(project_path: Path) -> dict[str, Any]:
+def install_windsurf(project_path: Path, mode: str = "global") -> dict[str, Any]:
     """Install Gobby integration for Windsurf (hooks, workflows).
 
     Args:
         project_path: Path to the project root
+        mode: "global" installs hooks to ~/.gobby/hooks/ and settings to
+            ~/.codeium/windsurf/hooks.json. "project" installs per-project (existing behavior).
 
     Returns:
         Dict with installation results including success status and installed items
@@ -41,13 +44,19 @@ def install_windsurf(project_path: Path) -> dict[str, Any]:
         "error": None,
     }
 
-    windsurf_path = project_path / ".windsurf"
-    hooks_file = windsurf_path / "hooks.json"
+    if mode == "global":
+        hooks_dir = Path.home() / ".gobby" / "hooks"
+        windsurf_path = Path.home() / ".codeium" / "windsurf"
+        hooks_file = windsurf_path / "hooks.json"
+    else:
+        windsurf_path = project_path / ".windsurf"
+        hooks_file = windsurf_path / "hooks.json"
+        hooks_dir = windsurf_path / "hooks"
 
-    # Ensure .windsurf subdirectories exist
+    # Ensure directories exist
     windsurf_path.mkdir(parents=True, exist_ok=True)
-    hooks_dir = windsurf_path / "hooks"
-    hooks_dir.mkdir(parents=True, exist_ok=True)
+    if mode == "project":
+        hooks_dir.mkdir(parents=True, exist_ok=True)
 
     # Get source files
     install_dir = get_install_dir()
@@ -59,9 +68,12 @@ def install_windsurf(project_path: Path) -> dict[str, Any]:
         result["error"] = f"Missing source files: [{source_hooks_template}]"
         return result
 
-    # Install shared hook files (hook_dispatcher.py, validate_settings.py)
+    # Install hook files
     try:
-        install_shared_hooks(hooks_dir, project_path)
+        if mode == "global":
+            install_global_hooks()
+        else:
+            install_shared_hooks(hooks_dir, project_path)
     except OSError as e:
         logger.error(f"Failed to install hook files: {e}")
         result["error"] = f"Failed to install hook files: {e}"
@@ -118,9 +130,8 @@ def install_windsurf(project_path: Path) -> dict[str, Any]:
         result["error"] = f"Failed to read hooks template: {e}"
         return result
 
-    # Replace $PROJECT_PATH with absolute project path
-    abs_project_path = str(project_path.resolve())
-    gobby_hooks_str = gobby_hooks_str.replace("$PROJECT_PATH", abs_project_path)
+    # Replace $HOOKS_DIR with absolute hooks directory path
+    gobby_hooks_str = gobby_hooks_str.replace("$HOOKS_DIR", str(hooks_dir.resolve()))
 
     try:
         gobby_hooks = json.loads(gobby_hooks_str)
@@ -168,11 +179,13 @@ def install_windsurf(project_path: Path) -> dict[str, Any]:
     return result
 
 
-def uninstall_windsurf(project_path: Path) -> dict[str, Any]:
+def uninstall_windsurf(project_path: Path, mode: str = "project") -> dict[str, Any]:
     """Uninstall Gobby integration from Windsurf.
 
     Args:
         project_path: Path to the project root
+        mode: "global" removes from ~/.codeium/windsurf/hooks.json.
+            "project" removes from {project}/.windsurf/hooks.json (existing behavior).
 
     Returns:
         Dict with uninstallation results
@@ -184,7 +197,10 @@ def uninstall_windsurf(project_path: Path) -> dict[str, Any]:
         "error": None,
     }
 
-    windsurf_path = project_path / ".windsurf"
+    if mode == "global":
+        windsurf_path = Path.home() / ".codeium" / "windsurf"
+    else:
+        windsurf_path = project_path / ".windsurf"
     hooks_file = windsurf_path / "hooks.json"
     hooks_dir = windsurf_path / "hooks"
 

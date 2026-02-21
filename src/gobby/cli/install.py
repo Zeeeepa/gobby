@@ -178,6 +178,12 @@ def _is_copilot_cli_installed() -> bool:
     is_flag=True,
     help="Install Neo4j knowledge graph backend (Docker-based)",
 )
+@click.option(
+    "--project",
+    "project_flag",
+    is_flag=True,
+    help="Install hooks per-project instead of globally (legacy behavior)",
+)
 def install(
     claude_flag: bool,
     gemini_flag: bool,
@@ -189,14 +195,17 @@ def install(
     all_flag: bool,
     antigravity_flag: bool,
     neo4j_flag: bool,
+    project_flag: bool,
 ) -> None:
     """Install Gobby hooks to AI coding CLIs and Git.
 
-    By default (no flags), installs to all detected CLIs.
+    By default (no flags), installs hooks globally (one-time setup).
+    Use --project to install per-project instead (legacy behavior).
     Use --claude, --gemini, --codex to install only to specific CLIs.
     Use --hooks to install Git hooks for task auto-sync.
     """
     project_path = Path.cwd()
+    mode = "project" if project_flag else "global"
 
     # Determine which CLIs to install
     # If no flags specified, act like --all (but don't force git hooks unless implied or explicit)
@@ -282,7 +291,10 @@ def install(
     click.echo("=" * 60)
     click.echo("  Gobby Hooks Installation")
     click.echo("=" * 60)
-    click.echo(f"\nProject: {project_path}")
+    if mode == "global":
+        click.echo("\nScope: Global (hooks installed to ~/.gobby/hooks/)")
+    else:
+        click.echo(f"\nScope: Project ({project_path})")
     if is_dev_mode:
         click.echo("Mode: Development (using source directory)")
 
@@ -354,7 +366,7 @@ def install(
         click.echo("Claude Code")
         click.echo("-" * 40)
 
-        result = install_claude(project_path)
+        result = install_claude(project_path, mode=mode)
         results["claude"] = result
 
         if result["success"]:
@@ -384,7 +396,10 @@ def install(
                 click.echo("Configured MCP server: ~/.claude.json")
             elif result.get("mcp_already_configured"):
                 click.echo("MCP server already configured: ~/.claude.json")
-            click.echo(f"Configuration: {project_path / '.claude' / 'settings.json'}")
+            if mode == "global":
+                click.echo("Configuration: ~/.claude/settings.json")
+            else:
+                click.echo(f"Configuration: {project_path / '.claude' / 'settings.json'}")
         else:
             click.echo(f"Failed: {result['error']}", err=True)
         click.echo("")
@@ -395,7 +410,7 @@ def install(
         click.echo("Gemini CLI")
         click.echo("-" * 40)
 
-        result = install_gemini(project_path)
+        result = install_gemini(project_path, mode=mode)
         results["gemini"] = result
 
         if result["success"]:
@@ -425,7 +440,10 @@ def install(
                 click.echo("Configured MCP server: ~/.gemini/settings.json")
             elif result.get("mcp_already_configured"):
                 click.echo("MCP server already configured: ~/.gemini/settings.json")
-            click.echo(f"Configuration: {project_path / '.gemini' / 'settings.json'}")
+            if mode == "global":
+                click.echo("Configuration: ~/.gemini/settings.json")
+            else:
+                click.echo(f"Configuration: {project_path / '.gemini' / 'settings.json'}")
         else:
             click.echo(f"Failed: {result['error']}", err=True)
         click.echo("")
@@ -482,7 +500,7 @@ def install(
         click.echo("Cursor")
         click.echo("-" * 40)
 
-        result = install_cursor(project_path)
+        result = install_cursor(project_path, mode=mode)
         results["cursor"] = result
 
         if result["success"]:
@@ -491,7 +509,10 @@ def install(
                 click.echo(f"  - {hook}")
             if result.get("workflows_installed"):
                 click.echo(f"Installed {len(result['workflows_installed'])} workflows")
-            click.echo(f"Configuration: {project_path / '.cursor' / 'hooks.json'}")
+            if mode == "global":
+                click.echo("Configuration: ~/.cursor/hooks.json")
+            else:
+                click.echo(f"Configuration: {project_path / '.cursor' / 'hooks.json'}")
         else:
             click.echo(f"Failed: {result['error']}", err=True)
         click.echo("")
@@ -502,7 +523,7 @@ def install(
         click.echo("Windsurf (Cascade)")
         click.echo("-" * 40)
 
-        result = install_windsurf(project_path)
+        result = install_windsurf(project_path, mode=mode)
         results["windsurf"] = result
 
         if result["success"]:
@@ -511,7 +532,10 @@ def install(
                 click.echo(f"  - {hook}")
             if result.get("workflows_installed"):
                 click.echo(f"Installed {len(result['workflows_installed'])} workflows")
-            click.echo(f"Configuration: {project_path / '.windsurf' / 'hooks.json'}")
+            if mode == "global":
+                click.echo("Configuration: ~/.codeium/windsurf/hooks.json")
+            else:
+                click.echo(f"Configuration: {project_path / '.windsurf' / 'hooks.json'}")
         else:
             click.echo(f"Failed: {result['error']}", err=True)
         click.echo("")
@@ -522,10 +546,12 @@ def install(
         click.echo("GitHub Copilot CLI")
         click.echo("-" * 40)
 
-        result = install_copilot(project_path)
+        result = install_copilot(project_path, mode=mode)
         results["copilot"] = result
 
-        if result["success"]:
+        if result.get("skipped"):
+            click.echo(f"Skipped: {result['skip_reason']}")
+        elif result["success"]:
             click.echo(f"Installed {len(result['hooks_installed'])} hooks")
             for hook in result["hooks_installed"]:
                 click.echo(f"  - {hook}")
@@ -621,6 +647,35 @@ def install(
         else:
             click.echo(f"Failed: {result['error']}", err=True)
         click.echo("")
+
+    # Migration detection: suggest cleanup of per-project hooks after global install
+    if mode == "global":
+        per_project_hooks = []
+        for cli_name, cli_dir in [
+            ("claude", ".claude"),
+            ("gemini", ".gemini"),
+            ("cursor", ".cursor"),
+            ("windsurf", ".windsurf"),
+            ("copilot", ".copilot"),
+        ]:
+            hooks_dir = project_path / cli_dir / "hooks"
+            hooks_json = project_path / cli_dir / "hooks.json"
+            if (hooks_dir / "hook_dispatcher.py").exists() or (
+                cli_name in ("cursor", "windsurf", "copilot") and hooks_json.exists()
+            ):
+                per_project_hooks.append(cli_name)
+
+        if per_project_hooks:
+            click.echo("-" * 40)
+            click.echo("Migration Notice")
+            click.echo("-" * 40)
+            click.echo(
+                f"Per-project hooks detected for: {', '.join(per_project_hooks)}"
+            )
+            click.echo(
+                "Run 'gobby uninstall --project' to clean up per-project hooks."
+            )
+            click.echo("")
 
     # Summary
     click.echo("=" * 60)
@@ -718,6 +773,12 @@ def install(
     is_flag=True,
     help="Also remove Docker volumes (data loss, use with --neo4j)",
 )
+@click.option(
+    "--project",
+    "project_flag",
+    is_flag=True,
+    help="Uninstall per-project hooks from current directory (instead of global)",
+)
 @click.confirmation_option(prompt="Are you sure you want to uninstall Gobby hooks?")
 def uninstall(
     claude_flag: bool,
@@ -729,13 +790,13 @@ def uninstall(
     all_flag: bool,
     neo4j_flag: bool,
     volumes_flag: bool,
+    project_flag: bool,
 ) -> None:
     """Uninstall Gobby hooks from AI coding CLIs.
 
-    By default (no flags), uninstalls from all CLIs that have hooks installed.
+    By default (no flags), uninstalls global hooks from CLI settings and ~/.gobby/hooks/.
+    Use --project to uninstall per-project hooks from the current directory.
     Use --claude, --gemini, --codex, --cursor, --windsurf, or --copilot to uninstall only from specific CLIs.
-
-    Uninstalls from project-level directories in current working directory.
     """
     project_path = Path.cwd()
 
@@ -757,13 +818,22 @@ def uninstall(
     clis_to_uninstall = []
 
     if all_flag:
-        # Check which CLIs have hooks installed
-        claude_settings = project_path / ".claude" / "settings.json"
-        gemini_settings = project_path / ".gemini" / "settings.json"
+        if project_flag:
+            # Check project-level paths
+            claude_settings = project_path / ".claude" / "settings.json"
+            gemini_settings = project_path / ".gemini" / "settings.json"
+            cursor_hooks = project_path / ".cursor" / "hooks.json"
+            windsurf_hooks = project_path / ".windsurf" / "hooks.json"
+            copilot_hooks = project_path / ".copilot" / "hooks.json"
+        else:
+            # Check global paths
+            claude_settings = Path.home() / ".claude" / "settings.json"
+            gemini_settings = Path.home() / ".gemini" / "settings.json"
+            cursor_hooks = Path.home() / ".cursor" / "hooks.json"
+            windsurf_hooks = Path.home() / ".codeium" / "windsurf" / "hooks.json"
+            copilot_hooks = project_path / ".copilot" / "hooks.json"  # Copilot is always per-project
+
         codex_notify = Path.home() / ".gobby" / "hooks" / "codex" / "hook_dispatcher.py"
-        cursor_hooks = project_path / ".cursor" / "hooks.json"
-        windsurf_hooks = project_path / ".windsurf" / "hooks.json"
-        copilot_hooks = project_path / ".copilot" / "hooks.json"
 
         if claude_settings.exists():
             clis_to_uninstall.append("claude")
@@ -780,11 +850,17 @@ def uninstall(
 
         if not clis_to_uninstall:
             click.echo("No Gobby hooks found to uninstall.")
-            click.echo(f"\nChecked: {project_path / '.claude'}")
-            click.echo(f"         {project_path / '.gemini'}")
-            click.echo(f"         {project_path / '.cursor'}")
-            click.echo(f"         {project_path / '.windsurf'}")
-            click.echo(f"         {project_path / '.copilot'}")
+            if project_flag:
+                click.echo(f"\nChecked: {project_path / '.claude'}")
+                click.echo(f"         {project_path / '.gemini'}")
+                click.echo(f"         {project_path / '.cursor'}")
+                click.echo(f"         {project_path / '.windsurf'}")
+                click.echo(f"         {project_path / '.copilot'}")
+            else:
+                click.echo(f"\nChecked: {Path.home() / '.claude'}")
+                click.echo(f"         {Path.home() / '.gemini'}")
+                click.echo(f"         {Path.home() / '.cursor'}")
+                click.echo(f"         {Path.home() / '.codeium' / 'windsurf'}")
             click.echo(f"         {codex_notify}")
             sys.exit(0)
     else:
@@ -804,9 +880,16 @@ def uninstall(
     click.echo("=" * 60)
     click.echo("  Gobby Hooks Uninstallation")
     click.echo("=" * 60)
-    click.echo(f"\nProject: {project_path}")
+    if project_flag:
+        click.echo(f"\nScope: Project ({project_path})")
+    else:
+        click.echo("\nScope: Global")
     click.echo(f"CLIs to uninstall from: {', '.join(clis_to_uninstall)}")
     click.echo("")
+
+    # For global uninstall, use Path.home() so uninstallers find ~/.{cli}/
+    # For project uninstall, use CWD (existing behavior)
+    uninstall_base = project_path if project_flag else Path.home()
 
     # Track results
     results = {}
@@ -817,7 +900,7 @@ def uninstall(
         click.echo("Claude Code")
         click.echo("-" * 40)
 
-        result = uninstall_claude(project_path)
+        result = uninstall_claude(uninstall_base)
         results["claude"] = result
 
         if result["success"]:
@@ -840,7 +923,7 @@ def uninstall(
         click.echo("Gemini CLI")
         click.echo("-" * 40)
 
-        result = uninstall_gemini(project_path)
+        result = uninstall_gemini(uninstall_base)
         results["gemini"] = result
 
         if result["success"]:
@@ -884,7 +967,7 @@ def uninstall(
         click.echo("Cursor")
         click.echo("-" * 40)
 
-        result = uninstall_cursor(project_path)
+        result = uninstall_cursor(uninstall_base)
         results["cursor"] = result
 
         if result["success"]:
@@ -906,7 +989,8 @@ def uninstall(
         click.echo("Windsurf")
         click.echo("-" * 40)
 
-        result = uninstall_windsurf(project_path)
+        uninstall_mode = "project" if project_flag else "global"
+        result = uninstall_windsurf(project_path, mode=uninstall_mode)
         results["windsurf"] = result
 
         if result["success"]:
@@ -928,6 +1012,7 @@ def uninstall(
         click.echo("Copilot CLI")
         click.echo("-" * 40)
 
+        # Copilot is always per-project (no global hook support)
         result = uninstall_copilot(project_path)
         results["copilot"] = result
 
@@ -942,6 +1027,20 @@ def uninstall(
                 click.echo("  (no hooks found to remove)")
         else:
             click.echo(f"Failed: {result['error']}", err=True)
+        click.echo("")
+
+    # Remove global hooks directory for global uninstall
+    if not project_flag:
+        global_hooks_dir = Path.home() / ".gobby" / "hooks"
+        # Only remove hook_dispatcher.py and validate_settings.py, not codex/ subdir
+        for fname in ("hook_dispatcher.py", "validate_settings.py"):
+            fpath = global_hooks_dir / fname
+            if fpath.exists():
+                try:
+                    fpath.unlink()
+                except OSError:
+                    pass  # nosec B110 - best-effort cleanup
+        click.echo("Removed global hook dispatchers from ~/.gobby/hooks/")
         click.echo("")
 
     # Uninstall Neo4j services

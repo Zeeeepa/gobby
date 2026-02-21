@@ -20,11 +20,13 @@ from .shared import install_shared_content, install_shared_hooks
 logger = logging.getLogger(__name__)
 
 
-def install_copilot(project_path: Path) -> dict[str, Any]:
+def install_copilot(project_path: Path, mode: str = "global") -> dict[str, Any]:
     """Install Gobby integration for Copilot CLI (hooks, workflows).
 
     Args:
         project_path: Path to the project root
+        mode: "global" is not supported for Copilot (no global hooks).
+            "project" installs per-project (existing behavior).
 
     Returns:
         Dict with installation results including success status and installed items
@@ -36,6 +38,15 @@ def install_copilot(project_path: Path) -> dict[str, Any]:
         "workflows_installed": [],
         "error": None,
     }
+
+    if mode == "global":
+        result["success"] = True
+        result["skipped"] = True
+        result["skip_reason"] = (
+            "Copilot CLI does not support global hooks. "
+            "Use 'gobby install --copilot --project' to install per-project."
+        )
+        return result
 
     copilot_path = project_path / ".copilot"
     hooks_file = copilot_path / "hooks.json"
@@ -114,9 +125,8 @@ def install_copilot(project_path: Path) -> dict[str, Any]:
         result["error"] = f"Failed to read hooks template: {e}"
         return result
 
-    # Replace $PROJECT_PATH with absolute project path
-    abs_project_path = str(project_path.resolve())
-    gobby_hooks_str = gobby_hooks_str.replace("$PROJECT_PATH", abs_project_path)
+    # Replace $HOOKS_DIR with absolute hooks directory path
+    gobby_hooks_str = gobby_hooks_str.replace("$HOOKS_DIR", str(hooks_dir.resolve()))
 
     try:
         gobby_hooks = json.loads(gobby_hooks_str)

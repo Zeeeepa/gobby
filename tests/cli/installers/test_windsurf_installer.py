@@ -12,7 +12,7 @@ from __future__ import annotations
 import json
 import os
 from pathlib import Path
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 import pytest
 
@@ -39,13 +39,13 @@ def _create_install_dir(base: Path) -> Path:
         "hooks": {
             "pre_save": [
                 {
-                    "command": "python $PROJECT_PATH/.windsurf/hooks/hook_dispatcher.py pre_save",
+                    "command": "python $HOOKS_DIR/hook_dispatcher.py pre_save",
                     "events": ["pre_save"],
                 }
             ],
             "post_save": [
                 {
-                    "command": "python $PROJECT_PATH/.windsurf/hooks/hook_dispatcher.py post_save",
+                    "command": "python $HOOKS_DIR/hook_dispatcher.py post_save",
                     "events": ["post_save"],
                 }
             ],
@@ -76,7 +76,7 @@ class TestInstallWindsurf:
         """Full install on a clean project directory."""
         with (
             patch("gobby.cli.installers.windsurf.get_install_dir", return_value=install_dir),
-            patch("gobby.cli.installers.windsurf._is_dev_mode", return_value=False),
+            patch("gobby.cli.installers.shared._is_dev_mode", return_value=False),
             patch(
                 "gobby.cli.installers.windsurf.install_shared_content",
                 return_value={
@@ -88,7 +88,7 @@ class TestInstallWindsurf:
                 },
             ),
         ):
-            result = install_windsurf(project)
+            result = install_windsurf(project, mode="project")
 
         assert result["success"] is True
         assert result["error"] is None
@@ -116,24 +116,35 @@ class TestInstallWindsurf:
         assert "pre_save" in data["hooks"]
         assert "post_save" in data["hooks"]
 
-        # Verify $PROJECT_PATH was replaced
+        # Verify $HOOKS_DIR was replaced
         cmd = data["hooks"]["pre_save"][0]["command"]
-        assert "$PROJECT_PATH" not in cmd
-        assert str(project.resolve()) in cmd
+        assert "$HOOKS_DIR" not in cmd
+        assert str((project / ".windsurf" / "hooks").resolve()) in cmd
 
     def test_missing_hook_dispatcher(self, project: Path, tmp_path: Path) -> None:
-        """Fails when hook_dispatcher.py source is missing."""
+        """Succeeds but dispatcher is not installed when source is missing.
+
+        install_shared_hooks() logs a warning for missing files but doesn't
+        fail - it returns an empty list.  The install still succeeds because
+        the hooks-template.json is present, but hook_dispatcher.py won't
+        exist in the target hooks directory.
+        """
         install_dir = tmp_path / "install"
         windsurf_dir = install_dir / "windsurf"
         (windsurf_dir / "hooks").mkdir(parents=True)
         (windsurf_dir / "hooks-template.json").write_text(json.dumps({"hooks": {}}))
 
-        with patch("gobby.cli.installers.windsurf.get_install_dir", return_value=install_dir):
-            result = install_windsurf(project)
+        with (
+            patch("gobby.cli.installers.windsurf.get_install_dir", return_value=install_dir),
+            patch("gobby.cli.installers.shared.get_install_dir", return_value=install_dir),
+        ):
+            result = install_windsurf(project, mode="project")
 
-        assert result["success"] is False
-        assert "Missing source files" in result["error"]
-        assert "hook_dispatcher.py" in result["error"]
+        assert result["success"] is True
+        # Template had no hooks, so nothing was merged
+        assert result["hooks_installed"] == []
+        # Dispatcher was never copied because the source file was missing
+        assert not (project / ".windsurf" / "hooks" / "hook_dispatcher.py").exists()
 
     def test_missing_hooks_template(self, project: Path, tmp_path: Path) -> None:
         """Fails when hooks-template.json is missing."""
@@ -144,7 +155,7 @@ class TestInstallWindsurf:
         (hooks_dir / "hook_dispatcher.py").write_text("# dispatcher")
 
         with patch("gobby.cli.installers.windsurf.get_install_dir", return_value=install_dir):
-            result = install_windsurf(project)
+            result = install_windsurf(project, mode="project")
 
         assert result["success"] is False
         assert "Missing source files" in result["error"]
@@ -156,7 +167,7 @@ class TestInstallWindsurf:
         (install_dir / "windsurf" / "hooks").mkdir(parents=True)
 
         with patch("gobby.cli.installers.windsurf.get_install_dir", return_value=install_dir):
-            result = install_windsurf(project)
+            result = install_windsurf(project, mode="project")
 
         assert result["success"] is False
         assert "Missing source files" in result["error"]
@@ -165,13 +176,13 @@ class TestInstallWindsurf:
         """Fails when _install_file raises OSError."""
         with (
             patch("gobby.cli.installers.windsurf.get_install_dir", return_value=install_dir),
-            patch("gobby.cli.installers.windsurf._is_dev_mode", return_value=False),
+            patch("gobby.cli.installers.shared._is_dev_mode", return_value=False),
             patch(
-                "gobby.cli.installers.windsurf._install_file",
+                "gobby.cli.installers.shared._install_file",
                 side_effect=OSError("Permission denied"),
             ),
         ):
-            result = install_windsurf(project)
+            result = install_windsurf(project, mode="project")
 
         assert result["success"] is False
         assert "Failed to install hook files" in result["error"]
@@ -180,13 +191,13 @@ class TestInstallWindsurf:
         """install_shared_content failure does not block hooks installation."""
         with (
             patch("gobby.cli.installers.windsurf.get_install_dir", return_value=install_dir),
-            patch("gobby.cli.installers.windsurf._is_dev_mode", return_value=False),
+            patch("gobby.cli.installers.shared._is_dev_mode", return_value=False),
             patch(
                 "gobby.cli.installers.windsurf.install_shared_content",
                 side_effect=RuntimeError("Shared content kaboom"),
             ),
         ):
-            result = install_windsurf(project)
+            result = install_windsurf(project, mode="project")
 
         assert result["success"] is True
         assert result["error"] is None
@@ -196,13 +207,13 @@ class TestInstallWindsurf:
         """Shared content result missing optional keys handled via .get()."""
         with (
             patch("gobby.cli.installers.windsurf.get_install_dir", return_value=install_dir),
-            patch("gobby.cli.installers.windsurf._is_dev_mode", return_value=False),
+            patch("gobby.cli.installers.shared._is_dev_mode", return_value=False),
             patch(
                 "gobby.cli.installers.windsurf.install_shared_content",
                 return_value={"workflows": ["w.yaml"]},
             ),
         ):
-            result = install_windsurf(project)
+            result = install_windsurf(project, mode="project")
 
         assert result["success"] is True
         assert result["workflows_installed"] == ["w.yaml"]
@@ -220,7 +231,7 @@ class TestInstallWindsurf:
 
         with (
             patch("gobby.cli.installers.windsurf.get_install_dir", return_value=install_dir),
-            patch("gobby.cli.installers.windsurf._is_dev_mode", return_value=False),
+            patch("gobby.cli.installers.shared._is_dev_mode", return_value=False),
             patch(
                 "gobby.cli.installers.windsurf.install_shared_content",
                 return_value={
@@ -232,7 +243,7 @@ class TestInstallWindsurf:
                 },
             ),
         ):
-            result = install_windsurf(project)
+            result = install_windsurf(project, mode="project")
 
         assert result["success"] is True
 
@@ -257,7 +268,7 @@ class TestInstallWindsurf:
 
         with (
             patch("gobby.cli.installers.windsurf.get_install_dir", return_value=install_dir),
-            patch("gobby.cli.installers.windsurf._is_dev_mode", return_value=False),
+            patch("gobby.cli.installers.shared._is_dev_mode", return_value=False),
             patch(
                 "gobby.cli.installers.windsurf.install_shared_content",
                 return_value={
@@ -269,7 +280,7 @@ class TestInstallWindsurf:
                 },
             ),
         ):
-            result = install_windsurf(project)
+            result = install_windsurf(project, mode="project")
 
         assert result["success"] is True
         with open(windsurf_path / "hooks.json") as f:
@@ -288,7 +299,7 @@ class TestInstallWindsurf:
         try:
             with (
                 patch("gobby.cli.installers.windsurf.get_install_dir", return_value=install_dir),
-                patch("gobby.cli.installers.windsurf._is_dev_mode", return_value=False),
+                patch("gobby.cli.installers.shared._is_dev_mode", return_value=False),
                 patch(
                     "gobby.cli.installers.windsurf.install_shared_content",
                     return_value={
@@ -300,7 +311,7 @@ class TestInstallWindsurf:
                     },
                 ),
             ):
-                result = install_windsurf(project)
+                result = install_windsurf(project, mode="project")
 
             assert result["success"] is False
             assert "Failed" in result["error"]
@@ -321,7 +332,7 @@ class TestInstallWindsurf:
         try:
             with (
                 patch("gobby.cli.installers.windsurf.get_install_dir", return_value=install_dir),
-                patch("gobby.cli.installers.windsurf._is_dev_mode", return_value=False),
+                patch("gobby.cli.installers.shared._is_dev_mode", return_value=False),
                 patch(
                     "gobby.cli.installers.windsurf.install_shared_content",
                     return_value={
@@ -333,7 +344,7 @@ class TestInstallWindsurf:
                     },
                 ),
             ):
-                result = install_windsurf(project)
+                result = install_windsurf(project, mode="project")
 
             assert result["success"] is False
             assert "Failed to read hooks template" in result["error"]
@@ -351,7 +362,7 @@ class TestInstallWindsurf:
 
         with (
             patch("gobby.cli.installers.windsurf.get_install_dir", return_value=install_dir),
-            patch("gobby.cli.installers.windsurf._is_dev_mode", return_value=False),
+            patch("gobby.cli.installers.shared._is_dev_mode", return_value=False),
             patch(
                 "gobby.cli.installers.windsurf.install_shared_content",
                 return_value={
@@ -363,7 +374,7 @@ class TestInstallWindsurf:
                 },
             ),
         ):
-            result = install_windsurf(project)
+            result = install_windsurf(project, mode="project")
 
         assert result["success"] is False
         assert "Failed to parse hooks template" in result["error"]
@@ -376,7 +387,7 @@ class TestInstallWindsurf:
 
         with (
             patch("gobby.cli.installers.windsurf.get_install_dir", return_value=install_dir),
-            patch("gobby.cli.installers.windsurf._is_dev_mode", return_value=False),
+            patch("gobby.cli.installers.shared._is_dev_mode", return_value=False),
             patch(
                 "gobby.cli.installers.windsurf.install_shared_content",
                 return_value={
@@ -389,7 +400,7 @@ class TestInstallWindsurf:
             ),
             patch("gobby.cli.installers.windsurf.copy2", side_effect=OSError("Permission denied")),
         ):
-            result = install_windsurf(project)
+            result = install_windsurf(project, mode="project")
 
         assert result["success"] is False
         assert "Failed to create backup" in result["error"]
@@ -404,7 +415,7 @@ class TestInstallWindsurf:
 
         with (
             patch("gobby.cli.installers.windsurf.get_install_dir", return_value=install_dir),
-            patch("gobby.cli.installers.windsurf._is_dev_mode", return_value=False),
+            patch("gobby.cli.installers.shared._is_dev_mode", return_value=False),
             patch(
                 "gobby.cli.installers.windsurf.install_shared_content",
                 return_value={
@@ -420,7 +431,7 @@ class TestInstallWindsurf:
                 side_effect=OSError("Disk full"),
             ),
         ):
-            result = install_windsurf(project)
+            result = install_windsurf(project, mode="project")
 
         assert result["success"] is False
         assert "Failed to write hooks.json" in result["error"]
@@ -434,7 +445,7 @@ class TestInstallWindsurf:
         """Atomic write failure with no backup (fresh install) just returns error."""
         with (
             patch("gobby.cli.installers.windsurf.get_install_dir", return_value=install_dir),
-            patch("gobby.cli.installers.windsurf._is_dev_mode", return_value=False),
+            patch("gobby.cli.installers.shared._is_dev_mode", return_value=False),
             patch(
                 "gobby.cli.installers.windsurf.install_shared_content",
                 return_value={
@@ -450,7 +461,7 @@ class TestInstallWindsurf:
                 side_effect=OSError("Disk full"),
             ),
         ):
-            result = install_windsurf(project)
+            result = install_windsurf(project, mode="project")
 
         assert result["success"] is False
         assert "Failed to write hooks.json" in result["error"]
@@ -463,7 +474,7 @@ class TestInstallWindsurf:
 
         with (
             patch("gobby.cli.installers.windsurf.get_install_dir", return_value=install_dir),
-            patch("gobby.cli.installers.windsurf._is_dev_mode", return_value=False),
+            patch("gobby.cli.installers.shared._is_dev_mode", return_value=False),
             patch(
                 "gobby.cli.installers.windsurf.install_shared_content",
                 return_value={
@@ -475,7 +486,7 @@ class TestInstallWindsurf:
                 },
             ),
         ):
-            result = install_windsurf(project)
+            result = install_windsurf(project, mode="project")
 
         assert result["success"] is True
         with open(windsurf_path / "hooks.json") as f:
@@ -486,8 +497,8 @@ class TestInstallWindsurf:
         """In dev mode, _install_file is called with dev_mode=True."""
         with (
             patch("gobby.cli.installers.windsurf.get_install_dir", return_value=install_dir),
-            patch("gobby.cli.installers.windsurf._is_dev_mode", return_value=True),
-            patch("gobby.cli.installers.windsurf._install_file") as mock_install_file,
+            patch("gobby.cli.installers.shared._is_dev_mode", return_value=True),
+            patch("gobby.cli.installers.shared._install_file") as mock_install_file,
             patch(
                 "gobby.cli.installers.windsurf.install_shared_content",
                 return_value={
@@ -499,7 +510,7 @@ class TestInstallWindsurf:
                 },
             ),
         ):
-            result = install_windsurf(project)
+            result = install_windsurf(project, mode="project")
 
         assert result["success"] is True
         call_kwargs = mock_install_file.call_args
@@ -528,7 +539,7 @@ class TestInstallWindsurf:
         try:
             with (
                 patch("gobby.cli.installers.windsurf.get_install_dir", return_value=install_dir),
-                patch("gobby.cli.installers.windsurf._is_dev_mode", return_value=False),
+                patch("gobby.cli.installers.shared._is_dev_mode", return_value=False),
                 patch(
                     "gobby.cli.installers.windsurf.install_shared_content",
                     return_value={
@@ -541,7 +552,7 @@ class TestInstallWindsurf:
                 ),
                 patch("gobby.cli.installers.windsurf.copy2", side_effect=copy2_then_lock),
             ):
-                result = install_windsurf(project)
+                result = install_windsurf(project, mode="project")
 
             assert result["success"] is False
             assert "Failed to read hooks.json" in result["error"]
@@ -571,7 +582,7 @@ class TestInstallWindsurf:
 
         with (
             patch("gobby.cli.installers.windsurf.get_install_dir", return_value=install_dir),
-            patch("gobby.cli.installers.windsurf._is_dev_mode", return_value=False),
+            patch("gobby.cli.installers.shared._is_dev_mode", return_value=False),
             patch(
                 "gobby.cli.installers.windsurf.install_shared_content",
                 return_value={
@@ -588,7 +599,7 @@ class TestInstallWindsurf:
             ),
             patch("gobby.cli.installers.windsurf.copy2", side_effect=patched_copy2),
         ):
-            result = install_windsurf(project)
+            result = install_windsurf(project, mode="project")
 
         assert result["success"] is False
         assert "Failed to write hooks.json" in result["error"]
@@ -604,7 +615,7 @@ class TestInstallWindsurf:
 
         with (
             patch("gobby.cli.installers.windsurf.get_install_dir", return_value=install_dir),
-            patch("gobby.cli.installers.windsurf._is_dev_mode", return_value=False),
+            patch("gobby.cli.installers.shared._is_dev_mode", return_value=False),
             patch(
                 "gobby.cli.installers.windsurf.install_shared_content",
                 return_value={
@@ -628,7 +639,7 @@ class TestInstallWindsurf:
                 ),
                 patch("gobby.cli.installers.windsurf.os.fdopen", side_effect=OSError("Bad fd")),
             ):
-                result = install_windsurf(project)
+                result = install_windsurf(project, mode="project")
 
         assert result["success"] is False
         assert not os.path.exists(temp_path)
@@ -668,7 +679,7 @@ class TestUninstallWindsurf:
         }
         (windsurf_path / "hooks.json").write_text(json.dumps(hooks_config))
 
-        result = uninstall_windsurf(project)
+        result = uninstall_windsurf(project, mode="project")
 
         assert result["success"] is True
         assert result["error"] is None
@@ -685,7 +696,7 @@ class TestUninstallWindsurf:
 
     def test_uninstall_no_windsurf_dir(self, project: Path) -> None:
         """Uninstall succeeds when .windsurf doesn't exist."""
-        result = uninstall_windsurf(project)
+        result = uninstall_windsurf(project, mode="project")
         assert result["success"] is True
         assert result["files_removed"] == []
         assert result["hooks_removed"] == []
@@ -695,7 +706,7 @@ class TestUninstallWindsurf:
         hooks_dir = project / ".windsurf" / "hooks"
         hooks_dir.mkdir(parents=True)
 
-        result = uninstall_windsurf(project)
+        result = uninstall_windsurf(project, mode="project")
         assert result["success"] is True
         assert result["hooks_removed"] == []
 
@@ -704,7 +715,7 @@ class TestUninstallWindsurf:
         hooks_dir = project / ".windsurf" / "hooks"
         hooks_dir.mkdir(parents=True)
 
-        result = uninstall_windsurf(project)
+        result = uninstall_windsurf(project, mode="project")
         assert result["success"] is True
         assert result["files_removed"] == []
 
@@ -714,7 +725,7 @@ class TestUninstallWindsurf:
         windsurf_path.mkdir(parents=True)
         (windsurf_path / "hooks.json").write_text("{ broken json !!!")
 
-        result = uninstall_windsurf(project)
+        result = uninstall_windsurf(project, mode="project")
         assert result["success"] is True
         assert result["hooks_removed"] == []
 
@@ -727,7 +738,7 @@ class TestUninstallWindsurf:
         hooks_file.chmod(0o000)
 
         try:
-            result = uninstall_windsurf(project)
+            result = uninstall_windsurf(project, mode="project")
             assert result["success"] is True
         finally:
             hooks_file.chmod(0o644)
@@ -745,7 +756,7 @@ class TestUninstallWindsurf:
         }
         (windsurf_path / "hooks.json").write_text(json.dumps(hooks_config))
 
-        result = uninstall_windsurf(project)
+        result = uninstall_windsurf(project, mode="project")
         assert result["success"] is True
         assert result["hooks_removed"] == []
 
@@ -767,7 +778,7 @@ class TestUninstallWindsurf:
         }
         (windsurf_path / "hooks.json").write_text(json.dumps(hooks_config))
 
-        result = uninstall_windsurf(project)
+        result = uninstall_windsurf(project, mode="project")
         assert result["success"] is True
         assert "list_hook" in result["hooks_removed"]
         assert "dict_hook" not in result["hooks_removed"]
@@ -781,13 +792,13 @@ class TestUninstallWindsurf:
         dispatcher.write_text("# dispatcher")
 
         with patch.object(Path, "unlink", side_effect=OSError("Permission denied")):
-            result = uninstall_windsurf(project)
+            result = uninstall_windsurf(project, mode="project")
 
         assert result["success"] is True
 
     def test_uninstall_result_structure(self, project: Path) -> None:
         """Result dictionary has expected structure."""
-        result = uninstall_windsurf(project)
+        result = uninstall_windsurf(project, mode="project")
         expected_keys = {"success", "hooks_removed", "files_removed", "error"}
         assert set(result.keys()) == expected_keys
 
@@ -797,7 +808,7 @@ class TestUninstallWindsurf:
         windsurf_path.mkdir(parents=True)
         (windsurf_path / "hooks.json").write_text(json.dumps({"hooks": {}}))
 
-        result = uninstall_windsurf(project)
+        result = uninstall_windsurf(project, mode="project")
         assert result["success"] is True
         assert result["hooks_removed"] == []
 
@@ -807,6 +818,6 @@ class TestUninstallWindsurf:
         windsurf_path.mkdir(parents=True)
         (windsurf_path / "hooks.json").write_text(json.dumps({"other": "value"}))
 
-        result = uninstall_windsurf(project)
+        result = uninstall_windsurf(project, mode="project")
         assert result["success"] is True
         assert result["hooks_removed"] == []

@@ -224,7 +224,24 @@ class GobbyRunner:
 
         # Task Sync Manager
         self.task_sync_manager = TaskSyncManager(self.task_manager)
-        # Wire up change listener for automatic export
+
+        # Import synced tasks before wiring export listener
+        # (e.g. from git on a new machine with more tasks than local DB)
+        try:
+            self.task_sync_manager.import_from_jsonl()
+            logger.info("Initial task sync import completed")
+        except Exception as e:
+            logger.warning(f"Task sync import failed: {e}")
+
+        # Force initial synchronous export
+        # Ensures disk state matches DB state before we start serving
+        try:
+            self.task_sync_manager.export_to_jsonl()
+            logger.info("Initial task sync export completed")
+        except Exception as e:
+            logger.warning(f"Initial task sync export failed: {e}")
+
+        # Wire up change listener for automatic export (after import to avoid race)
         self.task_manager.add_change_listener(self.task_sync_manager.trigger_export)
 
         # Initialize Memory Sync Manager (Phase 7) & Wire up listeners

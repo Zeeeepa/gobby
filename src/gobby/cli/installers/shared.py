@@ -83,6 +83,39 @@ def _install_file(source: Path, target: Path, dev_mode: bool, executable: bool =
             target.chmod(0o755)
 
 
+def install_global_hooks() -> list[str]:
+    """Install shared hook files to ~/.gobby/hooks/ for global hook dispatch.
+
+    Always copies files (never symlinks) since global hooks must work
+    regardless of whether the source repo is available.
+
+    Returns:
+        List of installed filenames
+    """
+    shared_hooks_dir = get_install_dir() / "shared" / "hooks"
+    global_hooks_dir = Path.home() / ".gobby" / "hooks"
+    global_hooks_dir.mkdir(parents=True, exist_ok=True)
+    installed: list[str] = []
+
+    hook_files = {
+        "hook_dispatcher.py": True,  # Make executable
+        "validate_settings.py": True,  # Make executable
+    }
+
+    for filename, make_executable in hook_files.items():
+        source_file = shared_hooks_dir / filename
+        if not source_file.exists():
+            logger.warning(f"Shared hook file not found: {source_file}")
+            continue
+        target_file = global_hooks_dir / filename
+        copy2(source_file, target_file)
+        if make_executable:
+            target_file.chmod(0o755)
+        installed.append(filename)
+
+    return installed
+
+
 def install_shared_hooks(hooks_dir: Path, project_path: Path) -> list[str]:
     """Install shared hook files (hook_dispatcher.py, validate_settings.py).
 

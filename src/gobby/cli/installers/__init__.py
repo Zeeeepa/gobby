@@ -16,6 +16,7 @@ from .mcp_config import install_default_mcp_servers
 from .neo4j import install_neo4j, uninstall_neo4j
 from .shared import (
     install_cli_content,
+    install_global_hooks,
     install_shared_content,
 )
 from .windsurf import install_windsurf, uninstall_windsurf
@@ -24,6 +25,7 @@ __all__ = [
     # Shared
     "install_shared_content",
     "install_cli_content",
+    "install_global_hooks",
     "install_default_mcp_servers",
     # Claude
     "install_claude",

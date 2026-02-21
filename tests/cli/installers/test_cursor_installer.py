@@ -11,9 +11,8 @@ from __future__ import annotations
 
 import json
 import os
-import stat
 from pathlib import Path
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 import pytest
 
@@ -40,13 +39,13 @@ def _create_install_dir(base: Path) -> Path:
         "hooks": {
             "file_saved": [
                 {
-                    "command": "python $PROJECT_PATH/.cursor/hooks/hook_dispatcher.py file_saved",
+                    "command": "python $HOOKS_DIR/hook_dispatcher.py file_saved",
                     "events": ["file_saved"],
                 }
             ],
             "context_loading": [
                 {
-                    "command": "python $PROJECT_PATH/.cursor/hooks/hook_dispatcher.py context_loading",
+                    "command": "python $HOOKS_DIR/hook_dispatcher.py context_loading",
                     "events": ["context_loading"],
                 }
             ],
@@ -77,7 +76,7 @@ class TestInstallCursor:
         """Full install on a clean project directory."""
         with (
             patch("gobby.cli.installers.cursor.get_install_dir", return_value=install_dir),
-            patch("gobby.cli.installers.cursor._is_dev_mode", return_value=False),
+            patch("gobby.cli.installers.shared._is_dev_mode", return_value=False),
             patch(
                 "gobby.cli.installers.cursor.install_shared_content",
                 return_value={
@@ -89,7 +88,7 @@ class TestInstallCursor:
                 },
             ),
         ):
-            result = install_cursor(project)
+            result = install_cursor(project, mode="project")
 
         assert result["success"] is True
         assert result["error"] is None
@@ -111,24 +110,41 @@ class TestInstallCursor:
         assert "file_saved" in data["hooks"]
         assert "context_loading" in data["hooks"]
 
-        # Verify $PROJECT_PATH was replaced
+        # Verify $HOOKS_DIR was replaced
         cmd = data["hooks"]["file_saved"][0]["command"]
-        assert "$PROJECT_PATH" not in cmd
+        assert "$HOOKS_DIR" not in cmd
         assert str(project.resolve()) in cmd
 
     def test_missing_hook_dispatcher(self, project: Path, tmp_path: Path) -> None:
-        """Fails when hook_dispatcher.py source is missing."""
+        """Succeeds but dispatcher is not installed when source is missing."""
         install_dir = tmp_path / "install"
         cursor_dir = install_dir / "cursor"
         (cursor_dir / "hooks").mkdir(parents=True)
         (cursor_dir / "hooks-template.json").write_text(json.dumps({"hooks": {}}))
+        # Create shared/hooks/ dir but do NOT add hook_dispatcher.py
+        (install_dir / "shared" / "hooks").mkdir(parents=True)
 
-        with patch("gobby.cli.installers.cursor.get_install_dir", return_value=install_dir):
-            result = install_cursor(project)
+        with (
+            patch("gobby.cli.installers.cursor.get_install_dir", return_value=install_dir),
+            patch("gobby.cli.installers.shared.get_install_dir", return_value=install_dir),
+            patch("gobby.cli.installers.shared._is_dev_mode", return_value=False),
+            patch(
+                "gobby.cli.installers.cursor.install_shared_content",
+                return_value={
+                    "workflows": [],
+                    "agents": [],
+                    "plugins": [],
+                    "prompts": [],
+                    "docs": [],
+                },
+            ),
+        ):
+            result = install_cursor(project, mode="project")
 
-        assert result["success"] is False
-        assert "Missing source files" in result["error"]
-        assert "hook_dispatcher.py" in result["error"]
+        # install_shared_hooks logs a warning but doesn't fail
+        assert result["success"] is True
+        # Dispatcher was not installed because source was missing
+        assert not (project / ".cursor" / "hooks" / "hook_dispatcher.py").exists()
 
     def test_missing_hooks_template(self, project: Path, tmp_path: Path) -> None:
         """Fails when hooks-template.json is missing."""
@@ -140,7 +156,7 @@ class TestInstallCursor:
         # No hooks-template.json
 
         with patch("gobby.cli.installers.cursor.get_install_dir", return_value=install_dir):
-            result = install_cursor(project)
+            result = install_cursor(project, mode="project")
 
         assert result["success"] is False
         assert "Missing source files" in result["error"]
@@ -152,7 +168,7 @@ class TestInstallCursor:
         (install_dir / "cursor" / "hooks").mkdir(parents=True)
 
         with patch("gobby.cli.installers.cursor.get_install_dir", return_value=install_dir):
-            result = install_cursor(project)
+            result = install_cursor(project, mode="project")
 
         assert result["success"] is False
         assert "Missing source files" in result["error"]
@@ -161,13 +177,13 @@ class TestInstallCursor:
         """Fails when _install_file raises OSError."""
         with (
             patch("gobby.cli.installers.cursor.get_install_dir", return_value=install_dir),
-            patch("gobby.cli.installers.cursor._is_dev_mode", return_value=False),
+            patch("gobby.cli.installers.shared._is_dev_mode", return_value=False),
             patch(
-                "gobby.cli.installers.cursor._install_file",
+                "gobby.cli.installers.shared._install_file",
                 side_effect=OSError("Permission denied"),
             ),
         ):
-            result = install_cursor(project)
+            result = install_cursor(project, mode="project")
 
         assert result["success"] is False
         assert "Failed to install hook files" in result["error"]
@@ -176,13 +192,13 @@ class TestInstallCursor:
         """install_shared_content failure does not block hooks installation."""
         with (
             patch("gobby.cli.installers.cursor.get_install_dir", return_value=install_dir),
-            patch("gobby.cli.installers.cursor._is_dev_mode", return_value=False),
+            patch("gobby.cli.installers.shared._is_dev_mode", return_value=False),
             patch(
                 "gobby.cli.installers.cursor.install_shared_content",
                 side_effect=RuntimeError("Shared content kaboom"),
             ),
         ):
-            result = install_cursor(project)
+            result = install_cursor(project, mode="project")
 
         assert result["success"] is True
         assert result["error"] is None
@@ -192,7 +208,7 @@ class TestInstallCursor:
         """All shared content result keys are populated."""
         with (
             patch("gobby.cli.installers.cursor.get_install_dir", return_value=install_dir),
-            patch("gobby.cli.installers.cursor._is_dev_mode", return_value=False),
+            patch("gobby.cli.installers.shared._is_dev_mode", return_value=False),
             patch(
                 "gobby.cli.installers.cursor.install_shared_content",
                 return_value={
@@ -204,7 +220,7 @@ class TestInstallCursor:
                 },
             ),
         ):
-            result = install_cursor(project)
+            result = install_cursor(project, mode="project")
 
         assert result["success"] is True
         assert result["workflows_installed"] == ["w.yaml"]
@@ -227,7 +243,7 @@ class TestInstallCursor:
 
         with (
             patch("gobby.cli.installers.cursor.get_install_dir", return_value=install_dir),
-            patch("gobby.cli.installers.cursor._is_dev_mode", return_value=False),
+            patch("gobby.cli.installers.shared._is_dev_mode", return_value=False),
             patch(
                 "gobby.cli.installers.cursor.install_shared_content",
                 return_value={
@@ -239,7 +255,7 @@ class TestInstallCursor:
                 },
             ),
         ):
-            result = install_cursor(project)
+            result = install_cursor(project, mode="project")
 
         assert result["success"] is True
 
@@ -264,7 +280,7 @@ class TestInstallCursor:
 
         with (
             patch("gobby.cli.installers.cursor.get_install_dir", return_value=install_dir),
-            patch("gobby.cli.installers.cursor._is_dev_mode", return_value=False),
+            patch("gobby.cli.installers.shared._is_dev_mode", return_value=False),
             patch(
                 "gobby.cli.installers.cursor.install_shared_content",
                 return_value={
@@ -276,7 +292,7 @@ class TestInstallCursor:
                 },
             ),
         ):
-            result = install_cursor(project)
+            result = install_cursor(project, mode="project")
 
         assert result["success"] is True
         with open(cursor_path / "hooks.json") as f:
@@ -295,7 +311,7 @@ class TestInstallCursor:
         try:
             with (
                 patch("gobby.cli.installers.cursor.get_install_dir", return_value=install_dir),
-                patch("gobby.cli.installers.cursor._is_dev_mode", return_value=False),
+                patch("gobby.cli.installers.shared._is_dev_mode", return_value=False),
                 patch(
                     "gobby.cli.installers.cursor.install_shared_content",
                     return_value={
@@ -307,7 +323,7 @@ class TestInstallCursor:
                     },
                 ),
             ):
-                result = install_cursor(project)
+                result = install_cursor(project, mode="project")
 
             assert result["success"] is False
             assert "Failed" in result["error"]
@@ -328,7 +344,7 @@ class TestInstallCursor:
         try:
             with (
                 patch("gobby.cli.installers.cursor.get_install_dir", return_value=install_dir),
-                patch("gobby.cli.installers.cursor._is_dev_mode", return_value=False),
+                patch("gobby.cli.installers.shared._is_dev_mode", return_value=False),
                 patch(
                     "gobby.cli.installers.cursor.install_shared_content",
                     return_value={
@@ -340,7 +356,7 @@ class TestInstallCursor:
                     },
                 ),
             ):
-                result = install_cursor(project)
+                result = install_cursor(project, mode="project")
 
             assert result["success"] is False
             assert "Failed to read hooks template" in result["error"]
@@ -358,7 +374,7 @@ class TestInstallCursor:
 
         with (
             patch("gobby.cli.installers.cursor.get_install_dir", return_value=install_dir),
-            patch("gobby.cli.installers.cursor._is_dev_mode", return_value=False),
+            patch("gobby.cli.installers.shared._is_dev_mode", return_value=False),
             patch(
                 "gobby.cli.installers.cursor.install_shared_content",
                 return_value={
@@ -370,7 +386,7 @@ class TestInstallCursor:
                 },
             ),
         ):
-            result = install_cursor(project)
+            result = install_cursor(project, mode="project")
 
         assert result["success"] is False
         assert "Failed to parse hooks template" in result["error"]
@@ -383,7 +399,7 @@ class TestInstallCursor:
 
         with (
             patch("gobby.cli.installers.cursor.get_install_dir", return_value=install_dir),
-            patch("gobby.cli.installers.cursor._is_dev_mode", return_value=False),
+            patch("gobby.cli.installers.shared._is_dev_mode", return_value=False),
             patch(
                 "gobby.cli.installers.cursor.install_shared_content",
                 return_value={
@@ -396,7 +412,7 @@ class TestInstallCursor:
             ),
             patch("gobby.cli.installers.cursor.copy2", side_effect=OSError("Permission denied")),
         ):
-            result = install_cursor(project)
+            result = install_cursor(project, mode="project")
 
         assert result["success"] is False
         assert "Failed to create backup" in result["error"]
@@ -411,7 +427,7 @@ class TestInstallCursor:
 
         with (
             patch("gobby.cli.installers.cursor.get_install_dir", return_value=install_dir),
-            patch("gobby.cli.installers.cursor._is_dev_mode", return_value=False),
+            patch("gobby.cli.installers.shared._is_dev_mode", return_value=False),
             patch(
                 "gobby.cli.installers.cursor.install_shared_content",
                 return_value={
@@ -427,7 +443,7 @@ class TestInstallCursor:
                 side_effect=OSError("Disk full"),
             ),
         ):
-            result = install_cursor(project)
+            result = install_cursor(project, mode="project")
 
         assert result["success"] is False
         assert "Failed to write hooks.json" in result["error"]
@@ -441,7 +457,7 @@ class TestInstallCursor:
         """Atomic write failure with no backup (new install) just returns error."""
         with (
             patch("gobby.cli.installers.cursor.get_install_dir", return_value=install_dir),
-            patch("gobby.cli.installers.cursor._is_dev_mode", return_value=False),
+            patch("gobby.cli.installers.shared._is_dev_mode", return_value=False),
             patch(
                 "gobby.cli.installers.cursor.install_shared_content",
                 return_value={
@@ -457,7 +473,7 @@ class TestInstallCursor:
                 side_effect=OSError("Disk full"),
             ),
         ):
-            result = install_cursor(project)
+            result = install_cursor(project, mode="project")
 
         assert result["success"] is False
         assert "Failed to write hooks.json" in result["error"]
@@ -470,7 +486,7 @@ class TestInstallCursor:
 
         with (
             patch("gobby.cli.installers.cursor.get_install_dir", return_value=install_dir),
-            patch("gobby.cli.installers.cursor._is_dev_mode", return_value=False),
+            patch("gobby.cli.installers.shared._is_dev_mode", return_value=False),
             patch(
                 "gobby.cli.installers.cursor.install_shared_content",
                 return_value={
@@ -482,7 +498,7 @@ class TestInstallCursor:
                 },
             ),
         ):
-            result = install_cursor(project)
+            result = install_cursor(project, mode="project")
 
         assert result["success"] is True
         with open(cursor_path / "hooks.json") as f:
@@ -494,8 +510,8 @@ class TestInstallCursor:
         """When in dev mode, _install_file is called with dev_mode=True."""
         with (
             patch("gobby.cli.installers.cursor.get_install_dir", return_value=install_dir),
-            patch("gobby.cli.installers.cursor._is_dev_mode", return_value=True),
-            patch("gobby.cli.installers.cursor._install_file") as mock_install_file,
+            patch("gobby.cli.installers.shared._is_dev_mode", return_value=True),
+            patch("gobby.cli.installers.shared._install_file") as mock_install_file,
             patch(
                 "gobby.cli.installers.cursor.install_shared_content",
                 return_value={
@@ -507,7 +523,7 @@ class TestInstallCursor:
                 },
             ),
         ):
-            result = install_cursor(project)
+            result = install_cursor(project, mode="project")
 
         assert result["success"] is True
         # Verify dev_mode=True was passed
@@ -539,7 +555,7 @@ class TestInstallCursor:
         try:
             with (
                 patch("gobby.cli.installers.cursor.get_install_dir", return_value=install_dir),
-                patch("gobby.cli.installers.cursor._is_dev_mode", return_value=False),
+                patch("gobby.cli.installers.shared._is_dev_mode", return_value=False),
                 patch(
                     "gobby.cli.installers.cursor.install_shared_content",
                     return_value={
@@ -552,7 +568,7 @@ class TestInstallCursor:
                 ),
                 patch("gobby.cli.installers.cursor.copy2", side_effect=copy2_then_lock),
             ):
-                result = install_cursor(project)
+                result = install_cursor(project, mode="project")
 
             assert result["success"] is False
             assert "Failed to read hooks.json" in result["error"]
@@ -586,7 +602,7 @@ class TestInstallCursor:
 
         with (
             patch("gobby.cli.installers.cursor.get_install_dir", return_value=install_dir),
-            patch("gobby.cli.installers.cursor._is_dev_mode", return_value=False),
+            patch("gobby.cli.installers.shared._is_dev_mode", return_value=False),
             patch(
                 "gobby.cli.installers.cursor.install_shared_content",
                 return_value={
@@ -603,7 +619,7 @@ class TestInstallCursor:
             ),
             patch("gobby.cli.installers.cursor.copy2", side_effect=patched_copy2),
         ):
-            result = install_cursor(project)
+            result = install_cursor(project, mode="project")
 
         assert result["success"] is False
         assert "Failed to write hooks.json" in result["error"]
@@ -619,7 +635,7 @@ class TestInstallCursor:
 
         with (
             patch("gobby.cli.installers.cursor.get_install_dir", return_value=install_dir),
-            patch("gobby.cli.installers.cursor._is_dev_mode", return_value=False),
+            patch("gobby.cli.installers.shared._is_dev_mode", return_value=False),
             patch(
                 "gobby.cli.installers.cursor.install_shared_content",
                 return_value={
@@ -644,7 +660,7 @@ class TestInstallCursor:
                 ),
                 patch("gobby.cli.installers.cursor.os.fdopen", side_effect=OSError("Bad fd")),
             ):
-                result = install_cursor(project)
+                result = install_cursor(project, mode="project")
 
         assert result["success"] is False
         # Temp file should be cleaned up

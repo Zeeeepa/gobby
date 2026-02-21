@@ -454,12 +454,44 @@ def log_hook_details(logger, hook_type: str, input_data: dict, debug_mode: bool)
 # ── Main ────────────────────────────────────────────────────────────────
 
 
+def _find_project_config(cwd: str) -> dict | None:
+    """Walk up from cwd to find .gobby/project.json and return parsed content.
+
+    Uses stdlib only (no external deps). Returns None if not found or invalid.
+    """
+    current = Path(cwd)
+    for _ in range(50):  # Safety limit to prevent infinite loops
+        project_json = current / ".gobby" / "project.json"
+        if project_json.is_file():
+            try:
+                with open(project_json) as f:
+                    return json.load(f)
+            except (json.JSONDecodeError, OSError):
+                return None
+        parent = current.parent
+        if parent == current:
+            break
+        current = parent
+    return None
+
+
 async def main() -> int:
     """Main dispatcher execution.
 
     Returns:
         Exit code (0=success/allow, 1=error, 2=block/deny)
     """
+    # Check env var for hooks disabled (before any other work)
+    if os.environ.get("GOBBY_HOOKS_DISABLED"):
+        print(json.dumps({}))
+        return 0
+
+    # Check .gobby/project.json hooks_disabled flag
+    project_config = _find_project_config(os.getcwd())
+    if project_config and project_config.get("hooks_disabled"):
+        print(json.dumps({}))
+        return 0
+
     try:
         args = parse_arguments()
     except (argparse.ArgumentError, SystemExit):

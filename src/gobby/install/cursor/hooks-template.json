@@ -3,79 +3,79 @@
   "hooks": {
     "sessionStart": [
       {
-        "command": "uv run python \"$PROJECT_PATH/.cursor/hooks/hook_dispatcher.py\" --cli=cursor --type=sessionStart"
+        "command": "uv run python \"$HOOKS_DIR/hook_dispatcher.py\" --cli=cursor --type=sessionStart"
       }
     ],
     "sessionEnd": [
       {
-        "command": "uv run python \"$PROJECT_PATH/.cursor/hooks/hook_dispatcher.py\" --cli=cursor --type=sessionEnd"
+        "command": "uv run python \"$HOOKS_DIR/hook_dispatcher.py\" --cli=cursor --type=sessionEnd"
       }
     ],
     "beforeSubmitPrompt": [
       {
-        "command": "uv run python \"$PROJECT_PATH/.cursor/hooks/hook_dispatcher.py\" --cli=cursor --type=beforeSubmitPrompt"
+        "command": "uv run python \"$HOOKS_DIR/hook_dispatcher.py\" --cli=cursor --type=beforeSubmitPrompt"
       }
     ],
     "preToolUse": [
       {
         "matcher": { "tool_name": ".*" },
-        "command": "uv run python \"$PROJECT_PATH/.cursor/hooks/hook_dispatcher.py\" --cli=cursor --type=preToolUse"
+        "command": "uv run python \"$HOOKS_DIR/hook_dispatcher.py\" --cli=cursor --type=preToolUse"
       }
     ],
     "postToolUse": [
       {
         "matcher": { "tool_name": ".*" },
-        "command": "uv run python \"$PROJECT_PATH/.cursor/hooks/hook_dispatcher.py\" --cli=cursor --type=postToolUse"
+        "command": "uv run python \"$HOOKS_DIR/hook_dispatcher.py\" --cli=cursor --type=postToolUse"
       }
     ],
     "beforeShellExecution": [
       {
-        "command": "uv run python \"$PROJECT_PATH/.cursor/hooks/hook_dispatcher.py\" --cli=cursor --type=beforeShellExecution"
+        "command": "uv run python \"$HOOKS_DIR/hook_dispatcher.py\" --cli=cursor --type=beforeShellExecution"
       }
     ],
     "afterShellExecution": [
       {
-        "command": "uv run python \"$PROJECT_PATH/.cursor/hooks/hook_dispatcher.py\" --cli=cursor --type=afterShellExecution"
+        "command": "uv run python \"$HOOKS_DIR/hook_dispatcher.py\" --cli=cursor --type=afterShellExecution"
       }
     ],
     "beforeMCPExecution": [
       {
-        "command": "uv run python \"$PROJECT_PATH/.cursor/hooks/hook_dispatcher.py\" --cli=cursor --type=beforeMCPExecution"
+        "command": "uv run python \"$HOOKS_DIR/hook_dispatcher.py\" --cli=cursor --type=beforeMCPExecution"
       }
     ],
     "afterMCPExecution": [
       {
-        "command": "uv run python \"$PROJECT_PATH/.cursor/hooks/hook_dispatcher.py\" --cli=cursor --type=afterMCPExecution"
+        "command": "uv run python \"$HOOKS_DIR/hook_dispatcher.py\" --cli=cursor --type=afterMCPExecution"
       }
     ],
     "beforeReadFile": [
       {
-        "command": "uv run python \"$PROJECT_PATH/.cursor/hooks/hook_dispatcher.py\" --cli=cursor --type=beforeReadFile"
+        "command": "uv run python \"$HOOKS_DIR/hook_dispatcher.py\" --cli=cursor --type=beforeReadFile"
       }
     ],
     "afterFileEdit": [
       {
-        "command": "uv run python \"$PROJECT_PATH/.cursor/hooks/hook_dispatcher.py\" --cli=cursor --type=afterFileEdit"
+        "command": "uv run python \"$HOOKS_DIR/hook_dispatcher.py\" --cli=cursor --type=afterFileEdit"
       }
     ],
     "preCompact": [
       {
-        "command": "uv run python \"$PROJECT_PATH/.cursor/hooks/hook_dispatcher.py\" --cli=cursor --type=preCompact"
+        "command": "uv run python \"$HOOKS_DIR/hook_dispatcher.py\" --cli=cursor --type=preCompact"
       }
     ],
     "stop": [
       {
-        "command": "uv run python \"$PROJECT_PATH/.cursor/hooks/hook_dispatcher.py\" --cli=cursor --type=stop"
+        "command": "uv run python \"$HOOKS_DIR/hook_dispatcher.py\" --cli=cursor --type=stop"
       }
     ],
     "subagentStart": [
       {
-        "command": "uv run python \"$PROJECT_PATH/.cursor/hooks/hook_dispatcher.py\" --cli=cursor --type=subagentStart"
+        "command": "uv run python \"$HOOKS_DIR/hook_dispatcher.py\" --cli=cursor --type=subagentStart"
       }
     ],
     "subagentStop": [
       {
-        "command": "uv run python \"$PROJECT_PATH/.cursor/hooks/hook_dispatcher.py\" --cli=cursor --type=subagentStop"
+        "command": "uv run python \"$HOOKS_DIR/hook_dispatcher.py\" --cli=cursor --type=subagentStop"
       }
     ]
   }
