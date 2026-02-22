@@ -187,39 +187,6 @@ class ActionExecutor:
         """Register an action handler."""
         self._handlers[name] = handler
 
-    def register_plugin_actions(self, plugin_registry: Any) -> None:
-        """Register actions from loaded plugins."""
-        if plugin_registry is None:
-            return
-
-        for plugin_name, plugin in plugin_registry._plugins.items():
-            for action_name, plugin_action in plugin._actions.items():
-                full_name = f"plugin:{plugin_name}:{action_name}"
-
-                if plugin_action.schema:
-                    wrapper = self._create_validating_wrapper(plugin_action)
-                    self._handlers[full_name] = wrapper
-                else:
-                    self._handlers[full_name] = plugin_action.handler
-
-                logger.debug(f"Registered plugin action: {full_name}")
-
-    def _create_validating_wrapper(self, plugin_action: Any) -> ActionHandler:
-        """Create a wrapper handler that validates input against schema."""
-
-        async def validating_handler(
-            context: ActionContext, **kwargs: Any
-        ) -> dict[str, Any] | None:
-            is_valid, error = plugin_action.validate_input(kwargs)
-            if not is_valid:
-                logger.warning(f"Plugin action '{plugin_action.name}' validation failed: {error}")
-                return {"error": f"Schema validation failed: {error}"}
-
-            result = await plugin_action.handler(context, **kwargs)
-            return dict(result) if isinstance(result, dict) else None
-
-        return validating_handler
-
     def _register_defaults(self) -> None:
         """Register built-in actions using external handlers."""
         # --- Context/injection actions ---

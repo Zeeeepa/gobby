@@ -17,7 +17,6 @@ from gobby.autonomous.stop_registry import StopRegistry
 from gobby.autonomous.stuck_detector import StuckDetector
 from gobby.hooks.event_handlers import EventHandlers
 from gobby.hooks.health_monitor import HealthMonitor
-from gobby.hooks.plugins import PluginLoader
 from gobby.hooks.session_coordinator import SessionCoordinator
 from gobby.hooks.skill_manager import HookSkillManager
 from gobby.hooks.webhooks import WebhookDispatcher
@@ -119,7 +118,6 @@ class HookManagerComponents:
     workflow_engine: Any  # WorkflowEngine
     workflow_handler: WorkflowHookHandler
     webhook_dispatcher: WebhookDispatcher
-    plugin_loader: PluginLoader | None
     session_manager: SessionManager
     session_coordinator: SessionCoordinator
     health_monitor: HealthMonitor
@@ -215,9 +213,8 @@ class HookManagerFactory:
             broadcaster,
         )
 
-        # Initialize webhooks and plugins
+        # Initialize webhooks
         webhook_dispatcher = cls._create_webhooks(config)
-        plugin_loader = cls._create_plugins(config, hook_logger, workflow_components)
 
         # Initialize session management
         session_mgr = SessionManager(
@@ -284,7 +281,6 @@ class HookManagerFactory:
             workflow_engine=workflow_components.engine,
             workflow_handler=workflow_components.handler,
             webhook_dispatcher=webhook_dispatcher,
-            plugin_loader=plugin_loader,
             session_manager=session_mgr,
             session_coordinator=session_coordinator,
             health_monitor=health_monitor,
@@ -341,29 +337,6 @@ class HookManagerFactory:
 
             webhooks_config = WebhooksConfig()
         return WebhookDispatcher(webhooks_config)
-
-    @staticmethod
-    def _create_plugins(
-        config: Any | None, logger: logging.Logger, workflow: _WorkflowComponents
-    ) -> PluginLoader | None:
-        plugins_config = None
-        if config and hasattr(config, "hook_extensions"):
-            plugins_config = config.hook_extensions.plugins
-
-        if plugins_config is not None and plugins_config.enabled:
-            loader = PluginLoader(plugins_config)
-            try:
-                loaded = loader.load_all()
-                if loaded:
-                    logger.info(
-                        f"Loaded {len(loaded)} plugin(s): {', '.join(p.name for p in loaded)}"
-                    )
-                    workflow.action_executor.register_plugin_actions(loader.registry)
-                    workflow.engine.evaluator.register_plugin_conditions(loader.registry)
-                return loader
-            except Exception as e:
-                logger.error(f"Failed to load plugins: {e}", exc_info=True)
-        return None
 
     @staticmethod
     def _create_workflow_engine(

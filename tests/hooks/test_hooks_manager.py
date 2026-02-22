@@ -42,14 +42,13 @@ def hook_manager_with_mocks(temp_dir: Path, mock_daemon_client: MagicMock):
     (gobby_dir / "project.json").write_text(f'{{"id": "{project.id}", "name": "test-project"}}')
 
     from gobby.config.app import DaemonConfig
-    from gobby.config.extensions import HookExtensionsConfig, PluginsConfig, WebhooksConfig
+    from gobby.config.extensions import HookExtensionsConfig, WebhooksConfig
 
     # Create config with temp DB and disabled webhooks
     test_config = DaemonConfig(
         database_path=str(db_path),
         hook_extensions=HookExtensionsConfig(
             webhooks=WebhooksConfig(enabled=False),
-            plugins=PluginsConfig(enabled=False),
         ),
     )
 
@@ -729,136 +728,6 @@ class TestHookManagerWebhookBlocking:
             response = manager.handle(sample_session_start_event)
 
         # Should still allow (fail-open)
-        assert response.decision == "allow"
-
-
-class TestHookManagerPluginHandling:
-    """Tests for plugin handler behavior."""
-
-    def test_handle_plugin_pre_handler_blocks(
-        self, hook_manager_with_mocks: HookManager, temp_dir: Path
-    ) -> None:
-        """Test that plugin pre-handler can block an event."""
-        manager = hook_manager_with_mocks
-
-        event = HookEvent(
-            event_type=HookEventType.BEFORE_TOOL,
-            session_id="test-plugin-block",
-            source=SessionSource.CLAUDE,
-            timestamp=datetime.now(UTC),
-            data={"tool_name": "bash"},
-            machine_id="test-machine-id",
-        )
-
-        # Create mock plugin loader
-        mock_plugin_loader = MagicMock()
-        manager._plugin_loader = mock_plugin_loader
-
-        # Mock run_plugin_handlers to return block response
-        with patch(
-            "gobby.hooks.hook_manager.run_plugin_handlers",
-            return_value=HookResponse(decision="block", reason="Plugin blocked"),
-        ):
-            response = manager.handle(event)
-
-        assert response.decision == "block"
-        assert response.reason == "Plugin blocked"
-
-    def test_handle_plugin_pre_handler_deny(
-        self, hook_manager_with_mocks: HookManager, temp_dir: Path
-    ) -> None:
-        """Test that plugin pre-handler deny decision blocks."""
-        manager = hook_manager_with_mocks
-
-        event = HookEvent(
-            event_type=HookEventType.BEFORE_TOOL,
-            session_id="test-plugin-deny",
-            source=SessionSource.CLAUDE,
-            timestamp=datetime.now(UTC),
-            data={"tool_name": "bash"},
-            machine_id="test-machine-id",
-        )
-
-        mock_plugin_loader = MagicMock()
-        manager._plugin_loader = mock_plugin_loader
-
-        # Mock run_plugin_handlers to return deny response
-        with patch(
-            "gobby.hooks.hook_manager.run_plugin_handlers",
-            return_value=HookResponse(decision="deny", reason="Plugin denied"),
-        ):
-            response = manager.handle(event)
-
-        assert response.decision == "deny"
-        assert response.reason == "Plugin denied"
-
-    def test_handle_plugin_pre_handler_error_fails_open(
-        self, hook_manager_with_mocks: HookManager, sample_session_start_event: HookEvent
-    ) -> None:
-        """Test that plugin pre-handler errors fail open."""
-        manager = hook_manager_with_mocks
-
-        mock_plugin_loader = MagicMock()
-        manager._plugin_loader = mock_plugin_loader
-
-        # Mock run_plugin_handlers to raise exception
-        with patch(
-            "gobby.hooks.hook_manager.run_plugin_handlers",
-            side_effect=Exception("Plugin error"),
-        ):
-            response = manager.handle(sample_session_start_event)
-
-        # Should still allow (fail-open)
-        assert response.decision == "allow"
-
-    def test_handle_plugin_post_handler_called(
-        self, hook_manager_with_mocks: HookManager, sample_session_start_event: HookEvent
-    ) -> None:
-        """Test that plugin post-handler is called after event handling."""
-        manager = hook_manager_with_mocks
-
-        mock_plugin_loader = MagicMock()
-        manager._plugin_loader = mock_plugin_loader
-
-        call_count = 0
-
-        def mock_run_handlers(registry, event, pre=True, core_response=None):
-            nonlocal call_count
-            call_count += 1
-            if pre:
-                return None  # Allow pre-handler
-            return None  # Post-handler
-
-        with patch(
-            "gobby.hooks.hook_manager.run_plugin_handlers",
-            side_effect=mock_run_handlers,
-        ):
-            manager.handle(sample_session_start_event)
-
-        # Should be called twice: pre and post
-        assert call_count == 2
-
-    def test_handle_plugin_post_handler_error_continues(
-        self, hook_manager_with_mocks: HookManager, sample_session_start_event: HookEvent
-    ) -> None:
-        """Test that plugin post-handler errors don't affect response."""
-        manager = hook_manager_with_mocks
-
-        mock_plugin_loader = MagicMock()
-        manager._plugin_loader = mock_plugin_loader
-
-        def mock_run_handlers(registry, event, pre=True, core_response=None):
-            if pre:
-                return None  # Allow pre-handler
-            raise Exception("Post-handler error")
-
-        with patch(
-            "gobby.hooks.hook_manager.run_plugin_handlers",
-            side_effect=mock_run_handlers,
-        ):
-            response = manager.handle(sample_session_start_event)
-
-        # Response should still be valid
         assert response.decision == "allow"
 
 
@@ -1574,89 +1443,6 @@ class TestHookManagerLogging:
 
         # Cleanup
         logger.removeHandler(handler)
-
-
-class TestHookManagerPluginLoading:
-    """Tests for plugin loading during initialization."""
-
-    def test_init_loads_plugins_when_enabled(
-        self, temp_dir: Path, mock_daemon_client: MagicMock
-    ) -> None:
-        """Test that plugins are loaded when enabled in config."""
-        from gobby.config.extensions import PluginsConfig
-
-        plugins_config = PluginsConfig(enabled=True)
-
-        mock_config = MagicMock()
-        mock_config.daemon_health_check_interval = 10.0
-        mock_config.workflow.timeout = 0.0
-        mock_config.workflow.enabled = True
-        mock_config.hook_extensions.plugins = plugins_config
-        mock_config.hook_extensions.webhooks = None
-        mock_config.memory = None
-        mock_config.skills = None
-
-        with (
-            patch("gobby.hooks.factory.DaemonClient") as MockDaemonClient,
-            patch("gobby.hooks.factory.PluginLoader") as MockPluginLoader,
-        ):
-            MockDaemonClient.return_value = mock_daemon_client
-
-            mock_loader_instance = MagicMock()
-            mock_loader_instance.load_all.return_value = []
-            MockPluginLoader.return_value = mock_loader_instance
-
-            manager = HookManager(
-                daemon_host="localhost",
-                daemon_port=60887,
-                config=mock_config,
-                log_file=str(temp_dir / "logs" / "hook.log"),
-            )
-
-            # Plugin loader should be created
-            assert MockPluginLoader.called
-
-            manager.shutdown()
-
-    def test_init_handles_plugin_load_error(
-        self, temp_dir: Path, mock_daemon_client: MagicMock
-    ) -> None:
-        """Test that plugin loading errors are handled gracefully."""
-        from gobby.config.extensions import PluginsConfig
-
-        plugins_config = PluginsConfig(enabled=True)
-
-        mock_config = MagicMock()
-        mock_config.daemon_health_check_interval = 10.0
-        mock_config.workflow.timeout = 0.0
-        mock_config.workflow.enabled = True
-        mock_config.hook_extensions.plugins = plugins_config
-        mock_config.hook_extensions.webhooks = None
-        mock_config.memory = None
-        mock_config.skills = None
-
-        with (
-            patch("gobby.hooks.factory.DaemonClient") as MockDaemonClient,
-            patch("gobby.hooks.factory.PluginLoader") as MockPluginLoader,
-        ):
-            MockDaemonClient.return_value = mock_daemon_client
-
-            mock_loader_instance = MagicMock()
-            mock_loader_instance.load_all.side_effect = Exception("Plugin load failed")
-            MockPluginLoader.return_value = mock_loader_instance
-
-            # Should not raise
-            manager = HookManager(
-                daemon_host="localhost",
-                daemon_port=60887,
-                config=mock_config,
-                log_file=str(temp_dir / "logs" / "hook.log"),
-            )
-
-            # Manager should still be created
-            assert manager is not None
-
-            manager.shutdown()
 
 
 class TestHookManagerContextMerging:

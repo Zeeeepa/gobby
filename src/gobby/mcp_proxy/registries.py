@@ -380,19 +380,6 @@ def setup_internal_registries(
         except (ImportError, RuntimeError, OSError) as e:
             logger.debug(f"Cron registry not initialized: {e}")
 
-    # Initialize plugins registry if hook_manager_resolver is provided
-    if hook_manager_resolver is not None:
-        try:
-            from gobby.mcp_proxy.tools.plugins import create_plugins_registry
-
-            plugins_registry = create_plugins_registry(
-                hook_manager_resolver=hook_manager_resolver,
-            )
-            manager.add_registry(plugins_registry)
-            logger.debug("Plugins registry initialized")
-        except (ImportError, RuntimeError, OSError) as e:
-            logger.debug(f"Plugins registry not initialized: {e}")
-
     logger.info(f"Internal registries initialized: {len(manager)} registries")
     return manager
 

@@ -20,8 +20,6 @@ from gobby.config.app import (
 )
 from gobby.config.extensions import (
     HookExtensionsConfig,
-    PluginItemConfig,
-    PluginsConfig,
     WebhookEndpointConfig,
     WebhooksConfig,
     WebSocketBroadcastConfig,
@@ -1045,52 +1043,6 @@ class TestWebhooksConfig:
         assert len(config.endpoints) == 2
 
 
-class TestPluginItemConfig:
-    """Tests for PluginItemConfig."""
-
-    def test_default_values(self) -> None:
-        """Test default plugin item config."""
-        config = PluginItemConfig()
-        assert config.enabled is True
-        assert config.config == {}
-
-    def test_with_custom_config(self) -> None:
-        """Test plugin item with custom config."""
-        config = PluginItemConfig(
-            enabled=False,
-            config={"key": "value", "nested": {"a": 1}},
-        )
-        assert config.enabled is False
-        assert config.config["key"] == "value"
-        assert config.config["nested"]["a"] == 1
-
-
-class TestPluginsConfig:
-    """Tests for PluginsConfig."""
-
-    def test_default_values(self) -> None:
-        """Test default plugins config."""
-        config = PluginsConfig()
-        assert config.enabled is False  # Disabled by default for security
-        assert ".gobby/plugins" in config.plugin_dirs  # Project-scoped plugins
-        assert config.auto_discover is True
-        assert config.plugins == {}
-
-    def test_with_plugin_configs(self) -> None:
-        """Test plugins config with individual plugins."""
-        config = PluginsConfig(
-            enabled=True,
-            plugins={
-                "my-plugin": PluginItemConfig(config={"debug": True}),
-                "other-plugin": PluginItemConfig(enabled=False),
-            },
-        )
-        assert config.enabled is True
-        assert len(config.plugins) == 2
-        assert config.plugins["my-plugin"].config["debug"] is True
-        assert config.plugins["other-plugin"].enabled is False
-
-
 class TestMemoryBackupConfig:
     """Tests for MemoryBackupConfig."""
 
@@ -1166,7 +1118,6 @@ class TestDaemonConfigComposition:
         assert isinstance(config.hook_extensions, HookExtensionsConfig)
         assert isinstance(config.hook_extensions.websocket, WebSocketBroadcastConfig)
         assert isinstance(config.hook_extensions.webhooks, WebhooksConfig)
-        assert isinstance(config.hook_extensions.plugins, PluginsConfig)
 
         # Workflow
         assert isinstance(config.workflow, WorkflowConfig)
@@ -1237,8 +1188,6 @@ class TestAllConfigClassesInstantiate:
             WebSocketBroadcastConfig(),
             WebhookEndpointConfig(name="test", url="https://test.com"),  # Required
             WebhooksConfig(),
-            PluginItemConfig(),
-            PluginsConfig(),
             HookExtensionsConfig(),
             TaskExpansionConfig(),
             TaskValidationConfig(),
@@ -1251,6 +1200,6 @@ class TestAllConfigClassesInstantiate:
             DaemonConfig(),
         ]
 
-        assert len(configs) == 28
+        assert len(configs) == 26
         for config in configs:
             assert config is not None

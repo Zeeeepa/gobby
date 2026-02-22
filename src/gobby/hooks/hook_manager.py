@@ -37,7 +37,6 @@ from typing import TYPE_CHECKING, Any, cast
 
 from gobby.hooks.events import HookEvent, HookEventType, HookResponse, SessionSource
 from gobby.hooks.factory import HookManagerFactory
-from gobby.hooks.plugins import run_plugin_handlers
 
 if TYPE_CHECKING:
     from gobby.llm.service import LLMService
@@ -176,7 +175,6 @@ class HookManager:
         self._workflow_engine = components.workflow_engine
         self._workflow_handler = components.workflow_handler
         self._webhook_dispatcher = components.webhook_dispatcher
-        self._plugin_loader = components.plugin_loader
         self._session_manager = components.session_manager
         self._session_coordinator = components.session_coordinator
         self._health_monitor = components.health_monitor
@@ -366,18 +364,6 @@ class HookManager:
             # Fail-open for webhook errors
         # -----------------------------------------------
 
-        # --- Plugin Pre-Handlers (Sprint 9: can block) ---
-        if self._plugin_loader:
-            try:
-                pre_response = run_plugin_handlers(self._plugin_loader.registry, event, pre=True)
-                if pre_response and pre_response.decision in ("deny", "block"):
-                    self.logger.info(f"Plugin blocked event: {pre_response.reason}")
-                    return pre_response
-            except Exception as e:
-                self.logger.error(f"Plugin pre-handler failed: {e}", exc_info=True)
-                # Fail-open for plugin errors
-        # -------------------------------------------------
-
         # Execute handler
         try:
             response = handler(event)
@@ -410,20 +396,6 @@ class HookManager:
                 self._dispatch_webhooks_async(event)
             except Exception as e:
                 self.logger.warning(f"Non-blocking webhook dispatch failed: {e}")
-
-            # --- Plugin Post-Handlers (Sprint 9: observe only) ---
-            if self._plugin_loader:
-                try:
-                    run_plugin_handlers(
-                        self._plugin_loader.registry,
-                        event,
-                        pre=False,
-                        core_response=response,
-                    )
-                except Exception as e:
-                    self.logger.error(f"Plugin post-handler failed: {e}", exc_info=True)
-                    # Continue - post-handlers are observe-only
-            # -----------------------------------------------------
 
             # --- Hook-based transcript capture (Windsurf, Copilot) ---
             # These CLIs don't write local transcript files, so we

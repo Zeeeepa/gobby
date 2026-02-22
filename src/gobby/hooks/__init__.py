@@ -24,11 +24,6 @@ Event Models:
     HookEvent: Unified event dataclass from any CLI source
     HookResponse: Unified response dataclass returned to CLIs
 
-Plugin System:
-    HookPlugin: Base class for custom hook plugins
-    PluginLoader: Discovers and loads plugins from configured paths
-    hook_handler: Decorator for registering plugin handlers
-
 Example:
     ```python
     from gobby.hooks import HookManager, HookEvent, HookEventType
@@ -52,14 +47,6 @@ from gobby.hooks.events import (
 )
 from gobby.hooks.health_monitor import HealthMonitor
 from gobby.hooks.hook_manager import HookManager
-from gobby.hooks.plugins import (
-    HookPlugin,
-    PluginLoader,
-    PluginRegistry,
-    RegisteredHandler,
-    hook_handler,
-    run_plugin_handlers,
-)
 from gobby.hooks.session_coordinator import SessionCoordinator
 from gobby.hooks.webhooks import WebhookDispatcher
 
@@ -77,11 +64,4 @@ __all__ = [
     "HookEvent",
     "HookResponse",
     "EVENT_TYPE_CLI_SUPPORT",
-    # Plugin system
-    "HookPlugin",
-    "PluginLoader",
-    "PluginRegistry",
-    "RegisteredHandler",
-    "hook_handler",
-    "run_plugin_handlers",
 ]
