@@ -133,9 +133,7 @@ class TestMemorySyncImport:
         assert "sync_import" in memory_registry._tools
 
     @pytest.mark.asyncio
-    async def test_calls_sync_manager(
-        self, memory_registry, mock_memory_sync_manager
-    ) -> None:
+    async def test_calls_sync_manager(self, memory_registry, mock_memory_sync_manager) -> None:
         result = await memory_registry.call("sync_import", {})
         assert result["success"] is True
         assert result["imported"] == 5
@@ -163,9 +161,7 @@ class TestMemorySyncExport:
         assert "sync_export" in memory_registry._tools
 
     @pytest.mark.asyncio
-    async def test_calls_sync_manager(
-        self, memory_registry, mock_memory_sync_manager
-    ) -> None:
+    async def test_calls_sync_manager(self, memory_registry, mock_memory_sync_manager) -> None:
         result = await memory_registry.call("sync_export", {})
         assert result["success"] is True
         assert result["exported"] == 3
@@ -220,9 +216,7 @@ class TestTaskSyncImport:
     async def test_calls_sync_manager(
         self, task_sync_registry, mock_task_sync_manager, mock_session_manager
     ) -> None:
-        result = await task_sync_registry.call(
-            "sync_import", {"session_id": "sess-1"}
-        )
+        result = await task_sync_registry.call("sync_import", {"session_id": "sess-1"})
         assert result["success"] is True
         mock_task_sync_manager.import_from_jsonl.assert_called_once()
 
@@ -242,9 +236,7 @@ class TestTaskSyncExport:
     async def test_calls_sync_manager(
         self, task_sync_registry, mock_task_sync_manager, mock_session_manager
     ) -> None:
-        result = await task_sync_registry.call(
-            "sync_export", {"session_id": "sess-1"}
-        )
+        result = await task_sync_registry.call("sync_export", {"session_id": "sess-1"})
         assert result["success"] is True
         mock_task_sync_manager.export_to_jsonl.assert_called_once()
 
