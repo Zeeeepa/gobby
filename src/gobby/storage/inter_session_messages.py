@@ -209,3 +209,44 @@ class InterSessionMessageManager:
         if not message:
             raise ValueError(f"Message not found: {message_id}")
         return message
+
+    def get_undelivered_messages(self, to_session: str) -> list[InterSessionMessage]:
+        """Get messages not yet delivered to a session.
+
+        Args:
+            to_session: ID of the receiving session
+
+        Returns:
+            List of undelivered InterSessionMessage instances
+        """
+        rows = self.db.fetchall(
+            """SELECT * FROM inter_session_messages
+               WHERE to_session = ? AND delivered_at IS NULL
+               ORDER BY sent_at""",
+            (to_session,),
+        )
+        return [InterSessionMessage.from_row(row) for row in rows]
+
+    def mark_delivered(self, message_id: str) -> InterSessionMessage:
+        """Mark a message as delivered.
+
+        Args:
+            message_id: The message ID to mark as delivered
+
+        Returns:
+            The updated InterSessionMessage
+
+        Raises:
+            ValueError: If message not found
+        """
+        delivered_at = datetime.now(UTC).isoformat()
+
+        self.db.execute(
+            "UPDATE inter_session_messages SET delivered_at = ? WHERE id = ?",
+            (delivered_at, message_id),
+        )
+
+        message = self.get_message(message_id)
+        if not message:
+            raise ValueError(f"Message not found: {message_id}")
+        return message

@@ -255,6 +255,36 @@ class LocalSessionManager:
         )
         return [Session.from_row(row) for row in rows]
 
+    def is_ancestor(self, ancestor_id: str, descendant_id: str) -> bool:
+        """Check if ancestor_id is in the parent chain of descendant_id.
+
+        Walks the parent_session_id chain from descendant upward.
+        A session is NOT considered its own ancestor.
+
+        Args:
+            ancestor_id: Potential ancestor session ID
+            descendant_id: Potential descendant session ID
+
+        Returns:
+            True if ancestor_id is found in the parent chain
+        """
+        current_id = descendant_id
+        seen: set[str] = set()
+        while True:
+            row = self.db.fetchone(
+                "SELECT parent_session_id FROM sessions WHERE id = ?",
+                (current_id,),
+            )
+            if not row or row["parent_session_id"] is None:
+                return False
+            parent_id = row["parent_session_id"]
+            if parent_id == ancestor_id:
+                return True
+            if parent_id in seen:
+                return False  # cycle guard
+            seen.add(parent_id)
+            current_id = parent_id
+
     def update_status(self, session_id: str, status: str) -> Session | None:
         """Update session status."""
         now = datetime.now(UTC).isoformat()
