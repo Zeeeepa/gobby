@@ -84,6 +84,29 @@ class RuleDefinitionBody(BaseModel):
     match: dict[str, Any] | None = None
     effect: RuleEffect
     group: str | None = None
+    agent_scope: list[str] | None = None  # Only active for these agent types
+
+
+class AgentDefinitionBody(BaseModel):
+    """Stored as definition_json in workflow_definitions for workflow_type='agent'.
+
+    Simplified agent identity: 12 fields covering identity, provider config,
+    spawn parameters, and rule activation. Behavior is defined by rules,
+    not embedded workflows.
+    """
+
+    name: str
+    description: str | None = None
+    instructions: str | None = None
+    provider: str = "claude"
+    model: str | None = None
+    mode: Literal["terminal", "embedded", "headless"] = "headless"
+    isolation: Literal["current", "worktree", "clone"] | None = None
+    base_branch: str = "main"
+    timeout: float = 120.0
+    max_turns: int = 10
+    rules: list[str] = Field(default_factory=list)
+    enabled: bool = True
 
 
 class Observer(BaseModel):
