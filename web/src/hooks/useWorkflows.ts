@@ -238,6 +238,45 @@ export function useWorkflows() {
     return null
   }, [])
 
+  const useAsTemplate = useCallback(async (id: string): Promise<WorkflowDetail | null> => {
+    try {
+      const baseUrl = getBaseUrl()
+      const response = await fetch(`${baseUrl}/api/workflows/${encodeURIComponent(id)}/use-as-template`, {
+        method: 'POST',
+      })
+      if (response.ok) {
+        const data = await response.json()
+        if (data.status === 'success') {
+          await fetchWorkflows()
+          return data.definition
+        }
+      }
+    } catch (e) {
+      console.error('Failed to use workflow as template:', e)
+    }
+    return null
+  }, [fetchWorkflows])
+
+  const useAllBundledAsTemplates = useCallback(async (workflowType?: string): Promise<number> => {
+    try {
+      const baseUrl = getBaseUrl()
+      const params = workflowType ? `?workflow_type=${encodeURIComponent(workflowType)}` : ''
+      const response = await fetch(`${baseUrl}/api/workflows/use-all-bundled-as-templates${params}`, {
+        method: 'POST',
+      })
+      if (response.ok) {
+        const data = await response.json()
+        if (data.status === 'success') {
+          await fetchWorkflows()
+          return data.count || 0
+        }
+      }
+    } catch (e) {
+      console.error('Failed to use all bundled as templates:', e)
+    }
+    return 0
+  }, [fetchWorkflows])
+
   const restoreWorkflow = useCallback(async (id: string): Promise<boolean> => {
     try {
       const baseUrl = getBaseUrl()
@@ -306,5 +345,7 @@ export function useWorkflows() {
     exportYaml,
     restoreWorkflow,
     selectWorkflow,
+    useAsTemplate,
+    useAllBundledAsTemplates,
   }
 }

@@ -148,11 +148,13 @@ function getBaseUrl(): string {
 interface AgentDefinitionsPageProps {
   searchText: string
   showDeleted: boolean
+  showBundled: boolean
+  devMode: boolean
   showCreateForm: boolean
   onToggleCreateForm: (show: boolean) => void
 }
 
-export function AgentDefinitionsPage({ searchText, showDeleted, showCreateForm, onToggleCreateForm }: AgentDefinitionsPageProps) {
+export function AgentDefinitionsPage({ searchText, showDeleted, showBundled, devMode, showCreateForm, onToggleCreateForm }: AgentDefinitionsPageProps) {
   const { running, recentRuns, cancelAgent } = useAgentRuns()
   const [definitions, setDefinitions] = useState<AgentDefInfo[]>([])
   const [loading, setLoading] = useState(true)
@@ -225,6 +227,7 @@ export function AgentDefinitionsPage({ searchText, showDeleted, showCreateForm, 
   }, [])
 
   const filtered = useMemo(() => definitions.filter(d => {
+    if (!showBundled && d.source === 'bundled') return false
     if (filterSource !== 'all' && d.source !== filterSource) return false
     if (filterProvider !== 'all' && d.definition.provider !== filterProvider) return false
     if (searchText.trim()) {
@@ -237,7 +240,7 @@ export function AgentDefinitionsPage({ searchText, showDeleted, showCreateForm, 
       ) return false
     }
     return true
-  }), [definitions, filterSource, filterProvider, searchText])
+  }), [definitions, filterSource, filterProvider, searchText, showBundled])
 
   const sources = useMemo(
     () => [...new Set(definitions.map(d => d.source))].sort(),
@@ -477,6 +480,42 @@ export function AgentDefinitionsPage({ searchText, showDeleted, showCreateForm, 
     fetchDefinitions(showDeleted)
   }, [yamlAgent, yamlContent, fetchDefinitions, showDeleted])
 
+  const handleUseAsTemplate = async (name: string) => {
+    try {
+      const res = await fetch(`${getBaseUrl()}/api/agents/definitions/${encodeURIComponent(name)}/use-as-template`, {
+        method: 'POST',
+      })
+      if (res.ok) {
+        fetchDefinitions(showDeleted)
+        showToast(`Created custom copy of "${name}"`, 'success')
+      } else {
+        const data = await res.json().catch(() => ({}))
+        showToast(data.detail || 'Failed to use as template', 'error')
+      }
+    } catch (e) {
+      console.error('Failed to use agent as template:', e)
+      showToast('Failed to use as template', 'error')
+    }
+  }
+
+  const handleUseAllAsTemplates = async () => {
+    try {
+      const res = await fetch(`${getBaseUrl()}/api/workflows/use-all-bundled-as-templates?workflow_type=agent`, {
+        method: 'POST',
+      })
+      if (res.ok) {
+        const data = await res.json()
+        fetchDefinitions(showDeleted)
+        showToast(`Created ${data.count || 0} template copies`, 'success')
+      } else {
+        showToast('Failed to use all as templates', 'error')
+      }
+    } catch (e) {
+      console.error('Failed to use all bundled agents as templates:', e)
+      showToast('Failed to use all as templates', 'error')
+    }
+  }
+
   const handleImport = async (name: string) => {
     setImportingName(name)
     setImportResult(null)
@@ -539,6 +578,15 @@ export function AgentDefinitionsPage({ searchText, showDeleted, showCreateForm, 
             </button>
           )}
         </div>
+        {showBundled && (
+          <button
+            type="button"
+            className="workflows-toolbar-btn"
+            onClick={handleUseAllAsTemplates}
+          >
+            Use All as Templates
+          </button>
+        )}
       </div>
 
       {/* Create form */}
@@ -758,12 +806,13 @@ export function AgentDefinitionsPage({ searchText, showDeleted, showCreateForm, 
               const d = item.definition
               const isExpanded = expandedName === d.name
               const isDb = item.source.endsWith('-db')
+              const isBundled = item.source === 'bundled'
               const workflowCount = d.workflows ? Object.keys(d.workflows).length : 0
 
               return (
                 <div
                   key={d.name}
-                  className={`agent-def-card${isExpanded ? ' agent-def-card--expanded' : ''}${item.deleted_at ? ' agent-def-card--deleted' : ''}`}
+                  className={`agent-def-card${isExpanded ? ' agent-def-card--expanded' : ''}${item.deleted_at ? ' agent-def-card--deleted' : ''}${isBundled ? ' workflows-card--bundled' : ''}`}
                 >
                   {/* Collapsed header */}
                   <button
@@ -773,6 +822,9 @@ export function AgentDefinitionsPage({ searchText, showDeleted, showCreateForm, 
                     <div className="agent-def-header-top">
                       <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                         <span className={`agent-def-name${item.deleted_at ? ' agent-def-name--deleted' : ''}`}>{d.name}</span>
+                        {isBundled && (
+                          <span className="workflows-card-badge workflows-card-badge--template">template</span>
+                        )}
                         <span className="workflows-card-type workflows-card-type--agent">agent</span>
                       </div>
                     </div>
@@ -831,60 +883,52 @@ export function AgentDefinitionsPage({ searchText, showDeleted, showCreateForm, 
                           </button>
                         )}
                       </div>
+                    ) : isBundled ? (
+                      <>
+                        <div />
+                        <div className="workflows-card-actions">
+                          {devMode ? (
+                            <>
+                              <button type="button" className="workflows-action-btn" onClick={() => handleYamlEdit(item)} title="Edit as YAML">YAML</button>
+                              {item.db_id && (
+                                <button type="button" className="workflows-action-btn" onClick={() => handleEdit(item)} title="Edit agent definition">Edit</button>
+                              )}
+                              <button type="button" className="workflows-action-icon" onClick={() => handleDownload(d.name)} title="Download YAML" aria-label="Download agent as YAML">
+                                <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M8 2v9m0 0L5 8m3 3 3-3M2.5 12.5v1a1 1 0 0 0 1 1h9a1 1 0 0 0 1-1v-1" /></svg>
+                              </button>
+                              {item.db_id && (
+                                <button type="button" className="workflows-action-icon workflows-action-icon--danger" onClick={() => handleDelete(item.db_id!)} title="Delete" aria-label="Delete agent">
+                                  <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M2.5 4.5h11M5.5 4.5V3a1 1 0 0 1 1-1h3a1 1 0 0 1 1 1v1.5M6.5 7v4.5M9.5 7v4.5" /><path d="M3.5 4.5 4 13a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1l.5-8.5" /></svg>
+                                </button>
+                              )}
+                            </>
+                          ) : (
+                            <>
+                              <button type="button" className="workflows-action-btn" onClick={() => handleUseAsTemplate(d.name)} title="Create a custom copy">Use as Template</button>
+                              <button type="button" className="workflows-action-icon" onClick={() => handleDownload(d.name)} title="Download YAML" aria-label="Download agent as YAML">
+                                <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M8 2v9m0 0L5 8m3 3 3-3M2.5 12.5v1a1 1 0 0 0 1 1h9a1 1 0 0 0 1-1v-1" /></svg>
+                              </button>
+                            </>
+                          )}
+                        </div>
+                      </>
                     ) : (
                       <>
                         <div />
                         <div className="workflows-card-actions">
-                          <button
-                            type="button"
-                            className="workflows-action-btn"
-                            onClick={() => handleYamlEdit(item)}
-                            title="Edit as YAML"
-                          >
-                            YAML
-                          </button>
+                          <button type="button" className="workflows-action-btn" onClick={() => handleYamlEdit(item)} title="Edit as YAML">YAML</button>
                           {isDb && item.db_id && (
-                            <button
-                              type="button"
-                              className="workflows-action-btn"
-                              onClick={() => handleEdit(item)}
-                              title="Edit agent definition"
-                            >
-                              Edit
-                            </button>
+                            <button type="button" className="workflows-action-btn" onClick={() => handleEdit(item)} title="Edit agent definition">Edit</button>
                           )}
-                          <button
-                            type="button"
-                            className="workflows-action-icon"
-                            onClick={() => handleDownload(d.name)}
-                            title="Download YAML"
-                            aria-label="Download agent as YAML"
-                          >
-                            <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-                              <path d="M8 2v9m0 0L5 8m3 3 3-3M2.5 12.5v1a1 1 0 0 0 1 1h9a1 1 0 0 0 1-1v-1" />
-                            </svg>
+                          <button type="button" className="workflows-action-icon" onClick={() => handleDownload(d.name)} title="Download YAML" aria-label="Download agent as YAML">
+                            <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M8 2v9m0 0L5 8m3 3 3-3M2.5 12.5v1a1 1 0 0 0 1 1h9a1 1 0 0 0 1-1v-1" /></svg>
                           </button>
                           {isDb && item.db_id ? (
-                            <button
-                              type="button"
-                              className="workflows-action-icon workflows-action-icon--danger"
-                              onClick={() => handleDelete(item.db_id!)}
-                              title="Delete"
-                              aria-label="Delete agent"
-                            >
-                              <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-                                <path d="M2.5 4.5h11M5.5 4.5V3a1 1 0 0 1 1-1h3a1 1 0 0 1 1 1v1.5M6.5 7v4.5M9.5 7v4.5" />
-                                <path d="M3.5 4.5 4 13a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1l.5-8.5" />
-                              </svg>
+                            <button type="button" className="workflows-action-icon workflows-action-icon--danger" onClick={() => handleDelete(item.db_id!)} title="Delete" aria-label="Delete agent">
+                              <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M2.5 4.5h11M5.5 4.5V3a1 1 0 0 1 1-1h3a1 1 0 0 1 1 1v1.5M6.5 7v4.5M9.5 7v4.5" /><path d="M3.5 4.5 4 13a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1l.5-8.5" /></svg>
                             </button>
                           ) : (
-                            <button
-                              type="button"
-                              className="workflows-action-btn"
-                              onClick={() => handleImport(d.name)}
-                              disabled={importingName === d.name}
-                              title="Import to DB for customization"
-                            >
+                            <button type="button" className="workflows-action-btn" onClick={() => handleImport(d.name)} disabled={importingName === d.name} title="Import to DB for customization">
                               {importingName === d.name ? '...' : 'Import'}
                             </button>
                           )}

@@ -7,11 +7,13 @@ import { YamlEditorModal } from './WorkflowsPage'
 interface RulesTabProps {
   searchText: string
   showDeleted: boolean
+  showBundled: boolean
+  devMode: boolean
   showCreateModal: boolean
   onCloseCreateModal: () => void
 }
 
-export function RulesTab({ searchText, showDeleted, showCreateModal, onCloseCreateModal }: RulesTabProps) {
+export function RulesTab({ searchText, showDeleted, showBundled, devMode, showCreateModal, onCloseCreateModal }: RulesTabProps) {
   const {
     rules,
     isLoading,
@@ -22,6 +24,7 @@ export function RulesTab({ searchText, showDeleted, showCreateModal, onCloseCrea
     createRule,
     updateRule,
     deleteRule,
+    useAsTemplate,
   } = useRules()
 
   const [eventFilter, setEventFilter] = useState<string | null>(null)
@@ -43,6 +46,10 @@ export function RulesTab({ searchText, showDeleted, showCreateModal, onCloseCrea
       result = result.filter(r => !(r as RuleSummary & { deleted_at?: string | null }).deleted_at)
     }
 
+    if (!showBundled) {
+      result = result.filter(r => r.source !== 'bundled')
+    }
+
     if (eventFilter) {
       result = result.filter(r => r.event === eventFilter)
     }
@@ -60,7 +67,7 @@ export function RulesTab({ searchText, showDeleted, showCreateModal, onCloseCrea
     }
 
     return result
-  }, [rules, eventFilter, sourceFilter, searchText, showDeleted])
+  }, [rules, eventFilter, sourceFilter, searchText, showDeleted, showBundled])
 
   const handleExpandRule = useCallback(async (rule: RuleSummary) => {
     if (expandedRule === rule.name) {
@@ -188,6 +195,22 @@ export function RulesTab({ searchText, showDeleted, showCreateModal, onCloseCrea
     URL.revokeObjectURL(url)
   }, [fetchRuleDetail])
 
+  const handleUseAllAsTemplates = useCallback(async () => {
+    try {
+      const response = await fetch('/api/workflows/use-all-bundled-as-templates?workflow_type=rule', {
+        method: 'POST',
+      })
+      if (response.ok) {
+        // Rules hook refreshes via fetchRules which comes from the /api/rules endpoint
+        // We need to trigger a page-level refresh - calling fetchRules won't see workflow_definitions changes
+        // since rules come from the rule engine. Reload the rules.
+        window.location.reload()
+      }
+    } catch (e) {
+      console.error('Failed to use all bundled rules as templates:', e)
+    }
+  }, [])
+
   const clearFilters = useCallback(() => {
     setEventFilter(null)
     setSourceFilter(null)
@@ -230,6 +253,15 @@ export function RulesTab({ searchText, showDeleted, showCreateModal, onCloseCrea
             </button>
           )}
         </div>
+        {showBundled && (
+          <button
+            type="button"
+            className="workflows-toolbar-btn"
+            onClick={handleUseAllAsTemplates}
+          >
+            Use All as Templates
+          </button>
+        )}
       </div>
 
       {/* Card grid */}
@@ -244,6 +276,7 @@ export function RulesTab({ searchText, showDeleted, showCreateModal, onCloseCrea
               <RuleCard
                 key={rule.id}
                 rule={rule}
+                devMode={devMode}
                 expanded={expandedRule === rule.name}
                 detail={expandedRule === rule.name ? ruleDetail : null}
                 detailLoading={expandedRule === rule.name && detailLoading}
@@ -253,6 +286,7 @@ export function RulesTab({ searchText, showDeleted, showCreateModal, onCloseCrea
                 onYamlEdit={() => handleYamlEdit(rule)}
                 onDuplicate={() => handleDuplicate(rule)}
                 onDownload={() => handleDownload(rule)}
+                onUseAsTemplate={() => useAsTemplate(rule.id)}
               />
             ))}
           </div>
@@ -294,8 +328,9 @@ function getEffectType(effect: Record<string, unknown> | null): string | null {
   return null
 }
 
-function RuleCard({ rule, expanded, detail, detailLoading, onToggle, onExpand, onDelete, onYamlEdit, onDuplicate, onDownload }: {
+function RuleCard({ rule, devMode, expanded, detail, detailLoading, onToggle, onExpand, onDelete, onYamlEdit, onDuplicate, onDownload, onUseAsTemplate }: {
   rule: RuleSummary
+  devMode: boolean
   expanded: boolean
   detail: RuleDetail | null
   detailLoading: boolean
@@ -305,15 +340,20 @@ function RuleCard({ rule, expanded, detail, detailLoading, onToggle, onExpand, o
   onYamlEdit: () => void
   onDuplicate: () => void
   onDownload: () => void
+  onUseAsTemplate: () => void
 }) {
   const effectType = getEffectType(rule.effect)
+  const isBundled = rule.source === 'bundled'
 
   return (
-    <div className={`rules-card ${expanded ? 'rules-card--expanded' : ''}`}>
+    <div className={`rules-card ${expanded ? 'rules-card--expanded' : ''}${isBundled ? ' workflows-card--bundled' : ''}`}>
       <div className="rules-card-main" onClick={onExpand}>
         <div className="rules-card-header">
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
             <span className="rules-card-name">{rule.name}</span>
+            {isBundled && (
+              <span className="workflows-card-badge workflows-card-badge--template">template</span>
+            )}
             <span className="workflows-card-type workflows-card-type--rule">rule</span>
           </div>
           <div className="rules-card-badges">
@@ -349,61 +389,59 @@ function RuleCard({ rule, expanded, detail, detailLoading, onToggle, onExpand, o
       </div>
 
       <div className="workflows-card-footer">
-        <div
-          className="workflows-toggle"
-          onClick={e => { e.stopPropagation(); onToggle() }}
-        >
-          <div className={`workflows-toggle-track ${rule.enabled ? 'workflows-toggle-track--on' : ''}`}>
-            <div className="workflows-toggle-knob" />
-          </div>
-          <span>{rule.enabled ? 'On' : 'Off'}</span>
-        </div>
+        {isBundled ? (
+          <>
+            <div />
+            <div className="workflows-card-actions">
+              {devMode ? (
+                <>
+                  <button type="button" className="workflows-action-btn" onClick={e => { e.stopPropagation(); onYamlEdit() }} title="Edit as YAML">YAML</button>
+                  <button type="button" className="workflows-action-icon" onClick={e => { e.stopPropagation(); onDuplicate() }} title="Duplicate" aria-label="Duplicate rule">
+                    <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><rect x="5.5" y="5.5" width="9" height="9" rx="1.5" /><path d="M10.5 5.5V2.5a1 1 0 0 0-1-1h-7a1 1 0 0 0-1 1v7a1 1 0 0 0 1 1h3" /></svg>
+                  </button>
+                  <button type="button" className="workflows-action-icon" onClick={e => { e.stopPropagation(); onDownload() }} title="Download YAML" aria-label="Download rule as YAML">
+                    <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M8 2v9m0 0L5 8m3 3 3-3M2.5 12.5v1a1 1 0 0 0 1 1h9a1 1 0 0 0 1-1v-1" /></svg>
+                  </button>
+                  <button type="button" className="workflows-action-icon workflows-action-icon--danger" onClick={e => { e.stopPropagation(); onDelete() }} title="Delete rule" aria-label="Delete rule">
+                    <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M2.5 4.5h11M5.5 4.5V3a1 1 0 0 1 1-1h3a1 1 0 0 1 1 1v1.5M6.5 7v4.5M9.5 7v4.5" /><path d="M3.5 4.5 4 13a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1l.5-8.5" /></svg>
+                  </button>
+                </>
+              ) : (
+                <>
+                  <button type="button" className="workflows-action-btn" onClick={e => { e.stopPropagation(); onUseAsTemplate() }} title="Create a custom copy">Use as Template</button>
+                  <button type="button" className="workflows-action-icon" onClick={e => { e.stopPropagation(); onDownload() }} title="Download YAML" aria-label="Download rule as YAML">
+                    <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M8 2v9m0 0L5 8m3 3 3-3M2.5 12.5v1a1 1 0 0 0 1 1h9a1 1 0 0 0 1-1v-1" /></svg>
+                  </button>
+                </>
+              )}
+            </div>
+          </>
+        ) : (
+          <>
+            <div
+              className="workflows-toggle"
+              onClick={e => { e.stopPropagation(); onToggle() }}
+            >
+              <div className={`workflows-toggle-track ${rule.enabled ? 'workflows-toggle-track--on' : ''}`}>
+                <div className="workflows-toggle-knob" />
+              </div>
+              <span>{rule.enabled ? 'On' : 'Off'}</span>
+            </div>
 
-        <div className="workflows-card-actions">
-          <button
-            type="button"
-            className="workflows-action-btn"
-            onClick={e => { e.stopPropagation(); onYamlEdit() }}
-            title="Edit as YAML"
-          >
-            YAML
-          </button>
-          <button
-            type="button"
-            className="workflows-action-icon"
-            onClick={e => { e.stopPropagation(); onDuplicate() }}
-            title="Duplicate"
-            aria-label="Duplicate rule"
-          >
-            <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-              <rect x="5.5" y="5.5" width="9" height="9" rx="1.5" />
-              <path d="M10.5 5.5V2.5a1 1 0 0 0-1-1h-7a1 1 0 0 0-1 1v7a1 1 0 0 0 1 1h3" />
-            </svg>
-          </button>
-          <button
-            type="button"
-            className="workflows-action-icon"
-            onClick={e => { e.stopPropagation(); onDownload() }}
-            title="Download YAML"
-            aria-label="Download rule as YAML"
-          >
-            <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M8 2v9m0 0L5 8m3 3 3-3M2.5 12.5v1a1 1 0 0 0 1 1h9a1 1 0 0 0 1-1v-1" />
-            </svg>
-          </button>
-          <button
-            type="button"
-            className="workflows-action-icon workflows-action-icon--danger"
-            onClick={e => { e.stopPropagation(); onDelete() }}
-            title="Delete rule"
-            aria-label="Delete rule"
-          >
-            <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M2.5 4.5h11M5.5 4.5V3a1 1 0 0 1 1-1h3a1 1 0 0 1 1 1v1.5M6.5 7v4.5M9.5 7v4.5" />
-              <path d="M3.5 4.5 4 13a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1l.5-8.5" />
-            </svg>
-          </button>
-        </div>
+            <div className="workflows-card-actions">
+              <button type="button" className="workflows-action-btn" onClick={e => { e.stopPropagation(); onYamlEdit() }} title="Edit as YAML">YAML</button>
+              <button type="button" className="workflows-action-icon" onClick={e => { e.stopPropagation(); onDuplicate() }} title="Duplicate" aria-label="Duplicate rule">
+                <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><rect x="5.5" y="5.5" width="9" height="9" rx="1.5" /><path d="M10.5 5.5V2.5a1 1 0 0 0-1-1h-7a1 1 0 0 0-1 1v7a1 1 0 0 0 1 1h3" /></svg>
+              </button>
+              <button type="button" className="workflows-action-icon" onClick={e => { e.stopPropagation(); onDownload() }} title="Download YAML" aria-label="Download rule as YAML">
+                <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M8 2v9m0 0L5 8m3 3 3-3M2.5 12.5v1a1 1 0 0 0 1 1h9a1 1 0 0 0 1-1v-1" /></svg>
+              </button>
+              <button type="button" className="workflows-action-icon workflows-action-icon--danger" onClick={e => { e.stopPropagation(); onDelete() }} title="Delete rule" aria-label="Delete rule">
+                <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M2.5 4.5h11M5.5 4.5V3a1 1 0 0 1 1-1h3a1 1 0 0 1 1 1v1.5M6.5 7v4.5M9.5 7v4.5" /><path d="M3.5 4.5 4 13a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1l.5-8.5" /></svg>
+              </button>
+            </div>
+          </>
+        )}
       </div>
 
       {expanded && (

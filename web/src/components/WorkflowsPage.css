@@ -199,6 +199,16 @@
   border-color: var(--text-muted);
 }
 
+.workflows-card--bundled {
+  opacity: 0.75;
+  border-style: dashed;
+}
+
+.workflows-card-badge--template {
+  background: #1a1a2e;
+  color: #8b8bb0;
+}
+
 .workflows-card--deleted {
   opacity: 0.5;
   border-style: dashed;

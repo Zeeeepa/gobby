@@ -253,6 +253,7 @@ def create_admin_router(server: "HTTPServer") -> APIRouter:
 
         return {
             "status": "healthy" if server._running else "degraded",
+            "dev_mode": getattr(server.services, "dev_mode", False),
             "server": {
                 "port": server.port,
                 "test_mode": server.test_mode,

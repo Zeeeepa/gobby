@@ -166,9 +166,10 @@ class LocalWorkflowDefinitionManager:
             )
             if row:
                 return WorkflowDefinitionRow.from_row(row)
-        # Fall back to global
+        # Fall back to global — prefer custom over bundled when both exist
         row = self.db.fetchone(
-            f"SELECT * FROM workflow_definitions WHERE name = ? AND project_id IS NULL{deleted_filter}",
+            f"SELECT * FROM workflow_definitions WHERE name = ? AND project_id IS NULL{deleted_filter}"
+            " ORDER BY CASE WHEN source = 'bundled' THEN 1 ELSE 0 END LIMIT 1",
             (name,),
         )
         return WorkflowDefinitionRow.from_row(row) if row else None
@@ -385,3 +386,69 @@ class LocalWorkflowDefinitionManager:
             source="custom",
             tags=original.tags,
         )
+
+    def use_as_template(self, definition_id: str) -> WorkflowDefinitionRow:
+        """Create a custom copy from a bundled definition.
+
+        Copies all fields with source='custom' and enabled=True.
+        Disables the bundled original to prevent duplicate rule firing.
+        """
+        original = self.get(definition_id)
+        if original.source != "bundled":
+            raise ValueError(f"Definition '{original.name}' is not bundled (source={original.source})")
+
+        # Check for existing custom item with same name
+        existing = self.db.fetchone(
+            "SELECT id FROM workflow_definitions WHERE name = ? AND source != 'bundled' AND deleted_at IS NULL",
+            (original.name,),
+        )
+        if existing:
+            raise ValueError(f"A custom definition named '{original.name}' already exists")
+
+        # Create the custom copy
+        new_row = self.create(
+            name=original.name,
+            definition_json=original.definition_json,
+            workflow_type=original.workflow_type,
+            project_id=original.project_id,
+            description=original.description,
+            version=original.version,
+            enabled=True,
+            priority=original.priority,
+            sources=original.sources,
+            canvas_json=original.canvas_json,
+            source="custom",
+            tags=original.tags,
+        )
+
+        # Disable the bundled original
+        self.update(definition_id, enabled=False)
+
+        return new_row
+
+    def use_all_bundled_as_templates(
+        self, workflow_type: str | None = None
+    ) -> list[WorkflowDefinitionRow]:
+        """Create custom copies of all eligible bundled definitions.
+
+        Skips bundled items that already have a custom counterpart with the same name.
+        """
+        bundled = self.list_all(workflow_type=workflow_type, include_deleted=False)
+        bundled = [row for row in bundled if row.source == "bundled"]
+
+        created: list[WorkflowDefinitionRow] = []
+        for row in bundled:
+            # Skip if a non-bundled item with same name already exists
+            existing = self.db.fetchone(
+                "SELECT id FROM workflow_definitions WHERE name = ? AND source != 'bundled' AND deleted_at IS NULL",
+                (row.name,),
+            )
+            if existing:
+                continue
+            try:
+                new_row = self.use_as_template(row.id)
+                created.append(new_row)
+            except ValueError:
+                continue
+
+        return created

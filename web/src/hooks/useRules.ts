@@ -137,6 +137,25 @@ export function useRules() {
     return false
   }, [fetchRules])
 
+  const useAsTemplate = useCallback(async (id: string): Promise<boolean> => {
+    try {
+      const baseUrl = getBaseUrl()
+      const response = await fetch(`${baseUrl}/api/workflows/${encodeURIComponent(id)}/use-as-template`, {
+        method: 'POST',
+      })
+      if (response.ok) {
+        const data = await response.json()
+        if (data.status === 'success') {
+          await fetchRules()
+          return true
+        }
+      }
+    } catch (e) {
+      console.error('Failed to use rule as template:', e)
+    }
+    return false
+  }, [fetchRules])
+
   const deleteRule = useCallback(async (name: string, force?: boolean): Promise<boolean> => {
     try {
       const baseUrl = getBaseUrl()
@@ -191,5 +210,6 @@ export function useRules() {
     createRule,
     updateRule,
     deleteRule,
+    useAsTemplate,
   }
 }

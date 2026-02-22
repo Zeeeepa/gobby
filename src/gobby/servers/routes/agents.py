@@ -389,6 +389,35 @@ def create_agents_router(server: "HTTPServer") -> APIRouter:
             logger.error(f"Error cancelling agent run '{run_id}': {e}", exc_info=True)
             raise HTTPException(status_code=500, detail=str(e)) from e
 
+    @router.post("/definitions/{name}/use-as-template")
+    async def use_definition_as_template(
+        name: str,
+    ) -> dict[str, Any]:
+        """Create a custom copy from a bundled agent definition."""
+        metrics.inc_counter("http_requests_total")
+        try:
+            manager = _get_manager()
+            # Find the bundled definition by name
+            rows = manager.list_all(workflow_type="agent")
+            bundled = next(
+                (r for r in rows if r.name == name and r.source == "bundled"),
+                None,
+            )
+            if not bundled:
+                raise HTTPException(
+                    status_code=404,
+                    detail=f"Bundled agent definition '{name}' not found",
+                )
+            row = manager.use_as_template(bundled.id)
+            return {"status": "success", "definition": row.to_dict()}
+        except HTTPException:
+            raise
+        except ValueError as e:
+            raise HTTPException(status_code=400, detail=str(e)) from e
+        except Exception as e:
+            logger.error(f"Error using agent definition as template: {e}", exc_info=True)
+            raise HTTPException(status_code=500, detail=str(e)) from e
+
     @router.post("/definitions/import/{name}")
     async def import_definition(
         name: str,
