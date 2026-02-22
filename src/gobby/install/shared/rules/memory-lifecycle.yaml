@@ -1,9 +1,9 @@
 # Memory lifecycle rules - manage memory system across session boundaries.
 # Handles recall, digest, capture nudges, extraction safety nets, and sync.
 #
-# NOTE: mcp_call rules are declarative definitions. They fire when the
-# mcp_call dispatch layer is wired up. Until then, the corresponding
-# legacy workflow actions in session-lifecycle.yaml remain active.
+# NOTE: mcp_call rules require the RuleEngine to be wired into the hook
+# pipeline and mcp_call dispatch to be implemented. Until then, these
+# rules serve as declarative definitions for the target behavior.
 
 group: memory-lifecycle
 tags: [memory, lifecycle]

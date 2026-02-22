@@ -99,8 +99,7 @@ observers:
 
         {{ handoff }}
 
-    # Memory sync - import from JSONL for Git persistence
-    - action: memory_sync_import
+    # NOTE: memory_sync_import moved to memory-lifecycle.yaml (memory-sync-import rule)
 
     # Task sync - import from JSONL for Git persistence
     - action: task_sync_import
@@ -138,15 +137,8 @@ observers:
         set_variable(name="pre_existing_errors_triaged", value=true, session_id="<session_id>")
 
   on_before_agent:
-    # Phase 1: Search memories using current prompt + digest enrichment (blocking)
-    - action: memory_recall_with_synthesis
-      limit: 5
-
-    # Phase 2: Update digest + synthesize memories (background, zero latency)
-    - action: memory_background_digest_and_synthesize
-      background: true
-      limit: 20
-
+    # NOTE: memory_recall_with_synthesis moved to memory-lifecycle.yaml (memory-recall-on-prompt rule)
+    # NOTE: memory_background_digest_and_synthesize moved to memory-lifecycle.yaml (memory-background-digest rule)
     # NOTE: memory-capture-nudge moved to memory-lifecycle.yaml
 
   on_after_tool:
@@ -161,12 +153,8 @@ observers:
       prompt: handoff/session_end
       write_file: true
 
-    # Daemon-side memory extraction — safety net for ungraceful exits
-    - action: memory_extract_from_session
-      max_memories: 5
-
-    # Memory sync - export to JSONL for Git persistence
-    - action: memory_sync_export
+    # NOTE: memory_extract_from_session moved to memory-lifecycle.yaml (memory-extraction-on-end rule)
+    # NOTE: memory_sync_export moved to memory-lifecycle.yaml (memory-sync-export-on-end rule)
 
     # Task sync - export to JSONL for Git persistence
     - action: task_sync_export
@@ -203,14 +191,8 @@ observers:
     - action: extract_handoff_context
       when: "event.source.value != 'gemini' or event.data.get('trigger') == 'manual'"
 
-    # Daemon-side memory extraction — capture before context loss
-    - action: memory_extract_from_session
-      when: "event.source.value != 'gemini' or event.data.get('trigger') == 'manual'"
-      max_memories: 5
-
-    # Memory sync - export to JSONL for Git persistence
-    - action: memory_sync_export
-      when: "event.source.value != 'gemini' or event.data.get('trigger') == 'manual'"
+    # NOTE: memory_extract_from_session moved to memory-lifecycle.yaml (memory-extraction-on-compact rule)
+    # NOTE: memory_sync_export moved to memory-lifecycle.yaml (memory-sync-export-on-compact rule)
 
     # Task sync - export to JSONL for Git persistence
     - action: task_sync_export
