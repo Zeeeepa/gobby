@@ -70,10 +70,6 @@ export function ChatPage({ chat, conversations, voice, projectId }: ChatPageProp
                 sessionRef={effectiveSessionRef}
                 title={activeTitle}
                 mode={chat.mode}
-                currentBranch={chat.currentBranch}
-                worktreePath={chat.worktreePath}
-                projectId={projectId ?? null}
-                onWorktreeChange={chat.onWorktreeChange}
               />
               <MessageList
                 messages={chat.messages}
@@ -95,6 +91,10 @@ export function ChatPage({ chat, conversations, voice, projectId }: ChatPageProp
                 mode={chat.mode}
                 onModeChange={chat.onModeChange}
                 contextUsage={chat.contextUsage}
+                currentBranch={chat.currentBranch}
+                worktreePath={chat.worktreePath}
+                projectId={projectId ?? null}
+                onWorktreeChange={chat.onWorktreeChange}
                 voiceMode={voice.voiceMode}
                 voiceAvailable={voice.voiceAvailable}
                 isListening={voice.isListening}

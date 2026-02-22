@@ -1,6 +1,13 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import type { WorktreeInfo } from '../../hooks/useSourceControl'
 
+interface BranchInfo {
+  name: string
+  is_current: boolean
+  is_remote: boolean
+  worktree_id: string | null
+}
+
 interface BranchIndicatorProps {
   currentBranch: string | null
   worktreePath: string | null
@@ -16,17 +23,21 @@ export function BranchIndicator({
 }: BranchIndicatorProps) {
   const [isOpen, setIsOpen] = useState(false)
   const [worktrees, setWorktrees] = useState<WorktreeInfo[]>([])
+  const [branches, setBranches] = useState<BranchInfo[]>([])
   const [mainRepoPath, setMainRepoPath] = useState<string | null>(null)
-  // Local branch state fetched eagerly from API (before any WS session_info)
   const [apiBranch, setApiBranch] = useState<string | null>(null)
   const containerRef = useRef<HTMLDivElement>(null)
 
-  // Eagerly fetch current branch from source-control status API on mount / project change
-  useEffect(() => {
-    let stale = false
+  const buildParams = useCallback(() => {
     const params = new URLSearchParams()
     if (projectId) params.set('project_id', projectId)
-    fetch(`/api/source-control/status?${params}`)
+    return params
+  }, [projectId])
+
+  // Eagerly fetch current branch on mount / project change
+  useEffect(() => {
+    let stale = false
+    fetch(`/api/source-control/status?${buildParams()}`)
       .then(r => r.ok ? r.json() : null)
       .then(data => {
         if (stale || !data) return
@@ -35,7 +46,7 @@ export function BranchIndicator({
       })
       .catch(() => {})
     return () => { stale = true }
-  }, [projectId])
+  }, [buildParams])
 
   // Click-outside-close
   useEffect(() => {
@@ -49,49 +60,59 @@ export function BranchIndicator({
     return () => document.removeEventListener('mousedown', handleClick)
   }, [isOpen])
 
-  // Fetch worktrees when dropdown opens
-  const fetchWorktrees = useCallback(async () => {
-    const params = new URLSearchParams()
-    if (projectId) params.set('project_id', projectId)
-    try {
-      const r = await fetch(`/api/source-control/worktrees?${params}`)
-      if (r.ok) {
-        const data = await r.json()
-        setWorktrees(data.worktrees || [])
-      }
-    } catch (e) {
-      console.error('Failed to fetch worktrees:', e)
-    }
+  // Fetch worktrees + branches when dropdown opens
+  const fetchDropdownData = useCallback(async () => {
+    const params = buildParams()
+    const [wtRes, brRes, statusRes] = await Promise.allSettled([
+      fetch(`/api/source-control/worktrees?${params}`),
+      fetch(`/api/source-control/branches?${params}`),
+      fetch(`/api/source-control/status?${params}`),
+    ])
 
-    // Refresh main repo path too
-    try {
-      const r = await fetch(`/api/source-control/status?${params}`)
-      if (r.ok) {
-        const data = await r.json()
-        if (data.repo_path) setMainRepoPath(data.repo_path)
-        if (data.current_branch) setApiBranch(data.current_branch)
-      }
-    } catch {
-      // non-critical
+    if (wtRes.status === 'fulfilled' && wtRes.value.ok) {
+      const data = await wtRes.value.json()
+      setWorktrees(data.worktrees || [])
     }
-  }, [projectId])
+    if (brRes.status === 'fulfilled' && brRes.value.ok) {
+      const data = await brRes.value.json()
+      setBranches((data.branches || []).filter((b: BranchInfo) => !b.is_remote))
+    }
+    if (statusRes.status === 'fulfilled' && statusRes.value.ok) {
+      const data = await statusRes.value.json()
+      if (data.repo_path) setMainRepoPath(data.repo_path)
+      if (data.current_branch) setApiBranch(data.current_branch)
+    }
+  }, [buildParams])
 
   const handleToggle = () => {
-    if (!isOpen) fetchWorktrees()
+    if (!isOpen) fetchDropdownData()
     setIsOpen(!isOpen)
   }
 
-  const handleSelect = (path: string, id?: string) => {
+  const handleSelectWorktree = (path: string, id?: string) => {
     onWorktreeChange(path, id)
     setIsOpen(false)
   }
 
-  // Prefer WS-provided branch (accurate to subprocess CWD), fall back to API
+  const handleSelectBranch = (_branchName: string) => {
+    if (mainRepoPath) {
+      onWorktreeChange(mainRepoPath)
+    }
+    setIsOpen(false)
+  }
+
   const effectiveBranch = currentBranch ?? apiBranch
   if (!effectiveBranch) return null
 
   const isDetached = effectiveBranch.startsWith('detached:')
   const displayBranch = isDetached ? effectiveBranch.replace('detached:', '') : effectiveBranch
+
+  // Branch names that have worktrees (avoid duplicates)
+  const worktreeBranches = new Set(worktrees.map(wt => wt.branch_name))
+  // Local branches without worktrees, excluding current
+  const standaloneBranches = branches.filter(
+    b => !worktreeBranches.has(b.name) && !b.is_current
+  )
 
   return (
     <div className="relative" ref={containerRef}>
@@ -111,31 +132,14 @@ export function BranchIndicator({
 
       {isOpen && (
         <div
-          className="absolute left-0 top-full mt-1 w-64 rounded-md border border-border bg-background shadow-lg z-20"
+          className="absolute right-0 bottom-full mb-1 w-64 rounded-md border border-border bg-background shadow-lg z-20 max-h-72 overflow-y-auto"
           role="listbox"
-          aria-label="Switch worktree"
+          aria-label="Switch branch or worktree"
         >
-          {/* Main repo */}
-          {mainRepoPath && (
-            <button
-              role="option"
-              aria-selected={worktreePath === mainRepoPath}
-              className={`w-full text-left px-3 py-1.5 text-xs hover:bg-muted flex items-center gap-2 ${
-                worktreePath === mainRepoPath ? 'bg-accent/20 text-accent' : ''
-              }`}
-              onClick={() => handleSelect(mainRepoPath)}
-            >
-              <BranchIcon />
-              <div className="min-w-0">
-                <div className="font-medium truncate">main repo</div>
-                <div className="text-muted-foreground/60 truncate">{mainRepoPath}</div>
-              </div>
-            </button>
-          )}
-
           {/* Worktrees */}
           {worktrees.length > 0 && (
-            <div className="border-t border-border">
+            <>
+              <div className="px-3 py-1 text-[10px] uppercase tracking-wider text-muted-foreground/50 border-b border-border">Worktrees</div>
               {worktrees.map((wt) => {
                 const isActive = worktreePath === wt.worktree_path
                 return (
@@ -146,22 +150,41 @@ export function BranchIndicator({
                     className={`w-full text-left px-3 py-1.5 text-xs hover:bg-muted flex items-center gap-2 ${
                       isActive ? 'bg-accent/20 text-accent' : ''
                     }`}
-                    onClick={() => handleSelect(wt.worktree_path, wt.id)}
+                    onClick={() => handleSelectWorktree(wt.worktree_path, wt.id)}
                     title={wt.worktree_path}
                   >
                     <WorktreeIcon />
                     <div className="min-w-0">
                       <div className="font-medium truncate">{wt.branch_name}</div>
-                      <div className="text-muted-foreground/60 truncate">{wt.worktree_path}</div>
+                      <div className="text-muted-foreground/60 truncate text-[10px]">{wt.worktree_path}</div>
                     </div>
                   </button>
                 )
               })}
-            </div>
+            </>
           )}
 
-          {!mainRepoPath && worktrees.length === 0 && (
-            <div className="px-3 py-2 text-xs text-muted-foreground">No worktrees found</div>
+          {/* Branches */}
+          {standaloneBranches.length > 0 && (
+            <>
+              <div className="px-3 py-1 text-[10px] uppercase tracking-wider text-muted-foreground/50 border-b border-border">Branches</div>
+              {standaloneBranches.map((b) => (
+                <button
+                  key={b.name}
+                  role="option"
+                  aria-selected={false}
+                  className="w-full text-left px-3 py-1.5 text-xs hover:bg-muted flex items-center gap-2"
+                  onClick={() => handleSelectBranch(b.name)}
+                >
+                  <BranchIcon />
+                  <span className="truncate">{b.name}</span>
+                </button>
+              ))}
+            </>
+          )}
+
+          {worktrees.length === 0 && standaloneBranches.length === 0 && (
+            <div className="px-3 py-2 text-xs text-muted-foreground">No other branches found</div>
           )}
         </div>
       )}
