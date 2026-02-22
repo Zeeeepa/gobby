@@ -102,27 +102,6 @@ triggers:
           something genuinely critical the user must verify before closing.
 
   on_session_start:
-    # Reset unlocked_tools on context loss
-    # Agent must re-learn schemas after context compaction
-    # - Claude: 'clear', 'compact' (always reset)
-    # - Gemini: 'clear' (always), 'resume' (only if pending_context_reset flag set by manual /compress)
-    - action: set_variable
-      when: "event.data.get('source') in ['clear', 'compact'] or (event.data.get('source') == 'resume' and variables.get('pending_context_reset'))"
-      name: unlocked_tools
-      value: []
-
-    # Reset servers_listed on context loss
-    - action: set_variable
-      when: "event.data.get('source') in ['clear', 'compact'] or (event.data.get('source') == 'resume' and variables.get('pending_context_reset'))"
-      name: servers_listed
-      value: false
-
-    # Reset listed_servers on context loss
-    - action: set_variable
-      when: "event.data.get('source') in ['clear', 'compact'] or (event.data.get('source') == 'resume' and variables.get('pending_context_reset'))"
-      name: listed_servers
-      value: []
-
     # Reset memory injection tracking on context loss
     # Allows previously injected memories to be re-injected after context loss
     # Same condition as unlocked_tools reset
@@ -261,27 +240,6 @@ triggers:
             - create_task(title, description, session_id, claim=True) - Create and auto-claim new task.
             - claim_task(task_id, session_id) - Claim existing unclaimed task.
 
-        # Block list_tools without prior list_mcp_servers
-        - tools: ["mcp__gobby__list_tools"]
-          when: "variables.get('enforce_tool_schema_check') and not variables.get('servers_listed')"
-          reason: |
-            Call list_mcp_servers() first to discover available servers, then retry list_tools.
-
-        # Block get_tool_schema without prior list_tools for that server
-        - tools: ["mcp__gobby__get_tool_schema"]
-          when: "variables.get('enforce_tool_schema_check') and not is_server_listed(tool_input)"
-          reason: |
-            Call list_tools(server_name="{{ tool_input.get('server_name', '') }}") first, then retry get_tool_schema.
-
-        # Block call_tool if schema wasn't fetched first (progressive disclosure)
-        # Skip for discovery tools (list_tools, get_tool_schema, etc.)
-        # Uses 'tools' (not mcp_tools) since we're intercepting the actual tool name
-        # NOTE: This rule MUST come before mcp_tools rules so schema check fires first
-        - tools: ["mcp__gobby__call_tool"]
-          when: "variables.get('enforce_tool_schema_check') and tool_input.get('arguments') and not is_discovery_tool(tool_input.get('tool_name')) and not is_tool_unlocked(tool_input)"
-          reason: |
-            Schema required before calling call_tool("{{ tool_input.get('server_name', '') }}", "{{ tool_input.get('tool_name') }}"). DO NOT stop or ask the user. Just call get_tool_schema("{{ tool_input.get('server_name', '') }}", "{{ tool_input.get('tool_name') }}") now, then retry your call_tool immediately after.
-
         # Block close_task without a linked commit (unless using special close reasons)
         - mcp_tools: ["gobby-tasks:close_task"]
           when: "variables.get('require_commit_before_close') and not task_has_commits and not tool_input.get('commit_sha') and tool_input.get('reason') not in ['already_implemented', 'obsolete', 'duplicate', 'wont_fix', 'out_of_repo']"
@@ -331,12 +289,6 @@ triggers:
     - action: set_variable
       name: _tool_block_pending
       value: false
-
-    # Track successful get_tool_schema calls to unlock tools for call_tool
-    - action: track_schema_lookup
-
-    # Track list_mcp_servers and list_tools for progressive disclosure gates
-    - action: track_discovery_step
 
     # Suggest memory extraction after closing a task with a commit
     # Soft nudge, not a blocking gate — agent can choose to skip
