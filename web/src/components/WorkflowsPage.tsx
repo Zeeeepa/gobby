@@ -571,7 +571,7 @@ function CreateModal({ onClose, onCreate }: {
   )
 }
 
-function YamlEditorModal({ workflowName, yamlContent, loading, onChange, onSave, onClose }: {
+export function YamlEditorModal({ workflowName, yamlContent, loading, onChange, onSave, onClose }: {
   workflowName: string
   yamlContent: string
   loading: boolean

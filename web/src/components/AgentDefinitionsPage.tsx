@@ -1,6 +1,8 @@
 import { useState, useEffect, useCallback, useMemo } from 'react'
+import * as yaml from 'js-yaml'
 import { useAgentRuns } from '../hooks/useAgentRuns'
 import type { RunningAgent, AgentRun } from '../hooks/useAgentRuns'
+import { YamlEditorModal } from './WorkflowsPage'
 
 // =============================================================================
 // Types
@@ -72,14 +74,6 @@ const SOURCE_LABELS: Record<string, string> = {
   'built-in-file': 'Built-in',
   'project-db': 'Project DB',
   'global-db': 'Global DB',
-}
-
-const SOURCE_COLORS: Record<string, string> = {
-  'project-file': '#3b82f6',
-  'user-file': '#8b5cf6',
-  'built-in-file': '#6b7280',
-  'project-db': '#10b981',
-  'global-db': '#f59e0b',
 }
 
 const PROVIDER_COLORS: Record<string, string> = {
@@ -171,6 +165,11 @@ export function AgentDefinitionsPage({ searchText, showDeleted, showCreateForm, 
   const [importingName, setImportingName] = useState<string | null>(null)
   const [importResult, setImportResult] = useState<{ name: string; ok: boolean } | null>(null)
   const [toastMessage, setToastMessage] = useState<{ text: string; type: 'success' | 'error' } | null>(null)
+
+  // YAML editor state
+  const [yamlAgent, setYamlAgent] = useState<AgentDefInfo | null>(null)
+  const [yamlContent, setYamlContent] = useState('')
+  const [yamlLoading, setYamlLoading] = useState(false)
 
   const showToast = useCallback((text: string, type: 'success' | 'error') => {
     setToastMessage({ text, type })
@@ -392,9 +391,91 @@ export function AgentDefinitionsPage({ searchText, showDeleted, showCreateForm, 
     }
   }
 
-  const handleExport = (name: string) => {
-    window.open(`${getBaseUrl()}/api/agents/definitions/${name}/export`, '_blank')
-  }
+  const handleDownload = useCallback(async (name: string) => {
+    try {
+      const res = await fetch(`${getBaseUrl()}/api/agents/definitions/${name}/export`)
+      if (res.ok) {
+        const text = await res.text()
+        const blob = new Blob([text], { type: 'application/x-yaml' })
+        const url = URL.createObjectURL(blob)
+        const a = document.createElement('a')
+        a.href = url
+        a.download = `${name}.yaml`
+        a.click()
+        URL.revokeObjectURL(url)
+      }
+    } catch (e) {
+      console.error('Failed to download agent:', e)
+    }
+  }, [])
+
+  const handleYamlEdit = useCallback(async (item: AgentDefInfo) => {
+    setYamlLoading(true)
+    setYamlAgent(item)
+    try {
+      const res = await fetch(`${getBaseUrl()}/api/agents/definitions/${item.definition.name}/export`)
+      if (res.ok) {
+        const text = await res.text()
+        setYamlContent(text)
+      } else {
+        setYamlContent('')
+        window.alert('Failed to load agent YAML')
+        setYamlAgent(null)
+      }
+    } catch (e) {
+      console.error('Failed to load agent YAML:', e)
+      setYamlContent('')
+      setYamlAgent(null)
+    } finally {
+      setYamlLoading(false)
+    }
+  }, [])
+
+  const handleYamlSave = useCallback(async () => {
+    if (!yamlAgent) return
+    let parsed: Record<string, unknown>
+    try {
+      parsed = yaml.load(yamlContent, { schema: yaml.JSON_SCHEMA }) as Record<string, unknown>
+    } catch (e) {
+      throw new Error(`Invalid YAML: ${e instanceof Error ? e.message : String(e)}`)
+    }
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+      throw new Error('Invalid YAML: expected an object')
+    }
+    const isDb = yamlAgent.source.endsWith('-db')
+    if (isDb && yamlAgent.db_id) {
+      const body: Record<string, unknown> = {
+        name: (parsed.name as string) || yamlAgent.definition.name,
+        description: parsed.description ?? null,
+        role: parsed.role ?? null,
+        goal: parsed.goal ?? null,
+        personality: parsed.personality ?? null,
+        instructions: parsed.instructions ?? null,
+        provider: parsed.provider || yamlAgent.definition.provider,
+        model: parsed.model ?? null,
+        mode: parsed.mode || yamlAgent.definition.mode,
+        terminal: parsed.terminal || yamlAgent.definition.terminal,
+        isolation: parsed.isolation ?? null,
+        base_branch: (parsed.base_branch as string) || yamlAgent.definition.base_branch,
+        timeout: parsed.timeout ?? yamlAgent.definition.timeout,
+        max_turns: parsed.max_turns ?? yamlAgent.definition.max_turns,
+      }
+      const res = await fetch(`${getBaseUrl()}/api/agents/definitions/${yamlAgent.db_id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      })
+      if (!res.ok) throw new Error('Failed to save agent definition')
+    } else {
+      // For file-based agents, import to DB
+      const res = await fetch(`${getBaseUrl()}/api/agents/definitions/import/${yamlAgent.definition.name}`, {
+        method: 'POST',
+      })
+      if (!res.ok) throw new Error('Failed to import agent definition to DB')
+    }
+    setYamlAgent(null)
+    fetchDefinitions(showDeleted)
+  }, [yamlAgent, yamlContent, fetchDefinitions, showDeleted])
 
   const handleImport = async (name: string) => {
     setImportingName(name)
@@ -415,7 +496,7 @@ export function AgentDefinitionsPage({ searchText, showDeleted, showCreateForm, 
   }
 
   return (
-    <main className="agent-defs-page">
+    <div className="agent-defs-tab">
       {toastMessage && (
         <div
           className={`agent-defs-toast ${toastMessage.type === 'success' ? 'agent-defs-toast--success' : ''}`}
@@ -666,239 +747,279 @@ export function AgentDefinitionsPage({ searchText, showDeleted, showCreateForm, 
       )}
 
       {/* Card grid */}
-      {loading ? (
-        <div className="agent-defs-empty">Loading agent definitions...</div>
-      ) : filtered.length === 0 ? (
-        <div className="agent-defs-empty">No agent definitions found</div>
-      ) : (
-        <div className="agent-defs-grid">
-          {filtered.map(item => {
-            const d = item.definition
-            const isExpanded = expandedName === d.name
-            const isDb = item.source.endsWith('-db')
-            const workflowCount = d.workflows ? Object.keys(d.workflows).length : 0
+      <div className="workflows-content">
+        {loading ? (
+          <div className="workflows-loading">Loading agent definitions...</div>
+        ) : filtered.length === 0 ? (
+          <div className="workflows-empty">No agent definitions found</div>
+        ) : (
+          <div className="workflows-grid">
+            {filtered.map(item => {
+              const d = item.definition
+              const isExpanded = expandedName === d.name
+              const isDb = item.source.endsWith('-db')
+              const workflowCount = d.workflows ? Object.keys(d.workflows).length : 0
 
-            return (
-              <div
-                key={d.name}
-                className={`agent-def-card${isExpanded ? ' agent-def-card--expanded' : ''}${item.deleted_at ? ' agent-def-card--deleted' : ''}`}
-              >
-                {/* Collapsed header */}
-                <button
-                  className="agent-def-header"
-                  onClick={() => setExpandedName(isExpanded ? null : d.name)}
+              return (
+                <div
+                  key={d.name}
+                  className={`agent-def-card${isExpanded ? ' agent-def-card--expanded' : ''}${item.deleted_at ? ' agent-def-card--deleted' : ''}`}
                 >
-                  <div className="agent-def-header-top">
-                    <span className={`agent-def-name${item.deleted_at ? ' agent-def-name--deleted' : ''}`}>{d.name}</span>
-                    <span className="agent-def-chevron">{isExpanded ? '\u25B2' : '\u25BC'}</span>
-                  </div>
-                  {d.description && (
-                    <div className="agent-def-desc">
-                      {d.description.split('\n')[0].slice(0, 100)}
+                  {/* Collapsed header */}
+                  <button
+                    className="agent-def-header"
+                    onClick={() => setExpandedName(isExpanded ? null : d.name)}
+                  >
+                    <div className="agent-def-header-top">
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                        <span className={`agent-def-name${item.deleted_at ? ' agent-def-name--deleted' : ''}`}>{d.name}</span>
+                        <span className="workflows-card-type workflows-card-type--agent">agent</span>
+                      </div>
                     </div>
-                  )}
-                  <div className="agent-def-badges">
-                    <span
-                      className="agent-def-badge"
-                      style={{ borderColor: SOURCE_COLORS[item.source] || '#666', color: SOURCE_COLORS[item.source] || '#666' }}
-                    >
-                      {SOURCE_LABELS[item.source] || item.source}
-                    </span>
-                    <span
-                      className="agent-def-badge agent-def-badge--filled"
-                      style={{ background: PROVIDER_COLORS[d.provider] || '#666' }}
-                    >
-                      {d.provider}
-                    </span>
-                    <span
-                      className="agent-def-badge agent-def-badge--filled"
-                      style={{ background: MODE_COLORS[d.mode] || '#666' }}
-                    >
-                      {d.mode}
-                    </span>
-                    {d.isolation && (
+                    {d.description && (
+                      <div className="agent-def-desc">
+                        {d.description.split('\n')[0].slice(0, 100)}
+                      </div>
+                    )}
+                    <div className="agent-def-badges">
+                      <span className="workflows-card-badge workflows-card-badge--source">
+                        {SOURCE_LABELS[item.source] || item.source}
+                      </span>
                       <span
                         className="agent-def-badge agent-def-badge--filled"
-                        style={{ background: ISOLATION_COLORS[d.isolation] || '#666' }}
+                        style={{ background: PROVIDER_COLORS[d.provider] || '#666' }}
                       >
-                        {d.isolation}
+                        {d.provider}
                       </span>
-                    )}
-                    {workflowCount > 0 && (
-                      <span className="agent-def-badge agent-def-badge--dim">
-                        {workflowCount} workflow{workflowCount !== 1 ? 's' : ''}
+                      <span
+                        className="agent-def-badge agent-def-badge--filled"
+                        style={{ background: MODE_COLORS[d.mode] || '#666' }}
+                      >
+                        {d.mode}
                       </span>
-                    )}
-                    <span className="agent-def-badge agent-def-badge--dim">
-                      {d.timeout}s
-                    </span>
-                  </div>
-                </button>
-
-                {/* Expanded detail */}
-                {isExpanded && (
-                  <div className="agent-def-detail">
-                    {/* Property grid */}
-                    <div className="agent-def-props">
-                      <PropRow label="Provider" value={d.provider} />
-                      <PropRow label="Model" value={d.model || '(default)'} />
-                      <PropRow label="Mode" value={d.mode} />
-                      <PropRow label="Terminal" value={d.terminal} />
-                      <PropRow label="Isolation" value={d.isolation || 'none'} />
-                      <PropRow label="Base branch" value={d.base_branch} />
-                      <PropRow label="Timeout" value={`${d.timeout}s`} />
-                      <PropRow label="Max turns" value={String(d.max_turns)} />
-                      {d.default_workflow && (
-                        <PropRow label="Default workflow" value={d.default_workflow} />
+                      {d.isolation && (
+                        <span
+                          className="agent-def-badge agent-def-badge--filled"
+                          style={{ background: ISOLATION_COLORS[d.isolation] || '#666' }}
+                        >
+                          {d.isolation}
+                        </span>
                       )}
+                      {workflowCount > 0 && (
+                        <span className="agent-def-badge agent-def-badge--dim">
+                          {workflowCount} workflow{workflowCount !== 1 ? 's' : ''}
+                        </span>
+                      )}
+                      <span className="agent-def-badge agent-def-badge--dim">
+                        {d.timeout}s
+                      </span>
                     </div>
+                  </button>
 
-                    {/* Role / Goal / Personality as full-width sections */}
-                    {d.role && (
-                      <div className="agent-def-section">
-                        <div className="agent-def-section-title">Role</div>
-                        <pre className="agent-def-description-full">{d.role}</pre>
-                      </div>
-                    )}
-                    {d.goal && (
-                      <div className="agent-def-section">
-                        <div className="agent-def-section-title">Goal</div>
-                        <pre className="agent-def-description-full">{d.goal}</pre>
-                      </div>
-                    )}
-                    {d.personality && (
-                      <div className="agent-def-section">
-                        <div className="agent-def-section-title">Personality</div>
-                        <pre className="agent-def-description-full">{d.personality}</pre>
-                      </div>
-                    )}
-
-                    {/* Full description */}
-                    {d.description && d.description.includes('\n') && (
-                      <div className="agent-def-section">
-                        <div className="agent-def-section-title">Description</div>
-                        <pre className="agent-def-description-full">{d.description}</pre>
-                      </div>
-                    )}
-
-                    {/* Instructions */}
-                    {d.instructions && (
-                      <div className="agent-def-section">
-                        <div className="agent-def-section-title">Instructions</div>
-                        <pre className="agent-def-description-full">{d.instructions}</pre>
-                      </div>
-                    )}
-
-                    {/* Workflows */}
-                    {d.workflows && workflowCount > 0 && (
-                      <div className="agent-def-section">
-                        <div className="agent-def-section-title">Workflows</div>
-                        <div className="agent-def-workflow-list">
-                          {Object.entries(d.workflows).map(([wfName, wf]) => (
-                            <div key={wfName} className="agent-def-workflow-item">
-                              <span className="agent-def-workflow-name">{wfName}</span>
-                              {wf.type && <span className="agent-def-badge agent-def-badge--dim">{wf.type}</span>}
-                              {wf.file && <span className="agent-def-badge agent-def-badge--dim">{wf.file}</span>}
-                              {wf.mode && <span className="agent-def-badge agent-def-badge--filled" style={{ background: MODE_COLORS[wf.mode] || '#666' }}>{wf.mode}</span>}
-                              {wf.internal && <span className="agent-def-badge agent-def-badge--dim">internal</span>}
-                              {wf.step_count != null && <span className="agent-def-badge agent-def-badge--dim">{wf.step_count} steps</span>}
-                              {wf.description && <span className="agent-def-workflow-desc">{wf.description}</span>}
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-
-                    {/* Sandbox config */}
-                    {d.sandbox && (
-                      <div className="agent-def-section">
-                        <div className="agent-def-section-title">Sandbox</div>
-                        <pre className="agent-def-json">{JSON.stringify(d.sandbox, null, 2)}</pre>
-                      </div>
-                    )}
-
-                    {/* Skill profile */}
-                    {d.skill_profile && (
-                      <div className="agent-def-section">
-                        <div className="agent-def-section-title">Skill Profile</div>
-                        <pre className="agent-def-json">{JSON.stringify(d.skill_profile, null, 2)}</pre>
-                      </div>
-                    )}
-
-                    {/* Source info */}
-                    <div className="agent-def-section">
-                      <div className="agent-def-section-title">Source</div>
-                      <div className="agent-def-source-info">
-                        {item.source_path ? (
-                          <code>{item.source_path}</code>
-                        ) : (
-                          <span>Database ({item.source}){item.db_id ? ` — ${item.db_id.slice(0, 8)}` : ''}</span>
+                  {/* Card footer - always visible */}
+                  <div className="workflows-card-footer">
+                    {item.deleted_at ? (
+                      <div className="workflows-card-actions">
+                        {item.db_id && (
+                          <button
+                            type="button"
+                            className="workflows-action-btn workflows-action-btn--restore"
+                            onClick={() => handleRestore(item.db_id!)}
+                            title="Restore this agent"
+                          >
+                            Restore
+                          </button>
                         )}
                       </div>
-                    </div>
-
-                    {/* Actions */}
-                    <div className="agent-def-actions">
-                      {item.deleted_at ? (
-                        <button
-                          className="agent-defs-btn agent-defs-btn--restore"
-                          onClick={() => item.db_id && handleRestore(item.db_id)}
-                        >
-                          Restore
-                        </button>
-                      ) : (
-                        <>
+                    ) : (
+                      <>
+                        <div />
+                        <div className="workflows-card-actions">
                           <button
-                            className="agent-defs-btn"
-                            onClick={() => handleExport(d.name)}
-                            title="Download as YAML file"
+                            type="button"
+                            className="workflows-action-btn"
+                            onClick={() => handleYamlEdit(item)}
+                            title="Edit as YAML"
                           >
-                            Export YAML
+                            YAML
                           </button>
                           {isDb && item.db_id && (
-                            <>
-                              <button
-                                className="agent-defs-btn"
-                                onClick={() => handleEdit(item)}
-                              >
-                                Edit
-                              </button>
-                              <button
-                                className="agent-defs-btn agent-defs-btn--danger"
-                                onClick={() => handleDelete(item.db_id!)}
-                              >
-                                Delete
-                              </button>
-                            </>
+                            <button
+                              type="button"
+                              className="workflows-action-btn"
+                              onClick={() => handleEdit(item)}
+                              title="Edit agent definition"
+                            >
+                              Edit
+                            </button>
                           )}
-                          {!isDb && (
-                            <>
-                              <button
-                                className="agent-defs-btn"
-                                onClick={() => handleImport(d.name)}
-                                disabled={importingName === d.name}
-                                title="Copy this file-based definition into the DB for customization"
-                              >
-                                {importingName === d.name ? 'Importing...' : 'Import to DB'}
-                              </button>
-                              {importResult?.name === d.name && (
-                                <span className={`agent-def-import-result ${importResult.ok ? 'agent-def-import-result--ok' : 'agent-def-import-result--err'}`}>
-                                  {importResult.ok ? 'Imported successfully' : 'Import failed'}
-                                </span>
-                              )}
-                            </>
+                          <button
+                            type="button"
+                            className="workflows-action-icon"
+                            onClick={() => handleDownload(d.name)}
+                            title="Download YAML"
+                            aria-label="Download agent as YAML"
+                          >
+                            <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                              <path d="M8 2v9m0 0L5 8m3 3 3-3M2.5 12.5v1a1 1 0 0 0 1 1h9a1 1 0 0 0 1-1v-1" />
+                            </svg>
+                          </button>
+                          {isDb && item.db_id ? (
+                            <button
+                              type="button"
+                              className="workflows-action-icon workflows-action-icon--danger"
+                              onClick={() => handleDelete(item.db_id!)}
+                              title="Delete"
+                              aria-label="Delete agent"
+                            >
+                              <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                                <path d="M2.5 4.5h11M5.5 4.5V3a1 1 0 0 1 1-1h3a1 1 0 0 1 1 1v1.5M6.5 7v4.5M9.5 7v4.5" />
+                                <path d="M3.5 4.5 4 13a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1l.5-8.5" />
+                              </svg>
+                            </button>
+                          ) : (
+                            <button
+                              type="button"
+                              className="workflows-action-btn"
+                              onClick={() => handleImport(d.name)}
+                              disabled={importingName === d.name}
+                              title="Import to DB for customization"
+                            >
+                              {importingName === d.name ? '...' : 'Import'}
+                            </button>
                           )}
-                        </>
-                      )}
-                    </div>
+                          {importResult?.name === d.name && (
+                            <span className={`agent-def-import-result ${importResult.ok ? 'agent-def-import-result--ok' : 'agent-def-import-result--err'}`}>
+                              {importResult.ok ? 'OK' : 'Fail'}
+                            </span>
+                          )}
+                        </div>
+                      </>
+                    )}
                   </div>
-                )}
-              </div>
-            )
-          })}
-        </div>
+
+                  {/* Expanded detail */}
+                  {isExpanded && (
+                    <div className="agent-def-detail">
+                      {/* Property grid */}
+                      <div className="agent-def-props">
+                        <PropRow label="Provider" value={d.provider} />
+                        <PropRow label="Model" value={d.model || '(default)'} />
+                        <PropRow label="Mode" value={d.mode} />
+                        <PropRow label="Terminal" value={d.terminal} />
+                        <PropRow label="Isolation" value={d.isolation || 'none'} />
+                        <PropRow label="Base branch" value={d.base_branch} />
+                        <PropRow label="Timeout" value={`${d.timeout}s`} />
+                        <PropRow label="Max turns" value={String(d.max_turns)} />
+                        {d.default_workflow && (
+                          <PropRow label="Default workflow" value={d.default_workflow} />
+                        )}
+                      </div>
+
+                      {/* Role / Goal / Personality as full-width sections */}
+                      {d.role && (
+                        <div className="agent-def-section">
+                          <div className="agent-def-section-title">Role</div>
+                          <pre className="agent-def-description-full">{d.role}</pre>
+                        </div>
+                      )}
+                      {d.goal && (
+                        <div className="agent-def-section">
+                          <div className="agent-def-section-title">Goal</div>
+                          <pre className="agent-def-description-full">{d.goal}</pre>
+                        </div>
+                      )}
+                      {d.personality && (
+                        <div className="agent-def-section">
+                          <div className="agent-def-section-title">Personality</div>
+                          <pre className="agent-def-description-full">{d.personality}</pre>
+                        </div>
+                      )}
+
+                      {/* Full description */}
+                      {d.description && d.description.includes('\n') && (
+                        <div className="agent-def-section">
+                          <div className="agent-def-section-title">Description</div>
+                          <pre className="agent-def-description-full">{d.description}</pre>
+                        </div>
+                      )}
+
+                      {/* Instructions */}
+                      {d.instructions && (
+                        <div className="agent-def-section">
+                          <div className="agent-def-section-title">Instructions</div>
+                          <pre className="agent-def-description-full">{d.instructions}</pre>
+                        </div>
+                      )}
+
+                      {/* Workflows */}
+                      {d.workflows && workflowCount > 0 && (
+                        <div className="agent-def-section">
+                          <div className="agent-def-section-title">Workflows</div>
+                          <div className="agent-def-workflow-list">
+                            {Object.entries(d.workflows).map(([wfName, wf]) => (
+                              <div key={wfName} className="agent-def-workflow-item">
+                                <span className="agent-def-workflow-name">{wfName}</span>
+                                {wf.type && <span className="agent-def-badge agent-def-badge--dim">{wf.type}</span>}
+                                {wf.file && <span className="agent-def-badge agent-def-badge--dim">{wf.file}</span>}
+                                {wf.mode && <span className="agent-def-badge agent-def-badge--filled" style={{ background: MODE_COLORS[wf.mode] || '#666' }}>{wf.mode}</span>}
+                                {wf.internal && <span className="agent-def-badge agent-def-badge--dim">internal</span>}
+                                {wf.step_count != null && <span className="agent-def-badge agent-def-badge--dim">{wf.step_count} steps</span>}
+                                {wf.description && <span className="agent-def-workflow-desc">{wf.description}</span>}
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Sandbox config */}
+                      {d.sandbox && (
+                        <div className="agent-def-section">
+                          <div className="agent-def-section-title">Sandbox</div>
+                          <pre className="agent-def-json">{JSON.stringify(d.sandbox, null, 2)}</pre>
+                        </div>
+                      )}
+
+                      {/* Skill profile */}
+                      {d.skill_profile && (
+                        <div className="agent-def-section">
+                          <div className="agent-def-section-title">Skill Profile</div>
+                          <pre className="agent-def-json">{JSON.stringify(d.skill_profile, null, 2)}</pre>
+                        </div>
+                      )}
+
+                      {/* Source info */}
+                      <div className="agent-def-section">
+                        <div className="agent-def-section-title">Source</div>
+                        <div className="agent-def-source-info">
+                          {item.source_path ? (
+                            <code>{item.source_path}</code>
+                          ) : (
+                            <span>Database ({item.source}){item.db_id ? ` — ${item.db_id.slice(0, 8)}` : ''}</span>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )
+            })}
+          </div>
+        )}
+      </div>
+
+      {/* YAML editor modal */}
+      {yamlAgent && (
+        <YamlEditorModal
+          workflowName={yamlAgent.definition.name}
+          yamlContent={yamlContent}
+          loading={yamlLoading}
+          onChange={setYamlContent}
+          onSave={handleYamlSave}
+          onClose={() => setYamlAgent(null)}
+        />
       )}
-    </main>
+    </div>
   )
 }
 
@@ -1069,4 +1190,3 @@ function AgentRunRow({ run }: { run: AgentRun }) {
     </tr>
   )
 }
-

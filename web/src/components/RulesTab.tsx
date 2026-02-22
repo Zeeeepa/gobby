@@ -1,6 +1,8 @@
 import { useState, useCallback, useMemo } from 'react'
+import * as yaml from 'js-yaml'
 import { useRules } from '../hooks/useRules'
 import type { RuleSummary, RuleDetail } from '../hooks/useRules'
+import { YamlEditorModal } from './WorkflowsPage'
 
 interface RulesTabProps {
   searchText: string
@@ -18,6 +20,7 @@ export function RulesTab({ searchText, showDeleted, showCreateModal, onCloseCrea
     toggleRule,
     fetchRuleDetail,
     createRule,
+    updateRule,
     deleteRule,
   } = useRules()
 
@@ -26,6 +29,11 @@ export function RulesTab({ searchText, showDeleted, showCreateModal, onCloseCrea
   const [expandedRule, setExpandedRule] = useState<string | null>(null)
   const [ruleDetail, setRuleDetail] = useState<RuleDetail | null>(null)
   const [detailLoading, setDetailLoading] = useState(false)
+
+  // YAML editor state
+  const [yamlRule, setYamlRule] = useState<RuleSummary | null>(null)
+  const [yamlContent, setYamlContent] = useState('')
+  const [yamlLoading, setYamlLoading] = useState(false)
 
   // Filter rules
   const filteredRules = useMemo(() => {
@@ -89,6 +97,97 @@ export function RulesTab({ searchText, showDeleted, showCreateModal, onCloseCrea
     return result
   }, [createRule, onCloseCreateModal])
 
+  const handleYamlEdit = useCallback(async (rule: RuleSummary) => {
+    setYamlLoading(true)
+    setYamlRule(rule)
+    try {
+      const detail = await fetchRuleDetail(rule.name)
+      if (detail) {
+        const obj: Record<string, unknown> = {
+          name: detail.name,
+          event: detail.event,
+          priority: detail.priority,
+        }
+        if (detail.description) obj.description = detail.description
+        if (detail.when) obj.when = detail.when
+        if (detail.match) obj.match = detail.match
+        if (detail.effect) obj.effect = detail.effect
+        if (detail.tags && detail.tags.length > 0) obj.tags = detail.tags
+        if (detail.group) obj.group = detail.group
+        obj.enabled = detail.enabled
+        setYamlContent(yaml.dump(obj, { lineWidth: 120, noRefs: true }))
+      } else {
+        setYamlContent('')
+        window.alert('Failed to load rule details')
+        setYamlRule(null)
+      }
+    } catch (e) {
+      console.error('Failed to export rule YAML:', e)
+      setYamlContent('')
+      setYamlRule(null)
+    } finally {
+      setYamlLoading(false)
+    }
+  }, [fetchRuleDetail])
+
+  const handleYamlSave = useCallback(async () => {
+    if (!yamlRule) return
+    let parsed: Record<string, unknown>
+    try {
+      parsed = yaml.load(yamlContent, { schema: yaml.JSON_SCHEMA }) as Record<string, unknown>
+    } catch (e) {
+      throw new Error(`Invalid YAML: ${e instanceof Error ? e.message : String(e)}`)
+    }
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+      throw new Error('Invalid YAML: expected an object')
+    }
+    await updateRule(yamlRule.name, parsed)
+    setYamlRule(null)
+  }, [yamlRule, yamlContent, updateRule])
+
+  const handleDuplicate = useCallback(async (rule: RuleSummary) => {
+    const newName = window.prompt('New rule name:', `${rule.name}-copy`)
+    if (!newName) return
+    const detail = await fetchRuleDetail(rule.name)
+    if (!detail) return
+    const definition: Record<string, unknown> = {}
+    if (detail.event) definition.event = detail.event
+    if (detail.description) definition.description = detail.description
+    if (detail.when) definition.when = detail.when
+    if (detail.match) definition.match = detail.match
+    if (detail.effect) definition.effect = detail.effect
+    if (detail.tags && detail.tags.length > 0) definition.tags = detail.tags
+    if (detail.group) definition.group = detail.group
+    definition.priority = detail.priority
+    definition.enabled = detail.enabled
+    await createRule(newName, definition)
+  }, [fetchRuleDetail, createRule])
+
+  const handleDownload = useCallback(async (rule: RuleSummary) => {
+    const detail = await fetchRuleDetail(rule.name)
+    if (!detail) return
+    const obj: Record<string, unknown> = {
+      name: detail.name,
+      event: detail.event,
+      priority: detail.priority,
+    }
+    if (detail.description) obj.description = detail.description
+    if (detail.when) obj.when = detail.when
+    if (detail.match) obj.match = detail.match
+    if (detail.effect) obj.effect = detail.effect
+    if (detail.tags && detail.tags.length > 0) obj.tags = detail.tags
+    if (detail.group) obj.group = detail.group
+    obj.enabled = detail.enabled
+    const yamlStr = yaml.dump(obj, { lineWidth: 120, noRefs: true })
+    const blob = new Blob([yamlStr], { type: 'application/x-yaml' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `${rule.name}.yaml`
+    a.click()
+    URL.revokeObjectURL(url)
+  }, [fetchRuleDetail])
+
   const clearFilters = useCallback(() => {
     setEventFilter(null)
     setSourceFilter(null)
@@ -151,6 +250,9 @@ export function RulesTab({ searchText, showDeleted, showCreateModal, onCloseCrea
                 onToggle={() => handleToggle(rule)}
                 onExpand={() => handleExpandRule(rule)}
                 onDelete={() => handleDelete(rule)}
+                onYamlEdit={() => handleYamlEdit(rule)}
+                onDuplicate={() => handleDuplicate(rule)}
+                onDownload={() => handleDownload(rule)}
               />
             ))}
           </div>
@@ -162,6 +264,18 @@ export function RulesTab({ searchText, showDeleted, showCreateModal, onCloseCrea
         <RuleCreateModal
           onClose={onCloseCreateModal}
           onCreate={handleCreate}
+        />
+      )}
+
+      {/* YAML editor modal */}
+      {yamlRule && (
+        <YamlEditorModal
+          workflowName={yamlRule.name}
+          yamlContent={yamlContent}
+          loading={yamlLoading}
+          onChange={setYamlContent}
+          onSave={handleYamlSave}
+          onClose={() => setYamlRule(null)}
         />
       )}
     </div>
@@ -180,7 +294,7 @@ function getEffectType(effect: Record<string, unknown> | null): string | null {
   return null
 }
 
-function RuleCard({ rule, expanded, detail, detailLoading, onToggle, onExpand, onDelete }: {
+function RuleCard({ rule, expanded, detail, detailLoading, onToggle, onExpand, onDelete, onYamlEdit, onDuplicate, onDownload }: {
   rule: RuleSummary
   expanded: boolean
   detail: RuleDetail | null
@@ -188,6 +302,9 @@ function RuleCard({ rule, expanded, detail, detailLoading, onToggle, onExpand, o
   onToggle: () => void
   onExpand: () => void
   onDelete: () => void
+  onYamlEdit: () => void
+  onDuplicate: () => void
+  onDownload: () => void
 }) {
   const effectType = getEffectType(rule.effect)
 
@@ -195,7 +312,10 @@ function RuleCard({ rule, expanded, detail, detailLoading, onToggle, onExpand, o
     <div className={`rules-card ${expanded ? 'rules-card--expanded' : ''}`}>
       <div className="rules-card-main" onClick={onExpand}>
         <div className="rules-card-header">
-          <span className="rules-card-name">{rule.name}</span>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <span className="rules-card-name">{rule.name}</span>
+            <span className="workflows-card-type workflows-card-type--rule">rule</span>
+          </div>
           <div className="rules-card-badges">
             {rule.event && (
               <span className="rules-card-event">{rule.event}</span>
@@ -218,16 +338,17 @@ function RuleCard({ rule, expanded, detail, detailLoading, onToggle, onExpand, o
           </div>
         )}
 
-        {rule.tags && rule.tags.length > 0 && (
-          <div className="rules-card-tags">
-            {rule.tags.map(tag => (
-              <span className="rules-card-tag" key={tag}>{tag}</span>
-            ))}
-          </div>
-        )}
+        <div className="workflows-card-badges" style={{ marginTop: 6 }}>
+          {rule.source && (
+            <span className="workflows-card-badge workflows-card-badge--source">{rule.source}</span>
+          )}
+          {rule.tags && rule.tags.length > 0 && rule.tags.map(tag => (
+            <span className="rules-card-tag" key={tag}>{tag}</span>
+          ))}
+        </div>
       </div>
 
-      <div className="rules-card-footer">
+      <div className="workflows-card-footer">
         <div
           className="workflows-toggle"
           onClick={e => { e.stopPropagation(); onToggle() }}
@@ -237,18 +358,52 @@ function RuleCard({ rule, expanded, detail, detailLoading, onToggle, onExpand, o
           </div>
           <span>{rule.enabled ? 'On' : 'Off'}</span>
         </div>
-        <button
-          type="button"
-          className="workflows-action-icon workflows-action-icon--danger"
-          onClick={e => { e.stopPropagation(); onDelete() }}
-          title="Delete rule"
-          aria-label="Delete rule"
-        >
-          <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M2.5 4.5h11M5.5 4.5V3a1 1 0 0 1 1-1h3a1 1 0 0 1 1 1v1.5M6.5 7v4.5M9.5 7v4.5" />
-            <path d="M3.5 4.5 4 13a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1l.5-8.5" />
-          </svg>
-        </button>
+
+        <div className="workflows-card-actions">
+          <button
+            type="button"
+            className="workflows-action-btn"
+            onClick={e => { e.stopPropagation(); onYamlEdit() }}
+            title="Edit as YAML"
+          >
+            YAML
+          </button>
+          <button
+            type="button"
+            className="workflows-action-icon"
+            onClick={e => { e.stopPropagation(); onDuplicate() }}
+            title="Duplicate"
+            aria-label="Duplicate rule"
+          >
+            <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+              <rect x="5.5" y="5.5" width="9" height="9" rx="1.5" />
+              <path d="M10.5 5.5V2.5a1 1 0 0 0-1-1h-7a1 1 0 0 0-1 1v7a1 1 0 0 0 1 1h3" />
+            </svg>
+          </button>
+          <button
+            type="button"
+            className="workflows-action-icon"
+            onClick={e => { e.stopPropagation(); onDownload() }}
+            title="Download YAML"
+            aria-label="Download rule as YAML"
+          >
+            <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M8 2v9m0 0L5 8m3 3 3-3M2.5 12.5v1a1 1 0 0 0 1 1h9a1 1 0 0 0 1-1v-1" />
+            </svg>
+          </button>
+          <button
+            type="button"
+            className="workflows-action-icon workflows-action-icon--danger"
+            onClick={e => { e.stopPropagation(); onDelete() }}
+            title="Delete rule"
+            aria-label="Delete rule"
+          >
+            <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M2.5 4.5h11M5.5 4.5V3a1 1 0 0 1 1-1h3a1 1 0 0 1 1 1v1.5M6.5 7v4.5M9.5 7v4.5" />
+              <path d="M3.5 4.5 4 13a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1l.5-8.5" />
+            </svg>
+          </button>
+        </div>
       </div>
 
       {expanded && (

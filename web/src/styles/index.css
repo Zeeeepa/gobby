@@ -11105,6 +11105,13 @@ details:not([open]) > .session-metadata-toggle .session-metadata-chevron {
   max-width: 1200px;
 }
 
+.agent-defs-tab {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  overflow: hidden;
+}
+
 .agent-defs-toolbar {
   display: flex;
   align-items: center;

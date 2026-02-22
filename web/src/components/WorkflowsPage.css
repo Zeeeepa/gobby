@@ -244,6 +244,16 @@
   color: #c084fc;
 }
 
+.workflows-card-type--rule {
+  background: #2a1a2a;
+  color: #f472b6;
+}
+
+.workflows-card-type--agent {
+  background: #1a2a2a;
+  color: #2dd4bf;
+}
+
 .workflows-card-desc {
   font-size: 12px;
   color: var(--text-secondary);

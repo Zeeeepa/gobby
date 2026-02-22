@@ -119,6 +119,24 @@ export function useRules() {
     return null
   }, [fetchRules])
 
+  const updateRule = useCallback(async (name: string, definition: Record<string, unknown>): Promise<boolean> => {
+    try {
+      const baseUrl = getBaseUrl()
+      const response = await fetch(`${baseUrl}/api/rules/${encodeURIComponent(name)}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ definition }),
+      })
+      if (response.ok) {
+        await fetchRules()
+        return true
+      }
+    } catch (e) {
+      console.error('Failed to update rule:', e)
+    }
+    return false
+  }, [fetchRules])
+
   const deleteRule = useCallback(async (name: string, force?: boolean): Promise<boolean> => {
     try {
       const baseUrl = getBaseUrl()
@@ -171,6 +189,7 @@ export function useRules() {
     fetchRuleDetail,
     toggleRule,
     createRule,
+    updateRule,
     deleteRule,
   }
 }
