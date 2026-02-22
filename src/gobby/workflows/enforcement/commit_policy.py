@@ -17,6 +17,23 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
+def _resolve_message(
+    messages: dict[str, str] | None,
+    key: str,
+    default: str,
+    context: dict[str, Any] | None = None,
+) -> str:
+    """Resolve a configurable message, falling back to a hardcoded default."""
+    if not messages or key not in messages:
+        return default
+    template = messages[key]
+    if "{{" in template and context:
+        from gobby.workflows.templates import TemplateEngine
+
+        return TemplateEngine().render(template, context)
+    return template
+
+
 async def capture_baseline_dirty_files(
     workflow_state: WorkflowState | None,
     project_path: str | None = None,
@@ -62,6 +79,7 @@ async def require_commit_before_stop(
     workflow_state: WorkflowState | None,
     project_path: str | None = None,
     task_manager: LocalTaskManager | None = None,
+    messages: dict[str, str] | None = None,
 ) -> dict[str, Any] | None:
     """
     Block stop if there's an in_progress task with uncommitted changes.
@@ -147,15 +165,27 @@ async def require_commit_before_stop(
     if len(new_dirty) > 10:
         files_display += f"\n  ... and {len(new_dirty) - 10} more files"
 
+    default_reason = (
+        f"Task '{claimed_task_id}' is in_progress with {len(new_dirty)} uncommitted "
+        f"changes made during this session:\n{files_display}\n\n"
+        f"Before stopping, commit your changes and close the task:\n"
+        f"1. Commit with [{claimed_task_id}] in the message\n"
+        f'2. Close the task: close_task(task_id="{claimed_task_id}", commit_sha="...")'
+    )
+    reason = _resolve_message(
+        messages,
+        "uncommitted_changes",
+        default_reason,
+        {
+            "claimed_task_id": claimed_task_id,
+            "new_dirty_count": len(new_dirty),
+            "files_display": files_display,
+        },
+    )
+
     return {
         "decision": "block",
-        "reason": (
-            f"Task '{claimed_task_id}' is in_progress with {len(new_dirty)} uncommitted "
-            f"changes made during this session:\n{files_display}\n\n"
-            f"Before stopping, commit your changes and close the task:\n"
-            f"1. Commit with [{claimed_task_id}] in the message\n"
-            f'2. Close the task: close_task(task_id="{claimed_task_id}", commit_sha="...")'
-        ),
+        "reason": reason,
     }
 
 
@@ -163,6 +193,7 @@ async def require_task_review_or_close_before_stop(
     workflow_state: WorkflowState | None,
     task_manager: LocalTaskManager | None = None,
     project_id: str | None = None,
+    messages: dict[str, str] | None = None,
     **kwargs: Any,
 ) -> dict[str, Any] | None:
     """Block stop if session has an in_progress task.
@@ -231,15 +262,23 @@ async def require_task_review_or_close_before_stop(
             f"{task_ref} is still in_progress"
         )
 
+        default_reason = (
+            f"Task {task_ref} is still in_progress. "
+            f"Commit your changes and close it with close_task(). "
+            f"Do NOT use mark_task_needs_review as a shortcut — "
+            f"only use needs_review when there is something genuinely "
+            f"critical the user must verify before closing."
+        )
+        reason = _resolve_message(
+            messages,
+            "task_still_in_progress",
+            default_reason,
+            {"task_ref": task_ref, "claimed_task_id": claimed_task_id},
+        )
+
         return {
             "decision": "block",
-            "reason": (
-                f"Task {task_ref} is still in_progress. "
-                f"Commit your changes and close it with close_task(). "
-                f"Do NOT use mark_task_needs_review as a shortcut — "
-                f"only use needs_review when there is something genuinely "
-                f"critical the user must verify before closing."
-            ),
+            "reason": reason,
             "task_id": claimed_task_id,
             "task_status": task.status,
         }

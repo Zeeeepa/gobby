@@ -56,7 +56,7 @@ async def get_neo4j_status(
         url: str | None - configured URL
     """
     installed = is_neo4j_installed(gobby_home=gobby_home)
-    healthy = await is_neo4j_healthy(neo4j_url)
+    healthy = await is_neo4j_healthy(neo4j_url) if installed else False
 
     return {
         "installed": installed,

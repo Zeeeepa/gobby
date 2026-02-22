@@ -75,8 +75,8 @@ class GobbyRunner:
         if config_path is not None and not config_path.exists():
             raise FileNotFoundError(
                 f"Config file not found: {config_path}. "
-                f"Use 'gobby init' to create a default config, "
-                f"or omit --config to use the default path (~/.gobby/config.yaml)."
+                f"Use 'gobby install' to create bootstrap.yaml, "
+                f"or omit --config to use the default path (~/.gobby/bootstrap.yaml)."
             )
         self._config_file = str(config_path) if config_path else None
         self.config = load_config(self._config_file)
@@ -101,6 +101,7 @@ class GobbyRunner:
             )
         self._shutdown_requested = False
         self._metrics_cleanup_task: asyncio.Task[None] | None = None
+        self._vector_rebuild_task: asyncio.Task[None] | None = None
 
         # Initialize local storage with dual-write if in project context
         self.database = self._init_database()
@@ -124,13 +125,19 @@ class GobbyRunner:
         self.task_manager = LocalTaskManager(self.database)
         self.session_task_manager = SessionTaskManager(self.database)
 
-        # Bundled content (skills, prompts, rules, agents) is synced to the DB
-        # during `gobby install`, not on every daemon startup.  See
-        # src/gobby/cli/install.py -> sync_bundled_content_to_db().
-
         from gobby.utils.dev import is_dev_mode
 
         self._dev_mode = is_dev_mode(Path.cwd())
+
+        # In dev mode, auto-sync bundled content so YAML edits are picked up
+        # on every daemon restart without needing a full `gobby install`.
+        if self._dev_mode:
+            from gobby.cli.installers.shared import sync_bundled_content_to_db
+
+            sync_result = sync_bundled_content_to_db(self.database)
+            total = sync_result["total_synced"]
+            if total > 0:
+                logger.info(f"Dev mode: synced {total} bundled items on startup")
 
         # Initialize Prompt Manager
         from gobby.storage.prompts import LocalPromptManager
@@ -180,7 +187,7 @@ class GobbyRunner:
             try:
                 # Create VectorStore (async initialize() called during startup)
                 qdrant_path = self.config.memory.qdrant_path or str(
-                    Path.home() / ".gobby" / "qdrant"
+                    Path.home() / ".gobby" / "services" / "qdrant"
                 )
                 self.vector_store = VectorStore(
                     path=qdrant_path if not self.config.memory.qdrant_url else None,
@@ -223,7 +230,24 @@ class GobbyRunner:
 
         # Task Sync Manager
         self.task_sync_manager = TaskSyncManager(self.task_manager)
-        # Wire up change listener for automatic export
+
+        # Import synced tasks before wiring export listener
+        # (e.g. from git on a new machine with more tasks than local DB)
+        try:
+            self.task_sync_manager.import_from_jsonl()
+            logger.info("Initial task sync import completed")
+        except Exception as e:
+            logger.warning(f"Task sync import failed: {e}")
+
+        # Force initial synchronous export
+        # Ensures disk state matches DB state before we start serving
+        try:
+            self.task_sync_manager.export_to_jsonl()
+            logger.info("Initial task sync export completed")
+        except Exception as e:
+            logger.warning(f"Initial task sync export failed: {e}")
+
+        # Wire up change listener for automatic export (after import to avoid race)
         self.task_manager.add_change_listener(self.task_sync_manager.trigger_export)
 
         # Initialize Memory Sync Manager (Phase 7) & Wire up listeners
@@ -706,6 +730,20 @@ class GobbyRunner:
             except Exception as e:
                 logger.error(f"Error in metrics cleanup loop: {e}")
 
+    async def _rebuild_vector_store(
+        self, memory_dicts: list[dict[str, str]], embed_fn: Any
+    ) -> None:
+        """Rebuild VectorStore index in the background."""
+        try:
+            if self.vector_store is None:
+                return
+            await self.vector_store.rebuild(memory_dicts, embed_fn)
+            logger.info("VectorStore rebuild complete")
+        except asyncio.CancelledError:
+            logger.info("VectorStore rebuild cancelled")
+        except Exception as e:
+            logger.error(f"VectorStore rebuild failed: {e}")
+
     def _check_memory_v2_migration(self) -> None:
         """Check if Memory V2 migration is needed and log a suggestion.
 
@@ -794,7 +832,7 @@ class GobbyRunner:
             # Check for pending Memory V2 migration
             self._check_memory_v2_migration()
 
-            # Initialize VectorStore (async) and rebuild if needed
+            # Initialize VectorStore and schedule rebuild in background if needed
             if self.vector_store:
                 try:
                     await self.vector_store.initialize()
@@ -802,16 +840,19 @@ class GobbyRunner:
                     if qdrant_count == 0 and self.memory_manager:
                         sqlite_memories = self.memory_manager.storage.list_memories(limit=10000)
                         if sqlite_memories:
-                            logger.info(
-                                f"Qdrant empty, rebuilding from {len(sqlite_memories)} SQLite memories..."
-                            )
-                            memory_dicts = [
-                                {"id": m.id, "content": m.content} for m in sqlite_memories
-                            ]
                             embed_fn = self.memory_manager.embed_fn
                             if embed_fn:
-                                await self.vector_store.rebuild(memory_dicts, embed_fn)
-                                logger.info("VectorStore rebuild complete")
+                                logger.info(
+                                    f"Qdrant empty, scheduling background rebuild from "
+                                    f"{len(sqlite_memories)} SQLite memories..."
+                                )
+                                memory_dicts = [
+                                    {"id": m.id, "content": m.content} for m in sqlite_memories
+                                ]
+                                self._vector_rebuild_task = asyncio.create_task(
+                                    self._rebuild_vector_store(memory_dicts, embed_fn),
+                                    name="vector-store-rebuild",
+                                )
                             else:
                                 logger.warning(
                                     "No embed_fn configured, skipping VectorStore rebuild"
@@ -946,6 +987,14 @@ class GobbyRunner:
                 self._metrics_cleanup_task.cancel()
                 try:
                     await asyncio.wait_for(self._metrics_cleanup_task, timeout=2.0)
+                except (asyncio.CancelledError, TimeoutError):
+                    pass
+
+            # Cancel vector store rebuild task
+            if self._vector_rebuild_task and not self._vector_rebuild_task.done():
+                self._vector_rebuild_task.cancel()
+                try:
+                    await asyncio.wait_for(self._vector_rebuild_task, timeout=2.0)
                 except (asyncio.CancelledError, TimeoutError):
                     pass
 

@@ -6,6 +6,7 @@ Handles local Docker-based Neo4j setup for knowledge graph features.
 
 import asyncio
 import logging
+import secrets
 import shutil
 import subprocess  # nosec B404 - subprocess needed for docker compose management
 from pathlib import Path
@@ -21,17 +22,37 @@ _COMPOSE_SRC = _DATA_DIR / "docker-compose.neo4j.yml"
 
 DEFAULT_NEO4J_HTTP_URL = "http://localhost:8474"
 DEFAULT_NEO4J_BOLT_URL = "bolt://localhost:8687"
-DEFAULT_NEO4J_AUTH = "neo4j:gobbyneo4j"
+
+
+def _generate_password(length: int = 24) -> str:
+    """Generate a cryptographically random password."""
+    return secrets.token_urlsafe(length)
+
+
+def _resolve_neo4j_auth() -> str:
+    """Return the existing configured auth or generate a new random password."""
+    try:
+        from gobby.config.app import load_config
+
+        config = load_config(create_default=False)
+        if config.memory.neo4j_auth:
+            return config.memory.neo4j_auth
+    except (OSError, ValueError, AttributeError):
+        pass
+    return f"neo4j:{_generate_password()}"
 
 
 def install_neo4j(
     *,
     gobby_home: Path | None = None,
+    password: str | None = None,
 ) -> dict[str, Any]:
     """Install Neo4j via local Docker Compose.
 
     Args:
         gobby_home: Gobby home directory (default: ~/.gobby)
+        password: User-provided password. If None, reuses existing
+                  config password or generates a random one.
 
     Returns:
         Dict with 'success' and details
@@ -42,11 +63,25 @@ def install_neo4j(
     if not shutil.which("docker"):
         return {"success": False, "error": "Docker not found. Install Docker to use Neo4j."}
 
+    # Resolve auth: user-provided > existing config > random
+    if password:
+        neo4j_auth = f"neo4j:{password}"
+    else:
+        neo4j_auth = _resolve_neo4j_auth()
+
     # Copy compose file
     svc_dir = home / "services" / "neo4j"
     svc_dir.mkdir(parents=True, exist_ok=True)
     dest = svc_dir / "docker-compose.yml"
     shutil.copy2(_COMPOSE_SRC, dest)
+
+    # Pass password to docker compose via env
+    import os
+
+    env = dict(os.environ)
+    parts = neo4j_auth.split(":", 1)
+    if len(parts) == 2:
+        env["GOBBY_NEO4J_PASSWORD"] = parts[1]
 
     # Run docker compose up -d
     try:
@@ -55,6 +90,7 @@ def install_neo4j(
             capture_output=True,
             text=True,
             timeout=120,
+            env=env,
         )
 
         if result.returncode != 0:
@@ -75,7 +111,7 @@ def install_neo4j(
         }
 
     # Update daemon config
-    _update_config(neo4j_url=DEFAULT_NEO4J_HTTP_URL, neo4j_auth=DEFAULT_NEO4J_AUTH)
+    _update_config(neo4j_url=DEFAULT_NEO4J_HTTP_URL, neo4j_auth=neo4j_auth)
 
     return {
         "success": True,
@@ -154,13 +190,29 @@ def _update_config(
     neo4j_url: str | None = None,
     neo4j_auth: str | None = None,
 ) -> None:
-    """Update daemon config with Neo4j settings."""
+    """Update daemon config with Neo4j settings via ConfigStore.
+
+    Writes to the DB config_store so the daemon picks up values
+    on next start. If neo4j_auth is provided, it is stored as an
+    encrypted secret via SecretStore.
+    """
     try:
-        from gobby.config.app import load_config, save_config
+        from gobby.config.app import load_config
+        from gobby.storage.config_store import ConfigStore
+        from gobby.storage.database import LocalDatabase
+        from gobby.storage.secrets import SecretStore
 
         config = load_config()
-        config.memory.neo4j_url = neo4j_url
-        config.memory.neo4j_auth = neo4j_auth
-        save_config(config)
+        db_path = Path(config.database_path).expanduser()
+        db = LocalDatabase(db_path)
+        try:
+            store = ConfigStore(db)
+            if neo4j_url:
+                store.set("memory.neo4j_url", neo4j_url, source="install")
+            if neo4j_auth:
+                secret_store = SecretStore(db)
+                store.set_secret("memory.neo4j_auth", neo4j_auth, secret_store, source="install")
+        finally:
+            db.close()
     except (ImportError, OSError, ValueError) as e:
         logger.warning(f"Failed to update config: {e}")

@@ -1,8 +1,9 @@
 """
 Configuration management for Gobby daemon.
 
-Provides YAML-based configuration with CLI overrides,
-configuration hierarchy (CLI > YAML > Defaults), and validation.
+Runtime config: DB config_store + Pydantic defaults.
+Pre-DB bootstrap: ~/.gobby/bootstrap.yaml (5 settings).
+YAML export: export_config_to_yaml() for backup/migration.
 """
 
 from __future__ import annotations
@@ -41,10 +42,10 @@ from gobby.config.servers import MCPClientProxyConfig, WebSocketSettings
 from gobby.config.sessions import (
     ChatHistoryConfig,
     ContextInjectionConfig,
+    DigestConfig,
     MessageTrackingConfig,
     SessionLifecycleConfig,
     SessionSummaryConfig,
-    TitleSynthesisConfig,
 )
 from gobby.config.skills import SkillsConfig
 from gobby.config.tasks import CompactHandoffConfig, GobbyTasksConfig, WorkflowConfig
@@ -125,9 +126,9 @@ __all__ = [
     "expand_env_vars",
     "load_yaml",
     "apply_cli_overrides",
-    "generate_default_config",
+    "export_config_to_yaml",
     "load_config",
-    "save_config",
+    "save_config",  # deprecated alias for export_config_to_yaml
 ]
 
 logger = logging.getLogger(__name__)
@@ -251,8 +252,11 @@ class DaemonConfig(BaseModel):
 
     Configuration is loaded with the following priority:
     1. CLI arguments (highest)
-    2. YAML file (~/.gobby/config.yaml)
-    3. Defaults (lowest)
+    2. DB config_store (runtime settings)
+    3. Pydantic defaults (lowest)
+
+    Pre-DB bootstrap settings (daemon_port, bind_host, database_path,
+    websocket_port, ui_port) are read from ~/.gobby/bootstrap.yaml.
 
     Note: machine_id is stored separately in ~/.gobby/machine_id
     """
@@ -320,9 +324,9 @@ class DaemonConfig(BaseModel):
         default_factory=LLMProvidersConfig,
         description="Multi-provider LLM configuration",
     )
-    title_synthesis: TitleSynthesisConfig = Field(
-        default_factory=TitleSynthesisConfig,
-        description="Title synthesis configuration",
+    digest: DigestConfig = Field(
+        default_factory=DigestConfig,
+        description="Rolling digest and title generation configuration",
     )
     recommend_tools: RecommendToolsConfig = Field(
         default_factory=RecommendToolsConfig,
@@ -585,43 +589,6 @@ def apply_cli_overrides(
     return config_dict
 
 
-def generate_default_config(config_file: str) -> None:
-    """
-    Generate default configuration file from Pydantic model defaults.
-
-    Args:
-        config_file: Path where to create the config file
-
-    Raises:
-        RuntimeError: If called with production path during tests (GOBBY_TEST_PROTECT=1)
-    """
-    config_path = Path(config_file).expanduser()
-
-    # Block writes to production config during tests
-    if os.environ.get("GOBBY_TEST_PROTECT") == "1":
-        real_gobby_home = Path("~/.gobby").expanduser().resolve()
-        try:
-            if config_path.resolve().is_relative_to(real_gobby_home):
-                raise RuntimeError(
-                    f"generate_default_config() would write to production path "
-                    f"{config_path} during tests."
-                )
-        except (ValueError, OSError):
-            pass
-
-    config_path.parent.mkdir(parents=True, exist_ok=True)
-
-    # Use Pydantic model defaults as source of truth
-    # mode="json" ensures Path objects are converted to strings for YAML serialization
-    default_config = DaemonConfig().model_dump(mode="json", exclude_none=True)
-
-    with open(config_path, "w") as f:
-        yaml.safe_dump(default_config, f, default_flow_style=False, sort_keys=False)
-
-    # Set restrictive permissions (owner read/write only)
-    config_path.chmod(0o600)
-
-
 def deep_merge(base: dict[str, Any], updates: dict[str, Any]) -> None:
     """Deep-merge updates into base dict (in-place)."""
     for key, value in updates.items():
@@ -664,15 +631,15 @@ def load_config(
     config_store: Any | None = None,
 ) -> DaemonConfig:
     """
-    Load configuration with hierarchy: CLI > DB/YAML > Defaults.
+    Load configuration with hierarchy: CLI > DB > bootstrap > Pydantic defaults.
 
     When config_store is provided (Phase 2), config is loaded from the database.
-    Otherwise falls back to YAML (Phase 1 bootstrap for database_path).
+    Otherwise reads bootstrap.yaml for the 5 pre-DB settings (Phase 1).
 
     Args:
-        config_file: Path to YAML config file (default: ~/.gobby/config.yaml)
+        config_file: Path hint for locating bootstrap.yaml (default: ~/.gobby/)
         cli_overrides: Dictionary of CLI argument overrides
-        create_default: Create default config file if it doesn't exist
+        create_default: Unused (kept for API compatibility)
         secret_resolver: Optional callable for resolving secrets (checked before env vars)
         config_store: Optional ConfigStore instance for DB-first resolution
 
@@ -683,19 +650,10 @@ def load_config(
         ValueError: If configuration is invalid or required fields are missing
     """
     if config_store is not None:
-        # Phase 2: YAML base + DB overlay
-        # Always load YAML first so keys only defined there (e.g.
-        # llm_providers.claude) are preserved; then deep-merge DB
-        # values on top so DB overrides take precedence.
+        # Phase 2: DB-first — Pydantic defaults fill gaps, DB overrides on top.
         from gobby.storage.config_store import unflatten_config
 
-        if config_file is None:
-            config_file = "~/.gobby/config.yaml"
-        config_path_p2 = Path(config_file).expanduser()
-        if config_path_p2.exists():
-            config_dict = load_yaml(config_file, secret_resolver=secret_resolver)
-        else:
-            config_dict = {}
+        config_dict: dict[str, Any] = {}
 
         flat_db = config_store.get_all()
         if flat_db:
@@ -705,20 +663,13 @@ def load_config(
                 isinstance(v, str) and ("$secret:" in v or "${" in v) for v in flat_db.values()
             ):
                 db_dict = _resolve_config_values(db_dict, secret_resolver)
-            deep_merge(config_dict, db_dict)
+            config_dict = db_dict
     else:
-        # Phase 1: YAML bootstrap (for database_path)
-        if config_file is None:
-            config_file = "~/.gobby/config.yaml"
+        # Phase 1: bootstrap.yaml for pre-DB settings (database_path, ports)
+        from gobby.config.bootstrap import load_bootstrap
 
-        config_path = Path(config_file).expanduser()
-
-        # Create default config if requested and file doesn't exist
-        if create_default and not config_path.exists():
-            generate_default_config(config_file)
-
-        # Load YAML configuration
-        config_dict = load_yaml(config_file, secret_resolver=secret_resolver)
+        bootstrap = load_bootstrap(config_file)
+        config_dict = bootstrap.to_config_dict()
 
     # Apply CLI argument overrides
     config_dict = apply_cli_overrides(config_dict, cli_overrides)
@@ -746,20 +697,23 @@ def load_config(
         config = DaemonConfig(**config_dict)
         return config
     except Exception as e:
-        source = "database" if config_store is not None else (config_file or "~/.gobby/config.yaml")
+        source = "database" if config_store is not None else "bootstrap.yaml"
         raise ValueError(
             f"Configuration validation failed: {e}\n"
             f"Please check your configuration source: {source}"
         ) from e
 
 
-def save_config(config: DaemonConfig, config_file: str | None = None) -> None:
+def export_config_to_yaml(config: DaemonConfig, config_file: str | None = None) -> None:
     """
-    Save configuration to YAML file.
+    Export configuration to YAML file (for backup/migration).
+
+    This is NOT used at runtime — runtime config comes from DB + Pydantic defaults.
+    Use this for export/import workflows or one-time migration snapshots.
 
     Args:
-        config: DaemonConfig instance to save
-        config_file: Path to YAML config file (default: ~/.gobby/config.yaml)
+        config: DaemonConfig instance to export
+        config_file: Path to YAML export file (default: ~/.gobby/config.yaml)
 
     Raises:
         OSError: If file operations fail
@@ -776,7 +730,8 @@ def save_config(config: DaemonConfig, config_file: str | None = None) -> None:
         try:
             if config_path.resolve().is_relative_to(real_gobby_home):
                 raise RuntimeError(
-                    f"save_config() would write to production path {config_path} during tests."
+                    f"export_config_to_yaml() would write to production path "
+                    f"{config_path} during tests."
                 )
         except (ValueError, OSError):
             pass
@@ -794,3 +749,9 @@ def save_config(config: DaemonConfig, config_file: str | None = None) -> None:
 
     # Set restrictive permissions (owner read/write only)
     config_path.chmod(0o600)
+
+
+def save_config(config: DaemonConfig, config_file: str | None = None) -> None:
+    """Deprecated: use export_config_to_yaml() instead."""
+    logger.warning("save_config() is deprecated — use export_config_to_yaml()")
+    export_config_to_yaml(config, config_file)

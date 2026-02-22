@@ -9,7 +9,7 @@ This plugin demonstrates the full capabilities of the Gobby plugin system:
 
 Installation:
     1. Copy this file to ~/.gobby/plugins/code_guardian.py
-    2. Enable in ~/.gobby/config.yaml:
+    2. Enable via gobby-config MCP tools or web UI:
        hook_extensions:
          plugins:
            enabled: true

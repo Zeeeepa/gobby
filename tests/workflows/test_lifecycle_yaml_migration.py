@@ -59,12 +59,44 @@ class TestSessionLifecycleUnifiedFormat:
         assert "claude_sdk_web_chat" in definition.sources
 
     @pytest.mark.asyncio
-    async def test_session_initialized_variable(self, db_loader: WorkflowLoader) -> None:
-        """session-lifecycle.yaml has _session_initialized guard variable."""
+    async def test_no_session_initialized_variable(self, db_loader: WorkflowLoader) -> None:
+        """session-lifecycle.yaml no longer has _session_initialized (moved to claude-sdk-lifecycle)."""
         definition = await db_loader.load_workflow("session-lifecycle")
         assert definition is not None
-        assert "_session_initialized" in definition.variables
-        assert definition.variables["_session_initialized"] is False
+        assert "_session_initialized" not in definition.variables
+
+
+class TestClaudeSdkLifecycle:
+    """Tests for claude-sdk-lifecycle.yaml extracted workflow."""
+
+    @pytest.mark.asyncio
+    async def test_loads_with_enabled_true(self, db_loader: WorkflowLoader) -> None:
+        """claude-sdk-lifecycle.yaml loads with enabled=True."""
+        definition = await db_loader.load_workflow("claude-sdk-lifecycle")
+        assert definition is not None
+        assert definition.enabled is True
+
+    @pytest.mark.asyncio
+    async def test_priority_after_session_lifecycle(self, db_loader: WorkflowLoader) -> None:
+        """claude-sdk-lifecycle.yaml has priority 11 (after session-lifecycle at 10)."""
+        definition = await db_loader.load_workflow("claude-sdk-lifecycle")
+        assert definition is not None
+        assert definition.priority == 11
+
+    @pytest.mark.asyncio
+    async def test_sources_sdk_only(self, db_loader: WorkflowLoader) -> None:
+        """claude-sdk-lifecycle.yaml only targets SDK sources."""
+        definition = await db_loader.load_workflow("claude-sdk-lifecycle")
+        assert definition is not None
+        assert set(definition.sources) == {"claude_sdk", "claude_sdk_web_chat"}
+
+    @pytest.mark.asyncio
+    async def test_sdk_initialized_variable(self, db_loader: WorkflowLoader) -> None:
+        """claude-sdk-lifecycle.yaml has _sdk_initialized guard variable."""
+        definition = await db_loader.load_workflow("claude-sdk-lifecycle")
+        assert definition is not None
+        assert "_sdk_initialized" in definition.variables
+        assert definition.variables["_sdk_initialized"] is False
 
 
 class TestLifecycleBackwardCompat:

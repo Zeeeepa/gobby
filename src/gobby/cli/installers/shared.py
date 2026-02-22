@@ -9,9 +9,11 @@ they are synced from bundled YAML to the database during ``gobby install``
 via :func:`sync_bundled_content_to_db`, NOT copied to ``.gobby/`` on disk.
 """
 
+import json
 import logging
 import os
 import shutil
+import tempfile
 from pathlib import Path
 from shutil import copy2, copytree
 from typing import TYPE_CHECKING, Any
@@ -24,61 +26,125 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
-def _is_dev_mode(project_path: Path) -> bool:
-    """Detect if running inside the gobby source repo.
+def _install_file(source: Path, target: Path, executable: bool = False) -> None:
+    """Install a single file by copying.
 
-    When the project IS the gobby source repo, we use symlinks instead of
-    copies so that .gobby/ and install/shared/ stay in sync during development.
-    """
-    from gobby.utils.dev import is_dev_mode
-
-    return is_dev_mode(project_path)
-
-
-def _install_resource_dir(source: Path, target: Path, dev_mode: bool) -> None:
-    """Install a resource directory, handling existing symlinks safely.
-
-    In dev mode, creates a symlink from target -> source.
-    In normal mode, copies the directory tree.
-
-    Safely handles existing symlinks by unlinking (not following) before
-    replacing, which prevents shutil.rmtree from destroying source files.
-    """
-    if target.is_symlink():
-        os.unlink(target)  # Safe: removes symlink, not target
-    elif target.exists():
-        shutil.rmtree(target)
-
-    if dev_mode:
-        os.symlink(source.resolve(), target)
-    else:
-        copytree(source, target)
-
-
-def _install_file(source: Path, target: Path, dev_mode: bool, executable: bool = False) -> None:
-    """Install a single file, using symlink in dev mode or copy otherwise.
-
-    In dev mode, creates a symlink from target -> source.
-    In normal mode, copies the file. Symlinks inherit permissions from the
-    source, so chmod is only applied to copies.
+    Safely handles existing symlinks by unlinking before replacing,
+    to support migration from dev-mode symlinks to copies.
 
     Args:
         source: Source file path
         target: Target file path
-        dev_mode: If True, create symlink; if False, copy
-        executable: If True (and not dev_mode), chmod 0o755 after copying
+        executable: If True, chmod 0o755 after copying
     """
     if target.is_symlink():
         os.unlink(target)
     elif target.exists():
         target.unlink()
 
-    if dev_mode:
-        os.symlink(source.resolve(), target)
-    else:
-        copy2(source, target)
-        if executable:
-            target.chmod(0o755)
+    copy2(source, target)
+    if executable:
+        target.chmod(0o755)
+
+
+def install_global_hooks() -> list[str]:
+    """Install shared hook files to ~/.gobby/hooks/ for global hook dispatch.
+
+    Always copies files (never symlinks) since global hooks must work
+    regardless of whether the source repo is available.
+
+    Returns:
+        List of installed filenames
+    """
+    shared_hooks_dir = get_install_dir() / "shared" / "hooks"
+    global_hooks_dir = Path(
+        os.environ.get("GOBBY_HOOKS_DIR", str(Path.home() / ".gobby" / "hooks"))
+    )
+    global_hooks_dir.mkdir(parents=True, exist_ok=True)
+    installed: list[str] = []
+
+    hook_files = {
+        "hook_dispatcher.py": True,  # Make executable
+        "validate_settings.py": True,  # Make executable
+    }
+
+    for filename, make_executable in hook_files.items():
+        source_file = shared_hooks_dir / filename
+        if not source_file.exists():
+            logger.warning(f"Shared hook file not found: {source_file}")
+            continue
+        target_file = global_hooks_dir / filename
+        copy2(source_file, target_file)
+        if make_executable:
+            target_file.chmod(0o755)
+        installed.append(filename)
+
+    return installed
+
+
+def clean_project_hooks(settings_file: Path) -> list[str]:
+    """Remove gobby hooks from a project-level settings/hooks JSON file.
+
+    When hooks are installed globally, project-level hooks cause duplicates
+    because CLIs merge both levels. This identifies gobby hooks by checking
+    if any command string in the hook entry references ``hook_dispatcher.py``,
+    which works across all CLI config formats (Claude settings.json, Gemini
+    settings.json, Cursor hooks.json, Windsurf hooks.json).
+
+    Args:
+        settings_file: Path to the project-level JSON config file
+
+    Returns:
+        List of hook types that were removed
+    """
+    if not settings_file.exists():
+        return []
+
+    try:
+        with open(settings_file) as f:
+            settings = json.load(f)
+    except (json.JSONDecodeError, OSError) as e:
+        logger.warning(f"Could not read project settings for hook cleanup: {e}")
+        return []
+
+    if "hooks" not in settings:
+        return []
+
+    removed: list[str] = []
+    for hook_type in list(settings["hooks"].keys()):
+        # Serialize the entry and check for our dispatcher signature
+        entry_str = json.dumps(settings["hooks"][hook_type])
+        if "hook_dispatcher.py" in entry_str:
+            del settings["hooks"][hook_type]
+            removed.append(hook_type)
+
+    if not removed:
+        return []
+
+    # Remove empty hooks dict
+    if not settings["hooks"]:
+        del settings["hooks"]
+
+    try:
+        fd, temp_path = tempfile.mkstemp(
+            dir=str(settings_file.parent), suffix=".tmp", prefix="settings_"
+        )
+        try:
+            with os.fdopen(fd, "w") as f:
+                json.dump(settings, f, indent=2)
+                f.flush()
+                os.fsync(f.fileno())
+            os.replace(temp_path, settings_file)
+        except Exception:
+            if os.path.exists(temp_path):
+                os.unlink(temp_path)
+            raise
+    except OSError as e:
+        logger.warning(f"Failed to clean project-level hooks from {settings_file}: {e}")
+        return []
+
+    logger.info(f"Cleaned {len(removed)} gobby hook(s) from {settings_file}: {', '.join(removed)}")
+    return removed
 
 
 def install_shared_content(cli_path: Path, project_path: Path) -> dict[str, list[str]]:
@@ -91,8 +157,7 @@ def install_shared_content(cli_path: Path, project_path: Path) -> dict[str, list
     They are synced to the database during ``gobby install`` via
     :func:`sync_bundled_content_to_db`, NOT copied to ``.gobby/``.
 
-    In dev mode (running inside the gobby source repo), symlinks are created
-    instead of copies so that .gobby/ and install/shared/ stay in sync.
+    Safely handles migration from dev-mode symlinks to copies.
 
     Args:
         cli_path: Path to CLI config directory (e.g., .claude, .gemini)
@@ -102,14 +167,10 @@ def install_shared_content(cli_path: Path, project_path: Path) -> dict[str, list
         Dict with lists of installed items by type
     """
     shared_dir = get_install_dir() / "shared"
-    dev_mode = _is_dev_mode(project_path)
     installed: dict[str, list[str]] = {
         "plugins": [],
         "docs": [],
     }
-
-    if dev_mode:
-        logger.info("Dev mode detected: using symlinks instead of copies")
 
     # Only plugins and docs are file-based; workflows/agents/rules/prompts/skills
     # are DB-managed and synced via sync_bundled_content_to_db().
@@ -125,18 +186,15 @@ def install_shared_content(cli_path: Path, project_path: Path) -> dict[str, list
 
         target = project_path / ".gobby" / target_name
 
-        if dev_mode:
-            # Symlink the entire directory
-            target.parent.mkdir(parents=True, exist_ok=True)
-            _install_resource_dir(source, target, dev_mode=True)
-            installed[type_key].append(f"{source_name}/ -> (symlink)")
-        else:
-            # Copy files individually
-            target.mkdir(parents=True, exist_ok=True)
-            if type_key == "plugins":
-                _copy_plugins(source, target, installed)
-            elif type_key == "docs":
-                _copy_docs(source, target, installed)
+        # Migrate from symlink to copy if needed
+        if target.is_symlink():
+            os.unlink(target)
+
+        target.mkdir(parents=True, exist_ok=True)
+        if type_key == "plugins":
+            _copy_plugins(source, target, installed)
+        elif type_key == "docs":
+            _copy_docs(source, target, installed)
 
     return installed
 
@@ -157,14 +215,19 @@ def _copy_docs(source: Path, target: Path, installed: dict[str, list[str]]) -> N
             installed["docs"].append(doc_file.name)
 
 
-def sync_bundled_content_to_db(db: "DatabaseProtocol") -> dict[str, Any]:
+def sync_bundled_content_to_db(
+    db: "DatabaseProtocol",
+    skip_types: set[str] | None = None,
+) -> dict[str, Any]:
     """Sync all bundled content (skills, prompts, rules, agents, workflows) to the database.
 
     Called during ``gobby install`` as the single import point.
-    The daemon no longer syncs on startup.
+    The daemon no longer syncs on startup (except in dev mode).
 
     Args:
         db: Database connection implementing DatabaseProtocol.
+        skip_types: Optional set of content type names to skip (e.g. ``{"workflows"}``).
+            Used by the integrity checker to block tampered types.
 
     Returns:
         Dict with total_synced count and any errors.
@@ -185,6 +248,10 @@ def sync_bundled_content_to_db(db: "DatabaseProtocol") -> dict[str, Any]:
     ]
 
     for content_type, module_path, func_name in sync_targets:
+        if skip_types and content_type in skip_types:
+            logger.debug(f"Skipping sync of bundled {content_type}")
+            result["details"][content_type] = {"skipped": True}
+            continue
         try:
             module = __import__(module_path, fromlist=[func_name])
             sync_fn = getattr(module, func_name)

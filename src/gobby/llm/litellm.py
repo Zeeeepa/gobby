@@ -94,7 +94,7 @@ class LiteLLMProvider(LLMProvider):
         Get the model to use for a specific task.
 
         Args:
-            task: Task type ("summary" or "title")
+            task: Task type ("summary")
 
         Returns:
             Model name string
@@ -102,10 +102,6 @@ class LiteLLMProvider(LLMProvider):
         if task == "summary":
             if self.config.session_summary:
                 return self.config.session_summary.model or "gpt-4o-mini"
-            return "gpt-4o-mini"
-        elif task == "title":
-            if self.config.title_synthesis:
-                return self.config.title_synthesis.model or "gpt-4o-mini"
             return "gpt-4o-mini"
         else:
             return "gpt-4o-mini"
@@ -136,7 +132,7 @@ class LiteLLMProvider(LLMProvider):
         if not prompt_template:
             raise ValueError(
                 "prompt_template is required for generate_summary. "
-                "Configure 'session_summary.prompt' in ~/.gobby/config.yaml"
+                "Configure 'session_summary.prompt' via gobby-config MCP tools"
             )
 
         # Render with Jinja2 (templates use {{ variable }} syntax)
@@ -168,40 +164,6 @@ class LiteLLMProvider(LLMProvider):
         except Exception as e:
             self.logger.error(f"Failed to generate summary with LiteLLM: {e}")
             return f"Session summary generation failed: {e}"
-
-    async def synthesize_title(
-        self, user_prompt: str, prompt_template: str | None = None
-    ) -> str | None:
-        """
-        Synthesize session title using LiteLLM.
-        """
-        if not self._litellm:
-            return None
-
-        # Build prompt - prompt_template is required
-        if not prompt_template:
-            raise ValueError(
-                "prompt_template is required for synthesize_title. "
-                "Configure 'title_synthesis.prompt' in ~/.gobby/config.yaml"
-            )
-        prompt = prompt_template.format(user_prompt=user_prompt)
-
-        try:
-            response = await self._litellm.acompletion(
-                model=self._get_model("title"),
-                messages=[
-                    {
-                        "role": "system",
-                        "content": "You are a session title generator. Create concise, descriptive titles.",
-                    },
-                    {"role": "user", "content": prompt},
-                ],
-                max_tokens=50,
-            )
-            return (response.choices[0].message.content or "").strip()
-        except Exception as e:
-            self.logger.error(f"Failed to synthesize title with LiteLLM: {e}")
-            return None
 
     async def generate_text(
         self,

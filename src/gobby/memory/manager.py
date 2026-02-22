@@ -208,17 +208,18 @@ class MemoryManager:
         self._background_tasks.add(task)
         task.add_done_callback(self._background_tasks.discard)
 
-    def _fire_background_graph(self, content: str) -> None:
+    def _fire_background_graph(self, content: str, memory_id: str | None = None) -> None:
         """Fire a background knowledge graph task (non-blocking).
 
         Extracts entities and relationships from content and merges
-        them into the Neo4j knowledge graph.
+        them into the Neo4j knowledge graph. When memory_id is provided,
+        creates MENTIONED_IN links from entities to the source memory.
         """
 
         async def _run_graph() -> None:
             try:
                 assert self._kg_service is not None  # noqa: S101
-                await self._kg_service.add_to_graph(content)
+                await self._kg_service.add_to_graph(content, memory_id=memory_id)
             except Exception as e:
                 logger.warning(f"Background graph extraction failed: {e}")
 
@@ -303,7 +304,7 @@ class MemoryManager:
 
         # Fire-and-forget: background knowledge graph task
         if self._kg_service:
-            self._fire_background_graph(content)
+            self._fire_background_graph(content, memory_id=memory.id)
 
         return memory
 
@@ -362,6 +363,94 @@ class MemoryManager:
         )
         return memory
 
+    async def _search_graph_for_memories(
+        self,
+        query_embedding: list[float],
+        limit: int = 10,
+        min_score: float = 0.5,
+    ) -> list[str]:
+        """Search Neo4j graph for memory IDs via entity vector similarity.
+
+        1. Vector search for similar entities → direct memory IDs
+        2. Graph traversal from matched entities → related memory IDs
+        3. Return ordered list: direct matches first, then traversed
+
+        Args:
+            query_embedding: Query embedding vector
+            limit: Maximum memory IDs to return
+            min_score: Minimum entity similarity score
+
+        Returns:
+            Ranked list of memory IDs (direct matches before traversed)
+        """
+        assert self._kg_service is not None  # noqa: S101
+
+        # Step 1: Vector search for similar entities
+        entity_results = await self._kg_service.search_entities_by_vector(
+            query_embedding=query_embedding,
+            limit=limit,
+            min_score=min_score,
+        )
+
+        if not entity_results:
+            return []
+
+        # Collect direct memory IDs (ordered by entity similarity)
+        direct_memory_ids: list[str] = []
+        entity_names: list[str] = []
+        for result in entity_results:
+            entity_names.append(result["name"])
+            for mid in result.get("memory_ids", []):
+                if mid not in direct_memory_ids:
+                    direct_memory_ids.append(mid)
+
+        # Step 2: Graph traversal for related memories
+        traversed_memory_ids = await self._kg_service.find_related_memory_ids(
+            entity_names=entity_names,
+            max_hops=2,
+            limit=limit,
+        )
+
+        # Step 3: Merge — direct first, then traversed (deduped)
+        seen = set(direct_memory_ids)
+        merged = list(direct_memory_ids)
+        for mid in traversed_memory_ids:
+            if mid not in seen:
+                seen.add(mid)
+                merged.append(mid)
+
+        return merged[:limit]
+
+    @staticmethod
+    def _rrf_merge(
+        qdrant_ranked: list[str],
+        graph_ranked: list[str],
+        k: int = 60,
+    ) -> list[str]:
+        """Merge two ranked lists using Reciprocal Rank Fusion.
+
+        RRF score: score(d) = Σ 1/(k + rank_i) across all sources.
+        Memories appearing in both lists get scores from both, naturally
+        ranking higher. k=60 is the standard constant.
+
+        Args:
+            qdrant_ranked: Memory IDs ranked by Qdrant cosine similarity
+            graph_ranked: Memory IDs ranked by graph search
+            k: RRF constant (higher = more uniform weighting)
+
+        Returns:
+            Merged list of memory IDs sorted by RRF score (descending)
+        """
+        scores: dict[str, float] = {}
+
+        for rank, mid in enumerate(qdrant_ranked):
+            scores[mid] = scores.get(mid, 0.0) + 1.0 / (k + rank + 1)
+
+        for rank, mid in enumerate(graph_ranked):
+            scores[mid] = scores.get(mid, 0.0) + 1.0 / (k + rank + 1)
+
+        return sorted(scores, key=lambda mid: scores[mid], reverse=True)
+
     async def search_memories(
         self,
         query: str | None = None,
@@ -374,10 +463,11 @@ class MemoryManager:
         tags_none: list[str] | None = None,
     ) -> list[Memory]:
         """
-        Retrieve memories via VectorStore search or SQLite listing.
+        Retrieve memories via VectorStore + optional Neo4j graph search.
 
-        If query is provided and VectorStore is configured, embeds the query
-        and searches Qdrant. User-sourced memories receive a 1.2x score boost.
+        When Neo4j is configured, runs Qdrant vector search and graph entity
+        search in parallel, then merges results using Reciprocal Rank Fusion.
+        User-sourced memories receive a 1.2x score boost.
         If no query, returns memories from SQLite ordered by recency.
 
         Args:
@@ -398,33 +488,103 @@ class MemoryManager:
             if project_id:
                 filters["project_id"] = project_id
 
-            results = await self._vector_store.search(
-                query_embedding,
-                limit=limit * 2,  # Over-fetch to allow post-filtering
-                filters=filters or None,
+            # Run Qdrant search (always) and graph search (when available) in parallel
+            use_graph = self._kg_service is not None and getattr(
+                self.config, "neo4j_graph_search", True
             )
 
-            # Resolve memory IDs from SQLite and apply filters
-            scored: list[tuple[Memory, float]] = []
-            for memory_id, score in results:
-                mem = self.storage.get_memory(memory_id)
-                if mem is None:
-                    continue
-                if memory_type and mem.memory_type != memory_type:
-                    continue
-                if tags_all and not all(t in (mem.tags or []) for t in tags_all):
-                    continue
-                if tags_any and not any(t in (mem.tags or []) for t in tags_any):
-                    continue
-                if tags_none and any(t in (mem.tags or []) for t in tags_none):
-                    continue
+            if use_graph:
+                graph_min_score = getattr(self.config, "neo4j_graph_min_score", 0.5)
+                rrf_k = getattr(self.config, "neo4j_rrf_k", 60)
 
-                # Apply user source boost
-                boosted = score * _USER_SOURCE_BOOST if mem.source_type == "user" else score
-                scored.append((mem, boosted))
+                qdrant_coro = self._vector_store.search(
+                    query_embedding,
+                    limit=limit * 2,
+                    filters=filters or None,
+                )
+                graph_coro = self._search_graph_for_memories(
+                    query_embedding=query_embedding,
+                    limit=limit * 2,
+                    min_score=graph_min_score,
+                )
 
-            scored.sort(key=lambda x: x[1], reverse=True)
-            memories = [m for m, _ in scored[:limit]]
+                qdrant_result, graph_result = await asyncio.gather(
+                    qdrant_coro, graph_coro, return_exceptions=True
+                )
+
+                # Handle Qdrant results (or fallback to empty)
+                if isinstance(qdrant_result, BaseException):
+                    logger.warning(f"Qdrant search failed: {qdrant_result}")
+                    qdrant_results: list[tuple[str, float]] = []
+                else:
+                    qdrant_results = qdrant_result
+
+                # Handle graph results (graceful degradation)
+                if isinstance(graph_result, BaseException):
+                    logger.warning(f"Graph search failed: {graph_result}")
+                    graph_ranked: list[str] = []
+                else:
+                    graph_ranked = graph_result
+
+                # Build Qdrant ranked list (by score)
+                qdrant_ranked = [mid for mid, _ in qdrant_results]
+
+                # Merge via RRF
+                if graph_ranked:
+                    merged_ids = self._rrf_merge(qdrant_ranked, graph_ranked, k=rrf_k)
+                else:
+                    merged_ids = qdrant_ranked
+
+                # Resolve memories and apply filters
+                scored: list[tuple[Memory, float]] = []
+                for rank, memory_id in enumerate(merged_ids):
+                    mem = self.storage.get_memory(memory_id)
+                    if mem is None:
+                        continue
+                    if memory_type and mem.memory_type != memory_type:
+                        continue
+                    if tags_all and not all(t in (mem.tags or []) for t in tags_all):
+                        continue
+                    if tags_any and not any(t in (mem.tags or []) for t in tags_any):
+                        continue
+                    if tags_none and any(t in (mem.tags or []) for t in tags_none):
+                        continue
+
+                    # Use RRF rank as primary ordering; apply user source boost to break ties
+                    base_score = 1.0 / (rank + 1)
+                    if mem.source_type == "user":
+                        base_score *= _USER_SOURCE_BOOST
+                    scored.append((mem, base_score))
+
+                scored.sort(key=lambda x: x[1], reverse=True)
+                memories = [m for m, _ in scored[:limit]]
+            else:
+                # Qdrant-only path (no graph search)
+                results = await self._vector_store.search(
+                    query_embedding,
+                    limit=limit * 2,
+                    filters=filters or None,
+                )
+
+                scored = []
+                for memory_id, score in results:
+                    mem = self.storage.get_memory(memory_id)
+                    if mem is None:
+                        continue
+                    if memory_type and mem.memory_type != memory_type:
+                        continue
+                    if tags_all and not all(t in (mem.tags or []) for t in tags_all):
+                        continue
+                    if tags_any and not any(t in (mem.tags or []) for t in tags_any):
+                        continue
+                    if tags_none and any(t in (mem.tags or []) for t in tags_none):
+                        continue
+
+                    boosted = score * _USER_SOURCE_BOOST if mem.source_type == "user" else score
+                    scored.append((mem, boosted))
+
+                scored.sort(key=lambda x: x[1], reverse=True)
+                memories = [m for m, _ in scored[:limit]]
         else:
             # No query or no VectorStore: list from SQLite
             memories = self.storage.list_memories(

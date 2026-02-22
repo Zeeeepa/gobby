@@ -123,7 +123,7 @@ Call `close_task` with:
 - `reason="obsolete"` - Task is no longer needed
 - `reason="duplicate"` - Task duplicates another
 - `reason="wont_fix"` - Decided not to do it
-- `reason="out_of_repo"` - Changes outside repo (e.g., ~/.gobby/config.yaml)
+- `reason="out_of_repo"` - Changes outside repo (e.g., ~/.gobby/bootstrap.yaml)
 
 **Review routing**: Tasks may route to `review` status instead of `closed` when:
 - Task has `requires_user_review=true`, OR

@@ -1,6 +1,6 @@
 import './styles.css'
 import { useCallback } from 'react'
-import type { ChatState, ConversationState, ProjectProps, VoiceProps } from '../../types/chat'
+import type { ChatState, ConversationState, VoiceProps } from '../../types/chat'
 import { ConversationPicker } from '../ConversationPicker'
 import { useArtifacts } from '../../hooks/useArtifacts'
 import { ArtifactContext } from './artifacts/ArtifactContext'
@@ -9,15 +9,22 @@ import { ResizeHandle } from './artifacts/ResizeHandle'
 import { MessageList } from './MessageList'
 import { ChatInput } from './ChatInput'
 import { MobileChatDrawer } from './MobileChatDrawer'
+import { SessionStatusBar } from './SessionStatusBar'
 
 interface ChatPageProps {
   chat: ChatState
   conversations: ConversationState
-  project: ProjectProps
   voice: VoiceProps
 }
 
-export function ChatPage({ chat, conversations, project, voice }: ChatPageProps) {
+export function ChatPage({ chat, conversations, voice }: ChatPageProps) {
+  const activeSession = conversations.sessions.find(
+    s => s.external_id === conversations.activeSessionId
+  )
+  const activeTitle = activeSession?.title ?? null
+  const effectiveSessionRef = chat.sessionRef
+    ?? (activeSession?.seq_num != null ? `#${activeSession.seq_num}` : null)
+
   const {
     activeArtifact,
     isPanelOpen,
@@ -58,12 +65,19 @@ export function ChatPage({ chat, conversations, project, voice }: ChatPageProps)
           <div className="flex flex-1 min-h-0">
             {/* Chat column */}
             <div className="flex flex-col flex-1 min-w-0">
+              <SessionStatusBar
+                sessionRef={effectiveSessionRef}
+                title={activeTitle}
+                mode={chat.mode}
+              />
               <MessageList
                 messages={chat.messages}
-                sessionRef={chat.sessionRef}
                 isStreaming={chat.isStreaming}
                 isThinking={chat.isThinking}
                 onRespondToQuestion={chat.onRespondToQuestion}
+                planPendingApproval={chat.planPendingApproval}
+                onApprovePlan={chat.onApprovePlan}
+                onRequestPlanChanges={chat.onRequestPlanChanges}
               />
               <ChatInput
                 onSend={chat.onSend}
@@ -73,9 +87,6 @@ export function ChatPage({ chat, conversations, project, voice }: ChatPageProps)
                 onInputChange={chat.onInputChange}
                 filteredCommands={chat.filteredCommands}
                 onCommandSelect={chat.onCommandSelect}
-                projects={project.projects}
-                selectedProjectId={project.selectedProjectId}
-                onProjectChange={project.onProjectChange}
                 mode={chat.mode}
                 onModeChange={chat.onModeChange}
                 contextUsage={chat.contextUsage}

@@ -782,7 +782,7 @@ def hub_list(ctx: click.Context, json_output: bool) -> None:
 
     if not hubs_list:
         click.echo("No hubs configured.")
-        click.echo("\nTo add hubs, update your config.yaml with a 'hubs' section.")
+        click.echo("\nTo add hubs, use: gobby skills hub add <name> --type <type>")
         return
 
     click.echo("Configured hubs:\n")
@@ -826,7 +826,6 @@ def hub_add(
         gobby skills hub add my-skillhub --type skillhub --url https://skillhub.example.com
         gobby skills hub add company-skills --type github --repo myorg/skills
     """
-    import yaml
 
     # Validate hub type
     valid_types = ["clawdhub", "skillhub", "github"]
@@ -857,32 +856,34 @@ def hub_add(
     if auth_key_name:
         hub_config["auth_key_name"] = auth_key_name
 
-    # Load existing config
-    config_path = Path.home() / ".gobby" / "config.yaml"
-    if config_path.exists():
-        with open(config_path, encoding="utf-8") as f:
-            config = yaml.safe_load(f) or {}
-    else:
-        config = {}
+    # Write hub config via ConfigStore (DB-first)
+    try:
+        from gobby.cli.utils import load_full_config_from_db
+        from gobby.storage.config_store import ConfigStore
+        from gobby.storage.database import LocalDatabase
 
-    # Ensure hubs section exists
-    if "hubs" not in config:
-        config["hubs"] = {}
+        config = load_full_config_from_db()
+        db_path = Path(config.database_path).expanduser()
+        db = LocalDatabase(db_path)
+        try:
+            store = ConfigStore(db)
+            # Check if hub already exists
+            existing = store.get(f"skills.hubs.{name}.type")
+            if existing is not None:
+                click.echo(
+                    f"Error: Hub '{name}' already exists. Use 'hub remove' first to replace it.",
+                    err=True,
+                )
+                sys.exit(1)
 
-    # Check if hub already exists
-    if name in config["hubs"]:
-        click.echo(
-            f"Error: Hub '{name}' already exists. Use 'hub remove' first to replace it.", err=True
-        )
+            # Write each hub config field as a dotted key
+            for key, value in hub_config.items():
+                store.set(f"skills.hubs.{name}.{key}", value, source="cli")
+        finally:
+            db.close()
+    except Exception as e:
+        click.echo(f"Error: Failed to save hub config: {e}", err=True)
         sys.exit(1)
-
-    # Add the hub
-    config["hubs"][name] = hub_config
-
-    # Write config
-    config_path.parent.mkdir(parents=True, exist_ok=True)
-    with open(config_path, "w", encoding="utf-8") as f:
-        yaml.dump(config, f, default_flow_style=False)
 
     click.echo(f"Added hub: {name} [{hub_type}]")
     click.echo("\nRestart the daemon for changes to take effect: gobby restart")

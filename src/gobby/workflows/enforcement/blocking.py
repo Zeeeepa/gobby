@@ -176,13 +176,18 @@ def track_discovery_step(
 
 
 def _is_plan_file(file_path: str, source: str | None = None) -> bool:
-    """Check if file path is a Claude Code plan file (platform-agnostic).
+    """Check if file path is a plan file (platform-agnostic).
 
-    Only exempts plan files for Claude Code sessions to avoid accidental
-    exemptions for Gemini/Codex users.
+    Exempts both Claude Code plan files (``~/.claude/plans/``) and Gobby
+    plan files (``.gobby/plans/``) from the task-before-edit requirement.
 
-    The pattern `/.claude/plans/` matches paths like:
-    - Unix: /Users/xxx/.claude/plans/file.md  (the / comes from xxx/)
+    Claude-specific plans (``/.claude/plans/``) are only exempt for
+    ``source="claude"`` sessions.  Gobby plans (``.gobby/plans/``) are
+    exempt for **all** CLI sources since any agent may draft plans there.
+
+    The patterns match paths like:
+    - Unix: /Users/xxx/.claude/plans/file.md
+    - Unix: /repo/.gobby/plans/file.md
     - Windows: C:/Users/xxx/.claude/plans/file.md  (after normalization)
 
     Args:
@@ -190,16 +195,19 @@ def _is_plan_file(file_path: str, source: str | None = None) -> bool:
         source: CLI source (e.g., "claude", "gemini", "codex")
 
     Returns:
-        True if this is a CC plan file that should be exempt from task requirement
+        True if this is a plan file that should be exempt from task requirement
     """
     if not file_path:
         return False
-    # Only exempt for Claude Code sessions
-    if source != "claude":
-        return False
     # Normalize path separators (Windows backslash to forward slash)
     normalized = file_path.replace("\\", "/")
-    return "/.claude/plans/" in normalized
+    # Gobby plan files are exempt for all CLI sources
+    if "/.gobby/plans/" in normalized:
+        return True
+    # Claude Code plan files are only exempt for Claude sessions
+    if source == "claude" and "/.claude/plans/" in normalized:
+        return True
+    return False
 
 
 def _evaluate_block_condition(
@@ -217,7 +225,8 @@ def _evaluate_block_condition(
     Supports simple Python expressions with access to:
     - variables: workflow state variables dict
     - task_claimed: shorthand for variables.get('task_claimed')
-    - plan_mode: shorthand for variables.get('plan_mode')
+    - plan_mode: shorthand for mode_level == 0 (plan mode active)
+    - mode_level: autonomy level (0=Plan, 1=Act, 2=Full Auto)
     - tool_input: the tool's input arguments (for MCP tool checks)
     - session_has_dirty_files: whether session has NEW dirty files (beyond baseline)
     - task_has_commits: whether the current task has linked commits
@@ -243,7 +252,9 @@ def _evaluate_block_condition(
     context = {
         "variables": variables,
         "task_claimed": variables.get("task_claimed", False),
-        "plan_mode": variables.get("plan_mode", False),
+        # mode_level is the single source of truth; plan_mode is a convenience alias
+        "mode_level": variables.get("mode_level", 2),
+        "plan_mode": variables.get("mode_level", 2) == 0,
         "event": event_data or {},
         "tool_input": tool_input or {},
         "session_has_dirty_files": session_has_dirty_files,
@@ -266,7 +277,7 @@ def _evaluate_block_condition(
         f"block_condition eval: condition='{condition}', "
         f"stop_attempts={variables.get('stop_attempts', 0)}, "
         f"task_claimed={variables.get('task_claimed')}, "
-        f"plan_mode={variables.get('plan_mode')}"
+        f"mode_level={variables.get('mode_level', 2)}"
     )
 
     try:
@@ -306,7 +317,7 @@ async def block_tools(
 
     Condition evaluation has access to:
       - variables: workflow state variables
-      - task_claimed, plan_mode: shortcuts
+      - task_claimed, plan_mode, mode_level: shortcuts
       - tool_input: the MCP tool's arguments (for checking commit_sha etc.)
       - session_has_dirty_files: whether session has NEW dirty files beyond baseline
       - task_has_commits: whether the claimed task has linked commits
@@ -466,7 +477,8 @@ async def block_tools(
             ):
                 continue
 
-        reason = rule.get("reason", f"Tool '{tool_name}' is blocked.")
+        default_reason = kwargs.get("default_reason", f"Tool '{tool_name}' is blocked.")
+        reason = rule.get("reason", default_reason)
 
         # Render Jinja2 template variables in reason message
         if "{{" in reason:

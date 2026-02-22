@@ -15,16 +15,18 @@ from typing import Any
 
 from gobby.cli.utils import get_install_dir
 
-from .shared import _install_file, _is_dev_mode, install_shared_content
+from .shared import install_global_hooks, install_shared_content
 
 logger = logging.getLogger(__name__)
 
 
-def install_copilot(project_path: Path) -> dict[str, Any]:
+def install_copilot(project_path: Path, mode: str = "global") -> dict[str, Any]:
     """Install Gobby integration for Copilot CLI (hooks, workflows).
 
     Args:
         project_path: Path to the project root
+        mode: "global" is not supported for Copilot (no global hooks).
+            "project" installs per-project (existing behavior).
 
     Returns:
         Dict with installation results including success status and installed items
@@ -37,47 +39,35 @@ def install_copilot(project_path: Path) -> dict[str, Any]:
         "error": None,
     }
 
+    if mode == "global":
+        result["success"] = True
+        result["skipped"] = True
+        result["skip_reason"] = (
+            "Copilot CLI does not support global hooks. "
+            "Use 'gobby install --copilot --project' to install per-project."
+        )
+        return result
+
     copilot_path = project_path / ".copilot"
     hooks_file = copilot_path / "hooks.json"
+    hooks_dir = Path.home() / ".gobby" / "hooks"
 
     # Ensure .copilot subdirectories exist
     copilot_path.mkdir(parents=True, exist_ok=True)
-    hooks_dir = copilot_path / "hooks"
-    hooks_dir.mkdir(parents=True, exist_ok=True)
 
     # Get source files
     install_dir = get_install_dir()
     copilot_install_dir = install_dir / "copilot"
-    install_hooks_dir = copilot_install_dir / "hooks"
-
-    # Hook files to copy
-    hook_files = {
-        "hook_dispatcher.py": True,  # Make executable
-    }
 
     source_hooks_template = copilot_install_dir / "hooks-template.json"
 
-    # Verify all source files exist
-    missing_files = []
-    for filename in hook_files.keys():
-        source_file = install_hooks_dir / filename
-        if not source_file.exists():
-            missing_files.append(str(source_file))
-
     if not source_hooks_template.exists():
-        missing_files.append(str(source_hooks_template))
-
-    if missing_files:
-        result["error"] = f"Missing source files: {missing_files}"
+        result["error"] = f"Missing source files: [{source_hooks_template}]"
         return result
 
-    # Install hook files (symlink in dev mode, copy otherwise)
+    # Install shared hook files (always global)
     try:
-        dev_mode = _is_dev_mode(project_path)
-        for filename, make_executable in hook_files.items():
-            source_file = install_hooks_dir / filename
-            target_file = hooks_dir / filename
-            _install_file(source_file, target_file, dev_mode=dev_mode, executable=make_executable)
+        install_global_hooks()
     except OSError as e:
         logger.error(f"Failed to install hook files: {e}")
         result["error"] = f"Failed to install hook files: {e}"
@@ -134,9 +124,8 @@ def install_copilot(project_path: Path) -> dict[str, Any]:
         result["error"] = f"Failed to read hooks template: {e}"
         return result
 
-    # Replace $PROJECT_PATH with absolute project path
-    abs_project_path = str(project_path.resolve())
-    gobby_hooks_str = gobby_hooks_str.replace("$PROJECT_PATH", abs_project_path)
+    # Replace $HOOKS_DIR with absolute hooks directory path
+    gobby_hooks_str = gobby_hooks_str.replace("$HOOKS_DIR", str(hooks_dir.resolve()))
 
     try:
         gobby_hooks = json.loads(gobby_hooks_str)

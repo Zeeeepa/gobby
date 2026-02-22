@@ -16,9 +16,9 @@ from gobby.cli.utils import get_install_dir
 
 from .mcp_config import configure_mcp_server_json, remove_mcp_server_json
 from .shared import (
-    _install_file,
-    _is_dev_mode,
+    clean_project_hooks,
     install_cli_content,
+    install_global_hooks,
     install_shared_content,
 )
 from .skill_install import install_router_skills_as_gemini_skills
@@ -26,11 +26,13 @@ from .skill_install import install_router_skills_as_gemini_skills
 logger = logging.getLogger(__name__)
 
 
-def install_gemini(project_path: Path) -> dict[str, Any]:
+def install_gemini(project_path: Path, mode: str = "global") -> dict[str, Any]:
     """Install Gobby integration for Gemini CLI (hooks, workflows).
 
     Args:
         project_path: Path to the project root
+        mode: "global" installs hooks to ~/.gobby/hooks/ and settings to
+            ~/.gemini/settings.json. "project" installs per-project (existing behavior).
 
     Returns:
         Dict with installation results including success status and installed items
@@ -46,37 +48,35 @@ def install_gemini(project_path: Path) -> dict[str, Any]:
         "error": None,
     }
 
-    gemini_path = project_path / ".gemini"
+    hooks_dir = Path.home() / ".gobby" / "hooks"
+    if mode == "global":
+        gemini_path = Path.home() / ".gemini"
+    else:
+        gemini_path = project_path / ".gemini"
     settings_file = gemini_path / "settings.json"
 
-    # Ensure .gemini subdirectories exist
+    # Ensure directories exist
     gemini_path.mkdir(parents=True, exist_ok=True)
-    hooks_dir = gemini_path / "hooks"
-    hooks_dir.mkdir(parents=True, exist_ok=True)
 
     # Get source files
     install_dir = get_install_dir()
     gemini_install_dir = install_dir / "gemini"
-    install_hooks_dir = gemini_install_dir / "hooks"
     source_hooks_template = gemini_install_dir / "hooks-template.json"
-
-    # Verify source files exist
-    dispatcher_file = install_hooks_dir / "hook_dispatcher.py"
-    if not dispatcher_file.exists():
-        result["error"] = f"Missing hook dispatcher: {dispatcher_file}"
-        return result
 
     if not source_hooks_template.exists():
         result["error"] = f"Missing hooks template: {source_hooks_template}"
         return result
 
-    # Install hook dispatcher (symlink in dev mode, copy otherwise)
-    dev_mode = _is_dev_mode(project_path)
-    target_dispatcher = hooks_dir / "hook_dispatcher.py"
-    _install_file(dispatcher_file, target_dispatcher, dev_mode=dev_mode, executable=True)
+    # Install hook files (always global)
+    install_global_hooks()
+    # Clean up project-level hooks to prevent double-firing
+    cleaned = clean_project_hooks(project_path / ".gemini" / "settings.json")
+    if cleaned:
+        result["project_hooks_cleaned"] = cleaned
 
-    # Install shared content (workflows)
-    shared = install_shared_content(gemini_path, project_path)
+    # Install shared content (plugins) - project-scoped
+    content_path = gemini_path if mode == "project" else project_path / ".gemini"
+    shared = install_shared_content(content_path, project_path)
     # Install CLI-specific content (can override shared)
     cli = install_cli_content("gemini", gemini_path)
 
@@ -119,11 +119,8 @@ def install_gemini(project_path: Path) -> dict[str, Any]:
     if not uv_path:
         uv_path = "uv"  # Fallback
 
-    # Replace $PROJECT_PATH with absolute project path
-    abs_project_path = str(project_path.resolve())
-
-    # Replace variables in template
-    gobby_settings_str = gobby_settings_str.replace("$PROJECT_PATH", abs_project_path)
+    # Replace $HOOKS_DIR with absolute hooks directory path
+    gobby_settings_str = gobby_settings_str.replace("$HOOKS_DIR", str(hooks_dir.resolve()))
 
     # Also replace "uv run python" with absolute path if found
     # The template uses "uv run python" by default

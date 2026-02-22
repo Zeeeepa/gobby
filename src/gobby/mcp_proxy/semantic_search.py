@@ -459,7 +459,7 @@ class SemanticToolSearch:
         api_key = self._openai_api_key or os.environ.get("OPENAI_API_KEY")
         if not api_key:
             raise RuntimeError(
-                "OPENAI_API_KEY not configured. Add it to llm_providers.api_keys in config.yaml"
+                "OPENAI_API_KEY not configured. Set it via gobby-config MCP tools or OPENAI_API_KEY env var"
             )
         return await self._embed_text_litellm(text, api_key=api_key)
 

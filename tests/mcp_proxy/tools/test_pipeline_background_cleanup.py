@@ -71,8 +71,8 @@ async def test_cleanup_handles_errored_tasks() -> None:
     task = asyncio.create_task(_fail())
     _background_tasks.add(task)
 
-    # Let it fail naturally
-    await asyncio.sleep(0.01)
+    # Wait for the task to complete (will raise internally)
+    await asyncio.gather(task, return_exceptions=True)
 
     # Should not raise
     await cleanup_background_tasks()

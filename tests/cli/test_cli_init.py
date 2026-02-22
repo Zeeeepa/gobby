@@ -561,16 +561,15 @@ class TestInitOutputFormat:
             result = runner.invoke(cli, ["init"])
 
         assert result.exit_code == 0
-        # Check output structure
+        # Check output structure — find lines by content rather than index
+        # since a conditional "Tip:" line may appear before the project info
         output_lines = result.output.strip().split("\n")
-        assert len(output_lines) >= 2
-        # First line should have project name
-        assert "format-test-project" in output_lines[0]
-        # Second line should have project ID
-        assert "Project ID:" in output_lines[1]
-        assert "proj-format-test" in output_lines[1]
-        # Third line should have config path
-        assert "Config:" in output_lines[2]
+        init_line = next(l for l in output_lines if "format-test-project" in l)
+        id_line = next(l for l in output_lines if "Project ID:" in l)
+        config_line = next(l for l in output_lines if "Config:" in l)
+        assert "format-test-project" in init_line
+        assert "proj-format-test" in id_line
+        assert config_line is not None
 
     @patch("gobby.cli.init.initialize_project")
     @patch("gobby.cli.load_config")
@@ -633,6 +632,61 @@ class TestInitCwdHandling:
         cwd_arg = call_args.kwargs.get("cwd") or call_args[1].get("cwd")
         assert cwd_arg is not None
         assert isinstance(cwd_arg, Path)
+
+    @patch("gobby.cli.init.initialize_project")
+    @patch("gobby.cli.load_config")
+    def test_init_with_path_option(
+        self,
+        mock_load_config: MagicMock,
+        mock_initialize: MagicMock,
+        runner: CliRunner,
+        mock_config: MagicMock,
+        mock_init_result_new: InitResult,
+        temp_dir: Path,
+    ) -> None:
+        """Test that init -C uses the specified directory instead of cwd."""
+        mock_load_config.return_value = mock_config
+        mock_initialize.return_value = mock_init_result_new
+
+        target_dir = temp_dir / "target-project"
+        target_dir.mkdir()
+
+        result = runner.invoke(cli, ["init", "-C", str(target_dir)])
+
+        assert result.exit_code == 0
+        call_args = mock_initialize.call_args
+        cwd_arg = call_args.kwargs.get("cwd") or call_args[1].get("cwd")
+        assert cwd_arg == target_dir.resolve()
+
+    @patch("gobby.cli.init.initialize_project")
+    @patch("gobby.cli.load_config")
+    def test_init_with_long_path_option(
+        self,
+        mock_load_config: MagicMock,
+        mock_initialize: MagicMock,
+        runner: CliRunner,
+        mock_config: MagicMock,
+        mock_init_result_new: InitResult,
+        temp_dir: Path,
+    ) -> None:
+        """Test that init --path works the same as -C."""
+        mock_load_config.return_value = mock_config
+        mock_initialize.return_value = mock_init_result_new
+
+        target_dir = temp_dir / "target-project-long"
+        target_dir.mkdir()
+
+        result = runner.invoke(cli, ["init", "--path", str(target_dir)])
+
+        assert result.exit_code == 0
+        call_args = mock_initialize.call_args
+        cwd_arg = call_args.kwargs.get("cwd") or call_args[1].get("cwd")
+        assert cwd_arg == target_dir.resolve()
+
+    def test_init_with_nonexistent_path(self, runner: CliRunner) -> None:
+        """Test that init -C with nonexistent path fails."""
+        result = runner.invoke(cli, ["init", "-C", "/nonexistent/path"])
+        assert result.exit_code != 0
 
 
 class TestVerificationCommandsDataclass:

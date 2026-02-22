@@ -295,6 +295,7 @@ class AgentDefinitionInfo(BaseModel):
     source_path: str | None = None  # filesystem path for file sources
     db_id: str | None = None  # database ID for DB sources
     overridden_by: str | None = None  # if a higher-priority source shadows this
+    deleted_at: str | None = None  # soft-delete timestamp
 
     def to_api_dict(self) -> dict[str, Any]:
         """Serialize for API response, summarizing inline workflow steps."""
@@ -313,6 +314,7 @@ class AgentDefinitionInfo(BaseModel):
             "source_path": self.source_path,
             "db_id": self.db_id,
             "overridden_by": self.overridden_by,
+            "deleted_at": self.deleted_at,
         }
 
 
@@ -413,7 +415,9 @@ class AgentDefinitionLoader:
             logger.error(f"Failed to parse agent definition '{name}' from DB: {e}")
             return None
 
-    def list_all(self, project_id: str | None = None) -> list[AgentDefinitionInfo]:
+    def list_all(
+        self, project_id: str | None = None, include_deleted: bool = False
+    ) -> list[AgentDefinitionInfo]:
         """
         List all agent definitions from the database, deduplicated by name.
 
@@ -424,7 +428,7 @@ class AgentDefinitionLoader:
         """
         try:
             mgr = self._get_manager()
-            rows = mgr.list_all(project_id=project_id)
+            rows = mgr.list_all(project_id=project_id, include_deleted=include_deleted)
         except Exception as e:
             logger.warning(f"Failed to load agent definitions from DB: {e}")
             return []
@@ -446,6 +450,7 @@ class AgentDefinitionLoader:
                             source_path=row.source_path,
                             db_id=row.id,
                             overridden_by=old.source,
+                            deleted_at=row.deleted_at,
                         )
                     # else: existing has higher priority, skip
                 else:
@@ -454,6 +459,7 @@ class AgentDefinitionLoader:
                         source=row.scope,
                         source_path=row.source_path,
                         db_id=row.id,
+                        deleted_at=row.deleted_at,
                     )
             except Exception as e:
                 logger.warning(f"Failed to export agent definition '{row.name}': {e}")

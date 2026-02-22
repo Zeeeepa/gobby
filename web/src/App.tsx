@@ -24,12 +24,13 @@ import { GitHubPage } from './components/GitHubPage'
 import { DashboardPage } from './components/DashboardPage'
 import { QuickCaptureTask } from './components/tasks/QuickCaptureTask'
 import { ChatPage } from './components/chat/ChatPage'
+import { ProjectSelector } from './components/ProjectSelector'
 import type { GobbySession } from './hooks/useSessions'
 
 const HIDDEN_PROJECTS = new Set(['_orphaned', '_migrated'])
 
 export default function App() {
-  const { messages, conversationId, sessionRef, isConnected, isStreaming, isThinking, contextUsage, sendMessage, sendMode, sendProjectChange, stopStreaming, clearHistory, deleteConversation, executeCommand, respondToQuestion, switchConversation, startNewChat, continueSessionInChat, wsRef, handleVoiceMessageRef } = useChat()
+  const { messages, conversationId, sessionRef, isConnected, isStreaming, isThinking, contextUsage, sendMessage, sendMode, stopStreaming, clearHistory, deleteConversation, executeCommand, respondToQuestion, planPendingApproval, approvePlan, requestPlanChanges, switchConversation, startNewChat, continueSessionInChat, setOnModeChanged, wsRef, handleVoiceMessageRef } = useChat()
   const voice = useVoice(wsRef, conversationId)
   const { settings, updateFontSize, updateModel, updateChatMode, updateTheme, resetSettings } = useSettings()
   const { agents, refreshAgents } = useTerminal()
@@ -40,7 +41,17 @@ export default function App() {
   const [activeTab, setActiveTab] = useState<string>('chat')
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [selectedProjectId, setSelectedProjectId] = useState<string | null>(() => {
-    try { return localStorage.getItem('gobby-chat-project') } catch { return null }
+    try {
+      const saved = localStorage.getItem('gobby-project')
+      if (saved) return saved
+      const old = localStorage.getItem('gobby-chat-project')
+      if (old) {
+        localStorage.setItem('gobby-project', old)
+        localStorage.removeItem('gobby-chat-project')
+        return old
+      }
+      return null
+    } catch { return null }
   })
   const [quickCaptureOpen, setQuickCaptureOpen] = useState(false)
   const [toastMessage, setToastMessage] = useState<string | null>(null)
@@ -155,20 +166,25 @@ export default function App() {
   // Persist project selection
   useEffect(() => {
     try {
-      if (selectedProjectId) localStorage.setItem('gobby-chat-project', selectedProjectId)
-      else localStorage.removeItem('gobby-chat-project')
+      if (selectedProjectId) localStorage.setItem('gobby-project', selectedProjectId)
+      else localStorage.removeItem('gobby-project')
     } catch { /* noop */ }
   }, [selectedProjectId])
 
-  // Notify backend when the effective project changes so it restarts the
-  // CLI subprocess with the correct CWD.
+  // When project changes, start fresh chat context for the new project.
+  // The ConversationPicker will show the new project's conversations.
   const prevProjectRef = useRef<string | null>(null)
   useEffect(() => {
     if (effectiveProjectId && prevProjectRef.current !== null && effectiveProjectId !== prevProjectRef.current) {
-      sendProjectChange(effectiveProjectId)
+      startNewChat()
     }
     prevProjectRef.current = effectiveProjectId ?? null
-  }, [effectiveProjectId, sendProjectChange])
+  }, [effectiveProjectId, startNewChat])
+
+  // Sync global project filter into sessions hook for cross-page filtering
+  useEffect(() => {
+    sessionsHook.setFilters(prev => ({ ...prev, projectId: effectiveProjectId ?? null }))
+  }, [effectiveProjectId])
 
   // Web-chat sessions for main conversation list
   const webChatSessions = useMemo(
@@ -271,6 +287,18 @@ export default function App() {
     handleVoiceMessageRef.current = voice.handleVoiceMessage
   }, [voice.handleVoiceMessage, handleVoiceMessageRef])
 
+  // Wire backend-initiated mode changes (e.g. agent EnterPlanMode/ExitPlanMode)
+  // to update the settings slider
+  useEffect(() => {
+    setOnModeChanged(updateChatMode)
+  }, [updateChatMode, setOnModeChanged])
+
+  // Reset mode to Plan on conversation switch (mode is per-conversation, not global)
+  useEffect(() => {
+    updateChatMode('plan')
+    sendMode('plan')
+  }, [conversationId]) // eslint-disable-line react-hooks/exhaustive-deps
+
   const handleInputChange = useCallback((value: string) => {
     filterCommands(value)
   }, [filterCommands])
@@ -322,6 +350,14 @@ export default function App() {
           <span className="header-title">Gobby</span>
         </div>
         <div className="header-actions">
+          {projectOptions.length > 0 && (
+            <ProjectSelector
+              projects={projectOptions}
+              selectedProjectId={effectiveProjectId}
+              onProjectChange={setSelectedProjectId}
+              dropDirection="down"
+            />
+          )}
           <span className={`status ${isConnected ? 'connected' : 'disconnected'}`}>
             {isConnected ? 'Connected' : 'Disconnected'}
           </span>
@@ -353,6 +389,9 @@ export default function App() {
             onCommandSelect: handleCommandSelect,
             mode: settings.chatMode,
             onModeChange: (mode) => { updateChatMode(mode); sendMode(mode) },
+            planPendingApproval,
+            onApprovePlan: approvePlan,
+            onRequestPlanChanges: requestPlanChanges,
           }}
           conversations={{
             sessions: webChatSessions,
@@ -363,11 +402,6 @@ export default function App() {
             onRenameSession: sessionsHook.renameSession,
             agents,
             onNavigateToAgent: handleNavigateToAgent,
-          }}
-          project={{
-            projects: projectOptions,
-            selectedProjectId: effectiveProjectId,
-            onProjectChange: setSelectedProjectId,
           }}
           voice={{
             voiceMode: voice.voiceMode,
@@ -384,7 +418,6 @@ export default function App() {
       ) : activeTab === 'sessions' ? (
         <SessionsPage
           sessions={sessionsHook.filteredSessions}
-          projects={sessionsHook.projects}
           filters={sessionsHook.filters}
           onFiltersChange={sessionsHook.setFilters}
           isLoading={sessionsHook.isLoading}
@@ -412,9 +445,9 @@ export default function App() {
       ) : activeTab === 'projects' ? (
         <ProjectsPage />
       ) : activeTab === 'tasks' ? (
-        <TasksPage />
+        <TasksPage projectFilter={effectiveProjectId} />
       ) : activeTab === 'memory' ? (
-        <MemoryPage />
+        <MemoryPage projectId={effectiveProjectId} />
       ) : activeTab === 'cron' ? (
         <CronJobsPage />
       ) : activeTab === 'agents' ? (

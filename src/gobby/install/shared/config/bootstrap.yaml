@@ -1,0 +1,7 @@
+# Gobby bootstrap — settings needed before the database is available.
+# All other configuration is managed via the web UI or gobby-config MCP tools.
+database_path: "~/.gobby/gobby-hub.db"
+daemon_port: 60887
+bind_host: "localhost"
+websocket_port: 60888
+ui_port: 60889

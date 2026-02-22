@@ -1,0 +1,27 @@
+{
+  "name": "@gobby/setup",
+  "version": "0.2.20",
+  "description": "Interactive setup wizard for Gobby",
+  "type": "module",
+  "bin": {
+    "gobby-setup": "./cli.mjs"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "files": [
+    "cli.mjs"
+  ],
+  "keywords": [
+    "gobby",
+    "setup",
+    "cli",
+    "ai",
+    "coding"
+  ],
+  "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/GobbyAI/gobby"
+  }
+}

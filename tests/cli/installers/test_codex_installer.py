@@ -1,6 +1,7 @@
 """Comprehensive tests for the Codex CLI installer module."""
 
 import json
+import os
 from pathlib import Path
 from unittest.mock import patch
 
@@ -14,8 +15,12 @@ class TestInstallCodexNotify:
 
     @pytest.fixture
     def mock_home(self, temp_dir: Path):
-        """Mock Path.home() to return temp directory."""
-        with patch.object(Path, "home", return_value=temp_dir):
+        """Mock Path.home() and GOBBY_HOOKS_DIR to return temp directory."""
+        hooks_dir = str(temp_dir / ".gobby" / "hooks")
+        with (
+            patch.object(Path, "home", return_value=temp_dir),
+            patch.dict(os.environ, {"GOBBY_HOOKS_DIR": hooks_dir}),
+        ):
             yield temp_dir
 
     @pytest.fixture
@@ -295,8 +300,12 @@ class TestUninstallCodexNotify:
 
     @pytest.fixture
     def mock_home(self, temp_dir: Path):
-        """Mock Path.home() to return temp directory."""
-        with patch.object(Path, "home", return_value=temp_dir):
+        """Mock Path.home() and GOBBY_HOOKS_DIR to return temp directory."""
+        hooks_dir = str(temp_dir / ".gobby" / "hooks")
+        with (
+            patch.object(Path, "home", return_value=temp_dir),
+            patch.dict(os.environ, {"GOBBY_HOOKS_DIR": hooks_dir}),
+        ):
             yield temp_dir
 
     @pytest.fixture
@@ -523,8 +532,12 @@ class TestNotifyLineFormat:
 
     @pytest.fixture
     def mock_home(self, temp_dir: Path):
-        """Mock Path.home() to return temp directory."""
-        with patch.object(Path, "home", return_value=temp_dir):
+        """Mock Path.home() and GOBBY_HOOKS_DIR to return temp directory."""
+        hooks_dir = str(temp_dir / ".gobby" / "hooks")
+        with (
+            patch.object(Path, "home", return_value=temp_dir),
+            patch.dict(os.environ, {"GOBBY_HOOKS_DIR": hooks_dir}),
+        ):
             yield temp_dir
 
     @pytest.fixture
@@ -608,8 +621,12 @@ class TestEdgeCases:
 
     @pytest.fixture
     def mock_home(self, temp_dir: Path):
-        """Mock Path.home() to return temp directory."""
-        with patch.object(Path, "home", return_value=temp_dir):
+        """Mock Path.home() and GOBBY_HOOKS_DIR to return temp directory."""
+        hooks_dir = str(temp_dir / ".gobby" / "hooks")
+        with (
+            patch.object(Path, "home", return_value=temp_dir),
+            patch.dict(os.environ, {"GOBBY_HOOKS_DIR": hooks_dir}),
+        ):
             yield temp_dir
 
     def test_install_with_unicode_in_path(self, mock_home: Path, temp_dir: Path) -> None:
@@ -932,8 +949,12 @@ class TestResultStructure:
 
     @pytest.fixture
     def mock_home(self, temp_dir: Path):
-        """Mock Path.home() to return temp directory."""
-        with patch.object(Path, "home", return_value=temp_dir):
+        """Mock Path.home() and GOBBY_HOOKS_DIR to return temp directory."""
+        hooks_dir = str(temp_dir / ".gobby" / "hooks")
+        with (
+            patch.object(Path, "home", return_value=temp_dir),
+            patch.dict(os.environ, {"GOBBY_HOOKS_DIR": hooks_dir}),
+        ):
             yield temp_dir
 
     @pytest.fixture

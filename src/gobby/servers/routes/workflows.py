@@ -97,6 +97,7 @@ def create_workflows_router(server: "HTTPServer") -> APIRouter:
         workflow_type: str | None = Query(None),
         enabled: bool | None = Query(None),
         project_id: str | None = Query(None),
+        include_deleted: bool = Query(False),
     ) -> dict[str, Any]:
         """List workflow definitions with optional filters."""
         metrics.inc_counter("http_requests_total")
@@ -106,6 +107,7 @@ def create_workflows_router(server: "HTTPServer") -> APIRouter:
                 project_id=project_id,
                 workflow_type=workflow_type,
                 enabled=enabled,
+                include_deleted=include_deleted,
             )
             return {
                 "status": "success",
@@ -237,7 +239,7 @@ def create_workflows_router(server: "HTTPServer") -> APIRouter:
 
     @router.delete("/{definition_id}")
     async def delete_workflow(definition_id: str) -> dict[str, Any]:
-        """Delete a workflow definition."""
+        """Delete a workflow definition (soft-delete)."""
         metrics.inc_counter("http_requests_total")
         try:
             manager = _get_manager()
@@ -249,6 +251,20 @@ def create_workflows_router(server: "HTTPServer") -> APIRouter:
             raise
         except Exception as e:
             logger.error(f"Error deleting workflow definition: {e}", exc_info=True)
+            raise HTTPException(status_code=500, detail=str(e)) from e
+
+    @router.post("/{definition_id}/restore")
+    async def restore_workflow(definition_id: str) -> dict[str, Any]:
+        """Restore a soft-deleted workflow definition."""
+        metrics.inc_counter("http_requests_total")
+        try:
+            manager = _get_manager()
+            row = manager.restore(definition_id)
+            return {"status": "success", "definition": row.to_dict()}
+        except ValueError as e:
+            raise HTTPException(status_code=404, detail=str(e)) from e
+        except Exception as e:
+            logger.error(f"Error restoring workflow definition: {e}", exc_info=True)
             raise HTTPException(status_code=500, detail=str(e)) from e
 
     return router

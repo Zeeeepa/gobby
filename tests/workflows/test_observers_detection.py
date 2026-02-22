@@ -101,12 +101,12 @@ class TestDetectPlanModeFromContext:
     """Tests for detect_plan_mode_from_context function (prompt, state signature)."""
 
     def test_detects_plan_mode_active_indicator(self, workflow_state) -> None:
-        """Detects 'Plan mode is active' in prompt."""
+        """Detects 'Plan mode is active' in prompt and sets mode_level=0."""
         prompt = "User prompt here\n<system-reminder>Plan mode is active</system-reminder>"
 
         detect_plan_mode_from_context(prompt, workflow_state)
 
-        assert workflow_state.variables.get("plan_mode") is True
+        assert workflow_state.variables.get("mode_level") == 0
 
     def test_detects_plan_mode_still_active(self, workflow_state) -> None:
         """Detects 'Plan mode still active' in prompt."""
@@ -114,7 +114,7 @@ class TestDetectPlanModeFromContext:
 
         detect_plan_mode_from_context(prompt, workflow_state)
 
-        assert workflow_state.variables.get("plan_mode") is True
+        assert workflow_state.variables.get("mode_level") == 0
 
     def test_detects_you_are_in_plan_mode(self, workflow_state) -> None:
         """Detects 'You are in plan mode' in prompt."""
@@ -124,26 +124,26 @@ class TestDetectPlanModeFromContext:
 
         detect_plan_mode_from_context(prompt, workflow_state)
 
-        assert workflow_state.variables.get("plan_mode") is True
+        assert workflow_state.variables.get("mode_level") == 0
 
     def test_detects_exited_plan_mode(self, workflow_state) -> None:
-        """Detects 'Exited Plan Mode' in prompt."""
-        workflow_state.variables["plan_mode"] = True
+        """Detects 'Exited Plan Mode' in prompt and restores mode_level from chat_mode."""
+        workflow_state.variables["mode_level"] = 0
         prompt = "<system-reminder>Exited Plan Mode</system-reminder>. Now implement the changes."
 
         detect_plan_mode_from_context(prompt, workflow_state)
 
-        assert workflow_state.variables.get("plan_mode") is False
+        assert workflow_state.variables.get("mode_level") != 0
 
     def test_does_not_change_when_already_in_plan_mode(self, workflow_state) -> None:
         """Does not log again if already in plan mode."""
-        workflow_state.variables["plan_mode"] = True
+        workflow_state.variables["mode_level"] = 0
         prompt = "Plan mode is active"
 
         # Should not raise or change state
         detect_plan_mode_from_context(prompt, workflow_state)
 
-        assert workflow_state.variables.get("plan_mode") is True
+        assert workflow_state.variables.get("mode_level") == 0
 
     def test_ignores_prompt_without_indicators(self, workflow_state) -> None:
         """Ignores prompts without plan mode indicators."""
@@ -151,19 +151,19 @@ class TestDetectPlanModeFromContext:
 
         detect_plan_mode_from_context(prompt, workflow_state)
 
-        assert "plan_mode" not in workflow_state.variables
+        assert "mode_level" not in workflow_state.variables
 
     def test_handles_empty_prompt(self, workflow_state) -> None:
         """Handles empty prompt gracefully."""
         detect_plan_mode_from_context("", workflow_state)
 
-        assert "plan_mode" not in workflow_state.variables
+        assert "mode_level" not in workflow_state.variables
 
     def test_handles_none_prompt(self, workflow_state) -> None:
         """Handles None prompt gracefully."""
         detect_plan_mode_from_context(None, workflow_state)  # type: ignore[arg-type]
 
-        assert "plan_mode" not in workflow_state.variables
+        assert "mode_level" not in workflow_state.variables
 
 
 # =============================================================================
@@ -176,7 +176,7 @@ class TestHandleDetectPlanModeFromContext:
 
     @pytest.mark.asyncio
     async def test_detects_plan_mode_from_event_data(self, workflow_state) -> None:
-        """Action handler reads prompt from event_data and detects plan mode."""
+        """Action handler reads prompt from event_data and sets mode_level=0."""
         context = MagicMock()
         context.state = workflow_state
         context.event_data = {"prompt": "<system-reminder>Plan mode is active</system-reminder>"}
@@ -184,7 +184,7 @@ class TestHandleDetectPlanModeFromContext:
         result = await handle_detect_plan_mode_from_context(context)
 
         assert result is None
-        assert workflow_state.variables.get("plan_mode") is True
+        assert workflow_state.variables.get("mode_level") == 0
 
     @pytest.mark.asyncio
     async def test_handles_missing_event_data(self, workflow_state) -> None:
@@ -196,7 +196,7 @@ class TestHandleDetectPlanModeFromContext:
         result = await handle_detect_plan_mode_from_context(context)
 
         assert result is None
-        assert "plan_mode" not in workflow_state.variables
+        assert "mode_level" not in workflow_state.variables
 
     @pytest.mark.asyncio
     async def test_handles_empty_prompt_in_event_data(self, workflow_state) -> None:
@@ -208,12 +208,12 @@ class TestHandleDetectPlanModeFromContext:
         result = await handle_detect_plan_mode_from_context(context)
 
         assert result is None
-        assert "plan_mode" not in workflow_state.variables
+        assert "mode_level" not in workflow_state.variables
 
     @pytest.mark.asyncio
     async def test_detects_exit_plan_mode(self, workflow_state) -> None:
         """Action handler detects plan mode exit from system reminders."""
-        workflow_state.variables["plan_mode"] = True
+        workflow_state.variables["mode_level"] = 0
         context = MagicMock()
         context.state = workflow_state
         context.event_data = {"prompt": "<system-reminder>Exited Plan Mode</system-reminder>"}
@@ -221,7 +221,7 @@ class TestHandleDetectPlanModeFromContext:
         result = await handle_detect_plan_mode_from_context(context)
 
         assert result is None
-        assert workflow_state.variables.get("plan_mode") is False
+        assert workflow_state.variables.get("mode_level") != 0
 
 
 # =============================================================================

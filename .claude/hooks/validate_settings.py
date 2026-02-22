@@ -1,1 +1,0 @@
-/Users/josh/Projects/gobby/src/gobby/install/claude/hooks/validate_settings.py

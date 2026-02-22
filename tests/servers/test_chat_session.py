@@ -249,9 +249,9 @@ class TestProjectRouting:
 
             await session.start()
 
-            # Should not have GOBBY_PROJECT_ID in env (env is None when empty)
-            env = captured_options.get("env")
-            assert env is None
+            # Should not have GOBBY_PROJECT_ID in env
+            env = captured_options.get("env", {})
+            assert "GOBBY_PROJECT_ID" not in env
             # CWD should fall back to Path.cwd() since _find_project_root returns None
             assert captured_options["cwd"] == expected_cwd
 

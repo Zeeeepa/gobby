@@ -95,18 +95,42 @@ def import_workflow(
     }
 
 
-def reload_cache(loader: WorkflowLoader) -> dict[str, Any]:
+def reload_cache(
+    loader: WorkflowLoader,
+    db: Any | None = None,
+) -> dict[str, Any]:
     """
-    Clear the workflow loader cache.
+    Clear the workflow loader cache and optionally re-sync bundled workflows to the DB.
 
     This forces the daemon to re-read workflow YAML files from disk
-    on the next access. Use this when you've modified workflow files
-    and want the changes to take effect immediately without restarting
-    the daemon.
+    on the next access. When *db* is provided, also re-syncs bundled
+    workflow definitions from disk YAML into the database.
+
+    Args:
+        loader: WorkflowLoader instance whose cache to clear.
+        db: Optional database instance. If provided, bundled workflows
+            are re-synced to the DB after clearing the cache.
 
     Returns:
-        Success status
+        Success status with optional sync counts.
     """
     loader.clear_cache()
     logger.info("Workflow cache cleared via reload_cache tool")
-    return {"success": True, "message": "Workflow cache cleared"}
+
+    result: dict[str, Any] = {"success": True, "message": "Workflow cache cleared"}
+
+    if db is not None:
+        try:
+            from gobby.workflows.sync import sync_bundled_workflows
+
+            sync_result = sync_bundled_workflows(db)
+            synced = sync_result.get("synced", 0) + sync_result.get("updated", 0)
+            result["workflows_synced"] = synced
+            if synced > 0:
+                result["message"] += f", {synced} workflows re-synced to DB"
+                logger.info(f"Re-synced {synced} bundled workflows to DB")
+        except Exception as e:
+            logger.warning(f"Failed to re-sync bundled workflows: {e}")
+            result["sync_error"] = str(e)
+
+    return result

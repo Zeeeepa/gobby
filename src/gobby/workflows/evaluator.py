@@ -72,11 +72,18 @@ def task_needs_user_review(task_manager: Any, task_id: str | None) -> bool:
 
 def task_tree_complete(task_manager: Any, task_id: str | list[str] | None) -> bool:
     """
-    Check if a task and all its subtasks are complete.
+    Check if a task tree is complete (all work is done).
 
-    A task is complete if:
-    - status is 'closed', OR
-    - status is 'needs_review' AND requires_user_review is False
+    A task tree is complete when either:
+    - The task is explicitly closed/needs_review, OR
+    - The task has subtasks and ALL subtasks are recursively complete
+
+    The second condition handles the common case where a parent task (e.g., an
+    epic) serves as an organizational container. When all children are done, the
+    tree is complete — the parent doesn't need to be explicitly closed first.
+    This avoids a chicken-and-egg deadlock in auto-task workflows where the
+    transition to 'complete' requires task_tree_complete() but the agent can't
+    close the parent until the transition fires.
 
     Used in workflow transition conditions like:
         when: "task_tree_complete(variables.session_task)"
@@ -86,7 +93,7 @@ def task_tree_complete(task_manager: Any, task_id: str | list[str] | None) -> bo
         task_id: Single task ID, list of task IDs, or None
 
     Returns:
-        True if all tasks and their subtasks are complete, False otherwise.
+        True if all tasks and their subtrees are complete, False otherwise.
         Returns True if task_id is None (no task to check).
     """
     if not task_id:
@@ -100,38 +107,48 @@ def task_tree_complete(task_manager: Any, task_id: str | list[str] | None) -> bo
     task_ids = [task_id] if isinstance(task_id, str) else task_id
 
     for tid in task_ids:
-        # Get the task itself
-        task = task_manager.get_task(tid)
-        if not task:
-            logger.warning(f"task_tree_complete: Task '{tid}' not found")
-            return False
-
-        # Check if main task is complete
-        if not is_task_complete(task):
-            logger.debug(f"task_tree_complete: Task '{tid}' is not complete (status={task.status})")
-            return False
-
-        # Check all subtasks recursively
-        if not _subtasks_complete(task_manager, tid):
+        if not _is_tree_complete(task_manager, tid):
             return False
 
     return True
 
 
-def _subtasks_complete(task_manager: Any, parent_id: str) -> bool:
-    """Recursively check if all subtasks are complete."""
-    subtasks = task_manager.list_tasks(parent_task_id=parent_id)
+def _is_tree_complete(task_manager: Any, task_id: str) -> bool:
+    """Check if a single task and its subtree are complete.
 
-    for subtask in subtasks:
-        if not is_task_complete(subtask):
+    A task is tree-complete when:
+    - It is explicitly closed/needs_review AND all subtasks are recursively complete, OR
+    - It has subtasks and ALL subtasks are recursively complete (parent serves as container)
+
+    A leaf task (no subtasks) must be explicitly closed.
+    """
+    task = task_manager.get_task(task_id)
+    if not task:
+        logger.warning(f"task_tree_complete: Task '{task_id}' not found")
+        return False
+
+    task_closed = is_task_complete(task)
+    subtasks = task_manager.list_tasks(parent_task_id=task_id)
+
+    if not subtasks:
+        # Leaf task: must be explicitly closed
+        if not task_closed:
             logger.debug(
-                f"_subtasks_complete: Subtask '{subtask.id}' is not complete (status={subtask.status})"
+                f"task_tree_complete: Leaf task '{task_id}' is not complete (status={task.status})"
             )
+        return task_closed
+
+    # Has subtasks: check if all subtasks are recursively complete
+    for subtask in subtasks:
+        if not _is_tree_complete(task_manager, subtask.id):
             return False
 
-        # Recursively check subtasks of this subtask
-        if not _subtasks_complete(task_manager, subtask.id):
-            return False
+    # All subtasks complete
+    if not task_closed:
+        logger.debug(
+            f"task_tree_complete: Task '{task_id}' not explicitly closed but all "
+            f"{len(subtasks)} subtask(s) complete — tree is complete"
+        )
 
     return True
 

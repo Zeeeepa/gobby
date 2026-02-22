@@ -24,6 +24,7 @@ from gobby.mcp_proxy.tools.workflows._definitions import (
     create_workflow_definition,
     delete_workflow_definition,
     export_workflow_definition,
+    restore_workflow_definition,
     update_workflow_definition,
 )
 from gobby.mcp_proxy.tools.workflows._import import import_workflow, reload_cache
@@ -338,10 +339,10 @@ def create_workflows_registry(
 
     @registry.tool(
         name="reload_cache",
-        description="Clear the workflow cache. Use this after modifying workflow YAML files.",
+        description="Clear the workflow cache and re-sync bundled workflows to DB. Use this after modifying workflow YAML files.",
     )
     def _reload_cache() -> dict[str, Any]:
-        return reload_cache(_loader)
+        return reload_cache(_loader, db=_db)
 
     @registry.tool(
         name="create_workflow",
@@ -408,5 +409,17 @@ def create_workflows_registry(
         if _def_manager is None:
             return {"error": "Definition tools require database connection"}
         return export_workflow_definition(_def_manager, name, definition_id)
+
+    @registry.tool(
+        name="restore_workflow",
+        description="Restore a soft-deleted workflow or pipeline definition by name or ID.",
+    )
+    def _restore_workflow(
+        name: str | None = None,
+        definition_id: str | None = None,
+    ) -> dict[str, Any]:
+        if _def_manager is None:
+            return {"error": "Definition tools require database connection"}
+        return restore_workflow_definition(_def_manager, _loader, name, definition_id)
 
     return registry

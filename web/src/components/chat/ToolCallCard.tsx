@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { memo, useMemo, useState } from 'react'
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter'
 import { oneDark } from 'react-syntax-highlighter/dist/esm/styles/prism'
 import type { ToolCall } from '../../types/chat'
@@ -133,25 +133,39 @@ function ToolArgumentsContent({ args }: { args: Record<string, unknown> }) {
     )
   }
 
-  // Fallback: raw JSON
+  // Fallback: syntax-highlighted JSON
   return (
     <div>
       <div className="text-muted-foreground mb-1 font-medium">Arguments</div>
-      <pre className="bg-muted rounded p-2 overflow-x-auto text-foreground">
+      <SyntaxHighlighter
+        style={highlighterTheme}
+        language="json"
+        PreTag="div"
+        customStyle={{ margin: 0, borderRadius: '0.25rem', maxHeight: '24rem', overflow: 'auto' }}
+      >
         {JSON.stringify(args, null, 2)}
-      </pre>
+      </SyntaxHighlighter>
     </div>
   )
 }
 
 function ToolResultContent({ call }: { call: ToolCall }) {
-  let resultStr: string
-  try {
-    resultStr = typeof call.result === 'string' ? call.result : JSON.stringify(call.result, null, 2)
-  } catch (e) {
-    if (process.env.NODE_ENV === 'development') console.error('Failed to serialize tool call result:', e)
-    resultStr = String(call.result)
-  }
+  const resultStr = useMemo(() => {
+    try {
+      if (typeof call.result === 'string') {
+        try {
+          return JSON.stringify(JSON.parse(call.result), null, 2)
+        } catch {
+          return call.result
+        }
+      } else {
+        return JSON.stringify(call.result, null, 2)
+      }
+    } catch (e) {
+      if (process.env.NODE_ENV === 'development') console.error('Failed to serialize tool call result:', e)
+      return String(call.result)
+    }
+  }, [call.result])
   const filePath = call.arguments?.file_path as string | undefined
 
   if (filePath) {
@@ -185,14 +199,26 @@ function ToolResultContent({ call }: { call: ToolCall }) {
     }
   }
 
-  return (
+  // Detect if result looks like JSON for syntax highlighting
+  const looksLikeJson = resultStr.trimStart().startsWith('{') || resultStr.trimStart().startsWith('[')
+
+  return looksLikeJson ? (
+    <SyntaxHighlighter
+      style={highlighterTheme}
+      language="json"
+      PreTag="div"
+      customStyle={{ margin: 0, borderRadius: '0.25rem', maxHeight: '24rem', overflow: 'auto' }}
+    >
+      {resultStr}
+    </SyntaxHighlighter>
+  ) : (
     <pre className="bg-muted rounded p-2 overflow-x-auto text-foreground max-h-96 overflow-y-auto font-mono text-xs">
       {resultStr}
     </pre>
   )
 }
 
-function ToolCallItem({ call, onRespond }: { call: ToolCall; onRespond?: (toolCallId: string, answers: Record<string, string>) => void }) {
+const ToolCallItem = memo(function ToolCallItem({ call, onRespond }: { call: ToolCall; onRespond?: (toolCallId: string, answers: Record<string, string>) => void }) {
   const [expanded, setExpanded] = useState(false)
   const displayName = formatToolName(call.tool_name)
 
@@ -246,7 +272,7 @@ function ToolCallItem({ call, onRespond }: { call: ToolCall; onRespond?: (toolCa
       )}
     </div>
   )
-}
+})
 
 function ToolApprovalCard({ call, onRespond }: { call: ToolCall; onRespond?: (toolCallId: string, answers: Record<string, string>) => void }) {
   const displayName = formatToolName(call.tool_name)
@@ -421,7 +447,7 @@ function StatusIcon({ status }: { status: string }) {
   return null
 }
 
-export function ToolCallCards({ toolCalls, onRespond }: ToolCallCardProps) {
+export const ToolCallCards = memo(function ToolCallCards({ toolCalls, onRespond }: ToolCallCardProps) {
   if (!toolCalls.length) return null
   return (
     <div className="my-1">
@@ -430,4 +456,4 @@ export function ToolCallCards({ toolCalls, onRespond }: ToolCallCardProps) {
       ))}
     </div>
   )
-}
+})

@@ -21,11 +21,6 @@ class ConcreteProvider(LLMProvider):
     ) -> str:
         return "test summary"
 
-    async def synthesize_title(
-        self, user_prompt: str, prompt_template: str | None = None
-    ) -> str | None:
-        return "test title"
-
     async def generate_text(
         self,
         prompt: str,
@@ -61,11 +56,6 @@ class IncompleteProviderMissingDescribeImage(LLMProvider):
         self, context: dict[str, Any], prompt_template: str | None = None
     ) -> str:
         return "summary"
-
-    async def synthesize_title(
-        self, user_prompt: str, prompt_template: str | None = None
-    ) -> str | None:
-        return "title"
 
     async def generate_text(
         self,
@@ -103,13 +93,6 @@ class TestLLMProvider:
         provider = ConcreteProvider()
         result = await provider.generate_summary({})
         assert result == "test summary"
-
-    @pytest.mark.asyncio
-    async def test_synthesize_title(self):
-        """Test synthesize_title method."""
-        provider = ConcreteProvider()
-        result = await provider.synthesize_title("test prompt")
-        assert result == "test title"
 
     @pytest.mark.asyncio
     async def test_generate_text(self):

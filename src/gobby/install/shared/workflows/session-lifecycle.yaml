@@ -6,12 +6,8 @@ sources: [claude, gemini, codex, antigravity, cursor, windsurf, copilot, claude_
 
 # Workflow-scoped variables (behavior settings)
 variables:
-  # First-run guard — CLI clients set this via on_session_start,
-  # SDK/headless clients via on_before_agent init block
-  _session_initialized: false
-
   # Debug: echo additionalContext to system_message for terminal visibility
-  debug_echo_context: true
+  debug_echo_context: false
 
   # Task enforcement - require active task before file modifications
   require_task_before_edit: true
@@ -39,7 +35,11 @@ variables:
 session_variables:
   # Chat mode — controls tool approval behavior in web chat
   # Set via set_mode WebSocket message; default from config (chat.default_mode)
-  chat_mode: bypass
+  chat_mode: plan
+
+  # Numeric autonomy level — single source of truth for plan/act/auto mode
+  # 0=Plan (read-only), 1=Act (approve edits), 2=Full Auto (bypass)
+  mode_level: 0
 
   # List of server:tool combos that have been unlocked via get_tool_schema
   unlocked_tools: []
@@ -96,16 +96,19 @@ triggers:
     # Agents must close_task() or set to review before stopping
     # Skip in plan mode or if escape hatch triggered (3+ consecutive stop attempts)
     - action: require_task_review_or_close_before_stop
-      when: "not variables.get('plan_mode') and variables.get('stop_attempts', 0) < variables.get('max_stop_attempts', 3)"
+      when: "variables.get('mode_level', 2) >= 1 and variables.get('stop_attempts', 0) < variables.get('max_stop_attempts', 3)"
+      messages:
+        task_still_in_progress: |
+          Task {{ task_ref }} is still in_progress. Commit your changes and close it with close_task().
+          Do NOT use mark_task_needs_review as a shortcut — only use needs_review when there is
+          something genuinely critical the user must verify before closing.
 
   on_session_start:
-    # Clear plan_mode on new sessions - don't inherit from parent session
-    # This prevents implementation sessions from inheriting plan_mode=True
-    # from planning sessions that created the plan
+    # Reset mode_level on new sessions — don't inherit plan mode from parent session
     - action: set_variable
       when: "event.data.get('source') in ['clear', 'compact', 'startup']"
-      name: plan_mode
-      value: false
+      name: mode_level
+      value: 2
 
     # Reset unlocked_tools on context loss
     # Agent must re-learn schemas after context compaction
@@ -144,13 +147,8 @@ triggers:
     # Must run FIRST so baseline is captured before any modifications
     - action: capture_baseline_dirty_files
 
-    # Inject session identity so the agent knows its Gobby session ID
-    - action: inject_context
-      template: |
-        ## Session Context
-        - Gobby Session ID: {{ ('#' ~ session.seq_num|string) if session.seq_num else session.id }} <- Use this for MCP tool calls (session_id parameter)
-        - External ID: {{ session.external_id }} (CLI-native, rarely needed)
-        - Source: {{ session.source }}
+    # Session identity is injected by the adapter/hook route for CLI clients.
+    # SDK clients get it via claude-sdk-lifecycle.yaml (on_before_agent init).
 
     # Context handoff - inject previous session summary
     - action: inject_context
@@ -212,70 +210,7 @@ triggers:
         set_variable on gobby-workflows:
         set_variable(name="pre_existing_errors_triaged", value=true, session_id="<session_id>")
 
-    # Mark CLI session as initialized so on_before_agent init block is skipped
-    - action: set_variable
-      name: _session_initialized
-      value: true
-
   on_before_agent:
-    # --- First-run init for headless/SDK clients ---
-    # CLI clients receive on_session_start which sets _session_initialized = true,
-    # so this block only runs for SDK clients that never get session_start.
-    - action: set_variable
-      when: "not variables.get('_session_initialized')"
-      name: plan_mode
-      value: false
-
-    - action: capture_baseline_dirty_files
-      when: "not variables.get('_session_initialized')"
-
-    - action: memory_sync_import
-      when: "not variables.get('_session_initialized')"
-
-    - action: task_sync_import
-      when: "not variables.get('_session_initialized')"
-
-    - action: inject_context
-      when: "not variables.get('_session_initialized')"
-      template: |
-        ## Session Context
-        - Gobby Session ID: {{ ('#' ~ session.seq_num|string) if session.seq_num else session.id }} <- Use this for MCP tool calls (session_id parameter)
-        - External ID: {{ session.external_id }} (CLI-native, rarely needed)
-        - Source: {{ session.source }}
-
-    - action: inject_context
-      when: "not variables.get('_session_initialized')"
-      source: skills
-      filter: always_apply
-      template: |
-        {{ skills_list }}
-
-    - action: inject_context
-      when: "not variables.get('_session_initialized')"
-      source: task_context
-      template: |
-        {{ task_context }}
-
-    - action: inject_context
-      when: "not variables.get('_session_initialized')"
-      template: |
-        ## Pre-Existing Error/Warning/Failure Policy
-
-        If you encounter ANY pre-existing issues during your work — errors,
-        warnings, or failures (test failures, lint errors/warnings, type errors,
-        build failures, deprecation warnings) unrelated to your changes — you
-        MUST create a gobby task for each distinct issue before stopping.
-
-        After triaging all issues (or confirming none were found), call
-        set_variable on gobby-workflows:
-        set_variable(name="pre_existing_errors_triaged", value=true, session_id="<session_id>")
-
-    # Mark initialization complete (must be last init action)
-    - action: set_variable
-      when: "not variables.get('_session_initialized')"
-      name: _session_initialized
-      value: true
-
     # --- Per-turn resets (run every prompt, all sources) ---
 
     # Reset stop attempts counter on user activity
@@ -294,13 +229,16 @@ triggers:
       name: pre_existing_errors_triaged
       value: false
 
-    # Title synthesis on first prompt (foreground)
-    - action: synthesize_title
-      when: "session.title == None"
+    # Title is generated as a side effect of the background digest (turn 1 onward)
 
-    # Memory recall - inject memories relevant to the user's prompt
-    - action: memory_recall_relevant
+    # Phase 1: Search memories using current prompt + digest enrichment (blocking)
+    - action: memory_recall_with_synthesis
       limit: 5
+
+    # Phase 2: Update digest + synthesize memories (background, zero latency)
+    - action: memory_background_digest_and_synthesize
+      background: true
+      limit: 20
 
     # Memory capture nudge - remind agent to save user preferences/facts
     - action: inject_context
@@ -323,7 +261,7 @@ triggers:
             - list_ready_tasks() - List available tasks.
 
         # Block file edits without active task (replaces require_active_task)
-        # Allow plan file writes during plan mode (/.claude/plans/ path check)
+        # Allow plan file writes during plan mode (/.claude/plans/ and /.gobby/plans/ path check)
         - tools: [Edit, Write, NotebookEdit]
           when: "variables.get('require_task_before_edit') and not task_claimed and not (plan_mode and is_plan_file(tool_input.get('file_path', ''), source))"
           reason: |
@@ -367,7 +305,7 @@ triggers:
             - Task is no longer needed: reason="obsolete"
             - Task duplicates another: reason="duplicate"
             - Decided not to do it: reason="wont_fix"
-            - Changes outside repo (e.g., ~/.gobby/config.yaml): reason="out_of_repo"
+            - Changes outside repo (e.g., ~/.gobby/bootstrap.yaml): reason="out_of_repo"
 
         # Block skip_validation when a commit is attached (work was done = must validate)
         - mcp_tools: ["gobby-tasks:close_task"]
@@ -399,14 +337,14 @@ triggers:
             Rewrite your command with `uv` and retry.
 
   on_after_tool:
-    # Detect Claude Code plan mode entry/exit
+    # Detect Claude Code plan mode entry/exit via mode_level
     - action: set_variable
-      name: plan_mode
-      value: true
+      name: mode_level
+      value: 0
       when: "event.data.get('tool_name') == 'EnterPlanMode'"
     - action: set_variable
-      name: plan_mode
-      value: false
+      name: mode_level
+      value: "{{ {'plan': 0, 'accept_edits': 1, 'normal': 1}.get(variables.get('chat_mode', 'bypass'), 2) }}"
       when: "event.data.get('tool_name') == 'ExitPlanMode'"
 
     # Reset stop attempts counter on successful native tool use
@@ -465,12 +403,6 @@ triggers:
     - action: task_sync_export
 
   on_pre_compact:
-    # Reset _session_initialized so SDK/headless clients re-init after compact
-    # For CLI clients, on_session_start fires next and sets it back to true
-    - action: set_variable
-      name: _session_initialized
-      value: false
-
     # Direct progressive disclosure resets
     # SDK clients don't get on_session_start, so they need direct resets here.
     # For CLI clients this is redundant (on_session_start also resets) but harmless.

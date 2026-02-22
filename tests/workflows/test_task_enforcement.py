@@ -1757,7 +1757,7 @@ class TestBlockTools:
         from gobby.workflows.enforcement import block_tools
 
         workflow_state.variables["task_claimed"] = False
-        workflow_state.variables["plan_mode"] = False
+        workflow_state.variables["mode_level"] = 2  # Full Auto, not plan mode
 
         rules = [
             {
@@ -1783,7 +1783,7 @@ class TestBlockTools:
         from gobby.workflows.enforcement import block_tools
 
         workflow_state.variables["task_claimed"] = True
-        workflow_state.variables["plan_mode"] = False
+        workflow_state.variables["mode_level"] = 2  # Full Auto, not plan mode
 
         rules = [
             {
@@ -1803,11 +1803,11 @@ class TestBlockTools:
 
     @pytest.mark.asyncio
     async def test_block_tools_plan_mode_allows_edit(self, workflow_state):
-        """Allows edit tools when in plan mode."""
+        """Allows edit tools when in plan mode (mode_level=0)."""
         from gobby.workflows.enforcement import block_tools
 
         workflow_state.variables["task_claimed"] = False
-        workflow_state.variables["plan_mode"] = True
+        workflow_state.variables["mode_level"] = 0  # Plan mode
 
         rules = [
             {
@@ -1831,7 +1831,7 @@ class TestBlockTools:
         from gobby.workflows.enforcement import block_tools
 
         workflow_state.variables["task_claimed"] = False
-        workflow_state.variables["plan_mode"] = False
+        workflow_state.variables["mode_level"] = 2  # Full Auto, not plan mode
 
         rules = [
             {
@@ -1964,12 +1964,12 @@ class TestEvaluateBlockCondition:
         from gobby.workflows.enforcement.blocking import _evaluate_block_condition
 
         workflow_state.variables["task_claimed"] = False
-        workflow_state.variables["plan_mode"] = False
+        workflow_state.variables["mode_level"] = 2  # Full Auto, not plan mode
         assert (
             _evaluate_block_condition("not task_claimed and not plan_mode", workflow_state) is True
         )
 
-        workflow_state.variables["plan_mode"] = True
+        workflow_state.variables["mode_level"] = 0  # Plan mode
         assert (
             _evaluate_block_condition("not task_claimed and not plan_mode", workflow_state) is False
         )
@@ -2495,3 +2495,257 @@ class TestBlockToolsRequireUv:
 
         assert result is not None
         assert result["decision"] == "block"
+
+
+# =============================================================================
+# Tests for configurable messages (messages: dict support)
+# =============================================================================
+
+
+class TestResolveMessage:
+    """Tests for _resolve_message helper in commit_policy and task_policy."""
+
+    def test_returns_default_when_messages_none(self):
+        from gobby.workflows.enforcement.commit_policy import _resolve_message
+
+        result = _resolve_message(None, "key", "default text")
+        assert result == "default text"
+
+    def test_returns_default_when_key_missing(self):
+        from gobby.workflows.enforcement.commit_policy import _resolve_message
+
+        result = _resolve_message({"other_key": "val"}, "key", "default text")
+        assert result == "default text"
+
+    def test_returns_custom_message_when_key_present(self):
+        from gobby.workflows.enforcement.commit_policy import _resolve_message
+
+        result = _resolve_message({"key": "custom text"}, "key", "default text")
+        assert result == "custom text"
+
+    def test_renders_jinja2_template(self):
+        from gobby.workflows.enforcement.commit_policy import _resolve_message
+
+        result = _resolve_message(
+            {"key": "Task {{ task_ref }} is blocked."},
+            "key",
+            "default",
+            {"task_ref": "#42"},
+        )
+        assert result == "Task #42 is blocked."
+
+    def test_no_rendering_without_context(self):
+        from gobby.workflows.enforcement.commit_policy import _resolve_message
+
+        result = _resolve_message(
+            {"key": "Has {{ braces }} but no context"},
+            "key",
+            "default",
+        )
+        assert result == "Has {{ braces }} but no context"
+
+    def test_task_policy_resolve_message_works(self):
+        """Verify the _resolve_message in task_policy works identically."""
+        from gobby.workflows.enforcement.task_policy import _resolve_message
+
+        result = _resolve_message(
+            {"task_ready_to_close": "Close {{ task_title }} now."},
+            "task_ready_to_close",
+            "default",
+            {"task_title": "My Task"},
+        )
+        assert result == "Close My Task now."
+
+
+class TestCustomMessagesInPolicies:
+    """Tests that custom messages from YAML flow through to block reasons."""
+
+    @pytest.mark.asyncio
+    async def test_review_or_close_uses_custom_message(self, workflow_state, mock_task_manager):
+        """Custom task_still_in_progress message replaces default."""
+        task_id = "01234567-89ab-cdef-0123-456789abcdef"
+        workflow_state.variables["claimed_task_id"] = task_id
+
+        mock_task = MagicMock()
+        mock_task.id = task_id
+        mock_task.seq_num = 42
+        mock_task.status = "in_progress"
+        mock_task_manager.get_task.return_value = mock_task
+
+        custom_messages = {
+            "task_still_in_progress": "Custom: {{ task_ref }} needs closing."
+        }
+
+        result = await require_task_review_or_close_before_stop(
+            workflow_state=workflow_state,
+            task_manager=mock_task_manager,
+            messages=custom_messages,
+        )
+
+        assert result is not None
+        assert result["decision"] == "block"
+        assert result["reason"] == "Custom: #42 needs closing."
+
+    @pytest.mark.asyncio
+    async def test_review_or_close_uses_default_when_no_messages(self, workflow_state, mock_task_manager):
+        """Without messages param, default hardcoded message is used."""
+        task_id = "01234567-89ab-cdef-0123-456789abcdef"
+        workflow_state.variables["claimed_task_id"] = task_id
+
+        mock_task = MagicMock()
+        mock_task.id = task_id
+        mock_task.seq_num = 42
+        mock_task.status = "in_progress"
+        mock_task_manager.get_task.return_value = mock_task
+
+        result = await require_task_review_or_close_before_stop(
+            workflow_state=workflow_state,
+            task_manager=mock_task_manager,
+        )
+
+        assert result is not None
+        assert "still in_progress" in result["reason"]
+        assert "close_task()" in result["reason"]
+
+    @pytest.mark.asyncio
+    @patch("gobby.workflows.enforcement.commit_policy.get_dirty_files")
+    async def test_commit_before_stop_uses_custom_message(
+        self, mock_dirty, workflow_state, mock_task_manager
+    ):
+        """Custom uncommitted_changes message replaces default."""
+        workflow_state.variables["claimed_task_id"] = "task-123"
+        workflow_state.variables["baseline_dirty_files"] = []
+
+        mock_task = MagicMock()
+        mock_task.status = "in_progress"
+        mock_task_manager.get_task.return_value = mock_task
+
+        mock_dirty.return_value = {"src/new.py"}
+
+        custom_messages = {
+            "uncommitted_changes": "Custom: {{ claimed_task_id }} has {{ new_dirty_count }} dirty files."
+        }
+
+        result = await require_commit_before_stop(
+            workflow_state=workflow_state,
+            project_path="/some/path",
+            task_manager=mock_task_manager,
+            messages=custom_messages,
+        )
+
+        assert result is not None
+        assert result["decision"] == "block"
+        assert result["reason"] == "Custom: task-123 has 1 dirty files."
+
+    @pytest.mark.asyncio
+    async def test_require_task_complete_uses_custom_message(self, workflow_state, mock_task_manager):
+        """Custom task_ready_to_close message replaces default."""
+        parent_task = MagicMock()
+        parent_task.id = "parent-uuid"
+        parent_task.title = "Feature X"
+        parent_task.status = "open"
+
+        mock_task_manager.get_task.return_value = parent_task
+        mock_task_manager.list_tasks.return_value = []  # no subtasks
+
+        custom_messages = {
+            "task_ready_to_close": "Please close {{ task_title }}."
+        }
+
+        result = await require_task_complete(
+            task_manager=mock_task_manager,
+            session_id="test-session",
+            task_ids=["parent-uuid"],
+            workflow_state=workflow_state,
+            messages=custom_messages,
+        )
+
+        assert result is not None
+        assert result["reason"] == "Please close Feature X."
+
+
+# =============================================================================
+# Tests for _load_agent_prompt (agent event handler prompt extraction)
+# =============================================================================
+
+
+class TestLoadAgentPrompt:
+    """Tests for _load_agent_prompt helper in _agent.py."""
+
+    def test_returns_fallback_when_file_missing(self, tmp_path, monkeypatch):
+        """When prompt file doesn't exist, return fallback."""
+        from gobby.hooks.event_handlers._agent import _load_agent_prompt
+
+        monkeypatch.setattr(
+            "gobby.hooks.event_handlers._agent.get_bundled_prompts_path",
+            lambda: tmp_path,
+            raising=False,
+        )
+        # Patch at the import location inside the function
+        import gobby.prompts.sync as sync_mod
+        monkeypatch.setattr(sync_mod, "get_bundled_prompts_path", lambda: tmp_path)
+
+        result = _load_agent_prompt("nonexistent", fallback="fallback text")
+        assert result == "fallback text"
+
+    def test_loads_and_strips_frontmatter(self, tmp_path, monkeypatch):
+        """Loads file, strips YAML frontmatter, returns content."""
+        from gobby.hooks.event_handlers._agent import _load_agent_prompt
+
+        agent_dir = tmp_path / "agent"
+        agent_dir.mkdir()
+        (agent_dir / "test-prompt.md").write_text(
+            "---\nname: test\n---\nHello world"
+        )
+
+        import gobby.prompts.sync as sync_mod
+        monkeypatch.setattr(sync_mod, "get_bundled_prompts_path", lambda: tmp_path)
+
+        result = _load_agent_prompt("test-prompt", fallback="fallback")
+        assert result == "Hello world"
+
+    def test_renders_jinja2_template(self, tmp_path, monkeypatch):
+        """Renders Jinja2 variables when context is provided."""
+        from gobby.hooks.event_handlers._agent import _load_agent_prompt
+
+        agent_dir = tmp_path / "agent"
+        agent_dir.mkdir()
+        (agent_dir / "skill-hint.md").write_text(
+            '---\nname: test\n---\nSkill: `get_skill(name="{{ skill_name }}")`'
+        )
+
+        import gobby.prompts.sync as sync_mod
+        monkeypatch.setattr(sync_mod, "get_bundled_prompts_path", lambda: tmp_path)
+
+        result = _load_agent_prompt(
+            "skill-hint",
+            {"skill_name": "commit"},
+            "fallback",
+        )
+        assert result == 'Skill: `get_skill(name="commit")`'
+
+    def test_renders_jinja2_conditionals(self, tmp_path, monkeypatch):
+        """Renders Jinja2 if/for blocks for skill-not-found template."""
+        from gobby.hooks.event_handlers._agent import _load_agent_prompt
+
+        agent_dir = tmp_path / "agent"
+        agent_dir.mkdir()
+        (agent_dir / "skill-not-found.md").write_text(
+            "---\nname: test\n---\n"
+            "Skill '{{ skill_name }}' not found.\n"
+            "{% if close_matches %}\nDid you mean:\n"
+            "{% for m in close_matches %}\n  - `/gobby:{{ m }}`\n{% endfor %}\n"
+            "{% endif %}"
+        )
+
+        import gobby.prompts.sync as sync_mod
+        monkeypatch.setattr(sync_mod, "get_bundled_prompts_path", lambda: tmp_path)
+
+        result = _load_agent_prompt(
+            "skill-not-found",
+            {"skill_name": "comm", "close_matches": ["commit", "compact"]},
+            "fallback",
+        )
+        assert "Skill 'comm' not found." in result
+        assert "`/gobby:commit`" in result
+        assert "`/gobby:compact`" in result

@@ -63,32 +63,32 @@ export function useSlashCommands() {
           }
         }
 
-        // Add local commands at the top
-        for (const local of LOCAL_COMMANDS) {
-          cmds.unshift({
+        // Sort MCP tool entries alphabetically
+        cmds.sort((a, b) => a.name.localeCompare(b.name))
+
+        // Build local commands (sorted alphabetically)
+        const localEntries: CommandInfo[] = [...LOCAL_COMMANDS]
+          .sort((a, b) => a.name.localeCompare(b.name))
+          .map((local) => ({
             server: '_local',
             tool: local.action,
             name: local.name,
             description: local.description,
             isLocal: true,
             action: local.action,
+          }))
+
+        // Build alias entries (sorted alphabetically)
+        const aliasEntries: CommandInfo[] = Object.entries(ALIASES)
+          .sort(([a], [b]) => a.localeCompare(b))
+          .flatMap(([alias, target]) => {
+            const existing = cmds.find(
+              (c) => c.server === target.server && c.tool === target.tool
+            )
+            return existing ? [{ ...existing, name: alias }] : []
           })
-        }
 
-        // Add alias entries at the top (after local commands)
-        for (const [alias, target] of Object.entries(ALIASES)) {
-          const existing = cmds.find(
-            (c) => c.server === target.server && c.tool === target.tool
-          )
-          if (existing) {
-            cmds.unshift({
-              ...existing,
-              name: alias,
-            })
-          }
-        }
-
-        setCommands(cmds)
+        setCommands([...localEntries, ...aliasEntries, ...cmds])
       } catch (e) {
         console.error('Failed to fetch MCP tools:', e)
       }

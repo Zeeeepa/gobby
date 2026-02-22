@@ -271,7 +271,7 @@ def start(
         # Try to verify daemon is responding
         daemon_healthy = False
         start_time = time.time()
-        max_wait = 15.0
+        max_wait = 120.0
 
         while (time.time() - start_time) < max_wait:
             try:

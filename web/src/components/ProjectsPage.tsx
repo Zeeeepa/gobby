@@ -130,7 +130,6 @@ export function ProjectsPage() {
     return (
       <SessionsPage
         sessions={projectSessions}
-        projects={sessionsHook.projects}
         filters={{ ...sessionsHook.filters, projectId: selectedProject.id }}
         onFiltersChange={sessionsHook.setFilters}
         isLoading={sessionsHook.isLoading}

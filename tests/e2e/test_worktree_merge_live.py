@@ -127,7 +127,7 @@ class TestWorktreeToolsAvailability:
             "get_clone",
             "delete_clone",
             "sync_clone",
-            "merge_clone_to_target",
+            "merge_clone",
         ]
 
         for tool in expected_tools:
@@ -318,7 +318,7 @@ class TestCloneMergeWorkflow:
         assert result.get("success") is False
         assert "not found" in result.get("error", "").lower()
 
-    def test_merge_clone_to_target_not_found(
+    def test_merge_clone_not_found(
         self,
         daemon_instance: DaemonInstance,
         mcp_client: MCPTestClient,
@@ -326,7 +326,7 @@ class TestCloneMergeWorkflow:
         """Test merging a non-existent clone returns error."""
         raw_result = mcp_client.call_tool(
             server_name="gobby-clones",
-            tool_name="merge_clone_to_target",
+            tool_name="merge_clone",
             arguments={"clone_id": "nonexistent-clone-id"},
         )
         result = unwrap_result(raw_result)

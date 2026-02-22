@@ -1,6 +1,6 @@
 ---
 name: plan
-description: This skill should be used when the user asks to "/gobby plan", "create plan", "plan feature", "write specification". Guide users through structured specification planning. Does NOT create tasks - use /gobby:expand for that.
+description: This skill should be used when the user asks to "/gobby plan", "create plan", "plan feature", "write specification". Guide users through structured specification planning. Does NOT create tasks - use /gobby expand for that.
 version: "1.0.0"
 category: core
 triggers: plan, specification, requirements
@@ -10,10 +10,10 @@ metadata:
     depth: 0
 ---
 
-# /gobby:plan - Implementation Planning Skill
+# /gobby plan - Implementation Planning Skill
 
 Guide users through structured requirements gathering and specification writing.
-**This skill creates the plan document only.** Use `/gobby:expand <plan-file>` to create tasks.
+**This skill creates the plan document only.** Use `/gobby expand <plan-file>` to create tasks.
 
 ## Workflow Overview
 
@@ -21,7 +21,7 @@ Guide users through structured requirements gathering and specification writing.
 2. **Draft Plan** - Write structured plan document
 3. **Plan Verification** - Check for TDD anti-patterns and dependency issues
 4. **User Approval** - Present plan for review
-5. **Hand off to /gobby:expand** - User runs `/gobby:expand` on the plan file
+5. **Hand off to /gobby expand** - User runs `/gobby expand` on the plan file
 
 ## Step 0: **REQUIRED** ENTER PLAN MODE
 
@@ -67,18 +67,53 @@ Write to `.gobby/plans/{kebab-name}.md`:
 
 **Goal**: {One sentence outcome}
 
-**Tasks:**
-- [ ] Task 1 title
-- [ ] Task 2 title (depends: Task 1)
-- [ ] Task 3 title (parallel)
+### 1.1 {Task Title} [category: code]
+
+Target: `src/module/file.py`
+
+{Full implementation specification for this task. Everything here becomes the
+subtask description during expansion — the implementing agent sees ONLY this section.}
+
+Include:
+- File paths to create/modify
+- Code examples (classes, functions, schemas)
+- Behavioral specs and edge cases
+- SQL migrations, config snippets, etc.
+
+```python
+class Example(Base):
+    """Show the shape of the solution with concrete code."""
+    __tablename__ = "examples"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    name: Mapped[str] = mapped_column(String(255), unique=True)
+
+    def validate(self) -> bool:
+        return len(self.name) > 0
+```
+
+### 1.2 {Task Title} [category: code] (depends: 1.1)
+
+Target: `src/module/other.py`
+
+{Full implementation specification — code examples, behavioral specs, edge cases...}
 
 ## Phase 2: {Phase Name}
 
 **Goal**: {One sentence outcome}
 
-**Tasks:**
-- [ ] Task 4 (depends: Phase 1)
-- [ ] Task 5 (parallel with Task 4)
+### 2.1 {Task Title} [category: config] (depends: Phase 1)
+
+Target: `config/settings.yaml`
+
+{Full specification including config schema, defaults, validation rules...}
+
+```yaml
+settings:
+  timeout: 30
+  retries: 3
+  # Show exact config structure the agent should produce
+```
 
 ## Task Mapping
 
@@ -88,8 +123,28 @@ Write to `.gobby/plans/{kebab-name}.md`:
 ```
 
 **Dependency Notation:**
-- Use `(depends: Task 1)` or `(depends: Phase N)` in markdown
+- Use `(depends: 1.1)` or `(depends: Phase N)` on task headings
 - Dependencies are resolved when tasks are created via `create_task` with `parent_task_id`
+
+## Plan Content = Subtask Descriptions
+
+**Everything under a `### N.N` task heading becomes that subtask's description during expansion.**
+
+When `/gobby expand` processes your plan, it extracts each `### N.N` section and uses its
+full content as the subtask description. The implementing agent only sees its own subtask —
+it does NOT have access to the full plan document.
+
+**Each task section must be self-contained:**
+- File paths to create or modify
+- Code examples (classes, functions, method signatures)
+- Config snippets, SQL migrations, YAML schemas
+- ASCII diagrams, data flow descriptions
+- Behavioral specs and edge cases
+- Everything the implementing agent needs to do the work
+
+**Do NOT defer detail.** If you know the model fields, list them. If you know the SQL
+schema, write it. If you know the function signature, include it. Brief bullets like
+"implement the user model" force the implementing agent to guess — and it will guess wrong.
 
 ## Step 4: Plan Verification (REQUIRED)
 
@@ -168,7 +223,7 @@ Once approved, tell the user:
 ```
 Plan approved! To create tasks from this plan, run:
 
-/gobby:expand <plan-file-path>
+/gobby expand <plan-file-path>
 
 This will:
 1. Create a root epic from the plan
@@ -177,28 +232,29 @@ This will:
 4. Wire up dependencies
 ```
 
-**This skill ends here.** Task creation is handled by `/gobby:expand`.
+**This skill ends here.** Task creation is handled by `/gobby expand`.
 
 ---
 
-## Plan Format Reference (for /gobby:expand)
+## Plan Format Reference (for /gobby expand)
 
-The following sections describe what `/gobby:expand` expects and how it will process your plan.
+The following sections describe what `/gobby expand` expects and how it will process your plan.
 
 ## Task Granularity Guidelines
 
 Each task should be:
-- **Atomic**: Completable in one AI session 
+- **Atomic**: Completable in one AI session
 - **Testable**: Has clear pass/fail criteria
 - **Verb-led**: Starts with action verb (Add, Create, Implement, Update, Remove)
 - **Scoped**: References specific files/functions when possible
+- **Self-contained**: Each task section contains ALL implementation detail the agent needs — code examples, schemas, file paths, and behavioral specs written directly in the section
 
 Good: "Add TaskEnricher class to src/gobby/tasks/enrich.py"
 Bad: "Implement enrichment" (too vague)
 
 ## TDD Compatibility (IMPORTANT)
 
-When `/gobby:expand` processes your plan, it applies TDD to each code/config task automatically.
+When `/gobby expand` processes your plan, it applies TDD to each code/config task automatically.
 
 ### TDD Triplet Pattern
 
@@ -226,7 +282,7 @@ Valid categories (from `src/gobby/storage/tasks.py`):
 - `planning` - Architecture/design tasks (no TDD)
 - `manual` - Manual functional testing (observe output) (no TDD)
 
-### What /gobby:plan Creates vs What /gobby:expand Creates
+### What /gobby plan Creates vs What /gobby expand Creates
 
 **Your plan document should contain:**
 - Feature tasks with implied `category: code` or `category: config`
@@ -239,31 +295,31 @@ Valid categories (from `src/gobby/storage/tasks.py`):
 - "Ensure tests pass" tasks
 - Separate test tasks alongside implementation
 
-**When you run `/gobby:expand <plan-file>`:**
+**When you run `/gobby expand <plan-file>`:**
 
 ```
 Input: .gobby/plans/memory-v3.md
 
 Output task tree:
 #100 [epic] Memory V3 Backend                      L1 (from plan title)
-├── #101 [task] Create protocol.py                 L2 (from plan content)
+├── #101 [task] Create protocol.py                 L2 (from plan section 1.1)
 │   └─ validation: Protocol class exists with required methods
-│   └─ description: TDD: 1) Write tests... 2) Run tests...
-├── #102 [task] Create backends/__init__.py        L2
+│   └─ description: (47 lines — TDD header + full plan section content)
+├── #102 [task] Create backends/__init__.py        L2 (from plan section 1.2)
 │   └─ validation: Factory function works
-│   └─ description: TDD: 1) Write tests... 2) Run tests...
-└── #103 [task] Add config schema                  L2
+│   └─ description: (32 lines — TDD header + full plan section content)
+└── #103 [task] Add config schema                  L2 (from plan section 2.1)
     └─ validation: Config loads and validates
-    └─ description: TDD: 1) Write tests... 2) Run tests...
+    └─ description: (28 lines — TDD header + full plan section content)
 ```
 
-**NOTE**: `/gobby:expand` adds TDD instructions and validation criteria automatically.
-You just need to write a clear plan with well-defined tasks.
+**NOTE**: `/gobby expand` adds a TDD header and preserves the full plan section content.
+Rich descriptions (code examples, schemas, configs) flow through to subtasks unchanged.
 
 ## Example Usage
 
 ```
-User: /gobby:plan
+User: /gobby plan
 Agent: "What feature would you like to plan?"
 User: "Add dark mode support to the app"
 Agent: [Asks clarifying questions]
@@ -272,9 +328,9 @@ Agent: [Runs verification - checks for TDD anti-patterns]
 Agent: "Here's the plan. Does this look correct?"
 User: "Yes, looks good"
 Agent: "Plan approved! To create tasks, run:
-        /gobby:expand .gobby/plans/dark-mode.md"
+        /gobby expand .gobby/plans/dark-mode.md"
 
-User: /gobby:expand .gobby/plans/dark-mode.md
+User: /gobby expand .gobby/plans/dark-mode.md
 Agent: [Creates epic, analyzes codebase, generates subtasks with TDD]
 Agent: "Created 12 tasks under epic #47 with validation criteria."
 ```
@@ -333,11 +389,11 @@ call_tool("gobby-workflows", "activate_workflow", {
 ### Hybrid Approach
 
 The skills and workflow are complementary:
-- **`/gobby:plan`**: Interactive flexibility for requirements and drafting
-- **`/gobby:expand`**: Creates tasks with TDD and validation
+- **`/gobby plan`**: Interactive flexibility for requirements and drafting
+- **`/gobby expand`**: Creates tasks with TDD and validation
 - **Workflow**: Deterministic expansion with enforced gates
 
 Recommended pattern:
-1. Use `/gobby:plan` for Steps 1-5 (requirements through approval)
-2. Use `/gobby:expand <plan-file>` to create tasks
+1. Use `/gobby plan` for Steps 1-5 (requirements through approval)
+2. Use `/gobby expand <plan-file>` to create tasks
 3. Or activate `plan-expansion` workflow for stricter enforcement

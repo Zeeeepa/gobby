@@ -106,6 +106,11 @@ class SessionLifecycleManager:
                 logger.error(f"Error in expire loop: {e}")
 
             try:
+                await self._purge_soft_deleted_definitions()
+            except Exception as e:
+                logger.error(f"Error purging soft-deleted definitions: {e}")
+
+            try:
                 await asyncio.sleep(interval_seconds)
             except asyncio.CancelledError:
                 break
@@ -170,6 +175,19 @@ class SessionLifecycleManager:
         if removed > 0:
             logger.info(f"Cleaned up {removed} stale prompt file(s)")
         return removed
+
+    async def _purge_soft_deleted_definitions(self) -> None:
+        """Permanently remove definitions that were soft-deleted more than 30 days ago."""
+        try:
+            from gobby.storage.agent_definitions import LocalAgentDefinitionManager
+            from gobby.storage.workflow_definitions import LocalWorkflowDefinitionManager
+
+            wf_mgr = LocalWorkflowDefinitionManager(self.db)
+            agent_mgr = LocalAgentDefinitionManager(self.db)
+            wf_mgr.purge_deleted(older_than_days=30)
+            agent_mgr.purge_deleted(older_than_days=30)
+        except Exception as e:
+            logger.error(f"Failed to purge soft-deleted definitions: {e}")
 
     async def _process_pending_transcripts(self) -> int:
         """Process transcripts for expired sessions."""

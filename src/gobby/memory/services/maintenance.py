@@ -58,9 +58,16 @@ def get_stats(
     # Vector store count
     if vector_store is not None:
         try:
-            stats["vector_count"] = asyncio.run(vector_store.count())
-        except Exception:
+            asyncio.get_running_loop()
+            # Already in async context — asyncio.run() would raise and
+            # leave the coroutine unawaited, spamming RuntimeWarnings.
             stats["vector_count"] = -1
+        except RuntimeError:
+            # No event loop running (e.g. CLI) — safe to use asyncio.run
+            try:
+                stats["vector_count"] = asyncio.run(vector_store.count())
+            except Exception:
+                stats["vector_count"] = -1
 
     return stats
 

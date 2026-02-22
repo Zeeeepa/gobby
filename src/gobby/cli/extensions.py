@@ -5,12 +5,16 @@ CLI commands for hook extensions (hooks, plugins, webhooks).
 from __future__ import annotations
 
 import json
+import logging
+import os
 import sys
 from typing import TYPE_CHECKING
 
 import click
 
 from gobby.cli.mcp_proxy import call_mcp_api, check_daemon_running, get_daemon_client
+
+logger = logging.getLogger(__name__)
 
 if TYPE_CHECKING:
     from gobby.hooks.events import HookEventType
@@ -257,16 +261,40 @@ def _indent(text: str, spaces: int) -> str:
 def hooks_status(json_format: bool) -> None:
     """Show current hooks configuration from project.json.
 
-    Displays which verification commands are configured to run at each
-    git hook stage (pre-commit, pre-push, pre-merge).
+    Displays global install status, per-project disable status,
+    and which verification commands are configured for git hook stages.
     """
+    from pathlib import Path
+
     from gobby.utils.project_context import get_hooks_config, get_verification_config
 
     verification_config = get_verification_config()
     hooks_config = get_hooks_config()
 
+    # Check global install status
+    global_hooks_dir = Path.home() / ".gobby" / "hooks"
+    global_dispatcher = global_hooks_dir / "hook_dispatcher.py"
+    global_installed = global_dispatcher.exists()
+
+    # Check per-project disable status
+    project_json_path = Path.cwd() / ".gobby" / "project.json"
+    hooks_disabled = False
+    if project_json_path.exists():
+        try:
+            with open(project_json_path) as f:
+                project_config = json.load(f)
+            hooks_disabled = project_config.get("hooks_disabled", False)
+        except (json.JSONDecodeError, OSError) as e:
+            logger.debug(f"Failed to read project config {project_json_path}: {e}")
+
+    # Check env var
+    env_disabled = bool(os.environ.get("GOBBY_HOOKS_DISABLED"))
+
     if json_format:
         output = {
+            "global_installed": global_installed,
+            "hooks_disabled": hooks_disabled,
+            "env_disabled": env_disabled,
             "verification": verification_config.all_commands() if verification_config else {},
             "hooks": {
                 "pre-commit": (
@@ -282,6 +310,25 @@ def hooks_status(json_format: bool) -> None:
         }
         click.echo(json.dumps(output, indent=2))
         return
+
+    # Display global install status
+    click.echo("Global Hooks:")
+    if global_installed:
+        click.echo(f"  Installed: {global_hooks_dir}")
+    else:
+        click.echo("  Not installed (run 'gobby install')")
+
+    # Display per-project status
+    click.echo()
+    click.echo("Per-Project Status:")
+    if hooks_disabled:
+        click.echo("  Hooks: DISABLED (hooks_disabled in .gobby/project.json)")
+    elif env_disabled:
+        click.echo("  Hooks: DISABLED (GOBBY_HOOKS_DISABLED env var set)")
+    else:
+        click.echo("  Hooks: enabled")
+
+    click.echo()
 
     # Display verification commands
     click.echo("Verification Commands:")
@@ -319,6 +366,77 @@ def hooks_status(json_format: bool) -> None:
             click.echo(f"  {stage_name}: (no commands)")
 
 
+@hooks.command("disable")
+def hooks_disable() -> None:
+    """Disable hooks for the current project.
+
+    Sets hooks_disabled: true in .gobby/project.json. Global hooks
+    will pass through silently for this project.
+    """
+    from pathlib import Path
+
+    project_json_path = Path.cwd() / ".gobby" / "project.json"
+
+    if not project_json_path.exists():
+        click.echo("No .gobby/project.json found in current directory.", err=True)
+        click.echo("Run 'gobby init' first to initialize this project.")
+        sys.exit(1)
+
+    try:
+        with open(project_json_path) as f:
+            config = json.load(f)
+    except (json.JSONDecodeError, OSError) as e:
+        click.echo(f"Failed to read project.json: {e}", err=True)
+        sys.exit(1)
+
+    config["hooks_disabled"] = True
+
+    try:
+        with open(project_json_path, "w") as f:
+            json.dump(config, f, indent=2)
+    except OSError as e:
+        click.echo(f"Failed to write project.json: {e}", err=True)
+        sys.exit(1)
+
+    click.echo("Hooks disabled for this project.")
+    click.echo("Hooks will pass through silently until re-enabled.")
+
+
+@hooks.command("enable")
+def hooks_enable() -> None:
+    """Re-enable hooks for the current project.
+
+    Removes hooks_disabled from .gobby/project.json.
+    """
+    from pathlib import Path
+
+    project_json_path = Path.cwd() / ".gobby" / "project.json"
+
+    if not project_json_path.exists():
+        click.echo("No .gobby/project.json found in current directory.", err=True)
+        click.echo("Run 'gobby init' first to initialize this project.")
+        sys.exit(1)
+
+    try:
+        with open(project_json_path) as f:
+            config = json.load(f)
+    except (json.JSONDecodeError, OSError) as e:
+        click.echo(f"Failed to read project.json: {e}", err=True)
+        sys.exit(1)
+
+    if "hooks_disabled" in config:
+        del config["hooks_disabled"]
+
+    try:
+        with open(project_json_path, "w") as f:
+            json.dump(config, f, indent=2)
+    except OSError as e:
+        click.echo(f"Failed to write project.json: {e}", err=True)
+        sys.exit(1)
+
+    click.echo("Hooks re-enabled for this project.")
+
+
 # =============================================================================
 # Plugins Commands
 # =============================================================================
@@ -353,7 +471,7 @@ def plugins_list(ctx: click.Context, json_format: bool) -> None:
 
     if not enabled:
         click.echo("Plugin system is disabled in configuration.")
-        click.echo("Enable with: plugins.enabled: true in ~/.gobby/config.yaml")
+        click.echo("Enable with: gobby-config set plugins.enabled true")
         return
 
     if not plugins_list:
@@ -453,7 +571,7 @@ def webhooks_list(ctx: click.Context, json_format: bool) -> None:
     if not endpoints:
         click.echo("No webhook endpoints configured.")
         click.echo()
-        click.echo("Configure webhooks in ~/.gobby/config.yaml:")
+        click.echo("Configure webhooks via gobby-config MCP tools or the web UI:")
         click.echo("  hook_extensions:")
         click.echo("    webhooks:")
         click.echo("      endpoints:")

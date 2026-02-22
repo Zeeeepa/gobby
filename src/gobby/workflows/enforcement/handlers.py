@@ -114,6 +114,7 @@ async def handle_require_commit_before_stop(
         workflow_state=context.state,
         project_path=project_path,
         task_manager=task_manager,
+        messages=kwargs.get("messages"),
     )
 
 
@@ -133,6 +134,7 @@ async def handle_require_task_review_or_close_before_stop(
         workflow_state=context.state,
         task_manager=task_manager,
         project_id=project_id,
+        messages=kwargs.get("messages"),
     )
 
 
@@ -146,6 +148,7 @@ async def handle_validate_session_task_scope(
         task_manager=task_manager,
         workflow_state=context.state,
         event_data=context.event_data,
+        messages=kwargs.get("messages"),
     )
 
 
@@ -255,6 +258,7 @@ async def handle_require_task_complete(
         event_data=context.event_data,
         project_id=project_id,
         workflow_state=context.state,
+        messages=kwargs.get("messages"),
     )
 
 

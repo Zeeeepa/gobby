@@ -43,10 +43,14 @@ export function useTerminal() {
   const wsRef = useRef<WebSocket | null>(null)
   const reconnectTimeoutRef = useRef<number | null>(null)
   const outputCallbackRef = useRef<((runId: string, data: string) => void) | null>(null)
+  const agentFetchControllerRef = useRef<AbortController | null>(null)
 
   // Fetch running agents from the API and replace local state (reconciliation)
   const refreshAgents = useCallback(() => {
-    fetch('/api/agents/running')
+    agentFetchControllerRef.current?.abort()
+    const controller = new AbortController()
+    agentFetchControllerRef.current = controller
+    fetch('/api/agents/running', { signal: controller.signal })
       .then(r => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json() })
       .then(data => {
         if (data.agents) {
@@ -177,6 +181,7 @@ export function useTerminal() {
     connect()
 
     return () => {
+      agentFetchControllerRef.current?.abort()
       if (reconnectTimeoutRef.current) {
         clearTimeout(reconnectTimeoutRef.current)
       }

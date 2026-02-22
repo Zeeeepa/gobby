@@ -57,6 +57,7 @@ export interface TaskFilters {
   label: string | null
   parentTaskId: string | null
   search: string
+  projectId?: string | null
 }
 
 export interface TaskStats {
@@ -156,6 +157,7 @@ export function useTasks() {
       if (filters.label) params.set('label', filters.label)
       if (filters.parentTaskId) params.set('parent_task_id', filters.parentTaskId)
       if (filters.search) params.set('search', filters.search)
+      if (filters.projectId) params.set('project_id', filters.projectId)
 
       const response = await fetch(`${baseUrl}/tasks?${params}`)
       if (response.ok) {

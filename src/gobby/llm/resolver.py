@@ -204,7 +204,7 @@ def resolve_provider(
                 model=workflow_model if isinstance(workflow_model, str) else None,
             )
 
-    # 3. Check config.yaml llm_providers
+    # 3. Check llm_providers config
     if config and config.llm_providers:
         checked_levels.append("config")
         enabled = config.llm_providers.get_enabled_providers()

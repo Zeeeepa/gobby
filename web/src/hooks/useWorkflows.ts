@@ -14,6 +14,7 @@ export interface WorkflowSummary {
   project_id: string | null
   created_at: string
   updated_at: string
+  deleted_at: string | null
 }
 
 export interface WorkflowDetail extends WorkflowSummary {
@@ -35,6 +36,7 @@ export function useWorkflows() {
     workflow_type?: string
     enabled?: boolean
     project_id?: string
+    include_deleted?: boolean
   }) => {
     try {
       const baseUrl = getBaseUrl()
@@ -42,6 +44,7 @@ export function useWorkflows() {
       if (params?.workflow_type) searchParams.set('workflow_type', params.workflow_type)
       if (params?.enabled !== undefined) searchParams.set('enabled', String(params.enabled))
       if (params?.project_id) searchParams.set('project_id', params.project_id)
+      if (params?.include_deleted) searchParams.set('include_deleted', 'true')
       const query = searchParams.toString()
       const url = `${baseUrl}/api/workflows${query ? `?${query}` : ''}`
 
@@ -235,6 +238,25 @@ export function useWorkflows() {
     return null
   }, [])
 
+  const restoreWorkflow = useCallback(async (id: string): Promise<boolean> => {
+    try {
+      const baseUrl = getBaseUrl()
+      const response = await fetch(`${baseUrl}/api/workflows/${encodeURIComponent(id)}/restore`, {
+        method: 'POST',
+      })
+      if (response.ok) {
+        const data = await response.json()
+        if (data.status === 'success') {
+          await fetchWorkflows()
+          return true
+        }
+      }
+    } catch (e) {
+      console.error('Failed to restore workflow:', e)
+    }
+    return false
+  }, [fetchWorkflows])
+
   // Select a workflow and fetch its details
   const selectWorkflow = useCallback(async (id: string | null) => {
     setSelectedId(id)
@@ -282,6 +304,7 @@ export function useWorkflows() {
     toggleEnabled,
     importYaml,
     exportYaml,
+    restoreWorkflow,
     selectWorkflow,
   }
 }

@@ -199,6 +199,19 @@
   border-color: var(--text-muted);
 }
 
+.workflows-card--deleted {
+  opacity: 0.5;
+  border-style: dashed;
+}
+
+.workflows-card--deleted:hover {
+  opacity: 0.7;
+}
+
+.workflows-card-name--deleted {
+  text-decoration: line-through;
+}
+
 .workflows-card-header {
   display: flex;
   align-items: center;
@@ -333,6 +346,31 @@
 .workflows-action-btn:hover {
   background: var(--bg-tertiary);
   color: var(--text-primary);
+}
+
+.workflows-action-btn--restore {
+  color: #4ade80;
+  border-color: #166534;
+}
+
+.workflows-action-btn--restore:hover {
+  background: #1a3a2a;
+  color: #4ade80;
+  border-color: #22c55e;
+}
+
+.workflows-show-deleted {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+  color: var(--text-secondary);
+  cursor: pointer;
+  user-select: none;
+}
+
+.workflows-show-deleted input {
+  cursor: pointer;
 }
 
 .workflows-action-btn--danger:hover {

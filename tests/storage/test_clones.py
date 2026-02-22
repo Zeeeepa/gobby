@@ -463,3 +463,328 @@ class TestLocalCloneManagerStatusMethods:
         call_args = mock_db.execute.call_args
         params = call_args[0][1]
         assert "cleanup" in params
+
+    def test_record_sync(self, manager, mock_db) -> None:
+        """record_sync updates status to active and sets last_sync_at."""
+        mock_db.fetchone.return_value = {
+            "id": "clone-123",
+            "project_id": "proj-abc",
+            "branch_name": "feature/test",
+            "clone_path": "/tmp/clones/test",
+            "base_branch": "main",
+            "task_id": None,
+            "agent_session_id": None,
+            "status": "active",
+            "remote_url": None,
+            "last_sync_at": "2026-01-22T12:00:00+00:00",
+            "cleanup_after": None,
+            "created_at": "2026-01-22T00:00:00+00:00",
+            "updated_at": "2026-01-22T00:00:00+00:00",
+        }
+
+        result = manager.record_sync("clone-123")
+
+        assert result is not None
+        mock_db.execute.assert_called_once()
+        call_args = mock_db.execute.call_args
+        query = call_args[0][0]
+        assert "status = ?" in query
+        assert "last_sync_at = ?" in query
+
+    def test_claim(self, manager, mock_db) -> None:
+        """claim sets agent_session_id."""
+        mock_db.fetchone.return_value = {
+            "id": "clone-123",
+            "project_id": "proj-abc",
+            "branch_name": "feature/test",
+            "clone_path": "/tmp/clones/test",
+            "base_branch": "main",
+            "task_id": None,
+            "agent_session_id": "sess-1",
+            "status": "active",
+            "remote_url": None,
+            "last_sync_at": None,
+            "cleanup_after": None,
+            "created_at": "2026-01-22T00:00:00+00:00",
+            "updated_at": "2026-01-22T00:00:00+00:00",
+        }
+
+        result = manager.claim("clone-123", "sess-1")
+
+        assert result is not None
+        mock_db.execute.assert_called_once()
+        call_args = mock_db.execute.call_args
+        query = call_args[0][0]
+        assert "agent_session_id = ?" in query
+
+    def test_release(self, manager, mock_db) -> None:
+        """release clears agent_session_id."""
+        mock_db.fetchone.return_value = {
+            "id": "clone-123",
+            "project_id": "proj-abc",
+            "branch_name": "feature/test",
+            "clone_path": "/tmp/clones/test",
+            "base_branch": "main",
+            "task_id": None,
+            "agent_session_id": None,
+            "status": "active",
+            "remote_url": None,
+            "last_sync_at": None,
+            "cleanup_after": None,
+            "created_at": "2026-01-22T00:00:00+00:00",
+            "updated_at": "2026-01-22T00:00:00+00:00",
+        }
+
+        result = manager.release("clone-123")
+
+        assert result is not None
+        mock_db.execute.assert_called_once()
+        call_args = mock_db.execute.call_args
+        params = call_args[0][1]
+        # None should be in the params (clearing agent_session_id)
+        assert None in params
+
+
+class TestLocalCloneManagerCountByStatus:
+    """Tests for LocalCloneManager.count_by_status method."""
+
+    @pytest.fixture
+    def mock_db(self):
+        """Create mock database."""
+        return MagicMock()
+
+    @pytest.fixture
+    def manager(self, mock_db):
+        """Create manager with mock database."""
+        return LocalCloneManager(db=mock_db)
+
+    def test_count_by_status(self, manager, mock_db) -> None:
+        """count_by_status returns counts grouped by status."""
+        mock_db.fetchall.return_value = [
+            {"status": "active", "count": 3},
+            {"status": "stale", "count": 1},
+            {"status": "syncing", "count": 2},
+        ]
+
+        result = manager.count_by_status("proj-abc")
+
+        assert result == {"active": 3, "stale": 1, "syncing": 2}
+        mock_db.fetchall.assert_called_once()
+        call_args = mock_db.fetchall.call_args
+        query = call_args[0][0]
+        assert "GROUP BY status" in query
+        params = call_args[0][1]
+        assert params == ("proj-abc",)
+
+    def test_count_by_status_empty(self, manager, mock_db) -> None:
+        """count_by_status returns empty dict when no clones."""
+        mock_db.fetchall.return_value = []
+
+        result = manager.count_by_status("proj-abc")
+
+        assert result == {}
+
+
+class TestLocalCloneManagerFindStale:
+    """Tests for LocalCloneManager.find_stale method."""
+
+    @pytest.fixture
+    def mock_db(self):
+        """Create mock database."""
+        return MagicMock()
+
+    @pytest.fixture
+    def manager(self, mock_db):
+        """Create manager with mock database."""
+        return LocalCloneManager(db=mock_db)
+
+    def test_find_stale_returns_clones(self, manager, mock_db) -> None:
+        """find_stale returns stale clones."""
+        mock_db.fetchall.return_value = [
+            {
+                "id": "clone-1",
+                "project_id": "proj-abc",
+                "branch_name": "old-feature",
+                "clone_path": "/tmp/clones/old",
+                "base_branch": "main",
+                "task_id": None,
+                "agent_session_id": None,
+                "status": "active",
+                "remote_url": None,
+                "last_sync_at": None,
+                "cleanup_after": None,
+                "created_at": "2026-01-20T00:00:00+00:00",
+                "updated_at": "2026-01-20T00:00:00+00:00",
+            },
+        ]
+
+        result = manager.find_stale("proj-abc", hours=24)
+
+        assert len(result) == 1
+        assert result[0].id == "clone-1"
+        mock_db.fetchall.assert_called_once()
+        call_args = mock_db.fetchall.call_args
+        query = call_args[0][0]
+        assert "project_id = ?" in query
+        assert "status = ?" in query
+        assert "agent_session_id IS NULL" in query
+        assert "updated_at < ?" in query
+        assert "LIMIT ?" in query
+
+    def test_find_stale_empty(self, manager, mock_db) -> None:
+        """find_stale returns empty list when no stale clones."""
+        mock_db.fetchall.return_value = []
+
+        result = manager.find_stale("proj-abc", hours=48, limit=10)
+
+        assert result == []
+
+    def test_find_stale_custom_params(self, manager, mock_db) -> None:
+        """find_stale passes custom hours and limit."""
+        mock_db.fetchall.return_value = []
+
+        manager.find_stale("proj-abc", hours=72, limit=5)
+
+        call_args = mock_db.fetchall.call_args
+        params = call_args[0][1]
+        # params: (project_id, status, cutoff, limit)
+        assert params[0] == "proj-abc"
+        assert params[1] == "active"
+        # cutoff is an ISO timestamp (3rd param)
+        assert params[3] == 5
+
+
+class TestLocalCloneManagerCleanupStale:
+    """Tests for LocalCloneManager.cleanup_stale method."""
+
+    @pytest.fixture
+    def mock_db(self):
+        """Create mock database."""
+        return MagicMock()
+
+    @pytest.fixture
+    def manager(self, mock_db):
+        """Create manager with mock database."""
+        return LocalCloneManager(db=mock_db)
+
+    def test_cleanup_stale_dry_run(self, manager, mock_db) -> None:
+        """cleanup_stale in dry_run returns stale clones without updating."""
+        mock_db.fetchall.return_value = [
+            {
+                "id": "clone-1",
+                "project_id": "proj-abc",
+                "branch_name": "old-feature",
+                "clone_path": "/tmp/clones/old",
+                "base_branch": "main",
+                "task_id": None,
+                "agent_session_id": None,
+                "status": "active",
+                "remote_url": None,
+                "last_sync_at": None,
+                "cleanup_after": None,
+                "created_at": "2026-01-20T00:00:00+00:00",
+                "updated_at": "2026-01-20T00:00:00+00:00",
+            },
+        ]
+
+        result = manager.cleanup_stale("proj-abc", hours=24, dry_run=True)
+
+        assert len(result) == 1
+        assert result[0].id == "clone-1"
+        # In dry_run, only fetchall is called (from find_stale), no execute for updates
+        mock_db.execute.assert_not_called()
+
+    def test_cleanup_stale_actual(self, manager, mock_db) -> None:
+        """cleanup_stale marks clones as stale when dry_run=False."""
+        # find_stale fetchall
+        mock_db.fetchall.return_value = [
+            {
+                "id": "clone-1",
+                "project_id": "proj-abc",
+                "branch_name": "old-feature",
+                "clone_path": "/tmp/clones/old",
+                "base_branch": "main",
+                "task_id": None,
+                "agent_session_id": None,
+                "status": "active",
+                "remote_url": None,
+                "last_sync_at": None,
+                "cleanup_after": None,
+                "created_at": "2026-01-20T00:00:00+00:00",
+                "updated_at": "2026-01-20T00:00:00+00:00",
+            },
+        ]
+        # mark_stale -> update -> get (fetchone for the updated clone)
+        mock_db.fetchone.return_value = {
+            "id": "clone-1",
+            "project_id": "proj-abc",
+            "branch_name": "old-feature",
+            "clone_path": "/tmp/clones/old",
+            "base_branch": "main",
+            "task_id": None,
+            "agent_session_id": None,
+            "status": "stale",
+            "remote_url": None,
+            "last_sync_at": None,
+            "cleanup_after": None,
+            "created_at": "2026-01-20T00:00:00+00:00",
+            "updated_at": "2026-01-22T00:00:00+00:00",
+        }
+
+        result = manager.cleanup_stale("proj-abc", hours=24, dry_run=False)
+
+        assert len(result) == 1
+        assert result[0].status == "stale"
+        # execute was called (from mark_stale -> update)
+        mock_db.execute.assert_called()
+
+    def test_cleanup_stale_empty(self, manager, mock_db) -> None:
+        """cleanup_stale returns empty list when no stale clones."""
+        mock_db.fetchall.return_value = []
+
+        result = manager.cleanup_stale("proj-abc", hours=24, dry_run=False)
+
+        assert result == []
+        mock_db.execute.assert_not_called()
+
+
+class TestLocalCloneManagerUpdateValidation:
+    """Tests for LocalCloneManager.update field validation."""
+
+    @pytest.fixture
+    def mock_db(self):
+        """Create mock database."""
+        return MagicMock()
+
+    @pytest.fixture
+    def manager(self, mock_db):
+        """Create manager with mock database."""
+        return LocalCloneManager(db=mock_db)
+
+    def test_update_no_fields(self, manager, mock_db) -> None:
+        """Update with no fields returns existing clone."""
+        mock_db.fetchone.return_value = {
+            "id": "clone-123",
+            "project_id": "proj-abc",
+            "branch_name": "feature/test",
+            "clone_path": "/tmp/clones/test",
+            "base_branch": "main",
+            "task_id": None,
+            "agent_session_id": None,
+            "status": "active",
+            "remote_url": None,
+            "last_sync_at": None,
+            "cleanup_after": None,
+            "created_at": "2026-01-22T00:00:00+00:00",
+            "updated_at": "2026-01-22T00:00:00+00:00",
+        }
+
+        result = manager.update("clone-123")
+
+        assert result is not None
+        mock_db.execute.assert_not_called()
+
+    def test_update_invalid_field_raises(self, manager) -> None:
+        """Update with invalid field name raises ValueError."""
+        with pytest.raises(ValueError, match="Invalid field names"):
+            manager.update("clone-123", invalid_field="value")

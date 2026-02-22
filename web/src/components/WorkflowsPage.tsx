@@ -1,11 +1,9 @@
-import { useState, useCallback, useMemo } from 'react'
+import { useState, useCallback, useMemo, useEffect } from 'react'
 import * as yaml from 'js-yaml'
 import { useWorkflows } from '../hooks/useWorkflows'
 import type { WorkflowDetail } from '../hooks/useWorkflows'
-import { WorkflowBuilder, type WorkflowSettings, type WorkflowVariable, type WorkflowRule } from './WorkflowBuilder'
-import { definitionToFlow, flowToDefinition, type FlowNode } from './workflowSerialization'
+import { PipelineEditor } from './PipelineEditor'
 import { CodeMirrorEditor } from './CodeMirrorEditor'
-import type { Node, Edge } from '@xyflow/react'
 import './WorkflowsPage.css'
 
 type OverviewFilter = 'total' | 'workflows' | 'pipelines' | 'active' | null
@@ -50,6 +48,7 @@ export function WorkflowsPage() {
     toggleEnabled,
     importYaml,
     exportYaml,
+    restoreWorkflow,
   } = useWorkflows()
 
   const [searchText, setSearchText] = useState('')
@@ -64,6 +63,7 @@ export function WorkflowsPage() {
   const [yamlEditorWf, setYamlEditorWf] = useState<WorkflowDetail | null>(null)
   const [yamlContent, setYamlContent] = useState('')
   const [yamlLoading, setYamlLoading] = useState(false)
+  const [showDeleted, setShowDeleted] = useState(false)
 
   // Unique sources for filter chips
   const sources = useMemo(() => {
@@ -113,10 +113,27 @@ export function WorkflowsPage() {
     return result
   }, [workflows, overviewFilter, typeFilter, sourceFilter, enabledFilter, searchText])
 
+  // Re-fetch when showDeleted changes
+  useEffect(() => {
+    fetchWorkflows({ include_deleted: showDeleted })
+  }, [fetchWorkflows, showDeleted])
+
   const handleDelete = useCallback(async (wf: WorkflowDetail) => {
     if (!window.confirm(`Delete "${wf.name}"?`)) return
-    await deleteWorkflow(wf.id)
-  }, [deleteWorkflow])
+    try {
+      await deleteWorkflow(wf.id)
+    } finally {
+      fetchWorkflows({ include_deleted: showDeleted })
+    }
+  }, [deleteWorkflow, fetchWorkflows, showDeleted])
+
+  const handleRestore = useCallback(async (wf: WorkflowDetail) => {
+    try {
+      await restoreWorkflow(wf.id)
+    } finally {
+      fetchWorkflows({ include_deleted: showDeleted })
+    }
+  }, [restoreWorkflow, fetchWorkflows, showDeleted])
 
   const handleDuplicate = useCallback(async (wf: WorkflowDetail) => {
     const newName = window.prompt('New name:', `${wf.name}-copy`)
@@ -188,132 +205,13 @@ export function WorkflowsPage() {
     }
   }, [])
 
-  const handleSave = useCallback(async (nodes: Node[], edges: Edge[], name: string) => {
-    if (!editingWorkflow) return
-    const isPipeline = editingWorkflow.workflow_type === 'pipeline'
-    const { definition, canvasJson } = flowToDefinition(nodes as FlowNode[], edges, isPipeline)
-    // Merge non-canvas fields from original definition
-    try {
-      const origDef = JSON.parse(editingWorkflow.definition_json)
-      // Preserve top-level fields not managed by the canvas
-      for (const key of ['name', 'description', 'version', 'type', 'enabled', 'priority', 'sources', 'settings', 'variables', 'session_variables', 'imports', 'inputs', 'outputs', 'webhooks', 'expose_as_tool']) {
-        if (key in origDef && !(key in definition)) {
-          definition[key] = origDef[key]
-        }
-      }
-    } catch {
-      // ignore parse errors
-    }
-    definition.name = name
-    await updateWorkflow(editingWorkflow.id, {
-      name,
-      definition_json: JSON.stringify(definition),
-      canvas_json: canvasJson,
-    })
-    // Update local editing state with new data
-    setEditingWorkflow((prev) => prev ? {
-      ...prev,
-      name,
-      definition_json: JSON.stringify(definition),
-      canvas_json: canvasJson,
-    } : null)
-  }, [editingWorkflow, updateWorkflow])
-
-  const handleSettingsSave = useCallback(async (settings: WorkflowSettings) => {
-    if (!editingWorkflow) return
-    // Update definition_json with variables, rules, exit_condition
-    let defJson = editingWorkflow.definition_json
-    try {
-      const def = JSON.parse(defJson)
-      // Variables -> object
-      if (settings.variables.length > 0) {
-        const vars: Record<string, string> = {}
-        for (const v of settings.variables) vars[v.key] = v.value
-        def.variables = vars
-      } else {
-        delete def.variables
-      }
-      // Rules
-      if (settings.rules.length > 0) {
-        def.rules = settings.rules.map((r) => ({
-          name: r.name,
-          when: r.when,
-          action: r.action,
-          message: r.message || undefined,
-        }))
-      } else {
-        delete def.rules
-      }
-      // Exit condition
-      if (settings.exitCondition) {
-        def.exit_condition = settings.exitCondition
-      } else {
-        delete def.exit_condition
-      }
-      defJson = JSON.stringify(def)
-    } catch {
-      // ignore parse errors
-    }
-    await updateWorkflow(editingWorkflow.id, {
-      name: settings.name,
-      description: settings.description,
-      enabled: settings.enabled,
-      sources: settings.sources,
-      definition_json: defJson,
-    })
-    setEditingWorkflow((prev) => prev ? {
-      ...prev,
-      name: settings.name,
-      description: settings.description,
-      enabled: settings.enabled,
-      priority: settings.priority,
-      sources: settings.sources,
-      definition_json: defJson,
-    } : null)
-  }, [editingWorkflow, updateWorkflow])
-
   if (editingWorkflow) {
-    const wfType = (editingWorkflow.workflow_type as 'workflow' | 'pipeline') || 'workflow'
-    let initDef: Record<string, unknown> = {}
-    try {
-      initDef = JSON.parse(editingWorkflow.definition_json)
-    } catch {
-      // empty def fallback
-    }
-    const { nodes: initNodes, edges: initEdges } = definitionToFlow(initDef, editingWorkflow.canvas_json)
-
-    // Extract variables, rules, exit_condition from definition
-    const defVariables: WorkflowVariable[] = initDef.variables
-      ? Object.entries(initDef.variables as Record<string, string>).map(([key, value]) => ({ key, value: String(value) }))
-      : []
-    const defRules: WorkflowRule[] = Array.isArray(initDef.rules)
-      ? (initDef.rules as Record<string, unknown>[]).map((r) => ({
-          name: (r.name as string) ?? '',
-          when: (r.when as string) ?? '',
-          action: (r.action as string) ?? 'block',
-          message: (r.message as string) ?? '',
-        }))
-      : []
-    const defExitCondition = (initDef.exit_condition as string) ?? ''
-
     return (
-      <WorkflowBuilder
-        workflowId={editingWorkflow.id}
-        workflowName={editingWorkflow.name}
-        workflowType={wfType}
-        description={editingWorkflow.description ?? ''}
-        enabled={editingWorkflow.enabled}
-        priority={editingWorkflow.priority}
-        sources={editingWorkflow.sources}
-        variables={defVariables}
-        rules={defRules}
-        exitCondition={defExitCondition}
-        initialNodes={initNodes}
-        initialEdges={initEdges}
+      <PipelineEditor
+        pipeline={editingWorkflow}
         onBack={() => { setEditingWorkflow(null); fetchWorkflows() }}
-        onSave={handleSave}
+        updateWorkflow={updateWorkflow}
         onExport={() => handleExport(editingWorkflow)}
-        onSettingsSave={handleSettingsSave}
       />
     )
   }
@@ -334,10 +232,18 @@ export function WorkflowsPage() {
             value={searchText}
             onChange={e => setSearchText(e.target.value)}
           />
+          <label className="workflows-show-deleted">
+            <input
+              type="checkbox"
+              checked={showDeleted}
+              onChange={e => setShowDeleted(e.target.checked)}
+            />
+            Show deleted
+          </label>
           <button
             type="button"
             className="workflows-toolbar-btn"
-            onClick={() => fetchWorkflows()}
+            onClick={() => fetchWorkflows({ include_deleted: showDeleted })}
             title="Refresh"
             disabled={isLoading}
           >
@@ -457,9 +363,9 @@ export function WorkflowsPage() {
         ) : (
           <div className="workflows-grid">
             {filteredWorkflows.map(wf => (
-              <div className="workflows-card" key={wf.id}>
+              <div className={`workflows-card${wf.deleted_at ? ' workflows-card--deleted' : ''}`} key={wf.id}>
                 <div className="workflows-card-header">
-                  <span className="workflows-card-name">{wf.name}</span>
+                  <span className={`workflows-card-name${wf.deleted_at ? ' workflows-card-name--deleted' : ''}`}>{wf.name}</span>
                   <span className={`workflows-card-type workflows-card-type--${wf.workflow_type}`}>
                     {wf.workflow_type}
                   </span>
@@ -486,69 +392,86 @@ export function WorkflowsPage() {
                 </div>
 
                 <div className="workflows-card-footer">
-                  <div
-                    className="workflows-toggle"
-                    onClick={() => toggleEnabled(wf.id)}
-                  >
-                    <div className={`workflows-toggle-track ${wf.enabled ? 'workflows-toggle-track--on' : ''}`}>
-                      <div className="workflows-toggle-knob" />
+                  {wf.deleted_at ? (
+                    <div className="workflows-card-actions">
+                      <button
+                        type="button"
+                        className="workflows-action-btn workflows-action-btn--restore"
+                        onClick={() => handleRestore(wf)}
+                        title="Restore this workflow"
+                      >
+                        Restore
+                      </button>
                     </div>
-                    <span>{wf.enabled ? 'On' : 'Off'}</span>
-                  </div>
+                  ) : (
+                    <>
+                      <div
+                        className="workflows-toggle"
+                        onClick={() => toggleEnabled(wf.id)}
+                      >
+                        <div className={`workflows-toggle-track ${wf.enabled ? 'workflows-toggle-track--on' : ''}`}>
+                          <div className="workflows-toggle-knob" />
+                        </div>
+                        <span>{wf.enabled ? 'On' : 'Off'}</span>
+                      </div>
 
-                  <div className="workflows-card-actions">
-                    <button
-                      type="button"
-                      className="workflows-action-btn"
-                      onClick={() => handleYamlEdit(wf)}
-                      title="Edit as YAML"
-                    >
-                      YAML
-                    </button>
-                    <button
-                      type="button"
-                      className="workflows-action-btn"
-                      onClick={() => setEditingWorkflow(wf)}
-                      title="Edit in visual builder"
-                    >
-                      Builder
-                    </button>
-                    <button
-                      type="button"
-                      className="workflows-action-icon"
-                      onClick={() => handleDuplicate(wf)}
-                      title="Duplicate"
-                      aria-label="Duplicate workflow"
-                    >
-                      <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-                        <rect x="5.5" y="5.5" width="9" height="9" rx="1.5" />
-                        <path d="M10.5 5.5V2.5a1 1 0 0 0-1-1h-7a1 1 0 0 0-1 1v7a1 1 0 0 0 1 1h3" />
-                      </svg>
-                    </button>
-                    <button
-                      type="button"
-                      className="workflows-action-icon"
-                      onClick={() => handleExport(wf)}
-                      title="Download YAML"
-                      aria-label="Download workflow as YAML"
-                    >
-                      <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-                        <path d="M8 2v9m0 0L5 8m3 3 3-3M2.5 12.5v1a1 1 0 0 0 1 1h9a1 1 0 0 0 1-1v-1" />
-                      </svg>
-                    </button>
-                    <button
-                      type="button"
-                      className="workflows-action-icon workflows-action-icon--danger"
-                      onClick={() => handleDelete(wf)}
-                      title="Delete"
-                      aria-label="Delete workflow"
-                    >
-                      <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-                        <path d="M2.5 4.5h11M5.5 4.5V3a1 1 0 0 1 1-1h3a1 1 0 0 1 1 1v1.5M6.5 7v4.5M9.5 7v4.5" />
-                        <path d="M3.5 4.5 4 13a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1l.5-8.5" />
-                      </svg>
-                    </button>
-                  </div>
+                      <div className="workflows-card-actions">
+                        <button
+                          type="button"
+                          className="workflows-action-btn"
+                          onClick={() => handleYamlEdit(wf)}
+                          title="Edit as YAML"
+                        >
+                          YAML
+                        </button>
+                        {wf.workflow_type === 'pipeline' && (
+                          <button
+                            type="button"
+                            className="workflows-action-btn"
+                            onClick={() => setEditingWorkflow(wf)}
+                            title="Edit pipeline steps"
+                          >
+                            Edit
+                          </button>
+                        )}
+                        <button
+                          type="button"
+                          className="workflows-action-icon"
+                          onClick={() => handleDuplicate(wf)}
+                          title="Duplicate"
+                          aria-label="Duplicate workflow"
+                        >
+                          <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                            <rect x="5.5" y="5.5" width="9" height="9" rx="1.5" />
+                            <path d="M10.5 5.5V2.5a1 1 0 0 0-1-1h-7a1 1 0 0 0-1 1v7a1 1 0 0 0 1 1h3" />
+                          </svg>
+                        </button>
+                        <button
+                          type="button"
+                          className="workflows-action-icon"
+                          onClick={() => handleExport(wf)}
+                          title="Download YAML"
+                          aria-label="Download workflow as YAML"
+                        >
+                          <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                            <path d="M8 2v9m0 0L5 8m3 3 3-3M2.5 12.5v1a1 1 0 0 0 1 1h9a1 1 0 0 0 1-1v-1" />
+                          </svg>
+                        </button>
+                        <button
+                          type="button"
+                          className="workflows-action-icon workflows-action-icon--danger"
+                          onClick={() => handleDelete(wf)}
+                          title="Delete"
+                          aria-label="Delete workflow"
+                        >
+                          <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                            <path d="M2.5 4.5h11M5.5 4.5V3a1 1 0 0 1 1-1h3a1 1 0 0 1 1 1v1.5M6.5 7v4.5M9.5 7v4.5" />
+                            <path d="M3.5 4.5 4 13a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1l.5-8.5" />
+                          </svg>
+                        </button>
+                      </div>
+                    </>
+                  )}
                 </div>
               </div>
             ))}

@@ -319,6 +319,20 @@ class LocalSessionManager:
         )
         return self.get(session_id)
 
+    def update_digest_markdown(self, session_id: str, digest_markdown: str) -> Session | None:
+        """Update session rolling digest markdown."""
+        now = datetime.now(UTC).isoformat()
+        self.db.execute(
+            """
+            UPDATE sessions
+            SET digest_markdown = ?,
+                updated_at = ?
+            WHERE id = ?
+            """,
+            (digest_markdown, now, session_id),
+        )
+        return self.get(session_id)
+
     def update_compact_markdown(self, session_id: str, compact_markdown: str) -> Session | None:
         """Update session compact handoff markdown."""
         now = datetime.now(UTC).isoformat()
@@ -585,6 +599,7 @@ class LocalSessionManager:
         cache_creation_tokens: int,
         cache_read_tokens: int,
         total_cost_usd: float,
+        context_window: int | None = None,
     ) -> bool:
         """Update session usage statistics."""
         query = """
@@ -595,6 +610,7 @@ class LocalSessionManager:
             usage_cache_creation_tokens = ?,
             usage_cache_read_tokens = ?,
             usage_total_cost_usd = ?,
+            context_window = COALESCE(?, context_window),
             updated_at = datetime('now')
         WHERE id = ?
         """
@@ -608,6 +624,7 @@ class LocalSessionManager:
                         cache_creation_tokens,
                         cache_read_tokens,
                         total_cost_usd,
+                        context_window,
                         session_id,
                     ),
                 )

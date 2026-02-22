@@ -1,1 +1,0 @@
-/Users/josh/Projects/gobby/src/gobby/install/gemini/hooks/hook_dispatcher.py

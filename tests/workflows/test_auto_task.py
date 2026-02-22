@@ -8,7 +8,6 @@ Tests:
 4. Workflow loading and structure
 """
 
-from pathlib import Path
 from unittest.mock import MagicMock
 
 import pytest
@@ -53,13 +52,77 @@ class TestTaskTreeComplete:
         mock_task_manager.get_task.return_value = None
         assert task_tree_complete(mock_task_manager, "gt-missing") is False
 
-    def test_returns_false_when_task_not_closed(self, mock_task_manager) -> None:
-        """Returns False when main task is not closed."""
+    def test_returns_false_when_leaf_task_not_closed(self, mock_task_manager) -> None:
+        """Returns False when a leaf task (no subtasks) is not closed."""
         mock_task = MagicMock()
         mock_task.status = "in_progress"
         mock_task_manager.get_task.return_value = mock_task
+        mock_task_manager.list_tasks.return_value = []  # Leaf task
 
         assert task_tree_complete(mock_task_manager, "gt-abc123") is False
+
+    def test_returns_true_when_parent_in_progress_but_all_subtasks_closed(
+        self, mock_task_manager
+    ) -> None:
+        """Returns True when parent is in_progress but all subtasks are closed.
+
+        This is the core regression test for #8800: the auto-task workflow's
+        task_tree_complete() condition must fire when a parent/epic task has all
+        subtasks closed, even if the parent itself isn't explicitly closed yet.
+        """
+        parent_task = MagicMock()
+        parent_task.status = "in_progress"
+
+        subtask1 = MagicMock()
+        subtask1.id = "gt-sub1"
+        subtask1.status = "closed"
+
+        subtask2 = MagicMock()
+        subtask2.id = "gt-sub2"
+        subtask2.status = "closed"
+
+        def get_task_side_effect(task_id):
+            tasks = {"gt-parent": parent_task, "gt-sub1": subtask1, "gt-sub2": subtask2}
+            return tasks.get(task_id)
+
+        def list_tasks_side_effect(parent_task_id=None):
+            if parent_task_id == "gt-parent":
+                return [subtask1, subtask2]
+            return []
+
+        mock_task_manager.get_task.side_effect = get_task_side_effect
+        mock_task_manager.list_tasks.side_effect = list_tasks_side_effect
+
+        assert task_tree_complete(mock_task_manager, "gt-parent") is True
+
+    def test_returns_false_when_parent_in_progress_with_incomplete_subtask(
+        self, mock_task_manager
+    ) -> None:
+        """Returns False when parent is in_progress and some subtasks are still open."""
+        parent_task = MagicMock()
+        parent_task.status = "in_progress"
+
+        subtask1 = MagicMock()
+        subtask1.id = "gt-sub1"
+        subtask1.status = "closed"
+
+        subtask2 = MagicMock()
+        subtask2.id = "gt-sub2"
+        subtask2.status = "open"
+
+        def get_task_side_effect(task_id):
+            tasks = {"gt-parent": parent_task, "gt-sub1": subtask1, "gt-sub2": subtask2}
+            return tasks.get(task_id)
+
+        def list_tasks_side_effect(parent_task_id=None):
+            if parent_task_id == "gt-parent":
+                return [subtask1, subtask2]
+            return []
+
+        mock_task_manager.get_task.side_effect = get_task_side_effect
+        mock_task_manager.list_tasks.side_effect = list_tasks_side_effect
+
+        assert task_tree_complete(mock_task_manager, "gt-parent") is False
 
     def test_returns_true_when_task_closed_no_subtasks(self, mock_task_manager) -> None:
         """Returns True when task is closed and has no subtasks."""
@@ -72,9 +135,8 @@ class TestTaskTreeComplete:
 
     def test_returns_false_when_subtask_not_closed(self, mock_task_manager) -> None:
         """Returns False when any subtask is not closed."""
-        mock_task = MagicMock()
-        mock_task.status = "closed"
-        mock_task_manager.get_task.return_value = mock_task
+        parent_task = MagicMock()
+        parent_task.status = "closed"
 
         # One closed, one open subtask
         subtask1 = MagicMock()
@@ -84,6 +146,12 @@ class TestTaskTreeComplete:
         subtask2 = MagicMock()
         subtask2.id = "gt-sub2"
         subtask2.status = "open"
+
+        def get_task_side_effect(task_id):
+            tasks = {"gt-abc123": parent_task, "gt-sub1": subtask1, "gt-sub2": subtask2}
+            return tasks.get(task_id)
+
+        mock_task_manager.get_task.side_effect = get_task_side_effect
 
         # Return subtasks only for parent, empty for subtasks (to prevent recursion)
         def list_tasks_side_effect(parent_task_id=None):

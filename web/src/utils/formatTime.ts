@@ -27,11 +27,14 @@ export function formatRelativeTime(dateStr: string): string {
   return new Date(dateStr).toLocaleDateString()
 }
 
+/** Sentinel returned by formatDuration when dates are invalid. */
+export const DURATION_INVALID = '\u2014'
+
 export function formatDuration(startStr: string, endStr?: string): string {
   const start = new Date(startStr).getTime()
-  if (isNaN(start)) return '\u2014'
+  if (isNaN(start)) return DURATION_INVALID
   const end = endStr ? new Date(endStr).getTime() : Date.now()
-  if (isNaN(end)) return '\u2014'
+  if (isNaN(end)) return DURATION_INVALID
   const diffMs = end - start
   if (diffMs < 0) return '<1m'
   const mins = Math.floor(diffMs / 60000)

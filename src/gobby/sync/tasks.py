@@ -287,6 +287,15 @@ class TaskSyncManager:
             # Phase 1: Import Tasks (Upsert)
             pending_deps: list[tuple[str, str]] = []
 
+            # Bulk-load existing task metadata in one query to avoid per-task SELECTs
+            existing_tasks: dict[str, dict[str, Any]] = {}
+            for row in self.db.fetchall("SELECT id, updated_at, seq_num, path_cache FROM tasks"):
+                existing_tasks[row["id"]] = {
+                    "updated_at": row["updated_at"],
+                    "seq_num": row["seq_num"],
+                    "path_cache": row["path_cache"],
+                }
+
             # Temporarily disable foreign keys to allow inserting child tasks
             # before their parents (JSONL order may not be parent-first)
             self.db.execute("PRAGMA foreign_keys = OFF")
@@ -315,11 +324,8 @@ class TaskSyncManager:
                             skipped_count += 1
                             continue
 
-                        # Check if task exists (also fetch seq_num/path_cache to preserve)
-                        existing_row = self.db.fetchone(
-                            "SELECT updated_at, seq_num, path_cache FROM tasks WHERE id = ?",
-                            (task_id,),
-                        )
+                        # Check against bulk-loaded existing task data
+                        existing_row = existing_tasks.get(task_id)
 
                         should_update = False
                         existing_seq_num = None

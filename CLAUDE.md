@@ -12,13 +12,17 @@ These are enforced by hooks and workflows.
 4. **Claim before you work.** You must claim a task to work it.
 5. **No commits without validation.** If work is done, validation must run.
 6. **No closing without commits.** If your session has diffs, commit before closing.
-7. **No stopping until done.** Task must be closed or marked needs_review before stopping.
-8. **Triage what you find.** Create tasks for unrelated errors or issues you discover.
+7. **No stopping until done.** Task must be closed before stopping. If you claim a task, you close a task.
+8. **Embrace your autonomy.** Only mark tasks with the needs_review if you genuinely need the user to review your work. Do not use it as a workaround to not committing/closing. Escalate to the user if you are genuinely stuck or need guidance.
+9. **Triage what you find.** Create bug tasks for unrelated errors or issues you discover WHEN YOU ENCOUNTER THEM, then continue with your current task. Every error is your error, even if you didn't cause it.
+10. **Use gobby-memory often** You have access to a sophisticated memory system via gobby-memory through the MCP proxy. Use it to store and retrieve facts about the codebase, design decisions, and other relevant information.
+11. **No sycophantic behavior.** Do not agree with the user just for the sake of agreement. If you disagree with the user, voice your concerns and provide alternative solutions.
+12. **We don't leave options in plans.** Plans are for execution, not exploration. If there are unanswered questions or ideas that need to be explored, explore them before finalizing the plan.
 
 ## Progressive Tool Disclosure Enforced by Hooks
 
 Gobby uses an MCP proxy with progressive disclosure. This means that you can't just call any tool you want.
-Each step (list_mcp_servers, list_tools, get_tool_schema, call_tool) is a separate top-level tool (e.g., mcp__gobby__list_mcp_servers). 
+Each step (list_mcp_servers, list_tools, get_tool_schema, call_tool) is a separate top-level tool (e.g., mcp__gobby__list_mcp_servers).
 Load each via ToolSearch before first use.
 Do NOT try to call one step through another (e.g., don't use call_tool to invoke get_tool_schema).
 
@@ -44,6 +48,8 @@ Gobby is a local-first daemon that unifies AI coding assistants (Claude Code, Ge
 
 ## Development Commands
 
+# IMPORTANT: Use uv for all Python operations. This includes running tests, formatting, linting, and installing dependencies
+
 ```bash
 # Environment setup
 uv sync                          # Install dependencies (Python 3.13+)
@@ -66,6 +72,7 @@ uv run mypy src/                 # Type check
 # Testing (full suite runs pre-push - only run specific tests)
 uv run pytest tests/test_file.py -v    # Run specific test file
 uv run pytest tests/storage/ -v        # Run specific module
+uv run pytest tests/path/ --cov=gobby --cov-report=term-missing  # Add coverage to any run
 
 # Pipeline management
 uv run gobby pipelines list            # List available pipelines
@@ -77,7 +84,7 @@ uv run gobby pipelines reject <token>  # Reject waiting pipeline
 uv run gobby pipelines import <file>   # Import Lobster file
 ```
 
-**Coverage threshold**: 80% (enforced in CI)
+**Coverage threshold**: 80% (enforced in CI and pre-push)
 
 **Test markers**: `unit`, `slow`, `integration`, `e2e`
 
@@ -163,7 +170,7 @@ src/gobby/
 
 | Path | Purpose |
 | --- | --- |
-| `~/.gobby/config.yaml` | Daemon configuration |
+| `~/.gobby/bootstrap.yaml` | Pre-DB bootstrap settings (5 fields: ports, db_path, bind_host) |
 | `~/.gobby/gobby-hub.db` | SQLite database |
 | `~/.gobby/logs/` | Log files |
 | `.gobby/project.json` | Project metadata |

@@ -1,4 +1,4 @@
-import { useState, useMemo, useCallback } from 'react'
+import { useState, useMemo, useCallback, useEffect } from 'react'
 import { useTasks } from '../hooks/useTasks'
 import type { GobbyTask, GobbyTaskDetail } from '../hooks/useTasks'
 import { StatusDot, PriorityBadge, TypeBadge } from './tasks/TaskBadges'
@@ -205,12 +205,12 @@ interface TasksPageProps {
 }
 
 export function TasksPage({ projectFilter }: TasksPageProps = {}) {
-  const { tasks: allTasks, total, isLoading, filters, setFilters, refreshTasks, getTask, createTask, updateTask, closeTask, reopenTask, getDependencies, getSubtasks } = useTasks()
+  const { tasks, total, isLoading, filters, setFilters, refreshTasks, getTask, createTask, updateTask, closeTask, reopenTask, getDependencies, getSubtasks } = useTasks()
 
-  // Apply project filter if provided (client-side since the API defaults to resolved project)
-  const tasks = projectFilter
-    ? allTasks.filter(t => t.project_id === projectFilter)
-    : allTasks
+  // Sync global project filter into the hook's server-side filtering
+  useEffect(() => {
+    setFilters(f => ({ ...f, projectId: projectFilter ?? null }))
+  }, [projectFilter, setFilters])
   const [viewMode, setViewMode] = useState<ViewMode>('list')
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null)
   const [showCreateForm, setShowCreateForm] = useState(false)

@@ -114,6 +114,7 @@ class VoiceMixin:
             ws = self._tts_websockets.get(conversation_id)
             request_id = self._tts_request_ids.get(conversation_id, "")
             if not ws:
+                logger.debug("Dropping audio chunk for %s: no WebSocket", conversation_id[:8])
                 return
             try:
                 await ws.send(

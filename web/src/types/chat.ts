@@ -7,12 +7,13 @@ export interface ChatModeInfo {
   id: ChatMode
   label: string
   description: string
+  level: number // 0=plan, 1=act, 2=full-auto
 }
 
 export const CHAT_MODES: ChatModeInfo[] = [
-  { id: 'plan', label: 'Plan', description: 'Read-only planning mode' },
-  { id: 'accept_edits', label: 'Act', description: 'Auto-approve edits, prompt for dangerous commands' },
-  { id: 'bypass', label: 'Full Auto', description: 'Auto-approve all tools' },
+  { id: 'plan', label: 'Plan', description: 'Read-only planning mode', level: 0 },
+  { id: 'accept_edits', label: 'Act', description: 'Auto-approve edits, prompt for dangerous commands', level: 1 },
+  { id: 'bypass', label: 'Full Auto', description: 'Auto-approve all tools', level: 2 },
 ]
 
 export interface ToolCall {
@@ -71,6 +72,9 @@ export interface ChatState {
   onCommandSelect: (cmd: CommandInfo) => void
   mode: ChatMode
   onModeChange: (mode: ChatMode) => void
+  planPendingApproval: boolean
+  onApprovePlan: () => void
+  onRequestPlanChanges: (feedback: string) => void
 }
 
 export interface ConversationState {

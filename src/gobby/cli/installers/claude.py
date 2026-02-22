@@ -18,21 +18,38 @@ from gobby.cli.utils import get_install_dir
 
 from .mcp_config import configure_mcp_server_json, remove_mcp_server_json
 from .shared import (
-    _install_file,
-    _is_dev_mode,
+    clean_project_hooks,
     install_cli_content,
+    install_global_hooks,
     install_shared_content,
 )
 from .skill_install import backup_gobby_skills, install_router_skills_as_commands
 
 logger = logging.getLogger(__name__)
 
+# Hook types that Gobby registers (must match hooks-template.json)
+_GOBBY_HOOK_TYPES = [
+    "SessionStart",
+    "SessionEnd",
+    "UserPromptSubmit",
+    "PreToolUse",
+    "PostToolUse",
+    "PreCompact",
+    "Notification",
+    "Stop",
+    "SubagentStart",
+    "SubagentStop",
+    "PermissionRequest",
+]
 
-def install_claude(project_path: Path) -> dict[str, Any]:
+
+def install_claude(project_path: Path, mode: str = "global") -> dict[str, Any]:
     """Install Gobby integration for Claude Code (hooks, workflows).
 
     Args:
         project_path: Path to the project root
+        mode: "global" installs hooks to ~/.gobby/hooks/ and settings to
+            ~/.claude/settings.json. "project" installs per-project (existing behavior).
 
     Returns:
         Dict with installation results including success status and installed items
@@ -48,13 +65,15 @@ def install_claude(project_path: Path) -> dict[str, Any]:
         "error": None,
     }
 
-    claude_path = project_path / ".claude"
+    hooks_dir = Path.home() / ".gobby" / "hooks"
+    if mode == "global":
+        claude_path = Path.home() / ".claude"
+    else:
+        claude_path = project_path / ".claude"
     settings_file = claude_path / "settings.json"
 
-    # Ensure .claude subdirectories exist
+    # Ensure directories exist
     claude_path.mkdir(parents=True, exist_ok=True)
-    hooks_dir = claude_path / "hooks"
-    hooks_dir.mkdir(parents=True, exist_ok=True)
 
     # Backup existing gobby skills (now auto-synced from database)
     skills_dir = claude_path / "skills"
@@ -65,45 +84,29 @@ def install_claude(project_path: Path) -> dict[str, Any]:
     # Get source files
     install_dir = get_install_dir()
     claude_install_dir = install_dir / "claude"
-    install_hooks_dir = claude_install_dir / "hooks"
-
-    # Hook files to copy
-    hook_files = {
-        "hook_dispatcher.py": True,  # Make executable
-        "validate_settings.py": True,  # Make executable
-    }
 
     source_hooks_template = claude_install_dir / "hooks-template.json"
 
-    # Verify all source files exist
-    missing_files = []
-    for filename in hook_files.keys():
-        source_file = install_hooks_dir / filename
-        if not source_file.exists():
-            missing_files.append(str(source_file))
-
     if not source_hooks_template.exists():
-        missing_files.append(str(source_hooks_template))
-
-    if missing_files:
-        result["error"] = f"Missing source files: {missing_files}"
+        result["error"] = f"Missing source files: [{source_hooks_template}]"
         return result
 
-    # Install hook files (symlink in dev mode, copy otherwise)
+    # Install hook files (always global)
     try:
-        dev_mode = _is_dev_mode(project_path)
-        for filename, make_executable in hook_files.items():
-            source_file = install_hooks_dir / filename
-            target_file = hooks_dir / filename
-            _install_file(source_file, target_file, dev_mode=dev_mode, executable=make_executable)
+        install_global_hooks()
+        # Clean up project-level hooks to prevent double-firing
+        cleaned = clean_project_hooks(project_path / ".claude" / "settings.json")
+        if cleaned:
+            result["project_hooks_cleaned"] = cleaned
     except OSError as e:
         logger.error(f"Failed to install hook files: {e}")
         result["error"] = f"Failed to install hook files: {e}"
         return result
 
-    # Install shared content (workflows)
+    # Install shared content (plugins) - project-scoped
     try:
-        shared = install_shared_content(claude_path, project_path)
+        content_path = claude_path if mode == "project" else project_path / ".claude"
+        shared = install_shared_content(content_path, project_path)
     except Exception as e:
         logger.error(f"Failed to install shared content: {e}")
         result["error"] = f"Failed to install shared content: {e}"
@@ -172,9 +175,8 @@ def install_claude(project_path: Path) -> dict[str, Any]:
         result["error"] = f"Failed to read hooks template: {e}"
         return result
 
-    # Replace $PROJECT_PATH with absolute project path
-    abs_project_path = str(project_path.resolve())
-    gobby_settings_str = gobby_settings_str.replace("$PROJECT_PATH", abs_project_path)
+    # Replace $HOOKS_DIR with absolute hooks directory path
+    gobby_settings_str = gobby_settings_str.replace("$HOOKS_DIR", str(hooks_dir.resolve()))
 
     try:
         gobby_settings = json.loads(gobby_settings_str)
@@ -293,21 +295,7 @@ def uninstall_claude(project_path: Path) -> dict[str, Any]:
         return result
 
     if "hooks" in settings:
-        hook_types = [
-            "SessionStart",
-            "SessionEnd",
-            "UserPromptSubmit",
-            "PreToolUse",
-            "PostToolUse",
-            "PreCompact",
-            "Notification",
-            "Stop",
-            "SubagentStart",
-            "SubagentStop",
-            "PermissionRequest",
-        ]
-
-        for hook_type in hook_types:
+        for hook_type in _GOBBY_HOOK_TYPES:
             if hook_type in settings["hooks"]:
                 del settings["hooks"][hook_type]
                 hooks_removed.append(hook_type)

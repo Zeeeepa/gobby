@@ -126,7 +126,7 @@ def decode_llm_response[T](
         response_type: The msgspec.Struct or other type to decode to
         strict: If True (default), type mismatches raise errors.
                 If False, allows coercion (e.g., "5" -> 5 for int fields).
-                Configure via llm_providers.json_strict in config.yaml,
+                Configure via llm_providers.json_strict in gobby-config,
                 or override per-workflow with llm_json_strict variable.
 
     Returns:
@@ -152,7 +152,7 @@ def decode_llm_response[T](
 
     try:
         # msgspec.json.decode returns Any at runtime when using TypeVar
-        return msgspec.json.decode(json_str.encode(), type=response_type, strict=strict)  # type: ignore[no-any-return]
+        return msgspec.json.decode(json_str.encode(), type=response_type, strict=strict)
     except msgspec.ValidationError as e:
         logger.warning(f"Invalid LLM response structure: {e}")
         return None

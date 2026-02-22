@@ -126,7 +126,6 @@ class TestEndWorkflowVariablePersistence:
             context_injected=True,
             variables={
                 "session_task": "task-123",  # workflow-declared variable
-                "plan_mode": False,  # workflow-declared variable
                 "unlocked_tools": [],  # lifecycle variable (not in workflow)
             },
         )
@@ -135,7 +134,7 @@ class TestEndWorkflowVariablePersistence:
             name="test-workflow",
             description="test",
             steps=[],
-            variables={"session_task": "", "plan_mode": False},
+            variables={"session_task": ""},
         )
 
         loader = AsyncMock()
@@ -162,7 +161,6 @@ class TestEndWorkflowVariablePersistence:
         assert result["success"] is True
         # Workflow-declared variables should be popped
         assert "session_task" not in state.variables
-        assert "plan_mode" not in state.variables
         # Lifecycle variable should be preserved
         assert "unlocked_tools" in state.variables
         # save_state must be called BEFORE delete_state

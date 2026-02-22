@@ -1,7 +1,6 @@
 """Pytest configuration and shared fixtures for Gobby tests."""
 
 import tempfile
-import tracemalloc
 from collections.abc import Iterator
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
@@ -9,8 +8,6 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 from filelock import FileLock
-
-tracemalloc.start()
 
 
 def pytest_collection_modifyitems(items: list[pytest.Item]) -> None:
@@ -206,6 +203,8 @@ def protect_production_resources(
     safe_log_error = safe_logs_dir / "gobby-error.log"
     safe_log_mcp_server = safe_logs_dir / "mcp-server.log"
     safe_log_mcp_client = safe_logs_dir / "mcp-client.log"
+    safe_hooks_dir = temp_dir / "hooks"
+    safe_hooks_dir.mkdir(exist_ok=True)
 
     # Set environment variables as a first line of defense
     safe_config_file = safe_logs_dir / "config-test.yaml"
@@ -217,6 +216,7 @@ def protect_production_resources(
         "GOBBY_LOGGING_CLIENT_ERROR": str(safe_log_error),
         "GOBBY_LOGGING_MCP_SERVER": str(safe_log_mcp_server),
         "GOBBY_LOGGING_MCP_CLIENT": str(safe_log_mcp_client),
+        "GOBBY_HOOKS_DIR": str(safe_hooks_dir),
     }
 
     with patch.dict(os.environ, env_vars):
@@ -291,11 +291,28 @@ def protect_production_resources(
             p_save = patch("gobby.config.app.save_config", side_effect=safe_save_config)
             p_save.start()
 
-        # 2. Scan sys.modules for rogue references to load_config AND save_config
+        # 2. Patch known top-level importers of load_config / save_config.
+        #
+        # Only modules with a top-level `from gobby.config.app import load_config`
+        # hold a direct reference that patch() on the definition module won't reach.
+        # Lazy (in-function) imports resolve at call time and get the patched version.
+        #
+        # To update this list: grep for top-level `from gobby.config.app import load_config`
+        # in src/ (exclude lines inside function bodies).  Also include gobby.config since
+        # its __init__.py re-exports both load_config and save_config.
         patched_modules = []
         import sys
 
-        # Build a mapping of real → safe for both functions
+        _KNOWN_CONFIG_IMPORTERS = [
+            "gobby.config",           # __init__.py re-exports load_config and save_config
+            "gobby.runner",
+            "gobby.cli",              # cli/__init__.py
+            "gobby.cli.utils",
+            "gobby.cli.tasks._utils",
+            "gobby.mcp_proxy.stdio",
+            "gobby.watchdog",
+        ]
+
         rogue_replacements: dict[int, tuple[Any, Any]] = {}
         if _real_load_config:
             rogue_replacements[id(_real_load_config)] = (safe_load_config, _real_load_config)
@@ -303,23 +320,17 @@ def protect_production_resources(
             rogue_replacements[id(_real_save_config)] = (safe_save_config, _real_save_config)
 
         if rogue_replacements:
-            for _mod_name, mod in list(sys.modules.items()):
-                # Skip our own test modules or things that might be weird
-                if not mod or not hasattr(mod, "__dict__"):
+            for mod_name in _KNOWN_CONFIG_IMPORTERS:
+                mod = sys.modules.get(mod_name)
+                if mod is None:
                     continue
 
-                # Iterate over module attributes
                 updates = {}
-                try:
-                    for attr_name, attr_val in mod.__dict__.items():
-                        replacement = rogue_replacements.get(id(attr_val))
-                        if replacement:
-                            updates[attr_name] = replacement  # (safe_fn, real_fn)
-                except Exception:
-                    # Some modules might error on iteration or access
-                    continue
+                for attr_name, attr_val in mod.__dict__.items():
+                    replacement = rogue_replacements.get(id(attr_val))
+                    if replacement:
+                        updates[attr_name] = replacement  # (safe_fn, real_fn)
 
-                # Apply updates
                 if updates:
                     for attr_name, (safe_fn, _real_fn) in updates.items():
                         setattr(mod, attr_name, safe_fn)
@@ -329,7 +340,8 @@ def protect_production_resources(
 
         # Restore everything
         p.stop()
-        p_save.stop()
+        if _real_save_config is not None:
+            p_save.stop()
         for mod, updates in patched_modules:
             for attr_name, (_safe_fn, real_fn) in updates.items():
                 if real_fn is not None:

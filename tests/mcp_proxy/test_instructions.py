@@ -1,5 +1,8 @@
 """Tests for Gobby MCP server instructions builder."""
 
+import pathlib
+from unittest.mock import patch
+
 import pytest
 
 pytestmark = pytest.mark.unit
@@ -61,3 +64,42 @@ class TestBuildGobbyInstructions:
         assert "NEVER" in result
         # Should mention the pattern
         assert "progressive" in result.lower() or "disclosure" in result.lower()
+
+    def test_loads_from_prompt_file(self) -> None:
+        """Instructions should be loaded from the bundled prompt file."""
+        from gobby.mcp_proxy.instructions import build_gobby_instructions
+        from gobby.prompts.sync import get_bundled_prompts_path
+
+        prompt_file = get_bundled_prompts_path() / "mcp" / "progressive-disclosure.md"
+        assert prompt_file.exists(), f"Prompt file missing: {prompt_file}"
+
+        result = build_gobby_instructions()
+
+        # Content should come from the file, not the fallback
+        # The file and fallback have identical content, so verify we're
+        # reading from the file by checking the result matches file body
+        raw = prompt_file.read_text(encoding="utf-8")
+        # Strip frontmatter
+        parts = raw.split("---", 2)
+        expected = parts[2].strip()
+        assert result == expected
+
+    def test_fallback_when_file_missing(self, tmp_path: "pathlib.Path") -> None:
+        """Instructions should fall back to hardcoded string when file is missing."""
+        from gobby.mcp_proxy.instructions import (
+            _FALLBACK_INSTRUCTIONS,
+            build_gobby_instructions,
+        )
+
+        # Point to a directory that exists but has no prompt file
+        empty_dir = tmp_path / "empty_prompts"
+        empty_dir.mkdir()
+
+        with patch(
+            "gobby.mcp_proxy.instructions.get_bundled_prompts_path",
+            return_value=empty_dir,
+        ):
+            result = build_gobby_instructions()
+
+        assert result == _FALLBACK_INSTRUCTIONS
+        assert "<gobby_system>" in result

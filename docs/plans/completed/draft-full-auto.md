@@ -21,7 +21,7 @@ Related open tasks that affect scope:
 
 | Path | Workflow | Key Tools (server) |
 |------|----------|--------------------|
-| **Sequential** | `meeseeks-box.yaml` (step workflow, `mode: self`) | `spawn_agent` (gobby-agents), `wait_for_task` (gobby-orchestration), `merge_clone_to_target` (gobby-clones), `delete_clone` (gobby-clones) |
+| **Sequential** | `meeseeks-box.yaml` (step workflow, `mode: self`) | `spawn_agent` (gobby-agents), `wait_for_task` (gobby-orchestration), `merge_clone` (gobby-clones), `delete_clone` (gobby-clones) |
 | **Parallel** | `orchestrate_ready_tasks` MCP tool | `orchestrate_ready_tasks` (gobby-orchestration), `poll_agent_status` (gobby-orchestration), etc. |
 
 Both use `spawn_agent` for spawning and clone/worktree isolation. Note: meeseeks workflows are examples used during development; the final production workflow will be built after hardening is complete.
@@ -36,11 +36,11 @@ The sequential path is simpler and should work first. These fixes target the too
 
 **Status**: Investigated — template resolution is correct. `WorkflowState.session_id` (child UUID from `_auto_activate_workflow`) → `ActionContext.session_id` → `{{ session_id }}` resolves to the worker's session. `suggest_next_task` does not auto-claim. `spawn_agent` does not call `claim_task`. Original observation was not reproducible.
 
-### 1.1 Fix merge_clone_to_target branch safety
+### 1.1 Fix merge_clone branch safety
 
 **File**: `src/gobby/mcp_proxy/tools/clones.py` (lines 384-486)
 
-**Problem**: `merge_clone_to_target` calls `git_manager.merge_branch()` which operates on the main repo. If the merge fails (conflict, network error), the main repo may be left on the wrong branch or in a dirty merge state. The orchestrator session is running in this repo.
+**Problem**: `merge_clone` calls `git_manager.merge_branch()` which operates on the main repo. If the merge fails (conflict, network error), the main repo may be left on the wrong branch or in a dirty merge state. The orchestrator session is running in this repo.
 
 **Fix**:
 - In `CloneGitManager.merge_branch()`, save current branch before checkout, restore in `finally`
@@ -173,7 +173,7 @@ def update_orchestration_lists(
 Test the meeseeks-box workflow end-to-end with mocked spawners:
 1. Create parent task with 2 subtasks
 2. Mock `spawn_agent` to create a session and immediately close the task
-3. Mock `merge_clone_to_target` to return success
+3. Mock `merge_clone` to return success
 4. Mock `delete_clone` to return success
 5. Drive the workflow engine through: find_work -> spawn_worker -> wait_for_worker -> code_review (auto-approve) -> merge -> cleanup -> find_work -> ... -> complete
 6. Verify all tasks closed, clones cleaned up, workflow reaches `complete` step

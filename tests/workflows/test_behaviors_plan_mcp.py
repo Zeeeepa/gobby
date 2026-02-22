@@ -1,6 +1,6 @@
 """Tests for detect_plan_mode and mcp_call_tracking behaviors.
 
-Verifies: detect_plan_mode sets plan_mode from system-reminder tags,
+Verifies: detect_plan_mode sets mode_level from system-reminder tags,
 mcp_call_tracking records MCP calls in state variables.
 """
 
@@ -56,8 +56,8 @@ class TestDetectPlanModeBehavior:
         assert registry.has("detect_plan_mode")
 
     @pytest.mark.asyncio
-    async def test_sets_plan_mode_true(self) -> None:
-        """Sets plan_mode=True when system-reminder contains plan mode indicator."""
+    async def test_sets_mode_level_zero(self) -> None:
+        """Sets mode_level=0 when system-reminder contains plan mode indicator."""
         from gobby.workflows.observers import get_default_registry
 
         behavior = get_default_registry().get("detect_plan_mode")
@@ -71,17 +71,17 @@ class TestDetectPlanModeBehavior:
 
         await behavior(event, state)
 
-        assert state.variables.get("plan_mode") is True
+        assert state.variables.get("mode_level") == 0
 
     @pytest.mark.asyncio
-    async def test_sets_plan_mode_false_on_exit(self) -> None:
-        """Sets plan_mode=False when system-reminder contains exit indicator."""
+    async def test_restores_mode_level_on_exit(self) -> None:
+        """Restores mode_level from chat_mode when system-reminder contains exit indicator."""
         from gobby.workflows.observers import get_default_registry
 
         behavior = get_default_registry().get("detect_plan_mode")
         assert behavior is not None
 
-        state = _make_state(plan_mode=True)
+        state = _make_state(mode_level=0)
         event = _make_event(
             event_type=HookEventType.BEFORE_AGENT,
             data={"prompt": "<system-reminder>Exited Plan Mode</system-reminder>"},
@@ -89,11 +89,11 @@ class TestDetectPlanModeBehavior:
 
         await behavior(event, state)
 
-        assert state.variables.get("plan_mode") is False
+        assert state.variables.get("mode_level") != 0
 
     @pytest.mark.asyncio
     async def test_ignores_non_system_reminder(self) -> None:
-        """Does not set plan_mode from text outside system-reminder tags."""
+        """Does not set mode_level from text outside system-reminder tags."""
         from gobby.workflows.observers import get_default_registry
 
         behavior = get_default_registry().get("detect_plan_mode")
@@ -107,7 +107,7 @@ class TestDetectPlanModeBehavior:
 
         await behavior(event, state)
 
-        assert "plan_mode" not in state.variables
+        assert "mode_level" not in state.variables
 
     @pytest.mark.asyncio
     async def test_handles_empty_prompt(self) -> None:
@@ -122,7 +122,7 @@ class TestDetectPlanModeBehavior:
 
         await behavior(event, state)
 
-        assert "plan_mode" not in state.variables
+        assert "mode_level" not in state.variables
 
 
 # =============================================================================

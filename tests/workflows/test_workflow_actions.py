@@ -446,50 +446,6 @@ async def test_inject_context(action_executor, action_context, session_manager, 
 
 
 @pytest.mark.asyncio
-async def test_synthesize_title(
-    action_executor, action_context, mock_services, session_manager, sample_project, tmp_path
-):
-    transcript_file = tmp_path / "transcript.jsonl"
-    with open(transcript_file, "w") as f:
-        f.write('{"role": "user", "content": "make a title"}\n')
-
-    session = session_manager.register(
-        external_id="title-ext",
-        machine_id="test-machine",
-        source="test-source",
-        project_id=sample_project["id"],
-        jsonl_path=str(transcript_file),
-    )
-    action_context.session_id = session.id
-
-    # Mock LLM and services
-    provider = MagicMock()
-    provider.generate_text = AsyncMock(return_value="New Title")
-    mock_llm_service = MagicMock()
-    # Mock for synthesize_title (uses regular generate_text usually via provider)
-    # actions.py: provider = context.llm_service.get_default_provider() ... await provider.generate_text(...)
-    mock_llm_service.get_default_provider.return_value = provider
-    action_context.llm_service = mock_llm_service
-
-    mock_services["template_engine"].render.return_value = "Title Prompt"
-    action_context.template_engine = mock_services["template_engine"]
-
-    # Mock transcript
-    mock_services["transcript_processor"].extract_turns_since_clear.return_value = [
-        {"role": "user"}
-    ]
-    action_context.transcript_processor = mock_services["transcript_processor"]
-
-    res = await action_executor.execute("synthesize_title", action_context)
-
-    assert res is not None
-    assert res["title_synthesized"] == "New Title"
-
-    updated = session_manager.get(session.id)
-    assert updated.title == "New Title"
-
-
-@pytest.mark.asyncio
 async def test_update_workflow_task(action_executor, action_context, temp_db, sample_project):
     # Create a task to update
     from gobby.storage.tasks import LocalTaskManager

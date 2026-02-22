@@ -142,7 +142,7 @@ class TestListDefinitions:
             mock_cls.return_value.list_all.return_value = items
             response = client.get("/api/agents/definitions?project_id=proj-1")
         assert response.status_code == 200
-        mock_cls.return_value.list_all.assert_called_once_with(project_id="proj-1")
+        mock_cls.return_value.list_all.assert_called_once_with(project_id="proj-1", include_deleted=False)
 
     def test_list_error(self, client: TestClient) -> None:
         with patch("gobby.agents.definitions.AgentDefinitionLoader") as mock_cls:

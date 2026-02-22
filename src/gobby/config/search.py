@@ -3,7 +3,7 @@
 Provides configuration for the unified search layer with embedding
 support and TF-IDF fallback.
 
-Example usage in config.yaml:
+Example configuration (via gobby-config MCP tools):
     search:
       mode: auto  # tfidf, embedding, auto, hybrid
       embedding_model: text-embedding-3-small

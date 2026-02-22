@@ -20,6 +20,39 @@ from gobby.utils.project_context import get_project_context
 logger = logging.getLogger(__name__)
 
 
+def load_full_config_from_db() -> DaemonConfig:
+    """Load full DaemonConfig from DB config_store + Pydantic defaults.
+
+    Opens the database directly (using bootstrap.yaml for db_path),
+    creates a ConfigStore, and calls load_config with it. Use this
+    when CLI commands need the full config without a running daemon.
+
+    Returns:
+        Fully resolved DaemonConfig
+    """
+    from gobby.storage.config_store import ConfigStore
+    from gobby.storage.secrets import SecretStore
+
+    # Phase 1: bootstrap gives us the database path
+    bootstrap_config = load_config()
+    db_path = Path(bootstrap_config.database_path).expanduser()
+
+    if not db_path.exists():
+        # No DB yet — return bootstrap-only config
+        return bootstrap_config
+
+    db = LocalDatabase(db_path)
+    try:
+        config_store = ConfigStore(db)
+        secret_store = SecretStore(db)
+        return load_config(
+            config_store=config_store,
+            secret_resolver=secret_store.get,
+        )
+    finally:
+        db.close()
+
+
 def get_gobby_home() -> Path:
     """Get gobby home directory, respecting GOBBY_HOME env var.
 

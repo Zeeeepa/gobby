@@ -24,7 +24,9 @@ from .merge import merge
 from .pipelines import pipelines
 from .projects import projects
 from .sessions import sessions
+from .setup import setup
 from .skills import skills
+from .sync import sync
 from .tasks import tasks
 from .ui import ui
 from .workflows import workflows
@@ -52,6 +54,7 @@ cli.add_command(restart)
 cli.add_command(status)
 cli.add_command(mcp_server)
 cli.add_command(init)
+cli.add_command(setup)
 cli.add_command(install)
 cli.add_command(uninstall)
 cli.add_command(tasks)
@@ -74,5 +77,6 @@ cli.add_command(hooks)
 cli.add_command(plugins)
 cli.add_command(webhooks)
 cli.add_command(ui)
+cli.add_command(sync)
 cli.add_command(export_cmd)
 cli.add_command(import_cmd)

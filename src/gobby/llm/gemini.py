@@ -108,7 +108,7 @@ class GeminiProvider(LLMProvider):
         if not prompt_template:
             raise ValueError(
                 "prompt_template is required for generate_summary. "
-                "Configure 'session_summary.prompt' in ~/.gobby/config.yaml"
+                "Configure 'session_summary.prompt' via gobby-config MCP tools"
             )
 
         # Render with Jinja2 (templates use {{ variable }} syntax)
@@ -143,44 +143,6 @@ class GeminiProvider(LLMProvider):
         except Exception as e:
             self.logger.error(f"Failed to generate summary with Gemini via LiteLLM: {e}")
             return f"Session summary generation failed: {e}"
-
-    async def synthesize_title(
-        self, user_prompt: str, prompt_template: str | None = None
-    ) -> str | None:
-        """
-        Synthesize session title using Gemini via LiteLLM.
-        """
-        if not self._litellm:
-            return None
-
-        # Build prompt - prompt_template is required
-        if not prompt_template:
-            raise ValueError(
-                "prompt_template is required for synthesize_title. "
-                "Configure 'title_synthesis.prompt' in ~/.gobby/config.yaml"
-            )
-        prompt = prompt_template.format(user_prompt=user_prompt)
-
-        try:
-            model_name = self.config.title_synthesis.model or "gemini-1.5-flash"
-            litellm_model = self._get_model(model_name)
-
-            response = await self._litellm.acompletion(
-                model=litellm_model,
-                messages=[
-                    {
-                        "role": "system",
-                        "content": "You are a session title generator. Create concise, descriptive titles.",
-                    },
-                    {"role": "user", "content": prompt},
-                ],
-                max_tokens=50,
-                timeout=30,
-            )
-            return (response.choices[0].message.content or "").strip()
-        except Exception as e:
-            self.logger.error(f"Failed to synthesize title with Gemini via LiteLLM: {e}")
-            return None
 
     async def generate_text(
         self,

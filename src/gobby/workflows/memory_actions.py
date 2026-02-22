@@ -244,6 +244,212 @@ async def memory_recall_relevant(
         return {"error": str(e)}
 
 
+async def memory_recall_with_synthesis(
+    memory_manager: Any,
+    session_manager: Any,
+    session_id: str,
+    prompt_text: str | None = None,
+    project_id: str | None = None,
+    limit: int = 5,
+    state: Any | None = None,
+    db: Any | None = None,
+) -> dict[str, Any] | None:
+    """Phase 1 (blocking): Search memories using current prompt + digest enrichment.
+
+    Performs a blocking vector search using the current prompt text, enriched
+    with the session digest when available. Uses existing memory_recall_relevant
+    for search, dedup, and formatting via build_memory_context.
+
+    Args:
+        memory_manager: The memory manager instance
+        session_manager: The session manager instance
+        session_id: Current session ID
+        prompt_text: The user's prompt text
+        project_id: Override project ID
+        limit: Max memories to retrieve
+        state: WorkflowState for deduplication tracking
+        db: Database (unused, kept for interface compatibility)
+
+    Returns:
+        Dict with inject_context and count, or None if disabled
+    """
+    if not memory_manager or not memory_manager.config.enabled:
+        return None
+
+    if not prompt_text:
+        return None
+
+    # Skip for very short prompts or commands
+    if len(prompt_text.strip()) < 10 or prompt_text.strip().startswith("/"):
+        return None
+
+    # Enrich query with session digest for better search relevance
+    search_query = prompt_text
+    session = session_manager.get(session_id) if session_manager else None
+    digest = getattr(session, "digest_markdown", None) if session else None
+    if digest:
+        search_query = f"{prompt_text}\n\n{digest}"
+        logger.debug(
+            "memory_recall_with_synthesis: Enriched query with digest (%d chars)",
+            len(digest),
+        )
+
+    return await memory_recall_relevant(
+        memory_manager=memory_manager,
+        session_manager=session_manager,
+        session_id=session_id,
+        prompt_text=search_query,
+        project_id=project_id,
+        limit=limit,
+        state=state,
+    )
+
+
+async def memory_background_digest_and_synthesize(
+    memory_manager: Any,
+    session_manager: Any,
+    session_id: str,
+    prompt_text: str | None = None,
+    project_id: str | None = None,
+    limit: int = 20,
+    llm_service: Any | None = None,
+    db: Any | None = None,
+    config: Any | None = None,
+) -> dict[str, Any] | None:
+    """Phase 2 (background): Update rolling session digest and title.
+
+    Runs asynchronously after Phase 1 completes. Updates the session digest
+    which is used by Phase 1 to enrich search queries on subsequent turns.
+    Also generates/refreshes the session title from the digest output.
+
+    Args:
+        memory_manager: The memory manager instance
+        session_manager: The session manager instance
+        session_id: Current session ID
+        prompt_text: The user's prompt text
+        project_id: Override project ID
+        limit: Unused (kept for interface compatibility)
+        llm_service: LLM service for digest generation
+        db: Database (unused, kept for interface compatibility)
+        config: DaemonConfig for digest provider/model selection
+
+    Returns:
+        Dict with digest status, or None
+    """
+    if not memory_manager or not memory_manager.config.enabled:
+        return None
+
+    if not prompt_text or not llm_service:
+        return None
+
+    # Check DigestConfig.enabled
+    digest_config = getattr(config, "digest", None) if config else None
+    if digest_config and not digest_config.enabled:
+        return None
+
+    # Skip for very short prompts or commands
+    if len(prompt_text.strip()) < 10 or prompt_text.strip().startswith("/"):
+        return None
+
+    try:
+        # 1. Load current digest from session record
+        session = session_manager.get(session_id)
+        previous_digest = getattr(session, "digest_markdown", None) or "" if session else ""
+
+        # 2. Resolve provider/model from DigestConfig or fall back to default
+        if digest_config:
+            try:
+                provider, model, _ = llm_service.get_provider_for_feature(digest_config)
+            except (ValueError, Exception):
+                provider = llm_service.get_default_provider()
+                model = None
+        else:
+            provider = llm_service.get_default_provider()
+            model = None
+
+        digest_prompt = _build_digest_update_prompt(previous_digest, prompt_text)
+        new_digest = await provider.generate_text(digest_prompt, model=model)
+        new_digest = new_digest.strip()
+
+        # 3. Parse title from digest output and persist separately
+        title = None
+        digest_body = new_digest
+        for line in new_digest.splitlines():
+            if line.startswith("**Title**:"):
+                title = line[len("**Title**:") :].strip().strip('"').strip("'")
+                break
+
+        # Strip the Title line from the digest before persisting
+        if title:
+            digest_lines = [ln for ln in new_digest.splitlines() if not ln.startswith("**Title**:")]
+            digest_body = "\n".join(digest_lines).strip()
+
+        # 4. Persist digest to session.digest_markdown
+        session_manager.update_digest_markdown(session_id, digest_body)
+        logger.info(
+            "memory_background_digest: Updated digest (%d chars) for session %s",
+            len(digest_body),
+            session_id,
+        )
+
+        result: dict[str, Any] = {
+            "digest_updated": True,
+            "digest_length": len(digest_body),
+        }
+
+        # 5. Update title if parsed from digest
+        if title:
+            session_manager.update_title(session_id, title)
+            result["title_updated"] = title
+            logger.info(
+                "memory_background_digest: Updated title to '%s' for session %s",
+                title,
+                session_id,
+            )
+
+            # Rename tmux window to match new title
+            if session:
+                from gobby.workflows.summary_actions import _rename_tmux_window
+
+                await _rename_tmux_window(session, title)
+
+        return result
+
+    except Exception as e:
+        logger.error(
+            "memory_background_digest: Failed for session %s: %s",
+            session_id,
+            e,
+            exc_info=True,
+        )
+        return {"error": str(e)}
+
+
+def _build_digest_update_prompt(previous_digest: str, current_prompt: str) -> str:
+    """Build the digest update prompt inline (avoids DB lookup in background)."""
+    parts = [
+        "You are updating a rolling session digest. "
+        "This digest tracks what the session is about in ~200 tokens.",
+    ]
+    if previous_digest:
+        parts.append(f"\n## Current Digest\n{previous_digest}")
+    parts.append(f"\n## Latest User Prompt\n{current_prompt}")
+    parts.append(
+        "\n## Instructions\n"
+        "Update the digest to reflect the current state of the session. "
+        "Output ONLY the updated digest in this exact format (no other text):\n\n"
+        "**Title**: [3-5 word session title reflecting current work]\n"
+        "**Task**: [What the session is working on, including task refs like #N]\n"
+        "**Decisions**: [Key technical decisions made so far]\n"
+        "**Context**: [Files being edited, APIs being used, systems involved]\n"
+        "**Findings**: [Important discoveries, root causes, gotchas found]\n"
+        "**Domain**: [Technical domains: e.g., memory system, workflow actions]\n\n"
+        "Keep each field to one line. Total output must stay under 200 tokens.\n"
+        'If a field has no content yet, write "None yet".'
+    )
+    return "\n".join(parts)
+
+
 def reset_memory_injection_tracking(state: Any | None = None) -> dict[str, Any]:
     """Reset the memory injection tracking, allowing previously injected memories to be recalled again.
 
@@ -331,6 +537,47 @@ async def handle_memory_recall_relevant(
         project_id=kwargs.get("project_id"),
         limit=kwargs.get("limit", 5),
         state=context.state,
+    )
+
+
+async def handle_memory_recall_with_synthesis(
+    context: "ActionContext", **kwargs: Any
+) -> dict[str, Any] | None:
+    """ActionHandler wrapper for memory_recall_with_synthesis."""
+    prompt_text = None
+    if context.event_data:
+        prompt_text = context.event_data.get("prompt") or context.event_data.get("prompt_text")
+
+    return await memory_recall_with_synthesis(
+        memory_manager=context.memory_manager,
+        session_manager=context.session_manager,
+        session_id=context.session_id,
+        prompt_text=prompt_text,
+        project_id=kwargs.get("project_id"),
+        limit=kwargs.get("limit", 5),
+        state=context.state,
+        db=context.db,
+    )
+
+
+async def handle_memory_background_digest_and_synthesize(
+    context: "ActionContext", **kwargs: Any
+) -> dict[str, Any] | None:
+    """ActionHandler wrapper for memory_background_digest_and_synthesize."""
+    prompt_text = None
+    if context.event_data:
+        prompt_text = context.event_data.get("prompt") or context.event_data.get("prompt_text")
+
+    return await memory_background_digest_and_synthesize(
+        memory_manager=context.memory_manager,
+        session_manager=context.session_manager,
+        session_id=context.session_id,
+        prompt_text=prompt_text,
+        project_id=kwargs.get("project_id"),
+        limit=kwargs.get("limit", 20),
+        llm_service=context.llm_service,
+        db=context.db,
+        config=context.config,
     )
 
 

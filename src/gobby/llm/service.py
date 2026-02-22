@@ -19,7 +19,7 @@ logger = logging.getLogger(__name__)
 
 
 # Type alias for feature configs that have provider/model/prompt fields
-FeatureConfig = "SessionSummaryConfig | TitleSynthesisConfig | RecommendToolsConfig"
+FeatureConfig = "SessionSummaryConfig | DigestConfig | RecommendToolsConfig"
 
 
 class LLMService:
@@ -150,7 +150,7 @@ class LLMService:
         """
         Get provider, model, and prompt for a feature configuration.
 
-        Feature configs (SessionSummaryConfig, TitleSynthesisConfig, etc.) specify
+        Feature configs (SessionSummaryConfig, DigestConfig, etc.) specify
         which provider and model to use for that feature. This method returns
         the appropriate provider instance along with the configured model and prompt.
 

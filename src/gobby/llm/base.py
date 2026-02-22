@@ -62,22 +62,6 @@ class LLMProvider(ABC):
         pass
 
     @abstractmethod
-    async def synthesize_title(
-        self, user_prompt: str, prompt_template: str | None = None
-    ) -> str | None:
-        """
-        Synthesize session title.
-
-        Args:
-            user_prompt: The first user message.
-            prompt_template: Optional override for the prompt.
-
-        Returns:
-            Synthesized title or None if failed.
-        """
-        pass
-
-    @abstractmethod
     async def generate_text(
         self,
         prompt: str,

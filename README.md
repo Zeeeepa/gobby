@@ -369,7 +369,7 @@ Gobby exposes tools via MCP that your AI coding assistant can use:
 `create_worktree`, `list_worktrees`, `delete_worktree`, `merge_worktree`
 
 **Clones** (`gobby-clones`)
-`create_clone`, `list_clones`, `delete_clone`, `merge_clone_to_target`
+`create_clone`, `list_clones`, `delete_clone`, `merge_clone`
 
 **Pipelines** (`gobby-pipelines`)
 `list_pipelines`, `run_pipeline`, `approve_pipeline`, `reject_pipeline`, `get_pipeline_status`
@@ -409,6 +409,17 @@ uv run pytest              # Tests
 uv run ruff check src/     # Lint
 uv run mypy src/           # Type check
 ```
+
+### Using Gobby in other projects (from source)
+
+If you're running Gobby from a source checkout, use `-C` to target another project directory:
+
+```bash
+uv run --project ~/Projects/gobby gobby init -C /path/to/other/project
+uv run --project ~/Projects/gobby gobby install -C /path/to/other/project
+```
+
+The `--project` flag tells uv to use the Gobby installation from your source repo, and `-C` tells Gobby which directory to operate on.
 
 Coverage threshold: 80%. We're serious about it.
 

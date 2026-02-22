@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 
 export interface AdminStatus {
   status: string
@@ -31,10 +31,14 @@ export function useDashboard() {
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null)
+  const abortControllerRef = useRef<AbortController | null>(null)
 
   const fetchStatus = useCallback(async () => {
+    abortControllerRef.current?.abort()
+    const controller = new AbortController()
+    abortControllerRef.current = controller
     try {
-      const response = await fetch('/admin/status')
+      const response = await fetch('/admin/status', { signal: controller.signal })
       if (response.ok) {
         const json = await response.json()
         setData(json)
@@ -45,6 +49,7 @@ export function useDashboard() {
         setData(null)
       }
     } catch (e) {
+      if (e instanceof DOMException && e.name === 'AbortError') return
       setError(String(e))
       setData(null)
     }
@@ -59,7 +64,10 @@ export function useDashboard() {
   useEffect(() => {
     refresh()
     const interval = setInterval(fetchStatus, 30_000)
-    return () => clearInterval(interval)
+    return () => {
+      clearInterval(interval)
+      abortControllerRef.current?.abort()
+    }
   }, [refresh, fetchStatus])
 
   return { data, isLoading, error, lastUpdated, refresh }

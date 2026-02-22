@@ -25,11 +25,6 @@ triggers:
       status: expired
       when: "session.parent_session_id is not None"
 
-  on_prompt_submit:
-    # 4. Synthesize title on first substantive prompt
-    - action: synthesize_title
-      when: "session.title == null and len(event.data.get('content', '')) > 20"
-
   on_session_end:
     # 5. Generate summary (without marking handoff)
     - action: generate_summary

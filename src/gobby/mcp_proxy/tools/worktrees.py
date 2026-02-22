@@ -132,8 +132,8 @@ def _resolve_project_context(
             if resolved_path not in _git_manager_cache:
                 try:
                     _git_manager_cache[resolved_path] = WorktreeGitManager(resolved_path)
-                except ValueError:
-                    return None, None, "No project_path provided and no project context available."
+                except ValueError as e:
+                    return None, None, f"Failed to initialize git manager for {resolved_path}: {e}"
             return _git_manager_cache[resolved_path], ctx["id"], None
 
     return (
@@ -904,5 +904,92 @@ def create_worktrees_registry(
             return {"success": False, "error": "Failed to link task to worktree"}
 
         return {"success": True}
+
+    @registry.tool(
+        name="merge_worktree",
+        description="Merge a worktree's branch into its base branch (or a specified target).",
+    )
+    async def merge_worktree(
+        worktree_id: str,
+        target_branch: str | None = None,
+        push: bool | str = True,
+        delete_branch: bool | str = False,
+        project_path: str | None = None,
+    ) -> dict[str, Any]:
+        """
+        Merge a worktree's branch into the target branch.
+
+        Args:
+            worktree_id: The worktree ID to merge.
+            target_branch: Branch to merge into (defaults to worktree's base_branch).
+            push: Whether to push after merge (default: True).
+            delete_branch: Whether to delete the source branch after merge (default: False).
+            project_path: Path to project directory (pass cwd from CLI).
+
+        Returns:
+            Dict with merge result and commit SHA.
+        """
+        # Handle string inputs from MCP
+        push = push in (True, "true", "True", "1") if isinstance(push, str) else push
+        delete_branch = (
+            delete_branch in (True, "true", "True", "1")
+            if isinstance(delete_branch, str)
+            else delete_branch
+        )
+
+        resolved_git_mgr, _, error = _resolve_project_context(project_path, git_manager, project_id)
+        if error:
+            return {"success": False, "error": error}
+        if resolved_git_mgr is None:
+            return {"success": False, "error": "Git manager not available"}
+
+        worktree = worktree_storage.get(worktree_id)
+        if not worktree:
+            return {"success": False, "error": f"Worktree '{worktree_id}' not found"}
+
+        # Default to worktree's base branch
+        merge_target = target_branch or worktree.base_branch
+
+        # Perform the merge
+        result = resolved_git_mgr.merge_branch(
+            source_branch=worktree.branch_name,
+            target_branch=merge_target,
+            push=push,
+        )
+
+        if not result.success:
+            if result.error == "merge_conflict":
+                conflicted_files = result.output.split("\n") if result.output else []
+                return {
+                    "success": False,
+                    "has_conflicts": True,
+                    "conflicted_files": conflicted_files,
+                    "error": result.message,
+                    "message": (
+                        f"Merge conflicts detected in {len(conflicted_files)} files. "
+                        "Use gobby-merge tools to resolve."
+                    ),
+                }
+            return {
+                "success": False,
+                "has_conflicts": False,
+                "error": result.error or result.message,
+            }
+
+        # Mark as merged in storage
+        worktree_storage.mark_merged(worktree_id)
+
+        # Optionally delete the branch
+        if delete_branch:
+            resolved_git_mgr._run_git(
+                ["branch", "-d", worktree.branch_name],
+                timeout=10,
+            )
+
+        return {
+            "success": True,
+            "message": f"Successfully merged {worktree.branch_name} into {merge_target}",
+            "output": result.output,
+        }
 
     return registry

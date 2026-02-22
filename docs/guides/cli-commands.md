@@ -92,13 +92,14 @@ Displays running state, PID, uptime, ports, and log locations.
 Initialize a new Gobby project in the current directory.
 
 ```bash
-gobby init [--name NAME] [--github-url URL]
+gobby init [--name NAME] [--github-url URL] [-C PATH]
 ```
 
 | Option | Description |
 |--------|-------------|
 | `--name` | Project name (auto-detected from directory) |
 | `--github-url` | GitHub repository URL (auto-detected from git remote) |
+| `-C`, `--path` | Target directory (default: current directory) |
 
 Creates `.gobby/project.json`.
 
@@ -119,6 +120,7 @@ gobby install [OPTIONS]
 | `--windsurf` | Install Windsurf hooks only |
 | `--copilot` | Install GitHub Copilot hooks only |
 | `--all` | Install to all detected CLIs (default) |
+| `-C`, `--path` | Target directory (default: current directory) |
 
 Auto-detects installed CLIs and installs appropriate hooks. Also installs Git hooks for task sync (pre-commit, post-merge, post-checkout).
 

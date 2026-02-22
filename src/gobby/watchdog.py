@@ -248,20 +248,24 @@ class Watchdog:
                 log_f.close()
                 error_log_f.close()
 
-            # Wait for daemon to become healthy
-            time.sleep(3.0)
+            # Wait for daemon to become healthy.
+            # Startup involves sync tasks (skills, prompts, workflows, agents,
+            # task import) that can take 30-45s before the HTTP server binds.
+            time.sleep(5.0)
 
-            # Verify daemon is responding
-            for _ in range(10):
+            # Verify daemon is responding (up to 55s total: 5s + 25 * 2s)
+            for i in range(25):
                 if self.check_health():
                     logger.info("Daemon restart successful")
                     self.last_restart_time = time.time()
                     self.restart_times.append(self.last_restart_time)
                     self.consecutive_failures = 0
                     return True
-                time.sleep(1.0)
+                if i % 5 == 4:
+                    logger.info(f"Waiting for daemon startup... ({(i + 1) * 2}s elapsed)")
+                time.sleep(2.0)
 
-            logger.error("Daemon started but not responding to health checks")
+            logger.error("Daemon started but not responding to health checks after 55s")
             return False
 
         except Exception as e:

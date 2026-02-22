@@ -583,7 +583,7 @@ steps:
 
   - name: process_completed
     allowed_tools:
-      - merge_clone_to_target    # Clone merge
+      - merge_clone    # Clone merge
       - merge_worktree           # Worktree fallback
       - approve_and_cleanup
       - reopen_task
@@ -1651,10 +1651,10 @@ sync_clone(
 
 Unlike worktrees, clones require explicit sync since they don't share refs.
 
-#### merge_clone_to_target
+#### merge_clone
 
 ```python
-merge_clone_to_target(
+merge_clone(
     clone_id: str,
     target_branch: str = "dev",
     strategy: str = "merge"
@@ -1946,7 +1946,7 @@ class CloneMergeError(Exception):
     """Errors specific to clone merge operations."""
     pass
 
-def merge_clone_to_target(clone_id: str, target: str = "dev") -> MergeResult:
+def merge_clone(clone_id: str, target: str = "dev") -> MergeResult:
     try:
         clone = clone_storage.get(clone_id)
         if not clone:
@@ -2043,7 +2043,7 @@ def _build_clone_context_prompt(
 ### 16.11 Cleanup Strategy
 
 1. **On task completion**:
-   - `merge_clone_to_target()` sets `cleanup_after = now + 7 days`
+   - `merge_clone()` sets `cleanup_after = now + 7 days`
    - Mark clone as "merged"
 
 2. **Periodic cleanup** (ConductorLoop):

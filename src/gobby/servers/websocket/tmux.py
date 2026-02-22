@@ -100,18 +100,20 @@ class TmuxMixin:
         sessions: list[dict[str, Any]] = []
         registry = get_running_agent_registry()
 
-        # Build pid -> session_title map from active Gobby sessions
-        pid_to_title: dict[int, str] = {}
+        # Build tmux_pane -> session_title map from active Gobby sessions
+        # Uses tmux_pane (e.g. "%64") which is stable, unlike parent_pid which
+        # goes stale when the CLI process exits and the shell reclaims the pane.
+        pane_to_title: dict[str, str] = {}
         session_mgr = getattr(self, "session_manager", None)
         if session_mgr:
             try:
                 for gs in session_mgr.list(status="active"):
                     if gs.title and gs.terminal_context:
-                        ppid = gs.terminal_context.get("parent_pid")
-                        if ppid:
-                            pid_to_title[int(ppid)] = gs.title
+                        tmux_pane = gs.terminal_context.get("tmux_pane")
+                        if tmux_pane:
+                            pane_to_title[tmux_pane] = gs.title
             except Exception:
-                pass  # Non-critical — fall back to other names
+                logger.debug("Failed to build pane-to-title map", exc_info=True)
 
         for socket_name, mgr in [
             ("default", self._tmux_mgr_default),
@@ -140,8 +142,9 @@ class TmuxMixin:
                             attached_bridge = sid
                             break
 
-                    # Look up synthesized session title via pane PID
-                    session_title = pid_to_title.get(s.pane_pid) if s.pane_pid else None
+                    # Look up synthesized session title via tmux pane ID
+                    pane_id = getattr(s, "pane_id", None)
+                    session_title = pane_to_title.get(pane_id) if pane_id else None
 
                     sessions.append(
                         {

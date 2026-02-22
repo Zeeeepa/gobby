@@ -17,19 +17,21 @@ from gobby.cli.utils import get_install_dir
 
 from .ide_config import configure_ide_terminal_title
 from .shared import (
-    _install_file,
-    _is_dev_mode,
+    clean_project_hooks,
+    install_global_hooks,
     install_shared_content,
 )
 
 logger = logging.getLogger(__name__)
 
 
-def install_cursor(project_path: Path) -> dict[str, Any]:
+def install_cursor(project_path: Path, mode: str = "global") -> dict[str, Any]:
     """Install Gobby integration for Cursor (hooks, workflows).
 
     Args:
         project_path: Path to the project root
+        mode: "global" installs hooks to ~/.gobby/hooks/ and settings to
+            ~/.cursor/hooks.json. "project" installs per-project (existing behavior).
 
     Returns:
         Dict with installation results including success status and installed items
@@ -42,47 +44,33 @@ def install_cursor(project_path: Path) -> dict[str, Any]:
         "error": None,
     }
 
-    cursor_path = project_path / ".cursor"
+    hooks_dir = Path.home() / ".gobby" / "hooks"
+    if mode == "global":
+        cursor_path = Path.home() / ".cursor"
+    else:
+        cursor_path = project_path / ".cursor"
     hooks_file = cursor_path / "hooks.json"
 
-    # Ensure .cursor subdirectories exist
+    # Ensure directories exist
     cursor_path.mkdir(parents=True, exist_ok=True)
-    hooks_dir = cursor_path / "hooks"
-    hooks_dir.mkdir(parents=True, exist_ok=True)
 
     # Get source files
     install_dir = get_install_dir()
     cursor_install_dir = install_dir / "cursor"
-    install_hooks_dir = cursor_install_dir / "hooks"
-
-    # Hook files to copy
-    hook_files = {
-        "hook_dispatcher.py": True,  # Make executable
-    }
 
     source_hooks_template = cursor_install_dir / "hooks-template.json"
 
-    # Verify all source files exist
-    missing_files = []
-    for filename in hook_files.keys():
-        source_file = install_hooks_dir / filename
-        if not source_file.exists():
-            missing_files.append(str(source_file))
-
     if not source_hooks_template.exists():
-        missing_files.append(str(source_hooks_template))
-
-    if missing_files:
-        result["error"] = f"Missing source files: {missing_files}"
+        result["error"] = f"Missing source files: [{source_hooks_template}]"
         return result
 
-    # Install hook files (symlink in dev mode, copy otherwise)
+    # Install hook files (always global)
     try:
-        dev_mode = _is_dev_mode(project_path)
-        for filename, make_executable in hook_files.items():
-            source_file = install_hooks_dir / filename
-            target_file = hooks_dir / filename
-            _install_file(source_file, target_file, dev_mode=dev_mode, executable=make_executable)
+        install_global_hooks()
+        # Clean up project-level hooks to prevent double-firing
+        cleaned = clean_project_hooks(project_path / ".cursor" / "hooks.json")
+        if cleaned:
+            result["project_hooks_cleaned"] = cleaned
     except OSError as e:
         logger.error(f"Failed to install hook files: {e}")
         result["error"] = f"Failed to install hook files: {e}"
@@ -141,9 +129,8 @@ def install_cursor(project_path: Path) -> dict[str, Any]:
         result["error"] = f"Failed to read hooks template: {e}"
         return result
 
-    # Replace $PROJECT_PATH with absolute project path
-    abs_project_path = str(project_path.resolve())
-    gobby_hooks_str = gobby_hooks_str.replace("$PROJECT_PATH", abs_project_path)
+    # Replace $HOOKS_DIR with absolute hooks directory path
+    gobby_hooks_str = gobby_hooks_str.replace("$HOOKS_DIR", str(hooks_dir.resolve()))
 
     try:
         gobby_hooks = json.loads(gobby_hooks_str)
