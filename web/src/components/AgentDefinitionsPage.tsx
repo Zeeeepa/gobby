@@ -151,7 +151,14 @@ function getBaseUrl(): string {
 // Component
 // =============================================================================
 
-export function AgentDefinitionsPage() {
+interface AgentDefinitionsPageProps {
+  searchText: string
+  showDeleted: boolean
+  showCreateForm: boolean
+  onToggleCreateForm: (show: boolean) => void
+}
+
+export function AgentDefinitionsPage({ searchText, showDeleted, showCreateForm, onToggleCreateForm }: AgentDefinitionsPageProps) {
   const { running, recentRuns, cancelAgent } = useAgentRuns()
   const [definitions, setDefinitions] = useState<AgentDefInfo[]>([])
   const [loading, setLoading] = useState(true)
@@ -160,12 +167,10 @@ export function AgentDefinitionsPage() {
   const [expandedName, setExpandedName] = useState<string | null>(null)
   const [filterSource, setFilterSource] = useState<string>('all')
   const [filterProvider, setFilterProvider] = useState<string>('all')
-  const [showCreateForm, setShowCreateForm] = useState(false)
   const [editingId, setEditingId] = useState<string | null>(null)
   const [importingName, setImportingName] = useState<string | null>(null)
   const [importResult, setImportResult] = useState<{ name: string; ok: boolean } | null>(null)
   const [toastMessage, setToastMessage] = useState<{ text: string; type: 'success' | 'error' } | null>(null)
-  const [showDeleted, setShowDeleted] = useState(false)
 
   const showToast = useCallback((text: string, type: 'success' | 'error') => {
     setToastMessage({ text, type })
@@ -196,6 +201,19 @@ export function AgentDefinitionsPage() {
 
   useEffect(() => { fetchDefinitions(showDeleted) }, [fetchDefinitions, showDeleted])
 
+  // Clear editing state when form closes; reset form when opening for create
+  useEffect(() => {
+    if (!showCreateForm) {
+      setEditingId(null)
+    } else if (!editingId) {
+      setCreateForm({
+        name: '', description: '', role: '', goal: '', personality: '', instructions: '',
+        provider: 'claude', model: '', mode: 'headless', terminal: 'auto', isolation: '',
+        base_branch: 'main', timeout: 120, max_turns: 10,
+      })
+    }
+  }, [showCreateForm, editingId])
+
   const [providerModels, setProviderModels] = useState(PROVIDER_MODELS)
 
   useEffect(() => {
@@ -210,8 +228,17 @@ export function AgentDefinitionsPage() {
   const filtered = useMemo(() => definitions.filter(d => {
     if (filterSource !== 'all' && d.source !== filterSource) return false
     if (filterProvider !== 'all' && d.definition.provider !== filterProvider) return false
+    if (searchText.trim()) {
+      const q = searchText.toLowerCase()
+      if (
+        !d.definition.name.toLowerCase().includes(q) &&
+        !(d.definition.description && d.definition.description.toLowerCase().includes(q)) &&
+        !(d.definition.role && d.definition.role.toLowerCase().includes(q)) &&
+        !d.definition.provider.toLowerCase().includes(q)
+      ) return false
+    }
     return true
-  }), [definitions, filterSource, filterProvider])
+  }), [definitions, filterSource, filterProvider, searchText])
 
   const sources = useMemo(
     () => [...new Set(definitions.map(d => d.source))].sort(),
@@ -247,7 +274,7 @@ export function AgentDefinitionsPage() {
         body: JSON.stringify(body),
       })
       if (res.ok) {
-        setShowCreateForm(false)
+        onToggleCreateForm(false)
         setCreateForm({
           name: '', description: '', role: '', goal: '', personality: '', instructions: '',
           provider: 'claude', model: '', mode: 'headless', terminal: 'auto', isolation: '',
@@ -283,7 +310,7 @@ export function AgentDefinitionsPage() {
       max_turns: d.max_turns,
     })
     setEditingId(item.db_id)
-    setShowCreateForm(true)
+    onToggleCreateForm(true)
   }
 
   const handleUpdate = async () => {
@@ -312,7 +339,7 @@ export function AgentDefinitionsPage() {
         body: JSON.stringify(body),
       })
       if (res.ok) {
-        setShowCreateForm(false)
+        onToggleCreateForm(false)
         setEditingId(null)
         setCreateForm({
           name: '', description: '', role: '', goal: '', personality: '', instructions: '',
@@ -398,59 +425,38 @@ export function AgentDefinitionsPage() {
         </div>
       )}
 
-      {/* Toolbar */}
-      <div className="agent-defs-toolbar">
-        <div className="agent-defs-toolbar-left">
-          <h2 className="agent-defs-title">Agent Definitions</h2>
-          <span className="agent-defs-count">{filtered.length}</span>
-        </div>
-        <div className="agent-defs-toolbar-right">
-          <select
-            className="agent-defs-filter"
-            value={filterSource}
-            onChange={e => setFilterSource(e.target.value)}
-          >
-            <option value="all">All sources</option>
-            {sources.map(s => (
-              <option key={s} value={s}>{SOURCE_LABELS[s] || s}</option>
-            ))}
-          </select>
-          <select
-            className="agent-defs-filter"
-            value={filterProvider}
-            onChange={e => setFilterProvider(e.target.value)}
-          >
-            <option value="all">All providers</option>
-            {providers.map(p => (
-              <option key={p} value={p}>{p}</option>
-            ))}
-          </select>
-          <label className="agent-defs-show-deleted">
-            <input
-              type="checkbox"
-              checked={showDeleted}
-              onChange={e => setShowDeleted(e.target.checked)}
-              aria-label="Show deleted agent definitions"
-            />
-            Show deleted
-          </label>
-          <button className="agent-defs-btn" onClick={() => fetchDefinitions(showDeleted)} title="Refresh">
-            <RefreshIcon />
-          </button>
-          <button
-            className="agent-defs-btn agent-defs-btn--primary"
-            onClick={() => {
-              setEditingId(null)
-              setCreateForm({
-                name: '', description: '', role: '', goal: '', personality: '', instructions: '',
-                provider: 'claude', model: '', mode: 'headless', terminal: 'auto', isolation: '',
-                base_branch: 'main', timeout: 120, max_turns: 10,
-              })
-              setShowCreateForm(!showCreateForm)
-            }}
-          >
-            + New
-          </button>
+      {/* Filter chips */}
+      <div className="workflows-filter-bar">
+        <div className="workflows-filter-chips">
+          {sources.map(s => (
+            <button
+              type="button"
+              key={s}
+              className={`workflows-filter-chip ${filterSource === s ? 'workflows-filter-chip--active' : ''}`}
+              onClick={() => setFilterSource(filterSource === s ? 'all' : s)}
+            >
+              {SOURCE_LABELS[s] || s}
+            </button>
+          ))}
+          {providers.map(p => (
+            <button
+              type="button"
+              key={p}
+              className={`workflows-filter-chip ${filterProvider === p ? 'workflows-filter-chip--active' : ''}`}
+              onClick={() => setFilterProvider(filterProvider === p ? 'all' : p)}
+            >
+              {p}
+            </button>
+          ))}
+          {(filterSource !== 'all' || filterProvider !== 'all') && (
+            <button
+              type="button"
+              className="workflows-filter-chip rules-filter-clear"
+              onClick={() => { setFilterSource('all'); setFilterProvider('all') }}
+            >
+              Clear
+            </button>
+          )}
         </div>
       </div>
 
@@ -593,7 +599,7 @@ export function AgentDefinitionsPage() {
             </label>
           </div>
           <div className="agent-defs-form-actions">
-            <button className="agent-defs-btn" onClick={() => { setShowCreateForm(false); setEditingId(null) }}>Cancel</button>
+            <button className="agent-defs-btn" onClick={() => { onToggleCreateForm(false); setEditingId(null) }}>Cancel</button>
             <button
               className="agent-defs-btn agent-defs-btn--primary"
               onClick={editingId ? handleUpdate : handleCreate}
@@ -1064,12 +1070,3 @@ function AgentRunRow({ run }: { run: AgentRun }) {
   )
 }
 
-function RefreshIcon() {
-  return (
-    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <polyline points="23 4 23 10 17 10" />
-      <polyline points="1 20 1 14 7 14" />
-      <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15" />
-    </svg>
-  )
-}

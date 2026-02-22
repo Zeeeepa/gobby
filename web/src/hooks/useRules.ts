@@ -11,6 +11,7 @@ export interface RuleSummary {
   priority: number
   source: string
   tags: string[] | null
+  effect: Record<string, unknown> | null
 }
 
 export interface RuleDetail extends RuleSummary {
@@ -99,6 +100,42 @@ export function useRules() {
     return false
   }, [fetchRules])
 
+  const createRule = useCallback(async (name: string, definition: Record<string, unknown>): Promise<RuleDetail | null> => {
+    try {
+      const baseUrl = getBaseUrl()
+      const response = await fetch(`${baseUrl}/api/rules`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name, definition }),
+      })
+      if (response.ok) {
+        const data = await response.json()
+        await fetchRules()
+        return data.rule || null
+      }
+    } catch (e) {
+      console.error('Failed to create rule:', e)
+    }
+    return null
+  }, [fetchRules])
+
+  const deleteRule = useCallback(async (name: string, force?: boolean): Promise<boolean> => {
+    try {
+      const baseUrl = getBaseUrl()
+      const params = force ? '?force=true' : ''
+      const response = await fetch(`${baseUrl}/api/rules/${encodeURIComponent(name)}${params}`, {
+        method: 'DELETE',
+      })
+      if (response.ok) {
+        await fetchRules()
+        return true
+      }
+    } catch (e) {
+      console.error('Failed to delete rule:', e)
+    }
+    return false
+  }, [fetchRules])
+
   // Computed values
   const ruleCount = rules.length
   const enabledCount = useMemo(() => rules.filter(r => r.enabled).length, [rules])
@@ -133,5 +170,7 @@ export function useRules() {
     fetchGroups,
     fetchRuleDetail,
     toggleRule,
+    createRule,
+    deleteRule,
   }
 }

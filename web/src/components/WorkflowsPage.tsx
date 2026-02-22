@@ -56,6 +56,8 @@ export function WorkflowsPage() {
   const [yamlContent, setYamlContent] = useState('')
   const [yamlLoading, setYamlLoading] = useState(false)
   const [showDeleted, setShowDeleted] = useState(false)
+  const [showRuleCreateModal, setShowRuleCreateModal] = useState(false)
+  const [showAgentCreateForm, setShowAgentCreateForm] = useState(false)
 
   // Unique sources for filter chips
   const sources = useMemo(() => {
@@ -203,47 +205,56 @@ export function WorkflowsPage() {
           <h2 className="workflows-toolbar-title">Workflows</h2>
         </div>
         <div className="workflows-toolbar-right">
+          <input
+            className="workflows-search"
+            type="text"
+            placeholder={`Search ${activeTab}...`}
+            value={searchText}
+            onChange={e => setSearchText(e.target.value)}
+          />
+          <label className="workflows-show-deleted">
+            <input
+              type="checkbox"
+              checked={showDeleted}
+              onChange={e => setShowDeleted(e.target.checked)}
+            />
+            Show deleted
+          </label>
+          <button
+            type="button"
+            className="workflows-toolbar-btn"
+            onClick={() => fetchWorkflows({ include_deleted: showDeleted })}
+            title="Refresh"
+            disabled={isLoading}
+          >
+            &#x21bb;
+          </button>
           {activeTab === 'pipelines' && (
-            <>
-              <input
-                className="workflows-search"
-                type="text"
-                placeholder="Search pipelines..."
-                value={searchText}
-                onChange={e => setSearchText(e.target.value)}
-              />
-              <label className="workflows-show-deleted">
-                <input
-                  type="checkbox"
-                  checked={showDeleted}
-                  onChange={e => setShowDeleted(e.target.checked)}
-                />
-                Show deleted
-              </label>
-              <button
-                type="button"
-                className="workflows-toolbar-btn"
-                onClick={() => fetchWorkflows({ include_deleted: showDeleted })}
-                title="Refresh"
-                disabled={isLoading}
-              >
-                &#x21bb;
-              </button>
-              <button
-                type="button"
-                className="workflows-toolbar-btn"
-                onClick={() => setShowImportModal(true)}
-              >
-                Import
-              </button>
-              <button
-                type="button"
-                className="workflows-new-btn"
-                onClick={() => setShowCreateModal(true)}
-              >
-                + Pipeline
-              </button>
-            </>
+            <button
+              type="button"
+              className="workflows-new-btn"
+              onClick={() => setShowCreateModal(true)}
+            >
+              + Pipeline
+            </button>
+          )}
+          {activeTab === 'agents' && (
+            <button
+              type="button"
+              className="workflows-new-btn"
+              onClick={() => setShowAgentCreateForm(prev => !prev)}
+            >
+              + Agent
+            </button>
+          )}
+          {activeTab === 'rules' && (
+            <button
+              type="button"
+              className="workflows-new-btn"
+              onClick={() => setShowRuleCreateModal(true)}
+            >
+              + Rule
+            </button>
           )}
         </div>
       </div>
@@ -256,7 +267,14 @@ export function WorkflowsPage() {
       />
 
       {/* Rules tab */}
-      {activeTab === 'rules' && <RulesTab />}
+      {activeTab === 'rules' && (
+        <RulesTab
+          searchText={searchText}
+          showDeleted={showDeleted}
+          showCreateModal={showRuleCreateModal}
+          onCloseCreateModal={() => setShowRuleCreateModal(false)}
+        />
+      )}
 
       {/* Pipelines tab */}
       {activeTab === 'pipelines' && (
@@ -292,6 +310,13 @@ export function WorkflowsPage() {
                 disabled
               </button>
             </div>
+            <button
+              type="button"
+              className="workflows-toolbar-btn"
+              onClick={() => setShowImportModal(true)}
+            >
+              Import
+            </button>
           </div>
 
           {/* Card grid */}
@@ -423,7 +448,12 @@ export function WorkflowsPage() {
 
       {/* Agents tab */}
       {activeTab === 'agents' && (
-        <AgentDefinitionsPage />
+        <AgentDefinitionsPage
+          searchText={searchText}
+          showDeleted={showDeleted}
+          showCreateForm={showAgentCreateForm}
+          onToggleCreateForm={setShowAgentCreateForm}
+        />
       )}
 
       {/* Create modal */}
