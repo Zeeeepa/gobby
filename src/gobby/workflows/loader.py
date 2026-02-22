@@ -122,42 +122,13 @@ class WorkflowLoader(WorkflowLoaderSyncMixin):
             return None
 
     def _resolve_imports_from_db(self, data: dict[str, Any]) -> dict[str, Any]:
-        """Resolve 'imports' by loading rule definitions from the DB.
+        """Resolve 'imports' field (no-op after rules table removal).
 
-        Each import name is looked up via RuleStore.get_rules_by_source_file()
-        (matching against the original YAML filename).  Imported rules are
-        merged first, then file-local rule_definitions override.
+        The legacy rules table has been removed.  Imports previously resolved
+        rule names from that table; now rule enforcement is handled entirely
+        by the RuleEngine via workflow_definitions.  This method preserves any
+        file-local rule_definitions but no longer performs DB lookups.
         """
-        imports = data.get("imports", [])
-        if not imports:
-            return data
-
-        from gobby.storage.rules import RuleStore
-
-        if self.db is None:
-            logger.warning("Cannot resolve imports without database")
-            return data
-
-        store = RuleStore(self.db)
-        merged_rules: dict[str, Any] = {}
-
-        # Cache bundled rules once to avoid O(n*m) repeated DB queries
-        all_bundled = store.list_rules(tier="bundled")
-
-        for import_name in imports:
-            # Search by source_file suffix matching the import name
-            # Import names are like "safety" matching ".../safety.yaml"
-            for rule in all_bundled:
-                sf = rule.get("source_file", "") or ""
-                # Match if source_file ends with /{import_name}.yaml
-                if sf.endswith(f"/{import_name}.yaml") or sf.endswith(f"\\{import_name}.yaml"):
-                    merged_rules[rule["name"]] = rule["definition"]
-
-        # File-local rule_definitions override imported
-        local_rules = data.get("rule_definitions", {})
-        merged_rules.update(local_rules)
-
-        data["rule_definitions"] = merged_rules
         return data
 
     async def load_workflow(

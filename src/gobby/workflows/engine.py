@@ -13,13 +13,10 @@ from .audit_helpers import (
     log_tool_call,
     log_transition,
 )
-from .definitions import RuleDefinition, WorkflowDefinition, WorkflowState, WorkflowTransition
+from .definitions import WorkflowDefinition, WorkflowState, WorkflowTransition
 from .engine_activation import activate_workflow as _activate_workflow_fn
 from .engine_context import (
     _build_eval_context as _build_eval_context_fn,
-)
-from .engine_context import (
-    _resolve_check_rules as _resolve_check_rules_fn,
 )
 from .engine_context import (
     _resolve_session_and_project as _resolve_session_and_project_fn,
@@ -53,8 +50,6 @@ from .unified_evaluator import (
 __all__ = ["EXEMPT_TOOLS", "WorkflowEngine"]
 
 if TYPE_CHECKING:
-    from gobby.storage.rules import RuleStore
-
     from .actions import ActionExecutor
     from .templates import TemplateRenderer
 
@@ -181,14 +176,12 @@ class WorkflowEngine:
         action_executor: "ActionExecutor",
         evaluator: ConditionEvaluator | None = None,
         audit_manager: WorkflowAuditManager | None = None,
-        rule_store: "RuleStore | None" = None,
     ):
         self.loader = loader
         self.state_manager = state_manager
         self.action_executor = action_executor
         self.evaluator = evaluator or ConditionEvaluator()
         self.audit_manager = audit_manager
-        self.rule_store = rule_store
 
     async def handle_event(self, event: HookEvent) -> HookResponse:
         """
@@ -405,39 +398,6 @@ class WorkflowEngine:
                             self._log_tool_call(session_id, state.step, mcp_key, "block", reason)
                             return HookResponse(decision="block", reason=reason)
 
-            # Engine-specific: Check named rules via DB (check_rules)
-            if current_step.check_rules:
-                project_id = project_info.get("id") or None
-                resolved_rules = self._resolve_check_rules(
-                    current_step.check_rules, workflow, project_id=project_id
-                )
-                # Only evaluate block-action rules via block_tools
-                block_rules = [r for r in resolved_rules if r.action == "block"]
-                if block_rules:
-                    from gobby.workflows.enforcement.blocking import block_tools
-
-                    block_rule_dicts = [r.to_block_rule() for r in block_rules]
-                    project_path_str = str(project_path) if project_path else None
-                    task_manager = (
-                        getattr(self.action_executor, "task_manager", None)
-                        if self.action_executor
-                        else None
-                    )
-                    block_result = await block_tools(
-                        rules=block_rule_dicts,
-                        event_data=event.data,
-                        workflow_state=state,
-                        project_path=project_path_str,
-                        task_manager=task_manager,
-                        source=event.source.value if event.source else None,
-                    )
-                    if block_result and block_result.get("decision") == "block":
-                        reason = block_result.get("reason", "Blocked by named rule.")
-                        self._log_rule_eval(
-                            session_id, state.step, "check_rules", "", "block", reason
-                        )
-                        return HookResponse(decision="block", reason=reason)
-
             # Log successful tool allow
             self._log_tool_call(session_id, state.step, tool_name, "allow")
 
@@ -557,17 +517,6 @@ class WorkflowEngine:
     ) -> dict[str, Any]:
         """Build evaluation context dict for condition checking."""
         return _build_eval_context_fn(event, state, session_info, project_info)
-
-    def _resolve_check_rules(
-        self,
-        check_rules: list[str],
-        workflow: WorkflowDefinition,
-        project_id: str | None = None,
-    ) -> list[RuleDefinition]:
-        """Resolve check_rules names to RuleDefinition objects."""
-        return _resolve_check_rules_fn(
-            check_rules, workflow, self.rule_store, self.action_executor, project_id
-        )
 
     async def _auto_transition_chain(
         self,

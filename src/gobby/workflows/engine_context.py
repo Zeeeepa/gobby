@@ -10,7 +10,6 @@ from typing import TYPE_CHECKING, Any
 
 from gobby.storage.projects import LocalProjectManager
 
-from .definitions import RuleDefinition, WorkflowDefinition
 from .engine_models import DotDict
 
 if TYPE_CHECKING:
@@ -94,46 +93,3 @@ def _build_eval_context(
     }
 
 
-def _resolve_check_rules(
-    check_rules: list[str],
-    workflow: WorkflowDefinition,
-    rule_store: Any | None,
-    action_executor: ActionExecutor | None,
-    project_id: str | None = None,
-) -> list[RuleDefinition]:
-    """Resolve check_rules names to RuleDefinition objects.
-
-    Resolution order:
-    1. Workflow's rule_definitions (includes file-local + imported)
-    2. DB rules via RuleStore (project > user > bundled tiers)
-
-    Unknown names are logged and skipped.
-    """
-    resolved: list[RuleDefinition] = []
-
-    # Lazy-create RuleStore from action_executor.db if no explicit store
-    if rule_store is None and action_executor and getattr(action_executor, "db", None):
-        from gobby.storage.rules import RuleStore
-
-        rule_store = RuleStore(action_executor.db)
-
-    for name in check_rules:
-        # 1. Check workflow's rule_definitions (file-local + imported)
-        if name in workflow.rule_definitions:
-            resolved.append(workflow.rule_definitions[name])
-            continue
-
-        # 2. Check DB via RuleStore (handles tier precedence)
-        if rule_store:
-            rule_row = rule_store.get_rule(name, project_id=project_id)
-            if rule_row:
-                try:
-                    rule_def = RuleDefinition(**rule_row["definition"])
-                    resolved.append(rule_def)
-                    continue
-                except Exception as e:
-                    logger.warning(f"Invalid rule definition for '{name}' from DB: {e}")
-
-        logger.warning(f"check_rules: rule '{name}' not found, skipping")
-
-    return resolved

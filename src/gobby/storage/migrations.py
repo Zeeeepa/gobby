@@ -743,21 +743,6 @@ CREATE TABLE secrets (
 );
 CREATE INDEX idx_secrets_category ON secrets(category);
 
-CREATE TABLE rules (
-    id TEXT PRIMARY KEY,
-    name TEXT NOT NULL,
-    tier TEXT NOT NULL CHECK(tier IN ('bundled', 'user', 'project')),
-    project_id TEXT REFERENCES projects(id) ON DELETE CASCADE,
-    definition TEXT NOT NULL,
-    source_file TEXT,
-    created_at TEXT NOT NULL DEFAULT (datetime('now')),
-    updated_at TEXT NOT NULL DEFAULT (datetime('now'))
-);
-CREATE INDEX idx_rules_name ON rules(name);
-CREATE INDEX idx_rules_tier ON rules(tier);
-CREATE INDEX idx_rules_project ON rules(project_id);
-CREATE UNIQUE INDEX idx_rules_name_tier_project ON rules(name, tier, COALESCE(project_id, ''));
-
 CREATE TABLE task_comments (
     id TEXT PRIMARY KEY,
     task_id TEXT NOT NULL REFERENCES tasks(id) ON DELETE CASCADE,
@@ -1204,6 +1189,11 @@ MIGRATIONS: list[tuple[int, str, MigrationAction]] = [
         117,
         "Migrate agent_definitions to workflow_definitions and drop old table",
         _migrate_agent_defs_to_workflow_defs,
+    ),
+    (
+        118,
+        "Drop legacy rules table (replaced by workflow_definitions with type='rule')",
+        """DROP TABLE IF EXISTS rules""",
     ),
 ]
 

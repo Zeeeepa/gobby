@@ -242,7 +242,6 @@ def sync_bundled_content_to_db(
     sync_targets: list[tuple[str, str, str]] = [
         ("skills", "gobby.skills.sync", "sync_bundled_skills"),
         ("prompts", "gobby.prompts.sync", "sync_bundled_prompts"),
-        ("rules", "gobby.workflows.rule_sync", "sync_bundled_rules_sync"),
         ("agents", "gobby.agents.sync", "sync_bundled_agents"),
         ("workflows", "gobby.workflows.sync", "sync_bundled_workflows"),
     ]
