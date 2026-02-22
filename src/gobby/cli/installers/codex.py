@@ -53,9 +53,7 @@ def install_codex_notify(project_path: Path) -> dict[str, Any]:
         return result
 
     # Install hook dispatcher to ~/.gobby/hooks/codex/hook_dispatcher.py
-    hooks_base = Path(
-        os.environ.get("GOBBY_HOOKS_DIR", str(Path.home() / ".gobby" / "hooks"))
-    )
+    hooks_base = Path(os.environ.get("GOBBY_HOOKS_DIR", str(Path.home() / ".gobby" / "hooks")))
     notify_dir = hooks_base / "codex"
     notify_dir.mkdir(parents=True, exist_ok=True)
     target_notify = notify_dir / "hook_dispatcher.py"

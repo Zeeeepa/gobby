@@ -937,9 +937,7 @@ def create_worktrees_registry(
             else delete_branch
         )
 
-        resolved_git_mgr, _, error = _resolve_project_context(
-            project_path, git_manager, project_id
-        )
+        resolved_git_mgr, _, error = _resolve_project_context(project_path, git_manager, project_id)
         if error:
             return {"success": False, "error": error}
         if resolved_git_mgr is None:

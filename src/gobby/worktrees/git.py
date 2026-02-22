@@ -877,9 +877,7 @@ class WorktreeGitManager:
                         ["diff", "--name-only", "--diff-filter=U"],
                         timeout=10,
                     )
-                    conflicted_files = [
-                        f for f in status_result.stdout.strip().split("\n") if f
-                    ]
+                    conflicted_files = [f for f in status_result.stdout.strip().split("\n") if f]
 
                     # Abort merge
                     self._run_git(["merge", "--abort"], timeout=10)
