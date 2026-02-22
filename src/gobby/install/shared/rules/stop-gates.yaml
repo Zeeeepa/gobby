@@ -56,28 +56,27 @@ rules:
       reason: |
         Task {{ task_ref }} is still in_progress. Commit and close_task().
 
-  reset-stop-attempts-on-prompt:
-    description: "Reset stop counter on new user prompt"
-    event: before_agent
-    priority: 10
-    effect:
-      type: set_variable
-      variable: stop_attempts
-      value: 0
+  # NOTE: stop_attempts is NOT reset on before_agent. It is only reset by
+  # reset-stop-on-native-tool (after_tool, non-MCP). This is intentional:
+  # when a stop hook blocks, Claude Code fires before_agent for the feedback
+  # message, which would reset the counter and break the escape hatch.
+  # Native tool use in genuine new interactions resets it naturally.
 
   clear-tool-block-on-prompt:
-    description: "Clear tool block flag on new user prompt"
+    description: "Clear tool block flag on genuine new prompt (not stop-cycle feedback)"
     event: before_agent
     priority: 11
+    when: "variables.get('stop_attempts', 0) == 0"
     effect:
       type: set_variable
       variable: _tool_block_pending
       value: false
 
   reset-error-triage-on-prompt:
-    description: "Reset triage flag — agents must re-confirm each interaction"
+    description: "Reset triage flag on genuine new prompt (not stop-cycle feedback)"
     event: before_agent
     priority: 12
+    when: "variables.get('stop_attempts', 0) == 0"
     effect:
       type: set_variable
       variable: pre_existing_errors_triaged

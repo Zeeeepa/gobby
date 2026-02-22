@@ -45,7 +45,6 @@ STOP_GATES_RULES = {
     "require-error-triage",
     "memory-review-gate",
     "require-task-close",
-    "reset-stop-attempts-on-prompt",
     "clear-tool-block-on-prompt",
     "reset-error-triage-on-prompt",
     "reset-stop-on-native-tool",
@@ -57,7 +56,7 @@ class TestStopGatesSync:
     """Test that stop-gates.yaml syncs correctly."""
 
     def test_bundled_file_syncs_all_rules(self, db, manager) -> None:
-        """All 10 stop-gates rules should sync to workflow_definitions."""
+        """All 9 stop-gates rules should sync to workflow_definitions."""
         _sync_bundled(db)
 
         rules = manager.list_all(workflow_type="rule")
@@ -219,22 +218,28 @@ class TestRequireTaskClose:
 
 
 class TestBeforeAgentResets:
-    """Verify before_agent reset rules clear state on new prompt."""
+    """Verify before_agent reset rules clear state on genuine new prompt.
 
-    def test_reset_stop_attempts(self, db, manager) -> None:
-        """Should reset stop_attempts to 0 on before_agent."""
+    These rules are gated by stop_attempts == 0 to avoid resetting state
+    during stop cycles (where before_agent fires for hook feedback, not
+    genuine user prompts). stop_attempts itself is only reset by
+    reset-stop-on-native-tool (after_tool) to preserve the escape hatch.
+    """
+
+    def test_no_reset_stop_attempts_on_prompt(self, db, manager) -> None:
+        """stop_attempts should NOT be reset on before_agent.
+
+        It's only reset by reset-stop-on-native-tool (after_tool).
+        Resetting on before_agent would break the escape hatch because
+        stop-hook feedback triggers before_agent.
+        """
         _sync_bundled(db)
 
         row = manager.get_by_name("reset-stop-attempts-on-prompt")
-        assert row is not None
+        assert row is None, "reset-stop-attempts-on-prompt should not exist"
 
-        body = RuleDefinitionBody.model_validate_json(row.definition_json)
-        assert body.event.value == "before_agent"
-        assert body.effect.variable == "stop_attempts"
-        assert body.effect.value == 0
-
-    def test_clear_tool_block(self, db, manager) -> None:
-        """Should clear _tool_block_pending on before_agent."""
+    def test_clear_tool_block_gated_by_stop_cycle(self, db, manager) -> None:
+        """Should clear _tool_block_pending only when not in stop cycle."""
         _sync_bundled(db)
 
         row = manager.get_by_name("clear-tool-block-on-prompt")
@@ -244,9 +249,11 @@ class TestBeforeAgentResets:
         assert body.event.value == "before_agent"
         assert body.effect.variable == "_tool_block_pending"
         assert body.effect.value is False
+        assert body.when is not None
+        assert "stop_attempts" in body.when
 
-    def test_reset_error_triage(self, db, manager) -> None:
-        """Should reset pre_existing_errors_triaged on before_agent."""
+    def test_reset_error_triage_gated_by_stop_cycle(self, db, manager) -> None:
+        """Should reset pre_existing_errors_triaged only when not in stop cycle."""
         _sync_bundled(db)
 
         row = manager.get_by_name("reset-error-triage-on-prompt")
@@ -256,6 +263,8 @@ class TestBeforeAgentResets:
         assert body.event.value == "before_agent"
         assert body.effect.variable == "pre_existing_errors_triaged"
         assert body.effect.value is False
+        assert body.when is not None
+        assert "stop_attempts" in body.when
 
 
 class TestAfterToolResets:
