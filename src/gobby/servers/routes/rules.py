@@ -20,6 +20,7 @@ from gobby.mcp_proxy.tools.workflows._rules import (
     list_rules,
     toggle_rule,
 )
+from gobby.storage.config_store import ConfigStore
 from gobby.utils.metrics import get_metrics_collector
 
 if TYPE_CHECKING:
@@ -50,6 +51,12 @@ class RuleUpdateRequest(BaseModel):
     enabled: bool | None = Field(default=None, description="New enabled state")
     priority: int | None = Field(default=None, description="New priority")
     tags: list[str] | None = Field(default=None, description="New tags")
+
+
+class RulesCollectionUpdate(BaseModel):
+    """Request body for updating rules collection settings."""
+
+    enforcement_enabled: bool | None = Field(default=None, description="Global enforcement toggle")
 
 
 class RuleToggleRequest(BaseModel):
@@ -113,7 +120,14 @@ def create_rules_router(server: "HTTPServer") -> APIRouter:
         try:
             manager = _get_manager()
             result = list_rules(manager, event=event, group=group, enabled=enabled)
-            return {"status": "success", "rules": result["rules"], "count": result["count"]}
+            config_store = ConfigStore(server.services.database)
+            enforcement = config_store.get("rules.enforcement_enabled")
+            return {
+                "status": "success",
+                "rules": result["rules"],
+                "count": result["count"],
+                "enforcement_enabled": enforcement is not False,
+            }
         except Exception as e:
             logger.exception("Error listing rules")
             raise HTTPException(status_code=500, detail=str(e)) from e
@@ -136,6 +150,20 @@ def create_rules_router(server: "HTTPServer") -> APIRouter:
             raise HTTPException(status_code=400, detail=error)
 
         return {"status": "success", "rule": result["rule"]}
+
+    # -----------------------------------------------------------------
+    # PUT /api/rules  (collection-level: enforcement toggle)
+    # -----------------------------------------------------------------
+
+    @router.put("")
+    async def update_rules_collection(request: RulesCollectionUpdate) -> dict[str, Any]:
+        """Update rules collection settings (e.g. global enforcement toggle)."""
+        metrics.inc_counter("http_requests_total")
+        config_store = ConfigStore(server.services.database)
+        if request.enforcement_enabled is not None:
+            config_store.set("rules.enforcement_enabled", request.enforcement_enabled)
+        val = config_store.get("rules.enforcement_enabled")
+        return {"status": "success", "enforcement_enabled": val is not False}
 
     # -----------------------------------------------------------------
     # GET /api/rules/{name}

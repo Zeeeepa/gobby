@@ -278,6 +278,7 @@ class LocalWorkflowDefinitionManager:
         conditions = [
             "workflow_type = 'rule'",
             "deleted_at IS NULL",
+            "source != 'bundled'",
             "json_extract(definition_json, '$.event') = ?",
         ]
         params: list[Any] = [event]
@@ -307,6 +308,7 @@ class LocalWorkflowDefinitionManager:
         conditions = [
             "workflow_type = 'rule'",
             "deleted_at IS NULL",
+            "source != 'bundled'",
             "json_extract(definition_json, '$.group') = ?",
         ]
         params: list[Any] = [group]

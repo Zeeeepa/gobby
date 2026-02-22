@@ -3,18 +3,24 @@
 Verifies blocking rules enforce progressive disclosure (list_mcp_servers →
 list_tools → get_tool_schema → call_tool), tracker rules record state,
 and reset rules clear state on context loss.
+
+Includes integration tests that exercise the full RuleEngine.evaluate() flow
+to verify conditions like is_server_listed actually resolve correctly.
 """
 
 from __future__ import annotations
 
 import json
+from datetime import UTC, datetime
 
 import pytest
 
+from gobby.hooks.events import HookEvent, HookEventType, SessionSource
 from gobby.storage.database import LocalDatabase
 from gobby.storage.migrations import run_migrations
 from gobby.storage.workflow_definitions import LocalWorkflowDefinitionManager
 from gobby.workflows.definitions import RuleDefinitionBody
+from gobby.workflows.rule_engine import RuleEngine
 from gobby.workflows.sync import sync_bundled_rules
 
 pytestmark = pytest.mark.unit
@@ -314,3 +320,294 @@ class TestPriorityOrdering:
         assert block_rule is not None
         assert tracker_rule is not None
         assert block_rule.priority <= tracker_rule.priority
+
+
+def _make_hook_event(
+    event_type: HookEventType,
+    tool_name: str = "",
+    tool_input: dict | None = None,
+) -> HookEvent:
+    """Create a HookEvent for testing."""
+    data = {"tool_name": tool_name}
+    if tool_input is not None:
+        data["tool_input"] = tool_input
+    return HookEvent(
+        event_type=event_type,
+        session_id="test-session-ext",
+        source=SessionSource.CLAUDE,
+        timestamp=datetime.now(UTC),
+        data=data,
+        metadata={"_platform_session_id": "test-session"},
+    )
+
+
+class TestRuleEngineIntegration:
+    """End-to-end tests: RuleEngine.evaluate() with progressive disclosure rules.
+
+    These test the actual condition evaluation path including is_server_listed,
+    is_tool_unlocked, and is_discovery_tool — the functions that were missing
+    from allowed_funcs (the bug that caused permanent blocking).
+    """
+
+    @pytest.fixture
+    def engine(self, db) -> RuleEngine:
+        _sync_bundled(db)
+        # Enable the progressive disclosure rules and set source to 'custom'
+        # (bundled rules are excluded from engine evaluation; in production
+        # users create custom copies via "Use as Template")
+        for name in PROGRESSIVE_DISCLOSURE_RULES:
+            db.execute(
+                "UPDATE workflow_definitions SET enabled = 1, source = 'custom' WHERE name = ?",
+                (name,),
+            )
+        return RuleEngine(db)
+
+    @pytest.mark.asyncio
+    async def test_get_tool_schema_blocked_before_list_tools(self, engine) -> None:
+        """get_tool_schema should be blocked when server not yet listed."""
+        variables = {"enforce_tool_schema_check": True, "listed_servers": []}
+        event = _make_hook_event(
+            HookEventType.BEFORE_TOOL,
+            tool_name="mcp__gobby__get_tool_schema",
+            tool_input={"server_name": "gobby-tasks", "tool_name": "create_task"},
+        )
+        result = await engine.evaluate(event, "test-session", variables)
+        assert result.decision == "block"
+
+    @pytest.mark.asyncio
+    async def test_get_tool_schema_allowed_after_list_tools(self, engine) -> None:
+        """get_tool_schema should be allowed after list_tools was called for that server."""
+        variables = {
+            "enforce_tool_schema_check": True,
+            "listed_servers": ["gobby-tasks"],
+        }
+        event = _make_hook_event(
+            HookEventType.BEFORE_TOOL,
+            tool_name="mcp__gobby__get_tool_schema",
+            tool_input={"server_name": "gobby-tasks", "tool_name": "create_task"},
+        )
+        result = await engine.evaluate(event, "test-session", variables)
+        assert result.decision == "allow"
+
+    @pytest.mark.asyncio
+    async def test_call_tool_blocked_before_schema_lookup(self, engine) -> None:
+        """call_tool should be blocked when tool schema not yet looked up."""
+        variables = {
+            "enforce_tool_schema_check": True,
+            "unlocked_tools": [],
+        }
+        event = _make_hook_event(
+            HookEventType.BEFORE_TOOL,
+            tool_name="mcp__gobby__call_tool",
+            tool_input={
+                "server_name": "gobby-tasks",
+                "tool_name": "create_task",
+                "arguments": {"title": "test"},
+            },
+        )
+        result = await engine.evaluate(event, "test-session", variables)
+        assert result.decision == "block"
+
+    @pytest.mark.asyncio
+    async def test_call_tool_allowed_after_schema_lookup(self, engine) -> None:
+        """call_tool should be allowed after get_tool_schema was called."""
+        variables = {
+            "enforce_tool_schema_check": True,
+            "unlocked_tools": ["gobby-tasks:create_task"],
+        }
+        event = _make_hook_event(
+            HookEventType.BEFORE_TOOL,
+            tool_name="mcp__gobby__call_tool",
+            tool_input={
+                "server_name": "gobby-tasks",
+                "tool_name": "create_task",
+                "arguments": {"title": "test"},
+            },
+        )
+        result = await engine.evaluate(event, "test-session", variables)
+        assert result.decision == "allow"
+
+    @pytest.mark.asyncio
+    async def test_call_tool_allowed_for_discovery_tools(self, engine) -> None:
+        """call_tool should allow discovery tools (list_tools, etc.) without schema."""
+        variables = {
+            "enforce_tool_schema_check": True,
+            "unlocked_tools": [],
+        }
+        event = _make_hook_event(
+            HookEventType.BEFORE_TOOL,
+            tool_name="mcp__gobby__call_tool",
+            tool_input={
+                "server_name": "gobby-tasks",
+                "tool_name": "list_tools",
+                "arguments": {"server_name": "gobby-tasks"},
+            },
+        )
+        result = await engine.evaluate(event, "test-session", variables)
+        assert result.decision == "allow"
+
+    @pytest.mark.asyncio
+    async def test_block_reason_renders_jinja_template(self, engine) -> None:
+        """Block reason should render Jinja templates with tool_input values."""
+        variables = {"enforce_tool_schema_check": True, "listed_servers": []}
+        event = _make_hook_event(
+            HookEventType.BEFORE_TOOL,
+            tool_name="mcp__gobby__get_tool_schema",
+            tool_input={"server_name": "gobby-tasks", "tool_name": "create_task"},
+        )
+        result = await engine.evaluate(event, "test-session", variables)
+        assert result.decision == "block"
+        # The reason should contain the actual server name, not raw Jinja
+        assert "gobby-tasks" in result.reason
+        assert "{{" not in result.reason
+
+    @pytest.mark.asyncio
+    async def test_full_disclosure_flow(self, engine) -> None:
+        """Full flow: block → track list_tools → allow get_tool_schema."""
+        variables: dict = {
+            "enforce_tool_schema_check": True,
+            "listed_servers": [],
+            "unlocked_tools": [],
+        }
+
+        # Step 1: get_tool_schema blocked (server not listed)
+        event = _make_hook_event(
+            HookEventType.BEFORE_TOOL,
+            tool_name="mcp__gobby__get_tool_schema",
+            tool_input={"server_name": "gobby-tasks", "tool_name": "create_task"},
+        )
+        result = await engine.evaluate(event, "test-session", variables)
+        assert result.decision == "block"
+
+        # Step 2: simulate list_tools tracking (Python handler sets this)
+        variables["listed_servers"].append("gobby-tasks")
+
+        # Step 3: get_tool_schema now allowed
+        result = await engine.evaluate(event, "test-session", variables)
+        assert result.decision == "allow"
+
+        # Step 4: call_tool still blocked (schema not looked up)
+        call_event = _make_hook_event(
+            HookEventType.BEFORE_TOOL,
+            tool_name="mcp__gobby__call_tool",
+            tool_input={
+                "server_name": "gobby-tasks",
+                "tool_name": "create_task",
+                "arguments": {"title": "test"},
+            },
+        )
+        result = await engine.evaluate(call_event, "test-session", variables)
+        assert result.decision == "block"
+
+        # Step 5: simulate schema unlock (Python handler sets this)
+        variables["unlocked_tools"].append("gobby-tasks:create_task")
+
+        # Step 6: call_tool now allowed
+        result = await engine.evaluate(call_event, "test-session", variables)
+        assert result.decision == "allow"
+
+    @pytest.mark.asyncio
+    async def test_tracking_rules_set_variables_via_after_tool(self, engine) -> None:
+        """Tracking rules should set variables when after_tool events fire.
+
+        Regression test: previously, the tracking rules had truncated `when`
+        conditions that only checked `event.data.mcp_tool` (set by CLI adapters)
+        but not `event.data.tool_name` (set by the web chat SDK bridge). This
+        meant tracking never fired for web chat sessions.
+        """
+        variables: dict = {
+            "enforce_tool_schema_check": True,
+        }
+
+        # Step 1: Fire after_tool for list_mcp_servers (native tool name)
+        after_list_servers = _make_hook_event(
+            HookEventType.AFTER_TOOL,
+            tool_name="mcp__gobby__list_mcp_servers",
+        )
+        result = await engine.evaluate(after_list_servers, "test-session", variables)
+        assert result.decision == "allow"
+        assert variables.get("servers_listed") is True, (
+            "track-servers-listed should set servers_listed=True"
+        )
+
+        # Step 2: Fire after_tool for list_tools (native tool name)
+        after_list_tools = _make_hook_event(
+            HookEventType.AFTER_TOOL,
+            tool_name="mcp__gobby__list_tools",
+            tool_input={"server_name": "gobby-tasks"},
+        )
+        result = await engine.evaluate(after_list_tools, "test-session", variables)
+        assert result.decision == "allow"
+        assert "gobby-tasks" in variables.get("listed_servers", []), (
+            "track-listed-servers should append server to listed_servers"
+        )
+
+        # Step 3: Fire after_tool for get_tool_schema (native tool name)
+        after_schema = _make_hook_event(
+            HookEventType.AFTER_TOOL,
+            tool_name="mcp__gobby__get_tool_schema",
+            tool_input={"server_name": "gobby-tasks", "tool_name": "create_task"},
+        )
+        result = await engine.evaluate(after_schema, "test-session", variables)
+        assert result.decision == "allow"
+        assert "gobby-tasks:create_task" in variables.get("unlocked_tools", []), (
+            "track-schema-lookup should append server:tool to unlocked_tools"
+        )
+
+    @pytest.mark.asyncio
+    async def test_full_round_trip_via_rule_engine(self, engine) -> None:
+        """Full round-trip: tracking rules fire on after_tool, unblocking before_tool.
+
+        This is the end-to-end test that proves the YAML rules work without
+        any Python handler assistance. All variable tracking is done by the
+        rule engine's set_variable effects.
+        """
+        variables: dict = {
+            "enforce_tool_schema_check": True,
+        }
+
+        # get_tool_schema is blocked (no list_tools yet)
+        schema_event = _make_hook_event(
+            HookEventType.BEFORE_TOOL,
+            tool_name="mcp__gobby__get_tool_schema",
+            tool_input={"server_name": "gobby-tasks", "tool_name": "create_task"},
+        )
+        result = await engine.evaluate(schema_event, "test-session", variables)
+        assert result.decision == "block"
+
+        # Simulate list_tools completing (after_tool fires tracking rule)
+        after_list_tools = _make_hook_event(
+            HookEventType.AFTER_TOOL,
+            tool_name="mcp__gobby__list_tools",
+            tool_input={"server_name": "gobby-tasks"},
+        )
+        await engine.evaluate(after_list_tools, "test-session", variables)
+
+        # Now get_tool_schema is allowed
+        result = await engine.evaluate(schema_event, "test-session", variables)
+        assert result.decision == "allow"
+
+        # call_tool is blocked (no schema lookup yet)
+        call_event = _make_hook_event(
+            HookEventType.BEFORE_TOOL,
+            tool_name="mcp__gobby__call_tool",
+            tool_input={
+                "server_name": "gobby-tasks",
+                "tool_name": "create_task",
+                "arguments": {"title": "test"},
+            },
+        )
+        result = await engine.evaluate(call_event, "test-session", variables)
+        assert result.decision == "block"
+
+        # Simulate get_tool_schema completing (after_tool fires tracking rule)
+        after_schema = _make_hook_event(
+            HookEventType.AFTER_TOOL,
+            tool_name="mcp__gobby__get_tool_schema",
+            tool_input={"server_name": "gobby-tasks", "tool_name": "create_task"},
+        )
+        await engine.evaluate(after_schema, "test-session", variables)
+
+        # Now call_tool is allowed
+        result = await engine.evaluate(call_event, "test-session", variables)
+        assert result.decision == "allow"

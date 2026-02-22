@@ -27,6 +27,7 @@ export function useRules() {
   const [rules, setRules] = useState<RuleSummary[]>([])
   const [groups, setGroups] = useState<string[]>([])
   const [isLoading, setIsLoading] = useState(true)
+  const [enforcementEnabled, setEnforcementEnabled] = useState(true)
 
   const fetchRules = useCallback(async (params?: {
     event?: string
@@ -46,6 +47,9 @@ export function useRules() {
       if (response.ok) {
         const data = await response.json()
         setRules(data.rules || [])
+        if (data.enforcement_enabled !== undefined) {
+          setEnforcementEnabled(data.enforcement_enabled)
+        }
       }
     } catch (e) {
       console.error('Failed to fetch rules:', e)
@@ -156,6 +160,25 @@ export function useRules() {
     return false
   }, [fetchRules])
 
+  const setEnforcement = useCallback(async (enabled: boolean): Promise<boolean> => {
+    try {
+      const baseUrl = getBaseUrl()
+      const response = await fetch(`${baseUrl}/api/rules`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ enforcement_enabled: enabled }),
+      })
+      if (response.ok) {
+        const data = await response.json()
+        setEnforcementEnabled(data.enforcement_enabled)
+        return true
+      }
+    } catch (e) {
+      console.error('Failed to set enforcement:', e)
+    }
+    return false
+  }, [])
+
   const deleteRule = useCallback(async (name: string, force?: boolean): Promise<boolean> => {
     try {
       const baseUrl = getBaseUrl()
@@ -203,6 +226,7 @@ export function useRules() {
     enabledCount,
     eventTypes,
     sources,
+    enforcementEnabled,
     fetchRules,
     fetchGroups,
     fetchRuleDetail,
@@ -211,5 +235,6 @@ export function useRules() {
     updateRule,
     deleteRule,
     useAsTemplate,
+    setEnforcement,
   }
 }

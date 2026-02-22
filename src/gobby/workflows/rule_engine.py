@@ -9,13 +9,20 @@ import re
 from typing import Any
 
 from gobby.hooks.events import HookEvent, HookEventType, HookResponse
+from gobby.storage.config_store import ConfigStore
 from gobby.storage.database import DatabaseProtocol
 from gobby.storage.workflow_definitions import (
     LocalWorkflowDefinitionManager,
     WorkflowDefinitionRow,
 )
 from gobby.workflows.definitions import RuleDefinitionBody, RuleEvent
+from gobby.workflows.enforcement.blocking import (
+    is_discovery_tool,
+    is_server_listed,
+    is_tool_unlocked,
+)
 from gobby.workflows.safe_evaluator import SafeExpressionEvaluator
+from gobby.workflows.templates import TemplateEngine
 
 logger = logging.getLogger(__name__)
 
@@ -64,6 +71,11 @@ class RuleEngine:
         if rule_event is None:
             return HookResponse(decision="allow")
 
+        # Check global enforcement toggle
+        config_store = ConfigStore(self.db)
+        if config_store.get("rules.enforcement_enabled") is False:
+            return HookResponse(decision="allow")
+
         # 1. Load enabled rules for this event, sorted by priority
         rules = self._load_rules(rule_event)
 
@@ -99,6 +111,13 @@ class RuleEngine:
             if effect.type == "block":
                 if self._should_block(effect, event):
                     block_reason = effect.reason or "Blocked by rule"
+                    # Render Jinja templates in reason (e.g. {{ tool_input.get('server_name') }})
+                    if block_reason and "{{" in block_reason:
+                        try:
+                            engine = TemplateEngine()
+                            block_reason = engine.render(block_reason, ctx)
+                        except Exception as e:
+                            logger.warning(f"Failed to render block reason template: {e}")
                     # First block wins — stop evaluating
                     break
 
@@ -216,6 +235,7 @@ class RuleEngine:
 
     def _evaluate_condition(self, condition: str, context: dict[str, Any]) -> bool:
         """Evaluate a `when` condition string using SafeExpressionEvaluator."""
+        variables = context.get("variables", {})
         try:
             evaluator = SafeExpressionEvaluator(
                 context=context,
@@ -225,6 +245,11 @@ class RuleEngine:
                     "int": int,
                     "bool": bool,
                     "isinstance": isinstance,
+                    # Progressive disclosure helpers — need access to variables
+                    # for checking listed_servers / unlocked_tools state.
+                    "is_server_listed": lambda ti: is_server_listed(ti, variables),
+                    "is_tool_unlocked": lambda ti: is_tool_unlocked(ti, variables),
+                    "is_discovery_tool": is_discovery_tool,
                 },
             )
             return evaluator.evaluate(condition)
