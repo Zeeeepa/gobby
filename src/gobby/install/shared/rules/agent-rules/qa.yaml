@@ -1,0 +1,16 @@
+# QA agent rules - restrict to testing only.
+# QA agents read and test code but don't write production code.
+
+group: qa-agent
+tags: [agent, qa, enforcement]
+agent_scope: [qa]
+
+rules:
+  no-code-writing:
+    description: "QA can't write production code"
+    event: before_tool
+    priority: 50
+    effect:
+      type: block
+      tools: [Edit, Write]
+      reason: "QA agents can only edit test files. Reassign code changes to a developer."

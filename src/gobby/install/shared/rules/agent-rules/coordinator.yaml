@@ -1,0 +1,16 @@
+# Coordinator agent rules - orchestrate only, no code writing.
+# Coordinators delegate work via send_command, they don't write code.
+
+group: coordinator-agent
+tags: [agent, coordinator, enforcement]
+agent_scope: [coordinator]
+
+rules:
+  no-code-writing:
+    description: "Coordinator orchestrates, doesn't write code"
+    event: before_tool
+    priority: 50
+    effect:
+      type: block
+      tools: [Edit, Write, NotebookEdit]
+      reason: "Coordinators orchestrate via send_command. Delegate code work to developer agents."

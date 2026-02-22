@@ -71,10 +71,14 @@ class RuleEngine:
         overrides = self._load_session_overrides(session_id)
         rules = self._apply_overrides(rules, overrides)
 
+        # 3. Filter by agent_scope
+        agent_type = variables.get("_agent_type")
+        rules = self._filter_by_agent_scope(rules, agent_type)
+
         if not rules:
             return HookResponse(decision="allow")
 
-        # 3. Evaluate rules in priority order
+        # 4. Evaluate rules in priority order
         context_parts: list[str] = []
         mcp_calls: list[dict[str, Any]] = []
         block_reason: str | None = None
@@ -115,7 +119,7 @@ class RuleEngine:
                     }
                 )
 
-        # 4. Build response
+        # 5. Build response
         if block_reason:
             return HookResponse(
                 decision="block",
@@ -165,6 +169,24 @@ class RuleEngine:
             (row, body)
             for row, body in rules
             if overrides.get(row.name, True)  # Default to enabled if no override
+        ]
+
+    def _filter_by_agent_scope(
+        self,
+        rules: list[tuple[WorkflowDefinitionRow, RuleDefinitionBody]],
+        agent_type: str | None,
+    ) -> list[tuple[WorkflowDefinitionRow, RuleDefinitionBody]]:
+        """Filter rules by agent_scope.
+
+        - Rules with no agent_scope (None) are global — always included.
+        - Rules with agent_scope require _agent_type to be in the list.
+        - If no _agent_type is set, only global rules are included.
+        """
+        return [
+            (row, body)
+            for row, body in rules
+            if body.agent_scope is None
+            or (agent_type is not None and agent_type in body.agent_scope)
         ]
 
     def _build_eval_context(
