@@ -1,0 +1,90 @@
+# Task enforcement rules - gate edits, commits, and task lifecycle.
+# Blocks native task tools, requires claimed task before edits,
+# and tracks task claim/release state.
+
+group: task-enforcement
+tags: [enforcement, tasks]
+
+rules:
+  block-native-task-tools:
+    description: "Block CC native task/todo tools - use gobby-tasks instead"
+    event: before_tool
+    priority: 30
+    effect:
+      type: block
+      tools: [TaskCreate, TaskUpdate, TaskGet, TaskList, TodoWrite]
+      reason: |
+        CC native task tools are disabled. Use gobby-tasks MCP tools instead:
+        - create_task(title, description, session_id, claim=True)
+        - claim_task(task_id, session_id)
+        - list_ready_tasks()
+
+  require-task-before-edit:
+    description: "Block file edits without active task"
+    event: before_tool
+    priority: 31
+    when: "variables.get('require_task_before_edit') and not task_claimed and not (plan_mode and is_plan_file(tool_input.get('file_path', ''), source))"
+    effect:
+      type: block
+      tools: [Edit, Write, NotebookEdit]
+      reason: |
+        You must create or claim a task before editing files.
+        - create_task(title, description, session_id, claim=True)
+        - claim_task(task_id, session_id)
+
+  require-commit-before-close:
+    description: "Require linked commit before close_task"
+    event: before_tool
+    priority: 32
+    when: "variables.get('require_commit_before_close') and not task_has_commits and not tool_input.get('commit_sha') and tool_input.get('reason') not in ['already_implemented', 'obsolete', 'duplicate', 'wont_fix', 'out_of_repo']"
+    effect:
+      type: block
+      mcp_tools: ["gobby-tasks:close_task"]
+      reason: |
+        A commit is required before closing this task.
+        1. git commit -m "[{{ project.name }}-#N] description"
+        2. close_task(task_id="#N", commit_sha="<sha>")
+
+  block-skip-validation-with-commit:
+    description: "Block skip_validation when commits exist"
+    event: before_tool
+    priority: 33
+    when: "tool_input.get('skip_validation') and (task_has_commits or tool_input.get('commit_sha'))"
+    effect:
+      type: block
+      mcp_tools: ["gobby-tasks:close_task"]
+      reason: "skip_validation is not allowed when a commit is attached. Close without skip_validation."
+
+  block-ask-during-stop-compliance:
+    description: "Block AskUserQuestion when stop hook gave directive"
+    event: before_tool
+    priority: 34
+    when: "variables.get('stop_attempts', 0) > 0 and task_claimed"
+    effect:
+      type: block
+      tools: [AskUserQuestion]
+      reason: |
+        Do not ask — act on the hook directive:
+        1. git commit -m "[{{ project.name }}-#N] description"
+        2. close_task(task_id="#N", commit_sha="<sha>")
+        3. Then stop.
+
+  track-task-claim:
+    description: "Set task_claimed when agent claims a task"
+    event: after_tool
+    priority: 30
+    when: "event.data.get('mcp_tool') in ['claim_task', 'create_task'] and not event.data.get('error')"
+    effect:
+      type: set_variable
+      variable: task_claimed
+      value: true
+
+  track-task-release:
+    description: "Clear task_claimed when agent closes/releases task"
+    event: after_tool
+    priority: 31
+    when: "event.data.get('mcp_tool') in ['close_task', 'release_task'] and not event.data.get('error')"
+    effect:
+      type: set_variable
+      variable: task_claimed
+      value: false
