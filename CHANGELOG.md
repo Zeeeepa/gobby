@@ -8,6 +8,130 @@ All notable changes to Gobby are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.20]
+
+### Major Features
+
+#### Global Hooks by Default
+
+- Install hooks globally (`~/.gobby/hooks/`) by default instead of per-project (#8417)
+- Consolidate per-CLI hook dispatchers into a single shared dispatcher
+- Add project-hook cleanup to gemini, cursor, and windsurf installers (#8736)
+- Prevent duplicate hook firing when installed globally and per-project (#8734)
+- Add `-C/--path` option to init, install, and uninstall CLI commands (#8871)
+
+#### Setup Wizard Rewrite
+
+- Rewrite setup wizard in Ink (React CLI) with interactive prompts (#8749)
+- Add Neo4j setup wizard step and daemon secret migration (#8765)
+- Fix 5 setup wizard quality issues (#8855)
+
+#### Session Intelligence
+
+- Add rolling conversation digest for session intelligence (#8760)
+- Add always-visible session status bar to chat UI (#8759)
+- Fix terminal session title display using tmux_pane instead of parent_pid (#8865)
+
+#### Tri-State Plan Mode
+
+- Implement tri-state plan mode with configurable enforcement (#8743)
+- Consolidate `plan_mode` boolean into `mode_level` numeric variable (#8755)
+- Make chat mode selector per-conversation, default to Plan (#8867)
+- Default backend chat mode to plan instead of bypass (#8868)
+- Add configurable messages to enforcement actions and extract agent prompts (#8747)
+
+#### Configuration Overhaul
+
+- Replace `config.yaml` with `bootstrap.yaml` for runtime config (#8874)
+- Extract MCP instructions into bundled prompt file (#8746)
+- Move qdrant default path to `~/.gobby/services/qdrant/` (#8415)
+
+### Features
+
+- Add `gobby sync` CLI with git integrity verification for bundled content (#8767)
+- Pipeline editor form replaces Workflow Builder (#8783)
+- Move project selector to global header bar (#8766, #8768)
+- Move mode selector between context pie and project selector (#8750, #8769)
+- Session detail rewrite to match chat page look/feel (#8774)
+- Unify sidebar and status bar backgrounds to `--bg-tertiary` (#8777)
+- Remove session number suffix from Gobby label in chat messages (#8776)
+- Harden A2UI canvas plan with CodeRabbit security recommendations (#8790)
+- Document `-C/--path` option in README, CLI guide, and CONTRIBUTING (#8873)
+- Add `GOBBY_HOOKS_DIR` env var to uninstall command (#8875)
+- Convert absolute symlinks to relative for cross-machine compatibility (#8414)
+- Soft-delete for agent and workflow definitions (#8793)
+- Inter-agent messaging overhaul plan (#8794)
+- Wrap sync `session_manager.get()` calls with `asyncio.to_thread` in async pipeline tools (#8675)
+- Add 311 tests for routes and voice modules (#8859)
+- Add tests for worktree/clone parity functions (#8888)
+
+### Bug Fixes
+
+- Fix individual uninstallers deleting shared global `hook_dispatcher.py` (#8889)
+- Fix uninstall tests deleting real `~/.gobby/hooks/hook_dispatcher.py` (#8881)
+- Fix wrong `hooks_dir` in windsurf global uninstall mode (#8850)
+- Fix context pie chart: exclude output tokens from percentage (#8876)
+- Fix `task_tree_complete()` chicken-and-egg deadlock in auto-task workflow (#8800)
+- Fix 3 failing tests: cli_init output format, agents include_deleted, chat_session env (#8802)
+- Fix pre-commit mypy to use `uv run` with full project env (#8869)
+- Fix sentence collision in web chat after tool calls (#8785)
+- Fix tool call argument and result JSON rendering (#8781)
+- Syntax-highlight JSON in tool result fallback (#8780)
+- Fix memory injection staleness + add Neo4j graph-augmented search (#8775)
+- Fix plan/expand skills to preserve plan content during expansion (#8799)
+- Fix `memories_processed` count to use `len(memories)` (#8678)
+- Fix researcher `on_mcp_error` masking `send_to_parent` failure (#8677)
+- Fix default limit mismatch in memory recall wrapper (#8852)
+- Fix falsy-value bug in `sdk_compat.py` or-chain (#8851)
+- Guard ToolTable against empty tools array (#8849)
+- Remove dead `GOBBY_HOME` assignment and inline Path import (#8848)
+- Fix flaky timing-dependent test in `test_pipeline_background_cleanup.py` (#8693)
+- Fix invisible hover color on light themes in `chat/styles.css` (#8690)
+- Fix single error state overwritten by multiple fetchers in `useSourceControl` (#8688)
+- Add accessibility attributes to MobileSessionDrawer header toggle (#8687)
+- Add AbortController to `useTerminal` agent fetch on unmount (#8686)
+- Add AbortController unmount guard to `useDashboard` refresh (#8692)
+- Add 'ready' to SegmentKey type in `TasksCard.tsx` (#8684)
+- Include exception details in `worktrees.py` ValueError catch (#8683)
+- Add timeout to `proc.wait()` in `_check_tmux_session_alive` (#8682)
+- Track fire-and-forget health check tasks in `spawn_agent.py` (#8681)
+- Add debug log for silent except in session_coordinator tmux cleanup (#8680)
+- Add debug log for silently dropped audio chunks in `voice.py` (#8679)
+- Pin `@playwright/mcp` to v0.0.68 in default MCP server config (#8676)
+- Revert `@playwright/mcp` pin back to `@latest` (#8801)
+- Increase watchdog startup health check timeout from 13s to 55s (#8798)
+- Increase daemon startup health check timeout to 120s (#8732)
+- Fix unawaited `VectorStore.count` coroutine in `get_stats` (#8733)
+- Resolve migration 110 FK constraint and daemon health check timeout (#8413)
+- Fix 27 mypy errors across 10 files (#8797)
+- Fix `mode_level` comparison: wrap in `bool()` to satisfy mypy no-any-return (#8751)
+- Remove duplicate session context injection from `on_session_start` (#8752)
+- Sort slash commands alphabetically in chat UI (#8726)
+- Derive session ref from session data as fallback (#8759)
+- Fix 3 plan issues in `a2ui-canvas.md` (#8853)
+- Fix test markers and tautological assertions (#8854)
+- Fix 9 bugs from CodeRabbit report triage (#8842)
+- Fix 6 Python code quality issues from CodeRabbit triage (#8856)
+- Fix 7 frontend quality issues from CodeRabbit triage (#8857)
+- Add missing `pytest.mark.asyncio` to neo4j/graph test files (#8843)
+- Use `step.id` instead of array index as React key in PipelineEditor (#8844)
+- Batch Neo4j per-entity MENTIONED_IN queries with UNWIND (#8845)
+- Replace `execSync` with async exec in `Bootstrap.tsx` (#8847)
+- Convert `findRepos()` from sync to async fs operations (#8846)
+
+### Refactoring
+
+- Remove gobby-orchestration, add worktree/clone parity (#8882)
+- Extract SDK lifecycle into dedicated workflow (#8756)
+- Decompose `chat_session.py` into helpers and permissions modules (#8788)
+- Memoize MessageItem and ToolCallCards to fix input lag (#8782)
+- Convert f-string logger calls to lazy `%s` formatting (#8858)
+- Narrow bare excepts and add debug logging in `_resolve_and_set_project_context` (#8674)
+- Bulk-load task metadata in `import_from_jsonl` to eliminate N+1 queries
+- Rate limit handling, DigestConfig, and title refresh (#8787)
+- Remove `.gemini/settings.json.example` (deprecated hook configurations)
+- Move completed `orchestrator-refactor.md` plan to `docs/plans/completed/`
+
 ## [0.2.19]
 
 ### Major Features
