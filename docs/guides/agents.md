@@ -182,6 +182,46 @@ Agents can run in different isolation modes:
 | `worktree` | Work in git worktree | Parallel development, branch isolation |
 | `clone` | Work in full repo clone | Complete isolation, separate remote |
 
+### Agent Definitions
+
+Agent definitions are stored in `workflow_definitions` with `workflow_type='agent'`. Each definition has 12 fields:
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `name` | string | -- | Unique agent identifier |
+| `description` | string | -- | Human-readable description |
+| `instructions` | string | -- | System prompt / instructions for the agent |
+| `provider` | string | `"claude"` | LLM provider (claude, gemini, codex) |
+| `model` | string | -- | Model override (provider default if not set) |
+| `mode` | string | `"headless"` | Execution mode: terminal, embedded, headless |
+| `isolation` | string | -- | Isolation: current, worktree, clone |
+| `base_branch` | string | `"main"` | Branch to create worktree/clone from |
+| `timeout` | float | `120.0` | Max execution time in seconds |
+| `max_turns` | int | `10` | Max agent turns |
+| `rules` | list | `[]` | Rule groups to activate for this agent |
+| `enabled` | bool | `true` | Whether the definition is available |
+
+Behavior is defined by **rules**, not embedded workflows. The `rules` field lists rule groups that are activated when this agent runs.
+
+### Agent-Scoped Rules
+
+Rules can be scoped to specific agent types using the `agent_scope` field:
+
+```yaml
+rules:
+  no-push-for-workers:
+    description: "Block git push for worker agents"
+    event: before_tool
+    agent_scope: [worker, developer]
+    effect:
+      type: block
+      tools: [Bash]
+      command_pattern: "git\\s+push"
+      reason: "Worker agents cannot push. Let the parent handle it."
+```
+
+When `agent_scope` is set, the rule only fires for sessions whose `_agent_type` variable matches one of the listed types. Rules without `agent_scope` apply to all sessions.
+
 ### Parent-Child Relationships
 
 ```text
@@ -399,80 +439,95 @@ call_tool(server_name="gobby-agents", tool_name="unregister_agent", arguments={
 })
 ```
 
-## Messaging Between Sessions
+## Inter-Agent Messaging
 
-### send_to_parent
+Gobby provides P2P messaging and command coordination between sessions. All messaging tools live on `gobby-agents`.
 
-Send a message from a child session to its parent.
+### send_message
+
+Send a P2P message between sessions. Validates both sessions are in the same project. Auto-writes to `agent_runs.result` when sending to parent.
 
 ```python
-call_tool(server_name="gobby-agents", tool_name="send_to_parent", arguments={
-    "session_id": "<child_session_id>",
-    "message": "Task completed successfully",
-    "message_type": "status"  # or "question", "result"
+call_tool(server_name="gobby-agents", tool_name="send_message", arguments={
+    "from_session": "<your_session_id>",
+    "to_session": "<target_session_id>",
+    "content": "Task completed. All tests pass.",
+    "priority": "normal"  # or "high"
 })
 ```
 
-### send_to_child
+### send_command
 
-Send a message from a parent to a specific child session.
+Send a command from an ancestor session to a descendant. Validates ancestry and rejects if the target already has an active command.
 
 ```python
-call_tool(server_name="gobby-agents", tool_name="send_to_child", arguments={
-    "parent_session_id": "<parent_session_id>",
-    "child_session_id": "<child_session_id>",
-    "message": "Please also update the tests"
+call_tool(server_name="gobby-agents", tool_name="send_command", arguments={
+    "from_session": "<parent_session_id>",
+    "to_session": "<child_session_id>",
+    "command_text": "Run the test suite and report results",
+    "allowed_tools": ["Bash", "Read", "Grep"],
+    "exit_condition": "task_complete()"
 })
 ```
 
-### broadcast_to_children
+### complete_command
 
-Broadcast a message to all running child sessions.
-
-```python
-call_tool(server_name="gobby-agents", tool_name="broadcast_to_children", arguments={
-    "parent_session_id": "<parent_session_id>",
-    "message": "Context update: API endpoint changed"
-})
-```
-
-### poll_messages
-
-Poll for messages sent to this session.
+Complete a command: mark it done, clear session variables, and send the result back to the commanding session.
 
 ```python
-call_tool(server_name="gobby-agents", tool_name="poll_messages", arguments={
+call_tool(server_name="gobby-agents", tool_name="complete_command", arguments={
     "session_id": "<your_session_id>",
-    "unread_only": True
+    "command_id": "<command_id>",
+    "result": "All 47 tests pass. Coverage at 92%."
 })
 ```
 
-### mark_message_read
+### deliver_pending_messages
 
-Mark a message as read.
+Fetch undelivered messages for a session and mark them as delivered. Use this to inject pending messages as context.
 
 ```python
-call_tool(server_name="gobby-agents", tool_name="mark_message_read", arguments={
-    "message_id": "<message_id>"
+call_tool(server_name="gobby-agents", tool_name="deliver_pending_messages", arguments={
+    "session_id": "<your_session_id>"
 })
 ```
 
-## Workflows with Agents
+### activate_command
 
-Agents can be spawned with specific workflows:
+Activate a pending command: mark it running and set session variables (`command_id`, `command_text`, `allowed_tools`, `exit_condition`).
 
 ```python
-# Spawn agent with TDD workflow
+call_tool(server_name="gobby-agents", tool_name="activate_command", arguments={
+    "session_id": "<your_session_id>",
+    "command_id": "<command_id>"
+})
+```
+
+### Command Lifecycle
+
+```text
+Parent sends command (send_command)
+  → Child receives (deliver_pending_messages)
+  → Child activates (activate_command) → session variables set
+  → Child works within constraints (allowed_tools, exit_condition)
+  → Child completes (complete_command) → variables cleared, result sent to parent
+```
+
+## Rules with Agents
+
+Agent behavior is enforced by rules, not embedded workflows. When spawning an agent with a definition that includes rule groups, those rules are activated for the agent's session.
+
+```python
+# Spawn agent using a definition with rules
 call_tool(server_name="gobby-agents", tool_name="spawn_agent", arguments={
-    "prompt": "Implement user authentication",
+    "agent": "developer-claude",
     "task_id": "#123",
-    "session_id": "<parent_session_id>",
-    "workflow": "tdd-workflow",
+    "parent_session_id": "<parent_session_id>",
     "isolation": "worktree"
 })
 ```
 
-The agent will follow the workflow steps (e.g., write tests first, then implement, then refactor).
+The agent definition's `rules` field activates rule groups (e.g., `worker-safety`, `task-enforcement`). These rules enforce behavior like requiring task claims before edits, blocking git push, and gating stop attempts.
 
 ## Leaf Task Handling
 
@@ -556,9 +611,9 @@ See [mcp-tools.md](mcp-tools.md#orchestration) for full orchestration tool refer
 
 ### Messages not received
 
-1. Verify session IDs are correct
-2. Check if message was marked read
-3. Use `poll_messages` with `unread_only=False`
+1. Verify both sessions are in the same project
+2. Use `deliver_pending_messages` to check for undelivered messages
+3. Verify session IDs resolve correctly (accepts `#N`, UUID, or prefix)
 
 ## See Also
 

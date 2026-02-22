@@ -117,8 +117,70 @@ call_tool(server_name="gobby-orchestration", tool_name="cleanup_stale_worktrees"
 })
 ```
 
+## Inter-Agent Messaging
+
+Beyond orchestration tools, agents can communicate directly using P2P messaging on `gobby-agents`:
+
+### P2P Messages
+
+Any two sessions in the same project can exchange messages:
+
+```python
+# Agent sends status update to parent
+call_tool("gobby-agents", "send_message", {
+    "from_session": "<agent_session>",
+    "to_session": "<parent_session>",
+    "content": "Task #101 completed. 47 tests pass.",
+    "priority": "normal"
+})
+
+# Parent retrieves pending messages
+call_tool("gobby-agents", "deliver_pending_messages", {
+    "session_id": "<parent_session>"
+})
+```
+
+### Command Coordination
+
+Ancestors can send structured commands to descendants with tool restrictions and exit conditions:
+
+```python
+# Orchestrator sends command to worker
+call_tool("gobby-agents", "send_command", {
+    "from_session": "<orchestrator_session>",
+    "to_session": "<worker_session>",
+    "command_text": "Run the full test suite and report failures",
+    "allowed_tools": ["Bash", "Read", "Grep"],
+    "exit_condition": "task_complete()"
+})
+
+# Worker activates the command (sets session variables)
+call_tool("gobby-agents", "activate_command", {
+    "session_id": "<worker_session>",
+    "command_id": "<command_id>"
+})
+
+# Worker completes the command (clears variables, sends result)
+call_tool("gobby-agents", "complete_command", {
+    "session_id": "<worker_session>",
+    "command_id": "<command_id>",
+    "result": "All tests pass. Coverage: 92%."
+})
+```
+
+### Command Lifecycle
+
+```text
+send_command → activate_command → [work] → complete_command
+                    ↓                            ↓
+            session variables set        variables cleared
+            (command_id, allowed_tools)  result sent to parent
+```
+
+Commands enforce structure: only one active command per session, ancestor validation, and automatic variable cleanup on completion.
+
 ## Related
 
 - [MCP Tools Reference](mcp-tools.md#task-orchestration-gobby-orchestration) — full tool table
-- [Agents Guide](agents.md) — agent spawning and isolation modes
+- [Agents Guide](agents.md) — agent spawning, definitions, and isolation modes
 - [CLI Commands](cli-commands.md#conductor) — conductor CLI for persistent orchestration loops

@@ -515,28 +515,53 @@ call_tool("gobby-memory", "search_memories", {
 
 ## Workflow Engine (`gobby-workflows`)
 
-12 tools for step-based workflow management.
+Tools for rule management, variable control, and step-based workflow management.
+
+### Rule Tools
 
 | Tool | Description |
 | :--- | :--- |
+| `list_rules` | List rules with optional event/group filter |
+| `list_rule_groups` | List available rule groups |
+| `get_rule_detail` | Get full rule definition |
+| `toggle_rule` | Enable/disable a rule for the session |
 
+### Workflow and Variable Tools
+
+| Tool | Description |
+| :--- | :--- |
 | `list_workflows` | List available workflow definitions |
 | `get_workflow` | Get workflow details |
-| `activate_workflow` | Activate workflow for session |
+| `activate_workflow` | Activate on-demand workflow for session |
 | `end_workflow` | End active workflow |
 | `get_workflow_status` | Get current step and state |
 | `request_step_transition` | Request transition to different step |
-| `set_variable` | Set session-scoped workflow variable |
-| `get_variable` | Get workflow variable(s) |
+| `set_variable` | Set session-scoped variable |
+| `get_variable` | Get variable value(s) |
 | `import_workflow` | Import workflow from file |
 | `reload_cache` | Clear workflow cache after edits |
+
+### Example: Rule Management
+
+```python
+# List rules by event
+call_tool("gobby-workflows", "list_rules", {
+    "event": "before_tool"
+})
+
+# Toggle a rule for the session
+call_tool("gobby-workflows", "toggle_rule", {
+    "name": "require-task",
+    "enabled": false
+})
+```
 
 ### Example: Workflow Activation
 
 ```python
 # Activate a workflow
 call_tool("gobby-workflows", "activate_workflow", {
-    "workflow_name": "tdd-workflow",
+    "workflow_name": "developer",
     "session_id": "<your_session_id>"
 })
 
@@ -544,23 +569,16 @@ call_tool("gobby-workflows", "activate_workflow", {
 call_tool("gobby-workflows", "get_workflow_status", {
     "session_id": "<your_session_id>"
 })
-
-# Request transition
-call_tool("gobby-workflows", "request_step_transition", {
-    "session_id": "<your_session_id>",
-    "target_step": "implement"
-})
 ```
 
 ---
 
 ## Agent Management (`gobby-agents`)
 
-15 tools for subagent spawning and management.
+15 tools for subagent spawning, management, and inter-agent messaging.
 
 | Tool | Description |
 | :--- | :--- |
-
 | `spawn_agent` | Spawn subagent with isolation options |
 | `get_agent_result` | Get result of completed agent |
 | `list_agents` | List agent runs for session |
@@ -571,11 +589,11 @@ call_tool("gobby-workflows", "request_step_transition", {
 | `get_running_agent` | Get in-memory process state |
 | `unregister_agent` | Remove from running registry |
 | `running_agent_stats` | Get running agent statistics |
-| `send_to_parent` | Send message to parent session |
-| `send_to_child` | Send message to child session |
-| `poll_messages` | Poll for messages sent to session |
-| `mark_message_read` | Mark message as read |
-| `broadcast_to_children` | Broadcast to all child sessions |
+| `send_message` | P2P message between sessions (same project) |
+| `send_command` | Send command from ancestor to descendant |
+| `complete_command` | Complete command, clear variables, send result |
+| `deliver_pending_messages` | Fetch and mark undelivered messages |
+| `activate_command` | Activate pending command, set session variables |
 
 ### Example: Agent Spawning
 
@@ -585,13 +603,31 @@ call_tool("gobby-agents", "spawn_agent", {
     "prompt": "Implement the login feature",
     "task_id": "#123",
     "session_id": "<your_session_id>",
-    "isolation": "worktree",
-    "workflow": "tdd-workflow"
+    "isolation": "worktree"
 })
 
 # Check if can spawn
 call_tool("gobby-agents", "can_spawn_agent", {
     "session_id": "<your_session_id>"
+})
+```
+
+### Example: Inter-Agent Messaging
+
+```python
+# P2P message
+call_tool("gobby-agents", "send_message", {
+    "from_session": "<your_session>",
+    "to_session": "<target_session>",
+    "content": "Task completed. All tests pass."
+})
+
+# Command coordination
+call_tool("gobby-agents", "send_command", {
+    "from_session": "<parent>",
+    "to_session": "<child>",
+    "command_text": "Run test suite",
+    "allowed_tools": ["Bash", "Read"]
 })
 ```
 
