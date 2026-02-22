@@ -37,7 +37,7 @@ MigrationAction = str | Callable[[LocalDatabase], None]
 # Baseline version - the schema state that is applied for new databases directly.
 # Must be bumped when BASELINE_SCHEMA is updated with columns from new migrations,
 # so that fresh databases don't re-run migrations already baked into the baseline.
-BASELINE_VERSION = 114
+BASELINE_VERSION = 115
 
 # Minimum migration version - databases older than this cannot be upgraded
 # because legacy migrations (pre-v108) have been removed.
@@ -831,6 +831,15 @@ CREATE INDEX idx_wf_defs_type ON workflow_definitions(workflow_type);
 CREATE INDEX idx_wf_defs_enabled ON workflow_definitions(enabled);
 CREATE UNIQUE INDEX idx_wf_defs_name_project ON workflow_definitions(name, COALESCE(project_id, '__global__'));
 
+CREATE TABLE rule_overrides (
+    id TEXT PRIMARY KEY,
+    session_id TEXT NOT NULL,
+    rule_name TEXT NOT NULL,
+    enabled BOOLEAN NOT NULL,
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    UNIQUE(session_id, rule_name)
+);
+
 CREATE TABLE prompts (
     id TEXT PRIMARY KEY,
     name TEXT NOT NULL,
@@ -1087,6 +1096,18 @@ MIGRATIONS: list[tuple[int, str, MigrationAction]] = [
         114,
         "Add deleted_at column to agent_definitions and workflow_definitions",
         "ALTER TABLE agent_definitions ADD COLUMN deleted_at TEXT; ALTER TABLE workflow_definitions ADD COLUMN deleted_at TEXT",
+    ),
+    (
+        115,
+        "Create rule_overrides table for session-scoped rule toggles",
+        """CREATE TABLE rule_overrides (
+            id TEXT PRIMARY KEY,
+            session_id TEXT NOT NULL,
+            rule_name TEXT NOT NULL,
+            enabled BOOLEAN NOT NULL,
+            created_at TEXT NOT NULL DEFAULT (datetime('now')),
+            UNIQUE(session_id, rule_name)
+        )""",
     ),
 ]
 

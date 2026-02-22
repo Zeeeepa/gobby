@@ -267,6 +267,64 @@ class LocalWorkflowDefinitionManager:
         )
         return [WorkflowDefinitionRow.from_row(r) for r in rows]
 
+    def list_rules_by_event(
+        self,
+        event: str,
+        project_id: str | None = None,
+        enabled: bool | None = None,
+    ) -> list[WorkflowDefinitionRow]:
+        """List rule definitions filtered by event type from definition_json."""
+        conditions = [
+            "workflow_type = 'rule'",
+            "deleted_at IS NULL",
+            "json_extract(definition_json, '$.event') = ?",
+        ]
+        params: list[Any] = [event]
+
+        if project_id:
+            conditions.append("(project_id = ? OR project_id IS NULL)")
+            params.append(project_id)
+
+        if enabled is not None:
+            conditions.append("enabled = ?")
+            params.append(1 if enabled else 0)
+
+        where = f" WHERE {' AND '.join(conditions)}"
+        rows = self.db.fetchall(
+            f"SELECT * FROM workflow_definitions{where} ORDER BY priority, name",
+            tuple(params),
+        )
+        return [WorkflowDefinitionRow.from_row(r) for r in rows]
+
+    def list_rules_by_group(
+        self,
+        group: str,
+        project_id: str | None = None,
+        enabled: bool | None = None,
+    ) -> list[WorkflowDefinitionRow]:
+        """List rule definitions filtered by group from definition_json."""
+        conditions = [
+            "workflow_type = 'rule'",
+            "deleted_at IS NULL",
+            "json_extract(definition_json, '$.group') = ?",
+        ]
+        params: list[Any] = [group]
+
+        if project_id:
+            conditions.append("(project_id = ? OR project_id IS NULL)")
+            params.append(project_id)
+
+        if enabled is not None:
+            conditions.append("enabled = ?")
+            params.append(1 if enabled else 0)
+
+        where = f" WHERE {' AND '.join(conditions)}"
+        rows = self.db.fetchall(
+            f"SELECT * FROM workflow_definitions{where} ORDER BY priority, name",
+            tuple(params),
+        )
+        return [WorkflowDefinitionRow.from_row(r) for r in rows]
+
     def import_from_yaml(
         self, yaml_content: str, project_id: str | None = None
     ) -> WorkflowDefinitionRow:
