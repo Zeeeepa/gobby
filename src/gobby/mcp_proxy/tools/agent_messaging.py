@@ -285,14 +285,22 @@ def add_messaging_tools(
             command_manager.update_status(command_id, "running")
 
             # Set session variables from command fields
+            import json as _json
+
             variables: dict[str, Any] = {
                 "command_id": cmd.id,
                 "command_text": cmd.command_text,
             }
             if cmd.allowed_tools:
-                variables["allowed_tools"] = cmd.allowed_tools
+                try:
+                    variables["allowed_tools"] = _json.loads(cmd.allowed_tools)
+                except (ValueError, TypeError):
+                    variables["allowed_tools"] = cmd.allowed_tools
             if cmd.allowed_mcp_tools:
-                variables["allowed_mcp_tools"] = cmd.allowed_mcp_tools
+                try:
+                    variables["allowed_mcp_tools"] = _json.loads(cmd.allowed_mcp_tools)
+                except (ValueError, TypeError):
+                    variables["allowed_mcp_tools"] = cmd.allowed_mcp_tools
             if cmd.exit_condition:
                 variables["exit_condition"] = cmd.exit_condition
 
