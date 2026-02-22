@@ -25,6 +25,7 @@ from gobby.servers.websocket.broadcast import BroadcastMixin
 from gobby.servers.websocket.chat import ChatMixin
 from gobby.servers.websocket.handlers import HandlerMixin
 from gobby.servers.websocket.models import WebSocketConfig
+from gobby.servers.websocket.session_control import SessionControlMixin
 from gobby.servers.websocket.tmux import TmuxMixin
 from gobby.servers.websocket.voice import VoiceMixin
 
@@ -36,7 +37,9 @@ if TYPE_CHECKING:
     from gobby.storage.sessions import LocalSessionManager
 
 
-class WebSocketServer(VoiceMixin, TmuxMixin, ChatMixin, HandlerMixin, AuthMixin, BroadcastMixin):
+class WebSocketServer(
+    VoiceMixin, TmuxMixin, SessionControlMixin, ChatMixin, HandlerMixin, AuthMixin, BroadcastMixin
+):
     """
     WebSocket server for real-time communication.
 
@@ -97,6 +100,9 @@ class WebSocketServer(VoiceMixin, TmuxMixin, ChatMixin, HandlerMixin, AuthMixin,
 
         # Active chat streaming tasks per conversation_id (for cancellation)
         self._active_chat_tasks: dict[str, asyncio.Task[None]] = {}
+
+        # Pending chat modes queued before session creation
+        self._pending_modes: dict[str, str] = {}
 
         # Dispatch table for message routing (lazily populated in _handle_message)
         self._dispatch_table: dict[str, Callable[..., Coroutine[Any, Any, None]]] = {}
