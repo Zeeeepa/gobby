@@ -82,6 +82,14 @@ class SafeExpressionEvaluator(ast.NodeVisitor):
         except Exception as e:
             raise ValueError(f"Invalid expression: {e}") from e
 
+    def evaluate_value(self, expr: str) -> Any:
+        """Evaluate expression and return the raw value (not coerced to bool)."""
+        try:
+            tree = ast.parse(expr, mode="eval")
+            return self.visit(tree.body)
+        except Exception as e:
+            raise ValueError(f"Invalid expression: {e}") from e
+
     def visit_BoolOp(self, node: ast.BoolOp) -> Any:
         """Handle 'and' / 'or' operations with Python semantics.
 
@@ -130,6 +138,23 @@ class SafeExpressionEvaluator(ast.NodeVisitor):
         elif isinstance(node.op, ast.UAdd):
             return +operand
         raise ValueError(f"Unsupported unary operator: {type(node.op).__name__}")
+
+    _SAFE_BIN_OPS: dict[type, Callable[..., Any]] = {
+        ast.Add: operator.add,
+        ast.Sub: operator.sub,
+        ast.Mult: operator.mul,
+        ast.FloorDiv: operator.floordiv,
+        ast.Mod: operator.mod,
+    }
+
+    def visit_BinOp(self, node: ast.BinOp) -> Any:
+        """Handle binary arithmetic operations (+, -, *, //, %)."""
+        op_func = self._SAFE_BIN_OPS.get(type(node.op))
+        if op_func is None:
+            raise ValueError(f"Unsupported binary operator: {type(node.op).__name__}")
+        left = self.visit(node.left)
+        right = self.visit(node.right)
+        return op_func(left, right)
 
     def visit_Name(self, node: ast.Name) -> Any:
         """Handle variable names."""

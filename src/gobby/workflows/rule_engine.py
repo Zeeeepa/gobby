@@ -1,0 +1,309 @@
+"""Rule engine with single-pass evaluation loop.
+
+Rules are stateless event handlers: event comes in, conditions match, effect fires.
+Four effect types: block, set_variable, inject_context, mcp_call.
+"""
+
+import logging
+import re
+from typing import Any
+
+from gobby.hooks.events import HookEvent, HookEventType, HookResponse
+from gobby.storage.database import DatabaseProtocol
+from gobby.storage.workflow_definitions import (
+    LocalWorkflowDefinitionManager,
+    WorkflowDefinitionRow,
+)
+from gobby.workflows.definitions import RuleDefinitionBody, RuleEvent
+from gobby.workflows.safe_evaluator import SafeExpressionEvaluator
+
+logger = logging.getLogger(__name__)
+
+# Map HookEventType to RuleEvent
+_EVENT_TYPE_MAP: dict[HookEventType, RuleEvent] = {
+    HookEventType.BEFORE_TOOL: RuleEvent.BEFORE_TOOL,
+    HookEventType.AFTER_TOOL: RuleEvent.AFTER_TOOL,
+    HookEventType.BEFORE_AGENT: RuleEvent.BEFORE_AGENT,
+    HookEventType.SESSION_START: RuleEvent.SESSION_START,
+    HookEventType.SESSION_END: RuleEvent.SESSION_END,
+    HookEventType.STOP: RuleEvent.STOP,
+    HookEventType.PRE_COMPACT: RuleEvent.PRE_COMPACT,
+}
+
+
+class RuleEngine:
+    """Single-pass rule evaluation engine.
+
+    Loads rules from workflow_definitions (workflow_type='rule'),
+    applies session overrides, evaluates in priority order.
+    """
+
+    def __init__(self, db: DatabaseProtocol):
+        self.db = db
+        self.definition_manager = LocalWorkflowDefinitionManager(db)
+
+    async def evaluate(
+        self,
+        event: HookEvent,
+        session_id: str,
+        variables: dict[str, Any],
+        eval_context: dict[str, Any] | None = None,
+    ) -> HookResponse:
+        """Evaluate all matching rules for an event.
+
+        Args:
+            event: The hook event to evaluate.
+            session_id: Current session ID (for overrides).
+            variables: Session variables dict (mutated in-place by set_variable).
+            eval_context: Additional eval context (LazyBool thunks, etc).
+
+        Returns:
+            HookResponse with merged results from all matching rules.
+        """
+        rule_event = _EVENT_TYPE_MAP.get(event.event_type)
+        if rule_event is None:
+            return HookResponse(decision="allow")
+
+        # 1. Load enabled rules for this event, sorted by priority
+        rules = self._load_rules(rule_event)
+
+        # 2. Apply session overrides
+        overrides = self._load_session_overrides(session_id)
+        rules = self._apply_overrides(rules, overrides)
+
+        if not rules:
+            return HookResponse(decision="allow")
+
+        # 3. Evaluate rules in priority order
+        context_parts: list[str] = []
+        mcp_calls: list[dict[str, Any]] = []
+        block_reason: str | None = None
+
+        for _row, body in rules:
+            # Build fresh eval context with current variables
+            ctx = self._build_eval_context(event, variables, eval_context)
+
+            # Check `when` condition
+            if body.when:
+                if not self._evaluate_condition(body.when, ctx):
+                    continue
+
+            # Check `match` filter (tool matching for block effects, etc.)
+            effect = body.effect
+
+            # Apply effect
+            if effect.type == "block":
+                if self._should_block(effect, event):
+                    block_reason = effect.reason or "Blocked by rule"
+                    # First block wins — stop evaluating
+                    break
+
+            elif effect.type == "set_variable":
+                self._apply_set_variable(effect, variables, ctx)
+
+            elif effect.type == "inject_context":
+                if effect.template:
+                    context_parts.append(effect.template)
+
+            elif effect.type == "mcp_call":
+                mcp_calls.append(
+                    {
+                        "server": effect.server,
+                        "tool": effect.tool,
+                        "arguments": effect.arguments or {},
+                        "background": effect.background,
+                    }
+                )
+
+        # 4. Build response
+        if block_reason:
+            return HookResponse(
+                decision="block",
+                reason=block_reason,
+                context="\n\n".join(context_parts) if context_parts else None,
+                metadata={"mcp_calls": mcp_calls} if mcp_calls else {},
+            )
+
+        return HookResponse(
+            decision="allow",
+            context="\n\n".join(context_parts) if context_parts else None,
+            metadata={"mcp_calls": mcp_calls} if mcp_calls else {},
+        )
+
+    def _load_rules(self, rule_event: RuleEvent) -> list[tuple[WorkflowDefinitionRow, RuleDefinitionBody]]:
+        """Load enabled rules matching the event type, sorted by priority."""
+        rows = self.definition_manager.list_rules_by_event(
+            event=rule_event.value,
+            enabled=True,
+        )
+        result: list[tuple[WorkflowDefinitionRow, RuleDefinitionBody]] = []
+        for row in rows:
+            try:
+                body = RuleDefinitionBody.model_validate_json(row.definition_json)
+                result.append((row, body))
+            except Exception as e:
+                logger.warning(f"Failed to parse rule {row.name}: {e}")
+        return result
+
+    def _load_session_overrides(self, session_id: str) -> dict[str, bool]:
+        """Load session-scoped rule overrides."""
+        rows = self.db.fetchall(
+            "SELECT rule_name, enabled FROM rule_overrides WHERE session_id = ?",
+            (session_id,),
+        )
+        return {row["rule_name"]: bool(row["enabled"]) for row in rows}
+
+    def _apply_overrides(
+        self,
+        rules: list[tuple[WorkflowDefinitionRow, RuleDefinitionBody]],
+        overrides: dict[str, bool],
+    ) -> list[tuple[WorkflowDefinitionRow, RuleDefinitionBody]]:
+        """Filter rules based on session overrides."""
+        if not overrides:
+            return rules
+        return [
+            (row, body)
+            for row, body in rules
+            if overrides.get(row.name, True)  # Default to enabled if no override
+        ]
+
+    def _build_eval_context(
+        self,
+        event: HookEvent,
+        variables: dict[str, Any],
+        extra_context: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
+        """Build evaluation context for condition checking."""
+        ctx: dict[str, Any] = {
+            "variables": variables,
+            "event": event,
+            "tool_input": event.data.get("tool_input") or event.data.get("arguments") or {},
+            "source": event.source.value if event.source else None,
+        }
+
+        # Flatten variables at top level for convenience
+        for key, val in variables.items():
+            if key not in ctx:
+                ctx[key] = val
+
+        # Add extra context (LazyBool thunks, etc.)
+        if extra_context:
+            ctx.update(extra_context)
+
+        return ctx
+
+    def _evaluate_condition(self, condition: str, context: dict[str, Any]) -> bool:
+        """Evaluate a `when` condition string using SafeExpressionEvaluator."""
+        try:
+            evaluator = SafeExpressionEvaluator(
+                context=context,
+                allowed_funcs={
+                    "len": len,
+                    "str": str,
+                    "int": int,
+                    "bool": bool,
+                    "isinstance": isinstance,
+                },
+            )
+            return evaluator.evaluate(condition)
+        except Exception as e:
+            # Fail closed: if condition can't be evaluated, treat as True
+            # (conservative — the rule fires)
+            logger.warning(f"Failed to evaluate condition '{condition}': {e}")
+            return True
+
+    def _should_block(self, effect: Any, event: HookEvent) -> bool:
+        """Check if a block effect matches the current tool/event."""
+        tool_name = event.data.get("tool_name")
+        mcp_tool = event.data.get("mcp_tool")
+        mcp_server = event.data.get("mcp_server") or event.data.get("server_name")
+        command = event.data.get("command")
+
+        # If no tools/mcp_tools filter specified, block applies to everything
+        has_tool_filter = effect.tools or effect.mcp_tools
+
+        if not has_tool_filter:
+            # Check command patterns even without tool filter
+            if effect.command_pattern and command:
+                if not re.search(effect.command_pattern, command):
+                    return False
+                if effect.command_not_pattern and re.search(effect.command_not_pattern, command):
+                    return False
+                return True
+            return True
+
+        # Check native tool match
+        if effect.tools and tool_name:
+            if tool_name in effect.tools:
+                # Check command patterns for Bash tool
+                if tool_name == "Bash" and effect.command_pattern and command:
+                    if not re.search(effect.command_pattern, command):
+                        return False
+                    if effect.command_not_pattern and re.search(
+                        effect.command_not_pattern, command
+                    ):
+                        return False
+                return True
+
+        # Check MCP tool match
+        if effect.mcp_tools and mcp_tool:
+            mcp_key = f"{mcp_server}:{mcp_tool}" if mcp_server else mcp_tool
+            for pattern in effect.mcp_tools:
+                if pattern == mcp_key:
+                    return True
+                # Support wildcard: "server:*"
+                if pattern.endswith(":*") and mcp_server:
+                    server_prefix = pattern[:-2]
+                    if server_prefix == mcp_server:
+                        return True
+
+        return False
+
+    def _apply_set_variable(
+        self,
+        effect: Any,
+        variables: dict[str, Any],
+        eval_context: dict[str, Any],
+    ) -> None:
+        """Apply a set_variable effect, handling expressions."""
+        if effect.variable is None:
+            return
+
+        value = effect.value
+
+        # If value is a string that looks like an expression, evaluate it
+        if isinstance(value, str) and self._is_expression(value):
+            try:
+                evaluator = SafeExpressionEvaluator(
+                    context=eval_context,
+                    allowed_funcs={
+                        "len": len,
+                        "str": str,
+                        "int": int,
+                        "bool": bool,
+                    },
+                )
+                value = evaluator.evaluate_value(value)
+            except Exception as e:
+                logger.warning(
+                    f"Failed to evaluate set_variable expression '{effect.value}': {e}"
+                )
+                return
+
+        variables[effect.variable] = value
+
+    def _is_expression(self, value: str) -> bool:
+        """Heuristic: is this string an expression rather than a literal?"""
+        expression_indicators = (
+            "variables.",
+            "event.",
+            "tool_input.",
+            " + ",
+            " - ",
+            " and ",
+            " or ",
+            " not ",
+            ".get(",
+            "len(",
+        )
+        return any(indicator in value for indicator in expression_indicators)
