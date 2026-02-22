@@ -36,7 +36,7 @@ rules:
     description: "Require linked commit before close_task"
     event: before_tool
     priority: 32
-    when: "variables.get('require_commit_before_close') and not task_has_commits and not tool_input.get('commit_sha') and tool_input.get('reason') not in ['already_implemented', 'obsolete', 'duplicate', 'wont_fix', 'out_of_repo']"
+    when: "variables.get('require_commit_before_close') and not variables.get('task_has_commits') and not tool_input.get('commit_sha') and tool_input.get('reason') not in ['already_implemented', 'obsolete', 'duplicate', 'wont_fix', 'out_of_repo']"
     effect:
       type: block
       mcp_tools: ["gobby-tasks:close_task"]
@@ -49,7 +49,7 @@ rules:
     description: "Block skip_validation when commits exist"
     event: before_tool
     priority: 33
-    when: "tool_input.get('skip_validation') and (task_has_commits or tool_input.get('commit_sha'))"
+    when: "tool_input.get('skip_validation') and (variables.get('task_has_commits') or tool_input.get('commit_sha'))"
     effect:
       type: block
       mcp_tools: ["gobby-tasks:close_task"]
