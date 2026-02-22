@@ -86,7 +86,7 @@ def complete_run(runner: AgentRunner, run_id: str, result: str | None = None) ->
     for forced cancellation by a parent.
 
     If no result is provided, checks for an existing result that may have
-    been set earlier (e.g. via send_to_parent writing to agent_runs.result).
+    been set earlier (e.g. via send_message writing to agent_runs.result).
 
     Args:
         runner: The AgentRunner instance.
@@ -102,7 +102,7 @@ def complete_run(runner: AgentRunner, run_id: str, result: str | None = None) ->
     if run.status not in ("pending", "running"):
         return False
 
-    # Use provided result, or preserve existing result from send_to_parent
+    # Use provided result, or preserve existing result from send_message
     final_result = result if result is not None else (run.result or "")
 
     runner._run_storage.complete(

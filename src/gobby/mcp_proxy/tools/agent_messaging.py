@@ -1,26 +1,26 @@
-"""
-Inter-agent messaging tools for the gobby-agents MCP server.
+"""Inter-agent messaging and command tools for the gobby-agents MCP server.
 
-Provides messaging capabilities between parent and child sessions:
-- send_to_parent: Child sends message to its parent session
-- send_to_child: Parent sends message to a specific child
-- poll_messages: Check for incoming messages
-- mark_message_read: Mark a message as read
-- broadcast_to_children: Send message to all children (active in database)
-
-These tools resolve session relationships from the database (LocalSessionManager),
-which is the authoritative source for parent_session_id relationships.
+Provides P2P messaging and command coordination between sessions:
+- send_message: P2P messaging with same-project validation
+- send_command: Ancestor sends command to descendant
+- complete_command: Descendant completes command, clears state, sends result
+- deliver_pending_messages: Fetch and mark undelivered messages
+- activate_command: Activate a pending command, set session variables
 """
 
 from __future__ import annotations
 
 import logging
+from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
     from gobby.mcp_proxy.tools.internal import InternalToolRegistry
+    from gobby.storage.agent_commands import AgentCommandManager
+    from gobby.storage.database import DatabaseProtocol
     from gobby.storage.inter_session_messages import InterSessionMessageManager
     from gobby.storage.sessions import LocalSessionManager
+    from gobby.workflows.state_manager import SessionVariableManager
 
 logger = logging.getLogger(__name__)
 
@@ -29,331 +29,277 @@ def add_messaging_tools(
     registry: InternalToolRegistry,
     message_manager: InterSessionMessageManager,
     session_manager: LocalSessionManager,
+    command_manager: AgentCommandManager,
+    session_var_manager: SessionVariableManager,
+    db: DatabaseProtocol,
 ) -> None:
-    """
-    Add inter-agent messaging tools to an existing registry.
+    """Add inter-agent messaging and command tools to a registry.
 
     Args:
-        registry: The InternalToolRegistry to add tools to (typically gobby-agents)
-        message_manager: InterSessionMessageManager for persisting messages
-        session_manager: LocalSessionManager for resolving parent/child relationships
-            (database is the authoritative source for session relationships)
+        registry: The InternalToolRegistry to add tools to
+        message_manager: For persisting inter-session messages
+        session_manager: For resolving session relationships
+        command_manager: For managing agent commands
+        session_var_manager: For setting/clearing session variables
+        db: Database for direct queries (agent_runs)
     """
-    from gobby.utils.project_context import get_project_context
 
-    def _resolve_session_id(ref: str) -> str:
-        """Resolve session reference (#N, N, UUID, or prefix) to UUID."""
-        project_ctx = get_project_context()
-        project_id = project_ctx.get("id") if project_ctx else None
+    def _resolve(ref: str) -> str:
+        """Resolve session reference to UUID."""
+        from gobby.utils.project_context import get_project_context
+
+        ctx = get_project_context()
+        project_id = ctx.get("id") if ctx else None
         return session_manager.resolve_session_reference(ref, project_id)
 
+    # ── send_message ───────────────────────────────────────────────
+
     @registry.tool(
-        name="send_to_parent",
-        description="Send a message from a child session to its parent session. Accepts #N, N, UUID, or prefix for session_id.",
+        name="send_message",
+        description=(
+            "Send a P2P message between sessions. Validates both sessions "
+            "are in the same project. Auto-writes to agent_runs.result when "
+            "sending to parent."
+        ),
     )
-    async def send_to_parent(
-        session_id: str,
+    async def send_message(
+        from_session: str,
+        to_session: str,
         content: str,
         priority: str = "normal",
     ) -> dict[str, Any]:
-        """
-        Send a message to the parent session.
-
-        Use this when a child agent needs to communicate status, results,
-        or requests back to its parent session.
-
-        Args:
-            session_id: Session reference (accepts #N, N, UUID, or prefix) for the current (child) session
-            content: Message content to send
-            priority: Message priority ("normal" or "urgent")
-
-        Returns:
-            Dict with success status and message details
-        """
         try:
-            # Resolve session_id to UUID (accepts #N, N, UUID, or prefix)
-            try:
-                resolved_session_id = _resolve_session_id(session_id)
-            except ValueError as e:
-                return {"success": False, "error": str(e)}
+            from_id = _resolve(from_session)
+            to_id = _resolve(to_session)
 
-            # Look up session in database (authoritative source for relationships)
-            session = session_manager.get(resolved_session_id)
-            if not session:
-                return {"success": False, "error": f"Session {resolved_session_id} not found"}
+            from_sess = session_manager.get(from_id)
+            if not from_sess:
+                return {"success": False, "error": f"Session not found: {from_id}"}
 
-            parent_session_id = session.parent_session_id
-            if not parent_session_id:
-                return {"success": False, "error": "No parent session for this session"}
+            to_sess = session_manager.get(to_id)
+            if not to_sess:
+                return {"success": False, "error": f"Session not found: {to_id}"}
 
-            # Create the message
-            msg = message_manager.create_message(
-                from_session=resolved_session_id,
-                to_session=parent_session_id,
-                content=content,
-                priority=priority,
-            )
-
-            logger.info(
-                "Message sent from %s to parent %s: %s",
-                resolved_session_id,
-                parent_session_id,
-                msg.id,
-            )
-
-            # Also write to agent_runs.result so get_agent_result can find it.
-            # This bridges the messaging system with the agent result system.
-            try:
-                db = session_manager.db
-                # Find the agent run for this child session
-                row = db.fetchone(
-                    "SELECT id FROM agent_runs WHERE child_session_id = ? "
-                    "ORDER BY created_at DESC LIMIT 1",
-                    (resolved_session_id,),
-                )
-                if row:
-                    from datetime import UTC, datetime
-
-                    now = datetime.now(UTC).isoformat()
-                    db.execute(
-                        "UPDATE agent_runs SET result = ?, updated_at = ? WHERE id = ?",
-                        (content, now, row["id"]),
-                    )
-                    logger.info(
-                        "Also wrote send_to_parent content to agent_runs.result for run %s",
-                        row["id"],
-                    )
-            except Exception as e:
-                # Non-fatal: the message was still sent successfully
-                logger.warning("Failed to write send_to_parent to agent_runs.result: %s", e)
-
-            return {
-                "success": True,
-                "message": msg.to_dict(),
-                "parent_session_id": parent_session_id,
-            }
-
-        except Exception as e:
-            logger.error("Failed to send message to parent: %s", e)
-            return {"success": False, "error": str(e)}
-
-    @registry.tool(
-        name="send_to_child",
-        description="Send a message from a parent session to a specific child session. Accepts #N, N, UUID, or prefix for session IDs.",
-    )
-    async def send_to_child(
-        parent_session_id: str,
-        child_session_id: str,
-        content: str,
-        priority: str = "normal",
-    ) -> dict[str, Any]:
-        """
-        Send a message to a child session.
-
-        Use this when a parent agent needs to communicate instructions,
-        updates, or coordination messages to a spawned child.
-
-        Args:
-            parent_session_id: Session reference (accepts #N, N, UUID, or prefix) for the parent (sender)
-            child_session_id: Session reference (accepts #N, N, UUID, or prefix) for the child (recipient)
-            content: Message content to send
-            priority: Message priority ("normal" or "urgent")
-
-        Returns:
-            Dict with success status and message details
-        """
-        try:
-            # Resolve session IDs to UUIDs (accepts #N, N, UUID, or prefix)
-            try:
-                resolved_parent_id = _resolve_session_id(parent_session_id)
-                resolved_child_id = _resolve_session_id(child_session_id)
-            except ValueError as e:
-                return {"success": False, "error": str(e)}
-
-            # Verify the child exists in database and belongs to this parent
-            child_session = session_manager.get(resolved_child_id)
-            if not child_session:
-                return {"success": False, "error": f"Child session {resolved_child_id} not found"}
-
-            if child_session.parent_session_id != resolved_parent_id:
+            # Validate same project
+            if from_sess.project_id != to_sess.project_id:
                 return {
                     "success": False,
                     "error": (
-                        f"Session {resolved_child_id} is not a child of {resolved_parent_id}. "
-                        f"Actual parent: {child_session.parent_session_id}"
+                        f"Cross-project messaging not allowed. "
+                        f"Sender project: {from_sess.project_id}, "
+                        f"recipient project: {to_sess.project_id}"
                     ),
                 }
 
-            # Create the message
             msg = message_manager.create_message(
-                from_session=resolved_parent_id,
-                to_session=resolved_child_id,
+                from_session=from_id,
+                to_session=to_id,
                 content=content,
                 priority=priority,
             )
 
-            logger.info(
-                "Message sent from %s to child %s: %s",
-                resolved_parent_id,
-                resolved_child_id,
-                msg.id,
-            )
+            # Auto-write to agent_runs.result when sending to parent
+            if from_sess.parent_session_id == to_id:
+                try:
+                    row = db.fetchone(
+                        "SELECT id FROM agent_runs WHERE child_session_id = ? "
+                        "ORDER BY created_at DESC LIMIT 1",
+                        (from_id,),
+                    )
+                    if row:
+                        now = datetime.now(UTC).isoformat()
+                        db.execute(
+                            "UPDATE agent_runs SET result = ?, updated_at = ? WHERE id = ?",
+                            (content, now, row["id"]),
+                        )
+                except Exception as e:
+                    logger.warning("Failed to write to agent_runs.result: %s", e)
 
             return {"success": True, "message": msg.to_dict()}
 
         except Exception as e:
-            logger.error("Failed to send message to child: %s", e)
+            logger.error("send_message failed: %s", e)
             return {"success": False, "error": str(e)}
 
+    # ── send_command ───────────────────────────────────────────────
+
     @registry.tool(
-        name="poll_messages",
-        description="Poll for messages sent to this session. Accepts #N, N, UUID, or prefix for session_id.",
+        name="send_command",
+        description=(
+            "Send a command from an ancestor session to a descendant. "
+            "Validates ancestry and rejects if the target already has an active command."
+        ),
     )
-    async def poll_messages(
-        session_id: str,
-        unread_only: bool = True,
+    async def send_command(
+        from_session: str,
+        to_session: str,
+        command_text: str,
+        allowed_tools: list[str] | None = None,
+        allowed_mcp_tools: list[str] | None = None,
+        exit_condition: str | None = None,
     ) -> dict[str, Any]:
-        """
-        Poll for incoming messages.
-
-        Check for messages sent to this session from parent or child sessions.
-        By default, returns only unread messages.
-
-        Args:
-            session_id: Session reference (accepts #N, N, UUID, or prefix) to check messages for
-            unread_only: If True, only return unread messages (default: True)
-
-        Returns:
-            Dict with success status and list of messages
-        """
         try:
-            # Resolve session_id to UUID (accepts #N, N, UUID, or prefix)
-            try:
-                resolved_session_id = _resolve_session_id(session_id)
-            except ValueError as e:
-                return {"success": False, "error": str(e)}
+            from_id = _resolve(from_session)
+            to_id = _resolve(to_session)
 
-            messages = message_manager.get_messages(
-                to_session=resolved_session_id,
-                unread_only=unread_only,
+            # Validate ancestor relationship
+            if not session_manager.is_ancestor(ancestor_id=from_id, descendant_id=to_id):
+                return {
+                    "success": False,
+                    "error": f"Session {from_id} is not an ancestor of {to_id}",
+                }
+
+            # Reject if active command exists
+            active = [
+                c for c in command_manager.list_commands(to_session=to_id)
+                if c.status in ("pending", "running")
+            ]
+            if active:
+                return {
+                    "success": False,
+                    "error": (
+                        f"Session {to_id} already has an active command: "
+                        f"{active[0].id} (status={active[0].status})"
+                    ),
+                }
+
+            cmd = command_manager.create_command(
+                from_session=from_id,
+                to_session=to_id,
+                command_text=command_text,
+                allowed_tools=allowed_tools,
+                allowed_mcp_tools=allowed_mcp_tools,
+                exit_condition=exit_condition,
             )
+
+            return {"success": True, "command": cmd.to_dict()}
+
+        except Exception as e:
+            logger.error("send_command failed: %s", e)
+            return {"success": False, "error": str(e)}
+
+    # ── complete_command ───────────────────────────────────────────
+
+    @registry.tool(
+        name="complete_command",
+        description=(
+            "Complete a command: mark it done, clear session variables, "
+            "and send the result back to the commanding session."
+        ),
+    )
+    async def complete_command(
+        session_id: str,
+        command_id: str,
+        result: str,
+    ) -> dict[str, Any]:
+        try:
+            resolved_id = _resolve(session_id)
+            cmd = command_manager.get_command(command_id)
+            if not cmd:
+                return {"success": False, "error": f"Command not found: {command_id}"}
+
+            if cmd.to_session != resolved_id:
+                return {
+                    "success": False,
+                    "error": f"Command not assigned to session {resolved_id}",
+                }
+
+            # Mark completed
+            command_manager.update_status(command_id, "completed")
+
+            # Clear session variables
+            session_var_manager.delete_variables(resolved_id)
+
+            # Send result to commanding session
+            message_manager.create_message(
+                from_session=resolved_id,
+                to_session=cmd.from_session,
+                content=result,
+                priority="normal",
+                message_type="command_result",
+            )
+
+            return {"success": True, "command_id": command_id, "status": "completed"}
+
+        except Exception as e:
+            logger.error("complete_command failed: %s", e)
+            return {"success": False, "error": str(e)}
+
+    # ── deliver_pending_messages ───────────────────────────────────
+
+    @registry.tool(
+        name="deliver_pending_messages",
+        description=(
+            "Fetch undelivered messages for a session and mark them as delivered. "
+            "Use this to inject pending messages as context."
+        ),
+    )
+    async def deliver_pending_messages(
+        session_id: str,
+    ) -> dict[str, Any]:
+        try:
+            resolved_id = _resolve(session_id)
+            undelivered = message_manager.get_undelivered_messages(resolved_id)
+
+            messages = []
+            for msg in undelivered:
+                message_manager.mark_delivered(msg.id)
+                messages.append(msg.to_dict())
 
             return {
                 "success": True,
-                "messages": [msg.to_dict() for msg in messages],
+                "messages": messages,
                 "count": len(messages),
             }
 
         except Exception as e:
-            logger.error(f"Failed to poll messages: {e}")
+            logger.error("deliver_pending_messages failed: %s", e)
             return {"success": False, "error": str(e)}
 
-    @registry.tool(
-        name="mark_message_read",
-        description="Mark a message as read.",
-    )
-    async def mark_message_read(
-        message_id: str,
-    ) -> dict[str, Any]:
-        """
-        Mark a message as read.
-
-        After processing a message, mark it as read so it won't appear
-        in subsequent poll_messages calls with unread_only=True.
-
-        Args:
-            message_id: The message ID to mark as read
-
-        Returns:
-            Dict with success status and updated message
-        """
-        try:
-            msg = message_manager.mark_read(message_id)
-
-            return {"success": True, "message": msg.to_dict()}
-
-        except ValueError:
-            return {"success": False, "error": f"Message not found: {message_id}"}
-        except Exception as e:
-            logger.error(f"Failed to mark message as read: {e}")
-            return {"success": False, "error": str(e)}
+    # ── activate_command ──────────────────────────────────────────
 
     @registry.tool(
-        name="broadcast_to_children",
-        description="Broadcast a message to all active child sessions. Accepts #N, N, UUID, or prefix for session_id.",
+        name="activate_command",
+        description=(
+            "Activate a pending command: mark it running and set session "
+            "variables (command_id, command_text, allowed_tools, exit_condition)."
+        ),
     )
-    async def broadcast_to_children(
-        parent_session_id: str,
-        content: str,
-        priority: str = "normal",
+    async def activate_command(
+        session_id: str,
+        command_id: str,
     ) -> dict[str, Any]:
-        """
-        Broadcast a message to all active children.
-
-        Send the same message to all child sessions spawned by this parent
-        that are currently active in the database.
-        Useful for coordination or shutdown signals.
-
-        Args:
-            parent_session_id: Session reference (accepts #N, N, UUID, or prefix) for the parent
-            content: Message content to broadcast
-            priority: Message priority ("normal" or "urgent")
-
-        Returns:
-            Dict with success status and count of messages sent
-        """
         try:
-            # Resolve session_id to UUID (accepts #N, N, UUID, or prefix)
-            try:
-                resolved_parent_id = _resolve_session_id(parent_session_id)
-            except ValueError as e:
-                return {"success": False, "error": str(e)}
+            resolved_id = _resolve(session_id)
+            cmd = command_manager.get_command(command_id)
+            if not cmd:
+                return {"success": False, "error": f"Command not found: {command_id}"}
 
-            # Get all children from database
-            all_children = session_manager.find_children(resolved_parent_id)
-            # Filter to active children only
-            children = [c for c in all_children if c.status == "active"]
-
-            if not children:
+            if cmd.to_session != resolved_id:
                 return {
-                    "success": True,
-                    "sent_count": 0,
-                    "message": "No active children found",
+                    "success": False,
+                    "error": f"Command not assigned to session {resolved_id}",
                 }
 
-            sent_count = 0
-            errors = []
+            # Mark running
+            command_manager.update_status(command_id, "running")
 
-            for child in children:
-                try:
-                    message_manager.create_message(
-                        from_session=resolved_parent_id,
-                        to_session=child.id,
-                        content=content,
-                        priority=priority,
-                    )
-                    sent_count += 1
-                except Exception as e:
-                    errors.append(f"{child.id}: {e}")
-
-            result: dict[str, Any] = {
-                "success": True,
-                "sent_count": sent_count,
-                "total_children": len(children),
+            # Set session variables from command fields
+            variables: dict[str, Any] = {
+                "command_id": cmd.id,
+                "command_text": cmd.command_text,
             }
+            if cmd.allowed_tools:
+                variables["allowed_tools"] = cmd.allowed_tools
+            if cmd.allowed_mcp_tools:
+                variables["allowed_mcp_tools"] = cmd.allowed_mcp_tools
+            if cmd.exit_condition:
+                variables["exit_condition"] = cmd.exit_condition
 
-            if errors:
-                result["errors"] = errors
+            session_var_manager.merge_variables(resolved_id, variables)
 
-            logger.info(
-                "Broadcast from %s sent to %d/%d children",
-                resolved_parent_id,
-                sent_count,
-                len(children),
-            )
-
-            return result
+            return {"success": True, "command": cmd.to_dict(), "variables_set": list(variables.keys())}
 
         except Exception as e:
-            logger.error("Failed to broadcast to children: %s", e)
+            logger.error("activate_command failed: %s", e)
             return {"success": False, "error": str(e)}

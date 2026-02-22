@@ -368,7 +368,7 @@ class SessionCoordinator:
                         f"Failed to get last assistant message for {session.id}: {e}"
                     )
 
-            # Fallback: check inter_session_messages for send_to_parent data
+            # Fallback: check inter_session_messages for send_message data
             if not result:
                 try:
                     db = self._agent_run_manager.db
