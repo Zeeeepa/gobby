@@ -143,15 +143,15 @@ export function useRules() {
       const response = await fetch(`${baseUrl}/api/workflows/${encodeURIComponent(id)}/use-as-template`, {
         method: 'POST',
       })
-      if (response.ok) {
-        const data = await response.json()
-        if (data.status === 'success') {
-          await fetchRules()
-          return true
-        }
+      const data = await response.json().catch(() => ({}))
+      if (response.ok && data.status === 'success') {
+        await fetchRules()
+        return true
       }
+      window.alert(data.detail || 'Failed to use rule as template')
     } catch (e) {
       console.error('Failed to use rule as template:', e)
+      window.alert(`Failed to use as template: ${e instanceof Error ? e.message : String(e)}`)
     }
     return false
   }, [fetchRules])

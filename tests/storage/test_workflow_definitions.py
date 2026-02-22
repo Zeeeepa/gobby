@@ -481,3 +481,64 @@ def test_duplicate_nonexistent_raises(manager: LocalWorkflowDefinitionManager) -
     """Test that duplicating a nonexistent definition raises ValueError."""
     with pytest.raises(ValueError, match="not found"):
         manager.duplicate("nonexistent-id", "new-name")
+
+
+# =============================================================================
+# Use as Template
+# =============================================================================
+
+
+def test_use_as_template(manager: LocalWorkflowDefinitionManager) -> None:
+    """Test creating a custom copy from a bundled definition."""
+    bundled = manager.create(
+        name="bundled-rule",
+        definition_json=SAMPLE_DEFINITION,
+        source="bundled",
+        enabled=True,
+    )
+
+    custom = manager.use_as_template(bundled.id)
+
+    assert custom.id != bundled.id
+    assert custom.name == bundled.name
+    assert custom.source == "custom"
+    assert custom.enabled is True
+    assert custom.definition_json == bundled.definition_json
+
+    # Bundled original should be disabled
+    original = manager.get(bundled.id)
+    assert original.enabled is False
+
+
+def test_use_as_template_non_bundled_raises(manager: LocalWorkflowDefinitionManager) -> None:
+    """Test that using a non-bundled item as template raises ValueError."""
+    custom = manager.create(name="custom-item", definition_json=SAMPLE_DEFINITION, source="custom")
+
+    with pytest.raises(ValueError, match="not bundled"):
+        manager.use_as_template(custom.id)
+
+
+def test_use_as_template_duplicate_raises(manager: LocalWorkflowDefinitionManager) -> None:
+    """Test that creating a template when custom copy already exists raises ValueError."""
+    bundled = manager.create(name="dup-test", definition_json=SAMPLE_DEFINITION, source="bundled")
+    manager.create(name="dup-test", definition_json=SAMPLE_DEFINITION, source="custom")
+
+    with pytest.raises(ValueError, match="already exists"):
+        manager.use_as_template(bundled.id)
+
+
+def test_use_all_bundled_as_templates(manager: LocalWorkflowDefinitionManager) -> None:
+    """Test bulk creation of custom copies from all bundled definitions."""
+    manager.create(name="b1", definition_json=SAMPLE_DEFINITION, source="bundled", workflow_type="rule")
+    manager.create(name="b2", definition_json=SAMPLE_DEFINITION, source="bundled", workflow_type="rule")
+    # Already has a custom counterpart - should be skipped
+    manager.create(name="b3", definition_json=SAMPLE_DEFINITION, source="bundled", workflow_type="rule")
+    manager.create(name="b3", definition_json=SAMPLE_DEFINITION, source="custom", workflow_type="rule")
+
+    created = manager.use_all_bundled_as_templates(workflow_type="rule")
+
+    # b1 and b2 should be templated, b3 skipped (already has custom)
+    names = {r.name for r in created}
+    assert "b1" in names
+    assert "b2" in names
+    assert "b3" not in names

@@ -244,15 +244,15 @@ export function useWorkflows() {
       const response = await fetch(`${baseUrl}/api/workflows/${encodeURIComponent(id)}/use-as-template`, {
         method: 'POST',
       })
-      if (response.ok) {
-        const data = await response.json()
-        if (data.status === 'success') {
-          await fetchWorkflows()
-          return data.definition
-        }
+      const data = await response.json().catch(() => ({}))
+      if (response.ok && data.status === 'success') {
+        await fetchWorkflows()
+        return data.definition
       }
+      window.alert(data.detail || 'Failed to use as template')
     } catch (e) {
       console.error('Failed to use workflow as template:', e)
+      window.alert(`Failed to use as template: ${e instanceof Error ? e.message : String(e)}`)
     }
     return null
   }, [fetchWorkflows])
@@ -264,15 +264,15 @@ export function useWorkflows() {
       const response = await fetch(`${baseUrl}/api/workflows/use-all-bundled-as-templates${params}`, {
         method: 'POST',
       })
-      if (response.ok) {
-        const data = await response.json()
-        if (data.status === 'success') {
-          await fetchWorkflows()
-          return data.count || 0
-        }
+      const data = await response.json().catch(() => ({}))
+      if (response.ok && data.status === 'success') {
+        await fetchWorkflows()
+        return data.count || 0
       }
+      window.alert(data.detail || 'Failed to use all bundled as templates')
     } catch (e) {
       console.error('Failed to use all bundled as templates:', e)
+      window.alert(`Failed: ${e instanceof Error ? e.message : String(e)}`)
     }
     return 0
   }, [fetchWorkflows])

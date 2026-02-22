@@ -797,7 +797,7 @@ CREATE INDEX idx_wf_defs_project ON workflow_definitions(project_id);
 CREATE INDEX idx_wf_defs_name ON workflow_definitions(name);
 CREATE INDEX idx_wf_defs_type ON workflow_definitions(workflow_type);
 CREATE INDEX idx_wf_defs_enabled ON workflow_definitions(enabled);
-CREATE UNIQUE INDEX idx_wf_defs_name_project ON workflow_definitions(name, COALESCE(project_id, '__global__'));
+CREATE UNIQUE INDEX idx_wf_defs_name_project ON workflow_definitions(name, COALESCE(project_id, '__global__'), source);
 
 CREATE TABLE rule_overrides (
     id TEXT PRIMARY KEY,
@@ -1194,6 +1194,12 @@ MIGRATIONS: list[tuple[int, str, MigrationAction]] = [
         118,
         "Drop legacy rules table (replaced by workflow_definitions with type='rule')",
         """DROP TABLE IF EXISTS rules""",
+    ),
+    (
+        119,
+        "Include source in workflow_definitions unique index to allow bundled+custom coexistence",
+        """DROP INDEX IF EXISTS idx_wf_defs_name_project;
+CREATE UNIQUE INDEX idx_wf_defs_name_project ON workflow_definitions(name, COALESCE(project_id, '__global__'), source)""",
     ),
 ]
 
