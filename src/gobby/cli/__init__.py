@@ -23,6 +23,7 @@ from .memory import memory
 from .merge import merge
 from .pipelines import pipelines
 from .projects import projects
+from .rules import rules
 from .sessions import sessions
 from .setup import setup
 from .skills import skills
@@ -65,6 +66,7 @@ cli.add_command(agents)
 cli.add_command(worktrees)
 cli.add_command(mcp_proxy)
 cli.add_command(projects)
+cli.add_command(rules)
 cli.add_command(workflows)
 cli.add_command(merge)
 cli.add_command(pipelines)
