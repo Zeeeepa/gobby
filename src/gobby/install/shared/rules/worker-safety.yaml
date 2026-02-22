@@ -1,27 +1,42 @@
 # Worker safety rules - common rules for agent workflows.
-# Referenced via imports: [worker-safety] in workflow YAML files.
+# Blocks dangerous operations: pushing, force-pushing, destructive git,
+# and editing without a claimed task.
 
-rule_definitions:
-  no_push:
-    tools: [Bash]
-    command_pattern: "git\\s+push"
-    reason: "Do not push to remote. Let the parent session handle pushing."
-    action: block
+group: worker-safety
 
-  no_force_push:
-    tools: [Bash]
-    command_pattern: "git\\s+push\\s+.*(?:--force(?:-with-lease|-if-includes)?|-f)(?:\\s|$)"
-    reason: "Force pushing is never allowed."
-    action: block
+rules:
+  no-push:
+    description: "Block git push - let the parent session handle pushing."
+    event: before_tool
+    effect:
+      type: block
+      tools: [Bash]
+      command_pattern: "git\\s+push"
+      reason: "Do not push to remote. Let the parent session handle pushing."
 
-  require_task:
-    tools: [Edit, Write, NotebookEdit]
+  no-force-push:
+    description: "Block force push - never allowed."
+    event: before_tool
+    effect:
+      type: block
+      tools: [Bash]
+      command_pattern: "git\\s+push\\s+.*(?:--force(?:-with-lease|-if-includes)?|-f)(?:\\s|$)"
+      reason: "Force pushing is never allowed."
+
+  require-task:
+    description: "Block file edits without a claimed task."
+    event: before_tool
     when: "not task_claimed and not plan_mode"
-    reason: "Claim a task before editing files. Use claim_task() on gobby-tasks."
-    action: block
+    effect:
+      type: block
+      tools: [Edit, Write, NotebookEdit]
+      reason: "Claim a task before editing files. Use claim_task() on gobby-tasks."
 
-  no_destructive_git:
-    tools: [Bash]
-    command_pattern: "git\\s+(reset\\s+--hard|clean\\s+-f|checkout\\s+(--\\s+)?\\.|restore\\s+\\.)"
-    reason: "Destructive git operations are not allowed without explicit approval."
-    action: block
+  no-destructive-git:
+    description: "Block destructive git operations."
+    event: before_tool
+    effect:
+      type: block
+      tools: [Bash]
+      command_pattern: "git\\s+(reset\\s+--hard|clean\\s+-f|checkout\\s+(--\\s+)?\\.|restore\\s+\\.)"
+      reason: "Destructive git operations are not allowed without explicit approval."
