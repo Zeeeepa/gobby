@@ -6,7 +6,7 @@ Extracted from manager.py as part of Strangler Fig decomposition (Wave 2).
 from __future__ import annotations
 
 import logging
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
@@ -40,17 +40,29 @@ def get_stats(
         return {
             "total_count": 0,
             "by_type": {},
+            "recent_count": 0,
             "project_id": project_id,
         }
 
     by_type: dict[str, int] = {}
+    cutoff = datetime.now(UTC) - timedelta(hours=24)
+    recent_count = 0
 
     for m in memories:
         by_type[m.memory_type] = by_type.get(m.memory_type, 0) + 1
+        try:
+            created = datetime.fromisoformat(m.created_at)
+            if created.tzinfo is None:
+                created = created.replace(tzinfo=UTC)
+            if created > cutoff:
+                recent_count += 1
+        except (ValueError, AttributeError):
+            pass
 
     stats: dict[str, Any] = {
         "total_count": len(memories),
         "by_type": by_type,
+        "recent_count": recent_count,
         "project_id": project_id,
     }
 

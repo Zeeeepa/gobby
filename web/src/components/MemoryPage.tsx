@@ -1,7 +1,6 @@
 import { useState, useCallback, useMemo, useEffect, useRef, lazy, Suspense, Component, type ReactNode } from 'react'
 import { useMemory, useNeo4jStatus } from '../hooks/useMemory'
 import type { GobbyMemory } from '../hooks/useMemory'
-import { MemoryOverview } from './MemoryOverview'
 import { MemoryFilters } from './MemoryFilters'
 import { MemoryTable } from './MemoryTable'
 import { MemoryGraph } from './MemoryGraph'
@@ -41,8 +40,6 @@ class KnowledgeGraphErrorBoundary extends Component<
   }
 }
 
-const TWENTY_FOUR_HOURS_MS = 24 * 60 * 60 * 1000
-
 function ListIcon() {
   return (
     <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round">
@@ -79,8 +76,6 @@ function KnowledgeIcon() {
 }
 
 type ViewMode = 'list' | 'graph' | 'knowledge'
-type OverviewFilter = 'fact' | 'preference' | 'pattern' | 'context' | 'recent' | null
-
 interface MemoryPageProps {
   projectId?: string | null
 }
@@ -155,7 +150,6 @@ export function MemoryPage({ projectId }: MemoryPageProps = {}) {
   }, [viewMode])
   const [editMemory, setEditMemory] = useState<GobbyMemory | null>(null)
   const [selectedMemory, setSelectedMemory] = useState<GobbyMemory | null>(null)
-  const [overviewFilter, setOverviewFilter] = useState<OverviewFilter>(null)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
 
   const showError = useCallback((msg: string) => {
@@ -164,14 +158,12 @@ export function MemoryPage({ projectId }: MemoryPageProps = {}) {
   }, [])
   const [searchText, setSearchText] = useState('')
 
-  // Apply overview filter + search to memories
+  // Apply search and recent filters to memories
   const filteredMemories = useMemo(() => {
     let result = memories
 
-    if (overviewFilter === 'fact' || overviewFilter === 'preference' || overviewFilter === 'pattern' || overviewFilter === 'context') {
-      result = result.filter(m => m.memory_type === overviewFilter)
-    } else if (overviewFilter === 'recent') {
-      const cutoff = Date.now() - TWENTY_FOUR_HOURS_MS
+    if (filters.recentOnly) {
+      const cutoff = Date.now() - 24 * 60 * 60 * 1000
       result = result.filter(m => new Date(m.created_at).getTime() > cutoff)
     }
 
@@ -185,7 +177,7 @@ export function MemoryPage({ projectId }: MemoryPageProps = {}) {
     }
 
     return result
-  }, [memories, overviewFilter, searchText])
+  }, [memories, filters.recentOnly, searchText])
 
   const handleCreate = useCallback(() => {
     setEditMemory(null)
@@ -326,18 +318,11 @@ export function MemoryPage({ projectId }: MemoryPageProps = {}) {
         </div>
       </div>
 
-      {/* Overview cards */}
-      <MemoryOverview
-        memories={memories}
-        stats={stats}
-        activeFilter={overviewFilter}
-        onFilter={f => setOverviewFilter(f as OverviewFilter)}
-      />
-
       {/* Filter bar */}
       <MemoryFilters
         filters={filters}
         stats={stats}
+        recentCount={stats?.recent_count ?? 0}
         onFiltersChange={setFilters}
       />
 

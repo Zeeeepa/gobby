@@ -3,6 +3,7 @@ import type { MemoryFilters as MemoryFiltersType, MemoryStats } from '../hooks/u
 interface MemoryFiltersProps {
   filters: MemoryFiltersType
   stats: MemoryStats | null
+  recentCount: number
   onFiltersChange: (filters: MemoryFiltersType) => void
 }
 
@@ -13,9 +14,7 @@ const MEMORY_TYPES = [
   { key: 'context', label: 'Context', color: '#fbbf24' },
 ] as const
 
-export function MemoryFilters({ filters, stats, onFiltersChange }: MemoryFiltersProps) {
-  const hasFilters = filters.memoryType !== null || filters.minImportance !== null
-
+export function MemoryFilters({ filters, stats, recentCount, onFiltersChange }: MemoryFiltersProps) {
   return (
     <div className="memory-filter-bar">
       <div className="memory-filter-chips">
@@ -30,6 +29,7 @@ export function MemoryFilters({ filters, stats, onFiltersChange }: MemoryFilters
                 onFiltersChange({
                   ...filters,
                   memoryType: isActive ? null : t.key,
+                  recentOnly: false,
                 })
               }
             >
@@ -39,30 +39,27 @@ export function MemoryFilters({ filters, stats, onFiltersChange }: MemoryFilters
             </button>
           )
         })}
+        <button
+          className={`memory-type-chip ${filters.recentOnly ? 'active' : ''}`}
+          onClick={() =>
+            onFiltersChange({
+              ...filters,
+              recentOnly: !filters.recentOnly,
+              memoryType: null,
+            })
+          }
+        >
+          <span className="memory-type-dot" style={{ backgroundColor: '#22c55e' }} />
+          24H
+          <span className="memory-type-chip-count">{recentCount}</span>
+        </button>
       </div>
 
-      <select
-        className="memory-filter-select"
-        value={filters.minImportance !== null ? String(filters.minImportance) : ''}
-        onChange={e =>
-          onFiltersChange({
-            ...filters,
-            minImportance: e.target.value ? Number(e.target.value) : null,
-          })
-        }
-      >
-        <option value="">Any importance</option>
-        <option value="0.3">Low (0.3+)</option>
-        <option value="0.5">Medium (0.5+)</option>
-        <option value="0.7">High (0.7+)</option>
-        <option value="0.9">Critical (0.9+)</option>
-      </select>
-
-      {hasFilters && (
+      {(filters.memoryType !== null || filters.recentOnly) && (
         <button
           className="memory-filter-clear"
           onClick={() =>
-            onFiltersChange({ ...filters, memoryType: null, minImportance: null })
+            onFiltersChange({ ...filters, memoryType: null, recentOnly: false })
           }
         >
           Clear filters

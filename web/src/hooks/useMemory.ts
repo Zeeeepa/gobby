@@ -59,13 +59,14 @@ export interface KnowledgeGraphData {
 export interface MemoryFilters {
   projectId: string | null
   memoryType: string | null
-  minImportance: number | null
+  recentOnly: boolean
   search: string
 }
 
 export interface MemoryStats {
   total_count: number
   by_type: Record<string, number>
+  recent_count: number
   avg_importance: number
   project_id: string | null
 }
@@ -97,7 +98,7 @@ export function useMemory() {
   const [filters, setFilters] = useState<MemoryFilters>({
     projectId: null,
     memoryType: null,
-    minImportance: null,
+    recentOnly: false,
     search: '',
   })
   const [isLoading, setIsLoading] = useState(true)
@@ -110,9 +111,6 @@ export function useMemory() {
       const params = new URLSearchParams({ limit: '100' })
       if (filters.projectId) params.set('project_id', filters.projectId)
       if (filters.memoryType) params.set('memory_type', filters.memoryType)
-      if (filters.minImportance !== null) {
-        params.set('min_importance', String(filters.minImportance))
-      }
 
       const response = await fetch(`${baseUrl}/memories?${params}`)
       if (response.ok) {
@@ -129,7 +127,7 @@ export function useMemory() {
     } finally {
       setIsLoading(false)
     }
-  }, [filters.projectId, filters.memoryType, filters.minImportance])
+  }, [filters.projectId, filters.memoryType])
 
   // Create memory
   const createMemory = useCallback(
