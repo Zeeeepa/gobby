@@ -24,11 +24,14 @@ def _rule_summary(row: WorkflowDefinitionRow) -> dict[str, Any]:
     return {
         "id": row.id,
         "name": row.name,
+        "description": row.description,
         "event": body.get("event"),
         "group": body.get("group"),
+        "when": body.get("when"),
         "enabled": row.enabled,
         "priority": row.priority,
         "source": row.source,
+        "tags": row.tags,
     }
 
 
@@ -38,6 +41,7 @@ def _rule_detail(row: WorkflowDefinitionRow) -> dict[str, Any]:
     return {
         "id": row.id,
         "name": row.name,
+        "description": row.description,
         "event": body.get("event"),
         "group": body.get("group"),
         "when": body.get("when"),

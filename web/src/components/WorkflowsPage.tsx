@@ -4,12 +4,20 @@ import { useWorkflows } from '../hooks/useWorkflows'
 import type { WorkflowDetail } from '../hooks/useWorkflows'
 import { PipelineEditor } from './PipelineEditor'
 import { CodeMirrorEditor } from './CodeMirrorEditor'
+import { TabBar } from './TabBar'
+import { RulesTab } from './RulesTab'
 import './WorkflowsPage.css'
 
-type OverviewFilter = 'total' | 'workflows' | 'pipelines' | 'active' | null
-type TypeFilter = 'workflow' | 'pipeline' | null
+type ActiveTab = 'rules' | 'transitions' | 'pipelines' | 'agents'
 type SourceFilter = string | null
 type EnabledFilter = boolean | null
+
+const TABS = [
+  { id: 'rules', label: 'Rules' },
+  { id: 'transitions', label: 'Transitions' },
+  { id: 'pipelines', label: 'Pipelines' },
+  { id: 'agents', label: 'Agents' },
+]
 
 const SCAFFOLD_WORKFLOW = JSON.stringify(
   {
@@ -37,9 +45,6 @@ export function WorkflowsPage() {
   const {
     workflows,
     isLoading,
-    workflowCount,
-    pipelineCount,
-    activeCount,
     fetchWorkflows,
     createWorkflow,
     updateWorkflow,
@@ -51,9 +56,8 @@ export function WorkflowsPage() {
     restoreWorkflow,
   } = useWorkflows()
 
+  const [activeTab, setActiveTab] = useState<ActiveTab>('rules')
   const [searchText, setSearchText] = useState('')
-  const [overviewFilter, setOverviewFilter] = useState<OverviewFilter>(null)
-  const [typeFilter, setTypeFilter] = useState<TypeFilter>(null)
   const [sourceFilter, setSourceFilter] = useState<SourceFilter>(null)
   const [enabledFilter, setEnabledFilter] = useState<EnabledFilter>(null)
   const [showCreateModal, setShowCreateModal] = useState(false)
@@ -76,18 +80,11 @@ export function WorkflowsPage() {
   const filteredWorkflows = useMemo(() => {
     let result = workflows
 
-    // Overview filter
-    if (overviewFilter === 'workflows') {
+    // Tab-level type filter
+    if (activeTab === 'transitions') {
       result = result.filter(w => w.workflow_type === 'workflow')
-    } else if (overviewFilter === 'pipelines') {
+    } else if (activeTab === 'pipelines') {
       result = result.filter(w => w.workflow_type === 'pipeline')
-    } else if (overviewFilter === 'active') {
-      result = result.filter(w => w.enabled)
-    }
-
-    // Type chip filter
-    if (typeFilter) {
-      result = result.filter(w => w.workflow_type === typeFilter)
     }
 
     // Source chip filter
@@ -111,7 +108,7 @@ export function WorkflowsPage() {
     }
 
     return result
-  }, [workflows, overviewFilter, typeFilter, sourceFilter, enabledFilter, searchText])
+  }, [workflows, activeTab, sourceFilter, enabledFilter, searchText])
 
   // Re-fetch when showDeleted changes
   useEffect(() => {
@@ -192,10 +189,6 @@ export function WorkflowsPage() {
     setYamlEditorWf(null)
   }, [yamlEditorWf, yamlContent, updateWorkflow])
 
-  const handleToggleOverview = useCallback((filter: OverviewFilter) => {
-    setOverviewFilter(prev => prev === filter ? null : filter)
-  }, [])
-
   const stepCount = useCallback((wf: WorkflowDetail) => {
     try {
       const data = JSON.parse(wf.definition_json)
@@ -222,262 +215,243 @@ export function WorkflowsPage() {
       <div className="workflows-toolbar">
         <div className="workflows-toolbar-left">
           <h2 className="workflows-toolbar-title">Workflows</h2>
-          <span className="workflows-toolbar-count">{workflows.length}</span>
         </div>
         <div className="workflows-toolbar-right">
-          <input
-            className="workflows-search"
-            type="text"
-            placeholder="Search workflows..."
-            value={searchText}
-            onChange={e => setSearchText(e.target.value)}
-          />
-          <label className="workflows-show-deleted">
-            <input
-              type="checkbox"
-              checked={showDeleted}
-              onChange={e => setShowDeleted(e.target.checked)}
-            />
-            Show deleted
-          </label>
-          <button
-            type="button"
-            className="workflows-toolbar-btn"
-            onClick={() => fetchWorkflows({ include_deleted: showDeleted })}
-            title="Refresh"
-            disabled={isLoading}
-          >
-            &#x21bb;
-          </button>
-          <button
-            type="button"
-            className="workflows-toolbar-btn"
-            onClick={() => setShowImportModal(true)}
-          >
-            Import
-          </button>
-          <button
-            type="button"
-            className="workflows-new-btn"
-            onClick={() => { setCreateType('workflow'); setShowCreateModal(true) }}
-          >
-            + Workflow
-          </button>
-          <button
-            type="button"
-            className="workflows-new-btn"
-            onClick={() => { setCreateType('pipeline'); setShowCreateModal(true) }}
-          >
-            + Pipeline
-          </button>
+          {(activeTab === 'transitions' || activeTab === 'pipelines') && (
+            <>
+              <input
+                className="workflows-search"
+                type="text"
+                placeholder={`Search ${activeTab}...`}
+                value={searchText}
+                onChange={e => setSearchText(e.target.value)}
+              />
+              <label className="workflows-show-deleted">
+                <input
+                  type="checkbox"
+                  checked={showDeleted}
+                  onChange={e => setShowDeleted(e.target.checked)}
+                />
+                Show deleted
+              </label>
+              <button
+                type="button"
+                className="workflows-toolbar-btn"
+                onClick={() => fetchWorkflows({ include_deleted: showDeleted })}
+                title="Refresh"
+                disabled={isLoading}
+              >
+                &#x21bb;
+              </button>
+              <button
+                type="button"
+                className="workflows-toolbar-btn"
+                onClick={() => setShowImportModal(true)}
+              >
+                Import
+              </button>
+              {activeTab === 'transitions' && (
+                <button
+                  type="button"
+                  className="workflows-new-btn"
+                  onClick={() => { setCreateType('workflow'); setShowCreateModal(true) }}
+                >
+                  + Workflow
+                </button>
+              )}
+              {activeTab === 'pipelines' && (
+                <button
+                  type="button"
+                  className="workflows-new-btn"
+                  onClick={() => { setCreateType('pipeline'); setShowCreateModal(true) }}
+                >
+                  + Pipeline
+                </button>
+              )}
+            </>
+          )}
         </div>
       </div>
 
-      {/* Overview cards */}
-      <div className="workflows-overview">
-        <div
-          className={`workflows-overview-card ${overviewFilter === 'total' ? 'workflows-overview-card--active' : ''}`}
-          onClick={() => handleToggleOverview('total')}
-        >
-          <div className="workflows-overview-value">{workflows.length}</div>
-          <div className="workflows-overview-label">Total</div>
-        </div>
-        <div
-          className={`workflows-overview-card ${overviewFilter === 'workflows' ? 'workflows-overview-card--active' : ''}`}
-          onClick={() => handleToggleOverview('workflows')}
-        >
-          <div className="workflows-overview-value">{workflowCount}</div>
-          <div className="workflows-overview-label">Workflows</div>
-        </div>
-        <div
-          className={`workflows-overview-card ${overviewFilter === 'pipelines' ? 'workflows-overview-card--active' : ''}`}
-          onClick={() => handleToggleOverview('pipelines')}
-        >
-          <div className="workflows-overview-value">{pipelineCount}</div>
-          <div className="workflows-overview-label">Pipelines</div>
-        </div>
-        <div
-          className={`workflows-overview-card ${overviewFilter === 'active' ? 'workflows-overview-card--active' : ''}`}
-          onClick={() => handleToggleOverview('active')}
-        >
-          <div className="workflows-overview-value">{activeCount}</div>
-          <div className="workflows-overview-label">Active</div>
-        </div>
-      </div>
+      {/* Tab bar */}
+      <TabBar
+        tabs={TABS}
+        activeTab={activeTab}
+        onTabChange={(id) => setActiveTab(id as ActiveTab)}
+      />
 
-      {/* Filter chips */}
-      <div className="workflows-filter-bar">
-        <div className="workflows-filter-chips">
-          {/* Type filters */}
-          <button
-            type="button"
-            className={`workflows-filter-chip ${typeFilter === 'workflow' ? 'workflows-filter-chip--active' : ''}`}
-            onClick={() => setTypeFilter(typeFilter === 'workflow' ? null : 'workflow')}
-          >
-            workflow
-          </button>
-          <button
-            type="button"
-            className={`workflows-filter-chip ${typeFilter === 'pipeline' ? 'workflows-filter-chip--active' : ''}`}
-            onClick={() => setTypeFilter(typeFilter === 'pipeline' ? null : 'pipeline')}
-          >
-            pipeline
-          </button>
+      {/* Rules tab */}
+      {activeTab === 'rules' && <RulesTab />}
 
-          {/* Source filters */}
-          {sources.map(s => (
-            <button
-              type="button"
-              key={s}
-              className={`workflows-filter-chip ${sourceFilter === s ? 'workflows-filter-chip--active' : ''}`}
-              onClick={() => setSourceFilter(sourceFilter === s ? null : s)}
-            >
-              {s}
-            </button>
-          ))}
+      {/* Transitions / Pipelines tabs - existing workflow content */}
+      {(activeTab === 'transitions' || activeTab === 'pipelines') && (
+        <>
+          {/* Filter chips */}
+          <div className="workflows-filter-bar">
+            <div className="workflows-filter-chips">
+              {/* Source filters */}
+              {sources.map(s => (
+                <button
+                  type="button"
+                  key={s}
+                  className={`workflows-filter-chip ${sourceFilter === s ? 'workflows-filter-chip--active' : ''}`}
+                  onClick={() => setSourceFilter(sourceFilter === s ? null : s)}
+                >
+                  {s}
+                </button>
+              ))}
 
-          {/* Enabled filters */}
-          <button
-            type="button"
-            className={`workflows-filter-chip ${enabledFilter === true ? 'workflows-filter-chip--active' : ''}`}
-            onClick={() => setEnabledFilter(enabledFilter === true ? null : true)}
-          >
-            enabled
-          </button>
-          <button
-            type="button"
-            className={`workflows-filter-chip ${enabledFilter === false ? 'workflows-filter-chip--active' : ''}`}
-            onClick={() => setEnabledFilter(enabledFilter === false ? null : false)}
-          >
-            disabled
-          </button>
-        </div>
-      </div>
+              {/* Enabled filters */}
+              <button
+                type="button"
+                className={`workflows-filter-chip ${enabledFilter === true ? 'workflows-filter-chip--active' : ''}`}
+                onClick={() => setEnabledFilter(enabledFilter === true ? null : true)}
+              >
+                enabled
+              </button>
+              <button
+                type="button"
+                className={`workflows-filter-chip ${enabledFilter === false ? 'workflows-filter-chip--active' : ''}`}
+                onClick={() => setEnabledFilter(enabledFilter === false ? null : false)}
+              >
+                disabled
+              </button>
+            </div>
+          </div>
 
-      {/* Card grid */}
-      <div className="workflows-content">
-        {isLoading ? (
-          <div className="workflows-loading">Loading...</div>
-        ) : filteredWorkflows.length === 0 ? (
-          <div className="workflows-empty">No workflows match the current filters.</div>
-        ) : (
-          <div className="workflows-grid">
-            {filteredWorkflows.map(wf => (
-              <div className={`workflows-card${wf.deleted_at ? ' workflows-card--deleted' : ''}`} key={wf.id}>
-                <div className="workflows-card-header">
-                  <span className={`workflows-card-name${wf.deleted_at ? ' workflows-card-name--deleted' : ''}`}>{wf.name}</span>
-                  <span className={`workflows-card-type workflows-card-type--${wf.workflow_type}`}>
-                    {wf.workflow_type}
-                  </span>
-                </div>
-
-                {wf.description && (
-                  <div className="workflows-card-desc">{wf.description}</div>
-                )}
-
-                <div className="workflows-card-badges">
-                  <span className="workflows-card-badge workflows-card-badge--source">
-                    {wf.source}
-                  </span>
-                  <span className="workflows-card-badge workflows-card-badge--priority">
-                    P{wf.priority}
-                  </span>
-                  <span className="workflows-card-badge">
-                    {stepCount(wf)} step{stepCount(wf) !== 1 ? 's' : ''}
-                  </span>
-                  <span className="workflows-card-badge">v{wf.version}</span>
-                  {wf.tags && wf.tags.map(tag => (
-                    <span className="workflows-card-badge" key={tag}>{tag}</span>
-                  ))}
-                </div>
-
-                <div className="workflows-card-footer">
-                  {wf.deleted_at ? (
-                    <div className="workflows-card-actions">
-                      <button
-                        type="button"
-                        className="workflows-action-btn workflows-action-btn--restore"
-                        onClick={() => handleRestore(wf)}
-                        title="Restore this workflow"
-                      >
-                        Restore
-                      </button>
+          {/* Card grid */}
+          <div className="workflows-content">
+            {isLoading ? (
+              <div className="workflows-loading">Loading...</div>
+            ) : filteredWorkflows.length === 0 ? (
+              <div className="workflows-empty">No {activeTab} match the current filters.</div>
+            ) : (
+              <div className="workflows-grid">
+                {filteredWorkflows.map(wf => (
+                  <div className={`workflows-card${wf.deleted_at ? ' workflows-card--deleted' : ''}`} key={wf.id}>
+                    <div className="workflows-card-header">
+                      <span className={`workflows-card-name${wf.deleted_at ? ' workflows-card-name--deleted' : ''}`}>{wf.name}</span>
+                      <span className={`workflows-card-type workflows-card-type--${wf.workflow_type}`}>
+                        {wf.workflow_type}
+                      </span>
                     </div>
-                  ) : (
-                    <>
-                      <div
-                        className="workflows-toggle"
-                        onClick={() => toggleEnabled(wf.id)}
-                      >
-                        <div className={`workflows-toggle-track ${wf.enabled ? 'workflows-toggle-track--on' : ''}`}>
-                          <div className="workflows-toggle-knob" />
-                        </div>
-                        <span>{wf.enabled ? 'On' : 'Off'}</span>
-                      </div>
 
-                      <div className="workflows-card-actions">
-                        <button
-                          type="button"
-                          className="workflows-action-btn"
-                          onClick={() => handleYamlEdit(wf)}
-                          title="Edit as YAML"
-                        >
-                          YAML
-                        </button>
-                        {wf.workflow_type === 'pipeline' && (
+                    {wf.description && (
+                      <div className="workflows-card-desc">{wf.description}</div>
+                    )}
+
+                    <div className="workflows-card-badges">
+                      <span className="workflows-card-badge workflows-card-badge--source">
+                        {wf.source}
+                      </span>
+                      <span className="workflows-card-badge workflows-card-badge--priority">
+                        P{wf.priority}
+                      </span>
+                      <span className="workflows-card-badge">
+                        {stepCount(wf)} step{stepCount(wf) !== 1 ? 's' : ''}
+                      </span>
+                      <span className="workflows-card-badge">v{wf.version}</span>
+                      {wf.tags && wf.tags.map(tag => (
+                        <span className="workflows-card-badge" key={tag}>{tag}</span>
+                      ))}
+                    </div>
+
+                    <div className="workflows-card-footer">
+                      {wf.deleted_at ? (
+                        <div className="workflows-card-actions">
                           <button
                             type="button"
-                            className="workflows-action-btn"
-                            onClick={() => setEditingWorkflow(wf)}
-                            title="Edit pipeline steps"
+                            className="workflows-action-btn workflows-action-btn--restore"
+                            onClick={() => handleRestore(wf)}
+                            title="Restore this workflow"
                           >
-                            Edit
+                            Restore
                           </button>
-                        )}
-                        <button
-                          type="button"
-                          className="workflows-action-icon"
-                          onClick={() => handleDuplicate(wf)}
-                          title="Duplicate"
-                          aria-label="Duplicate workflow"
-                        >
-                          <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-                            <rect x="5.5" y="5.5" width="9" height="9" rx="1.5" />
-                            <path d="M10.5 5.5V2.5a1 1 0 0 0-1-1h-7a1 1 0 0 0-1 1v7a1 1 0 0 0 1 1h3" />
-                          </svg>
-                        </button>
-                        <button
-                          type="button"
-                          className="workflows-action-icon"
-                          onClick={() => handleExport(wf)}
-                          title="Download YAML"
-                          aria-label="Download workflow as YAML"
-                        >
-                          <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-                            <path d="M8 2v9m0 0L5 8m3 3 3-3M2.5 12.5v1a1 1 0 0 0 1 1h9a1 1 0 0 0 1-1v-1" />
-                          </svg>
-                        </button>
-                        <button
-                          type="button"
-                          className="workflows-action-icon workflows-action-icon--danger"
-                          onClick={() => handleDelete(wf)}
-                          title="Delete"
-                          aria-label="Delete workflow"
-                        >
-                          <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-                            <path d="M2.5 4.5h11M5.5 4.5V3a1 1 0 0 1 1-1h3a1 1 0 0 1 1 1v1.5M6.5 7v4.5M9.5 7v4.5" />
-                            <path d="M3.5 4.5 4 13a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1l.5-8.5" />
-                          </svg>
-                        </button>
-                      </div>
-                    </>
-                  )}
-                </div>
+                        </div>
+                      ) : (
+                        <>
+                          <div
+                            className="workflows-toggle"
+                            onClick={() => toggleEnabled(wf.id)}
+                          >
+                            <div className={`workflows-toggle-track ${wf.enabled ? 'workflows-toggle-track--on' : ''}`}>
+                              <div className="workflows-toggle-knob" />
+                            </div>
+                            <span>{wf.enabled ? 'On' : 'Off'}</span>
+                          </div>
+
+                          <div className="workflows-card-actions">
+                            <button
+                              type="button"
+                              className="workflows-action-btn"
+                              onClick={() => handleYamlEdit(wf)}
+                              title="Edit as YAML"
+                            >
+                              YAML
+                            </button>
+                            {wf.workflow_type === 'pipeline' && (
+                              <button
+                                type="button"
+                                className="workflows-action-btn"
+                                onClick={() => setEditingWorkflow(wf)}
+                                title="Edit pipeline steps"
+                              >
+                                Edit
+                              </button>
+                            )}
+                            <button
+                              type="button"
+                              className="workflows-action-icon"
+                              onClick={() => handleDuplicate(wf)}
+                              title="Duplicate"
+                              aria-label="Duplicate workflow"
+                            >
+                              <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                                <rect x="5.5" y="5.5" width="9" height="9" rx="1.5" />
+                                <path d="M10.5 5.5V2.5a1 1 0 0 0-1-1h-7a1 1 0 0 0-1 1v7a1 1 0 0 0 1 1h3" />
+                              </svg>
+                            </button>
+                            <button
+                              type="button"
+                              className="workflows-action-icon"
+                              onClick={() => handleExport(wf)}
+                              title="Download YAML"
+                              aria-label="Download workflow as YAML"
+                            >
+                              <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                                <path d="M8 2v9m0 0L5 8m3 3 3-3M2.5 12.5v1a1 1 0 0 0 1 1h9a1 1 0 0 0 1-1v-1" />
+                              </svg>
+                            </button>
+                            <button
+                              type="button"
+                              className="workflows-action-icon workflows-action-icon--danger"
+                              onClick={() => handleDelete(wf)}
+                              title="Delete"
+                              aria-label="Delete workflow"
+                            >
+                              <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                                <path d="M2.5 4.5h11M5.5 4.5V3a1 1 0 0 1 1-1h3a1 1 0 0 1 1 1v1.5M6.5 7v4.5M9.5 7v4.5" />
+                                <path d="M3.5 4.5 4 13a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1l.5-8.5" />
+                              </svg>
+                            </button>
+                          </div>
+                        </>
+                      )}
+                    </div>
+                  </div>
+                ))}
               </div>
-            ))}
+            )}
           </div>
-        )}
-      </div>
+        </>
+      )}
+
+      {/* Agents tab - placeholder */}
+      {activeTab === 'agents' && (
+        <div className="workflows-content">
+          <div className="workflows-empty">Agent definitions coming soon.</div>
+        </div>
+      )}
 
       {/* Create modal */}
       {showCreateModal && (
