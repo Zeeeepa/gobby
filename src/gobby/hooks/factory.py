@@ -355,9 +355,11 @@ class HookManagerFactory:
     ) -> _WorkflowComponents:
         from gobby.workflows.actions import ActionExecutor
         from gobby.workflows.engine import WorkflowEngine
+        from gobby.workflows.rule_engine import RuleEngine
         from gobby.workflows.templates import TemplateEngine
 
         loader = WorkflowLoader(db=database)
+        rule_engine = RuleEngine(db=database)
         state_manager = WorkflowStateManager(database)
         template_engine = TemplateEngine()
         skill_manager = HookSkillManager()
@@ -433,6 +435,7 @@ class HookManagerFactory:
             loop=_loop,
             timeout=workflow_timeout,
             enabled=workflow_enabled,
+            rule_engine=rule_engine,
         )
         return _WorkflowComponents(
             loader=loader,

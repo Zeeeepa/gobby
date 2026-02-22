@@ -90,8 +90,8 @@ rules:
         assert body["effect"]["type"] == "block"
         assert body["effect"]["tools"] == ["Edit"]
 
-    def test_rule_enabled_defaults_true(self, db, manager, rules_dir) -> None:
-        """Rules should be enabled by default."""
+    def test_rule_enabled_defaults_false(self, db, manager, rules_dir) -> None:
+        """Rules should be disabled by default (opt-in activation)."""
         (rules_dir / "simple.yaml").write_text(
             """
 rules:
@@ -105,7 +105,7 @@ rules:
         sync_bundled_rules(db, rules_dir)
 
         rows = manager.list_all(workflow_type="rule")
-        assert rows[0].enabled is True
+        assert rows[0].enabled is False
 
 
 class TestMultiRuleYamlWithDefaults:

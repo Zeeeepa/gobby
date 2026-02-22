@@ -26,6 +26,7 @@ def _rule_summary(row: WorkflowDefinitionRow) -> dict[str, Any]:
         "name": row.name,
         "description": row.description,
         "event": body.get("event"),
+        "effect": body.get("effect"),
         "group": body.get("group"),
         "when": body.get("when"),
         "enabled": row.enabled,

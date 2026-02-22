@@ -172,7 +172,7 @@ def sync_bundled_workflows(db: DatabaseProtocol) -> dict[str, Any]:
                         )
                         result["skipped"] += 1
                     else:
-                        # Atomic in-place update (preserves id, avoids data loss)
+                        # Atomic in-place update (preserves id and user's enabled toggle)
                         manager.update(
                             existing.id,
                             name=name,
@@ -181,7 +181,7 @@ def sync_bundled_workflows(db: DatabaseProtocol) -> dict[str, Any]:
                             project_id=None,
                             description=description,
                             version=version,
-                            enabled=enabled,
+                            enabled=existing.enabled,
                             priority=priority,
                             sources=sources_list,
                             source="bundled",
@@ -368,7 +368,7 @@ def _sync_single_rule(
     definition_json = json.dumps(body_dict)
     priority = rule_data.get("priority", 100)
     description = rule_data.get("description")
-    enabled = rule_data.get("enabled", True)
+    enabled = rule_data.get("enabled", False)
 
     # Check if rule already exists
     existing = manager.get_by_name(rule_name, include_deleted=True)
@@ -383,6 +383,7 @@ def _sync_single_rule(
             if existing.definition_json == definition_json:
                 result["skipped"] += 1
             else:
+                # Preserve user's enabled toggle on updates
                 manager.update(
                     existing.id,
                     name=rule_name,
@@ -390,7 +391,7 @@ def _sync_single_rule(
                     workflow_type="rule",
                     project_id=None,
                     description=description,
-                    enabled=enabled,
+                    enabled=existing.enabled,
                     priority=priority,
                     sources=file_sources,
                     tags=file_tags,

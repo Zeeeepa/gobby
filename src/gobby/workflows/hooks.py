@@ -56,6 +56,9 @@ class WorkflowHookHandler:
     async def _evaluate_rules(self, event: HookEvent) -> HookResponse:
         """Evaluate rules for a hook event using the RuleEngine.
 
+        Loads workflow state variables (task_claimed, plan_mode, etc.) from the
+        session's workflow state so rule conditions can reference them.
+
         Returns allow if no rule engine is configured.
         """
         if self.rule_engine is None:
@@ -63,10 +66,20 @@ class WorkflowHookHandler:
 
         try:
             session_id = event.metadata.get("_platform_session_id") or event.session_id or ""
+
+            # Load workflow state variables for the session
+            variables: dict[str, Any] = {}
+            try:
+                state = self.engine.state_manager.get_state(session_id)
+                if state:
+                    variables = dict(state.variables)
+            except Exception as e:
+                logger.debug(f"Could not load workflow state for rules: {e}")
+
             return await self.rule_engine.evaluate(
                 event=event,
                 session_id=session_id,
-                variables={},
+                variables=variables,
             )
         except Exception as e:
             logger.error(f"RuleEngine evaluation failed: {e}", exc_info=True)
@@ -118,49 +131,35 @@ class WorkflowHookHandler:
 
     def handle(self, event: HookEvent) -> HookResponse:
         """
-        Handle a hook event by delegating to the workflow engine.
-        Handles the sync/async bridge.
+        Handle a hook event by evaluating rules first, then delegating to the
+        workflow engine for step-based workflows.
         """
         if not self._enabled:
             return HookResponse(decision="allow")
 
-        try:
-            # We need to run the async self.engine.handle_event(event) synchronously
+        # Evaluate declarative rules first (primary enforcement mechanism)
+        rule_response = self.evaluate(event)
+        if rule_response.decision != "allow":
+            return rule_response
 
-            # Case 1: We have a captured loop (main loop) and we are likely in a thread
-            # This is the common case for FastAPI sync endpoints
+        # Then run step-based workflow engine (legacy)
+        try:
             if self._loop and self._loop.is_running():
                 if threading.current_thread() is threading.main_thread():
-                    # We are on the main thread and the loop is running.
-                    # We cannot block here without deadlock if we use run_until_complete.
-                    # But HookManager.handle is synchronous, so this is a tricky spot.
-                    # Ideally, HookManager should await, but it's not async.
-                    # For now, we return allow and log a warning if we can't run.
-                    # OR we create a task and return allow (fire and forget), but we need the result.
-
-                    # Actually, if we are here, we are blocking the event loop!
-                    # This implementation assumes HookManager.handle is run in a threadpool (def handle vs async def handle).
-                    # Pydantic/FastAPI runs sync def routes in threadpool.
                     pass
                 else:
-                    # We are in a thread, loop is in another thread.
-                    # Safe to block this thread waiting for loop.
                     future = asyncio.run_coroutine_threadsafe(
                         self.engine.handle_event(event), self._loop
                     )
                     return future.result(timeout=self.timeout)
 
-            # Case 2: No loop running, or we just want to run it.
-            # Create a new loop or use asyncio.run if appropriate
             try:
                 asyncio.get_running_loop()
-                # If we get here, a loop is running
                 logger.warning(
                     "Could not run workflow engine: Event loop is already running and we are blocking it."
                 )
                 return HookResponse(decision="allow")
             except RuntimeError:
-                # No loop running, safe to use asyncio.run
                 return asyncio.run(self.engine.handle_event(event))
 
         except concurrent.futures.CancelledError:
