@@ -603,7 +603,7 @@ export function useChat() {
   const switchConversation = useCallback((id: string, dbSessionId?: string) => {
     if (!id) return
     // Skip if already on this conversation with messages loaded
-    if (id === conversationIdRef.current && messagesRef.current.length > 0) return
+    if (id === conversationIdRef.current && messagesRef.current.length > 0 && !dbSessionId) return
 
     // Stop partial streaming first
     activeRequestIdRef.current = null
@@ -623,16 +623,15 @@ export function useChat() {
     setConversationId(id)
     saveConversationId(id)
 
-    // Load messages for the target conversation
-    const loaded = loadMessagesForConversation(id)
-    if (loaded.length > 0) {
-      setMessages(loaded)
-      return
+    // Load cached messages for instant display (no flash)
+    const cached = loadMessagesForConversation(id)
+    if (cached.length > 0) {
+      setMessages(cached)
     }
 
-    // No local messages — fetch from API if we have the DB session ID
+    // Always fetch from server when dbSessionId is available (replaces stale cache)
     if (dbSessionId) {
-      setMessages([])
+      if (cached.length === 0) setMessages([])
       const baseUrl = import.meta.env.VITE_API_BASE_URL || ''
       fetch(`${baseUrl}/sessions/${dbSessionId}/messages?limit=100&offset=0`)
         .then(res => res.ok ? res.json() : null)
@@ -674,7 +673,7 @@ export function useChat() {
           }
         })
         .catch(() => {})
-    } else {
+    } else if (cached.length === 0) {
       setMessages([])
     }
   }, [])

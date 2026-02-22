@@ -176,6 +176,7 @@ export default function App() {
   useEffect(() => {
     if (effectiveProjectId && prevProjectRef.current !== null && effectiveProjectId !== prevProjectRef.current) {
       startNewChat()
+      initialReconciliationDone.current = false
     }
     prevProjectRef.current = effectiveProjectId ?? null
   }, [effectiveProjectId, startNewChat])
@@ -190,6 +191,29 @@ export default function App() {
     () => sessionsHook.filteredSessions.filter((s) => s.source === 'claude_sdk_web_chat'),
     [sessionsHook.filteredSessions]
   )
+
+  // Auto-select most recent server session on initial load (cross-device sync)
+  const initialReconciliationDone = useRef(false)
+
+  useEffect(() => {
+    if (initialReconciliationDone.current) return
+    if (!effectiveProjectId || sessionsHook.isLoading) return
+
+    initialReconciliationDone.current = true
+
+    // Does the current localStorage conversation_id match any server session?
+    const match = webChatSessions.find(s => s.external_id === conversationId)
+
+    if (match) {
+      // Valid session — hydrate messages from server (replaces stale localStorage)
+      switchConversation(match.external_id, match.id)
+    } else if (webChatSessions.length > 0) {
+      // Unknown conversation_id — switch to most recent session
+      const mostRecent = webChatSessions[0] // sorted newest-first
+      switchConversation(mostRecent.external_id, mostRecent.id)
+    }
+    // else: no sessions for this project — keep fresh UUID, user starts new chat
+  }, [effectiveProjectId, sessionsHook.isLoading, webChatSessions, conversationId, switchConversation])
 
   // Wrap sendMessage to include the selected model and handle slash commands
   const handleSendMessage = useCallback((content: string, files?: QueuedFile[]) => {
