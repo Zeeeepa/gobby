@@ -1,0 +1,139 @@
+# Memory lifecycle rules - manage memory system across session boundaries.
+# Handles recall, digest, capture nudges, extraction safety nets, and sync.
+#
+# NOTE: mcp_call rules are declarative definitions. They fire when the
+# mcp_call dispatch layer is wired up. Until then, the corresponding
+# legacy workflow actions in session-lifecycle.yaml remain active.
+
+group: memory-lifecycle
+tags: [memory, lifecycle]
+
+rules:
+  # ─── Session Start ───
+
+  reset-memory-tracking-on-start:
+    description: "Clear memory injection tracking on context loss (allows re-injection)"
+    event: session_start
+    priority: 5
+    when: "event.data.get('source') in ['clear', 'compact'] or (event.data.get('source') == 'resume' and variables.get('pending_context_reset'))"
+    effect:
+      type: set_variable
+      variable: _injected_memory_ids
+      value: []
+
+  memory-sync-import:
+    description: "Import memories from .gobby/memories.jsonl on session start"
+    event: session_start
+    priority: 30
+    effect:
+      type: mcp_call
+      server: gobby-memory
+      tool: sync_import
+
+  # ─── Before Agent ───
+
+  memory-recall-on-prompt:
+    description: "Search and inject relevant memories before agent prompt"
+    event: before_agent
+    priority: 10
+    effect:
+      type: mcp_call
+      server: gobby-memory
+      tool: recall_with_synthesis
+      arguments:
+        limit: 5
+      background: false
+
+  memory-background-digest:
+    description: "Update session digest and synthesize memories (async, zero latency)"
+    event: before_agent
+    priority: 11
+    effect:
+      type: mcp_call
+      server: gobby-memory
+      tool: digest_and_synthesize
+      arguments:
+        limit: 20
+      background: true
+
+  memory-capture-nudge:
+    description: "Nudge agent to save user preferences or facts as memories"
+    event: before_agent
+    priority: 50
+    when: "len((event.data.get('prompt') or '').strip()) >= 10 and not (event.data.get('prompt') or '').strip().startswith('/')"
+    effect:
+      type: inject_context
+      template: |
+        If the user just told you something worth remembering across sessions
+        (a preference, fact, convention, or instruction), save it with
+        create_memory on gobby-memory. If not, carry on.
+
+  # ─── After Tool ───
+
+  suggest-memory-after-close:
+    description: "Suggest memory extraction after closing a task with a commit"
+    event: after_tool
+    priority: 50
+    when: "event.data.get('mcp_tool') == 'close_task' and ((event.data.get('tool_input') or {}).get('arguments') or {}).get('commit_sha')"
+    effect:
+      type: inject_context
+      template: |
+        Consider saving any valuable memories from this task before stopping.
+        Use `create_memory` (via gobby-memory MCP) for insights worth preserving.
+        If nothing new was learned, no action needed.
+
+  # ─── Session End ───
+
+  memory-extraction-on-end:
+    description: "Daemon-side memory extraction safety net on session end"
+    event: session_end
+    priority: 20
+    effect:
+      type: mcp_call
+      server: gobby-memory
+      tool: extract_from_session
+      arguments:
+        max_memories: 5
+
+  memory-sync-export-on-end:
+    description: "Export memories to .gobby/memories.jsonl on session end"
+    event: session_end
+    priority: 30
+    effect:
+      type: mcp_call
+      server: gobby-memory
+      tool: sync_export
+
+  # ─── Pre Compact ───
+
+  reset-memory-tracking-on-compact:
+    description: "Clear memory injection tracking before compaction"
+    event: pre_compact
+    priority: 5
+    when: "event.source.value != 'gemini' or event.data.get('trigger') == 'manual'"
+    effect:
+      type: set_variable
+      variable: _injected_memory_ids
+      value: []
+
+  memory-extraction-on-compact:
+    description: "Capture memories before context loss during compaction"
+    event: pre_compact
+    priority: 20
+    when: "event.source.value != 'gemini' or event.data.get('trigger') == 'manual'"
+    effect:
+      type: mcp_call
+      server: gobby-memory
+      tool: extract_from_session
+      arguments:
+        max_memories: 5
+
+  memory-sync-export-on-compact:
+    description: "Export memories to JSONL before compaction"
+    event: pre_compact
+    priority: 25
+    when: "event.source.value != 'gemini' or event.data.get('trigger') == 'manual'"
+    effect:
+      type: mcp_call
+      server: gobby-memory
+      tool: sync_export

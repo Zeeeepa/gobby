@@ -61,11 +61,8 @@ observers:
     behavior: mcp_call_tracking
 
   on_session_start:
-    # Reset memory injection tracking on context loss
-    # Allows previously injected memories to be re-injected after context loss
-    # Same condition as unlocked_tools reset
-    - action: reset_memory_injection_tracking
-      when: "event.data.get('source') in ['clear', 'compact'] or (event.data.get('source') == 'resume' and variables.get('pending_context_reset'))"
+    # NOTE: reset_memory_injection_tracking moved to memory-lifecycle.yaml
+    # (reset-memory-tracking-on-start rule)
 
     # Clear pending_context_reset flag after use (Gemini resume flow)
     - action: set_variable
@@ -150,23 +147,10 @@ observers:
       background: true
       limit: 20
 
-    # Memory capture nudge - remind agent to save user preferences/facts
-    - action: inject_context
-      when: "len((event.data.get('prompt') or '').strip()) >= 10 and not (event.data.get('prompt') or '').strip().startswith('/')"
-      template: |
-        If the user just told you something worth remembering across sessions
-        (a preference, fact, convention, or instruction), save it with
-        create_memory on gobby-memory. If not, carry on.
+    # NOTE: memory-capture-nudge moved to memory-lifecycle.yaml
 
   on_after_tool:
-    # Suggest memory extraction after closing a task with a commit
-    # Soft nudge, not a blocking gate — agent can choose to skip
-    - action: inject_context
-      when: "event.data.get('mcp_tool') == 'close_task' and ((event.data.get('tool_input') or {}).get('arguments') or {}).get('commit_sha')"
-      template: |
-        Consider saving any valuable memories from this task before stopping.
-        Use `create_memory` (via gobby-memory MCP) for insights worth preserving.
-        If nothing new was learned, no action needed.
+    # NOTE: suggest-memory-after-close moved to memory-lifecycle.yaml
 
   on_session_end:
     # Session summary generation - always runs on session end
@@ -204,8 +188,8 @@ observers:
       when: "event.source.value != 'gemini' or event.data.get('trigger') == 'manual'"
       name: listed_servers
       value: []
-    - action: reset_memory_injection_tracking
-      when: "event.source.value != 'gemini' or event.data.get('trigger') == 'manual'"
+    # NOTE: reset_memory_injection_tracking moved to memory-lifecycle.yaml
+    # (reset-memory-tracking-on-compact rule)
 
     # Set flag for pending context reset (checked in on_session_start for 'resume')
     # This allows on_session_start to distinguish manual vs auto compress for Gemini
