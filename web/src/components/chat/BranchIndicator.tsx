@@ -17,7 +17,25 @@ export function BranchIndicator({
   const [isOpen, setIsOpen] = useState(false)
   const [worktrees, setWorktrees] = useState<WorktreeInfo[]>([])
   const [mainRepoPath, setMainRepoPath] = useState<string | null>(null)
+  // Local branch state fetched eagerly from API (before any WS session_info)
+  const [apiBranch, setApiBranch] = useState<string | null>(null)
   const containerRef = useRef<HTMLDivElement>(null)
+
+  // Eagerly fetch current branch from source-control status API on mount / project change
+  useEffect(() => {
+    let stale = false
+    const params = new URLSearchParams()
+    if (projectId) params.set('project_id', projectId)
+    fetch(`/api/source-control/status?${params}`)
+      .then(r => r.ok ? r.json() : null)
+      .then(data => {
+        if (stale || !data) return
+        if (data.current_branch) setApiBranch(data.current_branch)
+        if (data.repo_path) setMainRepoPath(data.repo_path)
+      })
+      .catch(() => {})
+    return () => { stale = true }
+  }, [projectId])
 
   // Click-outside-close
   useEffect(() => {
@@ -45,12 +63,13 @@ export function BranchIndicator({
       console.error('Failed to fetch worktrees:', e)
     }
 
-    // Also fetch the main repo path from status
+    // Refresh main repo path too
     try {
       const r = await fetch(`/api/source-control/status?${params}`)
       if (r.ok) {
         const data = await r.json()
         if (data.repo_path) setMainRepoPath(data.repo_path)
+        if (data.current_branch) setApiBranch(data.current_branch)
       }
     } catch {
       // non-critical
@@ -67,10 +86,12 @@ export function BranchIndicator({
     setIsOpen(false)
   }
 
-  if (!currentBranch) return null
+  // Prefer WS-provided branch (accurate to subprocess CWD), fall back to API
+  const effectiveBranch = currentBranch ?? apiBranch
+  if (!effectiveBranch) return null
 
-  const isDetached = currentBranch.startsWith('detached:')
-  const displayBranch = isDetached ? currentBranch.replace('detached:', '') : currentBranch
+  const isDetached = effectiveBranch.startsWith('detached:')
+  const displayBranch = isDetached ? effectiveBranch.replace('detached:', '') : effectiveBranch
 
   return (
     <div className="relative" ref={containerRef}>
