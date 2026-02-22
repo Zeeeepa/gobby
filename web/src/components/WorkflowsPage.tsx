@@ -10,7 +10,6 @@ import { AgentDefinitionsPage } from './AgentDefinitionsPage'
 import './WorkflowsPage.css'
 
 type ActiveTab = 'pipelines' | 'agents' | 'rules'
-type SourceFilter = string | null
 type EnabledFilter = boolean | null
 
 const TABS = [
@@ -49,7 +48,6 @@ export function WorkflowsPage() {
 
   const [activeTab, setActiveTab] = useState<ActiveTab>('pipelines')
   const [searchText, setSearchText] = useState('')
-  const [sourceFilter, setSourceFilter] = useState<SourceFilter>(null)
   const [enabledFilter, setEnabledFilter] = useState<EnabledFilter>(null)
   const [showCreateModal, setShowCreateModal] = useState(false)
   const [showImportModal, setShowImportModal] = useState(false)
@@ -75,13 +73,6 @@ export function WorkflowsPage() {
       .catch(() => {})
   }, [])
 
-  // Unique sources for filter chips
-  const sources = useMemo(() => {
-    const set = new Set<string>()
-    workflows.forEach(w => set.add(w.source))
-    return Array.from(set).sort()
-  }, [workflows])
-
   // Filtering logic
   const filteredWorkflows = useMemo(() => {
     let result = workflows
@@ -94,11 +85,6 @@ export function WorkflowsPage() {
     // Hide bundled items unless toggled on
     if (!showBundled) {
       result = result.filter(w => w.source !== 'bundled')
-    }
-
-    // Source chip filter
-    if (sourceFilter) {
-      result = result.filter(w => w.source === sourceFilter)
     }
 
     // Enabled filter
@@ -117,7 +103,7 @@ export function WorkflowsPage() {
     }
 
     return result
-  }, [workflows, activeTab, sourceFilter, enabledFilter, searchText, showBundled])
+  }, [workflows, activeTab, enabledFilter, searchText, showBundled])
 
   // Re-fetch when showDeleted changes
   useEffect(() => {
@@ -239,7 +225,7 @@ export function WorkflowsPage() {
               checked={showBundled}
               onChange={e => setShowBundled(e.target.checked)}
             />
-            Show bundled
+            Bundled
           </label>
           <label className="workflows-show-deleted">
             <input
@@ -247,7 +233,7 @@ export function WorkflowsPage() {
               checked={showDeleted}
               onChange={e => setShowDeleted(e.target.checked)}
             />
-            Show deleted
+            Deleted
           </label>
           <button
             type="button"
@@ -322,18 +308,6 @@ export function WorkflowsPage() {
           {/* Filter chips */}
           <div className="workflows-filter-bar">
             <div className="workflows-filter-chips">
-              {/* Source filters */}
-              {sources.map(s => (
-                <button
-                  type="button"
-                  key={s}
-                  className={`workflows-filter-chip ${sourceFilter === s ? 'workflows-filter-chip--active' : ''}`}
-                  onClick={() => setSourceFilter(sourceFilter === s ? null : s)}
-                >
-                  {s}
-                </button>
-              ))}
-
               {/* Enabled filters */}
               <button
                 type="button"

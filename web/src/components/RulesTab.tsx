@@ -85,7 +85,6 @@ export function RulesTab({ searchText, showDeleted, showBundled, devMode, showCr
     rules,
     isLoading,
     eventTypes,
-    sources,
     enforcementEnabled,
     toggleRule,
     fetchRuleDetail,
@@ -108,7 +107,6 @@ export function RulesTab({ searchText, showDeleted, showBundled, devMode, showCr
   }, [refreshKey, fetchRules])
 
   const [eventFilter, setEventFilter] = useState<string | null>(null)
-  const [sourceFilter, setSourceFilter] = useState<string | null>(null)
   const [expandedRule, setExpandedRule] = useState<string | null>(null)
   const [ruleDetail, setRuleDetail] = useState<RuleDetail | null>(null)
   const [detailLoading, setDetailLoading] = useState(false)
@@ -133,9 +131,6 @@ export function RulesTab({ searchText, showDeleted, showBundled, devMode, showCr
     if (eventFilter) {
       result = result.filter(r => r.event === eventFilter)
     }
-    if (sourceFilter) {
-      result = result.filter(r => r.source === sourceFilter)
-    }
     if (searchText.trim()) {
       const q = searchText.toLowerCase()
       result = result.filter(r =>
@@ -147,7 +142,7 @@ export function RulesTab({ searchText, showDeleted, showBundled, devMode, showCr
     }
 
     return result
-  }, [rules, eventFilter, sourceFilter, searchText, showDeleted, showBundled])
+  }, [rules, eventFilter, searchText, showDeleted, showBundled])
 
   const handleExpandRule = useCallback(async (rule: RuleSummary) => {
     if (expandedRule === rule.name) {
@@ -293,10 +288,9 @@ export function RulesTab({ searchText, showDeleted, showBundled, devMode, showCr
 
   const clearFilters = useCallback(() => {
     setEventFilter(null)
-    setSourceFilter(null)
   }, [])
 
-  const hasFilters = eventFilter || sourceFilter
+  const hasFilters = !!eventFilter
 
   return (
     <div className="rules-tab">
@@ -311,16 +305,6 @@ export function RulesTab({ searchText, showDeleted, showBundled, devMode, showCr
               onClick={() => setEventFilter(eventFilter === ev ? null : ev)}
             >
               {ev}
-            </button>
-          ))}
-          {sources.map(s => (
-            <button
-              type="button"
-              key={`src-${s}`}
-              className={`workflows-filter-chip ${sourceFilter === s ? 'workflows-filter-chip--active' : ''}`}
-              onClick={() => setSourceFilter(sourceFilter === s ? null : s)}
-            >
-              {s}
             </button>
           ))}
           {hasFilters && (
