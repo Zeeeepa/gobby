@@ -1,4 +1,5 @@
 from datetime import UTC, datetime
+from enum import Enum
 from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
@@ -35,6 +36,54 @@ class RuleDefinition(BaseModel):
         if self.command_not_pattern:
             rule["command_not_pattern"] = self.command_not_pattern
         return rule
+
+
+class RuleEvent(str, Enum):
+    """Events that rules can respond to."""
+
+    BEFORE_TOOL = "before_tool"
+    AFTER_TOOL = "after_tool"
+    BEFORE_AGENT = "before_agent"
+    SESSION_START = "session_start"
+    SESSION_END = "session_end"
+    STOP = "stop"
+    PRE_COMPACT = "pre_compact"
+
+
+class RuleEffect(BaseModel):
+    """What happens when a rule fires. Four primitive effect types."""
+
+    type: Literal["block", "set_variable", "inject_context", "mcp_call"]
+
+    # block — prevent the action
+    reason: str | None = None
+    tools: list[str] | None = None
+    mcp_tools: list[str] | None = None
+    command_pattern: str | None = None
+    command_not_pattern: str | None = None
+
+    # set_variable — update session/workflow state
+    variable: str | None = None
+    value: Any = None
+
+    # inject_context — add text to system message
+    template: str | None = None
+
+    # mcp_call — call an MCP tool
+    server: str | None = None
+    tool: str | None = None
+    arguments: dict[str, Any] | None = None
+    background: bool = False
+
+
+class RuleDefinitionBody(BaseModel):
+    """Stored as definition_json in workflow_definitions for workflow_type='rule'."""
+
+    event: RuleEvent
+    when: str | None = None
+    match: dict[str, Any] | None = None
+    effect: RuleEffect
+    group: str | None = None
 
 
 class Observer(BaseModel):
