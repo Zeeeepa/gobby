@@ -36,14 +36,15 @@ Task management MCP calls (gobby-tasks) are allowed during plan mode. Planning i
 
 ## Project Overview
 
-Gobby is a local-first daemon that unifies AI coding assistants (Claude Code, Gemini CLI, Codex) under one persistent, extensible platform. It provides:
+Gobby is a local-first daemon that unifies AI coding assistants (Claude Code, Gemini CLI, Cursor, Windsurf, Copilot) under one persistent, extensible platform. It provides:
 
 - **Session management** that survives restarts and context compactions
 - **Task system** with dependency graphs, TDD expansion, and validation gates
 - **MCP proxy** with progressive disclosure (tools stay lightweight until needed)
-- **Workflow engine** that enforces steps, tool restrictions, and transitions
+- **Rule engine** with declarative enforcement (block, set_variable, inject_context, mcp_call)
+- **On-demand workflows** for structured multi-step processes (plan-execute, TDD, etc.)
 - **Pipeline system** for deterministic automation with approval gates
-- **Worktree orchestration** for parallel development
+- **Agent spawning** with P2P messaging, command coordination, and worktree isolation
 - **Memory system** for persistent facts across sessions
 
 ## Development Commands
@@ -94,19 +95,22 @@ uv run gobby pipelines import <file>   # Import Lobster file
 
 ```text
 src/gobby/
-├── cli/                    # CLI commands (Click)
+├── cli/                    # CLI commands (Click, ~25 modules)
 │   ├── __init__.py        # Main CLI group
 │   ├── daemon.py          # start, stop, restart, status
-│   ├── tasks/             # Task management commands
+│   ├── agents.py          # Agent management
+│   ├── rules.py           # Rule management
 │   ├── sessions.py        # Session management
-│   ├── workflows.py       # Workflow management
-│   └── ...                # agents, worktrees, memory, etc.
+│   └── ...                # worktrees, memory, pipelines, etc.
 │
 ├── runner.py              # Main daemon entry point (GobbyRunner)
+├── runner_broadcasting.py # WebSocket event broadcasting wiring
+├── runner_maintenance.py  # Background maintenance jobs
 │
 ├── servers/               # HTTP and WebSocket servers
 │   ├── http.py           # FastAPI HTTP server
-│   └── websocket.py      # WebSocket server (real-time events)
+│   ├── routes/           # HTTP API routes (tasks, sessions, agents, etc.)
+│   └── websocket/        # WebSocket server (broadcast, chat, voice, tmux)
 │
 ├── mcp_proxy/            # MCP proxy layer
 │   ├── server.py         # FastMCP server implementation
@@ -118,12 +122,23 @@ src/gobby/
 ├── hooks/                # Hook event system
 │   ├── hook_manager.py   # Central coordinator
 │   ├── events.py         # HookEvent, HookResponse models
-│   └── skill_manager.py  # Skill discovery for hooks
+│   ├── skill_manager.py  # Skill discovery for hooks
+│   └── ...               # Broadcasting, git, health, verification
 │
 ├── adapters/             # CLI-specific hook adapters
 │   ├── claude_code.py    # Claude Code adapter
 │   ├── gemini.py         # Gemini CLI adapter
-│   └── codex.py          # Codex adapter
+│   ├── cursor.py         # Cursor adapter
+│   ├── windsurf.py       # Windsurf adapter
+│   └── copilot.py        # Copilot adapter
+│
+├── agents/               # Agent spawning and lifecycle
+│   ├── spawn.py          # Agent spawner
+│   ├── runner.py         # AgentRunner process management
+│   ├── definitions.py    # Agent definition models
+│   ├── registry.py       # Agent registry (DB-backed)
+│   ├── isolation.py      # Worktree/clone isolation
+│   └── ...               # Session, context, lifecycle monitor
 │
 ├── sessions/             # Session lifecycle
 │   ├── lifecycle.py      # Background jobs
@@ -135,25 +150,34 @@ src/gobby/
 │   ├── validation.py     # TaskValidator
 │   └── prompts/          # LLM prompts for expansion
 │
-├── workflows/            # Workflow engine
-│   ├── engine.py         # WorkflowEngine (state machine)
-│   ├── loader.py         # YAML workflow loading
-│   ├── actions.py        # Workflow action implementations
+├── workflows/            # Rule engine and workflow system (~47 modules)
+│   ├── rule_engine.py    # RuleEngine (declarative enforcement)
+│   ├── definitions.py    # Rule/workflow/agent definition models
+│   ├── safe_evaluator.py # Safe expression evaluator (AST-based)
+│   ├── engine.py         # WorkflowEngine (on-demand state machines)
 │   ├── pipeline_executor.py  # PipelineExecutor (sequential execution)
-│   ├── pipeline_state.py     # Pipeline execution state models
-│   └── lobster_compat.py     # Lobster format import/conversion
+│   ├── loader.py         # YAML workflow/rule loading and sync
+│   └── ...               # Actions, observers, state, templates
+│
+├── memory/               # Persistent memory system
+│   ├── manager.py        # MemoryManager
+│   └── embeddings.py     # Embedding-based recall
+│
+├── conductor/            # Orchestration daemon
+│   ├── loop.py           # Conductor loop
+│   └── token_tracker.py  # Token budget tracking
 │
 ├── skills/               # Skill management
 │   ├── loader.py         # SkillLoader (filesystem, GitHub, ZIP)
 │   ├── parser.py         # SKILL.md parser
 │   └── sync.py           # Bundled skill sync on startup
 │
-├── storage/              # SQLite storage layer
+├── storage/              # SQLite storage layer (~20 modules)
 │   ├── database.py       # LocalDatabase (connection management)
 │   ├── migrations.py     # Schema migrations
 │   ├── sessions.py       # Session CRUD
 │   ├── tasks.py          # Task CRUD
-│   └── skills.py         # Skill storage
+│   └── ...               # Memory, skills, agents, workflows, etc.
 │
 ├── llm/                  # Multi-provider LLM abstraction
 │   ├── service.py        # LLMService manager
@@ -161,9 +185,19 @@ src/gobby/
 │   ├── gemini.py         # Gemini provider
 │   └── litellm.py        # LiteLLM fallback
 │
-└── config/               # Configuration
-    ├── app.py            # DaemonConfig (YAML config model)
-    └── mcp.py            # MCP server config
+├── config/               # Configuration (~15 modules)
+│   ├── app.py            # DaemonConfig (YAML config model)
+│   ├── bootstrap.py      # Pre-DB bootstrap settings
+│   └── ...               # Features, logging, MCP, tasks, etc.
+│
+├── autonomous/           # Autonomous execution support
+├── clones/               # Git clone management
+├── scheduler/            # Cron job scheduler
+├── search/               # TF-IDF and semantic search
+├── sync/                 # Task/memory sync (JSONL)
+├── voice/                # Voice chat support
+├── worktrees/            # Git worktree management
+└── utils/                # Utilities (git, daemon client, etc.)
 ```
 
 ### Key File Locations

@@ -1,6 +1,6 @@
 # Gobby Source Tree
 
-> Generated: 2025-12-15 | Scan Level: Exhaustive
+> Updated: 2026-02-22
 
 ## Directory Structure
 
@@ -11,89 +11,161 @@ gobby/                                  # Project root
 ├── CLAUDE.md                           # Claude Code development instructions
 ├── CONTRIBUTING.md                     # Contribution guidelines
 ├── SECURITY.md                         # Security policy
-├── LICENSE                             # MIT License
+├── LICENSE.md                          # Apache 2.0 License
 │
-├── src/                                # Source code (62 Python files, ~15k LOC)
+├── src/gobby/                          # Source code (~513 Python files)
 │   ├── __init__.py                     # Package init with version export
-│   ├── cli.py                          # Click CLI commands [855 lines]
-│   ├── runner.py                       # Daemon process entry point [89 lines]
+│   ├── runner.py                       # Daemon process entry point
+│   ├── runner_broadcasting.py          # WebSocket event broadcasting wiring
+│   ├── runner_maintenance.py           # Background maintenance jobs
+│   ├── app_context.py                  # Application context (shared state)
+│   ├── watchdog.py                     # Process watchdog
+│   │
+│   ├── cli/                            # CLI commands (Click, ~25 modules)
+│   │   ├── __init__.py                 # Main CLI group
+│   │   ├── daemon.py                   # start, stop, restart, status
+│   │   ├── agents.py                   # Agent management
+│   │   ├── rules.py                    # Rule management
+│   │   ├── sessions.py                 # Session management
+│   │   ├── pipelines.py               # Pipeline management
+│   │   ├── memory.py                  # Memory management
+│   │   ├── worktrees.py               # Worktree management
+│   │   └── ...                        # skills, conductor, cron, etc.
 │   │
 │   ├── adapters/                       # CLI-specific hook adapters
 │   │   ├── base.py                     # BaseAdapter ABC
 │   │   ├── claude_code.py              # Claude Code adapter
-│   │   ├── codex.py                    # Codex adapter + client [1295 lines]
-│   │   └── gemini.py                   # Gemini CLI adapter
+│   │   ├── gemini.py                   # Gemini CLI adapter
+│   │   ├── cursor.py                   # Cursor adapter
+│   │   ├── windsurf.py                 # Windsurf adapter
+│   │   └── copilot.py                  # Copilot adapter
 │   │
-│   ├── config/                         # Configuration management
-│   │   ├── app.py                      # DaemonConfig Pydantic model [683 lines]
-│   │   └── mcp.py                      # MCP server config models
+│   ├── agents/                         # Agent spawning and lifecycle (~20 modules)
+│   │   ├── spawn.py                    # Agent spawner
+│   │   ├── spawn_executor.py           # Spawn execution
+│   │   ├── runner.py                   # AgentRunner process management
+│   │   ├── definitions.py              # Agent definition models
+│   │   ├── registry.py                 # Agent registry (DB-backed)
+│   │   ├── isolation.py                # Worktree/clone isolation
+│   │   ├── session.py                  # Agent session management
+│   │   ├── context.py                  # Agent context injection
+│   │   ├── lifecycle_monitor.py        # Agent lifecycle monitoring
+│   │   └── ...                         # dry_run, sandbox, pty_reader
 │   │
-│   ├── hooks/                          # Hook event system
-│   │   ├── events.py                   # HookEvent, HookResponse models
+│   ├── workflows/                      # Rule engine and workflow system (~47 modules)
+│   │   ├── rule_engine.py              # RuleEngine (declarative enforcement)
+│   │   ├── definitions.py              # Rule/workflow/agent definition models
+│   │   ├── safe_evaluator.py           # Safe expression evaluator (AST-based)
+│   │   ├── engine.py                   # WorkflowEngine (on-demand state machines)
+│   │   ├── engine_transitions.py       # Step transition logic
+│   │   ├── engine_activation.py        # Workflow activation
+│   │   ├── pipeline_executor.py        # PipelineExecutor
+│   │   ├── pipeline_state.py           # Pipeline execution state
+│   │   ├── loader.py                   # YAML workflow/rule loading
+│   │   ├── actions.py                  # Workflow action implementations
+│   │   └── ...                         # observers, templates, sync, etc.
+│   │
+│   ├── hooks/                          # Hook event system (~12 modules)
 │   │   ├── hook_manager.py             # Central HookManager coordinator
-│   │   └── hook_types.py               # Hook type enums
+│   │   ├── events.py                   # HookEvent, HookResponse models
+│   │   ├── hook_types.py               # Hook type enums
+│   │   ├── skill_manager.py            # Skill discovery for hooks
+│   │   ├── broadcaster.py              # Event broadcasting
+│   │   └── ...                         # git, health_monitor, verification
 │   │
-│   ├── install/                        # CLI hook dispatcher files
-│   │   ├── claude/hooks/               # Claude Code dispatchers
-│   │   ├── codex/hooks/                # Codex notify dispatcher
-│   │   └── gemini/hooks/               # Gemini CLI dispatcher
-│   │
-│   ├── llm/                            # Multi-provider LLM abstraction
-│   │   ├── base.py                     # LLMProvider ABC
-│   │   ├── claude.py                   # Claude provider
-│   │   ├── codex.py                    # Codex/OpenAI provider
-│   │   ├── gemini.py                   # Gemini provider
-│   │   ├── litellm.py                  # LiteLLM provider
-│   │   └── service.py                  # LLMService manager
-│   │
-│   ├── mcp_proxy/                      # MCP client proxy
-│   │   ├── actions.py                  # Server add/remove actions
-│   │   ├── importer.py                 # Import from GitHub/query
-│   │   ├── manager.py                  # MCPClientManager [483 lines]
-│   │   ├── server.py                   # FastMCP tools [1624 lines]
-│   │   └── stdio.py                    # Stdio transport
-│   │
-│   ├── servers/                        # Server implementations
+│   ├── servers/                        # HTTP and WebSocket servers
 │   │   ├── http.py                     # FastAPI HTTP server
-│   │   └── websocket.py                # WebSocket server
+│   │   ├── routes/                     # HTTP API routes (~15 modules)
+│   │   │   ├── tasks.py               # Task API
+│   │   │   ├── sessions.py            # Session API
+│   │   │   ├── agents.py              # Agent API
+│   │   │   ├── rules.py               # Rule API
+│   │   │   ├── memory.py             # Memory API
+│   │   │   └── ...                    # admin, files, voice, etc.
+│   │   └── websocket/                  # WebSocket server (~10 modules)
+│   │       ├── server.py               # WebSocket server
+│   │       ├── broadcast.py            # BroadcastMixin
+│   │       ├── chat.py                 # Chat WebSocket
+│   │       ├── voice.py                # Voice WebSocket
+│   │       └── ...                     # auth, handlers, tmux
+│   │
+│   ├── mcp_proxy/                      # MCP proxy layer
+│   │   ├── server.py                   # FastMCP server implementation
+│   │   ├── manager.py                  # MCPClientManager (connection pooling)
+│   │   ├── instructions.py             # MCP server instructions
+│   │   ├── tools/                      # 20+ internal tool modules
+│   │   └── transports/                 # HTTP, stdio, WebSocket transports
 │   │
 │   ├── sessions/                       # Session management
-│   │   ├── manager.py                  # SessionManager [369 lines]
-│   │   ├── summary.py                  # SummaryGenerator
-│   │   └── transcripts/                # Transcript parsers
+│   │   ├── manager.py                  # SessionManager
+│   │   ├── lifecycle.py                # Background jobs
+│   │   ├── processor.py                # SessionMessageProcessor
+│   │   └── transcripts/                # Parsers for Claude/Gemini/Codex
 │   │
-│   ├── storage/                        # SQLite storage
-│   │   ├── database.py                 # LocalDatabase
-│   │   ├── mcp.py                      # MCPDatabaseManager
-│   │   ├── migrations.py               # Schema migrations [225 lines]
-│   │   ├── projects.py                 # Project CRUD
-│   │   └── sessions.py                 # Session CRUD
+│   ├── tasks/                          # Task system
+│   │   ├── expansion.py                # TaskExpander (LLM-based decomposition)
+│   │   ├── validation.py               # TaskValidator
+│   │   └── prompts/                    # LLM prompts for expansion
 │   │
-│   ├── tools/                          # Tool utilities
-│   │   ├── filesystem.py               # Schema cache
-│   │   └── summarizer.py               # Description summarizer
+│   ├── memory/                         # Persistent memory system
+│   │   ├── manager.py                  # MemoryManager
+│   │   └── embeddings.py               # Embedding-based recall
 │   │
-│   └── utils/                          # Utilities
-│       ├── daemon_client.py            # HTTP client
-│       ├── git.py                      # Git utilities
-│       ├── logging.py                  # Log configuration
-│       ├── machine_id.py               # Machine ID
-│       ├── project_init.py             # Project initialization
-│       └── status.py                   # Status formatting
+│   ├── conductor/                      # Orchestration daemon
+│   │   ├── loop.py                     # Conductor loop
+│   │   └── token_tracker.py            # Token budget tracking
+│   │
+│   ├── skills/                         # Skill management
+│   │   ├── loader.py                   # SkillLoader (filesystem, GitHub, ZIP)
+│   │   ├── parser.py                   # SKILL.md parser
+│   │   └── sync.py                     # Bundled skill sync on startup
+│   │
+│   ├── storage/                        # SQLite storage layer (~20 modules)
+│   │   ├── database.py                 # LocalDatabase (connection management)
+│   │   ├── migrations.py               # Schema migrations
+│   │   ├── sessions.py                 # Session CRUD
+│   │   ├── tasks.py                    # Task CRUD
+│   │   └── ...                         # memory, skills, agents, workflows
+│   │
+│   ├── llm/                            # Multi-provider LLM abstraction
+│   │   ├── service.py                  # LLMService manager
+│   │   ├── claude.py                   # Claude provider
+│   │   ├── gemini.py                   # Gemini provider
+│   │   └── litellm.py                  # LiteLLM fallback
+│   │
+│   ├── config/                         # Configuration (~15 modules)
+│   │   ├── app.py                      # DaemonConfig (YAML config model)
+│   │   ├── bootstrap.py                # Pre-DB bootstrap settings
+│   │   └── ...                         # features, logging, mcp, tasks, etc.
+│   │
+│   ├── autonomous/                     # Autonomous execution support
+│   ├── clones/                         # Git clone management
+│   ├── scheduler/                      # Cron job scheduler
+│   ├── search/                         # TF-IDF and semantic search
+│   ├── sync/                           # Task/memory sync (JSONL)
+│   ├── voice/                          # Voice chat support
+│   ├── worktrees/                      # Git worktree management
+│   ├── install/                        # CLI hook dispatcher files
+│   │   └── shared/                     # Shared rules, skills, workflows
+│   │       ├── rules/                  # 11 bundled rule groups (YAML)
+│   │       ├── skills/                 # ~23 bundled skills
+│   │       └── workflows/             # Built-in workflow definitions
+│   └── utils/                          # Utilities (git, daemon client, etc.)
 │
-├── tests/                              # Test suite (11 files, ~13k LOC)
+├── tests/                              # Test suite (~536 files)
 │   ├── conftest.py                     # Pytest fixtures
-│   ├── test_config.py                  # Configuration tests
-│   ├── test_hooks_*.py                 # Hook system tests
-│   ├── test_http_server.py             # HTTP server tests
-│   ├── test_sessions_manager.py        # Session tests
-│   └── test_storage_*.py               # Storage layer tests
+│   ├── storage/                        # Storage layer tests
+│   ├── mcp_proxy/                      # MCP proxy tests
+│   ├── workflows/                      # Workflow and rule tests
+│   ├── hooks/                          # Hook system tests
+│   ├── agents/                         # Agent tests
+│   └── ...                             # adapters, sessions, cli, etc.
+│
+├── web/                                # Web UI (React/TypeScript)
 │
 ├── docs/                               # Documentation
-│   ├── CLI_COMMANDS.md                 # CLI reference
-│   ├── HTTP_ENDPOINTS.md               # HTTP API docs
-│   ├── MCP_TOOLS.md                    # MCP tool docs
-│   └── brownfield/                     # Generated docs
+│   ├── architecture/                   # Architecture docs
+│   └── guides/                         # User and developer guides
 │
 └── .github/                            # GitHub configuration
     └── workflows/                      # CI/CD pipelines
@@ -103,33 +175,28 @@ gobby/                                  # Project root
 
 | Metric | Value |
 |--------|-------|
-| **Total Python Files** | 73 (62 src + 11 tests) |
-| **Estimated LOC** | ~28,000 lines |
+| **Source Python Files** | ~513 |
+| **Test Python Files** | ~536 |
+| **Top-Level Packages** | 30 |
+| **Bundled Rule Groups** | 11 |
+| **Bundled Skills** | 23 |
 | **Test Coverage Target** | 80% |
-
-## Largest Files
-
-| File | Lines | Purpose |
-|------|-------|---------|
-| `mcp_proxy/server.py` | 1624 | All MCP tool implementations |
-| `adapters/codex.py` | 1295 | Codex adapter + AppServerClient |
-| `cli.py` | 855 | CLI commands (install, start, stop) |
-| `config/app.py` | 683 | Configuration Pydantic models |
-| `mcp_proxy/manager.py` | 483 | MCP connection pooling |
 
 ## Module Dependencies
 
 ```
-cli.py
-├── config/app.py
+cli/
+├── config/
 ├── runner.py
 │   ├── servers/http.py
+│   │   ├── servers/routes/*
 │   │   ├── adapters/*
-│   │   ├── hooks/hook_manager.py
-│   │   └── mcp_proxy/server.py
-│   ├── servers/websocket.py
-│   └── mcp_proxy/manager.py
-│       └── storage/mcp.py
+│   │   └── hooks/hook_manager.py
+│   │       └── workflows/rule_engine.py
+│   ├── servers/websocket/
+│   ├── mcp_proxy/server.py
+│   │   └── mcp_proxy/manager.py
+│   └── agents/runner.py
 ├── storage/database.py
 │   └── storage/migrations.py
 └── utils/*

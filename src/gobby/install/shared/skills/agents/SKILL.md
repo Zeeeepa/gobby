@@ -175,42 +175,47 @@ Example: `/gobby agents evaluate meeseeks-gemini --workflow worker`
 
 ## Messaging Between Agents
 
-### `/gobby agents send-to-parent <message>` - Send message to parent
-Call `send_to_parent` with:
-- `session_id`: (required) Your session ID
+Agents communicate via P2P messaging. Any two sessions in the same project can exchange messages directly.
+
+### `/gobby agents send <to-session> <message>` - Send message to another agent
+Call `send_message` with:
+- `from_session`: (required) Your session ID
+- `to_session`: (required) Target session ID
 - `content`: (required) Message content
+- `priority`: Optional priority ("normal" or "high")
 
-Workers use this to report completion to orchestrator.
+Example: `/gobby agents send #10 Task completed`
+→ `send_message(from_session="<session_id>", to_session="#10", content="Task completed")`
 
-Example: `/gobby agents send-to-parent Task completed`
-→ `send_to_parent(session_id="<session_id>", content="Task completed")`
+### `/gobby agents command <to-session> <command>` - Send structured command
+Call `send_command` with:
+- `from_session`: (required) Your session ID (must be ancestor)
+- `to_session`: (required) Target session ID (must be descendant)
+- `command_text`: (required) Command description
+- `allowed_tools`: Optional list of allowed tools
+- `exit_condition`: Optional exit condition expression
 
-### `/gobby agents send-to-child <child-id> <message>` - Send message to child
-Call `send_to_child` with:
-- `session_id`: (required) Your session ID
-- `child_session_id`: (required) Child's session ID
-- `content`: (required) Message content
+Example: `/gobby agents command #10 Run the full test suite`
+→ `send_command(from_session="<session_id>", to_session="#10", command_text="Run the full test suite", allowed_tools=["Bash", "Read", "Grep"])`
 
-Example: `/gobby agents send-to-child #10 Please fix the tests`
-→ `send_to_child(session_id="<session_id>", child_session_id="#10", content="Please fix the tests")`
-
-### `/gobby agents poll` - Poll for messages
-Call `poll_messages` with:
+### `/gobby agents poll` - Check for pending messages
+Call `deliver_pending_messages` with:
 - `session_id`: (required) Your session ID
 
 Returns unread messages sent to this session.
 
-Example: `/gobby agents poll` → `poll_messages(session_id="<session_id>")`
+Example: `/gobby agents poll` → `deliver_pending_messages(session_id="<session_id>")`
 
-### `/gobby agents broadcast <message>` - Broadcast to all children
-Call `broadcast_to_children` with:
+### `/gobby agents complete-command <command-id>` - Complete an active command
+Call `complete_command` with:
 - `session_id`: (required) Your session ID
-- `content`: (required) Message content
+- `command_id`: (required) The command ID to complete
+- `result`: (required) Result message
 
-Sends message to all active child sessions.
+Clears session variables and sends result to the commanding session.
 
-Example: `/gobby agents broadcast Stop working`
-→ `broadcast_to_children(session_id="<session_id>", content="Stop working")`
+Example: `/gobby agents complete-command cmd-abc123 --result "All tests pass"`
+→ `complete_command(session_id="<session_id>", command_id="cmd-abc123", result="All tests pass")`
 
 ## Named Agent Definitions
 
@@ -267,4 +272,4 @@ After executing the appropriate MCP tool, present the results clearly:
 
 If the subcommand is not recognized, show available subcommands:
 - spawn, result, stop, kill, list, running, can-spawn, stats, evaluate
-- send-to-parent, send-to-child, poll, broadcast
+- send, command, poll, complete-command

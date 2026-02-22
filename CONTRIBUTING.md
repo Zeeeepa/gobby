@@ -124,24 +124,23 @@ Use markers to categorize tests: `unit`, `slow`, `integration`, `e2e`.
 
 ```text
 src/gobby/
-├── cli/                    # CLI commands (Click)
+├── cli/                    # CLI commands (Click, ~25 modules)
 │   ├── __init__.py        # Main CLI group
 │   ├── daemon.py          # start, stop, restart, status
-│   ├── tasks/             # Task management commands
-│   ├── sessions.py        # Session management
-│   ├── workflows.py       # Workflow management
-│   └── ...                # agents, worktrees, memory, etc.
+│   ├── agents.py          # Agent management
+│   ├── rules.py           # Rule management
+│   └── ...                # sessions, worktrees, memory, pipelines, etc.
 │
 ├── runner.py              # Main daemon entry point (GobbyRunner)
 │
 ├── servers/               # HTTP and WebSocket servers
 │   ├── http.py           # FastAPI HTTP server
-│   └── websocket.py      # WebSocket server (real-time events)
+│   ├── routes/           # HTTP API routes (tasks, sessions, agents, etc.)
+│   └── websocket/        # WebSocket server (broadcast, chat, voice, tmux)
 │
 ├── mcp_proxy/            # MCP proxy layer
 │   ├── server.py         # FastMCP server implementation
 │   ├── manager.py        # MCPClientManager (connection pooling)
-│   ├── instructions.py   # MCP server instructions (progressive disclosure)
 │   ├── tools/            # 20+ internal tool modules
 │   └── transports/       # HTTP, stdio, WebSocket transports
 │
@@ -153,47 +152,33 @@ src/gobby/
 ├── adapters/             # CLI-specific hook adapters
 │   ├── claude_code.py    # Claude Code adapter
 │   ├── gemini.py         # Gemini CLI adapter
-│   └── codex.py          # Codex adapter
+│   ├── cursor.py         # Cursor adapter
+│   ├── windsurf.py       # Windsurf adapter
+│   └── copilot.py        # Copilot adapter
+│
+├── agents/               # Agent spawning and lifecycle
+│   ├── spawn.py          # Agent spawner
+│   ├── runner.py         # AgentRunner process management
+│   ├── definitions.py    # Agent definition models
+│   └── registry.py       # Agent registry (DB-backed)
 │
 ├── sessions/             # Session lifecycle
-│   ├── lifecycle.py      # Background jobs
-│   ├── processor.py      # SessionMessageProcessor
-│   └── transcripts/      # Parsers for Claude/Gemini/Codex
+├── tasks/                # Task system (expansion, validation)
 │
-├── tasks/                # Task system
-│   ├── expansion.py      # TaskExpander (LLM-based decomposition)
-│   ├── validation.py     # TaskValidator
-│   └── prompts/          # LLM prompts for expansion
+├── workflows/            # Rule engine and workflow system (~47 modules)
+│   ├── rule_engine.py    # RuleEngine (declarative enforcement)
+│   ├── definitions.py    # Rule/workflow/agent definition models
+│   ├── safe_evaluator.py # Safe expression evaluator
+│   ├── engine.py         # WorkflowEngine (on-demand state machines)
+│   └── pipeline_executor.py  # PipelineExecutor
 │
-├── workflows/            # Workflow engine
-│   ├── engine.py         # WorkflowEngine (state machine)
-│   ├── loader.py         # YAML workflow loading
-│   ├── actions.py        # Workflow action implementations
-│   ├── pipeline_executor.py  # PipelineExecutor (sequential execution)
-│   ├── pipeline_state.py     # Pipeline execution state models
-│   └── lobster_compat.py     # Lobster format import/conversion
-│
+├── memory/               # Persistent memory system
+├── conductor/            # Orchestration daemon
 ├── skills/               # Skill management
-│   ├── loader.py         # SkillLoader (filesystem, GitHub, ZIP)
-│   ├── parser.py         # SKILL.md parser
-│   └── sync.py           # Bundled skill sync on startup
-│
-├── storage/              # SQLite storage layer
-│   ├── database.py       # LocalDatabase (connection management)
-│   ├── migrations.py     # Schema migrations
-│   ├── sessions.py       # Session CRUD
-│   ├── tasks.py          # Task CRUD
-│   └── skills.py         # Skill storage
-│
+├── storage/              # SQLite storage layer (~20 modules)
 ├── llm/                  # Multi-provider LLM abstraction
-│   ├── service.py        # LLMService manager
-│   ├── claude.py         # Claude provider
-│   ├── gemini.py         # Gemini provider
-│   └── litellm.py        # LiteLLM fallback
-│
-└── config/               # Configuration
-    ├── app.py            # DaemonConfig (YAML config model)
-    └── mcp.py            # MCP server config
+├── config/               # Configuration (~15 modules)
+└── utils/                # Utilities (git, daemon client, etc.)
 ```
 
 ## Reporting Issues

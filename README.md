@@ -19,7 +19,7 @@
 
 ---
 
-Gobby is a local-first daemon that unifies your AI coding assistants—Claude Code, Gemini CLI, Cursor, Windsurf, Copilot, and Codex—under one persistent, extensible platform. It handles the stuff these tools forget: sessions that survive restarts, context that carries across compactions, workflows that keep agents from going off the rails, and an MCP proxy that doesn't eat half your context window just loading tool definitions.
+Gobby is a local-first daemon that unifies your AI coding assistants—Claude Code, Gemini CLI, Cursor, Windsurf, Copilot, and Codex—under one persistent, extensible platform. It handles the stuff these tools forget: sessions that survive restarts, context that carries across compactions, declarative rules that keep agents from going off the rails, and an MCP proxy that doesn't eat half your context window just loading tool definitions.
 
 **Gobby is built with Gobby.** Most of this codebase was written by AI agents running through Gobby's own task system and workflows. Dogfooding isn't a buzzword here—it's the development process.
 
@@ -66,39 +66,38 @@ When you `/compact` in Claude Code, Gobby captures what matters: the goal, what 
 
 Works across CLIs too. Start in Claude Code, pick up in Gemini. Gobby remembers.
 
-### 🛤️ Workflows That Enforce Discipline
+### 🛤️ Rules That Enforce Discipline
 
-YAML-defined workflows with state machines, tool restrictions, and exit conditions:
+Declarative rules that enforce behavior without relying on prompt compliance. The LLM doesn't need to remember constraints—the rule engine evaluates every event and enforces behavior through tool blocks, context injection, and state mutations:
 
 ```yaml
-# auto-task workflow: autonomous execution until task tree is complete
-name: auto-task
-steps:
-  - name: work
-    description: "Work on assigned task until complete"
-    allowed_tools: all
-    transitions:
-      - to: complete
-        when: "task_tree_complete(variables.session_task)"
+# Block git push - let the parent session handle pushing
+no-push:
+  event: before_tool
+  effect:
+    type: block
+    tools: [Bash]
+    command_pattern: "git\\s+push"
+    reason: "Do not push to remote. Let the parent session handle pushing."
 
-  - name: complete
-    description: "Task work finished - terminal step"
-
-exit_condition: "task_tree_complete(variables.session_task)"
-
-on_premature_stop:
-  action: guide_continuation
-  message: "Task has incomplete subtasks. Use suggest_next_task() and continue."
+# Block file edits without a claimed task
+require-task:
+  event: before_tool
+  when: "not task_claimed and not plan_mode"
+  effect:
+    type: block
+    tools: [Edit, Write, NotebookEdit]
+    reason: "Claim a task before editing files."
 ```
 
-Built-in workflows: `auto-task`, `plan-execute`, `test-driven`. Or write your own.
+11 bundled rule groups covering safety, tool hygiene, task enforcement, stop gates, memory lifecycle, and more. Plus on-demand step-based workflows and deterministic pipelines.
 
 ### 🌳 Worktree Orchestration
 
 Spawn agents in isolated git worktrees. Run tasks in parallel without stepping on each other. Gobby tracks which agent is where and what they're doing.
 
 ```python
-call_tool("gobby", "spawn_agent", {
+call_tool("gobby-agents", "spawn_agent", {
     "prompt": "Implement OAuth flow",
     "task_id": "#123",
     "isolation": "worktree",
@@ -303,7 +302,7 @@ All CLIs can also connect via MCP for tool access (see configuration examples ab
 | Progressive MCP discovery | ✅ | Partial | ❌ | ❌ |
 | Multi-CLI orchestration | ✅ | ❌ | ❌ | ❌ |
 | Session handoffs | ✅ | ❌ | ❌ | ❌ |
-| YAML workflows | ✅ | ❌ | ❌ | ✅ |
+| Declarative rules | ✅ | ❌ | ❌ | ✅ |
 | Worktree orchestration | ✅ | ❌ | ❌ | ❌ |
 | Pipeline automation | ✅ | ❌ | ❌ | ❌ |
 | Zero external deps | ✅ | ❌ | ✅ | ❌ |
@@ -312,7 +311,7 @@ All CLIs can also connect via MCP for tool access (see configuration examples ab
 ## Architecture
 
 ```text
-AI CLI (Claude/Gemini/Codex)
+AI CLI (Claude/Gemini/Cursor/Windsurf/Copilot)
         │ hooks fire
         ▼
    Hook Dispatcher
@@ -320,21 +319,23 @@ AI CLI (Claude/Gemini/Codex)
         ▼
   Gobby Daemon (:60887)
         │
-   ┌────┴────┐
-   ▼         ▼
-FastAPI   FastMCP
-   │         │
-   ▼         ▼
-┌─────────────────────┐
-│  HookManager        │
-│  SessionManager     │
-│  WorkflowEngine     │
-│  PipelineExecutor   │
-│  MCPClientProxy     │
-│  TaskStore          │
-│  MemoryStore        │
-│  WebUI              │
-└─────────────────────┘
+   ┌────┼────────┐
+   ▼    ▼        ▼
+FastAPI WebSocket FastMCP
+   │    │         │
+   ▼    ▼         ▼
+┌──────────────────────┐
+│  RuleEngine          │
+│  HookManager         │
+│  SessionManager      │
+│  AgentRunner         │
+│  WorkflowEngine      │
+│  PipelineExecutor    │
+│  MCPClientProxy      │
+│  TaskStore           │
+│  MemoryStore         │
+│  WebUI               │
+└──────────────────────┘
         │
         ▼
      SQLite
@@ -359,11 +360,11 @@ Gobby exposes tools via MCP that your AI coding assistant can use:
 **Memory** (`gobby-memory`)
 `remember`, `recall`, `forget` — persistent facts across sessions
 
-**Workflows** (`gobby-workflows`)
-`activate`, `advance`, `set_variable`, `get_status`, `end_workflow`
+**Workflows and Rules** (`gobby-workflows`)
+`list_rules`, `toggle_rule`, `get_rule_detail`, `activate_workflow`, `set_variable`, `get_variable`, `get_workflow_status`
 
 **Agents** (`gobby-agents`)
-`spawn_agent` (unified API with `isolation`: current/worktree/clone), `list_agents`, `get_agent`, `kill_agent`
+`spawn_agent` (unified API with `isolation`: current/worktree/clone), `list_agents`, `get_agent`, `kill_agent`, `send_message`, `send_command`, `complete_command`, `deliver_pending_messages`
 
 **Worktrees** (`gobby-worktrees`)
 `create_worktree`, `list_worktrees`, `delete_worktree`, `merge_worktree`
@@ -388,11 +389,11 @@ Gobby exposes tools via MCP that your AI coding assistant can use:
 
 See [ROADMAP.md](ROADMAP.md) for the full plan, but highlights:
 
-**Shipped:** Task system v2, TDD expansion, workflow engine, MCP proxy with progressive discovery, session handoffs, memory v4 with embeddings, hooks for all CLIs, unified agent spawning, worktree and clone orchestration, skills system, pipeline system, cron scheduler, coordinator pipeline, web UI (tasks kanban/tree/Gantt/graph, memory with Neo4j knowledge graph, sessions with transcripts, chat with voice and model switching, cron jobs, configuration, skills, projects, agent registry, file browser), tmux first-class support, personal workspace, code decomposition, DB-backed agent registry
+**Shipped:** Task system v2, TDD expansion, rule engine (declarative enforcement with 11 bundled rule groups), on-demand workflows, MCP proxy with progressive discovery, session handoffs, memory v4 with embeddings, hooks for all CLIs, unified agent spawning with P2P messaging, worktree and clone orchestration, skills system, pipeline system, cron scheduler, coordinator pipeline, web UI (tasks kanban/tree/Gantt/graph, memory with Neo4j knowledge graph, sessions with transcripts, chat with voice and model switching, cron jobs, configuration, skills, projects, agent registry, file browser), tmux first-class support, personal workspace, code decomposition, DB-backed agent registry
 
-**Beta:** Autonomous orchestration (conductor daemon, inter-agent messaging, token budget tracking, review gates)
+**Beta:** Autonomous orchestration (conductor daemon, token budget tracking, review gates)
 
-**Next:** Workflow engine simplification, task expansion workflows, CLI auto-detection, coordinator finalization, web UI buildout, security posture for MCP, SWE-bench evaluation, bug fix sprint
+**Next:** Task expansion workflows, CLI auto-detection, coordinator finalization, web UI buildout, security posture for MCP, SWE-bench evaluation, bug fix sprint
 
 **Vision:** Always local first, but Pro cloud features to keep the lights on: Fleet management, Plugin ecosystem, Team workflows, Enterprise hardening
 

@@ -1,10 +1,10 @@
 # Gobby Architecture Documentation
 
-> Generated: 2025-12-15 | Scan Level: Exhaustive | Version: 0.1.0
+> Updated: 2026-02-22 | Version: 0.2.21
 
 ## Overview
 
-Gobby is a **local-first daemon** that unifies AI coding assistants (Claude Code, Gemini CLI, Codex) through a hook interface for session tracking and provides an MCP proxy with progressive tool discovery for efficient access to downstream servers.
+Gobby is a **local-first daemon** that unifies AI coding assistants (Claude Code, Gemini CLI, Cursor, Windsurf, Copilot) through a hook interface for session tracking. It provides a rule engine for declarative behavior enforcement, an MCP proxy with progressive tool discovery, agent spawning with P2P messaging, and persistent memory.
 
 ### Key Characteristics
 
@@ -12,58 +12,63 @@ Gobby is a **local-first daemon** that unifies AI coding assistants (Claude Code
 |----------|-------|
 | **Repository Type** | Monolith |
 | **Primary Language** | Python 3.13+ |
-| **Project Type** | Backend + CLI (Daemon) |
+| **Project Type** | Backend + CLI (Daemon) + Web UI |
 | **Framework** | FastAPI + FastMCP + Click |
 | **Database** | SQLite (local-first) |
-| **Architecture Pattern** | Layered Service Architecture with Event-Driven Hooks |
+| **Architecture Pattern** | Layered Service Architecture with Event-Driven Hooks and Declarative Rules |
 
 ## System Architecture
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────┐
-│                           CLI ENTRY POINTS                               │
-│  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐  ┌──────────────┐   │
-│  │ gobby start │  │ gobby stop  │  │gobby status │  │gobby install │   │
-│  └──────┬──────┘  └──────┬──────┘  └──────┬──────┘  └──────┬───────┘   │
-│         └────────────────┴────────┬───────┴─────────────────┘           │
-│                                   ▼                                      │
-│                           cli.py (Click)                                 │
-└───────────────────────────────────┬─────────────────────────────────────┘
+│                           CLI ENTRY POINTS                              │
+│  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐  ┌──────────────┐  │
+│  │ gobby start │  │ gobby stop  │  │gobby status │  │gobby install │  │
+│  └──────┬──────┘  └──────┬──────┘  └──────┬──────┘  └──────┬───────┘  │
+│         └────────────────┴────────┬───────┴─────────────────┘          │
+│                                   ▼                                     │
+│                           cli/ (Click)                                  │
+└───────────────────────────────────┬────────────────────────────────────┘
                                     │
                                     ▼
 ┌─────────────────────────────────────────────────────────────────────────┐
-│                           DAEMON LAYER                                   │
-│                         runner.py                                        │
-│  ┌──────────────┐      ┌──────────────┐       ┌──────────────┐         │
-│  │ HTTP Server  │      │  WebSocket   │       │  MCP Server  │         │
-│  │  (FastAPI)   │      │   Server     │       │  (FastMCP)   │         │
-│  │  :60887      │      │   :60888     │       │  (stdio)     │         │
-│  └──────┬───────┘      └──────────────┘       └──────┬───────┘         │
-└─────────┼────────────────────────────────────────────┼──────────────────┘
-          │                                            │
-          ▼                                            ▼
+│                           DAEMON LAYER                                  │
+│                         runner.py                                       │
+│  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐                  │
+│  │ HTTP Server  │  │  WebSocket   │  │  MCP Server  │                  │
+│  │  (FastAPI)   │  │   Server     │  │  (FastMCP)   │                  │
+│  │  :60887      │  │   :60888     │  │  (stdio)     │                  │
+│  └──────┬───────┘  └──────┬───────┘  └──────┬───────┘                  │
+└─────────┼─────────────────┼─────────────────┼──────────────────────────┘
+          │                 │                 │
+          ▼                 ▼                 ▼
 ┌─────────────────────────────────────────────────────────────────────────┐
-│                         SERVICE LAYER                                    │
-│  ┌─────────────────┐  ┌─────────────────┐  ┌─────────────────┐         │
-│  │   HookManager   │  │ SessionManager  │  │  LLMService     │         │
-│  │  (coordinator)  │  │  (registration) │  │  (multi-prov)   │         │
-│  └────────┬────────┘  └────────┬────────┘  └────────┬────────┘         │
-│           ▼                    │                    ▼                   │
-│  ┌─────────────────┐           │           ┌─────────────────┐         │
-│  │    Adapters     │           │           │   LLM Providers │         │
-│  │ Claude/Gemini/  │           │           │ Claude/Codex/   │         │
-│  │     Codex       │           │           │ Gemini/LiteLLM  │         │
-│  └─────────────────┘           │           └─────────────────┘         │
-└────────────────────────────────┼────────────────────────────────────────┘
+│                         SERVICE LAYER                                   │
+│  ┌─────────────────┐  ┌─────────────────┐  ┌─────────────────┐        │
+│  │   RuleEngine    │  │   HookManager   │  │ SessionManager  │        │
+│  │  (enforcement)  │  │  (coordinator)  │  │  (registration) │        │
+│  └────────┬────────┘  └────────┬────────┘  └────────┬────────┘        │
+│           │                    │                     │                  │
+│  ┌─────────────────┐  ┌─────────────────┐  ┌─────────────────┐        │
+│  │  WorkflowEngine │  │   AgentRunner   │  │  MemoryManager  │        │
+│  │  (state machine)│  │ (spawn/monitor) │  │  (recall/store) │        │
+│  └─────────────────┘  └─────────────────┘  └─────────────────┘        │
+│                                                                        │
+│  ┌─────────────────┐  ┌─────────────────┐  ┌─────────────────┐        │
+│  │    Adapters     │  │  LLMService     │  │ MCPClientManager│        │
+│  │ Claude/Gemini/  │  │  (multi-prov)   │  │ (conn pooling)  │        │
+│  │ Cursor/Windsurf │  │                 │  │                 │        │
+│  └─────────────────┘  └─────────────────┘  └─────────────────┘        │
+└────────────────────────────────┬───────────────────────────────────────┘
                                  │
                                  ▼
 ┌─────────────────────────────────────────────────────────────────────────┐
-│                          DATA LAYER                                      │
-│  ┌─────────────────┐  ┌─────────────────┐  ┌─────────────────┐         │
-│  │  LocalDatabase  │  │  MCPDBManager   │  │ File Storage    │         │
-│  │   (SQLite)      │  │ (tool caching)  │  │ (summaries)     │         │
-│  └─────────────────┘  └─────────────────┘  └─────────────────┘         │
-│                    ~/.gobby/gobby-hub.db                                    │
+│                          DATA LAYER                                     │
+│  ┌─────────────────┐  ┌─────────────────┐  ┌─────────────────┐        │
+│  │  LocalDatabase  │  │  MCPDBManager   │  │ File Storage    │        │
+│  │   (SQLite)      │  │ (tool caching)  │  │ (sync, logs)    │        │
+│  └─────────────────┘  └─────────────────┘  └─────────────────┘        │
+│                    ~/.gobby/gobby-hub.db                                │
 └─────────────────────────────────────────────────────────────────────────┘
 ```
 
@@ -73,141 +78,71 @@ Gobby is a **local-first daemon** that unifies AI coding assistants (Claude Code
 
 | Component | File | Purpose |
 |-----------|------|---------|
-| **CLI** | `src/cli.py` | Click-based commands (start, stop, status, install, uninstall, init) |
-| **Daemon Runner** | `src/runner.py` | Main daemon process, starts all servers |
+| **CLI** | `src/gobby/cli/` | Click-based commands (~25 modules) |
+| **Daemon Runner** | `src/gobby/runner.py` | Main daemon process, starts all servers |
 
 ### Server Layer
 
 | Component | File | Protocol | Port |
 |-----------|------|----------|------|
-| **HTTP Server** | `src/servers/http.py` | HTTP REST + MCP | 60887 |
-| **WebSocket Server** | `src/servers/websocket.py` | WebSocket | 60888 |
-| **MCP Server** | `src/mcp_proxy/server.py` | MCP (JSON-RPC) | - |
-| **Stdio MCP** | `src/mcp_proxy/stdio.py` | stdio transport | - |
+| **HTTP Server** | `servers/http.py` | HTTP REST | 60887 |
+| **HTTP Routes** | `servers/routes/` | REST API | - |
+| **WebSocket Server** | `servers/websocket/` | WebSocket | 60888 |
+| **MCP Server** | `mcp_proxy/server.py` | MCP (JSON-RPC) | - |
 
 ### Service Layer
 
 | Component | File | Responsibility |
 |-----------|------|----------------|
-| **HookManager** | `src/hooks/hook_manager.py` | Central coordinator for all hook events |
-| **SessionManager** | `src/sessions/manager.py` | Session registration, lookup, status updates |
-| **SummaryGenerator** | `src/sessions/summary.py` | LLM-powered session summaries |
-| **LLMService** | `src/llm/service.py` | Multi-provider LLM management |
-| **MCPClientManager** | `src/mcp_proxy/manager.py` | Connection pooling for downstream MCP servers |
+| **RuleEngine** | `workflows/rule_engine.py` | Declarative rule evaluation and enforcement |
+| **HookManager** | `hooks/hook_manager.py` | Central coordinator for all hook events |
+| **SessionManager** | `sessions/manager.py` | Session registration, lookup, status updates |
+| **WorkflowEngine** | `workflows/engine.py` | On-demand step-based state machines |
+| **AgentRunner** | `agents/runner.py` | Agent process spawning and lifecycle |
+| **MemoryManager** | `memory/manager.py` | Persistent fact storage and recall |
+| **LLMService** | `llm/service.py` | Multi-provider LLM management |
+| **MCPClientManager** | `mcp_proxy/manager.py` | Connection pooling for downstream MCP servers |
+| **PipelineExecutor** | `workflows/pipeline_executor.py` | Deterministic sequential pipeline execution |
 
 ### Adapter Layer
 
-| Adapter | File | CLI | Hook Format |
-|---------|------|-----|-------------|
-| **ClaudeCodeAdapter** | `src/adapters/claude_code.py` | Claude Code | JSON payload via HTTP |
-| **GeminiAdapter** | `src/adapters/gemini.py` | Gemini CLI | JSON payload via HTTP |
-| **CodexAdapter** | `src/adapters/codex.py` | Codex CLI | JSON-RPC (app-server) + notify |
+| Adapter | File | CLI |
+|---------|------|-----|
+| **ClaudeCodeAdapter** | `adapters/claude_code.py` | Claude Code |
+| **GeminiAdapter** | `adapters/gemini.py` | Gemini CLI |
+| **CursorAdapter** | `adapters/cursor.py` | Cursor |
+| **WindsurfAdapter** | `adapters/windsurf.py` | Windsurf |
+| **CopilotAdapter** | `adapters/copilot.py` | Copilot |
 
 ### Data Layer
 
 | Component | File | Storage |
 |-----------|------|---------|
-| **LocalDatabase** | `src/storage/database.py` | SQLite with thread-local connections |
-| **LocalSessionManager** | `src/storage/sessions.py` | Session CRUD operations |
-| **LocalProjectManager** | `src/storage/projects.py` | Project CRUD operations |
-| **MCPDatabaseManager** | `src/storage/mcp.py` | MCP server and tool caching |
-
-## Data Models
-
-### Database Schema (v7)
-
-```sql
--- Projects: Container for sessions and MCP servers
-CREATE TABLE projects (
-    id TEXT PRIMARY KEY,
-    name TEXT NOT NULL UNIQUE,
-    repo_path TEXT,
-    github_url TEXT,
-    created_at TEXT,
-    updated_at TEXT
-);
-
--- Sessions: AI coding assistant sessions
-CREATE TABLE sessions (
-    id TEXT PRIMARY KEY,
-    cli_key TEXT NOT NULL,
-    machine_id TEXT NOT NULL,
-    source TEXT NOT NULL,           -- "claude", "gemini", "codex"
-    project_id TEXT NOT NULL REFERENCES projects(id),
-    title TEXT,
-    status TEXT DEFAULT 'active',   -- active, paused, expired, archived, handoff_ready
-    jsonl_path TEXT,
-    summary_path TEXT,
-    summary_markdown TEXT,
-    git_branch TEXT,
-    parent_session_id TEXT REFERENCES sessions(id),
-    created_at TEXT,
-    updated_at TEXT
-);
-
--- MCP Servers: Downstream server configurations
-CREATE TABLE mcp_servers (
-    id TEXT PRIMARY KEY,
-    name TEXT NOT NULL,
-    project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
-    transport TEXT NOT NULL,        -- "http", "stdio", "websocket"
-    url TEXT,
-    command TEXT,
-    args TEXT,                      -- JSON array
-    env TEXT,                       -- JSON object
-    headers TEXT,                   -- JSON object
-    enabled INTEGER DEFAULT 1,
-    description TEXT,
-    created_at TEXT,
-    updated_at TEXT
-);
-
--- Tools: Cached tool schemas from MCP servers
-CREATE TABLE tools (
-    id TEXT PRIMARY KEY,
-    mcp_server_id TEXT NOT NULL REFERENCES mcp_servers(id) ON DELETE CASCADE,
-    name TEXT NOT NULL,
-    description TEXT,
-    input_schema TEXT,              -- JSON object
-    created_at TEXT,
-    updated_at TEXT,
-    UNIQUE(mcp_server_id, name)
-);
-```
-
-## API Contracts
-
-### HTTP Endpoints
-
-| Endpoint | Method | Purpose |
-|----------|--------|---------|
-| `/health` | GET | Health check |
-| `/admin/status` | GET | Daemon status |
-| `/mcp` | POST | MCP protocol (JSON-RPC) |
-| `/api/v1/hooks/{hook_type}` | POST | CLI hook execution |
-| `/api/v1/sessions` | GET/POST | Session management |
-| `/api/v1/sessions/{id}` | GET/PATCH | Individual session |
-
-### MCP Tools
-
-| Tool | Category | Description |
-|------|----------|-------------|
-| `status` | Monitoring | Daemon status and health |
-| `list_mcp_servers` | Discovery | List configured MCP servers |
-| `call_tool` | Proxy | Execute tool on downstream server |
-| `read_mcp_resource` | Proxy | Read resource from downstream server |
-| `add_mcp_server` | Management | Add new MCP server |
-| `remove_mcp_server` | Management | Remove MCP server |
-| `import_mcp_server` | Management | Import from project/GitHub/query |
-| `list_tools` | Discovery | List tools from downstream servers |
-| `get_tool_schema` | Discovery | Get full tool schema |
-| `execute_code` | Execution | Run code in Claude sandbox |
-| `process_large_dataset` | Execution | Token-optimized data processing |
-| `recommend_tools` | AI | LLM-powered tool recommendations |
-| `call_hook` | Integration | Trigger hooks for non-Claude CLIs |
-| `codex` | Integration | Direct Codex interaction |
+| **LocalDatabase** | `storage/database.py` | SQLite with thread-local connections |
+| **LocalSessionManager** | `storage/sessions.py` | Session CRUD operations |
+| **LocalTaskManager** | `storage/tasks.py` | Task CRUD with dependency graphs |
+| **LocalProjectManager** | `storage/projects.py` | Project CRUD operations |
+| **MCPDatabaseManager** | `storage/mcp.py` | MCP server and tool caching |
 
 ## Data Flows
+
+### Rule Evaluation
+
+```
+Hook event fired (e.g., before_tool)
+  │
+  ├─ 1. Load enabled rules matching this event type
+  ├─ 2. Apply session overrides (per-session enable/disable)
+  ├─ 3. Filter by agent_scope (if applicable)
+  ├─ 4. Sort by priority ascending (10 → 20 → 100)
+  └─ 5. Evaluate each rule:
+        ├─ Check `when` condition → skip if false
+        └─ Apply effect:
+            ├─ block: check tool matching → if match, STOP
+            ├─ set_variable: mutate variable immediately
+            ├─ inject_context: append to context list
+            └─ mcp_call: record for dispatch
+```
 
 ### Session Lifecycle
 
@@ -217,113 +152,48 @@ CREATE TABLE tools (
        └─> HTTP POST /api/v1/hooks/session-start
            └─> Adapter.translate_to_hook_event()
                └─> HookManager.handle()
-                   └─> SessionManager.register_session()
-                       └─> LocalDatabase INSERT
-                           └─> HookResponse with session_id
+                   └─> RuleEngine.evaluate(session_start)
+                       └─> SessionManager.register_session()
 
-2. User Prompt (UserPromptSubmit)
-   └─> Hook Dispatcher Script
-       └─> HTTP POST /api/v1/hooks/user-prompt-submit
-           └─> HookManager.handle()
-               └─> Title synthesis (LLM)
-                   └─> SessionManager.update_title()
+2. Before each tool call
+   └─> RuleEngine.evaluate(before_tool)
+       └─> Block / set_variable / inject_context / mcp_call
 
-3. Session End (SessionEnd)
-   └─> Hook Dispatcher Script
-       └─> HTTP POST /api/v1/hooks/session-end
-           └─> HookManager.handle()
-               └─> SummaryGenerator.generate() (LLM)
-                   └─> SessionManager.update_status("handoff_ready")
-                       └─> Summary stored for next session
+3. Session End
+   └─> HookManager.handle()
+       └─> SummaryGenerator.generate() (LLM)
+           └─> SessionManager.update_status("handoff_ready")
 ```
 
 ### MCP Progressive Tool Discovery
 
 ```
-1. List Available Tools (lightweight)
-   └─> list_tools(server_name="context7")
-       └─> Returns: [{name, brief}] from cached config
-
-2. Get Full Schema (on-demand)
-   └─> get_tool_schema(server_name="context7", tool_name="get-library-docs")
-       └─> Reads from ~/.gobby/tools/ cache
-           └─> Returns: {name, description, inputSchema}
-
-3. Execute Tool
-   └─> call_tool(server="context7", tool="get-library-docs", args={...})
-       └─> MCPClientManager.call_tool()
-           └─> HTTP/stdio/WebSocket to downstream server
-               └─> Returns: tool execution result
+1. list_tools(server_name="...")     → Names and descriptions (~200 tokens)
+2. get_tool_schema(server, tool)     → Full inputSchema on demand
+3. call_tool(server, tool, args)     → Execute via downstream transport
 ```
 
 ## External Integrations
 
-| Integration | Protocol | Direction | Authentication |
-|-------------|----------|-----------|----------------|
-| **Claude Code** | HTTP hooks | Inbound | None (local) |
-| **Gemini CLI** | HTTP hooks | Inbound | None (local) |
-| **Codex CLI** | Notify script | Inbound | None (local) |
-| **Claude API** | HTTP | Outbound | Subscription (Agent SDK) |
-| **OpenAI API** | HTTP | Outbound | API Key (BYOK) |
-| **Gemini API** | HTTP | Outbound | ADC credentials |
-| **Downstream MCP** | HTTP/stdio/WS | Outbound | Per-server config |
-
-## Configuration
-
-### Main Config (`~/.gobby/config.yaml`)
-
-```yaml
-daemon_port: 60887
-database_path: "~/.gobby/gobby-hub.db"
-
-websocket:
-  enabled: true
-  port: 60888
-  ping_interval: 30
-
-logging:
-  level: info
-  client: "~/.gobby/logs/gobby.log"
-
-session_summary:
-  enabled: true
-  provider: claude
-  model: claude-haiku-4-5
-
-code_execution:
-  enabled: true
-  model: claude-sonnet-4-5
-
-llm_providers:
-  claude:
-    models: claude-haiku-4-5,claude-sonnet-4-5,claude-opus-4-5
-  codex:
-    models: gpt-4o-mini,gpt-5
-    auth_mode: subscription
-```
-
-### MCP Server Config (`~/.gobby/.mcp.json`)
-
-```json
-{
-  "servers": [
-    {
-      "name": "context7",
-      "transport": "http",
-      "url": "https://mcp.context7.com/mcp",
-      "project_id": "...",
-      "enabled": true,
-      "tools": [...]
-    }
-  ]
-}
-```
+| Integration | Protocol | Direction |
+|-------------|----------|-----------|
+| **Claude Code** | HTTP hooks | Inbound |
+| **Gemini CLI** | HTTP hooks | Inbound |
+| **Cursor** | HTTP hooks | Inbound |
+| **Windsurf** | HTTP hooks | Inbound |
+| **Copilot** | HTTP hooks | Inbound |
+| **Claude API** | HTTP | Outbound |
+| **OpenAI API** | HTTP | Outbound |
+| **Gemini API** | HTTP | Outbound |
+| **Downstream MCP** | HTTP/stdio/WS | Outbound |
 
 ## Key Design Decisions
 
 1. **Local-First**: All data stored in SQLite (`~/.gobby/gobby-hub.db`), no cloud dependency
 2. **CLI-Agnostic**: Adapter pattern normalizes different CLI hook formats to unified events
-3. **Progressive Discovery**: MCP tools loaded on-demand to reduce token usage
-4. **Multi-Provider LLM**: Abstraction layer supports Claude, Codex, Gemini, and LiteLLM
-5. **Event-Driven Hooks**: 14 hook event types with central HookManager coordinator
-6. **Thread-Safe Storage**: Thread-local SQLite connections for concurrent access
+3. **Rules-First Enforcement**: Declarative rules enforce behavior without relying on prompt compliance
+4. **Progressive Discovery**: MCP tools loaded on-demand to reduce token usage
+5. **Multi-Provider LLM**: Abstraction layer supports Claude, Gemini, OpenAI, and LiteLLM
+6. **Event-Driven Hooks**: Hook events feed into RuleEngine for enforcement and context injection
+7. **P2P Agent Messaging**: Agents communicate via send_message/send_command without parent relay
+8. **Thread-Safe Storage**: Thread-local SQLite connections for concurrent access
