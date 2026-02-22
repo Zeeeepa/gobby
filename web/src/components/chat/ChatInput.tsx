@@ -5,6 +5,7 @@ import { cn } from '../../lib/utils'
 import { Button } from './ui/Button'
 import { ModeSelector } from './ModeSelector'
 import { ContextUsageIndicator } from './ContextUsageIndicator'
+import { BranchIndicator } from './BranchIndicator'
 
 interface ChatInputProps {
   onSend: (message: string, files?: QueuedFile[]) => void
@@ -26,6 +27,10 @@ interface ChatInputProps {
   onToggleVoice?: () => void
   onStopSpeaking?: () => void
   contextUsage?: ContextUsage
+  currentBranch?: string | null
+  worktreePath?: string | null
+  projectId?: string | null
+  onWorktreeChange?: (worktreePath: string, worktreeId?: string) => void
 }
 
 export function ChatInput({
@@ -48,6 +53,10 @@ export function ChatInput({
   onToggleVoice,
   onStopSpeaking,
   contextUsage,
+  currentBranch,
+  worktreePath,
+  projectId,
+  onWorktreeChange,
 }: ChatInputProps) {
   const [input, setInput] = useState('')
   const [selectedIndex, setSelectedIndex] = useState(0)
@@ -198,6 +207,14 @@ export function ChatInput({
             </button>
           )}
           <div className="flex items-center gap-2 ml-auto">
+          {onWorktreeChange && (
+            <BranchIndicator
+              currentBranch={currentBranch ?? null}
+              worktreePath={worktreePath ?? null}
+              projectId={projectId ?? null}
+              onWorktreeChange={onWorktreeChange}
+            />
+          )}
           <ContextUsageIndicator
             totalInputTokens={contextUsage?.totalInputTokens ?? 0}
             outputTokens={contextUsage?.outputTokens ?? 0}

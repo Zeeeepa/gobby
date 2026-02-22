@@ -183,6 +183,10 @@ export function useChat() {
   // Session ref tracking (e.g. "#158")
   const [sessionRef, setSessionRef] = useState<string | null>(null)
 
+  // Branch/worktree tracking
+  const [currentBranch, setCurrentBranch] = useState<string | null>(null)
+  const [worktreePath, setWorktreePath] = useState<string | null>(null)
+
   // Plan mode approval tracking
   const [planPendingApproval, setPlanPendingApproval] = useState(false)
   const currentModeRef = useRef<ChatMode>('accept_edits')
@@ -315,8 +319,17 @@ export function useChat() {
             onModeChangedRef.current?.(newMode)
           }
         } else if (data.type === 'session_info') {
-          const ref = (data as Record<string, unknown>).session_ref as string | undefined
+          const info = data as Record<string, unknown>
+          const ref = info.session_ref as string | undefined
           if (ref) setSessionRef(ref)
+          const branch = info.current_branch as string | undefined
+          if (branch !== undefined) setCurrentBranch(branch)
+          const wtPath = info.worktree_path as string | undefined
+          if (wtPath !== undefined) setWorktreePath(wtPath)
+        } else if (data.type === 'worktree_switched') {
+          const wt = data as Record<string, unknown>
+          setCurrentBranch((wt.new_branch as string) ?? null)
+          setWorktreePath((wt.worktree_path as string) ?? null)
         } else if (data.type === 'session_continued') {
           console.log('Session continued:', data)
         } else if (data.type === 'connection_established') {
@@ -597,6 +610,8 @@ export function useChat() {
     setIsStreaming(false)
     setIsThinking(false)
     setSessionRef(null)
+    setCurrentBranch(null)
+    setWorktreePath(null)
     setContextUsage({ totalInputTokens: 0, outputTokens: 0, contextWindow: null, uncachedInputTokens: 0, cacheReadTokens: 0, cacheCreationTokens: 0 })
 
     // Save current conversation's messages before switching (explicit save)
@@ -675,6 +690,8 @@ export function useChat() {
     saveConversationId(newId)
     setMessages([])
     setSessionRef(null)
+    setCurrentBranch(null)
+    setWorktreePath(null)
     setContextUsage({ totalInputTokens: 0, outputTokens: 0, contextWindow: null, uncachedInputTokens: 0, cacheReadTokens: 0, cacheCreationTokens: 0 })
 
     activeRequestIdRef.current = null
@@ -865,6 +882,18 @@ export function useChat() {
     }))
   }, [])
 
+  // Notify backend that the worktree changed — stops the CLI subprocess
+  // so the next chat_message recreates it with the correct CWD.
+  const sendWorktreeChange = useCallback((worktreePath: string, worktreeId?: string) => {
+    if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) return
+    wsRef.current.send(JSON.stringify({
+      type: 'set_worktree',
+      worktree_path: worktreePath,
+      worktree_id: worktreeId,
+      conversation_id: conversationIdRef.current,
+    }))
+  }, [])
+
   // Send a message (allowed even while streaming — cancels the active stream)
   const sendMessage = useCallback((content: string, model?: string | null, files?: QueuedFile[], projectId?: string | null): boolean => {
     console.log('sendMessage called:', content, 'model:', model, 'files:', files?.length)
@@ -1026,6 +1055,8 @@ export function useChat() {
     messages,
     conversationId,
     sessionRef,
+    currentBranch,
+    worktreePath,
     isConnected,
     isStreaming,
     isThinking,
@@ -1033,6 +1064,7 @@ export function useChat() {
     sendMessage,
     sendMode,
     sendProjectChange,
+    sendWorktreeChange,
     stopStreaming,
     clearHistory,
     deleteConversation,

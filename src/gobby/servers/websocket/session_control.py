@@ -1,0 +1,528 @@
+"""WebSocket session control handlers.
+
+SessionControlMixin provides session lifecycle operations: stop, clear,
+delete, mode changes, project switching, plan approval, continue-in-chat,
+and idle session cleanup. Extracted from chat.py to reduce file size.
+"""
+
+from __future__ import annotations
+
+import asyncio
+import json
+import logging
+from datetime import UTC, datetime
+from typing import TYPE_CHECKING, Any
+from uuid import uuid4
+
+from websockets.exceptions import ConnectionClosed, ConnectionClosedError
+
+from gobby.servers.chat_session import ChatSession
+from gobby.servers.websocket.models import (
+    CLEANUP_INTERVAL_SECONDS,
+    IDLE_TIMEOUT_SECONDS,
+)
+
+logger = logging.getLogger(__name__)
+
+
+class SessionControlMixin:
+    """Mixin providing session control handlers for WebSocketServer.
+
+    Requires on the host class:
+    - ``self.clients: dict[Any, dict[str, Any]]``
+    - ``self._chat_sessions: dict[str, ChatSession]``
+    - ``self._active_chat_tasks: dict[str, asyncio.Task[None]]``
+    - ``self._pending_modes: dict[str, str]``
+    - ``self._cancel_active_chat(...)`` (from ChatMixin)
+    - ``self._send_error(...)`` (from HandlerMixin)
+    - ``self._create_chat_session(...)`` (from ChatMixin)
+    """
+
+    clients: dict[Any, dict[str, Any]]
+    _chat_sessions: dict[str, ChatSession]
+    _active_chat_tasks: dict[str, asyncio.Task[None]]
+    _pending_modes: dict[str, str]
+    _pending_worktree_paths: dict[str, str]
+
+    # Provided by ChatMixin / HandlerMixin – declared for type checking only.
+    if TYPE_CHECKING:
+
+        async def _cancel_active_chat(self, conversation_id: str) -> None: ...
+
+        async def _send_error(
+            self,
+            websocket: Any,
+            message: str,
+            request_id: str | None = None,
+            code: str = "ERROR",
+        ) -> None: ...
+
+        async def _create_chat_session(
+            self,
+            conversation_id: str,
+            model: str | None = None,
+            project_id: str | None = None,
+        ) -> ChatSession: ...
+
+    async def _handle_stop_chat(self, websocket: Any, data: dict[str, Any] | None = None) -> None:
+        """
+        Handle stop_chat message to cancel the active chat stream.
+
+        Message format:
+        {
+            "type": "stop_chat",
+            "conversation_id": "optional-id"
+        }
+        """
+        conversation_id = (data or {}).get("conversation_id")
+
+        if conversation_id:
+            await self._cancel_active_chat(conversation_id)
+        else:
+            # Legacy: stop all active chats (backwards compatibility)
+            for conv_id in list(self._active_chat_tasks.keys()):
+                await self._cancel_active_chat(conv_id)
+
+    async def _handle_plan_approval_response(self, websocket: Any, data: dict[str, Any]) -> None:
+        """Handle plan_approval_response message from the web UI.
+
+        Processes the user's decision on a proposed plan:
+        - "approve": Unlock write tools and transition to accept_edits mode
+        - "request_changes": Store feedback for the next prompt injection
+
+        Message format:
+        {
+            "type": "plan_approval_response",
+            "conversation_id": "stable-id",
+            "decision": "approve" | "request_changes",
+            "feedback": "optional feedback text"
+        }
+        """
+        conversation_id_raw: str | None = data.get("conversation_id")
+        decision = data.get("decision", "")
+
+        session = self._chat_sessions.get(conversation_id_raw) if conversation_id_raw else None
+        if session is None or conversation_id_raw is None:
+            logger.warning(
+                "plan_approval_response for unknown conversation: %s", conversation_id_raw
+            )
+            return
+        conversation_id: str = conversation_id_raw
+
+        if decision == "approve":
+            session.approve_plan()
+            session.set_chat_mode("accept_edits")
+            try:
+                await websocket.send(
+                    json.dumps(
+                        {
+                            "type": "mode_changed",
+                            "conversation_id": conversation_id,
+                            "mode": "accept_edits",
+                            "reason": "plan_approved",
+                        }
+                    )
+                )
+            except (ConnectionClosed, ConnectionClosedError):
+                pass
+            logger.info(
+                "Plan approved for conversation %s, switched to accept_edits", conversation_id[:8]
+            )
+        elif decision == "request_changes":
+            feedback = data.get("feedback", "")
+            if feedback:
+                session.set_plan_feedback(feedback)
+            logger.info("Plan changes requested for conversation %s", conversation_id[:8])
+
+    async def _handle_continue_in_chat(self, websocket: Any, data: dict[str, Any]) -> None:
+        """Handle continue_in_chat message to resume a CLI session in the web chat UI.
+
+        Creates a new ChatSession that loads conversation history from a source
+        session (typically a CLI session), allowing the user to continue the
+        conversation in the web UI.
+
+        Message format:
+        {
+            "type": "continue_in_chat",
+            "conversation_id": "new-uuid",
+            "source_session_id": "db-uuid-of-source-session",
+            "project_id": "optional-override"
+        }
+        """
+        source_session_id = data.get("source_session_id")
+        if not source_session_id:
+            await self._send_error(websocket, "continue_in_chat requires source_session_id")
+            return
+
+        conversation_id = data.get("conversation_id") or str(uuid4())
+        project_id = data.get("project_id")
+
+        # Look up source session for project_id if not provided
+        session_manager = getattr(self, "session_manager", None)
+        if not project_id and session_manager:
+            try:
+                source_session = await asyncio.to_thread(session_manager.get, source_session_id)
+                if source_session:
+                    project_id = source_session.project_id
+            except Exception as e:
+                logger.warning(f"Failed to look up source session {source_session_id}: {e}")
+
+        # Create standard chat session
+        try:
+            session = await self._create_chat_session(conversation_id, project_id=project_id)
+        except Exception as e:
+            logger.error(f"Failed to create continuation session: {e}")
+            await self._send_error(websocket, f"Failed to create session: {e}")
+            return
+
+        # Set up cross-session history injection from the source session
+        message_manager = getattr(self, "message_manager", None)
+        if message_manager:
+            try:
+                max_idx = await message_manager.get_max_message_index(source_session_id)
+                if max_idx >= 0:
+                    session._message_manager_source_session_id = source_session_id
+                    session._needs_history_injection = True
+                    session._message_manager = message_manager
+                    logger.info(
+                        "Cross-session history injection enabled for continuation",
+                        extra={
+                            "source": source_session_id[:8],
+                            "target": conversation_id[:8],
+                            "max_idx": max_idx,
+                        },
+                    )
+            except Exception as e:
+                logger.warning(f"Failed to set up history injection: {e}")
+
+        # Set parent_session_id on the DB record for lineage tracking
+        if session.db_session_id and session_manager:
+            try:
+                await asyncio.to_thread(
+                    session_manager.update_parent_session_id,
+                    session.db_session_id,
+                    source_session_id,
+                )
+            except Exception as e:
+                logger.warning(f"Failed to set parent_session_id: {e}")
+
+        # Send confirmation
+        await websocket.send(
+            json.dumps(
+                {
+                    "type": "session_continued",
+                    "conversation_id": conversation_id,
+                    "source_session_id": source_session_id,
+                    "db_session_id": session.db_session_id,
+                }
+            )
+        )
+        logger.info(
+            f"Session continued: {source_session_id[:8]} -> {conversation_id[:8]} "
+            f"(db={session.db_session_id})"
+        )
+
+    async def _handle_set_mode(self, websocket: Any, data: dict[str, Any]) -> None:
+        """Handle set_mode message to change chat mode for a conversation.
+
+        Message format:
+        {
+            "type": "set_mode",
+            "mode": "normal" | "accept_edits" | "bypass" | "plan",
+            "conversation_id": "stable-id"
+        }
+        """
+        conversation_id: str | None = data.get("conversation_id")
+        mode: str = str(data.get("mode", "bypass"))
+        valid_modes = {"normal", "accept_edits", "bypass", "plan"}
+        if mode not in valid_modes:
+            await self._send_error(websocket, f"Invalid mode: {mode}. Must be one of {valid_modes}")
+            return
+
+        session = self._chat_sessions.get(conversation_id) if conversation_id else None
+        if session is not None and conversation_id:
+            session.set_chat_mode(mode)
+            # Sync mode_level to workflow state
+            workflow_handler = getattr(self, "workflow_handler", None)
+            db_sid = getattr(session, "db_session_id", None)
+            if workflow_handler and db_sid:
+                try:
+                    from gobby.workflows.observers import compute_mode_level
+
+                    sm = workflow_handler.engine.state_manager
+                    sm.merge_variables(
+                        db_sid,
+                        {"chat_mode": mode, "mode_level": compute_mode_level(mode)},
+                    )
+                except Exception as e:
+                    logger.warning(f"Failed to sync mode_level on mode change: {e}")
+            logger.info(f"Chat mode set to '{mode}' for conversation {conversation_id[:8]}")
+        elif conversation_id:
+            # Store mode for when session is created
+            self._pending_modes[conversation_id] = mode
+            logger.debug(f"Chat mode '{mode}' queued for future conversation {conversation_id[:8]}")
+
+    async def _handle_set_project(self, websocket: Any, data: dict[str, Any]) -> None:
+        """Handle set_project message to switch the project for a conversation.
+
+        Stops the existing CLI subprocess so the next message creates a fresh
+        session with the correct CWD and project context. Conversation history
+        is preserved via database-backed history injection.
+
+        Message format:
+        {
+            "type": "set_project",
+            "project_id": "uuid-or-_personal",
+            "conversation_id": "stable-id"
+        }
+        """
+        conversation_id = data.get("conversation_id")
+        new_project_id = data.get("project_id")
+
+        if not conversation_id or not new_project_id:
+            await self._send_error(websocket, "set_project requires conversation_id and project_id")
+            return
+
+        session = self._chat_sessions.get(conversation_id)
+        old_project_id = getattr(session, "project_id", None) if session else None
+
+        if session:
+            await self._cancel_active_chat(conversation_id)
+            if session.db_session_id:
+                session_manager = getattr(self, "session_manager", None)
+                if session_manager:
+                    try:
+                        await asyncio.to_thread(
+                            session_manager.update,
+                            session.db_session_id,
+                            status="paused",
+                            project_id=new_project_id,
+                        )
+                    except Exception as e:
+                        logger.warning(f"Failed to update session on project switch: {e}")
+            await session.stop()
+            self._chat_sessions.pop(conversation_id, None)
+
+        await websocket.send(
+            json.dumps(
+                {
+                    "type": "project_switched",
+                    "conversation_id": conversation_id,
+                    "old_project_id": old_project_id,
+                    "new_project_id": new_project_id,
+                }
+            )
+        )
+        logger.info(
+            f"Project switched for conversation {conversation_id[:8]}: "
+            f"{old_project_id} -> {new_project_id}"
+        )
+
+    async def _handle_set_worktree(self, websocket: Any, data: dict[str, Any]) -> None:
+        """Handle set_worktree message to switch the worktree for a conversation.
+
+        Stops the existing CLI subprocess so the next message creates a fresh
+        session with the worktree's CWD. Conversation history is preserved via
+        database-backed history injection.
+
+        Message format:
+        {
+            "type": "set_worktree",
+            "conversation_id": "stable-id",
+            "worktree_path": "/absolute/path/to/worktree",
+            "worktree_id": "optional-db-uuid"
+        }
+        """
+        import os
+
+        from gobby.servers.websocket.chat import _resolve_git_branch
+
+        conversation_id = data.get("conversation_id")
+        worktree_path = data.get("worktree_path")
+        worktree_id = data.get("worktree_id")
+
+        if not conversation_id:
+            await self._send_error(websocket, "set_worktree requires conversation_id")
+            return
+
+        # Resolve worktree_path from DB if only worktree_id provided
+        if not worktree_path and worktree_id:
+            session_manager = getattr(self, "session_manager", None)
+            if session_manager:
+                try:
+                    from gobby.storage.worktrees import LocalWorktreeManager
+
+                    wm = LocalWorktreeManager(session_manager.db)
+                    wt = wm.get(worktree_id)
+                    if wt:
+                        worktree_path = wt.worktree_path
+                except Exception as e:
+                    logger.warning(f"Failed to resolve worktree {worktree_id}: {e}")
+
+        if not worktree_path:
+            await self._send_error(websocket, "set_worktree requires worktree_path or worktree_id")
+            return
+
+        if not os.path.isdir(worktree_path):
+            await self._send_error(websocket, f"Worktree path does not exist: {worktree_path}")
+            return
+
+        # Tear down existing session (same pattern as set_project)
+        session = self._chat_sessions.get(conversation_id)
+        if session:
+            await self._cancel_active_chat(conversation_id)
+            if session.db_session_id:
+                session_manager = getattr(self, "session_manager", None)
+                if session_manager:
+                    try:
+                        await asyncio.to_thread(
+                            session_manager.update,
+                            session.db_session_id,
+                            status="paused",
+                        )
+                    except Exception as e:
+                        logger.warning(f"Failed to update session on worktree switch: {e}")
+            await session.stop()
+            self._chat_sessions.pop(conversation_id, None)
+
+        # Store worktree path for next session creation
+        self._pending_worktree_paths[conversation_id] = worktree_path
+
+        # Resolve the branch name for the new worktree
+        new_branch, _ = await _resolve_git_branch(worktree_path)
+
+        await websocket.send(
+            json.dumps(
+                {
+                    "type": "worktree_switched",
+                    "conversation_id": conversation_id,
+                    "new_branch": new_branch,
+                    "worktree_path": worktree_path,
+                }
+            )
+        )
+        logger.info(
+            f"Worktree switched for conversation {conversation_id[:8]}: "
+            f"branch={new_branch}, path={worktree_path}"
+        )
+
+    async def _handle_clear_chat(self, websocket: Any, data: dict[str, Any]) -> None:
+        """Handle clear_chat message: stop session, mark completed, notify frontend.
+
+        Message format:
+        {
+            "type": "clear_chat",
+            "conversation_id": "stable-id"
+        }
+        """
+        conversation_id = data.get("conversation_id")
+        if not conversation_id:
+            return
+
+        session = self._chat_sessions.get(conversation_id)
+        if not session:
+            # No active session — just acknowledge
+            await websocket.send(
+                json.dumps({"type": "chat_cleared", "conversation_id": conversation_id})
+            )
+            return
+
+        # Mark session as completed in database
+        if session.db_session_id:
+            session_manager = getattr(self, "session_manager", None)
+            if session_manager:
+                try:
+                    await asyncio.to_thread(
+                        session_manager.update, session.db_session_id, status="completed"
+                    )
+                except Exception as e:
+                    logger.warning(f"Failed to update session status on clear: {e}")
+
+        # Stop the old ChatSession
+        await self._cancel_active_chat(conversation_id)
+        await session.stop()
+        self._chat_sessions.pop(conversation_id, None)
+
+        # Notify frontend
+        await websocket.send(
+            json.dumps({"type": "chat_cleared", "conversation_id": conversation_id})
+        )
+        logger.info(f"Chat cleared for conversation {conversation_id[:8]}")
+
+    async def _handle_delete_chat(self, websocket: Any, data: dict[str, Any]) -> None:
+        """Handle delete_chat message: stop session, delete from DB, notify frontend.
+
+        Message format:
+        {
+            "type": "delete_chat",
+            "conversation_id": "stable-id"
+        }
+        """
+        conversation_id = data.get("conversation_id")
+        if not conversation_id:
+            return
+
+        session = self._chat_sessions.get(conversation_id)
+        db_session_id = getattr(session, "db_session_id", None) if session else None
+
+        # Fall back to session_id from the message (for historical sessions not in memory)
+        if not db_session_id:
+            db_session_id = data.get("session_id")
+
+        # Stop the ChatSession if active
+        if session:
+            await self._cancel_active_chat(conversation_id)
+            await session.stop()
+            self._chat_sessions.pop(conversation_id, None)
+
+        # Soft-delete from database (hard delete fails due to FK constraints
+        # from agent_runs, tasks, workflow_audit_log referencing sessions)
+        if db_session_id:
+            session_manager = getattr(self, "session_manager", None)
+            message_manager = getattr(self, "message_manager", None)
+            try:
+                if message_manager:
+                    await message_manager.delete(db_session_id)
+                if session_manager:
+                    await asyncio.to_thread(session_manager.update, db_session_id, status="deleted")
+            except Exception as e:
+                logger.warning(f"Failed to soft-delete session from DB: {e}")
+
+        # Notify frontend
+        await websocket.send(
+            json.dumps({"type": "chat_deleted", "conversation_id": conversation_id})
+        )
+        logger.info(f"Chat deleted for conversation {conversation_id[:8]}")
+
+    async def _cleanup_idle_sessions(self) -> None:
+        """Periodically disconnect chat sessions that have been idle too long."""
+        while True:
+            try:
+                await asyncio.sleep(CLEANUP_INTERVAL_SECONDS)
+                now = datetime.now(UTC)
+                stale_ids = [
+                    conv_id
+                    for conv_id, session in self._chat_sessions.items()
+                    if (now - session.last_activity).total_seconds() > IDLE_TIMEOUT_SECONDS
+                ]
+                for conv_id in stale_ids:
+                    session = self._chat_sessions.pop(conv_id)
+                    await self._cancel_active_chat(conv_id)
+                    # Mark as paused in database before stopping
+                    if session.db_session_id:
+                        session_manager = getattr(self, "session_manager", None)
+                        if session_manager:
+                            try:
+                                await asyncio.to_thread(
+                                    session_manager.update, session.db_session_id, status="paused"
+                                )
+                            except Exception as e:
+                                logger.warning(f"Failed to update session status: {e}")
+                    await session.stop()
+                    logger.debug(f"Cleaned up idle chat session {conv_id}")
+                if stale_ids:
+                    logger.info(f"Cleaned up {len(stale_ids)} idle chat session(s)")
+            except asyncio.CancelledError:
+                break
+            except Exception:
+                logger.exception("Error in idle session cleanup")

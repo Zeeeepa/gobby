@@ -3,8 +3,6 @@ from __future__ import annotations
 import asyncio
 import logging
 import os
-import signal
-import subprocess
 import sys
 from collections.abc import Callable
 from pathlib import Path
@@ -518,10 +516,16 @@ class GobbyRunner:
                 self.message_processor.websocket_server = self.websocket_server
 
             # Register agent event callback for WebSocket broadcasting
-            self._setup_agent_event_broadcasting()
+            from gobby.runner_broadcasting import (
+                setup_agent_event_broadcasting,
+                setup_pipeline_event_broadcasting,
+            )
+
+            setup_agent_event_broadcasting(self.websocket_server)
 
             # Register pipeline event callback for WebSocket broadcasting
-            self._setup_pipeline_event_broadcasting()
+            if self.pipeline_executor:
+                setup_pipeline_event_broadcasting(self.websocket_server, self.pipeline_executor)
 
     def _init_database(self) -> DatabaseProtocol:
         """Initialize hub database."""
@@ -536,279 +540,17 @@ class GobbyRunner:
         logger.info(f"Database: {hub_db_path}")
         return hub_db
 
-    def _setup_agent_event_broadcasting(self) -> None:
-        """Set up WebSocket broadcasting for agent lifecycle events, PTY reading, and tmux streaming."""
-        from gobby.agents.pty_reader import get_pty_reader_manager
-        from gobby.agents.registry import get_running_agent_registry
-        from gobby.agents.tmux import get_tmux_output_reader
-
-        if not self.websocket_server:
-            return
-
-        registry = get_running_agent_registry()
-        pty_manager = get_pty_reader_manager()
-        tmux_reader = get_tmux_output_reader()
-
-        # Set up output callbacks to broadcast via WebSocket
-        async def broadcast_terminal_output(run_id: str, data: str) -> None:
-            """Broadcast terminal output via WebSocket."""
-            if self.websocket_server:
-                await self.websocket_server.broadcast_terminal_output(run_id, data)
-
-        pty_manager.set_output_callback(broadcast_terminal_output)
-        tmux_reader.set_output_callback(broadcast_terminal_output)
-
-        def broadcast_agent_event(event_type: str, run_id: str, data: dict[str, Any]) -> None:
-            """Broadcast agent events via WebSocket (non-blocking)."""
-            if not self.websocket_server:
-                return
-
-            def _log_broadcast_exception(task: asyncio.Task[None]) -> None:
-                """Log exceptions from broadcast task to avoid silent failures."""
-                try:
-                    task.result()
-                except asyncio.CancelledError:
-                    pass
-                except Exception as e:
-                    logger.warning(f"Failed to broadcast agent event {event_type}: {e}")
-
-            # Handle PTY reader start/stop for embedded agents
-            if event_type == "agent_started" and data.get("mode") == "embedded":
-                # Start PTY reader for embedded agents
-                agent = registry.get(run_id)
-                if agent and agent.master_fd is not None:
-                    _agent = agent  # bind for closure type narrowing
-
-                    async def start_pty_reader() -> None:
-                        await pty_manager.start_reader(_agent)
-
-                    task = asyncio.create_task(start_pty_reader())
-                    task.add_done_callback(_log_broadcast_exception)
-
-            # Handle tmux output reader start for tmux terminal agents
-            if event_type == "agent_started":
-                agent = registry.get(run_id)
-                if agent and agent.tmux_session_name:
-                    session_name = agent.tmux_session_name
-
-                    async def start_tmux_reader() -> None:
-                        await tmux_reader.start_reader(run_id, session_name)
-
-                    task = asyncio.create_task(start_tmux_reader())
-                    task.add_done_callback(_log_broadcast_exception)
-
-                    # Notify Terminals page so it auto-refreshes
-                    _created_name = session_name
-                    _ws = self.websocket_server
-
-                    async def broadcast_tmux_created() -> None:
-                        if _ws:
-                            await _ws.broadcast_tmux_session_event(
-                                event="session_created",
-                                session_name=_created_name,
-                                socket="gobby",
-                            )
-
-                    task = asyncio.create_task(broadcast_tmux_created())
-                    task.add_done_callback(_log_broadcast_exception)
-
-            elif event_type in (
-                "agent_completed",
-                "agent_failed",
-                "agent_cancelled",
-                "agent_timeout",
-            ):
-                # Stop PTY reader when agent finishes
-
-                async def stop_pty_reader() -> None:
-                    await pty_manager.stop_reader(run_id)
-
-                task = asyncio.create_task(stop_pty_reader())
-                task.add_done_callback(_log_broadcast_exception)
-
-                # Stop tmux reader when agent finishes
-
-                async def stop_tmux_reader() -> None:
-                    await tmux_reader.stop_reader(run_id)
-
-                task = asyncio.create_task(stop_tmux_reader())
-                task.add_done_callback(_log_broadcast_exception)
-
-                # Notify Terminals page so it auto-refreshes
-                _killed_name = data.get("tmux_session_name")
-                _ws_kill = self.websocket_server
-                if _killed_name and _ws_kill:
-
-                    async def broadcast_tmux_killed() -> None:
-                        await _ws_kill.broadcast_tmux_session_event(
-                            event="session_killed",
-                            session_name=_killed_name,
-                            socket="gobby",
-                        )
-
-                    task = asyncio.create_task(broadcast_tmux_killed())
-                    task.add_done_callback(_log_broadcast_exception)
-
-            # Create async task to broadcast and attach exception callback
-            task = asyncio.create_task(
-                self.websocket_server.broadcast_agent_event(
-                    event=event_type,
-                    run_id=run_id,
-                    parent_session_id=data.get("parent_session_id", ""),
-                    session_id=data.get("session_id"),
-                    mode=data.get("mode"),
-                    provider=data.get("provider"),
-                    pid=data.get("pid"),
-                    tmux_session_name=data.get("tmux_session_name"),
-                )
-            )
-            task.add_done_callback(_log_broadcast_exception)
-
-        registry.add_event_callback(broadcast_agent_event)
-        logger.debug("Agent event broadcasting and PTY reading enabled")
-
-    def _setup_pipeline_event_broadcasting(self) -> None:
-        """Set up WebSocket broadcasting for pipeline execution events."""
-        if not self.websocket_server:
-            return
-
-        if not self.pipeline_executor:
-            logger.debug("Pipeline event broadcasting skipped: no pipeline executor")
-            return
-
-        async def broadcast_pipeline_event(event: str, execution_id: str, **kwargs: Any) -> None:
-            """Broadcast pipeline events via WebSocket."""
-            if self.websocket_server:
-                await self.websocket_server.broadcast_pipeline_event(
-                    event=event,
-                    execution_id=execution_id,
-                    **kwargs,
-                )
-
-        # Set the callback on the pipeline executor
-        self.pipeline_executor.event_callback = broadcast_pipeline_event
-        logger.debug("Pipeline event broadcasting enabled")
-
-    async def _cleanup_stale_tmux_sessions(self) -> None:
-        """Kill tmux sessions on the gobby socket not backed by a registered agent."""
-        try:
-            from gobby.agents.registry import get_running_agent_registry
-            from gobby.agents.tmux.session_manager import TmuxSessionManager
-
-            mgr = TmuxSessionManager()
-            if not mgr.is_available():
-                return
-
-            sessions = await mgr.list_sessions()
-            if not sessions:
-                return
-
-            registry = get_running_agent_registry()
-            registered_names = {
-                a.tmux_session_name for a in registry.list_all() if a.tmux_session_name
-            }
-
-            for session in sessions:
-                if session.name not in registered_names:
-                    logger.info(f"Cleaning up stale tmux session: {session.name}")
-                    await mgr.kill_session(session.name)
-        except (OSError, subprocess.SubprocessError) as e:
-            logger.warning(f"Stale tmux session cleanup failed: {e}")
-
-    async def _metrics_cleanup_loop(self) -> None:
-        """Background loop for periodic metrics cleanup (every 24 hours)."""
-        interval_seconds = 24 * 60 * 60  # 24 hours
-
-        while not self._shutdown_requested:
-            try:
-                await asyncio.sleep(interval_seconds)
-                deleted = self.metrics_manager.cleanup_old_metrics()
-                if deleted > 0:
-                    logger.info(f"Periodic metrics cleanup: removed {deleted} old entries")
-            except asyncio.CancelledError:
-                break
-            except Exception as e:
-                logger.error(f"Error in metrics cleanup loop: {e}")
-
-    async def _rebuild_vector_store(
-        self, memory_dicts: list[dict[str, str]], embed_fn: Any
-    ) -> None:
-        """Rebuild VectorStore index in the background."""
-        try:
-            if self.vector_store is None:
-                return
-            await self.vector_store.rebuild(memory_dicts, embed_fn)
-            logger.info("VectorStore rebuild complete")
-        except asyncio.CancelledError:
-            logger.info("VectorStore rebuild cancelled")
-        except Exception as e:
-            logger.error(f"VectorStore rebuild failed: {e}")
-
-    def _check_memory_v2_migration(self) -> None:
-        """Check if Memory V2 migration is needed and log a suggestion.
-
-        Checks if there are memories in the database but few/no cross-references,
-        suggesting the user run `gobby memory migrate-v2`.
-        """
-        if not self.memory_manager:
-            return
-
-        try:
-            # Get memory count
-            memories = self.memory_manager.list_memories(limit=1)
-            if not memories:
-                # No memories, nothing to migrate
-                return
-
-            # Get total memory count for the threshold
-            all_memories = self.memory_manager.list_memories(limit=10000)
-            memory_count = len(all_memories)
-
-            if memory_count < 5:
-                # Too few memories to warrant migration check
-                return
-
-            # Get crossref count
-            from gobby.storage.memories import LocalMemoryManager
-
-            storage = LocalMemoryManager(self.database)
-            crossrefs = storage.get_all_crossrefs(limit=1)
-
-            if not crossrefs and memory_count >= 5:
-                logger.warning(
-                    f"Memory V2 migration recommended: {memory_count} memories found "
-                    "but no cross-references. Run 'gobby memory migrate-v2' to enable "
-                    "semantic search and automatic memory linking."
-                )
-        except Exception as e:
-            # Don't fail startup on migration check errors
-            logger.debug(f"Memory migration check failed (non-fatal): {e}")
-
-    def _setup_signal_handlers(self) -> None:
-        loop = asyncio.get_running_loop()
-
-        def handle_shutdown() -> None:
-            logger.info("Received shutdown signal, initiating graceful shutdown...")
-            self._shutdown_requested = True
-
-        for sig in (signal.SIGTERM, signal.SIGINT):
-            loop.add_signal_handler(sig, handle_shutdown)
-
-    def _cleanup_pid_file(self) -> None:
-        """Remove PID file if it points to our process."""
-        try:
-            pid_file = Path(os.environ.get("GOBBY_HOME", Path.home() / ".gobby")) / "gobby.pid"
-            if pid_file.exists():
-                stored_pid = int(pid_file.read_text().strip())
-                if stored_pid == os.getpid():
-                    pid_file.unlink(missing_ok=True)
-                    logger.debug("Cleaned up PID file")
-        except Exception as e:
-            logger.debug(f"PID file cleanup failed (non-fatal): {e}")
-
     async def run(self) -> None:
+        from gobby.runner_maintenance import (
+            cleanup_pid_file,
+            cleanup_stale_tmux_sessions,
+            metrics_cleanup_loop,
+            rebuild_vector_store,
+            setup_signal_handlers,
+        )
+
         try:
-            self._setup_signal_handlers()
+            setup_signal_handlers(lambda: setattr(self, "_shutdown_requested", True))
 
             # Connect MCP servers
             try:
@@ -819,7 +561,7 @@ class GobbyRunner:
                 logger.error(f"MCP connection failed: {e}")
 
             # Clean up stale tmux sessions from previous runs
-            await self._cleanup_stale_tmux_sessions()
+            await cleanup_stale_tmux_sessions()
 
             # Run metrics cleanup on startup
             try:
@@ -828,9 +570,6 @@ class GobbyRunner:
                     logger.info(f"Startup metrics cleanup: removed {deleted} old entries")
             except Exception as e:
                 logger.warning(f"Metrics cleanup failed: {e}")
-
-            # Check for pending Memory V2 migration
-            self._check_memory_v2_migration()
 
             # Initialize VectorStore and schedule rebuild in background if needed
             if self.vector_store:
@@ -850,7 +589,7 @@ class GobbyRunner:
                                     {"id": m.id, "content": m.content} for m in sqlite_memories
                                 ]
                                 self._vector_rebuild_task = asyncio.create_task(
-                                    self._rebuild_vector_store(memory_dicts, embed_fn),
+                                    rebuild_vector_store(self.vector_store, memory_dicts, embed_fn),
                                     name="vector-store-rebuild",
                                 )
                             else:
@@ -878,7 +617,7 @@ class GobbyRunner:
 
             # Start periodic metrics cleanup (every 24 hours)
             self._metrics_cleanup_task = asyncio.create_task(
-                self._metrics_cleanup_loop(),
+                metrics_cleanup_loop(self.metrics_manager, lambda: self._shutdown_requested),
                 name="metrics-cleanup",
             )
 
@@ -1032,13 +771,13 @@ class GobbyRunner:
                 logger.warning("MCP disconnect timed out")
 
             # Clean up PID file on graceful shutdown
-            self._cleanup_pid_file()
+            cleanup_pid_file()
 
             logger.info("Shutdown complete")
 
         except Exception as e:
             logger.error(f"Fatal error: {e}", exc_info=True)
-            self._cleanup_pid_file()
+            cleanup_pid_file()
             sys.exit(1)
 
 

@@ -7,18 +7,17 @@ import os
 import shutil
 import sys
 from pathlib import Path
-from shutil import copy2
 from typing import Any
 
 import click
 
+from .install_setup import ensure_daemon_config, run_daemon_setup
 from .installers import (
     install_antigravity,
     install_claude,
     install_codex_notify,
     install_copilot,
     install_cursor,
-    install_default_mcp_servers,
     install_gemini,
     install_git_hooks,
     install_neo4j,
@@ -35,46 +34,60 @@ from .utils import get_install_dir
 
 logger = logging.getLogger(__name__)
 
+# Re-export for backwards compatibility (tests import from here)
+_ensure_daemon_config = ensure_daemon_config
 
-def _ensure_daemon_config() -> dict[str, Any]:
-    """Ensure bootstrap config exists at ~/.gobby/bootstrap.yaml.
 
-    If bootstrap.yaml doesn't exist, copies the shared template.
-    Bootstrap.yaml contains only the 5 pre-DB settings; all other
-    configuration is managed via the DB (config_store) + Pydantic defaults.
+def _echo_install_details(
+    result: dict[str, Any],
+    mcp_config_path: str | None = None,
+    config_path: str | None = None,
+) -> None:
+    """Print common install result details (hooks, workflows, agents, commands, plugins, MCP)."""
+    click.echo(f"Installed {len(result['hooks_installed'])} hooks")
+    for hook in result["hooks_installed"]:
+        click.echo(f"  - {hook}")
 
-    Returns:
-        Dict with 'created' (bool) and 'path' (str) keys
-    """
-    bootstrap_path = Path("~/.gobby/bootstrap.yaml").expanduser()
+    for key, label in [
+        ("workflows_installed", "workflows"),
+        ("agents_installed", "agents"),
+        ("commands_installed", "skills/commands"),
+    ]:
+        items = result.get(key)
+        if items:
+            click.echo(f"Installed {len(items)} {label}")
+            for item in items:
+                click.echo(f"  - {item}")
 
-    if bootstrap_path.exists():
-        return {"created": False, "path": str(bootstrap_path)}
+    plugins = result.get("plugins_installed")
+    if plugins:
+        click.echo(f"Installed {len(plugins)} plugins to .gobby/plugins/")
+        for plugin in plugins:
+            click.echo(f"  - {plugin}")
 
-    # Ensure directory exists
-    bootstrap_path.parent.mkdir(parents=True, exist_ok=True)
+    if mcp_config_path:
+        if result.get("mcp_configured"):
+            click.echo(f"Configured MCP server: {mcp_config_path}")
+        elif result.get("mcp_already_configured"):
+            click.echo(f"MCP server already configured: {mcp_config_path}")
 
-    # Copy shared bootstrap template
-    shared_bootstrap = get_install_dir() / "shared" / "config" / "bootstrap.yaml"
-    if shared_bootstrap.exists():
-        copy2(shared_bootstrap, bootstrap_path)
-        bootstrap_path.chmod(0o600)
-        return {"created": True, "path": str(bootstrap_path), "source": "shared"}
+    if config_path:
+        click.echo(f"Configuration: {config_path}")
 
-    # Fallback: write minimal defaults directly
-    import yaml
 
-    defaults = {
-        "database_path": "~/.gobby/gobby-hub.db",
-        "daemon_port": 60887,
-        "bind_host": "localhost",
-        "websocket_port": 60888,
-        "ui_port": 60889,
-    }
-    with open(bootstrap_path, "w") as f:
-        yaml.safe_dump(defaults, f, default_flow_style=False, sort_keys=False)
-    bootstrap_path.chmod(0o600)
-    return {"created": True, "path": str(bootstrap_path), "source": "generated"}
+def _echo_uninstall_details(
+    result: dict[str, Any],
+    label: str = "hooks from settings",
+) -> None:
+    """Print common uninstall result details (hooks removed, files removed)."""
+    if result["hooks_removed"]:
+        click.echo(f"Removed {len(result['hooks_removed'])} {label}")
+        for hook in result["hooks_removed"]:
+            click.echo(f"  - {hook}")
+    if result["files_removed"]:
+        click.echo(f"Removed {len(result['files_removed'])} files")
+    if not result["hooks_removed"] and not result["files_removed"]:
+        click.echo("  (no hooks found to remove)")
 
 
 def _is_claude_code_installed() -> bool:
@@ -322,57 +335,11 @@ def install(
     if is_dev_mode:
         click.echo("Mode: Development (using source directory)")
 
-    # Ensure daemon config exists
+    # Phase 1: daemon config, database, bundled content, MCP servers, IDE config
     config_result = _ensure_daemon_config()
     if config_result["created"]:
         click.echo(f"Created daemon config: {config_result['path']}")
-
-    # Initialize database (ensures _personal project exists before daemon start)
-    db = None
-    try:
-        from gobby.cli.utils import init_local_storage
-
-        db = init_local_storage()
-        click.echo("Database initialized")
-    except (OSError, PermissionError, ValueError) as e:
-        click.echo(f"Warning: Database init failed ({type(e).__name__}): {e}")
-
-    # Sync bundled content (skills, prompts, rules, agents) to database.
-    # This is the single import point — the daemon no longer syncs on startup.
-    if db is not None:
-        try:
-            from gobby.cli.installers.shared import sync_bundled_content_to_db
-
-            sync_result = sync_bundled_content_to_db(db)
-            if sync_result["total_synced"] > 0:
-                click.echo(f"Synced {sync_result['total_synced']} bundled items to database")
-            if sync_result["errors"]:
-                for err in sync_result["errors"]:
-                    click.echo(f"  Warning: {err}")
-        finally:
-            db.close()
-
-    # Install default external MCP servers (GitHub, Linear, context7)
-    mcp_result = install_default_mcp_servers()
-    if mcp_result["success"]:
-        if mcp_result["servers_added"]:
-            click.echo(f"Added MCP servers to proxy: {', '.join(mcp_result['servers_added'])}")
-        if mcp_result["servers_skipped"]:
-            click.echo(
-                f"MCP servers already configured: {', '.join(mcp_result['servers_skipped'])}"
-            )
-    else:
-        click.echo(f"Warning: Failed to configure MCP servers: {mcp_result['error']}")
-
-    # Configure VS Code terminal title (any CLI may run inside VS Code's terminal)
-    try:
-        from .installers.ide_config import configure_ide_terminal_title
-
-        vscode_result = configure_ide_terminal_title("Code")
-        if vscode_result.get("added"):
-            click.echo("Configured VS Code terminal title for tmux integration")
-    except (ImportError, OSError, PermissionError, ValueError) as e:
-        click.echo(f"Warning: Failed to configure VS Code terminal title: {e}")
+    run_daemon_setup(project_path)
 
     toggles = list(clis_to_install)
     if hooks_flag:
@@ -389,41 +356,15 @@ def install(
         click.echo("-" * 40)
         click.echo("Claude Code")
         click.echo("-" * 40)
-
         result = install_claude(project_path, mode=mode)
         results["claude"] = result
-
         if result["success"]:
-            click.echo(f"Installed {len(result['hooks_installed'])} hooks")
-            for hook in result["hooks_installed"]:
-                click.echo(f"  - {hook}")
-
-            if result.get("workflows_installed"):
-                click.echo(f"Installed {len(result['workflows_installed'])} workflows")
-                for workflow in result["workflows_installed"]:
-                    click.echo(f"  - {workflow}")
-            if result.get("agents_installed"):
-                click.echo(f"Installed {len(result['agents_installed'])} agents")
-                for agent in result["agents_installed"]:
-                    click.echo(f"  - {agent}")
-            if result.get("commands_installed"):
-                click.echo(f"Installed {len(result['commands_installed'])} skills/commands")
-                for cmd in result["commands_installed"]:
-                    click.echo(f"  - {cmd}")
-            if result.get("plugins_installed"):
-                click.echo(
-                    f"Installed {len(result['plugins_installed'])} plugins to .gobby/plugins/"
-                )
-                for plugin in result["plugins_installed"]:
-                    click.echo(f"  - {plugin}")
-            if result.get("mcp_configured"):
-                click.echo("Configured MCP server: ~/.claude.json")
-            elif result.get("mcp_already_configured"):
-                click.echo("MCP server already configured: ~/.claude.json")
-            if mode == "global":
-                click.echo("Configuration: ~/.claude/settings.json")
-            else:
-                click.echo(f"Configuration: {project_path / '.claude' / 'settings.json'}")
+            config = (
+                "~/.claude/settings.json"
+                if mode == "global"
+                else str(project_path / ".claude" / "settings.json")
+            )
+            _echo_install_details(result, mcp_config_path="~/.claude.json", config_path=config)
         else:
             click.echo(f"Failed: {result['error']}", err=True)
         click.echo("")
@@ -433,41 +374,17 @@ def install(
         click.echo("-" * 40)
         click.echo("Gemini CLI")
         click.echo("-" * 40)
-
         result = install_gemini(project_path, mode=mode)
         results["gemini"] = result
-
         if result["success"]:
-            click.echo(f"Installed {len(result['hooks_installed'])} hooks")
-            for hook in result["hooks_installed"]:
-                click.echo(f"  - {hook}")
-
-            if result.get("workflows_installed"):
-                click.echo(f"Installed {len(result['workflows_installed'])} workflows")
-                for workflow in result["workflows_installed"]:
-                    click.echo(f"  - {workflow}")
-            if result.get("agents_installed"):
-                click.echo(f"Installed {len(result['agents_installed'])} agents")
-                for agent in result["agents_installed"]:
-                    click.echo(f"  - {agent}")
-            if result.get("commands_installed"):
-                click.echo(f"Installed {len(result['commands_installed'])} skills/commands")
-                for cmd in result["commands_installed"]:
-                    click.echo(f"  - {cmd}")
-            if result.get("plugins_installed"):
-                click.echo(
-                    f"Installed {len(result['plugins_installed'])} plugins to .gobby/plugins/"
-                )
-                for plugin in result["plugins_installed"]:
-                    click.echo(f"  - {plugin}")
-            if result.get("mcp_configured"):
-                click.echo("Configured MCP server: ~/.gemini/settings.json")
-            elif result.get("mcp_already_configured"):
-                click.echo("MCP server already configured: ~/.gemini/settings.json")
-            if mode == "global":
-                click.echo("Configuration: ~/.gemini/settings.json")
-            else:
-                click.echo(f"Configuration: {project_path / '.gemini' / 'settings.json'}")
+            config = (
+                "~/.gemini/settings.json"
+                if mode == "global"
+                else str(project_path / ".gemini" / "settings.json")
+            )
+            _echo_install_details(
+                result, mcp_config_path="~/.gemini/settings.json", config_path=config
+            )
         else:
             click.echo(f"Failed: {result['error']}", err=True)
         click.echo("")
@@ -523,20 +440,15 @@ def install(
         click.echo("-" * 40)
         click.echo("Cursor")
         click.echo("-" * 40)
-
         result = install_cursor(project_path, mode=mode)
         results["cursor"] = result
-
         if result["success"]:
-            click.echo(f"Installed {len(result['hooks_installed'])} hooks")
-            for hook in result["hooks_installed"]:
-                click.echo(f"  - {hook}")
-            if result.get("workflows_installed"):
-                click.echo(f"Installed {len(result['workflows_installed'])} workflows")
-            if mode == "global":
-                click.echo("Configuration: ~/.cursor/hooks.json")
-            else:
-                click.echo(f"Configuration: {project_path / '.cursor' / 'hooks.json'}")
+            config = (
+                "~/.cursor/hooks.json"
+                if mode == "global"
+                else str(project_path / ".cursor" / "hooks.json")
+            )
+            _echo_install_details(result, config_path=config)
         else:
             click.echo(f"Failed: {result['error']}", err=True)
         click.echo("")
@@ -546,20 +458,15 @@ def install(
         click.echo("-" * 40)
         click.echo("Windsurf (Cascade)")
         click.echo("-" * 40)
-
         result = install_windsurf(project_path, mode=mode)
         results["windsurf"] = result
-
         if result["success"]:
-            click.echo(f"Installed {len(result['hooks_installed'])} hooks")
-            for hook in result["hooks_installed"]:
-                click.echo(f"  - {hook}")
-            if result.get("workflows_installed"):
-                click.echo(f"Installed {len(result['workflows_installed'])} workflows")
-            if mode == "global":
-                click.echo("Configuration: ~/.codeium/windsurf/hooks.json")
-            else:
-                click.echo(f"Configuration: {project_path / '.windsurf' / 'hooks.json'}")
+            config = (
+                "~/.codeium/windsurf/hooks.json"
+                if mode == "global"
+                else str(project_path / ".windsurf" / "hooks.json")
+            )
+            _echo_install_details(result, config_path=config)
         else:
             click.echo(f"Failed: {result['error']}", err=True)
         click.echo("")
@@ -569,19 +476,12 @@ def install(
         click.echo("-" * 40)
         click.echo("GitHub Copilot CLI")
         click.echo("-" * 40)
-
         result = install_copilot(project_path, mode=mode)
         results["copilot"] = result
-
         if result.get("skipped"):
             click.echo(f"Skipped: {result['skip_reason']}")
         elif result["success"]:
-            click.echo(f"Installed {len(result['hooks_installed'])} hooks")
-            for hook in result["hooks_installed"]:
-                click.echo(f"  - {hook}")
-            if result.get("workflows_installed"):
-                click.echo(f"Installed {len(result['workflows_installed'])} workflows")
-            click.echo(f"Configuration: {project_path / '.copilot' / 'hooks.json'}")
+            _echo_install_details(result, config_path=str(project_path / ".copilot" / "hooks.json"))
         else:
             click.echo(f"Failed: {result['error']}", err=True)
         click.echo("")
@@ -611,43 +511,18 @@ def install(
         click.echo("")
 
     # Install Antigravity hooks
-    # Note: Antigravity is an internal configuration, so we treat it similarly to Gemini
     if "antigravity" in clis_to_install:
         click.echo("-" * 40)
         click.echo("Antigravity Agent")
         click.echo("-" * 40)
-
         result = install_antigravity(project_path)
         results["antigravity"] = result
-
         if result["success"]:
-            click.echo(f"Installed {len(result['hooks_installed'])} hooks")
-            for hook in result["hooks_installed"]:
-                click.echo(f"  - {hook}")
-
-            if result.get("workflows_installed"):
-                click.echo(f"Installed {len(result['workflows_installed'])} workflows")
-                for workflow in result["workflows_installed"]:
-                    click.echo(f"  - {workflow}")
-            if result.get("agents_installed"):
-                click.echo(f"Installed {len(result['agents_installed'])} agents")
-                for agent in result["agents_installed"]:
-                    click.echo(f"  - {agent}")
-            if result.get("commands_installed"):
-                click.echo(f"Installed {len(result['commands_installed'])} skills/commands")
-                for cmd in result["commands_installed"]:
-                    click.echo(f"  - {cmd}")
-            if result.get("plugins_installed"):
-                click.echo(
-                    f"Installed {len(result['plugins_installed'])} plugins to .gobby/plugins/"
-                )
-                for plugin in result["plugins_installed"]:
-                    click.echo(f"  - {plugin}")
-            if result.get("mcp_configured"):
-                click.echo("Configured MCP server: ~/.gemini/antigravity/mcp_config.json")
-            elif result.get("mcp_already_configured"):
-                click.echo("MCP server already configured: ~/.gemini/antigravity/mcp_config.json")
-            click.echo(f"Configuration: {project_path / '.antigravity' / 'settings.json'}")
+            _echo_install_details(
+                result,
+                mcp_config_path="~/.gemini/antigravity/mcp_config.json",
+                config_path=str(project_path / ".antigravity" / "settings.json"),
+            )
         else:
             click.echo(f"Failed: {result['error']}", err=True)
         click.echo("")
@@ -930,20 +805,10 @@ def uninstall(
         click.echo("-" * 40)
         click.echo("Claude Code")
         click.echo("-" * 40)
-
         result = uninstall_claude(uninstall_base)
         results["claude"] = result
-
         if result["success"]:
-            if result["hooks_removed"]:
-                click.echo(f"Removed {len(result['hooks_removed'])} hooks from settings")
-                for hook in result["hooks_removed"]:
-                    click.echo(f"  - {hook}")
-            if result["files_removed"]:
-                click.echo(f"Removed {len(result['files_removed'])} files")
-
-            if not result["hooks_removed"] and not result["files_removed"]:
-                click.echo("  (no hooks found to remove)")
+            _echo_uninstall_details(result)
         else:
             click.echo(f"Failed: {result['error']}", err=True)
         click.echo("")
@@ -953,19 +818,10 @@ def uninstall(
         click.echo("-" * 40)
         click.echo("Gemini CLI")
         click.echo("-" * 40)
-
         result = uninstall_gemini(uninstall_base)
         results["gemini"] = result
-
         if result["success"]:
-            if result["hooks_removed"]:
-                click.echo(f"Removed {len(result['hooks_removed'])} hooks from settings")
-                for hook in result["hooks_removed"]:
-                    click.echo(f"  - {hook}")
-            if result["files_removed"]:
-                click.echo(f"Removed {len(result['files_removed'])} files")
-            if not result["hooks_removed"] and not result["files_removed"]:
-                click.echo("  (no hooks found to remove)")
+            _echo_uninstall_details(result)
         else:
             click.echo(f"Failed: {result['error']}", err=True)
         click.echo("")
@@ -997,19 +853,10 @@ def uninstall(
         click.echo("-" * 40)
         click.echo("Cursor")
         click.echo("-" * 40)
-
         result = uninstall_cursor(uninstall_base)
         results["cursor"] = result
-
         if result["success"]:
-            if result["hooks_removed"]:
-                click.echo(f"Removed {len(result['hooks_removed'])} hooks from hooks.json")
-                for hook in result["hooks_removed"]:
-                    click.echo(f"  - {hook}")
-            if result["files_removed"]:
-                click.echo(f"Removed {len(result['files_removed'])} files")
-            if not result["hooks_removed"] and not result["files_removed"]:
-                click.echo("  (no hooks found to remove)")
+            _echo_uninstall_details(result, label="hooks from hooks.json")
         else:
             click.echo(f"Failed: {result['error']}", err=True)
         click.echo("")
@@ -1019,20 +866,11 @@ def uninstall(
         click.echo("-" * 40)
         click.echo("Windsurf")
         click.echo("-" * 40)
-
         uninstall_mode = "project" if project_flag else "global"
         result = uninstall_windsurf(project_path, mode=uninstall_mode)
         results["windsurf"] = result
-
         if result["success"]:
-            if result["hooks_removed"]:
-                click.echo(f"Removed {len(result['hooks_removed'])} hooks from hooks.json")
-                for hook in result["hooks_removed"]:
-                    click.echo(f"  - {hook}")
-            if result["files_removed"]:
-                click.echo(f"Removed {len(result['files_removed'])} files")
-            if not result["hooks_removed"] and not result["files_removed"]:
-                click.echo("  (no hooks found to remove)")
+            _echo_uninstall_details(result, label="hooks from hooks.json")
         else:
             click.echo(f"Failed: {result['error']}", err=True)
         click.echo("")
@@ -1042,20 +880,10 @@ def uninstall(
         click.echo("-" * 40)
         click.echo("Copilot CLI")
         click.echo("-" * 40)
-
-        # Copilot is always per-project (no global hook support)
         result = uninstall_copilot(project_path)
         results["copilot"] = result
-
         if result["success"]:
-            if result["hooks_removed"]:
-                click.echo(f"Removed {len(result['hooks_removed'])} hooks from hooks.json")
-                for hook in result["hooks_removed"]:
-                    click.echo(f"  - {hook}")
-            if result["files_removed"]:
-                click.echo(f"Removed {len(result['files_removed'])} files")
-            if not result["hooks_removed"] and not result["files_removed"]:
-                click.echo("  (no hooks found to remove)")
+            _echo_uninstall_details(result, label="hooks from hooks.json")
         else:
             click.echo(f"Failed: {result['error']}", err=True)
         click.echo("")

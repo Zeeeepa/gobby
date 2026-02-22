@@ -25,6 +25,7 @@ from gobby.servers.websocket.broadcast import BroadcastMixin
 from gobby.servers.websocket.chat import ChatMixin
 from gobby.servers.websocket.handlers import HandlerMixin
 from gobby.servers.websocket.models import WebSocketConfig
+from gobby.servers.websocket.session_control import SessionControlMixin
 from gobby.servers.websocket.tmux import TmuxMixin
 from gobby.servers.websocket.voice import VoiceMixin
 
@@ -36,7 +37,9 @@ if TYPE_CHECKING:
     from gobby.storage.sessions import LocalSessionManager
 
 
-class WebSocketServer(VoiceMixin, TmuxMixin, ChatMixin, HandlerMixin, AuthMixin, BroadcastMixin):
+class WebSocketServer(
+    VoiceMixin, TmuxMixin, SessionControlMixin, ChatMixin, HandlerMixin, AuthMixin, BroadcastMixin
+):
     """
     WebSocket server for real-time communication.
 
@@ -97,6 +100,12 @@ class WebSocketServer(VoiceMixin, TmuxMixin, ChatMixin, HandlerMixin, AuthMixin,
 
         # Active chat streaming tasks per conversation_id (for cancellation)
         self._active_chat_tasks: dict[str, asyncio.Task[None]] = {}
+
+        # Pending chat modes queued before session creation
+        self._pending_modes: dict[str, str] = {}
+
+        # Pending worktree path overrides queued before session creation
+        self._pending_worktree_paths: dict[str, str] = {}
 
         # Dispatch table for message routing (lazily populated in _handle_message)
         self._dispatch_table: dict[str, Callable[..., Coroutine[Any, Any, None]]] = {}
@@ -228,6 +237,7 @@ class WebSocketServer(VoiceMixin, TmuxMixin, ChatMixin, HandlerMixin, AuthMixin,
                 "set_mode": self._handle_set_mode,
                 "plan_approval_response": self._handle_plan_approval_response,
                 "set_project": self._handle_set_project,
+                "set_worktree": self._handle_set_worktree,
                 "continue_in_chat": self._handle_continue_in_chat,
                 "voice_audio": self._handle_voice_audio,
                 "voice_mode_toggle": self._handle_voice_mode_toggle,

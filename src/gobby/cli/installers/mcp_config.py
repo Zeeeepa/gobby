@@ -544,6 +544,23 @@ def install_default_mcp_servers() -> dict[str, Any]:
     # Get existing server names
     existing_names = {s.get("name") for s in existing_config["servers"]}
 
+    # Repair misconfigured servers: reconcile transport/command/args with defaults
+    servers_repaired: list[str] = []
+    default_by_name = {s["name"]: s for s in DEFAULT_MCP_SERVERS}
+    for existing_server in existing_config["servers"]:
+        name = existing_server.get("name")
+        default = default_by_name.get(name) if name else None
+        if not default:
+            continue
+        # Check if transport diverged from the canonical default
+        if existing_server.get("transport") != default["transport"]:
+            existing_server["transport"] = default["transport"]
+            existing_server["command"] = default.get("command")
+            existing_server["args"] = list(default.get("args") or [])
+            existing_server.pop("url", None)
+            servers_repaired.append(name)
+    result["servers_repaired"] = servers_repaired
+
     # Add default servers if not already present
     for server in DEFAULT_MCP_SERVERS:
         if server["name"] in existing_names:
@@ -569,8 +586,8 @@ def install_default_mcp_servers() -> dict[str, Any]:
             )
             result["servers_added"].append(server["name"])
 
-    # Write updated config if any servers were added
-    if result["servers_added"]:
+    # Write updated config if any servers were added or repaired
+    if result["servers_added"] or servers_repaired:
         try:
             with open(mcp_config_path, "w") as f:
                 json.dump(existing_config, f, indent=2)
@@ -579,6 +596,9 @@ def install_default_mcp_servers() -> dict[str, Any]:
         except OSError as e:
             result["error"] = f"Failed to write MCP config: {e}"
             return result
+
+    if servers_repaired:
+        logger.info(f"Repaired MCP server configs: {', '.join(servers_repaired)}")
 
     # Sync .mcp.json to database so the daemon proxy can serve them
     try:

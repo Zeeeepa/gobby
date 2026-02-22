@@ -178,6 +178,15 @@ class VectorStore:
         count: int = result.count
         return count
 
+    def count_sync(self) -> int:
+        """Return the number of points in the collection (synchronous).
+
+        Safe to call from sync code running inside an async event loop.
+        """
+        client = self._ensure_client()
+        result = client.count(collection_name=self._collection_name)
+        return result.count
+
     async def rebuild(
         self,
         memories: list[dict[str, Any]],
