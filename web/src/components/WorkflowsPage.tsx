@@ -9,27 +9,15 @@ import { RulesTab } from './RulesTab'
 import { AgentDefinitionsPage } from './AgentDefinitionsPage'
 import './WorkflowsPage.css'
 
-type ActiveTab = 'rules' | 'transitions' | 'pipelines' | 'agents'
+type ActiveTab = 'pipelines' | 'agents' | 'rules'
 type SourceFilter = string | null
 type EnabledFilter = boolean | null
 
 const TABS = [
-  { id: 'rules', label: 'Rules' },
-  { id: 'transitions', label: 'Transitions' },
   { id: 'pipelines', label: 'Pipelines' },
   { id: 'agents', label: 'Agents' },
+  { id: 'rules', label: 'Rules' },
 ]
-
-const SCAFFOLD_WORKFLOW = JSON.stringify(
-  {
-    name: '',
-    description: '',
-    version: '1.0',
-    steps: [{ name: 'work', allowed_tools: 'all' }],
-  },
-  null,
-  2,
-)
 
 const SCAFFOLD_PIPELINE = JSON.stringify(
   {
@@ -57,12 +45,11 @@ export function WorkflowsPage() {
     restoreWorkflow,
   } = useWorkflows()
 
-  const [activeTab, setActiveTab] = useState<ActiveTab>('rules')
+  const [activeTab, setActiveTab] = useState<ActiveTab>('pipelines')
   const [searchText, setSearchText] = useState('')
   const [sourceFilter, setSourceFilter] = useState<SourceFilter>(null)
   const [enabledFilter, setEnabledFilter] = useState<EnabledFilter>(null)
   const [showCreateModal, setShowCreateModal] = useState(false)
-  const [createType, setCreateType] = useState<'workflow' | 'pipeline'>('workflow')
   const [showImportModal, setShowImportModal] = useState(false)
   const [editingWorkflow, setEditingWorkflow] = useState<WorkflowDetail | null>(null)
   const [yamlEditorWf, setYamlEditorWf] = useState<WorkflowDetail | null>(null)
@@ -82,9 +69,7 @@ export function WorkflowsPage() {
     let result = workflows
 
     // Tab-level type filter
-    if (activeTab === 'transitions') {
-      result = result.filter(w => w.workflow_type === 'workflow')
-    } else if (activeTab === 'pipelines') {
+    if (activeTab === 'pipelines') {
       result = result.filter(w => w.workflow_type === 'pipeline')
     }
 
@@ -218,12 +203,12 @@ export function WorkflowsPage() {
           <h2 className="workflows-toolbar-title">Workflows</h2>
         </div>
         <div className="workflows-toolbar-right">
-          {(activeTab === 'transitions' || activeTab === 'pipelines') && (
+          {activeTab === 'pipelines' && (
             <>
               <input
                 className="workflows-search"
                 type="text"
-                placeholder={`Search ${activeTab}...`}
+                placeholder="Search pipelines..."
                 value={searchText}
                 onChange={e => setSearchText(e.target.value)}
               />
@@ -251,24 +236,13 @@ export function WorkflowsPage() {
               >
                 Import
               </button>
-              {activeTab === 'transitions' && (
-                <button
-                  type="button"
-                  className="workflows-new-btn"
-                  onClick={() => { setCreateType('workflow'); setShowCreateModal(true) }}
-                >
-                  + Workflow
-                </button>
-              )}
-              {activeTab === 'pipelines' && (
-                <button
-                  type="button"
-                  className="workflows-new-btn"
-                  onClick={() => { setCreateType('pipeline'); setShowCreateModal(true) }}
-                >
-                  + Pipeline
-                </button>
-              )}
+              <button
+                type="button"
+                className="workflows-new-btn"
+                onClick={() => setShowCreateModal(true)}
+              >
+                + Pipeline
+              </button>
             </>
           )}
         </div>
@@ -284,8 +258,8 @@ export function WorkflowsPage() {
       {/* Rules tab */}
       {activeTab === 'rules' && <RulesTab />}
 
-      {/* Transitions / Pipelines tabs - existing workflow content */}
-      {(activeTab === 'transitions' || activeTab === 'pipelines') && (
+      {/* Pipelines tab */}
+      {activeTab === 'pipelines' && (
         <>
           {/* Filter chips */}
           <div className="workflows-filter-bar">
@@ -455,7 +429,6 @@ export function WorkflowsPage() {
       {/* Create modal */}
       {showCreateModal && (
         <CreateModal
-          type={createType}
           onClose={() => setShowCreateModal(false)}
           onCreate={createWorkflow}
         />
@@ -484,8 +457,7 @@ export function WorkflowsPage() {
   )
 }
 
-function CreateModal({ type, onClose, onCreate }: {
-  type: 'workflow' | 'pipeline'
+function CreateModal({ onClose, onCreate }: {
   onClose: () => void
   onCreate: (params: {
     name: string
@@ -497,8 +469,7 @@ function CreateModal({ type, onClose, onCreate }: {
 }) {
   const [name, setName] = useState('')
   const [description, setDescription] = useState('')
-  const scaffold = type === 'pipeline' ? SCAFFOLD_PIPELINE : SCAFFOLD_WORKFLOW
-  const [definitionJson, setDefinitionJson] = useState(scaffold)
+  const [definitionJson, setDefinitionJson] = useState(SCAFFOLD_PIPELINE)
   const [submitting, setSubmitting] = useState(false)
 
   const handleSubmit = async () => {
@@ -512,7 +483,7 @@ function CreateModal({ type, onClose, onCreate }: {
       await onCreate({
         name: name.trim(),
         definition_json: JSON.stringify(data),
-        workflow_type: type,
+        workflow_type: 'pipeline',
         description: description.trim() || undefined,
       })
       onClose()
@@ -526,14 +497,14 @@ function CreateModal({ type, onClose, onCreate }: {
   return (
     <div className="workflows-modal-overlay" onClick={onClose}>
       <div className="workflows-modal" onClick={e => e.stopPropagation()}>
-        <h3>New {type === 'pipeline' ? 'Pipeline' : 'Workflow'}</h3>
+        <h3>New Pipeline</h3>
         <div className="workflows-modal-field">
           <label>Name</label>
           <input
             type="text"
             value={name}
             onChange={e => setName(e.target.value)}
-            placeholder={`my-${type}`}
+            placeholder="my-pipeline"
             autoFocus
           />
         </div>
