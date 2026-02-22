@@ -268,7 +268,7 @@ def sync_bundled_rules(
 
     manager = LocalWorkflowDefinitionManager(db)
 
-    for yaml_file in sorted(rules_path.glob("*.yaml")):
+    for yaml_file in sorted(rules_path.rglob("*.yaml")):
         try:
             raw_content = yaml_file.read_text(encoding="utf-8")
             data = yaml.safe_load(raw_content)
