@@ -11,6 +11,7 @@ Provides P2P messaging and command coordination between sessions:
 from __future__ import annotations
 
 import logging
+from collections.abc import Callable, Coroutine
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Any
 
@@ -22,6 +23,9 @@ if TYPE_CHECKING:
     from gobby.storage.sessions import LocalSessionManager
     from gobby.workflows.state_manager import SessionVariableManager
 
+# Type alias for the broadcast callback
+BroadcastFn = Callable[..., Coroutine[Any, Any, None]]
+
 logger = logging.getLogger(__name__)
 
 
@@ -32,6 +36,7 @@ def add_messaging_tools(
     command_manager: AgentCommandManager,
     session_var_manager: SessionVariableManager,
     db: DatabaseProtocol,
+    broadcast_fn: BroadcastFn | None = None,
 ) -> None:
     """Add inter-agent messaging and command tools to a registry.
 
@@ -42,6 +47,8 @@ def add_messaging_tools(
         command_manager: For managing agent commands
         session_var_manager: For setting/clearing session variables
         db: Database for direct queries (agent_runs)
+        broadcast_fn: Optional async callback for WebSocket broadcasts.
+            Called with (msg_type=, event=, **kwargs) on successful operations.
     """
 
     def _resolve(ref: str) -> str:
@@ -115,6 +122,18 @@ def add_messaging_tools(
                 except Exception as e:
                     logger.warning("Failed to write to agent_runs.result: %s", e)
 
+            # Broadcast agent_message event
+            if broadcast_fn:
+                try:
+                    await broadcast_fn(
+                        msg_type="agent_message",
+                        event="message_sent",
+                        from_session=from_id,
+                        to_session=to_id,
+                    )
+                except Exception as e:
+                    logger.warning("Failed to broadcast agent_message: %s", e)
+
             return {"success": True, "message": msg.to_dict()}
 
         except Exception as e:
@@ -172,6 +191,19 @@ def add_messaging_tools(
                 exit_condition=exit_condition,
             )
 
+            # Broadcast agent_command event
+            if broadcast_fn:
+                try:
+                    await broadcast_fn(
+                        msg_type="agent_command",
+                        event="command_sent",
+                        from_session=from_id,
+                        to_session=to_id,
+                        command_id=cmd.id,
+                    )
+                except Exception as e:
+                    logger.warning("Failed to broadcast agent_command: %s", e)
+
             return {"success": True, "command": cmd.to_dict()}
 
         except Exception as e:
@@ -218,6 +250,19 @@ def add_messaging_tools(
                 priority="normal",
                 message_type="command_result",
             )
+
+            # Broadcast agent_command event
+            if broadcast_fn:
+                try:
+                    await broadcast_fn(
+                        msg_type="agent_command",
+                        event="command_completed",
+                        from_session=resolved_id,
+                        to_session=cmd.from_session,
+                        command_id=command_id,
+                    )
+                except Exception as e:
+                    logger.warning("Failed to broadcast agent_command: %s", e)
 
             return {"success": True, "command_id": command_id, "status": "completed"}
 
