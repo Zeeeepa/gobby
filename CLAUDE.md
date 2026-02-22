@@ -72,6 +72,7 @@ uv run mypy src/                 # Type check
 # Testing (full suite runs pre-push - only run specific tests)
 uv run pytest tests/test_file.py -v    # Run specific test file
 uv run pytest tests/storage/ -v        # Run specific module
+uv run pytest tests/path/ --cov=gobby --cov-report=term-missing  # Add coverage to any run
 
 # Pipeline management
 uv run gobby pipelines list            # List available pipelines
@@ -83,7 +84,7 @@ uv run gobby pipelines reject <token>  # Reject waiting pipeline
 uv run gobby pipelines import <file>   # Import Lobster file
 ```
 
-**Coverage threshold**: 80% (enforced in CI)
+**Coverage threshold**: 80% (enforced in CI and pre-push)
 
 **Test markers**: `unit`, `slow`, `integration`, `e2e`
 

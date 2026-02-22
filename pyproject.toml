@@ -91,14 +91,11 @@ python_files = ["test_*.py"]
 python_classes = ["Test*"]
 python_functions = ["test_*"]
 addopts = [
-    "--cov=gobby",
-    "--cov-report=term-missing",
-    "--cov-report=html",
     "-v",
     "-p", "no:faulthandler",  # Disable faulthandler - gitingest closes FDs during logging config
 ]
-# Note: --cov-fail-under=80 is enforced in CI via the test command
-# To run locally with coverage threshold: uv run pytest --cov-fail-under=80
+# Coverage is enabled explicitly in CI and pre-push scripts, not here.
+# To run locally with coverage: uv run pytest --cov=gobby --cov-report=term-missing --cov-fail-under=80
 markers = [
     "unit: marks tests as fast unit tests",
     "slow: marks tests as slow (deselect with '-m \"not slow\"')",

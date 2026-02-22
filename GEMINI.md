@@ -32,9 +32,10 @@ uv run mypy src/                 # Type check
 # Testing (run specific tests, not full suite)
 uv run pytest tests/test_file.py -v    # Run specific test file
 uv run pytest tests/storage/ -v        # Run specific module
+uv run pytest tests/path/ --cov=gobby --cov-report=term-missing  # Add coverage to any run
 ```
 
-**Coverage threshold**: 80% (enforced in CI)
+**Coverage threshold**: 80% (enforced in CI and pre-push)
 
 **Test markers**: `unit`, `slow`, `integration`, `e2e`
 
