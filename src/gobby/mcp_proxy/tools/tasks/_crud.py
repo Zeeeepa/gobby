@@ -185,7 +185,7 @@ def create_crud_registry(ctx: RegistryContext) -> InternalToolRegistry:
                     resolved_blocked = resolve_task_id_for_mcp(
                         ctx.task_manager, blocked_id, project_id
                     )
-                    ctx.dep_manager.add_dependency(task.id, resolved_blocked, "blocks")
+                    ctx.dep_manager.add_dependency(resolved_blocked, task.id, "blocks")
                 except TaskNotFoundError:
                     dependency_errors.append(f"Task '{blocked_id}' not found (blocks)")
                 except ValueError as e:
@@ -201,7 +201,7 @@ def create_crud_registry(ctx: RegistryContext) -> InternalToolRegistry:
                     resolved_blocker = resolve_task_id_for_mcp(
                         ctx.task_manager, blocker_ref, project_id
                     )
-                    ctx.dep_manager.add_dependency(resolved_blocker, task.id, "blocks")
+                    ctx.dep_manager.add_dependency(task.id, resolved_blocker, "blocks")
                 except TaskNotFoundError:
                     dependency_errors.append(f"Task '{blocker_ref}' not found")
                 except ValueError as e:

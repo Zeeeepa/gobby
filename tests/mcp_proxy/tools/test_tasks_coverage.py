@@ -242,13 +242,13 @@ class TestCreateTaskTool:
                 # Verify dependencies were added
                 assert mock_dep_instance.add_dependency.call_count == 2
                 mock_dep_instance.add_dependency.assert_any_call(
-                    "550e8400-e29b-41d4-a716-446655440002",
                     "550e8400-e29b-41d4-a716-446655440003",
+                    "550e8400-e29b-41d4-a716-446655440002",
                     "blocks",
                 )
                 mock_dep_instance.add_dependency.assert_any_call(
-                    "550e8400-e29b-41d4-a716-446655440002",
                     "550e8400-e29b-41d4-a716-446655440004",
+                    "550e8400-e29b-41d4-a716-446655440002",
                     "blocks",
                 )
 
@@ -289,13 +289,13 @@ class TestCreateTaskTool:
                     # Verify dependencies were added (blocker blocks the new task)
                     assert mock_dep_instance.add_dependency.call_count == 2
                     mock_dep_instance.add_dependency.assert_any_call(
-                        "blocker-1",
                         "550e8400-e29b-41d4-a716-446655440010",
+                        "blocker-1",
                         "blocks",
                     )
                     mock_dep_instance.add_dependency.assert_any_call(
-                        "blocker-2",
                         "550e8400-e29b-41d4-a716-446655440010",
+                        "blocker-2",
                         "blocks",
                     )
 
