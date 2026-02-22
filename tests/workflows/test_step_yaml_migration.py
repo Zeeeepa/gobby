@@ -9,7 +9,6 @@ from gobby.workflows.loader import WorkflowLoader
 pytestmark = pytest.mark.unit
 
 STEP_WORKFLOWS = [
-    "auto-task",
     "developer",
     "generic",
     "code-review",
@@ -66,19 +65,3 @@ class TestDeveloperWorkflowPriority:
         assert definition.priority == 20
 
 
-class TestAutoTaskVariableScoping:
-    """auto-task.yaml should have correctly scoped variables."""
-
-    @pytest.mark.asyncio
-    async def test_session_task_in_session_variables(self, db_loader: WorkflowLoader) -> None:
-        """session_task should be in session_variables (shared across workflows)."""
-        definition = await db_loader.load_workflow("auto-task")
-        assert definition is not None
-        assert "session_task" in definition.session_variables
-
-    @pytest.mark.asyncio
-    async def test_premature_stop_max_in_variables(self, db_loader: WorkflowLoader) -> None:
-        """premature_stop_max_attempts should be in variables (workflow-scoped)."""
-        definition = await db_loader.load_workflow("auto-task")
-        assert definition is not None
-        assert "premature_stop_max_attempts" in definition.variables

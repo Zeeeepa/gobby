@@ -1726,8 +1726,7 @@ def test_workflow_definitions_bundled_import(tmp_path) -> None:
 
     # Check that well-known workflows are present
     names = {row["name"] for row in rows}
-    assert "auto-task" in names, "auto-task workflow not imported"
-    assert "session-lifecycle" in names, "session-lifecycle workflow not imported"
+    assert "developer" in names, "developer workflow not imported"
 
 
 def test_workflow_definitions_type_mapping(tmp_path) -> None:
@@ -1745,10 +1744,10 @@ def test_workflow_definitions_type_mapping(tmp_path) -> None:
     if row:
         assert row["workflow_type"] == "pipeline", "coordinator should be pipeline type"
 
-    # auto-task has no explicit type -> should be 'workflow'
-    row = db.fetchone("SELECT workflow_type FROM workflow_definitions WHERE name = 'auto-task'")
+    # developer has no explicit type -> should be 'workflow'
+    row = db.fetchone("SELECT workflow_type FROM workflow_definitions WHERE name = 'developer'")
     if row:
-        assert row["workflow_type"] == "workflow", "auto-task should be workflow type"
+        assert row["workflow_type"] == "workflow", "developer should be workflow type"
 
 
 def test_workflow_definitions_definition_json_populated(tmp_path) -> None:
@@ -1760,14 +1759,14 @@ def test_workflow_definitions_definition_json_populated(tmp_path) -> None:
 
     run_migrations(db)
 
-    row = db.fetchone("SELECT definition_json FROM workflow_definitions WHERE name = 'auto-task'")
-    assert row is not None, "auto-task not found"
+    row = db.fetchone("SELECT definition_json FROM workflow_definitions WHERE name = 'developer'")
+    assert row is not None, "developer not found"
     assert row["definition_json"] is not None, "definition_json is NULL"
 
     # Should be valid JSON
     parsed = json.loads(row["definition_json"])
     assert isinstance(parsed, dict)
-    assert parsed.get("name") == "auto-task"
+    assert parsed.get("name") == "developer"
 
 
 def test_workflow_definitions_insert_or_ignore_idempotent(tmp_path) -> None:

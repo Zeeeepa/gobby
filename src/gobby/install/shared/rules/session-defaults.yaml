@@ -1,6 +1,13 @@
 # Session variable defaults.
 # Loaded at session start to initialize session-scoped variables.
 # These values are only set if the variable is not already set.
+#
+# Enforcement variables (previously in session-lifecycle.yaml workflow):
+# - require_task_before_edit: Block file writes without an active task
+# - require_commit_before_close: Block close_task without linked commits
+# - require_uv: Block naked python3/pip commands (require uv)
+# - enforce_tool_schema_check: Require get_tool_schema before call_tool
+# - max_stop_attempts: Escape hatch after N blocked stop attempts
 
 session_variables:
   chat_mode: bypass
@@ -10,3 +17,8 @@ session_variables:
   listed_servers: []
   pre_existing_errors_triaged: false
   stop_attempts: 0
+  require_task_before_edit: true
+  require_commit_before_close: true
+  require_uv: true
+  enforce_tool_schema_check: true
+  max_stop_attempts: 3
