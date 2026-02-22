@@ -1,6 +1,6 @@
 """Tests for updated maintenance.py — no decay, Qdrant stats."""
 
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import MagicMock
 
 import pytest
 
@@ -41,7 +41,7 @@ class TestGetStatsVectorCount:
         storage = _make_storage([_make_memory()])
         db = MagicMock()
         vector_store = MagicMock()
-        vector_store.count = AsyncMock(return_value=42)
+        vector_store.count_sync = MagicMock(return_value=42)
 
         stats = get_stats(storage, db, project_id=None, vector_store=vector_store)
 
@@ -61,7 +61,7 @@ class TestGetStatsVectorCount:
         storage = _make_storage([_make_memory()])
         db = MagicMock()
         vector_store = MagicMock()
-        vector_store.count = AsyncMock(side_effect=Exception("Qdrant down"))
+        vector_store.count_sync = MagicMock(side_effect=Exception("Qdrant down"))
 
         stats = get_stats(storage, db, project_id=None, vector_store=vector_store)
 

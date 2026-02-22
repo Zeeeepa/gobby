@@ -5,7 +5,6 @@ Extracted from manager.py as part of Strangler Fig decomposition (Wave 2).
 
 from __future__ import annotations
 
-import asyncio
 import logging
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Any
@@ -55,19 +54,12 @@ def get_stats(
         "project_id": project_id,
     }
 
-    # Vector store count
+    # Vector store count — use sync Qdrant client to avoid async issues
     if vector_store is not None:
         try:
-            asyncio.get_running_loop()
-            # Already in async context — asyncio.run() would raise and
-            # leave the coroutine unawaited, spamming RuntimeWarnings.
+            stats["vector_count"] = vector_store.count_sync()
+        except Exception:
             stats["vector_count"] = -1
-        except RuntimeError:
-            # No event loop running (e.g. CLI) — safe to use asyncio.run
-            try:
-                stats["vector_count"] = asyncio.run(vector_store.count())
-            except Exception:
-                stats["vector_count"] = -1
 
     return stats
 
