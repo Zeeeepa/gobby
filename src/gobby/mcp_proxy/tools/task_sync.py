@@ -12,6 +12,7 @@ Provides tools for task synchronization and commit linking:
 Extracted from tasks.py using Strangler Fig pattern for code decomposition.
 """
 
+import asyncio
 from collections.abc import Callable
 from typing import TYPE_CHECKING, Any
 
@@ -39,6 +40,7 @@ def create_sync_registry(
     project_manager: "LocalProjectManager | None" = None,
     auto_link_commits_fn: Callable[..., Any] | None = None,
     get_task_diff_fn: Callable[..., Any] | None = None,
+    session_manager: Any | None = None,
 ) -> InternalToolRegistry:
     """
     Create a registry with task sync and commit linking tools.
@@ -345,5 +347,53 @@ def create_sync_registry(
         },
         func=get_task_diff_tool,
     )
+
+    # ─── Async sync tools (thin wrappers around workflow actions) ───
+
+    @registry.tool(
+        name="sync_import",
+        description="Import tasks from .gobby/tasks.jsonl into the database.",
+    )
+    async def sync_import_tool(session_id: str) -> dict[str, Any]:
+        """
+        Import tasks from JSONL file using session for project resolution.
+
+        Args:
+            session_id: Session ID for project-scoped sync
+        """
+        if not session_manager:
+            return {"success": False, "error": "Session manager not available"}
+        try:
+            project_id = None
+            session = await asyncio.to_thread(session_manager.get, session_id)
+            if session:
+                project_id = session.project_id
+            await asyncio.to_thread(sync_manager.import_from_jsonl, project_id=project_id)
+            return {"success": True, "imported": True}
+        except Exception as e:
+            return {"success": False, "error": str(e)}
+
+    @registry.tool(
+        name="sync_export",
+        description="Export tasks from the database to .gobby/tasks.jsonl.",
+    )
+    async def sync_export_tool(session_id: str) -> dict[str, Any]:
+        """
+        Export tasks to JSONL file using session for project resolution.
+
+        Args:
+            session_id: Session ID for project-scoped sync
+        """
+        if not session_manager:
+            return {"success": False, "error": "Session manager not available"}
+        try:
+            project_id = None
+            session = await asyncio.to_thread(session_manager.get, session_id)
+            if session:
+                project_id = session.project_id
+            await asyncio.to_thread(sync_manager.export_to_jsonl, project_id=project_id)
+            return {"success": True, "exported": True}
+        except Exception as e:
+            return {"success": False, "error": str(e)}
 
     return registry

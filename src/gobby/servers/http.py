@@ -149,6 +149,7 @@ class HTTPServer:
                 hook_manager_resolver=lambda: getattr(self, "_hook_manager", None),
                 config_store=services.config_store,
                 config_setter=lambda c: setattr(services, "config", c),
+                memory_sync_manager=services.memory_sync_manager,
             )
             registry_count = len(self._internal_manager)
             logger.debug(f"Internal registries initialized: {registry_count} registries")

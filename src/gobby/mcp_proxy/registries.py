@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import logging
 from collections.abc import Callable
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from gobby.mcp_proxy.tools.internal import InternalRegistryManager
 
@@ -64,6 +64,7 @@ def setup_internal_registries(
     hook_manager_resolver: Callable[[], HookManager | None] | None = None,
     config_store: ConfigStore | None = None,
     config_setter: Callable[[DaemonConfig], None] | None = None,
+    memory_sync_manager: Any | None = None,
 ) -> InternalRegistryManager:
     """
     Setup internal MCP registries (tasks, messages, memory, metrics, agents, worktrees).
@@ -136,6 +137,10 @@ def setup_internal_registries(
         session_messages_registry = create_session_messages_registry(
             message_manager=message_manager,
             session_manager=local_session_manager,
+            llm_service=llm_service,
+            config=_config,
+            db=db,
+            worktree_manager=worktree_storage,
         )
         manager.add_registry(session_messages_registry)
         logger.debug("Sessions registry initialized")
@@ -151,6 +156,8 @@ def setup_internal_registries(
         memory_registry = create_memory_registry(
             memory_manager=memory_manager,
             llm_service=llm_service,
+            memory_sync_manager=memory_sync_manager,
+            session_manager=local_session_manager,
         )
         manager.add_registry(memory_registry)
         logger.debug("Memory registry initialized")

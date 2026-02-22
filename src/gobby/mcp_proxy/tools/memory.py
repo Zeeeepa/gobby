@@ -22,6 +22,7 @@ from typing import TYPE_CHECKING, Any
 
 from gobby.mcp_proxy.tools.internal import InternalToolRegistry
 from gobby.memory.manager import MemoryManager
+from gobby.workflows.memory_actions import memory_extract_from_session
 
 if TYPE_CHECKING:
     from gobby.llm.service import LLMService
@@ -43,6 +44,8 @@ def get_current_project_id() -> str | None:
 def create_memory_registry(
     memory_manager: MemoryManager,
     llm_service: LLMService | None = None,
+    memory_sync_manager: Any | None = None,
+    session_manager: Any | None = None,
 ) -> InternalToolRegistry:
     """
     Create a memory tool registry with all memory-related tools.
@@ -50,6 +53,8 @@ def create_memory_registry(
     Args:
         memory_manager: MemoryManager instance
         llm_service: LLM service for AI-powered extraction (optional)
+        memory_sync_manager: MemorySyncManager for sync import/export (optional)
+        session_manager: LocalSessionManager for session lookups (optional)
 
     Returns:
         InternalToolRegistry with memory tools registered
@@ -595,6 +600,78 @@ def create_memory_registry(
                 "memories_extracted": extracted,
                 "errors": errors,
             }
+        except Exception as e:
+            return {"success": False, "error": str(e)}
+
+    # ─── Sync & extraction tools (thin wrappers around workflow actions) ───
+
+    @registry.tool(
+        name="sync_import",
+        description="Import memories from .gobby/memories.jsonl into the database.",
+    )
+    async def sync_import() -> dict[str, Any]:
+        """Import memories from filesystem JSONL into SQLite."""
+        if not memory_sync_manager:
+            return {"success": False, "error": "Memory sync manager not available"}
+        try:
+            from gobby.workflows.memory_actions import memory_sync_import
+
+            result = await memory_sync_import(memory_sync_manager)
+            if "error" in result:
+                return {"success": False, "error": result["error"]}
+            return {"success": True, "imported": result["imported"]["memories"]}
+        except Exception as e:
+            return {"success": False, "error": str(e)}
+
+    @registry.tool(
+        name="sync_export",
+        description="Export memories from the database to .gobby/memories.jsonl.",
+    )
+    async def sync_export() -> dict[str, Any]:
+        """Export memories from SQLite to filesystem JSONL for Git persistence."""
+        if not memory_sync_manager:
+            return {"success": False, "error": "Memory sync manager not available"}
+        try:
+            from gobby.workflows.memory_actions import memory_sync_export
+
+            result = await memory_sync_export(memory_sync_manager)
+            if "error" in result:
+                return {"success": False, "error": result["error"]}
+            return {"success": True, "exported": result["exported"]["memories"]}
+        except Exception as e:
+            return {"success": False, "error": str(e)}
+
+    @registry.tool(
+        name="extract_from_session",
+        description="Extract memories from a session transcript using LLM analysis. Safety net for capturing memories the agent didn't save.",
+    )
+    async def extract_from_session(
+        session_id: str = "",
+        max_memories: int = 5,
+    ) -> dict[str, Any]:
+        """
+        Extract memories from a session transcript.
+
+        Args:
+            session_id: Session to extract from
+            max_memories: Maximum memories to extract (default: 5)
+        """
+        if not session_id:
+            return {"success": False, "error": "session_id is required"}
+        try:
+            result = await memory_extract_from_session(
+                memory_manager=memory_manager,
+                session_manager=session_manager,
+                llm_service=llm_service,
+                transcript_processor=None,
+                session_id=session_id,
+                max_memories=max_memories,
+            )
+            if result is None:
+                return {"success": False, "error": "Memory manager disabled"}
+            if "error" in result:
+                return {"success": False, "error": result["error"]}
+            return {"success": True, **result}
         except Exception as e:
             return {"success": False, "error": str(e)}
 

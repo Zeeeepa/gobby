@@ -127,6 +127,7 @@ def create_task_registry(
         project_manager=ctx.project_manager,
         auto_link_commits_fn=auto_link_commits_fn,
         get_task_diff_fn=get_task_diff,
+        session_manager=ctx.session_manager,
     )
     for tool_name, tool in sync_registry._tools.items():
         registry._tools[tool_name] = tool
