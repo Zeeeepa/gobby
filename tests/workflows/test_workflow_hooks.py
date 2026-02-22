@@ -183,8 +183,8 @@ class TestWorkflowHookHandlerDisabled:
         assert response.decision == "allow"
         mock_engine.handle_event.assert_not_called()
 
-    def test_handle_all_lifecycles_disabled_returns_allow(self, mock_engine) -> None:
-        """When enabled=False, handle_all_lifecycles() returns allow without engine call."""
+    def test_evaluate_disabled_returns_allow(self, mock_engine) -> None:
+        """When enabled=False, evaluate() returns allow without calling rule engine."""
         handler = WorkflowHookHandler(engine=mock_engine, loop=None, enabled=False)
 
         event = HookEvent(
@@ -195,30 +195,9 @@ class TestWorkflowHookHandlerDisabled:
             data={},
         )
 
-        response = handler.handle_all_lifecycles(event)
+        response = handler.evaluate(event)
 
         assert response.decision == "allow"
-        mock_engine.evaluate_all_lifecycle_workflows.assert_not_called()
-
-    def test_handle_lifecycle_disabled_returns_allow(self, mock_engine) -> None:
-        """When enabled=False, handle_lifecycle() returns allow without engine call."""
-        mock_engine.evaluate_lifecycle_triggers = AsyncMock(
-            return_value=HookResponse(decision="allow")
-        )
-        handler = WorkflowHookHandler(engine=mock_engine, loop=None, enabled=False)
-
-        event = HookEvent(
-            event_type=HookEventType.SESSION_START,
-            session_id=MOCK_EXTERNAL_ID,
-            source=SessionSource.CLAUDE,
-            timestamp=None,  # type: ignore
-            data={},
-        )
-
-        response = handler.handle_lifecycle("test-workflow", event)
-
-        assert response.decision == "allow"
-        mock_engine.evaluate_lifecycle_triggers.assert_not_called()
 
     def test_enabled_by_default(self, mock_engine) -> None:
         """WorkflowHookHandler is enabled by default."""

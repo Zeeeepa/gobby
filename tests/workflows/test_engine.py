@@ -162,39 +162,6 @@ class TestWorkflowEngine:
         assert response.decision == "block"
         assert "blocked in step" in response.reason
 
-    async def test_evaluate_lifecycle_triggers_execution(
-        self, workflow_engine, mock_loader, mock_action_executor
-    ):
-        # Setup lifecycle workflow
-        trigger = {"action": "test_action", "arg1": "val1"}
-        workflow = MagicMock(spec=WorkflowDefinition)
-        workflow.type = "lifecycle"
-        workflow.steps = []
-        workflow.triggers = {"on_session_start": [trigger]}
-        workflow.name = "lifecycle_wf"
-
-        mock_loader.load_workflow.return_value = workflow
-
-        event = HookEvent(
-            event_type=HookEventType.SESSION_START,
-            session_id="sess1",
-            source=SessionSource.CLAUDE,
-            timestamp=datetime.now(UTC),
-            data={},
-            metadata={"_platform_session_id": "sess1"},
-        )
-
-        # Mock action execution result
-        mock_action_executor.execute.return_value = {"key": "value"}
-
-        response = await workflow_engine.evaluate_lifecycle_triggers("lifecycle_wf", event)
-
-        assert response.decision == "allow"
-        mock_action_executor.execute.assert_called()
-        args, kwargs = mock_action_executor.execute.call_args
-        assert args[0] == "test_action"
-        assert kwargs["arg1"] == "val1"
-
     async def test_handle_event_tool_allowed_in_list(
         self, workflow_engine, mock_state_manager, mock_loader
     ):

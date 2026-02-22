@@ -259,50 +259,6 @@ async def test_handle_event_handle_approval(engine, mock_state_manager, mock_loa
 
 
 @pytest.mark.asyncio
-async def test_evaluate_lifecycle_workflows_none(engine, mock_loader):
-    mock_loader.discover_workflows.return_value = []
-
-    event = make_event(cwd="/tmp", metadata={"_platform_session_id": "sess-123"})
-
-    response = await engine.evaluate_all_lifecycle_workflows(event)
-    assert response.decision == "allow"
-
-
-@pytest.mark.asyncio
-async def test_evaluate_lifecycle_workflows_blocked(
-    engine, mock_loader, mock_state_manager, mock_action_executor
-):
-    # Configure state_manager to return None so we don't hit Mock attribute issues
-    mock_state_manager.get_state.return_value = None
-
-    workflow = Mock(spec=WorkflowDefinition)
-    workflow.name = "block-wf"
-    workflow.enabled = True
-    workflow.triggers = {"on_before_tool": [{"action": "block_action"}]}
-    workflow.variables = {}
-    workflow.observers = []
-
-    discovered = Mock()
-    discovered.definition = workflow
-    discovered.name = "block-wf"
-
-    mock_loader.discover_workflows.return_value = [discovered]
-
-    # Mock action execution to block
-    mock_action_executor.execute.return_value = {"decision": "block", "reason": "blocked by policy"}
-
-    event = make_event(
-        cwd="/tmp",
-        metadata={"_platform_session_id": "sess-123"},
-        data={"source": "test"},
-    )
-
-    response = await engine.evaluate_all_lifecycle_workflows(event)
-    assert response.decision == "block"
-    assert response.reason == "blocked by policy"
-
-
-@pytest.mark.asyncio
 async def test_execute_actions_passes_skill_manager(engine, mock_action_executor):
     """Verify _execute_actions wires skill_manager from ActionExecutor to ActionContext."""
     from gobby.workflows.actions import ActionContext

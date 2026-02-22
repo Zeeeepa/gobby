@@ -6,6 +6,7 @@ These are the hot-path functions that handle step-to-step transitions.
 
 from __future__ import annotations
 
+import asyncio
 import logging
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Any
@@ -13,10 +14,39 @@ from typing import TYPE_CHECKING, Any
 from .engine_models import DotDict, TransitionResult
 
 if TYPE_CHECKING:
+    from .actions import ActionContext, ActionExecutor
     from .definitions import WorkflowDefinition, WorkflowState, WorkflowTransition
     from .engine import WorkflowEngine
 
 logger = logging.getLogger(__name__)
+
+# Prevent GC of fire-and-forget background action tasks
+_background_actions: set[asyncio.Task[Any]] = set()
+
+
+def _background_action_done(task: asyncio.Task[Any]) -> None:
+    """Done callback for background actions: log errors, discard from set."""
+    _background_actions.discard(task)
+    if task.cancelled():
+        return
+    exc = task.exception()
+    if exc:
+        logger.error(f"Background action failed: {exc}", exc_info=exc)
+
+
+def _dispatch_background_action(
+    action_executor: ActionExecutor,
+    action_type: str,
+    action_ctx: ActionContext,
+    kwargs: dict[str, Any],
+) -> None:
+    """Dispatch an action as a fire-and-forget asyncio task."""
+    task = asyncio.create_task(
+        action_executor.execute(action_type, action_ctx, **kwargs),
+        name=f"bg-action-{action_type}",
+    )
+    _background_actions.add(task)
+    task.add_done_callback(_background_action_done)
 
 
 async def transition_to(
@@ -147,8 +177,6 @@ async def _execute_actions(
         # Extract and remove background flag before passing to executor
         is_background = action_def.get("background", False)
         if is_background:
-            from .lifecycle_evaluator import _dispatch_background_action
-
             clean_kwargs = {
                 k: v for k, v in action_def.items() if k not in ("action", "when", "background")
             }

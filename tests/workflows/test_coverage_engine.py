@@ -258,61 +258,6 @@ async def test_handle_event_exit_conditions(engine, mock_components):
 
 
 @pytest.mark.asyncio
-async def test_evaluate_lifecycle_full(engine, mock_components):
-    loader, _, action_executor, evaluator, _ = mock_components
-
-    wf = MagicMock(spec=WorkflowDefinition)
-    wf.type = "lifecycle"
-    wf.enabled = True
-    wf.steps = []
-    wf.variables = {}
-    wf.name = "lifecycle_wf"
-    wf.sources = None  # No source filter — applies to all sessions
-    trigger1 = {"action": "act1", "when": "cond1"}
-    wf.triggers = {"on_session_start": [trigger1]}
-    wf.observers = []
-
-    discovered = MagicMock()
-    discovered.definition = wf
-    discovered.name = "lifecycle_wf"
-    loader.discover_workflows.return_value = [discovered]
-
-    event = create_event(event_type=HookEventType.SESSION_START, data={"cwd": "/tmp"})
-    loader.load_workflow.return_value = wf
-
-    evaluator.evaluate.return_value = True
-    action_executor.execute.return_value = {"inject_context": "ctx"}
-
-    await engine.evaluate_all_lifecycle_workflows(event)
-    assert action_executor.execute.call_count == 1
-
-
-@pytest.mark.asyncio
-async def test_evaluate_lifecycle_alias(engine, mock_components):
-    loader, _, action_executor, evaluator, _ = mock_components
-    wf = MagicMock(spec=WorkflowDefinition)
-    wf.type = "lifecycle"
-    wf.enabled = True
-    wf.steps = []
-    wf.variables = {}
-    wf.name = "alias_wf"
-    wf.sources = None
-    wf.triggers = {"on_prompt_submit": [{"action": "act1"}]}
-    wf.observers = []
-
-    discovered = MagicMock()
-    discovered.definition = wf
-    discovered.name = "alias_wf"
-    loader.discover_workflows.return_value = [discovered]
-    loader.load_workflow.return_value = wf
-
-    event = create_event(event_type=HookEventType.BEFORE_AGENT)
-
-    await engine.evaluate_all_lifecycle_workflows(event)
-    assert action_executor.execute.call_count == 1
-
-
-@pytest.mark.asyncio
 async def test_transition_execution(engine, mock_components):
     loader, state_manager, action_executor, evaluator, _ = mock_components
 
@@ -436,71 +381,6 @@ async def test_action_execution_exception(engine, mock_components):
         await engine._execute_actions(actions, state)
 
 
-@pytest.mark.asyncio
-async def test_lifecycle_workflow_not_found(engine, mock_components):
-    loader, _, _, _, _ = mock_components
-    loader.load_workflow.return_value = None
-
-    # Check trigger evaluation directly
-    event = create_event()
-    resp = await engine.evaluate_lifecycle_triggers("missing_wf", event)
-    assert resp.decision == "allow"
-
-
-@pytest.mark.asyncio
-async def test_lifecycle_trigger_alias_loop(engine, mock_components):
-    loader, _, action_executor, _, _ = mock_components
-    wf = MagicMock(spec=WorkflowDefinition)
-    wf.type = "lifecycle"
-    wf.steps = []
-    wf.triggers = {"on_alias_event": [{"action": "act1"}]}
-    loader.load_workflow.return_value = wf
-
-    event = create_event(event_type=HookEventType.BEFORE_AGENT)
-    # Expected alias: on_prompt_submit
-
-    wf.triggers = {"on_prompt_submit": [{"action": "act1"}]}
-
-    await engine.evaluate_lifecycle_triggers("wf", event)
-
-    assert action_executor.execute.called
-
-
-@pytest.mark.asyncio
-async def test_lifecycle_when_condition_false(engine, mock_components):
-    loader, _, action_executor, evaluator, _ = mock_components
-    wf = MagicMock(spec=WorkflowDefinition)
-    wf.type = "lifecycle"
-    wf.steps = []
-    wf.triggers = {"on_before_agent": [{"action": "act1", "when": "False"}]}
-    loader.load_workflow.return_value = wf
-
-    evaluator.evaluate.return_value = False
-
-    event = create_event(event_type=HookEventType.BEFORE_AGENT)
-    await engine.evaluate_lifecycle_triggers("wf", event)
-
-    assert not action_executor.execute.called
-
-
-@pytest.mark.asyncio
-async def test_lifecycle_action_exception(engine, mock_components):
-    loader, _, action_executor, _, _ = mock_components
-    wf = MagicMock(spec=WorkflowDefinition)
-    wf.type = "lifecycle"
-    wf.steps = []
-    wf.triggers = {"on_before_agent": [{"action": "boom"}]}
-    loader.load_workflow.return_value = wf
-
-    action_executor.execute.side_effect = Exception("Crash")
-
-    event = create_event(event_type=HookEventType.BEFORE_AGENT)
-    # Should catch exception and log it, returning allow
-    resp = await engine.evaluate_lifecycle_triggers("wf", event)
-
-    assert resp.decision == "allow"
-
-
 def test_audit_logging_exceptions(engine, mock_components):
     _, _, _, _, audit_manager = mock_components
     audit_manager.log_tool_call.side_effect = Exception("DB error")
@@ -511,25 +391,6 @@ def test_audit_logging_exceptions(engine, mock_components):
     engine._log_tool_call("s1", "step", "tool", "allow")
     engine._log_rule_eval("s1", "step", "rule", "cond", "result")
     engine._log_transition("s1", "step1", "step2")
-
-
-@pytest.mark.asyncio
-async def test_lifecycle_context_none(engine, mock_components):
-    # Call _evaluate_lifecycle_triggers directly with context_data=None
-    loader, _, action_executor, _, _ = mock_components
-    wf = MagicMock(spec=WorkflowDefinition)
-    wf.type = "lifecycle"
-    wf.steps = []
-    wf.triggers = {"on_before_agent": [{"action": "act1"}]}
-    loader.load_workflow.return_value = wf
-
-    action_executor.execute.return_value = {"key": "val"}
-
-    event = create_event(event_type=HookEventType.BEFORE_AGENT)
-    await engine.evaluate_lifecycle_triggers("wf", event, context_data=None)
-
-    # Should handle None context gracefully
-    assert action_executor.execute.called
 
 
 @pytest.mark.asyncio

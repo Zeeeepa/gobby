@@ -659,54 +659,6 @@ class TestCheckPrematureStop:
         assert "Task Incomplete" in result.context
         assert "exit condition" in result.context
 
-    async def test_premature_stop_in_lifecycle_workflows(
-        self, workflow_engine, mock_state_manager, mock_loader, mock_evaluator, mock_action_executor
-    ):
-        """Premature stop is checked in evaluate_all_lifecycle_workflows for STOP events."""
-        # Need at least one lifecycle workflow to reach premature stop check
-        # (function returns early if no lifecycle workflows discovered)
-        lifecycle_wf = MagicMock(spec=WorkflowDefinition)
-        lifecycle_wf.name = "lifecycle_wf"
-        lifecycle_wf.enabled = True
-        lifecycle_wf.variables = {}
-        lifecycle_wf.triggers = {"on_stop": []}  # Empty triggers - just need workflow present
-        lifecycle_wf.observers = []
-
-        container = MagicMock()
-        container.definition = lifecycle_wf
-        container.name = "lifecycle_wf"
-        mock_loader.discover_workflows.return_value = [container]
-
-        # Setup step workflow state for premature stop check
-        state = WorkflowState(
-            session_id="sess1",
-            workflow_name="test_wf",
-            step="working",
-            step_entered_at=datetime.now(UTC),
-            variables={},
-        )
-        mock_state_manager.get_state.return_value = state
-
-        # This workflow is the step workflow (not lifecycle) that has premature stop handler
-        step_workflow = MagicMock(spec=WorkflowDefinition)
-        step_workflow.type = "step"
-        step_workflow.name = "test_wf"
-        step_workflow.exit_condition = "variables.done"
-        step_workflow.on_premature_stop = PrematureStopHandler(
-            action="block", message="Not done yet"
-        )
-        mock_loader.load_workflow.return_value = step_workflow
-
-        mock_evaluator.evaluate.return_value = False
-
-        event = create_event(event_type=HookEventType.STOP, cwd="/project")
-
-        response = await workflow_engine.evaluate_all_lifecycle_workflows(event)
-
-        # Should propagate premature stop response
-        assert response.decision == "block"
-        assert response.reason == "Not done yet"
-
     async def test_premature_stop_renders_jinja_variables(
         self, workflow_engine, mock_state_manager, mock_loader, mock_evaluator, mock_action_executor
     ):
@@ -932,57 +884,6 @@ class TestDetectTaskClaimWithNestedError:
 
 
 @pytest.mark.asyncio
-class TestLifecycleWorkflowAfterToolTaskDetection:
-    """Test task claim detection in evaluate_all_lifecycle_workflows for AFTER_TOOL."""
-
-    async def test_after_tool_creates_lifecycle_state_for_task_detection(
-        self, workflow_engine, mock_state_manager, mock_loader
-    ):
-        """AFTER_TOOL event creates lifecycle state if none exists for task detection."""
-        # Need at least one lifecycle workflow with task_claim_tracking observer
-        lifecycle_wf = MagicMock(spec=WorkflowDefinition)
-        lifecycle_wf.name = "lifecycle_wf"
-        lifecycle_wf.enabled = True
-        lifecycle_wf.variables = {}
-        lifecycle_wf.triggers = {"on_after_tool": []}  # Empty triggers
-        lifecycle_wf.observers = [
-            Observer(name="task_lifecycle", behavior="task_claim_tracking"),
-        ]
-
-        container = MagicMock()
-        container.definition = lifecycle_wf
-        container.name = "lifecycle_wf"
-        mock_loader.discover_workflows.return_value = [container]
-
-        mock_state_manager.get_state.return_value = None  # No existing state
-
-        event = create_event(
-            event_type=HookEventType.AFTER_TOOL,
-            session_id="sess1",
-            metadata={"_platform_session_id": "sess1"},
-            data={
-                "tool_name": "mcp__gobby__call_tool",
-                "mcp_server": "gobby-tasks",  # Normalized MCP fields
-                "mcp_tool": "create_task",
-                "tool_input": {
-                    "server_name": "gobby-tasks",
-                    "tool_name": "create_task",
-                    "arguments": {"title": "Test task"},
-                },
-                "tool_output": {"status": "success", "result": {"id": "gt-456"}},
-            },
-        )
-
-        await workflow_engine.evaluate_all_lifecycle_workflows(event)
-
-        # save_state should be called with a new lifecycle state
-        mock_state_manager.save_state.assert_called()
-        saved_state = mock_state_manager.save_state.call_args[0][0]
-        assert saved_state.workflow_name == "lifecycle_wf"
-        assert saved_state.variables.get("task_claimed") is True
-        assert saved_state.variables.get("claimed_task_id") == "gt-456"
-
-
 @pytest.mark.asyncio
 class TestApprovalPromptReminder:
     """Test that non-approval responses remind user about pending approval."""

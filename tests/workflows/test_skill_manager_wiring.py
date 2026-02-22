@@ -19,7 +19,6 @@ pytestmark = pytest.mark.unit
 SRC_ROOT = Path(__file__).resolve().parents[2] / "src" / "gobby" / "workflows"
 ACTION_CONTEXT_SITES = [
     SRC_ROOT / "engine_transitions.py",
-    SRC_ROOT / "lifecycle_evaluator.py",
 ]
 
 
@@ -92,30 +91,3 @@ class TestSkillManagerPropagation:
         assert isinstance(context_arg, ActionContext)
         assert context_arg.skill_manager is mock_executor.skill_manager
 
-    def test_lifecycle_evaluator_sites_have_skill_manager(self):
-        """Both ActionContext sites in lifecycle_evaluator.py include skill_manager.
-
-        This is covered by the AST inspection test above, but we include it
-        as a readable regression marker.
-        """
-        source = (SRC_ROOT / "lifecycle_evaluator.py").read_text()
-
-        # Count ActionContext(...) blocks and skill_manager occurrences within them
-        # Simple heuristic: every "ActionContext(" should be followed by "skill_manager="
-        # before the next closing ")  # end of ActionContext"
-        import re
-
-        # Find all ActionContext constructor blocks
-        pattern = r"ActionContext\((.*?)\)"
-        matches = re.findall(pattern, source, re.DOTALL)
-
-        assert len(matches) >= 2, (
-            f"Expected at least 2 ActionContext(...) calls in lifecycle_evaluator.py, "
-            f"found {len(matches)}"
-        )
-
-        for i, match in enumerate(matches):
-            assert "skill_manager=" in match, (
-                f"ActionContext call #{i + 1} in lifecycle_evaluator.py "
-                f"is missing skill_manager parameter"
-            )

@@ -38,18 +38,6 @@ from .engine_transitions import (
     transition_to as _transition_to_fn,
 )
 from .evaluator import ConditionEvaluator
-from .lifecycle_evaluator import (
-    evaluate_all_lifecycle_workflows as _evaluate_all_lifecycle_workflows,
-)
-from .lifecycle_evaluator import (
-    evaluate_lifecycle_triggers as _evaluate_lifecycle_triggers,
-)
-from .lifecycle_evaluator import (
-    evaluate_workflow_triggers as _evaluate_workflow_triggers,
-)
-from .lifecycle_evaluator import (
-    process_action_result,
-)
 from .loader import WorkflowLoader
 from .observers import (
     detect_mcp_call,
@@ -201,22 +189,6 @@ class WorkflowEngine:
         self.evaluator = evaluator or ConditionEvaluator()
         self.audit_manager = audit_manager
         self.rule_store = rule_store
-
-        # Cache the behavior registry so plugin behaviors registered once
-        # persist across all evaluate_all_lifecycle_workflows calls.
-        from gobby.workflows.observers import get_default_registry
-
-        self._behavior_registry = get_default_registry()
-
-    # Maps canonical trigger names to their legacy aliases for backward compatibility.
-    TRIGGER_ALIASES: dict[str, list[str]] = {
-        "on_before_agent": ["on_prompt_submit"],
-        "on_before_tool": ["on_tool_call"],
-        "on_after_tool": ["on_tool_result"],
-    }
-
-    # Variables to inherit from parent session
-    VARS_TO_INHERIT: list[str] = []
 
     async def handle_event(self, event: HookEvent) -> HookResponse:
         """
@@ -621,53 +593,6 @@ class WorkflowEngine:
         """Handle user response to approval request."""
         return handle_approval_response(
             event, state, current_step, self.evaluator, self.state_manager
-        )
-
-    async def evaluate_all_lifecycle_workflows(
-        self, event: HookEvent, context_data: dict[str, Any] | None = None
-    ) -> HookResponse:
-        """Discover and evaluate all lifecycle workflows for the given event."""
-        from gobby.workflows.observers import ObserverEngine
-
-        observer_engine = ObserverEngine(behavior_registry=self._behavior_registry)
-        return await _evaluate_all_lifecycle_workflows(
-            event=event,
-            loader=self.loader,
-            state_manager=self.state_manager,
-            action_executor=self.action_executor,
-            evaluator=self.evaluator,
-            check_premature_stop_fn=self._check_premature_stop,
-            context_data=context_data,
-            observer_engine=observer_engine,
-        )
-
-    def _process_action_result(
-        self,
-        result: dict[str, Any],
-        context_data: dict[str, Any],
-        state: "WorkflowState",
-        injected_context: list[str],
-    ) -> str | None:
-        """Process action execution result."""
-        return process_action_result(result, context_data, state, injected_context)
-
-    async def _evaluate_workflow_triggers(
-        self,
-        workflow: "WorkflowDefinition",
-        event: HookEvent,
-        context_data: dict[str, Any],
-    ) -> HookResponse:
-        """Evaluate triggers for a single workflow definition."""
-        return await _evaluate_workflow_triggers(
-            workflow, event, context_data, self.state_manager, self.action_executor, self.evaluator
-        )
-
-    async def evaluate_lifecycle_triggers(
-        self, workflow_name: str, event: HookEvent, context_data: dict[str, Any] | None = None
-    ) -> HookResponse:
-        """Evaluate triggers for a specific lifecycle workflow (e.g. session-handoff)."""
-        return await _evaluate_lifecycle_triggers(
-            workflow_name, event, self.loader, self.action_executor, self.evaluator, context_data
         )
 
     # --- Premature Stop Handling ---
