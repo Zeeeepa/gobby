@@ -324,18 +324,6 @@ triggers:
             2. Close the task: close_task(task_id="#N", commit_sha="<sha>")
             3. Then stop.
 
-        # Block naked python/pip commands - require uv run / uv pip
-        - tools: [Bash]
-          command_pattern: "(?:^|[;&|])\\s*(?:sudo\\s+)?(?:python(?:3(?:\\.\\d+)?)?|pip3?)\\b"
-          command_not_pattern: "(?:^|[;&|])\\s*(?:sudo\\s+)?uv\\s+"
-          when: "variables.get('require_uv')"
-          reason: |
-            Do not run python or pip directly. Use `uv` to ensure the correct virtual environment:
-            - `uv run python3 script.py` instead of `python3 script.py`
-            - `uv run python -m module` instead of `python -m module`
-            - `uv pip install pkg` or `uv add pkg` instead of `pip install pkg`
-            Rewrite your command with `uv` and retry.
-
   on_after_tool:
     # Detect Claude Code plan mode entry/exit via mode_level
     - action: set_variable
@@ -367,12 +355,6 @@ triggers:
 
     # Track list_mcp_servers and list_tools for progressive disclosure gates
     - action: track_discovery_step
-
-    # Track significant work for memory review nudge on stop
-    - action: set_variable
-      when: "event.data.get('tool_name') in ['Edit', 'Write', 'NotebookEdit'] or event.data.get('mcp_tool') == 'close_task'"
-      name: pending_memory_review
-      value: true
 
     # Suggest memory extraction after closing a task with a commit
     # Soft nudge, not a blocking gate — agent can choose to skip
