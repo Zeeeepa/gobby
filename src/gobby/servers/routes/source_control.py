@@ -185,6 +185,7 @@ def create_source_control_router(server: HTTPServer) -> APIRouter:
             "branch_count": branch_count,
             "worktree_count": worktree_count,
             "clone_count": clone_count,
+            "repo_path": repo_path,
         }
 
     @router.get("/branches")

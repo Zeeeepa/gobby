@@ -15,9 +15,10 @@ interface ChatPageProps {
   chat: ChatState
   conversations: ConversationState
   voice: VoiceProps
+  projectId?: string | null
 }
 
-export function ChatPage({ chat, conversations, voice }: ChatPageProps) {
+export function ChatPage({ chat, conversations, voice, projectId }: ChatPageProps) {
   const activeSession = conversations.sessions.find(
     s => s.external_id === conversations.activeSessionId
   )
@@ -69,6 +70,10 @@ export function ChatPage({ chat, conversations, voice }: ChatPageProps) {
                 sessionRef={effectiveSessionRef}
                 title={activeTitle}
                 mode={chat.mode}
+                currentBranch={chat.currentBranch}
+                worktreePath={chat.worktreePath}
+                projectId={projectId ?? null}
+                onWorktreeChange={chat.onWorktreeChange}
               />
               <MessageList
                 messages={chat.messages}

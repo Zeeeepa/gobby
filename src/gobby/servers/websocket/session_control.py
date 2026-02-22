@@ -42,6 +42,7 @@ class SessionControlMixin:
     _chat_sessions: dict[str, ChatSession]
     _active_chat_tasks: dict[str, asyncio.Task[None]]
     _pending_modes: dict[str, str]
+    _pending_worktree_paths: dict[str, str]
 
     # Provided by ChatMixin / HandlerMixin – declared for type checking only.
     if TYPE_CHECKING:
@@ -315,6 +316,94 @@ class SessionControlMixin:
         logger.info(
             f"Project switched for conversation {conversation_id[:8]}: "
             f"{old_project_id} -> {new_project_id}"
+        )
+
+    async def _handle_set_worktree(self, websocket: Any, data: dict[str, Any]) -> None:
+        """Handle set_worktree message to switch the worktree for a conversation.
+
+        Stops the existing CLI subprocess so the next message creates a fresh
+        session with the worktree's CWD. Conversation history is preserved via
+        database-backed history injection.
+
+        Message format:
+        {
+            "type": "set_worktree",
+            "conversation_id": "stable-id",
+            "worktree_path": "/absolute/path/to/worktree",
+            "worktree_id": "optional-db-uuid"
+        }
+        """
+        import os
+
+        from gobby.servers.websocket.chat import _resolve_git_branch
+
+        conversation_id = data.get("conversation_id")
+        worktree_path = data.get("worktree_path")
+        worktree_id = data.get("worktree_id")
+
+        if not conversation_id:
+            await self._send_error(websocket, "set_worktree requires conversation_id")
+            return
+
+        # Resolve worktree_path from DB if only worktree_id provided
+        if not worktree_path and worktree_id:
+            session_manager = getattr(self, "session_manager", None)
+            if session_manager:
+                try:
+                    from gobby.storage.worktrees import LocalWorktreeManager
+
+                    wm = LocalWorktreeManager(session_manager.db)
+                    wt = wm.get(worktree_id)
+                    if wt:
+                        worktree_path = wt.worktree_path
+                except Exception as e:
+                    logger.warning(f"Failed to resolve worktree {worktree_id}: {e}")
+
+        if not worktree_path:
+            await self._send_error(websocket, "set_worktree requires worktree_path or worktree_id")
+            return
+
+        if not os.path.isdir(worktree_path):
+            await self._send_error(websocket, f"Worktree path does not exist: {worktree_path}")
+            return
+
+        # Tear down existing session (same pattern as set_project)
+        session = self._chat_sessions.get(conversation_id)
+        if session:
+            await self._cancel_active_chat(conversation_id)
+            if session.db_session_id:
+                session_manager = getattr(self, "session_manager", None)
+                if session_manager:
+                    try:
+                        await asyncio.to_thread(
+                            session_manager.update,
+                            session.db_session_id,
+                            status="paused",
+                        )
+                    except Exception as e:
+                        logger.warning(f"Failed to update session on worktree switch: {e}")
+            await session.stop()
+            self._chat_sessions.pop(conversation_id, None)
+
+        # Store worktree path for next session creation
+        self._pending_worktree_paths[conversation_id] = worktree_path
+
+        # Resolve the branch name for the new worktree
+        new_branch, _ = await _resolve_git_branch(worktree_path)
+
+        await websocket.send(
+            json.dumps(
+                {
+                    "type": "worktree_switched",
+                    "conversation_id": conversation_id,
+                    "new_branch": new_branch,
+                    "worktree_path": worktree_path,
+                }
+            )
+        )
+        logger.info(
+            f"Worktree switched for conversation {conversation_id[:8]}: "
+            f"branch={new_branch}, path={worktree_path}"
         )
 
     async def _handle_clear_chat(self, websocket: Any, data: dict[str, Any]) -> None:

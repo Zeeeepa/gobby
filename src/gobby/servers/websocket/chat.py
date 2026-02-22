@@ -25,6 +25,40 @@ from gobby.utils.machine_id import get_machine_id
 logger = logging.getLogger(__name__)
 
 
+async def _resolve_git_branch(project_path: str | None) -> tuple[str | None, str | None]:
+    """Resolve the current git branch for a project directory.
+
+    Returns (branch_name, worktree_path). branch_name is None for detached HEAD
+    or non-git directories.
+    """
+    if not project_path:
+        return None, None
+    try:
+        proc = await asyncio.create_subprocess_exec(
+            "git", "branch", "--show-current",
+            cwd=project_path,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
+        )
+        stdout, _ = await asyncio.wait_for(proc.communicate(), timeout=5.0)
+        branch = stdout.decode().strip() or None
+        # For detached HEAD, show short SHA instead of nothing
+        if not branch:
+            proc2 = await asyncio.create_subprocess_exec(
+                "git", "rev-parse", "--short", "HEAD",
+                cwd=project_path,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE,
+            )
+            stdout2, _ = await asyncio.wait_for(proc2.communicate(), timeout=5.0)
+            short_sha = stdout2.decode().strip()
+            if short_sha:
+                branch = f"detached:{short_sha}"
+        return branch, project_path
+    except Exception:
+        return None, None
+
+
 class ChatMixin:
     """Mixin providing chat handler methods for WebSocketServer.
 
@@ -39,6 +73,7 @@ class ChatMixin:
     _chat_sessions: dict[str, ChatSession]
     _active_chat_tasks: dict[str, asyncio.Task[None]]
     _pending_modes: dict[str, str]
+    _pending_worktree_paths: dict[str, str]
 
     # Provided by HandlerMixin – declared here only for type checking
     # to avoid shadowing the real implementation at runtime (MRO).
@@ -188,6 +223,12 @@ class ChatMixin:
                     session.project_path = project.repo_path
             except Exception as e:
                 logger.warning(f"Failed to look up project repo_path: {e}")
+
+        # Override project_path with pending worktree path (from set_worktree)
+        pending_wt = getattr(self, "_pending_worktree_paths", {})
+        wt_override = pending_wt.pop(conversation_id, None)
+        if wt_override:
+            session.project_path = wt_override
 
         await session.start(model=model)
         self._chat_sessions[conversation_id] = session
@@ -454,18 +495,22 @@ class ChatMixin:
                     session = await self._create_chat_session(
                         conversation_id, model=model, project_id=project_id
                     )
-                    # Notify client of session identity
+                    # Notify client of session identity + branch context
                     ref = _session_ref()
+                    session_info_msg = _base_msg(
+                        type="session_info",
+                        conversation_id=conversation_id,
+                    )
                     if ref:
-                        await websocket.send(
-                            json.dumps(
-                                _base_msg(
-                                    type="session_info",
-                                    conversation_id=conversation_id,
-                                    session_ref=ref,
-                                )
-                            )
-                        )
+                        session_info_msg["session_ref"] = ref
+                    branch, wt_path = await _resolve_git_branch(
+                        getattr(session, "project_path", None)
+                    )
+                    if branch:
+                        session_info_msg["current_branch"] = branch
+                    if wt_path:
+                        session_info_msg["worktree_path"] = wt_path
+                    await websocket.send(json.dumps(session_info_msg))
                 except Exception as e:
                     logger.error(f"Failed to start chat session: {e}")
                     await websocket.send(

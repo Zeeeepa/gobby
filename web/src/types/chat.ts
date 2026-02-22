@@ -60,6 +60,8 @@ export interface ContextUsage {
 export interface ChatState {
   messages: ChatMessage[]
   sessionRef: string | null
+  currentBranch: string | null
+  worktreePath: string | null
   isStreaming: boolean
   isThinking: boolean
   isConnected: boolean
@@ -72,6 +74,7 @@ export interface ChatState {
   onCommandSelect: (cmd: CommandInfo) => void
   mode: ChatMode
   onModeChange: (mode: ChatMode) => void
+  onWorktreeChange: (worktreePath: string, worktreeId?: string) => void
   planPendingApproval: boolean
   onApprovePlan: () => void
   onRequestPlanChanges: (feedback: string) => void

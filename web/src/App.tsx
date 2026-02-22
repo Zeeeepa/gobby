@@ -30,7 +30,7 @@ import type { GobbySession } from './hooks/useSessions'
 const HIDDEN_PROJECTS = new Set(['_orphaned', '_migrated'])
 
 export default function App() {
-  const { messages, conversationId, sessionRef, isConnected, isStreaming, isThinking, contextUsage, sendMessage, sendMode, stopStreaming, clearHistory, deleteConversation, executeCommand, respondToQuestion, planPendingApproval, approvePlan, requestPlanChanges, switchConversation, startNewChat, continueSessionInChat, setOnModeChanged, wsRef, handleVoiceMessageRef } = useChat()
+  const { messages, conversationId, sessionRef, currentBranch, worktreePath, isConnected, isStreaming, isThinking, contextUsage, sendMessage, sendMode, sendWorktreeChange, stopStreaming, clearHistory, deleteConversation, executeCommand, respondToQuestion, planPendingApproval, approvePlan, requestPlanChanges, switchConversation, startNewChat, continueSessionInChat, setOnModeChanged, wsRef, handleVoiceMessageRef } = useChat()
   const voice = useVoice(wsRef, conversationId)
   const { settings, updateFontSize, updateModel, updateChatMode, updateTheme, resetSettings } = useSettings()
   const { agents, refreshAgents } = useTerminal()
@@ -374,9 +374,12 @@ export default function App() {
 
       {activeTab === 'chat' ? (
         <ChatPage
+          projectId={effectiveProjectId}
           chat={{
             messages,
             sessionRef,
+            currentBranch,
+            worktreePath,
             isStreaming,
             isThinking,
             isConnected,
@@ -389,6 +392,7 @@ export default function App() {
             onCommandSelect: handleCommandSelect,
             mode: settings.chatMode,
             onModeChange: (mode) => { updateChatMode(mode); sendMode(mode) },
+            onWorktreeChange: sendWorktreeChange,
             planPendingApproval,
             onApprovePlan: approvePlan,
             onRequestPlanChanges: requestPlanChanges,

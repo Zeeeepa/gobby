@@ -1,9 +1,14 @@
 import type { ChatMode } from '../../types/chat'
+import { BranchIndicator } from './BranchIndicator'
 
 interface SessionStatusBarProps {
   sessionRef: string | null
   title: string | null
   mode: ChatMode
+  currentBranch: string | null
+  worktreePath: string | null
+  projectId: string | null
+  onWorktreeChange: (worktreePath: string, worktreeId?: string) => void
 }
 
 const MODE_CONFIG: Record<ChatMode, { dot: string; label: string; restriction: string }> = {
@@ -12,7 +17,7 @@ const MODE_CONFIG: Record<ChatMode, { dot: string; label: string; restriction: s
   bypass: { dot: 'bg-amber-400', label: 'Auto', restriction: 'unrestricted' },
 }
 
-export function SessionStatusBar({ sessionRef, title, mode }: SessionStatusBarProps) {
+export function SessionStatusBar({ sessionRef, title, mode, currentBranch, worktreePath, projectId, onWorktreeChange }: SessionStatusBarProps) {
   const { dot, label, restriction } = MODE_CONFIG[mode]
 
   return (
@@ -24,6 +29,12 @@ export function SessionStatusBar({ sessionRef, title, mode }: SessionStatusBarPr
         <span className="text-muted-foreground truncate">
           {sessionRef && title ? ': ' : ''}{title ?? 'New conversation'}
         </span>
+        <BranchIndicator
+          currentBranch={currentBranch}
+          worktreePath={worktreePath}
+          projectId={projectId}
+          onWorktreeChange={onWorktreeChange}
+        />
       </div>
       <div className="flex items-center gap-1.5 shrink-0 whitespace-nowrap ml-4">
         <span className={`inline-block w-1.5 h-1.5 rounded-full ${dot}`} />

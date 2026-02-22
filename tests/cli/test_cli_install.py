@@ -49,7 +49,7 @@ class TestEnsureDaemonConfig:
         with (
             patch.object(Path, "expanduser", return_value=bootstrap_path),
             patch(
-                "gobby.cli.install.get_install_dir",
+                "gobby.cli.install_setup.get_install_dir",
                 return_value=temp_dir / "install",
             ),
         ):
@@ -76,7 +76,7 @@ class TestEnsureDaemonConfig:
         with (
             patch.object(Path, "expanduser", return_value=bootstrap_path),
             patch(
-                "gobby.cli.install.get_install_dir",
+                "gobby.cli.install_setup.get_install_dir",
                 return_value=install_dir,
             ),
         ):
