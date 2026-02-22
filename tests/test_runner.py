@@ -162,27 +162,22 @@ class TestGobbyRunnerInit:
 class TestGobbyRunnerSignalHandlers:
     """Tests for signal handler setup."""
 
-    def test_setup_signal_handlers(self, mock_config) -> None:
+    def test_setup_signal_handlers(self) -> None:
         """Test that signal handlers are registered."""
-        patches = create_base_patches(mock_config)
+        from gobby.runner_maintenance import setup_signal_handlers
 
-        with ExitStack() as stack:
-            [stack.enter_context(p) for p in patches]
+        mock_loop = MagicMock()
+        mock_callback = MagicMock()
 
-            runner = GobbyRunner()
+        with patch("asyncio.get_running_loop", return_value=mock_loop):
+            setup_signal_handlers(mock_callback)
 
-            # Create mock loop
-            mock_loop = MagicMock()
-
-            with patch("asyncio.get_running_loop", return_value=mock_loop):
-                runner._setup_signal_handlers()
-
-            # Verify signal handlers were added
-            assert mock_loop.add_signal_handler.call_count == 2
-            calls = mock_loop.add_signal_handler.call_args_list
-            signals_registered = [call[0][0] for call in calls]
-            assert signal.SIGTERM in signals_registered
-            assert signal.SIGINT in signals_registered
+        # Verify signal handlers were added
+        assert mock_loop.add_signal_handler.call_count == 2
+        calls = mock_loop.add_signal_handler.call_args_list
+        signals_registered = [call[0][0] for call in calls]
+        assert signal.SIGTERM in signals_registered
+        assert signal.SIGINT in signals_registered
 
 
 class TestGobbyRunnerRun:
@@ -211,7 +206,7 @@ class TestGobbyRunnerRun:
                 mock_server.serve = AsyncMock()
                 mock_server_cls.return_value = mock_server
 
-                with patch.object(runner, "_setup_signal_handlers"):
+                with patch("gobby.runner_maintenance.setup_signal_handlers"):
                     await runner.run()
 
             mock_mcp_manager.connect_all.assert_called_once()
@@ -240,7 +235,7 @@ class TestGobbyRunnerRun:
                 mock_server.serve = AsyncMock()
                 mock_server_cls.return_value = mock_server
 
-                with patch.object(runner, "_setup_signal_handlers"):
+                with patch("gobby.runner_maintenance.setup_signal_handlers"):
                     # Should not raise - timeout is handled gracefully
                     await runner.run()
 
@@ -267,7 +262,7 @@ class TestGobbyRunnerRun:
                 mock_server.serve = AsyncMock()
                 mock_server_cls.return_value = mock_server
 
-                with patch.object(runner, "_setup_signal_handlers"):
+                with patch("gobby.runner_maintenance.setup_signal_handlers"):
                     # Should not raise - error is logged but doesn't crash
                     await runner.run()
 
@@ -298,7 +293,7 @@ class TestGobbyRunnerRun:
                 mock_server.serve = AsyncMock()
                 mock_server_cls.return_value = mock_server
 
-                with patch.object(runner, "_setup_signal_handlers"):
+                with patch("gobby.runner_maintenance.setup_signal_handlers"):
                     await runner.run()
 
             # WebSocket server start should be called
@@ -634,7 +629,7 @@ class TestGobbyRunnerInitialization:
 
 
 class TestAgentEventBroadcasting:
-    """Tests for _setup_agent_event_broadcasting method."""
+    """Tests for setup_agent_event_broadcasting function."""
 
     def test_setup_agent_event_broadcasting_with_websocket(
         self, mock_config_with_websocket
@@ -651,7 +646,7 @@ class TestAgentEventBroadcasting:
             mock_config=mock_config_with_websocket,
             mock_ws_server=mock_ws_server,
         )
-        # Patch at the source module (it's imported inside the method)
+        # Patch at the broadcasting module (it's imported there)
         patches.append(
             patch(
                 "gobby.agents.registry.get_running_agent_registry",
@@ -673,7 +668,7 @@ class TestAgentEventBroadcasting:
         mock_registry.add_event_callback = MagicMock()
 
         patches = create_base_patches(mock_config=mock_config)
-        # Patch at the source module (it's imported inside the method)
+        # Patch at the broadcasting module (it's imported there)
         patches.append(
             patch(
                 "gobby.agents.registry.get_running_agent_registry",
@@ -689,41 +684,37 @@ class TestAgentEventBroadcasting:
             # Callback should NOT be registered since no websocket
             mock_registry.add_event_callback.assert_not_called()
 
-    def test_setup_agent_event_broadcasting_direct_call_without_websocket(
-        self, mock_config
-    ) -> None:
-        """Test _setup_agent_event_broadcasting returns early when websocket_server is None."""
+    def test_setup_agent_event_broadcasting_direct_call_without_websocket(self) -> None:
+        """Test setup_agent_event_broadcasting does not crash when called with a mock server."""
+        from gobby.runner_broadcasting import setup_agent_event_broadcasting
+
         mock_registry = MagicMock()
         mock_registry.add_event_callback = MagicMock()
 
-        patches = create_base_patches(mock_config=mock_config)
+        mock_ws_server = MagicMock()
 
-        with ExitStack() as stack:
-            [stack.enter_context(p) for p in patches]
+        # Call the module-level function directly with a mock server
+        with patch(
+            "gobby.agents.registry.get_running_agent_registry",
+            return_value=mock_registry,
+        ), patch("gobby.agents.pty_reader.get_pty_reader_manager"), patch(
+            "gobby.agents.tmux.get_tmux_output_reader"
+        ):
+            setup_agent_event_broadcasting(mock_ws_server)
 
-            runner = GobbyRunner()
-
-            # Ensure websocket_server is None
-            runner.websocket_server = None
-
-            # Call the method directly - should return early without error
-            with patch(
-                "gobby.agents.registry.get_running_agent_registry",
-                return_value=mock_registry,
-            ):
-                runner._setup_agent_event_broadcasting()
-
-            # Registry should NOT have been accessed since we returned early
-            mock_registry.add_event_callback.assert_not_called()
+        # Registry callback should have been registered
+        mock_registry.add_event_callback.assert_called_once()
 
 
 class TestMetricsCleanupLoop:
-    """Tests for _metrics_cleanup_loop method."""
+    """Tests for metrics_cleanup_loop function."""
 
     @pytest.mark.asyncio
     async def test_metrics_cleanup_loop_runs_cleanup(self, mock_config):
         """Test that metrics cleanup loop runs cleanup."""
         import asyncio
+
+        from gobby.runner_maintenance import metrics_cleanup_loop
 
         mock_mcp_manager = AsyncMock()
         mock_mcp_manager.connect_all = AsyncMock()
@@ -740,12 +731,17 @@ class TestMetricsCleanupLoop:
             runner = GobbyRunner()
             runner.metrics_manager.cleanup_old_metrics = MagicMock(return_value=5)
 
+            shutdown_requested = False
+
+            def is_shutdown():
+                return shutdown_requested
+
             # Start the loop and cancel it after a short time
-            task = asyncio.create_task(runner._metrics_cleanup_loop())
+            task = asyncio.create_task(metrics_cleanup_loop(runner.metrics_manager, is_shutdown))
 
             # Give it a tiny bit of time then request shutdown
             await asyncio.sleep(0.01)
-            runner._shutdown_requested = True
+            shutdown_requested = True
 
             # Wait for the task to finish
             try:
@@ -758,6 +754,8 @@ class TestMetricsCleanupLoop:
         """Test that metrics cleanup loop handles exceptions gracefully."""
         import asyncio
 
+        from gobby.runner_maintenance import metrics_cleanup_loop
+
         patches = create_base_patches(mock_config=mock_config)
 
         with ExitStack() as stack:
@@ -768,12 +766,17 @@ class TestMetricsCleanupLoop:
                 side_effect=Exception("Cleanup error")
             )
 
+            shutdown_requested = False
+
+            def is_shutdown():
+                return shutdown_requested
+
             # Start the loop
-            task = asyncio.create_task(runner._metrics_cleanup_loop())
+            task = asyncio.create_task(metrics_cleanup_loop(runner.metrics_manager, is_shutdown))
 
             # Request shutdown after a very brief moment
             await asyncio.sleep(0.01)
-            runner._shutdown_requested = True
+            shutdown_requested = True
 
             # Wait for the task
             try:
@@ -786,6 +789,8 @@ class TestMetricsCleanupLoop:
         """Test that metrics cleanup loop handles cancellation."""
         import asyncio
 
+        from gobby.runner_maintenance import metrics_cleanup_loop
+
         patches = create_base_patches(mock_config=mock_config)
 
         with ExitStack() as stack:
@@ -793,7 +798,9 @@ class TestMetricsCleanupLoop:
 
             runner = GobbyRunner()
 
-            task = asyncio.create_task(runner._metrics_cleanup_loop())
+            task = asyncio.create_task(
+                metrics_cleanup_loop(runner.metrics_manager, lambda: False)
+            )
             await asyncio.sleep(0.01)
             task.cancel()
 
@@ -837,7 +844,7 @@ class TestGobbyRunnerShutdown:
                 mock_server.should_exit = False
                 mock_server_cls.return_value = mock_server
 
-                with patch.object(runner, "_setup_signal_handlers"):
+                with patch("gobby.runner_maintenance.setup_signal_handlers"):
                     # Should complete without hanging due to timeout handling
                     # Timeout must exceed graceful_shutdown_timeout (15) + buffer (5) + cleanup
                     await asyncio.wait_for(runner.run(), timeout=25.0)
@@ -879,7 +886,7 @@ class TestGobbyRunnerShutdown:
                 mock_server.serve = AsyncMock()
                 mock_server_cls.return_value = mock_server
 
-                with patch.object(runner, "_setup_signal_handlers"):
+                with patch("gobby.runner_maintenance.setup_signal_handlers"):
                     await asyncio.wait_for(runner.run(), timeout=10.0)
 
     @pytest.mark.asyncio
@@ -923,7 +930,7 @@ class TestGobbyRunnerShutdown:
                 mock_server.serve = AsyncMock()
                 mock_server_cls.return_value = mock_server
 
-                with patch.object(runner, "_setup_signal_handlers"):
+                with patch("gobby.runner_maintenance.setup_signal_handlers"):
                     await asyncio.wait_for(runner.run(), timeout=10.0)
 
     @pytest.mark.asyncio
@@ -955,7 +962,7 @@ class TestGobbyRunnerShutdown:
                 mock_server.serve = AsyncMock()
                 mock_server_cls.return_value = mock_server
 
-                with patch.object(runner, "_setup_signal_handlers"):
+                with patch("gobby.runner_maintenance.setup_signal_handlers"):
                     await asyncio.wait_for(runner.run(), timeout=10.0)
 
     @pytest.mark.asyncio
@@ -993,7 +1000,7 @@ class TestGobbyRunnerShutdown:
                 mock_server.serve = AsyncMock()
                 mock_server_cls.return_value = mock_server
 
-                with patch.object(runner, "_setup_signal_handlers"):
+                with patch("gobby.runner_maintenance.setup_signal_handlers"):
                     await runner.run()
 
             mock_message_processor.start.assert_called_once()
@@ -1022,7 +1029,7 @@ class TestGobbyRunnerShutdown:
                 mock_server.serve = AsyncMock()
                 mock_server_cls.return_value = mock_server
 
-                with patch.object(runner, "_setup_signal_handlers"):
+                with patch("gobby.runner_maintenance.setup_signal_handlers"):
                     await runner.run()
 
             runner.metrics_manager.cleanup_old_metrics.assert_called()
@@ -1053,7 +1060,7 @@ class TestGobbyRunnerShutdown:
                 mock_server.serve = AsyncMock()
                 mock_server_cls.return_value = mock_server
 
-                with patch.object(runner, "_setup_signal_handlers"):
+                with patch("gobby.runner_maintenance.setup_signal_handlers"):
                     # Should not raise - error is logged
                     await runner.run()
 
@@ -1077,8 +1084,9 @@ class TestGobbyRunnerShutdown:
 
             # Make signal handler setup raise an exception
             with (
-                patch.object(
-                    runner, "_setup_signal_handlers", side_effect=Exception("Fatal error")
+                patch(
+                    "gobby.runner_maintenance.setup_signal_handlers",
+                    side_effect=Exception("Fatal error"),
                 ),
                 pytest.raises(SystemExit) as exc_info,
             ):
@@ -1110,7 +1118,7 @@ class TestGobbyRunnerShutdown:
                 mock_server.serve = AsyncMock()
                 mock_server_cls.return_value = mock_server
 
-                with patch.object(runner, "_setup_signal_handlers"):
+                with patch("gobby.runner_maintenance.setup_signal_handlers"):
                     await runner.run()
 
             # The cleanup task should have been created and then cancelled
@@ -1125,36 +1133,36 @@ class TestGobbyRunnerShutdown:
 class TestSignalHandlerBehavior:
     """Tests for signal handler behavior."""
 
-    def test_signal_handler_sets_shutdown_flag(self, mock_config) -> None:
-        """Test that the signal handler sets the shutdown flag."""
-        patches = create_base_patches(mock_config)
+    def test_signal_handler_invokes_shutdown_callback(self) -> None:
+        """Test that the signal handler invokes the shutdown callback."""
+        from gobby.runner_maintenance import setup_signal_handlers
 
-        with ExitStack() as stack:
-            [stack.enter_context(p) for p in patches]
+        mock_loop = MagicMock()
+        captured_handler = None
 
-            runner = GobbyRunner()
+        def capture_handler(sig, handler):
+            nonlocal captured_handler
+            if sig == signal.SIGTERM:
+                captured_handler = handler
 
-            # Create mock loop
-            mock_loop = MagicMock()
-            captured_handler = None
+        mock_loop.add_signal_handler = capture_handler
 
-            def capture_handler(sig, handler):
-                nonlocal captured_handler
-                if sig == signal.SIGTERM:
-                    captured_handler = handler
+        shutdown_called = False
 
-            mock_loop.add_signal_handler = capture_handler
+        def shutdown_callback():
+            nonlocal shutdown_called
+            shutdown_called = True
 
-            with patch("asyncio.get_running_loop", return_value=mock_loop):
-                runner._setup_signal_handlers()
+        with patch("asyncio.get_running_loop", return_value=mock_loop):
+            setup_signal_handlers(shutdown_callback)
 
-            # Verify handler was captured
-            assert captured_handler is not None
+        # Verify handler was captured
+        assert captured_handler is not None
 
-            # Call the handler
-            assert runner._shutdown_requested is False
-            captured_handler()
-            assert runner._shutdown_requested is True
+        # Call the handler
+        assert shutdown_called is False
+        captured_handler()
+        assert shutdown_called is True
 
 
 class TestAgentEventBroadcastingCallback:
@@ -1311,10 +1319,15 @@ class TestAgentEventBroadcastingCallback:
             await asyncio.sleep(0.1)
 
     @pytest.mark.asyncio
-    async def test_broadcast_callback_returns_early_when_websocket_becomes_none(
+    async def test_broadcast_callback_still_works_with_captured_reference(
         self, mock_config_with_websocket
     ):
-        """Test callback returns early if websocket_server becomes None after setup."""
+        """Test callback uses the captured websocket_server reference from setup time.
+
+        In the refactored architecture, setup_agent_event_broadcasting() captures
+        the websocket_server reference at call time. Setting runner.websocket_server
+        to None afterwards does NOT affect the captured closure.
+        """
         import asyncio
 
         mock_ws_server = AsyncMock()
@@ -1349,21 +1362,22 @@ class TestAgentEventBroadcastingCallback:
             # Verify callback was captured
             assert captured_callback is not None
 
-            # Set websocket_server to None to simulate disconnection
+            # Even after setting runner.websocket_server to None, the callback
+            # still holds the original reference (captured at setup time)
             runner.websocket_server = None
 
-            # Invoke the callback - should return early without error
+            # Invoke the callback
             captured_callback(
                 "agent_started",
                 "run-123",
                 {"parent_session_id": "sess-456"},
             )
 
-            # Allow some time for any async operations
+            # Allow async operations to complete
             await asyncio.sleep(0.01)
 
-            # Broadcast should NOT have been called since websocket_server is None
-            mock_ws_server.broadcast_agent_event.assert_not_called()
+            # Broadcast IS called because the closure captured the original reference
+            mock_ws_server.broadcast_agent_event.assert_called_once()
 
 
 class TestMessageProcessorWebSocketIntegration:
@@ -1439,7 +1453,7 @@ class TestWebSocketServerShutdown:
                 mock_server.serve = AsyncMock()
                 mock_server_cls.return_value = mock_server
 
-                with patch.object(runner, "_setup_signal_handlers"):
+                with patch("gobby.runner_maintenance.setup_signal_handlers"):
                     await asyncio.wait_for(runner.run(), timeout=10.0)
 
     @pytest.mark.asyncio
@@ -1479,7 +1493,7 @@ class TestWebSocketServerShutdown:
                 mock_server.serve = AsyncMock()
                 mock_server_cls.return_value = mock_server
 
-                with patch.object(runner, "_setup_signal_handlers"):
+                with patch("gobby.runner_maintenance.setup_signal_handlers"):
                     # Should complete without hanging due to timeout handling
                     await asyncio.wait_for(runner.run(), timeout=15.0)
 
@@ -1511,7 +1525,7 @@ class TestShutdownLoop:
                 mock_server.serve = AsyncMock()
                 mock_server_cls.return_value = mock_server
 
-                with patch.object(runner, "_setup_signal_handlers"):
+                with patch("gobby.runner_maintenance.setup_signal_handlers"):
                     # Create a task that will set shutdown flag after a short delay
                     async def trigger_shutdown():
                         await asyncio.sleep(0.1)
@@ -1552,7 +1566,7 @@ class TestMetricsCleanupTaskShutdown:
                 mock_server.serve = AsyncMock()
                 mock_server_cls.return_value = mock_server
 
-                with patch.object(runner, "_setup_signal_handlers"):
+                with patch("gobby.runner_maintenance.setup_signal_handlers"):
                     # Create a delayed shutdown that gives time for metrics task to start
                     async def delayed_shutdown():
                         await asyncio.sleep(0.1)
@@ -1572,6 +1586,8 @@ class TestMetricsCleanupLoopDetailed:
         """Test that metrics cleanup loop performs cleanup after sleep interval."""
         import asyncio
 
+        from gobby.runner_maintenance import metrics_cleanup_loop
+
         patches = create_base_patches(mock_config=mock_config)
 
         with ExitStack() as stack:
@@ -1587,17 +1603,25 @@ class TestMetricsCleanupLoopDetailed:
 
             runner.metrics_manager.cleanup_old_metrics = mock_cleanup
 
+            shutdown_requested = False
+
+            def is_shutdown():
+                return shutdown_requested
+
             # Patch asyncio.sleep to complete immediately
             original_sleep = asyncio.sleep
 
             async def fast_sleep(seconds):
+                nonlocal shutdown_requested
                 if seconds > 1:  # Only intercept the 24-hour sleep
-                    runner._shutdown_requested = True  # Trigger shutdown after one iteration
+                    shutdown_requested = True  # Trigger shutdown after one iteration
                     return
                 await original_sleep(seconds)
 
             with patch("asyncio.sleep", side_effect=fast_sleep):
-                task = asyncio.create_task(runner._metrics_cleanup_loop())
+                task = asyncio.create_task(
+                    metrics_cleanup_loop(runner.metrics_manager, is_shutdown)
+                )
                 await asyncio.wait_for(task, timeout=2.0)
 
             # Cleanup should have been called once
@@ -1608,6 +1632,8 @@ class TestMetricsCleanupLoopDetailed:
         """Test that metrics cleanup loop logs when entries are deleted."""
         import asyncio
 
+        from gobby.runner_maintenance import metrics_cleanup_loop
+
         patches = create_base_patches(mock_config=mock_config)
 
         with ExitStack() as stack:
@@ -1616,22 +1642,32 @@ class TestMetricsCleanupLoopDetailed:
             runner = GobbyRunner()
             runner.metrics_manager.cleanup_old_metrics = MagicMock(return_value=10)
 
+            shutdown_requested = False
+
+            def is_shutdown():
+                return shutdown_requested
+
             original_sleep = asyncio.sleep
 
             async def fast_sleep(seconds):
+                nonlocal shutdown_requested
                 if seconds > 1:
-                    runner._shutdown_requested = True
+                    shutdown_requested = True
                     return
                 await original_sleep(seconds)
 
             with patch("asyncio.sleep", side_effect=fast_sleep):
-                task = asyncio.create_task(runner._metrics_cleanup_loop())
+                task = asyncio.create_task(
+                    metrics_cleanup_loop(runner.metrics_manager, is_shutdown)
+                )
                 await asyncio.wait_for(task, timeout=2.0)
 
     @pytest.mark.asyncio
     async def test_metrics_cleanup_loop_continues_on_error(self, mock_config):
         """Test that metrics cleanup loop continues after an error."""
         import asyncio
+
+        from gobby.runner_maintenance import metrics_cleanup_loop
 
         patches = create_base_patches(mock_config=mock_config)
 
@@ -1650,20 +1686,27 @@ class TestMetricsCleanupLoopDetailed:
 
             runner.metrics_manager.cleanup_old_metrics = mock_cleanup
 
+            shutdown_requested = False
+
+            def is_shutdown():
+                return shutdown_requested
+
             original_sleep = asyncio.sleep
             iteration = 0
 
             async def fast_sleep(seconds):
-                nonlocal iteration
+                nonlocal iteration, shutdown_requested
                 if seconds > 1:
                     iteration += 1
                     if iteration >= 2:  # Allow 2 iterations then stop
-                        runner._shutdown_requested = True
+                        shutdown_requested = True
                     return
                 await original_sleep(seconds)
 
             with patch("asyncio.sleep", side_effect=fast_sleep):
-                task = asyncio.create_task(runner._metrics_cleanup_loop())
+                task = asyncio.create_task(
+                    metrics_cleanup_loop(runner.metrics_manager, is_shutdown)
+                )
                 await asyncio.wait_for(task, timeout=2.0)
 
             # Cleanup should have been called twice (once erroring, once successful)

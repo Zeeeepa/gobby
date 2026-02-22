@@ -1,0 +1,106 @@
+"""Background maintenance tasks for GobbyRunner.
+
+Standalone utilities for tmux cleanup, metrics, vector store rebuild,
+signal handling, and PID file management. Extracted from runner.py.
+"""
+
+from __future__ import annotations
+
+import asyncio
+import logging
+import os
+import signal
+import subprocess
+from collections.abc import Callable
+from pathlib import Path
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    from gobby.mcp_proxy.metrics import ToolMetricsManager
+    from gobby.memory.vectorstore import VectorStore
+
+logger = logging.getLogger(__name__)
+
+
+async def cleanup_stale_tmux_sessions() -> None:
+    """Kill tmux sessions on the gobby socket not backed by a registered agent."""
+    try:
+        from gobby.agents.registry import get_running_agent_registry
+        from gobby.agents.tmux.session_manager import TmuxSessionManager
+
+        mgr = TmuxSessionManager()
+        if not mgr.is_available():
+            return
+
+        sessions = await mgr.list_sessions()
+        if not sessions:
+            return
+
+        registry = get_running_agent_registry()
+        registered_names = {a.tmux_session_name for a in registry.list_all() if a.tmux_session_name}
+
+        for session in sessions:
+            if session.name not in registered_names:
+                logger.info(f"Cleaning up stale tmux session: {session.name}")
+                await mgr.kill_session(session.name)
+    except (OSError, subprocess.SubprocessError) as e:
+        logger.warning(f"Stale tmux session cleanup failed: {e}")
+
+
+async def metrics_cleanup_loop(
+    metrics_manager: ToolMetricsManager,
+    is_shutdown_requested: Callable[[], bool],
+) -> None:
+    """Background loop for periodic metrics cleanup (every 24 hours)."""
+    interval_seconds = 24 * 60 * 60  # 24 hours
+
+    while not is_shutdown_requested():
+        try:
+            await asyncio.sleep(interval_seconds)
+            deleted = metrics_manager.cleanup_old_metrics()
+            if deleted > 0:
+                logger.info(f"Periodic metrics cleanup: removed {deleted} old entries")
+        except asyncio.CancelledError:
+            break
+        except Exception as e:
+            logger.error(f"Error in metrics cleanup loop: {e}")
+
+
+async def rebuild_vector_store(
+    vector_store: VectorStore,
+    memory_dicts: list[dict[str, str]],
+    embed_fn: Any,
+) -> None:
+    """Rebuild VectorStore index in the background."""
+    try:
+        await vector_store.rebuild(memory_dicts, embed_fn)
+        logger.info("VectorStore rebuild complete")
+    except asyncio.CancelledError:
+        logger.info("VectorStore rebuild cancelled")
+    except Exception as e:
+        logger.error(f"VectorStore rebuild failed: {e}")
+
+
+def setup_signal_handlers(shutdown_callback: Callable[[], None]) -> None:
+    """Register SIGTERM/SIGINT handlers to trigger graceful shutdown."""
+    loop = asyncio.get_running_loop()
+
+    def handle_shutdown() -> None:
+        logger.info("Received shutdown signal, initiating graceful shutdown...")
+        shutdown_callback()
+
+    for sig in (signal.SIGTERM, signal.SIGINT):
+        loop.add_signal_handler(sig, handle_shutdown)
+
+
+def cleanup_pid_file() -> None:
+    """Remove PID file if it points to our process."""
+    try:
+        pid_file = Path(os.environ.get("GOBBY_HOME", Path.home() / ".gobby")) / "gobby.pid"
+        if pid_file.exists():
+            stored_pid = int(pid_file.read_text().strip())
+            if stored_pid == os.getpid():
+                pid_file.unlink(missing_ok=True)
+                logger.debug("Cleaned up PID file")
+    except Exception as e:
+        logger.debug(f"PID file cleanup failed (non-fatal): {e}")
