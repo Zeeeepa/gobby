@@ -37,7 +37,7 @@ MigrationAction = str | Callable[[LocalDatabase], None]
 # Baseline version - the schema state that is applied for new databases directly.
 # Must be bumped when BASELINE_SCHEMA is updated with columns from new migrations,
 # so that fresh databases don't re-run migrations already baked into the baseline.
-BASELINE_VERSION = 115
+BASELINE_VERSION = 116
 
 # Minimum migration version - databases older than this cannot be upgraded
 # because legacy migrations (pre-v108) have been removed.
@@ -576,12 +576,32 @@ CREATE TABLE inter_session_messages (
     content TEXT NOT NULL,
     priority TEXT NOT NULL DEFAULT 'normal',
     sent_at TEXT NOT NULL,
-    read_at TEXT
+    read_at TEXT,
+    message_type TEXT NOT NULL DEFAULT 'message',
+    metadata_json TEXT,
+    delivered_at TEXT
 );
 CREATE INDEX idx_inter_session_messages_from_session ON inter_session_messages(from_session);
 CREATE INDEX idx_inter_session_messages_to_session ON inter_session_messages(to_session);
 CREATE INDEX idx_inter_session_messages_unread ON inter_session_messages(to_session, read_at)
     WHERE read_at IS NULL;
+CREATE INDEX idx_ism_undelivered ON inter_session_messages(to_session, delivered_at)
+    WHERE delivered_at IS NULL;
+
+CREATE TABLE agent_commands (
+    id TEXT PRIMARY KEY,
+    from_session TEXT NOT NULL,
+    to_session TEXT NOT NULL,
+    command_text TEXT NOT NULL,
+    allowed_tools TEXT,
+    allowed_mcp_tools TEXT,
+    exit_condition TEXT,
+    status TEXT NOT NULL DEFAULT 'pending',
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    started_at TEXT,
+    completed_at TEXT
+);
+CREATE INDEX idx_agent_commands_to_session ON agent_commands(to_session, status);
 
 CREATE TABLE skills (
     id TEXT PRIMARY KEY,
@@ -1108,6 +1128,29 @@ MIGRATIONS: list[tuple[int, str, MigrationAction]] = [
             created_at TEXT NOT NULL DEFAULT (datetime('now')),
             UNIQUE(session_id, rule_name)
         )""",
+    ),
+    (
+        116,
+        "Add P2P message columns and agent_commands table",
+        """ALTER TABLE inter_session_messages ADD COLUMN message_type TEXT NOT NULL DEFAULT 'message';
+        ALTER TABLE inter_session_messages ADD COLUMN metadata_json TEXT;
+        ALTER TABLE inter_session_messages ADD COLUMN delivered_at TEXT;
+        CREATE INDEX idx_ism_undelivered ON inter_session_messages(to_session, delivered_at)
+            WHERE delivered_at IS NULL;
+        CREATE TABLE agent_commands (
+            id TEXT PRIMARY KEY,
+            from_session TEXT NOT NULL,
+            to_session TEXT NOT NULL,
+            command_text TEXT NOT NULL,
+            allowed_tools TEXT,
+            allowed_mcp_tools TEXT,
+            exit_condition TEXT,
+            status TEXT NOT NULL DEFAULT 'pending',
+            created_at TEXT NOT NULL DEFAULT (datetime('now')),
+            started_at TEXT,
+            completed_at TEXT
+        );
+        CREATE INDEX idx_agent_commands_to_session ON agent_commands(to_session, status)""",
     ),
 ]
 

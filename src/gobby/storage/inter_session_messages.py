@@ -37,6 +37,9 @@ class InterSessionMessage:
     priority: str
     sent_at: str
     read_at: str | None
+    message_type: str = "message"
+    metadata_json: str | None = None
+    delivered_at: str | None = None
 
     @classmethod
     def from_row(cls, row: Row) -> InterSessionMessage:
@@ -56,6 +59,9 @@ class InterSessionMessage:
             priority=row["priority"],
             sent_at=row["sent_at"],
             read_at=row["read_at"],
+            message_type=row["message_type"],
+            metadata_json=row["metadata_json"],
+            delivered_at=row["delivered_at"],
         )
 
     def to_dict(self) -> dict[str, Any]:
@@ -72,6 +78,9 @@ class InterSessionMessage:
             "priority": self.priority,
             "sent_at": self.sent_at,
             "read_at": self.read_at,
+            "message_type": self.message_type,
+            "metadata_json": self.metadata_json,
+            "delivered_at": self.delivered_at,
         }
 
 
@@ -96,6 +105,8 @@ class InterSessionMessageManager:
         to_session: str,
         content: str,
         priority: str = "normal",
+        message_type: str = "message",
+        metadata_json: str | None = None,
     ) -> InterSessionMessage:
         """Create and persist a new message.
 
@@ -104,6 +115,8 @@ class InterSessionMessageManager:
             to_session: ID of the receiving session
             content: Message content
             priority: Message priority (default: "normal")
+            message_type: Message type (default: "message")
+            metadata_json: Optional JSON metadata string
 
         Returns:
             The created InterSessionMessage
@@ -114,10 +127,12 @@ class InterSessionMessageManager:
         self.db.execute(
             """
             INSERT INTO inter_session_messages
-            (id, from_session, to_session, content, priority, sent_at, read_at)
-            VALUES (?, ?, ?, ?, ?, ?, NULL)
+            (id, from_session, to_session, content, priority, sent_at, read_at,
+             message_type, metadata_json)
+            VALUES (?, ?, ?, ?, ?, ?, NULL, ?, ?)
             """,
-            (message_id, from_session, to_session, content, priority, sent_at),
+            (message_id, from_session, to_session, content, priority, sent_at,
+             message_type, metadata_json),
         )
 
         return InterSessionMessage(
@@ -128,6 +143,8 @@ class InterSessionMessageManager:
             priority=priority,
             sent_at=sent_at,
             read_at=None,
+            message_type=message_type,
+            metadata_json=metadata_json,
         )
 
     def get_message(self, message_id: str) -> InterSessionMessage | None:
