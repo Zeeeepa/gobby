@@ -87,9 +87,9 @@ def create_agents_router(server: "HTTPServer") -> APIRouter:
     metrics = get_metrics_collector()
 
     def _get_manager() -> Any:
-        from gobby.storage.agent_definitions import LocalAgentDefinitionManager
+        from gobby.storage.workflow_definitions import LocalWorkflowDefinitionManager
 
-        return LocalAgentDefinitionManager(server.services.database)
+        return LocalWorkflowDefinitionManager(server.services.database)
 
     def _get_loader() -> Any:
         from gobby.agents.definitions import AgentDefinitionLoader
@@ -171,31 +171,45 @@ def create_agents_router(server: "HTTPServer") -> APIRouter:
         """Create a new agent definition in the DB."""
         metrics.inc_counter("http_requests_total")
         try:
-            manager = _get_manager()
-            scope = "project" if request.project_id else "global"
-            row = manager.create(
+            from gobby.workflows.definitions import AgentDefinitionBody
+
+            # Compose instructions from structured prompt fields
+            parts = []
+            if request.role:
+                parts.append(f"## Role\n{request.role}")
+            if request.goal:
+                parts.append(f"## Goal\n{request.goal}")
+            if request.personality:
+                parts.append(f"## Personality\n{request.personality}")
+            if request.instructions:
+                if parts:
+                    parts.append(f"## Instructions\n{request.instructions}")
+                else:
+                    parts.append(request.instructions)
+            composed = "\n\n".join(parts) if parts else None
+
+            body = AgentDefinitionBody(
                 name=request.name,
-                project_id=request.project_id,
                 description=request.description,
-                role=request.role,
-                goal=request.goal,
-                personality=request.personality,
-                instructions=request.instructions,
+                instructions=composed,
                 provider=request.provider,
                 model=request.model,
-                mode=request.mode,
-                terminal=request.terminal,
+                mode=request.mode if request.mode != "self" else "headless",
                 isolation=request.isolation,
                 base_branch=request.base_branch,
                 timeout=request.timeout,
                 max_turns=request.max_turns,
-                default_workflow=request.default_workflow,
-                sandbox_config=request.sandbox_config,
-                skill_profile=request.skill_profile,
-                workflows=request.workflows,
-                lifecycle_variables=request.lifecycle_variables,
-                default_variables=request.default_variables,
-                scope=scope,
+            )
+
+            manager = _get_manager()
+            row = manager.create(
+                name=body.name,
+                definition_json=body.model_dump_json(),
+                workflow_type="agent",
+                project_id=request.project_id,
+                description=body.description,
+                source="custom",
+                enabled=body.enabled,
             )
             return {"status": "success", "definition": row.to_dict()}
         except Exception as e:
@@ -209,11 +223,48 @@ def create_agents_router(server: "HTTPServer") -> APIRouter:
         """Update a DB-backed agent definition."""
         metrics.inc_counter("http_requests_total")
         try:
+            import json as _json
+
             manager = _get_manager()
             fields = request.model_dump(exclude_unset=True)
             if not fields:
                 raise HTTPException(status_code=400, detail="No fields to update")
-            row = manager.update(definition_id, **fields)
+
+            # Load existing definition_json and apply updates
+            row = manager.get(definition_id)
+            body_dict: dict[str, Any] = _json.loads(row.definition_json)
+
+            # Map body-level fields
+            for key in ("name", "description", "instructions", "provider", "model",
+                        "mode", "isolation", "base_branch", "timeout", "max_turns"):
+                if key in fields:
+                    body_dict[key] = fields[key]
+
+            # Handle structured prompt fields → compose into instructions
+            if any(k in fields for k in ("role", "goal", "personality")):
+                parts = []
+                for k in ("role", "goal", "personality"):
+                    val = fields.get(k)
+                    if val:
+                        parts.append(f"## {k.title()}\n{val}")
+                instr = fields.get("instructions") or body_dict.get("instructions")
+                if instr and parts:
+                    parts.append(f"## Instructions\n{instr}")
+                elif instr:
+                    parts.append(instr)
+                body_dict["instructions"] = "\n\n".join(parts) if parts else None
+
+            update_fields: dict[str, Any] = {
+                "definition_json": _json.dumps(body_dict),
+            }
+            if "description" in fields:
+                update_fields["description"] = fields["description"]
+            if "enabled" in fields:
+                update_fields["enabled"] = fields["enabled"]
+            if "name" in fields:
+                update_fields["name"] = fields["name"]
+
+            row = manager.update(definition_id, **update_fields)
             return {"status": "success", "definition": row.to_dict()}
         except ValueError as e:
             raise HTTPException(status_code=404, detail=str(e)) from e
@@ -347,6 +398,7 @@ def create_agents_router(server: "HTTPServer") -> APIRouter:
         metrics.inc_counter("http_requests_total")
         try:
             from gobby.agents.definitions import AgentDefinitionLoader
+            from gobby.agents.sync import _agent_def_to_body
 
             # Load from files only (no DB fallback) for import
             defn = AgentDefinitionLoader.load_from_file(name)
@@ -355,9 +407,17 @@ def create_agents_router(server: "HTTPServer") -> APIRouter:
                     status_code=404,
                     detail=f"File-based agent definition '{name}' not found",
                 )
-            scope = "project" if project_id else "global"
+            body = _agent_def_to_body(defn)
             manager = _get_manager()
-            row = manager.import_from_definition(defn, project_id=project_id, scope=scope)
+            row = manager.create(
+                name=body.name,
+                definition_json=body.model_dump_json(),
+                workflow_type="agent",
+                project_id=project_id,
+                description=body.description,
+                source="custom",
+                enabled=body.enabled,
+            )
             return {"status": "success", "definition": row.to_dict()}
         except HTTPException:
             raise

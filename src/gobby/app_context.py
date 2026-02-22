@@ -66,9 +66,6 @@ class ServiceContainer:
     cron_storage: Any | None = None  # CronJobStorage
     cron_scheduler: Any | None = None  # CronScheduler
 
-    # Agent Definitions
-    agent_definition_manager: Any | None = None  # LocalAgentDefinitionManager
-
     # Skills
     skill_manager: Any | None = None  # LocalSkillManager
     hub_manager: Any | None = None  # HubManager

@@ -1,7 +1,7 @@
 """Tests for agent definition API routes - real coverage, minimal mocking.
 
 Exercises src/gobby/servers/routes/agents.py endpoints using
-create_http_server() with a real LocalAgentDefinitionManager backed by temp_db.
+create_http_server() with a real LocalWorkflowDefinitionManager backed by temp_db.
 Only the AgentDefinitionLoader (which scans files) is mocked where needed.
 """
 
@@ -16,8 +16,8 @@ from starlette.testclient import TestClient
 
 from gobby.agents.definitions import AgentDefinition
 from gobby.config.app import DaemonConfig
-from gobby.storage.agent_definitions import AgentDefinitionRow, LocalAgentDefinitionManager
 from gobby.storage.tasks import LocalTaskManager
+from gobby.storage.workflow_definitions import LocalWorkflowDefinitionManager
 from tests.servers.conftest import create_http_server
 
 pytestmark = pytest.mark.unit
@@ -89,8 +89,8 @@ def task_manager(temp_db) -> LocalTaskManager:
 
 
 @pytest.fixture
-def agent_manager(temp_db) -> LocalAgentDefinitionManager:
-    return LocalAgentDefinitionManager(temp_db)
+def agent_manager(temp_db) -> LocalWorkflowDefinitionManager:
+    return LocalWorkflowDefinitionManager(temp_db)
 
 
 @pytest.fixture
@@ -285,10 +285,14 @@ class TestCreateDefinition:
         defn = response.json()["definition"]
         assert defn["name"] == "full-agent"
         assert defn["description"] == "A fully specified agent"
-        assert defn["provider"] == "claude"
-        assert defn["mode"] == "terminal"
-        assert defn["timeout"] == 300.0
-        assert defn["max_turns"] == 20
+        # Agent-specific fields are inside definition_json
+        import json as _json
+
+        body = _json.loads(defn["definition_json"])
+        assert body["provider"] == "claude"
+        assert body["mode"] == "terminal"
+        assert body["timeout"] == 300.0
+        assert body["max_turns"] == 20
 
     def test_create_with_project_id(self, client: TestClient, project_manager) -> None:
         project = project_manager.create(name="agent-proj", repo_path="/tmp/agent-proj")
@@ -365,26 +369,30 @@ class TestUpdateDefinition:
         assert response.status_code == 200
         assert response.json()["definition"]["enabled"] is False
 
-    def test_update_json_fields(self, client: TestClient) -> None:
-        """Update fields that are stored as JSON (sandbox_config, etc)."""
+    def test_update_body_fields(self, client: TestClient) -> None:
+        """Update fields stored in definition_json body."""
+        import json as _json
+
         create_resp = client.post(
             "/api/agents/definitions",
-            json={"name": "json-fields"},
+            json={"name": "body-fields"},
         )
         defn_id = create_resp.json()["definition"]["id"]
 
         response = client.put(
             f"/api/agents/definitions/{defn_id}",
             json={
-                "sandbox_config": {"network": True},
-                "skill_profile": {"audience": "test"},
-                "workflows": {"w1": {"file": "w1.yaml"}},
+                "provider": "gemini",
+                "model": "gemini-2.5-pro",
+                "timeout": 300.0,
             },
         )
         assert response.status_code == 200
         defn = response.json()["definition"]
-        assert defn["sandbox_config"] == {"network": True}
-        assert defn["skill_profile"] == {"audience": "test"}
+        body = _json.loads(defn["definition_json"])
+        assert body["provider"] == "gemini"
+        assert body["model"] == "gemini-2.5-pro"
+        assert body["timeout"] == 300.0
 
 
 # ---------------------------------------------------------------------------

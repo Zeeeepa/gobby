@@ -191,19 +191,28 @@ class TestAgentDefinitionLoader:
 
     def test_load_from_db(self, tmp_path: Path) -> None:
         """Test loading a definition from the database."""
-        from gobby.storage.agent_definitions import LocalAgentDefinitionManager
         from gobby.storage.database import LocalDatabase
         from gobby.storage.migrations import run_migrations
+        from gobby.storage.workflow_definitions import LocalWorkflowDefinitionManager
+        from gobby.workflows.definitions import AgentDefinitionBody
 
         db = LocalDatabase(tmp_path / "test.db")
         run_migrations(db)
 
-        mgr = LocalAgentDefinitionManager(db, dev_mode=True)
-        mgr.create(
+        body = AgentDefinitionBody(
             name="validation-runner",
             description="Runs validation",
             model="haiku",
-            scope="bundled",
+            provider="claude",
+            mode="headless",
+        )
+        mgr = LocalWorkflowDefinitionManager(db)
+        mgr.create(
+            name="validation-runner",
+            definition_json=body.model_dump_json(),
+            workflow_type="agent",
+            description="Runs validation",
+            source="bundled",
         )
 
         loader = AgentDefinitionLoader(db=db)
@@ -226,10 +235,11 @@ class TestAgentDefinitionLoader:
         assert agent is None
 
     def test_scope_precedence(self, tmp_path: Path) -> None:
-        """Test scope precedence: project > global > bundled."""
-        from gobby.storage.agent_definitions import LocalAgentDefinitionManager
+        """Test source precedence: project-scoped custom > global custom > bundled."""
         from gobby.storage.database import LocalDatabase
         from gobby.storage.migrations import run_migrations
+        from gobby.storage.workflow_definitions import LocalWorkflowDefinitionManager
+        from gobby.workflows.definitions import AgentDefinitionBody
 
         db = LocalDatabase(tmp_path / "test.db")
         run_migrations(db)
@@ -238,22 +248,44 @@ class TestAgentDefinitionLoader:
             "VALUES ('proj-1', 'test', datetime('now'), datetime('now'))"
         )
 
-        mgr = LocalAgentDefinitionManager(db, dev_mode=True)
-        mgr.create(name="agent-x", provider="claude", scope="bundled")
-        mgr.create(name="agent-x", provider="gemini", scope="global")
-        mgr.create(name="agent-x", provider="codex", project_id="proj-1", scope="project")
+        mgr = LocalWorkflowDefinitionManager(db)
+
+        # Global bundled agent
+        body_bundled = AgentDefinitionBody(
+            name="agent-x", provider="claude", mode="headless",
+        )
+        mgr.create(
+            name="agent-x",
+            definition_json=body_bundled.model_dump_json(),
+            workflow_type="agent",
+            source="bundled",
+        )
+
+        # Project-scoped custom agent (same name, different project_id)
+        body_project = AgentDefinitionBody(
+            name="agent-x", provider="codex", mode="headless",
+        )
+        mgr.create(
+            name="agent-x",
+            definition_json=body_project.model_dump_json(),
+            workflow_type="agent",
+            project_id="proj-1",
+            source="custom",
+        )
 
         loader = AgentDefinitionLoader(db=db)
 
-        # With project_id, project scope wins
-        agent = loader.load("agent-x", project_id="proj-1")
-        assert agent is not None
-        assert agent.provider == "codex"
+        # list_all with project_id deduplicates: project-scoped custom wins
+        items = loader.list_all(project_id="proj-1")
+        match = next((i for i in items if i.definition.name == "agent-x"), None)
+        assert match is not None
+        assert match.definition.provider == "codex"
+        assert match.source == "custom"
 
-        # Without project_id, global wins over bundled
+        # Without project_id, only the global bundled entry is returned
         agent = loader.load("agent-x")
         assert agent is not None
-        assert agent.provider == "gemini"
+        assert agent.provider == "claude"
 
     def test_load_from_file_static(self, tmp_path: Path) -> None:
         """Test static load_from_file method finds YAML files."""
@@ -303,16 +335,26 @@ class TestAgentDefinitionLoader:
 
     def test_list_all_from_db(self, tmp_path: Path) -> None:
         """Test list_all returns all definitions from DB."""
-        from gobby.storage.agent_definitions import LocalAgentDefinitionManager
         from gobby.storage.database import LocalDatabase
         from gobby.storage.migrations import run_migrations
+        from gobby.storage.workflow_definitions import LocalWorkflowDefinitionManager
+        from gobby.workflows.definitions import AgentDefinitionBody
 
         db = LocalDatabase(tmp_path / "test.db")
         run_migrations(db)
 
-        mgr = LocalAgentDefinitionManager(db, dev_mode=True)
-        mgr.create(name="agent-a", provider="claude", scope="bundled")
-        mgr.create(name="agent-b", provider="gemini", scope="global")
+        mgr = LocalWorkflowDefinitionManager(db)
+        for name, provider, source in [
+            ("agent-a", "claude", "bundled"),
+            ("agent-b", "gemini", "custom"),
+        ]:
+            body = AgentDefinitionBody(name=name, provider=provider, mode="headless")
+            mgr.create(
+                name=name,
+                definition_json=body.model_dump_json(),
+                workflow_type="agent",
+                source=source,
+            )
 
         loader = AgentDefinitionLoader(db=db)
         items = loader.list_all()

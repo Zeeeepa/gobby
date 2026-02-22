@@ -37,7 +37,7 @@ MigrationAction = str | Callable[[LocalDatabase], None]
 # Baseline version - the schema state that is applied for new databases directly.
 # Must be bumped when BASELINE_SCHEMA is updated with columns from new migrations,
 # so that fresh databases don't re-run migrations already baked into the baseline.
-BASELINE_VERSION = 116
+BASELINE_VERSION = 117
 
 # Minimum migration version - databases older than this cannot be upgraded
 # because legacy migrations (pre-v108) have been removed.
@@ -732,43 +732,6 @@ CREATE TABLE step_executions (
 CREATE INDEX idx_step_executions_execution ON step_executions(execution_id);
 CREATE INDEX idx_step_executions_approval_token ON step_executions(approval_token);
 
-CREATE TABLE agent_definitions (
-    id TEXT PRIMARY KEY,
-    project_id TEXT REFERENCES projects(id) ON DELETE CASCADE,
-    name TEXT NOT NULL,
-    description TEXT,
-    role TEXT,
-    goal TEXT,
-    personality TEXT,
-    instructions TEXT,
-    provider TEXT NOT NULL DEFAULT 'claude',
-    model TEXT,
-    mode TEXT NOT NULL DEFAULT 'headless',
-    terminal TEXT DEFAULT 'auto',
-    isolation TEXT,
-    base_branch TEXT DEFAULT 'main',
-    timeout REAL DEFAULT 120.0,
-    max_turns INTEGER DEFAULT 10,
-    default_workflow TEXT,
-    sandbox_config TEXT,
-    skill_profile TEXT,
-    workflows TEXT,
-    lifecycle_variables TEXT,
-    default_variables TEXT,
-    enabled INTEGER NOT NULL DEFAULT 1,
-    scope TEXT NOT NULL DEFAULT 'global'
-        CHECK(scope IN ('bundled', 'global', 'project')),
-    source_path TEXT,
-    version TEXT DEFAULT '1.0',
-    deleted_at TEXT,
-    created_at TEXT NOT NULL DEFAULT (datetime('now')),
-    updated_at TEXT NOT NULL DEFAULT (datetime('now'))
-);
-CREATE UNIQUE INDEX idx_agent_defs_name_scope_project
-    ON agent_definitions(name, scope, COALESCE(project_id, ''));
-CREATE INDEX idx_agent_defs_project ON agent_definitions(project_id);
-CREATE INDEX idx_agent_defs_provider ON agent_definitions(provider);
-
 CREATE TABLE secrets (
     id TEXT PRIMARY KEY,
     name TEXT NOT NULL UNIQUE,
@@ -1080,6 +1043,91 @@ def _migrate_secret_names_to_natural(db: LocalDatabase) -> None:
     logger.info(f"Secret name migration complete: {migrated} renamed, {deleted} duplicates removed")
 
 
+def _migrate_agent_defs_to_workflow_defs(db: LocalDatabase) -> None:
+    """Migrate agent_definitions rows to workflow_definitions with workflow_type='agent'.
+
+    Maps 29-field agent rows to 12-field AgentDefinitionBody definition_json.
+    Composes role/goal/personality/instructions into a single instructions field.
+    Skips soft-deleted rows. Drops agent_definitions table after migration.
+    """
+    table_check = db.fetchone(
+        "SELECT name FROM sqlite_master WHERE type='table' AND name='agent_definitions'"
+    )
+    if not table_check:
+        logger.info("agent_definitions table not found, skipping migration")
+        return
+
+    rows = db.fetchall("SELECT * FROM agent_definitions WHERE deleted_at IS NULL")
+
+    migrated = 0
+    for row in rows:
+        # Compose instructions from structured prompt fields
+        has_structured = row["role"] or row["goal"] or row["personality"]
+        if has_structured:
+            parts: list[str] = []
+            if row["role"]:
+                parts.append(f"## Role\n{row['role']}")
+            if row["goal"]:
+                parts.append(f"## Goal\n{row['goal']}")
+            if row["personality"]:
+                parts.append(f"## Personality\n{row['personality']}")
+            if row["instructions"]:
+                parts.append(f"## Instructions\n{row['instructions']}")
+            composed: str | None = "\n\n".join(parts)
+        else:
+            composed = row["instructions"]
+
+        # Build AgentDefinitionBody dict
+        body: dict[str, object] = {
+            "name": row["name"],
+            "provider": row["provider"] or "claude",
+            "mode": row["mode"] or "headless",
+            "base_branch": row["base_branch"] or "main",
+            "timeout": float(row["timeout"]) if row["timeout"] else 120.0,
+            "max_turns": int(row["max_turns"]) if row["max_turns"] else 10,
+            "rules": [],
+            "enabled": bool(row["enabled"]),
+        }
+        if row["description"]:
+            body["description"] = row["description"]
+        if composed:
+            body["instructions"] = composed
+        if row["model"]:
+            body["model"] = row["model"]
+        if row["isolation"]:
+            body["isolation"] = row["isolation"]
+
+        definition_json = json.dumps(body)
+
+        # Map scope to source
+        scope = row["scope"] or "global"
+        source = "bundled" if scope == "bundled" else "custom"
+
+        db.execute(
+            """INSERT OR IGNORE INTO workflow_definitions
+               (id, project_id, name, description, workflow_type, version,
+                enabled, priority, definition_json, source, created_at, updated_at)
+               VALUES (?, ?, ?, ?, 'agent', '1.0', ?, 100, ?, ?, ?, ?)""",
+            (
+                str(uuid.uuid4()),
+                row["project_id"],
+                row["name"],
+                row["description"],
+                1 if row["enabled"] else 0,
+                definition_json,
+                source,
+                row["created_at"],
+                row["updated_at"],
+            ),
+        )
+        migrated += 1
+
+    # Drop the old table and its indexes
+    db.execute("DROP TABLE IF EXISTS agent_definitions")
+
+    logger.info(f"Migrated {migrated} agent definitions to workflow_definitions")
+
+
 MIGRATIONS: list[tuple[int, str, MigrationAction]] = [
     (
         108,
@@ -1151,6 +1199,11 @@ MIGRATIONS: list[tuple[int, str, MigrationAction]] = [
             completed_at TEXT
         );
         CREATE INDEX idx_agent_commands_to_session ON agent_commands(to_session, status)""",
+    ),
+    (
+        117,
+        "Migrate agent_definitions to workflow_definitions and drop old table",
+        _migrate_agent_defs_to_workflow_defs,
     ),
 ]
 

@@ -18,11 +18,13 @@ from gobby.agents.sandbox import SandboxConfig
 from gobby.utils.project_context import get_project_context
 
 if TYPE_CHECKING:
-    from gobby.storage.agent_definitions import LocalAgentDefinitionManager
     from gobby.storage.database import DatabaseProtocol
+    from gobby.storage.workflow_definitions import LocalWorkflowDefinitionManager
 
 AgentSource = Literal[
     "bundled",
+    "custom",
+    "imported",
     "global",
     "project",
     "project-file",
@@ -374,16 +376,36 @@ class AgentDefinitionLoader:
         self._db = LocalDatabase()
         return self._db
 
-    def _get_manager(self) -> "LocalAgentDefinitionManager":
-        from gobby.storage.agent_definitions import LocalAgentDefinitionManager
+    def _get_manager(self) -> "LocalWorkflowDefinitionManager":
+        from gobby.storage.workflow_definitions import LocalWorkflowDefinitionManager
 
-        return LocalAgentDefinitionManager(self._get_db())
+        return LocalWorkflowDefinitionManager(self._get_db())
+
+    @staticmethod
+    def _body_to_definition(body: Any) -> "AgentDefinition":
+        """Convert an AgentDefinitionBody to an AgentDefinition.
+
+        Maps the simplified 12-field model back to the full model,
+        with unmapped fields defaulting to None.
+        """
+        return AgentDefinition(
+            name=body.name,
+            description=body.description,
+            instructions=body.instructions,
+            provider=body.provider,
+            model=body.model,
+            mode=body.mode if body.mode in ("terminal", "embedded", "headless", "self") else "headless",
+            isolation=body.isolation,
+            base_branch=body.base_branch,
+            timeout=body.timeout,
+            max_turns=body.max_turns,
+        )
 
     def load(self, name: str, project_id: str | None = None) -> AgentDefinition | None:
         """
-        Load an agent definition by name from the database.
+        Load an agent definition by name from workflow_definitions.
 
-        Uses scope precedence: project > global > bundled.
+        Queries workflow_definitions where workflow_type='agent'.
 
         Args:
             name: Name of the agent (e.g. "coordinator")
@@ -399,7 +421,8 @@ class AgentDefinitionLoader:
             return None
 
         try:
-            row = mgr.get_by_name(name, project_id)
+            rows = mgr.list_all(workflow_type="agent", project_id=project_id)
+            row = next((r for r in rows if r.name == name), None)
         except (OSError, ValueError) as e:
             logger.error(f"Failed to query agent definition '{name}' from DB: {e}")
             return None
@@ -409,8 +432,10 @@ class AgentDefinitionLoader:
             return None
 
         try:
-            defn: AgentDefinition = mgr.export_to_definition(row.id)
-            return defn
+            from gobby.workflows.definitions import AgentDefinitionBody
+
+            body = AgentDefinitionBody.model_validate_json(row.definition_json)
+            return self._body_to_definition(body)
         except (KeyError, ValueError) as e:
             logger.error(f"Failed to parse agent definition '{name}' from DB: {e}")
             return None
@@ -419,50 +444,65 @@ class AgentDefinitionLoader:
         self, project_id: str | None = None, include_deleted: bool = False
     ) -> list[AgentDefinitionInfo]:
         """
-        List all agent definitions from the database, deduplicated by name.
+        List all agent definitions from workflow_definitions, deduplicated by name.
 
-        Higher-priority scopes shadow lower ones (project > global > bundled).
+        Project-scoped entries take priority over global ones.
+        Source 'custom' takes priority over 'bundled'.
 
         Returns:
             Sorted list of AgentDefinitionInfo (by name).
         """
+        from gobby.workflows.definitions import AgentDefinitionBody
+
         try:
             mgr = self._get_manager()
-            rows = mgr.list_all(project_id=project_id, include_deleted=include_deleted)
+            rows = mgr.list_all(
+                workflow_type="agent",
+                project_id=project_id,
+                include_deleted=include_deleted,
+            )
         except Exception as e:
             logger.warning(f"Failed to load agent definitions from DB: {e}")
             return []
 
+        # Priority: project-scoped > custom > bundled
+        _SOURCE_PRIORITY = {"custom": 1, "imported": 2, "bundled": 3}
+
         seen: dict[str, AgentDefinitionInfo] = {}
         for row in rows:
             try:
-                defn = mgr.export_to_definition(row.id)
+                body = AgentDefinitionBody.model_validate_json(row.definition_json)
+                defn = self._body_to_definition(body)
+
+                # Determine effective source priority
+                # Project-scoped entries always beat global ones
+                is_project = row.project_id is not None
+                source_priority = _SOURCE_PRIORITY.get(row.source, 99)
+                effective_priority = (0 if is_project else 1, source_priority)
+
                 old = seen.get(row.name)
                 if old:
-                    # Higher-priority scope overwrites lower
-                    _SCOPE_PRIORITY = {"project": 1, "global": 2, "bundled": 3}
-                    old_priority = _SCOPE_PRIORITY.get(old.source, 99)
-                    new_priority = _SCOPE_PRIORITY.get(row.scope, 99)
-                    if new_priority < old_priority:
+                    old_is_project = old.source_path == "project"
+                    old_source_priority = _SOURCE_PRIORITY.get(old.source, 99)
+                    old_effective = (0 if old_is_project else 1, old_source_priority)
+
+                    if effective_priority < old_effective:
                         seen[row.name] = AgentDefinitionInfo(
                             definition=defn,
-                            source=row.scope,
-                            source_path=row.source_path,
+                            source=row.source,
                             db_id=row.id,
                             overridden_by=old.source,
                             deleted_at=row.deleted_at,
                         )
-                    # else: existing has higher priority, skip
                 else:
                     seen[row.name] = AgentDefinitionInfo(
                         definition=defn,
-                        source=row.scope,
-                        source_path=row.source_path,
+                        source=row.source,
                         db_id=row.id,
                         deleted_at=row.deleted_at,
                     )
             except Exception as e:
-                logger.warning(f"Failed to export agent definition '{row.name}': {e}")
+                logger.warning(f"Failed to parse agent definition '{row.name}': {e}")
 
         return sorted(seen.values(), key=lambda x: x.definition.name)
 
