@@ -1,0 +1,177 @@
+# Context handoff rules - manage session context injection, handoff generation,
+# and task sync across session boundaries (start, end, compact).
+#
+# NOTE: mcp_call and source-based inject_context rules require the RuleEngine
+# to be wired into the hook pipeline and dispatch to be implemented. Until then,
+# these rules serve as declarative definitions for the target behavior.
+# Legacy actions have been removed from session-lifecycle.yaml.
+
+group: context-handoff
+tags: [context, handoff, lifecycle]
+
+rules:
+  # ─── Session Start ───
+
+  clear-pending-context-reset-on-start:
+    description: "Clear pending_context_reset flag after use (Gemini resume flow)"
+    event: session_start
+    priority: 5
+    when: "variables.get('pending_context_reset')"
+    effect:
+      type: set_variable
+      variable: pending_context_reset
+      value: false
+
+  capture-baseline-dirty-files-on-start:
+    description: "Capture baseline dirty files for session-aware commit detection"
+    event: session_start
+    priority: 8
+    effect:
+      type: mcp_call
+      server: gobby-sessions
+      tool: capture_baseline_dirty_files
+
+  inject-previous-session-summary:
+    description: "Inject previous session summary on clear (new session after /clear)"
+    event: session_start
+    priority: 10
+    when: "event.data.get('source') == 'clear'"
+    effect:
+      type: inject_context
+      template: |
+        ## Previous Session Context
+        *Injected by Gobby session handoff*
+
+        {{ summary }}
+
+  inject-compact-handoff:
+    description: "Inject compact handoff context after compaction"
+    event: session_start
+    priority: 11
+    when: "event.data.get('source') == 'compact'"
+    effect:
+      type: inject_context
+      template: |
+        ## Continuation Context
+        *Injected by Gobby compact handoff*
+
+        {{ handoff }}
+
+  task-sync-import-on-start:
+    description: "Import tasks from .gobby/tasks.jsonl on session start"
+    event: session_start
+    priority: 20
+    effect:
+      type: mcp_call
+      server: gobby-tasks
+      tool: sync_import
+
+  inject-skills-on-start:
+    description: "Inject always-apply skills guide on session start (skip on resume)"
+    event: session_start
+    priority: 30
+    when: "event.data.get('source') != 'resume'"
+    effect:
+      type: inject_context
+      template: |
+        {{ skills_list }}
+
+  inject-task-context-on-start:
+    description: "Inject active task context if session has a claimed task (skip on resume)"
+    event: session_start
+    priority: 31
+    when: "event.data.get('source') != 'resume'"
+    effect:
+      type: inject_context
+      template: |
+        {{ task_context }}
+
+  inject-error-triage-policy:
+    description: "Inject pre-existing error/warning triage policy (skip on resume)"
+    event: session_start
+    priority: 40
+    when: "event.data.get('source') != 'resume'"
+    effect:
+      type: inject_context
+      template: |
+        ## Pre-Existing Error/Warning/Failure Policy
+
+        If you encounter ANY pre-existing issues during your work — errors,
+        warnings, or failures (test failures, lint errors/warnings, type errors,
+        build failures, deprecation warnings) unrelated to your changes — you
+        MUST create a gobby task for each distinct issue before stopping.
+
+        After triaging all issues (or confirming none were found), call
+        set_variable on gobby-workflows:
+        set_variable(name="pre_existing_errors_triaged", value=true, session_id="<session_id>")
+
+  # ─── Session End ───
+
+  generate-handoff-on-end:
+    description: "Generate session handoff summary on session end"
+    event: session_end
+    priority: 10
+    effect:
+      type: mcp_call
+      server: gobby-sessions
+      tool: generate_handoff
+      arguments:
+        include:
+          - pending_tasks
+        prompt: handoff/session_end
+        write_file: true
+
+  task-sync-export-on-end:
+    description: "Export tasks to .gobby/tasks.jsonl on session end"
+    event: session_end
+    priority: 30
+    effect:
+      type: mcp_call
+      server: gobby-tasks
+      tool: sync_export
+
+  # ─── Pre Compact ───
+
+  set-pending-context-reset-on-compact:
+    description: "Set pending_context_reset flag before compaction (for Gemini resume flow)"
+    event: pre_compact
+    priority: 5
+    when: "event.source.value != 'gemini' or event.data.get('trigger') == 'manual'"
+    effect:
+      type: set_variable
+      variable: pending_context_reset
+      value: true
+
+  extract-handoff-context-on-compact:
+    description: "Extract structured context before compaction"
+    event: pre_compact
+    priority: 10
+    when: "event.source.value != 'gemini' or event.data.get('trigger') == 'manual'"
+    effect:
+      type: mcp_call
+      server: gobby-sessions
+      tool: extract_handoff_context
+
+  task-sync-export-on-compact:
+    description: "Export tasks to JSONL before compaction"
+    event: pre_compact
+    priority: 20
+    when: "event.source.value != 'gemini' or event.data.get('trigger') == 'manual'"
+    effect:
+      type: mcp_call
+      server: gobby-tasks
+      tool: sync_export
+
+  generate-handoff-on-compact:
+    description: "Generate LLM summary with cumulative compression before compaction"
+    event: pre_compact
+    priority: 25
+    when: "event.source.value != 'gemini' or event.data.get('trigger') == 'manual'"
+    effect:
+      type: mcp_call
+      server: gobby-sessions
+      tool: generate_handoff
+      arguments:
+        mode: compact
+        prompt: handoff/compact
+        write_file: true

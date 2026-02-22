@@ -62,79 +62,15 @@ observers:
 
   on_session_start:
     # NOTE: reset_memory_injection_tracking moved to memory-lifecycle.yaml
-    # (reset-memory-tracking-on-start rule)
-
-    # Clear pending_context_reset flag after use (Gemini resume flow)
-    - action: set_variable
-      when: "variables.get('pending_context_reset')"
-      name: pending_context_reset
-      value: false
-
-    # Capture baseline dirty files for session-aware commit detection
-    # Must run FIRST so baseline is captured before any modifications
-    - action: capture_baseline_dirty_files
-
-    # Session identity is injected by the adapter/hook route for CLI clients.
-    # SDK clients get it via claude-sdk-lifecycle.yaml (on_before_agent init).
-
-    # Context handoff - inject previous session summary
-    - action: inject_context
-      when: "event.data.get('source') == 'clear'"
-      source: previous_session_summary
-      require: true # Block if handoff context missing
-      template: |
-        ## Previous Session Context
-        *Injected by Gobby session handoff*
-
-        {{ summary }}
-
-    # Context handoff - inject compact handoff after compaction
-    - action: inject_context
-      when: "event.data.get('source') == 'compact'"
-      source: compact_handoff
-      require: true # Block if handoff context missing
-      template: |
-        ## Continuation Context
-        *Injected by Gobby compact handoff*
-
-        {{ handoff }}
-
+    # NOTE: clear_pending_context_reset moved to context-handoff.yaml (clear-pending-context-reset-on-start rule)
+    # NOTE: capture_baseline_dirty_files moved to context-handoff.yaml (capture-baseline-dirty-files-on-start rule)
+    # NOTE: inject previous_session_summary moved to context-handoff.yaml (inject-previous-session-summary rule)
+    # NOTE: inject compact_handoff moved to context-handoff.yaml (inject-compact-handoff rule)
     # NOTE: memory_sync_import moved to memory-lifecycle.yaml (memory-sync-import rule)
-
-    # Task sync - import from JSONL for Git persistence
-    - action: task_sync_import
-
-    # Skill discovery guide injection - inject always-apply skills for all session starts
-    # Skip on resume - conversation already has this context from original startup
-    # always_apply filter injects the discovery guide (and any other alwaysApply skills)
-    - action: inject_context
-      when: "event.data.get('source') != 'resume'"
-      source: skills
-      filter: always_apply
-      template: |
-        {{ skills_list }}
-
-    # Inject active task context if session has a claimed task
-    - action: inject_context
-      when: "event.data.get('source') != 'resume'"
-      source: task_context
-      template: |
-        {{ task_context }}
-
-    # Pre-existing error/warning triage policy - skip on resume (already in context)
-    - action: inject_context
-      when: "event.data.get('source') != 'resume'"
-      template: |
-        ## Pre-Existing Error/Warning/Failure Policy
-
-        If you encounter ANY pre-existing issues during your work — errors,
-        warnings, or failures (test failures, lint errors/warnings, type errors,
-        build failures, deprecation warnings) unrelated to your changes — you
-        MUST create a gobby task for each distinct issue before stopping.
-
-        After triaging all issues (or confirming none were found), call
-        set_variable on gobby-workflows:
-        set_variable(name="pre_existing_errors_triaged", value=true, session_id="<session_id>")
+    # NOTE: task_sync_import moved to context-handoff.yaml (task-sync-import-on-start rule)
+    # NOTE: inject skills moved to context-handoff.yaml (inject-skills-on-start rule)
+    # NOTE: inject task_context moved to context-handoff.yaml (inject-task-context-on-start rule)
+    # NOTE: inject error_triage_policy moved to context-handoff.yaml (inject-error-triage-policy rule)
 
   on_before_agent:
     # NOTE: memory_recall_with_synthesis moved to memory-lifecycle.yaml (memory-recall-on-prompt rule)
@@ -145,19 +81,10 @@ observers:
     # NOTE: suggest-memory-after-close moved to memory-lifecycle.yaml
 
   on_session_end:
-    # Session summary generation - always runs on session end
-    # Uses external prompt from prompts collection: handoff/session_end.md
-    - action: generate_handoff
-      include:
-        - pending_tasks
-      prompt: handoff/session_end
-      write_file: true
-
+    # NOTE: generate_handoff moved to context-handoff.yaml (generate-handoff-on-end rule)
     # NOTE: memory_extract_from_session moved to memory-lifecycle.yaml (memory-extraction-on-end rule)
     # NOTE: memory_sync_export moved to memory-lifecycle.yaml (memory-sync-export-on-end rule)
-
-    # Task sync - export to JSONL for Git persistence
-    - action: task_sync_export
+    # NOTE: task_sync_export moved to context-handoff.yaml (task-sync-export-on-end rule)
 
   on_pre_compact:
     # Direct progressive disclosure resets
@@ -177,32 +104,9 @@ observers:
       name: listed_servers
       value: []
     # NOTE: reset_memory_injection_tracking moved to memory-lifecycle.yaml
-    # (reset-memory-tracking-on-compact rule)
-
-    # Set flag for pending context reset (checked in on_session_start for 'resume')
-    # This allows on_session_start to distinguish manual vs auto compress for Gemini
-    - action: set_variable
-      when: "event.source.value != 'gemini' or event.data.get('trigger') == 'manual'"
-      name: pending_context_reset
-      value: true
-
-    # Extract structured context before compaction
-    # Saves formatted markdown to session.compact_markdown
-    - action: extract_handoff_context
-      when: "event.source.value != 'gemini' or event.data.get('trigger') == 'manual'"
-
+    # NOTE: set pending_context_reset moved to context-handoff.yaml (set-pending-context-reset-on-compact rule)
+    # NOTE: extract_handoff_context moved to context-handoff.yaml (extract-handoff-context-on-compact rule)
     # NOTE: memory_extract_from_session moved to memory-lifecycle.yaml (memory-extraction-on-compact rule)
     # NOTE: memory_sync_export moved to memory-lifecycle.yaml (memory-sync-export-on-compact rule)
-
-    # Task sync - export to JSONL for Git persistence
-    - action: task_sync_export
-      when: "event.source.value != 'gemini' or event.data.get('trigger') == 'manual'"
-
-    # Generate LLM summary with cumulative compression
-    # Each compact builds on previous summary, weighting recent work higher
-    # Uses external prompt from prompts collection: handoff/compact.md
-    - action: generate_handoff
-      when: "event.source.value != 'gemini' or event.data.get('trigger') == 'manual'"
-      mode: compact
-      prompt: handoff/compact
-      write_file: true
+    # NOTE: task_sync_export moved to context-handoff.yaml (task-sync-export-on-compact rule)
+    # NOTE: generate_handoff moved to context-handoff.yaml (generate-handoff-on-compact rule)
