@@ -6,6 +6,7 @@ import { PipelineEditor } from './PipelineEditor'
 import { CodeMirrorEditor } from './CodeMirrorEditor'
 import { TabBar } from './TabBar'
 import { RulesTab } from './RulesTab'
+import { AgentDefinitionsPage } from './AgentDefinitionsPage'
 import './WorkflowsPage.css'
 
 type ActiveTab = 'rules' | 'transitions' | 'pipelines' | 'agents'
@@ -446,11 +447,9 @@ export function WorkflowsPage() {
         </>
       )}
 
-      {/* Agents tab - placeholder */}
+      {/* Agents tab */}
       {activeTab === 'agents' && (
-        <div className="workflows-content">
-          <div className="workflows-empty">Agent definitions coming soon.</div>
-        </div>
+        <AgentDefinitionsPage />
       )}
 
       {/* Create modal */}

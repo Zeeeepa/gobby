@@ -17,7 +17,6 @@ import { TasksPage } from './components/TasksPage'
 import { SkillsPage } from './components/SkillsPage'
 import { McpPage } from './components/McpPage'
 import { CronJobsPage } from './components/CronJobsPage'
-import { AgentDefinitionsPage } from './components/AgentDefinitionsPage'
 import { ConfigurationPage } from './components/ConfigurationPage'
 import { WorkflowsPage } from './components/WorkflowsPage'
 import { GitHubPage } from './components/GitHubPage'
@@ -324,7 +323,6 @@ export default function App() {
     { id: 'terminals', label: 'Terminals', icon: <TerminalIcon /> },
     { id: 'projects', label: 'Projects', icon: <ProjectsIcon />, separator: true },
     { id: 'tasks', label: 'Tasks', icon: <TasksIcon /> },
-    { id: 'agents', label: 'Agent Definitions', icon: <AgentsIcon /> },
     { id: 'workflows', label: 'Workflows', icon: <WorkflowsIcon /> },
     { id: 'source-control', label: 'GitHub', icon: <GitHubIcon /> },
     { id: 'cron', label: 'Cron Jobs', icon: <CronIcon /> },
@@ -454,8 +452,6 @@ export default function App() {
         <MemoryPage projectId={effectiveProjectId} />
       ) : activeTab === 'cron' ? (
         <CronJobsPage />
-      ) : activeTab === 'agents' ? (
-        <AgentDefinitionsPage />
       ) : activeTab === 'skills' ? (
         <SkillsPage />
       ) : activeTab === 'workflows' ? (
@@ -581,15 +577,6 @@ function ProjectsIcon() {
       <rect x="14" y="3" width="7" height="7" />
       <rect x="3" y="14" width="7" height="7" />
       <rect x="14" y="14" width="7" height="7" />
-    </svg>
-  )
-}
-
-function AgentsIcon() {
-  return (
-    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <rect x="3" y="11" width="18" height="10" rx="2" />
-      <circle cx="12" cy="5" r="4" />
     </svg>
   )
 }
