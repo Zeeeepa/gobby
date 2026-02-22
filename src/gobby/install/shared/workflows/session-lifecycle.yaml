@@ -60,45 +60,6 @@ observers:
   - name: mcp_call_history
     behavior: mcp_call_tracking
 
-triggers:
-  on_stop:
-    # Increment stop attempts counter
-    - action: increment_variable
-      name: stop_attempts
-
-    # Block stop when a tool was just blocked (agent should follow the block instructions)
-    - action: block_stop
-      when: "variables.get('_tool_block_pending') and variables.get('stop_attempts', 0) < variables.get('max_stop_attempts', 3)"
-      reason: |
-        Do not stop. A tool was blocked — follow the instructions in the error message to resolve it, then continue working.
-
-    # Pre-existing error triage enforcement - block stop until agent confirms triage
-    # Only applies when commits were made (agent ran code and could have seen issues)
-    # Uses same escape hatch as other stop gates (3+ consecutive stop attempts)
-    - action: block_stop
-      when: "task_has_commits and not variables.get('pre_existing_errors_triaged') and variables.get('stop_attempts', 0) < variables.get('max_stop_attempts', 3)"
-      reason: |
-        You must triage pre-existing issues before stopping.
-        - If you found errors, warnings, or failures unrelated to your changes, create a task for each one.
-        - If you found no pre-existing issues, confirm by calling
-          set_variable on gobby-workflows:
-          set_variable(name="pre_existing_errors_triaged", value=true, session_id="<session_id>")
-
-    # Memory review nudge — only when significant work done since last review
-    - action: memory_review_gate
-      when: "variables.get('pending_memory_review') and (variables.get('stop_attempts', 0) or 0) < 3"
-
-    # Task closure enforcement - block stop if task is still in_progress
-    # Agents must close_task() or set to review before stopping
-    # Skip in plan mode or if escape hatch triggered (3+ consecutive stop attempts)
-    - action: require_task_review_or_close_before_stop
-      when: "variables.get('mode_level', 2) >= 1 and variables.get('stop_attempts', 0) < variables.get('max_stop_attempts', 3)"
-      messages:
-        task_still_in_progress: |
-          Task {{ task_ref }} is still in_progress. Commit your changes and close it with close_task().
-          Do NOT use mark_task_needs_review as a shortcut — only use needs_review when there is
-          something genuinely critical the user must verify before closing.
-
   on_session_start:
     # Reset memory injection tracking on context loss
     # Allows previously injected memories to be re-injected after context loss
@@ -180,26 +141,6 @@ triggers:
         set_variable(name="pre_existing_errors_triaged", value=true, session_id="<session_id>")
 
   on_before_agent:
-    # --- Per-turn resets (run every prompt, all sources) ---
-
-    # Reset stop attempts counter on user activity
-    - action: set_variable
-      name: stop_attempts
-      value: 0
-
-    # Clear tool block flag on new user prompt
-    - action: set_variable
-      name: _tool_block_pending
-      value: false
-
-    # Reset pre-existing error triage flag on each new user prompt
-    # Agents must re-confirm triage status for each interaction
-    - action: set_variable
-      name: pre_existing_errors_triaged
-      value: false
-
-    # Title is generated as a side effect of the background digest (turn 1 onward)
-
     # Phase 1: Search memories using current prompt + digest enrichment (blocking)
     - action: memory_recall_with_synthesis
       limit: 5
@@ -218,21 +159,6 @@ triggers:
         create_memory on gobby-memory. If not, carry on.
 
   on_after_tool:
-    # Reset stop attempts counter on successful native tool use
-    # Skip for MCP tool calls — those are often the agent complying with a
-    # stop-gate directive (e.g., set_variable to clear a gate). Resetting the
-    # counter on MCP calls prevents the 3-strike escape hatch from triggering.
-    # The on_before_agent handler resets stop_attempts on each new user prompt.
-    - action: set_variable
-      name: stop_attempts
-      value: 0
-      when: "not event.data.get('mcp_tool')"
-
-    # Clear tool block flag on successful tool use
-    - action: set_variable
-      name: _tool_block_pending
-      value: false
-
     # Suggest memory extraction after closing a task with a commit
     # Soft nudge, not a blocking gate — agent can choose to skip
     - action: inject_context

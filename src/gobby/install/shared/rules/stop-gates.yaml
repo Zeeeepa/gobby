@@ -1,0 +1,103 @@
+# Stop gate rules - control when agents can stop.
+# Counts stop attempts, blocks premature stops, and resets state
+# on new prompts and successful tool use.
+
+group: stop-gates
+tags: [enforcement, lifecycle]
+
+rules:
+  increment-stop-attempts:
+    description: "Count consecutive stop attempts for escape hatch"
+    event: stop
+    priority: 10
+    effect:
+      type: set_variable
+      variable: stop_attempts
+      value: "variables.get('stop_attempts', 0) + 1"
+
+  block-stop-after-tool-block:
+    description: "Block stop when a tool was just blocked"
+    event: stop
+    priority: 20
+    when: "variables.get('_tool_block_pending') and variables.get('stop_attempts', 0) < variables.get('max_stop_attempts', 3)"
+    effect:
+      type: block
+      reason: "Do not stop. A tool was blocked — follow the instructions in the error message."
+
+  require-error-triage:
+    description: "Block stop until pre-existing errors are triaged"
+    event: stop
+    priority: 30
+    when: "task_has_commits and not variables.get('pre_existing_errors_triaged') and variables.get('stop_attempts', 0) < variables.get('max_stop_attempts', 3)"
+    effect:
+      type: block
+      reason: |
+        Triage pre-existing issues before stopping. Create tasks for unrelated errors,
+        or confirm none via set_variable(name="pre_existing_errors_triaged", value=true).
+
+  memory-review-gate:
+    description: "Block stop until memory review when significant work done"
+    event: stop
+    priority: 40
+    when: "variables.get('pending_memory_review') and (variables.get('stop_attempts', 0) or 0) < 3"
+    effect:
+      type: block
+      reason: |
+        You've made significant changes this session. Before stopping,
+        review and save valuable memories using create_memory on gobby-memory.
+
+  require-task-close:
+    description: "Block stop if task is still in_progress"
+    event: stop
+    priority: 50
+    when: "variables.get('mode_level', 2) >= 1 and task_claimed and variables.get('stop_attempts', 0) < variables.get('max_stop_attempts', 3)"
+    effect:
+      type: block
+      reason: |
+        Task {{ task_ref }} is still in_progress. Commit and close_task().
+
+  reset-stop-attempts-on-prompt:
+    description: "Reset stop counter on new user prompt"
+    event: before_agent
+    priority: 10
+    effect:
+      type: set_variable
+      variable: stop_attempts
+      value: 0
+
+  clear-tool-block-on-prompt:
+    description: "Clear tool block flag on new user prompt"
+    event: before_agent
+    priority: 11
+    effect:
+      type: set_variable
+      variable: _tool_block_pending
+      value: false
+
+  reset-error-triage-on-prompt:
+    description: "Reset triage flag — agents must re-confirm each interaction"
+    event: before_agent
+    priority: 12
+    effect:
+      type: set_variable
+      variable: pre_existing_errors_triaged
+      value: false
+
+  reset-stop-on-native-tool:
+    description: "Reset stop counter on successful native tool use"
+    event: after_tool
+    priority: 80
+    when: "not event.data.get('mcp_tool')"
+    effect:
+      type: set_variable
+      variable: stop_attempts
+      value: 0
+
+  clear-tool-block-on-tool:
+    description: "Clear tool block flag on successful tool use"
+    event: after_tool
+    priority: 81
+    effect:
+      type: set_variable
+      variable: _tool_block_pending
+      value: false
