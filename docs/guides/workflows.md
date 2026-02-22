@@ -1,1280 +1,534 @@
 # Gobby Workflows
 
-Workflows transform Gobby from a passive session tracker into an **enforcement layer** for AI agent behavior. Instead of relying on prompts to guide LLM behavior, workflows use hooks to enforce steps, tool restrictions, and transitions.
+Workflows transform Gobby from a passive session tracker into an **enforcement layer** for AI agent behavior. Instead of relying on prompts to guide behavior, Gobby uses **rules** to enforce tool restrictions, inject context, and manage state -- all declaratively in YAML.
 
-**Key insight**: The LLM doesn't need to remember what step it's in - the workflow engine tracks state and hooks enforce it. The LLM sees tool blocks and injected context that guide it naturally.
+**Key insight**: The LLM doesn't need to remember constraints -- the rule engine evaluates every event and enforces behavior through tool blocks, injected context, and state mutations. The LLM naturally follows because it sees blocked tools and guidance text.
 
-## Workflow Types
+## Architecture
 
-Gobby supports three types of workflows:
+Gobby's workflow system has three layers:
 
-### Always-On Workflows
+| Layer | Purpose | Model |
+|-------|---------|-------|
+| **Rules** | Always-on declarative enforcement | Event → condition → effect |
+| **On-Demand Workflows** | Step-based state machines | Steps with tool restrictions and transitions |
+| **Pipelines** | Deterministic sequential execution | Typed data flow with approval gates |
 
-Event-driven workflows that respond to session events without enforcing steps or tool restrictions. Controlled by `enabled: true` (the default).
+Rules are the primary enforcement mechanism. On-demand workflows and pipelines build on top for structured multi-step processes.
 
-**Characteristics:**
+---
 
-- `enabled: true` (default) -- auto-activates on matching sessions
-- `priority: int` (default 100) -- evaluation order; lower values run first
-- No `steps` section
-- Only `triggers` section
-- Actions execute in sequence per event
-- **Multiple always-on workflows can be active simultaneously**
+## Rules
 
-**Use cases:**
+Rules are the core building block. Each rule responds to a session event, checks an optional condition, and fires a single effect. Rules are defined in YAML files, stored in the database, and evaluated by the `RuleEngine` on every hook event.
 
-- Session handoff (enabled by default)
-- Auto-save and backup
-- Logging and analytics
-- Notifications
+### Rule YAML Format
 
-> **Backward compatibility:** `type: lifecycle` in YAML is still accepted and treated as `enabled: true`. The `type` field is deprecated in favor of `enabled`/`priority`.
+Rules are organized in YAML files by **group**:
 
-### On-Demand Workflows
+```yaml
+# src/gobby/install/shared/rules/worker-safety.yaml
 
-State machine workflows that enforce steps with tool restrictions, transition conditions, and exit criteria. Controlled by `enabled: false`.
+group: worker-safety
+tags: [enforcement, safety]
 
-**Characteristics:**
+rules:
+  no-push:
+    description: "Block git push - let the parent session handle pushing."
+    event: before_tool
+    effect:
+      type: block
+      tools: [Bash]
+      command_pattern: "git\\s+push"
+      reason: "Do not push to remote. Let the parent session handle pushing."
 
-- `enabled: false` -- must be activated explicitly (via CLI or MCP tool)
+  require-task:
+    description: "Block file edits without a claimed task."
+    event: before_tool
+    when: "not task_claimed and not plan_mode"
+    effect:
+      type: block
+      tools: [Edit, Write, NotebookEdit]
+      reason: "Claim a task before editing files. Use claim_task() on gobby-tasks."
+```
+
+### Rule Fields
+
+| Field | Type | Required | Default | Description |
+|-------|------|----------|---------|-------------|
+| `description` | string | No | -- | Human-readable description |
+| `event` | RuleEvent | Yes | -- | Event that triggers this rule |
+| `priority` | integer | No | 100 | Evaluation order (lower = first) |
+| `when` | string | No | -- | Condition expression (skip if false) |
+| `effect` | RuleEffect | Yes | -- | What happens when the rule fires |
+| `agent_scope` | list[string] | No | -- | Only active for these agent types |
+
+### File-Level Fields
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `group` | string | Yes | Group name for organization and filtering |
+| `tags` | list[string] | No | Tags for discovery and categorization |
+
+---
+
+## RuleEvent Types
+
+Rules respond to 7 event types that map to hooks in the session lifecycle:
+
+| Event | When It Fires | Common Effects |
+|-------|--------------|----------------|
+| `before_tool` | Before any tool call (native or MCP) | block, set_variable |
+| `after_tool` | After a tool call completes | set_variable |
+| `before_agent` | Before each agent turn/prompt | inject_context, mcp_call |
+| `session_start` | When a session begins (new, clear, compact, resume) | set_variable, mcp_call |
+| `session_end` | When a session ends | mcp_call |
+| `stop` | When the agent attempts to stop | block, set_variable |
+| `pre_compact` | Before context compaction | mcp_call, set_variable |
+
+### Event Data
+
+Each event provides data accessible in `when` conditions:
+
+```yaml
+# before_tool / after_tool
+event.data.tool_name       # "Edit", "Bash", "mcp__gobby__call_tool"
+event.data.tool_input      # Tool arguments dict
+
+# session_start
+event.data.source          # "new", "clear", "compact", "resume"
+
+# stop
+event.data                 # Stop context
+```
+
+---
+
+## RuleEffect Types
+
+Rules fire one of four primitive effects. See [Rule Effects Reference](./workflow-actions.md) for the complete field reference with examples.
+
+| Effect | Purpose | Stops Evaluation? |
+|--------|---------|-------------------|
+| **block** | Prevent a tool call or action | Yes (first block wins) |
+| **set_variable** | Update session state | No |
+| **inject_context** | Add text to system message | No (accumulates) |
+| **mcp_call** | Trigger an MCP tool call | No |
+
+### Quick Examples
+
+```yaml
+# block -- prevent an action
+effect:
+  type: block
+  tools: [Bash]
+  command_pattern: "git\\s+push"
+  reason: "Do not push to remote."
+
+# set_variable -- update state
+effect:
+  type: set_variable
+  variable: stop_attempts
+  value: "variables.get('stop_attempts', 0) + 1"
+
+# inject_context -- add system message text
+effect:
+  type: inject_context
+  template: |
+    You are working on task {{ task_ref }}.
+
+# mcp_call -- trigger MCP tool
+effect:
+  type: mcp_call
+  server: gobby-memory
+  tool: recall_with_synthesis
+  arguments:
+    limit: 5
+```
+
+---
+
+## Evaluation Flow
+
+When a hook event fires, the `RuleEngine` evaluates all matching rules:
+
+```
+Hook event received (e.g., before_tool)
+  │
+  ├─ 1. Load enabled rules matching this event type
+  │     (SQL query on workflow_definitions, workflow_type='rule')
+  │
+  ├─ 2. Load session overrides (rule_overrides table)
+  │     Apply per-session enable/disable toggles
+  │
+  ├─ 3. Filter by agent_scope (if applicable)
+  │     Skip rules not matching the current agent type
+  │
+  ├─ 4. Sort by priority ascending (10 → 20 → 100)
+  │
+  └─ 5. Evaluate each rule in order:
+        ├─ Check `when` condition → skip if false
+        ├─ Apply effect:
+        │   ├─ block: check tool matching → if match, STOP (first block wins)
+        │   ├─ set_variable: mutate variable immediately
+        │   ├─ inject_context: append to context list
+        │   └─ mcp_call: record for dispatch
+        └─ Continue to next rule (unless blocked)
+```
+
+### Key Design Principles
+
+- **First block wins**: Evaluation stops at the first matching `block` effect. No further rules are checked.
+- **Variables mutate in-place**: `set_variable` effects are visible to later rules in the same evaluation pass.
+- **Context accumulates**: Multiple `inject_context` effects combine (separated by `\n\n`).
+- **MCP calls collect**: All `mcp_call` effects are recorded and dispatched after evaluation completes.
+- **Conditions skip, not stop**: A `when: false` condition skips the rule but evaluation continues.
+
+### Priority Ordering
+
+Rules evaluate in priority order (lowest number first). Default priority is 100.
+
+```yaml
+rules:
+  first-rule:
+    priority: 10    # Runs first
+    ...
+  second-rule:
+    priority: 20    # Runs second
+    ...
+  default-rule:     # priority: 100 (default)
+    ...
+```
+
+Typical priority layout:
+
+| Range | Purpose |
+|-------|---------|
+| 5-10 | State initialization (reset counters, clear flags) |
+| 10-30 | Blocking gates (stop gates, tool restrictions) |
+| 30-50 | Secondary gates (memory review, error triage) |
+| 50+ | Context injection and MCP calls |
+
+---
+
+## Session Overrides
+
+Rules can be toggled per-session without modifying the rule definition:
+
+```sql
+-- Stored in rule_overrides table
+(session_id, rule_name, enabled)
+```
+
+- **Default**: If no override exists, the rule is enabled.
+- **Session-scoped**: Only affects the specified session.
+- **Independent**: Different sessions can override the same rule differently.
+
+### Managing Overrides
+
+```bash
+# CLI
+gobby rules enable <rule-name>
+gobby rules disable <rule-name>
+
+# MCP (via gobby-workflows)
+# toggle_rule(name, enabled)
+```
+
+---
+
+## Condition Expressions
+
+The `when` field uses `SafeExpressionEvaluator` (AST-based, no `eval()`).
+
+### Available Context
+
+| Variable | Description |
+|----------|-------------|
+| `variables` | Session variables dict (supports `.get('key', default)`) |
+| `event` | Hook event object (`event.data`, `event.source`) |
+| `tool_input` | Tool input parameters (before_tool/after_tool only) |
+| `source` | Event source string |
+| Top-level vars | All session variables flattened (e.g., `task_claimed` directly) |
+
+### Supported Operations
+
+```yaml
+# Boolean logic
+when: "not task_claimed and not plan_mode"
+when: "task_claimed or plan_mode"
+
+# Comparisons
+when: "variables.get('stop_attempts', 0) < 3"
+when: "variables.get('mode_level', 2) >= 1"
+
+# Membership
+when: "event.data.get('source') in ['clear', 'compact']"
+
+# Functions
+when: "len(variables.get('pending_messages', [])) > 0"
+when: "bool(variables.get('task_ref'))"
+
+# Nested access
+when: "event.data.get('tool_name') == 'claim_task'"
+```
+
+---
+
+## Bundled Rule Groups
+
+Gobby ships with 11 rule groups that are synced to the database on startup:
+
+| Group | Rules | Purpose |
+|-------|-------|---------|
+| `worker-safety` | 4 | Block git push, force push, destructive git, require task before edit |
+| `tool-hygiene` | 2 | Require `uv` for Python, track pending memory review |
+| `progressive-disclosure` | 9 | Enforce MCP tool discovery order (list_servers → list_tools → get_schema → call_tool) |
+| `task-enforcement` | 8 | Block native task tools, require task before edit, commits before close |
+| `stop-gates` | 10 | Count stop attempts, block premature stops, reset on new prompt |
+| `plan-mode` | 5 | Detect enter/exit plan mode, manage mode_level |
+| `memory-lifecycle` | 10 | Memory sync import/export, recall, digest, extraction |
+| `context-handoff` | 9 | Session context injection, handoff generation, task sync |
+| `auto-task` | 3 | Autonomous task execution context, block premature stops |
+| `messaging` | 5 | P2P agent messaging, command activation, tool restrictions |
+| `session-defaults` | -- | Variable initialization (not rules, just default values) |
+
+Rule files live in `src/gobby/install/shared/rules/`. Custom rules can be imported via `gobby rules import <file.yaml>`.
+
+---
+
+## Session Variables
+
+Variables are mutable state that persists across the session. Rules read and write variables to coordinate behavior.
+
+### Initialization
+
+Variables are initialized from `session-defaults.yaml` at session start:
+
+```yaml
+session_variables:
+  chat_mode: "bypass"
+  mode_level: 2
+  stop_attempts: 0
+  task_claimed: false
+  plan_mode: false
+  require_task_before_edit: true
+  require_uv: true
+  max_stop_attempts: 3
+```
+
+### How Variables Flow
+
+1. **Session starts** → defaults loaded from `session-defaults.yaml`
+2. **Rules fire** → `set_variable` effects update state
+3. **Rules check** → `when` conditions read current state
+4. **Blocks reference** → `reason` templates render variable values (`{{ task_ref }}`)
+
+### Key Variables
+
+| Variable | Type | Purpose |
+|----------|------|---------|
+| `task_claimed` | bool | Whether a task is claimed in this session |
+| `task_ref` | string | Current task reference (e.g., `#1234`) |
+| `plan_mode` | bool | Whether the agent is in plan mode |
+| `mode_level` | int | Autonomy level (0=plan, 1=accept_edits, 2=normal) |
+| `stop_attempts` | int | Consecutive stop attempts (for escape hatch) |
+| `max_stop_attempts` | int | Threshold before escape hatch allows stop |
+| `require_task_before_edit` | bool | Enforce task-before-edit gate |
+| `require_uv` | bool | Enforce `uv` for Python operations |
+| `_tool_block_pending` | bool | A tool was just blocked (stop gate uses this) |
+
+---
+
+## On-Demand Workflows
+
+On-demand workflows are step-based state machines for structured multi-step processes. They are activated explicitly and enforce tool restrictions per step.
+
+### Characteristics
+
+- `enabled: false` -- must be activated via CLI or MCP tool
 - Has `steps` section with allowed/blocked tools
 - Has `transitions` and `exit_conditions`
-- **Only one on-demand workflow active at a time per session**
-- Can coexist with always-on workflows
+- Only one on-demand workflow active per session at a time
+- Coexists with always-on rules
 
-**Use cases:**
+### Use Cases
 
-- Plan-and-Execute
+- Plan-and-Execute development
 - TDD (Test-Driven Development)
 - Code Review
-- Autonomous Task Execution
+- Structured coordination
 
-> **Backward compatibility:** `type: step` in YAML is still accepted and treated as `enabled: false`. The `type` field is deprecated in favor of `enabled`/`priority`.
+### Built-in On-Demand Workflows
 
-### Pipeline Workflows
+| Workflow | Description |
+|----------|-------------|
+| `developer` | Plan → implement → test → review → commit |
+| `code-review` | Review → fix → verify → commit |
+| `coordinator` | Deterministic agent orchestration loop |
+| `merge` | Merge approved branches with cleanup |
+| `qa-reviewer` | Review → fix → verify → approve → shutdown |
 
-Sequential execution workflows with typed data flow between steps, approval gates, and deterministic execution.
+### Activating
 
-**Characteristics:**
+```bash
+gobby workflows set developer --session <ID>
+```
 
-- `type: pipeline`
-- Sequential step execution with `$step.output` data flow
-- Approval gates with resume tokens
-- Runs to completion or pauses at approval
-- Can be triggered from always-on/on-demand workflows via `run_pipeline` action
+---
 
-**Use cases:**
+## Pipeline Workflows
 
-- CI/CD automation
-- Deployment with approval gates
-- Data processing pipelines
-- Multi-agent orchestration
+Pipelines are sequential execution workflows with typed data flow between steps, approval gates, and deterministic execution.
 
 See [Pipelines Guide](./pipelines.md) for complete documentation.
 
-### Coexistence
-
-Always-on, on-demand, and pipeline workflows work together:
-
-- The `session-lifecycle` always-on workflow is always active (by default)
-- You can activate ONE on-demand workflow (like `developer`) on top
-- Multiple concurrent sessions can each have their own active workflow
-
-## YAML Schema Reference
-
-### Complete Workflow Definition
-
-```yaml
-# Required: Workflow identifier
-name: plan-act-reflect
-
-# Optional: Human-readable description
-description: "Structured development with planning and reflection steps"
-
-# Optional: Semantic version string (default: "1.0")
-version: "1.0"
-
-# Optional (deprecated): Workflow type - "step" (default) or "lifecycle"
-# Prefer using `enabled` instead. Kept for backward-compat YAML loading.
-type: step
-
-# Optional: Whether this workflow auto-activates (default: true)
-# true = always-on (lifecycle behavior), false = on-demand (step behavior)
-enabled: false
-
-# Optional: Evaluation order - lower values run first (default: 100)
-priority: 20
-
-# Optional: Filter by session source (e.g., only run for specific CLIs)
-sources:
-  - claude
-  - gemini
-
-# Optional: Inherit from another workflow
-extends: base-workflow
-
-# Optional: Workflow-level settings
-settings:
-  reflect_after_actions: 5        # Trigger reflection after N actions
-  max_actions_per_phase: 20       # Safety limit
-  require_plan_approval: true     # User must approve plan
-
-# Optional: Variable definitions (can be overridden per-project)
-variables:
-  plan_file_pattern: "**/*.plan.md"
-  allowed_test_commands: ["pytest", "npm test"]
-
-# Optional: Session-scoped shared variables (visible to all workflows in the session)
-session_variables:
-  shared_counter: 0
-  project_context: null
-
-# Optional: Named reusable rule definitions (referenced by check_rules on steps)
-rule_definitions:
-  no_push:
-    tools: [Bash]
-    command_pattern: "git\\s+push"
-    reason: "Pushing is not allowed in this workflow."
-    action: block
-  no_agent_spawn:
-    mcp_tools:
-      - gobby-agents:spawn_agent
-    reason: "Spawning agents is not allowed."
-    action: block
-
-# Optional: Cross-file rule imports (import named rules from other workflows)
-imports:
-  - worker-safety
-
-# Optional: Top-level tool blocking rules (evaluated before trigger-based block_tools)
-# Same format as block_tools action rules
-tool_rules:
-  - tools: [Bash]
-    command_pattern: "git\\s+push"
-    reason: "No pushing allowed"
-
-# Optional: Observers - watch events and set variables or invoke behaviors
-observers:
-  # YAML observer variant: on + match + set
-  - name: track-task-claims
-    on: after_tool
-    match:
-      mcp_server: gobby-tasks
-      mcp_tool: claim_task
-    set:
-      task_claimed: "true"
-  # Behavior ref variant
-  - name: plan-mode-detector
-    behavior: detect_plan_mode
-
-# Required for on-demand: Step definitions
-steps:
-  - name: plan
-    description: "Analyze requirements and create implementation plan"
-
-    # Actions executed when entering this step
-    on_enter:
-      - action: inject_message
-        content: "You are in PLANNING mode."
-
-    # Tool restrictions
-    allowed_tools:             # List of tools OR "all"
-      - Read
-      - Glob
-      - Grep
-      - WebSearch
-
-    blocked_tools:             # Tools explicitly blocked
-      - Edit
-      - Write
-      - Bash
-
-    # Inline rules evaluated on each tool call
-    rules:
-      - when: "tool == 'Edit' and file not in session.files_read"
-        action: block
-        message: "Read the file before editing"
-
-    # Automatic transition triggers
-    transitions:
-      - to: reflect
-        when: "step_action_count >= 5"
-
-    # Conditions that must be met to exit step
-    exit_conditions:
-      - type: user_approval
-        prompt: "Plan complete. Ready to implement?"
-
-# Required for always-on: Trigger definitions
-triggers:
-  on_session_start:
-    - action: load_workflow_state
-    - action: enter_step
-      step: plan
-      when: "not workflow_state.step"
-
-  on_session_end:
-    - action: save_workflow_state
-    - action: generate_handoff
-
-# Optional: Handler for premature stop attempts (on-demand workflows only)
-# Triggered when agent tries to stop but exit_condition is not met
-on_premature_stop:
-  action: guide_continuation    # guide_continuation | block | warn
-  message: "Task has incomplete subtasks. Continue or deactivate the workflow."
-  condition: "not task_tree_complete"  # Optional condition
-
-# Optional: Workflow-level exit expression (when true, workflow can end)
-exit_condition: "current_step == 'complete'"
-
-# Optional: Error handling
-on_error:
-  - action: enter_step
-    step: reflect
-  - action: inject_message
-    content: "An error occurred. Entering reflection."
-```
-
-### Workflow Inheritance
-
-Use `extends` to inherit from another workflow:
-
-```yaml
-name: my-custom-workflow
-extends: plan-act-reflect
-
-# Override or extend any field
-settings:
-  reflect_after_actions: 10  # Override parent value
-
-# Add new steps or override existing ones
-steps:
-  - name: review
-    description: "Additional code review step"
-    allowed_tools: [Read, Glob, Grep]
-```
-
-**Inheritance rules:**
-
-- Child values override parent values
-- Arrays are replaced, not merged
-- Deep merge for objects/dicts
-- Inheritance chains are supported (grandparent -> parent -> child)
-- Circular inheritance is detected and rejected
-
-### Step Configuration
-
-```yaml
-steps:
-  - name: step-name            # Required: Unique step identifier
-    description: string        # Optional: Human description
-    status_message: string     # Optional: Template rendered after on_enter, returned as system_message
-
-    on_enter:                  # Actions when entering step
-      - action: action_name
-        when: "condition"      # Optional: skip action if false
-        ...action_kwargs
-
-    allowed_tools:             # "all" OR list of tool names
-      - ToolName
-
-    blocked_tools:             # Tools to block (checked first)
-      - ToolName
-
-    # MCP-level tool restrictions (format: "server:tool" or "server:*")
-    allowed_mcp_tools:         # "all" OR list of server:tool patterns
-      - "gobby-tasks:list_tasks"
-      - "gobby-memory:*"
-
-    blocked_mcp_tools:         # MCP tools to block
-      - "gobby-tasks:close_task"
-
-    rules:                     # Per-tool-call rules
-      - when: "condition"
-        action: block|allow|warn|require_approval
-        message: "User message"
-
-    check_rules:               # Named rule references (from rule_definitions or imports)
-      - no_push
-      - no_agent_spawn
-
-    transitions:               # Auto-transition triggers
-      - to: step-name
-        when: "condition"
-        on_transition:
-          - action: ...
-
-    exit_when: "expression"    # Expression shorthand AND-ed with exit_conditions
-
-    exit_conditions:           # All must be met (AND logic)
-      - type: user_approval
-        prompt: "Ready to proceed?"
-      - type: variable_set
-        variable: task_list
-
-    on_exit:                   # Actions when exiting step
-      - action: action_name
-
-    # MCP tool success/error handlers
-    on_mcp_success:            # Handlers when specific MCP tools succeed
-      - server: gobby-tasks
-        tool: claim_task
-        action: set_variable
-        variable: task_claimed
-        value: true
-
-    on_mcp_error:              # Handlers when specific MCP tools fail
-      - server: gobby-agents
-        tool: send_to_parent
-        action: set_variable
-        variable: parent_notified
-        value: true
-```
-
-### Exit Condition Types
-
-| Type | Description | Parameters |
-|------|-------------|------------|
-| `user_approval` | User must approve | `prompt`, `timeout` (optional) |
-| `variable_set` | Variable has a value | `variable` |
-| `action_count` | Min actions taken | `min_count` |
-
-### Available Actions
-
-Actions are organized by category. All actions are registered in `ActionExecutor`.
-
-#### Context
-
-| Action | Description |
-|--------|-------------|
-| `inject_context` | Inject context from source (previous summary, skills, memories, etc.) |
-| `inject_message` | Inject text into next prompt |
-| `extract_handoff_context` | Extract structured context before compaction |
-
-#### Detection
-
-| Action | Description |
-|--------|-------------|
-| `detect_plan_mode_from_context` | Detect if agent is in plan mode from context |
-
-#### State
-
-| Action | Description |
-|--------|-------------|
-| `load_workflow_state` | Load state from storage |
-| `save_workflow_state` | Save state to storage |
-| `set_variable` | Set workflow variable |
-| `increment_variable` | Increment numeric variable |
-| `mark_loop_complete` | Mark a loop iteration as complete |
-| `end_workflow` | End the active workflow |
-
-#### Session
-
-| Action | Description |
-|--------|-------------|
-| `start_new_session` | Start a new session |
-| `mark_session_status` | Mark session with a status |
-| `switch_mode` | Switch Claude Code mode (plan/normal) |
-
-#### Todo
-
-| Action | Description |
-|--------|-------------|
-| `write_todos` | Populate TodoWrite list |
-| `mark_todo_complete` | Mark todo item done |
-
-#### Shell
-
-| Action | Description |
-|--------|-------------|
-| `shell` / `run` / `bash` | Execute a shell command (aliases for the same handler) |
-
-#### LLM
-
-| Action | Description |
-|--------|-------------|
-| `call_llm` | Call LLM with prompt |
-
-#### MCP
-
-| Action | Description |
-|--------|-------------|
-| `call_mcp_tool` | Call any MCP tool |
-
-#### Summary
-
-| Action | Description |
-|--------|-------------|
-| `synthesize_title` | Generate session title from first prompt |
-| `generate_summary` | Generate session summary |
-| `generate_handoff` | Generate session handoff for next session |
-
-#### Memory
-
-| Action | Description |
-|--------|-------------|
-| `memory_save` | Save a memory |
-| `memory_recall_relevant` | Inject relevant memories for user prompt |
-| `memory_sync_import` | Import memories from .gobby/memories.jsonl |
-| `memory_sync_export` | Export memories to .gobby/memories.jsonl |
-| `memory_extraction_gate` | Gate for memory extraction |
-| `memory_review_gate` | Gate for memory review |
-| `memory_extract_from_session` | Extract memories from session transcript |
-| `memory_inject_project_context` | Inject project-level memory context |
-| `reset_memory_injection_tracking` | Reset memory injection tracking state |
-
-#### Task Sync
-
-| Action | Description |
-|--------|-------------|
-| `task_sync_import` | Import tasks from .gobby/tasks.jsonl |
-| `task_sync_export` | Export tasks to .gobby/tasks.jsonl |
-| `persist_tasks` | Create persistent tasks from decomposition |
-| `get_workflow_tasks` | Get tasks associated with workflow |
-| `update_workflow_task` | Update a workflow task |
-
-#### Task Enforcement
-
-| Action | Description |
-|--------|-------------|
-| `block_tools` | Evaluate blocking rules on tool calls |
-| `block_stop` | Block session stop |
-| `require_active_task` | Require an active task before proceeding |
-| `require_task_complete` | Require task completion |
-| `require_commit_before_stop` | Block stop if uncommitted changes |
-| `require_task_review_or_close_before_stop` | Block stop if task still in_progress |
-| `validate_session_task_scope` | Validate session task scope |
-| `capture_baseline_dirty_files` | Record uncommitted files for commit detection |
-| `track_schema_lookup` | Track get_tool_schema calls for progressive disclosure |
-| `track_discovery_step` | Track discovery step completion |
-
-#### Stop Signals
-
-| Action | Description |
-|--------|-------------|
-| `check_stop_signal` | Check for pending stop signal |
-| `request_stop` | Request a stop signal |
-| `clear_stop_signal` | Clear a pending stop signal |
-
-#### Progress
-
-| Action | Description |
-|--------|-------------|
-| `start_progress_tracking` | Start tracking progress for a session |
-| `stop_progress_tracking` | Stop tracking progress |
-| `record_progress` | Record a progress event |
-| `detect_task_loop` | Detect if agent is stuck in a task loop |
-| `detect_stuck` | Detect if agent is stuck |
-| `record_task_selection` | Record task selection for loop detection |
-| `get_progress_summary` | Get progress summary for a session |
-
-#### Pipeline
-
-| Action | Description |
-|--------|-------------|
-| `run_pipeline` | Execute a pipeline by name |
-
-#### Webhook
-
-| Action | Description |
-|--------|-------------|
-| `webhook` | Send HTTP request to external service |
-
-#### Plugin
-
-| Action | Description |
-|--------|-------------|
-| `plugin:<name>:<action>` | Execute custom plugin action |
-
-See [Workflow Actions Reference](./workflow-actions.md) for full details.
-See [Webhooks and Plugins Guide](webhooks-and-plugins.md) for webhook examples and plugin development.
-
-## Built-in Workflows
-
-Gobby ships with these built-in workflows in `src/gobby/install/shared/workflows/`:
-
-### session-lifecycle (always-on, priority 10)
-
-**Enabled by default.** Unified session lifecycle and behavior enforcement. Handles session handoff, memory sync, task sync, progressive disclosure enforcement, and tool blocking rules.
-
-```yaml
-enabled: true
-priority: 10
-sources: [claude, gemini, codex, antigravity, cursor, windsurf, copilot, claude_sdk_web_chat]
-triggers:
-  on_session_start:
-    - action: capture_baseline_dirty_files
-    - action: inject_context
-      source: previous_session_summary
-    - action: memory_sync_import
-    - action: task_sync_import
-  on_session_end:
-    - action: generate_handoff
-    - action: memory_extract_from_session
-    - action: memory_sync_export
-    - action: task_sync_export
-```
-
-### developer (on-demand, priority 20)
-
-TDD developer workflow with full red/green/blue cycle.
-
-**Steps:** `claim_task` -> `red` -> `green` -> `blue` -> `reflect` -> `commit` -> `report_to_parent` -> `shutdown` -> `complete`
-
-### auto-task (on-demand)
-
-Autonomous task execution workflow. Stays in `work` step until task tree is complete.
-
-### code-review (on-demand)
-
-Code review workflow for reviewing worker branch changes.
-
-**Steps:** `fetch_changes` -> `review` -> `request_changes` -> `complete`
-
-### generic (on-demand)
-
-Default workflow for spawned agents. Provides basic file and tool access while blocking recursive spawning.
-
-### coordinator (pipeline)
-
-Deterministic coordinator loop using MCP tools. Finds work, creates clones, spawns developer/QA/merge agents, loops until no more ready tasks.
-
-### merge (on-demand)
-
-Merge approved branch and cleanup isolation environment. Supports both clone and worktree isolation modes.
-
-### qa-reviewer (on-demand)
-
-QA reviewer workflow: review -> fix -> verify -> commit -> approve -> shutdown.
-
-### hello-world (pipeline)
-
-Minimal example pipeline that outputs "Hello World".
-
-### research-openclaw (pipeline)
-
-Research pipeline example.
+---
 
 ## CLI Commands
 
-### List Workflows
+### Rules CLI
 
 ```bash
+# List rules with filters
+gobby rules list [--event EVENT] [--group GROUP] [--enabled] [--disabled] [--json]
+
+# Show rule details
+gobby rules show <name> [--json]
+
+# Enable/disable a rule
+gobby rules enable <name>
+gobby rules disable <name>
+
+# Import rules from YAML file
+gobby rules import <file.yaml>
+
+# Export rules as YAML
+gobby rules export [--group GROUP]
+
+# View rule audit log
+gobby rules audit [--session ID] [--limit N] [--json]
+```
+
+### Workflows CLI
+
+```bash
+# List workflows
 gobby workflows list [--all] [--global] [--json]
-```
 
-| Option | Description |
-|--------|-------------|
-| `--all`, `-a` | Show all workflows including on-demand |
-| `--global`, `-g` | Show only global workflows |
-| `--json` | Output as JSON |
-
-### Show Workflow Details
-
-```bash
+# Show workflow details
 gobby workflows show <name> [--json]
-```
 
-### Activate Workflow
-
-```bash
+# Activate on-demand workflow
 gobby workflows set <name> [--session ID] [--step STEP]
-```
 
-**Note:** Only for on-demand workflows. Always-on workflows auto-run.
-
-### Check Workflow Status
-
-```bash
+# Check workflow status
 gobby workflows status [--session ID] [--json]
-```
 
-Shows current step, action counts, and pending tasks.
-
-### Clear/Deactivate Workflow
-
-```bash
+# Clear/deactivate workflow
 gobby workflows clear [--session ID] [--force]
-```
 
-### Manual Step Transition (Escape Hatch)
-
-```bash
+# Manual step transition (escape hatch)
 gobby workflows step <step-name> [--session ID] [--force]
-```
 
-Skips normal exit conditions. Use when stuck.
-
-### Reset Workflow
-
-```bash
+# Reset workflow to initial step
 gobby workflows reset [--session ID] [--force]
-```
 
-Resets the workflow to its initial step, clearing all step state and variables.
-
-### Disable Workflow Enforcement
-
-```bash
+# Disable/enable workflow enforcement
 gobby workflows disable [--session ID] [--reason TEXT]
-```
-
-Temporarily suspends tool restrictions and step enforcement.
-
-### Re-enable Workflow
-
-```bash
 gobby workflows enable [--session ID]
-```
 
-Re-enables a previously disabled workflow.
-
-### Validate Workflow Definition
-
-```bash
+# Validate workflow definition
 gobby workflows check <name> [--json]
-```
 
-Runs structural and semantic checks (unreachable steps, dead-end steps, undefined transitions, etc.).
-
-### View Audit Log
-
-```bash
+# View audit log
 gobby workflows audit [--session ID] [--type TYPE] [--result RESULT] [--limit N] [--verbose] [--json]
-```
 
-| Option | Description |
-|--------|-------------|
-| `--type`, `-t` | Filter by event type (tool_call, rule_eval, transition, approval) |
-| `--result`, `-r` | Filter by result (allow, block, transition) |
-| `--limit`, `-n` | Maximum entries to show (default: 50) |
-| `--verbose`, `-v` | Show full context for each entry |
-| `--json` | Output as JSON |
-
-### Set Variable
-
-```bash
+# Set variable
 gobby workflows set-var <name> <value> [--session ID] [--json]
 ```
 
-### Get Variable(s)
-
-```bash
-gobby workflows get-var [name] [--session ID] [--json]
-```
-
-If `name` is omitted, shows all variables.
-
-### Import Workflow
-
-```bash
-gobby workflows import <source> [--name NAME] [--global]
-```
-
-Import from a local file (URL import coming soon).
+---
 
 ## MCP Tools
 
-Workflow tools are available through the `gobby-workflows` MCP server. Use progressive disclosure:
-
-```python
-# 1. Discover workflow tools
-list_tools("gobby-workflows")  # Look for workflow-related tools
-
-# 2. Get full schema
-get_tool_schema("gobby-workflows", "activate_workflow")
-
-# 3. Execute
-call_tool("gobby-workflows", "activate_workflow", {"name": "developer"})
-```
-
-### Available Workflow Tools
+### Rule Tools (gobby-workflows)
 
 | Tool | Description |
 |------|-------------|
-| `list_workflows` | List available workflow definitions from project and global directories |
-| `get_workflow` | Get details about a specific workflow definition |
-| `activate_workflow` | Activate a workflow for a session (supports initial variables, resume) |
-| `end_workflow` | End a workflow (specify workflow name or defaults to current) |
-| `get_workflow_status` | Get workflow status (shows all active instances and session variables) |
-| `request_step_transition` | Request transition to a different step |
-| `set_variable` | Set variable scoped to workflow instance or session |
-| `get_variable` | Get variable(s) scoped to workflow instance or session |
-| `set_session_variable` | Set session-scoped shared variable (visible to all workflows) |
-| `evaluate_workflow` | Validate workflow definition (structural and semantic checks) |
-| `import_workflow` | Import a workflow from a file path |
-| `reload_cache` | Clear the workflow cache to pick up file changes |
-| `create_workflow` | Create a workflow from YAML content (validates with Pydantic) |
-| `update_workflow` | Update a workflow by name or ID (field updates and/or YAML replacement) |
-| `delete_workflow` | Delete a workflow by name or ID (bundled definitions protected unless force=True) |
-| `export_workflow` | Export a workflow definition as YAML content |
+| `list_rules` | List rules with optional event/group filter |
+| `list_rule_groups` | List available rule groups |
+| `get_rule_detail` | Get full rule definition |
+| `toggle_rule` | Enable/disable a rule for the session |
 
-### Tool Filtering
+### Workflow Tools (gobby-workflows)
 
-When an on-demand workflow is active, tools are filtered:
+| Tool | Description |
+|------|-------------|
+| `get_workflow_status` | Current workflow state |
+| `activate_workflow` | Activate an on-demand workflow |
+| `deactivate_workflow` | Clear active workflow |
+| `force_transition` | Manual step transition |
+| `set_variable` | Set a session variable |
+| `get_variable` | Get a session variable value |
+| `list_variables` | List all session variables |
 
-- `allowed_tools: all` + `blocked_tools: [X, Y]` -> All tools except X, Y
-- `allowed_tools: [A, B, C]` -> Only A, B, C available
-- `blocked_tools` is always checked first
-
-Blocked tools are **hidden** (not grayed out) from the tool list.
-
-## Conditional Actions
-
-Actions in `on_enter` (and `on_exit`) support an optional `when` field. When present, the condition is evaluated before executing the action. If the condition is false, the action is skipped.
-
-The `when` field uses the same expression syntax as transition conditions, with access to `variables` (via `DotDict` for both dot-notation and `.get()` access) and all flattened workflow variables.
-
-```yaml
-on_enter:
-  # Always runs
-  - action: set_variable
-    name: result
-    value: null
-
-  # Only runs when session_task is set
-  - action: call_mcp_tool
-    when: "variables.get('session_task')"
-    server_name: gobby-tasks
-    tool_name: get_task
-    arguments:
-      task_id: "{{ variables.session_task }}"
-    output_as: result
-
-  # Conditional based on previous action results
-  - action: set_variable
-    when: "not variables.get('current_task_id') and variables.get('result')"
-    name: current_task_id
-    value: "{{ variables.result.id }}"
-```
-
-This is useful for:
-- **Fallback logic**: Try one approach, fall back to another if it returns nothing
-- **Conditional MCP calls**: Skip expensive API calls when prerequisites aren't met
-- **Guard clauses**: Only execute cleanup actions when there's something to clean up
-
-## Common Patterns
-
-### Plan-and-Execute
-
-```yaml
-name: plan-execute
-steps:
-  - name: plan
-    allowed_tools: [Read, Glob, Grep, WebSearch, AskUserQuestion]
-    blocked_tools: [Edit, Write, Bash]
-    exit_conditions:
-      - type: user_approval
-        prompt: "Ready to implement?"
-
-  - name: execute
-    allowed_tools: all
-```
-
-### Forced Reflection
-
-```yaml
-steps:
-  - name: act
-    transitions:
-      - to: reflect
-        when: "step_action_count >= 5"  # Force reflection every 5 actions
-      - to: reflect
-        when: "tool_result.is_error"      # Or on any error
-```
-
-### Read-Before-Edit Rule
-
-```yaml
-steps:
-  - name: implement
-    rules:
-      - when: "tool == 'Edit' and file not in session.files_read"
-        action: block
-        message: "Read the file before editing: {{ file }}"
-```
-
-### Task Decomposition
-
-```yaml
-steps:
-  - name: decompose
-    on_enter:
-      - action: call_llm
-        prompt: "Break this into atomic tasks..."
-        output_as: task_list
-      - action: persist_tasks
-        source: task_list.tasks
-```
-
-## Workflow Variables
-
-Workflow variables control session behavior. They're defined in workflow YAML files and can be overridden at runtime.
-
-### Behavior Variables
-
-These variables control how Gobby behaves during a session:
-
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `require_task_before_edit` | `false` | Block Edit/Write tools unless a task is `in_progress` |
-| `require_commit_before_stop` | `true` | Block session stop if task has uncommitted changes |
-| `tdd_mode` | `true` | Generate test->implement task pairs during expansion |
-| `memory_injection_enabled` | `true` | Enable memory injection (controls `memory_inject` action) |
-| `memory_injection_limit` | `10` | Default limit for memory injection per query |
-| `memory_injection_min_importance` | `0.3` | Minimum importance threshold (0.0-1.0) for memory filtering |
-| `session_task` | `null` | Task(s) that must complete before stopping. Values: task ID, list of IDs, or `"*"` for all ready tasks |
-
-### Defining Variables in Workflow YAML
-
-```yaml
-name: my-workflow
-enabled: true
-
-variables:
-  require_task_before_edit: true
-  tdd_mode: false
-  session_task: "gt-abc123"
-```
-
-### Changing Variables at Runtime
-
-Use the `set_variable` MCP tool to override defaults for the current session:
-
-```python
-call_tool("gobby-workflows", "set_variable", {
-    "name": "tdd_mode",
-    "value": false
-})
-```
-
-### Precedence Order
-
-1. **Explicit parameter** (highest) - passed directly to a tool
-2. **Runtime override** - set via `set_variable` during session
-3. **Workflow YAML default** - defined in workflow file
-4. **System default** (lowest) - hardcoded fallback
-
-### Configuration Split
-
-- **config.yaml**: Infrastructure settings (daemon_port, database_path, log_level, LLM providers, MCP servers)
-- **Workflow YAML**: Behavior settings (the variables above)
-
-This separation means you can have different behavior per workflow without modifying global config.
-
-## State and Persistence
-
-### What Persists
-
-- **Workflow state** is stored in SQLite per session
-- **Tasks** persist across sessions in the task system
-
-### What Resets
-
-- **Workflow state resets when session ends**
-- A new session starts fresh with no active on-demand workflow
-- Always-on workflows restart automatically
-
-### Cross-Session Continuity
-
-For work that must survive session boundaries:
-
-1. Use the **task system** (`gobby-tasks`) for persistent work items
-2. Use **generate_handoff** action to summarize context
-3. Use **inject_context** on session start to restore context
-
-## Platform Limitations
-
-### Codex
-
-Codex uses a notify-only hook. It cannot:
-
-- Block tool calls
-- Inject context
-- Enforce step transitions
-
-Codex sessions can **track** workflow state but cannot **enforce** it. Full enforcement requires Claude Code or Gemini CLI.
+---
 
 ## Troubleshooting
 
-### Workflow Not Loading
+### Tool Unexpectedly Blocked
 
 ```bash
-# Check workflow exists
-gobby workflows list
+# Check which rules are active
+gobby rules list --enabled
 
-# Verify YAML is valid
-gobby workflows show <name>
+# Check audit log for the block
+gobby rules audit --session <ID> --limit 10
+
+# Temporarily disable a rule
+gobby rules disable <rule-name>
 ```
 
-### Stuck in a Step
+### Agent Can't Stop
+
+The stop-gates rule group controls stop behavior. The escape hatch allows stopping after `max_stop_attempts` (default: 3) consecutive attempts.
 
 ```bash
-# Force transition to another step
-gobby workflows step <target-step> --force
+# Check stop_attempts variable
+gobby workflows set-var stop_attempts 0 --session <ID>
 
-# Or clear the workflow entirely
-gobby workflows clear --force
+# Or disable the stop gate
+gobby rules disable require-task-close
 ```
 
-### Tool Blocked Unexpectedly
-
-Check current step restrictions:
+### Variables Not Taking Effect
 
 ```bash
-gobby workflows status --json
+# Check current variable values
+gobby workflows status --session <ID> --json
+
+# Override a variable
+gobby workflows set-var <name> <value> --session <ID>
 ```
 
-Look at `allowed_tools` and `blocked_tools` for the current step.
+### Rule Not Firing
+
+1. Check the rule is enabled: `gobby rules show <name>`
+2. Check the event matches: rule `event` must match the hook event type
+3. Check the `when` condition: test with simpler conditions first
+4. Check priority: a higher-priority block may be stopping evaluation before your rule
+
+---
 
 ## File Locations
 
-| Location | Purpose |
-|----------|---------|
-| `~/.gobby/workflows/` | Global workflow definitions |
-| `.gobby/workflows/` | Project-specific workflows |
-| `~/.gobby/workflows/templates/` | Built-in templates |
-| Session record (SQLite) | Workflow state |
-
-## Lifecycle Workflows Deep Dive
-
-This section covers advanced lifecycle workflow concepts including blocking rules, condition evaluation, and hook payloads.
-
-### Session Lifecycle Flow
-
-The default `session-lifecycle.yaml` workflow orchestrates session events:
-
-```mermaid
-flowchart TB
-    subgraph SessionStart["on_session_start"]
-        SS1[Clear plan_mode if new session]
-        SS2[Reset unlocked_tools on compact/clear]
-        SS3[Capture baseline dirty files]
-        SS4[Inject handoff context]
-        SS5[memory_sync_import]
-        SS6[task_sync_import]
-        SS7[Inject plan mode prompt]
-        SS1 --> SS2 --> SS3 --> SS4 --> SS5 --> SS6 --> SS7
-    end
-
-    subgraph BeforeAgent["on_before_agent"]
-        BA1[Synthesize session title]
-        BA2[Memory recall relevant]
-        BA1 --> BA2
-    end
-
-    subgraph BeforeTool["on_before_tool"]
-        BT1{block_tools rules}
-        BT1 -->|"TaskCreate/Update/Get/List"| Block1[Block: Use gobby-tasks]
-        BT1 -->|"Edit/Write without task"| Block2[Block: Claim task first]
-        BT1 -->|"close_task without commit"| Block3[Block: Commit required]
-        BT1 -->|"call_tool without schema"| Block4[Block: Get schema first]
-        BT1 -->|Pass| Allow[Allow tool]
-    end
-
-    subgraph AfterTool["on_after_tool"]
-        AT1[Track schema lookups]
-    end
-
-    subgraph OnStop["on_stop"]
-        OS1{Task in_progress?}
-        OS1 -->|Yes| Block5[Block: Close task first]
-        OS1 -->|No| AllowStop[Allow stop]
-    end
-
-    subgraph SessionEnd["on_session_end"]
-        SE1[Generate handoff summary]
-        SE2[Extract memories]
-        SE3[memory_sync_export]
-        SE4[task_sync_export]
-        SE1 --> SE2 --> SE3 --> SE4
-    end
-
-    subgraph PreCompact["on_pre_compact"]
-        PC1[Extract handoff context]
-        PC2[memory_sync_export]
-        PC3[task_sync_export]
-        PC4[Generate compact handoff]
-        PC1 --> PC2 --> PC3 --> PC4
-    end
-
-    Start((Session Start)) --> SessionStart
-    SessionStart --> Loop
-    Loop((Event Loop)) --> BeforeAgent
-    BeforeAgent --> BeforeTool
-    BeforeTool --> AfterTool
-    AfterTool --> Loop
-    Loop --> OnStop
-    OnStop --> SessionEnd
-    Loop --> PreCompact
-    PreCompact --> Loop
-    SessionEnd --> End((Session End))
-```
-
-### Blocking Rule Syntax
-
-The `block_tools` action supports two matching patterns:
-
-#### `tools:` - Match upstream tool names
-
-Matches the tool name as seen by the AI agent (before MCP translation):
-
-```yaml
-- action: block_tools
-  rules:
-    # Block Claude Code's native task tools
-    - tools: [TaskCreate, TaskUpdate, TaskGet, TaskList]
-      reason: "Use gobby-tasks instead"
-
-    # Block file editing tools
-    - tools: [Edit, Write, NotebookEdit]
-      when: "not task_claimed"
-      reason: "Claim a task first"
-
-    # Block the MCP call_tool wrapper (for progressive disclosure)
-    - tools: ["mcp__gobby__call_tool"]
-      when: "not is_tool_unlocked(tool_input)"
-      reason: "Get schema first"
-```
-
-#### `mcp_tools:` - Match downstream server:tool targets
-
-Matches the `server_name:tool_name` combination for MCP tools after translation:
-
-```yaml
-- action: block_tools
-  rules:
-    # Block close_task specifically
-    - mcp_tools: ["gobby-tasks:close_task"]
-      when: "not task_has_commits"
-      reason: "Commit your changes first"
-
-    # Block multiple tools from a server
-    - mcp_tools: ["gobby-memory:delete_memory", "gobby-memory:clear_all"]
-      reason: "Memory deletion disabled"
-```
-
-#### When to use each
-
-| Pattern | Use when... | Example |
-|---------|-------------|---------|
-| `tools:` | Blocking native CLI tools | `[Edit, Write, Bash]` |
-| `tools:` | Blocking the MCP wrapper | `[mcp__gobby__call_tool]` |
-| `mcp_tools:` | Blocking specific MCP tool calls | `[gobby-tasks:close_task]` |
-
-#### `command_pattern` / `command_not_pattern` -- Bash command matching
-
-For `tools: [Bash]` rules, you can add regex patterns that match the Bash tool's `command` parameter. These fields are **ignored for non-Bash tools**.
-
-- `command_pattern`: A regex that **must match** the command for the rule to apply. If the pattern doesn't match, the rule is skipped.
-- `command_not_pattern`: A regex that **excludes** the command if it matches. If the exclusion pattern matches, the rule is skipped.
-
-Both patterns are evaluated **before** the `when` condition, so expensive condition checks are short-circuited when the command doesn't match.
-
-```yaml
-- action: block_tools
-  rules:
-    # Block naked python/pip commands - require uv
-    - tools: [Bash]
-      command_pattern: "(?:^|[;&|])\\s*(?:sudo\\s+)?(?:python(?:3(?:\\.\\d+)?)?|pip3?)\\b"
-      command_not_pattern: "(?:^|[;&|])\\s*(?:sudo\\s+)?uv\\s+"
-      when: "variables.get('require_uv')"
-      reason: |
-        Use `uv run python3` instead of `python3`.
-        Use `uv pip install` instead of `pip install`.
-```
-
-The `command_pattern` matches `python`, `python3`, `python3.12`, `pip`, `pip3` at the start of a command or after shell operators (`&&`, `||`, `;`, `|`). The `command_not_pattern` excludes commands that already use `uv`.
-
-### Condition Evaluation Context
-
-The `when` expressions in blocking rules have access to these variables:
-
-#### Built-in Variables
-
-| Variable | Type | Description |
-|----------|------|-------------|
-| `tool_input` | `dict` | Arguments passed to the tool |
-| `variables` | `dict` | All workflow variables |
-| `task_claimed` | `bool` | Shortcut for `variables.get('task_claimed')` |
-| `plan_mode` | `bool` | Shortcut for `variables.get('plan_mode')` |
-| `task_has_commits` | `bool` | Whether claimed task has linked commits |
-| `source` | `str` | CLI source (`claude`, `gemini`, `codex`) |
-
-#### Built-in Functions
-
-| Function | Description |
-|----------|-------------|
-| `is_plan_file(path, source)` | Returns True if path is a plan file (e.g., `.claude/plans/*.md`) |
-| `is_discovery_tool(tool_name)` | Returns True for discovery tools (`list_tools`, `get_tool_schema`, etc.) |
-| `is_tool_unlocked(tool_input)` | Returns True if schema was fetched for this server:tool |
-
-#### Example Conditions
-
-```yaml
-# Block unless task is claimed OR in plan mode OR editing a plan file
-when: "not task_claimed and not plan_mode and not is_plan_file(tool_input.get('file_path', ''), source)"
-
-# Block close_task unless commit linked or using special close reasons
-when: "not task_has_commits and not tool_input.get('commit_sha') and tool_input.get('reason') not in ['already_implemented', 'obsolete', 'duplicate', 'wont_fix']"
-
-# Block call_tool unless it's a discovery tool or schema was fetched
-when: "not is_discovery_tool(tool_input.get('tool_name')) and not is_tool_unlocked(tool_input)"
-```
-
-### Session-Lifecycle Variables Reference
-
-These variables are defined in `session-lifecycle.yaml`:
-
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `require_task_before_edit` | `true` | Block Edit/Write without active task |
-| `require_commit_before_close` | `true` | Block close_task without linked commit |
-| `clear_task_on_close` | `true` | Reset task_claimed on successful close |
-| `require_uv` | `true` | Block naked python/pip commands, require uv |
-| `enforce_tool_schema_check` | `true` | Require get_tool_schema before call_tool |
-| `unlocked_tools` | `[]` | Server:tool combos unlocked via get_tool_schema |
-| `task_claimed` | `false` | Set automatically when task is claimed |
-| `plan_mode` | `false` | Set when entering plan mode |
-
-### Hook Payload Reference
-
-Each CLI sends different data with hook events. The `event.data` dict contains CLI-specific payload:
-
-#### session-start (`on_session_start`)
-
-| Field | Claude | Gemini | Codex |
-|-------|--------|--------|-------|
-| `source` | `"startup"`, `"clear"`, `"compact"` | `"startup"` | `"startup"` |
-| `cwd` | Current directory | Current directory | Current directory |
-| `session_id` | External session ID | Thread ID | Thread ID |
-| `machine_id` | Machine identifier | - | - |
-
-#### pre-tool-use (`on_before_tool`)
-
-| Field | Claude | Gemini | Codex |
-|-------|--------|--------|-------|
-| `tool_name` | Tool name | Tool name | Tool name |
-| `tool_input` | Tool arguments | Tool arguments | Tool arguments |
-
-#### post-tool-use (`on_after_tool`)
-
-| Field | Claude | Gemini | Codex |
-|-------|--------|--------|-------|
-| `tool_name` | Tool name | Tool name | Tool name |
-| `tool_input` | Tool arguments | Tool arguments | - |
-| `tool_result` | Tool output | Tool output | - |
-| `tool_error` | Error if failed | Error if failed | - |
-
-#### pre-compact (`on_pre_compact`)
-
-| Field | Claude | Gemini | Codex |
-|-------|--------|--------|-------|
-| `trigger` | - | `"auto"` or `"manual"` | - |
-| `summary_so_far` | Previous summary | - | - |
-
-#### stop (`on_stop`)
-
-| Field | Claude | Gemini | Codex |
-|-------|--------|--------|-------|
-| `reason` | Stop reason | - | - |
-
-### Hook Event Type Mapping
-
-| Gobby Event | Claude Code | Gemini CLI | Codex CLI |
-|-------------|-------------|------------|-----------|
-| `session_start` | SessionStart | SessionStart | thread/started |
-| `session_end` | SessionEnd | SessionEnd | thread/archive |
-| `before_agent` | UserPromptSubmit | BeforeAgent | turn/started |
-| `after_agent` | Stop | AfterAgent | turn/completed |
-| `stop` | Stop | - | - |
-| `before_tool` | PreToolUse | BeforeTool | requestApproval |
-| `after_tool` | PostToolUse | AfterTool | item/completed |
-| `pre_compact` | PreCompact | PreCompress | - |
-| `subagent_start` | SubagentStart | - | - |
-| `subagent_stop` | SubagentStop | - | - |
-
-### Available Lifecycle Actions
-
-| Action | Triggers | Description |
-|--------|----------|-------------|
-| `set_variable` | Any | Set a workflow variable |
-| `capture_baseline_dirty_files` | session_start | Record uncommitted files for commit detection |
-| `inject_context` | session_start, before_agent | Inject text into agent context (see sources below) |
-| `memory_sync_import` | session_start | Import memories from .gobby/memories.jsonl |
-| `memory_sync_export` | session_end, pre_compact | Export memories to .gobby/memories.jsonl |
-| `task_sync_import` | session_start | Import tasks from .gobby/tasks.jsonl |
-| `task_sync_export` | session_end, pre_compact | Export tasks to .gobby/tasks.jsonl |
-| `memory_recall_relevant` | before_agent | Inject relevant memories for user prompt |
-| `synthesize_title` | before_agent | Generate session title from first prompt |
-| `block_tools` | before_tool | Evaluate blocking rules |
-| `track_schema_lookup` | after_tool | Track get_tool_schema calls for progressive disclosure |
-| `require_task_review_or_close_before_stop` | stop | Block stop if task still in_progress |
-| `generate_handoff` | session_end, pre_compact | Generate LLM summary for handoff |
-| `extract_handoff_context` | pre_compact | Extract structured context before compaction |
-
-### inject_context Sources
-
-The `inject_context` action supports multiple sources for injecting context into agent prompts:
-
-| Source | Description | Parameters |
-|--------|-------------|------------|
-| `previous_session_summary` | Summary from parent session handoff | `require: true` to block if missing |
-| `compact_handoff` | Context from pre-compact handoff | `require: true` to block if missing |
-| `skills` | Inject skill list with descriptions | `filter: always_apply` for alwaysApply skills only |
-| `task_context` | Active task details if session has claimed task | - |
-| `memories` | Relevant memories for current context | `limit`, `min_importance` |
-| (none) | Use inline `template` with Jinja2 syntax | - |
-
-#### Examples
-
-**Inject alwaysApply skills on session start:**
-
-```yaml
-- action: inject_context
-  source: skills
-  filter: always_apply
-  template: |
-    The following skills are available:
-    {{ skills_list }}
-```
-
-**Inject active task context:**
-
-```yaml
-- action: inject_context
-  source: task_context
-  template: |
-    {{ task_context }}
-```
-
-**Inject relevant memories:**
-
-```yaml
-- action: inject_context
-  source: memories
-  limit: 5
-  min_importance: 0.7
-  template: |
-    ## Relevant Memories
-    {{ memories_list }}
-```
-
-**Multi-source injection (array syntax):**
-
-```yaml
-- action: inject_context
-  source: [skills, task_context]
-  filter: always_apply
-  template: |
-    {{ skills_list }}
-    {{ task_context }}
-```
-
-## See Also
-
-- [Workflow Actions Reference](./workflow-actions.md)
-- [Webhooks and Plugins Guide](webhooks-and-plugins.md)
-- [MCP Tools Reference](./mcp-tools.md)
-- [CLI Commands Reference](./cli-commands.md)
-- [Task Management Guide](tasks.md)
+| Path | Purpose |
+|------|---------|
+| `src/gobby/install/shared/rules/*.yaml` | Bundled rule definitions |
+| `src/gobby/workflows/rule_engine.py` | Rule evaluation engine |
+| `src/gobby/workflows/definitions.py` | Rule models (RuleEvent, RuleEffect, RuleDefinitionBody) |
+| `src/gobby/workflows/safe_evaluator.py` | Safe expression evaluator |
+| `src/gobby/cli/rules.py` | Rules CLI commands |
+| `src/gobby/servers/routes/rules.py` | Rules HTTP API |
+| `~/.gobby/gobby-hub.db` | SQLite database (rules stored in workflow_definitions) |
