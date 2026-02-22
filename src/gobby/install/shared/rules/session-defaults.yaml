@@ -1,0 +1,12 @@
+# Session variable defaults.
+# Loaded at session start to initialize session-scoped variables.
+# These values are only set if the variable is not already set.
+
+session_variables:
+  chat_mode: bypass
+  mode_level: 2
+  unlocked_tools: []
+  servers_listed: false
+  listed_servers: []
+  pre_existing_errors_triaged: false
+  stop_attempts: 0

@@ -16,7 +16,13 @@ from gobby.storage.database import DatabaseProtocol
 from gobby.storage.workflow_definitions import LocalWorkflowDefinitionManager
 from gobby.workflows.definitions import PipelineDefinition, RuleDefinitionBody, WorkflowDefinition
 
-__all__ = ["get_bundled_rules_path", "get_bundled_workflows_path", "sync_bundled_rules", "sync_bundled_workflows"]
+__all__ = [
+    "get_bundled_rules_path",
+    "get_bundled_workflows_path",
+    "load_session_defaults",
+    "sync_bundled_rules",
+    "sync_bundled_workflows",
+]
 
 logger = logging.getLogger(__name__)
 
@@ -30,6 +36,36 @@ def get_bundled_rules_path() -> Path:
     from gobby.paths import get_install_dir
 
     return get_install_dir() / "shared" / "rules"
+
+
+def load_session_defaults(rules_path: Path | None = None) -> dict[str, Any]:
+    """Load session variable defaults from session-defaults.yaml.
+
+    Args:
+        rules_path: Path to rules directory containing session-defaults.yaml.
+            Defaults to bundled rules path.
+
+    Returns:
+        Dict of variable_name -> default_value. Empty dict if file missing.
+    """
+    if rules_path is None:
+        rules_path = get_bundled_rules_path()
+
+    defaults_file = rules_path / "session-defaults.yaml"
+    if not defaults_file.exists():
+        return {}
+
+    try:
+        data = yaml.safe_load(defaults_file.read_text(encoding="utf-8"))
+        if not isinstance(data, dict):
+            return {}
+        session_vars = data.get("session_variables")
+        if not isinstance(session_vars, dict):
+            return {}
+        return session_vars
+    except Exception as e:
+        logger.warning(f"Failed to load session defaults: {e}")
+        return {}
 
 
 def get_bundled_workflows_path() -> Path:
