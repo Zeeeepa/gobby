@@ -822,9 +822,6 @@ export function AgentDefinitionsPage({ searchText, showDeleted, showBundled, dev
                     <div className="agent-def-header-top">
                       <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                         <span className={`agent-def-name${item.deleted_at ? ' agent-def-name--deleted' : ''}`}>{d.name}</span>
-                        {isBundled && (
-                          <span className="workflows-card-badge workflows-card-badge--template">template</span>
-                        )}
                         <span className="workflows-card-type workflows-card-type--agent">agent</span>
                       </div>
                     </div>

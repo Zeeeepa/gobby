@@ -62,6 +62,8 @@ export function WorkflowsPage() {
   const [devMode, setDevMode] = useState(false)
   const [showRuleCreateModal, setShowRuleCreateModal] = useState(false)
   const [showAgentCreateForm, setShowAgentCreateForm] = useState(false)
+  const [refreshKey, setRefreshKey] = useState(0)
+  const [refreshing, setRefreshing] = useState(false)
 
   // Fetch dev_mode from admin status
   useEffect(() => {
@@ -249,8 +251,16 @@ export function WorkflowsPage() {
           </label>
           <button
             type="button"
-            className="workflows-toolbar-btn"
-            onClick={() => fetchWorkflows({ include_deleted: showDeleted })}
+            className={`workflows-toolbar-btn ${refreshing ? 'workflows-toolbar-btn--spinning' : ''}`}
+            onClick={async () => {
+              setRefreshing(true)
+              if (activeTab === 'rules') {
+                setRefreshKey(k => k + 1)
+              } else {
+                await fetchWorkflows({ include_deleted: showDeleted })
+              }
+              setTimeout(() => setRefreshing(false), 600)
+            }}
             title="Refresh"
             disabled={isLoading}
           >
@@ -302,6 +312,7 @@ export function WorkflowsPage() {
           devMode={devMode}
           showCreateModal={showRuleCreateModal}
           onCloseCreateModal={() => setShowRuleCreateModal(false)}
+          refreshKey={refreshKey}
         />
       )}
 
@@ -378,9 +389,6 @@ export function WorkflowsPage() {
                       <div className="workflows-card-header">
                         <span className={`workflows-card-name${wf.deleted_at ? ' workflows-card-name--deleted' : ''}`}>{wf.name}</span>
                         <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
-                          {isBundled && (
-                            <span className="workflows-card-badge workflows-card-badge--template">template</span>
-                          )}
                           <span className={`workflows-card-type workflows-card-type--${wf.workflow_type}`}>
                             {wf.workflow_type}
                           </span>

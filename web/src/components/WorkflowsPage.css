@@ -75,6 +75,15 @@
   background: var(--bg-tertiary);
 }
 
+.workflows-toolbar-btn--spinning {
+  animation: toolbar-spin 0.6s ease;
+}
+
+@keyframes toolbar-spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
 .workflows-new-btn {
   padding: 6px 12px;
   border: none;
@@ -202,11 +211,6 @@
 .workflows-card--bundled {
   opacity: 0.75;
   border-style: dashed;
-}
-
-.workflows-card-badge--template {
-  background: #1a1a2e;
-  color: #8b8bb0;
 }
 
 .workflows-card--deleted {
@@ -736,31 +740,16 @@
   margin-bottom: 4px;
 }
 
-.rules-card-when {
+.rules-enforcement-toggle {
   display: flex;
-  align-items: baseline;
+  align-items: center;
   gap: 6px;
-  margin: 6px 0 2px;
-}
-
-.rules-card-when-label {
-  font-size: 10px;
-  color: var(--text-muted);
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-  flex-shrink: 0;
-}
-
-.rules-card-when-value {
+  cursor: pointer;
   font-size: 11px;
-  font-family: monospace;
   color: var(--text-secondary);
-  background: var(--bg-tertiary);
-  padding: 2px 6px;
-  border-radius: 3px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  margin-left: auto;
+  padding: 0 8px;
+  user-select: none;
 }
 
 .rules-card-tags {

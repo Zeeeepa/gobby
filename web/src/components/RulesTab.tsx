@@ -1,8 +1,74 @@
-import { useState, useCallback, useMemo } from 'react'
+import { useState, useCallback, useMemo, useEffect, useRef } from 'react'
+import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter'
+import { oneDark } from 'react-syntax-highlighter/dist/esm/styles/prism'
 import * as yaml from 'js-yaml'
 import { useRules } from '../hooks/useRules'
 import type { RuleSummary, RuleDetail } from '../hooks/useRules'
 import { YamlEditorModal } from './WorkflowsPage'
+
+const codeTheme = {
+  ...oneDark,
+  'pre[class*="language-"]': {
+    ...oneDark['pre[class*="language-"]'],
+    background: '#0d0d0d',
+    margin: '0',
+    padding: '0.75rem',
+    fontSize: '11px',
+  },
+  'code[class*="language-"]': {
+    ...oneDark['code[class*="language-"]'],
+    background: 'transparent',
+    fontFamily: "'SF Mono', 'Fira Code', 'JetBrains Mono', monospace",
+  },
+}
+
+function RuleCodeBlock({ language, code }: { language: string; code: string }) {
+  const [copied, setCopied] = useState(false)
+  const timeoutRef = useRef<number | null>(null)
+
+  useEffect(() => {
+    return () => { if (timeoutRef.current) clearTimeout(timeoutRef.current) }
+  }, [])
+
+  const handleCopy = useCallback(async () => {
+    try {
+      await navigator.clipboard.writeText(code)
+      setCopied(true)
+      if (timeoutRef.current) clearTimeout(timeoutRef.current)
+      timeoutRef.current = window.setTimeout(() => setCopied(false), 2000)
+    } catch { /* ignore */ }
+  }, [code])
+
+  return (
+    <div style={{ border: '1px solid var(--border)', borderRadius: 6, overflow: 'hidden' }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: 'var(--bg-tertiary)', padding: '4px 10px', fontSize: 10 }}>
+        <span style={{ color: 'var(--text-muted)', fontFamily: 'monospace' }}>{language}</span>
+        <button
+          type="button"
+          onClick={handleCopy}
+          style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-secondary)', padding: '2px 4px', display: 'flex', alignItems: 'center' }}
+          title="Copy"
+        >
+          {copied ? (
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12" /></svg>
+          ) : (
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2" /><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" /></svg>
+          )}
+        </button>
+      </div>
+      <SyntaxHighlighter
+        style={codeTheme}
+        language={language}
+        PreTag="div"
+        showLineNumbers
+        lineNumberStyle={{ minWidth: '2em', paddingRight: '0.75em', textAlign: 'right', userSelect: 'none', color: '#555' }}
+        customStyle={{ margin: 0, borderRadius: 0 }}
+      >
+        {code}
+      </SyntaxHighlighter>
+    </div>
+  )
+}
 
 interface RulesTabProps {
   searchText: string
@@ -11,21 +77,35 @@ interface RulesTabProps {
   devMode: boolean
   showCreateModal: boolean
   onCloseCreateModal: () => void
+  refreshKey?: number
 }
 
-export function RulesTab({ searchText, showDeleted, showBundled, devMode, showCreateModal, onCloseCreateModal }: RulesTabProps) {
+export function RulesTab({ searchText, showDeleted, showBundled, devMode, showCreateModal, onCloseCreateModal, refreshKey = 0 }: RulesTabProps) {
   const {
     rules,
     isLoading,
     eventTypes,
     sources,
+    enforcementEnabled,
     toggleRule,
     fetchRuleDetail,
     createRule,
     updateRule,
     deleteRule,
     useAsTemplate,
+    setEnforcement,
+    fetchRules,
   } = useRules()
+
+  // Re-fetch when refreshKey changes (skip initial render)
+  const initialRef = useRef(true)
+  useEffect(() => {
+    if (initialRef.current) {
+      initialRef.current = false
+      return
+    }
+    fetchRules()
+  }, [refreshKey, fetchRules])
 
   const [eventFilter, setEventFilter] = useState<string | null>(null)
   const [sourceFilter, setSourceFilter] = useState<string | null>(null)
@@ -253,6 +333,12 @@ export function RulesTab({ searchText, showDeleted, showBundled, devMode, showCr
             </button>
           )}
         </div>
+        <div className="rules-enforcement-toggle" onClick={() => setEnforcement(!enforcementEnabled)}>
+          <div className={`workflows-toggle-track ${enforcementEnabled ? 'workflows-toggle-track--on' : ''}`}>
+            <div className="workflows-toggle-knob" />
+          </div>
+          <span>{enforcementEnabled ? 'Rules Active' : 'Rules Paused'}</span>
+        </div>
         {showBundled && (
           <button
             type="button"
@@ -344,38 +430,20 @@ function RuleCard({ rule, devMode, expanded, detail, detailLoading, onToggle, on
 }) {
   const effectType = getEffectType(rule.effect)
   const isBundled = rule.source === 'bundled'
+  const isDeleted = !!(rule as RuleSummary & { deleted_at?: string | null }).deleted_at
 
   return (
-    <div className={`rules-card ${expanded ? 'rules-card--expanded' : ''}${isBundled ? ' workflows-card--bundled' : ''}`}>
+    <div className={`rules-card ${expanded ? 'rules-card--expanded' : ''}${isBundled ? ' workflows-card--bundled' : ''}${isDeleted ? ' rules-card--deleted' : ''}`}>
       <div className="rules-card-main" onClick={onExpand}>
         <div className="rules-card-header">
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
             <span className="rules-card-name">{rule.name}</span>
-            {isBundled && (
-              <span className="workflows-card-badge workflows-card-badge--template">template</span>
-            )}
             <span className="workflows-card-type workflows-card-type--rule">rule</span>
-          </div>
-          <div className="rules-card-badges">
-            {rule.event && (
-              <span className="rules-card-event">{rule.event}</span>
-            )}
-            {effectType && (
-              <span className={`rules-card-effect rules-card-effect--${effectType}`}>{effectType}</span>
-            )}
-            <span className="rules-card-priority">P{rule.priority}</span>
           </div>
         </div>
 
         {rule.description && (
           <div className="rules-card-desc">{rule.description}</div>
-        )}
-
-        {rule.when && (
-          <div className="rules-card-when">
-            <span className="rules-card-when-label">when</span>
-            <code className="rules-card-when-value">{rule.when}</code>
-          </div>
         )}
 
         <div className="workflows-card-badges" style={{ marginTop: 6 }}>
@@ -385,11 +453,18 @@ function RuleCard({ rule, devMode, expanded, detail, detailLoading, onToggle, on
           {rule.tags && rule.tags.length > 0 && rule.tags.map(tag => (
             <span className="rules-card-tag" key={tag}>{tag}</span>
           ))}
+          {rule.event && (
+            <span className="rules-card-event">{rule.event}</span>
+          )}
+          {effectType && (
+            <span className={`rules-card-effect rules-card-effect--${effectType}`}>{effectType}</span>
+          )}
+          <span className="rules-card-priority">P{rule.priority}</span>
         </div>
       </div>
 
       <div className="workflows-card-footer">
-        {isBundled ? (
+        {(isBundled || isDeleted) ? (
           <>
             <div />
             <div className="workflows-card-actions">
@@ -408,7 +483,9 @@ function RuleCard({ rule, devMode, expanded, detail, detailLoading, onToggle, on
                 </>
               ) : (
                 <>
-                  <button type="button" className="workflows-action-btn" onClick={e => { e.stopPropagation(); onUseAsTemplate() }} title="Create a custom copy">Use as Template</button>
+                  {isBundled && (
+                    <button type="button" className="workflows-action-btn" onClick={e => { e.stopPropagation(); onUseAsTemplate() }} title="Create a custom copy">Use as Template</button>
+                  )}
                   <button type="button" className="workflows-action-icon" onClick={e => { e.stopPropagation(); onDownload() }} title="Download YAML" aria-label="Download rule as YAML">
                     <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M8 2v9m0 0L5 8m3 3 3-3M2.5 12.5v1a1 1 0 0 0 1 1h9a1 1 0 0 0 1-1v-1" /></svg>
                   </button>
@@ -450,16 +527,22 @@ function RuleCard({ rule, devMode, expanded, detail, detailLoading, onToggle, on
             <div className="rules-detail-loading">Loading...</div>
           ) : detail ? (
             <>
+              {detail.when && (
+                <div className="rules-detail-section">
+                  <span className="rules-detail-label">When</span>
+                  <RuleCodeBlock language="python" code={detail.when} />
+                </div>
+              )}
               {detail.effect && (
                 <div className="rules-detail-section">
                   <span className="rules-detail-label">Effect</span>
-                  <pre className="rules-detail-code">{JSON.stringify(detail.effect, null, 2)}</pre>
+                  <RuleCodeBlock language="json" code={JSON.stringify(detail.effect, null, 2)} />
                 </div>
               )}
               {detail.match && (
                 <div className="rules-detail-section">
                   <span className="rules-detail-label">Match</span>
-                  <pre className="rules-detail-code">{JSON.stringify(detail.match, null, 2)}</pre>
+                  <RuleCodeBlock language="json" code={JSON.stringify(detail.match, null, 2)} />
                 </div>
               )}
             </>
