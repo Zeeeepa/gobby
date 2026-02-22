@@ -36,6 +36,13 @@ class WorkflowHookHandler:
         self.timeout = timeout if timeout > 0 else None
         self._enabled = enabled
 
+        # Session variable manager for persisting rule set_variable effects
+        self._session_var_manager = None
+        if rule_engine:
+            from gobby.workflows.state_manager import SessionVariableManager
+
+            self._session_var_manager = SessionVariableManager(rule_engine.db)
+
         # If no loop provided, try to get one or create one for this thread
         if not self._loop:
             try:
@@ -56,8 +63,10 @@ class WorkflowHookHandler:
     async def _evaluate_rules(self, event: HookEvent) -> HookResponse:
         """Evaluate rules for a hook event using the RuleEngine.
 
-        Loads workflow state variables (task_claimed, plan_mode, etc.) from the
-        session's workflow state so rule conditions can reference them.
+        Loads variables from both workflow_states and session_variables tables,
+        merging them (session_variables take precedence). After evaluation,
+        persists any variables changed by rule set_variable effects back to
+        session_variables so they survive across evaluations.
 
         Returns allow if no rule engine is configured.
         """
@@ -76,11 +85,34 @@ class WorkflowHookHandler:
             except Exception as e:
                 logger.debug(f"Could not load workflow state for rules: {e}")
 
-            return await self.rule_engine.evaluate(
+            # Merge session-scoped variables (takes precedence over workflow state)
+            if self._session_var_manager:
+                try:
+                    session_vars = self._session_var_manager.get_variables(session_id)
+                    variables.update(session_vars)
+                except Exception as e:
+                    logger.debug(f"Could not load session variables for rules: {e}")
+
+            # Snapshot before evaluation to detect changes from set_variable effects
+            pre_eval = dict(variables)
+
+            response = await self.rule_engine.evaluate(
                 event=event,
                 session_id=session_id,
                 variables=variables,
             )
+
+            # Persist variables changed by rule effects to session_variables
+            if self._session_var_manager:
+                changed = {
+                    k: v
+                    for k, v in variables.items()
+                    if k not in pre_eval or pre_eval[k] != v
+                }
+                if changed:
+                    self._session_var_manager.merge_variables(session_id, changed)
+
+            return response
         except Exception as e:
             logger.error(f"RuleEngine evaluation failed: {e}", exc_info=True)
             return HookResponse(decision="allow")

@@ -651,3 +651,183 @@ class TestCancelledErrorHandling:
                 result = handler.handle(event)
                 assert result.decision == "allow"
 
+
+class TestVariablePersistence:
+    """Tests that rule set_variable effects are persisted across evaluations.
+
+    Verifies the fix for the bug where _evaluate_rules loaded variables but
+    never wrote changes back, causing stop_attempts to reset on every evaluation.
+    """
+
+    @pytest.fixture
+    def db(self, tmp_path):
+        """Create a real database with migrations."""
+        from gobby.storage.database import LocalDatabase
+        from gobby.storage.migrations import run_migrations
+
+        db_path = tmp_path / "test_var_persist.db"
+        database = LocalDatabase(db_path)
+        run_migrations(database)
+        return database
+
+    @pytest.fixture
+    def rule_engine(self, db):
+        """Create a real RuleEngine backed by the test DB."""
+        from gobby.workflows.rule_engine import RuleEngine
+
+        return RuleEngine(db=db)
+
+    @pytest.fixture
+    def session_var_manager(self, db):
+        """Create a SessionVariableManager for the test DB."""
+        from gobby.workflows.state_manager import SessionVariableManager
+
+        return SessionVariableManager(db=db)
+
+    @pytest.fixture
+    def handler(self, db, rule_engine):
+        """Create a WorkflowHookHandler with a real rule engine."""
+        engine = MagicMock()
+        engine.state_manager.get_state.return_value = None
+        return WorkflowHookHandler(engine, rule_engine=rule_engine)
+
+    def _insert_set_variable_rule(self, db, name: str, event: str, variable: str, value: str, priority: int = 10):
+        """Insert a test rule that does set_variable."""
+        import json
+
+        definition = {
+            "event": event,
+            "priority": priority,
+            "effect": {
+                "type": "set_variable",
+                "variable": variable,
+                "value": value,
+            },
+        }
+        db.execute(
+            """
+            INSERT INTO workflow_definitions (name, workflow_type, definition_json, enabled, source)
+            VALUES (?, 'rule', ?, 1, 'test')
+            """,
+            (name, json.dumps(definition)),
+        )
+
+    def _make_stop_event(self, session_id: str = "test-session") -> HookEvent:
+        return HookEvent(
+            event_type=HookEventType.STOP,
+            session_id=session_id,
+            source=SessionSource.CLAUDE,
+            timestamp=datetime.now(),
+            data={},
+        )
+
+    @pytest.mark.asyncio
+    async def test_set_variable_persisted_to_session_variables(self, db, handler, session_var_manager) -> None:
+        """set_variable effects should be persisted to session_variables table."""
+        self._insert_set_variable_rule(
+            db, "test-set-counter", "stop", "my_counter", "variables.get('my_counter', 0) + 1"
+        )
+
+        event = self._make_stop_event()
+        await handler._evaluate_rules(event)
+
+        # Variable should be persisted to session_variables
+        variables = session_var_manager.get_variables("test-session")
+        assert variables.get("my_counter") == 1
+
+    @pytest.mark.asyncio
+    async def test_variables_accumulate_across_evaluations(self, db, handler, session_var_manager) -> None:
+        """Variables should persist and accumulate across multiple evaluations."""
+        self._insert_set_variable_rule(
+            db, "test-increment", "stop", "stop_attempts", "variables.get('stop_attempts', 0) + 1"
+        )
+
+        event = self._make_stop_event()
+
+        # Evaluate 3 times
+        for i in range(3):
+            await handler._evaluate_rules(event)
+            variables = session_var_manager.get_variables("test-session")
+            assert variables.get("stop_attempts") == i + 1, (
+                f"After evaluation {i + 1}, stop_attempts should be {i + 1}"
+            )
+
+    @pytest.mark.asyncio
+    async def test_session_variables_visible_to_rule_conditions(self, db, handler, session_var_manager) -> None:
+        """Variables set via SessionVariableManager should be visible to rule when conditions."""
+        import json
+
+        # Insert a block rule that only fires when my_flag is true
+        definition = {
+            "event": "stop",
+            "priority": 10,
+            "when": "variables.get('my_flag')",
+            "effect": {
+                "type": "block",
+                "reason": "Blocked because my_flag is set",
+            },
+        }
+        db.execute(
+            """
+            INSERT INTO workflow_definitions (name, workflow_type, definition_json, enabled, source)
+            VALUES (?, 'rule', ?, 1, 'test')
+            """,
+            ("test-flag-gate", json.dumps(definition)),
+        )
+
+        event = self._make_stop_event()
+
+        # Without the flag, should allow
+        response = await handler._evaluate_rules(event)
+        assert response.decision == "allow"
+
+        # Set the flag via SessionVariableManager (simulating MCP set_session_variable)
+        session_var_manager.set_variable("test-session", "my_flag", True)
+
+        # Now should block
+        response = await handler._evaluate_rules(event)
+        assert response.decision == "block"
+
+    @pytest.mark.asyncio
+    async def test_session_variables_override_workflow_state(self, db, handler, session_var_manager) -> None:
+        """Session variables should take precedence over workflow_states variables."""
+        import json
+        from gobby.workflows.definitions import WorkflowState
+
+        # Mock state_manager to return workflow state with a variable
+        mock_state = WorkflowState(
+            session_id="test-session",
+            workflow_name="__lifecycle__",
+            step="",
+            step_entered_at=datetime.now(),
+            variables={"priority_var": "from_workflow_state"},
+        )
+        handler.engine.state_manager.get_state.return_value = mock_state
+
+        # Set the same variable in session_variables (should win)
+        session_var_manager.set_variable("test-session", "priority_var", "from_session_vars")
+
+        # Insert a rule that captures the value
+        definition = {
+            "event": "stop",
+            "priority": 10,
+            "effect": {
+                "type": "set_variable",
+                "variable": "captured_value",
+                "value": "variables.get('priority_var', 'missing')",
+            },
+        }
+        db.execute(
+            """
+            INSERT INTO workflow_definitions (name, workflow_type, definition_json, enabled, source)
+            VALUES (?, 'rule', ?, 1, 'test')
+            """,
+            ("test-capture", json.dumps(definition)),
+        )
+
+        event = self._make_stop_event()
+        await handler._evaluate_rules(event)
+
+        variables = session_var_manager.get_variables("test-session")
+        assert variables.get("captured_value") == "from_session_vars"
+
