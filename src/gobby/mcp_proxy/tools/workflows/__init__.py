@@ -38,6 +38,13 @@ from gobby.mcp_proxy.tools.workflows._query import (
     get_workflow_status,
     list_workflows,
 )
+from gobby.mcp_proxy.tools.workflows._rules import (
+    create_rule,
+    delete_rule,
+    get_rule,
+    list_rules,
+    toggle_rule,
+)
 from gobby.mcp_proxy.tools.workflows._variables import (
     get_variable,
     set_session_variable,
@@ -421,5 +428,62 @@ def create_workflows_registry(
         if _def_manager is None:
             return {"error": "Definition tools require database connection"}
         return restore_workflow_definition(_def_manager, _loader, name, definition_id)
+
+    # ── Rule tools ──
+
+    @registry.tool(
+        name="list_rules",
+        description="List standalone rules. Supports filtering by event, group, and enabled status.",
+    )
+    def _list_rules(
+        event: str | None = None,
+        group: str | None = None,
+        enabled: bool | None = None,
+    ) -> dict[str, Any]:
+        if _def_manager is None:
+            return {"error": "Rule tools require database connection"}
+        return list_rules(_def_manager, event, group, enabled)
+
+    @registry.tool(
+        name="get_rule",
+        description="Get full details of a standalone rule by name.",
+    )
+    def _get_rule(name: str) -> dict[str, Any]:
+        if _def_manager is None:
+            return {"error": "Rule tools require database connection"}
+        return get_rule(_def_manager, name)
+
+    @registry.tool(
+        name="toggle_rule",
+        description="Enable or disable a standalone rule by name.",
+    )
+    def _toggle_rule(name: str, enabled: bool) -> dict[str, Any]:
+        if _def_manager is None:
+            return {"error": "Rule tools require database connection"}
+        return toggle_rule(_def_manager, name, enabled)
+
+    @registry.tool(
+        name="create_rule",
+        description="Create a new standalone rule. Validates definition with RuleDefinitionBody before inserting.",
+    )
+    def _create_rule(
+        name: str,
+        definition: dict[str, Any],
+    ) -> dict[str, Any]:
+        if _def_manager is None:
+            return {"error": "Rule tools require database connection"}
+        return create_rule(_def_manager, name, definition)
+
+    @registry.tool(
+        name="delete_rule",
+        description="Delete a standalone rule by name (soft-delete). Bundled rules are protected unless force=True.",
+    )
+    def _delete_rule(
+        name: str,
+        force: bool = False,
+    ) -> dict[str, Any]:
+        if _def_manager is None:
+            return {"error": "Rule tools require database connection"}
+        return delete_rule(_def_manager, name, force)
 
     return registry
