@@ -8,6 +8,7 @@ from gobby.hooks.events import HookEvent, HookEventType, HookResponse
 
 if TYPE_CHECKING:
     from .engine import WorkflowEngine
+    from .rule_engine import RuleEngine
 
 logger = logging.getLogger(__name__)
 
@@ -16,6 +17,9 @@ class WorkflowHookHandler:
     """
     Integrates WorkflowEngine into the HookManager.
     Wraps the async engine to be callable from synchronous hooks.
+
+    Supports dual evaluation: RuleEngine (new) runs first, then legacy
+    lifecycle workflows. Rule blocks short-circuit legacy evaluation.
     """
 
     def __init__(
@@ -24,8 +28,10 @@ class WorkflowHookHandler:
         loop: asyncio.AbstractEventLoop | None = None,
         timeout: float = 30.0,  # Timeout for workflow operations in seconds
         enabled: bool = True,
+        rule_engine: "RuleEngine | None" = None,
     ):
         self.engine = engine
+        self.rule_engine = rule_engine
         self._loop = loop
         # Convert 0 to None for asyncio (0 means no timeout)
         self.timeout = timeout if timeout > 0 else None
@@ -48,17 +54,102 @@ class WorkflowHookHandler:
             )
         return HookResponse(decision="allow")
 
-    def evaluate(self, event: HookEvent) -> HookResponse:
-        """Evaluate all lifecycle workflows for a hook event.
+    async def _dual_evaluate(self, event: HookEvent) -> HookResponse:
+        """Run RuleEngine first, then legacy lifecycle evaluation.
 
-        Discovers and evaluates all lifecycle workflows in priority order.
-        This is the primary entry point for workflow evaluation.
+        If the rule engine blocks/denies, short-circuit (skip legacy).
+        Otherwise, run legacy and merge results. Logs disagreements.
+        """
+        # Step 1: Evaluate rules (if rule engine is available)
+        rule_response: HookResponse | None = None
+        if self.rule_engine is not None:
+            try:
+                session_id = (
+                    event.metadata.get("_platform_session_id") or event.session_id or ""
+                )
+                rule_response = await self.rule_engine.evaluate(
+                    event=event,
+                    session_id=session_id,
+                    variables={},
+                )
+            except Exception as e:
+                logger.error(f"RuleEngine evaluation failed: {e}", exc_info=True)
+                rule_response = None
+
+        # Step 2: If rules block/deny, short-circuit
+        if rule_response and rule_response.decision in ("block", "deny"):
+            return rule_response
+
+        # Step 3: Run legacy lifecycle evaluation
+        legacy_response = await self.engine.evaluate_all_lifecycle_workflows(event)
+
+        # Step 4: If no rule engine or rules had no opinion, return legacy as-is
+        if rule_response is None:
+            return legacy_response
+
+        # Step 5: Merge rule + legacy responses
+        return self._merge_responses(rule_response, legacy_response, event)
+
+    def _merge_responses(
+        self,
+        rule_response: HookResponse,
+        legacy_response: HookResponse,
+        event: HookEvent,
+    ) -> HookResponse:
+        """Merge rule engine and legacy responses.
+
+        - Context accumulates (rule first, then legacy)
+        - First non-allow decision wins (legacy, since rules already allowed)
+        - Metadata merges (rule mcp_calls + legacy metadata)
+        - Disagreements are logged
+        """
+        # Merge context
+        context_parts: list[str] = []
+        if rule_response.context:
+            context_parts.append(rule_response.context)
+        if legacy_response.context:
+            context_parts.append(legacy_response.context)
+        merged_context = "\n\n".join(context_parts) if context_parts else None
+
+        # Decision: legacy wins (rules already returned allow)
+        decision = legacy_response.decision
+        reason = legacy_response.reason
+
+        # Log disagreement: legacy blocks but rules allowed
+        if legacy_response.decision in ("block", "deny") and rule_response.decision == "allow":
+            logger.warning(
+                "Rule/legacy disagreement on %s: rules allowed but legacy returned %s "
+                "(reason: %s). Consider adding a rule to cover this case.",
+                event.event_type.name,
+                legacy_response.decision,
+                legacy_response.reason,
+            )
+
+        # Merge metadata (rule mcp_calls + legacy metadata)
+        merged_metadata = {**legacy_response.metadata}
+        if rule_response.metadata.get("mcp_calls"):
+            merged_metadata["mcp_calls"] = rule_response.metadata["mcp_calls"]
+
+        return HookResponse(
+            decision=decision,
+            reason=reason,
+            context=merged_context,
+            system_message=legacy_response.system_message,
+            metadata=merged_metadata,
+        )
+
+    def evaluate(self, event: HookEvent) -> HookResponse:
+        """Evaluate rules and lifecycle workflows for a hook event.
+
+        Runs RuleEngine first (if available), then legacy lifecycle workflows.
+        Rule blocks short-circuit legacy evaluation. This is the primary
+        entry point for workflow evaluation.
 
         Args:
             event: The hook event to handle
 
         Returns:
-            Merged HookResponse from all workflows
+            Merged HookResponse from rule engine and legacy workflows
         """
         if not self._enabled:
             return HookResponse(decision="allow")
@@ -69,7 +160,7 @@ class WorkflowHookHandler:
                     return HookResponse(decision="allow")
                 else:
                     future = asyncio.run_coroutine_threadsafe(
-                        self.engine.evaluate_all_lifecycle_workflows(event),
+                        self._dual_evaluate(event),
                         self._loop,
                     )
                     return future.result(timeout=self.timeout)
@@ -81,7 +172,7 @@ class WorkflowHookHandler:
                 return HookResponse(decision="allow")
             except RuntimeError:
                 # No loop running, safe to use asyncio.run
-                return asyncio.run(self.engine.evaluate_all_lifecycle_workflows(event))
+                return asyncio.run(self._dual_evaluate(event))
 
         except concurrent.futures.CancelledError:
             return self._handle_cancelled(event)
