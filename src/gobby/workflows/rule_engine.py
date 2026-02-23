@@ -22,7 +22,7 @@ from gobby.workflows.enforcement.blocking import (
     is_server_listed,
     is_tool_unlocked,
 )
-from gobby.workflows.safe_evaluator import SafeExpressionEvaluator
+from gobby.workflows.safe_evaluator import SafeExpressionEvaluator, build_condition_helpers
 from gobby.workflows.templates import TemplateEngine
 
 logger = logging.getLogger(__name__)
@@ -270,20 +270,16 @@ class RuleEngine:
         """
         variables = context.get("variables", {})
         try:
+            allowed_funcs = build_condition_helpers(context=context)
+            # Rule-engine-specific: progressive disclosure + isinstance
+            allowed_funcs["isinstance"] = isinstance
+            allowed_funcs["is_server_listed"] = lambda ti: is_server_listed(ti, variables)
+            allowed_funcs["is_tool_unlocked"] = lambda ti: is_tool_unlocked(ti, variables)
+            allowed_funcs["is_discovery_tool"] = is_discovery_tool
+
             evaluator = SafeExpressionEvaluator(
                 context=context,
-                allowed_funcs={
-                    "len": len,
-                    "str": str,
-                    "int": int,
-                    "bool": bool,
-                    "isinstance": isinstance,
-                    # Progressive disclosure helpers — need access to variables
-                    # for checking listed_servers / unlocked_tools state.
-                    "is_server_listed": lambda ti: is_server_listed(ti, variables),
-                    "is_tool_unlocked": lambda ti: is_tool_unlocked(ti, variables),
-                    "is_discovery_tool": is_discovery_tool,
-                },
+                allowed_funcs=allowed_funcs,
             )
             return evaluator.evaluate(condition)
         except Exception as e:
