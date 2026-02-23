@@ -131,10 +131,10 @@ class TestAgentDefinitionBodyModel:
             assert body.mode == mode
 
     def test_isolation_values(self) -> None:
-        """Isolation accepts current, worktree, clone, or None."""
+        """Isolation accepts none, worktree, clone, or None."""
         from gobby.workflows.definitions import AgentDefinitionBody
 
-        for iso in ("current", "worktree", "clone"):
+        for iso in ("none", "worktree", "clone"):
             body = AgentDefinitionBody(name="test", isolation=iso)
             assert body.isolation == iso
 

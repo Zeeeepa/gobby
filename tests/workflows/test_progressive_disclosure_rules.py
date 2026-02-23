@@ -43,7 +43,10 @@ def _sync_bundled(db):
     """Sync bundled rules from the real rules directory."""
     from gobby.workflows.sync import get_bundled_rules_path
 
-    return sync_bundled_rules(db, get_bundled_rules_path())
+    result = sync_bundled_rules(db, get_bundled_rules_path())
+    # Mark templates as installed so get_by_name() finds them without include_templates
+    db.execute("UPDATE workflow_definitions SET source = 'installed' WHERE source = 'template'")
+    return result
 
 
 PROGRESSIVE_DISCLOSURE_RULES = {
@@ -351,12 +354,12 @@ class TestRuleEngineIntegration:
     @pytest.fixture
     def engine(self, db) -> RuleEngine:
         _sync_bundled(db)
-        # Enable the progressive disclosure rules and set source to 'installed'
-        # (bundled rules are excluded from engine evaluation; in production
-        # users create installed copies via "Install")
+        # Disable all rules first, then enable only the progressive disclosure rules
+        # (avoids interference from other rules that may have been synced as enabled)
+        db.execute("UPDATE workflow_definitions SET enabled = 0")
         for name in PROGRESSIVE_DISCLOSURE_RULES:
             db.execute(
-                "UPDATE workflow_definitions SET enabled = 1, source = 'installed' WHERE name = ?",
+                "UPDATE workflow_definitions SET enabled = 1 WHERE name = ?",
                 (name,),
             )
         return RuleEngine(db)

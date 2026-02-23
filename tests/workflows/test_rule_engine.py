@@ -819,7 +819,7 @@ class TestToggleRuleRejectsTemplate:
 
         result = toggle_rule(manager, name="template-only-rule", enabled=True)
         assert result["success"] is False
-        assert "not found" in result["error"]
+        assert "template" in result["error"]
 
     def test_toggle_rule_works_for_installed(
         self, db: LocalDatabase, manager: LocalWorkflowDefinitionManager

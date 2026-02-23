@@ -75,6 +75,7 @@ class TestTaskTreeComplete:
     def test_returns_false_when_task_open(self, mock_task_manager: MagicMock) -> None:
         task = _make_task(status="open")
         mock_task_manager.get_task.return_value = task
+        mock_task_manager.list_tasks.return_value = []
 
         ctx: dict[str, Any] = {"variables": {}}
         ev = _build_evaluator(ctx, task_manager=mock_task_manager)
@@ -85,7 +86,9 @@ class TestTaskTreeComplete:
         child = _make_task(status="open")
         child.id = "child-1"
 
-        mock_task_manager.get_task.return_value = parent
+        mock_task_manager.get_task.side_effect = lambda task_id: (
+            parent if task_id == "task-123" else child
+        )
         mock_task_manager.list_tasks.side_effect = lambda parent_task_id: (
             [child] if parent_task_id == "task-123" else []
         )

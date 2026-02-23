@@ -36,7 +36,10 @@ def _sync_bundled(db):
     """Sync bundled rules from the real rules directory."""
     from gobby.workflows.sync import get_bundled_rules_path
 
-    return sync_bundled_rules(db, get_bundled_rules_path())
+    result = sync_bundled_rules(db, get_bundled_rules_path())
+    # Mark templates as installed so get_by_name() finds them without include_templates
+    db.execute("UPDATE workflow_definitions SET source = 'installed' WHERE source = 'template'")
+    return result
 
 
 class TestPlanModeSync:

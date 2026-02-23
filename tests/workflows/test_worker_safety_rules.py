@@ -32,14 +32,22 @@ def manager(db: LocalDatabase) -> LocalWorkflowDefinitionManager:
     return LocalWorkflowDefinitionManager(db)
 
 
+def _sync_bundled(db):
+    """Sync bundled rules from the real rules directory."""
+    from gobby.workflows.sync import get_bundled_rules_path
+
+    result = sync_bundled_rules(db, get_bundled_rules_path())
+    # Mark templates as installed so get_by_name() finds them without include_templates
+    db.execute("UPDATE workflow_definitions SET source = 'installed' WHERE source = 'template'")
+    return result
+
+
 class TestWorkerSafetySync:
     """Test that the bundled worker-safety.yaml syncs correctly."""
 
     def test_bundled_file_syncs_all_rules(self, db, manager) -> None:
         """All worker-safety rules should sync to workflow_definitions."""
-        from gobby.workflows.sync import get_bundled_rules_path
-
-        sync_bundled_rules(db, get_bundled_rules_path())
+        _sync_bundled(db)
 
         rules = manager.list_all(workflow_type="rule")
         rule_names = {r.name for r in rules}
@@ -49,9 +57,7 @@ class TestWorkerSafetySync:
 
     def test_all_rules_have_group(self, db, manager) -> None:
         """All worker-safety rules should have group='worker-safety'."""
-        from gobby.workflows.sync import get_bundled_rules_path
-
-        sync_bundled_rules(db, get_bundled_rules_path())
+        _sync_bundled(db)
 
         rules = manager.list_all(workflow_type="rule")
         for row in rules:
@@ -61,9 +67,7 @@ class TestWorkerSafetySync:
 
     def test_all_rules_are_valid_pydantic(self, db, manager) -> None:
         """All synced rules should be valid RuleDefinitionBody instances."""
-        from gobby.workflows.sync import get_bundled_rules_path
-
-        sync_bundled_rules(db, get_bundled_rules_path())
+        _sync_bundled(db)
 
         rules = manager.list_all(workflow_type="rule")
         for row in rules:
@@ -78,9 +82,7 @@ class TestNoPushRule:
 
     def test_blocks_bash_with_git_push(self, db, manager) -> None:
         """no-push should block Bash tool with git push."""
-        from gobby.workflows.sync import get_bundled_rules_path
-
-        sync_bundled_rules(db, get_bundled_rules_path())
+        _sync_bundled(db)
 
         row = manager.get_by_name("no-push")
         assert row is not None
@@ -96,9 +98,7 @@ class TestNoForcePushRule:
 
     def test_blocks_force_push_flags(self, db, manager) -> None:
         """no-force-push should block force push flags."""
-        from gobby.workflows.sync import get_bundled_rules_path
-
-        sync_bundled_rules(db, get_bundled_rules_path())
+        _sync_bundled(db)
 
         row = manager.get_by_name("no-force-push")
         assert row is not None
@@ -114,9 +114,7 @@ class TestRequireTaskRule:
 
     def test_blocks_edit_tools(self, db, manager) -> None:
         """require-task should block Edit, Write, NotebookEdit."""
-        from gobby.workflows.sync import get_bundled_rules_path
-
-        sync_bundled_rules(db, get_bundled_rules_path())
+        _sync_bundled(db)
 
         row = manager.get_by_name("require-task")
         assert row is not None
@@ -132,9 +130,7 @@ class TestNoDestructiveGitRule:
 
     def test_blocks_destructive_commands(self, db, manager) -> None:
         """no-destructive-git should block reset --hard, clean -f, etc."""
-        from gobby.workflows.sync import get_bundled_rules_path
-
-        sync_bundled_rules(db, get_bundled_rules_path())
+        _sync_bundled(db)
 
         row = manager.get_by_name("no-destructive-git")
         assert row is not None

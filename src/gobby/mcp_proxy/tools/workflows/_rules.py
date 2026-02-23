@@ -128,6 +128,9 @@ def toggle_rule(
     if row is None or row.workflow_type != "rule":
         return {"success": False, "error": f"Rule '{name}' not found"}
 
+    if row.source == "template":
+        return {"success": False, "error": f"Rule '{name}' is a template — install it first"}
+
     updated = def_manager.update(row.id, enabled=enabled)
     logger.info("Toggled rule '%s' enabled=%s", name, enabled)
 
