@@ -146,8 +146,10 @@ class HeadlessSpawner:
                 try:
                     loop = asyncio.get_running_loop()
                     await loop.run_in_executor(None, result.process.wait)
-                except Exception:
-                    pass  # nosec B110 - Best-effort process cleanup
+                except Exception as e:
+                    import logging
+
+                    logging.getLogger(__name__).debug("Best-effort process cleanup failed: %s", e)
             result.error = "Process timed out"
 
         except Exception as e:
