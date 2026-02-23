@@ -7,13 +7,16 @@ sets a variable after file edits.
 from __future__ import annotations
 
 import json
+from datetime import datetime, timezone
 
 import pytest
 
+from gobby.hooks.events import HookEvent, HookEventType, SessionSource
 from gobby.storage.database import LocalDatabase
 from gobby.storage.migrations import run_migrations
 from gobby.storage.workflow_definitions import LocalWorkflowDefinitionManager
-from gobby.workflows.definitions import RuleDefinitionBody
+from gobby.workflows.definitions import RuleDefinitionBody, RuleEffect
+from gobby.workflows.rule_engine import RuleEngine
 from gobby.workflows.sync import sync_bundled_rules
 
 pytestmark = pytest.mark.unit
@@ -154,3 +157,90 @@ class TestTrackPendingMemoryReview:
         assert body.when is not None
         assert "Edit" in body.when
         assert "Write" in body.when
+
+
+def _make_bash_event(command: str) -> HookEvent:
+    """Create a before_tool HookEvent with command nested in tool_input (like real adapters)."""
+    return HookEvent(
+        event_type=HookEventType.BEFORE_TOOL,
+        session_id="test-session",
+        source=SessionSource.CLAUDE,
+        timestamp=datetime.now(timezone.utc),
+        data={"tool_name": "Bash", "tool_input": {"command": command}},
+    )
+
+
+def _require_uv_effect() -> RuleEffect:
+    """Build the RuleEffect matching the require-uv rule definition."""
+    return RuleEffect(
+        type="block",
+        tools=["Bash"],
+        command_pattern=r'(?:^|[;&|])\s*(?:sudo\s+)?(?:python(?:3(?:\.\d+)?)?|pip3?)\b',
+        command_not_pattern=r'(?:^|[;&|])\s*(?:sudo\s+)?uv\s+',
+        reason="Use `uv run` or `uv pip` instead of running python/pip directly.",
+    )
+
+
+class TestRequireUvShouldBlock:
+    """Integration tests for _should_block with realistic adapter event data.
+
+    All adapters nest the command inside tool_input.command, not at the
+    top level of event.data. These tests verify the extraction works.
+    """
+
+    def test_blocks_naked_python(self, db) -> None:
+        engine = RuleEngine(db)
+        event = _make_bash_event("python script.py")
+        assert engine._should_block(_require_uv_effect(), event) is True
+
+    def test_blocks_naked_pip(self, db) -> None:
+        engine = RuleEngine(db)
+        event = _make_bash_event("pip install requests")
+        assert engine._should_block(_require_uv_effect(), event) is True
+
+    def test_blocks_python3_inline(self, db) -> None:
+        engine = RuleEngine(db)
+        event = _make_bash_event("python3 -c \"print('hi')\"")
+        assert engine._should_block(_require_uv_effect(), event) is True
+
+    def test_allows_uv_run_python(self, db) -> None:
+        engine = RuleEngine(db)
+        event = _make_bash_event("uv run python -c \"print('hello')\"")
+        assert engine._should_block(_require_uv_effect(), event) is False
+
+    def test_allows_uv_run_pytest(self, db) -> None:
+        engine = RuleEngine(db)
+        event = _make_bash_event("uv run pytest tests/ -v")
+        assert engine._should_block(_require_uv_effect(), event) is False
+
+    def test_allows_uv_pip_install(self, db) -> None:
+        engine = RuleEngine(db)
+        event = _make_bash_event("uv pip install requests")
+        assert engine._should_block(_require_uv_effect(), event) is False
+
+    def test_allows_non_python_command(self, db) -> None:
+        engine = RuleEngine(db)
+        event = _make_bash_event("ls -la")
+        assert engine._should_block(_require_uv_effect(), event) is False
+
+    def test_blocks_python_after_chain(self, db) -> None:
+        engine = RuleEngine(db)
+        event = _make_bash_event("cd /tmp && python test.py")
+        assert engine._should_block(_require_uv_effect(), event) is True
+
+    def test_allows_uv_run_python_after_chain(self, db) -> None:
+        engine = RuleEngine(db)
+        event = _make_bash_event("cd /tmp && uv run python test.py")
+        assert engine._should_block(_require_uv_effect(), event) is False
+
+    def test_blocks_when_command_at_top_level(self, db) -> None:
+        """Legacy path: command at top level of event.data still works."""
+        engine = RuleEngine(db)
+        event = HookEvent(
+            event_type=HookEventType.BEFORE_TOOL,
+            session_id="test-session",
+            source=SessionSource.CLAUDE,
+            timestamp=datetime.now(timezone.utc),
+            data={"tool_name": "Bash", "command": "python script.py"},
+        )
+        assert engine._should_block(_require_uv_effect(), event) is True

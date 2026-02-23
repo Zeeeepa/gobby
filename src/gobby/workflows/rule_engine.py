@@ -1,12 +1,13 @@
 """Rule engine with single-pass evaluation loop.
 
 Rules are stateless event handlers: event comes in, conditions match, effect fires.
-Four effect types: block, set_variable, inject_context, mcp_call.
+Five effect types: block, set_variable, inject_context, mcp_call, observe.
 """
 
 import json
 import logging
 import re
+from datetime import UTC, datetime
 from typing import Any
 
 from gobby.hooks.events import HookEvent, HookEventType, HookResponse
@@ -135,6 +136,23 @@ class RuleEngine:
                         except Exception as e:
                             logger.warning(f"Failed to render inject_context template: {e}")
                     context_parts.append(template_text)
+
+            elif effect.type == "observe":
+                obs_list = variables.get("_observations", [])
+                msg = effect.message or ""
+                if msg and "{{" in msg:
+                    try:
+                        engine = TemplateEngine()
+                        msg = engine.render(msg, ctx)
+                    except Exception as e:
+                        logger.warning(f"Failed to render observe message template: {e}")
+                obs_list.append({
+                    "category": effect.category or "general",
+                    "message": msg,
+                    "timestamp": datetime.now(UTC).isoformat(),
+                    "rule": _row.name,
+                })
+                variables["_observations"] = obs_list
 
             elif effect.type == "mcp_call":
                 mcp_calls.append(
@@ -298,6 +316,10 @@ class RuleEngine:
         mcp_tool = event.data.get("mcp_tool")
         mcp_server = event.data.get("mcp_server") or event.data.get("server_name")
         command = event.data.get("command")
+        if not command:
+            tool_input = event.data.get("tool_input")
+            if isinstance(tool_input, dict):
+                command = tool_input.get("command")
 
         # If no tools/mcp_tools filter specified, block applies to everything
         has_tool_filter = effect.tools or effect.mcp_tools
