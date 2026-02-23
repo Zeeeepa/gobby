@@ -208,8 +208,6 @@ CREATE TABLE IF NOT EXISTS "workflow_states" (
             step_entered_at TEXT,
             step_action_count INTEGER DEFAULT 0,
             total_action_count INTEGER DEFAULT 0,
-            observations TEXT,
-            reflection_pending INTEGER DEFAULT 0,
             context_injected INTEGER DEFAULT 0,
             variables TEXT,
             task_list TEXT,

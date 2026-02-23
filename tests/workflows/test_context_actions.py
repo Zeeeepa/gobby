@@ -49,7 +49,6 @@ def workflow_state():
         session_id="test-session-id",
         workflow_name="test-workflow",
         step="test-step",
-        observations=[{"type": "user_action", "data": "clicked button"}],
         variables={"key": "value"},
     )
 
@@ -325,8 +324,12 @@ class TestInjectContext:
             session_id="test-session",
             workflow_name="test",
             step="test",
-            observations=[{"event": "click"}, {"event": "scroll"}],
         )
+
+        mock_svm = MagicMock()
+        mock_svm.get_variables.return_value = {
+            "_observations": [{"event": "click"}, {"event": "scroll"}]
+        }
 
         result = inject_context(
             session_manager=mock_session_manager,
@@ -334,6 +337,7 @@ class TestInjectContext:
             state=state,
             template_engine=mock_template_engine,
             source="observations",
+            session_variable_manager=mock_svm,
         )
 
         assert result is not None
@@ -348,8 +352,10 @@ class TestInjectContext:
             session_id="test-session",
             workflow_name="test",
             step="test",
-            observations=[],
         )
+
+        mock_svm = MagicMock()
+        mock_svm.get_variables.return_value = {"_observations": []}
 
         result = inject_context(
             session_manager=mock_session_manager,
@@ -357,6 +363,7 @@ class TestInjectContext:
             state=state,
             template_engine=mock_template_engine,
             source="observations",
+            session_variable_manager=mock_svm,
         )
 
         assert result is None
@@ -495,10 +502,12 @@ class TestInjectContext:
             session_id="test-session",
             workflow_name="test",
             step="test",
-            observations=[{"event": "click"}],
         )
         template_engine = MagicMock()
         template_engine.render.return_value = "Rendered observations"
+
+        mock_svm = MagicMock()
+        mock_svm.get_variables.return_value = {"_observations": [{"event": "click"}]}
 
         result = inject_context(
             session_manager=mock_session_manager,
@@ -507,6 +516,7 @@ class TestInjectContext:
             template_engine=template_engine,
             source="observations",
             template="Obs: {{ observations_text }}",
+            session_variable_manager=mock_svm,
         )
 
         assert result is not None

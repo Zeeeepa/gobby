@@ -95,7 +95,6 @@ def test_status_active(cli_runner, mock_state_manager) -> None:
             state.total_action_count = 10
             state.disabled = False
             state.task_list = None
-            state.reflection_pending = False
             mock_state_manager.get_state.return_value = state
 
             result = cli_runner.invoke(workflows, ["status", "--session", "sess1"])
@@ -253,7 +252,6 @@ def test_status_json_format(cli_runner, mock_state_manager) -> None:
             state.disabled = False
             state.disabled_reason = None
             state.task_list = None
-            state.reflection_pending = False
             state.updated_at = None
             mock_state_manager.get_state.return_value = state
 
@@ -290,7 +288,6 @@ def test_status_disabled_workflow(cli_runner, mock_state_manager) -> None:
             state.disabled = True
             state.disabled_reason = "Manual override"
             state.task_list = None
-            state.reflection_pending = False
             mock_state_manager.get_state.return_value = state
 
             result = cli_runner.invoke(workflows, ["status", "--session", "sess1"])

@@ -50,9 +50,9 @@ class RuleEvent(str, Enum):
 
 
 class RuleEffect(BaseModel):
-    """What happens when a rule fires. Four primitive effect types."""
+    """What happens when a rule fires. Five primitive effect types."""
 
-    type: Literal["block", "set_variable", "inject_context", "mcp_call"]
+    type: Literal["block", "set_variable", "inject_context", "mcp_call", "observe"]
 
     # block — prevent the action
     reason: str | None = None
@@ -74,6 +74,10 @@ class RuleEffect(BaseModel):
     arguments: dict[str, Any] | None = None
     background: bool = False
 
+    # observe — append structured entry to _observations session variable
+    category: str | None = None
+    message: str | None = None
+
     def model_post_init(self, __context: Any) -> None:
         """Warn when fields irrelevant to the effect type are set."""
         import warnings
@@ -83,6 +87,7 @@ class RuleEffect(BaseModel):
             "set_variable": {"variable", "value"},
             "inject_context": {"template"},
             "mcp_call": {"server", "tool", "arguments", "background"},
+            "observe": {"category", "message"},
         }
         # Fields with non-None defaults that shouldn't trigger warnings
         _default_skip = {"background"}
@@ -479,9 +484,6 @@ class WorkflowState(BaseModel):
     step_action_count: int = 0
     total_action_count: int = 0
 
-    observations: list[dict[str, Any]] = Field(default_factory=list)
-
-    reflection_pending: bool = False
     context_injected: bool = False
 
     variables: dict[str, Any] = Field(default_factory=dict)

@@ -305,7 +305,6 @@ def get_workflow_status(
         "step": state.step,
         "step_action_count": state.step_action_count,
         "total_action_count": state.total_action_count,
-        "reflection_pending": state.reflection_pending,
         "variables": state.variables,
         "task_progress": (
             f"{state.current_task_index + 1}/{len(state.task_list)}" if state.task_list else None

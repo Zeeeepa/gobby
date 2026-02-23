@@ -35,6 +35,7 @@ def inject_context(
     memory_manager: Any | None = None,
     prompt_text: str | None = None,
     limit: int = 5,
+    session_variable_manager: Any | None = None,
 ) -> dict[str, Any] | None:
     """Inject context from a source or multiple sources.
 
@@ -92,6 +93,7 @@ def inject_context(
                 memory_manager=memory_manager,
                 prompt_text=prompt_text,
                 limit=limit,
+                session_variable_manager=session_variable_manager,
             )
             if result and result.get("inject_context"):
                 combined_content.append(result["inject_context"])
@@ -107,7 +109,7 @@ def inject_context(
                 render_context: dict[str, Any] = {
                     "session": session_manager.get(session_id),
                     "state": state,
-                    "observations": state.observations if state else {},
+                    "observations": session_variable_manager.get_variables(session_id).get("_observations", []) if session_variable_manager else [],
                     "combined_content": content,
                     "source_contents": source_contents,
                 }
@@ -143,7 +145,7 @@ def inject_context(
         render_context = {
             "session": session_manager.get(session_id),
             "state": state,
-            "observations": state.observations if state else {},
+            "observations": session_variable_manager.get_variables(session_id).get("_observations", []) if session_variable_manager else [],
         }
         rendered = template_engine.render(template, render_context)
         logger.debug(f"inject_context: rendered template, len={len(rendered) if rendered else 0}")
@@ -182,14 +184,15 @@ def inject_context(
                                 logger.warning(f"Failed to read failback file {summary_file}: {e}")
 
     elif source == "observations":
-        if state.observations:
-            content = "## Observations\n" + json.dumps(state.observations, indent=2)
+        obs = session_variable_manager.get_variables(session_id).get("_observations", []) if session_variable_manager else []
+        if obs:
+            content = "## Observations\n" + json.dumps(obs, indent=2)
 
     elif source == "workflow_state":
         try:
-            state_dict = state.model_dump(exclude={"observations"})
+            state_dict = state.model_dump()
         except AttributeError:
-            state_dict = state.dict(exclude={"observations"})
+            state_dict = state.dict()
         content = "## Workflow State\n" + json.dumps(state_dict, indent=2, default=str)
 
     elif source == "compact_handoff":
@@ -279,7 +282,7 @@ def inject_context(
             render_context = {
                 "session": session_manager.get(session_id),
                 "state": state,
-                "observations": state.observations,
+                "observations": session_variable_manager.get_variables(session_id).get("_observations", []) if session_variable_manager else [],
             }
 
             if source in ["previous_session_summary", "handoff"]:
@@ -754,10 +757,14 @@ def format_handoff_as_markdown(ctx: Any, prompt_template: str | None = None) -> 
 
 async def handle_inject_context(context: ActionContext, **kwargs: Any) -> dict[str, Any] | None:
     """ActionHandler wrapper for inject_context."""
+    from gobby.workflows.state_manager import SessionVariableManager
+
     # Get prompt_text from event_data if not explicitly passed
     prompt_text = kwargs.get("prompt_text")
     if prompt_text is None and context.event_data:
         prompt_text = context.event_data.get("prompt_text")
+
+    session_variable_manager = SessionVariableManager(context.db) if context.db else None
 
     return await asyncio.to_thread(
         inject_context,
@@ -774,6 +781,7 @@ async def handle_inject_context(context: ActionContext, **kwargs: Any) -> dict[s
         memory_manager=context.memory_manager,
         prompt_text=prompt_text,
         limit=kwargs.get("limit", 5),
+        session_variable_manager=session_variable_manager,
     )
 
 

@@ -456,8 +456,6 @@ class TestWorkflowStateInitFromDefinition:
             step_entered_at=datetime.now(UTC),
             step_action_count=0,
             total_action_count=0,
-            observations=[],
-            reflection_pending=False,
             context_injected=False,
             variables={},  # Empty! Definition variables not copied
             task_list=None,

@@ -772,9 +772,14 @@ async def test_inject_context_variations(action_executor, action_context, mock_s
     res = await action_executor.execute("inject_context", action_context, source="compact_handoff")
     assert res["inject_context"] == "Compact Markdown"
 
-    # 2. Observations injection
-    action_context.state.observations = ["User clicked button"]
-    res = await action_executor.execute("inject_context", action_context, source="observations")
+    # 2. Observations injection (via session variables)
+    mock_svm = MagicMock()
+    mock_svm.get_variables.return_value = {
+        "_observations": ["User clicked button"]
+    }
+
+    with patch("gobby.workflows.state_manager.SessionVariableManager", return_value=mock_svm):
+        res = await action_executor.execute("inject_context", action_context, source="observations")
     assert "## Observations" in res["inject_context"]
     assert "User clicked button" in res["inject_context"]
 

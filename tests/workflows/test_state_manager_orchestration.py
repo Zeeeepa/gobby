@@ -54,9 +54,9 @@ def _insert_state(db, session_id: str, variables: dict | None = None) -> None:
         INSERT INTO workflow_states (
             session_id, workflow_name, step, step_entered_at,
             step_action_count, total_action_count,
-            observations, reflection_pending, context_injected,
+            context_injected,
             variables, updated_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
         """,
         (
             session_id,
@@ -64,8 +64,6 @@ def _insert_state(db, session_id: str, variables: dict | None = None) -> None:
             "working",
             datetime.now(UTC).isoformat(),
             0,
-            0,
-            "[]",
             0,
             0,
             json.dumps(variables or {}),

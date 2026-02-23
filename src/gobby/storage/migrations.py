@@ -37,7 +37,7 @@ MigrationAction = str | Callable[[LocalDatabase], None]
 # Baseline version - the schema state that is applied for new databases directly.
 # Must be bumped when BASELINE_SCHEMA is updated with columns from new migrations,
 # so that fresh databases don't re-run migrations already baked into the baseline.
-BASELINE_VERSION = 120
+BASELINE_VERSION = 121
 
 # Minimum migration version - databases older than this cannot be upgraded
 # because legacy migrations (pre-v108) have been removed.
@@ -422,8 +422,6 @@ CREATE TABLE workflow_states (
     step_entered_at TEXT,
     step_action_count INTEGER DEFAULT 0,
     total_action_count INTEGER DEFAULT 0,
-    observations TEXT,
-    reflection_pending INTEGER DEFAULT 0,
     context_injected INTEGER DEFAULT 0,
     variables TEXT,
     task_list TEXT,
@@ -1113,6 +1111,45 @@ def _migrate_agent_defs_to_workflow_defs(db: LocalDatabase) -> None:
     logger.info(f"Migrated {migrated} agent definitions to workflow_definitions")
 
 
+def _migrate_drop_observation_columns(db: LocalDatabase) -> None:
+    """Remove dead observations/reflection_pending columns from workflow_states."""
+    rows = db.fetchall("SELECT * FROM workflow_states")
+    db.execute("DROP TABLE workflow_states")
+    db.execute("""CREATE TABLE workflow_states (
+        session_id TEXT PRIMARY KEY,
+        workflow_name TEXT NOT NULL,
+        step TEXT NOT NULL,
+        step_entered_at TEXT,
+        step_action_count INTEGER DEFAULT 0,
+        total_action_count INTEGER DEFAULT 0,
+        context_injected INTEGER DEFAULT 0,
+        variables TEXT,
+        task_list TEXT,
+        current_task_index INTEGER DEFAULT 0,
+        files_modified_this_task INTEGER DEFAULT 0,
+        created_at TEXT NOT NULL DEFAULT (datetime('now')),
+        updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+        FOREIGN KEY (session_id) REFERENCES sessions(id) ON DELETE CASCADE
+    )""")
+    for row in rows:
+        db.execute(
+            """INSERT INTO workflow_states (
+                session_id, workflow_name, step, step_entered_at,
+                step_action_count, total_action_count, context_injected,
+                variables, task_list, current_task_index,
+                files_modified_this_task, created_at, updated_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+            (
+                row["session_id"], row["workflow_name"], row["step"],
+                row["step_entered_at"], row["step_action_count"],
+                row["total_action_count"], row["context_injected"],
+                row["variables"], row["task_list"], row["current_task_index"],
+                row["files_modified_this_task"], row["created_at"], row["updated_at"],
+            ),
+        )
+    logger.info(f"Migrated {len(rows)} workflow_states rows, dropped observations/reflection_pending")
+
+
 MIGRATIONS: list[tuple[int, str, MigrationAction]] = [
     (
         108,
@@ -1206,6 +1243,11 @@ CREATE UNIQUE INDEX idx_wf_defs_name_project ON workflow_definitions(name, COALE
         "Rename source values: bundled->template, custom->installed",
         """UPDATE workflow_definitions SET source = 'template' WHERE source = 'bundled';
 UPDATE workflow_definitions SET source = 'installed' WHERE source = 'custom'""",
+    ),
+    (
+        121,
+        "Remove dead observations/reflection_pending columns from workflow_states",
+        _migrate_drop_observation_columns,
     ),
 ]
 

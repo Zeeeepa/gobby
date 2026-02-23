@@ -473,6 +473,127 @@ class TestSessionOverrides:
         assert response.decision == "block"
 
 
+class TestObserveEffect:
+    @pytest.mark.asyncio
+    async def test_observe_appends_to_observations(
+        self, db: LocalDatabase, manager: LocalWorkflowDefinitionManager
+    ) -> None:
+        """observe effect should append an entry to _observations in variables."""
+        from gobby.workflows.rule_engine import RuleEngine
+
+        _insert_rule(
+            manager,
+            "observe-tool-use",
+            RuleDefinitionBody(
+                event=RuleEvent.AFTER_TOOL,
+                effect=RuleEffect(
+                    type="observe",
+                    category="tool_use",
+                    message="Tool was used",
+                ),
+            ),
+        )
+
+        engine = RuleEngine(db)
+        variables: dict[str, Any] = {}
+        event = _make_event(HookEventType.AFTER_TOOL, data={"tool_name": "Edit"})
+        response = await engine.evaluate(event, session_id="sess-1", variables=variables)
+
+        assert response.decision == "allow"
+        assert "_observations" in variables
+        obs_list = variables["_observations"]
+        assert len(obs_list) == 1
+        assert obs_list[0]["category"] == "tool_use"
+        assert obs_list[0]["message"] == "Tool was used"
+        assert obs_list[0]["rule"] == "observe-tool-use"
+        assert "timestamp" in obs_list[0]
+
+    @pytest.mark.asyncio
+    async def test_observe_accumulates(
+        self, db: LocalDatabase, manager: LocalWorkflowDefinitionManager
+    ) -> None:
+        """Multiple observe effects should accumulate entries."""
+        from gobby.workflows.rule_engine import RuleEngine
+
+        _insert_rule(
+            manager,
+            "observe-a",
+            RuleDefinitionBody(
+                event=RuleEvent.AFTER_TOOL,
+                effect=RuleEffect(type="observe", category="a", message="first"),
+            ),
+            priority=10,
+        )
+        _insert_rule(
+            manager,
+            "observe-b",
+            RuleDefinitionBody(
+                event=RuleEvent.AFTER_TOOL,
+                effect=RuleEffect(type="observe", category="b", message="second"),
+            ),
+            priority=20,
+        )
+
+        engine = RuleEngine(db)
+        variables: dict[str, Any] = {}
+        event = _make_event(HookEventType.AFTER_TOOL)
+        await engine.evaluate(event, session_id="sess-1", variables=variables)
+
+        assert len(variables["_observations"]) == 2
+        assert variables["_observations"][0]["category"] == "a"
+        assert variables["_observations"][1]["category"] == "b"
+
+    @pytest.mark.asyncio
+    async def test_observe_defaults_category_to_general(
+        self, db: LocalDatabase, manager: LocalWorkflowDefinitionManager
+    ) -> None:
+        """observe with no category should default to 'general'."""
+        from gobby.workflows.rule_engine import RuleEngine
+
+        _insert_rule(
+            manager,
+            "observe-no-cat",
+            RuleDefinitionBody(
+                event=RuleEvent.AFTER_TOOL,
+                effect=RuleEffect(type="observe", message="no category"),
+            ),
+        )
+
+        engine = RuleEngine(db)
+        variables: dict[str, Any] = {}
+        event = _make_event(HookEventType.AFTER_TOOL)
+        await engine.evaluate(event, session_id="sess-1", variables=variables)
+
+        assert variables["_observations"][0]["category"] == "general"
+
+    @pytest.mark.asyncio
+    async def test_observe_with_template_message(
+        self, db: LocalDatabase, manager: LocalWorkflowDefinitionManager
+    ) -> None:
+        """observe with Jinja template in message should render it."""
+        from gobby.workflows.rule_engine import RuleEngine
+
+        _insert_rule(
+            manager,
+            "observe-template",
+            RuleDefinitionBody(
+                event=RuleEvent.AFTER_TOOL,
+                effect=RuleEffect(
+                    type="observe",
+                    category="tool_use",
+                    message="Used {{ event.data.get('tool_name', 'unknown') }}",
+                ),
+            ),
+        )
+
+        engine = RuleEngine(db)
+        variables: dict[str, Any] = {}
+        event = _make_event(HookEventType.AFTER_TOOL, data={"tool_name": "Edit"})
+        await engine.evaluate(event, session_id="sess-1", variables=variables)
+
+        assert variables["_observations"][0]["message"] == "Used Edit"
+
+
 class TestMcpCallEffect:
     @pytest.mark.asyncio
     async def test_mcp_call_records_pending_call(

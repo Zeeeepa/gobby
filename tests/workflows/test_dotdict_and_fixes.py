@@ -67,8 +67,6 @@ class TestForceTransitionContextInjected:
             step_entered_at=datetime.now(UTC),
             step_action_count=5,
             total_action_count=10,
-            observations=[],
-            reflection_pending=False,
             context_injected=True,  # Already injected for current step
             variables={},
         )
@@ -121,8 +119,6 @@ class TestEndWorkflowVariablePersistence:
             step_entered_at=datetime.now(UTC),
             step_action_count=0,
             total_action_count=0,
-            observations=[],
-            reflection_pending=False,
             context_injected=True,
             variables={
                 "session_task": "task-123",  # workflow-declared variable

@@ -1,4 +1,4 @@
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -20,6 +20,7 @@ def mock_context():
     context.state = WorkflowState(
         session_id="test-session", workflow_name="test-workflow", step="test-step"
     )
+    context.db = None  # Prevent SessionVariableManager creation with mock db
     return context
 
 
@@ -60,9 +61,14 @@ async def test_inject_context_observations(mock_context):
     )
 
     # Setup observations
-    mock_context.state.observations = [{"tool": "read_file", "result": "content"}]
+    mock_svm = MagicMock()
+    mock_svm.get_variables.return_value = {
+        "_observations": [{"tool": "read_file", "result": "content"}]
+    }
+    mock_context.db = MagicMock()
 
-    result = await executor.execute("inject_context", mock_context, source="observations")
+    with patch("gobby.workflows.state_manager.SessionVariableManager", return_value=mock_svm):
+        result = await executor.execute("inject_context", mock_context, source="observations")
 
     assert result is not None
     assert "## Observations" in result["inject_context"]

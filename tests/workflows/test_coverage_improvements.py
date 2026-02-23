@@ -19,7 +19,7 @@ def mock_action_context():
         session_id="test-session", workflow_name="test-workflow", step="test-step"
     )
 
-    context.db = MagicMock()
+    context.db = None  # Prevent SessionVariableManager creation with mock db
     context.session_manager = MagicMock()
     context.session_manager.get.return_value = MagicMock(project_id="test-project")
 
@@ -67,11 +67,16 @@ def mock_config():
 async def test_inject_context_observations(mock_action_context):
     """Test injecting observation context."""
     context = mock_action_context
-    context.state.observations = [{"step": 1, "result": "ok"}]
+    mock_svm = MagicMock()
+    mock_svm.get_variables.return_value = {
+        "_observations": [{"step": 1, "result": "ok"}]
+    }
+    context.db = MagicMock()
 
-    result = await context.executor.execute(
-        "inject_context", context, source="observations", template="Obs: {{ observations_text }}"
-    )
+    with patch("gobby.workflows.state_manager.SessionVariableManager", return_value=mock_svm):
+        result = await context.executor.execute(
+            "inject_context", context, source="observations", template="Obs: {{ observations_text }}"
+        )
     assert "Obs: ## Observations" in result["inject_context"]
     assert '"result": "ok"' in result["inject_context"]
 

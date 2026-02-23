@@ -187,7 +187,6 @@ def workflow_status(ctx: click.Context, session_id: str | None, json_format: boo
                     "step": state.step,
                     "step_action_count": state.step_action_count,
                     "total_action_count": state.total_action_count,
-                    "reflection_pending": state.reflection_pending,
                     "disabled": state.disabled,
                     "disabled_reason": state.disabled_reason,
                     "updated_at": state.updated_at.isoformat() if state.updated_at else None,
@@ -206,9 +205,6 @@ def workflow_status(ctx: click.Context, session_id: str | None, json_format: boo
     if state.disabled:
         click.echo(f"⚠️  DISABLED{f': {state.disabled_reason}' if state.disabled_reason else ''}")
         click.echo("   Use 'gobby workflows enable' to re-enable enforcement.")
-
-    if state.reflection_pending:
-        click.echo("⚠️  Reflection pending")
 
     if state.task_list:
         click.echo(f"Task progress: {state.current_task_index + 1}/{len(state.task_list)}")
