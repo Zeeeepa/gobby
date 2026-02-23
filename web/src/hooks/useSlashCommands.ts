@@ -29,6 +29,7 @@ const ALIASES: Record<string, { server: string; tool: string }> = {
   skills: { server: 'gobby-skills', tool: 'list_skills' },
   memory: { server: 'gobby-memory', tool: 'search_memories' },
   servers: { server: 'gobby', tool: 'list_mcp_servers' },
+  vocab: { server: 'gobby-voice', tool: 'list_vocab' },
 }
 
 export function useSlashCommands() {
@@ -51,15 +52,16 @@ export function useSlashCommands() {
         const data = await resp.json()
         const cmds: CommandInfo[] = []
 
-        // data is { server_name: [{ name, description }, ...], ... }
-        for (const [server, tools] of Object.entries(data)) {
+        // Backend returns { success, tools: { server: [...] }, response_time_ms }
+        const toolsByServer = data.tools || data
+        for (const [server, tools] of Object.entries(toolsByServer)) {
           if (!Array.isArray(tools)) continue
           for (const tool of tools) {
             cmds.push({
               server,
               tool: tool.name,
               name: `${server}.${tool.name}`,
-              description: tool.description?.slice(0, 80) || '',
+              description: (tool.brief || tool.description || '').slice(0, 80),
             })
           }
         }

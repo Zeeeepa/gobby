@@ -230,7 +230,7 @@ class TestTranscribeSuccess:
 
     @pytest.mark.asyncio
     async def test_whisper_prompt_passed(self) -> None:
-        stt = _make_stt(whisper_prompt="Custom prompt")
+        stt = _make_stt(whisper_prompt="Custom prompt", whisper_vocabulary=[])
         mock_model = MagicMock()
         mock_model.transcribe.return_value = (
             [_mock_segment("test")],
@@ -246,7 +246,7 @@ class TestTranscribeSuccess:
 
     @pytest.mark.asyncio
     async def test_empty_whisper_prompt_passed_as_none(self) -> None:
-        stt = _make_stt(whisper_prompt="")
+        stt = _make_stt(whisper_prompt="", whisper_vocabulary=[])
         mock_model = MagicMock()
         mock_model.transcribe.return_value = (
             [_mock_segment("test")],
@@ -543,6 +543,59 @@ class TestConfigPassthrough:
         assert stt._config.whisper_device == "auto"
         assert stt._config.whisper_compute_type == "int8"
         assert stt._config.whisper_prompt == "Gobby"
+
+
+# ---------------------------------------------------------------------------
+# _build_initial_prompt()
+# ---------------------------------------------------------------------------
+
+
+class TestBuildInitialPrompt:
+    def test_vocab_only(self) -> None:
+        stt = _make_stt(whisper_prompt="", whisper_vocabulary=["Kubernetes", "FastAPI"])
+        result = stt._build_initial_prompt()
+        assert result == "Kubernetes, FastAPI"
+
+    def test_prompt_only(self) -> None:
+        stt = _make_stt(whisper_prompt="Gobby", whisper_vocabulary=[])
+        result = stt._build_initial_prompt()
+        assert result == "Gobby"
+
+    def test_both_vocab_and_prompt(self) -> None:
+        stt = _make_stt(whisper_prompt="Gobby", whisper_vocabulary=["Kubernetes", "FastAPI"])
+        result = stt._build_initial_prompt()
+        assert result == "Kubernetes, FastAPI. Gobby"
+
+    def test_neither_returns_none(self) -> None:
+        stt = _make_stt(whisper_prompt="", whisper_vocabulary=[])
+        result = stt._build_initial_prompt()
+        assert result is None
+
+    def test_default_config_includes_vocab(self) -> None:
+        """Default VoiceConfig has pre-loaded vocabulary."""
+        config = VoiceConfig()
+        stt = WhisperSTT(config)
+        result = stt._build_initial_prompt()
+        assert result is not None
+        assert "Gobby" in result  # From whisper_prompt
+        assert "Kubernetes" in result  # From default vocabulary
+
+    @pytest.mark.asyncio
+    async def test_transcribe_uses_build_initial_prompt(self) -> None:
+        """Verify transcribe() calls _build_initial_prompt instead of raw whisper_prompt."""
+        stt = _make_stt(whisper_prompt="Gobby", whisper_vocabulary=["Kubernetes"])
+        mock_model = MagicMock()
+        mock_model.transcribe.return_value = (
+            [_mock_segment("test")],
+            _mock_info(),
+        )
+        stt._model = mock_model
+
+        audio = b"\x00" * 1000
+        await stt.transcribe(audio, "audio/webm")
+
+        call_kwargs = mock_model.transcribe.call_args[1]
+        assert call_kwargs["initial_prompt"] == "Kubernetes. Gobby"
 
 
 # ---------------------------------------------------------------------------

@@ -34,6 +34,20 @@ class WhisperSTT:
         self._loading = False
         self._load_lock = asyncio.Lock()
 
+    def _build_initial_prompt(self) -> str | None:
+        """Build the initial_prompt for Whisper from vocabulary + whisper_prompt.
+
+        Joins vocabulary terms with ", ", appends whisper_prompt after ". ".
+        Returns None if both are empty (Whisper default behavior).
+        """
+        parts: list[str] = []
+        if self._config.whisper_vocabulary:
+            parts.append(", ".join(self._config.whisper_vocabulary))
+        if self._config.whisper_prompt:
+            parts.append(self._config.whisper_prompt)
+        combined = ". ".join(parts)
+        return combined or None
+
     async def _ensure_model(self) -> _WhisperModelProto:
         """Lazy-load the Whisper model (thread-safe, async)."""
         if self._model is not None:
@@ -112,7 +126,7 @@ class WhisperSTT:
                     str(tmp_path),
                     vad_filter=True,
                     vad_parameters={"min_silence_duration_ms": 500},
-                    initial_prompt=self._config.whisper_prompt or None,
+                    initial_prompt=self._build_initial_prompt(),
                 )
                 text = " ".join(seg.text.strip() for seg in segments)
                 logger.debug(

@@ -72,3 +72,17 @@ class VoiceConfig(BaseModel):
         default="Gobby",
         description="Initial prompt for Whisper STT to bias vocabulary (e.g. proper nouns).",
     )
+    whisper_vocabulary: list[str] = Field(
+        default_factory=lambda: [
+            # Gobby-specific
+            "Gobby", "MCP", "worktree",
+            # Common dev terms Whisper struggles with
+            "Kubernetes", "PostgreSQL", "FastAPI", "Pydantic", "TypeScript",
+            "GraphQL", "WebSocket", "Redis", "MongoDB", "SQLite",
+            "OAuth", "JWT", "REST", "gRPC", "YAML", "JSON",
+            "Docker", "Terraform", "GitHub", "GitLab",
+            "Claude", "Anthropic", "Gemini", "Copilot",
+            "npm", "pip", "pytest", "ESLint", "webpack", "Vite",
+        ],
+        description="Custom vocabulary terms to bias Whisper STT recognition (proper nouns, technical terms). Pre-loaded with common dev terms.",
+    )

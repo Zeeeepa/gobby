@@ -321,6 +321,18 @@ def setup_internal_registries(
         manager.add_registry(config_registry)
         logger.debug("Config registry initialized")
 
+    # Initialize voice registry if config_store is available
+    if _config is not None and config_store is not None and config_setter is not None:
+        from gobby.mcp_proxy.tools.voice import create_voice_registry
+
+        voice_registry = create_voice_registry(
+            config=_config,
+            config_store=config_store,
+            config_setter=config_setter,
+        )
+        manager.add_registry(voice_registry)
+        logger.debug("Voice registry initialized")
+
     # Initialize skills registry if database is available
     if db is not None:
         from gobby.config.skills import SkillsConfig
