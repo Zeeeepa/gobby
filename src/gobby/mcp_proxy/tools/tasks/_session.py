@@ -114,7 +114,7 @@ def create_session_registry(ctx: RegistryContext) -> InternalToolRegistry:
         task = ctx.task_manager.get_task(resolved_id)
         sessions = ctx.session_task_manager.get_task_sessions(resolved_id)
         # Handle case where task is not found (shouldn't happen after resolve, but be defensive)
-        ref = f"#{task.seq_num}" if task and task.seq_num else resolved_id[:8]
+        ref = f"#{task.seq_num}" if task and task.seq_num else resolved_id
         return {
             "ref": ref,
             "task_id": resolved_id,

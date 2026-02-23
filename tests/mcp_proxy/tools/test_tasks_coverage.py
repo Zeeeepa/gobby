@@ -1997,3 +1997,230 @@ class TestToolSchemas:
 
         for prop in expected_props:
             assert prop in props, f"Missing property: {prop}"
+
+
+# =============================================================================
+# Session Variable Mirroring Tests (#9071)
+# =============================================================================
+
+
+class TestSessionVariableMirroring:
+    """Tests that task lifecycle operations mirror state to session_variables.
+
+    The rule engine evaluates session_variables (higher precedence) over
+    workflow_states. If task tools only write to workflow_states, the
+    require-task-close rule never blocks the stop hook.
+    """
+
+    @pytest.mark.asyncio
+    async def test_claim_task_mirrors_to_session_variables(
+        self, mock_task_manager, mock_sync_manager
+    ):
+        """claim_task must mirror task_claimed=True to session_variables."""
+        task_uuid = "550e8400-e29b-41d4-a716-446655440099"
+
+        with (
+            patch(
+                "gobby.mcp_proxy.tools.tasks._context.SessionTaskManager"
+            ) as MockSessionTaskManager,
+            patch(
+                "gobby.mcp_proxy.tools.tasks._context.LocalSessionManager"
+            ) as MockSessionManager,
+            patch(
+                "gobby.mcp_proxy.tools.tasks._context.WorkflowStateManager"
+            ) as MockWSManager,
+            patch(
+                "gobby.mcp_proxy.tools.tasks._context.SessionVariableManager"
+            ) as MockSVManager,
+        ):
+            mock_st_instance = MagicMock()
+            MockSessionTaskManager.return_value = mock_st_instance
+
+            mock_session_manager = MagicMock()
+            mock_session_manager.resolve_session_reference.return_value = "test-session"
+            MockSessionManager.return_value = mock_session_manager
+
+            mock_ws_manager = MagicMock()
+            mock_ws_manager.get_state.return_value = None  # No existing state
+            MockWSManager.return_value = mock_ws_manager
+
+            mock_sv_manager = MagicMock()
+            MockSVManager.return_value = mock_sv_manager
+
+            registry = create_task_registry(mock_task_manager, mock_sync_manager)
+
+            mock_task = MagicMock()
+            mock_task.id = task_uuid
+            mock_task.seq_num = 200
+            mock_task.status = "open"
+            mock_task.assignee = None
+            mock_task_manager.get_task.return_value = mock_task
+            mock_task_manager.update_task.return_value = mock_task
+
+            result = await registry.call(
+                "claim_task",
+                {"task_id": task_uuid, "session_id": "test-session"},
+            )
+
+            assert "error" not in result
+            # session_variables must be written with task_claimed=True and full UUID
+            mock_sv_manager.merge_variables.assert_called_once_with(
+                "test-session",
+                {
+                    "task_claimed": True,
+                    "claimed_task_id": task_uuid,
+                    "task_ref": "#200",
+                },
+            )
+
+    @pytest.mark.asyncio
+    async def test_close_task_mirrors_clear_to_session_variables(
+        self, mock_task_manager, mock_sync_manager
+    ):
+        """close_task must mirror task_claimed=False to session_variables."""
+        from gobby.workflows.definitions import WorkflowState
+
+        task_uuid = "550e8400-e29b-41d4-a716-446655440099"
+
+        with (
+            patch(
+                "gobby.mcp_proxy.tools.tasks._context.SessionTaskManager"
+            ) as MockSessionTaskManager,
+            patch(
+                "gobby.mcp_proxy.tools.tasks._context.LocalSessionManager"
+            ) as MockSessionManager,
+            patch(
+                "gobby.mcp_proxy.tools.tasks._context.WorkflowStateManager"
+            ) as MockWSManager,
+            patch(
+                "gobby.mcp_proxy.tools.tasks._context.SessionVariableManager"
+            ) as MockSVManager,
+            patch(
+                "gobby.mcp_proxy.tools.tasks._context.LocalProjectManager"
+            ) as MockProjManager,
+            patch("gobby.utils.git.run_git_command") as mock_git,
+        ):
+            mock_st_instance = MagicMock()
+            MockSessionTaskManager.return_value = mock_st_instance
+
+            mock_session_manager = MagicMock()
+            mock_session_manager.resolve_session_reference.return_value = "test-session"
+            mock_session_manager.get.return_value = None
+            MockSessionManager.return_value = mock_session_manager
+
+            state = WorkflowState(
+                session_id="test-session",
+                workflow_name="__lifecycle__",
+                step="global",
+                variables={
+                    "task_claimed": True,
+                    "claimed_task_id": task_uuid,
+                    "task_ref": "#200",
+                },
+            )
+            mock_ws_manager = MagicMock()
+            mock_ws_manager.get_state.return_value = state
+            MockWSManager.return_value = mock_ws_manager
+
+            mock_sv_manager = MagicMock()
+            MockSVManager.return_value = mock_sv_manager
+
+            mock_proj_instance = MagicMock()
+            mock_proj_instance.get.return_value = None
+            MockProjManager.return_value = mock_proj_instance
+            mock_git.return_value = "abc123"
+
+            registry = create_task_registry(mock_task_manager, mock_sync_manager)
+
+            mock_task = MagicMock()
+            mock_task.id = task_uuid
+            mock_task.commits = ["abc123"]
+            mock_task.project_id = "proj-1"
+            mock_task.validation_criteria = None
+            mock_task.requires_user_review = False
+            mock_task_manager.get_task.return_value = mock_task
+            mock_task_manager.close_task.return_value = mock_task
+            mock_task_manager.list_tasks.return_value = []
+
+            result = await registry.call(
+                "close_task",
+                {"task_id": task_uuid, "session_id": "test-session", "changes_summary": "done"},
+            )
+
+            assert "error" not in result
+            # session_variables must be cleared
+            mock_sv_manager.merge_variables.assert_called_once_with(
+                "test-session",
+                {
+                    "task_claimed": False,
+                    "claimed_task_id": None,
+                    "task_ref": "",
+                },
+            )
+
+    @pytest.mark.asyncio
+    async def test_create_task_with_claim_mirrors_to_session_variables(
+        self, mock_task_manager, mock_sync_manager
+    ):
+        """create_task(claim=True) must mirror task_claimed=True to session_variables."""
+        task_uuid = "550e8400-e29b-41d4-a716-446655440099"
+
+        with (
+            patch(
+                "gobby.mcp_proxy.tools.tasks._context.SessionTaskManager"
+            ) as MockSessionTaskManager,
+            patch(
+                "gobby.mcp_proxy.tools.tasks._context.LocalSessionManager"
+            ) as MockSessionManager,
+            patch(
+                "gobby.mcp_proxy.tools.tasks._context.WorkflowStateManager"
+            ) as MockWSManager,
+            patch(
+                "gobby.mcp_proxy.tools.tasks._context.SessionVariableManager"
+            ) as MockSVManager,
+        ):
+            mock_st_instance = MagicMock()
+            MockSessionTaskManager.return_value = mock_st_instance
+
+            mock_session_manager = MagicMock()
+            mock_session_manager.resolve_session_reference.return_value = "test-session"
+            MockSessionManager.return_value = mock_session_manager
+
+            mock_ws_manager = MagicMock()
+            mock_ws_manager.get_state.return_value = None
+            MockWSManager.return_value = mock_ws_manager
+
+            mock_sv_manager = MagicMock()
+            MockSVManager.return_value = mock_sv_manager
+
+            registry = create_task_registry(mock_task_manager, mock_sync_manager)
+
+            mock_task = MagicMock()
+            mock_task.id = task_uuid
+            mock_task.seq_num = 300
+            mock_task.status = "in_progress"
+            mock_task.assignee = "test-session"
+            mock_task_manager.create_task_with_decomposition.return_value = {
+                "task": {"id": task_uuid},
+            }
+            mock_task_manager.get_task.return_value = mock_task
+            mock_task_manager.update_task.return_value = mock_task
+
+            with patch("gobby.mcp_proxy.tools.tasks._crud.get_project_context") as mock_ctx:
+                mock_ctx.return_value = {"id": "proj-1"}
+
+                result = await registry.call(
+                    "create_task",
+                    {"title": "New Task", "session_id": "test-session", "claim": True},
+                )
+
+                assert result["id"] == task_uuid
+                # session_variables must be written with full UUID (not truncated)
+                mock_sv_manager.merge_variables.assert_called_once_with(
+                    "test-session",
+                    {
+                        "task_claimed": True,
+                        "claimed_task_id": task_uuid,
+                        "task_ref": "#300",
+                    },
+                )

@@ -142,9 +142,9 @@ def create_lifecycle_registry(ctx: RegistryContext) -> InternalToolRegistry:
                             "or pass `commit_sha` to `close_task`."
                         ),
                     }
-            except Exception:
+            except Exception as e:
                 # Don't block close on internal error
-                pass  # nosec B110 - best-effort session edit check
+                logger.debug("Best-effort session edit check failed: %s", e)
 
         if not should_skip:
             # Check if task has children (is a parent task)
@@ -215,8 +215,8 @@ def create_lifecycle_registry(ctx: RegistryContext) -> InternalToolRegistry:
                     ctx.session_task_manager.link_task(
                         resolved_session_id, resolved_id, "needs_review"
                     )
-                except Exception:
-                    pass  # nosec B110 - best-effort linking
+                except Exception as e:
+                    logger.debug("Best-effort session linking failed: %s", e)
 
             return {
                 "routed_to_review": True,
@@ -244,8 +244,8 @@ def create_lifecycle_registry(ctx: RegistryContext) -> InternalToolRegistry:
         if resolved_session_id:
             try:
                 ctx.session_task_manager.link_task(resolved_session_id, resolved_id, "closed")
-            except Exception:
-                pass  # nosec B110 - best-effort linking, don't fail the close
+            except Exception as e:
+                logger.debug("Best-effort session close linking failed: %s", e)
 
         # Clear workflow task_claimed state if this was the claimed task
         # Respects the clear_task_on_close variable (defaults to True if not set)
@@ -262,8 +262,8 @@ def create_lifecycle_registry(ctx: RegistryContext) -> InternalToolRegistry:
                             claimed_task = ctx.task_manager.get_task(claimed_task_id)
                             if claimed_task:
                                 claimed_task_id = claimed_task.id
-                        except Exception:
-                            pass  # nosec B110 - ref stays raw, comparison below handles it
+                        except Exception as e:
+                            logger.debug("Raw ref resolution failed (handled later): %s", e)
 
                     # Compare with normalized UUIDs to handle format differences
                     ids_match = False
@@ -282,6 +282,12 @@ def create_lifecycle_registry(ctx: RegistryContext) -> InternalToolRegistry:
                             state.variables["claimed_task_id"] = None
                             state.variables["task_ref"] = ""
                             ctx.workflow_state_manager.save_state(state)
+                            # Mirror to session_variables (authoritative store for rule evaluation)
+                            ctx.session_var_manager.merge_variables(resolved_session_id, {
+                                "task_claimed": False,
+                                "claimed_task_id": None,
+                                "task_ref": "",
+                            })
                             logger.debug("Cleared task_claimed for session %s", resolved_session_id)
             except Exception as e:
                 logger.warning(
@@ -298,8 +304,8 @@ def create_lifecycle_registry(ctx: RegistryContext) -> InternalToolRegistry:
 
                 session_manager = LocalSessionManager(ctx.task_manager.db)
                 session_manager.clear_had_edits(resolved_session_id)
-            except Exception:
-                pass  # nosec B110 - best-effort reset
+            except Exception as e:
+                logger.debug("Best-effort had_edits reset failed: %s", e)
 
         # Update worktree status based on closure reason (case-insensitive)
         try:
@@ -316,8 +322,8 @@ def create_lifecycle_registry(ctx: RegistryContext) -> InternalToolRegistry:
                     worktree_manager.mark_abandoned(wt.id)
                 elif reason_normalized == "completed":
                     worktree_manager.mark_merged(wt.id)
-        except Exception:
-            pass  # nosec B110 - best-effort worktree update, don't fail the close
+        except Exception as e:
+            logger.debug("Best-effort worktree update failed during close: %s", e)
 
         return {}
 
@@ -402,8 +408,8 @@ def create_lifecycle_registry(ctx: RegistryContext) -> InternalToolRegistry:
                     WorktreeStatus.ABANDONED.value,
                 ):
                     worktree_manager.update(wt.id, status=WorktreeStatus.ACTIVE.value)
-            except Exception:
-                pass  # nosec B110 - best-effort worktree update
+            except Exception as e:
+                logger.debug("Best-effort reopen worktree update failed: %s", e)
 
             return {}
         except ValueError as e:
@@ -445,7 +451,7 @@ def create_lifecycle_registry(ctx: RegistryContext) -> InternalToolRegistry:
         task = ctx.task_manager.get_task(resolved_id)
         if not task:
             return {"error": f"Task {task_id} not found"}
-        ref = f"#{task.seq_num}" if task.seq_num else resolved_id[:8]
+        ref = f"#{task.seq_num}" if task.seq_num else resolved_id
 
         try:
             deleted = ctx.task_manager.delete_task(resolved_id, cascade=cascade, unlink=unlink)
@@ -619,8 +625,8 @@ def create_lifecycle_registry(ctx: RegistryContext) -> InternalToolRegistry:
         # Link task to session (best-effort, don't fail the claim if this fails)
         try:
             ctx.session_task_manager.link_task(resolved_session_id, resolved_id, "claimed")
-        except Exception:
-            pass  # nosec B110 - best-effort linking
+        except Exception as e:
+            logger.debug("Best-effort session claim linking failed: %s", e)
 
         # Set task_claimed workflow variable (enables Edit/Write hooks)
         # This mirrors create_task behavior in _crud.py
@@ -637,10 +643,16 @@ def create_lifecycle_registry(ctx: RegistryContext) -> InternalToolRegistry:
                 )
             state.variables["task_claimed"] = True
             state.variables["claimed_task_id"] = resolved_id  # Always use UUID
-            state.variables["task_ref"] = f"#{task.seq_num}" if task.seq_num else resolved_id[:8]
+            state.variables["task_ref"] = f"#{task.seq_num}" if task.seq_num else resolved_id
             ctx.workflow_state_manager.save_state(state)
-        except Exception:
-            pass  # nosec B110 - best-effort variable setting
+            # Mirror to session_variables (authoritative store for rule evaluation)
+            ctx.session_var_manager.merge_variables(resolved_session_id, {
+                "task_claimed": True,
+                "claimed_task_id": resolved_id,
+                "task_ref": f"#{task.seq_num}" if task.seq_num else resolved_id,
+            })
+        except Exception as e:
+            logger.debug("Best-effort workflow variable setting failed: %s", e)
 
         return {}
 
@@ -717,8 +729,8 @@ def create_lifecycle_registry(ctx: RegistryContext) -> InternalToolRegistry:
                 pass
             try:
                 ctx.session_task_manager.link_task(resolved_session_id, resolved_id, "escalated")
-            except Exception:
-                pass  # nosec B110 - best-effort linking
+            except Exception as e:
+                logger.debug("Best-effort escalation linking failed: %s", e)
 
         return {}
 

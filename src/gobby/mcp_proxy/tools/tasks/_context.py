@@ -14,7 +14,7 @@ from gobby.storage.task_dependencies import TaskDependencyManager
 from gobby.storage.tasks import LocalTaskManager
 from gobby.utils.project_context import get_project_context
 from gobby.workflows.definitions import WorkflowState
-from gobby.workflows.state_manager import WorkflowStateManager
+from gobby.workflows.state_manager import SessionVariableManager, WorkflowStateManager
 
 if TYPE_CHECKING:
     from gobby.agents.runner import AgentRunner
@@ -46,6 +46,7 @@ class RegistryContext:
     session_task_manager: SessionTaskManager = field(init=False)
     session_manager: LocalSessionManager = field(init=False)
     workflow_state_manager: WorkflowStateManager = field(init=False)
+    session_var_manager: SessionVariableManager = field(init=False)
     project_manager: LocalProjectManager = field(init=False)
 
     # Config settings (initialized in __post_init__)
@@ -61,6 +62,7 @@ class RegistryContext:
         self.session_task_manager = SessionTaskManager(db)
         self.session_manager = LocalSessionManager(db)
         self.workflow_state_manager = WorkflowStateManager(db)
+        self.session_var_manager = SessionVariableManager(db)
         self.project_manager = LocalProjectManager(db)
 
         # Initialize config settings
