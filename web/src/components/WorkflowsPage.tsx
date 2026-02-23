@@ -22,6 +22,7 @@ export function WorkflowsPage({ projectId }: { projectId?: string }) {
   const [showRuleCreateModal, setShowRuleCreateModal] = useState(false)
   const [showAgentCreateForm, setShowAgentCreateForm] = useState(false)
   const [showPipelineCreateDropdown, setShowPipelineCreateDropdown] = useState(false)
+  const [pipelineCreateMode, setPipelineCreateMode] = useState<'builder' | 'yaml' | null>(null)
   const [refreshKey, setRefreshKey] = useState(0)
   const [refreshing, setRefreshing] = useState(false)
   const [hideGobby, setHideGobby] = useState(false)
@@ -59,6 +60,30 @@ export function WorkflowsPage({ projectId }: { projectId?: string }) {
               >
                 + Pipeline
               </button>
+              {showPipelineCreateDropdown && (
+                <div className="workflows-new-dropdown">
+                  <button
+                    type="button"
+                    className="workflows-new-dropdown-item"
+                    onClick={() => {
+                      setShowPipelineCreateDropdown(false)
+                      setPipelineCreateMode('builder')
+                    }}
+                  >
+                    Builder
+                  </button>
+                  <button
+                    type="button"
+                    className="workflows-new-dropdown-item"
+                    onClick={() => {
+                      setShowPipelineCreateDropdown(false)
+                      setPipelineCreateMode('yaml')
+                    }}
+                  >
+                    YAML
+                  </button>
+                </div>
+              )}
             </div>
           )}
           {activeTab === 'agents' && (
@@ -130,8 +155,8 @@ export function WorkflowsPage({ projectId }: { projectId?: string }) {
           searchText={searchText}
           sourceFilter={sourceFilter}
           devMode={devMode}
-          showCreateDropdown={showPipelineCreateDropdown}
-          onCloseCreateDropdown={() => setShowPipelineCreateDropdown(false)}
+          createMode={pipelineCreateMode}
+          onCreateModeHandled={() => setPipelineCreateMode(null)}
           refreshKey={refreshKey}
           projectId={projectId}
           hideGobby={hideGobby}

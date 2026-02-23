@@ -18,14 +18,14 @@ interface PipelinesTabProps {
   searchText: string
   sourceFilter: 'installed' | 'project' | 'templates' | 'deleted'
   devMode: boolean
-  showCreateDropdown: boolean
-  onCloseCreateDropdown: () => void
+  createMode: 'builder' | 'yaml' | null
+  onCreateModeHandled: () => void
   refreshKey?: number
   projectId?: string
   hideGobby?: boolean
 }
 
-export function PipelinesTab({ searchText, sourceFilter, devMode, showCreateDropdown, onCloseCreateDropdown, refreshKey = 0, projectId, hideGobby }: PipelinesTabProps) {
+export function PipelinesTab({ searchText, sourceFilter, devMode, createMode, onCreateModeHandled, refreshKey = 0, projectId, hideGobby }: PipelinesTabProps) {
   const {
     workflows,
     isLoading,
@@ -63,6 +63,24 @@ export function PipelinesTab({ searchText, sourceFilter, devMode, showCreateDrop
     }
     fetchWorkflows({ include_deleted: true })
   }, [refreshKey, fetchWorkflows])
+
+  // Handle create mode from parent dropdown
+  useEffect(() => {
+    if (createMode === 'builder') {
+      onCreateModeHandled()
+      const scaffoldDef = { name: 'new-pipeline', type: 'pipeline', description: '', steps: [{ id: 'step-1', exec: 'echo hello' }] }
+      createWorkflow({
+        name: 'new-pipeline',
+        definition_json: JSON.stringify(scaffoldDef),
+        workflow_type: 'pipeline',
+      }).then(result => {
+        if (result) setEditingWorkflow(result)
+      })
+    } else if (createMode === 'yaml') {
+      onCreateModeHandled()
+      setShowImportModal(true)
+    }
+  }, [createMode, onCreateModeHandled, createWorkflow])
 
   // Filtering logic
   const filteredWorkflows = useMemo(() => {
@@ -257,36 +275,6 @@ export function PipelinesTab({ searchText, sourceFilter, devMode, showCreateDrop
             >
               Install All
             </button>
-          )}
-          {showCreateDropdown && (
-            <div className="workflows-new-dropdown">
-              <button
-                type="button"
-                className="workflows-new-dropdown-item"
-                onClick={async () => {
-                  onCloseCreateDropdown()
-                  const scaffoldDef = { name: 'new-pipeline', type: 'pipeline', description: '', steps: [{ id: 'step-1', exec: 'echo hello' }] }
-                  const result = await createWorkflow({
-                    name: 'new-pipeline',
-                    definition_json: JSON.stringify(scaffoldDef),
-                    workflow_type: 'pipeline',
-                  })
-                  if (result) setEditingWorkflow(result)
-                }}
-              >
-                Builder
-              </button>
-              <button
-                type="button"
-                className="workflows-new-dropdown-item"
-                onClick={() => {
-                  onCloseCreateDropdown()
-                  setShowImportModal(true)
-                }}
-              >
-                YAML
-              </button>
-            </div>
           )}
         </div>
       </div>
