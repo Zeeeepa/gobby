@@ -331,100 +331,90 @@ class HookManager:
             self.logger.warning(f"No handler for event type: {event.event_type}")
             return HookResponse(decision="allow")  # Fail-open for unknown events
 
-        # --- Workflow Engine Evaluation (Phase 3) ---
-        # Evalute workflow rules before executing specific handlers
-        workflow_context = None
-        try:
-            workflow_response = self._workflow_handler.handle(event)
-
-            # If workflow blocks or asks, return immediately
-            if workflow_response.decision != "allow":
-                self.logger.info(f"Workflow blocked/modified event: {workflow_response.decision}")
-                return workflow_response
-
-            # Capture context to merge later
-            if workflow_response.context:
-                workflow_context = workflow_response.context
-
-            # Dispatch mcp_call effects (fire-and-forget for background calls)
-            mcp_calls = (workflow_response.metadata or {}).get("mcp_calls", [])
-            if mcp_calls:
-                self._dispatch_mcp_calls(mcp_calls, event)
-
-        except Exception as e:
-            self.logger.error(f"Workflow evaluation failed: {e}", exc_info=True)
-            # Fail-open for workflow errors
-        # --------------------------------------------
-
-        # --- Blocking Webhooks Evaluation (Sprint 8) ---
-        # Dispatch to blocking webhooks BEFORE handler execution
-        try:
-            webhook_results = self._dispatch_webhooks_sync(event, blocking_only=True)
-            decision, reason = self._webhook_dispatcher.get_blocking_decision(webhook_results)
-            if decision == "block":
-                self.logger.info(f"Webhook blocked event: {reason}")
-                return HookResponse(decision="block", reason=reason or "Blocked by webhook")
-        except Exception as e:
-            self.logger.error(f"Blocking webhook dispatch failed: {e}", exc_info=True)
-            # Fail-open for webhook errors
-        # -----------------------------------------------
-
-        # Execute handler
-        try:
-            response = handler(event)
-
-            # Enrich response with session metadata, terminal context, workflow context
-            self._enricher.enrich(event, response, workflow_context=workflow_context)
-
-            # Broadcast event (fire-and-forget)
-            if self.broadcaster:
-                try:
-                    # Case 1: Running in an event loop (e.g. from app-server client)
-                    loop = asyncio.get_running_loop()
-                    loop.create_task(self.broadcaster.broadcast_event(event, response))
-                except RuntimeError:
-                    # Case 2: Running in a thread (e.g. from HTTP endpoint via to_thread)
-                    if self._loop:
-                        try:
-                            # Use the main loop captured at init
-                            asyncio.run_coroutine_threadsafe(
-                                self.broadcaster.broadcast_event(event, response),
-                                self._loop,
-                            )
-                        except Exception as e:
-                            self.logger.warning(f"Failed to schedule broadcast threadsafe: {e}")
-                    else:
-                        self.logger.debug("No event loop available for broadcasting")
-
-            # Dispatch non-blocking webhooks (fire-and-forget)
+        # --- Evaluate rules and execute handler ---
+        # For SESSION_START: run handler first to register the session and set
+        # _platform_session_id, then evaluate rules with the correct session ID.
+        # This ensures set_variable effects are stored under the platform session_id
+        # rather than the CLI's external_id.
+        # For all other events: evaluate rules first so block effects can prevent
+        # handler execution.
+        if event.event_type == HookEventType.SESSION_START:
             try:
-                self._dispatch_webhooks_async(event)
+                response = handler(event)
             except Exception as e:
-                self.logger.warning(f"Non-blocking webhook dispatch failed: {e}")
+                self.logger.error(f"Event handler {event.event_type} failed: {e}", exc_info=True)
+                return HookResponse(decision="allow", reason=f"Handler error: {e}")
 
-            # --- Hook-based transcript capture (Windsurf, Copilot) ---
-            # These CLIs don't write local transcript files, so we
-            # assemble transcripts from hook events as they flow through.
-            if (
-                event.source in (SessionSource.WINDSURF, SessionSource.COPILOT)
-                and platform_session_id
-            ):
-                try:
-                    hook_messages = self._hook_assembler.process_event(platform_session_id, event)
-                    if hook_messages:
-                        self._store_hook_messages(platform_session_id, hook_messages)
-                except Exception as e:
-                    self.logger.warning(f"Hook transcript capture failed: {e}")
-            # ---------------------------------------------------------
+            workflow_context, blocking_response = self._evaluate_workflow_rules(event)
+            if blocking_response:
+                return blocking_response
 
-            return cast(HookResponse, response)
+            webhook_block = self._evaluate_blocking_webhooks(event)
+            if webhook_block:
+                return webhook_block
+        else:
+            workflow_context, blocking_response = self._evaluate_workflow_rules(event)
+            if blocking_response:
+                return blocking_response
+
+            webhook_block = self._evaluate_blocking_webhooks(event)
+            if webhook_block:
+                return webhook_block
+
+            try:
+                response = handler(event)
+            except Exception as e:
+                self.logger.error(f"Event handler {event.event_type} failed: {e}", exc_info=True)
+                return HookResponse(decision="allow", reason=f"Handler error: {e}")
+
+        # --- Common post-processing ---
+        try:
+            self._enricher.enrich(event, response, workflow_context=workflow_context)
         except Exception as e:
-            self.logger.error(f"Event handler {event.event_type} failed: {e}", exc_info=True)
-            # Fail-open on handler errors
-            return HookResponse(
-                decision="allow",
-                reason=f"Handler error: {e}",
-            )
+            self.logger.error(f"Response enrichment failed: {e}", exc_info=True)
+
+        # Broadcast event (fire-and-forget)
+        if self.broadcaster:
+            try:
+                # Case 1: Running in an event loop (e.g. from app-server client)
+                loop = asyncio.get_running_loop()
+                loop.create_task(self.broadcaster.broadcast_event(event, response))
+            except RuntimeError:
+                # Case 2: Running in a thread (e.g. from HTTP endpoint via to_thread)
+                if self._loop:
+                    try:
+                        # Use the main loop captured at init
+                        asyncio.run_coroutine_threadsafe(
+                            self.broadcaster.broadcast_event(event, response),
+                            self._loop,
+                        )
+                    except Exception as e:
+                        self.logger.warning(f"Failed to schedule broadcast threadsafe: {e}")
+                else:
+                    self.logger.debug("No event loop available for broadcasting")
+
+        # Dispatch non-blocking webhooks (fire-and-forget)
+        try:
+            self._dispatch_webhooks_async(event)
+        except Exception as e:
+            self.logger.warning(f"Non-blocking webhook dispatch failed: {e}")
+
+        # --- Hook-based transcript capture (Windsurf, Copilot) ---
+        # These CLIs don't write local transcript files, so we
+        # assemble transcripts from hook events as they flow through.
+        if (
+            event.source in (SessionSource.WINDSURF, SessionSource.COPILOT)
+            and platform_session_id
+        ):
+            try:
+                hook_messages = self._hook_assembler.process_event(platform_session_id, event)
+                if hook_messages:
+                    self._store_hook_messages(platform_session_id, hook_messages)
+            except Exception as e:
+                self.logger.warning(f"Hook transcript capture failed: {e}")
+        # ---------------------------------------------------------
+
+        return cast(HookResponse, response)
 
     def _get_event_handler(self, event_type: HookEventType) -> Any | None:
         """
@@ -437,6 +427,59 @@ class HookManager:
             Handler method or None if not found.
         """
         return self._event_handlers.get_handler(event_type)
+
+    def _evaluate_workflow_rules(self, event: HookEvent) -> tuple[str | None, HookResponse | None]:
+        """Evaluate workflow rules and dispatch mcp_call effects.
+
+        Args:
+            event: The hook event to evaluate rules for.
+
+        Returns:
+            Tuple of (workflow_context, blocking_response).
+            blocking_response is non-None if rules blocked/modified the event.
+        """
+        try:
+            workflow_response = self._workflow_handler.handle(event)
+
+            # If workflow blocks or asks, return immediately
+            if workflow_response.decision != "allow":
+                self.logger.info(f"Workflow blocked/modified event: {workflow_response.decision}")
+                return None, workflow_response
+
+            # Capture context to merge later
+            workflow_context = workflow_response.context if workflow_response.context else None
+
+            # Dispatch mcp_call effects (fire-and-forget for background calls)
+            mcp_calls = (workflow_response.metadata or {}).get("mcp_calls", [])
+            if mcp_calls:
+                self._dispatch_mcp_calls(mcp_calls, event)
+
+            return workflow_context, None
+
+        except Exception as e:
+            self.logger.error(f"Workflow evaluation failed: {e}", exc_info=True)
+            # Fail-open for workflow errors
+            return None, None
+
+    def _evaluate_blocking_webhooks(self, event: HookEvent) -> HookResponse | None:
+        """Evaluate blocking webhooks before handler execution.
+
+        Args:
+            event: The hook event to evaluate webhooks for.
+
+        Returns:
+            HookResponse if a webhook blocked the event, None otherwise.
+        """
+        try:
+            webhook_results = self._dispatch_webhooks_sync(event, blocking_only=True)
+            decision, reason = self._webhook_dispatcher.get_blocking_decision(webhook_results)
+            if decision == "block":
+                self.logger.info(f"Webhook blocked event: {reason}")
+                return HookResponse(decision="block", reason=reason or "Blocked by webhook")
+        except Exception as e:
+            self.logger.error(f"Blocking webhook dispatch failed: {e}", exc_info=True)
+            # Fail-open for webhook errors
+        return None
 
     def _dispatch_webhooks_sync(self, event: HookEvent, blocking_only: bool = False) -> list[Any]:
         """
