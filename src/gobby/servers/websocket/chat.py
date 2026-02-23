@@ -756,34 +756,60 @@ class ChatMixin:
                     # Persist usage to DB (best-effort)
                     db_sid = getattr(session, "db_session_id", None)
                     session_manager = getattr(self, "session_manager", None)
-                    if (
-                        db_sid
-                        and session_manager
-                        and (
-                            event.total_input_tokens is not None or event.output_tokens is not None
+                    if db_sid and session_manager:
+                        has_usage = (
+                            event.total_input_tokens is not None
+                            or event.output_tokens is not None
                         )
-                    ):
-                        try:
-                            prev_output = getattr(session, "_accumulated_output_tokens", 0)
-                            new_output = prev_output + (event.output_tokens or 0)
-                            session._accumulated_output_tokens = new_output
+                        if has_usage:
+                            try:
+                                prev_output = getattr(session, "_accumulated_output_tokens", 0)
+                                new_output = prev_output + (event.output_tokens or 0)
+                                session._accumulated_output_tokens = new_output
 
-                            prev_cost = getattr(session, "_accumulated_cost_usd", 0.0)
-                            new_cost = prev_cost + (event.cost_usd or 0.0)
-                            session._accumulated_cost_usd = new_cost
+                                prev_cost = getattr(session, "_accumulated_cost_usd", 0.0)
+                                new_cost = prev_cost + (event.cost_usd or 0.0)
+                                session._accumulated_cost_usd = new_cost
 
-                            await asyncio.to_thread(
-                                session_manager.update_usage,
-                                db_sid,
-                                input_tokens=event.total_input_tokens or 0,
-                                output_tokens=new_output,
-                                cache_creation_tokens=event.cache_creation_input_tokens or 0,
-                                cache_read_tokens=event.cache_read_input_tokens or 0,
-                                total_cost_usd=new_cost,
-                                context_window=event.context_window,
-                            )
-                        except Exception:
-                            logger.debug("Failed to persist usage for %s", db_sid, exc_info=True)
+                                await asyncio.to_thread(
+                                    session_manager.update_usage,
+                                    db_sid,
+                                    input_tokens=event.total_input_tokens or 0,
+                                    output_tokens=new_output,
+                                    cache_creation_tokens=event.cache_creation_input_tokens or 0,
+                                    cache_read_tokens=event.cache_read_input_tokens or 0,
+                                    total_cost_usd=new_cost,
+                                    context_window=event.context_window,
+                                    model=getattr(session, "_last_model", None),
+                                )
+                            except Exception:
+                                logger.warning(
+                                    "Failed to persist usage for %s", db_sid, exc_info=True
+                                )
+                        else:
+                            # No token data — still persist context_window + model
+                            try:
+                                updates: dict[str, Any] = {}
+                                if event.context_window is not None:
+                                    updates["context_window"] = event.context_window
+                                last_model = getattr(session, "_last_model", None)
+                                if last_model:
+                                    updates["model"] = last_model
+                                if updates:
+                                    updates["updated_at"] = datetime.now(UTC).isoformat()
+                                    await asyncio.to_thread(
+                                        session_manager.db.safe_update,
+                                        "sessions",
+                                        updates,
+                                        "id = ?",
+                                        (db_sid,),
+                                    )
+                            except Exception:
+                                logger.debug(
+                                    "Failed to persist context_window for %s",
+                                    db_sid,
+                                    exc_info=True,
+                                )
 
         except asyncio.CancelledError:
             # Stream was interrupted (stop button or new message replacing old)

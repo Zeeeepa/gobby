@@ -424,6 +424,7 @@ class ChatSession(ChatSessionPermissionsMixin):
             tool_calls_count = 0
             needs_spacing_before_text = False
             has_text = False
+            context_window: int | None = None
             try:
                 async for message in self._client.receive_response():
                     if message is None:
@@ -441,7 +442,13 @@ class ChatSession(ChatSessionPermissionsMixin):
                         # Extract token usage from ResultMessage.usage dict
                         # (AssistantMessage does NOT carry usage in the SDK)
                         _raw_usage = getattr(message, "usage", None)
-                        usage: dict[str, Any] = _raw_usage if isinstance(_raw_usage, dict) else {}
+                        has_usage = isinstance(_raw_usage, dict)
+                        if not has_usage:
+                            logger.warning(
+                                "ResultMessage missing usage for session %s",
+                                self.conversation_id[:8],
+                            )
+                        usage: dict[str, Any] = _raw_usage if has_usage else {}
                         uncached_input = usage.get("input_tokens", 0) or 0
                         output_tokens = usage.get("output_tokens", 0) or 0
                         cache_read = usage.get("cache_read_input_tokens", 0) or 0
@@ -454,7 +461,7 @@ class ChatSession(ChatSessionPermissionsMixin):
                         # 1. litellm lookup (most reliable for known models)
                         # 2. sdk_compat _model_usage stash (bonus from CLI)
                         # 3. Static fallback for Claude models (all use 200k)
-                        context_window: int | None = None
+                        context_window = None
                         if self._last_model:
                             try:
                                 from gobby.conductor.pricing import litellm as _llm
@@ -492,11 +499,11 @@ class ChatSession(ChatSessionPermissionsMixin):
                             tool_calls_count=tool_calls_count,
                             cost_usd=cost_usd,
                             duration_ms=duration_ms,
-                            input_tokens=uncached_input or None,
-                            output_tokens=output_tokens or None,
-                            cache_read_input_tokens=cache_read or None,
-                            cache_creation_input_tokens=cache_creation or None,
-                            total_input_tokens=total_input or None,
+                            input_tokens=uncached_input if has_usage else None,
+                            output_tokens=output_tokens if has_usage else None,
+                            cache_read_input_tokens=cache_read if has_usage else None,
+                            cache_creation_input_tokens=cache_creation if has_usage else None,
+                            total_input_tokens=total_input if has_usage else None,
                             context_window=context_window,
                             sdk_session_id=self.sdk_session_id,
                         )
@@ -565,11 +572,36 @@ class ChatSession(ChatSessionPermissionsMixin):
             except ExceptionGroup as eg:
                 errors = [f"{type(exc).__name__}: {exc}" for exc in eg.exceptions]
                 yield TextChunk(content=f"Generation failed: {'; '.join(errors)}")
-                yield DoneEvent(tool_calls_count=tool_calls_count)
+                if context_window is None:
+                    context_window = self._resolve_context_window_fallback()
+                yield DoneEvent(
+                    tool_calls_count=tool_calls_count, context_window=context_window
+                )
             except Exception as e:
                 logger.error(f"ChatSession {self.conversation_id} error: {e}", exc_info=True)
                 yield TextChunk(content=f"Generation failed: {e}")
-                yield DoneEvent(tool_calls_count=tool_calls_count)
+                if context_window is None:
+                    context_window = self._resolve_context_window_fallback()
+                yield DoneEvent(
+                    tool_calls_count=tool_calls_count, context_window=context_window
+                )
+
+    def _resolve_context_window_fallback(self) -> int | None:
+        """Resolve context_window from _last_model for error paths."""
+        if not self._last_model:
+            return None
+        try:
+            from gobby.conductor.pricing import litellm as _llm
+
+            if _llm:
+                model_info = _llm.get_model_info(model=self._last_model)
+                return model_info.get("max_input_tokens")
+        except (ImportError, KeyError, AttributeError, TypeError):
+            pass
+        model_lower = self._last_model.lower()
+        if any(k in model_lower for k in ("opus", "sonnet", "haiku")):
+            return 200_000
+        return None
 
     async def interrupt(self) -> None:
         """Interrupt the current response stream."""
