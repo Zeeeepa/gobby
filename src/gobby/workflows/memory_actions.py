@@ -367,7 +367,16 @@ async def memory_background_digest_and_synthesize(
             provider = llm_service.get_default_provider()
             model = None
 
-        digest_prompt = _build_digest_update_prompt(previous_digest, prompt_text)
+        try:
+            from gobby.prompts.loader import PromptLoader
+
+            loader = PromptLoader(db=db)
+            digest_prompt = loader.render(
+                "memory/digest_update",
+                {"previous_digest": previous_digest, "current_prompt": prompt_text},
+            )
+        except Exception:
+            digest_prompt = _build_digest_update_prompt(previous_digest, prompt_text)
         new_digest = await provider.generate_text(digest_prompt, model=model)
         new_digest = new_digest.strip()
 
@@ -628,6 +637,9 @@ async def handle_memory_extract_from_session(
     Safety net for capturing memories when the agent didn't save them.
     Uses SessionMemoryExtractor with LLM analysis.
     """
+    extraction_config = (
+        getattr(context.config, "memory_extraction", None) if context.config else None
+    )
     return await memory_extract_from_session(
         memory_manager=context.memory_manager,
         session_manager=context.session_manager,
@@ -635,6 +647,7 @@ async def handle_memory_extract_from_session(
         transcript_processor=context.transcript_processor,
         session_id=context.session_id,
         max_memories=kwargs.get("max_memories", 5),
+        config=extraction_config,
     )
 
 
@@ -778,6 +791,7 @@ async def memory_extract_from_session(
     transcript_processor: Any | None,
     session_id: str,
     max_memories: int = 5,
+    config: Any | None = None,
 ) -> dict[str, Any] | None:
     """Extract memories from a session transcript using LLM analysis.
 
@@ -791,6 +805,7 @@ async def memory_extract_from_session(
         transcript_processor: Optional transcript processor
         session_id: Session to extract from
         max_memories: Maximum memories to extract
+        config: Optional MemoryExtractionConfig for provider/model selection
 
     Returns:
         Dict with extraction results or error
@@ -812,6 +827,7 @@ async def memory_extract_from_session(
             session_manager=session_manager,
             llm_service=llm_service,
             transcript_processor=transcript_processor,
+            config=config,
         )
 
         candidates = await extractor.extract(

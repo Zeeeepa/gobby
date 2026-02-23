@@ -20,6 +20,7 @@ async def call_llm(
     session: Any,
     prompt: str | None,
     output_as: str | None,
+    model: str | None = None,
     **extra_context: Any,
 ) -> dict[str, Any]:
     """Call LLM with a prompt template and store result in variable.
@@ -31,6 +32,7 @@ async def call_llm(
         session: Current session object
         prompt: Prompt template string
         output_as: Variable name to store result
+        model: Optional model override to pass to provider
         **extra_context: Additional context for template rendering
 
     Returns:
@@ -60,7 +62,10 @@ async def call_llm(
 
     try:
         provider = llm_service.get_default_provider()
-        response = await provider.generate_text(rendered_prompt)
+        gen_kwargs: dict[str, Any] = {}
+        if model:
+            gen_kwargs["model"] = model
+        response = await provider.generate_text(rendered_prompt, **gen_kwargs)
 
         # Store result
         if not state.variables:
@@ -96,5 +101,6 @@ async def handle_call_llm(context: "ActionContext", **kwargs: Any) -> dict[str, 
         session=session,
         prompt=kwargs.get("prompt"),
         output_as=kwargs.get("output_as"),
-        **{k: v for k, v in kwargs.items() if k not in ("prompt", "output_as")},
+        model=kwargs.get("model"),
+        **{k: v for k, v in kwargs.items() if k not in ("prompt", "output_as", "model")},
     )

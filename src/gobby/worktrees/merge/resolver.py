@@ -93,6 +93,7 @@ class MergeResolver:
         self.conflict_size_threshold = conflict_size_threshold
         self.max_parallel_files = max_parallel_files
         self._llm_service: LLMService | None = None  # LLM service integration point
+        self._config: Any | None = None  # MergeResolutionConfig for provider/model
 
     async def resolve_file(
         self,
@@ -358,9 +359,18 @@ class MergeResolver:
             prompt += "Provide the resolved code for each conflict hunk, separated by '---HUNK SEPARATOR---'."
 
             try:
-                # Use default provider for now, could be configurable via tiered strategy params
-                provider = self._llm_service.get_default_provider()
-                response = await provider.generate_text(prompt)
+                if self._config:
+                    try:
+                        provider, model, _ = self._llm_service.get_provider_for_feature(
+                            self._config
+                        )
+                    except (ValueError, Exception):
+                        provider = self._llm_service.get_default_provider()
+                        model = None
+                else:
+                    provider = self._llm_service.get_default_provider()
+                    model = None
+                response = await provider.generate_text(prompt, model=model)
 
                 if response:
                     # Simple parsing assumption - in real app would be more robust
@@ -408,9 +418,18 @@ class MergeResolver:
                 prompt = f"Resolve all merge conflicts in the following file {file_path}. Return the FULL resolved file content.\n\n"
                 prompt += content_with_markers
 
-                # Use default provider
-                provider = self._llm_service.get_default_provider()
-                response = await provider.generate_text(prompt)
+                if self._config:
+                    try:
+                        provider, model, _ = self._llm_service.get_provider_for_feature(
+                            self._config
+                        )
+                    except (ValueError, Exception):
+                        provider = self._llm_service.get_default_provider()
+                        model = None
+                else:
+                    provider = self._llm_service.get_default_provider()
+                    model = None
+                response = await provider.generate_text(prompt, model=model)
 
                 if response:
                     resolutions.append({"file": file_path, "content": response})

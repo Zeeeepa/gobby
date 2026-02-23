@@ -166,6 +166,11 @@ class GobbyRunner:
                 "github-collection", GitHubCollectionProvider
             )
             self.hub_manager.register_provider_factory("claude-plugins", ClaudePluginsProvider)
+            self.hub_manager._skill_description_config = (
+                self.config.skill_description
+                if hasattr(self.config, "skill_description")
+                else None
+            )
             logger.debug(f"HubManager initialized with {len(skills_config.hubs)} hubs")
         except Exception as e:
             logger.warning(f"Failed to initialize HubManager: {e}")
@@ -411,6 +416,11 @@ class GobbyRunner:
             memory_manager=self.memory_manager,
             llm_service=self.llm_service,
             memory_sync_manager=self.memory_sync_manager,
+        )
+        self.lifecycle_manager._memory_extraction_config = (
+            self.config.memory_extraction
+            if hasattr(self.config, "memory_extraction")
+            else None
         )
 
         # Cron Scheduler (background jobs for recurring tasks)

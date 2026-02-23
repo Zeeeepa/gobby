@@ -18,6 +18,7 @@ __all__ = [
     "ContextInjectionConfig",
     "DigestConfig",
     "SessionSummaryConfig",
+    "SessionTitleConfig",
     "MessageTrackingConfig",
     "SessionLifecycleConfig",
 ]
@@ -149,6 +150,19 @@ class DigestConfig(BaseModel):
     model: str = Field(
         default="haiku",
         description="Model to use for digest generation",
+    )
+
+
+class SessionTitleConfig(BaseModel):
+    """Configuration for session title synthesis LLM calls."""
+
+    provider: str = Field(
+        default="claude",
+        description="LLM provider to use for title synthesis",
+    )
+    model: str = Field(
+        default="haiku",
+        description="Model to use for title synthesis (fast/cheap recommended)",
     )
 
 

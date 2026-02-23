@@ -344,6 +344,9 @@ def setup_internal_registries(
         hub_manager.register_provider_factory("skillhub", SkillHubProvider)
         hub_manager.register_provider_factory("github-collection", GitHubCollectionProvider)
         hub_manager.register_provider_factory("claude-plugins", ClaudePluginsProvider)
+        hub_manager._skill_description_config = (
+            getattr(_config, "skill_description", None) if _config else None
+        )
 
         skills_registry = create_skills_registry(
             db=db,

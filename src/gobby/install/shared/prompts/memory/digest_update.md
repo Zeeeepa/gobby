@@ -18,6 +18,7 @@ You are updating a rolling session digest. This digest tracks what the session i
 ## Instructions
 Update the digest to reflect the current state of the session. Output ONLY the updated digest in this exact format (no other text):
 
+**Title**: [3-5 word session title reflecting current work]
 **Task**: [What the session is working on, including task refs like #N]
 **Decisions**: [Key technical decisions made so far]
 **Context**: [Files being edited, APIs being used, systems involved]

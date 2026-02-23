@@ -633,12 +633,23 @@ def create_sessions_router(server: "HTTPServer") -> APIRouter:
                     "Output ONLY 3-5 words. No quotes, no explanation, no punctuation."
                 )
 
-            provider = server.llm_service.get_default_provider()
+            title_config = server.config.session_title if server.config else None
+            if title_config:
+                try:
+                    provider, model, _ = server.llm_service.get_provider_for_feature(
+                        title_config
+                    )
+                except (ValueError, Exception):
+                    provider = server.llm_service.get_default_provider()
+                    model = "haiku"
+            else:
+                provider = server.llm_service.get_default_provider()
+                model = "haiku"
             title = await asyncio.wait_for(
                 provider.generate_text(
                     llm_prompt,
                     system_prompt=system_prompt,
-                    model="haiku",
+                    model=model,
                     max_tokens=30,
                 ),
                 timeout=10,

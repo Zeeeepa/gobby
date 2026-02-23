@@ -22,11 +22,14 @@ __all__ = [
     "ImportMCPServerConfig",
     "MemoryDedupDecisionConfig",
     "MemoryEntityExtractionConfig",
+    "MemoryExtractionConfig",
     "MemoryFactExtractionConfig",
+    "MergeResolutionConfig",
     "MetricsConfig",
     "ProjectVerificationConfig",
     "HookStageConfig",
     "HooksConfig",
+    "SkillDescriptionConfig",
     "TaskDescriptionConfig",
 ]
 
@@ -109,6 +112,45 @@ class TaskDescriptionConfig(BaseModel):
         if v < 0:
             raise ValueError("min_structured_length must be non-negative")
         return v
+
+
+class MemoryExtractionConfig(BaseModel):
+    """Configuration for session memory extraction LLM calls."""
+
+    provider: str = Field(
+        default="claude",
+        description="LLM provider to use for memory extraction",
+    )
+    model: str = Field(
+        default="haiku",
+        description="Model to use for memory extraction (fast/cheap recommended)",
+    )
+
+
+class MergeResolutionConfig(BaseModel):
+    """Configuration for merge conflict resolution LLM calls."""
+
+    provider: str = Field(
+        default="claude",
+        description="LLM provider to use for merge resolution",
+    )
+    model: str = Field(
+        default="sonnet",
+        description="Model to use for merge resolution",
+    )
+
+
+class SkillDescriptionConfig(BaseModel):
+    """Configuration for skill description synthesis LLM calls."""
+
+    provider: str = Field(
+        default="claude",
+        description="LLM provider to use for skill description synthesis",
+    )
+    model: str = Field(
+        default="haiku",
+        description="Model to use for skill description synthesis (fast/cheap recommended)",
+    )
 
 
 class MemoryFactExtractionConfig(BaseModel):

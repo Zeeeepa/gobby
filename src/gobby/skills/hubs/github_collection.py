@@ -67,6 +67,7 @@ class GitHubCollectionProvider(HubProvider):
         path: str | None = None,
         auth_token: str | None = None,
         llm_service: LLMService | None = None,
+        config: Any | None = None,
     ) -> None:
         """Initialize the GitHub Collection provider.
 
@@ -78,12 +79,14 @@ class GitHubCollectionProvider(HubProvider):
             path: Subdirectory path within repo where skills are located
             auth_token: Optional GitHub token for private repos
             llm_service: Optional LLM service for synthesizing descriptions
+            config: Optional SkillDescriptionConfig for provider/model selection
         """
         super().__init__(hub_name=hub_name, base_url=base_url, auth_token=auth_token)
         self._repo = repo or ""
         self._branch = branch
         self._path = path
         self._llm_service = llm_service
+        self._config = config
         self._description_cache: dict[str, tuple[str, float]] = {}
 
     @property
@@ -239,8 +242,18 @@ SKILL.md content:
 Output ONLY the description text, no quotes, no explanation, no preamble."""
 
         try:
-            provider = self._llm_service.get_default_provider()
-            description = await provider.generate_text(prompt)
+            if self._config:
+                try:
+                    provider, model, _ = self._llm_service.get_provider_for_feature(
+                        self._config
+                    )
+                except (ValueError, Exception):
+                    provider = self._llm_service.get_default_provider()
+                    model = None
+            else:
+                provider = self._llm_service.get_default_provider()
+                model = None
+            description = await provider.generate_text(prompt, model=model)
             # Clean up LLM output
             return description.strip().strip('"').strip("'")[:100]
         except Exception as e:

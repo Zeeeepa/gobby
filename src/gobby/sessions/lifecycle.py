@@ -232,6 +232,7 @@ class SessionLifecycleManager:
                 memory_manager=self.memory_manager,
                 session_manager=self.session_manager,
                 llm_service=self.llm_service,
+                config=getattr(self, "_memory_extraction_config", None),
             )
 
             candidates = await extractor.extract(

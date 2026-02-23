@@ -26,11 +26,14 @@ from gobby.config.features import (
     ImportMCPServerConfig,
     MemoryDedupDecisionConfig,
     MemoryEntityExtractionConfig,
+    MemoryExtractionConfig,
     MemoryFactExtractionConfig,
+    MergeResolutionConfig,
     MetricsConfig,
     ProjectVerificationConfig,
     RecommendToolsConfig,
     ReviewConfig,
+    SkillDescriptionConfig,
     TaskDescriptionConfig,
     ToolSummarizerConfig,
 )
@@ -46,6 +49,7 @@ from gobby.config.sessions import (
     MessageTrackingConfig,
     SessionLifecycleConfig,
     SessionSummaryConfig,
+    SessionTitleConfig,
 )
 from gobby.config.skills import SkillsConfig
 from gobby.config.tasks import CompactHandoffConfig, GobbyTasksConfig, WorkflowConfig
@@ -462,6 +466,22 @@ class DaemonConfig(BaseModel):
     review: ReviewConfig = Field(
         default_factory=ReviewConfig,
         description="Code review configuration",
+    )
+    session_title: SessionTitleConfig = Field(
+        default_factory=SessionTitleConfig,
+        description="Session title synthesis LLM configuration",
+    )
+    memory_extraction: MemoryExtractionConfig = Field(
+        default_factory=MemoryExtractionConfig,
+        description="Session memory extraction LLM configuration",
+    )
+    merge_resolution: MergeResolutionConfig = Field(
+        default_factory=MergeResolutionConfig,
+        description="Merge conflict resolution LLM configuration",
+    )
+    skill_description: SkillDescriptionConfig = Field(
+        default_factory=SkillDescriptionConfig,
+        description="Skill description synthesis LLM configuration",
     )
 
     def get_recommend_tools_config(self) -> RecommendToolsConfig:

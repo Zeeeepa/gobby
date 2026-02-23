@@ -171,6 +171,7 @@ class HubManager:
             kwargs["branch"] = config.branch or "main"
             kwargs["path"] = config.path
             kwargs["llm_service"] = self._llm_service
+            kwargs["config"] = getattr(self, "_skill_description_config", None)
 
         # Create the provider
         provider = factory(**kwargs)

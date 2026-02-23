@@ -72,6 +72,7 @@ class SessionMemoryExtractor:
         prompt_loader: PromptLoader | None = None,
         transcript_processor: Any | None = None,
         db: DatabaseProtocol | None = None,
+        config: Any | None = None,
     ):
         """Initialize the extractor.
 
@@ -82,6 +83,7 @@ class SessionMemoryExtractor:
             prompt_loader: Optional custom prompt loader
             transcript_processor: Optional transcript processor for parsing
             db: Database connection (used to create default PromptLoader if prompt_loader not provided)
+            config: Optional config with provider/model overrides
         """
         self.memory_manager = memory_manager
         self.session_manager = session_manager
@@ -89,6 +91,7 @@ class SessionMemoryExtractor:
         _db = db or getattr(memory_manager, "db", None)
         self.prompt_loader = prompt_loader or PromptLoader(db=_db)
         self.transcript_processor = transcript_processor
+        self._config = config
 
     async def extract(
         self,
@@ -299,8 +302,18 @@ class SessionMemoryExtractor:
             List of memory candidates extracted from LLM response
         """
         try:
-            provider = self.llm_service.get_default_provider()
-            response = await provider.generate_text(prompt)
+            if self._config:
+                try:
+                    provider, model, _ = self.llm_service.get_provider_for_feature(
+                        self._config
+                    )
+                except (ValueError, Exception):
+                    provider = self.llm_service.get_default_provider()
+                    model = None
+            else:
+                provider = self.llm_service.get_default_provider()
+                model = None
+            response = await provider.generate_text(prompt, model=model)
 
             # Parse JSON from response
             candidates = self._parse_llm_response(response)
