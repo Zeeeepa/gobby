@@ -49,6 +49,9 @@ export function useConfiguration() {
   const [secretKeys, setSecretKeys] = useState<string[]>([])
   const [isLoading, setIsLoading] = useState(false)
 
+  // Rules enforcement
+  const [rulesEnforcement, setRulesEnforcementState] = useState(true)
+
   // Template (full defaults + DB overrides as YAML)
   const [templateContent, setTemplateContent] = useState('')
 
@@ -63,6 +66,38 @@ export function useConfiguration() {
   // =========================================================================
   // Schema + Config
   // =========================================================================
+
+  const fetchRulesEnforcement = useCallback(async () => {
+    try {
+      const res = await fetch('/api/rules')
+      if (res.ok) {
+        const data = await res.json()
+        if (data.enforcement_enabled !== undefined) {
+          setRulesEnforcementState(data.enforcement_enabled)
+        }
+      }
+    } catch (e) {
+      console.error('Failed to fetch rules enforcement:', e)
+    }
+  }, [])
+
+  const setRulesEnforcement = useCallback(async (enabled: boolean): Promise<boolean> => {
+    try {
+      const res = await fetch('/api/rules', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ enforcement_enabled: enabled }),
+      })
+      if (res.ok) {
+        const data = await res.json()
+        setRulesEnforcementState(data.enforcement_enabled)
+        return true
+      }
+    } catch (e) {
+      console.error('Failed to set rules enforcement:', e)
+    }
+    return false
+  }, [])
 
   const fetchSchema = useCallback(async () => {
     try {
@@ -98,11 +133,11 @@ export function useConfiguration() {
   const fetchConfig = useCallback(async () => {
     setIsLoading(true)
     try {
-      await Promise.all([fetchSchema(), fetchConfigValues()])
+      await Promise.all([fetchSchema(), fetchConfigValues(), fetchRulesEnforcement()])
     } finally {
       setIsLoading(false)
     }
-  }, [fetchSchema, fetchConfigValues])
+  }, [fetchSchema, fetchConfigValues, fetchRulesEnforcement])
 
   const saveConfig = useCallback(async (values: Record<string, unknown>): Promise<{ ok: boolean; errors?: string[] }> => {
     try {
@@ -324,6 +359,10 @@ export function useConfiguration() {
     saveConfig,
     validateConfig,
     resetToDefaults,
+
+    // Rules enforcement
+    rulesEnforcement,
+    setRulesEnforcement,
 
     // Template (full defaults + DB overrides as YAML)
     templateContent,

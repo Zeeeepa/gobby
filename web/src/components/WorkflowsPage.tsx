@@ -44,43 +44,12 @@ export function WorkflowsPage({ projectId }: { projectId?: string }) {
 
   return (
     <main className="workflows-page">
-      {/* Toolbar */}
+      {/* Title row */}
       <div className="workflows-toolbar">
         <div className="workflows-toolbar-left">
           <h2 className="workflows-toolbar-title">Workflows</h2>
         </div>
         <div className="workflows-toolbar-right">
-          <input
-            className="workflows-search"
-            type="text"
-            placeholder={`Search ${activeTab}...`}
-            value={searchText}
-            onChange={e => setSearchText(e.target.value)}
-          />
-          <div className="rules-enforcement-toggle" onClick={() => setHideGobby(!hideGobby)}>
-            <div className={`workflows-toggle-track ${hideGobby ? 'workflows-toggle-track--on' : ''}`}>
-              <div className="workflows-toggle-knob" />
-            </div>
-            <span>Hide Built-in</span>
-          </div>
-          <select
-            className="workflows-source-select"
-            value={sourceFilter}
-            onChange={e => setSourceFilter(e.target.value as 'installed' | 'project' | 'templates' | 'deleted')}
-          >
-            <option value="installed">Installed</option>
-            <option value="project">Installed (Project)</option>
-            <option value="templates">Templates</option>
-            <option value="deleted">Deleted</option>
-          </select>
-          <button
-            type="button"
-            className={`workflows-toolbar-btn ${refreshing ? 'workflows-toolbar-btn--spinning' : ''}`}
-            onClick={handleRefresh}
-            title="Refresh"
-          >
-            &#x21bb;
-          </button>
           {activeTab === 'pipelines' && (
             <div className="workflows-new-wrapper">
               <button
@@ -111,6 +80,41 @@ export function WorkflowsPage({ projectId }: { projectId?: string }) {
             </button>
           )}
         </div>
+      </div>
+
+      {/* Filter bar */}
+      <div className="workflows-filter-row">
+        <input
+          className="workflows-search"
+          type="text"
+          placeholder={`Search ${activeTab}...`}
+          value={searchText}
+          onChange={e => setSearchText(e.target.value)}
+        />
+        <div className="rules-enforcement-toggle" onClick={() => setHideGobby(!hideGobby)}>
+          <div className={`workflows-toggle-track ${hideGobby ? 'workflows-toggle-track--on' : ''}`}>
+            <div className="workflows-toggle-knob" />
+          </div>
+          <span>Hide Built-in</span>
+        </div>
+        <select
+          className="workflows-source-select"
+          value={sourceFilter}
+          onChange={e => setSourceFilter(e.target.value as 'installed' | 'project' | 'templates' | 'deleted')}
+        >
+          <option value="installed">Installed</option>
+          <option value="project">Installed (Project)</option>
+          <option value="templates">Templates</option>
+          <option value="deleted">Deleted</option>
+        </select>
+        <button
+          type="button"
+          className={`workflows-toolbar-btn ${refreshing ? 'workflows-toolbar-btn--spinning' : ''}`}
+          onClick={handleRefresh}
+          title="Refresh"
+        >
+          &#x21bb;
+        </button>
       </div>
 
       {/* Tab bar */}

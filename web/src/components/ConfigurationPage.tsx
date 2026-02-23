@@ -229,9 +229,11 @@ interface ConfigFormTabProps {
   onSave: (values: Record<string, unknown>) => Promise<{ ok: boolean; errors?: string[] }>
   onReset: () => Promise<boolean>
   secretKeys?: string[]
+  rulesEnforcement?: boolean
+  onToggleRulesEnforcement?: (enabled: boolean) => Promise<boolean>
 }
 
-function ConfigFormTab({ schema, values: initialValues, onSave, onReset, secretKeys = [] }: ConfigFormTabProps) {
+function ConfigFormTab({ schema, values: initialValues, onSave, onReset, secretKeys = [], rulesEnforcement, onToggleRulesEnforcement }: ConfigFormTabProps) {
   const [localValues, setLocalValues] = useState<Record<string, unknown>>(initialValues)
   const [saving, setSaving] = useState(false)
   const [errors, setErrors] = useState<string[]>([])
@@ -317,6 +319,33 @@ function ConfigFormTab({ schema, values: initialValues, onSave, onReset, secretK
         {errors.length > 0 && (
           <div style={{ color: 'var(--color-error)', fontSize: 13, marginBottom: 12 }}>
             {errors.map((e, i) => <div key={i}>{e}</div>)}
+          </div>
+        )}
+
+        {/* Rules enforcement toggle */}
+        {onToggleRulesEnforcement && (
+          <div className="config-form-section">
+            <div className="config-section-header" style={{ cursor: 'default' }}>
+              <span className="config-section-title">Rules Engine</span>
+            </div>
+            <div className="config-section-body">
+              <div className="config-form-field">
+                <div className="config-toggle-row">
+                  <div>
+                    <div className="config-field-label">Rules Enforcement</div>
+                    <span className="config-field-help">
+                      Enable or disable the rule engine globally. When disabled, no rules will be evaluated.
+                    </span>
+                  </div>
+                  <button
+                    type="button"
+                    className={`config-toggle ${rulesEnforcement ? 'on' : ''}`}
+                    onClick={() => onToggleRulesEnforcement(!rulesEnforcement)}
+                    aria-label="Toggle rules enforcement"
+                  />
+                </div>
+              </div>
+            </div>
           </div>
         )}
 
@@ -817,6 +846,8 @@ export function ConfigurationPage() {
             onSave={config.saveConfig}
             onReset={config.resetToDefaults}
             secretKeys={config.secretKeys}
+            rulesEnforcement={config.rulesEnforcement}
+            onToggleRulesEnforcement={config.setRulesEnforcement}
           />
         )}
         {activeTab === 'secrets' && (

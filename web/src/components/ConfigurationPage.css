@@ -689,3 +689,76 @@
   gap: 8px;
   margin-top: 16px;
 }
+
+/* =============================================================================
+   Mobile responsive
+   ============================================================================= */
+
+@media (max-width: 768px) {
+  .config-toolbar {
+    flex-wrap: wrap;
+    padding: 8px 12px;
+  }
+
+  .config-tabs {
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+
+  .config-tabs::-webkit-scrollbar {
+    display: none;
+  }
+
+  .config-form {
+    padding: 12px;
+  }
+
+  .config-secrets {
+    padding: 12px;
+  }
+
+  .config-secrets-table {
+    font-size: 12px;
+  }
+
+  .config-secrets-table th,
+  .config-secrets-table td {
+    padding: 6px 6px;
+  }
+
+  .config-secret-form-row {
+    flex-direction: column;
+  }
+
+  .config-prompts {
+    flex-direction: column;
+  }
+
+  .config-prompts-sidebar {
+    width: 100%;
+    min-width: auto;
+    flex-direction: row;
+    overflow-x: auto;
+    border-right: none;
+    border-bottom: 1px solid var(--border-color);
+  }
+
+  .config-prompts-sidebar-title {
+    display: none;
+  }
+
+  .config-prompt-category {
+    white-space: nowrap;
+    padding: 8px 12px;
+  }
+
+  .config-prompt-detail-header {
+    flex-direction: column;
+    gap: 8px;
+    align-items: flex-start;
+  }
+
+  .config-dialog {
+    width: 95vw;
+  }
+}
