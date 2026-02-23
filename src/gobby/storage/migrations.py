@@ -37,7 +37,7 @@ MigrationAction = str | Callable[[LocalDatabase], None]
 # Baseline version - the schema state that is applied for new databases directly.
 # Must be bumped when BASELINE_SCHEMA is updated with columns from new migrations,
 # so that fresh databases don't re-run migrations already baked into the baseline.
-BASELINE_VERSION = 121
+BASELINE_VERSION = 124
 
 # Minimum migration version - databases older than this cannot be upgraded
 # because legacy migrations (pre-v108) have been removed.
@@ -826,6 +826,14 @@ CREATE INDEX idx_prompts_scope ON prompts(scope);
 CREATE INDEX idx_prompts_project ON prompts(project_id);
 CREATE UNIQUE INDEX idx_prompts_name_scope_project
     ON prompts(name, scope, COALESCE(project_id, ''));
+
+CREATE TABLE auth_sessions (
+    token TEXT PRIMARY KEY,
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    expires_at TEXT NOT NULL,
+    remember_me INTEGER NOT NULL DEFAULT 0
+);
+CREATE INDEX idx_auth_sessions_expires ON auth_sessions(expires_at);
 """
 
 # Future migrations (v108+)

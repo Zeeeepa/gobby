@@ -79,6 +79,29 @@ class ToolApprovalConfig(BaseModel):
     )
 
 
+class AuthConfig(BaseModel):
+    """Basic authentication for the web UI.
+
+    Leave username and password empty to disable auth (default).
+    Once both are set, the UI requires login. Password is stored as
+    a bcrypt hash in the secrets table.
+    """
+
+    username: str = Field(
+        default="",
+        description="Username for web UI login. Leave empty to disable auth.",
+    )
+    password: str = Field(
+        default="",
+        description="Password for web UI login (stored as bcrypt hash in secrets table).",
+    )
+    session_secret: str = Field(
+        default="",
+        description="HMAC signing key for session cookies (auto-generated on first login).",
+        json_schema_extra={"ui_hidden": True},
+    )
+
+
 class UIConfig(BaseModel):
     """Configuration for the web UI."""
 
@@ -411,6 +434,10 @@ class DaemonConfig(BaseModel):
     ui: UIConfig = Field(
         default_factory=UIConfig,
         description="Web UI configuration",
+    )
+    auth: AuthConfig = Field(
+        default_factory=AuthConfig,
+        description="Web UI authentication configuration",
     )
     tmux: TmuxConfig = Field(
         default_factory=TmuxConfig,

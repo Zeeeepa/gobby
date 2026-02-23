@@ -517,6 +517,11 @@ class HTTPServer:
             allow_headers=["*"],
         )
 
+        # Add auth middleware (checks after CORS, before routes)
+        from gobby.servers.middleware.auth import AuthMiddleware
+
+        app.add_middleware(AuthMiddleware, server=self)
+
         # Register exception handlers
         self._register_exception_handlers(app)
 
@@ -731,8 +736,10 @@ class HTTPServer:
             create_webhooks_router,
             create_workflows_router,
         )
+        from gobby.servers.routes.auth import create_auth_router
 
         # Include all routers
+        app.include_router(create_auth_router(self))
         app.include_router(create_admin_router(self))
         app.include_router(create_agents_router(self))
         app.include_router(create_sessions_router(self))
