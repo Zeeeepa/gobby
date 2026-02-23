@@ -173,7 +173,7 @@ class ChatMixin:
         session._on_mode_changed = _notify_mode_changed
 
         # Wire plan-ready callback so ExitPlanMode sends plan content to frontend
-        async def _notify_plan_ready(content: str | None, input_data: dict) -> None:
+        async def _notify_plan_ready(content: str | None, input_data: dict[str, Any]) -> None:
             msg = json.dumps(
                 {
                     "type": "plan_pending_approval",
@@ -607,7 +607,7 @@ class ChatMixin:
                     # post-approval text doesn't concatenate with pre-approval text.
                     content = event.content
                     session_obj = self._chat_sessions.get(conversation_id)
-                    if session_obj and getattr(session_obj, '_plan_approval_completed', False):
+                    if session_obj and getattr(session_obj, "_plan_approval_completed", False):
                         session_obj._plan_approval_completed = False
                         if accumulated_text.strip():
                             await _persist_message(session, "assistant", accumulated_text)
@@ -769,8 +769,7 @@ class ChatMixin:
                     session_manager = getattr(self, "session_manager", None)
                     if db_sid and session_manager:
                         has_usage = (
-                            event.total_input_tokens is not None
-                            or event.output_tokens is not None
+                            event.total_input_tokens is not None or event.output_tokens is not None
                         )
                         if has_usage:
                             try:
