@@ -1,11 +1,10 @@
 """Authentication store for web UI sessions.
 
 Manages auth sessions in SQLite for cookie-based login.
-Passwords are hashed with PBKDF2-SHA256 (stdlib, no external deps).
+Passwords are encrypted via Fernet in the secrets table (same as API keys).
 Sessions are random tokens with expiry.
 """
 
-import hashlib
 import logging
 import os
 from datetime import UTC, datetime, timedelta
@@ -17,36 +16,6 @@ logger = logging.getLogger(__name__)
 # Session durations
 SESSION_DURATION = timedelta(hours=12)  # Default (no remember-me)
 REMEMBER_ME_DURATION = timedelta(days=30)  # Remember me checked
-
-# PBKDF2 params for password hashing
-_HASH_ITERATIONS = 600_000
-_HASH_ALGO = "sha256"
-_SALT_LENGTH = 32
-
-
-def hash_password(password: str) -> str:
-    """Hash a password with PBKDF2-SHA256.
-
-    Returns a string in the format: `pbkdf2:iterations:salt_hex:hash_hex`
-    """
-    salt = os.urandom(_SALT_LENGTH)
-    dk = hashlib.pbkdf2_hmac(_HASH_ALGO, password.encode(), salt, _HASH_ITERATIONS)
-    return f"pbkdf2:{_HASH_ITERATIONS}:{salt.hex()}:{dk.hex()}"
-
-
-def verify_password(password: str, stored_hash: str) -> bool:
-    """Verify a password against a PBKDF2 hash string."""
-    try:
-        parts = stored_hash.split(":")
-        if len(parts) != 4 or parts[0] != "pbkdf2":
-            return False
-        iterations = int(parts[1])
-        salt = bytes.fromhex(parts[2])
-        expected = bytes.fromhex(parts[3])
-        dk = hashlib.pbkdf2_hmac(_HASH_ALGO, password.encode(), salt, iterations)
-        return dk == expected
-    except (ValueError, IndexError):
-        return False
 
 
 class AuthStore:

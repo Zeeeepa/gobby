@@ -87,8 +87,8 @@ class AuthConfig(BaseModel):
     """Basic authentication for the web UI.
 
     Leave username and password empty to disable auth (default).
-    Once both are set, the UI requires login. Password is stored as
-    a bcrypt hash in the secrets table.
+    Once both are set, the UI requires login. Password is encrypted
+    via Fernet in the secrets table.
     """
 
     username: str = Field(
@@ -97,7 +97,7 @@ class AuthConfig(BaseModel):
     )
     password: str = Field(
         default="",
-        description="Password for web UI login (stored as bcrypt hash in secrets table).",
+        description="Password for web UI login (encrypted in secrets table).",
     )
     session_secret: str = Field(
         default="",

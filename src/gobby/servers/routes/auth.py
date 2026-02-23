@@ -6,15 +6,14 @@ Auth is optional — disabled when no username/password is configured.
 """
 
 import logging
-import os
 from typing import TYPE_CHECKING, Any
 
 from fastapi import APIRouter, Request
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 
-from gobby.storage.auth import AuthStore, hash_password, verify_password
-from gobby.storage.config_store import ConfigStore, config_key_to_secret_name
+from gobby.storage.auth import AuthStore
+from gobby.storage.config_store import config_key_to_secret_name
 from gobby.storage.secrets import SecretStore
 
 if TYPE_CHECKING:
@@ -34,10 +33,10 @@ class LoginRequest(BaseModel):
 
 
 def _get_auth_credentials(server: "HTTPServer") -> tuple[str, str]:
-    """Get configured username and password hash.
+    """Get configured username and password.
 
     Returns:
-        Tuple of (username, password_hash). Both empty if auth not configured.
+        Tuple of (username, stored_password). Both empty if auth not configured.
     """
     config = server.services.config
     if not config:
@@ -47,7 +46,7 @@ def _get_auth_credentials(server: "HTTPServer") -> tuple[str, str]:
     if not username:
         return "", ""
 
-    # Resolve password from secrets
+    # Resolve password from secrets (Fernet-encrypted in secrets table)
     from gobby.storage.database import LocalDatabase
 
     db = server.services.database
@@ -55,17 +54,14 @@ def _get_auth_credentials(server: "HTTPServer") -> tuple[str, str]:
         return "", ""
 
     secret_store = SecretStore(db)
-    config_store = ConfigStore(db)
 
-    # The password is stored as a bcrypt/pbkdf2 hash in the secrets table
-    # under the key derived from "auth.password"
     secret_name = config_key_to_secret_name("auth.password")
-    password_hash = secret_store.get(secret_name)
+    stored_password = secret_store.get(secret_name)
 
-    if not password_hash:
+    if not stored_password:
         return "", ""
 
-    return username, password_hash
+    return username, stored_password
 
 
 def is_auth_enabled(server: "HTTPServer") -> bool:
@@ -103,16 +99,16 @@ def create_auth_router(server: "HTTPServer") -> APIRouter:
     @router.post("/login")
     async def login(req: LoginRequest) -> JSONResponse:
         """Authenticate with username/password, set session cookie."""
-        username, password_hash = _get_auth_credentials(server)
+        username, stored_password = _get_auth_credentials(server)
 
-        if not username or not password_hash:
+        if not username or not stored_password:
             return JSONResponse(
                 status_code=400,
                 content={"ok": False, "error": "Authentication not configured"},
             )
 
         # Validate credentials
-        if req.username != username or not verify_password(req.password, password_hash):
+        if req.username != username or req.password != stored_password:
             logger.warning(f"Failed login attempt for user: {req.username}")
             return JSONResponse(
                 status_code=401,

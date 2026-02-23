@@ -7,6 +7,7 @@ import click
 from gobby.config.app import load_config
 
 from .agents import agents
+from .auth import auth
 from .clones import clones
 from .conductor import conductor
 from .cron import cron
@@ -80,5 +81,6 @@ cli.add_command(plugins)
 cli.add_command(webhooks)
 cli.add_command(ui)
 cli.add_command(sync)
+cli.add_command(auth)
 cli.add_command(export_cmd)
 cli.add_command(import_cmd)

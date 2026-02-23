@@ -1,4 +1,5 @@
 import { useState, useCallback, useMemo, useEffect, useRef, lazy, Suspense, Component, type ReactNode } from 'react'
+import { useAuth } from './hooks/useAuth'
 import { useChat } from './hooks/useChat'
 import { useVoice } from './hooks/useVoice'
 import { useSettings } from './hooks/useSettings'
@@ -10,6 +11,7 @@ import type { QueuedFile } from './types/chat'
 import { Settings } from './components/Settings'
 import { Sidebar } from './components/Sidebar'
 import { ChatPage } from './components/chat/ChatPage'
+import { LoginPage } from './components/auth/LoginPage'
 import { ProjectSelector } from './components/ProjectSelector'
 import { QuickCaptureTask } from './components/tasks/QuickCaptureTask'
 import type { GobbySession } from './hooks/useSessions'
@@ -84,6 +86,7 @@ class AppErrorBoundary extends Component<
 const HIDDEN_PROJECTS = new Set(['_orphaned', '_migrated'])
 
 export default function App() {
+  const { authRequired, authenticated, loading: authLoading, login, logout } = useAuth()
   const { messages, conversationId, sessionRef, currentBranch, worktreePath, isConnected, isStreaming, isThinking, contextUsage, sendMessage, sendMode, sendWorktreeChange, stopStreaming, clearHistory, deleteConversation, executeCommand, respondToQuestion, planPendingApproval, approvePlan, requestPlanChanges, switchConversation, startNewChat, continueSessionInChat, setOnModeChanged, setOnPlanReady, wsRef, handleVoiceMessageRef } = useChat()
   const voice = useVoice(wsRef, conversationId)
   const { settings, updateFontSize, updateModel, updateChatMode, updateTheme, resetSettings } = useSettings()
@@ -409,6 +412,18 @@ export default function App() {
     executeCommand(cmd.server, cmd.tool)
   }, [executeCommand, clearHistory, sendMessage, settings.model, effectiveProjectId, updateChatMode, sendMode])
 
+  // Auth guard — shown after all hooks (React rules)
+  if (authLoading) {
+    return (
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '100vh', background: 'var(--bg-primary)', color: 'var(--text-secondary)' }}>
+        Loading...
+      </div>
+    )
+  }
+  if (authRequired && !authenticated) {
+    return <LoginPage onLogin={login} />
+  }
+
   const navItems = [
     { id: 'dashboard', label: 'Dashboard', icon: <DashboardIcon /> },
     { id: 'chat', label: 'Chat', icon: <ChatIcon /> },
@@ -452,6 +467,15 @@ export default function App() {
           <span className={`status ${isConnected ? 'connected' : 'disconnected'}`}>
             {isConnected ? 'Connected' : 'Disconnected'}
           </span>
+          {authRequired && authenticated && (
+            <button
+              onClick={logout}
+              title="Sign out"
+              style={{ padding: '0.3rem 0.7rem', borderRadius: 4, border: '1px solid var(--border)', background: 'transparent', color: 'var(--text-secondary)', cursor: 'pointer', fontSize: '0.8rem' }}
+            >
+              Logout
+            </button>
+          )}
         </div>
       </header>
 

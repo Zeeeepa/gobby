@@ -216,11 +216,6 @@ def create_configuration_router(server: "HTTPServer") -> APIRouter:
                         400, f"Secret '{key}' must be a string, got {type(value).__name__}"
                     )
                 else:
-                    # Hash auth password with PBKDF2 before storing
-                    if key == "auth.password":
-                        from gobby.storage.auth import hash_password
-
-                        value = hash_password(value)
                     config_store.set_secret(key, value, secret_store, source="user")
                     count += 1
 

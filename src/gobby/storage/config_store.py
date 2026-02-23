@@ -28,6 +28,7 @@ _SECRET_SUFFIXES = (
     "_api_secret",
     "_secret",
     "_password",
+    "password",
     "_access_token",
     "_auth_token",
     "_secret_key",
