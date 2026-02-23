@@ -24,6 +24,16 @@ export function PlanApprovalBar({ onApprove, onRequestChanges }: PlanApprovalBar
                 placeholder="Describe what you'd like changed..."
                 value={feedback}
                 onChange={(e) => setFeedback(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && !e.shiftKey) {
+                    e.preventDefault()
+                    if (feedback.trim()) {
+                      onRequestChanges(feedback.trim())
+                      setFeedback('')
+                      setShowFeedback(false)
+                    }
+                  }
+                }}
                 autoFocus
                 rows={2}
               />

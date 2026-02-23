@@ -399,6 +399,12 @@ function AskUserQuestionCard({ call, onRespond }: { call: ToolCall; onRespond?: 
               placeholder="Type your answer..."
               value={otherTexts[qi] || ''}
               onChange={(e) => setOtherTexts((p) => ({ ...p, [qi]: e.target.value }))}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && !e.shiftKey) {
+                  e.preventDefault()
+                  handleSubmit()
+                }
+              }}
               disabled={submitted}
             />
           )}
