@@ -1,14 +1,14 @@
 """
 Tests for spawn_agent unified MCP tool.
 
-This file tests the unified spawn_agent tool that consolidates:
-- start_agent
-- spawn_agent_in_worktree
-- spawn_agent_in_clone
+Tests the spawn_agent tool factory which loads agent definitions from
+workflow_definitions (DB-backed AgentDefinitionBody) and delegates to
+spawn_agent_impl for execution.
 """
 
 from __future__ import annotations
 
+import json
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -16,15 +16,104 @@ import pytest
 from gobby.agents.isolation import (
     IsolationContext,
 )
+from gobby.storage.database import LocalDatabase
+from gobby.storage.migrations import run_migrations
+from gobby.storage.workflow_definitions import LocalWorkflowDefinitionManager
+from gobby.workflows.definitions import AgentDefinitionBody, AgentWorkflows
 
 pytestmark = pytest.mark.unit
+
+
+# ═══════════════════════════════════════════════════════════════════════
+# _load_agent_body (DB lookup)
+# ═══════════════════════════════════════════════════════════════════════
+
+
+class TestLoadAgentBody:
+    """_load_agent_body loads from workflow_definitions."""
+
+    @pytest.fixture
+    def db(self, tmp_path) -> LocalDatabase:
+        db_path = tmp_path / "test_load_agent.db"
+        database = LocalDatabase(db_path)
+        run_migrations(database)
+        return database
+
+    @pytest.fixture
+    def manager(self, db: LocalDatabase) -> LocalWorkflowDefinitionManager:
+        return LocalWorkflowDefinitionManager(db)
+
+    def test_loads_existing_agent(
+        self, db: LocalDatabase, manager: LocalWorkflowDefinitionManager
+    ) -> None:
+        from gobby.mcp_proxy.tools.spawn_agent._factory import _load_agent_body
+
+        body = AgentDefinitionBody(
+            name="test-dev-load",
+            description="Developer agent",
+            instructions="Write clean code.",
+            provider="claude",
+            model="claude-sonnet-4-6",
+            mode="terminal",
+            isolation="worktree",
+            base_branch="main",
+            timeout=120.0,
+            max_turns=15,
+            workflows=AgentWorkflows(rules=["require-task", "require-commit"]),
+        )
+        manager.create(
+            name=body.name,
+            definition_json=body.model_dump_json(),
+            workflow_type="agent",
+            description=body.description,
+            enabled=True,
+        )
+
+        result = _load_agent_body("test-dev-load", db)
+        assert result is not None
+        assert result.name == "test-dev-load"
+        assert result.provider == "claude"
+        assert result.model == "claude-sonnet-4-6"
+        assert result.mode == "terminal"
+        assert result.isolation == "worktree"
+        assert result.workflows.rules == ["require-task", "require-commit"]
+
+    def test_returns_none_for_missing_agent(self, db: LocalDatabase) -> None:
+        from gobby.mcp_proxy.tools.spawn_agent._factory import _load_agent_body
+
+        result = _load_agent_body("nonexistent-agent", db)
+        assert result is None
+
+    def test_returns_none_for_none_db(self) -> None:
+        from gobby.mcp_proxy.tools.spawn_agent._factory import _load_agent_body
+
+        result = _load_agent_body("any-agent", None)
+        assert result is None
+
+    def test_ignores_non_agent_types(
+        self, db: LocalDatabase, manager: LocalWorkflowDefinitionManager
+    ) -> None:
+        from gobby.mcp_proxy.tools.spawn_agent._factory import _load_agent_body
+
+        manager.create(
+            name="test-rule-not-agent",
+            definition_json=json.dumps({"event": "before_tool", "effect": {"type": "block"}}),
+            workflow_type="rule",
+        )
+
+        result = _load_agent_body("test-rule-not-agent", db)
+        assert result is None
+
+
+# ═══════════════════════════════════════════════════════════════════════
+# create_spawn_agent_registry
+# ═══════════════════════════════════════════════════════════════════════
 
 
 class TestCreateSpawnAgentRegistry:
     """Tests for create_spawn_agent_registry factory function."""
 
     def test_creates_registry_with_correct_name(self) -> None:
-        """Test registry has correct name."""
         from gobby.mcp_proxy.tools.spawn_agent import create_spawn_agent_registry
 
         runner = MagicMock()
@@ -33,7 +122,6 @@ class TestCreateSpawnAgentRegistry:
         assert registry.name == "gobby-spawn-agent"
 
     def test_registers_spawn_agent_tool(self) -> None:
-        """Test spawn_agent tool is registered."""
         from gobby.mcp_proxy.tools.spawn_agent import create_spawn_agent_registry
 
         runner = MagicMock()
@@ -42,12 +130,16 @@ class TestCreateSpawnAgentRegistry:
         assert registry.get_schema("spawn_agent") is not None
 
 
+# ═══════════════════════════════════════════════════════════════════════
+# spawn_agent defaults
+# ═══════════════════════════════════════════════════════════════════════
+
+
 class TestSpawnAgentDefaults:
     """Tests for spawn_agent with default values."""
 
     @pytest.fixture
     def mock_runner(self):
-        """Create a mock runner with common setup."""
         runner = MagicMock()
         runner.can_spawn.return_value = (True, "Can spawn", 0)
         runner._child_session_manager = MagicMock()
@@ -55,29 +147,21 @@ class TestSpawnAgentDefaults:
 
     @pytest.mark.asyncio
     async def test_spawn_agent_defaults_to_default_agent(self, mock_runner) -> None:
-        """Test spawn_agent with defaults uses default agent definition."""
         from gobby.mcp_proxy.tools.spawn_agent import create_spawn_agent_registry
 
-        mock_loader = MagicMock()
-        mock_agent_def = MagicMock()
-        mock_agent_def.isolation = None
-        mock_agent_def.provider = "claude"
-        mock_agent_def.mode = "terminal"
-        mock_agent_def.base_branch = "main"
-        mock_agent_def.branch_prefix = None
-        mock_agent_def.timeout = 120.0
-        mock_agent_def.max_turns = 10
-        mock_agent_def.get_effective_workflow.return_value = None  # Skip workflow validation
-        mock_agent_def.workflows = None
-        mock_agent_def.default_workflow = None
-        mock_loader.load.return_value = mock_agent_def
-
-        registry = create_spawn_agent_registry(
-            mock_runner,
-            agent_loader=mock_loader,
+        agent_body = AgentDefinitionBody(
+            name="default",
+            provider="claude",
+            mode="terminal",
         )
 
+        registry = create_spawn_agent_registry(mock_runner, db=MagicMock())
+
         with (
+            patch(
+                "gobby.mcp_proxy.tools.spawn_agent._factory._load_agent_body",
+                return_value=agent_body,
+            ) as mock_load,
             patch("gobby.mcp_proxy.tools.spawn_agent._implementation.get_project_context") as mock_ctx,
             patch("gobby.mcp_proxy.tools.spawn_agent._implementation.execute_spawn") as mock_execute,
         ):
@@ -100,9 +184,14 @@ class TestSpawnAgentDefaults:
                 },
             )
 
-            # Should load "default" agent by default
-            mock_loader.load.assert_called_with("default")
+            # Verify "default" agent was loaded
+            assert mock_load.call_args[0][0] == "default"
             assert result["success"] is True
+
+
+# ═══════════════════════════════════════════════════════════════════════
+# spawn_agent isolation
+# ═══════════════════════════════════════════════════════════════════════
 
 
 class TestSpawnAgentIsolation:
@@ -110,45 +199,32 @@ class TestSpawnAgentIsolation:
 
     @pytest.fixture
     def mock_runner(self):
-        """Create a mock runner with common setup."""
         runner = MagicMock()
         runner.can_spawn.return_value = (True, "Can spawn", 0)
         runner._child_session_manager = MagicMock()
         return runner
 
     @pytest.fixture
-    def mock_agent_def(self):
-        """Create a mock agent definition."""
-        agent_def = MagicMock()
-        agent_def.isolation = None
-        agent_def.provider = "claude"
-        agent_def.mode = "terminal"
-        agent_def.workflow = "generic"
-        agent_def.base_branch = "main"
-        agent_def.branch_prefix = None
-        agent_def.timeout = 120.0
-        agent_def.max_turns = 10
-        agent_def.get_effective_workflow.return_value = None  # Skip workflow validation
-        agent_def.workflows = None
-        agent_def.default_workflow = None
-        return agent_def
+    def agent_body(self):
+        return AgentDefinitionBody(
+            name="default",
+            provider="claude",
+            mode="terminal",
+        )
 
     @pytest.mark.asyncio
     async def test_spawn_agent_current_uses_current_handler(
-        self, mock_runner, mock_agent_def
+        self, mock_runner, agent_body
     ) -> None:
-        """Test spawn_agent with isolation='current' uses CurrentIsolationHandler."""
         from gobby.mcp_proxy.tools.spawn_agent import create_spawn_agent_registry
 
-        mock_loader = MagicMock()
-        mock_loader.load.return_value = mock_agent_def
-
-        registry = create_spawn_agent_registry(
-            mock_runner,
-            agent_loader=mock_loader,
-        )
+        registry = create_spawn_agent_registry(mock_runner, db=MagicMock())
 
         with (
+            patch(
+                "gobby.mcp_proxy.tools.spawn_agent._factory._load_agent_body",
+                return_value=agent_body,
+            ),
             patch("gobby.mcp_proxy.tools.spawn_agent._implementation.get_project_context") as mock_ctx,
             patch("gobby.mcp_proxy.tools.spawn_agent._implementation.get_isolation_handler") as mock_get_handler,
             patch("gobby.mcp_proxy.tools.spawn_agent._implementation.execute_spawn") as mock_execute,
@@ -186,24 +262,21 @@ class TestSpawnAgentIsolation:
             assert result["success"] is True
 
     @pytest.mark.asyncio
-    async def test_spawn_agent_worktree_creates_worktree(self, mock_runner, mock_agent_def) -> None:
-        """Test spawn_agent with isolation='worktree' creates/reuses worktree."""
+    async def test_spawn_agent_worktree_creates_worktree(self, mock_runner, agent_body) -> None:
         from gobby.mcp_proxy.tools.spawn_agent import create_spawn_agent_registry
-
-        mock_loader = MagicMock()
-        mock_loader.load.return_value = mock_agent_def
-
-        mock_worktree_storage = MagicMock()
-        mock_git_manager = MagicMock()
 
         registry = create_spawn_agent_registry(
             mock_runner,
-            agent_loader=mock_loader,
-            worktree_storage=mock_worktree_storage,
-            git_manager=mock_git_manager,
+            worktree_storage=MagicMock(),
+            git_manager=MagicMock(),
+            db=MagicMock(),
         )
 
         with (
+            patch(
+                "gobby.mcp_proxy.tools.spawn_agent._factory._load_agent_body",
+                return_value=agent_body,
+            ),
             patch("gobby.mcp_proxy.tools.spawn_agent._implementation.get_project_context") as mock_ctx,
             patch("gobby.mcp_proxy.tools.spawn_agent._implementation.get_isolation_handler") as mock_get_handler,
             patch("gobby.mcp_proxy.tools.spawn_agent._implementation.execute_spawn") as mock_execute,
@@ -247,24 +320,21 @@ class TestSpawnAgentIsolation:
             assert result["worktree_id"] == "wt-123"
 
     @pytest.mark.asyncio
-    async def test_spawn_agent_clone_creates_clone(self, mock_runner, mock_agent_def) -> None:
-        """Test spawn_agent with isolation='clone' creates clone."""
+    async def test_spawn_agent_clone_creates_clone(self, mock_runner, agent_body) -> None:
         from gobby.mcp_proxy.tools.spawn_agent import create_spawn_agent_registry
-
-        mock_loader = MagicMock()
-        mock_loader.load.return_value = mock_agent_def
-
-        mock_clone_storage = MagicMock()
-        mock_clone_manager = MagicMock()
 
         registry = create_spawn_agent_registry(
             mock_runner,
-            agent_loader=mock_loader,
-            clone_storage=mock_clone_storage,
-            clone_manager=mock_clone_manager,
+            clone_storage=MagicMock(),
+            clone_manager=MagicMock(),
+            db=MagicMock(),
         )
 
         with (
+            patch(
+                "gobby.mcp_proxy.tools.spawn_agent._factory._load_agent_body",
+                return_value=agent_body,
+            ),
             patch("gobby.mcp_proxy.tools.spawn_agent._implementation.get_project_context") as mock_ctx,
             patch("gobby.mcp_proxy.tools.spawn_agent._implementation.get_isolation_handler") as mock_get_handler,
             patch("gobby.mcp_proxy.tools.spawn_agent._implementation.execute_spawn") as mock_execute,
@@ -308,12 +378,16 @@ class TestSpawnAgentIsolation:
             assert result["clone_id"] == "clone-123"
 
 
+# ═══════════════════════════════════════════════════════════════════════
+# spawn_agent param overrides
+# ═══════════════════════════════════════════════════════════════════════
+
+
 class TestSpawnAgentParamOverrides:
     """Tests for tool params overriding agent definition values."""
 
     @pytest.fixture
     def mock_runner(self):
-        """Create a mock runner with common setup."""
         runner = MagicMock()
         runner.can_spawn.return_value = (True, "Can spawn", 0)
         runner._child_session_manager = MagicMock()
@@ -321,34 +395,22 @@ class TestSpawnAgentParamOverrides:
 
     @pytest.mark.asyncio
     async def test_tool_params_override_agent_definition(self, mock_runner) -> None:
-        """Test that tool params take precedence over agent definition values."""
         from gobby.mcp_proxy.tools.spawn_agent import create_spawn_agent_registry
 
-        # Agent definition says isolation=current, mode=headless
-        mock_agent_def = MagicMock()
-        mock_agent_def.isolation = "current"
-        mock_agent_def.provider = "claude"
-        mock_agent_def.mode = "headless"
-        mock_agent_def.workflow = "default-workflow"
-        mock_agent_def.base_branch = "main"
-        mock_agent_def.branch_prefix = None
-        mock_agent_def.timeout = 120.0
-        mock_agent_def.max_turns = 10
-
-        mock_loader = MagicMock()
-        mock_loader.load.return_value = mock_agent_def
-
-        # Mock workflow loader to validate workflow exists (load_workflow is async)
-        mock_wf_loader = MagicMock()
-        mock_wf_loader.load_workflow = AsyncMock(return_value=MagicMock())
-
-        registry = create_spawn_agent_registry(
-            mock_runner,
-            agent_loader=mock_loader,
-            workflow_loader=mock_wf_loader,
+        # Agent definition says mode=headless
+        agent_body = AgentDefinitionBody(
+            name="default",
+            provider="claude",
+            mode="headless",
         )
 
+        registry = create_spawn_agent_registry(mock_runner, db=MagicMock())
+
         with (
+            patch(
+                "gobby.mcp_proxy.tools.spawn_agent._factory._load_agent_body",
+                return_value=agent_body,
+            ),
             patch("gobby.mcp_proxy.tools.spawn_agent._implementation.get_project_context") as mock_ctx,
             patch("gobby.mcp_proxy.tools.spawn_agent._implementation.get_isolation_handler") as mock_get_handler,
             patch("gobby.mcp_proxy.tools.spawn_agent._implementation.execute_spawn") as mock_execute,
@@ -377,14 +439,18 @@ class TestSpawnAgentParamOverrides:
                 {
                     "prompt": "Test prompt",
                     "parent_session_id": "parent-789",
-                    "mode": "terminal",  # Override agent definition's headless
+                    "mode": "terminal",
                 },
             )
 
-            # Verify execute_spawn was called with terminal mode
             assert result["success"] is True
             execute_call = mock_execute.call_args
             assert execute_call[0][0].mode == "terminal"
+
+
+# ═══════════════════════════════════════════════════════════════════════
+# spawn_agent task resolution
+# ═══════════════════════════════════════════════════════════════════════
 
 
 class TestSpawnAgentTaskResolution:
@@ -392,36 +458,22 @@ class TestSpawnAgentTaskResolution:
 
     @pytest.fixture
     def mock_runner(self):
-        """Create a mock runner with common setup."""
         runner = MagicMock()
         runner.can_spawn.return_value = (True, "Can spawn", 0)
         runner._child_session_manager = MagicMock()
         return runner
 
     @pytest.fixture
-    def mock_agent_def(self):
-        """Create a mock agent definition."""
-        agent_def = MagicMock()
-        agent_def.isolation = None
-        agent_def.provider = "claude"
-        agent_def.mode = "terminal"
-        agent_def.workflow = "generic"
-        agent_def.base_branch = "main"
-        agent_def.branch_prefix = None
-        agent_def.timeout = 120.0
-        agent_def.max_turns = 10
-        agent_def.get_effective_workflow.return_value = None  # Skip workflow validation
-        agent_def.workflows = None
-        agent_def.default_workflow = None
-        return agent_def
+    def agent_body(self):
+        return AgentDefinitionBody(
+            name="default",
+            provider="claude",
+            mode="terminal",
+        )
 
     @pytest.mark.asyncio
-    async def test_task_id_supports_hash_n_format(self, mock_runner, mock_agent_def) -> None:
-        """Test task_id resolution supports #N format."""
+    async def test_task_id_supports_hash_n_format(self, mock_runner, agent_body) -> None:
         from gobby.mcp_proxy.tools.spawn_agent import create_spawn_agent_registry
-
-        mock_loader = MagicMock()
-        mock_loader.load.return_value = mock_agent_def
 
         mock_task_manager = MagicMock()
         mock_task = MagicMock()
@@ -432,11 +484,15 @@ class TestSpawnAgentTaskResolution:
 
         registry = create_spawn_agent_registry(
             mock_runner,
-            agent_loader=mock_loader,
             task_manager=mock_task_manager,
+            db=MagicMock(),
         )
 
         with (
+            patch(
+                "gobby.mcp_proxy.tools.spawn_agent._factory._load_agent_body",
+                return_value=agent_body,
+            ),
             patch("gobby.mcp_proxy.tools.spawn_agent._implementation.get_project_context") as mock_ctx,
             patch("gobby.mcp_proxy.tools.spawn_agent._implementation.get_isolation_handler") as mock_get_handler,
             patch("gobby.mcp_proxy.tools.spawn_agent._implementation.execute_spawn") as mock_execute,
@@ -474,169 +530,10 @@ class TestSpawnAgentTaskResolution:
             mock_resolve.assert_called_once()
             assert result["success"] is True
 
-    @pytest.mark.asyncio
-    async def test_task_id_supports_numeric_format(self, mock_runner, mock_agent_def) -> None:
-        """Test task_id resolution supports N format (bare number)."""
-        from gobby.mcp_proxy.tools.spawn_agent import create_spawn_agent_registry
 
-        mock_loader = MagicMock()
-        mock_loader.load.return_value = mock_agent_def
-
-        mock_task_manager = MagicMock()
-        mock_task = MagicMock()
-        mock_task.title = "Implement feature"
-        mock_task.seq_num = 6100
-        mock_task.id = "uuid-123"
-        mock_task_manager.get_task.return_value = mock_task
-
-        registry = create_spawn_agent_registry(
-            mock_runner,
-            agent_loader=mock_loader,
-            task_manager=mock_task_manager,
-        )
-
-        with (
-            patch("gobby.mcp_proxy.tools.spawn_agent._implementation.get_project_context") as mock_ctx,
-            patch("gobby.mcp_proxy.tools.spawn_agent._implementation.get_isolation_handler") as mock_get_handler,
-            patch("gobby.mcp_proxy.tools.spawn_agent._implementation.execute_spawn") as mock_execute,
-            patch("gobby.mcp_proxy.tools.spawn_agent._implementation.resolve_task_id_for_mcp") as mock_resolve,
-        ):
-            mock_ctx.return_value = {
-                "id": "proj-123",
-                "project_path": "/path/to/project",
-            }
-            mock_resolve.return_value = "uuid-123"
-
-            mock_handler = MagicMock()
-            mock_handler.prepare_environment = AsyncMock(
-                return_value=IsolationContext(cwd="/path/to/project")
-            )
-            mock_handler.build_context_prompt.return_value = "Test prompt"
-            mock_get_handler.return_value = mock_handler
-
-            mock_execute.return_value = MagicMock(
-                success=True,
-                run_id="run-123",
-                child_session_id="child-456",
-                status="pending",
-            )
-
-            result = await registry.call(
-                "spawn_agent",
-                {
-                    "prompt": "Test prompt",
-                    "parent_session_id": "parent-789",
-                    "task_id": "6100",
-                },
-            )
-
-            mock_resolve.assert_called_once()
-            assert result["success"] is True
-
-
-class TestSpawnAgentBranchGeneration:
-    """Tests for branch auto-generation from task title."""
-
-    @pytest.fixture
-    def mock_runner(self):
-        """Create a mock runner with common setup."""
-        runner = MagicMock()
-        runner.can_spawn.return_value = (True, "Can spawn", 0)
-        runner._child_session_manager = MagicMock()
-        return runner
-
-    @pytest.fixture
-    def mock_agent_def(self):
-        """Create a mock agent definition."""
-        agent_def = MagicMock()
-        agent_def.isolation = "worktree"
-        agent_def.provider = "claude"
-        agent_def.mode = "terminal"
-        agent_def.workflow = "generic"
-        agent_def.base_branch = "main"
-        agent_def.branch_prefix = "task/"
-        agent_def.timeout = 120.0
-        agent_def.max_turns = 10
-        agent_def.get_effective_workflow.return_value = None  # Skip workflow validation
-        agent_def.workflows = None
-        agent_def.default_workflow = None
-        return agent_def
-
-    @pytest.mark.asyncio
-    async def test_branch_auto_generated_from_task_title(self, mock_runner, mock_agent_def) -> None:
-        """Test branch is auto-generated from task title when not provided."""
-        from gobby.mcp_proxy.tools.spawn_agent import create_spawn_agent_registry
-
-        mock_loader = MagicMock()
-        mock_loader.load.return_value = mock_agent_def
-
-        mock_task_manager = MagicMock()
-        mock_task = MagicMock()
-        mock_task.title = "Implement Login Feature"
-        mock_task.seq_num = 6100
-        mock_task.id = "uuid-123"
-        mock_task_manager.get_task.return_value = mock_task
-
-        mock_worktree_storage = MagicMock()
-        mock_git_manager = MagicMock()
-
-        registry = create_spawn_agent_registry(
-            mock_runner,
-            agent_loader=mock_loader,
-            task_manager=mock_task_manager,
-            worktree_storage=mock_worktree_storage,
-            git_manager=mock_git_manager,
-        )
-
-        with (
-            patch("gobby.mcp_proxy.tools.spawn_agent._implementation.get_project_context") as mock_ctx,
-            patch("gobby.mcp_proxy.tools.spawn_agent._implementation.get_isolation_handler") as mock_get_handler,
-            patch("gobby.mcp_proxy.tools.spawn_agent._implementation.execute_spawn") as mock_execute,
-            patch("gobby.mcp_proxy.tools.spawn_agent._implementation.resolve_task_id_for_mcp") as mock_resolve,
-        ):
-            mock_ctx.return_value = {
-                "id": "proj-123",
-                "project_path": "/path/to/project",
-            }
-            mock_resolve.return_value = "uuid-123"
-
-            mock_handler = MagicMock()
-            mock_handler.prepare_environment = AsyncMock(
-                return_value=IsolationContext(
-                    cwd="/tmp/worktrees/task-6100-implement-login-feature",
-                    branch_name="task-6100-implement-login-feature",
-                    worktree_id="wt-123",
-                    isolation_type="worktree",
-                )
-            )
-            mock_handler.build_context_prompt.return_value = "Test prompt"
-            mock_get_handler.return_value = mock_handler
-
-            mock_execute.return_value = MagicMock(
-                success=True,
-                run_id="run-123",
-                child_session_id="child-456",
-                status="pending",
-            )
-
-            result = await registry.call(
-                "spawn_agent",
-                {
-                    "prompt": "Test prompt",
-                    "parent_session_id": "parent-789",
-                    "task_id": "#6100",
-                    "isolation": "worktree",
-                },
-            )
-
-            # Verify handler.prepare_environment was called
-            mock_handler.prepare_environment.assert_called_once()
-            # The SpawnConfig passed should have task info for branch generation
-            spawn_config = mock_handler.prepare_environment.call_args[0][0]
-            assert spawn_config.task_seq_num == 6100
-            assert spawn_config.task_title == "Implement Login Feature"
-            assert result["success"] is True
-            assert result["branch_name"] == "task-6100-implement-login-feature"
+# ═══════════════════════════════════════════════════════════════════════
+# spawn_agent sandbox
+# ═══════════════════════════════════════════════════════════════════════
 
 
 class TestSpawnAgentSandbox:
@@ -644,44 +541,30 @@ class TestSpawnAgentSandbox:
 
     @pytest.fixture
     def mock_runner(self):
-        """Create a mock runner with common setup."""
         runner = MagicMock()
         runner.can_spawn.return_value = (True, "Can spawn", 0)
         runner._child_session_manager = MagicMock()
         return runner
 
     @pytest.fixture
-    def mock_agent_def(self):
-        """Create a mock agent definition without sandbox."""
-        agent_def = MagicMock()
-        agent_def.isolation = None
-        agent_def.provider = "claude"
-        agent_def.mode = "terminal"
-        agent_def.workflow = "generic"
-        agent_def.base_branch = "main"
-        agent_def.branch_prefix = None
-        agent_def.timeout = 120.0
-        agent_def.max_turns = 10
-        agent_def.sandbox = None  # No sandbox config
-        agent_def.get_effective_workflow.return_value = None  # Skip workflow validation
-        agent_def.workflows = None
-        agent_def.default_workflow = None
-        return agent_def
-
-    @pytest.mark.asyncio
-    async def test_sandbox_params_create_sandbox_config(self, mock_runner, mock_agent_def) -> None:
-        """Test sandbox params create SandboxConfig and pass to SpawnRequest."""
-        from gobby.mcp_proxy.tools.spawn_agent import create_spawn_agent_registry
-
-        mock_loader = MagicMock()
-        mock_loader.load.return_value = mock_agent_def
-
-        registry = create_spawn_agent_registry(
-            mock_runner,
-            agent_loader=mock_loader,
+    def agent_body(self):
+        return AgentDefinitionBody(
+            name="default",
+            provider="claude",
+            mode="terminal",
         )
 
+    @pytest.mark.asyncio
+    async def test_sandbox_params_create_sandbox_config(self, mock_runner, agent_body) -> None:
+        from gobby.mcp_proxy.tools.spawn_agent import create_spawn_agent_registry
+
+        registry = create_spawn_agent_registry(mock_runner, db=MagicMock())
+
         with (
+            patch(
+                "gobby.mcp_proxy.tools.spawn_agent._factory._load_agent_body",
+                return_value=agent_body,
+            ),
             patch("gobby.mcp_proxy.tools.spawn_agent._implementation.get_project_context") as mock_ctx,
             patch("gobby.mcp_proxy.tools.spawn_agent._implementation.get_isolation_handler") as mock_get_handler,
             patch("gobby.mcp_proxy.tools.spawn_agent._implementation.execute_spawn") as mock_execute,
@@ -716,7 +599,6 @@ class TestSpawnAgentSandbox:
             )
 
             assert result["success"] is True
-            # Verify SpawnRequest received sandbox_config
             spawn_request = mock_execute.call_args[0][0]
             assert spawn_request.sandbox_config is not None
             assert spawn_request.sandbox_config.enabled is True
@@ -724,97 +606,16 @@ class TestSpawnAgentSandbox:
             assert spawn_request.sandbox_config.allow_network is False
 
     @pytest.mark.asyncio
-    async def test_sandbox_params_override_agent_def_sandbox(self, mock_runner) -> None:
-        """Test that tool sandbox params override agent_def.sandbox."""
-        from gobby.agents.sandbox import SandboxConfig
+    async def test_sandbox_extra_paths_passed_to_config(self, mock_runner, agent_body):
         from gobby.mcp_proxy.tools.spawn_agent import create_spawn_agent_registry
 
-        # Agent definition has sandbox enabled with permissive mode
-        mock_agent_def = MagicMock()
-        mock_agent_def.isolation = None
-        mock_agent_def.provider = "claude"
-        mock_agent_def.mode = "terminal"
-        mock_agent_def.workflow = "generic"
-        mock_agent_def.base_branch = "main"
-        mock_agent_def.branch_prefix = None
-        mock_agent_def.timeout = 120.0
-        mock_agent_def.max_turns = 10
-        mock_agent_def.sandbox = SandboxConfig(
-            enabled=True,
-            mode="permissive",
-            allow_network=True,
-            extra_read_paths=["/opt/data"],
-        )
-        mock_agent_def.get_effective_workflow.return_value = None
-        mock_agent_def.workflows = None
-        mock_agent_def.default_workflow = None
-
-        mock_loader = MagicMock()
-        mock_loader.load.return_value = mock_agent_def
-
-        registry = create_spawn_agent_registry(
-            mock_runner,
-            agent_loader=mock_loader,
-        )
+        registry = create_spawn_agent_registry(mock_runner, db=MagicMock())
 
         with (
-            patch("gobby.mcp_proxy.tools.spawn_agent._implementation.get_project_context") as mock_ctx,
-            patch("gobby.mcp_proxy.tools.spawn_agent._implementation.get_isolation_handler") as mock_get_handler,
-            patch("gobby.mcp_proxy.tools.spawn_agent._implementation.execute_spawn") as mock_execute,
-        ):
-            mock_ctx.return_value = {
-                "id": "proj-123",
-                "project_path": "/path/to/project",
-            }
-            mock_handler = MagicMock()
-            mock_handler.prepare_environment = AsyncMock(
-                return_value=IsolationContext(cwd="/path/to/project")
-            )
-            mock_handler.build_context_prompt.return_value = "Test prompt"
-            mock_get_handler.return_value = mock_handler
-
-            mock_execute.return_value = MagicMock(
-                success=True,
-                run_id="run-123",
-                child_session_id="child-456",
-                status="pending",
-            )
-
-            # Override sandbox_mode to restrictive via tool param
-            result = await registry.call(
-                "spawn_agent",
-                {
-                    "prompt": "Test prompt",
-                    "parent_session_id": "parent-789",
-                    "sandbox_mode": "restrictive",  # Override permissive
-                    "sandbox_allow_network": False,  # Override True
-                },
-            )
-
-            assert result["success"] is True
-            spawn_request = mock_execute.call_args[0][0]
-            # Should be enabled (from agent_def) with overrides applied
-            assert spawn_request.sandbox_config is not None
-            assert spawn_request.sandbox_config.enabled is True
-            assert spawn_request.sandbox_config.mode == "restrictive"  # Overridden
-            assert spawn_request.sandbox_config.allow_network is False  # Overridden
-            # Should keep extra_read_paths from agent_def
-            assert spawn_request.sandbox_config.extra_read_paths == ["/opt/data"]
-
-    @pytest.mark.asyncio
-    async def test_sandbox_extra_paths_passed_to_config(self, mock_runner, mock_agent_def):
-        """Test sandbox_extra_paths are passed to SandboxConfig."""
-        from gobby.mcp_proxy.tools.spawn_agent import create_spawn_agent_registry
-
-        mock_loader = MagicMock()
-        mock_loader.load.return_value = mock_agent_def
-
-        registry = create_spawn_agent_registry(
-            mock_runner,
-            agent_loader=mock_loader,
-        )
-
-        with (
+            patch(
+                "gobby.mcp_proxy.tools.spawn_agent._factory._load_agent_body",
+                return_value=agent_body,
+            ),
             patch("gobby.mcp_proxy.tools.spawn_agent._implementation.get_project_context") as mock_ctx,
             patch("gobby.mcp_proxy.tools.spawn_agent._implementation.get_isolation_handler") as mock_get_handler,
             patch("gobby.mcp_proxy.tools.spawn_agent._implementation.execute_spawn") as mock_execute,
@@ -850,40 +651,20 @@ class TestSpawnAgentSandbox:
             assert result["success"] is True
             spawn_request = mock_execute.call_args[0][0]
             assert spawn_request.sandbox_config is not None
-            # Extra paths should be set as extra_write_paths
             assert "/tmp/data" in spawn_request.sandbox_config.extra_write_paths
             assert "/opt/tools" in spawn_request.sandbox_config.extra_write_paths
 
     @pytest.mark.asyncio
-    async def test_sandbox_disabled_when_param_false(self, mock_runner):
-        """Test sandbox is disabled when sandbox=False even if agent_def has it enabled."""
-        from gobby.agents.sandbox import SandboxConfig
+    async def test_sandbox_disabled_when_param_false(self, mock_runner, agent_body):
         from gobby.mcp_proxy.tools.spawn_agent import create_spawn_agent_registry
 
-        # Agent definition has sandbox enabled
-        mock_agent_def = MagicMock()
-        mock_agent_def.isolation = None
-        mock_agent_def.provider = "claude"
-        mock_agent_def.mode = "terminal"
-        mock_agent_def.workflow = "generic"
-        mock_agent_def.base_branch = "main"
-        mock_agent_def.branch_prefix = None
-        mock_agent_def.timeout = 120.0
-        mock_agent_def.max_turns = 10
-        mock_agent_def.sandbox = SandboxConfig(enabled=True, mode="permissive")
-        mock_agent_def.get_effective_workflow.return_value = None
-        mock_agent_def.workflows = None
-        mock_agent_def.default_workflow = None
-
-        mock_loader = MagicMock()
-        mock_loader.load.return_value = mock_agent_def
-
-        registry = create_spawn_agent_registry(
-            mock_runner,
-            agent_loader=mock_loader,
-        )
+        registry = create_spawn_agent_registry(mock_runner, db=MagicMock())
 
         with (
+            patch(
+                "gobby.mcp_proxy.tools.spawn_agent._factory._load_agent_body",
+                return_value=agent_body,
+            ),
             patch("gobby.mcp_proxy.tools.spawn_agent._implementation.get_project_context") as mock_ctx,
             patch("gobby.mcp_proxy.tools.spawn_agent._implementation.get_isolation_handler") as mock_get_handler,
             patch("gobby.mcp_proxy.tools.spawn_agent._implementation.execute_spawn") as mock_execute,
@@ -906,21 +687,24 @@ class TestSpawnAgentSandbox:
                 status="pending",
             )
 
-            # Explicitly disable sandbox via param
             result = await registry.call(
                 "spawn_agent",
                 {
                     "prompt": "Test prompt",
                     "parent_session_id": "parent-789",
-                    "sandbox": False,  # Explicitly disable
+                    "sandbox": False,
                 },
             )
 
             assert result["success"] is True
             spawn_request = mock_execute.call_args[0][0]
-            # sandbox_config should be None or have enabled=False
             if spawn_request.sandbox_config is not None:
                 assert spawn_request.sandbox_config.enabled is False
+
+
+# ═══════════════════════════════════════════════════════════════════════
+# spawn_agent pre-registration
+# ═══════════════════════════════════════════════════════════════════════
 
 
 class TestSpawnAgentPreRegistration:
@@ -934,37 +718,24 @@ class TestSpawnAgentPreRegistration:
         return runner
 
     @pytest.fixture
-    def mock_agent_def(self):
-        agent_def = MagicMock()
-        agent_def.isolation = None
-        agent_def.provider = "claude"
-        agent_def.mode = "terminal"
-        agent_def.workflow = "generic"
-        agent_def.base_branch = "main"
-        agent_def.branch_prefix = None
-        agent_def.timeout = 120.0
-        agent_def.max_turns = 10
-        agent_def.get_effective_workflow.return_value = None
-        agent_def.workflows = None
-        agent_def.default_workflow = None
-        return agent_def
+    def agent_body(self):
+        return AgentDefinitionBody(
+            name="default",
+            provider="claude",
+            mode="terminal",
+        )
 
     @pytest.mark.asyncio
-    async def test_agent_registered_before_spawn(self, mock_runner, mock_agent_def):
-        """Agent is pre-registered in RunningAgentRegistry before execute_spawn."""
+    async def test_agent_registered_before_spawn(self, mock_runner, agent_body):
         from gobby.mcp_proxy.tools.spawn_agent import create_spawn_agent_registry
 
-        mock_loader = MagicMock()
-        mock_loader.load.return_value = mock_agent_def
-
-        registry = create_spawn_agent_registry(mock_runner, agent_loader=mock_loader)
+        registry = create_spawn_agent_registry(mock_runner, db=MagicMock())
 
         call_order: list[str] = []
         mock_agent_registry = MagicMock()
         mock_agent_registry.add.side_effect = lambda agent: call_order.append(f"add:{agent.run_id}")
 
         async def fake_execute(req):
-            # At this point, add should have been called already
             call_order.append("execute_spawn")
             return MagicMock(
                 success=True,
@@ -978,6 +749,10 @@ class TestSpawnAgentPreRegistration:
             )
 
         with (
+            patch(
+                "gobby.mcp_proxy.tools.spawn_agent._factory._load_agent_body",
+                return_value=agent_body,
+            ),
             patch("gobby.mcp_proxy.tools.spawn_agent._implementation.get_project_context") as mock_ctx,
             patch("gobby.mcp_proxy.tools.spawn_agent._implementation.execute_spawn", side_effect=fake_execute),
             patch(
@@ -993,23 +768,17 @@ class TestSpawnAgentPreRegistration:
             )
 
             assert result["success"] is True
-            # Pre-registration happened before execute_spawn
             assert len(call_order) == 3  # add (pre-reg), execute_spawn, add (update)
             assert call_order[0].startswith("add:")
             assert call_order[1] == "execute_spawn"
             assert call_order[2].startswith("add:")
-            # remove was never called (spawn succeeded)
             mock_agent_registry.remove.assert_not_called()
 
     @pytest.mark.asyncio
-    async def test_agent_removed_on_spawn_failure(self, mock_runner, mock_agent_def):
-        """Pre-registered agent is removed from registry when spawn fails."""
+    async def test_agent_removed_on_spawn_failure(self, mock_runner, agent_body):
         from gobby.mcp_proxy.tools.spawn_agent import create_spawn_agent_registry
 
-        mock_loader = MagicMock()
-        mock_loader.load.return_value = mock_agent_def
-
-        registry = create_spawn_agent_registry(mock_runner, agent_loader=mock_loader)
+        registry = create_spawn_agent_registry(mock_runner, db=MagicMock())
 
         mock_agent_registry = MagicMock()
         pre_registered_run_id: list[str] = []
@@ -1020,6 +789,10 @@ class TestSpawnAgentPreRegistration:
         mock_agent_registry.add.side_effect = track_add
 
         with (
+            patch(
+                "gobby.mcp_proxy.tools.spawn_agent._factory._load_agent_body",
+                return_value=agent_body,
+            ),
             patch("gobby.mcp_proxy.tools.spawn_agent._implementation.get_project_context") as mock_ctx,
             patch("gobby.mcp_proxy.tools.spawn_agent._implementation.execute_spawn") as mock_execute,
             patch(
@@ -1040,9 +813,166 @@ class TestSpawnAgentPreRegistration:
             )
 
             assert result["success"] is False
-            # Pre-registration happened (1 add call)
             assert len(pre_registered_run_id) == 1
-            # Agent was removed after failure
             mock_agent_registry.remove.assert_called_once_with(
                 pre_registered_run_id[0], status="failed"
             )
+
+
+# ═══════════════════════════════════════════════════════════════════════
+# spawn_agent agent not found
+# ═══════════════════════════════════════════════════════════════════════
+
+
+class TestSpawnAgentNotFound:
+    """Tests for agent not found behavior."""
+
+    @pytest.fixture
+    def mock_runner(self):
+        runner = MagicMock()
+        runner.can_spawn.return_value = (True, "Can spawn", 0)
+        runner._child_session_manager = MagicMock()
+        return runner
+
+    @pytest.mark.asyncio
+    async def test_returns_error_for_missing_non_default_agent(self, mock_runner) -> None:
+        from gobby.mcp_proxy.tools.spawn_agent import create_spawn_agent_registry
+
+        registry = create_spawn_agent_registry(mock_runner, db=MagicMock())
+
+        with patch(
+            "gobby.mcp_proxy.tools.spawn_agent._factory._load_agent_body",
+            return_value=None,
+        ):
+            result = await registry.call(
+                "spawn_agent",
+                {
+                    "prompt": "Test",
+                    "parent_session_id": "parent-789",
+                    "agent": "nonexistent",
+                },
+            )
+
+            assert result["success"] is False
+            assert "not found" in result["error"].lower()
+
+
+# ═══════════════════════════════════════════════════════════════════════
+# spawn_agent prompt preamble
+# ═══════════════════════════════════════════════════════════════════════
+
+
+class TestSpawnAgentPromptPreamble:
+    """Tests for prompt preamble composition from agent definition."""
+
+    @pytest.fixture
+    def mock_runner(self):
+        runner = MagicMock()
+        runner.can_spawn.return_value = (True, "Can spawn", 0)
+        runner._child_session_manager = MagicMock()
+        return runner
+
+    @pytest.mark.asyncio
+    async def test_preamble_prepended_to_prompt(self, mock_runner) -> None:
+        from gobby.mcp_proxy.tools.spawn_agent import create_spawn_agent_registry
+
+        agent_body = AgentDefinitionBody(
+            name="dev",
+            role="Backend developer",
+            instructions="Write clean code.",
+            mode="terminal",
+        )
+
+        registry = create_spawn_agent_registry(mock_runner, db=MagicMock())
+
+        with (
+            patch(
+                "gobby.mcp_proxy.tools.spawn_agent._factory._load_agent_body",
+                return_value=agent_body,
+            ),
+            patch("gobby.mcp_proxy.tools.spawn_agent._implementation.get_project_context") as mock_ctx,
+            patch("gobby.mcp_proxy.tools.spawn_agent._implementation.execute_spawn") as mock_execute,
+        ):
+            mock_ctx.return_value = {
+                "id": "proj-123",
+                "project_path": "/path/to/project",
+            }
+            mock_execute.return_value = MagicMock(
+                success=True,
+                run_id="run-123",
+                child_session_id="child-456",
+                status="pending",
+            )
+
+            await registry.call(
+                "spawn_agent",
+                {
+                    "prompt": "Fix the bug",
+                    "parent_session_id": "parent-789",
+                },
+            )
+
+            # Check the prompt passed to spawn_agent_impl includes preamble
+            spawn_request = mock_execute.call_args[0][0]
+            assert "Backend developer" in spawn_request.prompt
+            assert "Write clean code" in spawn_request.prompt
+            assert "Fix the bug" in spawn_request.prompt
+
+
+# ═══════════════════════════════════════════════════════════════════════
+# spawn_agent step variables
+# ═══════════════════════════════════════════════════════════════════════
+
+
+class TestSpawnAgentStepVariables:
+    """Tests for step_variables (_agent_type, _agent_rules) from agent definition."""
+
+    @pytest.fixture
+    def mock_runner(self):
+        runner = MagicMock()
+        runner.can_spawn.return_value = (True, "Can spawn", 0)
+        runner._child_session_manager = MagicMock()
+        return runner
+
+    @pytest.mark.asyncio
+    async def test_agent_type_set_in_step_variables(self, mock_runner) -> None:
+        from gobby.mcp_proxy.tools.spawn_agent import create_spawn_agent_registry
+
+        agent_body = AgentDefinitionBody(
+            name="qa-agent",
+            mode="terminal",
+            workflows=AgentWorkflows(rules=["no-code-writing"]),
+        )
+
+        registry = create_spawn_agent_registry(mock_runner, db=MagicMock())
+
+        with (
+            patch(
+                "gobby.mcp_proxy.tools.spawn_agent._factory._load_agent_body",
+                return_value=agent_body,
+            ),
+            patch("gobby.mcp_proxy.tools.spawn_agent._implementation.get_project_context") as mock_ctx,
+            patch("gobby.mcp_proxy.tools.spawn_agent._implementation.execute_spawn") as mock_execute,
+        ):
+            mock_ctx.return_value = {
+                "id": "proj-123",
+                "project_path": "/path/to/project",
+            }
+            mock_execute.return_value = MagicMock(
+                success=True,
+                run_id="run-123",
+                child_session_id="child-456",
+                status="pending",
+            )
+
+            await registry.call(
+                "spawn_agent",
+                {
+                    "prompt": "Test it",
+                    "parent_session_id": "parent-789",
+                },
+            )
+
+            spawn_request = mock_execute.call_args[0][0]
+            assert spawn_request.step_variables["_agent_type"] == "qa-agent"
+            assert spawn_request.step_variables["_agent_rules"] == ["no-code-writing"]

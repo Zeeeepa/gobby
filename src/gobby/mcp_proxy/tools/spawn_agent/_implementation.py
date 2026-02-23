@@ -12,7 +12,6 @@ import uuid
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Literal
 
-from gobby.agents.definitions import AgentDefinition
 from gobby.agents.isolation import (
     SpawnConfig,
     get_isolation_handler,
@@ -24,7 +23,7 @@ from gobby.config.tmux import TmuxConfig
 from gobby.mcp_proxy.tools.tasks import resolve_task_id_for_mcp
 from gobby.utils.machine_id import get_machine_id
 from gobby.utils.project_context import get_project_context
-from gobby.workflows.loader import WorkflowLoader
+from gobby.workflows.definitions import AgentDefinitionBody
 
 from ._health import TMUX_HEALTH_CHECK_DELAY, _check_tmux_session_alive, _health_check_tasks
 from ._modes import _handle_self_mode
@@ -39,7 +38,7 @@ logger = logging.getLogger(__name__)
 async def spawn_agent_impl(
     prompt: str,
     runner: AgentRunner,
-    agent_def: AgentDefinition | None = None,
+    agent_body: AgentDefinitionBody | None = None,
     agent_lookup_name: str | None = None,
     task_id: str | None = None,
     task_manager: LocalTaskManager | None = None,
@@ -55,7 +54,6 @@ async def spawn_agent_impl(
     clone_manager: Any | None = None,
     # Execution
     workflow: str | None = None,
-    workflow_key: str | None = None,  # Original workflow key for mode resolution (e.g., "box")
     mode: Literal["terminal", "embedded", "headless", "self"] | None = None,
     initial_step: str | None = None,  # For mode=self, start at specific step
     terminal: str = "auto",
@@ -72,8 +70,8 @@ async def spawn_agent_impl(
     # Context
     parent_session_id: str | None = None,
     project_path: str | None = None,
+    step_variables: dict[str, Any] | None = None,
     # For mode=self (workflow activation on caller session)
-    workflow_loader: WorkflowLoader | None = None,
     state_manager: Any | None = None,  # WorkflowStateManager
     session_manager: Any | None = None,  # LocalSessionManager
     db: Any | None = None,  # DatabaseProtocol
@@ -81,13 +79,11 @@ async def spawn_agent_impl(
     """
     Core spawn_agent implementation that can be called directly.
 
-    This is the internal implementation used by both the spawn_agent MCP tool
-    and the spawn_agent MCP tool registration.
-
     Args:
-        prompt: Required - what the agent should do
+        prompt: Required - what the agent should do (with preamble already applied)
         runner: AgentRunner instance for executing agents
-        agent_def: Optional loaded agent definition
+        agent_body: Optional loaded agent definition body
+        agent_lookup_name: The name used to look up the agent definition
         task_id: Optional - link to task (supports N, #N, UUID)
         task_manager: Task manager for task resolution
         isolation: Isolation mode (current/worktree/clone)
@@ -98,61 +94,51 @@ async def spawn_agent_impl(
         clone_storage: Storage for clone records
         clone_manager: Git manager for clone operations
         workflow: Workflow to use
-        mode: Execution mode (terminal/embedded/headless)
+        mode: Execution mode (terminal/embedded/headless/self)
+        initial_step: For mode=self, start at specific step
         terminal: Terminal type for terminal mode
         provider: AI provider (claude/gemini/codex/cursor/windsurf/copilot)
         model: Model to use
         timeout: Timeout in seconds
         max_turns: Maximum conversation turns
-        sandbox: Enable sandbox (True/False/None). None inherits from agent_def.
-        sandbox_mode: Sandbox mode (permissive/restrictive). Overrides agent_def.
-        sandbox_allow_network: Allow network access. Overrides agent_def.
-        sandbox_extra_paths: Extra paths for sandbox write access.
+        sandbox: Enable sandbox (True/False/None)
+        sandbox_mode: Sandbox mode (permissive/restrictive)
+        sandbox_allow_network: Allow network access
+        sandbox_extra_paths: Extra paths for sandbox write access
         parent_session_id: Parent session ID
         project_path: Project path override
+        step_variables: Pre-built step variables from factory (merged with impl's own)
+        state_manager: WorkflowStateManager for mode=self
+        session_manager: LocalSessionManager for mode=self
+        db: DatabaseProtocol for mode=self
 
     Returns:
         Dict with success status, run_id, child_session_id, isolation metadata
     """
-    # 1. Merge config: agent_def defaults < params
+    # 1. Merge config: agent_body defaults < params
     effective_isolation = isolation
-    if effective_isolation is None and agent_def:
-        effective_isolation = agent_def.isolation
+    if effective_isolation is None and agent_body:
+        effective_isolation = agent_body.isolation
     effective_isolation = effective_isolation or "current"
 
     effective_provider = provider
-    if effective_provider is None and agent_def:
-        effective_provider = agent_def.provider
+    if effective_provider is None and agent_body:
+        effective_provider = agent_body.provider
     effective_provider = effective_provider or "claude"
 
     effective_mode: Literal["terminal", "embedded", "headless", "self"] | None = mode
-    if effective_mode is None and agent_def:
-        # Use workflow_key (original key like "box") for mode resolution, not resolved name
-        effective_mode = agent_def.get_effective_mode(workflow_key or workflow)
+    if effective_mode is None and agent_body:
+        effective_mode = agent_body.mode
     effective_mode = effective_mode or "terminal"
 
-    # Resolve model from agent_def if not explicitly provided
     effective_model = model
-    if effective_model is None and agent_def:
-        effective_model = agent_def.model
+    if effective_model is None and agent_body:
+        effective_model = agent_body.model
 
-    # Resolve terminal: agent_def always supersedes caller (workflow variables, etc.)
-    effective_terminal = terminal
-    if agent_def and agent_def.terminal != "auto":
-        effective_terminal = agent_def.terminal
-
-    # Resolve workflow using agent_def's named workflows map
-    # Resolution order: explicit param > agent's workflows map > default_workflow
-    effective_workflow: str | None = None
-    if agent_def:
-        effective_workflow = agent_def.get_effective_workflow(workflow)
-    elif workflow:
-        effective_workflow = workflow
+    effective_workflow = workflow
 
     # Handle mode=self: activate workflow on caller session instead of spawning
     if effective_mode == "self":
-        # mode: self overrides isolation - self mode doesn't spawn an agent,
-        # it activates a workflow on the caller's session
         if effective_isolation != "current":
             logger.debug(f"mode=self overrides isolation={effective_isolation} to 'current'")
             effective_isolation = "current"
@@ -166,14 +152,14 @@ async def spawn_agent_impl(
 
         # Resolve step_variables for workflow activation
         self_step_variables: dict[str, Any] = {}
+        if step_variables:
+            self_step_variables.update(step_variables)
 
         # Pass the agent lookup name so orchestrator workflows can spawn workers
-        # using the correct agent name (e.g., "meeseeks-gemini" not "meeseeks")
         if agent_lookup_name:
             self_step_variables["agent_name"] = agent_lookup_name
 
         if task_id and task_manager:
-            # Resolve project context first for task resolution
             ctx = get_project_context(Path(project_path) if project_path else None)
             self_project_id = ctx.get("id") if ctx else None
             if self_project_id:
@@ -186,6 +172,11 @@ async def spawn_agent_impl(
                         self_step_variables["session_task"] = task_ref
                 except Exception as e:
                     logger.warning(f"Failed to resolve task_id {task_id}: {e}")
+
+        # Create WorkflowLoader on demand for mode=self
+        from gobby.workflows.loader import WorkflowLoader
+
+        workflow_loader = WorkflowLoader()
 
         return await _handle_self_mode(
             workflow=effective_workflow,
@@ -200,8 +191,8 @@ async def spawn_agent_impl(
         )
 
     effective_base_branch = base_branch
-    if effective_base_branch is None and agent_def:
-        effective_base_branch = agent_def.base_branch
+    if effective_base_branch is None and agent_body:
+        effective_base_branch = agent_body.base_branch
     # Auto-detect current branch if no base_branch specified
     if effective_base_branch is None and git_manager:
         try:
@@ -211,50 +202,21 @@ async def spawn_agent_impl(
             effective_base_branch = None
     effective_base_branch = effective_base_branch or "main"
 
-    effective_branch_prefix = None
-    if agent_def:
-        effective_branch_prefix = agent_def.branch_prefix
-
-    # Build effective sandbox config (merge agent_def.sandbox with params)
+    # Build sandbox config from tool params (no agent_def.sandbox in simplified model)
     effective_sandbox_config: SandboxConfig | None = None
 
-    # Start with agent_def.sandbox if present
-    base_sandbox = agent_def.sandbox if agent_def and hasattr(agent_def, "sandbox") else None
-
-    # Determine if sandbox should be enabled
-    sandbox_enabled = sandbox  # Explicit param takes precedence
-    if sandbox_enabled is None and base_sandbox is not None:
-        sandbox_enabled = base_sandbox.enabled
-
-    # Build sandbox config if enabled or if we have params to apply
+    sandbox_enabled = sandbox
     if sandbox_enabled is True or (
         sandbox_enabled is None
         and (sandbox_mode is not None or sandbox_allow_network is not None or sandbox_extra_paths)
     ):
-        # Start from base or create new
-        if base_sandbox is not None:
-            effective_sandbox_config = SandboxConfig(
-                enabled=True if sandbox_enabled is None else sandbox_enabled,
-                mode=sandbox_mode if sandbox_mode is not None else base_sandbox.mode,
-                allow_network=(
-                    sandbox_allow_network
-                    if sandbox_allow_network is not None
-                    else base_sandbox.allow_network
-                ),
-                extra_read_paths=base_sandbox.extra_read_paths,
-                extra_write_paths=(
-                    list(base_sandbox.extra_write_paths) + (sandbox_extra_paths or [])
-                ),
-            )
-        else:
-            effective_sandbox_config = SandboxConfig(
-                enabled=True,
-                mode=sandbox_mode or "permissive",
-                allow_network=sandbox_allow_network if sandbox_allow_network is not None else True,
-                extra_write_paths=sandbox_extra_paths or [],
-            )
+        effective_sandbox_config = SandboxConfig(
+            enabled=True,
+            mode=sandbox_mode or "permissive",
+            allow_network=sandbox_allow_network if sandbox_allow_network is not None else True,
+            extra_write_paths=sandbox_extra_paths or [],
+        )
     elif sandbox_enabled is False:
-        # Explicitly disabled - set config with enabled=False
         effective_sandbox_config = SandboxConfig(enabled=False)
 
     # 2. Resolve project context
@@ -328,7 +290,7 @@ async def spawn_agent_impl(
         task_title=task_title,
         task_seq_num=task_seq_num,
         branch_name=branch_name,
-        branch_prefix=effective_branch_prefix,
+        branch_prefix=None,
         base_branch=effective_base_branch,
         project_id=project_id,
         project_path=resolved_project_path,
@@ -342,7 +304,6 @@ async def spawn_agent_impl(
             isolation_ctx = await handler.prepare_environment(spawn_config)
         except Exception as e:
             logger.error(f"Failed to prepare environment: {e}", exc_info=True)
-            # Clean up any partially created resources (worktree/clone on disk, storage records)
             try:
                 await handler.cleanup_environment(spawn_config)
             except Exception as cleanup_err:
@@ -350,8 +311,6 @@ async def spawn_agent_impl(
             return {"success": False, "error": f"Failed to prepare environment: {e}"}
 
     # 7b. Add main repo path to sandbox read AND write paths for worktree isolation
-    # Git operations in worktrees require read/write access to the main repo's .git directory
-    # (e.g., .git/worktrees/<name>/index.lock needs write access)
     if (
         effective_isolation == "worktree"
         and effective_sandbox_config
@@ -381,27 +340,23 @@ async def spawn_agent_impl(
                 f"Added main repo path {main_repo_path} to sandbox read/write paths for worktree"
             )
 
-    # 8. Prepend agent definition prompt preamble (role/goal/personality/instructions)
-    if agent_def:
-        preamble = agent_def.build_prompt_preamble()
-        if preamble:
-            prompt = f"{preamble}\n\n---\n\n{prompt}"
-
-    # 8b. Build enhanced prompt with isolation context
+    # 8. Build enhanced prompt with isolation context
     enhanced_prompt = handler.build_context_prompt(prompt, isolation_ctx)
 
     # 9. Generate session and run IDs
     session_id = str(uuid.uuid4())
     run_id = f"run-{uuid.uuid4().hex[:12]}"
 
-    # 10. Build step_variables for workflow activation (e.g., assigned_task_id, prompt)
-    step_variables: dict[str, Any] = {}
+    # 10. Build step_variables (merge factory's with impl's own)
+    effective_step_variables: dict[str, Any] = {}
+    if step_variables:
+        effective_step_variables.update(step_variables)
     if resolved_task_id:
-        step_variables["assigned_task_id"] = (
+        effective_step_variables["assigned_task_id"] = (
             f"#{task_seq_num}" if task_seq_num else resolved_task_id
         )
     if enhanced_prompt:
-        step_variables["prompt"] = enhanced_prompt
+        effective_step_variables["prompt"] = enhanced_prompt
 
     # 11. Execute spawn via SpawnExecutor
     spawn_request = SpawnRequest(
@@ -409,14 +364,14 @@ async def spawn_agent_impl(
         cwd=isolation_ctx.cwd,
         mode=effective_mode,
         provider=effective_provider,
-        terminal=effective_terminal,
+        terminal=terminal,
         session_id=session_id,
         run_id=run_id,
         agent_run_id=run_id,
         parent_session_id=parent_session_id,
         project_id=project_id,
         workflow=effective_workflow,
-        step_variables=step_variables,
+        step_variables=effective_step_variables,
         worktree_id=isolation_ctx.worktree_id,
         clone_id=isolation_ctx.clone_id,
         branch_name=isolation_ctx.branch_name,
@@ -426,9 +381,7 @@ async def spawn_agent_impl(
         sandbox_config=effective_sandbox_config,
     )
 
-    # 11. Pre-register with RunningAgentRegistry before spawn so that
-    # poll_agent_status and kill_agent can find the agent during the
-    # brief window while execute_spawn is running.
+    # 11b. Pre-register with RunningAgentRegistry before spawn
     agent_registry = get_running_agent_registry()
     agent_registry.add(
         RunningAgent(
@@ -451,7 +404,6 @@ async def spawn_agent_impl(
 
     # 12. Update or remove registry entry based on spawn result
     if spawn_result.success and spawn_result.child_session_id is not None:
-        # Re-register with full details from spawn result (pid, terminal_type, etc.)
         agent_registry.add(
             RunningAgent(
                 run_id=run_id,
@@ -466,14 +418,12 @@ async def spawn_agent_impl(
                 worktree_id=isolation_ctx.worktree_id,
             )
         )
-        # Update child_session_id on the DB record now that spawn succeeded
         try:
             runner.run_storage.update_child_session(run_id, spawn_result.child_session_id)
         except Exception as e:
             logger.warning(f"Failed to update child_session_id for {run_id}: {e}")
 
         # Post-spawn health check: verify tmux session is still alive.
-        # Runs in background to avoid blocking the spawn response by 0.5s.
         if spawn_result.terminal_type == "tmux" and spawn_result.tmux_session_name:
 
             async def _deferred_health_check(

@@ -34,14 +34,12 @@ def create_agents_registry(
     workflow_state_manager: Any | None = None,
     session_manager: Any | None = None,
     # spawn_agent dependencies
-    agent_loader: Any | None = None,
     task_manager: Any | None = None,
     worktree_storage: Any | None = None,
     git_manager: Any | None = None,
     clone_storage: Any | None = None,
     clone_manager: Any | None = None,
     # For mode=self (workflow activation on caller session)
-    workflow_loader: Any | None = None,
     db: Any | None = None,
 ) -> InternalToolRegistry:
     """
@@ -53,12 +51,12 @@ def create_agents_registry(
         workflow_state_manager: Optional WorkflowStateManager for stopping workflows
             when agents are killed. If not provided, workflow stop will be skipped.
         session_manager: Optional LocalSessionManager for resolving session references.
-        agent_loader: Agent definition loader for spawn_agent.
         task_manager: Task manager for spawn_agent task resolution.
         worktree_storage: Worktree storage for spawn_agent isolation.
         git_manager: Git manager for spawn_agent isolation.
         clone_storage: Clone storage for spawn_agent isolation.
         clone_manager: Clone git manager for spawn_agent isolation.
+        db: Database instance for agent definition lookups.
 
     Returns:
         InternalToolRegistry with all agent tools registered.
@@ -536,8 +534,6 @@ def create_agents_registry(
             base_branch=base_branch,
             parent_session_id=resolved_parent,
             project_path=project_path,
-            agent_loader=agent_loader,
-            workflow_loader=workflow_loader,
             runner=runner,
             state_manager=workflow_state_manager,
             session_manager=session_manager,
@@ -649,14 +645,12 @@ def create_agents_registry(
 
     spawn_registry = create_spawn_agent_registry(
         runner=runner,
-        agent_loader=agent_loader,
         task_manager=task_manager,
         worktree_storage=worktree_storage,
         git_manager=git_manager,
         clone_storage=clone_storage,
         clone_manager=clone_manager,
         session_manager=session_manager,
-        workflow_loader=workflow_loader,
         # For mode=self (workflow activation on caller session)
         state_manager=workflow_state_manager,
         db=db,
