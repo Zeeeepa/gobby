@@ -101,7 +101,7 @@ def get_rule(
     Returns:
         Dict with success and full rule detail, or error if not found
     """
-    row = def_manager.get_by_name(name, include_templates=True)
+    row = def_manager.get_by_name(name) or def_manager.get_by_name(name, include_templates=True)
     if row is None or row.workflow_type != "rule":
         return {"success": False, "error": f"Rule '{name}' not found"}
 
@@ -124,7 +124,7 @@ def toggle_rule(
     Returns:
         Dict with success and updated rule, or error if not found
     """
-    row = def_manager.get_by_name(name, include_templates=True)
+    row = def_manager.get_by_name(name) or def_manager.get_by_name(name, include_templates=True)
     if row is None or row.workflow_type != "rule":
         return {"success": False, "error": f"Rule '{name}' not found"}
 
@@ -158,8 +158,8 @@ def create_rule(
     except Exception as e:
         return {"success": False, "error": f"Validation failed: {e}"}
 
-    # Check for duplicate name
-    existing = def_manager.get_by_name(name, include_templates=True)
+    # Check for duplicate name (including templates)
+    existing = def_manager.get_by_name(name) or def_manager.get_by_name(name, include_templates=True)
     if existing is not None:
         return {"success": False, "error": f"Rule '{name}' already exists"}
 
@@ -193,7 +193,7 @@ def delete_rule(
     Returns:
         Dict with success, or error if not found/protected
     """
-    row = def_manager.get_by_name(name, include_templates=True)
+    row = def_manager.get_by_name(name) or def_manager.get_by_name(name, include_templates=True)
     if row is None or row.workflow_type != "rule":
         return {"success": False, "error": f"Rule '{name}' not found"}
 
