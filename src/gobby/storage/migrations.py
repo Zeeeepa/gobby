@@ -1343,6 +1343,12 @@ UPDATE workflow_definitions SET source = 'installed' WHERE source = 'custom'""",
         "Migrate AgentDefinitionBody: rules → workflows.rules",
         _migrate_agent_body_schema_v2,
     ),
+    (
+        124,
+        "Consolidate source values: imported→installed, installed+project_id→project",
+        """UPDATE workflow_definitions SET source = 'installed' WHERE source = 'imported';
+UPDATE workflow_definitions SET source = 'project' WHERE source = 'installed' AND project_id IS NOT NULL""",
+    ),
 ]
 
 

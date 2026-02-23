@@ -6,14 +6,15 @@ import { YamlEditorModal } from './WorkflowsPage'
 
 interface RulesTabProps {
   searchText: string
-  sourceFilter: 'installed' | 'templates' | 'deleted'
+  sourceFilter: 'installed' | 'project' | 'templates' | 'deleted'
   devMode: boolean
   showCreateModal: boolean
   onCloseCreateModal: () => void
   refreshKey?: number
+  projectId?: string
 }
 
-export function RulesTab({ searchText, sourceFilter, devMode, showCreateModal, onCloseCreateModal, refreshKey = 0 }: RulesTabProps) {
+export function RulesTab({ searchText, sourceFilter, devMode, showCreateModal, onCloseCreateModal, refreshKey = 0, projectId }: RulesTabProps) {
   const {
     rules,
     isLoading,
@@ -53,6 +54,8 @@ export function RulesTab({ searchText, sourceFilter, devMode, showCreateModal, o
     // Source filter (exclusive)
     if (sourceFilter === 'installed') {
       result = result.filter(r => r.source === 'installed' && !(r as RuleSummary & { deleted_at?: string | null }).deleted_at)
+    } else if (sourceFilter === 'project') {
+      result = result.filter(r => r.source === 'project' && !(r as RuleSummary & { deleted_at?: string | null }).deleted_at)
     } else if (sourceFilter === 'templates') {
       result = result.filter(r => r.source === 'template' && !(r as RuleSummary & { deleted_at?: string | null }).deleted_at)
     } else if (sourceFilter === 'deleted') {
@@ -80,7 +83,7 @@ export function RulesTab({ searchText, sourceFilter, devMode, showCreateModal, o
   }, [toggleRule])
 
   const handleDelete = useCallback(async (rule: RuleSummary) => {
-    const isTemplate = rule.source === 'template' || rule.source === 'built-in'
+    const isTemplate = rule.source === 'template'
     const msg = isTemplate
       ? `"${rule.name}" is a template rule. Force-delete it? It will be re-created on next sync.`
       : `Delete rule "${rule.name}"?`
@@ -188,6 +191,33 @@ export function RulesTab({ searchText, sourceFilter, devMode, showCreateModal, o
     URL.revokeObjectURL(url)
   }, [fetchRuleDetail])
 
+  const handleMoveToProject = useCallback(async (rule: RuleSummary) => {
+    if (!projectId) return
+    if (!window.confirm(`Move "${rule.name}" to the current project? It will no longer apply globally.`)) return
+    try {
+      const res = await fetch(`/api/workflows/${rule.id}/move-to-project`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ project_id: projectId }),
+      })
+      if (res.ok) await fetchRules()
+    } catch (e) {
+      console.error('Failed to move rule to project:', e)
+    }
+  }, [projectId, fetchRules])
+
+  const handleMoveToGlobal = useCallback(async (rule: RuleSummary) => {
+    if (!window.confirm(`Move "${rule.name}" to global scope? It will apply to all projects.`)) return
+    try {
+      const res = await fetch(`/api/workflows/${rule.id}/move-to-global`, {
+        method: 'POST',
+      })
+      if (res.ok) await fetchRules()
+    } catch (e) {
+      console.error('Failed to move rule to global:', e)
+    }
+  }, [fetchRules])
+
   const handleInstallAll = useCallback(async () => {
     try {
       const response = await fetch('/api/workflows/install-all-templates?workflow_type=rule', {
@@ -262,12 +292,15 @@ export function RulesTab({ searchText, sourceFilter, devMode, showCreateModal, o
                 key={rule.id}
                 rule={rule}
                 devMode={devMode}
+                projectId={projectId}
                 onToggle={() => handleToggle(rule)}
                 onDelete={() => handleDelete(rule)}
                 onYamlEdit={() => handleYamlEdit(rule)}
                 onDuplicate={() => handleDuplicate(rule)}
                 onDownload={() => handleDownload(rule)}
                 onInstall={() => installFromTemplate(rule.id)}
+                onMoveToProject={() => handleMoveToProject(rule)}
+                onMoveToGlobal={() => handleMoveToGlobal(rule)}
               />
             ))}
           </div>
@@ -309,15 +342,18 @@ function getEffectType(effect: Record<string, unknown> | null): string | null {
   return null
 }
 
-function RuleCard({ rule, devMode, onToggle, onDelete, onYamlEdit, onDuplicate, onDownload, onInstall }: {
+function RuleCard({ rule, devMode, projectId, onToggle, onDelete, onYamlEdit, onDuplicate, onDownload, onInstall, onMoveToProject, onMoveToGlobal }: {
   rule: RuleSummary
   devMode: boolean
+  projectId?: string
   onToggle: () => void
   onDelete: () => void
   onYamlEdit: () => void
   onDuplicate: () => void
   onDownload: () => void
   onInstall: () => void
+  onMoveToProject: () => void
+  onMoveToGlobal: () => void
 }) {
   const effectType = getEffectType(rule.effect)
   const isTemplate = rule.source === 'template'
@@ -395,6 +431,12 @@ function RuleCard({ rule, devMode, onToggle, onDelete, onYamlEdit, onDuplicate, 
             </div>
 
             <div className="workflows-card-actions">
+              {rule.source === 'installed' && projectId && (
+                <button type="button" className="workflows-action-btn" onClick={e => { e.stopPropagation(); onMoveToProject() }} title="Move to current project">To Project</button>
+              )}
+              {rule.source === 'project' && (
+                <button type="button" className="workflows-action-btn" onClick={e => { e.stopPropagation(); onMoveToGlobal() }} title="Move to global scope">To Global</button>
+              )}
               <button type="button" className="workflows-action-btn" onClick={e => { e.stopPropagation(); onYamlEdit() }} title="Edit as YAML">YAML</button>
               <button type="button" className="workflows-action-icon" onClick={e => { e.stopPropagation(); onDuplicate() }} title="Duplicate" aria-label="Duplicate rule">
                 <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><rect x="5.5" y="5.5" width="9" height="9" rx="1.5" /><path d="M10.5 5.5V2.5a1 1 0 0 0-1-1h-7a1 1 0 0 0-1 1v7a1 1 0 0 0 1 1h3" /></svg>

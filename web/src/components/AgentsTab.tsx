@@ -69,6 +69,9 @@ interface CreateFormData {
 // =============================================================================
 
 const SOURCE_LABELS: Record<string, string> = {
+  'template': 'Template',
+  'installed': 'Installed',
+  'project': 'Project',
   'project-file': 'Project',
   'user-file': 'User',
   'built-in-file': 'Built-in',
@@ -147,14 +150,15 @@ function getBaseUrl(): string {
 
 interface AgentsTabProps {
   searchText: string
-  sourceFilter: 'installed' | 'templates' | 'deleted'
+  sourceFilter: 'installed' | 'project' | 'templates' | 'deleted'
   devMode: boolean
   showCreateForm: boolean
   onToggleCreateForm: (show: boolean) => void
   refreshKey?: number
+  projectId?: string
 }
 
-export function AgentsTab({ searchText, sourceFilter, devMode, showCreateForm, onToggleCreateForm, refreshKey = 0 }: AgentsTabProps) {
+export function AgentsTab({ searchText, sourceFilter, devMode, showCreateForm, onToggleCreateForm, refreshKey = 0, projectId }: AgentsTabProps) {
   const { running, recentRuns, cancelAgent } = useAgentRuns()
   const [definitions, setDefinitions] = useState<AgentDefInfo[]>([])
   const [loading, setLoading] = useState(true)
@@ -239,7 +243,9 @@ export function AgentsTab({ searchText, sourceFilter, devMode, showCreateForm, o
   const filtered = useMemo(() => definitions.filter(d => {
     // Source filter (exclusive)
     if (sourceFilter === 'installed') {
-      if (d.source === 'template' || d.deleted_at) return false
+      if (d.source === 'template' || d.source === 'project' || d.deleted_at) return false
+    } else if (sourceFilter === 'project') {
+      if (d.source !== 'project' || d.deleted_at) return false
     } else if (sourceFilter === 'templates') {
       if (d.source !== 'template' || d.deleted_at) return false
     } else if (sourceFilter === 'deleted') {
@@ -533,6 +539,34 @@ export function AgentsTab({ searchText, sourceFilter, devMode, showCreateForm, o
       showToast('Failed to install all templates', 'error')
     }
   }
+
+  const handleMoveToProject = useCallback(async (item: AgentDefInfo) => {
+    if (!projectId || !item.db_id) return
+    if (!window.confirm(`Move "${item.definition.name}" to the current project? It will no longer apply globally.`)) return
+    try {
+      const res = await fetch(`${getBaseUrl()}/api/workflows/${item.db_id}/move-to-project`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ project_id: projectId }),
+      })
+      if (res.ok) fetchDefinitions(true)
+    } catch (e) {
+      console.error('Failed to move agent to project:', e)
+    }
+  }, [projectId, fetchDefinitions])
+
+  const handleMoveToGlobal = useCallback(async (item: AgentDefInfo) => {
+    if (!item.db_id) return
+    if (!window.confirm(`Move "${item.definition.name}" to global scope? It will apply to all projects.`)) return
+    try {
+      const res = await fetch(`${getBaseUrl()}/api/workflows/${item.db_id}/move-to-global`, {
+        method: 'POST',
+      })
+      if (res.ok) fetchDefinitions(true)
+    } catch (e) {
+      console.error('Failed to move agent to global:', e)
+    }
+  }, [fetchDefinitions])
 
   const handleImport = async (name: string) => {
     setImportingName(name)
@@ -930,6 +964,12 @@ export function AgentsTab({ searchText, sourceFilter, devMode, showCreateForm, o
                       <>
                         <div />
                         <div className="workflows-card-actions">
+                          {item.source === 'installed' && projectId && item.db_id && (
+                            <button type="button" className="workflows-action-btn" onClick={() => handleMoveToProject(item)} title="Move to current project">To Project</button>
+                          )}
+                          {item.source === 'project' && item.db_id && (
+                            <button type="button" className="workflows-action-btn" onClick={() => handleMoveToGlobal(item)} title="Move to global scope">To Global</button>
+                          )}
                           <button type="button" className="workflows-action-btn" onClick={() => handleYamlEdit(item)} title="Edit as YAML">YAML</button>
                           {isDb && item.db_id && (
                             <button type="button" className="workflows-action-btn" onClick={() => handleEdit(item)} title="Edit agent definition">Edit</button>

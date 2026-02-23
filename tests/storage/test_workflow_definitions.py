@@ -453,7 +453,7 @@ def test_import_from_yaml(manager: LocalWorkflowDefinitionManager) -> None:
     assert row.enabled is True
     assert row.priority == 50
     assert row.sources == ["claude", "gemini"]
-    assert row.source == "imported"
+    assert row.source == "installed"
 
     # Verify definition_json round-trips
     data = json.loads(row.definition_json)
@@ -467,7 +467,7 @@ def test_import_from_yaml_pipeline(manager: LocalWorkflowDefinitionManager) -> N
 
     assert row.name == "yaml-pipeline"
     assert row.workflow_type == "pipeline"
-    assert row.source == "imported"
+    assert row.source == "installed"
 
 
 def test_import_from_yaml_invalid(manager: LocalWorkflowDefinitionManager) -> None:
@@ -588,6 +588,69 @@ def test_install_from_template_rejects_duplicate(manager: LocalWorkflowDefinitio
 
     with pytest.raises(ValueError, match="already exists"):
         manager.install_from_template(bundled.id)
+
+
+# =============================================================================
+# Move to Project / Move to Global
+# =============================================================================
+
+
+def test_move_to_project(
+    db: LocalDatabase, manager: LocalWorkflowDefinitionManager
+) -> None:
+    """Test moving an installed definition to project scope."""
+    db.execute(
+        "INSERT INTO projects (id, name, created_at, updated_at) "
+        "VALUES (?, ?, datetime('now'), datetime('now'))",
+        ("proj-1", "Test Project"),
+    )
+
+    row = manager.create(name="move-test", definition_json=SAMPLE_DEFINITION)
+    assert row.source == "installed"
+    assert row.project_id is None
+
+    moved = manager.move_to_project(row.id, "proj-1")
+    assert moved.source == "project"
+    assert moved.project_id == "proj-1"
+
+
+def test_move_to_global(
+    db: LocalDatabase, manager: LocalWorkflowDefinitionManager
+) -> None:
+    """Test moving a project-scoped definition to global scope."""
+    db.execute(
+        "INSERT INTO projects (id, name, created_at, updated_at) "
+        "VALUES (?, ?, datetime('now'), datetime('now'))",
+        ("proj-1", "Test Project"),
+    )
+
+    row = manager.create(
+        name="move-global-test",
+        definition_json=SAMPLE_DEFINITION,
+        source="project",
+        project_id="proj-1",
+    )
+    assert row.source == "project"
+    assert row.project_id == "proj-1"
+
+    moved = manager.move_to_global(row.id)
+    assert moved.source == "installed"
+    assert moved.project_id is None
+
+
+def test_move_template_raises(manager: LocalWorkflowDefinitionManager) -> None:
+    """Test that moving a template definition raises ValueError."""
+    row = manager.create(
+        name="template-move-test",
+        definition_json=SAMPLE_DEFINITION,
+        source="template",
+    )
+
+    with pytest.raises(ValueError, match="Cannot move a template"):
+        manager.move_to_project(row.id, "proj-1")
+
+    with pytest.raises(ValueError, match="Cannot move a template"):
+        manager.move_to_global(row.id)
 
 
 def test_install_all_templates(manager: LocalWorkflowDefinitionManager) -> None:

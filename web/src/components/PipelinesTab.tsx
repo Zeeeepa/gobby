@@ -16,14 +16,15 @@ steps:
 
 interface PipelinesTabProps {
   searchText: string
-  sourceFilter: 'installed' | 'templates' | 'deleted'
+  sourceFilter: 'installed' | 'project' | 'templates' | 'deleted'
   devMode: boolean
   showCreateDropdown: boolean
   onCloseCreateDropdown: () => void
   refreshKey?: number
+  projectId?: string
 }
 
-export function PipelinesTab({ searchText, sourceFilter, devMode, showCreateDropdown, onCloseCreateDropdown, refreshKey = 0 }: PipelinesTabProps) {
+export function PipelinesTab({ searchText, sourceFilter, devMode, showCreateDropdown, onCloseCreateDropdown, refreshKey = 0, projectId }: PipelinesTabProps) {
   const {
     workflows,
     isLoading,
@@ -68,6 +69,8 @@ export function PipelinesTab({ searchText, sourceFilter, devMode, showCreateDrop
 
     if (sourceFilter === 'installed') {
       result = result.filter(w => w.source === 'installed' && !w.deleted_at)
+    } else if (sourceFilter === 'project') {
+      result = result.filter(w => w.source === 'project' && !w.deleted_at)
     } else if (sourceFilter === 'templates') {
       result = result.filter(w => w.source === 'template' && !w.deleted_at)
     } else if (sourceFilter === 'deleted') {
@@ -125,6 +128,33 @@ export function PipelinesTab({ searchText, sourceFilter, devMode, showCreateDrop
       URL.revokeObjectURL(url)
     }
   }, [exportYaml])
+
+  const handleMoveToProject = useCallback(async (wf: WorkflowDetail) => {
+    if (!projectId) return
+    if (!window.confirm(`Move "${wf.name}" to the current project? It will no longer apply globally.`)) return
+    try {
+      const res = await fetch(`/api/workflows/${wf.id}/move-to-project`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ project_id: projectId }),
+      })
+      if (res.ok) fetchWorkflows({ include_deleted: true })
+    } catch (e) {
+      console.error('Failed to move workflow to project:', e)
+    }
+  }, [projectId, fetchWorkflows])
+
+  const handleMoveToGlobal = useCallback(async (wf: WorkflowDetail) => {
+    if (!window.confirm(`Move "${wf.name}" to global scope? It will apply to all projects.`)) return
+    try {
+      const res = await fetch(`/api/workflows/${wf.id}/move-to-global`, {
+        method: 'POST',
+      })
+      if (res.ok) fetchWorkflows({ include_deleted: true })
+    } catch (e) {
+      console.error('Failed to move workflow to global:', e)
+    }
+  }, [fetchWorkflows])
 
   const handleYamlEdit = useCallback(async (wf: WorkflowDetail) => {
     setYamlLoading(true)
@@ -348,6 +378,12 @@ export function PipelinesTab({ searchText, sourceFilter, devMode, showCreateDrop
                         </div>
 
                         <div className="workflows-card-actions">
+                          {wf.source === 'installed' && projectId && (
+                            <button type="button" className="workflows-action-btn" onClick={() => handleMoveToProject(wf)} title="Move to current project">To Project</button>
+                          )}
+                          {wf.source === 'project' && (
+                            <button type="button" className="workflows-action-btn" onClick={() => handleMoveToGlobal(wf)} title="Move to global scope">To Global</button>
+                          )}
                           <button type="button" className="workflows-action-btn" onClick={() => handleYamlEdit(wf)} title="Edit as YAML">YAML</button>
                           {wf.workflow_type === 'pipeline' && (
                             <button type="button" className="workflows-action-btn" onClick={() => setEditingWorkflow(wf)} title="Edit pipeline steps">Edit</button>

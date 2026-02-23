@@ -357,7 +357,7 @@ class LocalWorkflowDefinitionManager:
             enabled=enabled,
             priority=priority,
             sources=sources_list,
-            source="imported",
+            source="installed",
         )
 
     def export_to_yaml(self, definition_id: str) -> str:
@@ -388,6 +388,20 @@ class LocalWorkflowDefinitionManager:
             source="installed",
             tags=original.tags,
         )
+
+    def move_to_project(self, definition_id: str, project_id: str) -> WorkflowDefinitionRow:
+        """Move a definition to project scope."""
+        row = self.get(definition_id)
+        if row.source == "template":
+            raise ValueError("Cannot move a template definition")
+        return self.update(definition_id, source="project", project_id=project_id)
+
+    def move_to_global(self, definition_id: str) -> WorkflowDefinitionRow:
+        """Move a definition to global (installed) scope."""
+        row = self.get(definition_id)
+        if row.source == "template":
+            raise ValueError("Cannot move a template definition")
+        return self.update(definition_id, source="installed", project_id=None)
 
     def install_from_template(self, definition_id: str) -> WorkflowDefinitionRow:
         """Create an installed copy from a template definition.

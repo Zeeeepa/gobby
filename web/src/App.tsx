@@ -554,7 +554,7 @@ export default function App() {
       ) : activeTab === 'skills' ? (
         <SkillsPage />
       ) : activeTab === 'workflows' ? (
-        <WorkflowsPage />
+        <WorkflowsPage projectId={effectiveProjectId} />
       ) : activeTab === 'mcp' ? (
         <McpPage />
       ) : activeTab === 'source-control' ? (

@@ -67,7 +67,7 @@ def list_workflows(
                         "name": name,
                         "enabled": wf_enabled,
                         "description": description,
-                        "source": "project" if is_project else "global",
+                        "source": "project" if is_project else "installed",
                         "path": str(yaml_path),
                     }
                 )

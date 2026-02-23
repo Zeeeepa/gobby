@@ -59,6 +59,12 @@ class ImportYAMLRequest(BaseModel):
     project_id: str | None = None
 
 
+class MoveToProjectRequest(BaseModel):
+    """Request body for moving a workflow to project scope."""
+
+    project_id: str
+
+
 class DuplicateRequest(BaseModel):
     """Request body for duplicating a workflow."""
 
@@ -283,6 +289,40 @@ def create_workflows_router(server: "HTTPServer") -> APIRouter:
             }
         except Exception as e:
             logger.error(f"Error installing all templates: {e}", exc_info=True)
+            raise HTTPException(status_code=500, detail=str(e)) from e
+
+    @router.post("/{definition_id}/move-to-project")
+    async def move_to_project(
+        definition_id: str, request: MoveToProjectRequest
+    ) -> dict[str, Any]:
+        """Move a definition to project scope."""
+        metrics.inc_counter("http_requests_total")
+        try:
+            manager = _get_manager()
+            row = manager.move_to_project(definition_id, request.project_id)
+            return {"status": "success", "definition": row.to_dict()}
+        except ValueError as e:
+            msg = str(e)
+            status = 400 if "template" in msg else 404
+            raise HTTPException(status_code=status, detail=msg) from e
+        except Exception as e:
+            logger.error(f"Error moving definition to project: {e}", exc_info=True)
+            raise HTTPException(status_code=500, detail=str(e)) from e
+
+    @router.post("/{definition_id}/move-to-global")
+    async def move_to_global(definition_id: str) -> dict[str, Any]:
+        """Move a definition to global (installed) scope."""
+        metrics.inc_counter("http_requests_total")
+        try:
+            manager = _get_manager()
+            row = manager.move_to_global(definition_id)
+            return {"status": "success", "definition": row.to_dict()}
+        except ValueError as e:
+            msg = str(e)
+            status = 400 if "template" in msg else 404
+            raise HTTPException(status_code=status, detail=msg) from e
+        except Exception as e:
+            logger.error(f"Error moving definition to global: {e}", exc_info=True)
             raise HTTPException(status_code=500, detail=str(e)) from e
 
     @router.post("/{definition_id}/restore")

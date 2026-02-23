@@ -256,7 +256,7 @@ steps:
     assert resp.status_code == 200
     data = resp.json()
     assert data["definition"]["name"] == "imported-wf"
-    assert data["definition"]["source"] == "imported"
+    assert data["definition"]["source"] == "installed"
 
 
 def test_import_yaml_invalid(client: TestClient) -> None:
@@ -345,4 +345,98 @@ def test_toggle_enabled(client: TestClient, manager: LocalWorkflowDefinitionMana
 def test_toggle_not_found(client: TestClient) -> None:
     """Test toggling a nonexistent workflow returns 404."""
     resp = client.put("/api/workflows/nonexistent-id/toggle")
+    assert resp.status_code == 404
+
+
+# ============================================================================
+# POST /api/workflows/{id}/move-to-project
+# ============================================================================
+
+
+def test_move_to_project(
+    client: TestClient, temp_db: LocalDatabase, manager: LocalWorkflowDefinitionManager
+) -> None:
+    """Test moving a definition to project scope."""
+    temp_db.execute(
+        "INSERT INTO projects (id, name, created_at, updated_at) "
+        "VALUES (?, ?, datetime('now'), datetime('now'))",
+        ("proj-1", "Test Project"),
+    )
+    row = manager.create(name="move-proj-test", definition_json=SAMPLE_DEFINITION)
+
+    resp = client.post(
+        f"/api/workflows/{row.id}/move-to-project",
+        json={"project_id": "proj-1"},
+    )
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["definition"]["source"] == "project"
+    assert data["definition"]["project_id"] == "proj-1"
+
+
+def test_move_to_project_template_rejected(
+    client: TestClient, manager: LocalWorkflowDefinitionManager
+) -> None:
+    """Test that moving a template to project returns 400."""
+    row = manager.create(
+        name="tmpl-move-test", definition_json=SAMPLE_DEFINITION, source="template"
+    )
+    resp = client.post(
+        f"/api/workflows/{row.id}/move-to-project",
+        json={"project_id": "proj-1"},
+    )
+    assert resp.status_code == 400
+
+
+def test_move_to_project_not_found(client: TestClient) -> None:
+    """Test moving a nonexistent definition returns 404."""
+    resp = client.post(
+        "/api/workflows/nonexistent-id/move-to-project",
+        json={"project_id": "proj-1"},
+    )
+    assert resp.status_code == 404
+
+
+# ============================================================================
+# POST /api/workflows/{id}/move-to-global
+# ============================================================================
+
+
+def test_move_to_global(
+    client: TestClient, temp_db: LocalDatabase, manager: LocalWorkflowDefinitionManager
+) -> None:
+    """Test moving a definition to global scope."""
+    temp_db.execute(
+        "INSERT INTO projects (id, name, created_at, updated_at) "
+        "VALUES (?, ?, datetime('now'), datetime('now'))",
+        ("proj-1", "Test Project"),
+    )
+    row = manager.create(
+        name="move-global-test",
+        definition_json=SAMPLE_DEFINITION,
+        source="project",
+        project_id="proj-1",
+    )
+
+    resp = client.post(f"/api/workflows/{row.id}/move-to-global")
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["definition"]["source"] == "installed"
+    assert data["definition"]["project_id"] is None
+
+
+def test_move_to_global_template_rejected(
+    client: TestClient, manager: LocalWorkflowDefinitionManager
+) -> None:
+    """Test that moving a template to global returns 400."""
+    row = manager.create(
+        name="tmpl-global-test", definition_json=SAMPLE_DEFINITION, source="template"
+    )
+    resp = client.post(f"/api/workflows/{row.id}/move-to-global")
+    assert resp.status_code == 400
+
+
+def test_move_to_global_not_found(client: TestClient) -> None:
+    """Test moving a nonexistent definition returns 404."""
+    resp = client.post("/api/workflows/nonexistent-id/move-to-global")
     assert resp.status_code == 404

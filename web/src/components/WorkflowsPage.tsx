@@ -14,10 +14,10 @@ const TABS = [
   { id: 'rules', label: 'Rules' },
 ]
 
-export function WorkflowsPage() {
+export function WorkflowsPage({ projectId }: { projectId?: string }) {
   const [activeTab, setActiveTab] = useState<ActiveTab>('pipelines')
   const [searchText, setSearchText] = useState('')
-  const [sourceFilter, setSourceFilter] = useState<'installed' | 'templates' | 'deleted'>('installed')
+  const [sourceFilter, setSourceFilter] = useState<'installed' | 'project' | 'templates' | 'deleted'>('installed')
   const [devMode, setDevMode] = useState(false)
   const [showRuleCreateModal, setShowRuleCreateModal] = useState(false)
   const [showAgentCreateForm, setShowAgentCreateForm] = useState(false)
@@ -59,9 +59,10 @@ export function WorkflowsPage() {
           <select
             className="workflows-source-select"
             value={sourceFilter}
-            onChange={e => setSourceFilter(e.target.value as 'installed' | 'templates' | 'deleted')}
+            onChange={e => setSourceFilter(e.target.value as 'installed' | 'project' | 'templates' | 'deleted')}
           >
             <option value="installed">Installed</option>
+            <option value="project">Installed (Project)</option>
             <option value="templates">Templates</option>
             <option value="deleted">Deleted</option>
           </select>
@@ -121,6 +122,7 @@ export function WorkflowsPage() {
           showCreateDropdown={showPipelineCreateDropdown}
           onCloseCreateDropdown={() => setShowPipelineCreateDropdown(false)}
           refreshKey={refreshKey}
+          projectId={projectId}
         />
       )}
 
@@ -132,6 +134,7 @@ export function WorkflowsPage() {
           showCreateForm={showAgentCreateForm}
           onToggleCreateForm={setShowAgentCreateForm}
           refreshKey={refreshKey}
+          projectId={projectId}
         />
       )}
 
@@ -143,6 +146,7 @@ export function WorkflowsPage() {
           showCreateModal={showRuleCreateModal}
           onCloseCreateModal={() => setShowRuleCreateModal(false)}
           refreshKey={refreshKey}
+          projectId={projectId}
         />
       )}
     </main>

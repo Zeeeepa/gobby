@@ -191,7 +191,7 @@ def list_workflows(
                         "name": name,
                         "type": wf_type,
                         "description": data.get("description", ""),
-                        "source": "project" if is_project else "global",
+                        "source": "project" if is_project else "installed",
                     }
                 )
                 seen_names.add(name)
