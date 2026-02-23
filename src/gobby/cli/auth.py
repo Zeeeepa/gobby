@@ -2,7 +2,7 @@
 
 import click
 
-from gobby.config.bootstrap import get_gobby_home
+from gobby.cli.utils import get_gobby_home
 from gobby.storage.config_store import ConfigStore
 from gobby.storage.database import LocalDatabase
 from gobby.storage.secrets import SecretStore
