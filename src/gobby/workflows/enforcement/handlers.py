@@ -207,5 +207,3 @@ async def handle_require_task_complete(
         workflow_state=context.state,
         messages=kwargs.get("messages"),
     )
-
-

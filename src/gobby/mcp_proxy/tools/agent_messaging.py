@@ -170,7 +170,8 @@ def add_messaging_tools(
 
             # Reject if active command exists
             active = [
-                c for c in command_manager.list_commands(to_session=to_id)
+                c
+                for c in command_manager.list_commands(to_session=to_id)
                 if c.status in ("pending", "running")
             ]
             if active:
@@ -351,7 +352,11 @@ def add_messaging_tools(
 
             session_var_manager.merge_variables(resolved_id, variables)
 
-            return {"success": True, "command": cmd.to_dict(), "variables_set": list(variables.keys())}
+            return {
+                "success": True,
+                "command": cmd.to_dict(),
+                "variables_set": list(variables.keys()),
+            }
 
         except Exception as e:
             logger.error("activate_command failed: %s", e)

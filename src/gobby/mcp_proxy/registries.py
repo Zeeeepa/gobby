@@ -232,7 +232,11 @@ def setup_internal_registries(
         )
 
         # Add inter-agent messaging tools if dependencies are available
-        if inter_session_message_manager is not None and local_session_manager is not None and db is not None:
+        if (
+            inter_session_message_manager is not None
+            and local_session_manager is not None
+            and db is not None
+        ):
             from gobby.mcp_proxy.tools.agent_messaging import add_messaging_tools
             from gobby.storage.agent_commands import AgentCommandManager
             from gobby.workflows.state_manager import SessionVariableManager

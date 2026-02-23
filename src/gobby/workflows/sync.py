@@ -497,8 +497,7 @@ def _sync_single_rule(
             # non-template over template. Look up the template row directly and
             # update it if the definition has changed on disk.
             template_row = manager.db.fetchone(
-                "SELECT * FROM workflow_definitions "
-                "WHERE name = ? AND source = 'template'",
+                "SELECT * FROM workflow_definitions WHERE name = ? AND source = 'template'",
                 (rule_name,),
             )
             if template_row:

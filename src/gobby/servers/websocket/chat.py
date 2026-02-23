@@ -35,7 +35,9 @@ async def _resolve_git_branch(project_path: str | None) -> tuple[str | None, str
         return None, None
     try:
         proc = await asyncio.create_subprocess_exec(
-            "git", "branch", "--show-current",
+            "git",
+            "branch",
+            "--show-current",
             cwd=project_path,
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,
@@ -45,7 +47,10 @@ async def _resolve_git_branch(project_path: str | None) -> tuple[str | None, str
         # For detached HEAD, show short SHA instead of nothing
         if not branch:
             proc2 = await asyncio.create_subprocess_exec(
-                "git", "rev-parse", "--short", "HEAD",
+                "git",
+                "rev-parse",
+                "--short",
+                "HEAD",
                 cwd=project_path,
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE,
@@ -715,8 +720,8 @@ class ChatMixin:
                             conversation_id, session
                         )
                         if conversation_id in self._active_chat_tasks:
-                            self._active_chat_tasks[sdk_sid] = (
-                                self._active_chat_tasks.pop(conversation_id)
+                            self._active_chat_tasks[sdk_sid] = self._active_chat_tasks.pop(
+                                conversation_id
                             )
                         logger.info(
                             "Re-keyed web chat session %s → %s",

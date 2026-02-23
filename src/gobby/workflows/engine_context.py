@@ -91,5 +91,3 @@ def _build_eval_context(
         # instead of requiring "variables.task_claimed"
         **state.variables,
     }
-
-

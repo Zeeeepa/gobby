@@ -131,8 +131,16 @@ class InterSessionMessageManager:
              message_type, metadata_json)
             VALUES (?, ?, ?, ?, ?, ?, NULL, ?, ?)
             """,
-            (message_id, from_session, to_session, content, priority, sent_at,
-             message_type, metadata_json),
+            (
+                message_id,
+                from_session,
+                to_session,
+                content,
+                priority,
+                sent_at,
+                message_type,
+                metadata_json,
+            ),
         )
 
         return InterSessionMessage(

@@ -106,9 +106,7 @@ class WorkflowHookHandler:
             # Persist variables changed by rule effects to session_variables
             if self._session_var_manager:
                 changed = {
-                    k: v
-                    for k, v in variables.items()
-                    if k not in pre_eval or pre_eval[k] != v
+                    k: v for k, v in variables.items() if k not in pre_eval or pre_eval[k] != v
                 }
                 if changed:
                     self._session_var_manager.merge_variables(session_id, changed)

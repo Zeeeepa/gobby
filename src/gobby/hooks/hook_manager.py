@@ -402,10 +402,7 @@ class HookManager:
         # --- Hook-based transcript capture (Windsurf, Copilot) ---
         # These CLIs don't write local transcript files, so we
         # assemble transcripts from hook events as they flow through.
-        if (
-            event.source in (SessionSource.WINDSURF, SessionSource.COPILOT)
-            and platform_session_id
-        ):
+        if event.source in (SessionSource.WINDSURF, SessionSource.COPILOT) and platform_session_id:
             try:
                 hook_messages = self._hook_assembler.process_event(platform_session_id, event)
                 if hook_messages:
@@ -604,9 +601,7 @@ class HookManager:
                 except Exception as e:
                     self.logger.warning(f"Sync hook message storage failed: {e}")
 
-    def _dispatch_mcp_calls(
-        self, mcp_calls: list[dict[str, Any]], event: HookEvent
-    ) -> None:
+    def _dispatch_mcp_calls(self, mcp_calls: list[dict[str, Any]], event: HookEvent) -> None:
         """Dispatch mcp_call effects from rule engine evaluation.
 
         Injects event context (session_id, prompt_text) into each call's
@@ -671,9 +666,7 @@ class HookManager:
                                 e,
                             )
                     else:
-                        self.logger.debug(
-                            "_dispatch_mcp_calls: no event loop for background call"
-                        )
+                        self.logger.debug("_dispatch_mcp_calls: no event loop for background call")
             else:
                 # Blocking dispatch with timeout
                 try:
@@ -692,9 +685,7 @@ class HookManager:
                                 e,
                             )
                     else:
-                        self.logger.debug(
-                            "_dispatch_mcp_calls: no event loop for blocking call"
-                        )
+                        self.logger.debug("_dispatch_mcp_calls: no event loop for blocking call")
 
     def shutdown(self) -> None:
         """

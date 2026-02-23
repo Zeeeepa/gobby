@@ -146,12 +146,14 @@ class RuleEngine:
                         msg = engine.render(msg, ctx)
                     except Exception as e:
                         logger.warning(f"Failed to render observe message template: {e}")
-                obs_list.append({
-                    "category": effect.category or "general",
-                    "message": msg,
-                    "timestamp": datetime.now(UTC).isoformat(),
-                    "rule": _row.name,
-                })
+                obs_list.append(
+                    {
+                        "category": effect.category or "general",
+                        "message": msg,
+                        "timestamp": datetime.now(UTC).isoformat(),
+                        "rule": _row.name,
+                    }
+                )
                 variables["_observations"] = obs_list
 
             elif effect.type == "mcp_call":

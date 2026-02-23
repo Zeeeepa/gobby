@@ -109,7 +109,11 @@ def inject_context(
                 render_context: dict[str, Any] = {
                     "session": session_manager.get(session_id),
                     "state": state,
-                    "observations": session_variable_manager.get_variables(session_id).get("_observations", []) if session_variable_manager else [],
+                    "observations": session_variable_manager.get_variables(session_id).get(
+                        "_observations", []
+                    )
+                    if session_variable_manager
+                    else [],
                     "combined_content": content,
                     "source_contents": source_contents,
                 }
@@ -145,7 +149,11 @@ def inject_context(
         render_context = {
             "session": session_manager.get(session_id),
             "state": state,
-            "observations": session_variable_manager.get_variables(session_id).get("_observations", []) if session_variable_manager else [],
+            "observations": session_variable_manager.get_variables(session_id).get(
+                "_observations", []
+            )
+            if session_variable_manager
+            else [],
         }
         rendered = template_engine.render(template, render_context)
         logger.debug(f"inject_context: rendered template, len={len(rendered) if rendered else 0}")
@@ -184,7 +192,11 @@ def inject_context(
                                 logger.warning(f"Failed to read failback file {summary_file}: {e}")
 
     elif source == "observations":
-        obs = session_variable_manager.get_variables(session_id).get("_observations", []) if session_variable_manager else []
+        obs = (
+            session_variable_manager.get_variables(session_id).get("_observations", [])
+            if session_variable_manager
+            else []
+        )
         if obs:
             content = "## Observations\n" + json.dumps(obs, indent=2)
 
@@ -282,7 +294,11 @@ def inject_context(
             render_context = {
                 "session": session_manager.get(session_id),
                 "state": state,
-                "observations": session_variable_manager.get_variables(session_id).get("_observations", []) if session_variable_manager else [],
+                "observations": session_variable_manager.get_variables(session_id).get(
+                    "_observations", []
+                )
+                if session_variable_manager
+                else [],
             }
 
             if source in ["previous_session_summary", "handoff"]:

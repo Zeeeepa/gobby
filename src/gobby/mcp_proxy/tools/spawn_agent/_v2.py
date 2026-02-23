@@ -127,7 +127,10 @@ async def spawn_agent_simplified(
     """
     body = load_agent_definition_body(agent_name, db, project_id)
     if body is None:
-        return {"success": False, "error": f"Agent '{agent_name}' not found in workflow_definitions"}
+        return {
+            "success": False,
+            "error": f"Agent '{agent_name}' not found in workflow_definitions",
+        }
 
     params = build_spawn_params(body, prompt, task_id)
 

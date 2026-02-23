@@ -159,7 +159,9 @@ def create_rule(
         return {"success": False, "error": f"Validation failed: {e}"}
 
     # Check for duplicate name (including templates)
-    existing = def_manager.get_by_name(name) or def_manager.get_by_name(name, include_templates=True)
+    existing = def_manager.get_by_name(name) or def_manager.get_by_name(
+        name, include_templates=True
+    )
     if existing is not None:
         return {"success": False, "error": f"Rule '{name}' already exists"}
 

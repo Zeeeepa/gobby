@@ -1140,14 +1140,24 @@ def _migrate_drop_observation_columns(db: LocalDatabase) -> None:
                 files_modified_this_task, created_at, updated_at
             ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
             (
-                row["session_id"], row["workflow_name"], row["step"],
-                row["step_entered_at"], row["step_action_count"],
-                row["total_action_count"], row["context_injected"],
-                row["variables"], row["task_list"], row["current_task_index"],
-                row["files_modified_this_task"], row["created_at"], row["updated_at"],
+                row["session_id"],
+                row["workflow_name"],
+                row["step"],
+                row["step_entered_at"],
+                row["step_action_count"],
+                row["total_action_count"],
+                row["context_injected"],
+                row["variables"],
+                row["task_list"],
+                row["current_task_index"],
+                row["files_modified_this_task"],
+                row["created_at"],
+                row["updated_at"],
             ),
         )
-    logger.info(f"Migrated {len(rows)} workflow_states rows, dropped observations/reflection_pending")
+    logger.info(
+        f"Migrated {len(rows)} workflow_states rows, dropped observations/reflection_pending"
+    )
 
 
 MIGRATIONS: list[tuple[int, str, MigrationAction]] = [
