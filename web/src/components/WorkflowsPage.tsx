@@ -39,8 +39,8 @@ export function WorkflowsPage() {
     importYaml,
     exportYaml,
     restoreWorkflow,
-    useAsTemplate,
-    useAllBundledAsTemplates,
+    installFromTemplate,
+    installAllTemplates,
   } = useWorkflows()
 
   const [activeTab, setActiveTab] = useState<ActiveTab>('pipelines')
@@ -352,9 +352,9 @@ export function WorkflowsPage() {
               <button
                 type="button"
                 className="workflows-toolbar-btn"
-                onClick={() => useAllBundledAsTemplates('pipeline')}
+                onClick={() => installAllTemplates('pipeline')}
               >
-                Use All as Templates
+                Install All
               </button>
             )}
           </div>
@@ -438,7 +438,7 @@ export function WorkflowsPage() {
                                 </>
                               ) : (
                                 <>
-                                  <button type="button" className="workflows-action-btn" onClick={() => useAsTemplate(wf.id)} title="Create a custom copy">Use as Template</button>
+                                  <button type="button" className="workflows-action-btn" onClick={() => installFromTemplate(wf.id)} title="Create an installed copy">Install</button>
                                   <button type="button" className="workflows-action-icon" onClick={() => handleExport(wf)} title="Download YAML" aria-label="Download workflow as YAML">
                                     <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M8 2v9m0 0L5 8m3 3 3-3M2.5 12.5v1a1 1 0 0 0 1 1h9a1 1 0 0 0 1-1v-1" /></svg>
                                   </button>

@@ -399,8 +399,8 @@ def create_agents_router(server: "HTTPServer") -> APIRouter:
             logger.error(f"Error cancelling agent run '{run_id}': {e}", exc_info=True)
             raise HTTPException(status_code=500, detail=str(e)) from e
 
-    @router.post("/definitions/{name}/use-as-template")
-    async def use_definition_as_template(
+    @router.post("/definitions/{name}/install")
+    async def install_definition_from_template(
         name: str,
     ) -> dict[str, Any]:
         """Create an installed copy from a template agent definition."""
@@ -418,14 +418,14 @@ def create_agents_router(server: "HTTPServer") -> APIRouter:
                     status_code=404,
                     detail=f"Template agent definition '{name}' not found",
                 )
-            row = manager.use_as_template(template.id)
+            row = manager.install_from_template(template.id)
             return {"status": "success", "definition": row.to_dict()}
         except HTTPException:
             raise
         except ValueError as e:
             raise HTTPException(status_code=400, detail=str(e)) from e
         except Exception as e:
-            logger.error(f"Error using agent definition as template: {e}", exc_info=True)
+            logger.error(f"Error installing agent definition from template: {e}", exc_info=True)
             raise HTTPException(status_code=500, detail=str(e)) from e
 
     @router.post("/definitions/import/{name}")

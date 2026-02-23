@@ -26,7 +26,7 @@ rules:
   require-task:
     description: "Block file edits without a claimed task."
     event: before_tool
-    when: "not task_claimed and not plan_mode"
+    when: "not variables.get('task_claimed') and not variables.get('plan_mode')"
     effect:
       type: block
       tools: [Edit, Write, NotebookEdit]

@@ -353,7 +353,7 @@ class TestRuleEngineIntegration:
         _sync_bundled(db)
         # Enable the progressive disclosure rules and set source to 'installed'
         # (bundled rules are excluded from engine evaluation; in production
-        # users create custom copies via "Use as Template")
+        # users create installed copies via "Install")
         for name in PROGRESSIVE_DISCLOSURE_RULES:
             db.execute(
                 "UPDATE workflow_definitions SET enabled = 1, source = 'installed' WHERE name = ?",

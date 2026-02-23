@@ -23,7 +23,7 @@ rules:
     description: "Block file edits without active task"
     event: before_tool
     priority: 31
-    when: "variables.get('require_task_before_edit') and not task_claimed and not (plan_mode and is_plan_file(tool_input.get('file_path', ''), source))"
+    when: "variables.get('require_task_before_edit') and not variables.get('task_claimed') and not (variables.get('plan_mode') and is_plan_file(tool_input.get('file_path', ''), source))"
     effect:
       type: block
       tools: [Edit, Write, NotebookEdit]
@@ -59,7 +59,7 @@ rules:
     description: "Block AskUserQuestion when stop hook gave directive"
     event: before_tool
     priority: 34
-    when: "variables.get('stop_attempts', 0) > 0 and task_claimed"
+    when: "variables.get('stop_attempts', 0) > 0 and variables.get('task_claimed')"
     effect:
       type: block
       tools: [AskUserQuestion]

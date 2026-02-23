@@ -90,7 +90,7 @@ export function RulesTab({ searchText, sourceFilter, devMode, showCreateModal, o
     createRule,
     updateRule,
     deleteRule,
-    useAsTemplate,
+    installFromTemplate,
     setEnforcement,
     fetchRules,
   } = useRules()
@@ -270,9 +270,9 @@ export function RulesTab({ searchText, sourceFilter, devMode, showCreateModal, o
     URL.revokeObjectURL(url)
   }, [fetchRuleDetail])
 
-  const handleUseAllAsTemplates = useCallback(async () => {
+  const handleInstallAll = useCallback(async () => {
     try {
-      const response = await fetch('/api/workflows/use-all-bundled-as-templates?workflow_type=rule', {
+      const response = await fetch('/api/workflows/install-all-templates?workflow_type=rule', {
         method: 'POST',
       })
       if (response.ok) {
@@ -282,7 +282,7 @@ export function RulesTab({ searchText, sourceFilter, devMode, showCreateModal, o
         window.location.reload()
       }
     } catch (e) {
-      console.error('Failed to use all bundled rules as templates:', e)
+      console.error('Failed to install all template rules:', e)
     }
   }, [])
 
@@ -327,9 +327,9 @@ export function RulesTab({ searchText, sourceFilter, devMode, showCreateModal, o
           <button
             type="button"
             className="workflows-toolbar-btn"
-            onClick={handleUseAllAsTemplates}
+            onClick={handleInstallAll}
           >
-            Use All as Templates
+            Install All
           </button>
         )}
       </div>
@@ -356,7 +356,7 @@ export function RulesTab({ searchText, sourceFilter, devMode, showCreateModal, o
                 onYamlEdit={() => handleYamlEdit(rule)}
                 onDuplicate={() => handleDuplicate(rule)}
                 onDownload={() => handleDownload(rule)}
-                onUseAsTemplate={() => useAsTemplate(rule.id)}
+                onInstall={() => installFromTemplate(rule.id)}
               />
             ))}
           </div>
@@ -398,7 +398,7 @@ function getEffectType(effect: Record<string, unknown> | null): string | null {
   return null
 }
 
-function RuleCard({ rule, devMode, expanded, detail, detailLoading, onToggle, onExpand, onDelete, onYamlEdit, onDuplicate, onDownload, onUseAsTemplate }: {
+function RuleCard({ rule, devMode, expanded, detail, detailLoading, onToggle, onExpand, onDelete, onYamlEdit, onDuplicate, onDownload, onInstall }: {
   rule: RuleSummary
   devMode: boolean
   expanded: boolean
@@ -410,7 +410,7 @@ function RuleCard({ rule, devMode, expanded, detail, detailLoading, onToggle, on
   onYamlEdit: () => void
   onDuplicate: () => void
   onDownload: () => void
-  onUseAsTemplate: () => void
+  onInstall: () => void
 }) {
   const effectType = getEffectType(rule.effect)
   const isTemplate = rule.source === 'template'
@@ -463,7 +463,7 @@ function RuleCard({ rule, devMode, expanded, detail, detailLoading, onToggle, on
               ) : (
                 <>
                   {isTemplate && (
-                    <button type="button" className="workflows-action-btn" onClick={e => { e.stopPropagation(); onUseAsTemplate() }} title="Create a custom copy">Use as Template</button>
+                    <button type="button" className="workflows-action-btn" onClick={e => { e.stopPropagation(); onInstall() }} title="Create an installed copy">Install</button>
                   )}
                   <button type="button" className="workflows-action-icon" onClick={e => { e.stopPropagation(); onDownload() }} title="Download YAML" aria-label="Download rule as YAML">
                     <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M8 2v9m0 0L5 8m3 3 3-3M2.5 12.5v1a1 1 0 0 0 1 1h9a1 1 0 0 0 1-1v-1" /></svg>

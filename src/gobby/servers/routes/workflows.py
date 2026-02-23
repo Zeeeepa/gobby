@@ -253,36 +253,36 @@ def create_workflows_router(server: "HTTPServer") -> APIRouter:
             logger.error(f"Error deleting workflow definition: {e}", exc_info=True)
             raise HTTPException(status_code=500, detail=str(e)) from e
 
-    @router.post("/{definition_id}/use-as-template")
-    async def use_as_template(definition_id: str) -> dict[str, Any]:
+    @router.post("/{definition_id}/install")
+    async def install_from_template(definition_id: str) -> dict[str, Any]:
         """Create a custom copy from a bundled definition."""
         metrics.inc_counter("http_requests_total")
         try:
             manager = _get_manager()
-            row = manager.use_as_template(definition_id)
+            row = manager.install_from_template(definition_id)
             return {"status": "success", "definition": row.to_dict()}
         except ValueError as e:
             raise HTTPException(status_code=400, detail=str(e)) from e
         except Exception as e:
-            logger.error(f"Error using definition as template: {e}", exc_info=True)
+            logger.error(f"Error installing from template: {e}", exc_info=True)
             raise HTTPException(status_code=500, detail=str(e)) from e
 
-    @router.post("/use-all-bundled-as-templates")
-    async def use_all_bundled_as_templates(
+    @router.post("/install-all-templates")
+    async def install_all_templates(
         workflow_type: str | None = Query(None),
     ) -> dict[str, Any]:
         """Create custom copies of all eligible bundled definitions."""
         metrics.inc_counter("http_requests_total")
         try:
             manager = _get_manager()
-            rows = manager.use_all_bundled_as_templates(workflow_type=workflow_type)
+            rows = manager.install_all_templates(workflow_type=workflow_type)
             return {
                 "status": "success",
                 "definitions": [r.to_dict() for r in rows],
                 "count": len(rows),
             }
         except Exception as e:
-            logger.error(f"Error using all bundled as templates: {e}", exc_info=True)
+            logger.error(f"Error installing all templates: {e}", exc_info=True)
             raise HTTPException(status_code=500, detail=str(e)) from e
 
     @router.post("/{definition_id}/restore")

@@ -487,39 +487,39 @@ export function AgentDefinitionsPage({ searchText, sourceFilter, devMode, showCr
     fetchDefinitions(true)
   }, [yamlAgent, yamlContent, fetchDefinitions])
 
-  const handleUseAsTemplate = async (name: string) => {
+  const handleInstallFromTemplate = async (name: string) => {
     try {
-      const res = await fetch(`${getBaseUrl()}/api/agents/definitions/${encodeURIComponent(name)}/use-as-template`, {
+      const res = await fetch(`${getBaseUrl()}/api/agents/definitions/${encodeURIComponent(name)}/install`, {
         method: 'POST',
       })
       if (res.ok) {
         fetchDefinitions(true)
-        showToast(`Created custom copy of "${name}"`, 'success')
+        showToast(`Installed "${name}"`, 'success')
       } else {
         const data = await res.json().catch(() => ({}))
-        showToast(data.detail || 'Failed to use as template', 'error')
+        showToast(data.detail || 'Failed to install from template', 'error')
       }
     } catch (e) {
-      console.error('Failed to use agent as template:', e)
-      showToast('Failed to use as template', 'error')
+      console.error('Failed to install agent from template:', e)
+      showToast('Failed to install from template', 'error')
     }
   }
 
-  const handleUseAllAsTemplates = async () => {
+  const handleInstallAllTemplates = async () => {
     try {
-      const res = await fetch(`${getBaseUrl()}/api/workflows/use-all-bundled-as-templates?workflow_type=agent`, {
+      const res = await fetch(`${getBaseUrl()}/api/workflows/install-all-templates?workflow_type=agent`, {
         method: 'POST',
       })
       if (res.ok) {
         const data = await res.json()
         fetchDefinitions(true)
-        showToast(`Created ${data.count || 0} template copies`, 'success')
+        showToast(`Installed ${data.count || 0} templates`, 'success')
       } else {
-        showToast('Failed to use all as templates', 'error')
+        showToast('Failed to install all templates', 'error')
       }
     } catch (e) {
-      console.error('Failed to use all bundled agents as templates:', e)
-      showToast('Failed to use all as templates', 'error')
+      console.error('Failed to install all agent templates:', e)
+      showToast('Failed to install all templates', 'error')
     }
   }
 
@@ -589,9 +589,9 @@ export function AgentDefinitionsPage({ searchText, sourceFilter, devMode, showCr
           <button
             type="button"
             className="workflows-toolbar-btn"
-            onClick={handleUseAllAsTemplates}
+            onClick={handleInstallAllTemplates}
           >
-            Use All as Templates
+            Install All
           </button>
         )}
       </div>
@@ -908,7 +908,7 @@ export function AgentDefinitionsPage({ searchText, sourceFilter, devMode, showCr
                             </>
                           ) : (
                             <>
-                              <button type="button" className="workflows-action-btn" onClick={() => handleUseAsTemplate(d.name)} title="Create a custom copy">Use as Template</button>
+                              <button type="button" className="workflows-action-btn" onClick={() => handleInstallFromTemplate(d.name)} title="Create an installed copy">Install</button>
                               <button type="button" className="workflows-action-icon" onClick={() => handleDownload(d.name)} title="Download YAML" aria-label="Download agent as YAML">
                                 <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M8 2v9m0 0L5 8m3 3 3-3M2.5 12.5v1a1 1 0 0 0 1 1h9a1 1 0 0 0 1-1v-1" /></svg>
                               </button>

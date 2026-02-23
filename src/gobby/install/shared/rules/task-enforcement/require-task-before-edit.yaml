@@ -6,7 +6,7 @@ rules:
     event: before_tool
     enabled: false
     priority: 31
-    when: "variables.get('require_task_before_edit') and not task_claimed and not (plan_mode and is_plan_file(tool_input.get('file_path', ''), source))"
+    when: "variables.get('require_task_before_edit') and not variables.get('task_claimed') and not (variables.get('plan_mode') and is_plan_file(tool_input.get('file_path', ''), source))"
     effect:
       type: block
       tools: [Edit, Write, NotebookEdit]

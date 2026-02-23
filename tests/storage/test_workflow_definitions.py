@@ -533,12 +533,12 @@ def test_duplicate_nonexistent_raises(manager: LocalWorkflowDefinitionManager) -
 
 
 # =============================================================================
-# Use as Template
+# Install from Template
 # =============================================================================
 
 
-def test_use_as_template(manager: LocalWorkflowDefinitionManager) -> None:
-    """Test creating a custom copy from a bundled definition."""
+def test_install_from_template(manager: LocalWorkflowDefinitionManager) -> None:
+    """Test creating an installed copy from a template definition."""
     bundled = manager.create(
         name="bundled-rule",
         definition_json=SAMPLE_DEFINITION,
@@ -546,47 +546,61 @@ def test_use_as_template(manager: LocalWorkflowDefinitionManager) -> None:
         enabled=True,
     )
 
-    custom = manager.use_as_template(bundled.id)
+    installed = manager.install_from_template(bundled.id)
 
-    assert custom.id != bundled.id
-    assert custom.name == bundled.name
-    assert custom.source == "installed"
-    assert custom.enabled is True
-    assert custom.definition_json == bundled.definition_json
+    assert installed.id != bundled.id
+    assert installed.name == bundled.name
+    assert installed.source == "installed"
+    assert installed.enabled is True
+    assert installed.definition_json == bundled.definition_json
 
     # Bundled original should be disabled
     original = manager.get(bundled.id)
     assert original.enabled is False
 
 
-def test_use_as_template_non_bundled_raises(manager: LocalWorkflowDefinitionManager) -> None:
-    """Test that using a non-bundled item as template raises ValueError."""
-    custom = manager.create(name="custom-item", definition_json=SAMPLE_DEFINITION, source="installed")
+def test_install_from_template_preserves_disabled(manager: LocalWorkflowDefinitionManager) -> None:
+    """Test that installing a disabled template produces a disabled installed copy."""
+    bundled = manager.create(
+        name="disabled-rule",
+        definition_json=SAMPLE_DEFINITION,
+        source="template",
+        enabled=False,
+    )
+
+    installed = manager.install_from_template(bundled.id)
+
+    assert installed.enabled is False
+
+
+def test_install_from_template_rejects_non_template(manager: LocalWorkflowDefinitionManager) -> None:
+    """Test that installing a non-template item raises ValueError."""
+    installed = manager.create(name="custom-item", definition_json=SAMPLE_DEFINITION, source="installed")
 
     with pytest.raises(ValueError, match="not a template"):
-        manager.use_as_template(custom.id)
+        manager.install_from_template(installed.id)
 
 
-def test_use_as_template_duplicate_raises(manager: LocalWorkflowDefinitionManager) -> None:
-    """Test that creating a template when custom copy already exists raises ValueError."""
+def test_install_from_template_rejects_duplicate(manager: LocalWorkflowDefinitionManager) -> None:
+    """Test that installing when an installed copy already exists raises ValueError."""
     bundled = manager.create(name="dup-test", definition_json=SAMPLE_DEFINITION, source="template")
     manager.create(name="dup-test", definition_json=SAMPLE_DEFINITION, source="installed")
 
     with pytest.raises(ValueError, match="already exists"):
-        manager.use_as_template(bundled.id)
+        manager.install_from_template(bundled.id)
 
 
-def test_use_all_bundled_as_templates(manager: LocalWorkflowDefinitionManager) -> None:
-    """Test bulk creation of custom copies from all bundled definitions."""
+def test_install_all_templates(manager: LocalWorkflowDefinitionManager) -> None:
+    """Test bulk installation of all eligible template definitions."""
     manager.create(name="b1", definition_json=SAMPLE_DEFINITION, source="template", workflow_type="rule")
     manager.create(name="b2", definition_json=SAMPLE_DEFINITION, source="template", workflow_type="rule")
     # Already has a custom counterpart - should be skipped
     manager.create(name="b3", definition_json=SAMPLE_DEFINITION, source="template", workflow_type="rule")
     manager.create(name="b3", definition_json=SAMPLE_DEFINITION, source="installed", workflow_type="rule")
 
-    created = manager.use_all_bundled_as_templates(workflow_type="rule")
+    created = manager.install_all_templates(workflow_type="rule")
 
-    # b1 and b2 should be templated, b3 skipped (already has custom)
+    # b1 and b2 should be installed, b3 skipped (already has installed copy)
     names = {r.name for r in created}
     assert "b1" in names
     assert "b2" in names

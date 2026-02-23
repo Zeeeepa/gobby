@@ -389,10 +389,10 @@ class LocalWorkflowDefinitionManager:
             tags=original.tags,
         )
 
-    def use_as_template(self, definition_id: str) -> WorkflowDefinitionRow:
+    def install_from_template(self, definition_id: str) -> WorkflowDefinitionRow:
         """Create an installed copy from a template definition.
 
-        Copies all fields with source='installed' and enabled=True.
+        Copies all fields with source='installed', preserving the template's enabled state.
         Disables the template original to prevent duplicate rule firing.
         """
         original = self.get(definition_id)
@@ -417,7 +417,7 @@ class LocalWorkflowDefinitionManager:
             project_id=original.project_id,
             description=original.description,
             version=original.version,
-            enabled=True,
+            enabled=original.enabled,
             priority=original.priority,
             sources=original.sources,
             canvas_json=original.canvas_json,
@@ -430,7 +430,7 @@ class LocalWorkflowDefinitionManager:
 
         return new_row
 
-    def use_all_bundled_as_templates(
+    def install_all_templates(
         self, workflow_type: str | None = None
     ) -> list[WorkflowDefinitionRow]:
         """Create installed copies of all eligible template definitions.
@@ -450,7 +450,7 @@ class LocalWorkflowDefinitionManager:
             if existing:
                 continue
             try:
-                new_row = self.use_as_template(row.id)
+                new_row = self.install_from_template(row.id)
                 created.append(new_row)
             except ValueError:
                 continue

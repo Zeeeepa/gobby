@@ -238,10 +238,10 @@ export function useWorkflows() {
     return null
   }, [])
 
-  const useAsTemplate = useCallback(async (id: string): Promise<WorkflowDetail | null> => {
+  const installFromTemplate = useCallback(async (id: string): Promise<WorkflowDetail | null> => {
     try {
       const baseUrl = getBaseUrl()
-      const response = await fetch(`${baseUrl}/api/workflows/${encodeURIComponent(id)}/use-as-template`, {
+      const response = await fetch(`${baseUrl}/api/workflows/${encodeURIComponent(id)}/install`, {
         method: 'POST',
       })
       const data = await response.json().catch(() => ({}))
@@ -249,19 +249,19 @@ export function useWorkflows() {
         await fetchWorkflows()
         return data.definition
       }
-      window.alert(data.detail || 'Failed to use as template')
+      window.alert(data.detail || 'Failed to install from template')
     } catch (e) {
-      console.error('Failed to use workflow as template:', e)
-      window.alert(`Failed to use as template: ${e instanceof Error ? e.message : String(e)}`)
+      console.error('Failed to install from template:', e)
+      window.alert(`Failed to install from template: ${e instanceof Error ? e.message : String(e)}`)
     }
     return null
   }, [fetchWorkflows])
 
-  const useAllBundledAsTemplates = useCallback(async (workflowType?: string): Promise<number> => {
+  const installAllTemplates = useCallback(async (workflowType?: string): Promise<number> => {
     try {
       const baseUrl = getBaseUrl()
       const params = workflowType ? `?workflow_type=${encodeURIComponent(workflowType)}` : ''
-      const response = await fetch(`${baseUrl}/api/workflows/use-all-bundled-as-templates${params}`, {
+      const response = await fetch(`${baseUrl}/api/workflows/install-all-templates${params}`, {
         method: 'POST',
       })
       const data = await response.json().catch(() => ({}))
@@ -269,9 +269,9 @@ export function useWorkflows() {
         await fetchWorkflows()
         return data.count || 0
       }
-      window.alert(data.detail || 'Failed to use all bundled as templates')
+      window.alert(data.detail || 'Failed to install all templates')
     } catch (e) {
-      console.error('Failed to use all bundled as templates:', e)
+      console.error('Failed to install all templates:', e)
       window.alert(`Failed: ${e instanceof Error ? e.message : String(e)}`)
     }
     return 0
@@ -345,7 +345,7 @@ export function useWorkflows() {
     exportYaml,
     restoreWorkflow,
     selectWorkflow,
-    useAsTemplate,
-    useAllBundledAsTemplates,
+    installFromTemplate,
+    installAllTemplates,
   }
 }
