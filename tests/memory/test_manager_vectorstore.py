@@ -183,6 +183,30 @@ async def test_search_memories_tag_filtering(manager, mock_vector_store, mock_em
 
 
 @pytest.mark.asyncio
+async def test_search_memories_skips_deleted_memories(manager, mock_vector_store, mock_embed_fn):
+    """search_memories should skip memories deleted from DB but still in the index."""
+    # Create two memories, then delete one from DB only (index still references it)
+    mem_kept = await manager.create_memory(content="still here")
+    mem_deleted = await manager.create_memory(content="will be deleted")
+    mock_embed_fn.reset_mock()
+
+    # Delete from DB directly (simulating index/DB desync)
+    manager.storage.db.execute("DELETE FROM memories WHERE id = ?", (mem_deleted.id,))
+
+    # Index returns both IDs (stale reference)
+    mock_vector_store.search.return_value = [
+        (mem_deleted.id, 0.95),
+        (mem_kept.id, 0.90),
+    ]
+
+    results = await manager.search_memories(query="test", limit=10)
+
+    # Should return only the existing memory, not crash
+    assert len(results) == 1
+    assert results[0].id == mem_kept.id
+
+
+@pytest.mark.asyncio
 async def test_no_search_coordinator_import():
     """MemoryManager should not import SearchCoordinator."""
     import gobby.memory.manager as mod

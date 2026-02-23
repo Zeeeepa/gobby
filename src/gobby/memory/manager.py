@@ -538,8 +538,9 @@ class MemoryManager:
                 # Resolve memories and apply filters
                 scored: list[tuple[Memory, float]] = []
                 for rank, memory_id in enumerate(merged_ids):
-                    mem = self.storage.get_memory(memory_id)
-                    if mem is None:
+                    try:
+                        mem = self.storage.get_memory(memory_id)
+                    except ValueError:
                         continue
                     if memory_type and mem.memory_type != memory_type:
                         continue
@@ -568,8 +569,9 @@ class MemoryManager:
 
                 scored = []
                 for memory_id, score in results:
-                    mem = self.storage.get_memory(memory_id)
-                    if mem is None:
+                    try:
+                        mem = self.storage.get_memory(memory_id)
+                    except ValueError:
                         continue
                     if memory_type and mem.memory_type != memory_type:
                         continue
@@ -896,9 +898,11 @@ class MemoryManager:
         memories: list[Memory] = []
         for ref in crossrefs:
             other_id = ref.target_id if ref.source_id == memory_id else ref.source_id
-            mem = self.storage.get_memory(other_id)
-            if mem:
-                memories.append(mem)
+            try:
+                mem = self.storage.get_memory(other_id)
+            except ValueError:
+                continue
+            memories.append(mem)
         return memories
 
     # =========================================================================
