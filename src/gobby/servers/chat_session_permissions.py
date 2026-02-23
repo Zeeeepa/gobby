@@ -43,6 +43,7 @@ class ChatSessionPermissionsMixin:
     _tool_approval_callback: Any | None
     _plan_approved: bool
     _plan_feedback: str | None
+    _plan_approval_completed: bool
     _plan_file_path: str | None
     _pending_plan_event: asyncio.Event | None
     _pending_plan_decision: str | None
@@ -101,6 +102,7 @@ class ChatSessionPermissionsMixin:
             self._pending_plan_decision = None
 
             if decision == "approve":
+                self._plan_approval_completed = True  # Signal streaming loop
                 self.set_chat_mode("accept_edits")
                 if self._on_mode_changed:
                     await self._on_mode_changed("accept_edits", "plan_approved")
@@ -109,6 +111,8 @@ class ChatSessionPermissionsMixin:
                 # request_changes — deny the tool so agent stays in plan mode
                 feedback = self._plan_feedback or "User requested changes."
                 self._plan_feedback = None
+                if self._on_mode_changed:
+                    await self._on_mode_changed("plan", "plan_changes_requested")
                 return PermissionResultDeny(message=feedback)
 
         # Plan mode: block write tools until the plan is approved

@@ -93,6 +93,7 @@ class ChatSession(ChatSessionPermissionsMixin):
     chat_mode: str = field(default="plan", repr=False)
     _plan_approved: bool = field(default=False, repr=False)
     _plan_feedback: str | None = field(default=None, repr=False)
+    _plan_approval_completed: bool = field(default=False, repr=False)
     _plan_file_path: str | None = field(default=None, repr=False)
     _pending_plan_event: asyncio.Event | None = field(default=None, repr=False)
     _pending_plan_decision: str | None = field(default=None, repr=False)

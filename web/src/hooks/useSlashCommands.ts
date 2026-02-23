@@ -17,9 +17,10 @@ interface ParsedCommand {
 
 // Local commands that execute client-side actions (no MCP round-trip)
 const LOCAL_COMMANDS: Array<{ name: string; description: string; action: string }> = [
-  { name: 'settings', description: 'Open settings panel', action: 'open_settings' },
   { name: 'clear', description: 'Clear chat history', action: 'clear_history' },
   { name: 'compact', description: 'Compact conversation history', action: 'compact_chat' },
+  { name: 'plan', description: 'Enter plan mode or show plan', action: 'show_plan' },
+  { name: 'settings', description: 'Open settings panel', action: 'open_settings' },
 ]
 
 // Built-in aliases: /shortcut -> server.tool

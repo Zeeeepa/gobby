@@ -107,6 +107,7 @@ export default function App() {
       return null
     } catch { return null }
   })
+  const showPlanRef = useRef<(() => void) | null>(null)
   const [quickCaptureOpen, setQuickCaptureOpen] = useState(false)
   const [toastMessage, setToastMessage] = useState<string | null>(null)
   const toastTimerRef = useRef<number | null>(null)
@@ -287,6 +288,13 @@ export default function App() {
           // Send /compact as a regular message — the SDK handles it natively
           sendMessage('/compact', settings.model, undefined, effectiveProjectId)
           return
+        } else if (cmd.tool === 'show_plan') {
+          if (settings.chatMode !== 'plan') {
+            updateChatMode('plan')
+            sendMode('plan')
+          }
+          showPlanRef.current?.()
+          return
         }
         return
       }
@@ -389,11 +397,17 @@ export default function App() {
         clearHistory()
       } else if (cmd.action === 'compact_chat' || cmd.tool === 'compact_chat') {
         sendMessage('/compact', settings.model, undefined, effectiveProjectId)
+      } else if (cmd.action === 'show_plan' || cmd.tool === 'show_plan') {
+        if (settings.chatMode !== 'plan') {
+          updateChatMode('plan')
+          sendMode('plan')
+        }
+        showPlanRef.current?.()
       }
       return
     }
     executeCommand(cmd.server, cmd.tool)
-  }, [executeCommand, clearHistory, sendMessage, settings.model, effectiveProjectId])
+  }, [executeCommand, clearHistory, sendMessage, settings.model, effectiveProjectId, updateChatMode, sendMode])
 
   const navItems = [
     { id: 'dashboard', label: 'Dashboard', icon: <DashboardIcon /> },
@@ -454,6 +468,7 @@ export default function App() {
       {activeTab === 'chat' ? (
         <ChatPage
           projectId={effectiveProjectId}
+          showPlanRef={showPlanRef}
           chat={{
             messages,
             sessionRef,

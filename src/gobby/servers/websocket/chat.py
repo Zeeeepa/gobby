@@ -603,12 +603,23 @@ class ChatMixin:
                         )
                     )
                 elif isinstance(event, TextChunk):
-                    # Prevent sentence collisions after tool calls by injecting
-                    # a separator when the model resumes text output.
-                    # Without this: "What do you think?Ok, let me do that."
-                    # With this:    "What do you think?\n\nOk, let me do that."
+                    # Plan approval boundary — start a fresh message so
+                    # post-approval text doesn't concatenate with pre-approval text.
                     content = event.content
-                    if after_tool_call:
+                    session_obj = self._chat_sessions.get(conversation_id)
+                    if session_obj and getattr(session_obj, '_plan_approval_completed', False):
+                        session_obj._plan_approval_completed = False
+                        if accumulated_text.strip():
+                            await _persist_message(session, "assistant", accumulated_text)
+                            accumulated_text = ""
+                        assistant_message_id = f"assistant-{uuid4().hex[:12]}"
+                        after_tool_call = False
+                        has_sent_text = False
+                    elif after_tool_call:
+                        # Prevent sentence collisions after tool calls by injecting
+                        # a separator when the model resumes text output.
+                        # Without this: "What do you think?Ok, let me do that."
+                        # With this:    "What do you think?\n\nOk, let me do that."
                         after_tool_call = False
                         if has_sent_text:
                             content = "\n\n" + content

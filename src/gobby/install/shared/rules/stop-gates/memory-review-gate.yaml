@@ -12,3 +12,4 @@ rules:
       reason: |
         You've made significant changes this session. Before stopping,
         review and save valuable memories using create_memory on gobby-memory.
+        Once you call create_memory, the gate will clear automatically.

@@ -329,8 +329,8 @@ export function useChat() {
           const reason = (data as Record<string, unknown>).reason as string | undefined
           if (newMode) {
             currentModeRef.current = newMode
-            // Clear plan approval UI when plan is approved (after ExitPlanMode unblocks)
-            if (reason === 'plan_approved') {
+            // Clear plan approval UI when plan is approved or changes requested
+            if (reason === 'plan_approved' || reason === 'plan_changes_requested') {
               setPlanPendingApproval(false)
               planContentRef.current = null
             }
@@ -1043,7 +1043,7 @@ export function useChat() {
       conversation_id: conversationIdRef.current,
       decision: 'approve',
     }))
-    setPlanPendingApproval(false)
+    // Don't eagerly clear — let mode_changed be the single source of truth
   }, [])
 
   // Request changes to the plan with feedback
@@ -1055,7 +1055,7 @@ export function useChat() {
       decision: 'request_changes',
       feedback,
     }))
-    setPlanPendingApproval(false)
+    // Don't eagerly clear — let mode_changed be the single source of truth
   }, [])
 
   // Connect on mount

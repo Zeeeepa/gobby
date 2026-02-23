@@ -1,5 +1,5 @@
 import './styles.css'
-import { useCallback, useEffect } from 'react'
+import { useCallback, useEffect, useRef } from 'react'
 import type { ChatState, ConversationState, VoiceProps } from '../../types/chat'
 import { ConversationPicker } from '../ConversationPicker'
 import { useArtifacts } from '../../hooks/useArtifacts'
@@ -16,9 +16,10 @@ interface ChatPageProps {
   conversations: ConversationState
   voice: VoiceProps
   projectId?: string | null
+  showPlanRef?: React.MutableRefObject<(() => void) | null>
 }
 
-export function ChatPage({ chat, conversations, voice, projectId }: ChatPageProps) {
+export function ChatPage({ chat, conversations, voice, projectId, showPlanRef }: ChatPageProps) {
   const activeSession = conversations.sessions.find(
     s => s.external_id === conversations.activeSessionId
   )
@@ -32,10 +33,13 @@ export function ChatPage({ chat, conversations, voice, projectId }: ChatPageProp
     panelWidth,
     createArtifact,
     updateArtifact,
+    openArtifact,
     closePanel,
     setVersion,
     setPanelWidth,
   } = useArtifacts()
+
+  const planArtifactIdRef = useRef<string | null>(null)
 
   const openCodeAsArtifact = useCallback((language: string, content: string, title?: string) => {
     createArtifact('code', content, language, title)
@@ -44,13 +48,26 @@ export function ChatPage({ chat, conversations, voice, projectId }: ChatPageProp
   // Wire plan content to artifact panel when ExitPlanMode fires
   const onPlanReady = useCallback((content: string | null) => {
     if (content) {
-      createArtifact('text', content, 'markdown', 'Implementation Plan')
+      const id = createArtifact('text', content, 'markdown', 'Implementation Plan')
+      planArtifactIdRef.current = id
     }
   }, [createArtifact])
 
   useEffect(() => {
     chat.setOnPlanReady?.(onPlanReady)
   }, [chat.setOnPlanReady, onPlanReady])
+
+  // Expose callback for /plan command to reopen plan artifact
+  useEffect(() => {
+    if (showPlanRef) {
+      showPlanRef.current = () => {
+        if (planArtifactIdRef.current) {
+          openArtifact(planArtifactIdRef.current)
+        }
+      }
+    }
+    return () => { if (showPlanRef) showPlanRef.current = null }
+  }, [showPlanRef, openArtifact])
 
   return (
     <div className="flex h-full overflow-hidden bg-background text-foreground">
