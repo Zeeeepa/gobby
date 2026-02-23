@@ -296,6 +296,7 @@ class ClaudeLLMProvider(LLMProvider):
         prompt: str,
         system_prompt: str | None = None,
         model: str | None = None,
+        max_tokens: int | None = None,
     ) -> str:
         """
         Generate text using Claude.
@@ -304,9 +305,9 @@ class ClaudeLLMProvider(LLMProvider):
         """
         cli_path = self._verify_cli_path()
         if cli_path:
-            return await self._generate_text_sdk(prompt, system_prompt, model)
+            return await self._generate_text_sdk(prompt, system_prompt, model, max_tokens)
         elif self._litellm:
-            return await self._generate_text_litellm(prompt, system_prompt, model)
+            return await self._generate_text_litellm(prompt, system_prompt, model, max_tokens)
         else:
             raise RuntimeError("Generation unavailable (no LLM backend configured)")
 
@@ -315,6 +316,7 @@ class ClaudeLLMProvider(LLMProvider):
         prompt: str,
         system_prompt: str | None = None,
         model: str | None = None,
+        max_tokens: int | None = None,
     ) -> str:
         """Generate text using Claude Agent SDK (subscription mode)."""
         cli_path = self._verify_cli_path()
@@ -333,6 +335,7 @@ class ClaudeLLMProvider(LLMProvider):
             permission_mode="default",
             cli_path=cli_path,
         )
+        _max_tokens = max_tokens
 
         # Run async query
         async def _run_query() -> str:
@@ -370,6 +373,9 @@ class ClaudeLLMProvider(LLMProvider):
             result: str = await self._retry_async(
                 _run_query, max_retries=3, delay=2.0, on_retry=_on_retry
             )
+            # SDK doesn't support max_tokens directly; post-truncate if needed
+            if _max_tokens and len(result) > _max_tokens * 4:
+                result = result[: _max_tokens * 4]
             return result
         except Exception as e:
             self.logger.error(f"Failed to generate text with Claude: {e}", exc_info=True)
@@ -380,6 +386,7 @@ class ClaudeLLMProvider(LLMProvider):
         prompt: str,
         system_prompt: str | None = None,
         model: str | None = None,
+        max_tokens: int | None = None,
     ) -> str:
         """Generate text using LiteLLM (api_key mode)."""
         if not self._litellm:
@@ -400,7 +407,7 @@ class ClaudeLLMProvider(LLMProvider):
                     },
                     {"role": "user", "content": prompt},
                 ],
-                max_tokens=8000,
+                max_tokens=max_tokens or 8000,
             )
             return response.choices[0].message.content or ""
         except Exception as e:

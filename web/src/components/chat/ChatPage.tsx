@@ -1,5 +1,5 @@
 import './styles.css'
-import { useCallback } from 'react'
+import { useCallback, useEffect } from 'react'
 import type { ChatState, ConversationState, VoiceProps } from '../../types/chat'
 import { ConversationPicker } from '../ConversationPicker'
 import { useArtifacts } from '../../hooks/useArtifacts'
@@ -40,6 +40,17 @@ export function ChatPage({ chat, conversations, voice, projectId }: ChatPageProp
   const openCodeAsArtifact = useCallback((language: string, content: string, title?: string) => {
     createArtifact('code', content, language, title)
   }, [createArtifact])
+
+  // Wire plan content to artifact panel when ExitPlanMode fires
+  const onPlanReady = useCallback((content: string | null) => {
+    if (content) {
+      createArtifact('code', content, 'markdown', 'Implementation Plan')
+    }
+  }, [createArtifact])
+
+  useEffect(() => {
+    chat.setOnPlanReady?.(onPlanReady)
+  }, [chat.setOnPlanReady, onPlanReady])
 
   return (
     <div className="flex h-full overflow-hidden bg-background text-foreground">

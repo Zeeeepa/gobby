@@ -190,12 +190,19 @@ export function useChat() {
 
   // Plan mode approval tracking
   const [planPendingApproval, setPlanPendingApproval] = useState(false)
+  const planContentRef = useRef<string | null>(null)
   const currentModeRef = useRef<ChatMode>('accept_edits')
 
   // Callback for backend-initiated mode changes (e.g. agent EnterPlanMode)
   const onModeChangedRef = useRef<((mode: ChatMode) => void) | null>(null)
   const setOnModeChanged = useCallback((fn: (mode: ChatMode) => void) => {
     onModeChangedRef.current = fn
+  }, [])
+
+  // Callback when plan content is ready (for artifact creation)
+  const onPlanReadyRef = useRef<((content: string | null) => void) | null>(null)
+  const setOnPlanReady = useCallback((fn: (content: string | null) => void) => {
+    onPlanReadyRef.current = fn
   }, [])
 
   // Context usage tracking — accumulated across turns.
@@ -312,11 +319,21 @@ export function useChat() {
             }
           }
           handleVoiceMessageRef.current(data as Record<string, unknown>)
+        } else if (data.type === 'plan_pending_approval') {
+          const planContent = (data as Record<string, unknown>).plan_content as string | undefined
+          setPlanPendingApproval(true)
+          planContentRef.current = planContent ?? null
+          onPlanReadyRef.current?.(planContent ?? null)
         } else if (data.type === 'mode_changed') {
           const newMode = (data as Record<string, unknown>).mode as ChatMode | undefined
+          const reason = (data as Record<string, unknown>).reason as string | undefined
           if (newMode) {
             currentModeRef.current = newMode
-            setPlanPendingApproval(false)
+            // Clear plan approval UI when plan is approved (after ExitPlanMode unblocks)
+            if (reason === 'plan_approved') {
+              setPlanPendingApproval(false)
+              planContentRef.current = null
+            }
             onModeChangedRef.current?.(newMode)
           }
         } else if (data.type === 'session_info') {
@@ -1085,6 +1102,7 @@ export function useChat() {
     resumeSession,
     continueSessionInChat,
     setOnModeChanged,
+    setOnPlanReady,
     wsRef,
     handleVoiceMessageRef,
   }

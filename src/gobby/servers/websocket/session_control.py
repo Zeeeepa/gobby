@@ -110,29 +110,49 @@ class SessionControlMixin:
         conversation_id: str = conversation_id_raw
 
         if decision == "approve":
-            session.approve_plan()
-            session.set_chat_mode("accept_edits")
-            try:
-                await websocket.send(
-                    json.dumps(
-                        {
-                            "type": "mode_changed",
-                            "conversation_id": conversation_id,
-                            "mode": "accept_edits",
-                            "reason": "plan_approved",
-                        }
-                    )
+            if session.has_pending_plan:
+                # ExitPlanMode is blocking — unblock it with the approval
+                session.provide_plan_decision("approve")
+                logger.info(
+                    "Plan approved (ExitPlanMode unblocked) for conversation %s",
+                    conversation_id[:8],
                 )
-            except (ConnectionClosed, ConnectionClosedError):
-                pass
-            logger.info(
-                "Plan approved for conversation %s, switched to accept_edits", conversation_id[:8]
-            )
+            else:
+                # Legacy path: plan approval before ExitPlanMode was called
+                session.approve_plan()
+                session.set_chat_mode("accept_edits")
+                try:
+                    await websocket.send(
+                        json.dumps(
+                            {
+                                "type": "mode_changed",
+                                "conversation_id": conversation_id,
+                                "mode": "accept_edits",
+                                "reason": "plan_approved",
+                            }
+                        )
+                    )
+                except (ConnectionClosed, ConnectionClosedError):
+                    pass
+                logger.info(
+                    "Plan approved (legacy) for conversation %s, switched to accept_edits",
+                    conversation_id[:8],
+                )
         elif decision == "request_changes":
             feedback = data.get("feedback", "")
             if feedback:
                 session.set_plan_feedback(feedback)
-            logger.info("Plan changes requested for conversation %s", conversation_id[:8])
+            if session.has_pending_plan:
+                # ExitPlanMode is blocking — deny it so agent stays in plan mode
+                session.provide_plan_decision("request_changes")
+                logger.info(
+                    "Plan changes requested (ExitPlanMode denied) for conversation %s",
+                    conversation_id[:8],
+                )
+            else:
+                logger.info(
+                    "Plan changes requested for conversation %s", conversation_id[:8]
+                )
 
     async def _handle_continue_in_chat(self, websocket: Any, data: dict[str, Any]) -> None:
         """Handle continue_in_chat message to resume a CLI session in the web chat UI.

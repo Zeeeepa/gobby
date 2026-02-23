@@ -84,7 +84,7 @@ class AppErrorBoundary extends Component<
 const HIDDEN_PROJECTS = new Set(['_orphaned', '_migrated'])
 
 export default function App() {
-  const { messages, conversationId, sessionRef, currentBranch, worktreePath, isConnected, isStreaming, isThinking, contextUsage, sendMessage, sendMode, sendWorktreeChange, stopStreaming, clearHistory, deleteConversation, executeCommand, respondToQuestion, planPendingApproval, approvePlan, requestPlanChanges, switchConversation, startNewChat, continueSessionInChat, setOnModeChanged, wsRef, handleVoiceMessageRef } = useChat()
+  const { messages, conversationId, sessionRef, currentBranch, worktreePath, isConnected, isStreaming, isThinking, contextUsage, sendMessage, sendMode, sendWorktreeChange, stopStreaming, clearHistory, deleteConversation, executeCommand, respondToQuestion, planPendingApproval, approvePlan, requestPlanChanges, switchConversation, startNewChat, continueSessionInChat, setOnModeChanged, setOnPlanReady, wsRef, handleVoiceMessageRef } = useChat()
   const voice = useVoice(wsRef, conversationId)
   const { settings, updateFontSize, updateModel, updateChatMode, updateTheme, resetSettings } = useSettings()
   const { agents, refreshAgents } = useTerminal()
@@ -475,6 +475,7 @@ export default function App() {
             planPendingApproval,
             onApprovePlan: approvePlan,
             onRequestPlanChanges: requestPlanChanges,
+            setOnPlanReady,
           }}
           conversations={{
             sessions: webChatSessions,

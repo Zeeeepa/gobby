@@ -67,6 +67,7 @@ class LLMProvider(ABC):
         prompt: str,
         system_prompt: str | None = None,
         model: str | None = None,
+        max_tokens: int | None = None,
     ) -> str:
         """
         Generate text from a prompt.
@@ -75,6 +76,7 @@ class LLMProvider(ABC):
             prompt: User prompt
             system_prompt: Optional system prompt
             model: Optional model override
+            max_tokens: Optional max output tokens override
 
         Returns:
             Generated text response

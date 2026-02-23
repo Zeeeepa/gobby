@@ -43,6 +43,10 @@ class ChatSessionPermissionsMixin:
     _tool_approval_callback: Any | None
     _plan_approved: bool
     _plan_feedback: str | None
+    _plan_file_path: str | None
+    _pending_plan_event: asyncio.Event | None
+    _pending_plan_decision: str | None
+    _on_plan_ready: Callable[[str | None, dict[str, Any]], Awaitable[None]] | None
     _pending_approval: PendingApproval | None
     _pending_approval_decision: str | None
     _pending_approval_event: asyncio.Event | None
@@ -75,10 +79,35 @@ class ChatSessionPermissionsMixin:
                 await self._on_mode_changed("plan", "agent_requested")
             return PermissionResultAllow(updated_input=input_data)
         if tool_name == "ExitPlanMode":
-            self.set_chat_mode("accept_edits")
-            if self._on_mode_changed:
-                await self._on_mode_changed("accept_edits", "agent_exited_plan")
-            return PermissionResultAllow(updated_input=input_data)
+            # Read plan file content if one was written during plan mode
+            plan_content = self._read_plan_file()
+
+            # Broadcast plan_pending_approval to frontend
+            if self._on_plan_ready:
+                await self._on_plan_ready(plan_content, input_data)
+
+            # Block until user approves or requests changes
+            self._pending_plan_event = asyncio.Event()
+            self._pending_plan_decision = None
+            try:
+                await asyncio.wait_for(self._pending_plan_event.wait(), timeout=600.0)
+            except TimeoutError:
+                self._pending_plan_decision = "approve"  # fail-open on timeout
+
+            decision = self._pending_plan_decision or "approve"
+            self._pending_plan_event = None
+            self._pending_plan_decision = None
+
+            if decision == "approve":
+                self.set_chat_mode("accept_edits")
+                if self._on_mode_changed:
+                    await self._on_mode_changed("accept_edits", "plan_approved")
+                return PermissionResultAllow(updated_input=input_data)
+            else:
+                # request_changes — deny the tool so agent stays in plan mode
+                feedback = self._plan_feedback or "User requested changes."
+                self._plan_feedback = None
+                return PermissionResultDeny(message=feedback)
 
         # Plan mode: block write tools until the plan is approved
         if self.chat_mode == "plan" and not self._plan_approved:
@@ -87,6 +116,7 @@ class ChatSessionPermissionsMixin:
                 if tool_name in ("Write", "Edit"):
                     file_path = input_data.get("file_path", "")
                     if _PLAN_FILE_PATTERN.match(file_path):
+                        self._plan_file_path = file_path
                         return PermissionResultAllow(updated_input=input_data)
                 return PermissionResultDeny(
                     message=(
@@ -239,6 +269,7 @@ class ChatSessionPermissionsMixin:
         if mode == "plan":
             self._plan_approved = False
             self._plan_feedback = None
+            self._plan_file_path = None
         elif mode != "plan":
             # Leaving plan mode — clear plan state
             self._plan_approved = False
@@ -251,6 +282,35 @@ class ChatSessionPermissionsMixin:
     def set_plan_feedback(self, feedback: str) -> None:
         """Store user feedback for plan revision."""
         self._plan_feedback = feedback
+
+    def provide_plan_decision(self, decision: str) -> None:
+        """Provide plan approval decision, unblocking the ExitPlanMode callback.
+
+        Args:
+            decision: "approve" or "request_changes"
+        """
+        self._pending_plan_decision = decision
+        if self._pending_plan_event is not None:
+            self._pending_plan_event.set()
+
+    @property
+    def has_pending_plan(self) -> bool:
+        """Whether an ExitPlanMode is currently awaiting a response."""
+        return self._pending_plan_event is not None
+
+    def _read_plan_file(self) -> str | None:
+        """Read the plan file written during plan mode, if any."""
+        if not self._plan_file_path:
+            return None
+        try:
+            from pathlib import Path
+
+            path = Path(self._plan_file_path)
+            if path.exists():
+                return path.read_text(encoding="utf-8")
+        except Exception as e:
+            logger.warning("Failed to read plan file %s: %s", self._plan_file_path, e)
+        return None
 
     def _consume_plan_mode_context(self) -> str | None:
         """Return plan mode system context for additionalContext injection.

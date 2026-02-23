@@ -172,6 +172,24 @@ class ChatMixin:
 
         session._on_mode_changed = _notify_mode_changed
 
+        # Wire plan-ready callback so ExitPlanMode sends plan content to frontend
+        async def _notify_plan_ready(content: str | None, input_data: dict) -> None:
+            msg = json.dumps(
+                {
+                    "type": "plan_pending_approval",
+                    "conversation_id": conversation_id,
+                    "plan_content": content,
+                    "allowed_prompts": input_data.get("allowedPrompts"),
+                }
+            )
+            for ws in list(self.clients.keys()):
+                try:
+                    await ws.send(msg)
+                except (ConnectionClosed, ConnectionClosedError):
+                    pass
+
+        session._on_plan_ready = _notify_plan_ready
+
         # Wire tool approval config if available
         daemon_cfg = getattr(self, "daemon_config", None)
         if daemon_cfg is not None:
@@ -434,6 +452,7 @@ class ChatMixin:
         assistant_message_id = f"assistant-{uuid4().hex[:12]}"
         accumulated_text = ""
         after_tool_call = False  # Track tool→text transitions to prevent sentence collisions
+        has_sent_text = False  # Survives accumulated_text flushes for separator injection
 
         def _base_msg(**fields: Any) -> dict[str, Any]:
             """Build a response dict, always including request_id for stream correlation."""
@@ -591,8 +610,10 @@ class ChatMixin:
                     content = event.content
                     if after_tool_call:
                         after_tool_call = False
-                        if accumulated_text and not accumulated_text.endswith(("\n", " ")):
+                        if has_sent_text:
                             content = "\n\n" + content
+                    if content.strip():
+                        has_sent_text = True
                     accumulated_text += content
                     await websocket.send(
                         json.dumps(

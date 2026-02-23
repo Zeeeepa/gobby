@@ -620,9 +620,33 @@ def create_sessions_router(server: "HTTPServer") -> APIRouter:
                 f"Conversation:\n{transcript}"
             )
 
+            # Load system prompt from prompts system
+            system_prompt: str | None = None
+            try:
+                from gobby.prompts.loader import PromptLoader
+
+                loader = PromptLoader(db=getattr(server, "db", None))
+                system_prompt = loader.load("sessions/synthesize_title").content
+            except Exception:
+                system_prompt = (
+                    "You generate short titles for chat sessions. "
+                    "Output ONLY 3-5 words. No quotes, no explanation, no punctuation."
+                )
+
             provider = server.llm_service.get_default_provider()
-            title = await asyncio.wait_for(provider.generate_text(llm_prompt), timeout=10)
-            title = title.strip().strip('"').strip("'")
+            title = await asyncio.wait_for(
+                provider.generate_text(
+                    llm_prompt,
+                    system_prompt=system_prompt,
+                    model="haiku",
+                    max_tokens=30,
+                ),
+                timeout=10,
+            )
+            # Sanitize: first line only, strip quotes, cap at 100 chars
+            title = title.strip().strip('"').strip("'").split("\n")[0]
+            if len(title) > 100:
+                title = title[:97] + "..."
             if not title:
                 title = "Untitled Session"
 
@@ -667,6 +691,8 @@ def create_sessions_router(server: "HTTPServer") -> APIRouter:
             title = (body.get("title") or "").strip()
             if not title:
                 raise HTTPException(status_code=400, detail="Title must not be empty")
+            if len(title) > 200:
+                raise HTTPException(status_code=400, detail="Title must be 200 characters or fewer")
 
             session = server.session_manager.get(session_id)
             if session is None:

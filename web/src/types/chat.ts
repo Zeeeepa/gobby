@@ -78,6 +78,7 @@ export interface ChatState {
   planPendingApproval: boolean
   onApprovePlan: () => void
   onRequestPlanChanges: (feedback: string) => void
+  setOnPlanReady?: (fn: (content: string | null) => void) => void
 }
 
 export interface ConversationState {

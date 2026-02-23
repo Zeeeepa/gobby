@@ -149,6 +149,7 @@ class GeminiProvider(LLMProvider):
         prompt: str,
         system_prompt: str | None = None,
         model: str | None = None,
+        max_tokens: int | None = None,
     ) -> str:
         """
         Generate text using Gemini via LiteLLM.
@@ -169,7 +170,7 @@ class GeminiProvider(LLMProvider):
                     },
                     {"role": "user", "content": prompt},
                 ],
-                max_tokens=8000,
+                max_tokens=max_tokens or 8000,
                 timeout=120,
             )
             return response.choices[0].message.content or ""
