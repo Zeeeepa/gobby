@@ -8,7 +8,6 @@ import yaml
 from gobby.workflows.definitions import (
     RuleDefinition,
     WorkflowDefinition,
-    WorkflowStep,
 )
 
 pytestmark = pytest.mark.unit
@@ -120,22 +119,9 @@ class TestWorkflowDefinitionRuleFields:
         assert defn.imports == []
 
 
-class TestWorkflowStepCheckRules:
-    def test_check_rules_field(self) -> None:
-        step = WorkflowStep(
-            name="work",
-            check_rules=["require_task", "no_push"],
-        )
-        assert step.check_rules == ["require_task", "no_push"]
-
-    def test_defaults_empty(self) -> None:
-        step = WorkflowStep(name="work")
-        assert step.check_rules == []
-
-
 class TestYamlRoundTrip:
     def test_workflow_with_rule_definitions_parses(self) -> None:
-        """Test that a YAML workflow with rule_definitions + check_rules parses."""
+        """Test that a YAML workflow with rule_definitions parses."""
         yaml_content = """
 name: test-workflow
 type: step
@@ -155,7 +141,6 @@ imports:
 steps:
   - name: work
     description: Do the work
-    check_rules: [require_task, no_push]
 """
         data = yaml.safe_load(yaml_content)
         defn = WorkflowDefinition(**data)
@@ -164,4 +149,3 @@ steps:
         assert defn.rule_definitions["require_task"].tools == ["Edit", "Write", "NotebookEdit"]
         assert defn.rule_definitions["no_push"].command_pattern == "git\\s+push"
         assert defn.imports == ["worker-safety"]
-        assert defn.steps[0].check_rules == ["require_task", "no_push"]

@@ -78,9 +78,7 @@ def _lifecycle_template() -> dict[str, Any]:
             "on_session_stop": [
                 {"action": "log", "message": "Session stopped"},
             ],
-            "before_tool": [
-                {"action": "check_rules"},
-            ],
+            "before_tool": [],
         },
     }
     return {

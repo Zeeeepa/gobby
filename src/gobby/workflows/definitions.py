@@ -11,7 +11,6 @@ class RuleDefinition(BaseModel):
     """Named rule definition for block_tools format.
 
     Can be defined at workflow level (rule_definitions) or in shared rule files.
-    Referenced by name via check_rules on WorkflowStep.
     """
 
     tools: list[str] = Field(default_factory=list)
@@ -218,7 +217,6 @@ class WorkflowStep(BaseModel):
     blocked_mcp_tools: list[str] = Field(default_factory=list)
 
     rules: list[WorkflowRule] = Field(default_factory=list)
-    check_rules: list[str] = Field(default_factory=list)  # Named rule references
     transitions: list[WorkflowTransition] = Field(default_factory=list)
     exit_when: str | None = None  # Expression shorthand AND-ed with exit_conditions
     exit_conditions: list[dict[str, Any] | str] = Field(default_factory=list)
@@ -256,7 +254,7 @@ class WorkflowDefinition(BaseModel):
     # Session-scoped shared variables (visible to all workflows in the session)
     session_variables: dict[str, Any] = Field(default_factory=dict)
 
-    # Named rule definitions (file-local, referenced by check_rules on steps)
+    # Named rule definitions (file-local)
     rule_definitions: dict[str, RuleDefinition] = Field(default_factory=dict)
     # Cross-file rule imports (e.g., ["worker-safety"])
     imports: list[str] = Field(default_factory=list)
@@ -272,8 +270,6 @@ class WorkflowDefinition(BaseModel):
 
     # Global triggers (on_session_start, etc.)
     triggers: dict[str, list[dict[str, Any]]] = Field(default_factory=dict)
-
-    on_error: list[dict[str, Any]] = Field(default_factory=list)
 
     # Handler for premature stop attempts (step workflows only)
     # Triggered when agent tries to stop but exit_condition is not met

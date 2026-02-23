@@ -105,8 +105,6 @@ steps:
         action: warn
         message: "RED PHASE: Focus on writing test files first. Implementation comes in the green phase."
 
-    check_rules: [no_push, no_agent_spawn, no_task_management]
-
     transitions:
       - to: green
         when: "tests_written"
@@ -132,8 +130,6 @@ steps:
         action: warn
         message: "GREEN PHASE: You've made 3+ edits without running tests. Run tests now."
 
-    check_rules: [no_push, no_agent_spawn, no_task_management]
-
     transitions:
       - to: blue
         when: "tests_passing"
@@ -152,8 +148,6 @@ steps:
             set_workflow_variable("refactored", true)
 
     allowed_tools: all
-
-    check_rules: [no_push, no_agent_spawn, no_task_management]
 
     transitions:
       - to: reflect
@@ -217,8 +211,6 @@ steps:
     allowed_mcp_tools:
       - gobby-tasks:mark_task_needs_review
       - gobby-tasks:link_commit
-
-    check_rules: [no_push]
 
     on_mcp_success:
       - server: gobby-tasks
