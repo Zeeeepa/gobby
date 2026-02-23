@@ -191,7 +191,7 @@ export function useChat() {
   // Plan mode approval tracking
   const [planPendingApproval, setPlanPendingApproval] = useState(false)
   const planContentRef = useRef<string | null>(null)
-  const currentModeRef = useRef<ChatMode>('accept_edits')
+  const currentModeRef = useRef<ChatMode>('plan')
 
   // Callback for backend-initiated mode changes (e.g. agent EnterPlanMode)
   const onModeChangedRef = useRef<((mode: ChatMode) => void) | null>(null)
@@ -402,10 +402,6 @@ export function useChat() {
     if (chunk.done) {
       setIsStreaming(false)
       setIsThinking(false)
-      // Show plan approval UI if we just finished streaming in plan mode
-      if (currentModeRef.current === 'plan') {
-        setPlanPendingApproval(true)
-      }
       // Pick up session_ref from done message (fallback if session_info was missed)
       if (chunk.session_ref) {
         setSessionRef(chunk.session_ref)
