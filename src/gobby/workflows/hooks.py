@@ -2,6 +2,7 @@ import asyncio
 import concurrent.futures
 import logging
 import threading
+from copy import deepcopy
 from typing import TYPE_CHECKING, Any
 
 from gobby.hooks.events import HookEvent, HookEventType, HookResponse
@@ -94,7 +95,7 @@ class WorkflowHookHandler:
                     logger.debug(f"Could not load session variables for rules: {e}")
 
             # Snapshot before evaluation to detect changes from set_variable effects
-            pre_eval = dict(variables)
+            pre_eval = deepcopy(variables)
 
             response = await self.rule_engine.evaluate(
                 event=event,

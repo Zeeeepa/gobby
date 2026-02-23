@@ -75,6 +75,32 @@ class RuleEffect(BaseModel):
     arguments: dict[str, Any] | None = None
     background: bool = False
 
+    def model_post_init(self, __context: Any) -> None:
+        """Warn when fields irrelevant to the effect type are set."""
+        import warnings
+
+        _fields_by_type: dict[str, set[str]] = {
+            "block": {"reason", "tools", "mcp_tools", "command_pattern", "command_not_pattern"},
+            "set_variable": {"variable", "value"},
+            "inject_context": {"template"},
+            "mcp_call": {"server", "tool", "arguments", "background"},
+        }
+        # Fields with non-None defaults that shouldn't trigger warnings
+        _default_skip = {"background"}
+        relevant = _fields_by_type.get(self.type, set())
+        for field_name, field_set in _fields_by_type.items():
+            if field_name == self.type:
+                continue
+            for f in field_set - relevant - _default_skip:
+                val = getattr(self, f, None)
+                if val is not None:
+                    warnings.warn(
+                        f"RuleEffect(type='{self.type}') has '{f}' set "
+                        f"(relevant to '{field_name}' effects, ignored here)",
+                        UserWarning,
+                        stacklevel=2,
+                    )
+
 
 class RuleDefinitionBody(BaseModel):
     """Stored as definition_json in workflow_definitions for workflow_type='rule'."""

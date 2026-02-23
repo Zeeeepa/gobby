@@ -279,7 +279,10 @@ def sync_bundled_rules(db: DatabaseProtocol, rules_path: Path | None = None) -> 
                 continue
 
             # File-level defaults
-            file_group = data.get("group")
+            # Derive group from subdirectory name if not explicitly set
+            rel_parts = yaml_file.relative_to(rules_path).parts
+            dir_group = rel_parts[0] if len(rel_parts) > 1 else None
+            file_group = data.get("group") or dir_group
             file_tags = data.get("tags")
             file_sources = data.get("sources")
 

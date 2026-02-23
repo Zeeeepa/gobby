@@ -98,14 +98,12 @@ class RuleEngine:
         for _row, body in rules:
             # Build fresh eval context with current variables
             ctx = self._build_eval_context(event, variables, eval_context)
+            effect = body.effect
 
             # Check `when` condition
             if body.when:
-                if not self._evaluate_condition(body.when, ctx):
+                if not self._evaluate_condition(body.when, ctx, effect.type):
                     continue
-
-            # Check `match` filter (tool matching for block effects, etc.)
-            effect = body.effect
 
             # Apply effect
             if effect.type == "block":
@@ -126,7 +124,14 @@ class RuleEngine:
 
             elif effect.type == "inject_context":
                 if effect.template:
-                    context_parts.append(effect.template)
+                    template_text = effect.template
+                    if "{{" in template_text:
+                        try:
+                            engine = TemplateEngine()
+                            template_text = engine.render(template_text, ctx)
+                        except Exception as e:
+                            logger.warning(f"Failed to render inject_context template: {e}")
+                    context_parts.append(template_text)
 
             elif effect.type == "mcp_call":
                 mcp_calls.append(
@@ -233,8 +238,15 @@ class RuleEngine:
 
         return ctx
 
-    def _evaluate_condition(self, condition: str, context: dict[str, Any]) -> bool:
-        """Evaluate a `when` condition string using SafeExpressionEvaluator."""
+    def _evaluate_condition(
+        self, condition: str, context: dict[str, Any], effect_type: str = "block"
+    ) -> bool:
+        """Evaluate a `when` condition string using SafeExpressionEvaluator.
+
+        On evaluation failure:
+        - block effects fail closed (True) — conservative, prevents action
+        - other effects fail open (False) — avoids corrupting state or firing unwanted calls
+        """
         variables = context.get("variables", {})
         try:
             evaluator = SafeExpressionEvaluator(
@@ -254,10 +266,12 @@ class RuleEngine:
             )
             return evaluator.evaluate(condition)
         except Exception as e:
-            # Fail closed: if condition can't be evaluated, treat as True
-            # (conservative — the rule fires)
-            logger.warning(f"Failed to evaluate condition '{condition}': {e}")
-            return True
+            fail_closed = effect_type == "block"
+            logger.error(
+                f"Failed to evaluate condition '{condition}': {e} "
+                f"(defaulting to {'True' if fail_closed else 'False'} for {effect_type} effect)"
+            )
+            return fail_closed
 
     def _should_block(self, effect: Any, event: HookEvent) -> bool:
         """Check if a block effect matches the current tool/event."""

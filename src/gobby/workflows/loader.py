@@ -106,10 +106,6 @@ class WorkflowLoader(WorkflowLoaderSyncMixin):
                 else:
                     logger.warning(f"Parent workflow '{parent_name}' not found in DB for '{name}'")
 
-            # Resolve imports from DB
-            if data.get("imports"):
-                data = self._resolve_imports_from_db(data)
-
             if row.workflow_type == "pipeline" or data.get("type") == "pipeline":
                 self._validate_pipeline_references(data)
                 return PipelineDefinition(**data)
@@ -120,16 +116,6 @@ class WorkflowLoader(WorkflowLoaderSyncMixin):
         except Exception as e:
             logger.error(f"Failed to parse DB workflow '{name}': {e}", exc_info=True)
             return None
-
-    def _resolve_imports_from_db(self, data: dict[str, Any]) -> dict[str, Any]:
-        """Resolve 'imports' field (no-op after rules table removal).
-
-        The legacy rules table has been removed.  Imports previously resolved
-        rule names from that table; now rule enforcement is handled entirely
-        by the RuleEngine via workflow_definitions.  This method preserves any
-        file-local rule_definitions but no longer performs DB lookups.
-        """
-        return data
 
     async def load_workflow(
         self,
