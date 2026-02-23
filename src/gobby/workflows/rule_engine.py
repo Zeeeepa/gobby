@@ -19,6 +19,7 @@ from gobby.storage.workflow_definitions import (
 from gobby.workflows.definitions import RuleDefinitionBody, RuleEvent
 from gobby.workflows.enforcement.blocking import (
     is_discovery_tool,
+    is_plan_file,
     is_server_listed,
     is_tool_unlocked,
 )
@@ -276,6 +277,7 @@ class RuleEngine:
             allowed_funcs["is_server_listed"] = lambda ti: is_server_listed(ti, variables)
             allowed_funcs["is_tool_unlocked"] = lambda ti: is_tool_unlocked(ti, variables)
             allowed_funcs["is_discovery_tool"] = is_discovery_tool
+            allowed_funcs["is_plan_file"] = is_plan_file
 
             evaluator = SafeExpressionEvaluator(
                 context=context,

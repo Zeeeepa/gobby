@@ -141,6 +141,99 @@ class TestRequireTaskBeforeEdit:
         assert "task_claimed" in body.when
         assert "plan_mode" in body.when
 
+    def test_when_condition_evaluates_with_is_plan_file(self) -> None:
+        """The when condition should evaluate successfully with is_plan_file registered."""
+        from gobby.workflows.enforcement.blocking import is_plan_file
+        from gobby.workflows.safe_evaluator import SafeExpressionEvaluator, build_condition_helpers
+
+        condition = (
+            "variables.get('require_task_before_edit') and not variables.get('task_claimed') "
+            "and not (variables.get('plan_mode') and is_plan_file(tool_input.get('file_path', ''), source))"
+        )
+
+        # Scenario: plan_mode=True, editing a plan file => should NOT block
+        context = {
+            "variables": {
+                "require_task_before_edit": True,
+                "task_claimed": False,
+                "plan_mode": True,
+            },
+            "tool_input": {"file_path": "/project/.gobby/plans/my-plan.md"},
+            "source": "claude_code",
+        }
+        allowed_funcs = build_condition_helpers(context=context)
+        allowed_funcs["is_plan_file"] = is_plan_file
+
+        evaluator = SafeExpressionEvaluator(context=context, allowed_funcs=allowed_funcs)
+        result = evaluator.evaluate(condition)
+        assert result is False, "Should not block when in plan_mode editing a plan file"
+
+    def test_when_condition_blocks_non_plan_file_in_plan_mode(self) -> None:
+        """Editing a non-plan file in plan_mode without task should still block."""
+        from gobby.workflows.enforcement.blocking import is_plan_file
+        from gobby.workflows.safe_evaluator import SafeExpressionEvaluator, build_condition_helpers
+
+        condition = (
+            "variables.get('require_task_before_edit') and not variables.get('task_claimed') "
+            "and not (variables.get('plan_mode') and is_plan_file(tool_input.get('file_path', ''), source))"
+        )
+
+        context = {
+            "variables": {
+                "require_task_before_edit": True,
+                "task_claimed": False,
+                "plan_mode": True,
+            },
+            "tool_input": {"file_path": "/project/src/main.py"},
+            "source": "claude_code",
+        }
+        allowed_funcs = build_condition_helpers(context=context)
+        allowed_funcs["is_plan_file"] = is_plan_file
+
+        evaluator = SafeExpressionEvaluator(context=context, allowed_funcs=allowed_funcs)
+        result = evaluator.evaluate(condition)
+        assert result is True, "Should block non-plan file even in plan_mode"
+
+
+class TestIsPlanFile:
+    """Unit tests for is_plan_file helper."""
+
+    def test_gobby_plans_md(self) -> None:
+        from gobby.workflows.enforcement.blocking import is_plan_file
+
+        assert is_plan_file("/project/.gobby/plans/my-plan.md") is True
+
+    def test_claude_plans_md(self) -> None:
+        from gobby.workflows.enforcement.blocking import is_plan_file
+
+        assert is_plan_file("/home/user/.claude/plans/design.md") is True
+
+    def test_non_md_file_in_plans_dir(self) -> None:
+        from gobby.workflows.enforcement.blocking import is_plan_file
+
+        assert is_plan_file("/project/.gobby/plans/notes.txt") is False
+
+    def test_regular_source_file(self) -> None:
+        from gobby.workflows.enforcement.blocking import is_plan_file
+
+        assert is_plan_file("/project/src/main.py") is False
+
+    def test_empty_path(self) -> None:
+        from gobby.workflows.enforcement.blocking import is_plan_file
+
+        assert is_plan_file("") is False
+
+    def test_md_file_outside_plans(self) -> None:
+        from gobby.workflows.enforcement.blocking import is_plan_file
+
+        assert is_plan_file("/project/docs/plan.md") is False
+
+    def test_source_param_accepted(self) -> None:
+        from gobby.workflows.enforcement.blocking import is_plan_file
+
+        assert is_plan_file("/project/.gobby/plans/x.md", "claude_code") is True
+        assert is_plan_file("/project/.gobby/plans/x.md", None) is True
+
 
 class TestRequireCommitBeforeClose:
     """Verify require-commit-before-close requires commit before close_task."""

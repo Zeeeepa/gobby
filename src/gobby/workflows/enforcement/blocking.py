@@ -7,6 +7,7 @@ rule engine's blocking conditions.
 from __future__ import annotations
 
 import logging
+import os
 from typing import Any
 
 logger = logging.getLogger(__name__)
@@ -87,3 +88,41 @@ def is_server_listed(
     if not server:
         return False
     return server in variables.get("listed_servers", [])
+
+
+# Plan file directories that are exempt from task-before-edit enforcement.
+# .gobby/plans/ is universal; ~/.claude/plans/ is Claude Code specific.
+_PLAN_DIR_SEGMENTS = (
+    f"{os.sep}.gobby{os.sep}plans{os.sep}",
+    f"{os.sep}.claude{os.sep}plans{os.sep}",
+)
+
+
+def is_plan_file(file_path: str, source: str | None = None) -> bool:
+    """Check if a file is a plan file that may be edited without a task.
+
+    Plan files live in ``.gobby/plans/`` (any adapter) or
+    ``~/.claude/plans/`` (Claude Code).  Only ``.md`` files in those
+    directories qualify.
+
+    Args:
+        file_path: Absolute or relative path to the file being edited.
+        source: Adapter source (e.g. ``"claude_code"``).  Currently unused
+            but accepted for forward-compatibility with the rule signature.
+
+    Returns:
+        True if *file_path* is a recognised plan file.
+    """
+    if not file_path:
+        return False
+
+    # Normalise so segment matching works on any platform
+    normalised = os.path.normpath(file_path)
+
+    if not normalised.endswith(".md"):
+        return False
+
+    # Append a trailing separator so the segment search can match the
+    # directory itself when the file sits directly inside it.
+    check = normalised + os.sep
+    return any(seg in check for seg in _PLAN_DIR_SEGMENTS)
