@@ -3,7 +3,6 @@ import { useMemory, useNeo4jStatus } from '../hooks/useMemory'
 import type { GobbyMemory } from '../hooks/useMemory'
 import { MemoryFilters } from './MemoryFilters'
 import { MemoryTable } from './MemoryTable'
-import { MemoryGraph } from './MemoryGraph'
 import { MemoryForm } from './MemoryForm'
 import type { MemoryFormData } from './MemoryForm'
 import { MemoryDetail } from './MemoryDetail'
@@ -15,6 +14,7 @@ const GRAPH_LIMIT_MAX = 1000
 const KNOWLEDGE_LIMIT_MAX = 5000
 const GRAPH_LIMIT_STEP = 50
 
+const MemoryGraph = lazy(() => import('./MemoryGraph').then(m => ({ default: m.MemoryGraph })))
 const KnowledgeGraph = lazy(() => import('./KnowledgeGraph').then(m => ({ default: m.KnowledgeGraph })))
 
 class KnowledgeGraphErrorBoundary extends Component<
@@ -368,11 +368,13 @@ export function MemoryPage({ projectId }: MemoryPageProps = {}) {
             </Suspense>
           </KnowledgeGraphErrorBoundary>
         ) : viewMode === 'graph' ? (
-          <MemoryGraph
-            fetchGraphData={fetchGraphData}
-            onSelect={handleSelect}
-            memoryLimit={memoryGraphLimit}
-          />
+          <Suspense fallback={<div style={{ padding: '2rem', color: 'var(--text-secondary)' }}>Loading graph...</div>}>
+            <MemoryGraph
+              fetchGraphData={fetchGraphData}
+              onSelect={handleSelect}
+              memoryLimit={memoryGraphLimit}
+            />
+          </Suspense>
         ) : (
           <MemoryTable
             memories={filteredMemories}

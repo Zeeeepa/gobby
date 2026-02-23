@@ -1,4 +1,4 @@
-import { useState, useCallback, useMemo, useEffect, useRef, Component, type ReactNode } from 'react'
+import { useState, useCallback, useMemo, useEffect, useRef, lazy, Suspense, Component, type ReactNode } from 'react'
 import { useChat } from './hooks/useChat'
 import { useVoice } from './hooks/useVoice'
 import { useSettings } from './hooks/useSettings'
@@ -9,22 +9,24 @@ import { useSessions } from './hooks/useSessions'
 import type { QueuedFile } from './types/chat'
 import { Settings } from './components/Settings'
 import { Sidebar } from './components/Sidebar'
-import { SessionsPage } from './components/SessionsPage'
-import { TerminalsPage } from './components/TerminalsPage'
-import { MemoryPage } from './components/MemoryPage'
-import { ProjectsPage } from './components/ProjectsPage'
-import { TasksPage } from './components/TasksPage'
-import { SkillsPage } from './components/SkillsPage'
-import { McpPage } from './components/McpPage'
-import { CronJobsPage } from './components/CronJobsPage'
-import { ConfigurationPage } from './components/ConfigurationPage'
-import { WorkflowsPage } from './components/WorkflowsPage'
-import { GitHubPage } from './components/GitHubPage'
-import { DashboardPage } from './components/DashboardPage'
-import { QuickCaptureTask } from './components/tasks/QuickCaptureTask'
 import { ChatPage } from './components/chat/ChatPage'
 import { ProjectSelector } from './components/ProjectSelector'
+import { QuickCaptureTask } from './components/tasks/QuickCaptureTask'
 import type { GobbySession } from './hooks/useSessions'
+
+// Lazy-load non-default page components for code splitting
+const SessionsPage = lazy(() => import('./components/SessionsPage').then(m => ({ default: m.SessionsPage })))
+const TerminalsPage = lazy(() => import('./components/TerminalsPage').then(m => ({ default: m.TerminalsPage })))
+const MemoryPage = lazy(() => import('./components/MemoryPage').then(m => ({ default: m.MemoryPage })))
+const ProjectsPage = lazy(() => import('./components/ProjectsPage').then(m => ({ default: m.ProjectsPage })))
+const TasksPage = lazy(() => import('./components/TasksPage').then(m => ({ default: m.TasksPage })))
+const SkillsPage = lazy(() => import('./components/SkillsPage').then(m => ({ default: m.SkillsPage })))
+const McpPage = lazy(() => import('./components/McpPage').then(m => ({ default: m.McpPage })))
+const CronJobsPage = lazy(() => import('./components/CronJobsPage').then(m => ({ default: m.CronJobsPage })))
+const ConfigurationPage = lazy(() => import('./components/ConfigurationPage').then(m => ({ default: m.ConfigurationPage })))
+const WorkflowsPage = lazy(() => import('./components/WorkflowsPage').then(m => ({ default: m.WorkflowsPage })))
+const GitHubPage = lazy(() => import('./components/GitHubPage').then(m => ({ default: m.GitHubPage })))
+const DashboardPage = lazy(() => import('./components/DashboardPage').then(m => ({ default: m.DashboardPage })))
 
 class AppErrorBoundary extends Component<
   { children: ReactNode; activeTab: string; onReturnToChat: () => void },
@@ -448,6 +450,7 @@ export default function App() {
       />
 
       <AppErrorBoundary activeTab={activeTab} onReturnToChat={() => setActiveTab('chat')}>
+      <Suspense fallback={<main style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', flex: 1, color: 'var(--text-secondary)' }}>Loading...</main>}>
       {activeTab === 'chat' ? (
         <ChatPage
           projectId={effectiveProjectId}
@@ -547,6 +550,7 @@ export default function App() {
       ) : (
         <ComingSoonPage title={navItems.find(i => i.id === activeTab)?.label ?? activeTab} />
       )}
+      </Suspense>
       </AppErrorBoundary>
 
       <Settings

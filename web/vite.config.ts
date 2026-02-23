@@ -35,5 +35,19 @@ export default defineConfig({
   build: {
     outDir: 'dist',
     emptyOutDir: true,
+    chunkSizeWarningLimit: 1300, // Largest chunks: KnowledgeGraph (1.2MB Three.js, lazy-loaded), vendor-syntax (632KB), vendor-codemirror (586KB) — all irreducible
+    rollupOptions: {
+      output: {
+        manualChunks(id) {
+          if (id.includes('node_modules')) {
+            if (id.includes('@codemirror') || id.includes('codemirror')) return 'vendor-codemirror'
+            if (id.includes('@xterm') || id.includes('xterm')) return 'vendor-xterm'
+            if (id.includes('react-syntax-highlighter') || id.includes('refractor') || id.includes('prismjs') || id.includes('highlight.js')) return 'vendor-syntax'
+            if (id.includes('react-markdown') || id.includes('remark') || id.includes('rehype') || id.includes('unified') || id.includes('mdast') || id.includes('hast') || id.includes('micromark') || id.includes('marked')) return 'vendor-markdown'
+            if (id.includes('d3-') || id.includes('@dagrejs')) return 'vendor-d3'
+          }
+        },
+      },
+    },
   },
 })
