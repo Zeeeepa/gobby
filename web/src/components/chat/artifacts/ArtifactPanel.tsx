@@ -7,6 +7,7 @@ import { ArtifactTextView } from './ArtifactTextView'
 import { ArtifactImageView } from './ArtifactImageView'
 import { ArtifactSheetView } from './ArtifactSheetView'
 import { ArtifactVersionBar } from './ArtifactVersionBar'
+import { PlanApprovalBar } from '../PlanApprovalBar'
 
 interface ArtifactPanelProps {
   artifact: Artifact
@@ -14,9 +15,13 @@ interface ArtifactPanelProps {
   onClose: () => void
   onUpdateContent?: (id: string, content: string) => void
   onSetVersion: (id: string, index: number) => void
+  planPendingApproval?: boolean
+  onApprovePlan?: () => void
+  onRequestPlanChanges?: (feedback: string) => void
+  isStreaming?: boolean
 }
 
-export function ArtifactPanel({ artifact, width, onClose, onUpdateContent, onSetVersion }: ArtifactPanelProps) {
+export function ArtifactPanel({ artifact, width, onClose, onUpdateContent, onSetVersion, planPendingApproval, onApprovePlan, onRequestPlanChanges, isStreaming }: ArtifactPanelProps) {
   const versionIndex = Math.max(0, Math.min(artifact.currentVersionIndex, artifact.versions.length - 1))
   const currentVersion = artifact.versions[versionIndex]
   const content = currentVersion?.content ?? ''
@@ -101,7 +106,11 @@ export function ArtifactPanel({ artifact, width, onClose, onUpdateContent, onSet
           />
         )}
         {artifact.type === 'text' && (
-          <ArtifactTextView content={content} artifactId={artifact.id} />
+          <ArtifactTextView
+            content={content}
+            artifactId={artifact.id}
+            onChange={onUpdateContent ? (c) => onUpdateContent(artifact.id, c) : undefined}
+          />
         )}
         {artifact.type === 'image' && (
           <ArtifactImageView content={content} />
@@ -110,6 +119,11 @@ export function ArtifactPanel({ artifact, width, onClose, onUpdateContent, onSet
           <ArtifactSheetView content={content} />
         )}
       </div>
+
+      {/* Plan approval */}
+      {planPendingApproval && !isStreaming && onApprovePlan && onRequestPlanChanges && (
+        <PlanApprovalBar onApprove={onApprovePlan} onRequestChanges={onRequestPlanChanges} />
+      )}
 
       {/* Version bar */}
       <ArtifactVersionBar

@@ -44,7 +44,7 @@ export function ChatPage({ chat, conversations, voice, projectId }: ChatPageProp
   // Wire plan content to artifact panel when ExitPlanMode fires
   const onPlanReady = useCallback((content: string | null) => {
     if (content) {
-      createArtifact('code', content, 'markdown', 'Implementation Plan')
+      createArtifact('text', content, 'markdown', 'Implementation Plan')
     }
   }, [createArtifact])
 
@@ -129,6 +129,10 @@ export function ChatPage({ chat, conversations, voice, projectId }: ChatPageProp
                   onClose={closePanel}
                   onUpdateContent={updateArtifact}
                   onSetVersion={setVersion}
+                  planPendingApproval={chat.planPendingApproval}
+                  onApprovePlan={chat.onApprovePlan}
+                  onRequestPlanChanges={chat.onRequestPlanChanges}
+                  isStreaming={chat.isStreaming}
                 />
               </>
             )}

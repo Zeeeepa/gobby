@@ -313,24 +313,16 @@ export function ChatInput({
             rows={1}
           />
 
-          {isStreaming ? (
-            <div className="flex gap-1">
-              {onStop && (
-                <Button size="icon" variant="outline" onClick={onStop} title="Stop generating">
-                  <StopIcon />
-                </Button>
-              )}
-              {hasInput && (
-                <Button size="icon" variant="primary" onClick={handleSubmit}>
-                  <SendIcon />
-                </Button>
-              )}
-            </div>
-          ) : (
-            <Button size="icon" variant="primary" onClick={handleSubmit} disabled={disabled || !hasInput}>
+          <div className="flex gap-1 shrink-0">
+            <Button size="icon" variant="primary" onClick={handleSubmit} disabled={!isStreaming && (disabled || !hasInput)}>
               <SendIcon />
             </Button>
-          )}
+            {isStreaming && onStop && (
+              <Button size="icon" variant="outline" onClick={onStop} title="Stop generating">
+                <StopIcon />
+              </Button>
+            )}
+          </div>
         </div>
       </div>
     </div>
