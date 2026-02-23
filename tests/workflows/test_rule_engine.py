@@ -547,6 +547,138 @@ class TestVariableRebuild:
         assert "Flag was set" in (response.reason or "")
 
 
+class TestMcpCallToolUnwrapping:
+    """Tests for unwrapping nested MCP call_tool arguments in _build_eval_context."""
+
+    @pytest.mark.asyncio
+    async def test_call_tool_unwraps_dict_arguments(self, db: LocalDatabase) -> None:
+        """_build_eval_context should unwrap inner arguments for call_tool events."""
+        from gobby.workflows.rule_engine import RuleEngine
+
+        engine = RuleEngine(db)
+        event = _make_event(
+            HookEventType.BEFORE_TOOL,
+            data={
+                "tool_name": "call_tool",
+                "tool_input": {
+                    "server_name": "gobby-tasks",
+                    "tool_name": "close_task",
+                    "arguments": {"task_id": "#1", "commit_sha": "abc123"},
+                },
+            },
+        )
+        ctx = engine._build_eval_context(event, variables={})
+        assert ctx["tool_input"] == {"task_id": "#1", "commit_sha": "abc123"}
+
+    @pytest.mark.asyncio
+    async def test_mcp_prefixed_call_tool_unwraps(self, db: LocalDatabase) -> None:
+        """_build_eval_context should unwrap for mcp__gobby__call_tool too."""
+        from gobby.workflows.rule_engine import RuleEngine
+
+        engine = RuleEngine(db)
+        event = _make_event(
+            HookEventType.BEFORE_TOOL,
+            data={
+                "tool_name": "mcp__gobby__call_tool",
+                "tool_input": {
+                    "server_name": "gobby-tasks",
+                    "tool_name": "close_task",
+                    "arguments": {"task_id": "#2", "commit_sha": "def456"},
+                },
+            },
+        )
+        ctx = engine._build_eval_context(event, variables={})
+        assert ctx["tool_input"] == {"task_id": "#2", "commit_sha": "def456"}
+
+    @pytest.mark.asyncio
+    async def test_call_tool_unwraps_json_string_arguments(self, db: LocalDatabase) -> None:
+        """_build_eval_context should parse JSON string arguments for call_tool."""
+        from gobby.workflows.rule_engine import RuleEngine
+
+        engine = RuleEngine(db)
+        event = _make_event(
+            HookEventType.BEFORE_TOOL,
+            data={
+                "tool_name": "call_tool",
+                "tool_input": {
+                    "server_name": "gobby-tasks",
+                    "tool_name": "close_task",
+                    "arguments": '{"task_id": "#3", "commit_sha": "ghi789"}',
+                },
+            },
+        )
+        ctx = engine._build_eval_context(event, variables={})
+        assert ctx["tool_input"] == {"task_id": "#3", "commit_sha": "ghi789"}
+
+    @pytest.mark.asyncio
+    async def test_regular_tool_not_unwrapped(self, db: LocalDatabase) -> None:
+        """_build_eval_context should NOT unwrap arguments for regular tools."""
+        from gobby.workflows.rule_engine import RuleEngine
+
+        engine = RuleEngine(db)
+        original_input = {"file_path": "/foo/bar.py", "old_string": "x", "new_string": "y"}
+        event = _make_event(
+            HookEventType.BEFORE_TOOL,
+            data={"tool_name": "Edit", "tool_input": original_input},
+        )
+        ctx = engine._build_eval_context(event, variables={})
+        assert ctx["tool_input"] == original_input
+
+    @pytest.mark.asyncio
+    async def test_rule_condition_sees_unwrapped_args(
+        self, db: LocalDatabase, manager: LocalWorkflowDefinitionManager
+    ) -> None:
+        """End-to-end: a rule checking tool_input.get('commit_sha') should work on inner args."""
+        from gobby.workflows.rule_engine import RuleEngine
+
+        _insert_rule(
+            manager,
+            "require-commit-before-close",
+            RuleDefinitionBody(
+                event=RuleEvent.BEFORE_TOOL,
+                when="not tool_input.get('commit_sha')",
+                effect=RuleEffect(
+                    type="block",
+                    reason="Must provide commit_sha when closing a task",
+                    tools=["call_tool"],
+                ),
+            ),
+        )
+
+        engine = RuleEngine(db)
+
+        # With commit_sha → should allow
+        event_with = _make_event(
+            HookEventType.BEFORE_TOOL,
+            data={
+                "tool_name": "call_tool",
+                "tool_input": {
+                    "server_name": "gobby-tasks",
+                    "tool_name": "close_task",
+                    "arguments": {"task_id": "#1", "commit_sha": "abc123"},
+                },
+            },
+        )
+        response = await engine.evaluate(event_with, session_id="sess-1", variables={})
+        assert response.decision == "allow"
+
+        # Without commit_sha → should block
+        event_without = _make_event(
+            HookEventType.BEFORE_TOOL,
+            data={
+                "tool_name": "call_tool",
+                "tool_input": {
+                    "server_name": "gobby-tasks",
+                    "tool_name": "close_task",
+                    "arguments": {"task_id": "#1"},
+                },
+            },
+        )
+        response = await engine.evaluate(event_without, session_id="sess-1", variables={})
+        assert response.decision == "block"
+        assert "commit_sha" in (response.reason or "")
+
+
 class TestNoRules:
     @pytest.mark.asyncio
     async def test_no_matching_rules_allows(self, db: LocalDatabase) -> None:
