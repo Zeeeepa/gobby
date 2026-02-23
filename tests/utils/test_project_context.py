@@ -7,11 +7,13 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from gobby.utils.project_context import (
+    _current_project_context,
     find_project_root,
     get_project_context,
     get_project_mcp_config_path,
     get_project_mcp_dir,
     get_verification_config,
+    set_project_context,
 )
 
 pytestmark = pytest.mark.unit
@@ -535,6 +537,89 @@ class TestGetProjectContextEnvOverride:
         assert result["id"] == "cwd-id"
         assert result["name"] == "CWD Project"
         assert "project_path" in result
+
+
+class TestContextVarBehavior:
+    """Tests for context var vs filesystem resolution in get_project_context."""
+
+    def test_context_var_ignored_when_explicit_cwd(self, tmp_path: Path) -> None:
+        """When cwd is provided, the context var should be skipped."""
+        # Set up filesystem project
+        gobby_dir = tmp_path / ".gobby"
+        gobby_dir.mkdir()
+        project_data = {"id": "filesystem-project", "name": "FS Project"}
+        (gobby_dir / "project.json").write_text(json.dumps(project_data))
+
+        # Set context var to a different project
+        token = _current_project_context.set(
+            {"id": "context-var-project", "name": "CV Project", "project_path": "/fake"}
+        )
+        try:
+            result = get_project_context(tmp_path)
+            assert result is not None
+            assert result["id"] == "filesystem-project"
+            assert result["name"] == "FS Project"
+        finally:
+            _current_project_context.reset(token)
+
+    def test_context_var_used_when_cwd_is_none(self) -> None:
+        """When cwd is None, the context var should be used if set."""
+        ctx = {"id": "context-var-project", "name": "CV Project", "project_path": "/fake"}
+        token = _current_project_context.set(ctx)
+        try:
+            result = get_project_context()
+            assert result is not None
+            assert result["id"] == "context-var-project"
+            assert result["name"] == "CV Project"
+        finally:
+            _current_project_context.reset(token)
+
+    def test_set_project_context_blocks_test_ids_in_production(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Test project IDs like 'e2e-test-project' are blocked in production."""
+        monkeypatch.delenv("GOBBY_TEST_PROTECT", raising=False)
+
+        for test_id in ("e2e-test-project", "test-project"):
+            token = set_project_context({"id": test_id, "name": "Bad"})
+            try:
+                assert _current_project_context.get() is None
+            finally:
+                _current_project_context.reset(token)
+
+    def test_set_project_context_allows_test_ids_in_tests(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """With GOBBY_TEST_PROTECT=1, test project IDs are allowed."""
+        monkeypatch.setenv("GOBBY_TEST_PROTECT", "1")
+
+        ctx = {"id": "e2e-test-project", "name": "Test"}
+        token = set_project_context(ctx)
+        try:
+            assert _current_project_context.get() is not None
+            assert _current_project_context.get()["id"] == "e2e-test-project"
+        finally:
+            _current_project_context.reset(token)
+
+    def test_set_project_context_allows_real_ids(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """Real project IDs are always allowed regardless of GOBBY_TEST_PROTECT."""
+        monkeypatch.delenv("GOBBY_TEST_PROTECT", raising=False)
+
+        ctx = {"id": "d45545c5-ded5-4335-b115-0245752edacf", "name": "Real Project"}
+        token = set_project_context(ctx)
+        try:
+            assert _current_project_context.get() is not None
+            assert _current_project_context.get()["id"] == "d45545c5-ded5-4335-b115-0245752edacf"
+        finally:
+            _current_project_context.reset(token)
+
+    def test_set_project_context_allows_none(self) -> None:
+        """Setting None context should always work."""
+        token = set_project_context(None)
+        try:
+            assert _current_project_context.get() is None
+        finally:
+            _current_project_context.reset(token)
 
 
 class TestEdgeCases:

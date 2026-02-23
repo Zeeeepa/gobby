@@ -130,6 +130,14 @@ class GobbyDaemonTools:
                     if project_file.exists():
                         try:
                             data = json.loads(project_file.read_text())
+                            fs_id = data.get("id")
+                            if fs_id and fs_id != project.id:
+                                logger.warning(
+                                    "Project ID mismatch: session='%s', filesystem='%s' at %s. Using filesystem.",
+                                    project.id,
+                                    fs_id,
+                                    project.repo_path,
+                                )
                             data["project_path"] = project.repo_path
                             return set_project_context(data)
                         except (json.JSONDecodeError, OSError) as e:

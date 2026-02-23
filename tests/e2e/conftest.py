@@ -109,37 +109,45 @@ def prepare_daemon_env(base_env: dict[str, str] | None = None) -> dict[str, str]
     return env
 
 
-def find_free_port(max_retries: int = 5) -> int:
+def find_free_port(max_retries: int = 20) -> int:
     """Find an available port that won't collide with any running daemon.
 
-    Avoids SO_REUSEADDR so the OS rejects ports already bound on any
-    address (e.g. production daemon on 0.0.0.0:60887). Also excludes
-    known gobby ports as defense-in-depth.
+    Binds to 0.0.0.0 so the OS detects conflicts with a production daemon
+    also bound to 0.0.0.0. Restricts to port range 30000-40000, well away
+    from production's 60887-60889. Also excludes known gobby ports as
+    defense-in-depth.
     """
-    EXCLUDED_PORTS = {60887, 60888}  # default gobby daemon + websocket ports
-    for attempt in range(max_retries):
+    EXCLUDED_PORTS = {60887, 60888, 60889}
+    PORT_MIN, PORT_MAX = 30000, 40000
+    for _attempt in range(max_retries):
         with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-            s.bind(("localhost", 0))
+            s.bind(("0.0.0.0", 0))
             port = s.getsockname()[1]
 
-        if port in EXCLUDED_PORTS:
+        if port in EXCLUDED_PORTS or not (PORT_MIN <= port <= PORT_MAX):
             continue
 
-        # Verify port is actually available on both localhost and all interfaces
-        time.sleep(0.1)  # Brief delay to let OS release the port
+        # Verify port is actually available
+        time.sleep(0.05)
         try:
-            with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as v:
-                v.bind(("localhost", port))
             with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as v:
                 v.bind(("0.0.0.0", port))
             return port
         except OSError:
-            if attempt < max_retries - 1:
-                time.sleep(0.2)  # Wait before retry
-                continue
-            raise
+            continue
 
-    raise RuntimeError("Could not find an available port after retries")
+    # Fallback: explicitly pick from range
+    import random
+
+    for _ in range(max_retries):
+        port = random.randint(PORT_MIN, PORT_MAX)
+        try:
+            with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as v:
+                v.bind(("0.0.0.0", port))
+            return port
+        except OSError:
+            continue
+    raise RuntimeError("Could not find free port for e2e test")
 
 
 def wait_for_port(port: int, timeout: float = 10.0) -> bool:

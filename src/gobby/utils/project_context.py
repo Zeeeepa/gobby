@@ -24,8 +24,20 @@ _current_project_context: contextvars.ContextVar[dict[str, Any] | None] = contex
 )
 
 
+_TEST_PROJECT_IDS = frozenset({"e2e-test-project", "test-project"})
+
+
 def set_project_context(ctx: dict[str, Any] | None) -> contextvars.Token[dict[str, Any] | None]:
-    """Set project context for the current async task (used by MCP tool calls)."""
+    """Set project context for the current async task (used by MCP tool calls).
+
+    Blocks known test project IDs in production to prevent e2e test leakage.
+    Set GOBBY_TEST_PROTECT=1 in test environments to allow test IDs.
+    """
+    if ctx is not None and not os.environ.get("GOBBY_TEST_PROTECT"):
+        pid = ctx.get("id", "")
+        if isinstance(pid, str) and pid in _TEST_PROJECT_IDS:
+            logger.warning("Blocked test project_id '%s' in production context", pid)
+            return _current_project_context.set(None)
     return _current_project_context.set(ctx)
 
 
@@ -74,10 +86,14 @@ def get_project_context(cwd: Path | None = None) -> dict[str, Any] | None:
         - project_path: Path to project root
         - verification: Optional dict with unit_tests, type_check, lint, integration, custom
     """
-    # 1. Check context var (set per-MCP-call from session)
-    ctx = _current_project_context.get()
-    if ctx is not None:
-        return ctx
+    # 1. Check context var (set per-MCP-call from session), but only when
+    # no explicit cwd was provided. Callers passing cwd want filesystem
+    # resolution; the context var is for MCP tool handlers that don't know
+    # their cwd.
+    if cwd is None:
+        ctx = _current_project_context.get()
+        if ctx is not None:
+            return ctx
 
     # 2. Environment override (set by web chat subprocess for correct project routing)
     override_id = os.environ.get("GOBBY_PROJECT_ID")
