@@ -116,6 +116,9 @@ class DoneEvent:
     context_window: int | None = None
     """Max context window size for the model."""
 
+    sdk_session_id: str | None = None
+    """SDK session_id from ResultMessage (used to re-key web chat sessions)."""
+
 
 @dataclass
 class ThinkingEvent:

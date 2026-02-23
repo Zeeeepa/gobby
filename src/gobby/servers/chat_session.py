@@ -103,6 +103,7 @@ class ChatSession(ChatSessionPermissionsMixin):
     _max_history_total_chars: int = field(default=30_000, repr=False)
     _accumulated_output_tokens: int = field(default=0, repr=False)
     _accumulated_cost_usd: float = field(default=0.0, repr=False)
+    sdk_session_id: str | None = field(default=None, repr=False)
 
     # Lifecycle callbacks — set by ChatMixin to bridge SDK hooks to workflow engine
     _on_before_agent: Callable[[dict[str, Any]], Awaitable[dict[str, Any] | None]] | None = field(
@@ -422,6 +423,9 @@ class ChatSession(ChatSessionPermissionsMixin):
                     if message is None:
                         continue
                     if isinstance(message, ResultMessage):
+                        # Capture SDK session_id on first ResultMessage
+                        if not self.sdk_session_id:
+                            self.sdk_session_id = message.session_id
                         # Fallback: if no text was streamed (e.g. Opus thinking-only
                         # response), emit the ResultMessage.result as a TextChunk
                         if message.result and not has_text:
@@ -488,6 +492,7 @@ class ChatSession(ChatSessionPermissionsMixin):
                             cache_creation_input_tokens=cache_creation or None,
                             total_input_tokens=total_input or None,
                             context_window=context_window,
+                            sdk_session_id=self.sdk_session_id,
                         )
 
                     elif isinstance(message, AssistantMessage):

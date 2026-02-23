@@ -62,6 +62,7 @@ interface ChatStreamChunk {
   done: boolean
   tool_calls_count?: number
   session_ref?: string
+  sdk_session_id?: string
   usage?: {
     input_tokens: number
     output_tokens: number
@@ -391,6 +392,12 @@ export function useChat() {
       // Pick up session_ref from done message (fallback if session_info was missed)
       if (chunk.session_ref) {
         setSessionRef(chunk.session_ref)
+      }
+      // Adopt SDK session_id as the canonical conversation ID
+      if (chunk.sdk_session_id && chunk.sdk_session_id !== conversationIdRef.current) {
+        conversationIdRef.current = chunk.sdk_session_id
+        setConversationId(chunk.sdk_session_id)
+        saveConversationId(chunk.sdk_session_id)
       }
       // Update context usage from usage data in done message.
       // Each turn sends the full conversation to Claude, so the latest turn's

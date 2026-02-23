@@ -691,6 +691,40 @@ class ChatMixin:
                         event.output_tokens,
                     )
 
+                    # Adopt SDK session_id as external_id (replaces temp frontend UUID)
+                    sdk_sid = event.sdk_session_id
+                    if sdk_sid:
+                        done_msg["sdk_session_id"] = sdk_sid
+                    if sdk_sid and sdk_sid != conversation_id:
+                        # Update DB external_id
+                        db_sid = getattr(session, "db_session_id", None)
+                        session_mgr = getattr(self, "session_manager", None)
+                        if db_sid and session_mgr:
+                            try:
+                                await asyncio.to_thread(
+                                    session_mgr.update, db_sid, external_id=sdk_sid
+                                )
+                            except Exception:
+                                logger.debug(
+                                    "Failed to update external_id to SDK session_id for %s",
+                                    db_sid,
+                                    exc_info=True,
+                                )
+                        # Re-key in-memory dicts
+                        self._chat_sessions[sdk_sid] = self._chat_sessions.pop(
+                            conversation_id, session
+                        )
+                        if conversation_id in self._active_chat_tasks:
+                            self._active_chat_tasks[sdk_sid] = (
+                                self._active_chat_tasks.pop(conversation_id)
+                            )
+                        logger.info(
+                            "Re-keyed web chat session %s → %s",
+                            conversation_id[:8],
+                            sdk_sid[:8],
+                        )
+                        conversation_id = sdk_sid
+
                     await websocket.send(json.dumps(done_msg))
 
                     # Persist usage to DB (best-effort)
