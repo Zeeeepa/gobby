@@ -130,8 +130,8 @@ class TestRequireTaskBeforeEdit:
         assert body.effect.type == "block"
         assert set(body.effect.tools) == {"Edit", "Write", "NotebookEdit"}
 
-    def test_when_checks_task_claimed_and_plan_mode(self, db, manager) -> None:
-        """Should check task_claimed and plan_mode."""
+    def test_when_checks_task_claimed_and_plan_file(self, db, manager) -> None:
+        """Should check task_claimed and is_plan_file."""
         _sync_bundled(db)
 
         row = manager.get_by_name("require-task-before-edit")
@@ -139,7 +139,8 @@ class TestRequireTaskBeforeEdit:
 
         assert body.when is not None
         assert "task_claimed" in body.when
-        assert "plan_mode" in body.when
+        assert "is_plan_file" in body.when
+        assert "plan_mode" not in body.when
 
     def test_when_condition_evaluates_with_is_plan_file(self) -> None:
         """The when condition should evaluate successfully with is_plan_file registered."""
@@ -148,15 +149,14 @@ class TestRequireTaskBeforeEdit:
 
         condition = (
             "variables.get('require_task_before_edit') and not variables.get('task_claimed') "
-            "and not (variables.get('plan_mode') and is_plan_file(tool_input.get('file_path', ''), source))"
+            "and not is_plan_file(tool_input.get('file_path', ''), source)"
         )
 
-        # Scenario: plan_mode=True, editing a plan file => should NOT block
+        # Scenario: editing a plan file without task claimed => should NOT block
         context = {
             "variables": {
                 "require_task_before_edit": True,
                 "task_claimed": False,
-                "plan_mode": True,
             },
             "tool_input": {"file_path": "/project/.gobby/plans/my-plan.md"},
             "source": "claude_code",
@@ -166,23 +166,22 @@ class TestRequireTaskBeforeEdit:
 
         evaluator = SafeExpressionEvaluator(context=context, allowed_funcs=allowed_funcs)
         result = evaluator.evaluate(condition)
-        assert result is False, "Should not block when in plan_mode editing a plan file"
+        assert result is False, "Should not block when editing a plan file"
 
-    def test_when_condition_blocks_non_plan_file_in_plan_mode(self) -> None:
-        """Editing a non-plan file in plan_mode without task should still block."""
+    def test_when_condition_blocks_non_plan_file(self) -> None:
+        """Editing a non-plan file without task should still block."""
         from gobby.workflows.enforcement.blocking import is_plan_file
         from gobby.workflows.safe_evaluator import SafeExpressionEvaluator, build_condition_helpers
 
         condition = (
             "variables.get('require_task_before_edit') and not variables.get('task_claimed') "
-            "and not (variables.get('plan_mode') and is_plan_file(tool_input.get('file_path', ''), source))"
+            "and not is_plan_file(tool_input.get('file_path', ''), source)"
         )
 
         context = {
             "variables": {
                 "require_task_before_edit": True,
                 "task_claimed": False,
-                "plan_mode": True,
             },
             "tool_input": {"file_path": "/project/src/main.py"},
             "source": "claude_code",
@@ -192,7 +191,7 @@ class TestRequireTaskBeforeEdit:
 
         evaluator = SafeExpressionEvaluator(context=context, allowed_funcs=allowed_funcs)
         result = evaluator.evaluate(condition)
-        assert result is True, "Should block non-plan file even in plan_mode"
+        assert result is True, "Should block non-plan file without task"
 
 
 class TestIsPlanFile:
