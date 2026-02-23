@@ -1336,6 +1336,88 @@ class TestCloseTaskTool:
             assert result.get("error") == "missing_commits_for_edits"
             mock_task_manager.close_task.assert_not_called()
 
+    @pytest.mark.asyncio
+    async def test_close_task_clears_task_claimed_variables(
+        self, mock_task_manager, mock_sync_manager
+    ):
+        """close_task must clear task_claimed/claimed_task_id session variables.
+
+        Regression test for #9064: after successful close, the workflow state
+        variables were not cleared due to scoping issues, causing stale
+        'Task (unknown) is still in_progress' blocks after compaction.
+        """
+        from gobby.workflows.definitions import WorkflowState
+
+        task_uuid = "550e8400-e29b-41d4-a716-446655440000"
+
+        with (
+            patch(
+                "gobby.mcp_proxy.tools.tasks._context.SessionTaskManager"
+            ) as MockSessionTaskManager,
+            patch(
+                "gobby.mcp_proxy.tools.tasks._context.LocalSessionManager"
+            ) as MockSessionManager,
+            patch(
+                "gobby.mcp_proxy.tools.tasks._context.WorkflowStateManager"
+            ) as MockWSManager,
+            patch(
+                "gobby.mcp_proxy.tools.tasks._context.LocalProjectManager"
+            ) as MockProjManager,
+            patch("gobby.utils.git.run_git_command") as mock_git,
+        ):
+            mock_st_instance = MagicMock()
+            MockSessionTaskManager.return_value = mock_st_instance
+
+            mock_session_manager = MagicMock()
+            mock_session_manager.resolve_session_reference.return_value = "test-session"
+            mock_session_manager.get.return_value = None
+            MockSessionManager.return_value = mock_session_manager
+
+            # Workflow state with task_claimed=True for this task
+            state = WorkflowState(
+                session_id="test-session",
+                workflow_name="__lifecycle__",
+                step="global",
+                variables={
+                    "task_claimed": True,
+                    "claimed_task_id": task_uuid,
+                    "task_ref": "#42",
+                },
+            )
+            mock_ws_manager = MagicMock()
+            mock_ws_manager.get_state.return_value = state
+            MockWSManager.return_value = mock_ws_manager
+
+            mock_proj_instance = MagicMock()
+            mock_proj_instance.get.return_value = None
+            MockProjManager.return_value = mock_proj_instance
+            mock_git.return_value = "abc123"
+
+            registry = create_task_registry(mock_task_manager, mock_sync_manager)
+
+            mock_task = MagicMock()
+            mock_task.id = task_uuid
+            mock_task.commits = ["abc123"]
+            mock_task.project_id = "proj-1"
+            mock_task.validation_criteria = None
+            mock_task.requires_user_review = False
+            mock_task.to_brief.return_value = {"id": task_uuid, "status": "closed"}
+            mock_task_manager.get_task.return_value = mock_task
+            mock_task_manager.close_task.return_value = mock_task
+            mock_task_manager.list_tasks.return_value = []
+
+            result = await registry.call(
+                "close_task",
+                {"task_id": task_uuid, "session_id": "test-session"},
+            )
+
+            assert "error" not in result
+            # Variables must be cleared after successful close
+            assert state.variables["task_claimed"] is False
+            assert state.variables["claimed_task_id"] is None
+            assert state.variables["task_ref"] == ""
+            mock_ws_manager.save_state.assert_called()
+
 
 # =============================================================================
 # reopen_task Tool Tests

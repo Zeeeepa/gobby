@@ -3,6 +3,7 @@
 Provides task lifecycle tools: close, reopen, delete, and label management.
 """
 
+import logging
 import uuid
 from typing import Any
 
@@ -19,6 +20,8 @@ from gobby.mcp_proxy.tools.tasks._lifecycle_validation import (
 from gobby.mcp_proxy.tools.tasks._resolution import resolve_task_id_for_mcp
 from gobby.storage.tasks import TaskNotFoundError
 from gobby.storage.worktrees import LocalWorktreeManager
+
+logger = logging.getLogger(__name__)
 
 
 def _is_uuid(value: str) -> bool:
@@ -260,19 +263,34 @@ def create_lifecycle_registry(ctx: RegistryContext) -> InternalToolRegistry:
                             if claimed_task:
                                 claimed_task_id = claimed_task.id
                         except Exception:
-                            # Keep claimed_task_id as the raw ref; the UUID
-                            # comparison on the next line will safely not match.
-                            pass  # nosec B110
-                if state and claimed_task_id == resolved_id:
-                    # Check if clear_task_on_close is enabled (default: True)
-                    clear_on_close = state.variables.get("clear_task_on_close", True)
-                    if clear_on_close:
-                        state.variables["task_claimed"] = False
-                        state.variables["claimed_task_id"] = None
-                        state.variables["task_ref"] = ""
-                        ctx.workflow_state_manager.save_state(state)
-            except Exception:
-                pass  # nosec B110 - best-effort state update
+                            pass  # nosec B110 - ref stays raw, comparison below handles it
+
+                    # Compare with normalized UUIDs to handle format differences
+                    ids_match = False
+                    if claimed_task_id and resolved_id:
+                        try:
+                            ids_match = str(uuid.UUID(claimed_task_id)) == str(
+                                uuid.UUID(resolved_id)
+                            )
+                        except (ValueError, TypeError):
+                            ids_match = claimed_task_id == resolved_id
+
+                    if ids_match:
+                        clear_on_close = state.variables.get("clear_task_on_close", True)
+                        if clear_on_close:
+                            state.variables["task_claimed"] = False
+                            state.variables["claimed_task_id"] = None
+                            state.variables["task_ref"] = ""
+                            ctx.workflow_state_manager.save_state(state)
+                            logger.debug(
+                                "Cleared task_claimed for session %s", resolved_session_id
+                            )
+            except Exception as e:
+                logger.warning(
+                    "Failed to clear task_claimed for session %s: %s",
+                    resolved_session_id,
+                    e,
+                )
 
         # Reset had_edits after successful close with a linked commit
         # The commit accounts for this task's edits; subsequent tasks start clean
