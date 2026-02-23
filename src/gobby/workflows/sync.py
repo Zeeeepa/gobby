@@ -121,7 +121,7 @@ def sync_bundled_workflows(db: DatabaseProtocol) -> dict[str, Any]:
             sources_list = data.get("sources")
 
             # Check if workflow already exists (global scope, including soft-deleted)
-            existing = manager.get_by_name(name, include_deleted=True)
+            existing = manager.get_by_name(name, include_deleted=True, include_templates=True)
 
             if existing is not None:
                 # If user soft-deleted it, respect their intent — skip sync
@@ -421,7 +421,7 @@ def _sync_single_rule(
     enabled = rule_data.get("enabled", False)
 
     # Check if rule already exists
-    existing = manager.get_by_name(rule_name, include_deleted=True)
+    existing = manager.get_by_name(rule_name, include_deleted=True, include_templates=True)
 
     if existing is not None:
         # Respect soft-delete

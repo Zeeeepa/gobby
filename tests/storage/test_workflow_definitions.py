@@ -251,6 +251,55 @@ def test_get_by_name_not_found(manager: LocalWorkflowDefinitionManager) -> None:
     assert result is None
 
 
+def test_get_by_name_excludes_templates_by_default(
+    manager: LocalWorkflowDefinitionManager,
+) -> None:
+    """get_by_name should not return template-only rows by default."""
+    manager.create(
+        name="template-rule",
+        definition_json=SAMPLE_DEFINITION,
+        source="template",
+    )
+
+    result = manager.get_by_name("template-rule")
+    assert result is None
+
+
+def test_get_by_name_includes_templates_when_opted_in(
+    manager: LocalWorkflowDefinitionManager,
+) -> None:
+    """get_by_name should return templates when include_templates=True."""
+    manager.create(
+        name="template-rule",
+        definition_json=SAMPLE_DEFINITION,
+        source="template",
+    )
+
+    result = manager.get_by_name("template-rule", include_templates=True)
+    assert result is not None
+    assert result.source == "template"
+
+
+def test_get_by_name_prefers_installed_over_template(
+    manager: LocalWorkflowDefinitionManager,
+) -> None:
+    """When both installed and template exist, get_by_name returns installed."""
+    manager.create(
+        name="dual-rule",
+        definition_json=SAMPLE_DEFINITION,
+        source="template",
+    )
+    manager.create(
+        name="dual-rule",
+        definition_json=SAMPLE_DEFINITION,
+        source="installed",
+    )
+
+    result = manager.get_by_name("dual-rule")
+    assert result is not None
+    assert result.source == "installed"
+
+
 # =============================================================================
 # Update
 # =============================================================================

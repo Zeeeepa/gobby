@@ -6,7 +6,7 @@ rules:
     event: before_tool
     enabled: false
     priority: 34
-    when: "variables.get('stop_attempts', 0) > 0 and task_claimed"
+    when: "variables.get('stop_attempts', 0) > 0 and variables.get('task_claimed')"
     effect:
       type: block
       tools: [AskUserQuestion]

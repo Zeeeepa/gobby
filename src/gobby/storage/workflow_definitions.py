@@ -156,20 +156,20 @@ class LocalWorkflowDefinitionManager:
         name: str,
         project_id: str | None = None,
         include_deleted: bool = False,
+        include_templates: bool = False,
     ) -> WorkflowDefinitionRow | None:
         """Get a workflow definition by name (project-scoped first, then global fallback)."""
         deleted_filter = "" if include_deleted else " AND deleted_at IS NULL"
+        template_filter = "" if include_templates else " AND source != 'template'"
         if project_id:
             row = self.db.fetchone(
-                f"SELECT * FROM workflow_definitions WHERE name = ? AND project_id = ?{deleted_filter}",
+                f"SELECT * FROM workflow_definitions WHERE name = ? AND project_id = ?{deleted_filter}{template_filter}",
                 (name, project_id),
             )
             if row:
                 return WorkflowDefinitionRow.from_row(row)
-        # Fall back to global — prefer installed over template when both exist
         row = self.db.fetchone(
-            f"SELECT * FROM workflow_definitions WHERE name = ? AND project_id IS NULL{deleted_filter}"
-            " ORDER BY CASE WHEN source = 'template' THEN 1 ELSE 0 END LIMIT 1",
+            f"SELECT * FROM workflow_definitions WHERE name = ? AND project_id IS NULL{deleted_filter}{template_filter}",
             (name,),
         )
         return WorkflowDefinitionRow.from_row(row) if row else None

@@ -117,7 +117,7 @@ def sync_bundled_agents(db: DatabaseProtocol) -> dict[str, Any]:
             body_json = body.model_dump_json()
 
             # Check if agent already exists in workflow_definitions
-            existing = manager.get_by_name(name, include_deleted=True)
+            existing = manager.get_by_name(name, include_deleted=True, include_templates=True)
 
             if existing is not None and existing.workflow_type != "agent":
                 # Name collision with a non-agent workflow — skip

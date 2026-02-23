@@ -14,6 +14,7 @@ from gobby.storage.database import LocalDatabase
 from gobby.storage.migrations import run_migrations
 from gobby.storage.workflow_definitions import LocalWorkflowDefinitionManager
 from gobby.workflows.definitions import RuleDefinitionBody
+from gobby.workflows.safe_evaluator import SafeExpressionEvaluator
 from gobby.workflows.sync import sync_bundled_rules
 
 pytestmark = pytest.mark.unit
@@ -37,6 +38,11 @@ def _sync_bundled(db):
     from gobby.workflows.sync import get_bundled_rules_path
 
     return sync_bundled_rules(db, get_bundled_rules_path())
+
+
+def _get_rule(manager, name):
+    """Get a bundled rule by name (templates included since bundled rules are templates)."""
+    return manager.get_by_name(name, include_templates=True)
 
 
 STOP_GATES_RULES = {
@@ -96,7 +102,7 @@ class TestIncrementStopAttempts:
         """Should fire on stop event."""
         _sync_bundled(db)
 
-        row = manager.get_by_name("increment-stop-attempts")
+        row = _get_rule(manager, "increment-stop-attempts")
         assert row is not None
 
         body = RuleDefinitionBody.model_validate_json(row.definition_json)
@@ -108,7 +114,7 @@ class TestIncrementStopAttempts:
         """Should always fire (no when condition)."""
         _sync_bundled(db)
 
-        row = manager.get_by_name("increment-stop-attempts")
+        row = _get_rule(manager, "increment-stop-attempts")
         body = RuleDefinitionBody.model_validate_json(row.definition_json)
 
         assert body.when is None
@@ -121,7 +127,7 @@ class TestBlockStopAfterToolBlock:
         """Should be a block effect on stop event."""
         _sync_bundled(db)
 
-        row = manager.get_by_name("block-stop-after-tool-block")
+        row = _get_rule(manager, "block-stop-after-tool-block")
         assert row is not None
 
         body = RuleDefinitionBody.model_validate_json(row.definition_json)
@@ -132,7 +138,7 @@ class TestBlockStopAfterToolBlock:
         """Should check _tool_block_pending and stop_attempts."""
         _sync_bundled(db)
 
-        row = manager.get_by_name("block-stop-after-tool-block")
+        row = _get_rule(manager, "block-stop-after-tool-block")
         body = RuleDefinitionBody.model_validate_json(row.definition_json)
 
         assert body.when is not None
@@ -147,7 +153,7 @@ class TestRequireErrorTriage:
         """Should be a block effect on stop event."""
         _sync_bundled(db)
 
-        row = manager.get_by_name("require-error-triage")
+        row = _get_rule(manager, "require-error-triage")
         assert row is not None
 
         body = RuleDefinitionBody.model_validate_json(row.definition_json)
@@ -158,7 +164,7 @@ class TestRequireErrorTriage:
         """Should check pre_existing_errors_triaged and task_has_commits."""
         _sync_bundled(db)
 
-        row = manager.get_by_name("require-error-triage")
+        row = _get_rule(manager, "require-error-triage")
         body = RuleDefinitionBody.model_validate_json(row.definition_json)
 
         assert body.when is not None
@@ -173,7 +179,7 @@ class TestMemoryReviewGate:
         """Should be a block effect on stop event."""
         _sync_bundled(db)
 
-        row = manager.get_by_name("memory-review-gate")
+        row = _get_rule(manager, "memory-review-gate")
         assert row is not None
 
         body = RuleDefinitionBody.model_validate_json(row.definition_json)
@@ -184,7 +190,7 @@ class TestMemoryReviewGate:
         """Should check pending_memory_review."""
         _sync_bundled(db)
 
-        row = manager.get_by_name("memory-review-gate")
+        row = _get_rule(manager, "memory-review-gate")
         body = RuleDefinitionBody.model_validate_json(row.definition_json)
 
         assert body.when is not None
@@ -198,7 +204,7 @@ class TestRequireTaskClose:
         """Should be a block effect on stop event."""
         _sync_bundled(db)
 
-        row = manager.get_by_name("require-task-close")
+        row = _get_rule(manager, "require-task-close")
         assert row is not None
 
         body = RuleDefinitionBody.model_validate_json(row.definition_json)
@@ -209,12 +215,48 @@ class TestRequireTaskClose:
         """Should check mode_level and task_claimed."""
         _sync_bundled(db)
 
-        row = manager.get_by_name("require-task-close")
+        row = _get_rule(manager, "require-task-close")
         body = RuleDefinitionBody.model_validate_json(row.definition_json)
 
         assert body.when is not None
         assert "mode_level" in body.when
         assert "task_claimed" in body.when
+
+    def test_does_not_block_when_task_claimed_unset(self, db, manager) -> None:
+        """Should NOT block when task_claimed was never set (no false positive)."""
+        _sync_bundled(db)
+
+        row = _get_rule(manager, "require-task-close")
+        body = RuleDefinitionBody.model_validate_json(row.definition_json)
+
+        variables: dict[str, object] = {"mode_level": 2, "stop_attempts": 1}
+        evaluator = SafeExpressionEvaluator(
+            context={"variables": variables},
+            allowed_funcs={"len": len, "str": str, "int": int, "bool": bool},
+        )
+        assert not evaluator.evaluate(body.when), (
+            "Rule should not fire when task_claimed is unset"
+        )
+
+    def test_blocks_when_task_claimed_is_set(self, db, manager) -> None:
+        """Should block when task_claimed is set and conditions met."""
+        _sync_bundled(db)
+
+        row = _get_rule(manager, "require-task-close")
+        body = RuleDefinitionBody.model_validate_json(row.definition_json)
+
+        variables: dict[str, object] = {
+            "mode_level": 2,
+            "stop_attempts": 1,
+            "task_claimed": True,
+        }
+        evaluator = SafeExpressionEvaluator(
+            context={"variables": variables},
+            allowed_funcs={"len": len, "str": str, "int": int, "bool": bool},
+        )
+        assert evaluator.evaluate(body.when), (
+            "Rule should fire when task_claimed is set"
+        )
 
 
 class TestBeforeAgentResets:
@@ -235,14 +277,14 @@ class TestBeforeAgentResets:
         """
         _sync_bundled(db)
 
-        row = manager.get_by_name("reset-stop-attempts-on-prompt")
+        row = _get_rule(manager, "reset-stop-attempts-on-prompt")
         assert row is None, "reset-stop-attempts-on-prompt should not exist"
 
     def test_clear_tool_block_gated_by_stop_cycle(self, db, manager) -> None:
         """Should clear _tool_block_pending only when not in stop cycle."""
         _sync_bundled(db)
 
-        row = manager.get_by_name("clear-tool-block-on-prompt")
+        row = _get_rule(manager, "clear-tool-block-on-prompt")
         assert row is not None
 
         body = RuleDefinitionBody.model_validate_json(row.definition_json)
@@ -256,7 +298,7 @@ class TestBeforeAgentResets:
         """Should reset pre_existing_errors_triaged only when not in stop cycle."""
         _sync_bundled(db)
 
-        row = manager.get_by_name("reset-error-triage-on-prompt")
+        row = _get_rule(manager, "reset-error-triage-on-prompt")
         assert row is not None
 
         body = RuleDefinitionBody.model_validate_json(row.definition_json)
@@ -274,7 +316,7 @@ class TestAfterToolResets:
         """Should reset stop_attempts on non-MCP tool use."""
         _sync_bundled(db)
 
-        row = manager.get_by_name("reset-stop-on-native-tool")
+        row = _get_rule(manager, "reset-stop-on-native-tool")
         assert row is not None
 
         body = RuleDefinitionBody.model_validate_json(row.definition_json)
@@ -288,7 +330,7 @@ class TestAfterToolResets:
         """Should clear _tool_block_pending on any tool use."""
         _sync_bundled(db)
 
-        row = manager.get_by_name("clear-tool-block-on-tool")
+        row = _get_rule(manager, "clear-tool-block-on-tool")
         assert row is not None
 
         body = RuleDefinitionBody.model_validate_json(row.definition_json)
