@@ -81,9 +81,7 @@ class AgentRunner:
         )
         self._run_storage = LocalAgentRunManager(db)
         self._workflow_loader = workflow_loader or WorkflowLoader()
-        from gobby.agents.definitions import AgentDefinitionLoader
-
-        self._agent_loader = AgentDefinitionLoader(db=db)
+        # Agent definitions are now loaded by the spawn_agent factory directly
         self._workflow_state_manager = WorkflowStateManager(db)
 
         self.logger = logger
@@ -181,45 +179,8 @@ class AgentRunner:
                 turns_used=0,
             )
 
-        # Load agent definition if specified
-        if config.agent:
-            agent_def = self._agent_loader.load(config.agent)
-            if agent_def:
-                # Merge definition into config (config takes precedence if explicitly set?)
-                # Actually, definition provides defaults/overrides.
-                # Logic:
-                # 1. Use workflow from definition if not in config
-                # 2. Use model from definition if not in config
-                # 3. Merge lifecycle_variables
-
-                if not config.workflow:
-                    config.workflow = agent_def.get_effective_workflow()
-
-                if not config.model:
-                    config.model = agent_def.model
-
-                # Merge lifecycle variables (definition wins? or config? usually definition sets policy)
-                def_lifecycle = agent_def.lifecycle_variables or {}
-                config_lifecycle = config.lifecycle_variables or {}
-                # Config overrides definition? Or vice versa?
-                # The Plan says "Child session created with lifecycle_variables merged in"
-                # Let's say config overrides definition (standard)
-                config.lifecycle_variables = {**def_lifecycle, **config_lifecycle}
-
-                # Merge default variables
-                def_vars = agent_def.default_variables or {}
-                config_vars = config.default_variables or {}
-                config.default_variables = {**def_vars, **config_vars}
-
-                # Inject skill_profile into lifecycle_variables for context-aware injection
-                if agent_def.skill_profile and "_skill_profile" not in config.lifecycle_variables:
-                    config.lifecycle_variables["_skill_profile"] = (
-                        agent_def.skill_profile.model_dump()
-                    )
-
-                self.logger.info(f"Loaded agent definition '{config.agent}'")
-            else:
-                self.logger.warning(f"Agent definition '{config.agent}' not found")
+        # Agent definition merging is now done by the spawn_agent factory
+        # before calling spawn(). No need to re-load here.
 
         # Get effective workflow name (prefers 'workflow' over legacy 'workflow_name')
         effective_workflow = config.get_effective_workflow()

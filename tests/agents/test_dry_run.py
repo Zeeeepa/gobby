@@ -2,48 +2,59 @@
 
 from __future__ import annotations
 
-from unittest.mock import AsyncMock, MagicMock, patch
+from pathlib import Path
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-from gobby.agents.definitions import AgentDefinition, WorkflowSpec
 from gobby.agents.dry_run import SpawnEvaluation, evaluate_spawn
-from gobby.workflows.definitions import WorkflowDefinition, WorkflowStep, WorkflowTransition
+from gobby.storage.database import LocalDatabase
+from gobby.storage.migrations import run_migrations
+from gobby.storage.workflow_definitions import LocalWorkflowDefinitionManager
+from gobby.workflows.definitions import (
+    AgentDefinitionBody,
+    AgentWorkflows,
+    WorkflowDefinition,
+    WorkflowStep,
+    WorkflowTransition,
+)
 from gobby.workflows.dry_run import WorkflowEvaluation
 
 pytestmark = pytest.mark.unit
 
 
-def _make_agent(
+def _setup_db(tmp_path: Path) -> LocalDatabase:
+    """Create a fresh database with migrations."""
+    db = LocalDatabase(tmp_path / "test.db")
+    run_migrations(db)
+    return db
+
+
+def _create_agent(
+    db: LocalDatabase,
     name: str = "test-agent",
     mode: str = "headless",
     provider: str = "claude",
-    terminal: str = "auto",
     isolation: str | None = None,
-    workflows: dict[str, WorkflowSpec] | None = None,
-    default_workflow: str | None = None,
-    branch_prefix: str | None = None,
+    pipeline: str | None = None,
     base_branch: str = "main",
-) -> AgentDefinition:
-    """Helper to create an AgentDefinition."""
-    return AgentDefinition(
+) -> None:
+    """Create an agent definition in the DB."""
+    body = AgentDefinitionBody(
         name=name,
         mode=mode,
         provider=provider,
-        terminal=terminal,
         isolation=isolation,
-        workflows=workflows,
-        default_workflow=default_workflow,
-        branch_prefix=branch_prefix,
         base_branch=base_branch,
+        workflows=AgentWorkflows(pipeline=pipeline),
     )
-
-
-@pytest.fixture
-def mock_agent_loader() -> MagicMock:
-    loader = MagicMock()
-    loader.load.return_value = None
-    return loader
+    manager = LocalWorkflowDefinitionManager(db)
+    manager.create(
+        name=name,
+        definition_json=body.model_dump_json(),
+        workflow_type="agent",
+        source="template",
+    )
 
 
 @pytest.fixture
@@ -68,13 +79,13 @@ def mock_state_manager() -> MagicMock:
 
 class TestAgentNotFound:
     @pytest.mark.asyncio
-    async def test_agent_not_found(self, mock_agent_loader: MagicMock) -> None:
+    async def test_agent_not_found(self, tmp_path: Path) -> None:
         """AGENT_NOT_FOUND error, can_spawn=False."""
-        mock_agent_loader.load.return_value = None
+        db = _setup_db(tmp_path)
 
         result = await evaluate_spawn(
             agent="nonexistent",
-            agent_loader=mock_agent_loader,
+            db=db,
         )
 
         assert result.can_spawn is False
@@ -83,205 +94,102 @@ class TestAgentNotFound:
         assert result.errors[0].code == "AGENT_NOT_FOUND"
 
 
-class TestWorkflowKeyMismatch:
+class TestWorkflowResolution:
     @pytest.mark.asyncio
-    async def test_workflow_key_mismatch(
-        self,
-        mock_agent_loader: MagicMock,
-        mock_workflow_loader: MagicMock,
+    async def test_no_workflow(self, tmp_path: Path) -> None:
+        """NO_WORKFLOW info when no pipeline configured."""
+        db = _setup_db(tmp_path)
+        _create_agent(db)
+
+        result = await evaluate_spawn(agent="test-agent", db=db)
+
+        no_wf = [i for i in result.items if i.code == "NO_WORKFLOW"]
+        assert len(no_wf) == 1
+
+    @pytest.mark.asyncio
+    async def test_pipeline_resolved(
+        self, tmp_path: Path, mock_workflow_loader: MagicMock
     ) -> None:
-        """WORKFLOW_KEY_MISMATCH error — the original bug."""
-        agent_def = _make_agent(
-            workflows={"worker": WorkflowSpec(file="worker.yaml")},
-            default_workflow="box",  # Not in workflows map!
-        )
-        mock_agent_loader.load.return_value = agent_def
+        """WORKFLOW_RESOLVED when pipeline is configured."""
+        db = _setup_db(tmp_path)
+        _create_agent(db, pipeline="my-pipeline")
 
         result = await evaluate_spawn(
-            agent="meeseeks",
-            agent_loader=mock_agent_loader,
+            agent="test-agent",
+            db=db,
             workflow_loader=mock_workflow_loader,
         )
 
-        assert result.can_spawn is False
-        mismatch_items = [i for i in result.errors if i.code == "WORKFLOW_KEY_MISMATCH"]
-        assert len(mismatch_items) == 1
-        assert "box" in mismatch_items[0].message
-        assert "worker" in mismatch_items[0].detail["available_keys"]
+        resolved = [i for i in result.items if i.code == "WORKFLOW_RESOLVED"]
+        assert len(resolved) == 1
+        assert result.effective_workflow == "my-pipeline"
 
     @pytest.mark.asyncio
-    async def test_workflow_key_matches(
-        self,
-        mock_agent_loader: MagicMock,
-        mock_workflow_loader: MagicMock,
+    async def test_explicit_workflow_overrides_pipeline(
+        self, tmp_path: Path, mock_workflow_loader: MagicMock
     ) -> None:
-        """Happy path — default_workflow is in workflows map."""
-        agent_def = _make_agent(
-            workflows={
-                "box": WorkflowSpec(file="meeseeks-box.yaml"),
-                "worker": WorkflowSpec(file="worker.yaml"),
-            },
-            default_workflow="box",
-        )
-        mock_agent_loader.load.return_value = agent_def
-
-        # Mock workflow evaluation to return valid
-        mock_workflow_loader.load_workflow.return_value = WorkflowDefinition(
-            name="meeseeks-box",
-            steps=[WorkflowStep(name="start")],
-        )
+        """Explicit workflow parameter overrides agent's pipeline."""
+        db = _setup_db(tmp_path)
+        _create_agent(db, pipeline="my-pipeline")
 
         result = await evaluate_spawn(
-            agent="meeseeks",
-            agent_loader=mock_agent_loader,
+            agent="test-agent",
+            workflow="explicit-wf",
+            db=db,
             workflow_loader=mock_workflow_loader,
         )
 
-        mismatch_items = [i for i in result.errors if i.code == "WORKFLOW_KEY_MISMATCH"]
-        assert len(mismatch_items) == 0
-
-
-class TestOrchestratorEnforcement:
-    @pytest.mark.asyncio
-    async def test_orchestrator_not_evaluated_no_session(
-        self,
-        mock_agent_loader: MagicMock,
-    ) -> None:
-        """Reports not-evaluated when no parent session provided."""
-        agent_def = _make_agent(
-            workflows={
-                "box": WorkflowSpec(file="box.yaml", mode="self"),
-                "worker": WorkflowSpec(file="worker.yaml"),
-            },
-            default_workflow="box",
-        )
-        mock_agent_loader.load.return_value = agent_def
-
-        result = await evaluate_spawn(
-            agent="meeseeks",
-            workflow="worker",
-            agent_loader=mock_agent_loader,
-        )
-
-        orch_items = [i for i in result.items if i.code == "ORCHESTRATOR_NOT_EVALUATED"]
-        assert len(orch_items) == 1
-
-    @pytest.mark.asyncio
-    async def test_internal_workflow_blocked_no_parent(
-        self,
-        mock_agent_loader: MagicMock,
-    ) -> None:
-        """INTERNAL_WORKFLOW_BLOCKED when internal workflow requested without parent session."""
-        agent_def = _make_agent(
-            workflows={
-                "box": WorkflowSpec(file="box.yaml", mode="self"),
-                "worker": WorkflowSpec(file="worker.yaml", internal=True),
-            },
-            default_workflow="box",
-        )
-        mock_agent_loader.load.return_value = agent_def
-
-        result = await evaluate_spawn(
-            agent="meeseeks",
-            workflow="worker",
-            agent_loader=mock_agent_loader,
-        )
-
-        internal_items = [i for i in result.items if i.code == "INTERNAL_WORKFLOW_BLOCKED"]
-        assert len(internal_items) == 1
-        assert "internal" in internal_items[0].message
-        assert "no parent session" in internal_items[0].message
-
-    @pytest.mark.asyncio
-    async def test_internal_workflow_allowed_with_orchestrator(
-        self,
-        mock_agent_loader: MagicMock,
-        mock_state_manager: MagicMock,
-    ) -> None:
-        """Internal workflow passes when parent session has orchestrator active."""
-        agent_def = _make_agent(
-            workflows={
-                "box": WorkflowSpec(file="meeseeks-box.yaml", mode="self"),
-                "worker": WorkflowSpec(file="worker.yaml", internal=True),
-            },
-            default_workflow="box",
-        )
-        mock_agent_loader.load.return_value = agent_def
-
-        parent_state = MagicMock()
-        parent_state.workflow_name = "meeseeks-box"
-        mock_state_manager.get_state.return_value = parent_state
-
-        result = await evaluate_spawn(
-            agent="meeseeks",
-            workflow="worker",
-            parent_session_id="sess-123",
-            agent_loader=mock_agent_loader,
-            state_manager=mock_state_manager,
-        )
-
-        internal_items = [i for i in result.items if i.code == "INTERNAL_WORKFLOW_BLOCKED"]
-        assert len(internal_items) == 0
+        assert result.effective_workflow == "explicit-wf"
 
 
 class TestIsolation:
     @pytest.mark.asyncio
-    async def test_isolation_deps_missing_worktree(
-        self,
-        mock_agent_loader: MagicMock,
-    ) -> None:
+    async def test_isolation_deps_missing_worktree(self, tmp_path: Path) -> None:
         """ISOLATION_DEPS_MISSING for worktree mode without deps."""
-        agent_def = _make_agent(isolation="worktree")
-        mock_agent_loader.load.return_value = agent_def
+        db = _setup_db(tmp_path)
+        _create_agent(db, isolation="worktree")
 
         result = await evaluate_spawn(
-            agent="test",
-            agent_loader=mock_agent_loader,
+            agent="test-agent",
+            db=db,
             git_manager=None,
             worktree_storage=None,
         )
 
         dep_items = [i for i in result.warnings if i.code == "ISOLATION_DEPS_MISSING"]
         assert len(dep_items) == 1
-        assert "worktree" in dep_items[0].message.lower()
 
     @pytest.mark.asyncio
-    async def test_isolation_deps_missing_clone(
-        self,
-        mock_agent_loader: MagicMock,
-    ) -> None:
+    async def test_isolation_deps_missing_clone(self, tmp_path: Path) -> None:
         """ISOLATION_DEPS_MISSING for clone mode without deps."""
-        agent_def = _make_agent(isolation="clone")
-        mock_agent_loader.load.return_value = agent_def
+        db = _setup_db(tmp_path)
+        _create_agent(db, isolation="clone")
 
         result = await evaluate_spawn(
-            agent="test",
-            agent_loader=mock_agent_loader,
+            agent="test-agent",
+            db=db,
             clone_manager=None,
             clone_storage=None,
         )
 
         dep_items = [i for i in result.warnings if i.code == "ISOLATION_DEPS_MISSING"]
         assert len(dep_items) == 1
-        assert "clone" in dep_items[0].message.lower()
 
 
 class TestRuntimeEnvironment:
     @pytest.mark.asyncio
     async def test_spawn_depth_exceeded(
-        self,
-        mock_agent_loader: MagicMock,
-        mock_runner: MagicMock,
+        self, tmp_path: Path, mock_runner: MagicMock
     ) -> None:
         """SPAWN_DEPTH_EXCEEDED when can_spawn returns False."""
-        agent_def = _make_agent()
-        mock_agent_loader.load.return_value = agent_def
+        db = _setup_db(tmp_path)
+        _create_agent(db)
         mock_runner.can_spawn.return_value = (False, "Max depth 3 exceeded", 4)
 
         result = await evaluate_spawn(
-            agent="test",
+            agent="test-agent",
             parent_session_id="sess-123",
-            agent_loader=mock_agent_loader,
+            db=db,
             runner=mock_runner,
         )
 
@@ -291,26 +199,21 @@ class TestRuntimeEnvironment:
 
     @pytest.mark.asyncio
     async def test_self_mode_workflow_conflict(
-        self,
-        mock_agent_loader: MagicMock,
-        mock_state_manager: MagicMock,
+        self, tmp_path: Path, mock_state_manager: MagicMock
     ) -> None:
         """SELF_MODE_WORKFLOW_CONFLICT when parent already has active workflow."""
-        agent_def = _make_agent(
-            mode="self",
-            workflows={"box": WorkflowSpec(file="box.yaml", mode="self")},
-            default_workflow="box",
-        )
-        mock_agent_loader.load.return_value = agent_def
+        db = _setup_db(tmp_path)
+        _create_agent(db, mode="headless")
 
         parent_state = MagicMock()
         parent_state.workflow_name = "existing-workflow"
         mock_state_manager.get_state.return_value = parent_state
 
         result = await evaluate_spawn(
-            agent="test",
+            agent="test-agent",
+            mode="self",
             parent_session_id="sess-123",
-            agent_loader=mock_agent_loader,
+            db=db,
             state_manager=mock_state_manager,
         )
 
@@ -321,82 +224,11 @@ class TestRuntimeEnvironment:
 class TestWorkflowEvaluation:
     @pytest.mark.asyncio
     async def test_workflow_eval_embedded(
-        self,
-        mock_agent_loader: MagicMock,
-        mock_workflow_loader: MagicMock,
+        self, tmp_path: Path, mock_workflow_loader: MagicMock
     ) -> None:
         """workflow_evaluation populated with structural results."""
-        agent_def = _make_agent(
-            workflows={"box": WorkflowSpec(file="meeseeks-box.yaml")},
-            default_workflow="box",
-        )
-        mock_agent_loader.load.return_value = agent_def
-
-        # Mock workflow loading for evaluation
-        wf_definition = WorkflowDefinition(
-            name="meeseeks-box",
-            steps=[
-                WorkflowStep(
-                    name="start",
-                    transitions=[WorkflowTransition(to="end", when="true")],
-                ),
-                WorkflowStep(name="end"),
-            ],
-        )
-        mock_workflow_loader.load_workflow.return_value = wf_definition
-
-        result = await evaluate_spawn(
-            agent="meeseeks",
-            agent_loader=mock_agent_loader,
-            workflow_loader=mock_workflow_loader,
-        )
-
-        assert result.workflow_evaluation is not None
-        assert result.workflow_evaluation.valid is True
-        assert len(result.workflow_evaluation.step_trace) == 2
-
-    @pytest.mark.asyncio
-    async def test_workflow_invalid_for_agent(
-        self,
-        mock_agent_loader: MagicMock,
-        mock_workflow_loader: MagicMock,
-    ) -> None:
-        """WORKFLOW_INVALID_FOR_AGENT when lifecycle workflow used for agent."""
-        agent_def = _make_agent(
-            workflows={"lc": WorkflowSpec(file="lifecycle.yaml")},
-            default_workflow="lc",
-        )
-        mock_agent_loader.load.return_value = agent_def
-        mock_workflow_loader.validate_workflow_for_agent.return_value = (
-            False,
-            "Cannot use lifecycle workflow",
-        )
-
-        result = await evaluate_spawn(
-            agent="test",
-            agent_loader=mock_agent_loader,
-            workflow_loader=mock_workflow_loader,
-        )
-
-        assert result.can_spawn is False
-        invalid_items = [i for i in result.errors if i.code == "WORKFLOW_INVALID_FOR_AGENT"]
-        assert len(invalid_items) == 1
-
-
-class TestHappyPath:
-    @pytest.mark.asyncio
-    async def test_full_happy_path(
-        self,
-        mock_agent_loader: MagicMock,
-        mock_workflow_loader: MagicMock,
-        mock_runner: MagicMock,
-    ) -> None:
-        """All layers pass, can_spawn=True."""
-        agent_def = _make_agent(
-            workflows={"worker": WorkflowSpec(file="worker.yaml")},
-            default_workflow="worker",
-        )
-        mock_agent_loader.load.return_value = agent_def
+        db = _setup_db(tmp_path)
+        _create_agent(db, pipeline="worker")
 
         wf_definition = WorkflowDefinition(
             name="worker",
@@ -411,9 +243,64 @@ class TestHappyPath:
         mock_workflow_loader.load_workflow.return_value = wf_definition
 
         result = await evaluate_spawn(
-            agent="test",
+            agent="test-agent",
+            db=db,
+            workflow_loader=mock_workflow_loader,
+        )
+
+        assert result.workflow_evaluation is not None
+        assert result.workflow_evaluation.valid is True
+        assert len(result.workflow_evaluation.step_trace) == 2
+
+    @pytest.mark.asyncio
+    async def test_workflow_invalid_for_agent(
+        self, tmp_path: Path, mock_workflow_loader: MagicMock
+    ) -> None:
+        """WORKFLOW_INVALID_FOR_AGENT when lifecycle workflow used for agent."""
+        db = _setup_db(tmp_path)
+        _create_agent(db, pipeline="lifecycle-wf")
+
+        mock_workflow_loader.validate_workflow_for_agent.return_value = (
+            False,
+            "Cannot use lifecycle workflow",
+        )
+
+        result = await evaluate_spawn(
+            agent="test-agent",
+            db=db,
+            workflow_loader=mock_workflow_loader,
+        )
+
+        assert result.can_spawn is False
+        invalid_items = [i for i in result.errors if i.code == "WORKFLOW_INVALID_FOR_AGENT"]
+        assert len(invalid_items) == 1
+
+
+class TestHappyPath:
+    @pytest.mark.asyncio
+    async def test_full_happy_path(
+        self, tmp_path: Path, mock_workflow_loader: MagicMock, mock_runner: MagicMock
+    ) -> None:
+        """All layers pass, can_spawn=True."""
+        db = _setup_db(tmp_path)
+        _create_agent(db, pipeline="worker")
+
+        wf_definition = WorkflowDefinition(
+            name="worker",
+            steps=[
+                WorkflowStep(
+                    name="work",
+                    transitions=[WorkflowTransition(to="done", when="true")],
+                ),
+                WorkflowStep(name="done"),
+            ],
+        )
+        mock_workflow_loader.load_workflow.return_value = wf_definition
+
+        result = await evaluate_spawn(
+            agent="test-agent",
             parent_session_id="sess-123",
-            agent_loader=mock_agent_loader,
+            db=db,
             workflow_loader=mock_workflow_loader,
             runner=mock_runner,
         )

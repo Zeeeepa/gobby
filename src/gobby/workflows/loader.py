@@ -24,7 +24,6 @@ from .loader_validation import (
 __all__ = ["WorkflowLoader"]
 
 if TYPE_CHECKING:
-    from gobby.agents.definitions import WorkflowSpec
     from gobby.storage.database import DatabaseProtocol
     from gobby.storage.workflow_definitions import LocalWorkflowDefinitionManager
 
@@ -156,15 +155,6 @@ class WorkflowLoader(WorkflowLoaderSyncMixin):
             entry = self._cache[cache_key]
             return entry.definition
 
-        # Check for qualified name (agent:workflow)
-        if ":" in name:
-            agent_workflow = await self._load_from_agent_definition(name, project_path)
-            if agent_workflow:
-                self._cache[cache_key] = _CachedEntry(
-                    definition=agent_workflow, path=None, mtime=0.0
-                )
-                return agent_workflow
-
         # DB lookup (the only runtime source)
         project_id = str(project_path) if project_path else None
         visited = set(_inheritance_chain) if _inheritance_chain else set()
@@ -227,79 +217,6 @@ class WorkflowLoader(WorkflowLoaderSyncMixin):
 
         logger.debug(f"Pipeline '{name}' not found in database")
         return None
-
-    async def _load_from_agent_definition(
-        self,
-        qualified_name: str,
-        project_path: Path | str | None = None,
-    ) -> WorkflowDefinition | PipelineDefinition | None:
-        """
-        Load an inline workflow from an agent definition.
-
-        Qualified names like "meeseeks:worker" are parsed to extract the agent name
-        and workflow name, then the workflow is loaded from the agent's workflows map.
-        """
-        if ":" not in qualified_name:
-            return None
-
-        agent_name, workflow_name = qualified_name.split(":", 1)
-
-        from gobby.agents.definitions import AgentDefinitionLoader
-
-        agent_loader = AgentDefinitionLoader()
-        agent_def = agent_loader.load(agent_name)
-
-        if not agent_def:
-            logger.debug(
-                f"Agent definition '{agent_name}' not found for workflow '{qualified_name}'"
-            )
-            return None
-
-        if not agent_def.workflows:
-            logger.debug(f"Agent '{agent_name}' has no workflows defined")
-            return None
-
-        spec = agent_def.workflows.get(workflow_name)
-        if not spec:
-            logger.debug(f"Workflow '{workflow_name}' not found in agent '{agent_name}'")
-            return None
-
-        # If it's a file reference, load from the file
-        if spec.is_file_reference():
-            file_name = spec.file or ""
-            workflow_file = file_name.removesuffix(".yaml")
-            logger.debug(
-                f"Loading file-referenced workflow '{workflow_file}' for '{qualified_name}'"
-            )
-            return await self.load_workflow(workflow_file, project_path)
-
-        # It's an inline workflow - build definition from spec
-        if spec.is_inline():
-            return self._build_definition_from_spec(spec, qualified_name)
-
-        logger.debug(f"WorkflowSpec for '{qualified_name}' is neither file reference nor inline")
-        return None
-
-    def _build_definition_from_spec(
-        self,
-        spec: "WorkflowSpec",
-        name: str,
-    ) -> WorkflowDefinition | PipelineDefinition:
-        """Build a WorkflowDefinition or PipelineDefinition from a WorkflowSpec."""
-        data = spec.model_dump(exclude_none=True, exclude_unset=True)
-
-        if "name" not in data or data.get("name") is None:
-            data["name"] = name
-
-        data.pop("file", None)
-
-        if data.get("type") == "pipeline":
-            self._validate_pipeline_references(data)
-            return PipelineDefinition(**data)
-        else:
-            if "type" in data and "enabled" not in data:
-                data["enabled"] = data["type"] == "lifecycle"
-            return WorkflowDefinition(**data)
 
     def _validate_pipeline_references(self, data: dict[str, Any]) -> None:
         """Validate that all $step_id.output references in a pipeline refer to earlier steps."""

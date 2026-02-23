@@ -91,24 +91,36 @@ def create_agents_router(server: "HTTPServer") -> APIRouter:
 
         return LocalWorkflowDefinitionManager(server.services.database)
 
-    def _get_loader() -> Any:
-        from gobby.agents.definitions import AgentDefinitionLoader
+    def _row_to_api_dict(row: Any) -> dict[str, Any]:
+        """Convert a workflow_definitions DB row to API response dict."""
+        from gobby.workflows.definitions import AgentDefinitionBody
 
-        return AgentDefinitionLoader(db=server.services.database)
+        body = AgentDefinitionBody.model_validate_json(row.definition_json)
+        return {
+            "definition": body.model_dump(exclude_none=True),
+            "source": row.source,
+            "db_id": row.id,
+            "deleted_at": row.deleted_at,
+        }
 
     @router.get("/definitions")
     async def list_definitions(
         project_id: str | None = Query(None),
         include_deleted: bool = Query(False),
     ) -> dict[str, Any]:
-        """List all agent definitions (merged from files + DB, with source tags)."""
+        """List all agent definitions from workflow_definitions."""
         metrics.inc_counter("http_requests_total")
         try:
-            loader = _get_loader()
-            items = loader.list_all(project_id=project_id, include_deleted=include_deleted)
+            manager = _get_manager()
+            rows = manager.list_all(
+                workflow_type="agent",
+                project_id=project_id,
+                include_deleted=include_deleted,
+            )
+            items = [_row_to_api_dict(r) for r in rows]
             return {
                 "status": "success",
-                "definitions": [i.to_api_dict() for i in items],
+                "definitions": items,
                 "count": len(items),
             }
         except Exception as e:
@@ -123,14 +135,16 @@ def create_agents_router(server: "HTTPServer") -> APIRouter:
         """Export an agent definition as YAML for download."""
         metrics.inc_counter("http_requests_total")
         try:
-            loader = _get_loader()
-            items = loader.list_all(project_id=project_id)
-            match = next((i for i in items if i.definition.name == name), None)
-            if not match:
+            from gobby.workflows.definitions import AgentDefinitionBody
+
+            manager = _get_manager()
+            rows = manager.list_all(workflow_type="agent", project_id=project_id)
+            row = next((r for r in rows if r.name == name), None)
+            if not row:
                 raise HTTPException(status_code=404, detail=f"Agent definition '{name}' not found")
 
-            # Serialize from DB model
-            data = match.definition.model_dump(exclude_none=True)
+            body = AgentDefinitionBody.model_validate_json(row.definition_json)
+            data = body.model_dump(exclude_none=True)
             yaml_content = yaml.dump(data, default_flow_style=False, sort_keys=False)
 
             return Response(
@@ -149,15 +163,15 @@ def create_agents_router(server: "HTTPServer") -> APIRouter:
         name: str,
         project_id: str | None = Query(None),
     ) -> dict[str, Any]:
-        """Get a single agent definition resolved per priority order."""
+        """Get a single agent definition by name."""
         metrics.inc_counter("http_requests_total")
         try:
-            loader = _get_loader()
-            items = loader.list_all(project_id=project_id)
-            match = next((i for i in items if i.definition.name == name), None)
-            if not match:
+            manager = _get_manager()
+            rows = manager.list_all(workflow_type="agent", project_id=project_id)
+            row = next((r for r in rows if r.name == name), None)
+            if not row:
                 raise HTTPException(status_code=404, detail=f"Agent definition '{name}' not found")
-            return {"status": "success", "definition": match.to_api_dict()}
+            return {"status": "success", "definition": _row_to_api_dict(row)}
         except HTTPException:
             raise
         except Exception as e:

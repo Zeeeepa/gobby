@@ -534,6 +534,7 @@ def create_agents_registry(
             base_branch=base_branch,
             parent_session_id=resolved_parent,
             project_path=project_path,
+            db=db,
             runner=runner,
             state_manager=workflow_state_manager,
             session_manager=session_manager,
