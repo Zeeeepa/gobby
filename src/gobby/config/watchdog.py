@@ -24,7 +24,7 @@ class WatchdogConfig(BaseModel):
         description="Seconds between health checks",
     )
     failure_threshold: int = Field(
-        default=3,
+        default=5,
         ge=1,
         le=10,
         description="Consecutive failures before triggering restart",

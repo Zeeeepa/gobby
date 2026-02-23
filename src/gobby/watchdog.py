@@ -11,6 +11,7 @@ Usage:
 from __future__ import annotations
 
 import argparse
+import json
 import logging
 import os
 import signal
@@ -62,10 +63,39 @@ class Watchdog:
         self.restart_times: deque[float] = deque(maxlen=self.config.max_restarts_per_hour)
         self.last_restart_time: float = 0
         self.running = True
+        self._state_file = get_gobby_home() / "watchdog_state.json"
+
+        # Load persisted circuit breaker state so it survives watchdog restarts
+        self._load_state()
 
         # Setup signal handlers
         signal.signal(signal.SIGTERM, self._handle_shutdown)
         signal.signal(signal.SIGINT, self._handle_shutdown)
+
+    def _load_state(self) -> None:
+        """Load persisted circuit breaker state from disk."""
+        try:
+            if self._state_file.exists():
+                data = json.loads(self._state_file.read_text())
+                hour_ago = time.time() - 3600
+                for t in data.get("restart_times", []):
+                    if t > hour_ago:
+                        self.restart_times.append(t)
+                if self.restart_times:
+                    self.last_restart_time = self.restart_times[-1]
+                    logger.info(
+                        f"Loaded {len(self.restart_times)} recent restart(s) from state file"
+                    )
+        except Exception as e:
+            logger.warning(f"Failed to load watchdog state: {e}")
+
+    def _save_state(self) -> None:
+        """Persist circuit breaker state to disk."""
+        try:
+            data = {"restart_times": list(self.restart_times)}
+            self._state_file.write_text(json.dumps(data))
+        except Exception as e:
+            logger.warning(f"Failed to save watchdog state: {e}")
 
     def _handle_shutdown(self, signum: int, frame: object) -> None:
         """Handle shutdown signals gracefully."""
@@ -259,6 +289,7 @@ class Watchdog:
                     logger.info("Daemon restart successful")
                     self.last_restart_time = time.time()
                     self.restart_times.append(self.last_restart_time)
+                    self._save_state()
                     self.consecutive_failures = 0
                     return True
                 if i % 5 == 4:

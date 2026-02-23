@@ -157,7 +157,6 @@ export function AgentsTab({ searchText, sourceFilter, devMode, showCreateForm, o
   const [loading, setLoading] = useState(true)
   const [showRecentRuns, setShowRecentRuns] = useState(false)
   const [expandedName, setExpandedName] = useState<string | null>(null)
-  const [filterSource, setFilterSource] = useState<string>('all')
   const [filterProvider, setFilterProvider] = useState<string>('all')
   const [editingId, setEditingId] = useState<string | null>(null)
   const [importingName, setImportingName] = useState<string | null>(null)
@@ -246,7 +245,6 @@ export function AgentsTab({ searchText, sourceFilter, devMode, showCreateForm, o
       if (!d.deleted_at) return false
     }
 
-    if (filterSource !== 'all' && d.source !== filterSource) return false
     if (filterProvider !== 'all' && d.definition.provider !== filterProvider) return false
     if (searchText.trim()) {
       const q = searchText.toLowerCase()
@@ -258,12 +256,18 @@ export function AgentsTab({ searchText, sourceFilter, devMode, showCreateForm, o
       ) return false
     }
     return true
-  }), [definitions, sourceFilter, filterSource, filterProvider, searchText, hideGobby])
+  }), [definitions, sourceFilter, filterProvider, searchText, hideGobby])
 
-  const sources = useMemo(
-    () => [...new Set(definitions.map(d => d.source))].sort(),
-    [definitions]
-  )
+  const installedNames = useMemo(() => {
+    const names = new Set<string>()
+    for (const d of definitions) {
+      if (d.source === 'installed' && !d.deleted_at) {
+        names.add(d.definition.name)
+      }
+    }
+    return names
+  }, [definitions])
+
   const providers = useMemo(
     () => [...new Set(definitions.map(d => d.definition.provider))].sort(),
     [definitions]
@@ -501,7 +505,6 @@ export function AgentsTab({ searchText, sourceFilter, devMode, showCreateForm, o
       })
       if (res.ok) {
         fetchDefinitions(true)
-        showToast(`Installed "${name}"`, 'success')
       } else {
         const data = await res.json().catch(() => ({}))
         showToast(data.detail || 'Failed to install from template', 'error')
@@ -590,16 +593,6 @@ export function AgentsTab({ searchText, sourceFilter, devMode, showCreateForm, o
       {/* Filter chips */}
       <div className="workflows-filter-bar">
         <div className="workflows-filter-chips">
-          {sources.map(s => (
-            <button
-              type="button"
-              key={s}
-              className={`workflows-filter-chip ${filterSource === s ? 'workflows-filter-chip--active' : ''}`}
-              onClick={() => setFilterSource(filterSource === s ? 'all' : s)}
-            >
-              {SOURCE_LABELS[s] || s}
-            </button>
-          ))}
           {providers.map(p => (
             <button
               type="button"
@@ -610,11 +603,11 @@ export function AgentsTab({ searchText, sourceFilter, devMode, showCreateForm, o
               {p}
             </button>
           ))}
-          {(filterSource !== 'all' || filterProvider !== 'all') && (
+          {filterProvider !== 'all' && (
             <button
               type="button"
               className="workflows-filter-chip rules-filter-clear"
-              onClick={() => { setFilterSource('all'); setFilterProvider('all') }}
+              onClick={() => setFilterProvider('all')}
             >
               Clear
             </button>
@@ -794,7 +787,9 @@ export function AgentsTab({ searchText, sourceFilter, devMode, showCreateForm, o
                         <div className="workflows-card-actions">
                           {devMode ? (
                             <>
-                              <button type="button" className="workflows-action-btn" onClick={() => handleInstallFromTemplate(d.name)} title="Create an installed copy">Install</button>
+                              {installedNames.has(d.name)
+                                ? <button type="button" className="workflows-action-btn" disabled title="Already installed">Installed</button>
+                                : <button type="button" className="workflows-action-btn" onClick={() => handleInstallFromTemplate(d.name)} title="Create an installed copy">Install</button>}
                               <button type="button" className="workflows-action-btn" onClick={() => handleYamlEdit(item)} title="Edit as YAML">YAML</button>
                               {item.db_id && (
                                 <button type="button" className="workflows-action-btn" onClick={() => handleEdit(item)} title="Edit agent definition">Edit</button>
@@ -810,7 +805,9 @@ export function AgentsTab({ searchText, sourceFilter, devMode, showCreateForm, o
                             </>
                           ) : (
                             <>
-                              <button type="button" className="workflows-action-btn" onClick={() => handleInstallFromTemplate(d.name)} title="Create an installed copy">Install</button>
+                              {installedNames.has(d.name)
+                                ? <button type="button" className="workflows-action-btn" disabled title="Already installed">Installed</button>
+                                : <button type="button" className="workflows-action-btn" onClick={() => handleInstallFromTemplate(d.name)} title="Create an installed copy">Install</button>}
                               <button type="button" className="workflows-action-icon" onClick={() => handleDownload(d.name)} title="Download YAML" aria-label="Download agent as YAML">
                                 <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M8 2v9m0 0L5 8m3 3 3-3M2.5 12.5v1a1 1 0 0 0 1 1h9a1 1 0 0 0 1-1v-1" /></svg>
                               </button>

@@ -81,6 +81,16 @@ export function RulesTab({ searchText, sourceFilter, devMode, showCreateModal, o
     return result
   }, [rules, eventFilter, searchText, sourceFilter, hideGobby])
 
+  const installedNames = useMemo(() => {
+    const names = new Set<string>()
+    for (const r of rules) {
+      if (r.source === 'installed' && !(r as RuleSummary & { deleted_at?: string | null }).deleted_at) {
+        names.add(r.name)
+      }
+    }
+    return names
+  }, [rules])
+
   const handleToggle = useCallback(async (rule: RuleSummary) => {
     await toggleRule(rule.name, !rule.enabled)
   }, [toggleRule])
@@ -306,6 +316,7 @@ export function RulesTab({ searchText, sourceFilter, devMode, showCreateModal, o
                 onYamlEdit={() => handleYamlEdit(rule)}
                 onDuplicate={() => handleDuplicate(rule)}
                 onDownload={() => handleDownload(rule)}
+                isInstalled={installedNames.has(rule.name)}
                 onInstall={() => installFromTemplate(rule.id)}
                 onMoveToProject={() => handleMoveToProject(rule)}
                 onMoveToGlobal={() => handleMoveToGlobal(rule)}
@@ -350,10 +361,11 @@ function getEffectType(effect: Record<string, unknown> | null): string | null {
   return null
 }
 
-function RuleCard({ rule, devMode, projectId, onToggle, onDelete, onYamlEdit, onDuplicate, onDownload, onInstall, onMoveToProject, onMoveToGlobal }: {
+function RuleCard({ rule, devMode, projectId, isInstalled, onToggle, onDelete, onYamlEdit, onDuplicate, onDownload, onInstall, onMoveToProject, onMoveToGlobal }: {
   rule: RuleSummary
   devMode: boolean
   projectId?: string
+  isInstalled: boolean
   onToggle: () => void
   onDelete: () => void
   onYamlEdit: () => void
@@ -401,7 +413,9 @@ function RuleCard({ rule, devMode, projectId, onToggle, onDelete, onYamlEdit, on
               {devMode ? (
                 <>
                   {isTemplate && (
-                    <button type="button" className="workflows-action-btn" onClick={e => { e.stopPropagation(); onInstall() }} title="Create an installed copy">Install</button>
+                    isInstalled
+                      ? <button type="button" className="workflows-action-btn" disabled title="Already installed">Installed</button>
+                      : <button type="button" className="workflows-action-btn" onClick={e => { e.stopPropagation(); onInstall() }} title="Create an installed copy">Install</button>
                   )}
                   <button type="button" className="workflows-action-btn" onClick={e => { e.stopPropagation(); onYamlEdit() }} title="Edit as YAML">YAML</button>
                   <button type="button" className="workflows-action-icon" onClick={e => { e.stopPropagation(); onDuplicate() }} title="Duplicate" aria-label="Duplicate rule">
@@ -417,7 +431,9 @@ function RuleCard({ rule, devMode, projectId, onToggle, onDelete, onYamlEdit, on
               ) : (
                 <>
                   {isTemplate && (
-                    <button type="button" className="workflows-action-btn" onClick={e => { e.stopPropagation(); onInstall() }} title="Create an installed copy">Install</button>
+                    isInstalled
+                      ? <button type="button" className="workflows-action-btn" disabled title="Already installed">Installed</button>
+                      : <button type="button" className="workflows-action-btn" onClick={e => { e.stopPropagation(); onInstall() }} title="Create an installed copy">Install</button>
                   )}
                   <button type="button" className="workflows-action-icon" onClick={e => { e.stopPropagation(); onDownload() }} title="Download YAML" aria-label="Download rule as YAML">
                     <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M8 2v9m0 0L5 8m3 3 3-3M2.5 12.5v1a1 1 0 0 0 1 1h9a1 1 0 0 0 1-1v-1" /></svg>

@@ -39,13 +39,15 @@ def config() -> WatchdogConfig:
 
 
 @pytest.fixture
-def watchdog(config: WatchdogConfig) -> Watchdog:
-    return Watchdog(daemon_port=60887, config=config, verbose=False)
+def watchdog(config: WatchdogConfig, tmp_path: Path) -> Watchdog:
+    with patch("gobby.watchdog.get_gobby_home", return_value=tmp_path):
+        return Watchdog(daemon_port=60887, config=config, verbose=False)
 
 
 @pytest.fixture
-def verbose_watchdog(config: WatchdogConfig) -> Watchdog:
-    return Watchdog(daemon_port=60887, config=config, verbose=True)
+def verbose_watchdog(config: WatchdogConfig, tmp_path: Path) -> Watchdog:
+    with patch("gobby.watchdog.get_gobby_home", return_value=tmp_path):
+        return Watchdog(daemon_port=60887, config=config, verbose=True)
 
 
 # ---------------------------------------------------------------------------
@@ -71,8 +73,9 @@ class TestGetGobbyHome:
 
 
 class TestWatchdogInit:
-    def test_default_config(self) -> None:
-        wd = Watchdog(daemon_port=9999)
+    def test_default_config(self, tmp_path: Path) -> None:
+        with patch("gobby.watchdog.get_gobby_home", return_value=tmp_path):
+            wd = Watchdog(daemon_port=9999)
         assert wd.daemon_port == 9999
         assert isinstance(wd.config, WatchdogConfig)
         assert wd.verbose is False
@@ -80,14 +83,16 @@ class TestWatchdogInit:
         assert wd.running is True
         assert wd.last_restart_time == 0
 
-    def test_custom_config(self, config: WatchdogConfig) -> None:
-        wd = Watchdog(daemon_port=1234, config=config, verbose=True)
+    def test_custom_config(self, config: WatchdogConfig, tmp_path: Path) -> None:
+        with patch("gobby.watchdog.get_gobby_home", return_value=tmp_path):
+            wd = Watchdog(daemon_port=1234, config=config, verbose=True)
         assert wd.daemon_port == 1234
         assert wd.config is config
         assert wd.verbose is True
 
-    def test_restart_times_deque_maxlen(self, config: WatchdogConfig) -> None:
-        wd = Watchdog(daemon_port=1234, config=config)
+    def test_restart_times_deque_maxlen(self, config: WatchdogConfig, tmp_path: Path) -> None:
+        with patch("gobby.watchdog.get_gobby_home", return_value=tmp_path):
+            wd = Watchdog(daemon_port=1234, config=config)
         assert wd.restart_times.maxlen == config.max_restarts_per_hour
 
 
