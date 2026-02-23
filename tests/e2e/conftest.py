@@ -332,6 +332,12 @@ gobby_tasks:
   validation:
     enabled: false
 
+memory:
+  qdrant_path: "{gobby_home}/services/qdrant"
+
+watchdog:
+  enabled: false
+
 conductor:
   daily_budget_usd: 1.0
   warning_threshold: 0.8
