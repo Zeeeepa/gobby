@@ -32,16 +32,13 @@ def get_bundled_agents_path() -> Path:
 
 
 def _agent_def_to_body(agent_def: Any) -> AgentDefinitionBody:
-    """Convert a full AgentDefinition to simplified AgentDefinitionBody.
+    """Convert a full AgentDefinition to AgentDefinitionBody.
 
-    Composes role/goal/personality/instructions into a single instructions field.
-    Drops fields not in the simplified model (sandbox, workflows, etc.).
+    Preserves structured prompt fields (role, goal, personality, instructions)
+    as separate fields. Drops fields not in the simplified model (sandbox,
+    old-style workflows dict, etc.).
     """
-    # Compose instructions from structured fields
-    if agent_def.role or agent_def.goal or agent_def.personality:
-        composed = agent_def.build_prompt_preamble()
-    else:
-        composed = agent_def.instructions
+    from gobby.workflows.definitions import AgentWorkflows
 
     # Map mode ("self" not valid in AgentDefinitionBody)
     mode = agent_def.mode
@@ -51,7 +48,10 @@ def _agent_def_to_body(agent_def: Any) -> AgentDefinitionBody:
     return AgentDefinitionBody(
         name=agent_def.name,
         description=agent_def.description,
-        instructions=composed,
+        role=agent_def.role,
+        goal=agent_def.goal,
+        personality=agent_def.personality,
+        instructions=agent_def.instructions,
         provider=agent_def.provider,
         model=agent_def.model,
         mode=mode,
@@ -59,6 +59,7 @@ def _agent_def_to_body(agent_def: Any) -> AgentDefinitionBody:
         base_branch=agent_def.base_branch,
         timeout=agent_def.timeout,
         max_turns=agent_def.max_turns,
+        workflows=AgentWorkflows(),
     )
 
 

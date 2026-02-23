@@ -1185,6 +1185,47 @@ def _migrate_rename_generic_to_default(db: LocalDatabase) -> None:
     logger.info(f"Renamed {len(rows)} 'generic' agent definition(s) to 'default'")
 
 
+def _migrate_agent_body_schema_v2(db: LocalDatabase) -> None:
+    """Migrate AgentDefinitionBody JSON: rules → workflows.rules.
+
+    Moves top-level 'rules' into a 'workflows' container with
+    {pipeline, rules, variables} structure.
+    """
+    rows = db.fetchall(
+        "SELECT id, definition_json FROM workflow_definitions "
+        "WHERE workflow_type = 'agent'"
+    )
+
+    updated = 0
+    for row in rows:
+        try:
+            body = json.loads(row["definition_json"])
+
+            # Already migrated (has workflows dict)
+            if isinstance(body.get("workflows"), dict):
+                continue
+
+            # Move top-level rules into workflows container
+            rules = body.pop("rules", [])
+            body["workflows"] = {
+                "pipeline": None,
+                "rules": rules,
+                "variables": {},
+            }
+
+            with db.transaction() as conn:
+                conn.execute(
+                    "UPDATE workflow_definitions SET definition_json = ? WHERE id = ?",
+                    (json.dumps(body), row["id"]),
+                )
+            updated += 1
+
+        except (json.JSONDecodeError, KeyError) as e:
+            logger.warning(f"Failed to migrate agent definition {row['id']}: {e}")
+
+    logger.info(f"Migrated {updated}/{len(rows)} agent definition(s) to v2 schema")
+
+
 MIGRATIONS: list[tuple[int, str, MigrationAction]] = [
     (
         108,
@@ -1288,6 +1329,11 @@ UPDATE workflow_definitions SET source = 'installed' WHERE source = 'custom'""",
         122,
         "Rename 'generic' agent definition to 'default'",
         _migrate_rename_generic_to_default,
+    ),
+    (
+        123,
+        "Migrate AgentDefinitionBody: rules → workflows.rules",
+        _migrate_agent_body_schema_v2,
     ),
 ]
 

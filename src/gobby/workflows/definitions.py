@@ -117,17 +117,36 @@ class RuleDefinitionBody(BaseModel):
     agent_scope: list[str] | None = None  # Only active for these agent types
 
 
+class AgentWorkflows(BaseModel):
+    """Structured orchestration container for an agent definition.
+
+    Replaces the old dict[str, WorkflowSpec] map with explicit typed fields:
+    - pipeline: optional named pipeline (DB-backed) to auto-start
+    - rules: rule names to activate for this agent type
+    - variables: pre-seed session variables (override rule defaults)
+    """
+
+    pipeline: str | None = None
+    rules: list[str] = Field(default_factory=list)
+    variables: dict[str, Any] = Field(default_factory=dict)
+
+
 class AgentDefinitionBody(BaseModel):
     """Stored as definition_json in workflow_definitions for workflow_type='agent'.
 
-    Simplified agent identity: 12 fields covering identity, provider config,
-    spawn parameters, and rule activation. Behavior is defined by rules,
-    not embedded workflows.
+    Agent identity with structured prompt fields, provider config,
+    spawn parameters, and orchestration. Behavior is defined by rules
+    and optional pipeline, not embedded workflows.
     """
 
     name: str
     description: str | None = None
+    # Structured prompt fields (composed into preamble at spawn time)
+    role: str | None = None
+    goal: str | None = None
+    personality: str | None = None
     instructions: str | None = None
+    # Execution
     provider: str = "claude"
     model: str | None = None
     mode: Literal["terminal", "embedded", "headless"] = "headless"
@@ -135,8 +154,22 @@ class AgentDefinitionBody(BaseModel):
     base_branch: str = "main"
     timeout: float = 120.0
     max_turns: int = 10
-    rules: list[str] = Field(default_factory=list)
+    # Orchestration
+    workflows: AgentWorkflows = Field(default_factory=AgentWorkflows)
     enabled: bool = True
+
+    def build_prompt_preamble(self) -> str | None:
+        """Build structured prompt preamble from role/goal/personality/instructions."""
+        parts = []
+        if self.role:
+            parts.append(f"## Role\n{self.role}")
+        if self.goal:
+            parts.append(f"## Goal\n{self.goal}")
+        if self.personality:
+            parts.append(f"## Personality\n{self.personality}")
+        if self.instructions:
+            parts.append(f"## Instructions\n{self.instructions}")
+        return "\n\n".join(parts) if parts else None
 
 
 class Observer(BaseModel):

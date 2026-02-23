@@ -80,8 +80,8 @@ def build_spawn_params(
     step_variables: dict[str, Any] = {
         "_agent_type": body.name,
     }
-    if body.rules:
-        step_variables["_agent_rules"] = body.rules
+    if body.workflows.rules:
+        step_variables["_agent_rules"] = body.workflows.rules
 
     return {
         "prompt": effective_prompt,

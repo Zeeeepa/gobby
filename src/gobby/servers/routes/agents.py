@@ -171,27 +171,15 @@ def create_agents_router(server: "HTTPServer") -> APIRouter:
         """Create a new agent definition in the DB."""
         metrics.inc_counter("http_requests_total")
         try:
-            from gobby.workflows.definitions import AgentDefinitionBody
-
-            # Compose instructions from structured prompt fields
-            parts = []
-            if request.role:
-                parts.append(f"## Role\n{request.role}")
-            if request.goal:
-                parts.append(f"## Goal\n{request.goal}")
-            if request.personality:
-                parts.append(f"## Personality\n{request.personality}")
-            if request.instructions:
-                if parts:
-                    parts.append(f"## Instructions\n{request.instructions}")
-                else:
-                    parts.append(request.instructions)
-            composed = "\n\n".join(parts) if parts else None
+            from gobby.workflows.definitions import AgentDefinitionBody, AgentWorkflows
 
             body = AgentDefinitionBody(
                 name=request.name,
                 description=request.description,
-                instructions=composed,
+                role=request.role,
+                goal=request.goal,
+                personality=request.personality,
+                instructions=request.instructions,
                 provider=request.provider,
                 model=request.model,
                 mode=request.mode if request.mode != "self" else "headless",
@@ -199,6 +187,7 @@ def create_agents_router(server: "HTTPServer") -> APIRouter:
                 base_branch=request.base_branch,
                 timeout=request.timeout,
                 max_turns=request.max_turns,
+                workflows=AgentWorkflows(),
             )
 
             manager = _get_manager()
@@ -238,6 +227,9 @@ def create_agents_router(server: "HTTPServer") -> APIRouter:
             for key in (
                 "name",
                 "description",
+                "role",
+                "goal",
+                "personality",
                 "instructions",
                 "provider",
                 "model",
@@ -249,20 +241,6 @@ def create_agents_router(server: "HTTPServer") -> APIRouter:
             ):
                 if key in fields:
                     body_dict[key] = fields[key]
-
-            # Handle structured prompt fields → compose into instructions
-            if any(k in fields for k in ("role", "goal", "personality")):
-                parts = []
-                for k in ("role", "goal", "personality"):
-                    val = fields.get(k)
-                    if val:
-                        parts.append(f"## {k.title()}\n{val}")
-                instr = fields.get("instructions") or body_dict.get("instructions")
-                if instr and parts:
-                    parts.append(f"## Instructions\n{instr}")
-                elif instr:
-                    parts.append(instr)
-                body_dict["instructions"] = "\n\n".join(parts) if parts else None
 
             update_fields: dict[str, Any] = {
                 "definition_json": _json.dumps(body_dict),

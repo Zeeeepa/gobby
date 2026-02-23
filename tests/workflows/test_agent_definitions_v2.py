@@ -1,8 +1,10 @@
-"""Tests for simplified AgentDefinitionBody and agent_scope on RuleDefinitionBody.
+"""Tests for AgentDefinitionBody, AgentWorkflows, and agent_scope on RuleDefinitionBody.
 
 Covers:
-- AgentDefinitionBody model (12 fields: name, description, instructions, provider,
-  model, mode, isolation, base_branch, timeout, max_turns, rules, enabled)
+- AgentDefinitionBody model (15 fields: name, description, role, goal, personality,
+  instructions, provider, model, mode, isolation, base_branch, timeout, max_turns,
+  workflows, enabled)
+- AgentWorkflows model (pipeline, rules, variables)
 - agent_scope field on RuleDefinitionBody (list[str] | None)
 - Serialization to/from workflow_definitions as workflow_type='agent'
 """
@@ -41,7 +43,7 @@ def manager(db: LocalDatabase) -> LocalWorkflowDefinitionManager:
 
 
 class TestAgentDefinitionBodyModel:
-    """AgentDefinitionBody has exactly 12 fields with correct defaults."""
+    """AgentDefinitionBody has exactly 15 fields with correct defaults."""
 
     def test_minimal_creation(self) -> None:
         """Create with only required field (name)."""
@@ -50,6 +52,9 @@ class TestAgentDefinitionBodyModel:
         body = AgentDefinitionBody(name="developer")
         assert body.name == "developer"
         assert body.description is None
+        assert body.role is None
+        assert body.goal is None
+        assert body.personality is None
         assert body.instructions is None
         assert body.provider == "claude"
         assert body.model is None
@@ -58,16 +63,21 @@ class TestAgentDefinitionBodyModel:
         assert body.base_branch == "main"
         assert body.timeout == 120.0
         assert body.max_turns == 10
-        assert body.rules == []
+        assert body.workflows.rules == []
+        assert body.workflows.pipeline is None
+        assert body.workflows.variables == {}
         assert body.enabled is True
 
     def test_full_creation(self) -> None:
-        """Create with all 12 fields specified."""
-        from gobby.workflows.definitions import AgentDefinitionBody
+        """Create with all fields specified."""
+        from gobby.workflows.definitions import AgentDefinitionBody, AgentWorkflows
 
         body = AgentDefinitionBody(
             name="qa",
             description="QA agent for testing",
+            role="QA engineer",
+            goal="Ensure code quality",
+            personality="Thorough and detail-oriented",
             instructions="You are a QA agent. Only write test files.",
             provider="gemini",
             model="gemini-2.5-pro",
@@ -76,11 +86,14 @@ class TestAgentDefinitionBodyModel:
             base_branch="develop",
             timeout=300.0,
             max_turns=20,
-            rules=["no-code-writing", "require-tests"],
+            workflows=AgentWorkflows(rules=["no-code-writing", "require-tests"]),
             enabled=False,
         )
         assert body.name == "qa"
         assert body.description == "QA agent for testing"
+        assert body.role == "QA engineer"
+        assert body.goal == "Ensure code quality"
+        assert body.personality == "Thorough and detail-oriented"
         assert body.instructions == "You are a QA agent. Only write test files."
         assert body.provider == "gemini"
         assert body.model == "gemini-2.5-pro"
@@ -89,23 +102,25 @@ class TestAgentDefinitionBodyModel:
         assert body.base_branch == "develop"
         assert body.timeout == 300.0
         assert body.max_turns == 20
-        assert body.rules == ["no-code-writing", "require-tests"]
+        assert body.workflows.rules == ["no-code-writing", "require-tests"]
         assert body.enabled is False
 
     def test_field_count(self) -> None:
-        """AgentDefinitionBody has exactly 12 fields."""
+        """AgentDefinitionBody has exactly 15 fields."""
         from gobby.workflows.definitions import AgentDefinitionBody
 
         fields = AgentDefinitionBody.model_fields
-        assert len(fields) == 12, f"Expected 12 fields, got {len(fields)}: {list(fields.keys())}"
+        assert len(fields) == 15, f"Expected 15 fields, got {len(fields)}: {list(fields.keys())}"
 
-    def test_rules_default_empty_list(self) -> None:
-        """Rules defaults to an empty list, not None."""
+    def test_workflows_default_empty(self) -> None:
+        """Workflows defaults to empty AgentWorkflows."""
         from gobby.workflows.definitions import AgentDefinitionBody
 
         body = AgentDefinitionBody(name="test")
-        assert body.rules == []
-        assert isinstance(body.rules, list)
+        assert body.workflows.rules == []
+        assert body.workflows.pipeline is None
+        assert body.workflows.variables == {}
+        assert isinstance(body.workflows.rules, list)
 
     def test_mode_values(self) -> None:
         """Mode accepts terminal, embedded, headless."""
@@ -132,11 +147,14 @@ class TestAgentDefinitionBodySerialization:
 
     def test_json_round_trip(self) -> None:
         """Serialize to JSON and back preserves all fields."""
-        from gobby.workflows.definitions import AgentDefinitionBody
+        from gobby.workflows.definitions import AgentDefinitionBody, AgentWorkflows
 
         original = AgentDefinitionBody(
             name="developer",
             description="Writes code",
+            role="Backend developer",
+            goal="Ship clean code",
+            personality="Pragmatic",
             instructions="Write clean code.",
             provider="claude",
             model="claude-sonnet-4-6",
@@ -145,7 +163,7 @@ class TestAgentDefinitionBodySerialization:
             base_branch="main",
             timeout=120.0,
             max_turns=15,
-            rules=["require-task", "require-commit"],
+            workflows=AgentWorkflows(rules=["require-task", "require-commit"]),
             enabled=True,
         )
 
@@ -154,6 +172,9 @@ class TestAgentDefinitionBodySerialization:
 
         assert restored.name == original.name
         assert restored.description == original.description
+        assert restored.role == original.role
+        assert restored.goal == original.goal
+        assert restored.personality == original.personality
         assert restored.instructions == original.instructions
         assert restored.provider == original.provider
         assert restored.model == original.model
@@ -162,7 +183,7 @@ class TestAgentDefinitionBodySerialization:
         assert restored.base_branch == original.base_branch
         assert restored.timeout == original.timeout
         assert restored.max_turns == original.max_turns
-        assert restored.rules == original.rules
+        assert restored.workflows.rules == original.workflows.rules
         assert restored.enabled == original.enabled
 
     def test_minimal_json_round_trip(self) -> None:
@@ -173,7 +194,7 @@ class TestAgentDefinitionBodySerialization:
         json_str = original.model_dump_json()
         restored = AgentDefinitionBody.model_validate_json(json_str)
         assert restored.name == "simple"
-        assert restored.rules == []
+        assert restored.workflows.rules == []
 
 
 # ═══════════════════════════════════════════════════════════════════════
@@ -262,7 +283,6 @@ class TestAgentDefinitionStorage:
                 name="test-developer-agent",
                 description="Writes code",
                 instructions="Write clean code.",
-                rules=["require-task", "require-commit"],
             ),
             workflow_type="agent",
         )
@@ -273,7 +293,7 @@ class TestAgentDefinitionStorage:
         self, manager: LocalWorkflowDefinitionManager
     ) -> None:
         """Store and retrieve agent definition, deserialize definition_json."""
-        from gobby.workflows.definitions import AgentDefinitionBody
+        from gobby.workflows.definitions import AgentDefinitionBody, AgentWorkflows
 
         original = AgentDefinitionBody(
             name="qa",
@@ -286,7 +306,7 @@ class TestAgentDefinitionStorage:
             base_branch="develop",
             timeout=300.0,
             max_turns=20,
-            rules=["no-code-writing"],
+            workflows=AgentWorkflows(rules=["no-code-writing"]),
             enabled=True,
         )
 
@@ -310,7 +330,7 @@ class TestAgentDefinitionStorage:
         assert restored.base_branch == original.base_branch
         assert restored.timeout == original.timeout
         assert restored.max_turns == original.max_turns
-        assert restored.rules == original.rules
+        assert restored.workflows.rules == original.workflows.rules
         assert restored.enabled == original.enabled
 
     def test_list_agents_only(

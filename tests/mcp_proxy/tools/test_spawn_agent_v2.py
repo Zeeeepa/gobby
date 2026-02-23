@@ -17,7 +17,7 @@ import pytest
 from gobby.storage.database import LocalDatabase
 from gobby.storage.migrations import run_migrations
 from gobby.storage.workflow_definitions import LocalWorkflowDefinitionManager
-from gobby.workflows.definitions import AgentDefinitionBody
+from gobby.workflows.definitions import AgentDefinitionBody, AgentWorkflows
 
 pytestmark = pytest.mark.unit
 
@@ -75,7 +75,7 @@ class TestLoadAgentDefinitionBody:
                 base_branch="main",
                 timeout=120.0,
                 max_turns=15,
-                rules=["require-task", "require-commit"],
+                workflows=AgentWorkflows(rules=["require-task", "require-commit"]),
             ),
         )
 
@@ -86,7 +86,7 @@ class TestLoadAgentDefinitionBody:
         assert body.model == "claude-sonnet-4-6"
         assert body.mode == "terminal"
         assert body.isolation == "worktree"
-        assert body.rules == ["require-task", "require-commit"]
+        assert body.workflows.rules == ["require-task", "require-commit"]
 
     def test_returns_none_for_missing_agent(
         self, db: LocalDatabase
@@ -134,7 +134,7 @@ class TestBuildSpawnParams:
             base_branch="develop",
             timeout=300.0,
             max_turns=20,
-            rules=["no-code-writing"],
+            workflows=AgentWorkflows(rules=["no-code-writing"]),
         )
 
         params = build_spawn_params(body, prompt="Fix the bug", task_id="#42")
@@ -162,7 +162,7 @@ class TestBuildSpawnParams:
 
         body = AgentDefinitionBody(
             name="test-dev",
-            rules=["require-task", "require-commit"],
+            workflows=AgentWorkflows(rules=["require-task", "require-commit"]),
         )
         params = build_spawn_params(body, prompt="Do work")
 
@@ -288,7 +288,7 @@ class TestSpawnAgentSimplified:
             manager,
             AgentDefinitionBody(
                 name="test-spawn-qa",
-                rules=["no-code-writing"],
+                workflows=AgentWorkflows(rules=["no-code-writing"]),
             ),
         )
 
