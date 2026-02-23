@@ -104,7 +104,7 @@ function getBaseUrl(): string {
 // Hook
 // =============================================================================
 
-export function useSourceControl() {
+export function useSourceControl(projectId: string | null = null) {
   const [status, setStatus] = useState<SourceControlStatus | null>(null)
   const [branches, setBranches] = useState<GitBranch[]>([])
   const [prs, setPrs] = useState<PullRequest[]>([])
@@ -114,7 +114,6 @@ export function useSourceControl() {
 
   const [isLoading, setIsLoading] = useState(true)
   const [errors, setErrors] = useState<Record<string, string>>({})
-  const [projectId, setProjectId] = useState<string | null>(null)
 
   const setFetcherError = useCallback((key: string, message: string | null) => {
     setErrors(prev => {
@@ -467,8 +466,6 @@ export function useSourceControl() {
     // State
     isLoading,
     error,
-    projectId,
-    setProjectId,
 
     // On-demand
     fetchCommits,

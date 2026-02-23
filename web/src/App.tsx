@@ -483,7 +483,7 @@ export default function App() {
       ) : activeTab === 'mcp' ? (
         <McpPage />
       ) : activeTab === 'source-control' ? (
-        <GitHubPage />
+        <GitHubPage projectId={effectiveProjectId} />
       ) : activeTab === 'configuration' ? (
         <ConfigurationPage />
       ) : activeTab === 'dashboard' ? (

@@ -1,6 +1,5 @@
-import { useState, useMemo } from 'react'
+import { useState } from 'react'
 import { useSourceControl } from '../hooks/useSourceControl'
-import { useSessions } from '../hooks/useSessions'
 import { SourceControlOverview } from './source-control/SourceControlOverview'
 import { BranchesView } from './source-control/BranchesView'
 import { PullRequestsView } from './source-control/PullRequestsView'
@@ -9,6 +8,10 @@ import { ClonesView } from './source-control/ClonesView'
 import { CICDView } from './source-control/CICDView'
 
 export type SubTab = 'overview' | 'branches' | 'prs' | 'worktrees' | 'clones' | 'cicd'
+
+interface Props {
+  projectId: string | null
+}
 
 const TABS: { key: SubTab; label: string; requiresGitHub?: boolean }[] = [
   { key: 'overview', label: 'Overview' },
@@ -19,23 +22,9 @@ const TABS: { key: SubTab; label: string; requiresGitHub?: boolean }[] = [
   { key: 'cicd', label: 'CI/CD', requiresGitHub: true },
 ]
 
-const HIDDEN_PROJECTS = new Set(['_orphaned', '_migrated'])
-
-export function GitHubPage() {
-  const sc = useSourceControl()
-  const { projects } = useSessions()
+export function GitHubPage({ projectId }: Props) {
+  const sc = useSourceControl(projectId)
   const [activeTab, setActiveTab] = useState<SubTab>('overview')
-
-  const projectOptions = useMemo(
-    () =>
-      projects
-        .filter((p) => !HIDDEN_PROJECTS.has(p.name))
-        .map((p) => ({
-          id: p.id,
-          name: p.name === '_personal' ? 'Personal' : p.name,
-        })),
-    [projects]
-  )
 
   return (
     <main className="sc-page">
@@ -47,18 +36,6 @@ export function GitHubPage() {
           )}
         </div>
         <div className="sc-page__toolbar-right">
-          <select
-            className="sc-page__project-select"
-            value={sc.projectId || ''}
-            onChange={(e) => sc.setProjectId(e.target.value || null)}
-          >
-            <option value="">All Projects</option>
-            {projectOptions.map((p) => (
-              <option key={p.id} value={p.id}>
-                {p.name}
-              </option>
-            ))}
-          </select>
           <button
             className="sc-page__refresh-btn"
             onClick={sc.refresh}
