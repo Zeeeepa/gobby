@@ -158,6 +158,7 @@ def setup_internal_registries(
             llm_service=llm_service,
             memory_sync_manager=memory_sync_manager,
             session_manager=local_session_manager,
+            config=_config,
         )
         manager.add_registry(memory_registry)
         logger.debug("Memory registry initialized")

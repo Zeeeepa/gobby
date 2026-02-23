@@ -22,9 +22,13 @@ from typing import TYPE_CHECKING, Any
 
 from gobby.mcp_proxy.tools.internal import InternalToolRegistry
 from gobby.memory.manager import MemoryManager
-from gobby.workflows.memory_actions import memory_extract_from_session
+from gobby.workflows.memory_actions import (
+    memory_background_digest_and_synthesize,
+    memory_extract_from_session,
+)
 
 if TYPE_CHECKING:
+    from gobby.config.app import DaemonConfig
     from gobby.llm.service import LLMService
 
 logger = logging.getLogger(__name__)
@@ -46,6 +50,7 @@ def create_memory_registry(
     llm_service: LLMService | None = None,
     memory_sync_manager: Any | None = None,
     session_manager: Any | None = None,
+    config: DaemonConfig | None = None,
 ) -> InternalToolRegistry:
     """
     Create a memory tool registry with all memory-related tools.
@@ -55,6 +60,7 @@ def create_memory_registry(
         llm_service: LLM service for AI-powered extraction (optional)
         memory_sync_manager: MemorySyncManager for sync import/export (optional)
         session_manager: LocalSessionManager for session lookups (optional)
+        config: DaemonConfig for digest provider/model selection (optional)
 
     Returns:
         InternalToolRegistry with memory tools registered
@@ -669,6 +675,47 @@ def create_memory_registry(
             )
             if result is None:
                 return {"success": False, "error": "Memory manager disabled"}
+            if "error" in result:
+                return {"success": False, "error": result["error"]}
+            return {"success": True, **result}
+        except Exception as e:
+            return {"success": False, "error": str(e)}
+
+    @registry.tool(
+        name="digest_and_synthesize",
+        description="Update rolling session digest and synthesize a session title. Runs as a background task triggered by rules.",
+    )
+    async def digest_and_synthesize(
+        session_id: str = "",
+        prompt_text: str | None = None,
+        limit: int = 20,
+    ) -> dict[str, Any]:
+        """
+        Update rolling session digest and synthesize a session title.
+
+        Builds a rolling LLM digest of the session, parses a short title
+        from the output, and persists both to the session record.
+        Also renames the tmux window to match the new title.
+
+        Args:
+            session_id: Platform session ID (injected by dispatch layer)
+            prompt_text: The user's prompt text (injected by dispatch layer)
+            limit: Unused (kept for interface compatibility)
+        """
+        if not session_id:
+            return {"success": False, "error": "session_id is required"}
+        try:
+            result = await memory_background_digest_and_synthesize(
+                memory_manager=memory_manager,
+                session_manager=session_manager,
+                session_id=session_id,
+                prompt_text=prompt_text,
+                limit=limit,
+                llm_service=llm_service,
+                config=config,
+            )
+            if result is None:
+                return {"success": True, "skipped": True, "reason": "disabled or no input"}
             if "error" in result:
                 return {"success": False, "error": result["error"]}
             return {"success": True, **result}

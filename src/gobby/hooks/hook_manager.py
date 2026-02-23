@@ -346,6 +346,11 @@ class HookManager:
             if workflow_response.context:
                 workflow_context = workflow_response.context
 
+            # Dispatch mcp_call effects (fire-and-forget for background calls)
+            mcp_calls = (workflow_response.metadata or {}).get("mcp_calls", [])
+            if mcp_calls:
+                self._dispatch_mcp_calls(mcp_calls, event)
+
         except Exception as e:
             self.logger.error(f"Workflow evaluation failed: {e}", exc_info=True)
             # Fail-open for workflow errors
@@ -555,6 +560,98 @@ class HookManager:
                     asyncio.run(coro)
                 except Exception as e:
                     self.logger.warning(f"Sync hook message storage failed: {e}")
+
+    def _dispatch_mcp_calls(
+        self, mcp_calls: list[dict[str, Any]], event: HookEvent
+    ) -> None:
+        """Dispatch mcp_call effects from rule engine evaluation.
+
+        Injects event context (session_id, prompt_text) into each call's
+        arguments and dispatches via ToolProxyService.
+
+        Args:
+            mcp_calls: List of mcp_call dicts from rule engine metadata.
+                Each has: server, tool, arguments, background.
+            event: The originating HookEvent (for context injection).
+        """
+        if not self.tool_proxy_getter:
+            self.logger.debug("_dispatch_mcp_calls: no tool_proxy_getter, skipping")
+            return
+
+        # Capture in local so mypy narrows past the None guard for closures
+        _get_proxy = self.tool_proxy_getter
+
+        for call in mcp_calls:
+            server = call.get("server")
+            tool = call.get("tool")
+            arguments = dict(call.get("arguments") or {})
+            background = call.get("background", False)
+
+            if not server or not tool:
+                self.logger.warning("_dispatch_mcp_calls: missing server or tool in %s", call)
+                continue
+
+            # Inject event context into arguments
+            if "session_id" not in arguments:
+                arguments["session_id"] = event.metadata.get("_platform_session_id", "")
+            if "prompt_text" not in arguments:
+                arguments["prompt_text"] = event.data.get("prompt") if event.data else None
+
+            async def _call(s: str, t: str, args: dict[str, Any]) -> None:
+                try:
+                    proxy = _get_proxy()
+                    if not proxy:
+                        self.logger.warning("_dispatch_mcp_calls: tool_proxy_getter returned None")
+                        return
+                    await proxy.call_tool(s, t, args)
+                except Exception as exc:
+                    self.logger.error(
+                        "_dispatch_mcp_calls: %s/%s failed: %s", s, t, exc, exc_info=True
+                    )
+
+            coro = _call(server, tool, arguments)
+
+            if background:
+                # Fire-and-forget (same pattern as broadcasting)
+                try:
+                    loop = asyncio.get_running_loop()
+                    loop.create_task(coro)
+                except RuntimeError:
+                    if self._loop:
+                        try:
+                            asyncio.run_coroutine_threadsafe(coro, self._loop)
+                        except Exception as e:
+                            self.logger.warning(
+                                "_dispatch_mcp_calls: failed to schedule %s/%s: %s",
+                                server,
+                                tool,
+                                e,
+                            )
+                    else:
+                        self.logger.debug(
+                            "_dispatch_mcp_calls: no event loop for background call"
+                        )
+            else:
+                # Blocking dispatch with timeout
+                try:
+                    loop = asyncio.get_running_loop()
+                    loop.create_task(coro)
+                except RuntimeError:
+                    if self._loop:
+                        try:
+                            future = asyncio.run_coroutine_threadsafe(coro, self._loop)
+                            future.result(timeout=30)
+                        except Exception as e:
+                            self.logger.error(
+                                "_dispatch_mcp_calls: blocking %s/%s failed: %s",
+                                server,
+                                tool,
+                                e,
+                            )
+                    else:
+                        self.logger.debug(
+                            "_dispatch_mcp_calls: no event loop for blocking call"
+                        )
 
     def shutdown(self) -> None:
         """
