@@ -49,6 +49,7 @@ class SessionLifecycleManager:
         self.memory_manager = memory_manager
         self.llm_service = llm_service
         self.memory_sync_manager = memory_sync_manager
+        self._memory_extraction_config: Any = None
 
         self._running = False
         self._expire_task: asyncio.Task[None] | None = None

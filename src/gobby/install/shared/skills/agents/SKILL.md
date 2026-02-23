@@ -61,12 +61,13 @@ Call `spawn_agent` with:
 - `agent`: Named agent definition (e.g., "meeseeks-gemini", "meeseeks-claude")
 - `workflow`: Workflow to activate. Note: some workflows are marked `internal` and can only be spawned by the orchestrator (e.g., "worker" in meeseeks agents)
 - `task_id`: Task ID to associate with the agent
-- `isolation`: Isolation mode - "current" (default), "worktree", or "clone"
+- `isolation`: Isolation mode - "none" (default), "worktree", or "clone"
 - `branch_name`: Custom branch name for worktree/clone
 - `base_branch`: Base branch to branch from
+- `worktree_id`: Reuse existing worktree by ID
+- `clone_id`: Reuse existing clone by ID
 - `mode`: Execution mode - "terminal" (default), "headless", or "embedded"
 - `initial_step`: Starting step for workflow
-- `terminal`: Terminal type (ghostty, tmux, iterm, etc.)
 - `provider`: LLM provider (claude, gemini)
 - `model`: Model override (provider-specific identifier, e.g., `claude-3-opus` for Claude, `gemini-2.0-flash` for Gemini). Must be compatible with the selected `--provider`. Omitting `--provider` uses the default provider for the current CLI.
 - `timeout`: Max runtime in seconds
@@ -75,7 +76,7 @@ Call `spawn_agent` with:
 - `parent_session_id`: Parent session for tracking
 
 **Isolation modes:**
-- `current` - Work in current directory (default)
+- `none` - Work in current directory (default)
 - `worktree` - Create git worktree for isolated branch
 - `clone` - Create shallow clone for full isolation
 

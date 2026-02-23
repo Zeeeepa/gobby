@@ -76,9 +76,7 @@ def list_agent_definitions(
     Returns:
         Dict with success, agents list, and count
     """
-    rows = def_manager.list_all(
-        workflow_type="agent", enabled=enabled, project_id=project_id
-    )
+    rows = def_manager.list_all(workflow_type="agent", enabled=enabled, project_id=project_id)
     agents = [_agent_summary(r) for r in rows]
     return {"success": True, "agents": agents, "count": len(agents)}
 
@@ -97,9 +95,7 @@ def get_agent_definition(
     Returns:
         Dict with success and full agent detail, or error if not found
     """
-    row = def_manager.get_by_name(name) or def_manager.get_by_name(
-        name, include_templates=True
-    )
+    row = def_manager.get_by_name(name) or def_manager.get_by_name(name, include_templates=True)
     if row is None or row.workflow_type != "agent":
         return {"success": False, "error": f"Agent definition '{name}' not found"}
 
@@ -169,9 +165,7 @@ def toggle_agent_definition(
     Returns:
         Dict with success and updated agent, or error if not found
     """
-    row = def_manager.get_by_name(name) or def_manager.get_by_name(
-        name, include_templates=True
-    )
+    row = def_manager.get_by_name(name) or def_manager.get_by_name(name, include_templates=True)
     if row is None or row.workflow_type != "agent":
         return {"success": False, "error": f"Agent definition '{name}' not found"}
 
@@ -199,9 +193,7 @@ def delete_agent_definition(
     Returns:
         Dict with success, or error if not found/protected
     """
-    row = def_manager.get_by_name(name) or def_manager.get_by_name(
-        name, include_templates=True
-    )
+    row = def_manager.get_by_name(name) or def_manager.get_by_name(name, include_templates=True)
     if row is None or row.workflow_type != "agent":
         return {"success": False, "error": f"Agent definition '{name}' not found"}
 
@@ -220,3 +212,86 @@ def delete_agent_definition(
 
     logger.info("Deleted agent definition '%s' (id=%s)", name, row.id)
     return {"success": True, "deleted": {"id": row.id, "name": row.name}}
+
+
+def update_agent_rules(
+    def_manager: LocalWorkflowDefinitionManager,
+    name: str,
+    add: list[str] | None = None,
+    remove: list[str] | None = None,
+) -> dict[str, Any]:
+    """
+    Add or remove rules from an agent definition's workflows.rules list.
+
+    Args:
+        def_manager: Definition storage manager
+        name: Agent name
+        add: Rule names to add
+        remove: Rule names to remove
+
+    Returns:
+        Dict with success and updated rules list
+    """
+    row = def_manager.get_by_name(name) or def_manager.get_by_name(name, include_templates=True)
+    if row is None or row.workflow_type != "agent":
+        return {"success": False, "error": f"Agent definition '{name}' not found"}
+
+    body = json.loads(row.definition_json)
+    workflows = body.get("workflows", {})
+    rules: list[str] = list(workflows.get("rules", []))
+
+    if remove:
+        rules = [r for r in rules if r not in remove]
+    if add:
+        for rule in add:
+            if rule not in rules:
+                rules.append(rule)
+
+    workflows["rules"] = rules
+    body["workflows"] = workflows
+
+    def_manager.update(row.id, definition_json=json.dumps(body))
+    logger.info("Updated rules for agent '%s': %s", name, rules)
+
+    return {"success": True, "rules": rules}
+
+
+def update_agent_variables(
+    def_manager: LocalWorkflowDefinitionManager,
+    name: str,
+    set_vars: dict[str, Any] | None = None,
+    remove: list[str] | None = None,
+) -> dict[str, Any]:
+    """
+    Set or remove variables from an agent definition's workflows.variables dict.
+
+    Args:
+        def_manager: Definition storage manager
+        name: Agent name
+        set_vars: Variables to set (key-value pairs)
+        remove: Variable keys to remove
+
+    Returns:
+        Dict with success and updated variables dict
+    """
+    row = def_manager.get_by_name(name) or def_manager.get_by_name(name, include_templates=True)
+    if row is None or row.workflow_type != "agent":
+        return {"success": False, "error": f"Agent definition '{name}' not found"}
+
+    body = json.loads(row.definition_json)
+    workflows = body.get("workflows", {})
+    variables: dict[str, Any] = dict(workflows.get("variables", {}))
+
+    if remove:
+        for key in remove:
+            variables.pop(key, None)
+    if set_vars:
+        variables.update(set_vars)
+
+    workflows["variables"] = variables
+    body["workflows"] = workflows
+
+    def_manager.update(row.id, definition_json=json.dumps(body))
+    logger.info("Updated variables for agent '%s': %s", name, list(variables.keys()))
+
+    return {"success": True, "variables": variables}

@@ -1200,8 +1200,7 @@ def _migrate_agent_body_schema_v2(db: LocalDatabase) -> None:
     {pipeline, rules, variables} structure.
     """
     rows = db.fetchall(
-        "SELECT id, definition_json FROM workflow_definitions "
-        "WHERE workflow_type = 'agent'"
+        "SELECT id, definition_json FROM workflow_definitions WHERE workflow_type = 'agent'"
     )
 
     updated = 0

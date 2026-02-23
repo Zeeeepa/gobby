@@ -111,7 +111,7 @@ class TestResetMemoryTrackingOnStart:
 
     def test_event_and_effect(self, db, manager) -> None:
         _sync_bundled(db)
-        row = manager.get_by_name("reset-memory-tracking-on-start")
+        row = manager.get_by_name("reset-memory-tracking-on-start", include_templates=True)
         assert row is not None
         body = RuleDefinitionBody.model_validate_json(row.definition_json)
         assert body.event.value == "session_start"
@@ -120,7 +120,7 @@ class TestResetMemoryTrackingOnStart:
 
     def test_has_when_condition(self, db, manager) -> None:
         _sync_bundled(db)
-        row = manager.get_by_name("reset-memory-tracking-on-start")
+        row = manager.get_by_name("reset-memory-tracking-on-start", include_templates=True)
         body = RuleDefinitionBody.model_validate_json(row.definition_json)
         assert body.when is not None
         assert "clear" in body.when
@@ -137,7 +137,7 @@ class TestMemorySyncImport:
 
     def test_event_and_effect(self, db, manager) -> None:
         _sync_bundled(db)
-        row = manager.get_by_name("memory-sync-import")
+        row = manager.get_by_name("memory-sync-import", include_templates=True)
         assert row is not None
         body = RuleDefinitionBody.model_validate_json(row.definition_json)
         assert body.event.value == "session_start"
@@ -156,7 +156,7 @@ class TestMemoryRecallOnPrompt:
 
     def test_event_and_effect(self, db, manager) -> None:
         _sync_bundled(db)
-        row = manager.get_by_name("memory-recall-on-prompt")
+        row = manager.get_by_name("memory-recall-on-prompt", include_templates=True)
         assert row is not None
         body = RuleDefinitionBody.model_validate_json(row.definition_json)
         assert body.event.value == "before_agent"
@@ -167,7 +167,7 @@ class TestMemoryRecallOnPrompt:
     def test_not_background(self, db, manager) -> None:
         """Recall must block to inject context."""
         _sync_bundled(db)
-        row = manager.get_by_name("memory-recall-on-prompt")
+        row = manager.get_by_name("memory-recall-on-prompt", include_templates=True)
         body = RuleDefinitionBody.model_validate_json(row.definition_json)
         assert body.effect.background is False
 
@@ -182,7 +182,7 @@ class TestMemoryBackgroundDigest:
 
     def test_event_and_effect(self, db, manager) -> None:
         _sync_bundled(db)
-        row = manager.get_by_name("memory-background-digest")
+        row = manager.get_by_name("memory-background-digest", include_templates=True)
         assert row is not None
         body = RuleDefinitionBody.model_validate_json(row.definition_json)
         assert body.event.value == "before_agent"
@@ -193,7 +193,7 @@ class TestMemoryBackgroundDigest:
     def test_is_background(self, db, manager) -> None:
         """Digest runs async (zero latency)."""
         _sync_bundled(db)
-        row = manager.get_by_name("memory-background-digest")
+        row = manager.get_by_name("memory-background-digest", include_templates=True)
         body = RuleDefinitionBody.model_validate_json(row.definition_json)
         assert body.effect.background is True
 
@@ -208,7 +208,7 @@ class TestMemoryCaptureNudge:
 
     def test_event_and_effect(self, db, manager) -> None:
         _sync_bundled(db)
-        row = manager.get_by_name("memory-capture-nudge")
+        row = manager.get_by_name("memory-capture-nudge", include_templates=True)
         assert row is not None
         body = RuleDefinitionBody.model_validate_json(row.definition_json)
         assert body.event.value == "before_agent"
@@ -219,7 +219,7 @@ class TestMemoryCaptureNudge:
     def test_has_when_condition(self, db, manager) -> None:
         """Only nudge on substantial prompts (not slash commands)."""
         _sync_bundled(db)
-        row = manager.get_by_name("memory-capture-nudge")
+        row = manager.get_by_name("memory-capture-nudge", include_templates=True)
         body = RuleDefinitionBody.model_validate_json(row.definition_json)
         assert body.when is not None
         assert "prompt" in body.when
@@ -235,7 +235,7 @@ class TestSuggestMemoryAfterClose:
 
     def test_event_and_effect(self, db, manager) -> None:
         _sync_bundled(db)
-        row = manager.get_by_name("suggest-memory-after-close")
+        row = manager.get_by_name("suggest-memory-after-close", include_templates=True)
         assert row is not None
         body = RuleDefinitionBody.model_validate_json(row.definition_json)
         assert body.event.value == "after_tool"
@@ -246,7 +246,7 @@ class TestSuggestMemoryAfterClose:
     def test_has_when_condition(self, db, manager) -> None:
         """Only suggest after close_task with commit_sha."""
         _sync_bundled(db)
-        row = manager.get_by_name("suggest-memory-after-close")
+        row = manager.get_by_name("suggest-memory-after-close", include_templates=True)
         body = RuleDefinitionBody.model_validate_json(row.definition_json)
         assert body.when is not None
         assert "close_task" in body.when
@@ -262,7 +262,7 @@ class TestMemoryExtractionOnEnd:
 
     def test_event_and_effect(self, db, manager) -> None:
         _sync_bundled(db)
-        row = manager.get_by_name("memory-extraction-on-end")
+        row = manager.get_by_name("memory-extraction-on-end", include_templates=True)
         assert row is not None
         body = RuleDefinitionBody.model_validate_json(row.definition_json)
         assert body.event.value == "session_end"
@@ -272,7 +272,7 @@ class TestMemoryExtractionOnEnd:
 
     def test_has_max_memories_arg(self, db, manager) -> None:
         _sync_bundled(db)
-        row = manager.get_by_name("memory-extraction-on-end")
+        row = manager.get_by_name("memory-extraction-on-end", include_templates=True)
         body = RuleDefinitionBody.model_validate_json(row.definition_json)
         assert body.effect.arguments is not None
         assert body.effect.arguments.get("max_memories") == 5
@@ -288,7 +288,7 @@ class TestMemorySyncExportOnEnd:
 
     def test_event_and_effect(self, db, manager) -> None:
         _sync_bundled(db)
-        row = manager.get_by_name("memory-sync-export-on-end")
+        row = manager.get_by_name("memory-sync-export-on-end", include_templates=True)
         assert row is not None
         body = RuleDefinitionBody.model_validate_json(row.definition_json)
         assert body.event.value == "session_end"
@@ -307,7 +307,7 @@ class TestResetMemoryTrackingOnCompact:
 
     def test_event_and_effect(self, db, manager) -> None:
         _sync_bundled(db)
-        row = manager.get_by_name("reset-memory-tracking-on-compact")
+        row = manager.get_by_name("reset-memory-tracking-on-compact", include_templates=True)
         assert row is not None
         body = RuleDefinitionBody.model_validate_json(row.definition_json)
         assert body.event.value == "pre_compact"
@@ -317,7 +317,7 @@ class TestResetMemoryTrackingOnCompact:
     def test_has_gemini_filter(self, db, manager) -> None:
         """Respects Gemini auto-compress skip."""
         _sync_bundled(db)
-        row = manager.get_by_name("reset-memory-tracking-on-compact")
+        row = manager.get_by_name("reset-memory-tracking-on-compact", include_templates=True)
         body = RuleDefinitionBody.model_validate_json(row.definition_json)
         assert body.when is not None
         assert "gemini" in body.when
@@ -333,7 +333,7 @@ class TestMemoryExtractionOnCompact:
 
     def test_event_and_effect(self, db, manager) -> None:
         _sync_bundled(db)
-        row = manager.get_by_name("memory-extraction-on-compact")
+        row = manager.get_by_name("memory-extraction-on-compact", include_templates=True)
         assert row is not None
         body = RuleDefinitionBody.model_validate_json(row.definition_json)
         assert body.event.value == "pre_compact"
@@ -343,7 +343,7 @@ class TestMemoryExtractionOnCompact:
 
     def test_has_gemini_filter(self, db, manager) -> None:
         _sync_bundled(db)
-        row = manager.get_by_name("memory-extraction-on-compact")
+        row = manager.get_by_name("memory-extraction-on-compact", include_templates=True)
         body = RuleDefinitionBody.model_validate_json(row.definition_json)
         assert body.when is not None
         assert "gemini" in body.when
@@ -359,7 +359,7 @@ class TestMemorySyncExportOnCompact:
 
     def test_event_and_effect(self, db, manager) -> None:
         _sync_bundled(db)
-        row = manager.get_by_name("memory-sync-export-on-compact")
+        row = manager.get_by_name("memory-sync-export-on-compact", include_templates=True)
         assert row is not None
         body = RuleDefinitionBody.model_validate_json(row.definition_json)
         assert body.event.value == "pre_compact"
@@ -369,7 +369,7 @@ class TestMemorySyncExportOnCompact:
 
     def test_has_gemini_filter(self, db, manager) -> None:
         _sync_bundled(db)
-        row = manager.get_by_name("memory-sync-export-on-compact")
+        row = manager.get_by_name("memory-sync-export-on-compact", include_templates=True)
         body = RuleDefinitionBody.model_validate_json(row.definition_json)
         assert body.when is not None
         assert "gemini" in body.when

@@ -10,9 +10,9 @@ import pytest
 
 from gobby.agents.isolation import (
     CloneIsolationHandler,
-    CurrentIsolationHandler,
     IsolationContext,
     IsolationHandler,
+    NoneIsolationHandler,
     SpawnConfig,
     WorktreeIsolationHandler,
     generate_branch_name,
@@ -49,7 +49,7 @@ class TestIsolationContext:
         assert ctx.branch_name is None
         assert ctx.worktree_id is None
         assert ctx.clone_id is None
-        assert ctx.isolation_type == "current"
+        assert ctx.isolation_type == "none"
         assert ctx.extra == {}
 
     def test_isolation_context_extra_dict(self) -> None:
@@ -218,13 +218,13 @@ class TestGenerateBranchName:
             assert branch == "agent/1706297600"
 
 
-class TestCurrentIsolationHandler:
-    """Tests for CurrentIsolationHandler."""
+class TestNoneIsolationHandler:
+    """Tests for NoneIsolationHandler."""
 
     @pytest.mark.asyncio
     async def test_prepare_environment_returns_project_path(self) -> None:
         """Test prepare_environment returns IsolationContext with project_path as cwd."""
-        handler = CurrentIsolationHandler()
+        handler = NoneIsolationHandler()
         config = SpawnConfig(
             prompt="Test prompt",
             task_id=None,
@@ -242,12 +242,12 @@ class TestCurrentIsolationHandler:
         ctx = await handler.prepare_environment(config)
 
         assert ctx.cwd == "/path/to/my/project"
-        assert ctx.isolation_type == "current"
+        assert ctx.isolation_type == "none"
 
     @pytest.mark.asyncio
     async def test_prepare_environment_no_branch_or_ids(self) -> None:
         """Test prepare_environment returns no branch, worktree_id, or clone_id."""
-        handler = CurrentIsolationHandler()
+        handler = NoneIsolationHandler()
         config = SpawnConfig(
             prompt="Test",
             task_id=None,
@@ -270,7 +270,7 @@ class TestCurrentIsolationHandler:
 
     def test_build_context_prompt_returns_unchanged(self) -> None:
         """Test build_context_prompt returns original prompt unchanged."""
-        handler = CurrentIsolationHandler()
+        handler = NoneIsolationHandler()
         original_prompt = "Please implement the login feature."
         ctx = IsolationContext(cwd="/path/to/project")
 
@@ -281,7 +281,7 @@ class TestCurrentIsolationHandler:
     @pytest.mark.asyncio
     async def test_cleanup_environment_is_noop(self) -> None:
         """Test cleanup_environment does nothing for current handler."""
-        handler = CurrentIsolationHandler()
+        handler = NoneIsolationHandler()
         config = SpawnConfig(
             prompt="Test",
             task_id=None,
@@ -300,8 +300,8 @@ class TestCurrentIsolationHandler:
         await handler.cleanup_environment(config)
 
     def test_is_isolation_handler_subclass(self) -> None:
-        """Test CurrentIsolationHandler is a subclass of IsolationHandler."""
-        assert issubclass(CurrentIsolationHandler, IsolationHandler)
+        """Test NoneIsolationHandler is a subclass of IsolationHandler."""
+        assert issubclass(NoneIsolationHandler, IsolationHandler)
 
     def test_isolation_handler_is_abstract(self) -> None:
         """Test IsolationHandler cannot be instantiated directly."""
@@ -826,11 +826,11 @@ class TestCloneIsolationHandler:
 class TestGetIsolationHandler:
     """Tests for get_isolation_handler factory function."""
 
-    def test_get_isolation_handler_current(self) -> None:
-        """Test get_isolation_handler('current') returns CurrentIsolationHandler."""
-        handler = get_isolation_handler("current")
+    def test_get_isolation_handler_none(self) -> None:
+        """Test get_isolation_handler('none') returns NoneIsolationHandler."""
+        handler = get_isolation_handler("none")
 
-        assert isinstance(handler, CurrentIsolationHandler)
+        assert isinstance(handler, NoneIsolationHandler)
 
     def test_get_isolation_handler_worktree(self) -> None:
         """Test get_isolation_handler('worktree', ...) returns WorktreeIsolationHandler."""

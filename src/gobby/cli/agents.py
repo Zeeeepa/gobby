@@ -447,7 +447,7 @@ def kill_agent(run_ref: str, force: bool, stop: bool, yes: bool) -> None:
 @click.option("--workflow", "-w", help="Workflow name to evaluate")
 @click.option("--task", "-t", "task_id", help="Task ID for branch naming")
 @click.option("--session", "-s", "session_id", help="Parent session ID for depth/mode checks")
-@click.option("--isolation", "-i", help="Isolation mode override (current, worktree, clone)")
+@click.option("--isolation", "-i", help="Isolation mode override (none, worktree, clone)")
 @click.option("--provider", "-p", help="Provider override")
 @click.option("--json", "json_format", is_flag=True, help="Output as JSON")
 def check_agent(

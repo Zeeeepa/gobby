@@ -15,7 +15,7 @@ When auth is NOT configured, all requests pass through unchanged.
 """
 
 import logging
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from starlette.middleware.base import BaseHTTPMiddleware, RequestResponseEndpoint
 from starlette.requests import Request
@@ -50,7 +50,7 @@ class AuthMiddleware(BaseHTTPMiddleware):
     requests pass through. This preserves the local-first default.
     """
 
-    def __init__(self, app: any, server: "HTTPServer") -> None:
+    def __init__(self, app: Any, server: "HTTPServer") -> None:
         super().__init__(app)
         self.server = server
 

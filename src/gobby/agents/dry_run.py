@@ -37,7 +37,6 @@ class SpawnEvaluation:
     effective_mode: str | None = None
     effective_isolation: str | None = None
     effective_provider: str | None = None
-    effective_terminal: str | None = None
     branch_name: str | None = None
 
     # Embedded workflow evaluation
@@ -53,7 +52,6 @@ class SpawnEvaluation:
             "effective_mode": self.effective_mode,
             "effective_isolation": self.effective_isolation,
             "effective_provider": self.effective_provider,
-            "effective_terminal": self.effective_terminal,
             "branch_name": self.branch_name,
             "workflow_evaluation": self.workflow_evaluation.to_dict()
             if self.workflow_evaluation
@@ -70,7 +68,8 @@ class SpawnEvaluation:
 
 
 def _load_agent_body(
-    name: str, db: DatabaseProtocol | None,
+    name: str,
+    db: DatabaseProtocol | None,
 ) -> Any:
     """Load an AgentDefinitionBody from the DB by name."""
     if db is None:
@@ -95,7 +94,6 @@ async def evaluate_spawn(
     task_id: str | None = None,
     isolation: str | None = None,
     mode: str | None = None,
-    terminal: str = "auto",
     provider: str | None = None,
     branch_name: str | None = None,
     base_branch: str | None = None,
@@ -142,11 +140,9 @@ async def evaluate_spawn(
 
     # Resolve effective values
     eff_provider = provider or agent_body.provider
-    eff_terminal = terminal
-    eff_isolation = isolation or agent_body.isolation or "current"
+    eff_isolation = isolation or agent_body.isolation or "none"
 
     result.effective_provider = eff_provider
-    result.effective_terminal = eff_terminal
     result.effective_isolation = eff_isolation
 
     result.items.append(
@@ -154,11 +150,10 @@ async def evaluate_spawn(
             layer="agent",
             level="info",
             code="AGENT_RESOLVED",
-            message=f"Agent '{agent}' found: provider={eff_provider}, mode={agent_body.mode}, terminal={eff_terminal}",
+            message=f"Agent '{agent}' found: provider={eff_provider}, mode={agent_body.mode}",
             detail={
                 "provider": eff_provider,
                 "mode": agent_body.mode,
-                "terminal": eff_terminal,
                 "isolation": eff_isolation,
                 "model": agent_body.model,
                 "timeout": agent_body.timeout,
@@ -314,7 +309,7 @@ async def evaluate_spawn(
             )
 
     # Terminal availability check
-    if eff_mode in ("terminal", "embedded") and eff_terminal == "auto":
+    if eff_mode in ("terminal", "embedded"):
         try:
             from gobby.agents.tmux.spawner import TmuxSpawner
 

@@ -474,7 +474,6 @@ def create_agents_registry(
         task_id: str | None = None,
         isolation: str | None = None,
         mode: str | None = None,
-        terminal: str = "auto",
         provider: str | None = None,
         branch_name: str | None = None,
         base_branch: str | None = None,
@@ -491,9 +490,8 @@ def create_agents_registry(
             agent: Agent name (default: "default").
             workflow: Optional workflow name override.
             task_id: Optional task ID for branch naming.
-            isolation: Optional isolation mode (current, worktree, clone).
+            isolation: Optional isolation mode (none, worktree, clone).
             mode: Optional execution mode (terminal, embedded, headless, self).
-            terminal: Terminal type (default: auto).
             provider: Optional provider override.
             branch_name: Optional explicit branch name.
             base_branch: Optional base branch for isolation.
@@ -528,7 +526,6 @@ def create_agents_registry(
             task_id=task_id,
             isolation=isolation,
             mode=mode,
-            terminal=terminal,
             provider=provider,
             branch_name=branch_name,
             base_branch=base_branch,
@@ -656,6 +653,8 @@ def create_agents_registry(
         get_agent_definition,
         list_agent_definitions,
         toggle_agent_definition,
+        update_agent_rules,
+        update_agent_variables,
     )
 
     @registry.tool(
@@ -711,6 +710,32 @@ def create_agents_registry(
         if _def_manager is None:
             return {"error": "Agent definition tools require database connection"}
         return delete_agent_definition(_def_manager, name, force)
+
+    @registry.tool(
+        name="update_agent_rules",
+        description="Add or remove rules from an agent definition's workflows.rules list.",
+    )
+    def _update_agent_rules(
+        name: str,
+        add: list[str] | None = None,
+        remove: list[str] | None = None,
+    ) -> dict[str, Any]:
+        if _def_manager is None:
+            return {"error": "Agent definition tools require database connection"}
+        return update_agent_rules(_def_manager, name, add, remove)
+
+    @registry.tool(
+        name="update_agent_variables",
+        description="Set or remove variables from an agent definition's workflows.variables dict.",
+    )
+    def _update_agent_variables(
+        name: str,
+        set_vars: dict[str, Any] | None = None,
+        remove: list[str] | None = None,
+    ) -> dict[str, Any]:
+        if _def_manager is None:
+            return {"error": "Agent definition tools require database connection"}
+        return update_agent_variables(_def_manager, name, set_vars, remove)
 
     # Register spawn_agent tool from spawn_agent module
     from gobby.mcp_proxy.tools.spawn_agent import create_spawn_agent_registry

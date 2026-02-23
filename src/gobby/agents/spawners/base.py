@@ -20,19 +20,6 @@ class SpawnMode(str, Enum):
     IN_PROCESS = "in_process"  # Run via SDK in daemon process
 
 
-class TerminalType(str, Enum):
-    """Supported terminal types.
-
-    Since Gobby uses tmux as the sole terminal spawning backend,
-    only ``TMUX`` and ``AUTO`` remain.  Historical string values
-    (e.g. ``"ghostty"``) stored in databases are plain strings and
-    do not cause enum lookup errors.
-    """
-
-    TMUX = "tmux"
-    AUTO = "auto"
-
-
 @dataclass
 class SpawnResult:
     """Result of spawning a terminal process."""
@@ -127,8 +114,8 @@ class TerminalSpawnerBase(ABC):
 
     @property
     @abstractmethod
-    def terminal_type(self) -> TerminalType:
-        """The terminal type this spawner handles."""
+    def terminal_type(self) -> str:
+        """The terminal type this spawner handles. Always 'tmux'."""
         pass
 
     @abstractmethod

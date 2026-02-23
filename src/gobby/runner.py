@@ -167,9 +167,7 @@ class GobbyRunner:
             )
             self.hub_manager.register_provider_factory("claude-plugins", ClaudePluginsProvider)
             self.hub_manager._skill_description_config = (
-                self.config.skill_description
-                if hasattr(self.config, "skill_description")
-                else None
+                self.config.skill_description if hasattr(self.config, "skill_description") else None
             )
             logger.debug(f"HubManager initialized with {len(skills_config.hubs)} hubs")
         except Exception as e:
@@ -418,9 +416,7 @@ class GobbyRunner:
             memory_sync_manager=self.memory_sync_manager,
         )
         self.lifecycle_manager._memory_extraction_config = (
-            self.config.memory_extraction
-            if hasattr(self.config, "memory_extraction")
-            else None
+            self.config.memory_extraction if hasattr(self.config, "memory_extraction") else None
         )
 
         # Cron Scheduler (background jobs for recurring tasks)

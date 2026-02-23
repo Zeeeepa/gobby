@@ -6,7 +6,7 @@ update_memory correctly interact with both SQLite and VectorStore.
 
 from __future__ import annotations
 
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock
 
 import pytest
 
@@ -173,7 +173,7 @@ async def test_update_memory_re_embeds(manager, mock_vector_store, mock_embed_fn
 async def test_search_memories_tag_filtering(manager, mock_vector_store, mock_embed_fn):
     """search_memories should support tag filtering."""
     m1 = await manager.create_memory(content="tagged", tags=["python"])
-    m2 = await manager.create_memory(content="untagged")
+    await manager.create_memory(content="untagged")
     mock_embed_fn.reset_mock()
 
     # Search with tags_all filter (no query = SQLite list)

@@ -100,7 +100,7 @@ def create_spawn_agent_registry(
         name="spawn_agent",
         description=(
             "Spawn a subagent to execute a task. Supports isolation modes: "
-            "'current' (work in current directory), 'worktree' (create git worktree), "
+            "'none' (work in current directory), 'worktree' (create git worktree), "
             "'clone' (create shallow clone). Can use named agent definitions or raw parameters. "
             "Accepts #N, N, UUID, or prefix for parent_session_id."
         ),
@@ -110,15 +110,15 @@ def create_spawn_agent_registry(
         agent: str = "default",
         task_id: str | None = None,
         # Isolation
-        isolation: Literal["current", "worktree", "clone"] | None = None,
+        isolation: Literal["none", "worktree", "clone"] | None = None,
         branch_name: str | None = None,
         base_branch: str | None = None,
         clone_id: str | None = None,
+        worktree_id: str | None = None,
         # Execution
         workflow: str | None = None,
         mode: Literal["terminal", "embedded", "headless", "self"] | None = None,
         initial_step: str | None = None,
-        terminal: str = "auto",
         provider: str | None = None,
         model: str | None = None,
         # Limits
@@ -140,14 +140,15 @@ def create_spawn_agent_registry(
             prompt: Required - what the agent should do
             agent: Agent definition name (defaults to "default")
             task_id: Optional - link to task (supports N, #N, UUID)
-            isolation: Isolation mode (current/worktree/clone)
+            isolation: Isolation mode (none/worktree/clone)
             branch_name: Git branch name (auto-generated from task if not provided)
             base_branch: Base branch for worktree/clone
+            clone_id: Existing clone ID to reuse
+            worktree_id: Existing worktree ID to reuse
             workflow: Workflow/pipeline to use
             mode: Execution mode (terminal/embedded/headless/self).
                   'self' activates workflow on caller session instead of spawning.
             initial_step: For mode=self, start at specific step (defaults to first)
-            terminal: Terminal type for terminal mode
             provider: AI provider (claude/gemini/codex/cursor/windsurf/copilot)
             model: Model to use
             timeout: Timeout in seconds
@@ -209,6 +210,7 @@ def create_spawn_agent_registry(
             branch_name=branch_name,
             base_branch=base_branch,
             clone_id=clone_id,
+            worktree_id=worktree_id,
             worktree_storage=worktree_storage,
             git_manager=git_manager,
             clone_storage=clone_storage,
@@ -216,7 +218,6 @@ def create_spawn_agent_registry(
             workflow=effective_workflow,
             mode=mode,
             initial_step=initial_step,
-            terminal=terminal,
             provider=provider,
             model=model,
             timeout=timeout,

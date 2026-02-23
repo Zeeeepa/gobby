@@ -57,9 +57,6 @@ class AgentConfig:
     mode: str = "in_process"
     """Execution mode: in_process, terminal, embedded, headless."""
 
-    terminal: str = "auto"
-    """Terminal for terminal/embedded modes: auto, ghostty, iterm, etc."""
-
     worktree_id: str | None = None
     """Existing worktree to use for terminal mode."""
 

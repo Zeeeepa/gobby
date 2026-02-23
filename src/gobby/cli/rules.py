@@ -32,7 +32,7 @@ def _get_manager() -> LocalWorkflowDefinitionManager:
     return LocalWorkflowDefinitionManager(db)
 
 
-def _get_audit_manager() -> "WorkflowAuditManager":
+def _get_audit_manager() -> WorkflowAuditManager:
     """Get workflow audit manager."""
     from gobby.storage.workflow_audit import WorkflowAuditManager
 

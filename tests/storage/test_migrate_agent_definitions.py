@@ -360,9 +360,7 @@ class TestSyncBundledAgentsAfterMigration:
         assert len(rows) > 0
         # Verify at least one known bundled agent was synced
         names = [r["name"] for r in rows]
-        # "generic" and "coordinator" may collide with bundled workflow names,
-        # so check for agents that don't have workflow name conflicts
-        assert any(n in names for n in ("researcher", "qa-claude", "developer-gemini"))
+        assert any(n in names for n in ("default", "claude-cli-sonnet", "gemini-cli"))
 
     def test_sync_is_idempotent(self, tmp_path) -> None:
         from gobby.agents.sync import sync_bundled_agents

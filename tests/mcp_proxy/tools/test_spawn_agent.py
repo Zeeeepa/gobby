@@ -252,13 +252,13 @@ class TestSpawnAgentIsolation:
                 {
                     "prompt": "Test prompt",
                     "parent_session_id": "parent-789",
-                    "isolation": "current",
+                    "isolation": "none",
                 },
             )
 
             mock_get_handler.assert_called_once()
             call_args = mock_get_handler.call_args
-            assert call_args[0][0] == "current"
+            assert call_args[0][0] == "none"
             assert result["success"] is True
 
     @pytest.mark.asyncio

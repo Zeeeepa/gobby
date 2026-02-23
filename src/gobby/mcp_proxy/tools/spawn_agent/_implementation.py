@@ -43,10 +43,11 @@ async def spawn_agent_impl(
     task_id: str | None = None,
     task_manager: LocalTaskManager | None = None,
     # Isolation
-    isolation: Literal["current", "worktree", "clone"] | None = None,
+    isolation: Literal["none", "worktree", "clone"] | None = None,
     branch_name: str | None = None,
     base_branch: str | None = None,
     clone_id: str | None = None,  # Reuse existing clone instead of creating new isolation
+    worktree_id: str | None = None,  # Reuse existing worktree instead of creating new isolation
     # Storage/managers for isolation
     worktree_storage: Any | None = None,
     git_manager: Any | None = None,
@@ -56,7 +57,6 @@ async def spawn_agent_impl(
     workflow: str | None = None,
     mode: Literal["terminal", "embedded", "headless", "self"] | None = None,
     initial_step: str | None = None,  # For mode=self, start at specific step
-    terminal: str = "auto",
     provider: str | None = None,
     model: str | None = None,
     # Limits
@@ -86,9 +86,11 @@ async def spawn_agent_impl(
         agent_lookup_name: The name used to look up the agent definition
         task_id: Optional - link to task (supports N, #N, UUID)
         task_manager: Task manager for task resolution
-        isolation: Isolation mode (current/worktree/clone)
+        isolation: Isolation mode (none/worktree/clone)
         branch_name: Git branch name (auto-generated from task if not provided)
         base_branch: Base branch for worktree/clone
+        clone_id: Existing clone ID to reuse
+        worktree_id: Existing worktree ID to reuse
         worktree_storage: Storage for worktree records
         git_manager: Git manager for worktree operations
         clone_storage: Storage for clone records
@@ -96,7 +98,6 @@ async def spawn_agent_impl(
         workflow: Workflow to use
         mode: Execution mode (terminal/embedded/headless/self)
         initial_step: For mode=self, start at specific step
-        terminal: Terminal type for terminal mode
         provider: AI provider (claude/gemini/codex/cursor/windsurf/copilot)
         model: Model to use
         timeout: Timeout in seconds
@@ -119,7 +120,7 @@ async def spawn_agent_impl(
     effective_isolation = isolation
     if effective_isolation is None and agent_body:
         effective_isolation = agent_body.isolation
-    effective_isolation = effective_isolation or "current"
+    effective_isolation = effective_isolation or "none"
 
     effective_provider = provider
     if effective_provider is None and agent_body:
@@ -139,9 +140,9 @@ async def spawn_agent_impl(
 
     # Handle mode=self: activate workflow on caller session instead of spawning
     if effective_mode == "self":
-        if effective_isolation != "current":
-            logger.debug(f"mode=self overrides isolation={effective_isolation} to 'current'")
-            effective_isolation = "current"
+        if effective_isolation != "none":
+            logger.debug(f"mode=self overrides isolation={effective_isolation} to 'none'")
+            effective_isolation = "none"
         if not effective_workflow:
             return {"success": False, "error": "mode: self requires a workflow to activate"}
         if not parent_session_id:
@@ -255,9 +256,24 @@ async def spawn_agent_impl(
         except Exception as e:
             logger.warning(f"Failed to resolve task_id {task_id}: {e}")
 
-    # 5. Handle clone_id reuse: skip isolation creation when an existing clone is provided
+    # 5. Handle worktree_id/clone_id reuse: skip isolation creation when existing resource provided
     isolation_ctx = None
-    if clone_id and clone_storage:
+    if worktree_id and worktree_storage:
+        existing_worktree = worktree_storage.get(worktree_id)
+        if not existing_worktree:
+            return {"success": False, "error": f"Worktree {worktree_id} not found"}
+
+        from gobby.agents.isolation import IsolationContext
+
+        isolation_ctx = IsolationContext(
+            cwd=existing_worktree.worktree_path,
+            branch_name=existing_worktree.branch_name,
+            worktree_id=existing_worktree.id,
+            isolation_type="worktree",
+            extra={"main_repo_path": resolved_project_path, "reused_worktree": True},
+        )
+        handler = get_isolation_handler("none")
+    elif clone_id and clone_storage:
         existing_clone = clone_storage.get(clone_id)
         if not existing_clone:
             return {"success": False, "error": f"Clone {clone_id} not found"}
@@ -271,8 +287,7 @@ async def spawn_agent_impl(
             isolation_type="clone",
             extra={"source_repo": resolved_project_path, "reused_clone": True},
         )
-        # Use current isolation handler for prompt building (no-op context addition)
-        handler = get_isolation_handler("current")
+        handler = get_isolation_handler("none")
     else:
         # Normal isolation flow
         handler = get_isolation_handler(
@@ -364,7 +379,6 @@ async def spawn_agent_impl(
         cwd=isolation_ctx.cwd,
         mode=effective_mode,
         provider=effective_provider,
-        terminal=terminal,
         session_id=session_id,
         run_id=run_id,
         agent_run_id=run_id,

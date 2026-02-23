@@ -73,11 +73,11 @@ rules:
 
         # Verify rules exist in DB
         mgr = LocalWorkflowDefinitionManager(db)
-        mode_rule = mgr.get_by_name("init-mode-level")
+        mode_rule = mgr.get_by_name("init-mode-level", include_templates=True)
         assert mode_rule is not None
         assert mode_rule.enabled
 
-        stop_rule = mgr.get_by_name("init-stop-attempts")
+        stop_rule = mgr.get_by_name("init-stop-attempts", include_templates=True)
         assert stop_rule is not None
         assert stop_rule.enabled
 
@@ -113,7 +113,7 @@ class TestBundledSessionDefaults:
 
         sync_bundled_rules(db, get_bundled_rules_path())
         mgr = LocalWorkflowDefinitionManager(db)
-        rule = mgr.get_by_name("init-mode-level")
+        rule = mgr.get_by_name("init-mode-level", include_templates=True)
         assert rule is not None
         body = json.loads(rule.definition_json)
         assert body["effect"]["type"] == "set_variable"

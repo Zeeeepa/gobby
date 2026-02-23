@@ -95,7 +95,6 @@ class TestAgentConfig:
         assert config.task is None
         assert config.session_context == "summary_markdown"
         assert config.mode == "in_process"
-        assert config.terminal == "auto"
         assert config.worktree_id is None
         assert config.provider == "claude"
         assert config.model is None

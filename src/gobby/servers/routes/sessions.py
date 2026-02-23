@@ -636,9 +636,7 @@ def create_sessions_router(server: "HTTPServer") -> APIRouter:
             title_config = server.config.session_title if server.config else None
             if title_config:
                 try:
-                    provider, model, _ = server.llm_service.get_provider_for_feature(
-                        title_config
-                    )
+                    provider, model, _ = server.llm_service.get_provider_for_feature(title_config)
                 except (ValueError, Exception):
                     provider = server.llm_service.get_default_provider()
                     model = "haiku"

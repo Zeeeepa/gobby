@@ -282,9 +282,7 @@ def create_lifecycle_registry(ctx: RegistryContext) -> InternalToolRegistry:
                             state.variables["claimed_task_id"] = None
                             state.variables["task_ref"] = ""
                             ctx.workflow_state_manager.save_state(state)
-                            logger.debug(
-                                "Cleared task_claimed for session %s", resolved_session_id
-                            )
+                            logger.debug("Cleared task_claimed for session %s", resolved_session_id)
             except Exception as e:
                 logger.warning(
                     "Failed to clear task_claimed for session %s: %s",

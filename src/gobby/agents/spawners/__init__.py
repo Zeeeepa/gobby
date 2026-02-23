@@ -19,7 +19,6 @@ from gobby.agents.spawners.base import (
     SpawnMode,
     SpawnResult,
     TerminalSpawnerBase,
-    TerminalType,
     make_spawn_env,
 )
 from gobby.agents.spawners.command_builder import (
@@ -37,7 +36,6 @@ from gobby.agents.spawners.prompt_manager import (
 __all__ = [
     # Base types
     "SpawnMode",
-    "TerminalType",
     "SpawnResult",
     "EmbeddedPTYResult",
     "HeadlessResult",

@@ -2,7 +2,7 @@
 Isolation Handlers for Unified spawn_agent API.
 
 This module provides the abstraction layer for different isolation modes:
-- current: Work in the current directory (no isolation)
+- none: Work in the current directory (no isolation)
 - worktree: Create/reuse a git worktree for isolated work
 - clone: Create a shallow clone for full isolation
 
@@ -27,7 +27,7 @@ class IsolationContext:
     branch_name: str | None = None
     worktree_id: str | None = None
     clone_id: str | None = None
-    isolation_type: Literal["current", "worktree", "clone"] = "current"
+    isolation_type: Literal["none", "worktree", "clone"] = "none"
     extra: dict[str, Any] = field(default_factory=dict)
 
 
@@ -115,7 +115,7 @@ class IsolationHandler(ABC):
         """
 
 
-class CurrentIsolationHandler(IsolationHandler):
+class NoneIsolationHandler(IsolationHandler):
     """
     No isolation - work in current directory.
 
@@ -127,7 +127,7 @@ class CurrentIsolationHandler(IsolationHandler):
         """Return project path as working directory."""
         return IsolationContext(
             cwd=config.project_path,
-            isolation_type="current",
+            isolation_type="none",
         )
 
     async def cleanup_environment(self, config: SpawnConfig) -> None:
@@ -635,7 +635,7 @@ Push your changes when ready to share with the original.
 
 
 def get_isolation_handler(
-    mode: Literal["current", "worktree", "clone"],
+    mode: Literal["none", "worktree", "clone"],
     *,
     git_manager: Any | None = None,
     worktree_storage: Any | None = None,
@@ -646,7 +646,7 @@ def get_isolation_handler(
     Factory function to get the appropriate isolation handler.
 
     Args:
-        mode: Isolation mode - 'current', 'worktree', or 'clone'
+        mode: Isolation mode - 'none', 'worktree', or 'clone'
         git_manager: Git manager for worktree operations (required for 'worktree')
         worktree_storage: Storage for worktree records (required for 'worktree')
         clone_manager: Git manager for clone operations (required for 'clone')
@@ -658,8 +658,8 @@ def get_isolation_handler(
     Raises:
         ValueError: If mode is unknown or required dependencies are missing
     """
-    if mode == "current":
-        return CurrentIsolationHandler()
+    if mode == "none":
+        return NoneIsolationHandler()
 
     if mode == "worktree":
         if git_manager is None or worktree_storage is None:

@@ -23,7 +23,6 @@ from gobby.agents.spawners import (
     SpawnMode,
     SpawnResult,
     TerminalSpawnerBase,
-    TerminalType,
     build_cli_command,
     build_codex_command_with_resume,
     build_gemini_command_with_resume,
@@ -41,7 +40,6 @@ TerminalSpawner = TmuxSpawner
 __all__ = [
     # Enums
     "SpawnMode",
-    "TerminalType",
     # Result dataclasses
     "SpawnResult",
     "EmbeddedPTYResult",

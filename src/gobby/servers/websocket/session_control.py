@@ -150,9 +150,7 @@ class SessionControlMixin:
                     conversation_id[:8],
                 )
             else:
-                logger.info(
-                    "Plan changes requested for conversation %s", conversation_id[:8]
-                )
+                logger.info("Plan changes requested for conversation %s", conversation_id[:8])
 
     async def _handle_continue_in_chat(self, websocket: Any, data: dict[str, Any]) -> None:
         """Handle continue_in_chat message to resume a CLI session in the web chat UI.

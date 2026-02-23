@@ -70,6 +70,7 @@ class HubManager:
         self._llm_service = llm_service
         self._providers: dict[str, HubProvider] = {}
         self._factories: dict[str, ProviderFactory] = {}
+        self._skill_description_config: Any = None
 
     def register_provider_factory(
         self,

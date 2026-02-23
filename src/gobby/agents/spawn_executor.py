@@ -40,7 +40,6 @@ class SpawnRequest:
     cwd: str
     mode: Literal["terminal", "embedded", "headless", "self"]
     provider: str
-    terminal: str
     session_id: str
     run_id: str
     parent_session_id: str

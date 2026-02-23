@@ -244,9 +244,7 @@ Output ONLY the description text, no quotes, no explanation, no preamble."""
         try:
             if self._config:
                 try:
-                    provider, model, _ = self._llm_service.get_provider_for_feature(
-                        self._config
-                    )
+                    provider, model, _ = self._llm_service.get_provider_for_feature(self._config)
                 except (ValueError, Exception):
                     provider = self._llm_service.get_default_provider()
                     model = None

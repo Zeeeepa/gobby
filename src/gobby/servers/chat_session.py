@@ -449,7 +449,9 @@ class ChatSession(ChatSessionPermissionsMixin):
                                 "ResultMessage missing usage for session %s",
                                 self.conversation_id[:8],
                             )
-                        usage: dict[str, Any] = _raw_usage if has_usage else {}
+                        usage: dict[str, Any] = (
+                            cast(dict[str, Any], _raw_usage) if has_usage else {}
+                        )
                         uncached_input = usage.get("input_tokens", 0) or 0
                         output_tokens = usage.get("output_tokens", 0) or 0
                         cache_read = usage.get("cache_read_input_tokens", 0) or 0
@@ -575,17 +577,13 @@ class ChatSession(ChatSessionPermissionsMixin):
                 yield TextChunk(content=f"Generation failed: {'; '.join(errors)}")
                 if context_window is None:
                     context_window = self._resolve_context_window_fallback()
-                yield DoneEvent(
-                    tool_calls_count=tool_calls_count, context_window=context_window
-                )
+                yield DoneEvent(tool_calls_count=tool_calls_count, context_window=context_window)
             except Exception as e:
                 logger.error(f"ChatSession {self.conversation_id} error: {e}", exc_info=True)
                 yield TextChunk(content=f"Generation failed: {e}")
                 if context_window is None:
                     context_window = self._resolve_context_window_fallback()
-                yield DoneEvent(
-                    tool_calls_count=tool_calls_count, context_window=context_window
-                )
+                yield DoneEvent(tool_calls_count=tool_calls_count, context_window=context_window)
 
     def _resolve_context_window_fallback(self) -> int | None:
         """Resolve context_window from _last_model for error paths."""
@@ -596,7 +594,8 @@ class ChatSession(ChatSessionPermissionsMixin):
 
             if _llm:
                 model_info = _llm.get_model_info(model=self._last_model)
-                return model_info.get("max_input_tokens")
+                val = model_info.get("max_input_tokens")
+                return int(val) if val is not None else None
         except (ImportError, KeyError, AttributeError, TypeError):
             pass
         model_lower = self._last_model.lower()

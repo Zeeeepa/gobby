@@ -30,7 +30,6 @@ from gobby.agents.spawn import (
     PreparedSpawn,
     SpawnMode,
     SpawnResult,
-    TerminalType,
     TmuxSpawner,
     prepare_terminal_spawn,
 )
@@ -428,20 +427,6 @@ class TestSpawnModeEnum:
         """Test creating SpawnMode from string."""
         assert SpawnMode("terminal") == SpawnMode.TERMINAL
         assert SpawnMode("headless") == SpawnMode.HEADLESS
-
-
-class TestTerminalTypeEnum:
-    """Tests for TerminalType enum."""
-
-    def test_terminal_type_values(self) -> None:
-        """Test TerminalType enum values."""
-        assert TerminalType.TMUX.value == "tmux"
-        assert TerminalType.AUTO.value == "auto"
-
-    def test_terminal_type_from_string(self) -> None:
-        """Test creating TerminalType from string."""
-        assert TerminalType("tmux") == TerminalType.TMUX
-        assert TerminalType("auto") == TerminalType.AUTO
 
 
 class TestWorktreeIntegration:

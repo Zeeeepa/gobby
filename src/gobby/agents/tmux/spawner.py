@@ -22,7 +22,6 @@ from gobby.agents.sandbox import SandboxConfig, compute_sandbox_paths, get_sandb
 from gobby.agents.spawners.base import (
     SpawnResult,
     TerminalSpawnerBase,
-    TerminalType,
     make_spawn_env,
 )
 from gobby.agents.spawners.command_builder import build_cli_command
@@ -47,8 +46,8 @@ class TmuxSpawner(TerminalSpawnerBase):
         self._session_manager = TmuxSessionManager(self._config)
 
     @property
-    def terminal_type(self) -> TerminalType:
-        return TerminalType.TMUX
+    def terminal_type(self) -> str:
+        return "tmux"
 
     @property
     def session_manager(self) -> TmuxSessionManager:
@@ -135,7 +134,7 @@ class TmuxSpawner(TerminalSpawnerBase):
                 f"(attach: tmux -L {self._config.socket_name} attach -t {info.name})"
             ),
             pid=info.pane_pid,
-            terminal_type=self.terminal_type.value,
+            terminal_type=self.terminal_type,
         )
         # Attach tmux_session_name to the result for callers that need it
         result.tmux_session_name = info.name
@@ -156,7 +155,6 @@ class TmuxSpawner(TerminalSpawnerBase):
         workflow_name: str | None = None,
         agent_depth: int = 1,
         max_agent_depth: int = 3,
-        terminal: TerminalType | str = TerminalType.AUTO,
         prompt: str | None = None,
         sandbox_config: SandboxConfig | None = None,
         mode: str = "terminal",
@@ -173,7 +171,6 @@ class TmuxSpawner(TerminalSpawnerBase):
             workflow_name: Optional workflow to activate.
             agent_depth: Current nesting depth.
             max_agent_depth: Maximum allowed depth.
-            terminal: Deprecated, ignored. Will be removed in a future release.
             prompt: Optional initial prompt.
             sandbox_config: Optional sandbox configuration.
             mode: Execution mode - "terminal" (interactive) or "headless" (exits after prompt).
@@ -181,15 +178,6 @@ class TmuxSpawner(TerminalSpawnerBase):
         Returns:
             SpawnResult with success status.
         """
-        if terminal != TerminalType.AUTO:
-            import warnings
-
-            warnings.warn(
-                "The 'terminal' parameter is deprecated and ignored. "
-                "TmuxSpawner always uses tmux. This parameter will be removed in a future release.",
-                DeprecationWarning,
-                stacklevel=2,
-            )
         # Resolve sandbox configuration if enabled
         sandbox_args: list[str] | None = None
         sandbox_env: dict[str, str] = {}

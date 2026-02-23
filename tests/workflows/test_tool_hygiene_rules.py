@@ -83,7 +83,7 @@ class TestRequireUvRule:
         """require-uv should target the Bash tool."""
         _sync_bundled(db)
 
-        row = manager.get_by_name("require-uv")
+        row = manager.get_by_name("require-uv", include_templates=True)
         assert row is not None
 
         body = RuleDefinitionBody.model_validate_json(row.definition_json)
@@ -95,7 +95,7 @@ class TestRequireUvRule:
         """require-uv should have a command pattern matching python/pip."""
         _sync_bundled(db)
 
-        row = manager.get_by_name("require-uv")
+        row = manager.get_by_name("require-uv", include_templates=True)
         body = RuleDefinitionBody.model_validate_json(row.definition_json)
 
         assert body.effect.command_pattern is not None
@@ -106,7 +106,7 @@ class TestRequireUvRule:
         """require-uv should have a not-pattern allowing uv commands."""
         _sync_bundled(db)
 
-        row = manager.get_by_name("require-uv")
+        row = manager.get_by_name("require-uv", include_templates=True)
         body = RuleDefinitionBody.model_validate_json(row.definition_json)
 
         assert body.effect.command_not_pattern is not None
@@ -116,7 +116,7 @@ class TestRequireUvRule:
         """require-uv should only fire when require_uv variable is set."""
         _sync_bundled(db)
 
-        row = manager.get_by_name("require-uv")
+        row = manager.get_by_name("require-uv", include_templates=True)
         body = RuleDefinitionBody.model_validate_json(row.definition_json)
 
         assert body.when is not None
@@ -130,7 +130,7 @@ class TestTrackPendingMemoryReview:
         """track-pending-memory-review should use set_variable effect."""
         _sync_bundled(db)
 
-        row = manager.get_by_name("track-pending-memory-review")
+        row = manager.get_by_name("track-pending-memory-review", include_templates=True)
         assert row is not None
 
         body = RuleDefinitionBody.model_validate_json(row.definition_json)
@@ -141,7 +141,7 @@ class TestTrackPendingMemoryReview:
         """Should set the pending_memory_review variable to true."""
         _sync_bundled(db)
 
-        row = manager.get_by_name("track-pending-memory-review")
+        row = manager.get_by_name("track-pending-memory-review", include_templates=True)
         body = RuleDefinitionBody.model_validate_json(row.definition_json)
 
         assert body.effect.variable == "pending_memory_review"
@@ -151,7 +151,7 @@ class TestTrackPendingMemoryReview:
         """Should fire on Edit, Write, NotebookEdit, or close_task."""
         _sync_bundled(db)
 
-        row = manager.get_by_name("track-pending-memory-review")
+        row = manager.get_by_name("track-pending-memory-review", include_templates=True)
         body = RuleDefinitionBody.model_validate_json(row.definition_json)
 
         assert body.when is not None

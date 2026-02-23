@@ -94,7 +94,9 @@ class ChatSessionPermissionsMixin:
                 await asyncio.wait_for(self._pending_plan_event.wait(), timeout=600.0)
             except TimeoutError:
                 self._pending_plan_decision = "request_changes"
-                self._plan_feedback = "Plan approval timed out — no response received. Please re-submit your plan."
+                self._plan_feedback = (
+                    "Plan approval timed out — no response received. Please re-submit your plan."
+                )
                 logger.warning("ExitPlanMode timed out for session %s", self.conversation_id)
 
             decision = self._pending_plan_decision or "approve"

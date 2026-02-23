@@ -292,9 +292,7 @@ def create_workflows_router(server: "HTTPServer") -> APIRouter:
             raise HTTPException(status_code=500, detail=str(e)) from e
 
     @router.post("/{definition_id}/move-to-project")
-    async def move_to_project(
-        definition_id: str, request: MoveToProjectRequest
-    ) -> dict[str, Any]:
+    async def move_to_project(definition_id: str, request: MoveToProjectRequest) -> dict[str, Any]:
         """Move a definition to project scope."""
         metrics.inc_counter("http_requests_total")
         try:
