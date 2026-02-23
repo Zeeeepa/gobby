@@ -420,10 +420,8 @@ function RuleCard({ rule, devMode, expanded, detail, detailLoading, onToggle, on
     <div className={`rules-card ${expanded ? 'rules-card--expanded' : ''}${isTemplate ? ' workflows-card--template' : ''}${isDeleted ? ' rules-card--deleted' : ''}`}>
       <div className="rules-card-main" onClick={onExpand}>
         <div className="rules-card-header">
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <span className="rules-card-name">{rule.name}</span>
-            <span className="workflows-card-type workflows-card-type--rule">rule</span>
-          </div>
+          <span className="rules-card-name">{rule.name}</span>
+          <span className="workflows-card-type workflows-card-type--rule">rule</span>
         </div>
 
         {rule.description && (
@@ -431,9 +429,6 @@ function RuleCard({ rule, devMode, expanded, detail, detailLoading, onToggle, on
         )}
 
         <div className="workflows-card-badges" style={{ marginTop: 6 }}>
-          {rule.source && (
-            <span className="workflows-card-badge workflows-card-badge--source">{rule.source}</span>
-          )}
           {rule.tags && rule.tags.length > 0 && rule.tags.map(tag => (
             <span className="rules-card-tag" key={tag}>{tag}</span>
           ))}

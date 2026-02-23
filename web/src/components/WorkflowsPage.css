@@ -100,6 +100,42 @@
   background: var(--accent-hover);
 }
 
+/* New pipeline dropdown */
+.workflows-new-wrapper {
+  position: relative;
+}
+
+.workflows-new-dropdown {
+  position: absolute;
+  top: calc(100% + 4px);
+  right: 0;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 4px;
+  min-width: 120px;
+  z-index: 50;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+}
+
+.workflows-new-dropdown-item {
+  display: block;
+  width: 100%;
+  padding: 8px 12px;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text-primary);
+  font-size: 13px;
+  cursor: pointer;
+  text-align: left;
+  transition: background 0.15s;
+}
+
+.workflows-new-dropdown-item:hover {
+  background: var(--bg-tertiary);
+}
+
 /* Overview cards */
 .workflows-overview {
   display: flex;

@@ -18,16 +18,13 @@ const TABS = [
   { id: 'rules', label: 'Rules' },
 ]
 
-const SCAFFOLD_PIPELINE = JSON.stringify(
-  {
-    name: '',
-    type: 'pipeline',
-    description: '',
-    steps: [{ id: 'step-1', exec: 'echo hello' }],
-  },
-  null,
-  2,
-)
+const SCAFFOLD_PIPELINE_YAML = `name: new-pipeline
+type: pipeline
+description: ""
+steps:
+  - id: step-1
+    exec: echo hello
+`
 
 export function WorkflowsPage() {
   const {
@@ -49,7 +46,7 @@ export function WorkflowsPage() {
   const [activeTab, setActiveTab] = useState<ActiveTab>('pipelines')
   const [searchText, setSearchText] = useState('')
   const [enabledFilter, setEnabledFilter] = useState<EnabledFilter>(null)
-  const [showCreateModal, setShowCreateModal] = useState(false)
+  const [showNewDropdown, setShowNewDropdown] = useState(false)
   const [showImportModal, setShowImportModal] = useState(false)
   const [editingWorkflow, setEditingWorkflow] = useState<WorkflowDetail | null>(null)
   const [yamlEditorWf, setYamlEditorWf] = useState<WorkflowDetail | null>(null)
@@ -249,13 +246,45 @@ export function WorkflowsPage() {
             &#x21bb;
           </button>
           {activeTab === 'pipelines' && (
-            <button
-              type="button"
-              className="workflows-new-btn"
-              onClick={() => setShowCreateModal(true)}
-            >
-              + Pipeline
-            </button>
+            <div className="workflows-new-wrapper">
+              <button
+                type="button"
+                className="workflows-new-btn"
+                onClick={() => setShowNewDropdown(!showNewDropdown)}
+              >
+                + Pipeline
+              </button>
+              {showNewDropdown && (
+                <div className="workflows-new-dropdown">
+                  <button
+                    type="button"
+                    className="workflows-new-dropdown-item"
+                    onClick={async () => {
+                      setShowNewDropdown(false)
+                      const scaffoldDef = { name: 'new-pipeline', type: 'pipeline', description: '', steps: [{ id: 'step-1', exec: 'echo hello' }] }
+                      const result = await createWorkflow({
+                        name: 'new-pipeline',
+                        definition_json: JSON.stringify(scaffoldDef),
+                        workflow_type: 'pipeline',
+                      })
+                      if (result) setEditingWorkflow(result)
+                    }}
+                  >
+                    Builder
+                  </button>
+                  <button
+                    type="button"
+                    className="workflows-new-dropdown-item"
+                    onClick={() => {
+                      setShowNewDropdown(false)
+                      setShowImportModal(true)
+                    }}
+                  >
+                    YAML
+                  </button>
+                </div>
+              )}
+            </div>
           )}
           {activeTab === 'agents' && (
             <button
@@ -328,13 +357,6 @@ export function WorkflowsPage() {
                 Use All as Templates
               </button>
             )}
-            <button
-              type="button"
-              className="workflows-toolbar-btn"
-              onClick={() => setShowImportModal(true)}
-            >
-              Import
-            </button>
           </div>
 
           {/* Card grid */}
@@ -474,17 +496,9 @@ export function WorkflowsPage() {
         />
       )}
 
-      {/* Create modal */}
-      {showCreateModal && (
-        <CreateModal
-          onClose={() => setShowCreateModal(false)}
-          onCreate={createWorkflow}
-        />
-      )}
-
-      {/* Import modal */}
+      {/* New pipeline from YAML modal */}
       {showImportModal && (
-        <ImportModal
+        <NewPipelineYamlModal
           onClose={() => setShowImportModal(false)}
           onImport={importYaml}
         />
@@ -505,84 +519,61 @@ export function WorkflowsPage() {
   )
 }
 
-function CreateModal({ onClose, onCreate }: {
+function NewPipelineYamlModal({ onClose, onImport }: {
   onClose: () => void
-  onCreate: (params: {
-    name: string
-    definition_json: string
-    workflow_type?: string
-    description?: string
-    priority?: number
-  }) => Promise<WorkflowDetail | null>
+  onImport: (yaml: string) => Promise<WorkflowDetail | null>
 }) {
-  const [name, setName] = useState('')
-  const [description, setDescription] = useState('')
-  const [definitionJson, setDefinitionJson] = useState(SCAFFOLD_PIPELINE)
+  const [content, setContent] = useState(SCAFFOLD_PIPELINE_YAML)
   const [submitting, setSubmitting] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const [isDirty, setIsDirty] = useState(false)
+
+  const wrappedOnChange = useCallback((c: string) => { setIsDirty(true); setContent(c) }, [])
 
   const handleSubmit = async () => {
-    if (!name.trim()) return
+    if (!content.trim()) return
+    setError(null)
     setSubmitting(true)
-    // Inject name into definition JSON
     try {
-      const data = JSON.parse(definitionJson)
-      data.name = name.trim()
-      if (description.trim()) data.description = description.trim()
-      await onCreate({
-        name: name.trim(),
-        definition_json: JSON.stringify(data),
-        workflow_type: 'pipeline',
-        description: description.trim() || undefined,
-      })
-      onClose()
-    } catch {
-      // Invalid JSON - keep modal open
+      const result = await onImport(content)
+      if (result) onClose()
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Failed to create pipeline')
     } finally {
       setSubmitting(false)
     }
   }
 
+  const handleClose = () => {
+    if (isDirty && !window.confirm('You have unsaved changes. Discard them?')) return
+    onClose()
+  }
+
   return (
-    <div className="workflows-modal-overlay" onClick={onClose}>
-      <div className="workflows-modal" onClick={e => e.stopPropagation()}>
-        <h3>New Pipeline</h3>
-        <div className="workflows-modal-field">
-          <label>Name</label>
-          <input
-            type="text"
-            value={name}
-            onChange={e => setName(e.target.value)}
-            placeholder="my-pipeline"
-            autoFocus
-          />
+    <div className="workflows-modal-overlay" onClick={handleClose}>
+      <div className="workflows-yaml-modal" onClick={e => e.stopPropagation()}>
+        <div className="workflows-yaml-header">
+          <h3>New Pipeline — YAML</h3>
+          <div className="workflows-yaml-header-actions">
+            {error && <span className="workflows-yaml-error">{error}</span>}
+            <button type="button" className="workflows-modal-cancel" onClick={handleClose}>Cancel</button>
+            <button
+              type="button"
+              className="workflows-modal-submit"
+              onClick={handleSubmit}
+              disabled={!content.trim() || submitting}
+            >
+              {submitting ? 'Creating...' : 'Create'}
+            </button>
+          </div>
         </div>
-        <div className="workflows-modal-field">
-          <label>Description</label>
-          <input
-            type="text"
-            value={description}
-            onChange={e => setDescription(e.target.value)}
-            placeholder="Optional description"
+        <div className="workflows-yaml-editor">
+          <CodeMirrorEditor
+            content={content}
+            language="yaml"
+            onChange={wrappedOnChange}
+            onSave={handleSubmit}
           />
-        </div>
-        <div className="workflows-modal-field">
-          <label>Definition JSON</label>
-          <textarea
-            value={definitionJson}
-            onChange={e => setDefinitionJson(e.target.value)}
-            rows={10}
-          />
-        </div>
-        <div className="workflows-modal-actions">
-          <button type="button" className="workflows-modal-cancel" onClick={onClose}>Cancel</button>
-          <button
-            type="button"
-            className="workflows-modal-submit"
-            onClick={handleSubmit}
-            disabled={!name.trim() || submitting}
-          >
-            {submitting ? 'Creating...' : 'Create'}
-          </button>
         </div>
       </div>
     </div>
@@ -655,47 +646,3 @@ export function YamlEditorModal({ workflowName, yamlContent, loading, onChange, 
   )
 }
 
-function ImportModal({ onClose, onImport }: {
-  onClose: () => void
-  onImport: (yaml: string) => Promise<WorkflowDetail | null>
-}) {
-  const [yamlContent, setYamlContent] = useState('')
-  const [submitting, setSubmitting] = useState(false)
-
-  const handleSubmit = async () => {
-    if (!yamlContent.trim()) return
-    setSubmitting(true)
-    const result = await onImport(yamlContent)
-    setSubmitting(false)
-    if (result) onClose()
-  }
-
-  return (
-    <div className="workflows-modal-overlay" onClick={onClose}>
-      <div className="workflows-modal" onClick={e => e.stopPropagation()}>
-        <h3>Import Workflow YAML</h3>
-        <div className="workflows-modal-field">
-          <label>YAML Content</label>
-          <textarea
-            value={yamlContent}
-            onChange={e => setYamlContent(e.target.value)}
-            rows={15}
-            placeholder="Paste workflow YAML here..."
-            autoFocus
-          />
-        </div>
-        <div className="workflows-modal-actions">
-          <button type="button" className="workflows-modal-cancel" onClick={onClose}>Cancel</button>
-          <button
-            type="button"
-            className="workflows-modal-submit"
-            onClick={handleSubmit}
-            disabled={!yamlContent.trim() || submitting}
-          >
-            {submitting ? 'Importing...' : 'Import'}
-          </button>
-        </div>
-      </div>
-    </div>
-  )
-}
