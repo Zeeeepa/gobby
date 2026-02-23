@@ -641,6 +641,77 @@ def create_agents_registry(
                     "wait_time": time.monotonic() - start_time,
                 }
 
+    # ── Agent definition CRUD tools ──
+
+    # Create definition manager from db if available
+    _def_manager = None
+    if db is not None:
+        from gobby.storage.workflow_definitions import LocalWorkflowDefinitionManager
+
+        _def_manager = LocalWorkflowDefinitionManager(db)
+
+    from gobby.mcp_proxy.tools.agent_definitions import (
+        create_agent_definition,
+        delete_agent_definition,
+        get_agent_definition,
+        list_agent_definitions,
+        toggle_agent_definition,
+    )
+
+    @registry.tool(
+        name="list_agent_definitions",
+        description="List agent definitions. Supports filtering by enabled status and project ID.",
+    )
+    def _list_agent_definitions(
+        enabled: bool | None = None,
+        project_id: str | None = None,
+    ) -> dict[str, Any]:
+        if _def_manager is None:
+            return {"error": "Agent definition tools require database connection"}
+        return list_agent_definitions(_def_manager, enabled, project_id)
+
+    @registry.tool(
+        name="get_agent_definition",
+        description="Get full details of an agent definition by name.",
+    )
+    def _get_agent_definition(name: str) -> dict[str, Any]:
+        if _def_manager is None:
+            return {"error": "Agent definition tools require database connection"}
+        return get_agent_definition(_def_manager, name)
+
+    @registry.tool(
+        name="create_agent_definition",
+        description="Create a new agent definition. Validates with AgentDefinitionBody before inserting.",
+    )
+    def _create_agent_definition(
+        name: str,
+        definition: dict[str, Any],
+    ) -> dict[str, Any]:
+        if _def_manager is None:
+            return {"error": "Agent definition tools require database connection"}
+        return create_agent_definition(_def_manager, name, definition)
+
+    @registry.tool(
+        name="toggle_agent_definition",
+        description="Enable or disable an agent definition by name.",
+    )
+    def _toggle_agent_definition(name: str, enabled: bool) -> dict[str, Any]:
+        if _def_manager is None:
+            return {"error": "Agent definition tools require database connection"}
+        return toggle_agent_definition(_def_manager, name, enabled)
+
+    @registry.tool(
+        name="delete_agent_definition",
+        description="Delete an agent definition by name (soft-delete). Template agents are protected unless force=True.",
+    )
+    def _delete_agent_definition(
+        name: str,
+        force: bool = False,
+    ) -> dict[str, Any]:
+        if _def_manager is None:
+            return {"error": "Agent definition tools require database connection"}
+        return delete_agent_definition(_def_manager, name, force)
+
     # Register spawn_agent tool from spawn_agent module
     from gobby.mcp_proxy.tools.spawn_agent import create_spawn_agent_registry
 
