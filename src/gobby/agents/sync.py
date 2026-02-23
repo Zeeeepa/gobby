@@ -31,47 +31,14 @@ def get_bundled_agents_path() -> Path:
     return get_install_dir() / "shared" / "agents"
 
 
-def _agent_def_to_body(agent_def: Any) -> AgentDefinitionBody:
-    """Convert a full AgentDefinition to AgentDefinitionBody.
-
-    Preserves structured prompt fields (role, goal, personality, instructions)
-    as separate fields. Drops fields not in the simplified model (sandbox,
-    old-style workflows dict, etc.).
-    """
-    from gobby.workflows.definitions import AgentWorkflows
-
-    # Map mode ("self" not valid in AgentDefinitionBody)
-    mode = agent_def.mode
-    if mode == "self":
-        mode = "headless"
-
-    return AgentDefinitionBody(
-        name=agent_def.name,
-        description=agent_def.description,
-        role=agent_def.role,
-        goal=agent_def.goal,
-        personality=agent_def.personality,
-        instructions=agent_def.instructions,
-        provider=agent_def.provider,
-        model=agent_def.model,
-        mode=mode,
-        isolation=agent_def.isolation,
-        base_branch=agent_def.base_branch,
-        timeout=agent_def.timeout,
-        max_turns=agent_def.max_turns,
-        workflows=AgentWorkflows(),
-    )
-
-
 def sync_bundled_agents(db: DatabaseProtocol) -> dict[str, Any]:
     """Sync bundled agent definitions from install/shared/agents/ to workflow_definitions.
 
     This function:
     1. Walks all .yaml files in the bundled agents directory
-    2. Parses each into an AgentDefinition (for validation)
-    3. Converts to AgentDefinitionBody (12-field simplified model)
-    4. Creates new records or updates changed content (idempotent)
-    5. All records are stored with workflow_type='agent' and source='template'
+    2. Parses each directly as AgentDefinitionBody
+    3. Creates new records or updates changed content (idempotent)
+    4. All records are stored with workflow_type='agent' and source='template'
 
     Args:
         db: Database connection
@@ -79,8 +46,6 @@ def sync_bundled_agents(db: DatabaseProtocol) -> dict[str, Any]:
     Returns:
         Dict with success status and counts
     """
-    from gobby.agents.definitions import AgentDefinition
-
     agents_path = get_bundled_agents_path()
 
     result: dict[str, Any] = {
@@ -110,18 +75,14 @@ def sync_bundled_agents(db: DatabaseProtocol) -> dict[str, Any]:
             name = data.get("name", yaml_file.stem)
             data["name"] = name
 
-            # Parse into AgentDefinition to validate
-            agent_def = AgentDefinition(**data)
-
-            # Convert to simplified body
-            body = _agent_def_to_body(agent_def)
+            # Parse directly as AgentDefinitionBody
+            body = AgentDefinitionBody.model_validate(data)
             body_json = body.model_dump_json()
 
             # Check if agent already exists in workflow_definitions
             existing = manager.get_by_name(name, include_deleted=True, include_templates=True)
 
             if existing is not None and existing.workflow_type != "agent":
-                # Name collision with a non-agent workflow — skip
                 logger.debug(
                     f"Agent '{name}' conflicts with existing {existing.workflow_type} "
                     f"definition, skipping"

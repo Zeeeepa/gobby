@@ -14,7 +14,6 @@ from unittest.mock import MagicMock, patch
 import pytest
 from starlette.testclient import TestClient
 
-from gobby.agents.definitions import AgentDefinition
 from gobby.config.app import DaemonConfig
 from gobby.storage.tasks import LocalTaskManager
 from gobby.storage.workflow_definitions import LocalWorkflowDefinitionManager
@@ -436,13 +435,17 @@ class TestDeleteDefinition:
 
 
 class TestImportDefinition:
-    def test_import_from_file(self, client: TestClient) -> None:
+    def test_import_from_file(self, client: TestClient, tmp_path: Path) -> None:
         """Import a file-based definition into the DB."""
-        defn = AgentDefinition(name="importable", description="Imported agent")
+        agents_dir = tmp_path / "agents"
+        agents_dir.mkdir()
+        (agents_dir / "importable.yaml").write_text(
+            "name: importable\ndescription: Imported agent\nprovider: claude\nmode: headless\n"
+        )
 
         with patch(
-            "gobby.agents.definitions.AgentDefinitionLoader.load_from_file",
-            return_value=defn,
+            "gobby.agents.sync.get_bundled_agents_path",
+            return_value=agents_dir,
         ):
             response = client.post("/api/agents/definitions/import/importable")
 
@@ -451,21 +454,28 @@ class TestImportDefinition:
         assert data["status"] == "success"
         assert data["definition"]["name"] == "importable"
 
-    def test_import_not_found(self, client: TestClient) -> None:
+    def test_import_not_found(self, client: TestClient, tmp_path: Path) -> None:
+        agents_dir = tmp_path / "agents"
+        agents_dir.mkdir()
+
         with patch(
-            "gobby.agents.definitions.AgentDefinitionLoader.load_from_file",
-            return_value=None,
+            "gobby.agents.sync.get_bundled_agents_path",
+            return_value=agents_dir,
         ):
             response = client.post("/api/agents/definitions/import/missing")
         assert response.status_code == 404
 
-    def test_import_with_project_id(self, client: TestClient, project_manager) -> None:
+    def test_import_with_project_id(self, client: TestClient, project_manager, tmp_path: Path) -> None:
         project = project_manager.create(name="import-proj", repo_path="/tmp/import-proj")
-        defn = AgentDefinition(name="proj-agent")
+        agents_dir = tmp_path / "agents"
+        agents_dir.mkdir()
+        (agents_dir / "proj-agent.yaml").write_text(
+            "name: proj-agent\nprovider: claude\nmode: headless\n"
+        )
 
         with patch(
-            "gobby.agents.definitions.AgentDefinitionLoader.load_from_file",
-            return_value=defn,
+            "gobby.agents.sync.get_bundled_agents_path",
+            return_value=agents_dir,
         ):
             response = client.post(
                 f"/api/agents/definitions/import/proj-agent?project_id={project.id}"
@@ -473,10 +483,15 @@ class TestImportDefinition:
         assert response.status_code == 200
         assert response.json()["definition"]["project_id"] == project.id
 
-    def test_import_error(self, client: TestClient) -> None:
+    def test_import_error(self, client: TestClient, tmp_path: Path) -> None:
+        agents_dir = tmp_path / "agents"
+        agents_dir.mkdir()
+        # Write invalid YAML that will parse but fail AgentDefinitionBody validation
+        (agents_dir / "broken.yaml").write_text("- not a dict\n")
+
         with patch(
-            "gobby.agents.definitions.AgentDefinitionLoader.load_from_file",
-            side_effect=RuntimeError("Parse error"),
+            "gobby.agents.sync.get_bundled_agents_path",
+            return_value=agents_dir,
         ):
             response = client.post("/api/agents/definitions/import/broken")
         assert response.status_code == 500

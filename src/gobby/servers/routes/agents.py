@@ -414,17 +414,20 @@ def create_agents_router(server: "HTTPServer") -> APIRouter:
         """Copy a file-based agent definition into the DB for customization."""
         metrics.inc_counter("http_requests_total")
         try:
-            from gobby.agents.definitions import AgentDefinitionLoader
-            from gobby.agents.sync import _agent_def_to_body
+            from gobby.agents.sync import get_bundled_agents_path
+            from gobby.workflows.definitions import AgentDefinitionBody
 
-            # Load from files only (no DB fallback) for import
-            defn = AgentDefinitionLoader.load_from_file(name)
-            if not defn:
+            # Load from bundled agents directory
+            agents_path = get_bundled_agents_path()
+            yaml_path = agents_path / f"{name}.yaml"
+            if not yaml_path.exists():
                 raise HTTPException(
                     status_code=404,
                     detail=f"File-based agent definition '{name}' not found",
                 )
-            body = _agent_def_to_body(defn)
+            data = yaml.safe_load(yaml_path.read_text(encoding="utf-8"))
+            data["name"] = data.get("name", name)
+            body = AgentDefinitionBody.model_validate(data)
             manager = _get_manager()
             row = manager.create(
                 name=body.name,

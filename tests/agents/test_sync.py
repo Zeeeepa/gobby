@@ -48,7 +48,7 @@ class TestSyncBundledAgents:
         rows = mgr.list_all(workflow_type="agent")
         row = next((r for r in rows if r.name == "test-agent"), None)
         assert row is not None
-        assert row.source == "bundled"
+        assert row.source == "template"
         body = AgentDefinitionBody.model_validate_json(row.definition_json)
         assert body.name == "test-agent"
 
@@ -176,5 +176,5 @@ class TestSyncBundledAgents:
         rows = mgr.list_all(workflow_type="agent")
         assert len(rows) > 0
         names = [r.name for r in rows]
-        # Check for agents that don't collide with bundled workflow names
-        assert any(n in names for n in ("researcher", "qa-claude", "developer-gemini"))
+        # Check for agents from the new-format bundled definitions
+        assert any(n in names for n in ("default", "claude-cli-sonnet", "gemini-cli"))
