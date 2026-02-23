@@ -16,6 +16,7 @@ interface TerminalsPageProps {
   createSession: (name?: string, socket?: string) => void
   killSession: (sessionName: string, socket: string) => void
   refreshSessions: () => void
+  refreshTerminal: (sessionName: string, socket: string) => void
   dismissEndedSession: () => void
   sendInput: (data: string) => void
   resizeTerminal: (rows: number, cols: number) => void
@@ -48,6 +49,7 @@ export function TerminalsPage({
   createSession,
   killSession,
   refreshSessions,
+  refreshTerminal,
   dismissEndedSession,
   sendInput,
   resizeTerminal,
@@ -214,6 +216,11 @@ export function TerminalsPage({
               sidebarOpen={sidebarOpen}
               onSetInteractive={setIsInteractive}
               onToggleSidebar={() => setSidebarOpen(!sidebarOpen)}
+              onRedraw={() => {
+                if (attachedSession && attachedSocketRef.current) {
+                  refreshTerminal(attachedSession, attachedSocketRef.current)
+                }
+              }}
               sendInput={sendInput}
               resizeTerminal={resizeTerminal}
               onOutput={onOutput}
@@ -390,6 +397,7 @@ interface TerminalViewProps {
   sidebarOpen: boolean
   onSetInteractive: (interactive: boolean) => void
   onToggleSidebar: () => void
+  onRedraw: () => void
   sendInput: (data: string) => void
   resizeTerminal: (rows: number, cols: number) => void
   onOutput: (callback: (runId: string, data: string) => void) => void
@@ -404,6 +412,7 @@ function TerminalView({
   sidebarOpen,
   onSetInteractive,
   onToggleSidebar,
+  onRedraw,
   sendInput,
   resizeTerminal,
   onOutput,
@@ -575,9 +584,19 @@ function TerminalView({
         </span>
         <div className="terminals-header-actions">
           {isInteractive ? (
-            <button className="terminals-detach-btn" onClick={() => onSetInteractive(false)}>
-              Detach
-            </button>
+            <>
+              <button
+                className="terminals-redraw-btn"
+                onClick={onRedraw}
+                title="Force tmux redraw (Ctrl+L)"
+                style={{ marginRight: '8px' }}
+              >
+                Redraw
+              </button>
+              <button className="terminals-detach-btn" onClick={() => onSetInteractive(false)}>
+                Detach
+              </button>
+            </>
           ) : (
             <button className="terminals-attach-btn" onClick={() => onSetInteractive(true)}>
               Attach

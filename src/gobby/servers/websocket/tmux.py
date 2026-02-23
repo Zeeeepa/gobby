@@ -230,20 +230,31 @@ class TmuxMixin:
 
             await websocket.send(json.dumps(response))
 
-            # Hide tmux status bar in web terminal view
+            # Hide tmux status bar in web terminal view and force redraw
             try:
                 args: list[str] = [config.command]
                 if config.socket_name:
                     args.extend(["-L", config.socket_name])
-                args.extend(["set-option", "-t", session_name, "status", "off"])
+
+                # Turn off status bar
+                status_args = args + ["set-option", "-t", session_name, "status", "off"]
                 proc = await asyncio.create_subprocess_exec(
-                    *args,
+                    *status_args,
                     stdout=asyncio.subprocess.DEVNULL,
                     stderr=asyncio.subprocess.DEVNULL,
                 )
                 await asyncio.wait_for(proc.wait(), timeout=5.0)
-            except Exception:  # nosec B110 — status bar is cosmetic
-                pass
+
+                # Force redraw clients attached to this session
+                refresh_args = args + ["refresh-client", "-t", session_name]
+                proc2 = await asyncio.create_subprocess_exec(
+                    *refresh_args,
+                    stdout=asyncio.subprocess.DEVNULL,
+                    stderr=asyncio.subprocess.DEVNULL,
+                )
+                await asyncio.wait_for(proc2.wait(), timeout=5.0)
+            except Exception as e:
+                logger.debug(f"Failed to configure/refresh tmux session: {e}")
 
         except Exception as e:
             logger.error(f"Failed to attach tmux session '{session_name}': {e}")
@@ -386,6 +397,30 @@ class TmuxMixin:
             return  # Silent failure for resize events
 
         await self._tmux_bridge.resize(streaming_id, int(rows), int(cols))
+
+    async def _handle_tmux_refresh_client(self, websocket: Any, data: dict[str, Any]) -> None:
+        """Force tmux to redraw the clients attached to a session."""
+        session_name = data.get("session_name")
+        socket = data.get("socket", "default")
+
+        if not session_name:
+            return
+
+        config = self._get_tmux_config(socket)
+        try:
+            args: list[str] = [config.command]
+            if config.socket_name:
+                args.extend(["-L", config.socket_name])
+
+            refresh_args = args + ["refresh-client", "-t", session_name]
+            proc = await asyncio.create_subprocess_exec(
+                *refresh_args,
+                stdout=asyncio.subprocess.DEVNULL,
+                stderr=asyncio.subprocess.DEVNULL,
+            )
+            await asyncio.wait_for(proc.wait(), timeout=5.0)
+        except Exception as e:
+            logger.debug(f"Failed to refresh tmux session: {e}")
 
     # ------------------------------------------------------------------
     # Broadcast helpers

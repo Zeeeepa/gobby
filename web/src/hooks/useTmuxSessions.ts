@@ -21,6 +21,7 @@ interface TmuxSessionsResult {
   sessionEnded: boolean
   attachSession: (sessionName: string, socket: string) => void
   detachSession: () => void
+  refreshTerminal: (sessionName: string, socket: string) => void
   createSession: (name?: string, socket?: string) => void
   killSession: (sessionName: string, socket: string) => void
   refreshSessions: () => void
@@ -177,6 +178,15 @@ export function useTmuxSessions(): TmuxSessionsResult {
     }))
   }, [streamingId])
 
+  const refreshTerminal = useCallback((sessionName: string, socket: string) => {
+    if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) return
+    wsRef.current.send(JSON.stringify({
+      type: 'tmux_refresh_client',
+      session_name: sessionName,
+      socket: socket || 'default',
+    }))
+  }, [])
+
   const createSession = useCallback((name?: string, socket?: string) => {
     if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) return
     setIsLoading(true)
@@ -255,6 +265,7 @@ export function useTmuxSessions(): TmuxSessionsResult {
     sessionEnded,
     attachSession,
     detachSession,
+    refreshTerminal,
     createSession,
     killSession,
     refreshSessions,
