@@ -341,10 +341,11 @@ export function useNeo4jStatus() {
   const [neo4jStatus, setNeo4jStatus] = useState<Neo4jStatus | null>(null)
 
   useEffect(() => {
+    const controller = new AbortController()
     async function fetchStatus() {
       try {
         const baseUrl = getBaseUrl()
-        const response = await fetch(`${baseUrl}/admin/status`)
+        const response = await fetch(`${baseUrl}/admin/status`, { signal: controller.signal })
         if (response.ok) {
           const data = await response.json()
           const neo4j = data.memory?.neo4j
@@ -353,10 +354,12 @@ export function useNeo4jStatus() {
           }
         }
       } catch (e) {
+        if (e instanceof DOMException && e.name === 'AbortError') return
         console.warn('Failed to fetch neo4j status:', e)
       }
     }
     fetchStatus()
+    return () => controller.abort()
   }, [])
 
   return neo4jStatus

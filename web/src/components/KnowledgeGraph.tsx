@@ -186,9 +186,9 @@ export function KnowledgeGraph({ fetchKnowledgeGraph, fetchEntityNeighbors, limi
   useEffect(() => {
     const fg = fgRef.current
     if (!fg) return
-    fg.d3Force('charge').strength(-120)
-    fg.d3Force('link').distance(60)
-    fg.d3Force('center').strength(0.05)
+    fg.d3Force('charge')?.strength(-120)
+    fg.d3Force('link')?.distance(60)
+    fg.d3Force('center')?.strength(0.05)
   }, [forceData])
 
   // Search
@@ -201,12 +201,12 @@ export function KnowledgeGraph({ fetchKnowledgeGraph, fetchEntityNeighbors, limi
     const name = node.id as string
     setExpandingNode(name)
     fetchEntityNeighbors(name).then(data => {
-      if (data && graphData) {
-        setGraphData(mergeGraphData(graphData, data))
+      if (data) {
+        setGraphData(prev => prev ? mergeGraphData(prev, data) : data)
       }
       setExpandingNode(null)
     }).catch(() => setExpandingNode(null))
-  }, [fetchEntityNeighbors, graphData, expandingNode])
+  }, [fetchEntityNeighbors, expandingNode])
 
   // Custom node rendering with three-spritetext
   const nodeThreeObject = useCallback((node: any) => { // eslint-disable-line @typescript-eslint/no-explicit-any

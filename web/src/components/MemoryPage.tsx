@@ -214,7 +214,7 @@ export function MemoryPage({ projectId }: MemoryPageProps = {}) {
         showError('Failed to save memory')
       }
     },
-    [editMemory, createMemory, updateMemory]
+    [editMemory, createMemory, updateMemory, showError]
   )
 
   const handleDelete = useCallback(
@@ -229,7 +229,7 @@ export function MemoryPage({ projectId }: MemoryPageProps = {}) {
         showError('Failed to delete memory')
       }
     },
-    [deleteMemory, selectedMemory]
+    [deleteMemory, selectedMemory, showError]
   )
 
   const handleSelect = useCallback((memory: GobbyMemory) => {
