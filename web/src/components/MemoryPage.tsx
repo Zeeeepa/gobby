@@ -9,7 +9,7 @@ import type { MemoryFormData } from './MemoryForm'
 import { MemoryDetail } from './MemoryDetail'
 
 const DEFAULT_MEMORY_GRAPH_LIMIT = 200
-const DEFAULT_KNOWLEDGE_GRAPH_LIMIT = 5000
+const DEFAULT_KNOWLEDGE_GRAPH_LIMIT = 500
 const GRAPH_LIMIT_MIN = 50
 const GRAPH_LIMIT_MAX = 1000
 const KNOWLEDGE_LIMIT_MAX = 5000
@@ -18,21 +18,40 @@ const GRAPH_LIMIT_STEP = 50
 const KnowledgeGraph = lazy(() => import('./KnowledgeGraph').then(m => ({ default: m.KnowledgeGraph })))
 
 class KnowledgeGraphErrorBoundary extends Component<
-  { children: ReactNode },
+  { children: ReactNode; onFallback?: () => void },
   { hasError: boolean }
 > {
-  constructor(props: { children: ReactNode }) {
+  constructor(props: { children: ReactNode; onFallback?: () => void }) {
     super(props)
     this.state = { hasError: false }
   }
   static getDerivedStateFromError() {
     return { hasError: true }
   }
+  componentDidCatch(error: Error, info: React.ErrorInfo) {
+    console.error('[KnowledgeGraphErrorBoundary]', error, info)
+  }
   render() {
     if (this.state.hasError) {
       return (
         <div style={{ padding: '2rem', color: 'var(--text-secondary)', textAlign: 'center' }}>
-          Failed to load 3D knowledge graph. Please try refreshing the page.
+          <div>3D knowledge graph failed to load.</div>
+          <div style={{ display: 'flex', gap: '0.5rem', justifyContent: 'center', marginTop: '0.75rem' }}>
+            <button
+              onClick={() => this.setState({ hasError: false })}
+              style={{ padding: '0.35rem 0.75rem', borderRadius: 4, border: '1px solid var(--border)', background: 'var(--bg-secondary)', color: 'var(--text-primary)', cursor: 'pointer', fontSize: '0.8rem' }}
+            >
+              Try Again
+            </button>
+            {this.props.onFallback && (
+              <button
+                onClick={this.props.onFallback}
+                style={{ padding: '0.35rem 0.75rem', borderRadius: 4, border: 'none', background: 'var(--accent)', color: '#fff', cursor: 'pointer', fontSize: '0.8rem' }}
+              >
+                Switch to 2D
+              </button>
+            )}
+          </div>
         </div>
       )
     }
@@ -132,11 +151,14 @@ export function MemoryPage({ projectId }: MemoryPageProps = {}) {
   const [showForm, setShowForm] = useState(false)
 
   // Default to knowledge view when Neo4j is configured and no saved preference
+  // Skip if 3D previously failed (user can manually re-select knowledge view to retry)
   const autoSwitchedRef = useRef(false)
   useEffect(() => {
     if (neo4jStatus?.configured && viewMode === 'graph' && !autoSwitchedRef.current) {
       try {
-        if (!localStorage.getItem('gobby-memory-view')) setViewMode('knowledge')
+        if (!localStorage.getItem('gobby-memory-view') && !localStorage.getItem('gobby-kg-failed')) {
+          setViewMode('knowledge')
+        }
       } catch {
         setViewMode('knowledge')
       }
@@ -156,6 +178,12 @@ export function MemoryPage({ projectId }: MemoryPageProps = {}) {
     setErrorMessage(msg)
     setTimeout(() => setErrorMessage(null), 4000)
   }, [])
+  const handleKnowledgeGraphError = useCallback(() => {
+    setViewMode('graph')
+    showError('3D knowledge graph unavailable — switched to 2D view')
+    try { localStorage.setItem('gobby-kg-failed', 'true') } catch { /* noop */ }
+  }, [showError])
+
   const [searchText, setSearchText] = useState('')
 
   // Apply search and recent filters to memories
@@ -329,12 +357,13 @@ export function MemoryPage({ projectId }: MemoryPageProps = {}) {
       {/* Content area */}
       <div className="memory-content">
         {viewMode === 'knowledge' ? (
-          <KnowledgeGraphErrorBoundary>
+          <KnowledgeGraphErrorBoundary onFallback={handleKnowledgeGraphError}>
             <Suspense fallback={<div style={{ padding: '2rem', color: 'var(--text-secondary)' }}>Loading 3D graph...</div>}>
               <KnowledgeGraph
                 fetchKnowledgeGraph={fetchKnowledgeGraph}
                 fetchEntityNeighbors={fetchEntityNeighbors}
                 limit={knowledgeGraphLimit}
+                onError={handleKnowledgeGraphError}
               />
             </Suspense>
           </KnowledgeGraphErrorBoundary>

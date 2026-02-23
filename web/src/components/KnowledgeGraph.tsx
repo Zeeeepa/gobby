@@ -7,6 +7,7 @@ interface KnowledgeGraphProps {
   fetchKnowledgeGraph: (limit?: number) => Promise<KnowledgeGraphData | null>
   fetchEntityNeighbors: (name: string) => Promise<KnowledgeGraphData | null>
   limit?: number
+  onError?: () => void
 }
 
 function numericId(id: unknown): number {
@@ -109,7 +110,7 @@ function buildForceData(data: KnowledgeGraphData): { nodes: GraphNode[]; links: 
   return { nodes, links }
 }
 
-export function KnowledgeGraph({ fetchKnowledgeGraph, fetchEntityNeighbors, limit }: KnowledgeGraphProps) {
+export function KnowledgeGraph({ fetchKnowledgeGraph, fetchEntityNeighbors, limit, onError }: KnowledgeGraphProps) {
   const containerRef = useRef<HTMLDivElement>(null)
   const fgRef = useRef<any>(null) // eslint-disable-line @typescript-eslint/no-explicit-any
   const [graphData, setGraphData] = useState<KnowledgeGraphData | null>(null)
@@ -120,6 +121,49 @@ export function KnowledgeGraph({ fetchKnowledgeGraph, fetchEntityNeighbors, limi
   const [animateIdle, setAnimateIdle] = useState(() => {
     try { return localStorage.getItem('gobby-kg-animate') === 'true' } catch { return false }
   })
+
+  // Catch async WebGL/Three.js errors that escape React error boundaries
+  const onErrorRef = useRef(onError)
+  onErrorRef.current = onError
+  useEffect(() => {
+    const handleError = (e: ErrorEvent) => {
+      const msg = (e.message || '').toLowerCase()
+      if (msg.includes('webgl') || msg.includes('three') || msg.includes('context lost') || msg.includes('texture') || msg.includes('gl_')) {
+        console.error('[KnowledgeGraph] WebGL/Three.js error caught:', e.message)
+        e.preventDefault()
+        onErrorRef.current?.()
+      }
+    }
+    const handleRejection = (e: PromiseRejectionEvent) => {
+      const msg = String(e.reason || '').toLowerCase()
+      if (msg.includes('webgl') || msg.includes('three') || msg.includes('context lost')) {
+        console.error('[KnowledgeGraph] Unhandled WebGL rejection:', e.reason)
+        e.preventDefault()
+        onErrorRef.current?.()
+      }
+    }
+    window.addEventListener('error', handleError)
+    window.addEventListener('unhandledrejection', handleRejection)
+    return () => {
+      window.removeEventListener('error', handleError)
+      window.removeEventListener('unhandledrejection', handleRejection)
+    }
+  }, [])
+
+  // Handle WebGL context lost on the canvas element
+  useEffect(() => {
+    const container = containerRef.current
+    if (!container) return
+    const canvas = container.querySelector('canvas')
+    if (!canvas) return
+    const handleContextLost = (e: Event) => {
+      e.preventDefault()
+      console.error('[KnowledgeGraph] WebGL context lost')
+      onErrorRef.current?.()
+    }
+    canvas.addEventListener('webglcontextlost', handleContextLost)
+    return () => canvas.removeEventListener('webglcontextlost', handleContextLost)
+  }, [loading]) // re-run after loading completes since canvas only exists after render
 
   // Track container size
   useEffect(() => {
@@ -210,20 +254,28 @@ export function KnowledgeGraph({ fetchKnowledgeGraph, fetchEntityNeighbors, limi
 
   // Custom node rendering with three-spritetext
   const nodeThreeObject = useCallback((node: any) => { // eslint-disable-line @typescript-eslint/no-explicit-any
-    const label = node.name as string
-    const color = node.color as string
-    const dimmed = isSearchActive && !label.toLowerCase().includes(searchLower)
+    try {
+      const label = node.name as string
+      const color = node.color as string
+      const dimmed = isSearchActive && !label.toLowerCase().includes(searchLower)
 
-    const sprite = new SpriteText(label)
-    sprite.color = dimmed ? '#444444' : color
-    sprite.textHeight = 3
-    sprite.fontFace = 'SF Mono, Menlo, monospace'
-    sprite.backgroundColor = dimmed ? 'rgba(20,20,20,0.3)' : 'rgba(20,20,30,0.75)'
-    sprite.borderColor = dimmed ? 'transparent' : color
-    sprite.borderWidth = 0.3
-    sprite.borderRadius = 3
-    sprite.padding = [2, 4] as any // eslint-disable-line @typescript-eslint/no-explicit-any
-    return sprite
+      const sprite = new SpriteText(label)
+      sprite.color = dimmed ? '#444444' : color
+      sprite.textHeight = 3
+      sprite.fontFace = 'SF Mono, Menlo, monospace'
+      sprite.backgroundColor = dimmed ? 'rgba(20,20,20,0.3)' : 'rgba(20,20,30,0.75)'
+      sprite.borderColor = dimmed ? 'transparent' : color
+      sprite.borderWidth = 0.3
+      sprite.borderRadius = 3
+      sprite.padding = [2, 4] as any // eslint-disable-line @typescript-eslint/no-explicit-any
+      return sprite
+    } catch (e) {
+      console.error('[KnowledgeGraph] SpriteText creation failed:', e)
+      const fallback = new SpriteText('?')
+      fallback.color = '#888'
+      fallback.textHeight = 3
+      return fallback
+    }
   }, [isSearchActive, searchLower])
 
   // Link styling
