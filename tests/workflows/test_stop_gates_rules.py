@@ -53,7 +53,7 @@ STOP_GATES_RULES = {
     "require-task-close",
     "clear-tool-block-on-prompt",
     "reset-error-triage-on-prompt",
-    "reset-stop-on-native-tool",
+    "reset-stop-on-any-tool",
     "clear-tool-block-on-tool",
 }
 
@@ -266,13 +266,13 @@ class TestBeforeAgentResets:
     These rules are gated by stop_attempts == 0 to avoid resetting state
     during stop cycles (where before_agent fires for hook feedback, not
     genuine user prompts). stop_attempts itself is only reset by
-    reset-stop-on-native-tool (after_tool) to preserve the escape hatch.
+    reset-stop-on-any-tool (after_tool) to preserve the escape hatch.
     """
 
     def test_no_reset_stop_attempts_on_prompt(self, db, manager) -> None:
         """stop_attempts should NOT be reset on before_agent.
 
-        It's only reset by reset-stop-on-native-tool (after_tool).
+        It's only reset by reset-stop-on-any-tool (after_tool).
         Resetting on before_agent would break the escape hatch because
         stop-hook feedback triggers before_agent.
         """
@@ -313,19 +313,18 @@ class TestBeforeAgentResets:
 class TestAfterToolResets:
     """Verify after_tool reset rules clear state on tool use."""
 
-    def test_reset_stop_on_native_tool(self, db, manager) -> None:
-        """Should reset stop_attempts on non-MCP tool use."""
+    def test_reset_stop_on_any_tool(self, db, manager) -> None:
+        """Should reset stop_attempts on any tool use (native or MCP)."""
         _sync_bundled(db)
 
-        row = _get_rule(manager, "reset-stop-on-native-tool")
+        row = _get_rule(manager, "reset-stop-on-any-tool")
         assert row is not None
 
         body = RuleDefinitionBody.model_validate_json(row.definition_json)
         assert body.event.value == "after_tool"
         assert body.effect.variable == "stop_attempts"
         assert body.effect.value == 0
-        assert body.when is not None
-        assert "mcp_tool" in body.when
+        assert body.when is None  # fires on all tools, not just native
 
     def test_clear_tool_block_on_tool(self, db, manager) -> None:
         """Should clear _tool_block_pending on any tool use."""
