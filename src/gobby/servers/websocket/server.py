@@ -303,8 +303,9 @@ class WebSocketServer(
         # Stop voice subsystem
         await self._cleanup_voice()
 
-        # Stop all chat sessions
+        # Stop all chat sessions (fire SESSION_END before each)
         for conv_id, session in list(self._chat_sessions.items()):
+            await self._fire_session_end(conv_id)
             await self._cancel_active_chat(conv_id)
             await session.stop()
         self._chat_sessions.clear()

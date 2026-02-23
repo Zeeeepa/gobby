@@ -49,6 +49,8 @@ class SessionControlMixin:
 
         async def _cancel_active_chat(self, conversation_id: str) -> None: ...
 
+        async def _fire_session_end(self, conversation_id: str) -> None: ...
+
         async def _send_error(
             self,
             websocket: Any,
@@ -456,6 +458,9 @@ class SessionControlMixin:
                 except Exception as e:
                     logger.warning(f"Failed to update session status on clear: {e}")
 
+        # Fire SESSION_END before teardown
+        await self._fire_session_end(conversation_id)
+
         # Stop the old ChatSession
         await self._cancel_active_chat(conversation_id)
         await session.stop()
@@ -489,6 +494,7 @@ class SessionControlMixin:
 
         # Stop the ChatSession if active
         if session:
+            await self._fire_session_end(conversation_id)
             await self._cancel_active_chat(conversation_id)
             await session.stop()
             self._chat_sessions.pop(conversation_id, None)
@@ -524,6 +530,8 @@ class SessionControlMixin:
                     if (now - session.last_activity).total_seconds() > IDLE_TIMEOUT_SECONDS
                 ]
                 for conv_id in stale_ids:
+                    # Fire SESSION_END before popping (needs session in dict for lookup)
+                    await self._fire_session_end(conv_id)
                     session = self._chat_sessions.pop(conv_id)
                     await self._cancel_active_chat(conv_id)
                     # Mark as paused in database before stopping

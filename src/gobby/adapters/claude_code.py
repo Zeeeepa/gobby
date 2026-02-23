@@ -119,12 +119,8 @@ class ClaudeCodeAdapter(BaseAdapter):
     def _normalize_event_data(self, input_data: dict[str, Any]) -> dict[str, Any]:
         """Normalize Claude Code event data for CLI-agnostic processing.
 
-        This method enriches the input_data with normalized fields so downstream
-        code doesn't need to handle Claude-specific formats.
-
-        Normalizations performed:
-        1. tool_input.server_name/tool_name → mcp_server/mcp_tool (for MCP calls)
-        2. tool_result → tool_output
+        Delegates to the shared ``normalize_mcp_fields`` so the same logic
+        is used by both the CLI adapter and the web-chat path.
 
         Args:
             input_data: Raw input data from Claude Code
@@ -132,46 +128,10 @@ class ClaudeCodeAdapter(BaseAdapter):
         Returns:
             Enriched data dict with normalized fields added
         """
-        # Start with a copy to avoid mutating original
-        data = dict(input_data)
+        from gobby.hooks.normalization import normalize_mcp_fields
 
-        # Get tool info
-        tool_name = data.get("tool_name", "")
-        tool_input = data.get("tool_input", {}) or {}
-
-        # 1a. Parse mcp__<server>__<tool> prefix for ALL native MCP calls
-        # Claude Code sends native MCP tools with this naming convention.
-        # Extract mcp_server/mcp_tool so rules can match consistently.
-        if tool_name.startswith("mcp__") and "mcp_tool" not in data:
-            parts = tool_name.split("__", 2)  # ["mcp", "server", "tool"]
-            if len(parts) == 3:
-                data.setdefault("mcp_server", parts[1])
-                data.setdefault("mcp_tool", parts[2])
-
-        # 1b. Extract MCP info from nested tool_input for call_tool calls
-        # For mcp__gobby__call_tool: override prefix-parsed "gobby" with actual target
-        # For plain call_tool: only set if not already present (preserve externally-set values)
-        if tool_name in ("call_tool", "mcp__gobby__call_tool"):
-            inner_server = tool_input.get("server_name")
-            inner_tool = tool_input.get("tool_name")
-            if tool_name.startswith("mcp__"):
-                # Override prefix-parsed values with actual inner target
-                if inner_server:
-                    data["mcp_server"] = inner_server
-                if inner_tool:
-                    data["mcp_tool"] = inner_tool
-            else:
-                # Plain call_tool — don't overwrite externally-set values
-                if inner_server and "mcp_server" not in data:
-                    data["mcp_server"] = inner_server
-                if inner_tool and "mcp_tool" not in data:
-                    data["mcp_tool"] = inner_tool
-
-        # 2. Normalize tool_result → tool_output
-        if "tool_result" in data and "tool_output" not in data:
-            data["tool_output"] = data["tool_result"]
-
-        return data
+        # Copy to avoid mutating the original (shared function mutates in place)
+        return normalize_mcp_fields(dict(input_data))
 
     # Map Claude Code hook types to hookEventName for hookSpecificOutput
     HOOK_EVENT_NAME_MAP: dict[str, str] = {
