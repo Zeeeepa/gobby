@@ -264,9 +264,6 @@ class SessionEventHandlerMixin(EventHandlersBase):
             except Exception as e:
                 self.logger.warning(f"Failed to register session with message processor: {e}")
 
-        # Step 6: Execute lifecycle workflows
-        wf_response = self._evaluate_workflows(event)
-
         # Build additional context (task context)
         # Note: Skill injection is now handled by workflows via inject_context action
         additional_context: list[str] = []
@@ -282,7 +279,6 @@ class SessionEventHandlerMixin(EventHandlersBase):
 
         return self._compose_session_response(
             session=session_obj,
-            wf_response=wf_response,
             session_id=session_id,
             external_id=external_id,
             parent_session_id=parent_session_id,
@@ -323,9 +319,6 @@ class SessionEventHandlerMixin(EventHandlersBase):
         # Ensure session_id is available in event metadata for workflow actions
         if session_id and not event.metadata.get("_platform_session_id"):
             event.metadata["_platform_session_id"] = session_id
-
-        # Execute lifecycle workflow triggers
-        self._evaluate_workflows(event)
 
         # Auto-link commits made during this session to tasks
         if session_id and self._session_storage and self._task_manager:
@@ -460,12 +453,8 @@ class SessionEventHandlerMixin(EventHandlersBase):
             except Exception as e:
                 self.logger.warning(f"Failed to register with message processor: {e}")
 
-        # Execute lifecycle workflows
-        wf_response = self._evaluate_workflows(event)
-
         return self._compose_session_response(
             session=existing_session,
-            wf_response=wf_response,
             session_id=session_id,
             external_id=external_id,
             parent_session_id=parent_session_id,
@@ -498,7 +487,6 @@ class SessionEventHandlerMixin(EventHandlersBase):
     def _compose_session_response(
         self,
         session: Session | None,
-        wf_response: HookResponse,
         session_id: str | None,
         external_id: str,
         parent_session_id: str | None,
@@ -516,7 +504,6 @@ class SessionEventHandlerMixin(EventHandlersBase):
 
         Args:
             session: Session object (used for seq_num)
-            wf_response: Response from workflow handler
             session_id: Session ID
             external_id: External (CLI-native) session ID
             parent_session_id: Parent session ID if any
@@ -532,8 +519,6 @@ class SessionEventHandlerMixin(EventHandlersBase):
         """
         # Build context_parts
         context_parts: list[str] = []
-        if wf_response.context:
-            context_parts.append(wf_response.context)
         if parent_session_id:
             context_parts.append(f"Parent session: {parent_session_id}")
         if additional_context:
@@ -552,26 +537,13 @@ class SessionEventHandlerMixin(EventHandlersBase):
         system_message += " <- Use this for MCP tool calls (session_id parameter)"
         system_message += f"\nExternal ID: {external_id} (CLI-native, rarely needed)"
 
-        # Add active lifecycle workflows
-        active_workflow_lines: list[str] = []
-        lifecycle_names: set[str] = set()
-        if wf_response.metadata and "discovered_workflows" in wf_response.metadata:
-            wf_list = wf_response.metadata["discovered_workflows"]
-            if wf_list:
-                for w in wf_list:
-                    lifecycle_names.add(w["name"])
-                    source = "project" if w["is_project"] else "global"
-                    active_workflow_lines.append(
-                        f"  - {w['name']} ({source}, priority={w['priority']})"
-                    )
-
         # Add active step workflows from WorkflowStateManager
+        active_workflow_lines: list[str] = []
         if session_id:
             state = self._get_step_workflow_state(session_id)
             if state:
                 is_lifecycle = state.workflow_name in ("__lifecycle__", "__ended__")
-                is_in_lifecycle_names = state.workflow_name in lifecycle_names
-                if not is_lifecycle and not is_in_lifecycle_names:
+                if not is_lifecycle:
                     active_workflow_lines.append(
                         f"  - {state.workflow_name} (step, current_step={state.step})"
                     )
@@ -580,9 +552,6 @@ class SessionEventHandlerMixin(EventHandlersBase):
             system_message += "\nActive workflows:"
             for line in active_workflow_lines:
                 system_message += f"\n{line}"
-
-        if wf_response.system_message:
-            system_message += f"\n\n{wf_response.system_message}"
 
         # Build metadata
         metadata: dict[str, Any] = {
@@ -610,5 +579,5 @@ class SessionEventHandlerMixin(EventHandlersBase):
             system_message=system_message,
             metadata=metadata,
         )
-        self._apply_debug_echo(response, wf_response)
+        self._apply_debug_echo(response)
         return response

@@ -27,21 +27,7 @@ class ToolEventHandlerMixin(EventHandlersBase):
         else:
             self.logger.debug(f"BEFORE_TOOL: {tool_name}")
 
-        context_parts = []
-
-        # Execute lifecycle workflow triggers
-        wf_response = self._evaluate_workflows(event)
-        if wf_response.context:
-            context_parts.append(wf_response.context)
-        if wf_response.decision != "allow":
-            return wf_response
-
-        response = HookResponse(
-            decision="allow",
-            context="\n\n".join(context_parts) if context_parts else None,
-        )
-        self._apply_debug_echo(response, wf_response)
-        return response
+        return HookResponse(decision="allow")
 
     def handle_after_tool(self, event: HookEvent) -> HookResponse:
         """Handle AFTER_TOOL event."""
@@ -95,14 +81,6 @@ class ToolEventHandlerMixin(EventHandlersBase):
 
         else:
             self.logger.debug(f"AFTER_TOOL [{status}]: {tool_name}")
-
-        # Execute lifecycle workflow triggers
-        wf_response = self._evaluate_workflows(event)
-        if wf_response.decision != "allow":
-            return wf_response
-        if wf_response.context:
-            self._apply_debug_echo(wf_response, wf_response)
-            return wf_response
 
         return HookResponse(decision="allow")
 

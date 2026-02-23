@@ -27,7 +27,11 @@ def workflow_handler(mock_engine):
     return WorkflowHookHandler(engine=mock_engine, loop=None)
 
 
-def test_handler_delegates_to_engine(workflow_handler, mock_engine) -> None:
+def test_handler_delegates_to_evaluate(workflow_handler, mock_engine) -> None:
+    """handle() delegates to evaluate() which uses the rule engine.
+
+    Without a rule engine configured, evaluate returns allow.
+    """
     event = HookEvent(
         event_type=HookEventType.SESSION_START,
         session_id=MOCK_EXTERNAL_ID,
@@ -39,12 +43,12 @@ def test_handler_delegates_to_engine(workflow_handler, mock_engine) -> None:
     response = workflow_handler.handle(event)
 
     assert response.decision == "allow"
-    # AsyncMock was called, we need to verify it was awaited.
-    # asyncio.run does that.
-    mock_engine.handle_event.assert_called_once_with(event)
+    # handle() no longer delegates to engine.handle_event (dead step-based engine)
+    mock_engine.handle_event.assert_not_called()
 
 
-def test_handler_blocks_event(workflow_handler, mock_engine) -> None:
+def test_handler_returns_allow_without_rule_engine(workflow_handler, mock_engine) -> None:
+    """Without a rule engine, handle() returns allow regardless of engine mock."""
     mock_engine.handle_event.return_value = HookResponse(decision="block", reason="Testing block")
 
     event = HookEvent(
@@ -57,8 +61,9 @@ def test_handler_blocks_event(workflow_handler, mock_engine) -> None:
 
     response = workflow_handler.handle(event)
 
-    assert response.decision == "block"
-    assert response.reason == "Testing block"
+    # handle() delegates to evaluate() -> _evaluate_rules(), not engine.handle_event
+    assert response.decision == "allow"
+    mock_engine.handle_event.assert_not_called()
 
 
 @pytest.mark.skip(reason="Flaky - race condition in health monitor mock setup")
@@ -78,7 +83,6 @@ def test_hook_manager_integration():
         # Setup mocks
         mock_handler_instance = MockHandlerClass.return_value
         mock_handler_instance.handle.return_value = HookResponse(decision="allow")
-        mock_handler_instance.handle_all_lifecycles.return_value = HookResponse(decision="allow")
 
         # Setup DaemonClient mock to pass health check
         mock_daemon_instance = MockDaemonClientClass.return_value
@@ -131,7 +135,6 @@ def test_hook_manager_blocks_on_workflow():
         mock_handler_instance.handle.return_value = HookResponse(
             decision="block", reason="Workflow denied"
         )
-        mock_handler_instance.handle_all_lifecycles.return_value = HookResponse(decision="allow")
 
         # Setup DaemonClient mock to pass health check
         mock_daemon_instance = MockDaemonClientClass.return_value
@@ -206,8 +209,8 @@ class TestWorkflowHookHandlerDisabled:
         # Check that internal flag is True
         assert handler._enabled is True
 
-    def test_enabled_true_calls_engine(self, mock_engine) -> None:
-        """When enabled=True (explicit), engine is called normally."""
+    def test_enabled_true_evaluates_rules(self, mock_engine) -> None:
+        """When enabled=True (explicit), handle() evaluates rules (not step engine)."""
         handler = WorkflowHookHandler(engine=mock_engine, loop=None, enabled=True)
 
         event = HookEvent(
@@ -221,4 +224,5 @@ class TestWorkflowHookHandlerDisabled:
         response = handler.handle(event)
 
         assert response.decision == "allow"
-        mock_engine.handle_event.assert_called_once_with(event)
+        # handle() delegates to evaluate(), not engine.handle_event
+        mock_engine.handle_event.assert_not_called()

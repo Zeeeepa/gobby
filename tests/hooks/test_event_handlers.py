@@ -456,58 +456,6 @@ class TestSessionStartPreCreatedSession:
         # Should still allow despite error
         assert response.decision == "allow"
 
-    def test_pre_created_session_workflow_context(self, mock_dependencies: dict) -> None:
-        """Test pre-created session merges workflow context."""
-        mock_session = MagicMock()
-        mock_session.id = "sess-123"
-        mock_session.project_id = "proj-123"
-        mock_session.parent_session_id = None
-        mock_session.agent_depth = 0
-        mock_session.agent_run_id = None
-
-        mock_dependencies["session_storage"].get.return_value = mock_session
-        mock_dependencies["workflow_handler"].evaluate.return_value = HookResponse(
-            decision="allow",
-            context="Workflow context here",
-            system_message="Workflow system message",
-        )
-
-        handlers = EventHandlers(**mock_dependencies)
-        event = make_event(
-            HookEventType.SESSION_START,
-            session_id="sess-123",
-            data={"transcript_path": "/path/to/transcript.jsonl"},
-        )
-
-        response = handlers.handle_session_start(event)
-
-        assert "Workflow context here" in response.context
-        assert "Workflow system message" in response.system_message
-
-    def test_pre_created_session_workflow_error(self, mock_dependencies: dict) -> None:
-        """Test error in workflow handler is handled gracefully."""
-        mock_session = MagicMock()
-        mock_session.id = "sess-123"
-        mock_session.project_id = "proj-123"
-        mock_session.parent_session_id = None
-        mock_session.agent_depth = 0
-        mock_session.agent_run_id = None
-
-        mock_dependencies["session_storage"].get.return_value = mock_session
-        mock_dependencies["workflow_handler"].evaluate.side_effect = Exception("Workflow error")
-
-        handlers = EventHandlers(**mock_dependencies)
-        event = make_event(
-            HookEventType.SESSION_START,
-            session_id="sess-123",
-            data={"transcript_path": "/path/to/transcript.jsonl"},
-        )
-
-        response = handlers.handle_session_start(event)
-
-        # Should still allow despite error
-        assert response.decision == "allow"
-
     def test_pre_created_session_coordinator_error(self, mock_dependencies: dict) -> None:
         """Test error registering session with coordinator is handled."""
         mock_session = MagicMock()
@@ -659,46 +607,6 @@ class TestSessionStartNewSession:
             HookEventType.SESSION_START,
             session_id="ext-123",
             data={"transcript_path": "/path/to/transcript.jsonl"},
-        )
-
-        response = handlers.handle_session_start(event)
-
-        # Should still allow despite error
-        assert response.decision == "allow"
-
-    def test_new_session_workflow_context(self, mock_dependencies: dict) -> None:
-        """Test new session merges workflow context."""
-        mock_dependencies["session_storage"].get.return_value = None
-        mock_dependencies["session_manager"].register_session.return_value = "new-sess-456"
-        mock_dependencies["workflow_handler"].evaluate.return_value = HookResponse(
-            decision="allow",
-            context="Workflow context",
-            system_message="System message",
-        )
-
-        handlers = EventHandlers(**mock_dependencies)
-        event = make_event(
-            HookEventType.SESSION_START,
-            session_id="ext-123",
-            data={},
-        )
-
-        response = handlers.handle_session_start(event)
-
-        assert "Workflow context" in response.context
-        assert "System message" in response.system_message
-
-    def test_new_session_workflow_error(self, mock_dependencies: dict) -> None:
-        """Test workflow error during new session is handled."""
-        mock_dependencies["session_storage"].get.return_value = None
-        mock_dependencies["session_manager"].register_session.return_value = "new-sess-456"
-        mock_dependencies["workflow_handler"].evaluate.side_effect = Exception("Workflow error")
-
-        handlers = EventHandlers(**mock_dependencies)
-        event = make_event(
-            HookEventType.SESSION_START,
-            session_id="ext-123",
-            data={},
         )
 
         response = handlers.handle_session_start(event)
@@ -986,39 +894,6 @@ class TestBeforeAgentHandling:
         # Should still allow despite error
         assert response.decision == "allow"
 
-    def test_before_agent_workflow_deny(self, mock_dependencies: dict) -> None:
-        """Test BEFORE_AGENT returns workflow deny response."""
-        mock_dependencies["workflow_handler"].evaluate.return_value = HookResponse(
-            decision="deny", reason="Not allowed"
-        )
-
-        handlers = EventHandlers(**mock_dependencies)
-        event = make_event(
-            HookEventType.BEFORE_AGENT,
-            data={"prompt": "Hello"},
-        )
-
-        response = handlers.handle_before_agent(event)
-
-        assert response.decision == "deny"
-        assert response.reason == "Not allowed"
-
-    def test_before_agent_workflow_context(self, mock_dependencies: dict) -> None:
-        """Test BEFORE_AGENT merges workflow context."""
-        mock_dependencies["workflow_handler"].evaluate.return_value = HookResponse(
-            decision="allow", context="Some context"
-        )
-
-        handlers = EventHandlers(**mock_dependencies)
-        event = make_event(
-            HookEventType.BEFORE_AGENT,
-            data={"prompt": "Hello"},
-        )
-
-        response = handlers.handle_before_agent(event)
-
-        assert "Some context" in response.context
-
     def test_before_agent_handles_clear_with_transcript(self, mock_dependencies: dict) -> None:
         """Test BEFORE_AGENT handles /clear with transcript path."""
         handlers = EventHandlers(**mock_dependencies)
@@ -1067,32 +942,6 @@ class TestAfterAgentHandling:
         # Should still allow despite error
         assert response.decision == "allow"
 
-    def test_after_agent_workflow_deny(self, mock_dependencies: dict) -> None:
-        """Test AFTER_AGENT returns workflow deny response."""
-        mock_dependencies["workflow_handler"].evaluate.return_value = HookResponse(
-            decision="deny", reason="Not allowed"
-        )
-
-        handlers = EventHandlers(**mock_dependencies)
-        event = make_event(HookEventType.AFTER_AGENT)
-
-        response = handlers.handle_after_agent(event)
-
-        assert response.decision == "deny"
-
-    def test_after_agent_workflow_context(self, mock_dependencies: dict) -> None:
-        """Test AFTER_AGENT returns workflow context response."""
-        mock_dependencies["workflow_handler"].evaluate.return_value = HookResponse(
-            decision="allow", context="Context from workflow"
-        )
-
-        handlers = EventHandlers(**mock_dependencies)
-        event = make_event(HookEventType.AFTER_AGENT)
-
-        response = handlers.handle_after_agent(event)
-
-        assert "Context from workflow" in response.context
-
     def test_after_agent_no_session_id(self, mock_dependencies: dict) -> None:
         """Test AFTER_AGENT handles missing session_id."""
         handlers = EventHandlers(**mock_dependencies)
@@ -1109,39 +958,6 @@ class TestAfterAgentHandling:
 
 class TestToolHandlerEdgeCases:
     """Test BEFORE_TOOL and AFTER_TOOL edge cases."""
-
-    def test_before_tool_workflow_deny(self, mock_dependencies: dict) -> None:
-        """Test BEFORE_TOOL returns workflow deny response."""
-        mock_dependencies["workflow_handler"].evaluate.return_value = HookResponse(
-            decision="deny", reason="Tool blocked"
-        )
-
-        handlers = EventHandlers(**mock_dependencies)
-        event = make_event(
-            HookEventType.BEFORE_TOOL,
-            data={"tool_name": "Write"},
-        )
-
-        response = handlers.handle_before_tool(event)
-
-        assert response.decision == "deny"
-        assert response.reason == "Tool blocked"
-
-    def test_before_tool_workflow_context(self, mock_dependencies: dict) -> None:
-        """Test BEFORE_TOOL merges workflow context."""
-        mock_dependencies["workflow_handler"].evaluate.return_value = HookResponse(
-            decision="allow", context="Tool context"
-        )
-
-        handlers = EventHandlers(**mock_dependencies)
-        event = make_event(
-            HookEventType.BEFORE_TOOL,
-            data={"tool_name": "Read"},
-        )
-
-        response = handlers.handle_before_tool(event)
-
-        assert "Tool context" in response.context
 
     def test_before_tool_no_session_id(self, mock_dependencies: dict) -> None:
         """Test BEFORE_TOOL handles missing session_id."""
@@ -1168,38 +984,6 @@ class TestToolHandlerEdgeCases:
         response = handlers.handle_after_tool(event)
 
         assert response.decision == "allow"
-
-    def test_after_tool_workflow_deny(self, mock_dependencies: dict) -> None:
-        """Test AFTER_TOOL returns workflow deny response."""
-        mock_dependencies["workflow_handler"].evaluate.return_value = HookResponse(
-            decision="deny", reason="Blocked"
-        )
-
-        handlers = EventHandlers(**mock_dependencies)
-        event = make_event(
-            HookEventType.AFTER_TOOL,
-            data={"tool_name": "Write"},
-        )
-
-        response = handlers.handle_after_tool(event)
-
-        assert response.decision == "deny"
-
-    def test_after_tool_workflow_context(self, mock_dependencies: dict) -> None:
-        """Test AFTER_TOOL merges workflow context."""
-        mock_dependencies["workflow_handler"].evaluate.return_value = HookResponse(
-            decision="allow", context="After tool context"
-        )
-
-        handlers = EventHandlers(**mock_dependencies)
-        event = make_event(
-            HookEventType.AFTER_TOOL,
-            data={"tool_name": "Read"},
-        )
-
-        response = handlers.handle_after_tool(event)
-
-        assert "After tool context" in response.context
 
     def test_after_tool_no_session_id(self, mock_dependencies: dict) -> None:
         """Test AFTER_TOOL handles missing session_id."""
@@ -1272,36 +1056,6 @@ class TestToolHandlerEdgeCases:
         mock_dependencies["session_storage"].mark_had_edits.assert_not_called()
 
 
-class TestStopHandlerEdgeCases:
-    """Test STOP handler edge cases."""
-
-    def test_stop_workflow_deny(self, mock_dependencies: dict) -> None:
-        """Test STOP returns workflow deny response."""
-        mock_dependencies["workflow_handler"].evaluate.return_value = HookResponse(
-            decision="deny", reason="Cannot stop"
-        )
-
-        handlers = EventHandlers(**mock_dependencies)
-        event = make_event(HookEventType.STOP)
-
-        response = handlers.handle_stop(event)
-
-        assert response.decision == "deny"
-
-    def test_stop_workflow_context(self, mock_dependencies: dict) -> None:
-        """Test STOP returns workflow context response."""
-        mock_dependencies["workflow_handler"].evaluate.return_value = HookResponse(
-            decision="allow", context="Stop context"
-        )
-
-        handlers = EventHandlers(**mock_dependencies)
-        event = make_event(HookEventType.STOP)
-
-        response = handlers.handle_stop(event)
-
-        assert "Stop context" in response.context
-
-
 class TestPreCompactHandlerEdgeCases:
     """Test PRE_COMPACT handler edge cases."""
 
@@ -1333,19 +1087,6 @@ class TestPreCompactHandlerEdgeCases:
 
         assert response.decision == "allow"
         mock_dependencies["session_manager"].update_session_status.assert_not_called()
-
-    def test_pre_compact_workflow_response(self, mock_dependencies: dict) -> None:
-        """Test PRE_COMPACT returns workflow response."""
-        mock_dependencies["workflow_handler"].evaluate.return_value = HookResponse(
-            decision="allow", context="Compact context"
-        )
-
-        handlers = EventHandlers(**mock_dependencies)
-        event = make_event(HookEventType.PRE_COMPACT)
-
-        response = handlers.handle_pre_compact(event)
-
-        assert "Compact context" in response.context
 
     def test_pre_compact_gemini_skips_handoff(self, mock_dependencies: dict) -> None:
         """Test PRE_COMPACT skips handoff logic for Gemini source.
@@ -1600,76 +1341,6 @@ class TestGeminiHandlerEdgeCases:
 
         response = handlers.handle_after_model(event)
 
-        assert response.decision == "allow"
-
-
-class TestWorkflowErrorHandling:
-    """Test workflow error handling across handlers."""
-
-    def test_after_agent_workflow_error(self, mock_dependencies: dict) -> None:
-        """Test AFTER_AGENT handles workflow errors gracefully."""
-        mock_dependencies["workflow_handler"].evaluate.side_effect = Exception("Workflow error")
-
-        handlers = EventHandlers(**mock_dependencies)
-        event = make_event(HookEventType.AFTER_AGENT)
-
-        response = handlers.handle_after_agent(event)
-
-        # Should still allow despite error
-        assert response.decision == "allow"
-
-    def test_before_tool_workflow_error(self, mock_dependencies: dict) -> None:
-        """Test BEFORE_TOOL handles workflow errors gracefully."""
-        mock_dependencies["workflow_handler"].evaluate.side_effect = Exception("Workflow error")
-
-        handlers = EventHandlers(**mock_dependencies)
-        event = make_event(
-            HookEventType.BEFORE_TOOL,
-            data={"tool_name": "Read"},
-        )
-
-        response = handlers.handle_before_tool(event)
-
-        # Should still allow despite error
-        assert response.decision == "allow"
-
-    def test_after_tool_workflow_error(self, mock_dependencies: dict) -> None:
-        """Test AFTER_TOOL handles workflow errors gracefully."""
-        mock_dependencies["workflow_handler"].evaluate.side_effect = Exception("Workflow error")
-
-        handlers = EventHandlers(**mock_dependencies)
-        event = make_event(
-            HookEventType.AFTER_TOOL,
-            data={"tool_name": "Read"},
-        )
-
-        response = handlers.handle_after_tool(event)
-
-        # Should still allow despite error
-        assert response.decision == "allow"
-
-    def test_stop_workflow_error(self, mock_dependencies: dict) -> None:
-        """Test STOP handles workflow errors gracefully."""
-        mock_dependencies["workflow_handler"].evaluate.side_effect = Exception("Workflow error")
-
-        handlers = EventHandlers(**mock_dependencies)
-        event = make_event(HookEventType.STOP)
-
-        response = handlers.handle_stop(event)
-
-        # Should still allow despite error
-        assert response.decision == "allow"
-
-    def test_pre_compact_workflow_error(self, mock_dependencies: dict) -> None:
-        """Test PRE_COMPACT handles workflow errors gracefully."""
-        mock_dependencies["workflow_handler"].evaluate.side_effect = Exception("Workflow error")
-
-        handlers = EventHandlers(**mock_dependencies)
-        event = make_event(HookEventType.PRE_COMPACT)
-
-        response = handlers.handle_pre_compact(event)
-
-        # Should still allow despite error
         assert response.decision == "allow"
 
 
@@ -1948,171 +1619,64 @@ class TestTranscriptPathDerivation:
         assert response.decision == "allow"
 
 
-class TestEvaluateWorkflowsHelper:
-    """Tests for the _evaluate_workflows() consolidated helper on EventHandlersBase."""
-
-    def test_evaluate_workflows_returns_allow_when_no_handler(self) -> None:
-        """_evaluate_workflows returns allow when _workflow_handler is None."""
-        handlers = EventHandlers()
-        event = make_event(HookEventType.BEFORE_TOOL, data={"tool_name": "Read"})
-
-        result = handlers._evaluate_workflows(event)
-
-        assert result.decision == "allow"
-
-    def test_evaluate_workflows_delegates_to_handler(self, mock_dependencies: dict) -> None:
-        """_evaluate_workflows delegates to workflow_handler.evaluate()."""
-        expected = HookResponse(decision="block", reason="test block")
-        mock_dependencies["workflow_handler"].evaluate.return_value = expected
-
-        handlers = EventHandlers(**mock_dependencies)
-        event = make_event(HookEventType.BEFORE_TOOL, data={"tool_name": "Read"})
-
-        result = handlers._evaluate_workflows(event)
-
-        assert result.decision == "block"
-        assert result.reason == "test block"
-        mock_dependencies["workflow_handler"].evaluate.assert_called_once_with(event)
-
-    def test_evaluate_workflows_returns_allow_on_error(self, mock_dependencies: dict) -> None:
-        """_evaluate_workflows returns allow on exception."""
-        mock_dependencies["workflow_handler"].evaluate.side_effect = Exception("boom")
-
-        handlers = EventHandlers(**mock_dependencies)
-        event = make_event(HookEventType.BEFORE_TOOL, data={"tool_name": "Read"})
-
-        result = handlers._evaluate_workflows(event)
-
-        assert result.decision == "allow"
-
-    def test_evaluate_workflows_passes_context_through(self, mock_dependencies: dict) -> None:
-        """_evaluate_workflows returns context from workflow response."""
-        mock_dependencies["workflow_handler"].evaluate.return_value = HookResponse(
-            decision="allow", context="workflow context here"
-        )
-
-        handlers = EventHandlers(**mock_dependencies)
-        event = make_event(HookEventType.BEFORE_AGENT, data={"prompt": "hi"})
-
-        result = handlers._evaluate_workflows(event)
-
-        assert result.context == "workflow context here"
-
-    def test_all_handler_call_sites_use_evaluate_workflows(self) -> None:
-        """Verify _evaluate_workflows is used (no direct handle_all_lifecycles calls)."""
-        import inspect
-
-        from gobby.hooks.event_handlers._agent import AgentEventHandlerMixin
-        from gobby.hooks.event_handlers._session import SessionEventHandlerMixin
-        from gobby.hooks.event_handlers._tool import ToolEventHandlerMixin
-
-        for cls in [AgentEventHandlerMixin, SessionEventHandlerMixin, ToolEventHandlerMixin]:
-            source = inspect.getsource(cls)
-            assert (
-                "handle_all_lifecycles" not in source
-            ), f"{cls.__name__} still calls handle_all_lifecycles directly"
-
-    def test_evaluate_workflows_helper_exists_on_base(self) -> None:
-        """_evaluate_workflows is defined on EventHandlersBase."""
-        from gobby.hooks.event_handlers._base import EventHandlersBase
-
-        assert hasattr(EventHandlersBase, "_evaluate_workflows")
-        assert callable(EventHandlersBase._evaluate_workflows)
-
-
 class TestApplyDebugEcho:
     """Tests for _apply_debug_echo helper on EventHandlersBase."""
 
-    def test_debug_echo_from_workflow_variables(self, mock_dependencies: dict) -> None:
-        """Test debug echo enabled via workflow_variables metadata."""
-        handlers = EventHandlers(**mock_dependencies)
-        response = HookResponse(decision="allow", context="injected context")
-        wf_response = HookResponse(
-            decision="allow",
-            metadata={"workflow_variables": {"debug_echo_context": True}},
-        )
-
-        handlers._apply_debug_echo(response, wf_response)
-
-        assert response.system_message is not None
-        assert "[DEBUG additionalContext]" in response.system_message
-        assert "injected context" in response.system_message
-
-    def test_debug_echo_from_workflow_config_fallback(self) -> None:
-        """Test debug echo enabled via WorkflowConfig when workflow_variables absent."""
+    def test_debug_echo_from_workflow_config(self) -> None:
+        """Test debug echo enabled via WorkflowConfig.debug_echo_context."""
         mock_config = MagicMock()
         mock_config.debug_echo_context = True
 
         handlers = EventHandlers(workflow_config=mock_config)
         response = HookResponse(decision="allow", context="some context")
-        wf_response = HookResponse(decision="allow")
 
-        handlers._apply_debug_echo(response, wf_response)
+        handlers._apply_debug_echo(response)
 
         assert response.system_message is not None
         assert "[DEBUG additionalContext]" in response.system_message
         assert "some context" in response.system_message
 
-    def test_debug_echo_disabled(self, mock_dependencies: dict) -> None:
+    def test_debug_echo_disabled(self) -> None:
         """Test no echo when debug_echo_context is False."""
-        handlers = EventHandlers(**mock_dependencies)
+        mock_config = MagicMock()
+        mock_config.debug_echo_context = False
+
+        handlers = EventHandlers(workflow_config=mock_config)
         response = HookResponse(decision="allow", context="some context")
-        wf_response = HookResponse(
-            decision="allow",
-            metadata={"workflow_variables": {"debug_echo_context": False}},
-        )
 
-        handlers._apply_debug_echo(response, wf_response)
+        handlers._apply_debug_echo(response)
 
         assert response.system_message is None
 
-    def test_debug_echo_empty_context(self, mock_dependencies: dict) -> None:
+    def test_debug_echo_empty_context(self) -> None:
         """Test no echo when context is empty."""
-        handlers = EventHandlers(**mock_dependencies)
-        response = HookResponse(decision="allow", context=None)
-        wf_response = HookResponse(
-            decision="allow",
-            metadata={"workflow_variables": {"debug_echo_context": True}},
-        )
+        mock_config = MagicMock()
+        mock_config.debug_echo_context = True
 
-        handlers._apply_debug_echo(response, wf_response)
+        handlers = EventHandlers(workflow_config=mock_config)
+        response = HookResponse(decision="allow", context=None)
+
+        handlers._apply_debug_echo(response)
 
         assert response.system_message is None
 
-    def test_debug_echo_appends_to_existing_system_message(self, mock_dependencies: dict) -> None:
+    def test_debug_echo_appends_to_existing_system_message(self) -> None:
         """Test echo appends to existing system_message rather than replacing."""
-        handlers = EventHandlers(**mock_dependencies)
+        mock_config = MagicMock()
+        mock_config.debug_echo_context = True
+
+        handlers = EventHandlers(workflow_config=mock_config)
         response = HookResponse(
             decision="allow",
             context="new context",
             system_message="Existing message",
         )
-        wf_response = HookResponse(
-            decision="allow",
-            metadata={"workflow_variables": {"debug_echo_context": True}},
-        )
 
-        handlers._apply_debug_echo(response, wf_response)
+        handlers._apply_debug_echo(response)
 
         assert response.system_message.startswith("Existing message")
         assert "[DEBUG additionalContext]" in response.system_message
         assert "new context" in response.system_message
-
-    def test_debug_echo_workflow_var_overrides_config(self) -> None:
-        """Test workflow variable False overrides config True."""
-        mock_config = MagicMock()
-        mock_config.debug_echo_context = True
-
-        handlers = EventHandlers(workflow_config=mock_config)
-        response = HookResponse(decision="allow", context="some context")
-        wf_response = HookResponse(
-            decision="allow",
-            metadata={"workflow_variables": {"debug_echo_context": False}},
-        )
-
-        handlers._apply_debug_echo(response, wf_response)
-
-        assert response.system_message is None
 
     def test_debug_echo_exists_on_base(self) -> None:
         """_apply_debug_echo is defined on EventHandlersBase."""
@@ -2121,75 +1685,3 @@ class TestApplyDebugEcho:
         assert hasattr(EventHandlersBase, "_apply_debug_echo")
         assert callable(EventHandlersBase._apply_debug_echo)
 
-    def test_before_agent_applies_debug_echo(self, mock_dependencies: dict) -> None:
-        """Test handle_before_agent applies debug echo when enabled."""
-        mock_dependencies["workflow_handler"].evaluate.return_value = HookResponse(
-            decision="allow",
-            context="agent context",
-            metadata={"workflow_variables": {"debug_echo_context": True}},
-        )
-
-        handlers = EventHandlers(**mock_dependencies)
-        event = make_event(
-            HookEventType.BEFORE_AGENT,
-            data={"prompt": "Hello"},
-        )
-
-        response = handlers.handle_before_agent(event)
-
-        assert response.system_message is not None
-        assert "[DEBUG additionalContext]" in response.system_message
-
-    def test_stop_applies_debug_echo(self, mock_dependencies: dict) -> None:
-        """Test handle_stop applies debug echo when enabled."""
-        mock_dependencies["workflow_handler"].evaluate.return_value = HookResponse(
-            decision="allow",
-            context="stop context",
-            metadata={"workflow_variables": {"debug_echo_context": True}},
-        )
-
-        handlers = EventHandlers(**mock_dependencies)
-        event = make_event(HookEventType.STOP)
-
-        response = handlers.handle_stop(event)
-
-        assert response.system_message is not None
-        assert "[DEBUG additionalContext]" in response.system_message
-
-    def test_before_tool_applies_debug_echo(self, mock_dependencies: dict) -> None:
-        """Test handle_before_tool applies debug echo when enabled."""
-        mock_dependencies["workflow_handler"].evaluate.return_value = HookResponse(
-            decision="allow",
-            context="tool context",
-            metadata={"workflow_variables": {"debug_echo_context": True}},
-        )
-
-        handlers = EventHandlers(**mock_dependencies)
-        event = make_event(
-            HookEventType.BEFORE_TOOL,
-            data={"tool_name": "Read"},
-        )
-
-        response = handlers.handle_before_tool(event)
-
-        assert response.system_message is not None
-        assert "[DEBUG additionalContext]" in response.system_message
-
-    def test_after_tool_applies_debug_echo(self, mock_dependencies: dict) -> None:
-        """Test handle_after_tool applies debug echo when enabled."""
-        mock_dependencies["workflow_handler"].evaluate.return_value = HookResponse(
-            decision="allow",
-            context="after tool context",
-            metadata={"workflow_variables": {"debug_echo_context": True}},
-        )
-
-        handlers = EventHandlers(**mock_dependencies)
-        event = make_event(
-            HookEventType.AFTER_TOOL,
-            data={"tool_name": "Read"},
-        )
-
-        response = handlers.handle_after_tool(event)
-
-        assert response.system_message is not None
-        assert "[DEBUG additionalContext]" in response.system_message

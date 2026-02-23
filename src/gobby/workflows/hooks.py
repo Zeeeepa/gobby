@@ -159,47 +159,13 @@ class WorkflowHookHandler:
             logger.error(f"Error evaluating rules: {e}", exc_info=True)
             return HookResponse(decision="allow")
 
-    # Backward-compatible alias
-    handle_all_lifecycles = evaluate
-
     def handle(self, event: HookEvent) -> HookResponse:
+        """Handle a hook event by evaluating declarative rules.
+
+        Returns the rule engine response directly so that metadata
+        (including mcp_call effects) is preserved for the caller.
         """
-        Handle a hook event by evaluating rules first, then delegating to the
-        workflow engine for step-based workflows.
-        """
-        if not self._enabled:
-            return HookResponse(decision="allow")
-
-        # Evaluate declarative rules first (primary enforcement mechanism)
-        rule_response = self.evaluate(event)
-        if rule_response.decision != "allow":
-            return rule_response
-
-        # Then run step-based workflow engine (legacy)
-        try:
-            if self._loop and self._loop.is_running():
-                if threading.current_thread() is threading.main_thread():
-                    pass
-                else:
-                    future = asyncio.run_coroutine_threadsafe(
-                        self.engine.handle_event(event), self._loop
-                    )
-                    return future.result(timeout=self.timeout)
-
-            try:
-                asyncio.get_running_loop()
-                logger.warning(
-                    "Could not run workflow engine: Event loop is already running and we are blocking it."
-                )
-                return HookResponse(decision="allow")
-            except RuntimeError:
-                return asyncio.run(self.engine.handle_event(event))
-
-        except concurrent.futures.CancelledError:
-            return self._handle_cancelled(event)
-        except Exception as e:
-            logger.error(f"Error handling workflow hook: {e}", exc_info=True)
-            return HookResponse(decision="allow")
+        return self.evaluate(event)
 
     def activate_workflow(
         self,

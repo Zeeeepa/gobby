@@ -81,7 +81,7 @@ def test_session_start_handler():
     mock_session_manager.register_session.return_value = "sess-123"
 
     mock_workflow_handler = MagicMock()
-    mock_workflow_handler.handle_all_lifecycles.return_value = HookResponse(
+    mock_workflow_handler.handle.return_value = HookResponse(
         decision="allow",
         context="Task context here"
     )

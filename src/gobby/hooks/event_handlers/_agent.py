@@ -95,18 +95,11 @@ class AgentEventHandlerMixin(EventHandlersBase):
             except Exception as e:
                 self.logger.error(f"Failed skill interception: {e}", exc_info=True)
 
-        # Execute lifecycle workflow triggers
-        wf_response = self._evaluate_workflows(event)
-        if wf_response.context:
-            context_parts.append(wf_response.context)
-        if wf_response.decision != "allow":
-            return wf_response
-
         response = HookResponse(
             decision="allow",
             context="\n\n".join(context_parts) if context_parts else None,
         )
-        self._apply_debug_echo(response, wf_response)
+        self._apply_debug_echo(response)
         return response
 
     def _intercept_skill_command(self, prompt: str) -> str | None:
@@ -253,13 +246,6 @@ class AgentEventHandlerMixin(EventHandlersBase):
         else:
             self.logger.debug(f"AFTER_AGENT: cli={cli_source}")
 
-        # Execute lifecycle workflow triggers
-        wf_response = self._evaluate_workflows(event)
-        if wf_response.context:
-            context_parts.append(wf_response.context)
-        if wf_response.decision != "allow":
-            return wf_response
-
         return HookResponse(
             decision="allow",
             context="\n\n".join(context_parts) if context_parts else None,
@@ -298,18 +284,11 @@ class AgentEventHandlerMixin(EventHandlersBase):
             self.logger.debug("STOP: skipping workflow evaluation (plan mode)")
             return HookResponse(decision="allow")
 
-        # Execute lifecycle workflow triggers
-        wf_response = self._evaluate_workflows(event)
-        if wf_response.context:
-            context_parts.append(wf_response.context)
-        if wf_response.decision != "allow":
-            return wf_response
-
         response = HookResponse(
             decision="allow",
             context="\n\n".join(context_parts) if context_parts else None,
         )
-        self._apply_debug_echo(response, wf_response)
+        self._apply_debug_echo(response)
         return response
 
     def handle_pre_compact(self, event: HookEvent) -> HookResponse:
@@ -336,8 +315,7 @@ class AgentEventHandlerMixin(EventHandlersBase):
         else:
             self.logger.debug(f"PRE_COMPACT ({trigger})")
 
-        # Execute lifecycle workflows
-        return self._evaluate_workflows(event)
+        return HookResponse(decision="allow")
 
     def handle_subagent_start(self, event: HookEvent) -> HookResponse:
         """Handle SUBAGENT_START event."""
