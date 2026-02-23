@@ -187,6 +187,7 @@
 .workflows-filter-chips {
   display: flex;
   gap: 6px;
+  flex: 1;
 }
 
 .workflows-filter-chip {

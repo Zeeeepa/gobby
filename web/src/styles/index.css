@@ -1908,6 +1908,15 @@ body {
   gap: 0.375rem;
 }
 
+.terminals-action-btn--spinning {
+  animation: toolbar-spin 0.6s ease;
+}
+
+@keyframes toolbar-spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
 .conversation-picker-search {
   padding: 0.5rem;
   border-bottom: 1px solid var(--border);
@@ -2897,7 +2906,7 @@ details:not([open]) > .session-metadata-toggle .session-metadata-chevron {
 .terminals-sidebar {
   width: var(--sidebar-width);
   min-width: var(--sidebar-width);
-  background: var(--bg-secondary);
+  background: var(--bg-tertiary);
   border-right: 1px solid var(--border);
   display: flex;
   flex-direction: column;
@@ -2920,7 +2929,7 @@ details:not([open]) > .session-metadata-toggle .session-metadata-chevron {
 }
 
 .terminals-sidebar-title {
-  font-size: 0.75rem;
+  font-size: calc(var(--font-size-base) * 0.85);
   font-weight: 600;
   color: var(--text-primary);
 }
@@ -3304,6 +3313,23 @@ details:not([open]) > .session-metadata-toggle .session-metadata-chevron {
 }
 
 .terminals-detach-btn:hover {
+  background: var(--bg-secondary);
+  color: var(--text-primary);
+  border-color: var(--text-muted);
+}
+
+.terminals-redraw-btn {
+  padding: 0.25rem 0.625rem;
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: 0.375rem;
+  color: var(--text-secondary);
+  font-size: 0.75rem;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.terminals-redraw-btn:hover {
   background: var(--bg-secondary);
   color: var(--text-primary);
   border-color: var(--text-muted);
@@ -11340,7 +11366,7 @@ details:not([open]) > .session-metadata-toggle .session-metadata-chevron {
   display: flex;
   flex-direction: column;
   gap: 6px;
-  padding: 12px 16px;
+  padding: 16px;
   width: 100%;
   background: none;
   border: none;
@@ -11361,9 +11387,9 @@ details:not([open]) > .session-metadata-toggle .session-metadata-chevron {
 
 .agent-def-name {
   font-weight: 600;
-  font-size: 14px;
+  font-size: 13px;
   color: var(--text-primary);
-  font-family: var(--font-mono);
+  font-family: var(--font-sans);
 }
 
 .agent-def-chevron {

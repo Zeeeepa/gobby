@@ -205,7 +205,7 @@ interface TasksPageProps {
 }
 
 export function TasksPage({ projectFilter }: TasksPageProps = {}) {
-  const { tasks, total, isLoading, filters, setFilters, refreshTasks, getTask, createTask, updateTask, closeTask, reopenTask, getDependencies, getSubtasks } = useTasks()
+  const { tasks, total, stats, isLoading, filters, setFilters, refreshTasks, getTask, createTask, updateTask, closeTask, reopenTask, getDependencies, getSubtasks } = useTasks()
 
   // Sync global project filter into the hook's server-side filtering
   useEffect(() => {
@@ -366,7 +366,7 @@ export function TasksPage({ projectFilter }: TasksPageProps = {}) {
       {/* Overview cards */}
       <TaskOverview
         tasks={scopedTasks}
-        stats={localStats}
+        stats={stats}
         activeFilter={filters.status}
         onFilterStatus={status => setFilters(f => ({ ...f, status }))}
       />

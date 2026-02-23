@@ -838,10 +838,8 @@ export function AgentsTab({ searchText, sourceFilter, devMode, showCreateForm, o
                     onClick={() => setExpandedName(isExpanded ? null : d.name)}
                   >
                     <div className="agent-def-header-top">
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                        <span className={`agent-def-name${item.deleted_at ? ' agent-def-name--deleted' : ''}`}>{d.name}</span>
-                        <span className="workflows-card-type workflows-card-type--agent">agent</span>
-                      </div>
+                      <span className={`agent-def-name${item.deleted_at ? ' agent-def-name--deleted' : ''}`}>{d.name}</span>
+                      <span className="workflows-card-type workflows-card-type--agent">agent</span>
                     </div>
                     {d.description && (
                       <div className="agent-def-desc">

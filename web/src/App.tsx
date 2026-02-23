@@ -426,6 +426,7 @@ export default function App() {
             onSelectSession: handleSelectConversation,
             onDeleteSession: handleDeleteConversation,
             onRenameSession: sessionsHook.renameSession,
+            onRefresh: sessionsHook.refresh,
             agents,
             onNavigateToAgent: handleNavigateToAgent,
           }}
@@ -463,6 +464,7 @@ export default function App() {
           createSession={tmux.createSession}
           killSession={tmux.killSession}
           refreshSessions={tmux.refreshSessions}
+          refreshTerminal={tmux.refreshTerminal}
           dismissEndedSession={tmux.dismissEndedSession}
           sendInput={tmux.sendInput}
           resizeTerminal={tmux.resizeTerminal}

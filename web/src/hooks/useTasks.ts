@@ -131,7 +131,7 @@ export function useTasks() {
   const [total, setTotal] = useState(0)
   const [stats, setStats] = useState<TaskStats>({})
   const [filters, setFilters] = useState<TaskFilters>({
-    status: null,
+    status: 'open',
     priority: null,
     taskType: null,
     assignee: null,
