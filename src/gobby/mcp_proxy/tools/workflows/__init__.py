@@ -433,16 +433,17 @@ def create_workflows_registry(
 
     @registry.tool(
         name="list_rules",
-        description="List standalone rules. Supports filtering by event, group, and enabled status.",
+        description="List standalone rules. Supports filtering by event, group, and enabled status. Use brief=True for minimal output (name, event, group, enabled only).",
     )
     def _list_rules(
         event: str | None = None,
         group: str | None = None,
         enabled: bool | None = None,
+        brief: bool = False,
     ) -> dict[str, Any]:
         if _def_manager is None:
             return {"error": "Rule tools require database connection"}
-        return list_rules(_def_manager, event, group, enabled)
+        return list_rules(_def_manager, event, group, enabled, brief=brief)
 
     @registry.tool(
         name="get_rule",

@@ -18,6 +18,17 @@ from gobby.workflows.definitions import RuleDefinitionBody
 logger = logging.getLogger(__name__)
 
 
+def _rule_brief(row: WorkflowDefinitionRow) -> dict[str, Any]:
+    """Build a minimal dict for a rule row — just enough to identify and filter."""
+    body = json.loads(row.definition_json)
+    return {
+        "name": row.name,
+        "event": body.get("event"),
+        "group": body.get("group"),
+        "enabled": row.enabled,
+    }
+
+
 def _rule_summary(row: WorkflowDefinitionRow) -> dict[str, Any]:
     """Build a summary dict for a rule row, including parsed definition fields."""
     body = json.loads(row.definition_json)
@@ -60,6 +71,7 @@ def list_rules(
     event: str | None = None,
     group: str | None = None,
     enabled: bool | None = None,
+    brief: bool = False,
 ) -> dict[str, Any]:
     """
     List rules with optional filters.
@@ -72,6 +84,7 @@ def list_rules(
         event: Filter by event type (e.g. 'before_tool', 'stop')
         group: Filter by group name
         enabled: Filter by enabled status
+        brief: If True, return minimal fields (name, event, group, enabled)
 
     Returns:
         Dict with success, rules list, and count
@@ -83,7 +96,8 @@ def list_rules(
     else:
         rows = def_manager.list_all(workflow_type="rule", enabled=enabled)
 
-    rules = [_rule_summary(r) for r in rows]
+    formatter = _rule_brief if brief else _rule_summary
+    rules = [formatter(r) for r in rows]
     return {"success": True, "rules": rules, "count": len(rules)}
 
 
