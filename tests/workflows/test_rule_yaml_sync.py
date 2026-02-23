@@ -287,8 +287,8 @@ rules:
         body2 = json.loads(rows[0].definition_json)
         assert body2["effect"]["reason"] == "Version 2."
 
-    def test_soft_deleted_rule_not_resynced(self, db, manager, rules_dir) -> None:
-        """A rule that was soft-deleted should not be re-synced."""
+    def test_soft_deleted_template_restored_on_resync(self, db, manager, rules_dir) -> None:
+        """A soft-deleted template rule should be restored on re-sync."""
         (rules_dir / "deletable.yaml").write_text(
             """
 rules:
@@ -304,9 +304,20 @@ rules:
         rows = manager.list_all(workflow_type="rule")
         manager.delete(rows[0].id)
 
+        # Verify it's soft-deleted
+        deleted = manager.get_by_name("delete-me", include_deleted=True, include_templates=True)
+        assert deleted is not None
+        assert deleted.deleted_at is not None
+
         result2 = sync_bundled_rules(db, rules_dir)
-        assert result2["skipped"] == 1
-        assert result2["synced"] == 0
+        assert result2["updated"] == 1
+        assert result2["skipped"] == 0
+
+        # Verify it's restored (disabled)
+        restored = manager.get_by_name("delete-me", include_deleted=False, include_templates=True)
+        assert restored is not None
+        assert restored.deleted_at is None
+        assert restored.enabled is False
 
 
 class TestInvalidRuleYaml:

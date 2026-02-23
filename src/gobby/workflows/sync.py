@@ -124,13 +124,34 @@ def sync_bundled_workflows(db: DatabaseProtocol) -> dict[str, Any]:
             existing = manager.get_by_name(name, include_deleted=True, include_templates=True)
 
             if existing is not None:
-                # If user soft-deleted it, respect their intent — skip sync
+                # If soft-deleted template, restore it so templates are always available
                 if existing.deleted_at is not None:
-                    logger.debug(
-                        "Workflow is soft-deleted, skipping sync",
-                        extra={"workflow": name},
-                    )
-                    result["skipped"] += 1
+                    if existing.source == "template":
+                        manager.restore(existing.id)
+                        manager.update(
+                            existing.id,
+                            name=name,
+                            definition_json=definition_json,
+                            workflow_type=workflow_type,
+                            project_id=None,
+                            description=description,
+                            version=version,
+                            enabled=False,
+                            priority=priority,
+                            sources=sources_list,
+                            source="template",
+                        )
+                        logger.info(
+                            "Restored soft-deleted bundled workflow",
+                            extra={"workflow": name},
+                        )
+                        result["updated"] += 1
+                    else:
+                        logger.debug(
+                            "Non-template workflow is soft-deleted, skipping sync",
+                            extra={"workflow": name},
+                        )
+                        result["skipped"] += 1
                     continue
 
                 if existing.source == "template":
@@ -424,9 +445,30 @@ def _sync_single_rule(
     existing = manager.get_by_name(rule_name, include_deleted=True, include_templates=True)
 
     if existing is not None:
-        # Respect soft-delete
+        # Restore soft-deleted templates so they're always available
         if existing.deleted_at is not None:
-            result["skipped"] += 1
+            if existing.source == "template":
+                manager.restore(existing.id)
+                manager.update(
+                    existing.id,
+                    name=rule_name,
+                    definition_json=definition_json,
+                    workflow_type="rule",
+                    project_id=None,
+                    description=description,
+                    enabled=False,
+                    priority=priority,
+                    sources=file_sources,
+                    tags=file_tags,
+                    source="template",
+                )
+                logger.info(
+                    "Restored soft-deleted bundled rule",
+                    extra={"rule": rule_name},
+                )
+                result["updated"] += 1
+            else:
+                result["skipped"] += 1
             return
 
         if existing.source == "template":
@@ -456,14 +498,34 @@ def _sync_single_rule(
             # update it if the definition has changed on disk.
             template_row = manager.db.fetchone(
                 "SELECT * FROM workflow_definitions "
-                "WHERE name = ? AND source = 'template' AND deleted_at IS NULL",
+                "WHERE name = ? AND source = 'template'",
                 (rule_name,),
             )
             if template_row:
                 from gobby.storage.workflow_definitions import WorkflowDefinitionRow
 
                 template = WorkflowDefinitionRow.from_row(template_row)
-                if template.definition_json != definition_json:
+                if template.deleted_at:
+                    manager.restore(template.id)
+                    manager.update(
+                        template.id,
+                        name=rule_name,
+                        definition_json=definition_json,
+                        workflow_type="rule",
+                        project_id=None,
+                        description=description,
+                        enabled=False,
+                        priority=priority,
+                        sources=file_sources,
+                        tags=file_tags,
+                        source="template",
+                    )
+                    logger.info(
+                        "Restored soft-deleted template behind installed copy",
+                        extra={"rule": rule_name},
+                    )
+                    result["updated"] += 1
+                elif template.definition_json != definition_json:
                     manager.update(
                         template.id,
                         name=rule_name,
@@ -484,7 +546,24 @@ def _sync_single_rule(
                 else:
                     result["skipped"] += 1
             else:
-                result["skipped"] += 1
+                # No template row exists — create one
+                manager.create(
+                    name=rule_name,
+                    definition_json=definition_json,
+                    workflow_type="rule",
+                    project_id=None,
+                    description=description,
+                    enabled=False,
+                    priority=priority,
+                    sources=file_sources,
+                    tags=file_tags,
+                    source="template",
+                )
+                logger.info(
+                    "Created missing template row behind installed copy",
+                    extra={"rule": rule_name},
+                )
+                result["synced"] += 1
         return
 
     # Create new rule

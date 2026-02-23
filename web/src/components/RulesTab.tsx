@@ -446,6 +446,9 @@ function RuleCard({ rule, devMode, expanded, detail, detailLoading, onToggle, on
             <div className="workflows-card-actions">
               {devMode ? (
                 <>
+                  {isTemplate && (
+                    <button type="button" className="workflows-action-btn" onClick={e => { e.stopPropagation(); onInstall() }} title="Create an installed copy">Install</button>
+                  )}
                   <button type="button" className="workflows-action-btn" onClick={e => { e.stopPropagation(); onYamlEdit() }} title="Edit as YAML">YAML</button>
                   <button type="button" className="workflows-action-icon" onClick={e => { e.stopPropagation(); onDuplicate() }} title="Duplicate" aria-label="Duplicate rule">
                     <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><rect x="5.5" y="5.5" width="9" height="9" rx="1.5" /><path d="M10.5 5.5V2.5a1 1 0 0 0-1-1h-7a1 1 0 0 0-1 1v7a1 1 0 0 0 1 1h3" /></svg>
