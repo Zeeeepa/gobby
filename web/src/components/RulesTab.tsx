@@ -276,15 +276,12 @@ export function RulesTab({ searchText, sourceFilter, devMode, showCreateModal, o
         method: 'POST',
       })
       if (response.ok) {
-        // Rules hook refreshes via fetchRules which comes from the /api/rules endpoint
-        // We need to trigger a page-level refresh - calling fetchRules won't see workflow_definitions changes
-        // since rules come from the rule engine. Reload the rules.
-        window.location.reload()
+        await fetchRules()
       }
     } catch (e) {
       console.error('Failed to install all template rules:', e)
     }
-  }, [])
+  }, [fetchRules])
 
   const clearFilters = useCallback(() => {
     setEventFilter(null)
