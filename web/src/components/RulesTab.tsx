@@ -1,74 +1,8 @@
 import { useState, useCallback, useMemo, useEffect, useRef } from 'react'
-import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter'
-import { oneDark } from 'react-syntax-highlighter/dist/esm/styles/prism'
 import * as yaml from 'js-yaml'
 import { useRules } from '../hooks/useRules'
 import type { RuleSummary, RuleDetail } from '../hooks/useRules'
 import { YamlEditorModal } from './WorkflowsPage'
-
-const codeTheme = {
-  ...oneDark,
-  'pre[class*="language-"]': {
-    ...oneDark['pre[class*="language-"]'],
-    background: '#0d0d0d',
-    margin: '0',
-    padding: '0.75rem',
-    fontSize: '11px',
-  },
-  'code[class*="language-"]': {
-    ...oneDark['code[class*="language-"]'],
-    background: 'transparent',
-    fontFamily: "'SF Mono', 'Fira Code', 'JetBrains Mono', monospace",
-  },
-}
-
-function RuleCodeBlock({ language, code }: { language: string; code: string }) {
-  const [copied, setCopied] = useState(false)
-  const timeoutRef = useRef<number | null>(null)
-
-  useEffect(() => {
-    return () => { if (timeoutRef.current) clearTimeout(timeoutRef.current) }
-  }, [])
-
-  const handleCopy = useCallback(async () => {
-    try {
-      await navigator.clipboard.writeText(code)
-      setCopied(true)
-      if (timeoutRef.current) clearTimeout(timeoutRef.current)
-      timeoutRef.current = window.setTimeout(() => setCopied(false), 2000)
-    } catch { /* ignore */ }
-  }, [code])
-
-  return (
-    <div style={{ border: '1px solid var(--border)', borderRadius: 6, overflow: 'hidden' }}>
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: 'var(--bg-tertiary)', padding: '4px 10px', fontSize: 10 }}>
-        <span style={{ color: 'var(--text-muted)', fontFamily: 'monospace' }}>{language}</span>
-        <button
-          type="button"
-          onClick={handleCopy}
-          style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-secondary)', padding: '2px 4px', display: 'flex', alignItems: 'center' }}
-          title="Copy"
-        >
-          {copied ? (
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12" /></svg>
-          ) : (
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2" /><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" /></svg>
-          )}
-        </button>
-      </div>
-      <SyntaxHighlighter
-        style={codeTheme}
-        language={language}
-        PreTag="div"
-        showLineNumbers
-        lineNumberStyle={{ minWidth: '2em', paddingRight: '0.75em', textAlign: 'right', userSelect: 'none', color: '#555' }}
-        customStyle={{ margin: 0, borderRadius: 0 }}
-      >
-        {code}
-      </SyntaxHighlighter>
-    </div>
-  )
-}
 
 interface RulesTabProps {
   searchText: string
@@ -106,9 +40,6 @@ export function RulesTab({ searchText, sourceFilter, devMode, showCreateModal, o
   }, [refreshKey, fetchRules])
 
   const [eventFilter, setEventFilter] = useState<string | null>(null)
-  const [expandedRule, setExpandedRule] = useState<string | null>(null)
-  const [ruleDetail, setRuleDetail] = useState<RuleDetail | null>(null)
-  const [detailLoading, setDetailLoading] = useState(false)
 
   // YAML editor state
   const [yamlRule, setYamlRule] = useState<RuleSummary | null>(null)
@@ -143,19 +74,6 @@ export function RulesTab({ searchText, sourceFilter, devMode, showCreateModal, o
 
     return result
   }, [rules, eventFilter, searchText, sourceFilter])
-
-  const handleExpandRule = useCallback(async (rule: RuleSummary) => {
-    if (expandedRule === rule.name) {
-      setExpandedRule(null)
-      setRuleDetail(null)
-      return
-    }
-    setExpandedRule(rule.name)
-    setDetailLoading(true)
-    const detail = await fetchRuleDetail(rule.name)
-    setRuleDetail(detail)
-    setDetailLoading(false)
-  }, [expandedRule, fetchRuleDetail])
 
   const handleToggle = useCallback(async (rule: RuleSummary) => {
     await toggleRule(rule.name, !rule.enabled)
@@ -344,11 +262,7 @@ export function RulesTab({ searchText, sourceFilter, devMode, showCreateModal, o
                 key={rule.id}
                 rule={rule}
                 devMode={devMode}
-                expanded={expandedRule === rule.name}
-                detail={expandedRule === rule.name ? ruleDetail : null}
-                detailLoading={expandedRule === rule.name && detailLoading}
                 onToggle={() => handleToggle(rule)}
-                onExpand={() => handleExpandRule(rule)}
                 onDelete={() => handleDelete(rule)}
                 onYamlEdit={() => handleYamlEdit(rule)}
                 onDuplicate={() => handleDuplicate(rule)}
@@ -395,14 +309,10 @@ function getEffectType(effect: Record<string, unknown> | null): string | null {
   return null
 }
 
-function RuleCard({ rule, devMode, expanded, detail, detailLoading, onToggle, onExpand, onDelete, onYamlEdit, onDuplicate, onDownload, onInstall }: {
+function RuleCard({ rule, devMode, onToggle, onDelete, onYamlEdit, onDuplicate, onDownload, onInstall }: {
   rule: RuleSummary
   devMode: boolean
-  expanded: boolean
-  detail: RuleDetail | null
-  detailLoading: boolean
   onToggle: () => void
-  onExpand: () => void
   onDelete: () => void
   onYamlEdit: () => void
   onDuplicate: () => void
@@ -414,8 +324,8 @@ function RuleCard({ rule, devMode, expanded, detail, detailLoading, onToggle, on
   const isDeleted = !!(rule as RuleSummary & { deleted_at?: string | null }).deleted_at
 
   return (
-    <div className={`rules-card ${expanded ? 'rules-card--expanded' : ''}${isTemplate ? ' workflows-card--template' : ''}${isDeleted ? ' rules-card--deleted' : ''}`}>
-      <div className="rules-card-main" onClick={onExpand}>
+    <div className={`rules-card${isTemplate ? ' workflows-card--template' : ''}${isDeleted ? ' rules-card--deleted' : ''}`}>
+      <div className="rules-card-main">
         <div className="rules-card-header">
           <span className="rules-card-name">{rule.name}</span>
           <span className="workflows-card-type workflows-card-type--rule">rule</span>
@@ -500,36 +410,6 @@ function RuleCard({ rule, devMode, expanded, detail, detailLoading, onToggle, on
         )}
       </div>
 
-      {expanded && (
-        <div className="rules-card-detail">
-          {detailLoading ? (
-            <div className="rules-detail-loading">Loading...</div>
-          ) : detail ? (
-            <>
-              {detail.when && (
-                <div className="rules-detail-section">
-                  <span className="rules-detail-label">When</span>
-                  <RuleCodeBlock language="python" code={detail.when} />
-                </div>
-              )}
-              {detail.effect && (
-                <div className="rules-detail-section">
-                  <span className="rules-detail-label">Effect</span>
-                  <RuleCodeBlock language="json" code={JSON.stringify(detail.effect, null, 2)} />
-                </div>
-              )}
-              {detail.match && (
-                <div className="rules-detail-section">
-                  <span className="rules-detail-label">Match</span>
-                  <RuleCodeBlock language="json" code={JSON.stringify(detail.match, null, 2)} />
-                </div>
-              )}
-            </>
-          ) : (
-            <div className="rules-detail-loading">Failed to load details</div>
-          )}
-        </div>
-      )}
     </div>
   )
 }

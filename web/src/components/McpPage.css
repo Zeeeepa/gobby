@@ -20,7 +20,7 @@
   color: #fff;
   padding: 10px 20px;
   border-radius: 8px;
-  font-size: 13px;
+  font-size: calc(var(--font-size-base) * 0.75);
   z-index: 1000;
   cursor: pointer;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
@@ -42,7 +42,7 @@
 }
 
 .mcp-toolbar-title {
-  font-size: 18px;
+  font-size: var(--font-size-base);
   font-weight: 600;
   margin: 0;
 }
@@ -55,7 +55,7 @@
 
 .mcp-search {
   padding: 6px 10px;
-  font-size: 13px;
+  font-size: calc(var(--font-size-base) * 0.75);
   border: 1px solid var(--border-color);
   border-radius: 6px;
   background: var(--bg-secondary);
@@ -74,7 +74,7 @@
   border-radius: 6px;
   background: var(--bg-secondary);
   color: var(--text-primary);
-  font-size: 12px;
+  font-size: calc(var(--font-size-base) * 0.75);
   cursor: pointer;
   transition: background 0.15s;
 }
@@ -89,7 +89,7 @@
   border-radius: 6px;
   background: var(--accent-color);
   color: #fff;
-  font-size: 12px;
+  font-size: calc(var(--font-size-base) * 0.75);
   font-weight: 500;
   cursor: pointer;
   transition: opacity 0.15s;
@@ -131,13 +131,13 @@
 }
 
 .mcp-overview-count {
-  font-size: 24px;
+  font-size: calc(var(--font-size-base) * 1.25);
   font-weight: 600;
   font-family: var(--font-mono);
 }
 
 .mcp-overview-label {
-  font-size: 11px;
+  font-size: calc(var(--font-size-base) * 0.625);
   color: var(--text-secondary);
   text-transform: uppercase;
   letter-spacing: 0.5px;
@@ -166,7 +166,7 @@
   border-radius: 12px;
   background: var(--bg-secondary);
   color: var(--text-secondary);
-  font-size: 11px;
+  font-size: calc(var(--font-size-base) * 0.625);
   font-weight: 500;
   text-transform: uppercase;
   cursor: pointer;
@@ -196,7 +196,7 @@
   justify-content: center;
   padding: 40px;
   color: var(--text-secondary);
-  font-size: 14px;
+  font-size: calc(var(--font-size-base) * 0.875);
 }
 
 .mcp-empty {
@@ -205,7 +205,7 @@
   justify-content: center;
   padding: 40px;
   color: var(--text-secondary);
-  font-size: 13px;
+  font-size: calc(var(--font-size-base) * 0.75);
 }
 
 /* Server list */
@@ -252,13 +252,13 @@
 
 .mcp-server-name {
   font-weight: 500;
-  font-size: 14px;
+  font-size: calc(var(--font-size-base) * 0.875);
   white-space: nowrap;
 }
 
 /* Transport badges */
 .mcp-transport-badge {
-  font-size: 10px;
+  font-size: calc(var(--font-size-base) * 0.625);
   padding: 2px 8px;
   border-radius: 10px;
   font-weight: 500;
@@ -274,7 +274,7 @@
 
 /* State badges */
 .mcp-state-badge {
-  font-size: 10px;
+  font-size: calc(var(--font-size-base) * 0.625);
   padding: 2px 8px;
   border-radius: 10px;
   font-weight: 500;
@@ -287,7 +287,7 @@
 .mcp-state-badge--unknown { background: rgba(115, 115, 115, 0.12); color: #a3a3a3; }
 
 .mcp-server-tool-count {
-  font-size: 12px;
+  font-size: calc(var(--font-size-base) * 0.75);
   color: var(--text-secondary);
   margin-left: auto;
   white-space: nowrap;
@@ -349,14 +349,14 @@
 
 .mcp-tool-name {
   font-family: var(--font-mono);
-  font-size: 13px;
+  font-size: calc(var(--font-size-base) * 0.8125);
   font-weight: 500;
   white-space: nowrap;
 }
 
 .mcp-tool-brief {
   color: var(--text-secondary);
-  font-size: 12px;
+  font-size: calc(var(--font-size-base) * 0.75);
   flex: 1;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -419,7 +419,7 @@
 
 .mcp-detail-header h3 {
   margin: 0;
-  font-size: 16px;
+  font-size: var(--font-size-base);
   font-weight: 600;
   font-family: var(--font-mono);
   word-break: break-all;
@@ -444,16 +444,16 @@
   grid-template-columns: auto 1fr;
   gap: 6px 16px;
   margin-bottom: 20px;
-  font-size: 13px;
+  font-size: calc(var(--font-size-base) * 0.75);
 }
 
 .mcp-detail-label {
   color: var(--text-secondary);
-  font-size: 12px;
+  font-size: calc(var(--font-size-base) * 0.75);
 }
 
 .mcp-detail-value {
-  font-size: 13px;
+  font-size: calc(var(--font-size-base) * 0.75);
 }
 
 .mcp-detail-section {
@@ -461,7 +461,7 @@
 }
 
 .mcp-detail-section h4 {
-  font-size: 13px;
+  font-size: calc(var(--font-size-base) * 0.75);
   font-weight: 600;
   margin: 0 0 8px;
 }
@@ -472,7 +472,7 @@
   border-radius: 6px;
   padding: 12px;
   font-family: var(--font-mono);
-  font-size: 12px;
+  font-size: calc(var(--font-size-base) * 0.75);
   overflow-x: auto;
   white-space: pre-wrap;
   word-break: break-all;
@@ -485,7 +485,7 @@
   min-height: 80px;
   padding: 8px;
   font-family: var(--font-mono);
-  font-size: 12px;
+  font-size: calc(var(--font-size-base) * 0.75);
   border: 1px solid var(--border-color);
   border-radius: 6px;
   background: var(--bg-secondary);
@@ -528,7 +528,7 @@
   border-radius: 6px;
   padding: 12px;
   font-family: var(--font-mono);
-  font-size: 12px;
+  font-size: calc(var(--font-size-base) * 0.75);
   overflow-x: auto;
   white-space: pre-wrap;
   word-break: break-all;
@@ -565,7 +565,7 @@
 
 .mcp-modal h3 {
   margin: 0 0 16px;
-  font-size: 16px;
+  font-size: var(--font-size-base);
   font-weight: 600;
 }
 
@@ -575,7 +575,7 @@
 
 .mcp-form-label {
   display: block;
-  font-size: 12px;
+  font-size: calc(var(--font-size-base) * 0.75);
   font-weight: 500;
   margin-bottom: 4px;
   color: var(--text-secondary);
@@ -585,7 +585,7 @@
 .mcp-form-select {
   width: 100%;
   padding: 6px 8px;
-  font-size: 13px;
+  font-size: calc(var(--font-size-base) * 0.75);
   border: 1px solid var(--border-color);
   border-radius: 4px;
   background: var(--bg-secondary);
@@ -622,7 +622,7 @@
   border-radius: 6px;
   background: var(--bg-secondary);
   color: var(--text-primary);
-  font-size: 12px;
+  font-size: calc(var(--font-size-base) * 0.75);
   cursor: pointer;
   transition: background 0.15s;
 }
@@ -659,7 +659,7 @@
   border: none;
   background: none;
   color: var(--text-secondary);
-  font-size: 12px;
+  font-size: calc(var(--font-size-base) * 0.75);
   font-weight: 500;
   cursor: pointer;
   border-bottom: 2px solid transparent;

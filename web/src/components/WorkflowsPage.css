@@ -26,7 +26,7 @@
 }
 
 .workflows-toolbar-title {
-  font-size: 18px;
+  font-size: var(--font-size-base);
   font-weight: 600;
   margin: 0;
 }
@@ -34,7 +34,7 @@
 .workflows-toolbar-count {
   background: var(--bg-tertiary);
   color: var(--text-secondary);
-  font-size: 11px;
+  font-size: calc(var(--font-size-base) * 0.625);
   padding: 2px 8px;
   border-radius: 10px;
 }
@@ -47,7 +47,7 @@
 
 .workflows-search {
   padding: 6px 10px;
-  font-size: 13px;
+  font-size: calc(var(--font-size-base) * 0.75);
   border: 1px solid var(--border);
   border-radius: 6px;
   background: var(--bg-secondary);
@@ -66,7 +66,7 @@
   border-radius: 6px;
   background: var(--bg-secondary);
   color: var(--text-primary);
-  font-size: 12px;
+  font-size: calc(var(--font-size-base) * 0.75);
   cursor: pointer;
   transition: background 0.15s;
 }
@@ -90,7 +90,7 @@
   border-radius: 6px;
   background: var(--accent);
   color: #fff;
-  font-size: 12px;
+  font-size: calc(var(--font-size-base) * 0.75);
   font-weight: 500;
   cursor: pointer;
   transition: background 0.15s;
@@ -126,7 +126,7 @@
   border-radius: 6px;
   background: transparent;
   color: var(--text-primary);
-  font-size: 13px;
+  font-size: calc(var(--font-size-base) * 0.75);
   cursor: pointer;
   text-align: left;
   transition: background 0.15s;
@@ -163,13 +163,13 @@
 }
 
 .workflows-overview-value {
-  font-size: 24px;
+  font-size: calc(var(--font-size-base) * 1.25);
   font-weight: 700;
   color: var(--text-primary);
 }
 
 .workflows-overview-label {
-  font-size: 11px;
+  font-size: calc(var(--font-size-base) * 0.625);
   color: var(--text-secondary);
   text-transform: uppercase;
   letter-spacing: 0.5px;
@@ -196,7 +196,7 @@
   border-radius: 12px;
   background: transparent;
   color: var(--text-secondary);
-  font-size: 11px;
+  font-size: calc(var(--font-size-base) * 0.625);
   cursor: pointer;
   transition: all 0.15s;
 }
@@ -223,7 +223,7 @@
   padding: 40px;
   text-align: center;
   color: var(--text-secondary);
-  font-size: 14px;
+  font-size: calc(var(--font-size-base) * 0.875);
 }
 
 /* Card grid */
@@ -271,13 +271,13 @@
 }
 
 .workflows-card-name {
-  font-size: 14px;
+  font-size: calc(var(--font-size-base) * 0.875);
   font-weight: 600;
   color: var(--text-primary);
 }
 
 .workflows-card-type {
-  font-size: 10px;
+  font-size: calc(var(--font-size-base) * 0.625);
   padding: 2px 8px;
   border-radius: 10px;
   font-weight: 500;
@@ -306,7 +306,7 @@
 }
 
 .workflows-card-desc {
-  font-size: 12px;
+  font-size: calc(var(--font-size-base) * 0.75);
   color: var(--text-secondary);
   margin-bottom: 10px;
   line-height: 1.4;
@@ -325,7 +325,7 @@
 }
 
 .workflows-card-badge {
-  font-size: 10px;
+  font-size: calc(var(--font-size-base) * 0.625);
   padding: 2px 6px;
   border-radius: 4px;
   background: var(--bg-tertiary);
@@ -356,7 +356,7 @@
   align-items: center;
   gap: 6px;
   cursor: pointer;
-  font-size: 11px;
+  font-size: calc(var(--font-size-base) * 0.625);
   color: var(--text-secondary);
 }
 
@@ -399,7 +399,7 @@
   border-radius: 4px;
   background: transparent;
   color: var(--text-secondary);
-  font-size: 11px;
+  font-size: calc(var(--font-size-base) * 0.625);
   cursor: pointer;
   transition: all 0.15s;
 }
@@ -422,7 +422,7 @@
 
 .workflows-source-select {
   padding: 6px 10px;
-  font-size: 13px;
+  font-size: calc(var(--font-size-base) * 0.75);
   border: 1px solid var(--border);
   border-radius: 6px;
   background: var(--bg-secondary);
@@ -627,7 +627,7 @@
   border: none;
   background: transparent;
   color: var(--text-secondary);
-  font-size: 13px;
+  font-size: calc(var(--font-size-base) * 0.75);
   font-weight: 500;
   cursor: pointer;
   border-bottom: 2px solid transparent;
@@ -655,7 +655,7 @@
   border-radius: 9px;
   background: var(--bg-tertiary);
   color: var(--text-secondary);
-  font-size: 10px;
+  font-size: calc(var(--font-size-base) * 0.625);
   font-weight: 600;
 }
 
@@ -706,10 +706,6 @@
   border-color: var(--text-muted);
 }
 
-.rules-card--expanded {
-  border-color: var(--accent);
-}
-
 .rules-card--deleted {
   opacity: 0.5;
   border-style: dashed;
@@ -724,7 +720,6 @@
 }
 
 .rules-card-main {
-  cursor: pointer;
 }
 
 .rules-card-header {
@@ -735,7 +730,7 @@
 }
 
 .rules-card-name {
-  font-size: 13px;
+  font-size: calc(var(--font-size-base) * 0.875);
   font-weight: 600;
   color: var(--text-primary);
 }
@@ -747,7 +742,7 @@
 }
 
 .rules-card-event {
-  font-size: 10px;
+  font-size: calc(var(--font-size-base) * 0.625);
   padding: 2px 8px;
   border-radius: 10px;
   font-weight: 500;
@@ -756,7 +751,7 @@
 }
 
 .rules-card-priority {
-  font-size: 10px;
+  font-size: calc(var(--font-size-base) * 0.625);
   padding: 2px 6px;
   border-radius: 4px;
   background: #2a2a1a;
@@ -764,7 +759,7 @@
 }
 
 .rules-card-source {
-  font-size: 10px;
+  font-size: calc(var(--font-size-base) * 0.625);
   padding: 2px 6px;
   border-radius: 4px;
   background: var(--bg-tertiary);
@@ -772,7 +767,7 @@
 }
 
 .rules-card-desc {
-  font-size: 12px;
+  font-size: calc(var(--font-size-base) * 0.75);
   color: var(--text-secondary);
   line-height: 1.4;
   margin-bottom: 4px;
@@ -783,7 +778,7 @@
   align-items: center;
   gap: 6px;
   cursor: pointer;
-  font-size: 11px;
+  font-size: calc(var(--font-size-base) * 0.625);
   color: var(--text-secondary);
   margin-left: auto;
   padding: 0 8px;
@@ -798,7 +793,7 @@
 }
 
 .rules-card-tag {
-  font-size: 10px;
+  font-size: calc(var(--font-size-base) * 0.625);
   padding: 1px 6px;
   border-radius: 3px;
   background: var(--bg-tertiary);
@@ -806,7 +801,7 @@
 }
 
 .rules-card-effect {
-  font-size: 10px;
+  font-size: calc(var(--font-size-base) * 0.625);
   padding: 2px 8px;
   border-radius: 10px;
   font-weight: 500;
@@ -842,46 +837,3 @@
   margin-top: 10px;
 }
 
-/* Expanded detail */
-.rules-card-detail {
-  margin-top: 10px;
-  padding-top: 10px;
-  border-top: 1px solid var(--border);
-}
-
-.rules-detail-section {
-  margin-bottom: 10px;
-}
-
-.rules-detail-section:last-child {
-  margin-bottom: 0;
-}
-
-.rules-detail-label {
-  display: block;
-  font-size: 10px;
-  color: var(--text-muted);
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-  margin-bottom: 4px;
-}
-
-.rules-detail-code {
-  font-size: 11px;
-  font-family: monospace;
-  color: var(--text-secondary);
-  background: var(--bg-tertiary);
-  padding: 8px 10px;
-  border-radius: 4px;
-  overflow-x: auto;
-  margin: 0;
-  line-height: 1.5;
-  white-space: pre-wrap;
-  word-break: break-word;
-}
-
-.rules-detail-loading {
-  font-size: 12px;
-  color: var(--text-secondary);
-  padding: 8px 0;
-}
