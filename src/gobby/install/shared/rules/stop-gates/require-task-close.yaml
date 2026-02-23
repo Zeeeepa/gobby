@@ -10,4 +10,4 @@ rules:
     effect:
       type: block
       reason: |
-        Task {{ claimed_task_id[:8] if claimed_task_id else '(unknown)' }} is still in_progress. Commit and close_task().
+        Task {{ task_ref or '(unknown)' }} is still in_progress. Commit and close_task().
