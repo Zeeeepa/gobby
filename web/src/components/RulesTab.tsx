@@ -72,15 +72,14 @@ function RuleCodeBlock({ language, code }: { language: string; code: string }) {
 
 interface RulesTabProps {
   searchText: string
-  showDeleted: boolean
-  showBundled: boolean
+  sourceFilter: 'installed' | 'templates' | 'deleted'
   devMode: boolean
   showCreateModal: boolean
   onCloseCreateModal: () => void
   refreshKey?: number
 }
 
-export function RulesTab({ searchText, showDeleted, showBundled, devMode, showCreateModal, onCloseCreateModal, refreshKey = 0 }: RulesTabProps) {
+export function RulesTab({ searchText, sourceFilter, devMode, showCreateModal, onCloseCreateModal, refreshKey = 0 }: RulesTabProps) {
   const {
     rules,
     isLoading,
@@ -120,12 +119,13 @@ export function RulesTab({ searchText, showDeleted, showBundled, devMode, showCr
   const filteredRules = useMemo(() => {
     let result = rules
 
-    if (!showDeleted) {
-      result = result.filter(r => !(r as RuleSummary & { deleted_at?: string | null }).deleted_at)
-    }
-
-    if (!showBundled) {
-      result = result.filter(r => r.source !== 'bundled')
+    // Source filter (exclusive)
+    if (sourceFilter === 'installed') {
+      result = result.filter(r => r.source === 'installed' && !(r as RuleSummary & { deleted_at?: string | null }).deleted_at)
+    } else if (sourceFilter === 'templates') {
+      result = result.filter(r => r.source === 'template' && !(r as RuleSummary & { deleted_at?: string | null }).deleted_at)
+    } else if (sourceFilter === 'deleted') {
+      result = result.filter(r => !!(r as RuleSummary & { deleted_at?: string | null }).deleted_at)
     }
 
     if (eventFilter) {
@@ -142,7 +142,7 @@ export function RulesTab({ searchText, showDeleted, showBundled, devMode, showCr
     }
 
     return result
-  }, [rules, eventFilter, searchText, showDeleted, showBundled])
+  }, [rules, eventFilter, searchText, sourceFilter])
 
   const handleExpandRule = useCallback(async (rule: RuleSummary) => {
     if (expandedRule === rule.name) {
@@ -162,12 +162,12 @@ export function RulesTab({ searchText, showDeleted, showBundled, devMode, showCr
   }, [toggleRule])
 
   const handleDelete = useCallback(async (rule: RuleSummary) => {
-    const isBundled = rule.source === 'bundled' || rule.source === 'built-in'
-    const msg = isBundled
-      ? `"${rule.name}" is a bundled rule. Force-delete it? It will be re-created on next sync.`
+    const isTemplate = rule.source === 'template' || rule.source === 'built-in'
+    const msg = isTemplate
+      ? `"${rule.name}" is a template rule. Force-delete it? It will be re-created on next sync.`
       : `Delete rule "${rule.name}"?`
     if (!window.confirm(msg)) return
-    await deleteRule(rule.name, isBundled)
+    await deleteRule(rule.name, isTemplate)
   }, [deleteRule])
 
   const handleCreate = useCallback(async (name: string, definitionJson: string) => {
@@ -323,7 +323,7 @@ export function RulesTab({ searchText, showDeleted, showBundled, devMode, showCr
           </div>
           <span>{enforcementEnabled ? 'Rules Active' : 'Rules Paused'}</span>
         </div>
-        {showBundled && (
+        {sourceFilter === 'templates' && (
           <button
             type="button"
             className="workflows-toolbar-btn"
@@ -413,11 +413,11 @@ function RuleCard({ rule, devMode, expanded, detail, detailLoading, onToggle, on
   onUseAsTemplate: () => void
 }) {
   const effectType = getEffectType(rule.effect)
-  const isBundled = rule.source === 'bundled'
+  const isTemplate = rule.source === 'template'
   const isDeleted = !!(rule as RuleSummary & { deleted_at?: string | null }).deleted_at
 
   return (
-    <div className={`rules-card ${expanded ? 'rules-card--expanded' : ''}${isBundled ? ' workflows-card--bundled' : ''}${isDeleted ? ' rules-card--deleted' : ''}`}>
+    <div className={`rules-card ${expanded ? 'rules-card--expanded' : ''}${isTemplate ? ' workflows-card--template' : ''}${isDeleted ? ' rules-card--deleted' : ''}`}>
       <div className="rules-card-main" onClick={onExpand}>
         <div className="rules-card-header">
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -448,7 +448,7 @@ function RuleCard({ rule, devMode, expanded, detail, detailLoading, onToggle, on
       </div>
 
       <div className="workflows-card-footer">
-        {(isBundled || isDeleted) ? (
+        {(isTemplate || isDeleted) ? (
           <>
             <div />
             <div className="workflows-card-actions">
@@ -467,7 +467,7 @@ function RuleCard({ rule, devMode, expanded, detail, detailLoading, onToggle, on
                 </>
               ) : (
                 <>
-                  {isBundled && (
+                  {isTemplate && (
                     <button type="button" className="workflows-action-btn" onClick={e => { e.stopPropagation(); onUseAsTemplate() }} title="Create a custom copy">Use as Template</button>
                   )}
                   <button type="button" className="workflows-action-icon" onClick={e => { e.stopPropagation(); onDownload() }} title="Download YAML" aria-label="Download rule as YAML">

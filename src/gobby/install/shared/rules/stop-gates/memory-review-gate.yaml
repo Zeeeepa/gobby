@@ -1,0 +1,14 @@
+tags: [stop-gates, enforcement, lifecycle]
+
+rules:
+  memory-review-gate:
+    description: "Block stop until memory review when significant work done"
+    event: stop
+    enabled: false
+    priority: 40
+    when: "variables.get('pending_memory_review') and (variables.get('stop_attempts', 0) or 0) < 3"
+    effect:
+      type: block
+      reason: |
+        You've made significant changes this session. Before stopping,
+        review and save valuable memories using create_memory on gobby-memory.

@@ -1,0 +1,13 @@
+tags: [tool-hygiene, enforcement, python]
+
+rules:
+  track-pending-memory-review:
+    description: "Flag session for memory review after file edits or task close"
+    event: after_tool
+    enabled: false
+    priority: 90
+    when: "event.data.get('tool_name') in ['Edit', 'Write', 'NotebookEdit'] or event.data.get('mcp_tool') == 'close_task'"
+    effect:
+      type: set_variable
+      variable: pending_memory_review
+      value: true

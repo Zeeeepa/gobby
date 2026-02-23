@@ -33,7 +33,7 @@ class CreateWorkflowRequest(BaseModel):
     priority: int = 100
     sources: list[str] | None = None
     canvas_json: str | None = None
-    source: str = "custom"
+    source: str = "installed"
     tags: list[str] | None = None
 
 

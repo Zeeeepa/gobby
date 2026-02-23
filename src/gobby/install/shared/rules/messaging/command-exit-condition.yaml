@@ -1,0 +1,15 @@
+tags: [messaging, p2p, commands]
+
+rules:
+  command-exit-condition:
+    description: "Auto-complete command when exit condition is met"
+    event: after_tool
+    enabled: false
+    priority: 90
+    when: >
+      variables.get('command_id')
+      and variables.get('exit_condition_met')
+    effect:
+      type: mcp_call
+      server: gobby-agents
+      tool: complete_command

@@ -1,0 +1,12 @@
+tags: [worker-safety]
+
+rules:
+  require-task:
+    description: "Block file edits without a claimed task."
+    event: before_tool
+    enabled: false
+    when: "not task_claimed and not plan_mode"
+    effect:
+      type: block
+      tools: [Edit, Write, NotebookEdit]
+      reason: "Claim a task before editing files. Use claim_task() on gobby-tasks."

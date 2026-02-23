@@ -1,0 +1,15 @@
+tags: [memory-lifecycle, memory, lifecycle]
+
+rules:
+  memory-capture-nudge:
+    description: "Nudge agent to save user preferences or facts as memories"
+    event: before_agent
+    enabled: false
+    priority: 50
+    when: "len((event.data.get('prompt') or '').strip()) >= 10 and not (event.data.get('prompt') or '').strip().startswith('/')"
+    effect:
+      type: inject_context
+      template: |
+        If the user just told you something worth remembering across sessions
+        (a preference, fact, convention, or instruction), save it with
+        create_memory on gobby-memory. If not, carry on.

@@ -1,0 +1,22 @@
+tags: [context-handoff, context, handoff, lifecycle]
+
+rules:
+  inject-error-triage-policy:
+    description: "Inject pre-existing error/warning triage policy (skip on resume)"
+    event: session_start
+    enabled: false
+    priority: 40
+    when: "event.data.get('source') != 'resume'"
+    effect:
+      type: inject_context
+      template: |
+        ## Pre-Existing Error/Warning/Failure Policy
+
+        If you encounter ANY pre-existing issues during your work — errors,
+        warnings, or failures (test failures, lint errors/warnings, type errors,
+        build failures, deprecation warnings) unrelated to your changes — you
+        MUST create a gobby task for each distinct issue before stopping.
+
+        After triaging all issues (or confirming none were found), call
+        set_variable on gobby-workflows:
+        set_variable(name="pre_existing_errors_triaged", value=true, session_id="<session_id>")

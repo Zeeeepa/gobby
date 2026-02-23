@@ -1,0 +1,12 @@
+tags: [memory-lifecycle, memory, lifecycle]
+
+rules:
+  memory-sync-import:
+    description: "Import memories from .gobby/memories.jsonl on session start"
+    event: session_start
+    enabled: false
+    priority: 30
+    effect:
+      type: mcp_call
+      server: gobby-memory
+      tool: sync_import

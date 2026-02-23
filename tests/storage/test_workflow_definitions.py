@@ -91,7 +91,7 @@ def test_workflow_definition_row_to_dict(manager: LocalWorkflowDefinitionManager
     assert d["workflow_type"] == "workflow"
     assert d["enabled"] is True
     assert d["priority"] == 100
-    assert d["source"] == "custom"
+    assert d["source"] == "installed"
     assert d["sources"] == ["claude"]
     assert d["tags"] == ["dev", "test"]
     assert d["created_at"] is not None
@@ -115,7 +115,7 @@ def test_create_with_all_fields(manager: LocalWorkflowDefinitionManager) -> None
         priority=50,
         sources=["claude", "gemini"],
         canvas_json='{"nodes": [], "edges": []}',
-        source="custom",
+        source="installed",
         tags=["tag1", "tag2"],
     )
 
@@ -128,7 +128,7 @@ def test_create_with_all_fields(manager: LocalWorkflowDefinitionManager) -> None
     assert row.priority == 50
     assert row.sources == ["claude", "gemini"]
     assert row.canvas_json == '{"nodes": [], "edges": []}'
-    assert row.source == "custom"
+    assert row.source == "installed"
     assert row.tags == ["tag1", "tag2"]
     assert row.project_id is None
 
@@ -156,7 +156,7 @@ def test_create_defaults(manager: LocalWorkflowDefinitionManager) -> None:
     assert row.version == "1.0"
     assert row.enabled is True
     assert row.priority == 100
-    assert row.source == "custom"
+    assert row.source == "installed"
     assert row.project_id is None
     assert row.canvas_json is None
     assert row.sources is None
@@ -470,7 +470,7 @@ def test_duplicate(manager: LocalWorkflowDefinitionManager) -> None:
     assert duplicate.workflow_type == original.workflow_type
     assert duplicate.tags == original.tags
     assert duplicate.sources == original.sources
-    assert duplicate.source == "custom"
+    assert duplicate.source == "installed"
 
     # Verify definition_json has updated name
     data = json.loads(duplicate.definition_json)
@@ -493,7 +493,7 @@ def test_use_as_template(manager: LocalWorkflowDefinitionManager) -> None:
     bundled = manager.create(
         name="bundled-rule",
         definition_json=SAMPLE_DEFINITION,
-        source="bundled",
+        source="template",
         enabled=True,
     )
 
@@ -501,7 +501,7 @@ def test_use_as_template(manager: LocalWorkflowDefinitionManager) -> None:
 
     assert custom.id != bundled.id
     assert custom.name == bundled.name
-    assert custom.source == "custom"
+    assert custom.source == "installed"
     assert custom.enabled is True
     assert custom.definition_json == bundled.definition_json
 
@@ -512,16 +512,16 @@ def test_use_as_template(manager: LocalWorkflowDefinitionManager) -> None:
 
 def test_use_as_template_non_bundled_raises(manager: LocalWorkflowDefinitionManager) -> None:
     """Test that using a non-bundled item as template raises ValueError."""
-    custom = manager.create(name="custom-item", definition_json=SAMPLE_DEFINITION, source="custom")
+    custom = manager.create(name="custom-item", definition_json=SAMPLE_DEFINITION, source="installed")
 
-    with pytest.raises(ValueError, match="not bundled"):
+    with pytest.raises(ValueError, match="not a template"):
         manager.use_as_template(custom.id)
 
 
 def test_use_as_template_duplicate_raises(manager: LocalWorkflowDefinitionManager) -> None:
     """Test that creating a template when custom copy already exists raises ValueError."""
-    bundled = manager.create(name="dup-test", definition_json=SAMPLE_DEFINITION, source="bundled")
-    manager.create(name="dup-test", definition_json=SAMPLE_DEFINITION, source="custom")
+    bundled = manager.create(name="dup-test", definition_json=SAMPLE_DEFINITION, source="template")
+    manager.create(name="dup-test", definition_json=SAMPLE_DEFINITION, source="installed")
 
     with pytest.raises(ValueError, match="already exists"):
         manager.use_as_template(bundled.id)
@@ -529,11 +529,11 @@ def test_use_as_template_duplicate_raises(manager: LocalWorkflowDefinitionManage
 
 def test_use_all_bundled_as_templates(manager: LocalWorkflowDefinitionManager) -> None:
     """Test bulk creation of custom copies from all bundled definitions."""
-    manager.create(name="b1", definition_json=SAMPLE_DEFINITION, source="bundled", workflow_type="rule")
-    manager.create(name="b2", definition_json=SAMPLE_DEFINITION, source="bundled", workflow_type="rule")
+    manager.create(name="b1", definition_json=SAMPLE_DEFINITION, source="template", workflow_type="rule")
+    manager.create(name="b2", definition_json=SAMPLE_DEFINITION, source="template", workflow_type="rule")
     # Already has a custom counterpart - should be skipped
-    manager.create(name="b3", definition_json=SAMPLE_DEFINITION, source="bundled", workflow_type="rule")
-    manager.create(name="b3", definition_json=SAMPLE_DEFINITION, source="custom", workflow_type="rule")
+    manager.create(name="b3", definition_json=SAMPLE_DEFINITION, source="template", workflow_type="rule")
+    manager.create(name="b3", definition_json=SAMPLE_DEFINITION, source="installed", workflow_type="rule")
 
     created = manager.use_all_bundled_as_templates(workflow_type="rule")
 

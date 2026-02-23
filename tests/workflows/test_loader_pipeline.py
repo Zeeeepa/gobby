@@ -32,7 +32,7 @@ def db(tmp_path: Path) -> LocalDatabase:
 @pytest.fixture(autouse=True)
 def _clean_bundled_workflows(db: LocalDatabase) -> None:
     """Remove bundled workflows imported by migrations so tests start clean."""
-    db.execute("DELETE FROM workflow_definitions WHERE source = 'bundled'")
+    db.execute("DELETE FROM workflow_definitions WHERE source = 'template'")
 
 
 @pytest.fixture

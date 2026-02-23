@@ -1,0 +1,12 @@
+tags: [stop-gates, enforcement, lifecycle]
+
+rules:
+  increment-stop-attempts:
+    description: "Count consecutive stop attempts for escape hatch"
+    event: stop
+    enabled: false
+    priority: 10
+    effect:
+      type: set_variable
+      variable: stop_attempts
+      value: "variables.get('stop_attempts', 0) + 1"

@@ -314,6 +314,48 @@ class TestNormalizeEventData:
         assert "mcp_server" not in result
         assert "mcp_tool" not in result
 
+    def test_mcp_prefix_parsed_for_native_tools(self) -> None:
+        """Native MCP tools like mcp__gobby__list_tools get mcp_server/mcp_tool from prefix."""
+        adapter = ClaudeCodeAdapter()
+        data = {
+            "tool_name": "mcp__gobby__list_tools",
+            "tool_input": {"server_name": "gobby-tasks"},
+        }
+        result = adapter._normalize_event_data(data)
+        assert result["mcp_server"] == "gobby"
+        assert result["mcp_tool"] == "list_tools"
+
+    def test_mcp_prefix_parsed_for_get_tool_schema(self) -> None:
+        """get_tool_schema should be recognized as MCP tool."""
+        adapter = ClaudeCodeAdapter()
+        data = {
+            "tool_name": "mcp__gobby__get_tool_schema",
+            "tool_input": {"server_name": "gobby-tasks", "tool_name": "create_task"},
+        }
+        result = adapter._normalize_event_data(data)
+        assert result["mcp_server"] == "gobby"
+        assert result["mcp_tool"] == "get_tool_schema"
+
+    def test_mcp_prefix_call_tool_overrides_with_inner(self) -> None:
+        """mcp__gobby__call_tool should use inner server/tool from tool_input."""
+        adapter = ClaudeCodeAdapter()
+        data = {
+            "tool_name": "mcp__gobby__call_tool",
+            "tool_input": {"server_name": "gobby-tasks", "tool_name": "create_task"},
+        }
+        result = adapter._normalize_event_data(data)
+        # Inner target overrides prefix-parsed "gobby"/"call_tool"
+        assert result["mcp_server"] == "gobby-tasks"
+        assert result["mcp_tool"] == "create_task"
+
+    def test_mcp_prefix_not_parsed_for_short_prefix(self) -> None:
+        """Tool names with only one __ segment should not be parsed."""
+        adapter = ClaudeCodeAdapter()
+        data = {"tool_name": "mcp__weird", "tool_input": {}}
+        result = adapter._normalize_event_data(data)
+        assert "mcp_server" not in result
+        assert "mcp_tool" not in result
+
     def test_tool_result_to_output(self) -> None:
         adapter = ClaudeCodeAdapter()
         data = {"tool_name": "Read", "tool_result": "file contents"}
@@ -340,8 +382,9 @@ class TestNormalizeEventData:
         adapter = ClaudeCodeAdapter()
         data = {"tool_name": "call_tool", "tool_input": None}
         result = adapter._normalize_event_data(data)
-        assert result["mcp_server"] is None
-        assert result["mcp_tool"] is None
+        # With None tool_input, no mcp_server/mcp_tool should be set
+        assert "mcp_server" not in result
+        assert "mcp_tool" not in result
 
     def test_empty_input_data(self) -> None:
         adapter = ClaudeCodeAdapter()

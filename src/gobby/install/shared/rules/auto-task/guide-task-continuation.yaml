@@ -1,0 +1,12 @@
+tags: [auto-task, task, autonomous, lifecycle]
+
+rules:
+  guide-task-continuation:
+    description: "Block stop when task tree has incomplete subtasks"
+    event: stop
+    enabled: false
+    priority: 45
+    when: "variables.get('session_task') and not task_tree_complete(variables.get('session_task')) and variables.get('stop_attempts', 0) < variables.get('max_stop_attempts', 3)"
+    effect:
+      type: block
+      reason: "Task has incomplete subtasks. Use suggest_next_task() and continue working. Do not wait for user confirmation to proceed."

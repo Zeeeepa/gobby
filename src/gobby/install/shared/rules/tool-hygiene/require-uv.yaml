@@ -1,0 +1,15 @@
+tags: [tool-hygiene, enforcement, python]
+
+rules:
+  require-uv:
+    description: "Block naked python/pip - require uv run/uv pip"
+    event: before_tool
+    enabled: false
+    priority: 50
+    when: "variables.get('require_uv')"
+    effect:
+      type: block
+      tools: [Bash]
+      command_pattern: "(?:^|[;&|])\\s*(?:sudo\\s+)?(?:python(?:3(?:\\.\\d+)?)?|pip3?)\\b"
+      command_not_pattern: "(?:^|[;&|])\\s*(?:sudo\\s+)?uv\\s+"
+      reason: "Use `uv run` or `uv pip` instead of running python/pip directly."

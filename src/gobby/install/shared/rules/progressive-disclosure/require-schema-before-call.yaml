@@ -1,0 +1,14 @@
+tags: [progressive-disclosure, enforcement, mcp]
+
+rules:
+  require-schema-before-call:
+    description: "Block call_tool without prior get_tool_schema"
+    event: before_tool
+    enabled: false
+    priority: 22
+    when: "variables.get('enforce_tool_schema_check') and tool_input.get('arguments') and not is_discovery_tool(tool_input.get('tool_name')) and not is_tool_unlocked(tool_input)"
+    effect:
+      type: block
+      tools: ["mcp__gobby__call_tool"]
+      reason: |
+        Schema required. Call get_tool_schema("{{ tool_input.get('server_name', '') }}", "{{ tool_input.get('tool_name') }}") first, then retry.

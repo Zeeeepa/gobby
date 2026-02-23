@@ -1,0 +1,13 @@
+tags: [plan-mode, state-tracking]
+
+rules:
+  reset-plan-mode-on-session-start:
+    description: "Clear plan_mode on new/clear/compact sessions"
+    event: session_start
+    enabled: false
+    priority: 10
+    when: "event.data.get('source') in ['clear', 'compact', 'startup']"
+    effect:
+      type: set_variable
+      variable: plan_mode
+      value: false

@@ -19,7 +19,6 @@ from gobby.workflows.definitions import PipelineDefinition, RuleDefinitionBody, 
 __all__ = [
     "get_bundled_rules_path",
     "get_bundled_workflows_path",
-    "load_session_defaults",
     "sync_bundled_rules",
     "sync_bundled_workflows",
 ]
@@ -36,36 +35,6 @@ def get_bundled_rules_path() -> Path:
     from gobby.paths import get_install_dir
 
     return get_install_dir() / "shared" / "rules"
-
-
-def load_session_defaults(rules_path: Path | None = None) -> dict[str, Any]:
-    """Load session variable defaults from session-defaults.yaml.
-
-    Args:
-        rules_path: Path to rules directory containing session-defaults.yaml.
-            Defaults to bundled rules path.
-
-    Returns:
-        Dict of variable_name -> default_value. Empty dict if file missing.
-    """
-    if rules_path is None:
-        rules_path = get_bundled_rules_path()
-
-    defaults_file = rules_path / "session-defaults.yaml"
-    if not defaults_file.exists():
-        return {}
-
-    try:
-        data = yaml.safe_load(defaults_file.read_text(encoding="utf-8"))
-        if not isinstance(data, dict):
-            return {}
-        session_vars = data.get("session_variables")
-        if not isinstance(session_vars, dict):
-            return {}
-        return session_vars
-    except Exception as e:
-        logger.warning(f"Failed to load session defaults: {e}")
-        return {}
 
 
 def get_bundled_workflows_path() -> Path:
@@ -86,7 +55,7 @@ def sync_bundled_workflows(db: DatabaseProtocol) -> dict[str, Any]:
     1. Walks all .yaml files in the bundled workflows directory (skips deprecated/)
     2. Parses each and validates it has a 'name' field
     3. Creates new records or updates changed content (idempotent)
-    4. All records are created with source='bundled' and project_id=None
+    4. All records are created with source='template' and project_id=None
 
     Args:
         db: Database connection
@@ -164,7 +133,7 @@ def sync_bundled_workflows(db: DatabaseProtocol) -> dict[str, Any]:
                     result["skipped"] += 1
                     continue
 
-                if existing.source == "bundled":
+                if existing.source == "template":
                     # Compare definition_json content to detect changes
                     if existing.definition_json == definition_json:
                         logger.debug(
@@ -184,14 +153,14 @@ def sync_bundled_workflows(db: DatabaseProtocol) -> dict[str, Any]:
                             enabled=existing.enabled,
                             priority=priority,
                             sources=sources_list,
-                            source="bundled",
+                            source="template",
                         )
                         logger.info("Updated bundled workflow definition", extra={"workflow": name})
                         result["updated"] += 1
                 else:
-                    # Non-bundled workflow with same name exists — don't overwrite
+                    # Non-template workflow with same name exists — don't overwrite
                     logger.debug(
-                        "Workflow exists with non-bundled source, skipping",
+                        "Workflow exists with non-template source, skipping",
                         extra={"workflow": name, "source": existing.source},
                     )
                     result["skipped"] += 1
@@ -208,7 +177,7 @@ def sync_bundled_workflows(db: DatabaseProtocol) -> dict[str, Any]:
                 enabled=enabled,
                 priority=priority,
                 sources=sources_list,
-                source="bundled",
+                source="template",
             )
             logger.info("Synced bundled workflow definition", extra={"workflow": name})
             result["synced"] += 1
@@ -221,6 +190,29 @@ def sync_bundled_workflows(db: DatabaseProtocol) -> dict[str, Any]:
             )
             result["errors"].append(error_msg)
 
+    # Orphan cleanup: soft-delete template workflows whose YAML was removed.
+    # Collects names from disk, then marks any DB rows with source='template'
+    # that aren't in the set.  This handles workflows moved to deprecated/.
+    on_disk = set()
+    for yf in sorted(workflows_path.glob("*.yaml")):
+        try:
+            d = yaml.safe_load(yf.read_text(encoding="utf-8"))
+            if isinstance(d, dict) and "name" in d:
+                on_disk.add(d["name"])
+        except Exception:
+            pass  # Already logged above during main loop
+
+    orphan_rows = db.fetchall(
+        "SELECT id, name FROM workflow_definitions "
+        "WHERE source IN ('bundled', 'template') AND workflow_type = 'workflow' AND deleted_at IS NULL",
+    )
+    result["orphaned"] = 0
+    for row in orphan_rows:
+        if row["name"] not in on_disk:
+            manager.delete(row["id"])
+            logger.info("Soft-deleted orphaned bundled workflow", extra={"workflow": row["name"]})
+            result["orphaned"] += 1
+
     total = result["synced"] + result["updated"] + result["skipped"]
     logger.info(
         "Workflow definition sync complete",
@@ -228,6 +220,7 @@ def sync_bundled_workflows(db: DatabaseProtocol) -> dict[str, Any]:
             "synced": result["synced"],
             "updated": result["updated"],
             "skipped": result["skipped"],
+            "orphaned": result["orphaned"],
             "total": total,
         },
     )
@@ -235,9 +228,7 @@ def sync_bundled_workflows(db: DatabaseProtocol) -> dict[str, Any]:
     return result
 
 
-def sync_bundled_rules(
-    db: DatabaseProtocol, rules_path: Path | None = None
-) -> dict[str, Any]:
+def sync_bundled_rules(db: DatabaseProtocol, rules_path: Path | None = None) -> dict[str, Any]:
     """Sync rule YAML files to workflow_definitions table with workflow_type='rule'.
 
     Rule YAML files use the new format with a top-level `rules:` dict where each
@@ -269,6 +260,9 @@ def sync_bundled_rules(
     manager = LocalWorkflowDefinitionManager(db)
 
     for yaml_file in sorted(rules_path.rglob("*.yaml")):
+        # Skip deprecated directory (old group files moved here)
+        if "deprecated" in yaml_file.relative_to(rules_path).parts:
+            continue
         try:
             raw_content = yaml_file.read_text(encoding="utf-8")
             data = yaml.safe_load(raw_content)
@@ -280,9 +274,7 @@ def sync_bundled_rules(
             # Detect rule YAML format: must have 'rules' dict
             rules_dict = data.get("rules")
             if not isinstance(rules_dict, dict):
-                logger.debug(
-                    "No 'rules' key in YAML, skipping", extra={"file": str(yaml_file)}
-                )
+                logger.debug("No 'rules' key in YAML, skipping", extra={"file": str(yaml_file)})
                 result["skipped"] += 1
                 continue
 
@@ -293,9 +285,7 @@ def sync_bundled_rules(
 
             for rule_name, rule_data in rules_dict.items():
                 if not isinstance(rule_data, dict):
-                    result["errors"].append(
-                        f"Rule '{rule_name}' in {yaml_file.name} is not a dict"
-                    )
+                    result["errors"].append(f"Rule '{rule_name}' in {yaml_file.name} is not a dict")
                     continue
 
                 try:
@@ -318,6 +308,33 @@ def sync_bundled_rules(
             logger.error(error_msg)
             result["errors"].append(error_msg)
 
+    # Orphan cleanup: soft-delete bundled rules whose YAML was removed.
+    # Collects rule names from disk, then marks any DB rows with source='bundled'
+    # (or 'template' after rename) that aren't in the set. This handles rules
+    # moved to deprecated/ or removed entirely.
+    on_disk: set[str] = set()
+    for yf in sorted(rules_path.rglob("*.yaml")):
+        if "deprecated" in yf.relative_to(rules_path).parts:
+            continue
+        try:
+            d = yaml.safe_load(yf.read_text(encoding="utf-8"))
+            if isinstance(d, dict) and isinstance(d.get("rules"), dict):
+                on_disk.update(d["rules"].keys())
+        except Exception:
+            pass  # Already logged above during main loop
+
+    orphan_rows = db.fetchall(
+        "SELECT id, name FROM workflow_definitions "
+        "WHERE source IN ('bundled', 'template') AND workflow_type = 'rule' "
+        "AND deleted_at IS NULL",
+    )
+    result["orphaned"] = 0
+    for row in orphan_rows:
+        if row["name"] not in on_disk:
+            manager.delete(row["id"])
+            logger.info("Soft-deleted orphaned bundled rule", extra={"rule": row["name"]})
+            result["orphaned"] += 1
+
     total = result["synced"] + result["updated"] + result["skipped"]
     logger.info(
         "Rule definition sync complete",
@@ -325,6 +342,7 @@ def sync_bundled_rules(
             "synced": result["synced"],
             "updated": result["updated"],
             "skipped": result["skipped"],
+            "orphaned": result["orphaned"],
             "total": total,
         },
     )
@@ -379,7 +397,7 @@ def _sync_single_rule(
             result["skipped"] += 1
             return
 
-        if existing.source == "bundled":
+        if existing.source in ("bundled", "template"):
             if existing.definition_json == definition_json:
                 result["skipped"] += 1
             else:
@@ -395,11 +413,41 @@ def _sync_single_rule(
                     priority=priority,
                     sources=file_sources,
                     tags=file_tags,
-                    source="bundled",
+                    source="template",
                 )
                 result["updated"] += 1
         else:
-            result["skipped"] += 1
+            # Custom copy shadows the bundled row — get_by_name prefers
+            # custom over bundled. Look up the bundled row directly and
+            # update it if the definition has changed on disk.
+            bundled_row = manager.db.fetchone(
+                "SELECT * FROM workflow_definitions "
+                "WHERE name = ? AND source IN ('bundled', 'template') AND deleted_at IS NULL",
+                (rule_name,),
+            )
+            if bundled_row:
+                from gobby.storage.workflow_definitions import WorkflowDefinitionRow
+
+                bundled = WorkflowDefinitionRow.from_row(bundled_row)
+                if bundled.definition_json != definition_json:
+                    manager.update(
+                        bundled.id,
+                        name=rule_name,
+                        definition_json=definition_json,
+                        workflow_type="rule",
+                        project_id=None,
+                        description=description,
+                        enabled=bundled.enabled,
+                        priority=priority,
+                        sources=file_sources,
+                        tags=file_tags,
+                        source="template",
+                    )
+                    result["updated"] += 1
+                else:
+                    result["skipped"] += 1
+            else:
+                result["skipped"] += 1
         return
 
     # Create new rule
@@ -413,6 +461,6 @@ def _sync_single_rule(
         priority=priority,
         sources=file_sources,
         tags=file_tags,
-        source="bundled",
+        source="template",
     )
     result["synced"] += 1

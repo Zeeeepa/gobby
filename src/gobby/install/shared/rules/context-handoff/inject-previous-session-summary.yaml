@@ -1,0 +1,16 @@
+tags: [context-handoff, context, handoff, lifecycle]
+
+rules:
+  inject-previous-session-summary:
+    description: "Inject previous session summary on clear (new session after /clear)"
+    event: session_start
+    enabled: false
+    priority: 10
+    when: "event.data.get('source') == 'clear'"
+    effect:
+      type: inject_context
+      template: |
+        ## Previous Session Context
+        *Injected by Gobby session handoff*
+
+        {{ summary }}

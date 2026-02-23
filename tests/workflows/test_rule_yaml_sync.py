@@ -67,7 +67,7 @@ rules:
         assert len(rows) == 1
         assert rows[0].name == "no-push"
         assert rows[0].workflow_type == "rule"
-        assert rows[0].source == "bundled"
+        assert rows[0].source == "template"
 
     def test_rule_definition_json_is_valid(self, db, manager, rules_dir) -> None:
         """The stored definition_json should be a valid RuleDefinitionBody."""

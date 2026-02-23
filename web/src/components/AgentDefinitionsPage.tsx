@@ -147,14 +147,13 @@ function getBaseUrl(): string {
 
 interface AgentDefinitionsPageProps {
   searchText: string
-  showDeleted: boolean
-  showBundled: boolean
+  sourceFilter: 'installed' | 'templates' | 'deleted'
   devMode: boolean
   showCreateForm: boolean
   onToggleCreateForm: (show: boolean) => void
 }
 
-export function AgentDefinitionsPage({ searchText, showDeleted, showBundled, devMode, showCreateForm, onToggleCreateForm }: AgentDefinitionsPageProps) {
+export function AgentDefinitionsPage({ searchText, sourceFilter, devMode, showCreateForm, onToggleCreateForm }: AgentDefinitionsPageProps) {
   const { running, recentRuns, cancelAgent } = useAgentRuns()
   const [definitions, setDefinitions] = useState<AgentDefInfo[]>([])
   const [loading, setLoading] = useState(true)
@@ -200,7 +199,7 @@ export function AgentDefinitionsPage({ searchText, showDeleted, showBundled, dev
     }
   }, [])
 
-  useEffect(() => { fetchDefinitions(showDeleted) }, [fetchDefinitions, showDeleted])
+  useEffect(() => { fetchDefinitions(true) }, [fetchDefinitions])
 
   // Clear editing state when form closes; reset form when opening for create
   useEffect(() => {
@@ -227,7 +226,15 @@ export function AgentDefinitionsPage({ searchText, showDeleted, showBundled, dev
   }, [])
 
   const filtered = useMemo(() => definitions.filter(d => {
-    if (!showBundled && d.source === 'bundled') return false
+    // Source filter (exclusive)
+    if (sourceFilter === 'installed') {
+      if (d.source === 'template' || d.deleted_at) return false
+    } else if (sourceFilter === 'templates') {
+      if (d.source !== 'template' || d.deleted_at) return false
+    } else if (sourceFilter === 'deleted') {
+      if (!d.deleted_at) return false
+    }
+
     if (filterSource !== 'all' && d.source !== filterSource) return false
     if (filterProvider !== 'all' && d.definition.provider !== filterProvider) return false
     if (searchText.trim()) {
@@ -240,7 +247,7 @@ export function AgentDefinitionsPage({ searchText, showDeleted, showBundled, dev
       ) return false
     }
     return true
-  }), [definitions, filterSource, filterProvider, searchText, showBundled])
+  }), [definitions, sourceFilter, filterSource, filterProvider, searchText])
 
   const sources = useMemo(
     () => [...new Set(definitions.map(d => d.source))].sort(),
@@ -282,7 +289,7 @@ export function AgentDefinitionsPage({ searchText, showDeleted, showBundled, dev
           provider: 'claude', model: '', mode: 'headless', terminal: 'auto', isolation: '',
           base_branch: 'main', timeout: 120, max_turns: 10,
         })
-        fetchDefinitions(showDeleted)
+        fetchDefinitions(true)
         showToast(`Agent "${createForm.name}" created`, 'success')
       } else {
         showToast('Failed to create agent definition', 'error')
@@ -348,7 +355,7 @@ export function AgentDefinitionsPage({ searchText, showDeleted, showBundled, dev
           provider: 'claude', model: '', mode: 'headless', terminal: 'auto', isolation: '',
           base_branch: 'main', timeout: 120, max_turns: 10,
         })
-        fetchDefinitions(showDeleted)
+        fetchDefinitions(true)
         showToast(`Agent "${createForm.name}" updated`, 'success')
       } else {
         showToast('Failed to update agent definition', 'error')
@@ -366,7 +373,7 @@ export function AgentDefinitionsPage({ searchText, showDeleted, showBundled, dev
         method: 'DELETE',
       })
       if (res.ok) {
-        fetchDefinitions(showDeleted)
+        fetchDefinitions(true)
         showToast('Agent definition deleted', 'success')
       } else {
         showToast('Failed to delete agent definition', 'error')
@@ -383,7 +390,7 @@ export function AgentDefinitionsPage({ searchText, showDeleted, showBundled, dev
         method: 'POST',
       })
       if (res.ok) {
-        fetchDefinitions(showDeleted)
+        fetchDefinitions(true)
         showToast('Agent definition restored', 'success')
       } else {
         showToast('Failed to restore agent definition', 'error')
@@ -477,8 +484,8 @@ export function AgentDefinitionsPage({ searchText, showDeleted, showBundled, dev
       if (!res.ok) throw new Error('Failed to import agent definition to DB')
     }
     setYamlAgent(null)
-    fetchDefinitions(showDeleted)
-  }, [yamlAgent, yamlContent, fetchDefinitions, showDeleted])
+    fetchDefinitions(true)
+  }, [yamlAgent, yamlContent, fetchDefinitions])
 
   const handleUseAsTemplate = async (name: string) => {
     try {
@@ -486,7 +493,7 @@ export function AgentDefinitionsPage({ searchText, showDeleted, showBundled, dev
         method: 'POST',
       })
       if (res.ok) {
-        fetchDefinitions(showDeleted)
+        fetchDefinitions(true)
         showToast(`Created custom copy of "${name}"`, 'success')
       } else {
         const data = await res.json().catch(() => ({}))
@@ -505,7 +512,7 @@ export function AgentDefinitionsPage({ searchText, showDeleted, showBundled, dev
       })
       if (res.ok) {
         const data = await res.json()
-        fetchDefinitions(showDeleted)
+        fetchDefinitions(true)
         showToast(`Created ${data.count || 0} template copies`, 'success')
       } else {
         showToast('Failed to use all as templates', 'error')
@@ -524,7 +531,7 @@ export function AgentDefinitionsPage({ searchText, showDeleted, showBundled, dev
         method: 'POST',
       })
       setImportResult({ name, ok: res.ok })
-      if (res.ok) fetchDefinitions(showDeleted)
+      if (res.ok) fetchDefinitions(true)
     } catch (e) {
       console.error('Failed to import agent definition:', e)
       setImportResult({ name, ok: false })
@@ -578,7 +585,7 @@ export function AgentDefinitionsPage({ searchText, showDeleted, showBundled, dev
             </button>
           )}
         </div>
-        {showBundled && (
+        {sourceFilter === 'templates' && (
           <button
             type="button"
             className="workflows-toolbar-btn"
@@ -806,13 +813,13 @@ export function AgentDefinitionsPage({ searchText, showDeleted, showBundled, dev
               const d = item.definition
               const isExpanded = expandedName === d.name
               const isDb = item.source.endsWith('-db')
-              const isBundled = item.source === 'bundled'
+              const isTemplate = item.source === 'template'
               const workflowCount = d.workflows ? Object.keys(d.workflows).length : 0
 
               return (
                 <div
                   key={d.name}
-                  className={`agent-def-card${isExpanded ? ' agent-def-card--expanded' : ''}${item.deleted_at ? ' agent-def-card--deleted' : ''}${isBundled ? ' workflows-card--bundled' : ''}`}
+                  className={`agent-def-card${isExpanded ? ' agent-def-card--expanded' : ''}${item.deleted_at ? ' agent-def-card--deleted' : ''}${isTemplate ? ' workflows-card--template' : ''}`}
                 >
                   {/* Collapsed header */}
                   <button
@@ -880,7 +887,7 @@ export function AgentDefinitionsPage({ searchText, showDeleted, showBundled, dev
                           </button>
                         )}
                       </div>
-                    ) : isBundled ? (
+                    ) : isTemplate ? (
                       <>
                         <div />
                         <div className="workflows-card-actions">

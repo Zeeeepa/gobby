@@ -168,7 +168,7 @@ def create_rule(
         definition_json=json.dumps(definition),
         workflow_type="rule",
         enabled=True,
-        source="custom",
+        source="installed",
     )
     logger.info("Created rule '%s' (id=%s)", name, row.id)
 
@@ -197,11 +197,11 @@ def delete_rule(
     if row is None or row.workflow_type != "rule":
         return {"success": False, "error": f"Rule '{name}' not found"}
 
-    if row.source == "bundled" and not force:
+    if row.source in ("bundled", "template") and not force:
         return {
             "success": False,
             "error": (
-                f"Rule '{name}' is bundled and will be re-created on restart. "
+                f"Rule '{name}' is a template and will be re-created on restart. "
                 "Use force=True to delete anyway."
             ),
         }

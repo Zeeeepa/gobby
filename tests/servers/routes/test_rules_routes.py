@@ -50,7 +50,7 @@ def _seed_rule(
     event: str = "before_tool",
     group: str = "test-group",
     enabled: bool = True,
-    source: str = "custom",
+    source: str = "installed",
 ) -> str:
     """Seed a rule in the database and return its ID."""
     body = {
@@ -261,7 +261,7 @@ class TestDeleteRule:
     """DELETE /api/rules/{name} soft-deletes (bundled protected)."""
 
     def test_deletes_custom_rule(self, client, def_manager) -> None:
-        _seed_rule(def_manager, name="custom-rule", source="custom")
+        _seed_rule(def_manager, name="custom-rule", source="installed")
 
         resp = client.delete("/api/rules/custom-rule")
         assert resp.status_code == 200
@@ -269,13 +269,13 @@ class TestDeleteRule:
         assert data["status"] == "success"
 
     def test_protects_bundled_rule(self, client, def_manager) -> None:
-        _seed_rule(def_manager, name="bundled-rule", source="bundled")
+        _seed_rule(def_manager, name="bundled-rule", source="template")
 
         resp = client.delete("/api/rules/bundled-rule")
         assert resp.status_code == 403
 
     def test_force_deletes_bundled(self, client, def_manager) -> None:
-        _seed_rule(def_manager, name="bundled-rule", source="bundled")
+        _seed_rule(def_manager, name="bundled-rule", source="template")
 
         resp = client.delete("/api/rules/bundled-rule", params={"force": "true"})
         assert resp.status_code == 200

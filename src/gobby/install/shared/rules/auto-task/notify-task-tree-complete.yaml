@@ -1,0 +1,16 @@
+tags: [auto-task, task, autonomous, lifecycle]
+
+rules:
+  notify-task-tree-complete:
+    description: "Inject completion notice when task tree is fully closed"
+    event: before_agent
+    enabled: false
+    priority: 61
+    when: "variables.get('session_task') and task_tree_complete(variables.get('session_task'))"
+    effect:
+      type: inject_context
+      template: |
+        Task complete! All subtasks for {{ variables.session_task }} have been closed.
+
+        The auto-task workflow is now complete.
+        You may stop the session or start a new task.

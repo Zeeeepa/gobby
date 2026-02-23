@@ -70,7 +70,7 @@ def sync_bundled_agents(db: DatabaseProtocol) -> dict[str, Any]:
     2. Parses each into an AgentDefinition (for validation)
     3. Converts to AgentDefinitionBody (12-field simplified model)
     4. Creates new records or updates changed content (idempotent)
-    5. All records are stored with workflow_type='agent' and source='bundled'
+    5. All records are stored with workflow_type='agent' and source='template'
 
     Args:
         db: Database connection
@@ -161,7 +161,7 @@ def sync_bundled_agents(db: DatabaseProtocol) -> dict[str, Any]:
                 definition_json=body_json,
                 workflow_type="agent",
                 description=body.description,
-                source="bundled",
+                source="template",
                 enabled=body.enabled,
             )
             logger.info(f"Synced bundled agent definition: {name}")

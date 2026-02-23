@@ -1,0 +1,13 @@
+tags: [stop-gates, enforcement, lifecycle]
+
+rules:
+  clear-tool-block-on-prompt:
+    description: "Clear tool block flag on genuine new prompt (not stop-cycle feedback)"
+    event: before_agent
+    enabled: false
+    priority: 11
+    when: "variables.get('stop_attempts', 0) == 0"
+    effect:
+      type: set_variable
+      variable: _tool_block_pending
+      value: false

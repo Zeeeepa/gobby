@@ -1,0 +1,143 @@
+# Session variable defaults — initialized on session_start.
+#
+# Each rule seeds a single variable if it's not already set.
+# Priority 1 ensures these run before any rules that depend on the values.
+#
+# Previously these lived in session-lifecycle.yaml (step-based workflow).
+# Now they're declarative rules that the RuleEngine evaluates directly.
+
+group: session-defaults
+tags: [initialization]
+
+rules:
+  init-mode-level:
+    description: "Default mode_level to 2 (Full Auto)"
+    event: session_start
+    priority: 1
+    enabled: true
+    when: "variables.get('mode_level') is None"
+    effect:
+      type: set_variable
+      variable: mode_level
+      value: 2
+
+  init-chat-mode:
+    description: "Default chat_mode to bypass"
+    event: session_start
+    priority: 1
+    enabled: true
+    when: "variables.get('chat_mode') is None"
+    effect:
+      type: set_variable
+      variable: chat_mode
+      value: bypass
+
+  init-unlocked-tools:
+    description: "Default unlocked_tools to empty list"
+    event: session_start
+    priority: 1
+    enabled: true
+    when: "variables.get('unlocked_tools') is None"
+    effect:
+      type: set_variable
+      variable: unlocked_tools
+      value: []
+
+  init-servers-listed:
+    description: "Default servers_listed to false"
+    event: session_start
+    priority: 1
+    enabled: true
+    when: "variables.get('servers_listed') is None"
+    effect:
+      type: set_variable
+      variable: servers_listed
+      value: false
+
+  init-listed-servers:
+    description: "Default listed_servers to empty list"
+    event: session_start
+    priority: 1
+    enabled: true
+    when: "variables.get('listed_servers') is None"
+    effect:
+      type: set_variable
+      variable: listed_servers
+      value: []
+
+  init-stop-attempts:
+    description: "Default stop_attempts to 0"
+    event: session_start
+    priority: 1
+    enabled: true
+    when: "variables.get('stop_attempts') is None"
+    effect:
+      type: set_variable
+      variable: stop_attempts
+      value: 0
+
+  init-pre-existing-errors-triaged:
+    description: "Default pre_existing_errors_triaged to false"
+    event: session_start
+    priority: 1
+    enabled: true
+    when: "variables.get('pre_existing_errors_triaged') is None"
+    effect:
+      type: set_variable
+      variable: pre_existing_errors_triaged
+      value: false
+
+  init-enforce-tool-schema-check:
+    description: "Default enforce_tool_schema_check to true"
+    event: session_start
+    priority: 1
+    enabled: true
+    when: "variables.get('enforce_tool_schema_check') is None"
+    effect:
+      type: set_variable
+      variable: enforce_tool_schema_check
+      value: true
+
+  init-require-task-before-edit:
+    description: "Default require_task_before_edit to true"
+    event: session_start
+    priority: 1
+    enabled: true
+    when: "variables.get('require_task_before_edit') is None"
+    effect:
+      type: set_variable
+      variable: require_task_before_edit
+      value: true
+
+  init-require-commit-before-close:
+    description: "Default require_commit_before_close to true"
+    event: session_start
+    priority: 1
+    enabled: true
+    when: "variables.get('require_commit_before_close') is None"
+    effect:
+      type: set_variable
+      variable: require_commit_before_close
+      value: true
+
+  init-require-uv:
+    description: "Default require_uv to true"
+    event: session_start
+    priority: 1
+    enabled: true
+    when: "variables.get('require_uv') is None"
+    effect:
+      type: set_variable
+      variable: require_uv
+      value: true
+
+  init-max-stop-attempts:
+    description: "Default max_stop_attempts to 3"
+    event: session_start
+    priority: 1
+    enabled: true
+    when: "variables.get('max_stop_attempts') is None"
+    effect:
+      type: set_variable
+      variable: max_stop_attempts
+      value: 3

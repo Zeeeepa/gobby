@@ -211,7 +211,7 @@ def _make_db_row(
     name: str = "test-wf",
     workflow_type: str = "workflow",
     description: str = "A test workflow",
-    source: str = "custom",
+    source: str = "installed",
     enabled: bool = True,
     priority: int = 100,
 ) -> WorkflowDefinitionRow:
@@ -259,7 +259,7 @@ class TestListWorkflowsDBIntegration:
         wf = next(w for w in result["workflows"] if w["name"] == "my-workflow")
         assert wf["enabled"] is True
         assert wf["priority"] == 100
-        assert wf["source"] == "custom"
+        assert wf["source"] == "installed"
 
     def test_merges_db_and_filesystem(self, tmp_path: Path) -> None:
         """list_workflows merges DB + filesystem results, DB takes precedence."""
@@ -290,7 +290,7 @@ class TestListWorkflowsDBIntegration:
         assert result["count"] == 2
         # The shared-name entry should be from DB (has source=custom)
         shared = next(w for w in result["workflows"] if w["name"] == "shared-name")
-        assert shared["source"] == "custom"
+        assert shared["source"] == "installed"
         assert shared["description"] == "DB version"
 
     def test_falls_back_to_filesystem_when_db_empty(self, tmp_path: Path) -> None:

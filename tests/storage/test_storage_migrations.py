@@ -1712,7 +1712,7 @@ def test_workflow_definitions_unique_constraint(tmp_path) -> None:
 
 
 def test_workflow_definitions_bundled_import(tmp_path) -> None:
-    """Test that bundled YAML workflows are imported with source='bundled'."""
+    """Test that bundled YAML workflows are imported with source='template'."""
     db_path = tmp_path / "workflow_defs_import.db"
     db = LocalDatabase(db_path)
 
@@ -1720,7 +1720,7 @@ def test_workflow_definitions_bundled_import(tmp_path) -> None:
 
     # Check that bundled workflows were imported
     rows = db.fetchall(
-        "SELECT name, source, workflow_type FROM workflow_definitions WHERE source = 'bundled'"
+        "SELECT name, source, workflow_type FROM workflow_definitions WHERE source = 'template'"
     )
     assert len(rows) > 0, "No bundled workflows imported"
 
@@ -1810,7 +1810,7 @@ def test_workflow_definitions_defaults(tmp_path) -> None:
     assert row["version"] == "1.0", "version should default to '1.0'"
     assert row["enabled"] == 1, "enabled should default to 1"
     assert row["priority"] == 100, "priority should default to 100"
-    assert row["source"] == "custom", "source should default to 'custom'"
+    assert row["source"] == "installed", "source should default to 'installed'"
     assert row["project_id"] is None, "project_id should default to NULL"
     assert row["canvas_json"] is None, "canvas_json should default to NULL"
 
@@ -1838,7 +1838,7 @@ def test_workflow_definitions_global_null_project(tmp_path) -> None:
 
     run_migrations(db)
 
-    rows = db.fetchall("SELECT project_id FROM workflow_definitions WHERE source = 'bundled'")
+    rows = db.fetchall("SELECT project_id FROM workflow_definitions WHERE source = 'template'")
     for row in rows:
         assert row["project_id"] is None, "Bundled workflows should have NULL project_id"
 

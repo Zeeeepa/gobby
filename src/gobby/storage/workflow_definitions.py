@@ -57,7 +57,7 @@ class WorkflowDefinitionRow:
             sources=_parse_json_list(row["sources"]),
             definition_json=row["definition_json"],
             canvas_json=row["canvas_json"],
-            source=row["source"] or "custom",
+            source=row["source"] or "installed",
             tags=_parse_json_list(row["tags"]),
             created_at=row["created_at"],
             updated_at=row["updated_at"],
@@ -103,7 +103,7 @@ class LocalWorkflowDefinitionManager:
         priority: int = 100,
         sources: list[str] | None = None,
         canvas_json: str | None = None,
-        source: str = "custom",
+        source: str = "installed",
         tags: list[str] | None = None,
     ) -> WorkflowDefinitionRow:
         """Create a new workflow definition in the database."""
@@ -166,10 +166,10 @@ class LocalWorkflowDefinitionManager:
             )
             if row:
                 return WorkflowDefinitionRow.from_row(row)
-        # Fall back to global — prefer custom over bundled when both exist
+        # Fall back to global — prefer installed over template when both exist
         row = self.db.fetchone(
             f"SELECT * FROM workflow_definitions WHERE name = ? AND project_id IS NULL{deleted_filter}"
-            " ORDER BY CASE WHEN source = 'bundled' THEN 1 ELSE 0 END LIMIT 1",
+            " ORDER BY CASE WHEN source = 'template' THEN 1 ELSE 0 END LIMIT 1",
             (name,),
         )
         return WorkflowDefinitionRow.from_row(row) if row else None
@@ -278,7 +278,7 @@ class LocalWorkflowDefinitionManager:
         conditions = [
             "workflow_type = 'rule'",
             "deleted_at IS NULL",
-            "source != 'bundled'",
+            "source != 'template'",
             "json_extract(definition_json, '$.event') = ?",
         ]
         params: list[Any] = [event]
@@ -308,7 +308,7 @@ class LocalWorkflowDefinitionManager:
         conditions = [
             "workflow_type = 'rule'",
             "deleted_at IS NULL",
-            "source != 'bundled'",
+            "source != 'template'",
             "json_extract(definition_json, '$.group') = ?",
         ]
         params: list[Any] = [group]
@@ -385,29 +385,31 @@ class LocalWorkflowDefinitionManager:
             priority=original.priority,
             sources=original.sources,
             canvas_json=original.canvas_json,
-            source="custom",
+            source="installed",
             tags=original.tags,
         )
 
     def use_as_template(self, definition_id: str) -> WorkflowDefinitionRow:
-        """Create a custom copy from a bundled definition.
+        """Create an installed copy from a template definition.
 
-        Copies all fields with source='custom' and enabled=True.
-        Disables the bundled original to prevent duplicate rule firing.
+        Copies all fields with source='installed' and enabled=True.
+        Disables the template original to prevent duplicate rule firing.
         """
         original = self.get(definition_id)
-        if original.source != "bundled":
-            raise ValueError(f"Definition '{original.name}' is not bundled (source={original.source})")
+        if original.source != "template":
+            raise ValueError(
+                f"Definition '{original.name}' is not a template (source={original.source})"
+            )
 
-        # Check for existing custom item with same name
+        # Check for existing installed item with same name
         existing = self.db.fetchone(
-            "SELECT id FROM workflow_definitions WHERE name = ? AND source != 'bundled' AND deleted_at IS NULL",
+            "SELECT id FROM workflow_definitions WHERE name = ? AND source != 'template' AND deleted_at IS NULL",
             (original.name,),
         )
         if existing:
-            raise ValueError(f"A custom definition named '{original.name}' already exists")
+            raise ValueError(f"An installed definition named '{original.name}' already exists")
 
-        # Create the custom copy
+        # Create the installed copy
         new_row = self.create(
             name=original.name,
             definition_json=original.definition_json,
@@ -419,11 +421,11 @@ class LocalWorkflowDefinitionManager:
             priority=original.priority,
             sources=original.sources,
             canvas_json=original.canvas_json,
-            source="custom",
+            source="installed",
             tags=original.tags,
         )
 
-        # Disable the bundled original
+        # Disable the template original
         self.update(definition_id, enabled=False)
 
         return new_row
@@ -431,18 +433,18 @@ class LocalWorkflowDefinitionManager:
     def use_all_bundled_as_templates(
         self, workflow_type: str | None = None
     ) -> list[WorkflowDefinitionRow]:
-        """Create custom copies of all eligible bundled definitions.
+        """Create installed copies of all eligible template definitions.
 
-        Skips bundled items that already have a custom counterpart with the same name.
+        Skips template items that already have an installed counterpart with the same name.
         """
-        bundled = self.list_all(workflow_type=workflow_type, include_deleted=False)
-        bundled = [row for row in bundled if row.source == "bundled"]
+        templates = self.list_all(workflow_type=workflow_type, include_deleted=False)
+        templates = [row for row in templates if row.source == "template"]
 
         created: list[WorkflowDefinitionRow] = []
-        for row in bundled:
-            # Skip if a non-bundled item with same name already exists
+        for row in templates:
+            # Skip if a non-template item with same name already exists
             existing = self.db.fetchone(
-                "SELECT id FROM workflow_definitions WHERE name = ? AND source != 'bundled' AND deleted_at IS NULL",
+                "SELECT id FROM workflow_definitions WHERE name = ? AND source != 'template' AND deleted_at IS NULL",
                 (row.name,),
             )
             if existing:

@@ -1,0 +1,13 @@
+tags: [session-defaults, initialization]
+
+rules:
+  init-unlocked-tools:
+    description: "Default unlocked_tools to empty list"
+    event: session_start
+    enabled: false
+    priority: 1
+    when: "variables.get('unlocked_tools') is None"
+    effect:
+      type: set_variable
+      variable: unlocked_tools
+      value: []

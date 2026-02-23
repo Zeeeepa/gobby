@@ -1,0 +1,12 @@
+tags: [context-handoff, context, handoff, lifecycle]
+
+rules:
+  task-sync-export-on-end:
+    description: "Export tasks to .gobby/tasks.jsonl on session end"
+    event: session_end
+    enabled: false
+    priority: 30
+    effect:
+      type: mcp_call
+      server: gobby-tasks
+      tool: sync_export

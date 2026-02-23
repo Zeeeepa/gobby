@@ -1,0 +1,15 @@
+tags: [memory-lifecycle, memory, lifecycle]
+
+rules:
+  memory-recall-on-prompt:
+    description: "Search and inject relevant memories before agent prompt"
+    event: before_agent
+    enabled: false
+    priority: 10
+    effect:
+      type: mcp_call
+      server: gobby-memory
+      tool: recall_with_synthesis
+      arguments:
+        limit: 5
+      background: false

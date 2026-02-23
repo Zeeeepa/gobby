@@ -317,8 +317,8 @@ class TestMigrateAgentDefinitions:
             "SELECT source FROM workflow_definitions WHERE name = ? AND workflow_type = 'agent'",
             ("test-global-mig",),
         )
-        assert bundled["source"] == "bundled"
-        assert global_["source"] == "custom"
+        assert bundled["source"] == "template"
+        assert global_["source"] == "installed"
 
     def test_migrates_multiple_agents(self, db_with_old_table: LocalDatabase) -> None:
         from gobby.storage.migrations import _migrate_agent_defs_to_workflow_defs

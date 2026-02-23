@@ -1,0 +1,17 @@
+tags: [task-enforcement, enforcement, tasks]
+
+rules:
+  block-ask-during-stop-compliance:
+    description: "Block AskUserQuestion when stop hook gave directive"
+    event: before_tool
+    enabled: false
+    priority: 34
+    when: "variables.get('stop_attempts', 0) > 0 and task_claimed"
+    effect:
+      type: block
+      tools: [AskUserQuestion]
+      reason: |
+        Do not ask — act on the hook directive:
+        1. git commit -m "[{{ project.name }}-#N] description"
+        2. close_task(task_id="#N", commit_sha="<sha>")
+        3. Then stop.

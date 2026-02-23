@@ -19,9 +19,6 @@ export function MobileChatDrawer({
 }: MobileChatDrawerProps) {
   const [isOpen, setIsOpen] = useState(false)
 
-  const activeSession = sessions.find(s => s.external_id === activeSessionId)
-  const activeTitle = activeSession?.title || 'Chats'
-
   return (
     <div className={`mobile-chat-drawer ${isOpen ? '' : 'collapsed'}`}>
       <div
@@ -32,7 +29,8 @@ export function MobileChatDrawer({
         onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setIsOpen(!isOpen) } }}
       >
         <span className="mobile-chat-drawer-title">
-          {isOpen ? 'Chats' : activeTitle}
+          <ChatsIcon />
+          Chats
         </span>
         <span>{isOpen ? '\u25B2' : '\u25BC'}</span>
       </div>
@@ -93,6 +91,14 @@ export function MobileChatDrawer({
         </div>
       )}
     </div>
+  )
+}
+
+function ChatsIcon() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+    </svg>
   )
 }
 

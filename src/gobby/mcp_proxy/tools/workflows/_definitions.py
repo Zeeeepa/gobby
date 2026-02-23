@@ -219,7 +219,7 @@ def delete_workflow_definition(
     """
     Delete a workflow/pipeline definition by name or ID.
 
-    Bundled definitions (source='bundled') are protected unless force=True,
+    Template definitions (source='template') are protected unless force=True,
     since they'll be re-created on daemon restart.
 
     Args:
@@ -237,11 +237,11 @@ def delete_workflow_definition(
     except ValueError as e:
         return {"success": False, "error": str(e)}
 
-    if row.source == "bundled" and not force:
+    if row.source in ("bundled", "template") and not force:
         return {
             "success": False,
             "error": (
-                f"Definition '{row.name}' is bundled and will be re-created on restart. "
+                f"Definition '{row.name}' is a template and will be re-created on restart. "
                 "Use force=True to delete anyway."
             ),
         }

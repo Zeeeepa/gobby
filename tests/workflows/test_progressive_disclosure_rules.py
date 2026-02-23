@@ -73,16 +73,15 @@ class TestProgressiveDisclosureSync:
             f"Missing: {PROGRESSIVE_DISCLOSURE_RULES - rule_names}"
         )
 
-    def test_all_rules_have_group(self, db, manager) -> None:
-        """All rules should have group='progressive-disclosure'."""
+    def test_all_rules_have_progressive_disclosure_tag(self, db, manager) -> None:
+        """All rules should be tagged with 'progressive-disclosure'."""
         _sync_bundled(db)
 
         rules = manager.list_all(workflow_type="rule")
         for row in rules:
             if row.name in PROGRESSIVE_DISCLOSURE_RULES:
-                body = json.loads(row.definition_json)
-                assert body.get("group") == "progressive-disclosure", (
-                    f"{row.name} missing group"
+                assert row.tags and "progressive-disclosure" in row.tags, (
+                    f"{row.name} missing 'progressive-disclosure' tag"
                 )
 
     def test_all_rules_are_valid_pydantic(self, db, manager) -> None:
@@ -352,12 +351,12 @@ class TestRuleEngineIntegration:
     @pytest.fixture
     def engine(self, db) -> RuleEngine:
         _sync_bundled(db)
-        # Enable the progressive disclosure rules and set source to 'custom'
+        # Enable the progressive disclosure rules and set source to 'installed'
         # (bundled rules are excluded from engine evaluation; in production
         # users create custom copies via "Use as Template")
         for name in PROGRESSIVE_DISCLOSURE_RULES:
             db.execute(
-                "UPDATE workflow_definitions SET enabled = 1, source = 'custom' WHERE name = ?",
+                "UPDATE workflow_definitions SET enabled = 1, source = 'installed' WHERE name = ?",
                 (name,),
             )
         return RuleEngine(db)

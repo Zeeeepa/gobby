@@ -1,0 +1,13 @@
+tags: [context-handoff, context, handoff, lifecycle]
+
+rules:
+  clear-pending-context-reset-on-start:
+    description: "Clear pending_context_reset flag after use (Gemini resume flow)"
+    event: session_start
+    enabled: false
+    priority: 5
+    when: "variables.get('pending_context_reset')"
+    effect:
+      type: set_variable
+      variable: pending_context_reset
+      value: false

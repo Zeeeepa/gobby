@@ -139,12 +139,33 @@ class ClaudeCodeAdapter(BaseAdapter):
         tool_name = data.get("tool_name", "")
         tool_input = data.get("tool_input", {}) or {}
 
-        # 1. Extract MCP info from nested tool_input for call_tool calls
+        # 1a. Parse mcp__<server>__<tool> prefix for ALL native MCP calls
+        # Claude Code sends native MCP tools with this naming convention.
+        # Extract mcp_server/mcp_tool so rules can match consistently.
+        if tool_name.startswith("mcp__") and "mcp_tool" not in data:
+            parts = tool_name.split("__", 2)  # ["mcp", "server", "tool"]
+            if len(parts) == 3:
+                data.setdefault("mcp_server", parts[1])
+                data.setdefault("mcp_tool", parts[2])
+
+        # 1b. Extract MCP info from nested tool_input for call_tool calls
+        # For mcp__gobby__call_tool: override prefix-parsed "gobby" with actual target
+        # For plain call_tool: only set if not already present (preserve externally-set values)
         if tool_name in ("call_tool", "mcp__gobby__call_tool"):
-            if "mcp_server" not in data:
-                data["mcp_server"] = tool_input.get("server_name")
-            if "mcp_tool" not in data:
-                data["mcp_tool"] = tool_input.get("tool_name")
+            inner_server = tool_input.get("server_name")
+            inner_tool = tool_input.get("tool_name")
+            if tool_name.startswith("mcp__"):
+                # Override prefix-parsed values with actual inner target
+                if inner_server:
+                    data["mcp_server"] = inner_server
+                if inner_tool:
+                    data["mcp_tool"] = inner_tool
+            else:
+                # Plain call_tool — don't overwrite externally-set values
+                if inner_server and "mcp_server" not in data:
+                    data["mcp_server"] = inner_server
+                if inner_tool and "mcp_tool" not in data:
+                    data["mcp_tool"] = inner_tool
 
         # 2. Normalize tool_result → tool_output
         if "tool_result" in data and "tool_output" not in data:

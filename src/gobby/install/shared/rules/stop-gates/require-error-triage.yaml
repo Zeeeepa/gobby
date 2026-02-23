@@ -1,0 +1,14 @@
+tags: [stop-gates, enforcement, lifecycle]
+
+rules:
+  require-error-triage:
+    description: "Block stop until pre-existing errors are triaged"
+    event: stop
+    enabled: false
+    priority: 30
+    when: "variables.get('task_has_commits') and not variables.get('pre_existing_errors_triaged') and variables.get('stop_attempts', 0) < variables.get('max_stop_attempts', 3)"
+    effect:
+      type: block
+      reason: |
+        Triage pre-existing issues before stopping. Create tasks for unrelated errors,
+        or confirm none via set_variable(name="pre_existing_errors_triaged", value=true).

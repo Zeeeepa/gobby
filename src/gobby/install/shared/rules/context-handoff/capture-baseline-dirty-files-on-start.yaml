@@ -1,0 +1,12 @@
+tags: [context-handoff, context, handoff, lifecycle]
+
+rules:
+  capture-baseline-dirty-files-on-start:
+    description: "Capture baseline dirty files for session-aware commit detection"
+    event: session_start
+    enabled: false
+    priority: 8
+    effect:
+      type: mcp_call
+      server: gobby-sessions
+      tool: capture_baseline_dirty_files

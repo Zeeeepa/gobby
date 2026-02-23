@@ -120,14 +120,33 @@ class CopilotAdapter(BaseAdapter):
             else:
                 data["tool_output"] = tool_result
 
-        # 4. Extract MCP info from nested toolArgs for call_tool calls
+        # 4. Extract MCP info
         tool_name = data.get("tool_name", "")
         tool_input = data.get("tool_input", {}) or {}
+
+        # 4a. Parse mcp__<server>__<tool> prefix for ALL native MCP calls
+        if tool_name.startswith("mcp__") and "mcp_tool" not in data:
+            parts = tool_name.split("__", 2)  # ["mcp", "server", "tool"]
+            if len(parts) == 3:
+                data.setdefault("mcp_server", parts[1])
+                data.setdefault("mcp_tool", parts[2])
+
+        # 4b. Extract inner MCP info from nested toolArgs for call_tool calls
+        # For mcp__gobby__call_tool: override prefix-parsed "gobby" with actual target
+        # For plain call_tool: only set if not already present
         if tool_name in ("call_tool", "mcp__gobby__call_tool"):
-            if "mcp_server" not in data:
-                data["mcp_server"] = tool_input.get("server_name")
-            if "mcp_tool" not in data:
-                data["mcp_tool"] = tool_input.get("tool_name")
+            inner_server = tool_input.get("server_name")
+            inner_tool = tool_input.get("tool_name")
+            if tool_name.startswith("mcp__"):
+                if inner_server:
+                    data["mcp_server"] = inner_server
+                if inner_tool:
+                    data["mcp_tool"] = inner_tool
+            else:
+                if inner_server and "mcp_server" not in data:
+                    data["mcp_server"] = inner_server
+                if inner_tool and "mcp_tool" not in data:
+                    data["mcp_tool"] = inner_tool
 
         return data
 

@@ -1,0 +1,15 @@
+tags: [messaging, p2p, commands]
+
+rules:
+  command-tool-restriction:
+    description: "Block tools not in the command's allowed_tools list"
+    event: before_tool
+    enabled: false
+    priority: 5
+    when: >
+      variables.get('command_id')
+      and variables.get('allowed_tools')
+      and event.data.get('tool_name') not in variables.get('allowed_tools', [])
+    effect:
+      type: block
+      reason: "Tool not allowed by active command"

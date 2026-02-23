@@ -41,7 +41,7 @@ rules:
     description: "Record get_tool_schema calls to unlock tools"
     event: after_tool
     priority: 20
-    when: "event.data.get('mcp_tool') == 'get_tool_schema'"
+    when: "event.data.get('mcp_tool') == 'get_tool_schema' or event.data.get('tool_name') in ('get_tool_schema', 'mcp__gobby__get_tool_schema')"
     effect:
       type: set_variable
       variable: unlocked_tools
@@ -51,7 +51,7 @@ rules:
     description: "Mark servers as listed after list_mcp_servers"
     event: after_tool
     priority: 21
-    when: "event.data.get('mcp_tool') == 'list_mcp_servers'"
+    when: "event.data.get('mcp_tool') == 'list_mcp_servers' or event.data.get('tool_name') in ('list_mcp_servers', 'mcp__gobby__list_mcp_servers')"
     effect:
       type: set_variable
       variable: servers_listed
@@ -61,7 +61,7 @@ rules:
     description: "Record which servers have been listed via list_tools"
     event: after_tool
     priority: 22
-    when: "event.data.get('mcp_tool') == 'list_tools'"
+    when: "event.data.get('mcp_tool') == 'list_tools' or event.data.get('tool_name') in ('list_tools', 'mcp__gobby__list_tools')"
     effect:
       type: set_variable
       variable: listed_servers

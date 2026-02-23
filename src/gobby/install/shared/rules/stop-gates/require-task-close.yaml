@@ -1,0 +1,13 @@
+tags: [stop-gates, enforcement, lifecycle]
+
+rules:
+  require-task-close:
+    description: "Block stop if task is still in_progress"
+    event: stop
+    enabled: false
+    priority: 50
+    when: "variables.get('mode_level', 2) >= 1 and task_claimed and variables.get('stop_attempts', 0) < variables.get('max_stop_attempts', 3)"
+    effect:
+      type: block
+      reason: |
+        Task {{ task_ref }} is still in_progress. Commit and close_task().

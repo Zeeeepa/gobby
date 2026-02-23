@@ -1,0 +1,12 @@
+tags: [worker-safety]
+
+rules:
+  no-push:
+    description: "Block git push - let the parent session handle pushing."
+    event: before_tool
+    enabled: false
+    effect:
+      type: block
+      tools: [Bash]
+      command_pattern: "git\\s+push"
+      reason: "Do not push to remote. Let the parent session handle pushing."

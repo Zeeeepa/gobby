@@ -22,8 +22,8 @@ if TYPE_CHECKING:
     from gobby.storage.workflow_definitions import LocalWorkflowDefinitionManager
 
 AgentSource = Literal[
-    "bundled",
-    "custom",
+    "template",
+    "installed",
     "imported",
     "global",
     "project",
@@ -394,7 +394,9 @@ class AgentDefinitionLoader:
             instructions=body.instructions,
             provider=body.provider,
             model=body.model,
-            mode=body.mode if body.mode in ("terminal", "embedded", "headless", "self") else "headless",
+            mode=body.mode
+            if body.mode in ("terminal", "embedded", "headless", "self")
+            else "headless",
             isolation=body.isolation,
             base_branch=body.base_branch,
             timeout=body.timeout,
@@ -447,7 +449,7 @@ class AgentDefinitionLoader:
         List all agent definitions from workflow_definitions, deduplicated by name.
 
         Project-scoped entries take priority over global ones.
-        Source 'custom' takes priority over 'bundled'.
+        Source 'installed' takes priority over 'template'.
 
         Returns:
             Sorted list of AgentDefinitionInfo (by name).
@@ -465,8 +467,8 @@ class AgentDefinitionLoader:
             logger.warning(f"Failed to load agent definitions from DB: {e}")
             return []
 
-        # Priority: project-scoped > custom > bundled
-        _SOURCE_PRIORITY = {"custom": 1, "imported": 2, "bundled": 3}
+        # Priority: project-scoped > installed > template
+        _SOURCE_PRIORITY = {"installed": 1, "imported": 2, "template": 3}
 
         seen: dict[str, AgentDefinitionInfo] = {}
         for row in rows:

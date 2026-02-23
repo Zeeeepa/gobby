@@ -37,7 +37,7 @@ MigrationAction = str | Callable[[LocalDatabase], None]
 # Baseline version - the schema state that is applied for new databases directly.
 # Must be bumped when BASELINE_SCHEMA is updated with columns from new migrations,
 # so that fresh databases don't re-run migrations already baked into the baseline.
-BASELINE_VERSION = 117
+BASELINE_VERSION = 120
 
 # Minimum migration version - databases older than this cannot be upgraded
 # because legacy migrations (pre-v108) have been removed.
@@ -787,7 +787,7 @@ CREATE TABLE workflow_definitions (
     sources TEXT,
     definition_json TEXT NOT NULL,
     canvas_json TEXT,
-    source TEXT DEFAULT 'custom',
+    source TEXT DEFAULT 'installed',
     tags TEXT,
     deleted_at TEXT,
     created_at TEXT NOT NULL DEFAULT (datetime('now')),
@@ -873,7 +873,7 @@ def _import_bundled_workflows(db: LocalDatabase) -> None:
                 """INSERT OR IGNORE INTO workflow_definitions
                    (id, name, description, workflow_type, version, enabled,
                     priority, sources, definition_json, source)
-                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'bundled')""",
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'template')""",
                 (
                     str(uuid.uuid4()),
                     name,
@@ -1086,7 +1086,7 @@ def _migrate_agent_defs_to_workflow_defs(db: LocalDatabase) -> None:
 
         # Map scope to source
         scope = row["scope"] or "global"
-        source = "bundled" if scope == "bundled" else "custom"
+        source = "template" if scope == "bundled" else "installed"
 
         db.execute(
             """INSERT OR IGNORE INTO workflow_definitions
@@ -1200,6 +1200,12 @@ MIGRATIONS: list[tuple[int, str, MigrationAction]] = [
         "Include source in workflow_definitions unique index to allow bundled+custom coexistence",
         """DROP INDEX IF EXISTS idx_wf_defs_name_project;
 CREATE UNIQUE INDEX idx_wf_defs_name_project ON workflow_definitions(name, COALESCE(project_id, '__global__'), source)""",
+    ),
+    (
+        120,
+        "Rename source values: bundled->template, custom->installed",
+        """UPDATE workflow_definitions SET source = 'template' WHERE source = 'bundled';
+UPDATE workflow_definitions SET source = 'installed' WHERE source = 'custom'""",
     ),
 ]
 

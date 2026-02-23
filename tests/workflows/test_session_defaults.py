@@ -1,4 +1,4 @@
-"""Tests for session-defaults.yaml loading."""
+"""Tests for session-defaults.yaml rule-based initialization."""
 
 from __future__ import annotations
 
@@ -9,7 +9,7 @@ import pytest
 from gobby.storage.database import LocalDatabase
 from gobby.storage.migrations import run_migrations
 from gobby.storage.workflow_definitions import LocalWorkflowDefinitionManager
-from gobby.workflows.sync import load_session_defaults, sync_bundled_rules
+from gobby.workflows.sync import sync_bundled_rules
 
 pytestmark = pytest.mark.unit
 
@@ -34,126 +34,87 @@ def rules_dir(tmp_path) -> Path:
     return d
 
 
-class TestLoadSessionDefaults:
-    """Test loading session variable defaults from YAML."""
-
-    def test_loads_from_yaml_file(self, rules_dir) -> None:
-        """Should load session_variables from YAML file."""
-        (rules_dir / "session-defaults.yaml").write_text(
-            """
-session_variables:
-  chat_mode: bypass
-  mode_level: 2
-  stop_attempts: 0
-"""
-        )
-        defaults = load_session_defaults(rules_dir)
-
-        assert defaults["chat_mode"] == "bypass"
-        assert defaults["mode_level"] == 2
-        assert defaults["stop_attempts"] == 0
-
-    def test_loads_all_expected_defaults(self, rules_dir) -> None:
-        """Should load all expected default variable values."""
-        (rules_dir / "session-defaults.yaml").write_text(
-            """
-session_variables:
-  chat_mode: bypass
-  mode_level: 2
-  unlocked_tools: []
-  servers_listed: false
-  listed_servers: []
-  pre_existing_errors_triaged: false
-  stop_attempts: 0
-"""
-        )
-        defaults = load_session_defaults(rules_dir)
-
-        assert defaults["chat_mode"] == "bypass"
-        assert defaults["mode_level"] == 2
-        assert defaults["unlocked_tools"] == []
-        assert defaults["servers_listed"] is False
-        assert defaults["listed_servers"] == []
-        assert defaults["pre_existing_errors_triaged"] is False
-        assert defaults["stop_attempts"] == 0
-
-    def test_returns_empty_dict_when_missing(self, tmp_path) -> None:
-        """Should return empty dict when file doesn't exist."""
-        defaults = load_session_defaults(tmp_path / "nonexistent")
-        assert defaults == {}
-
-    def test_returns_empty_dict_when_no_session_variables(self, rules_dir) -> None:
-        """Should return empty dict when file has no session_variables key."""
-        (rules_dir / "session-defaults.yaml").write_text(
-            """
-rules:
-  some-rule:
-    event: before_tool
-"""
-        )
-        defaults = load_session_defaults(rules_dir)
-        assert defaults == {}
-
-
 class TestSessionDefaultsSync:
-    """Test that session-defaults.yaml is correctly handled by sync."""
+    """Test that session-defaults.yaml syncs as proper rules."""
 
-    def test_session_defaults_skipped_by_rule_sync(self, db, rules_dir) -> None:
-        """session-defaults.yaml without 'rules' key should be skipped, not error."""
+    def test_session_defaults_syncs_as_rules(self, db, rules_dir) -> None:
+        """session-defaults.yaml with 'rules' key should create rule rows."""
         (rules_dir / "session-defaults.yaml").write_text(
             """
-session_variables:
-  chat_mode: bypass
-  stop_attempts: 0
+group: session-defaults
+tags: [initialization]
+
+rules:
+  init-mode-level:
+    description: "Default mode_level to 2"
+    event: session_start
+    priority: 1
+    enabled: true
+    effect:
+      type: set_variable
+      variable: mode_level
+      value: 2
+
+  init-stop-attempts:
+    description: "Default stop_attempts to 0"
+    event: session_start
+    priority: 1
+    enabled: true
+    effect:
+      type: set_variable
+      variable: stop_attempts
+      value: 0
 """
         )
         result = sync_bundled_rules(db, rules_dir)
 
-        # Should be skipped (no 'rules' key), not an error
-        assert result["synced"] == 0
-        assert result["skipped"] == 1
+        assert result["synced"] == 2
         assert result["errors"] == []
+
+        # Verify rules exist in DB
+        mgr = LocalWorkflowDefinitionManager(db)
+        mode_rule = mgr.get_by_name("init-mode-level")
+        assert mode_rule is not None
+        assert mode_rule.enabled
+
+        stop_rule = mgr.get_by_name("init-stop-attempts")
+        assert stop_rule is not None
+        assert stop_rule.enabled
 
 
 class TestBundledSessionDefaults:
-    """Test the actual bundled session-defaults.yaml file."""
+    """Test that bundled session-defaults rules sync correctly."""
 
-    def test_bundled_file_exists(self) -> None:
-        """The bundled session-defaults.yaml should exist."""
+    def test_bundled_defaults_dir_exists(self) -> None:
+        """The bundled session-defaults directory should exist with YAML files."""
         from gobby.workflows.sync import get_bundled_rules_path
 
-        defaults_file = get_bundled_rules_path() / "session-defaults.yaml"
-        assert defaults_file.exists(), f"Expected {defaults_file} to exist"
+        defaults_dir = get_bundled_rules_path() / "session-defaults"
+        assert defaults_dir.is_dir(), f"Expected {defaults_dir} to be a directory"
+        yaml_files = list(defaults_dir.glob("*.yaml"))
+        assert len(yaml_files) >= 10, f"Expected >= 10 rule files, got {len(yaml_files)}"
 
-    def test_bundled_file_has_expected_variables(self) -> None:
-        """The bundled file should have all expected default variables."""
+    def test_bundled_defaults_sync_to_db(self, db) -> None:
+        """The bundled session-defaults rules should sync to DB."""
         from gobby.workflows.sync import get_bundled_rules_path
 
-        defaults = load_session_defaults(get_bundled_rules_path())
-
-        expected_keys = {
-            "chat_mode",
-            "mode_level",
-            "unlocked_tools",
-            "servers_listed",
-            "listed_servers",
-            "pre_existing_errors_triaged",
-            "stop_attempts",
-        }
-        assert expected_keys.issubset(defaults.keys()), (
-            f"Missing keys: {expected_keys - defaults.keys()}"
+        result = sync_bundled_rules(db, get_bundled_rules_path())
+        assert result["errors"] == [], f"Sync errors: {result['errors']}"
+        # Should have synced at least the expected number of init rules
+        assert result["synced"] >= 12, (
+            f"Expected at least 12 init rules, got {result['synced']}"
         )
 
-    def test_bundled_defaults_have_correct_values(self) -> None:
-        """The bundled defaults should match the planned values."""
+    def test_synced_defaults_have_set_variable_effect(self, db) -> None:
+        """Session-default rules should use set_variable effect type."""
+        import json
+
         from gobby.workflows.sync import get_bundled_rules_path
 
-        defaults = load_session_defaults(get_bundled_rules_path())
-
-        assert defaults["chat_mode"] == "bypass"
-        assert defaults["mode_level"] == 2
-        assert defaults["unlocked_tools"] == []
-        assert defaults["servers_listed"] is False
-        assert defaults["listed_servers"] == []
-        assert defaults["pre_existing_errors_triaged"] is False
-        assert defaults["stop_attempts"] == 0
+        sync_bundled_rules(db, get_bundled_rules_path())
+        mgr = LocalWorkflowDefinitionManager(db)
+        rule = mgr.get_by_name("init-mode-level")
+        assert rule is not None
+        body = json.loads(rule.definition_json)
+        assert body["effect"]["type"] == "set_variable"
+        assert body["effect"]["variable"] == "mode_level"

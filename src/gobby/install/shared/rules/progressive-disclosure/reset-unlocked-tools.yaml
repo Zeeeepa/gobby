@@ -1,0 +1,13 @@
+tags: [progressive-disclosure, enforcement, mcp]
+
+rules:
+  reset-unlocked-tools:
+    description: "Clear unlocked_tools on context loss"
+    event: session_start
+    enabled: false
+    priority: 80
+    when: "event.data.get('source') in ['clear', 'compact'] or (event.data.get('source') == 'resume' and variables.get('pending_context_reset'))"
+    effect:
+      type: set_variable
+      variable: unlocked_tools
+      value: []

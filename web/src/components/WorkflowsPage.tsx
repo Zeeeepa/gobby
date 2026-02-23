@@ -55,8 +55,7 @@ export function WorkflowsPage() {
   const [yamlEditorWf, setYamlEditorWf] = useState<WorkflowDetail | null>(null)
   const [yamlContent, setYamlContent] = useState('')
   const [yamlLoading, setYamlLoading] = useState(false)
-  const [showDeleted, setShowDeleted] = useState(false)
-  const [showBundled, setShowBundled] = useState(false)
+  const [sourceFilter, setSourceFilter] = useState<'installed' | 'templates' | 'deleted'>('installed')
   const [devMode, setDevMode] = useState(false)
   const [showRuleCreateModal, setShowRuleCreateModal] = useState(false)
   const [showAgentCreateForm, setShowAgentCreateForm] = useState(false)
@@ -82,9 +81,13 @@ export function WorkflowsPage() {
       result = result.filter(w => w.workflow_type === 'pipeline')
     }
 
-    // Hide bundled items unless toggled on
-    if (!showBundled) {
-      result = result.filter(w => w.source !== 'bundled')
+    // Source filter (exclusive)
+    if (sourceFilter === 'installed') {
+      result = result.filter(w => w.source === 'installed' && !w.deleted_at)
+    } else if (sourceFilter === 'templates') {
+      result = result.filter(w => w.source === 'template' && !w.deleted_at)
+    } else if (sourceFilter === 'deleted') {
+      result = result.filter(w => !!w.deleted_at)
     }
 
     // Enabled filter
@@ -103,29 +106,29 @@ export function WorkflowsPage() {
     }
 
     return result
-  }, [workflows, activeTab, enabledFilter, searchText, showBundled])
+  }, [workflows, activeTab, enabledFilter, searchText, sourceFilter])
 
-  // Re-fetch when showDeleted changes
+  // Always fetch with include_deleted so the filter can work
   useEffect(() => {
-    fetchWorkflows({ include_deleted: showDeleted })
-  }, [fetchWorkflows, showDeleted])
+    fetchWorkflows({ include_deleted: true })
+  }, [fetchWorkflows])
 
   const handleDelete = useCallback(async (wf: WorkflowDetail) => {
     if (!window.confirm(`Delete "${wf.name}"?`)) return
     try {
       await deleteWorkflow(wf.id)
     } finally {
-      fetchWorkflows({ include_deleted: showDeleted })
+      fetchWorkflows({ include_deleted: true })
     }
-  }, [deleteWorkflow, fetchWorkflows, showDeleted])
+  }, [deleteWorkflow, fetchWorkflows])
 
   const handleRestore = useCallback(async (wf: WorkflowDetail) => {
     try {
       await restoreWorkflow(wf.id)
     } finally {
-      fetchWorkflows({ include_deleted: showDeleted })
+      fetchWorkflows({ include_deleted: true })
     }
-  }, [restoreWorkflow, fetchWorkflows, showDeleted])
+  }, [restoreWorkflow, fetchWorkflows])
 
   const handleDuplicate = useCallback(async (wf: WorkflowDetail) => {
     const newName = window.prompt('New name:', `${wf.name}-copy`)
@@ -219,22 +222,15 @@ export function WorkflowsPage() {
             value={searchText}
             onChange={e => setSearchText(e.target.value)}
           />
-          <label className="workflows-show-deleted">
-            <input
-              type="checkbox"
-              checked={showBundled}
-              onChange={e => setShowBundled(e.target.checked)}
-            />
-            Bundled
-          </label>
-          <label className="workflows-show-deleted">
-            <input
-              type="checkbox"
-              checked={showDeleted}
-              onChange={e => setShowDeleted(e.target.checked)}
-            />
-            Deleted
-          </label>
+          <select
+            className="workflows-source-select"
+            value={sourceFilter}
+            onChange={e => setSourceFilter(e.target.value as 'installed' | 'templates' | 'deleted')}
+          >
+            <option value="installed">Installed</option>
+            <option value="templates">Templates</option>
+            <option value="deleted">Deleted</option>
+          </select>
           <button
             type="button"
             className={`workflows-toolbar-btn ${refreshing ? 'workflows-toolbar-btn--spinning' : ''}`}
@@ -243,7 +239,7 @@ export function WorkflowsPage() {
               if (activeTab === 'rules') {
                 setRefreshKey(k => k + 1)
               } else {
-                await fetchWorkflows({ include_deleted: showDeleted })
+                await fetchWorkflows({ include_deleted: true })
               }
               setTimeout(() => setRefreshing(false), 600)
             }}
@@ -293,8 +289,7 @@ export function WorkflowsPage() {
       {activeTab === 'rules' && (
         <RulesTab
           searchText={searchText}
-          showDeleted={showDeleted}
-          showBundled={showBundled}
+          sourceFilter={sourceFilter}
           devMode={devMode}
           showCreateModal={showRuleCreateModal}
           onCloseCreateModal={() => setShowRuleCreateModal(false)}
@@ -324,7 +319,7 @@ export function WorkflowsPage() {
                 disabled
               </button>
             </div>
-            {showBundled && (
+            {sourceFilter === 'templates' && (
               <button
                 type="button"
                 className="workflows-toolbar-btn"
@@ -351,11 +346,11 @@ export function WorkflowsPage() {
             ) : (
               <div className="workflows-grid">
                 {filteredWorkflows.map(wf => {
-                  const isBundled = wf.source === 'bundled'
+                  const isTemplate = wf.source === 'template'
                   const cardClass = [
                     'workflows-card',
                     wf.deleted_at ? 'workflows-card--deleted' : '',
-                    isBundled ? 'workflows-card--bundled' : '',
+                    isTemplate ? 'workflows-card--template' : '',
                   ].filter(Boolean).join(' ')
 
                   return (
@@ -401,7 +396,7 @@ export function WorkflowsPage() {
                               Restore
                             </button>
                           </div>
-                        ) : isBundled ? (
+                        ) : isTemplate ? (
                           <>
                             <div />
                             <div className="workflows-card-actions">
@@ -472,8 +467,7 @@ export function WorkflowsPage() {
       {activeTab === 'agents' && (
         <AgentDefinitionsPage
           searchText={searchText}
-          showDeleted={showDeleted}
-          showBundled={showBundled}
+          sourceFilter={sourceFilter}
           devMode={devMode}
           showCreateForm={showAgentCreateForm}
           onToggleCreateForm={setShowAgentCreateForm}

@@ -1,0 +1,13 @@
+tags: [plan-mode, state-tracking]
+
+rules:
+  detect-plan-mode-enter:
+    description: "Set plan_mode=true when EnterPlanMode is called"
+    event: after_tool
+    enabled: false
+    priority: 10
+    when: "event.data.get('tool_name') == 'EnterPlanMode'"
+    effect:
+      type: set_variable
+      variable: plan_mode
+      value: true

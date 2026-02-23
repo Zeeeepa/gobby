@@ -25,7 +25,7 @@ def _make_rule_row(
     name: str = "test-rule",
     enabled: bool = True,
     priority: int = 50,
-    source: str = "bundled",
+    source: str = "template",
     description: str | None = "A test rule",
     tags: list[str] | None = None,
     definition_json: str | None = None,

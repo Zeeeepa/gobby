@@ -208,7 +208,7 @@ def create_agents_router(server: "HTTPServer") -> APIRouter:
                 workflow_type="agent",
                 project_id=request.project_id,
                 description=body.description,
-                source="custom",
+                source="installed",
                 enabled=body.enabled,
             )
             return {"status": "success", "definition": row.to_dict()}
@@ -235,8 +235,18 @@ def create_agents_router(server: "HTTPServer") -> APIRouter:
             body_dict: dict[str, Any] = _json.loads(row.definition_json)
 
             # Map body-level fields
-            for key in ("name", "description", "instructions", "provider", "model",
-                        "mode", "isolation", "base_branch", "timeout", "max_turns"):
+            for key in (
+                "name",
+                "description",
+                "instructions",
+                "provider",
+                "model",
+                "mode",
+                "isolation",
+                "base_branch",
+                "timeout",
+                "max_turns",
+            ):
                 if key in fields:
                     body_dict[key] = fields[key]
 
@@ -393,22 +403,22 @@ def create_agents_router(server: "HTTPServer") -> APIRouter:
     async def use_definition_as_template(
         name: str,
     ) -> dict[str, Any]:
-        """Create a custom copy from a bundled agent definition."""
+        """Create an installed copy from a template agent definition."""
         metrics.inc_counter("http_requests_total")
         try:
             manager = _get_manager()
-            # Find the bundled definition by name
+            # Find the template definition by name
             rows = manager.list_all(workflow_type="agent")
-            bundled = next(
-                (r for r in rows if r.name == name and r.source == "bundled"),
+            template = next(
+                (r for r in rows if r.name == name and r.source == "template"),
                 None,
             )
-            if not bundled:
+            if not template:
                 raise HTTPException(
                     status_code=404,
-                    detail=f"Bundled agent definition '{name}' not found",
+                    detail=f"Template agent definition '{name}' not found",
                 )
-            row = manager.use_as_template(bundled.id)
+            row = manager.use_as_template(template.id)
             return {"status": "success", "definition": row.to_dict()}
         except HTTPException:
             raise
@@ -444,7 +454,7 @@ def create_agents_router(server: "HTTPServer") -> APIRouter:
                 workflow_type="agent",
                 project_id=project_id,
                 description=body.description,
-                source="custom",
+                source="installed",
                 enabled=body.enabled,
             )
             return {"status": "success", "definition": row.to_dict()}

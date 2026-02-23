@@ -1,0 +1,17 @@
+tags: [context-handoff, context, handoff, lifecycle]
+
+rules:
+  generate-handoff-on-end:
+    description: "Generate session handoff summary on session end"
+    event: session_end
+    enabled: false
+    priority: 10
+    effect:
+      type: mcp_call
+      server: gobby-sessions
+      tool: generate_handoff
+      arguments:
+        include:
+          - pending_tasks
+        prompt: handoff/session_end
+        write_file: true

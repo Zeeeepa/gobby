@@ -1,0 +1,12 @@
+tags: [context-handoff, context, handoff, lifecycle]
+
+rules:
+  task-sync-import-on-start:
+    description: "Import tasks from .gobby/tasks.jsonl on session start"
+    event: session_start
+    enabled: false
+    priority: 20
+    effect:
+      type: mcp_call
+      server: gobby-tasks
+      tool: sync_import

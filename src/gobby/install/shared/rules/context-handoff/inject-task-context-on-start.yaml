@@ -1,0 +1,13 @@
+tags: [context-handoff, context, handoff, lifecycle]
+
+rules:
+  inject-task-context-on-start:
+    description: "Inject active task context if session has a claimed task (skip on resume)"
+    event: session_start
+    enabled: false
+    priority: 31
+    when: "event.data.get('source') != 'resume'"
+    effect:
+      type: inject_context
+      template: |
+        {{ task_context }}

@@ -1,0 +1,12 @@
+tags: [stop-gates, enforcement, lifecycle]
+
+rules:
+  block-stop-after-tool-block:
+    description: "Block stop when a tool was just blocked"
+    event: stop
+    enabled: false
+    priority: 20
+    when: "variables.get('_tool_block_pending') and variables.get('stop_attempts', 0) < variables.get('max_stop_attempts', 3)"
+    effect:
+      type: block
+      reason: "Do not stop. A tool was blocked — follow the instructions in the error message."

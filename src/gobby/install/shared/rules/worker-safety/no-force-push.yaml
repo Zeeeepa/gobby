@@ -1,0 +1,12 @@
+tags: [worker-safety]
+
+rules:
+  no-force-push:
+    description: "Block force push - never allowed."
+    event: before_tool
+    enabled: false
+    effect:
+      type: block
+      tools: [Bash]
+      command_pattern: "git\\s+push\\s+.*(?:--force(?:-with-lease|-if-includes)?|-f)(?:\\s|$)"
+      reason: "Force pushing is never allowed."
