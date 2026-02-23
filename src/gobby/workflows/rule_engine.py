@@ -4,6 +4,7 @@ Rules are stateless event handlers: event comes in, conditions match, effect fir
 Four effect types: block, set_variable, inject_context, mcp_call.
 """
 
+import json
 import logging
 import re
 from typing import Any
@@ -116,6 +117,7 @@ class RuleEngine:
                             block_reason = engine.render(block_reason, ctx)
                         except Exception as e:
                             logger.warning(f"Failed to render block reason template: {e}")
+                    block_reason = f"Rule enforced by Gobby: [{_row.name}]\n{block_reason}"
                     # First block wins — stop evaluating
                     break
 
@@ -158,7 +160,9 @@ class RuleEngine:
             metadata={"mcp_calls": mcp_calls} if mcp_calls else {},
         )
 
-    def _load_rules(self, rule_event: RuleEvent) -> list[tuple[WorkflowDefinitionRow, RuleDefinitionBody]]:
+    def _load_rules(
+        self, rule_event: RuleEvent
+    ) -> list[tuple[WorkflowDefinitionRow, RuleDefinitionBody]]:
         """Load enabled rules matching the event type, sorted by priority."""
         rows = self.definition_manager.list_rules_by_event(
             event=rule_event.value,
@@ -220,10 +224,27 @@ class RuleEngine:
         extra_context: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
         """Build evaluation context for condition checking."""
+        raw_tool_input = event.data.get("tool_input") or event.data.get("arguments") or {}
+
+        # For MCP call_tool, unwrap nested arguments so rule conditions
+        # can reference inner tool params (commit_sha, reason, etc.) directly.
+        tool_name = event.data.get("tool_name", "")
+        if tool_name in ("call_tool", "mcp__gobby__call_tool") and isinstance(raw_tool_input, dict):
+            inner_args = raw_tool_input.get("arguments")
+            if isinstance(inner_args, str):
+                try:
+                    parsed = json.loads(inner_args)
+                    if isinstance(parsed, dict):
+                        raw_tool_input = parsed
+                except (json.JSONDecodeError, TypeError):
+                    pass
+            elif isinstance(inner_args, dict):
+                raw_tool_input = inner_args
+
         ctx: dict[str, Any] = {
             "variables": variables,
             "event": event,
-            "tool_input": event.data.get("tool_input") or event.data.get("arguments") or {},
+            "tool_input": raw_tool_input,
             "source": event.source.value if event.source else None,
         }
 
@@ -346,9 +367,7 @@ class RuleEngine:
                 )
                 value = evaluator.evaluate_value(value)
             except Exception as e:
-                logger.warning(
-                    f"Failed to evaluate set_variable expression '{effect.value}': {e}"
-                )
+                logger.warning(f"Failed to evaluate set_variable expression '{effect.value}': {e}")
                 return
 
         variables[effect.variable] = value
