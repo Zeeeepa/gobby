@@ -9,11 +9,6 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING, Any
 
-from gobby.workflows.enforcement.blocking import (
-    block_tools,
-    track_discovery_step,
-    track_schema_lookup,
-)
 from gobby.workflows.enforcement.commit_policy import (
     capture_baseline_dirty_files,
     require_commit_before_stop,
@@ -32,13 +27,10 @@ logger = logging.getLogger(__name__)
 
 __all__ = [
     "handle_block_stop",
-    "handle_block_tools",
     "handle_capture_baseline_dirty_files",
     "handle_require_commit_before_stop",
     "handle_require_task_complete",
     "handle_require_task_review_or_close_before_stop",
-    "handle_track_discovery_step",
-    "handle_track_schema_lookup",
     "handle_validate_session_task_scope",
 ]
 
@@ -152,51 +144,6 @@ async def handle_validate_session_task_scope(
     )
 
 
-async def handle_block_tools(
-    context: Any,
-    task_manager: LocalTaskManager | None = None,
-    **kwargs: Any,
-) -> dict[str, Any] | None:
-    """ActionHandler wrapper for block_tools.
-
-    Passes task_manager via closure from register_defaults.
-    """
-    from gobby.storage.projects import LocalProjectManager
-
-    # Get project_path for git dirty file checks
-    project_path = kwargs.get("project_path")
-    if not project_path and context.event_data:
-        project_path = context.event_data.get("cwd")
-
-    # Get source from session for is_plan_file checks
-    source = None
-    current_session = None
-    if context.session_manager:
-        current_session = context.session_manager.get(context.session_id)
-        if current_session:
-            source = current_session.source
-
-    # Look up project for path fallback and template rendering
-    project_name = None
-    if current_session and current_session.project_id and context.db:
-        project_mgr = LocalProjectManager(context.db)
-        project = project_mgr.get(current_session.project_id)
-        if project:
-            project_name = project.name
-            if not project_path and project.repo_path:
-                project_path = project.repo_path
-
-    return await block_tools(
-        rules=kwargs.get("rules"),
-        event_data=context.event_data,
-        workflow_state=context.state,
-        project_path=project_path,
-        task_manager=task_manager,
-        source=source,
-        project_name=project_name,
-    )
-
-
 async def handle_require_task_complete(
     context: Any,
     task_manager: LocalTaskManager | None = None,
@@ -262,61 +209,3 @@ async def handle_require_task_complete(
     )
 
 
-async def handle_track_schema_lookup(
-    context: Any,
-    task_manager: LocalTaskManager | None = None,
-    **kwargs: Any,
-) -> dict[str, Any] | None:
-    """ActionHandler wrapper for track_schema_lookup.
-
-    Tracks successful get_tool_schema calls to unlock tools for call_tool.
-    Should be triggered on on_after_tool when the tool is get_tool_schema.
-    """
-    if not context.event_data:
-        return None
-
-    tool_name = context.event_data.get("tool_name", "")
-    is_failure = context.event_data.get("is_failure", False)
-
-    # Only track successful get_tool_schema calls
-    # Handle both native MCP format and Gobby proxy format
-    if tool_name not in ("get_tool_schema", "mcp__gobby__get_tool_schema"):
-        return None
-
-    if is_failure:
-        return None
-
-    # Extract tool_input - for MCP proxy, it's in tool_input directly
-    tool_input = context.event_data.get("tool_input", {}) or {}
-
-    return track_schema_lookup(
-        tool_input=tool_input,
-        workflow_state=context.state,
-    )
-
-
-async def handle_track_discovery_step(
-    context: Any,
-    task_manager: LocalTaskManager | None = None,
-    **kwargs: Any,
-) -> dict[str, Any] | None:
-    """ActionHandler wrapper for track_discovery_step.
-
-    Tracks successful list_mcp_servers and list_tools calls to enforce
-    progressive disclosure gates.
-    Should be triggered on on_after_tool for all tool calls.
-    """
-    if not context.event_data:
-        return None
-
-    tool_name = context.event_data.get("tool_name", "")
-    if context.event_data.get("is_failure"):
-        return None
-
-    tool_input = context.event_data.get("tool_input", {}) or {}
-
-    return track_discovery_step(
-        tool_name=tool_name,
-        tool_input=tool_input,
-        workflow_state=context.state,
-    )

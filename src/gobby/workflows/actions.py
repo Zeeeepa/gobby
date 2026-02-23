@@ -23,13 +23,10 @@ from gobby.workflows.context_actions import (
 from gobby.workflows.definitions import WorkflowState
 from gobby.workflows.enforcement import (
     handle_block_stop,
-    handle_block_tools,
     handle_capture_baseline_dirty_files,
     handle_require_commit_before_stop,
     handle_require_task_complete,
     handle_require_task_review_or_close_before_stop,
-    handle_track_discovery_step,
-    handle_track_schema_lookup,
     handle_validate_session_task_scope,
 )
 from gobby.workflows.llm_actions import handle_call_llm
@@ -272,9 +269,6 @@ class ActionExecutor:
         tm = self.task_manager
         te = self.template_engine
 
-        async def block_tools(context: ActionContext, **kw: Any) -> dict[str, Any] | None:
-            return await handle_block_tools(context, task_manager=tm, **kw)
-
         async def require_complete(context: ActionContext, **kw: Any) -> dict[str, Any] | None:
             return await handle_require_task_complete(
                 context, task_manager=tm, template_engine=te, **kw
@@ -294,21 +288,12 @@ class ActionExecutor:
         async def capture_baseline(context: ActionContext, **kw: Any) -> dict[str, Any] | None:
             return await handle_capture_baseline_dirty_files(context, task_manager=tm, **kw)
 
-        async def track_schema(context: ActionContext, **kw: Any) -> dict[str, Any] | None:
-            return await handle_track_schema_lookup(context, task_manager=tm, **kw)
-
-        async def track_discovery(context: ActionContext, **kw: Any) -> dict[str, Any] | None:
-            return await handle_track_discovery_step(context, task_manager=tm, **kw)
-
         self.register("block_stop", handle_block_stop)
-        self.register("block_tools", block_tools)
         self.register("require_task_complete", require_complete)
         self.register("require_commit_before_stop", require_commit)
         self.register("require_task_review_or_close_before_stop", require_review)
         self.register("validate_session_task_scope", validate_scope)
         self.register("capture_baseline_dirty_files", capture_baseline)
-        self.register("track_schema_lookup", track_schema)
-        self.register("track_discovery_step", track_discovery)
 
     def _register_webhook_action(self) -> None:
         """Register webhook action with config closure."""

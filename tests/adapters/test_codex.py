@@ -2429,10 +2429,10 @@ class TestCodexAdapterContextFormat:
 # =============================================================================
 # Phase 3: Workflow Enforcement Tests
 #
-# Tests for block_tools, task enforcement, and tool name normalization
-# working correctly with Codex events. The workflow enforcement engine
-# uses event_data["tool_name"] which must be normalized from Codex-native
-# names (commandExecution, fileChange) to CC-style names (Bash, Write).
+# Tests for tool name normalization working correctly with Codex events.
+# The workflow enforcement engine uses event_data["tool_name"] which must
+# be normalized from Codex-native names (commandExecution, fileChange)
+# to CC-style names (Bash, Write).
 # =============================================================================
 
 
@@ -2505,144 +2505,6 @@ class TestCodexToolNameNormalization:
         )
         assert event is not None
         assert event.data["tool_name"] == "Write"
-
-
-class TestCodexBlockToolsEnforcement:
-    """Tests for block_tools enforcement with Codex event data.
-
-    The block_tools function evaluates rules against event_data["tool_name"].
-    Since Codex normalizes tool names to CC-style, the same block_tools
-    rules that work for Claude should work for Codex.
-    """
-
-    @pytest.mark.asyncio
-    async def test_block_bash_tool_from_codex_event(self) -> None:
-        """block_tools blocks Bash tool from Codex approval event."""
-        from gobby.workflows.enforcement.blocking import block_tools
-
-        # Simulate event_data from a Codex BEFORE_TOOL hook
-        event_data = {
-            "tool_name": "Bash",  # Normalized from commandExecution
-            "tool_input": "rm -rf /tmp",
-            "item_id": "item-1",
-        }
-
-        rules = [
-            {
-                "tools": ["Bash"],
-                "reason": "Shell commands are blocked in this workflow step.",
-            }
-        ]
-
-        result = await block_tools(rules=rules, event_data=event_data)
-
-        assert result is not None
-        assert result["decision"] == "block"
-        assert "Shell commands are blocked" in result["reason"]
-
-    @pytest.mark.asyncio
-    async def test_block_write_tool_from_codex_event(self) -> None:
-        """block_tools blocks Write tool from Codex file change event."""
-        from gobby.workflows.enforcement.blocking import block_tools
-
-        event_data = {
-            "tool_name": "Write",  # Normalized from fileChange
-            "tool_input": [{"path": "/test.py", "content": "pass"}],
-        }
-
-        rules = [
-            {
-                "tools": ["Edit", "Write", "NotebookEdit"],
-                "reason": "Claim a task before editing files.",
-            }
-        ]
-
-        result = await block_tools(rules=rules, event_data=event_data)
-
-        assert result is not None
-        assert result["decision"] == "block"
-
-    @pytest.mark.asyncio
-    async def test_allow_non_blocked_tool(self) -> None:
-        """block_tools allows tools not in the block list."""
-        from gobby.workflows.enforcement.blocking import block_tools
-
-        event_data = {
-            "tool_name": "Read",
-            "tool_input": {"file_path": "/test.py"},
-        }
-
-        rules = [
-            {
-                "tools": ["Edit", "Write"],
-                "reason": "Only read operations allowed.",
-            }
-        ]
-
-        result = await block_tools(rules=rules, event_data=event_data)
-
-        assert result is None  # None means allowed
-
-    @pytest.mark.asyncio
-    async def test_block_tools_with_condition(self) -> None:
-        """block_tools evaluates conditions against workflow state."""
-        from gobby.workflows.definitions import WorkflowState
-        from gobby.workflows.enforcement.blocking import block_tools
-
-        state = WorkflowState(
-            session_id="sess-test",
-            workflow_name="test-workflow",
-            step="implement",
-            variables={"task_claimed": False},
-        )
-
-        event_data = {
-            "tool_name": "Edit",
-            "tool_input": {"file_path": "/src/main.py"},
-        }
-
-        rules = [
-            {
-                "tools": ["Edit", "Write"],
-                "when": "not task_claimed",
-                "reason": "Claim a task first.",
-            }
-        ]
-
-        result = await block_tools(rules=rules, event_data=event_data, workflow_state=state)
-
-        assert result is not None
-        assert result["decision"] == "block"
-
-    @pytest.mark.asyncio
-    async def test_block_tools_condition_not_met_allows(self) -> None:
-        """block_tools allows when condition is not met."""
-        from gobby.workflows.definitions import WorkflowState
-        from gobby.workflows.enforcement.blocking import block_tools
-
-        state = WorkflowState(
-            session_id="sess-test",
-            workflow_name="test-workflow",
-            step="implement",
-            variables={"task_claimed": True},
-        )
-
-        event_data = {
-            "tool_name": "Edit",
-            "tool_input": {"file_path": "/src/main.py"},
-        }
-
-        rules = [
-            {
-                "tools": ["Edit", "Write"],
-                "when": "not task_claimed",
-                "reason": "Claim a task first.",
-            }
-        ]
-
-        result = await block_tools(rules=rules, event_data=event_data, workflow_state=state)
-
-        assert result is None  # Allowed because task_claimed=True
 
 
 class TestCodexApprovalDeclineFormat:

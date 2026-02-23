@@ -5,12 +5,9 @@ certain tools, and enforce task completion before allowing agent to stop.
 """
 
 from gobby.workflows.enforcement.blocking import (
-    block_tools,
     is_discovery_tool,
     is_server_listed,
     is_tool_unlocked,
-    track_discovery_step,
-    track_schema_lookup,
 )
 from gobby.workflows.enforcement.commit_policy import (
     capture_baseline_dirty_files,
@@ -19,13 +16,10 @@ from gobby.workflows.enforcement.commit_policy import (
 )
 from gobby.workflows.enforcement.handlers import (
     handle_block_stop,
-    handle_block_tools,
     handle_capture_baseline_dirty_files,
     handle_require_commit_before_stop,
     handle_require_task_complete,
     handle_require_task_review_or_close_before_stop,
-    handle_track_discovery_step,
-    handle_track_schema_lookup,
     handle_validate_session_task_scope,
 )
 from gobby.workflows.enforcement.task_policy import (
@@ -35,12 +29,9 @@ from gobby.workflows.enforcement.task_policy import (
 
 __all__ = [
     # Blocking
-    "block_tools",
     "is_discovery_tool",
     "is_server_listed",
     "is_tool_unlocked",
-    "track_discovery_step",
-    "track_schema_lookup",
     # Commit policy
     "capture_baseline_dirty_files",
     "require_commit_before_stop",
@@ -50,12 +41,9 @@ __all__ = [
     "validate_session_task_scope",
     # Handlers
     "handle_block_stop",
-    "handle_block_tools",
     "handle_capture_baseline_dirty_files",
     "handle_require_commit_before_stop",
     "handle_require_task_complete",
     "handle_require_task_review_or_close_before_stop",
-    "handle_track_discovery_step",
-    "handle_track_schema_lookup",
     "handle_validate_session_task_scope",
 ]
