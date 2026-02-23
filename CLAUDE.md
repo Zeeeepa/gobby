@@ -210,6 +210,14 @@ src/gobby/
 | `.gobby/project.json` | Project metadata |
 | `.gobby/tasks.jsonl` | Task sync file (git-native) |
 
+### Templates vs Active Enforcement
+
+Files in `src/gobby/install/shared/` (rules/, workflows/, agents/, pipelines/) are **templates**.
+They are bundled with the software but are NOT active enforcement. Templates have `enabled: false`
+by design. A workflow/rule/pipeline/agent must be **installed** to the `workflow_definitions` DB
+table AND **enabled** for it to be active in the rules engine. The DB is the source of truth for
+what's active, not the YAML template files.
+
 ## Code Conventions
 
 ### Type Hints
