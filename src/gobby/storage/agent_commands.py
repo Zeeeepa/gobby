@@ -14,7 +14,7 @@ from sqlite3 import Row
 from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
-    from gobby.storage.database import LocalDatabase
+    from gobby.storage.database import DatabaseProtocol, LocalDatabase
 
 
 @dataclass
@@ -70,7 +70,7 @@ class AgentCommand:
 class AgentCommandManager:
     """Manages agent commands in the database."""
 
-    def __init__(self, db: LocalDatabase) -> None:
+    def __init__(self, db: LocalDatabase | DatabaseProtocol) -> None:
         self.db = db
 
     def create_command(
@@ -92,11 +92,19 @@ class AgentCommandManager:
                (id, from_session, to_session, command_text,
                 allowed_tools, allowed_mcp_tools, exit_condition, status)
                VALUES (?, ?, ?, ?, ?, ?, ?, 'pending')""",
-            (command_id, from_session, to_session, command_text,
-             tools_json, mcp_tools_json, exit_condition),
+            (
+                command_id,
+                from_session,
+                to_session,
+                command_text,
+                tools_json,
+                mcp_tools_json,
+                exit_condition,
+            ),
         )
 
         row = self.db.fetchone("SELECT * FROM agent_commands WHERE id = ?", (command_id,))
+        assert row is not None
         return AgentCommand.from_row(row)
 
     def get_command(self, command_id: str) -> AgentCommand | None:

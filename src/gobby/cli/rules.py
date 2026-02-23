@@ -10,10 +10,15 @@ Provides CLI commands for managing standalone rules:
 - audit: Show rule evaluation audit log
 """
 
+from __future__ import annotations
+
 import json
 import sys
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any, cast
+
+if TYPE_CHECKING:
+    from gobby.storage.workflow_audit import WorkflowAuditManager
 
 import click
 
@@ -27,7 +32,7 @@ def _get_manager() -> LocalWorkflowDefinitionManager:
     return LocalWorkflowDefinitionManager(db)
 
 
-def _get_audit_manager():
+def _get_audit_manager() -> "WorkflowAuditManager":
     """Get workflow audit manager."""
     from gobby.storage.workflow_audit import WorkflowAuditManager
 
@@ -36,7 +41,7 @@ def _get_audit_manager():
 
 def _parse_rule_body(row: Any) -> dict[str, Any]:
     """Parse rule definition JSON body."""
-    return json.loads(row.definition_json)
+    return cast(dict[str, Any], json.loads(row.definition_json))
 
 
 def _rule_summary(row: Any) -> dict[str, Any]:
@@ -80,7 +85,9 @@ def rules() -> None:
 @rules.command("list")
 @click.option("--event", "-e", default=None, help="Filter by event type")
 @click.option("--group", "-g", default=None, help="Filter by group")
-@click.option("--enabled", "enabled_flag", flag_value=True, default=None, help="Show only enabled rules")
+@click.option(
+    "--enabled", "enabled_flag", flag_value=True, default=None, help="Show only enabled rules"
+)
 @click.option("--disabled", "enabled_flag", flag_value=False, help="Show only disabled rules")
 @click.option("--json", "json_output", is_flag=True, help="Output as JSON")
 def list_rules(
@@ -273,15 +280,17 @@ def audit_rules(session_id: str | None, limit: int, json_output: bool) -> None:
     if json_output:
         output = []
         for entry in entries:
-            output.append({
-                "id": entry.id,
-                "timestamp": entry.timestamp.isoformat() if entry.timestamp else None,
-                "event_type": entry.event_type,
-                "tool_name": getattr(entry, "tool_name", None),
-                "rule_id": getattr(entry, "rule_id", None),
-                "result": entry.result,
-                "reason": getattr(entry, "reason", None),
-            })
+            output.append(
+                {
+                    "id": entry.id,
+                    "timestamp": entry.timestamp.isoformat() if entry.timestamp else None,
+                    "event_type": entry.event_type,
+                    "tool_name": getattr(entry, "tool_name", None),
+                    "rule_id": getattr(entry, "rule_id", None),
+                    "result": entry.result,
+                    "reason": getattr(entry, "reason", None),
+                }
+            )
         click.echo(json.dumps(output, indent=2))
         return
 

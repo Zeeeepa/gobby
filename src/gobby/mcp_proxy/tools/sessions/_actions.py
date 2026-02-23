@@ -9,7 +9,7 @@ Exposes internal workflow actions as MCP tools:
 from __future__ import annotations
 
 import logging
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, Literal
 
 from gobby.workflows.context_actions import (
     extract_handoff_context as extract_handoff_context_action,
@@ -53,7 +53,7 @@ def register_action_tools(
     )
     async def generate_handoff_tool(
         session_id: str,
-        mode: str = "clear",
+        mode: Literal["clear", "compact"] = "clear",
         write_file: bool = False,
     ) -> dict[str, Any]:
         """

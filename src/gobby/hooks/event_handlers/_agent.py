@@ -234,7 +234,7 @@ class AgentEventHandlerMixin(EventHandlersBase):
         session_id = event.metadata.get("_platform_session_id")
         cli_source = event.source.value
 
-        context_parts = []
+        context_parts: list[str] = []
 
         if session_id:
             self.logger.debug(f"AFTER_AGENT: session {session_id}, cli={cli_source}")
@@ -267,7 +267,7 @@ class AgentEventHandlerMixin(EventHandlersBase):
         """Handle STOP event (Claude Code only)."""
         session_id = event.metadata.get("_platform_session_id")
 
-        context_parts = []
+        context_parts: list[str] = []
 
         if session_id:
             self.logger.debug(f"STOP: session {session_id}")
