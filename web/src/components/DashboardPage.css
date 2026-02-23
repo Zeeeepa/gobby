@@ -321,20 +321,6 @@
   margin-top: 2px;
 }
 
-/* Plugins card */
-.dash-plugin-header {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin-bottom: 12px;
-}
-
-.dash-plugin-stats {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 12px;
-}
-
 /* Loading / error */
 .dash-loading {
   display: flex;

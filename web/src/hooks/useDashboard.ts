@@ -23,7 +23,6 @@ export interface AdminStatus {
   tasks: { open: number; in_progress: number; closed: number; ready: number; blocked: number }
   memory: { count: number }
   skills: { total: number }
-  plugins: { enabled: boolean; loaded: number; handlers: number }
 }
 
 export function useDashboard() {

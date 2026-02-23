@@ -4,7 +4,6 @@ import { TasksCard } from './dashboard/TasksCard'
 import { SessionsCard } from './dashboard/SessionsCard'
 import { McpHealthCard } from './dashboard/McpHealthCard'
 import { MemorySkillsCard } from './dashboard/MemorySkillsCard'
-import { PluginsCard } from './dashboard/PluginsCard'
 import './DashboardPage.css'
 
 function formatTime(date: Date | null): string {
@@ -45,7 +44,6 @@ export function DashboardPage() {
             <SessionsCard sessions={data.sessions} />
             <McpHealthCard mcpServers={data.mcp_servers} />
             <MemorySkillsCard memory={data.memory} skills={data.skills} />
-            <PluginsCard plugins={data.plugins} />
           </div>
         ) : null}
       </div>
