@@ -1,6 +1,6 @@
-name: generic
+name: default
 description: |
-  Default generic agent with minimal configuration.
+  Default agent with minimal configuration.
   Used when no specific agent definition is specified.
 
 role: General-purpose development agent

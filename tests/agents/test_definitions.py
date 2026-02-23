@@ -464,14 +464,14 @@ class TestGetDbFallbackBehavior:
             mock_local_db_cls.assert_called_once()
 
 
-class TestGenericAgentDefinition:
-    """Tests for the generic agent definition model."""
+class TestDefaultAgentDefinition:
+    """Tests for the default agent definition model."""
 
-    def test_generic_agent_loads_successfully(self) -> None:
-        """Test that the generic agent definition model validates."""
+    def test_default_agent_loads_successfully(self) -> None:
+        """Test that the default agent definition model validates."""
         yaml_data: dict[str, Any] = {
-            "name": "generic",
-            "description": "Default generic agent",
+            "name": "default",
+            "description": "Default agent",
             "mode": "terminal",
             "provider": "claude",
             "isolation": None,
@@ -484,13 +484,13 @@ class TestGenericAgentDefinition:
 
         agent = AgentDefinition(**yaml_data)
         assert agent is not None
-        assert agent.name == "generic"
+        assert agent.name == "default"
 
-    def test_generic_agent_has_expected_defaults(self) -> None:
-        """Test that generic agent has correct default values."""
+    def test_default_agent_has_expected_defaults(self) -> None:
+        """Test that default agent has correct default values."""
         yaml_data: dict[str, Any] = {
-            "name": "generic",
-            "description": "Default generic agent with minimal configuration.",
+            "name": "default",
+            "description": "Default agent with minimal configuration.",
             "mode": "terminal",
             "provider": "claude",
             "base_branch": "main",
@@ -503,7 +503,7 @@ class TestGenericAgentDefinition:
         agent = AgentDefinition(**yaml_data)
 
         assert agent is not None
-        assert agent.name == "generic"
+        assert agent.name == "default"
         assert agent.mode == "terminal"
         assert agent.provider == "claude"
         assert agent.get_effective_workflow() == "generic"
@@ -511,10 +511,10 @@ class TestGenericAgentDefinition:
         assert agent.max_turns == 10
         assert agent.base_branch == "main"
 
-    def test_generic_agent_isolation_is_null(self) -> None:
-        """Test that generic agent has no isolation by default."""
+    def test_default_agent_isolation_is_null(self) -> None:
+        """Test that default agent has no isolation by default."""
         yaml_data: dict[str, Any] = {
-            "name": "generic",
+            "name": "default",
             "mode": "terminal",
             "provider": "claude",
             "workflows": {"generic": {"file": "generic.yaml"}},

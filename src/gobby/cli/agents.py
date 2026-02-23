@@ -443,7 +443,7 @@ def kill_agent(run_ref: str, force: bool, stop: bool, yes: bool) -> None:
 
 
 @agents.command("check")
-@click.argument("agent_name", default="generic")
+@click.argument("agent_name", default="default")
 @click.option("--workflow", "-w", help="Workflow name to evaluate")
 @click.option("--task", "-t", "task_id", help="Task ID for branch naming")
 @click.option("--session", "-s", "session_id", help="Parent session ID for depth/mode checks")

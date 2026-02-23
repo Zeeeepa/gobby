@@ -1160,6 +1160,31 @@ def _migrate_drop_observation_columns(db: LocalDatabase) -> None:
     )
 
 
+def _migrate_rename_generic_to_default(db: LocalDatabase) -> None:
+    """Rename 'generic' agent definition to 'default' in workflow_definitions.
+
+    Updates both the row name and the definition_json.name field.
+    """
+    rows = db.fetchall(
+        "SELECT id, definition_json FROM workflow_definitions "
+        "WHERE workflow_type = 'agent' AND name = 'generic'"
+    )
+
+    for row in rows:
+        try:
+            body = json.loads(row["definition_json"])
+            body["name"] = "default"
+            with db.transaction() as conn:
+                conn.execute(
+                    "UPDATE workflow_definitions SET name = 'default', definition_json = ? WHERE id = ?",
+                    (json.dumps(body), row["id"]),
+                )
+        except (json.JSONDecodeError, KeyError) as e:
+            logger.warning(f"Failed to rename generic agent definition {row['id']}: {e}")
+
+    logger.info(f"Renamed {len(rows)} 'generic' agent definition(s) to 'default'")
+
+
 MIGRATIONS: list[tuple[int, str, MigrationAction]] = [
     (
         108,
@@ -1258,6 +1283,11 @@ UPDATE workflow_definitions SET source = 'installed' WHERE source = 'custom'""",
         121,
         "Remove dead observations/reflection_pending columns from workflow_states",
         _migrate_drop_observation_columns,
+    ),
+    (
+        122,
+        "Rename 'generic' agent definition to 'default'",
+        _migrate_rename_generic_to_default,
     ),
 ]
 

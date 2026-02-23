@@ -54,8 +54,8 @@ class TestSpawnAgentDefaults:
         return runner
 
     @pytest.mark.asyncio
-    async def test_spawn_agent_defaults_to_generic_agent(self, mock_runner) -> None:
-        """Test spawn_agent with defaults uses generic agent definition."""
+    async def test_spawn_agent_defaults_to_default_agent(self, mock_runner) -> None:
+        """Test spawn_agent with defaults uses default agent definition."""
         from gobby.mcp_proxy.tools.spawn_agent import create_spawn_agent_registry
 
         mock_loader = MagicMock()
@@ -63,7 +63,6 @@ class TestSpawnAgentDefaults:
         mock_agent_def.isolation = None
         mock_agent_def.provider = "claude"
         mock_agent_def.mode = "terminal"
-        mock_agent_def.workflow = "generic"
         mock_agent_def.base_branch = "main"
         mock_agent_def.branch_prefix = None
         mock_agent_def.timeout = 120.0
@@ -101,8 +100,8 @@ class TestSpawnAgentDefaults:
                 },
             )
 
-            # Should load "generic" agent by default
-            mock_loader.load.assert_called_with("generic")
+            # Should load "default" agent by default
+            mock_loader.load.assert_called_with("default")
             assert result["success"] is True
 
 

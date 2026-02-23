@@ -86,7 +86,7 @@ def create_spawn_agent_registry(
     )
     async def spawn_agent(
         prompt: str,
-        agent: str = "generic",
+        agent: str = "default",
         task_id: str | None = None,
         # Isolation
         isolation: Literal["current", "worktree", "clone"] | None = None,
@@ -117,7 +117,7 @@ def create_spawn_agent_registry(
 
         Args:
             prompt: Required - what the agent should do
-            agent: Agent definition name (defaults to "generic")
+            agent: Agent definition name (defaults to "default")
             task_id: Optional - link to task (supports N, #N, UUID)
             isolation: Isolation mode (current/worktree/clone)
             branch_name: Git branch name (auto-generated from task if not provided)
@@ -149,9 +149,9 @@ def create_spawn_agent_registry(
             except ValueError as e:
                 return {"success": False, "error": str(e)}
 
-        # Load agent definition (defaults to "generic")
+        # Load agent definition (defaults to "default")
         agent_def = loader.load(agent)
-        if agent_def is None and agent != "generic":
+        if agent_def is None and agent != "default":
             return {"success": False, "error": f"Agent '{agent}' not found"}
 
         # Check orchestrator workflow enforcement:

@@ -471,7 +471,7 @@ def create_agents_registry(
         description="Dry-run evaluation of spawn_agent — checks agent, workflow, isolation, and runtime without executing.",
     )
     async def evaluate_spawn_tool(
-        agent: str = "generic",
+        agent: str = "default",
         workflow: str | None = None,
         task_id: str | None = None,
         isolation: str | None = None,
@@ -490,7 +490,7 @@ def create_agents_registry(
         including any misconfigurations, without actually spawning.
 
         Args:
-            agent: Agent name (default: "generic").
+            agent: Agent name (default: "default").
             workflow: Optional workflow name override.
             task_id: Optional task ID for branch naming.
             isolation: Optional isolation mode (current, worktree, clone).

@@ -72,7 +72,7 @@ class SpawnEvaluation:
 
 
 async def evaluate_spawn(
-    agent: str = "generic",
+    agent: str = "default",
     workflow: str | None = None,
     task_id: str | None = None,
     isolation: str | None = None,
