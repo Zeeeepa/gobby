@@ -18,10 +18,9 @@ interface ArtifactPanelProps {
   planPendingApproval?: boolean
   onApprovePlan?: () => void
   onRequestPlanChanges?: (feedback: string) => void
-  isStreaming?: boolean
 }
 
-export function ArtifactPanel({ artifact, width, onClose, onUpdateContent, onSetVersion, planPendingApproval, onApprovePlan, onRequestPlanChanges, isStreaming }: ArtifactPanelProps) {
+export function ArtifactPanel({ artifact, width, onClose, onUpdateContent, onSetVersion, planPendingApproval, onApprovePlan, onRequestPlanChanges }: ArtifactPanelProps) {
   const versionIndex = Math.max(0, Math.min(artifact.currentVersionIndex, artifact.versions.length - 1))
   const currentVersion = artifact.versions[versionIndex]
   const content = currentVersion?.content ?? ''
@@ -121,7 +120,7 @@ export function ArtifactPanel({ artifact, width, onClose, onUpdateContent, onSet
       </div>
 
       {/* Plan approval */}
-      {planPendingApproval && !isStreaming && onApprovePlan && onRequestPlanChanges && (
+      {planPendingApproval && onApprovePlan && onRequestPlanChanges && (
         <PlanApprovalBar onApprove={onApprovePlan} onRequestChanges={onRequestPlanChanges} />
       )}
 

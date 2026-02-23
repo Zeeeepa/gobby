@@ -71,7 +71,7 @@ export function MessageList({ messages, isStreaming, isThinking, onRespondToQues
           {isThinking && (messages.length === 0 || messages[messages.length - 1].role === 'user') && (
             <ThinkingIndicator />
           )}
-          {planPendingApproval && !isStreaming && onApprovePlan && onRequestPlanChanges && (
+          {planPendingApproval && onApprovePlan && onRequestPlanChanges && (
             <PlanApprovalBar onApprove={onApprovePlan} onRequestChanges={onRequestPlanChanges} />
           )}
         </>

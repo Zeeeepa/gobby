@@ -132,7 +132,6 @@ export function ChatPage({ chat, conversations, voice, projectId }: ChatPageProp
                   planPendingApproval={chat.planPendingApproval}
                   onApprovePlan={chat.onApprovePlan}
                   onRequestPlanChanges={chat.onRequestPlanChanges}
-                  isStreaming={chat.isStreaming}
                 />
               </>
             )}
