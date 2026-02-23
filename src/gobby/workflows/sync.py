@@ -204,7 +204,7 @@ def sync_bundled_workflows(db: DatabaseProtocol) -> dict[str, Any]:
 
     orphan_rows = db.fetchall(
         "SELECT id, name FROM workflow_definitions "
-        "WHERE source IN ('bundled', 'template') AND workflow_type = 'workflow' AND deleted_at IS NULL",
+        "WHERE source = 'template' AND workflow_type = 'workflow' AND deleted_at IS NULL",
     )
     result["orphaned"] = 0
     for row in orphan_rows:
@@ -328,7 +328,7 @@ def sync_bundled_rules(db: DatabaseProtocol, rules_path: Path | None = None) -> 
 
     orphan_rows = db.fetchall(
         "SELECT id, name FROM workflow_definitions "
-        "WHERE source IN ('bundled', 'template') AND workflow_type = 'rule' "
+        "WHERE source = 'template' AND workflow_type = 'rule' "
         "AND deleted_at IS NULL",
     )
     result["orphaned"] = 0
@@ -351,6 +351,35 @@ def sync_bundled_rules(db: DatabaseProtocol, rules_path: Path | None = None) -> 
     )
 
     return result
+
+
+def _propagate_to_installed(
+    manager: LocalWorkflowDefinitionManager,
+    rule_name: str,
+    definition_json: str,
+) -> None:
+    """Propagate definition_json changes from a template to its installed copy.
+
+    Preserves the installed copy's enabled state.
+    """
+    installed_row = manager.db.fetchone(
+        "SELECT * FROM workflow_definitions "
+        "WHERE name = ? AND source = 'installed' AND deleted_at IS NULL",
+        (rule_name,),
+    )
+    if installed_row:
+        from gobby.storage.workflow_definitions import WorkflowDefinitionRow
+
+        installed = WorkflowDefinitionRow.from_row(installed_row)
+        if installed.definition_json != definition_json:
+            manager.update(
+                installed.id,
+                definition_json=definition_json,
+            )
+            logger.info(
+                "Propagated definition change to installed copy",
+                extra={"rule": rule_name},
+            )
 
 
 def _sync_single_rule(
@@ -400,7 +429,7 @@ def _sync_single_rule(
             result["skipped"] += 1
             return
 
-        if existing.source in ("bundled", "template"):
+        if existing.source == "template":
             if existing.definition_json == definition_json:
                 result["skipped"] += 1
             else:
@@ -418,34 +447,39 @@ def _sync_single_rule(
                     tags=file_tags,
                     source="template",
                 )
+                # Propagate definition changes to installed copy (preserve enabled)
+                _propagate_to_installed(manager, rule_name, definition_json)
                 result["updated"] += 1
         else:
-            # Custom copy shadows the bundled row — get_by_name prefers
-            # custom over bundled. Look up the bundled row directly and
+            # Non-template copy shadows the template row — get_by_name prefers
+            # non-template over template. Look up the template row directly and
             # update it if the definition has changed on disk.
-            bundled_row = manager.db.fetchone(
+            template_row = manager.db.fetchone(
                 "SELECT * FROM workflow_definitions "
-                "WHERE name = ? AND source IN ('bundled', 'template') AND deleted_at IS NULL",
+                "WHERE name = ? AND source = 'template' AND deleted_at IS NULL",
                 (rule_name,),
             )
-            if bundled_row:
+            if template_row:
                 from gobby.storage.workflow_definitions import WorkflowDefinitionRow
 
-                bundled = WorkflowDefinitionRow.from_row(bundled_row)
-                if bundled.definition_json != definition_json:
+                template = WorkflowDefinitionRow.from_row(template_row)
+                if template.definition_json != definition_json:
                     manager.update(
-                        bundled.id,
+                        template.id,
                         name=rule_name,
                         definition_json=definition_json,
                         workflow_type="rule",
                         project_id=None,
                         description=description,
-                        enabled=bundled.enabled,
+                        enabled=template.enabled,
                         priority=priority,
                         sources=file_sources,
                         tags=file_tags,
                         source="template",
                     )
+                    # Propagate to the installed copy that shadows this template
+                    if existing.source == "installed":
+                        _propagate_to_installed(manager, rule_name, definition_json)
                     result["updated"] += 1
                 else:
                     result["skipped"] += 1

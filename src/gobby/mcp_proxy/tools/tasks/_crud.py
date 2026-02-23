@@ -172,6 +172,7 @@ def create_crud_registry(ctx: RegistryContext) -> InternalToolRegistry:
                     )
                 state.variables["task_claimed"] = True
                 state.variables["claimed_task_id"] = task.id  # Always use UUID
+                state.variables["task_ref"] = f"#{task.seq_num}" if task.seq_num else task.id[:8]
                 ctx.workflow_state_manager.save_state(state)
             except Exception:
                 pass  # nosec B110 - best-effort state update
