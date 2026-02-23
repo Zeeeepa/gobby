@@ -22,9 +22,10 @@ interface PipelinesTabProps {
   onCloseCreateDropdown: () => void
   refreshKey?: number
   projectId?: string
+  hideGobby?: boolean
 }
 
-export function PipelinesTab({ searchText, sourceFilter, devMode, showCreateDropdown, onCloseCreateDropdown, refreshKey = 0, projectId }: PipelinesTabProps) {
+export function PipelinesTab({ searchText, sourceFilter, devMode, showCreateDropdown, onCloseCreateDropdown, refreshKey = 0, projectId, hideGobby }: PipelinesTabProps) {
   const {
     workflows,
     isLoading,
@@ -77,6 +78,9 @@ export function PipelinesTab({ searchText, sourceFilter, devMode, showCreateDrop
       result = result.filter(w => !!w.deleted_at)
     }
 
+    if (hideGobby) {
+      result = result.filter(w => !(w.tags && w.tags.includes('gobby')))
+    }
     if (enabledFilter !== null) {
       result = result.filter(w => w.enabled === enabledFilter)
     }
@@ -91,7 +95,7 @@ export function PipelinesTab({ searchText, sourceFilter, devMode, showCreateDrop
     }
 
     return result
-  }, [workflows, enabledFilter, searchText, sourceFilter])
+  }, [workflows, enabledFilter, searchText, sourceFilter, hideGobby])
 
   const handleDelete = useCallback(async (wf: WorkflowDetail) => {
     if (!window.confirm(`Delete "${wf.name}"?`)) return

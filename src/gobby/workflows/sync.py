@@ -140,6 +140,7 @@ def sync_bundled_workflows(db: DatabaseProtocol) -> dict[str, Any]:
                             priority=priority,
                             sources=sources_list,
                             source="template",
+                            tags=["gobby"],
                         )
                         logger.info(
                             "Restored soft-deleted bundled workflow",
@@ -175,6 +176,7 @@ def sync_bundled_workflows(db: DatabaseProtocol) -> dict[str, Any]:
                             priority=priority,
                             sources=sources_list,
                             source="template",
+                            tags=["gobby"],
                         )
                         logger.info("Updated bundled workflow definition", extra={"workflow": name})
                         result["updated"] += 1
@@ -199,6 +201,7 @@ def sync_bundled_workflows(db: DatabaseProtocol) -> dict[str, Any]:
                 priority=priority,
                 sources=sources_list,
                 source="template",
+                tags=["gobby"],
             )
             logger.info("Synced bundled workflow definition", extra={"workflow": name})
             result["synced"] += 1
@@ -233,6 +236,8 @@ def sync_bundled_workflows(db: DatabaseProtocol) -> dict[str, Any]:
             manager.delete(row["id"])
             logger.info("Soft-deleted orphaned bundled workflow", extra={"workflow": row["name"]})
             result["orphaned"] += 1
+
+    _ensure_gobby_tag_on_installed(manager, "workflow")
 
     total = result["synced"] + result["updated"] + result["skipped"]
     logger.info(
@@ -304,7 +309,9 @@ def sync_bundled_rules(db: DatabaseProtocol, rules_path: Path | None = None) -> 
             rel_parts = yaml_file.relative_to(rules_path).parts
             dir_group = rel_parts[0] if len(rel_parts) > 1 else None
             file_group = data.get("group") or dir_group
-            file_tags = data.get("tags")
+            file_tags = data.get("tags") or []
+            if "gobby" not in file_tags:
+                file_tags = [*file_tags, "gobby"]
             file_sources = data.get("sources")
 
             for rule_name, rule_data in rules_dict.items():
@@ -359,6 +366,8 @@ def sync_bundled_rules(db: DatabaseProtocol, rules_path: Path | None = None) -> 
             logger.info("Soft-deleted orphaned bundled rule", extra={"rule": row["name"]})
             result["orphaned"] += 1
 
+    _ensure_gobby_tag_on_installed(manager, "rule")
+
     total = result["synced"] + result["updated"] + result["skipped"]
     logger.info(
         "Rule definition sync complete",
@@ -372,6 +381,19 @@ def sync_bundled_rules(db: DatabaseProtocol, rules_path: Path | None = None) -> 
     )
 
     return result
+
+
+def _ensure_gobby_tag_on_installed(
+    manager: LocalWorkflowDefinitionManager,
+    workflow_type: str,
+) -> None:
+    """Ensure all template/installed rows of a given type have the 'gobby' tag."""
+    rows = manager.list_all(workflow_type=workflow_type, include_deleted=False)
+    for row in rows:
+        if row.source in ("template", "installed"):
+            tags = row.tags or []
+            if "gobby" not in tags:
+                manager.update(row.id, tags=[*tags, "gobby"])
 
 
 def _propagate_to_installed(

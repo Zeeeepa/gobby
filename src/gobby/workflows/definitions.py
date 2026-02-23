@@ -150,7 +150,7 @@ class AgentDefinitionBody(BaseModel):
     provider: str = "claude"
     model: str | None = None
     mode: Literal["terminal", "embedded", "headless"] = "headless"
-    isolation: Literal["current", "worktree", "clone"] | None = None
+    isolation: Literal["none", "worktree", "clone"] | None = None
     base_branch: str = "main"
     timeout: float = 120.0
     max_turns: int = 10

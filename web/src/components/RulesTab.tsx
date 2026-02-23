@@ -12,9 +12,10 @@ interface RulesTabProps {
   onCloseCreateModal: () => void
   refreshKey?: number
   projectId?: string
+  hideGobby?: boolean
 }
 
-export function RulesTab({ searchText, sourceFilter, devMode, showCreateModal, onCloseCreateModal, refreshKey = 0, projectId }: RulesTabProps) {
+export function RulesTab({ searchText, sourceFilter, devMode, showCreateModal, onCloseCreateModal, refreshKey = 0, projectId, hideGobby }: RulesTabProps) {
   const {
     rules,
     isLoading,
@@ -28,6 +29,7 @@ export function RulesTab({ searchText, sourceFilter, devMode, showCreateModal, o
     installFromTemplate,
     setEnforcement,
     fetchRules,
+    bulkToggleRules,
   } = useRules()
 
   // Re-fetch when refreshKey changes (skip initial render)
@@ -65,6 +67,9 @@ export function RulesTab({ searchText, sourceFilter, devMode, showCreateModal, o
     if (eventFilter) {
       result = result.filter(r => r.event === eventFilter)
     }
+    if (hideGobby) {
+      result = result.filter(r => !(r.tags && r.tags.includes('gobby')))
+    }
     if (searchText.trim()) {
       const q = searchText.toLowerCase()
       result = result.filter(r =>
@@ -76,7 +81,7 @@ export function RulesTab({ searchText, sourceFilter, devMode, showCreateModal, o
     }
 
     return result
-  }, [rules, eventFilter, searchText, sourceFilter])
+  }, [rules, eventFilter, searchText, sourceFilter, hideGobby])
 
   const handleToggle = useCallback(async (rule: RuleSummary) => {
     await toggleRule(rule.name, !rule.enabled)
@@ -263,11 +268,22 @@ export function RulesTab({ searchText, sourceFilter, devMode, showCreateModal, o
           )}
         </div>
         <div className="rules-enforcement-toggle" onClick={() => setEnforcement(!enforcementEnabled)}>
-          <div className={`workflows-toggle-track ${enforcementEnabled ? 'workflows-toggle-track--on' : ''}`}>
+          <div className={`workflows-toggle-track ${!enforcementEnabled ? 'workflows-toggle-track--on' : ''}`}>
             <div className="workflows-toggle-knob" />
           </div>
-          <span>{enforcementEnabled ? 'Rules Active' : 'Rules Paused'}</span>
+          <span>Disable Rules Enforcement</span>
         </div>
+        {(sourceFilter === 'installed' || sourceFilter === 'project') && filteredRules.length > 0 && (() => {
+          const allEnabled = filteredRules.every(r => r.enabled)
+          return (
+            <div className="rules-enforcement-toggle" onClick={() => bulkToggleRules(sourceFilter, !allEnabled)}>
+              <div className={`workflows-toggle-track ${allEnabled ? 'workflows-toggle-track--on' : ''}`}>
+                <div className="workflows-toggle-knob" />
+              </div>
+              <span>Enable All</span>
+            </div>
+          )
+        })()}
         {sourceFilter === 'templates' && (
           <button
             type="button"

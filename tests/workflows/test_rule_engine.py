@@ -689,7 +689,7 @@ class TestMcpCallToolUnwrapping:
             },
         )
         ctx = engine._build_eval_context(event, variables={})
-        assert ctx["tool_input"] == {"task_id": "#1", "commit_sha": "abc123"}
+        assert ctx["tool_input"] == {"task_id": "#1", "commit_sha": "abc123", "server_name": "gobby-tasks", "tool_name": "close_task"}
 
     @pytest.mark.asyncio
     async def test_mcp_prefixed_call_tool_unwraps(self, db: LocalDatabase) -> None:
@@ -709,7 +709,7 @@ class TestMcpCallToolUnwrapping:
             },
         )
         ctx = engine._build_eval_context(event, variables={})
-        assert ctx["tool_input"] == {"task_id": "#2", "commit_sha": "def456"}
+        assert ctx["tool_input"] == {"task_id": "#2", "commit_sha": "def456", "server_name": "gobby-tasks", "tool_name": "close_task"}
 
     @pytest.mark.asyncio
     async def test_call_tool_unwraps_json_string_arguments(self, db: LocalDatabase) -> None:
@@ -729,7 +729,7 @@ class TestMcpCallToolUnwrapping:
             },
         )
         ctx = engine._build_eval_context(event, variables={})
-        assert ctx["tool_input"] == {"task_id": "#3", "commit_sha": "ghi789"}
+        assert ctx["tool_input"] == {"task_id": "#3", "commit_sha": "ghi789", "server_name": "gobby-tasks", "tool_name": "close_task"}
 
     @pytest.mark.asyncio
     async def test_regular_tool_not_unwrapped(self, db: LocalDatabase) -> None:

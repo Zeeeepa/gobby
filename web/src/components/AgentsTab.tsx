@@ -3,6 +3,10 @@ import * as yaml from 'js-yaml'
 import { useAgentRuns } from '../hooks/useAgentRuns'
 import type { RunningAgent, AgentRun } from '../hooks/useAgentRuns'
 import { YamlEditorModal } from './WorkflowsPage'
+import { AgentEditForm } from './agents/AgentEditForm'
+import type { AgentFormData } from './agents/AgentEditForm'
+import { AgentRulesEditor } from './agents/AgentRulesEditor'
+import { AgentVariablesEditor } from './agents/AgentVariablesEditor'
 
 // =============================================================================
 // Types
@@ -19,7 +23,6 @@ interface AgentDefInfo {
     provider: string
     model: string | null
     mode: string
-    terminal: string
     isolation: string | null
     base_branch: string
     timeout: number
@@ -27,7 +30,12 @@ interface AgentDefInfo {
     default_workflow: string | null
     sandbox: Record<string, unknown> | null
     skill_profile: Record<string, unknown> | null
-    workflows: Record<string, WorkflowSummary> | null
+    workflows: {
+      pipeline?: string
+      rules?: string[]
+      variables?: Record<string, unknown>
+      [key: string]: unknown
+    } | null
     lifecycle_variables: Record<string, unknown>
     default_variables: Record<string, unknown>
   }
@@ -36,6 +44,7 @@ interface AgentDefInfo {
   db_id: string | null
   overridden_by: string | null
   deleted_at: string | null
+  tags: string[] | null
 }
 
 interface WorkflowSummary {
@@ -45,23 +54,6 @@ interface WorkflowSummary {
   mode?: string
   internal?: boolean
   step_count?: number
-}
-
-interface CreateFormData {
-  name: string
-  description: string
-  role: string
-  goal: string
-  personality: string
-  instructions: string
-  provider: string
-  model: string
-  mode: string
-  terminal: string
-  isolation: string
-  base_branch: string
-  timeout: number
-  max_turns: number
 }
 
 // =============================================================================
@@ -107,7 +99,7 @@ const STATUS_COLORS: Record<string, string> = {
 const ISOLATION_COLORS: Record<string, string> = {
   clone: '#ef4444',
   worktree: '#eab308',
-  current: '#6b7280',
+  none: '#6b7280',
 }
 
 const PROVIDER_MODELS: Record<string, { value: string; label: string }[]> = {
@@ -156,14 +148,14 @@ interface AgentsTabProps {
   onToggleCreateForm: (show: boolean) => void
   refreshKey?: number
   projectId?: string
+  hideGobby?: boolean
 }
 
-export function AgentsTab({ searchText, sourceFilter, devMode, showCreateForm, onToggleCreateForm, refreshKey = 0, projectId }: AgentsTabProps) {
+export function AgentsTab({ searchText, sourceFilter, devMode, showCreateForm, onToggleCreateForm, refreshKey = 0, projectId, hideGobby }: AgentsTabProps) {
   const { running, recentRuns, cancelAgent } = useAgentRuns()
   const [definitions, setDefinitions] = useState<AgentDefInfo[]>([])
   const [loading, setLoading] = useState(true)
   const [showRecentRuns, setShowRecentRuns] = useState(false)
-  const [customModelInput, setCustomModelInput] = useState(false)
   const [expandedName, setExpandedName] = useState<string | null>(null)
   const [filterSource, setFilterSource] = useState<string>('all')
   const [filterProvider, setFilterProvider] = useState<string>('all')
@@ -182,9 +174,9 @@ export function AgentsTab({ searchText, sourceFilter, devMode, showCreateForm, o
     setTimeout(() => setToastMessage(null), 4000)
   }, [])
 
-  const [createForm, setCreateForm] = useState<CreateFormData>({
+  const [createForm, setCreateForm] = useState<AgentFormData>({
     name: '', description: '', role: '', goal: '', personality: '', instructions: '',
-    provider: 'claude', model: '', mode: 'headless', terminal: 'auto', isolation: '',
+    provider: 'claude', model: '', mode: 'headless', isolation: '',
     base_branch: 'main', timeout: 120, max_turns: 10,
   })
 
@@ -223,7 +215,7 @@ export function AgentsTab({ searchText, sourceFilter, devMode, showCreateForm, o
     } else if (!editingId) {
       setCreateForm({
         name: '', description: '', role: '', goal: '', personality: '', instructions: '',
-        provider: 'claude', model: '', mode: 'headless', terminal: 'auto', isolation: '',
+        provider: 'claude', model: '', mode: 'headless', isolation: '',
         base_branch: 'main', timeout: 120, max_turns: 10,
       })
     }
@@ -241,6 +233,8 @@ export function AgentsTab({ searchText, sourceFilter, devMode, showCreateForm, o
   }, [])
 
   const filtered = useMemo(() => definitions.filter(d => {
+    // Hide gobby-tagged items
+    if (hideGobby && d.tags && d.tags.includes('gobby')) return false
     // Source filter (exclusive)
     if (sourceFilter === 'installed') {
       if (d.source === 'template' || d.source === 'project' || d.deleted_at) return false
@@ -264,7 +258,7 @@ export function AgentsTab({ searchText, sourceFilter, devMode, showCreateForm, o
       ) return false
     }
     return true
-  }), [definitions, sourceFilter, filterSource, filterProvider, searchText])
+  }), [definitions, sourceFilter, filterSource, filterProvider, searchText, hideGobby])
 
   const sources = useMemo(
     () => [...new Set(definitions.map(d => d.source))].sort(),
@@ -281,7 +275,6 @@ export function AgentsTab({ searchText, sourceFilter, devMode, showCreateForm, o
         name: createForm.name,
         provider: createForm.provider,
         mode: createForm.mode,
-        terminal: createForm.terminal,
         base_branch: createForm.base_branch,
         timeout: createForm.timeout,
         max_turns: createForm.max_turns,
@@ -303,7 +296,7 @@ export function AgentsTab({ searchText, sourceFilter, devMode, showCreateForm, o
         onToggleCreateForm(false)
         setCreateForm({
           name: '', description: '', role: '', goal: '', personality: '', instructions: '',
-          provider: 'claude', model: '', mode: 'headless', terminal: 'auto', isolation: '',
+          provider: 'claude', model: '', mode: 'headless', isolation: '',
           base_branch: 'main', timeout: 120, max_turns: 10,
         })
         fetchDefinitions(true)
@@ -329,7 +322,6 @@ export function AgentsTab({ searchText, sourceFilter, devMode, showCreateForm, o
       provider: d.provider,
       model: d.model || '',
       mode: d.mode,
-      terminal: d.terminal,
       isolation: d.isolation || '',
       base_branch: d.base_branch,
       timeout: d.timeout,
@@ -352,7 +344,6 @@ export function AgentsTab({ searchText, sourceFilter, devMode, showCreateForm, o
         provider: createForm.provider,
         model: createForm.model || null,
         mode: createForm.mode,
-        terminal: createForm.terminal,
         isolation: createForm.isolation || null,
         base_branch: createForm.base_branch,
         timeout: createForm.timeout,
@@ -369,7 +360,7 @@ export function AgentsTab({ searchText, sourceFilter, devMode, showCreateForm, o
         setEditingId(null)
         setCreateForm({
           name: '', description: '', role: '', goal: '', personality: '', instructions: '',
-          provider: 'claude', model: '', mode: 'headless', terminal: 'auto', isolation: '',
+          provider: 'claude', model: '', mode: 'headless', isolation: '',
           base_branch: 'main', timeout: 120, max_turns: 10,
         })
         fetchDefinitions(true)
@@ -481,7 +472,6 @@ export function AgentsTab({ searchText, sourceFilter, devMode, showCreateForm, o
         provider: parsed.provider || yamlAgent.definition.provider,
         model: parsed.model ?? null,
         mode: parsed.mode || yamlAgent.definition.mode,
-        terminal: parsed.terminal || yamlAgent.definition.terminal,
         isolation: parsed.isolation ?? null,
         base_branch: (parsed.base_branch as string) || yamlAgent.definition.base_branch,
         timeout: parsed.timeout ?? yamlAgent.definition.timeout,
@@ -641,155 +631,17 @@ export function AgentsTab({ searchText, sourceFilter, devMode, showCreateForm, o
         )}
       </div>
 
-      {/* Create form */}
+      {/* Create/edit form */}
       {showCreateForm && (
-        <div className="agent-defs-create-form">
-          <div className="agent-defs-form-grid">
-            <label>
-              <span>Name *</span>
-              <input
-                value={createForm.name}
-                onChange={e => setCreateForm(f => ({ ...f, name: e.target.value }))}
-                placeholder="my-agent"
-              />
-            </label>
-            <label>
-              <span>Provider</span>
-              <select
-                value={createForm.provider}
-                onChange={e => {
-                  const newProvider = e.target.value
-                  const newModels = providerModels[newProvider]
-                  const modelValid = newModels?.some(m => m.value === createForm.model)
-                  setCustomModelInput(false)
-                  setCreateForm(f => ({
-                    ...f,
-                    provider: newProvider,
-                    model: modelValid ? f.model : '',
-                  }))
-                }}
-              >
-                <option value="claude">claude</option>
-                <option value="gemini">gemini</option>
-                <option value="codex">codex</option>
-                <option value="cursor">cursor</option>
-              </select>
-            </label>
-            <label>
-              <span>Mode</span>
-              <select
-                value={createForm.mode}
-                onChange={e => setCreateForm(f => ({ ...f, mode: e.target.value }))}
-              >
-                <option value="headless">headless</option>
-                <option value="terminal">terminal</option>
-                <option value="embedded">embedded</option>
-              </select>
-            </label>
-            <label>
-              <span>Model</span>
-              <ModelSelector
-                model={createForm.model}
-                models={providerModels[createForm.provider]}
-                customModelInput={customModelInput}
-                setCustomModelInput={setCustomModelInput}
-                setCreateForm={setCreateForm}
-              />
-            </label>
-            <label>
-              <span>Isolation</span>
-              <select
-                value={createForm.isolation}
-                onChange={e => setCreateForm(f => ({ ...f, isolation: e.target.value }))}
-              >
-                <option value="">none</option>
-                <option value="current">current</option>
-                <option value="worktree">worktree</option>
-                <option value="clone">clone</option>
-              </select>
-            </label>
-            <label>
-              <span>Terminal</span>
-              <select
-                value={createForm.terminal}
-                onChange={e => setCreateForm(f => ({ ...f, terminal: e.target.value }))}
-              >
-                <option value="auto">auto</option>
-                <option value="ghostty">ghostty</option>
-                <option value="iterm">iterm</option>
-                <option value="tmux">tmux</option>
-                <option value="kitty">kitty</option>
-              </select>
-            </label>
-            <label>
-              <span>Timeout (s)</span>
-              <input
-                type="number"
-                value={createForm.timeout}
-                onChange={e => setCreateForm(f => ({ ...f, timeout: Number(e.target.value) }))}
-              />
-            </label>
-            <label>
-              <span>Max turns</span>
-              <input
-                type="number"
-                value={createForm.max_turns}
-                onChange={e => setCreateForm(f => ({ ...f, max_turns: Number(e.target.value) }))}
-              />
-            </label>
-            <label className="agent-defs-form-wide">
-              <span>Description</span>
-              <input
-                value={createForm.description}
-                onChange={e => setCreateForm(f => ({ ...f, description: e.target.value }))}
-                placeholder="What this agent does..."
-              />
-            </label>
-            <label>
-              <span>Role</span>
-              <input
-                value={createForm.role}
-                onChange={e => setCreateForm(f => ({ ...f, role: e.target.value }))}
-                placeholder="e.g. Senior security engineer"
-              />
-            </label>
-            <label>
-              <span>Goal</span>
-              <input
-                value={createForm.goal}
-                onChange={e => setCreateForm(f => ({ ...f, goal: e.target.value }))}
-                placeholder="What success looks like..."
-              />
-            </label>
-            <label>
-              <span>Personality</span>
-              <input
-                value={createForm.personality}
-                onChange={e => setCreateForm(f => ({ ...f, personality: e.target.value }))}
-                placeholder="Communication style, tone..."
-              />
-            </label>
-            <label className="agent-defs-form-wide">
-              <span>Instructions</span>
-              <textarea
-                value={createForm.instructions}
-                onChange={e => setCreateForm(f => ({ ...f, instructions: e.target.value }))}
-                placeholder="Detailed rules, constraints, approach..."
-                rows={3}
-              />
-            </label>
-          </div>
-          <div className="agent-defs-form-actions">
-            <button className="agent-defs-btn" onClick={() => { onToggleCreateForm(false); setEditingId(null) }}>Cancel</button>
-            <button
-              className="agent-defs-btn agent-defs-btn--primary"
-              onClick={editingId ? handleUpdate : handleCreate}
-              disabled={!createForm.name.trim()}
-            >
-              {editingId ? 'Save' : 'Create'}
-            </button>
-          </div>
-        </div>
+        <AgentEditForm
+          form={createForm}
+          onChange={setCreateForm}
+          onSave={editingId ? handleUpdate : handleCreate}
+          onCancel={() => { onToggleCreateForm(false); setEditingId(null) }}
+          isEditing={!!editingId}
+          providerModels={providerModels}
+          saveDisabled={!createForm.name.trim()}
+        />
       )}
 
       {/* Running agents */}
@@ -859,7 +711,13 @@ export function AgentsTab({ searchText, sourceFilter, devMode, showCreateForm, o
               const isExpanded = expandedName === d.name
               const isDb = item.source.endsWith('-db')
               const isTemplate = item.source === 'template'
-              const workflowCount = d.workflows ? Object.keys(d.workflows).length : 0
+              const wfMeta = ['rules', 'variables', 'pipeline']
+              const workflowEntries = d.workflows
+                ? Object.entries(d.workflows).filter(([k]) => !wfMeta.includes(k) && typeof d.workflows![k] === 'object' && d.workflows![k] !== null && !Array.isArray(d.workflows![k]))
+                : []
+              const workflowCount = workflowEntries.length
+              const workflowRules = (d.workflows?.rules as string[] | undefined) || []
+              const workflowVars = (d.workflows?.variables as Record<string, unknown> | undefined) || {}
 
               return (
                 <div
@@ -1004,7 +862,6 @@ export function AgentsTab({ searchText, sourceFilter, devMode, showCreateForm, o
                         <PropRow label="Provider" value={d.provider} />
                         <PropRow label="Model" value={d.model || '(default)'} />
                         <PropRow label="Mode" value={d.mode} />
-                        <PropRow label="Terminal" value={d.terminal} />
                         <PropRow label="Isolation" value={d.isolation || 'none'} />
                         <PropRow label="Base branch" value={d.base_branch} />
                         <PropRow label="Timeout" value={`${d.timeout}s`} />
@@ -1051,22 +908,61 @@ export function AgentsTab({ searchText, sourceFilter, devMode, showCreateForm, o
                       )}
 
                       {/* Workflows */}
-                      {d.workflows && workflowCount > 0 && (
+                      {workflowCount > 0 && (
                         <div className="agent-def-section">
                           <div className="agent-def-section-title">Workflows</div>
                           <div className="agent-def-workflow-list">
-                            {Object.entries(d.workflows).map(([wfName, wf]) => (
-                              <div key={wfName} className="agent-def-workflow-item">
-                                <span className="agent-def-workflow-name">{wfName}</span>
-                                {wf.type && <span className="agent-def-badge agent-def-badge--dim">{wf.type}</span>}
-                                {wf.file && <span className="agent-def-badge agent-def-badge--dim">{wf.file}</span>}
-                                {wf.mode && <span className="agent-def-badge agent-def-badge--filled" style={{ background: MODE_COLORS[wf.mode] || '#666' }}>{wf.mode}</span>}
-                                {wf.internal && <span className="agent-def-badge agent-def-badge--dim">internal</span>}
-                                {wf.step_count != null && <span className="agent-def-badge agent-def-badge--dim">{wf.step_count} steps</span>}
-                                {wf.description && <span className="agent-def-workflow-desc">{wf.description}</span>}
-                              </div>
-                            ))}
+                            {workflowEntries.map(([wfName, wfRaw]) => {
+                              const wf = wfRaw as WorkflowSummary
+                              return (
+                                <div key={wfName} className="agent-def-workflow-item">
+                                  <span className="agent-def-workflow-name">{wfName}</span>
+                                  {wf.type && <span className="agent-def-badge agent-def-badge--dim">{wf.type}</span>}
+                                  {wf.file && <span className="agent-def-badge agent-def-badge--dim">{wf.file}</span>}
+                                  {wf.mode && <span className="agent-def-badge agent-def-badge--filled" style={{ background: MODE_COLORS[wf.mode] || '#666' }}>{wf.mode}</span>}
+                                  {wf.internal && <span className="agent-def-badge agent-def-badge--dim">internal</span>}
+                                  {wf.step_count != null && <span className="agent-def-badge agent-def-badge--dim">{wf.step_count} steps</span>}
+                                  {wf.description && <span className="agent-def-workflow-desc">{wf.description}</span>}
+                                </div>
+                              )
+                            })}
                           </div>
+                        </div>
+                      )}
+
+                      {/* Rules editor */}
+                      {isDb && item.db_id && (
+                        <div className="agent-def-section">
+                          <div className="agent-def-section-title">Rules</div>
+                          <AgentRulesEditor
+                            definitionId={item.db_id}
+                            rules={workflowRules}
+                            onRulesChange={(newRules) => {
+                              setDefinitions(prev => prev.map(def =>
+                                def.definition.name === d.name
+                                  ? { ...def, definition: { ...def.definition, workflows: { ...def.definition.workflows, rules: newRules } } }
+                                  : def
+                              ))
+                            }}
+                          />
+                        </div>
+                      )}
+
+                      {/* Variables editor */}
+                      {isDb && item.db_id && (
+                        <div className="agent-def-section">
+                          <div className="agent-def-section-title">Variables</div>
+                          <AgentVariablesEditor
+                            definitionId={item.db_id}
+                            variables={workflowVars}
+                            onVariablesChange={(newVars) => {
+                              setDefinitions(prev => prev.map(def =>
+                                def.definition.name === d.name
+                                  ? { ...def, definition: { ...def.definition, workflows: { ...def.definition.workflows, variables: newVars } } }
+                                  : def
+                              ))
+                            }}
+                          />
                         </div>
                       )}
 
@@ -1124,65 +1020,6 @@ export function AgentsTab({ searchText, sourceFilter, devMode, showCreateForm, o
 // =============================================================================
 // Sub-components
 // =============================================================================
-
-function ModelSelector({
-  model,
-  models,
-  customModelInput,
-  setCustomModelInput,
-  setCreateForm,
-}: {
-  model: string
-  models: { value: string; label: string }[] | undefined
-  customModelInput: boolean
-  setCustomModelInput: (v: boolean) => void
-  setCreateForm: React.Dispatch<React.SetStateAction<CreateFormData>>
-}) {
-  const isKnown = models?.some(m => m.value === model)
-  const showCustom = customModelInput || !models || (!isKnown && model !== '')
-
-  if (showCustom) {
-    return (
-      <div className="agent-defs-model-field">
-        <input
-          value={model}
-          onChange={e => setCreateForm(f => ({ ...f, model: e.target.value }))}
-          placeholder="e.g. claude-sonnet-4-5-20250929"
-          autoFocus={customModelInput}
-        />
-        {models && (
-          <button
-            type="button"
-            className="agent-defs-model-toggle"
-            onClick={() => { setCustomModelInput(false); setCreateForm(f => ({ ...f, model: '' })) }}
-            title="Switch to preset list"
-          >
-            &times;
-          </button>
-        )}
-      </div>
-    )
-  }
-
-  return (
-    <select
-      value={model}
-      onChange={e => {
-        if (e.target.value === '__custom__') {
-          setCustomModelInput(true)
-          setCreateForm(f => ({ ...f, model: '' }))
-        } else {
-          setCreateForm(f => ({ ...f, model: e.target.value }))
-        }
-      }}
-    >
-      {models?.map(m => (
-        <option key={m.value} value={m.value}>{m.label}</option>
-      ))}
-      <option value="__custom__">Custom...</option>
-    </select>
-  )
-}
 
 function PropRow({ label, value }: { label: string; value: string }) {
   return (

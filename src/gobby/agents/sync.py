@@ -106,6 +106,7 @@ def sync_bundled_agents(db: DatabaseProtocol) -> dict[str, Any]:
                             existing.id,
                             definition_json=body_json,
                             description=body.description,
+                            tags=["gobby"],
                         )
                         logger.info(f"Updated bundled agent definition: {name}")
                         result["updated"] += 1
@@ -125,6 +126,7 @@ def sync_bundled_agents(db: DatabaseProtocol) -> dict[str, Any]:
                 description=body.description,
                 source="template",
                 enabled=body.enabled,
+                tags=["gobby"],
             )
             logger.info(f"Synced bundled agent definition: {name}")
             result["synced"] += 1
@@ -134,6 +136,9 @@ def sync_bundled_agents(db: DatabaseProtocol) -> dict[str, Any]:
             logger.error(error_msg)
             result["errors"].append(error_msg)
 
+    # Ensure all template/installed agents have the "gobby" tag
+    _ensure_gobby_tag_on_installed(manager)
+
     total = result["synced"] + result["updated"] + result["skipped"]
     logger.info(
         f"Agent definition sync complete: {result['synced']} synced, "
@@ -141,3 +146,15 @@ def sync_bundled_agents(db: DatabaseProtocol) -> dict[str, Any]:
     )
 
     return result
+
+
+def _ensure_gobby_tag_on_installed(
+    manager: LocalWorkflowDefinitionManager,
+) -> None:
+    """Ensure all template/installed agent rows have the 'gobby' tag."""
+    rows = manager.list_all(workflow_type="agent", include_deleted=False)
+    for row in rows:
+        if row.source in ("template", "installed"):
+            tags = row.tags or []
+            if "gobby" not in tags:
+                manager.update(row.id, tags=[*tags, "gobby"])

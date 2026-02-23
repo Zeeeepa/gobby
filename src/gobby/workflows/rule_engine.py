@@ -249,8 +249,11 @@ class RuleEngine:
 
         # For MCP call_tool, unwrap nested arguments so rule conditions
         # can reference inner tool params (commit_sha, reason, etc.) directly.
+        # Preserve MCP routing fields (server_name, tool_name) so helpers like
+        # is_tool_unlocked / is_discovery_tool still work after unwrapping.
         tool_name = event.data.get("tool_name", "")
         if tool_name in ("call_tool", "mcp__gobby__call_tool") and isinstance(raw_tool_input, dict):
+            original_tool_input = raw_tool_input
             inner_args = raw_tool_input.get("arguments")
             if isinstance(inner_args, str):
                 try:
@@ -261,6 +264,10 @@ class RuleEngine:
                     pass
             elif isinstance(inner_args, dict):
                 raw_tool_input = inner_args
+            # Re-inject MCP routing fields so rule conditions can still access them
+            for field in ("server_name", "tool_name"):
+                if field in original_tool_input and field not in raw_tool_input:
+                    raw_tool_input[field] = original_tool_input[field]
 
         ctx: dict[str, Any] = {
             "variables": variables,

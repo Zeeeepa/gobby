@@ -160,6 +160,24 @@ export function useRules() {
     return false
   }, [fetchRules])
 
+  const bulkToggleRules = useCallback(async (source: string, enabled: boolean): Promise<boolean> => {
+    try {
+      const baseUrl = getBaseUrl()
+      const response = await fetch(`${baseUrl}/api/rules/bulk-toggle`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ source, enabled }),
+      })
+      if (response.ok) {
+        await fetchRules()
+        return true
+      }
+    } catch (e) {
+      console.error('Failed to bulk toggle rules:', e)
+    }
+    return false
+  }, [fetchRules])
+
   const setEnforcement = useCallback(async (enabled: boolean): Promise<boolean> => {
     try {
       const baseUrl = getBaseUrl()
@@ -236,5 +254,6 @@ export function useRules() {
     deleteRule,
     installFromTemplate,
     setEnforcement,
+    bulkToggleRules,
   }
 }

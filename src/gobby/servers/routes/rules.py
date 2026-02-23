@@ -65,6 +65,13 @@ class RuleToggleRequest(BaseModel):
     enabled: bool = Field(..., description="New enabled state")
 
 
+class BulkToggleRequest(BaseModel):
+    """Request body for bulk-toggling rules."""
+
+    source: str = Field(..., description="Source filter: 'installed' or 'project'")
+    enabled: bool = Field(..., description="New enabled state for all matching rules")
+
+
 # =============================================================================
 # Router
 # =============================================================================
@@ -164,6 +171,29 @@ def create_rules_router(server: "HTTPServer") -> APIRouter:
             config_store.set("rules.enforcement_enabled", request.enforcement_enabled)
         val = config_store.get("rules.enforcement_enabled")
         return {"status": "success", "enforcement_enabled": val is not False}
+
+    # -----------------------------------------------------------------
+    # PUT /api/rules/bulk-toggle
+    # -----------------------------------------------------------------
+
+    @router.put("/bulk-toggle")
+    async def bulk_toggle_rules(request: BulkToggleRequest) -> dict[str, Any]:
+        """Toggle all rules matching a source filter."""
+        metrics.inc_counter("http_requests_total")
+        if request.source not in ("installed", "project"):
+            raise HTTPException(status_code=400, detail="source must be 'installed' or 'project'")
+        try:
+            manager = _get_manager()
+            rows = manager.list_all(workflow_type="rule", include_deleted=False)
+            count = 0
+            for row in rows:
+                if row.source == request.source:
+                    manager.update(row.id, enabled=request.enabled)
+                    count += 1
+            return {"status": "success", "count": count}
+        except Exception as e:
+            logger.exception("Error in bulk toggle")
+            raise HTTPException(status_code=500, detail=str(e)) from e
 
     # -----------------------------------------------------------------
     # GET /api/rules/{name}

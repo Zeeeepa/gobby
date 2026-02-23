@@ -101,6 +101,17 @@ def mock_db():
         );
     """
     )
+    # Auth middleware checks this table
+    db.execute(
+        """
+        CREATE TABLE IF NOT EXISTS secrets (
+            name TEXT PRIMARY KEY,
+            encrypted_value TEXT NOT NULL,
+            created_at TEXT NOT NULL DEFAULT (datetime('now')),
+            updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+        );
+    """
+    )
     return db
 
 

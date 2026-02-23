@@ -34,7 +34,6 @@ class CreateAgentDefinitionRequest(BaseModel):
     provider: str = "claude"
     model: str | None = None
     mode: str = "headless"
-    terminal: str = "auto"
     isolation: str | None = None
     base_branch: str = "main"
     timeout: float = 120.0
@@ -59,7 +58,6 @@ class UpdateAgentDefinitionRequest(BaseModel):
     provider: str | None = None
     model: str | None = None
     mode: str | None = None
-    terminal: str | None = None
     isolation: str | None = None
     base_branch: str | None = None
     timeout: float | None = None
@@ -101,6 +99,7 @@ def create_agents_router(server: "HTTPServer") -> APIRouter:
             "source": row.source,
             "db_id": row.id,
             "deleted_at": row.deleted_at,
+            "tags": row.tags,
         }
 
     @router.get("/definitions")
@@ -304,6 +303,85 @@ def create_agents_router(server: "HTTPServer") -> APIRouter:
             raise HTTPException(status_code=404, detail=str(e)) from e
         except Exception as e:
             logger.error(f"Error restoring agent definition: {e}", exc_info=True)
+            raise HTTPException(status_code=500, detail=str(e)) from e
+
+    # -------------------------------------------------------------------------
+    # Rules and variables PATCH endpoints
+    # -------------------------------------------------------------------------
+
+    class PatchRulesRequest(BaseModel):
+        """Request body for patching agent rules."""
+
+        add: list[str] | None = None
+        remove: list[str] | None = None
+
+    class PatchVariablesRequest(BaseModel):
+        """Request body for patching agent variables."""
+
+        set: dict[str, Any] | None = None
+        remove: list[str] | None = None
+
+    @router.patch("/definitions/{definition_id}/rules")
+    async def patch_rules(definition_id: str, request: PatchRulesRequest) -> dict[str, Any]:
+        """Add or remove rules from an agent definition."""
+        metrics.inc_counter("http_requests_total")
+        try:
+            import json as _json
+
+            manager = _get_manager()
+            row = manager.get(definition_id)
+            body_dict: dict[str, Any] = _json.loads(row.definition_json)
+
+            workflows = body_dict.get("workflows", {})
+            rules: list[str] = list(workflows.get("rules", []))
+
+            if request.remove:
+                rules = [r for r in rules if r not in request.remove]
+            if request.add:
+                for rule in request.add:
+                    if rule not in rules:
+                        rules.append(rule)
+
+            workflows["rules"] = rules
+            body_dict["workflows"] = workflows
+            manager.update(definition_id, definition_json=_json.dumps(body_dict))
+
+            return {"status": "success", "rules": rules}
+        except ValueError as e:
+            raise HTTPException(status_code=404, detail=str(e)) from e
+        except Exception as e:
+            logger.error(f"Error patching rules: {e}", exc_info=True)
+            raise HTTPException(status_code=500, detail=str(e)) from e
+
+    @router.patch("/definitions/{definition_id}/variables")
+    async def patch_variables(definition_id: str, request: PatchVariablesRequest) -> dict[str, Any]:
+        """Set or remove variables from an agent definition."""
+        metrics.inc_counter("http_requests_total")
+        try:
+            import json as _json
+
+            manager = _get_manager()
+            row = manager.get(definition_id)
+            body_dict: dict[str, Any] = _json.loads(row.definition_json)
+
+            workflows = body_dict.get("workflows", {})
+            variables: dict[str, Any] = dict(workflows.get("variables", {}))
+
+            if request.remove:
+                for key in request.remove:
+                    variables.pop(key, None)
+            if request.set:
+                variables.update(request.set)
+
+            workflows["variables"] = variables
+            body_dict["workflows"] = workflows
+            manager.update(definition_id, definition_json=_json.dumps(body_dict))
+
+            return {"status": "success", "variables": variables}
+        except ValueError as e:
+            raise HTTPException(status_code=404, detail=str(e)) from e
+        except Exception as e:
+            logger.error(f"Error patching variables: {e}", exc_info=True)
             raise HTTPException(status_code=500, detail=str(e)) from e
 
     # -------------------------------------------------------------------------

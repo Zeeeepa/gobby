@@ -24,6 +24,7 @@ export function WorkflowsPage({ projectId }: { projectId?: string }) {
   const [showPipelineCreateDropdown, setShowPipelineCreateDropdown] = useState(false)
   const [refreshKey, setRefreshKey] = useState(0)
   const [refreshing, setRefreshing] = useState(false)
+  const [hideGobby, setHideGobby] = useState(false)
 
   // Fetch dev_mode from admin status
   useEffect(() => {
@@ -56,6 +57,12 @@ export function WorkflowsPage({ projectId }: { projectId?: string }) {
             value={searchText}
             onChange={e => setSearchText(e.target.value)}
           />
+          <div className="rules-enforcement-toggle" onClick={() => setHideGobby(!hideGobby)}>
+            <div className={`workflows-toggle-track ${hideGobby ? 'workflows-toggle-track--on' : ''}`}>
+              <div className="workflows-toggle-knob" />
+            </div>
+            <span>Hide Built-in</span>
+          </div>
           <select
             className="workflows-source-select"
             value={sourceFilter}
@@ -123,6 +130,7 @@ export function WorkflowsPage({ projectId }: { projectId?: string }) {
           onCloseCreateDropdown={() => setShowPipelineCreateDropdown(false)}
           refreshKey={refreshKey}
           projectId={projectId}
+          hideGobby={hideGobby}
         />
       )}
 
@@ -135,6 +143,7 @@ export function WorkflowsPage({ projectId }: { projectId?: string }) {
           onToggleCreateForm={setShowAgentCreateForm}
           refreshKey={refreshKey}
           projectId={projectId}
+          hideGobby={hideGobby}
         />
       )}
 
@@ -147,6 +156,7 @@ export function WorkflowsPage({ projectId }: { projectId?: string }) {
           onCloseCreateModal={() => setShowRuleCreateModal(false)}
           refreshKey={refreshKey}
           projectId={projectId}
+          hideGobby={hideGobby}
         />
       )}
     </main>
