@@ -54,7 +54,9 @@ async def dispatch_mcp_calls(
         background = call.get("background", False)
 
         if not server or not tool:
-            logger.warning("dispatch_mcp_calls: skipping call with missing server or tool: %s", call)
+            logger.warning(
+                "dispatch_mcp_calls: skipping call with missing server or tool: %s", call
+            )
             continue
 
         # Inject event context into arguments

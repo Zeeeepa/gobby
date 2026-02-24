@@ -283,11 +283,14 @@ def create_lifecycle_registry(ctx: RegistryContext) -> InternalToolRegistry:
                             state.variables["task_ref"] = ""
                             ctx.workflow_state_manager.save_state(state)
                             # Mirror to session_variables (authoritative store for rule evaluation)
-                            ctx.session_var_manager.merge_variables(resolved_session_id, {
-                                "task_claimed": False,
-                                "claimed_task_id": None,
-                                "task_ref": "",
-                            })
+                            ctx.session_var_manager.merge_variables(
+                                resolved_session_id,
+                                {
+                                    "task_claimed": False,
+                                    "claimed_task_id": None,
+                                    "task_ref": "",
+                                },
+                            )
                             logger.debug("Cleared task_claimed for session %s", resolved_session_id)
             except Exception as e:
                 logger.warning(
@@ -646,11 +649,14 @@ def create_lifecycle_registry(ctx: RegistryContext) -> InternalToolRegistry:
             state.variables["task_ref"] = f"#{task.seq_num}" if task.seq_num else resolved_id
             ctx.workflow_state_manager.save_state(state)
             # Mirror to session_variables (authoritative store for rule evaluation)
-            ctx.session_var_manager.merge_variables(resolved_session_id, {
-                "task_claimed": True,
-                "claimed_task_id": resolved_id,
-                "task_ref": f"#{task.seq_num}" if task.seq_num else resolved_id,
-            })
+            ctx.session_var_manager.merge_variables(
+                resolved_session_id,
+                {
+                    "task_claimed": True,
+                    "claimed_task_id": resolved_id,
+                    "task_ref": f"#{task.seq_num}" if task.seq_num else resolved_id,
+                },
+            )
         except Exception as e:
             logger.debug("Best-effort workflow variable setting failed: %s", e)
 

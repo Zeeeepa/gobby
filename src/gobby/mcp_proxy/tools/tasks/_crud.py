@@ -175,11 +175,14 @@ def create_crud_registry(ctx: RegistryContext) -> InternalToolRegistry:
                 state.variables["task_ref"] = f"#{task.seq_num}" if task.seq_num else task.id
                 ctx.workflow_state_manager.save_state(state)
                 # Mirror to session_variables (authoritative store for rule evaluation)
-                ctx.session_var_manager.merge_variables(resolved_session_id, {
-                    "task_claimed": True,
-                    "claimed_task_id": task.id,
-                    "task_ref": f"#{task.seq_num}" if task.seq_num else task.id,
-                })
+                ctx.session_var_manager.merge_variables(
+                    resolved_session_id,
+                    {
+                        "task_claimed": True,
+                        "claimed_task_id": task.id,
+                        "task_ref": f"#{task.seq_num}" if task.seq_num else task.id,
+                    },
+                )
             except Exception as e:
                 logger.debug("Best-effort workflow state update failed: %s", e)
 

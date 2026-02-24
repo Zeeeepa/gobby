@@ -368,7 +368,9 @@ class ChatMixin:
                 session_ref = f"#{session.seq_num}"
                 ctx = result.get("context")
                 result["context"] = (
-                    f"Gobby Session ID: {session_ref}\n\n{ctx}" if ctx else f"Gobby Session ID: {session_ref}"
+                    f"Gobby Session ID: {session_ref}\n\n{ctx}"
+                    if ctx
+                    else f"Gobby Session ID: {session_ref}"
                 )
 
             return result

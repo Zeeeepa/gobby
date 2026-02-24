@@ -146,8 +146,8 @@ class WindsurfAdapter(BaseAdapter):
             # MCP tool call — use mcp_ prefixed names with fallback
             result["mcp_server"] = tool_info.get("mcp_server_name") or tool_info.get("server_name")
             result["mcp_tool"] = tool_info.get("mcp_tool_name") or tool_info.get("tool_name")
-            result["tool_input"] = (
-                tool_info.get("mcp_tool_arguments") or tool_info.get("arguments", {})
+            result["tool_input"] = tool_info.get("mcp_tool_arguments") or tool_info.get(
+                "arguments", {}
             )
             if "mcp_result" in tool_info:
                 result["tool_output"] = tool_info["mcp_result"]

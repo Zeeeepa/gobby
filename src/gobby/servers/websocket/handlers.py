@@ -181,7 +181,12 @@ class HandlerMixin:
             if response.decision in ("deny", "block"):
                 return response.reason or "Blocked by rule"
         except Exception:
-            logger.debug("BEFORE_TOOL evaluation failed for %s.%s (fail-open)", mcp_name, tool_name, exc_info=True)
+            logger.debug(
+                "BEFORE_TOOL evaluation failed for %s.%s (fail-open)",
+                mcp_name,
+                tool_name,
+                exc_info=True,
+            )
 
         return None
 
@@ -224,7 +229,9 @@ class HandlerMixin:
             try:
                 await asyncio.to_thread(workflow_handler.evaluate, event)
             except Exception:
-                logger.debug("AFTER_TOOL evaluation failed for %s.%s", mcp_name, tool_name, exc_info=True)
+                logger.debug(
+                    "AFTER_TOOL evaluation failed for %s.%s", mcp_name, tool_name, exc_info=True
+                )
 
         asyncio.create_task(_eval())
 
