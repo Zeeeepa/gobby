@@ -632,9 +632,7 @@ class GobbyRunner:
 
             # Start periodic zombie message cleanup (every 6 hours)
             self._zombie_messages_task = asyncio.create_task(
-                cleanup_zombie_messages_loop(
-                    self.database, lambda: self._shutdown_requested
-                ),
+                cleanup_zombie_messages_loop(self.database, lambda: self._shutdown_requested),
                 name="zombie-message-cleanup",
             )
 

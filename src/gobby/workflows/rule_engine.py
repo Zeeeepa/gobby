@@ -130,9 +130,7 @@ class RuleEngine:
 
             elif effect.type == "inject_context":
                 if effect.template:
-                    template_text = self._render_template(
-                        effect.template, ctx, allowed_funcs
-                    )
+                    template_text = self._render_template(effect.template, ctx, allowed_funcs)
                     context_parts.append(template_text)
 
             elif effect.type == "observe":

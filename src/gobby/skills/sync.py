@@ -199,8 +199,7 @@ def _handle_installed_shadows_template(
     directly and update it, or create it if missing.
     """
     template_row = storage.db.fetchone(
-        "SELECT * FROM skills WHERE name = ? AND source = 'template'"
-        " AND project_id IS NULL",
+        "SELECT * FROM skills WHERE name = ? AND source = 'template' AND project_id IS NULL",
         (parsed.name,),
     )
 
@@ -221,9 +220,7 @@ def _handle_installed_shadows_template(
                 always_apply=parsed.always_apply,
                 injection_format=parsed.injection_format,
             )
-            logger.info(
-                f"Restored soft-deleted template behind installed copy: {parsed.name}"
-            )
+            logger.info(f"Restored soft-deleted template behind installed copy: {parsed.name}")
             result["updated"] += 1
         else:
             needs_update = (
@@ -277,9 +274,7 @@ def _handle_installed_shadows_template(
             injection_format=parsed.injection_format,
             source="template",
         )
-        logger.info(
-            f"Created missing template row behind installed copy: {parsed.name}"
-        )
+        logger.info(f"Created missing template row behind installed copy: {parsed.name}")
         result["synced"] += 1
 
 

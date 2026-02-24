@@ -617,6 +617,7 @@ def _sync_single_rule(
     )
     result["synced"] += 1
 
+
 def get_bundled_variables_path() -> Path:
     """Get the path to bundled variables directory.
 
@@ -702,7 +703,9 @@ def sync_bundled_variables(db: DatabaseProtocol) -> dict[str, Any]:
                             source="template",
                             tags=["gobby"],
                         )
-                        logger.info("Restored soft-deleted bundled variable", extra={"variable": var_name})
+                        logger.info(
+                            "Restored soft-deleted bundled variable", extra={"variable": var_name}
+                        )
                         result["updated"] += 1
                     else:
                         result["skipped"] += 1
@@ -733,6 +736,7 @@ def sync_bundled_variables(db: DatabaseProtocol) -> dict[str, Any]:
                     )
                     if template_row:
                         from gobby.storage.workflow_definitions import WorkflowDefinitionRow
+
                         template = WorkflowDefinitionRow.from_row(template_row)
                         if template.deleted_at:
                             manager.restore(template.id)

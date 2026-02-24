@@ -438,9 +438,7 @@ class SkillManager:
         Returns:
             Number of templates installed
         """
-        return self._storage.install_all_templates(
-            project_id=project_id or self._project_id
-        )
+        return self._storage.install_all_templates(project_id=project_id or self._project_id)
 
     def move_to_project(self, skill_id: str, project_id: str) -> Skill:
         """Move a skill to project scope.
