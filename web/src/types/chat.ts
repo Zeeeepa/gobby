@@ -72,6 +72,7 @@ export interface ChatState {
   onSend: (content: string, files?: QueuedFile[]) => void
   onStop: () => void
   onRespondToQuestion: (toolCallId: string, answers: Record<string, string>) => void
+  onRespondToApproval: (toolCallId: string, decision: 'approve' | 'reject' | 'approve_always') => void
   onInputChange: (value: string) => void
   filteredCommands: CommandInfo[]
   onCommandSelect: (cmd: CommandInfo) => void

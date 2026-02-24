@@ -88,7 +88,7 @@ const HIDDEN_PROJECTS = new Set(['_orphaned', '_migrated'])
 
 export default function App() {
   const { authRequired, authenticated, loading: authLoading, login, logout } = useAuth()
-  const { messages, conversationId, sessionRef, currentBranch, worktreePath, isConnected, isStreaming, isThinking, contextUsage, sendMessage, sendMode, sendWorktreeChange, stopStreaming, clearHistory, deleteConversation, executeCommand, respondToQuestion, planPendingApproval, approvePlan, requestPlanChanges, switchConversation, startNewChat, continueSessionInChat, setOnModeChanged, setOnPlanReady, wsRef, handleVoiceMessageRef, canvasSurfaces, canvasPanel, onCanvasInteraction } = useChat()
+  const { messages, conversationId, sessionRef, dbSessionId, currentBranch, worktreePath, isConnected, isStreaming, isThinking, contextUsage, sendMessage, sendMode, sendWorktreeChange, stopStreaming, clearHistory, deleteConversation, executeCommand, respondToQuestion, respondToApproval, planPendingApproval, approvePlan, requestPlanChanges, switchConversation, startNewChat, continueSessionInChat, setOnModeChanged, setOnPlanReady, wsRef, handleVoiceMessageRef, canvasSurfaces, canvasPanel, onCanvasInteraction } = useChat()
   const voice = useVoice(wsRef, conversationId)
   const { settings, updateFontSize, updateModel, updateChatMode, updateTheme, resetSettings } = useSettings()
   const { agents, refreshAgents } = useTerminal()
@@ -130,20 +130,20 @@ export default function App() {
     if (wasStreamingRef.current && !isStreaming) {
       titleSynthesisCountRef.current += 1
 
-      // Find the current session's DB ID
-      const currentSession = sessionsRef.current.find(
-        (s) => s.external_id === conversationId && s.source === 'claude_sdk_web_chat'
-      )
+      // Use dbSessionId directly (set by backend session_info message) to avoid
+      // race condition where the sessions list hasn't polled since registration
+      const sessionId = dbSessionId
 
-      if (currentSession) {
-        // Synthesize on first completion (no title) or every 4 completions
-        const needsTitle = !currentSession.title
+      if (sessionId) {
+        // Check sessions list for current title (may be stale for new chats — that's OK)
+        const currentSession = sessionsRef.current.find((s) => s.id === sessionId)
+        const needsTitle = !currentSession?.title
         const periodicUpdate = titleSynthesisCountRef.current >= 4
 
         if (needsTitle || periodicUpdate) {
           titleSynthesisCountRef.current = 0
           const baseUrl = import.meta.env.VITE_API_BASE_URL || ''
-          fetch(`${baseUrl}/sessions/${currentSession.id}/synthesize-title`, { method: 'POST' })
+          fetch(`${baseUrl}/sessions/${sessionId}/synthesize-title`, { method: 'POST' })
             .then((res) => {
               if (!res.ok) {
                 console.warn(`Title synthesis returned ${res.status}`)
@@ -159,7 +159,7 @@ export default function App() {
       }
     }
     wasStreamingRef.current = isStreaming
-  }, [isStreaming, conversationId])
+  }, [isStreaming, conversationId, dbSessionId])
 
   // Reset title synthesis counter on conversation switch
   useEffect(() => {
@@ -478,6 +478,7 @@ export default function App() {
             onSend: handleSendMessage,
             onStop: stopStreaming,
             onRespondToQuestion: respondToQuestion,
+            onRespondToApproval: respondToApproval,
             onInputChange: handleInputChange,
             filteredCommands,
             onCommandSelect: handleCommandSelect,

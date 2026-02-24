@@ -10,6 +10,7 @@ interface MessageListProps {
   isStreaming: boolean
   isThinking: boolean
   onRespondToQuestion?: (toolCallId: string, answers: Record<string, string>) => void
+  onRespondToApproval?: (toolCallId: string, decision: 'approve' | 'reject' | 'approve_always') => void
   planPendingApproval?: boolean
   onApprovePlan?: () => void
   onRequestPlanChanges?: (feedback: string) => void
@@ -17,7 +18,7 @@ interface MessageListProps {
   onCanvasInteraction?: (canvasId: string, action: UserAction) => void
 }
 
-export function MessageList({ messages, isStreaming, isThinking, onRespondToQuestion, planPendingApproval, onApprovePlan, onRequestPlanChanges, canvasSurfaces, onCanvasInteraction }: MessageListProps) {
+export function MessageList({ messages, isStreaming, isThinking, onRespondToQuestion, onRespondToApproval, planPendingApproval, onApprovePlan, onRequestPlanChanges, canvasSurfaces, onCanvasInteraction }: MessageListProps) {
   const scrollRef = useRef<HTMLDivElement>(null)
   const userScrolledUpRef = useRef(false)
 
@@ -69,6 +70,7 @@ export function MessageList({ messages, isStreaming, isThinking, onRespondToQues
               isStreaming={isStreaming && i === messages.length - 1}
               isThinking={isThinking && i === messages.length - 1}
               onRespondToQuestion={onRespondToQuestion}
+              onRespondToApproval={onRespondToApproval}
               canvasSurfaces={canvasSurfaces}
               onCanvasInteraction={onCanvasInteraction}
             />

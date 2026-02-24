@@ -11,6 +11,7 @@ import { A2UIRenderer } from '../canvas'
 interface ToolCallCardProps {
   toolCalls: ToolCall[]
   onRespond?: (toolCallId: string, answers: Record<string, string>) => void
+  onRespondToApproval?: (toolCallId: string, decision: 'approve' | 'reject' | 'approve_always') => void
   canvasSurfaces?: Map<string, A2UISurfaceState>
   onCanvasInteraction?: (canvasId: string, action: UserAction) => void
 }
@@ -222,7 +223,7 @@ function ToolResultContent({ call }: { call: ToolCall }) {
   )
 }
 
-const ToolCallItem = memo(function ToolCallItem({ call, onRespond, canvasSurfaces, onCanvasInteraction }: { call: ToolCall; onRespond?: (toolCallId: string, answers: Record<string, string>) => void; canvasSurfaces?: Map<string, A2UISurfaceState>; onCanvasInteraction?: (canvasId: string, action: UserAction) => void }) {
+const ToolCallItem = memo(function ToolCallItem({ call, onRespond, onRespondToApproval, canvasSurfaces, onCanvasInteraction }: { call: ToolCall; onRespond?: (toolCallId: string, answers: Record<string, string>) => void; onRespondToApproval?: (toolCallId: string, decision: 'approve' | 'reject' | 'approve_always') => void; canvasSurfaces?: Map<string, A2UISurfaceState>; onCanvasInteraction?: (canvasId: string, action: UserAction) => void }) {
   const [expanded, setExpanded] = useState(false)
   const displayName = formatToolName(call.tool_name)
 
@@ -235,7 +236,7 @@ const ToolCallItem = memo(function ToolCallItem({ call, onRespond, canvasSurface
   }
 
   if (call.status === 'pending_approval') {
-    return <ToolApprovalCard call={call} onRespond={onRespond} />
+    return <ToolApprovalCard call={call} onRespondToApproval={onRespondToApproval} />
   }
 
   const hasDetails = call.arguments || call.result || call.error
@@ -282,11 +283,11 @@ const ToolCallItem = memo(function ToolCallItem({ call, onRespond, canvasSurface
   )
 })
 
-function ToolApprovalCard({ call, onRespond }: { call: ToolCall; onRespond?: (toolCallId: string, answers: Record<string, string>) => void }) {
+function ToolApprovalCard({ call, onRespondToApproval }: { call: ToolCall; onRespondToApproval?: (toolCallId: string, decision: 'approve' | 'reject' | 'approve_always') => void }) {
   const displayName = formatToolName(call.tool_name)
 
   const handleDecision = (decision: 'approve' | 'reject' | 'approve_always') => {
-    onRespond?.(call.id, { decision })
+    onRespondToApproval?.(call.id, decision)
   }
 
   return (
@@ -505,12 +506,12 @@ function CanvasSurfaceCard({ call, canvasSurfaces, onCanvasInteraction }: { call
   )
 }
 
-export const ToolCallCards = memo(function ToolCallCards({ toolCalls, onRespond, canvasSurfaces, onCanvasInteraction }: ToolCallCardProps) {
+export const ToolCallCards = memo(function ToolCallCards({ toolCalls, onRespond, onRespondToApproval, canvasSurfaces, onCanvasInteraction }: ToolCallCardProps) {
   if (!toolCalls.length) return null
   return (
     <div className="my-1">
       {toolCalls.map((call) => (
-        <ToolCallItem key={call.id} call={call} onRespond={onRespond} canvasSurfaces={canvasSurfaces} onCanvasInteraction={onCanvasInteraction} />
+        <ToolCallItem key={call.id} call={call} onRespond={onRespond} onRespondToApproval={onRespondToApproval} canvasSurfaces={canvasSurfaces} onCanvasInteraction={onCanvasInteraction} />
       ))}
     </div>
   )

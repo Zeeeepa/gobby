@@ -113,7 +113,7 @@ export function ArtifactPanel({ artifact, width, onClose, onUpdateContent, onSet
       </div>
 
       {/* Content */}
-      <div className="flex-1 min-h-0">
+      <div className="flex-1 min-h-0 overflow-hidden">
         {artifact.type === 'code' && (
           <ArtifactCodeView
             content={content}

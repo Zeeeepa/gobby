@@ -11,11 +11,12 @@ interface MessageItemProps {
   isStreaming?: boolean
   isThinking?: boolean
   onRespondToQuestion?: (toolCallId: string, answers: Record<string, string>) => void
+  onRespondToApproval?: (toolCallId: string, decision: 'approve' | 'reject' | 'approve_always') => void
   canvasSurfaces?: Map<string, A2UISurfaceState>
   onCanvasInteraction?: (canvasId: string, action: UserAction) => void
 }
 
-export const MessageItem = memo(function MessageItem({ message, isStreaming = false, isThinking = false, onRespondToQuestion, canvasSurfaces, onCanvasInteraction }: MessageItemProps) {
+export const MessageItem = memo(function MessageItem({ message, isStreaming = false, isThinking = false, onRespondToQuestion, onRespondToApproval, canvasSurfaces, onCanvasInteraction }: MessageItemProps) {
   const isCommandResult = message.role === 'system' && message.toolCalls?.length && !message.content
   const isModelSwitch = message.role === 'system' && message.id.startsWith('model-switch-')
 
@@ -63,7 +64,7 @@ export const MessageItem = memo(function MessageItem({ message, isStreaming = fa
         )}
 
         {message.toolCalls && message.toolCalls.length > 0 && (
-          <ToolCallCards toolCalls={message.toolCalls} onRespond={onRespondToQuestion} canvasSurfaces={canvasSurfaces} onCanvasInteraction={onCanvasInteraction} />
+          <ToolCallCards toolCalls={message.toolCalls} onRespond={onRespondToQuestion} onRespondToApproval={onRespondToApproval} canvasSurfaces={canvasSurfaces} onCanvasInteraction={onCanvasInteraction} />
         )}
 
         {message.content && (

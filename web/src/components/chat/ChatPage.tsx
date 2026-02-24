@@ -69,6 +69,17 @@ export function ChatPage({ chat, conversations, voice, projectId, showPlanRef }:
     chat.setOnPlanReady?.(onPlanReady)
   }, [chat.setOnPlanReady, onPlanReady])
 
+  // Wrap approve/reject to also close the artifact panel
+  const handleApprovePlan = useCallback(() => {
+    chat.onApprovePlan?.()
+    closePanel()
+  }, [chat.onApprovePlan, closePanel])
+
+  const handleRequestPlanChanges = useCallback((feedback: string) => {
+    chat.onRequestPlanChanges?.(feedback)
+    closePanel()
+  }, [chat.onRequestPlanChanges, closePanel])
+
   // Expose callback for /plan command to reopen plan artifact
   useEffect(() => {
     if (showPlanRef) {
@@ -117,9 +128,10 @@ export function ChatPage({ chat, conversations, voice, projectId, showPlanRef }:
                 isStreaming={chat.isStreaming}
                 isThinking={chat.isThinking}
                 onRespondToQuestion={chat.onRespondToQuestion}
+                onRespondToApproval={chat.onRespondToApproval}
                 planPendingApproval={chat.planPendingApproval}
-                onApprovePlan={chat.onApprovePlan}
-                onRequestPlanChanges={chat.onRequestPlanChanges}
+                onApprovePlan={handleApprovePlan}
+                onRequestPlanChanges={handleRequestPlanChanges}
                 canvasSurfaces={chat.canvasSurfaces}
                 onCanvasInteraction={chat.onCanvasInteraction}
               />
@@ -152,11 +164,11 @@ export function ChatPage({ chat, conversations, voice, projectId, showPlanRef }:
 
             {/* Artifact or Canvas panel */}
             {canvas.isPanelOpen && canvas.activeCanvas ? (
-              <CanvasPanel 
-                state={canvas.activeCanvas} 
-                panelWidth={canvas.panelWidth} 
-                onResize={canvas.setPanelWidth} 
-                onClose={canvas.closeCanvas} 
+              <CanvasPanel
+                state={canvas.activeCanvas}
+                panelWidth={canvas.panelWidth}
+                onResize={canvas.setPanelWidth}
+                onClose={canvas.closeCanvas}
               />
             ) : isPanelOpen && activeArtifact ? (
               <>
@@ -168,8 +180,8 @@ export function ChatPage({ chat, conversations, voice, projectId, showPlanRef }:
                   onUpdateContent={updateArtifact}
                   onSetVersion={setVersion}
                   planPendingApproval={chat.planPendingApproval}
-                  onApprovePlan={chat.onApprovePlan}
-                  onRequestPlanChanges={chat.onRequestPlanChanges}
+                  onApprovePlan={handleApprovePlan}
+                  onRequestPlanChanges={handleRequestPlanChanges}
                 />
               </>
             ) : null}
