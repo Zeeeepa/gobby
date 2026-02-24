@@ -13,7 +13,7 @@ from .conductor import conductor
 from .cron import cron
 from .daemon import restart, start, status, stop
 from .export_import import export_cmd, import_cmd
-from .extensions import hooks, plugins, webhooks
+from .extensions import hooks, webhooks
 from .github import github
 from .init import init
 from .install import install, uninstall
@@ -77,7 +77,6 @@ cli.add_command(clones)
 cli.add_command(conductor)
 cli.add_command(cron)
 cli.add_command(hooks)
-cli.add_command(plugins)
 cli.add_command(webhooks)
 cli.add_command(ui)
 cli.add_command(sync)
