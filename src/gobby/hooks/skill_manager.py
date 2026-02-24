@@ -2,17 +2,66 @@
 
 This module provides skill discovery and management for the hook system,
 allowing hooks to access and use skills (Agent Skills specification).
+
+Supports DB-backed loading (preferred) with filesystem fallback.
 """
 
 from __future__ import annotations
 
 import logging
 from pathlib import Path
+from typing import TYPE_CHECKING, Any
 
 from gobby.skills.loader import SkillLoader
 from gobby.skills.parser import ParsedSkill
 
+if TYPE_CHECKING:
+    from gobby.storage.database import DatabaseProtocol
+
 logger = logging.getLogger(__name__)
+
+
+def _db_skill_to_parsed(skill: Any) -> ParsedSkill:
+    """Convert a storage Skill to a ParsedSkill for backward compat.
+
+    Args:
+        skill: A Skill instance from storage.skills
+
+    Returns:
+        ParsedSkill with equivalent fields
+    """
+    # Extract triggers from metadata
+    triggers: list[str] = []
+    audience_config: dict[str, Any] | None = None
+    if skill.metadata and isinstance(skill.metadata, dict):
+        gobby_meta = skill.metadata.get("gobby", {})
+        if isinstance(gobby_meta, dict):
+            raw_triggers = gobby_meta.get("triggers", [])
+            if isinstance(raw_triggers, list):
+                triggers = [str(t) for t in raw_triggers]
+            elif isinstance(raw_triggers, str):
+                triggers = [t.strip() for t in raw_triggers.split(",")]
+
+        skillport_meta = skill.metadata.get("skillport", {})
+        if isinstance(skillport_meta, dict) and "audience" in skillport_meta:
+            audience_config = skillport_meta["audience"]
+
+    return ParsedSkill(
+        name=skill.name,
+        description=skill.description,
+        content=skill.content,
+        version=skill.version,
+        license=skill.license,
+        compatibility=skill.compatibility,
+        allowed_tools=skill.allowed_tools,
+        metadata=skill.metadata,
+        source_path=skill.source_path,
+        source_type=skill.source_type,
+        source_ref=skill.source_ref,
+        always_apply=skill.always_apply,
+        injection_format=skill.injection_format,
+        triggers=triggers if triggers else None,
+    )
 
 
 class HookSkillManager:
@@ -21,11 +70,13 @@ class HookSkillManager:
     Provides discovery and access to core skills bundled with Gobby,
     as well as project-specific skills.
 
+    Supports DB-backed loading (preferred) with filesystem fallback.
+
     Example usage:
         ```python
         from gobby.hooks.skill_manager import HookSkillManager
 
-        manager = HookSkillManager()
+        manager = HookSkillManager(db=database)
         skills = manager.discover_core_skills()
 
         # Get a specific skill
@@ -33,8 +84,15 @@ class HookSkillManager:
         ```
     """
 
-    def __init__(self) -> None:
-        """Initialize the skill manager."""
+    def __init__(self, db: DatabaseProtocol | None = None) -> None:
+        """Initialize the skill manager.
+
+        Args:
+            db: Optional database for DB-backed loading. Falls back to
+                filesystem when None.
+        """
+        self._db = db
+
         # Path to built-in skills: src/gobby/hooks/ -> src/gobby/install/shared/skills/
         self._base_dir = Path(__file__).parent.parent
         self._core_skills_path = self._base_dir / "install" / "shared" / "skills"
@@ -49,7 +107,7 @@ class HookSkillManager:
         self._trigger_index: list[tuple[list[str], ParsedSkill]] | None = None
 
     def discover_core_skills(self) -> list[ParsedSkill]:
-        """Discover built-in skills from install/shared/skills/.
+        """Discover skills — from DB (installed + enabled) or filesystem fallback.
 
         Returns:
             List of ParsedSkill objects for all valid core skills.
@@ -58,6 +116,43 @@ class HookSkillManager:
         if self._core_skills is not None:
             return self._core_skills
 
+        # Try DB-backed loading first
+        if self._db is not None:
+            try:
+                skills = self._load_from_db()
+                if skills is not None:
+                    self._core_skills = skills
+                    logger.debug(f"Discovered {len(self._core_skills)} core skills from DB")
+                    return self._core_skills
+            except Exception as e:
+                logger.debug(f"DB skill loading failed, falling back to filesystem: {e}")
+
+        # Filesystem fallback
+        return self._load_from_filesystem()
+
+    def _load_from_db(self) -> list[ParsedSkill] | None:
+        """Load installed, enabled skills from the database.
+
+        Returns:
+            List of ParsedSkill, or None if DB is unavailable
+        """
+        if self._db is None:
+            return None
+
+        from gobby.storage.skills import LocalSkillManager
+
+        storage = LocalSkillManager(self._db)
+        db_skills = storage.list_skills(
+            enabled=True,
+            include_templates=False,
+            include_deleted=False,
+            limit=10000,
+        )
+
+        return [_db_skill_to_parsed(s) for s in db_skills]
+
+    def _load_from_filesystem(self) -> list[ParsedSkill]:
+        """Load skills from the filesystem (fallback path)."""
         if not self._core_skills_path.exists():
             logger.warning(f"Core skills path not found: {self._core_skills_path}")
             self._core_skills = []
@@ -69,7 +164,7 @@ class HookSkillManager:
             validate=True,
         )
 
-        logger.debug(f"Discovered {len(self._core_skills)} core skills")
+        logger.debug(f"Discovered {len(self._core_skills)} core skills from filesystem")
         return self._core_skills
 
     def get_skill_by_name(self, name: str) -> ParsedSkill | None:

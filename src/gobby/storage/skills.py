@@ -60,6 +60,8 @@ class Skill:
     Gobby-specific:
         - enabled: Toggle skill on/off without removing
         - project_id: NULL for global, else project-scoped
+        - source: 'template' or 'installed' (template pattern)
+        - deleted_at: Soft delete timestamp
 
     Timestamps:
         - created_at: ISO format creation timestamp
@@ -365,7 +367,9 @@ class LocalSkillManager:
     """Manages skill storage in SQLite.
 
     Provides CRUD operations for skills with support for:
-    - Project-scoped uniqueness (UNIQUE(name, project_id))
+    - Project-scoped uniqueness (UNIQUE(name, project_id, source))
+    - Template/installed pattern (mirrors workflow_definitions)
+    - Soft deletes
     - Category and tag filtering
     - Change notifications for search reindexing
     """
@@ -459,7 +463,7 @@ class LocalSkillManager:
             The created Skill
 
         Raises:
-            ValueError: If a skill with the same name and source exists in the project scope
+            ValueError: If a skill with the same name and source exists in scope
         """
         now = datetime.now(UTC).isoformat()
         skill_id = generate_prefixed_id("skl", f"{name}:{project_id or 'global'}:{source}")
@@ -742,7 +746,8 @@ class LocalSkillManager:
         now = datetime.now(UTC).isoformat()
         with self.db.transaction() as conn:
             cursor = conn.execute(
-                "UPDATE skills SET deleted_at = ?, updated_at = ? WHERE id = ? AND deleted_at IS NULL",
+                "UPDATE skills SET deleted_at = ?, updated_at = ? "
+                "WHERE id = ? AND deleted_at IS NULL",
                 (now, now, skill_id),
             )
             if cursor.rowcount == 0:
@@ -803,7 +808,6 @@ class LocalSkillManager:
         """Create an installed copy from a template skill.
 
         Copies all fields from the template, sets source='installed' and enabled=True.
-        Does not disable the template (it remains for future updates/propagation).
 
         Args:
             skill_id: ID of the template skill

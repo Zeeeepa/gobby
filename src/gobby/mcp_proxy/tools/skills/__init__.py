@@ -73,17 +73,19 @@ def create_skills_registry(
     async def list_skills(
         category: str | None = None,
         enabled: bool | None = None,
+        include_templates: bool = False,
         limit: int = 50,
     ) -> dict[str, Any]:
         """
         List skills with lightweight metadata.
 
-        Returns ~100 tokens per skill: name, description, category, tags, enabled.
+        Returns ~100 tokens per skill: name, description, category, tags, enabled, source.
         Does NOT include content, allowed_tools, or compatibility.
 
         Args:
             category: Optional category filter
             enabled: Optional enabled status filter (True/False/None for all)
+            include_templates: If True, also show template skills (default False)
             limit: Maximum skills to return (default 50)
 
         Returns:
@@ -96,6 +98,7 @@ def create_skills_registry(
                 enabled=enabled,
                 limit=limit,
                 include_global=True,
+                include_templates=include_templates,
             )
 
             # Extract lightweight metadata only
@@ -118,6 +121,7 @@ def create_skills_registry(
                         "category": category_value,
                         "tags": tags,
                         "enabled": skill.enabled,
+                        "source": skill.source,
                     }
                 )
 
@@ -200,6 +204,7 @@ def create_skills_registry(
                     "allowed_tools": skill.allowed_tools,
                     "metadata": skill.metadata,
                     "enabled": skill.enabled,
+                    "source": skill.source,
                     "source_path": skill.source_path,
                     "source_type": skill.source_type,
                     "source_ref": skill.source_ref,
