@@ -945,6 +945,7 @@ class TestUninstallCommand:
         _mock_uninstall_windsurf: MagicMock,
         runner: CliRunner,
         temp_dir: Path,
+        monkeypatch: pytest.MonkeyPatch,
     ) -> None:
         """Test uninstall with --all auto-detects installed CLIs."""
         mock_load_config.return_value = MagicMock()
@@ -980,12 +981,16 @@ class TestUninstallCommand:
             "files_removed": [],
         }
 
+        fake_home = temp_dir / "home"
+        fake_home.mkdir()
+        monkeypatch.setattr(Path, "home", lambda: fake_home)
+
         with runner.isolated_filesystem(temp_dir=str(temp_dir)):
-            # Create both .claude and .gemini directories
-            Path(".claude").mkdir()
-            Path(".claude/settings.json").write_text("{}")
-            Path(".gemini").mkdir()
-            Path(".gemini/settings.json").write_text("{}")
+            # Create both .claude and .gemini directories under fake home
+            (fake_home / ".claude").mkdir()
+            (fake_home / ".claude" / "settings.json").write_text("{}")
+            (fake_home / ".gemini").mkdir()
+            (fake_home / ".gemini" / "settings.json").write_text("{}")
 
             result = runner.invoke(cli, ["uninstall", "--all", "--yes"])
 
@@ -1061,6 +1066,7 @@ class TestUninstallCommand:
         _mock_uninstall_windsurf: MagicMock,
         runner: CliRunner,
         temp_dir: Path,
+        monkeypatch: pytest.MonkeyPatch,
     ) -> None:
         """Test uninstall with no flags acts like --all."""
         mock_load_config.return_value = MagicMock()
@@ -1096,12 +1102,16 @@ class TestUninstallCommand:
             "files_removed": [],
         }
 
+        fake_home = temp_dir / "home"
+        fake_home.mkdir()
+        monkeypatch.setattr(Path, "home", lambda: fake_home)
+
         with runner.isolated_filesystem(temp_dir=str(temp_dir)):
-            # Create both directories
-            Path(".claude").mkdir()
-            Path(".claude/settings.json").write_text("{}")
-            Path(".gemini").mkdir()
-            Path(".gemini/settings.json").write_text("{}")
+            # Create both directories under fake home
+            (fake_home / ".claude").mkdir()
+            (fake_home / ".claude" / "settings.json").write_text("{}")
+            (fake_home / ".gemini").mkdir()
+            (fake_home / ".gemini" / "settings.json").write_text("{}")
 
             result = runner.invoke(cli, ["uninstall", "--yes"])
 
