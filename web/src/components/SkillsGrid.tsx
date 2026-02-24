@@ -90,28 +90,26 @@ function SkillCard({ skill, projectId, isInstalled, onSelect, onToggle, onEdit, 
 
   return (
     <div
-      className={`skills-card${isTemplate ? ' workflows-card--template' : ''}${isDeleted ? ' skills-card--deleted' : ''}`}
+      className={`workflows-card${isTemplate ? ' workflows-card--template' : ''}${isDeleted ? ' workflows-card--deleted' : ''}`}
       onClick={onSelect}
     >
-      <div className="skills-card-main">
-        <div className="skills-card-header">
-          <span className="skills-card-name">{skill.name}</span>
-          <span className="workflows-card-type workflows-card-type--skill">skill</span>
-        </div>
+      <div className="workflows-card-header">
+        <span className="workflows-card-name">{skill.name}</span>
+        <span className="workflows-card-type workflows-card-type--skill">skill</span>
+      </div>
 
-        {skill.description && (
-          <div className="skills-card-desc">{skill.description}</div>
+      {skill.description && (
+        <div className="workflows-card-desc">{skill.description}</div>
+      )}
+
+      <div className="workflows-card-badges">
+        {skill.always_apply && <span className="workflows-card-badge">always</span>}
+        <SourceBadge source={skill.source} />
+        {category && <span className="workflows-card-badge">{category}</span>}
+        {skill.version && <span className="workflows-card-badge">v{skill.version}</span>}
+        {skill.injection_format && skill.injection_format !== 'summary' && (
+          <span className="workflows-card-badge">{skill.injection_format}</span>
         )}
-
-        <div className="workflows-card-badges">
-          {skill.always_apply && <span className="skills-badge skills-badge--always">always</span>}
-          <SourceBadge source={skill.source} />
-          {category && <span className="skills-card-category">{category}</span>}
-          {skill.version && <span className="skills-badge skills-badge--version">v{skill.version}</span>}
-          {skill.injection_format && skill.injection_format !== 'summary' && (
-            <span className="skills-card-format">{skill.injection_format}</span>
-          )}
-        </div>
       </div>
 
       <div className="workflows-card-footer">
