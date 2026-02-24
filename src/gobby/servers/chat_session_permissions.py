@@ -361,7 +361,9 @@ class ChatSessionPermissionsMixin:
             "3. Implementation order",
             "4. Verification steps",
             "",
-            "The user will approve or request changes before you proceed.",
+            "When your plan is complete, you MUST call the ExitPlanMode tool to submit it for user approval.",
+            "Write the plan to a .gobby/plans/*.md file first, then call ExitPlanMode.",
+            "The user will see your plan and approve or request changes before you proceed.",
         ]
 
         if self._plan_feedback:
