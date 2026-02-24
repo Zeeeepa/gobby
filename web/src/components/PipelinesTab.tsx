@@ -23,9 +23,10 @@ interface PipelinesTabProps {
   refreshKey?: number
   projectId?: string
   hideGobby?: boolean
+  enabledFilter: boolean | null
 }
 
-export function PipelinesTab({ searchText, sourceFilter, devMode, createMode, onCreateModeHandled, refreshKey = 0, projectId, hideGobby }: PipelinesTabProps) {
+export function PipelinesTab({ searchText, sourceFilter, devMode, createMode, onCreateModeHandled, refreshKey = 0, projectId, hideGobby, enabledFilter }: PipelinesTabProps) {
   const {
     workflows,
     isLoading,
@@ -39,10 +40,8 @@ export function PipelinesTab({ searchText, sourceFilter, devMode, createMode, on
     exportYaml,
     restoreWorkflow,
     installFromTemplate,
-    installAllTemplates,
   } = useWorkflows()
 
-  const [enabledFilter, setEnabledFilter] = useState<boolean | null>(null)
   const [showImportModal, setShowImportModal] = useState(false)
   const [editingWorkflow, setEditingWorkflow] = useState<WorkflowDetail | null>(null)
   const [yamlEditorWf, setYamlEditorWf] = useState<WorkflowDetail | null>(null)
@@ -248,37 +247,6 @@ export function PipelinesTab({ searchText, sourceFilter, devMode, createMode, on
 
   return (
     <>
-      {/* Filter chips */}
-      <div className="workflows-filter-bar">
-        <div className="workflows-filter-chips">
-          <button
-            type="button"
-            className={`workflows-filter-chip ${enabledFilter === true ? 'workflows-filter-chip--active' : ''}`}
-            onClick={() => setEnabledFilter(enabledFilter === true ? null : true)}
-          >
-            enabled
-          </button>
-          <button
-            type="button"
-            className={`workflows-filter-chip ${enabledFilter === false ? 'workflows-filter-chip--active' : ''}`}
-            onClick={() => setEnabledFilter(enabledFilter === false ? null : false)}
-          >
-            disabled
-          </button>
-        </div>
-        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-          {sourceFilter === 'templates' && (
-            <button
-              type="button"
-              className="workflows-toolbar-btn"
-              onClick={() => installAllTemplates('pipeline')}
-            >
-              Install All
-            </button>
-          )}
-        </div>
-      </div>
-
       {/* Card grid */}
       <div className="workflows-content">
         {isLoading ? (

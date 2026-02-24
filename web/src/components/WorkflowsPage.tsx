@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import { TabBar } from './TabBar'
 import { RulesTab } from './RulesTab'
 import { AgentsTab } from './AgentsTab'
@@ -7,6 +7,7 @@ import { CodeMirrorEditor } from './CodeMirrorEditor'
 import './WorkflowsPage.css'
 
 type ActiveTab = 'pipelines' | 'agents' | 'rules'
+type SourceFilter = 'installed' | 'project' | 'templates' | 'deleted'
 
 const TABS = [
   { id: 'pipelines', label: 'Pipelines' },
@@ -14,10 +15,17 @@ const TABS = [
   { id: 'rules', label: 'Rules' },
 ]
 
+const SOURCE_OPTIONS: { value: SourceFilter; label: string }[] = [
+  { value: 'installed', label: 'Installed' },
+  { value: 'project', label: 'Project' },
+  { value: 'templates', label: 'Templates' },
+  { value: 'deleted', label: 'Deleted' },
+]
+
 export function WorkflowsPage({ projectId }: { projectId?: string }) {
   const [activeTab, setActiveTab] = useState<ActiveTab>('pipelines')
   const [searchText, setSearchText] = useState('')
-  const [sourceFilter, setSourceFilter] = useState<'installed' | 'project' | 'templates' | 'deleted'>('installed')
+  const [sourceFilter, setSourceFilter] = useState<SourceFilter>('installed')
   const [devMode, setDevMode] = useState(false)
   const [showRuleCreateModal, setShowRuleCreateModal] = useState(false)
   const [showAgentCreateForm, setShowAgentCreateForm] = useState(false)
@@ -26,6 +34,22 @@ export function WorkflowsPage({ projectId }: { projectId?: string }) {
   const [refreshKey, setRefreshKey] = useState(0)
   const [refreshing, setRefreshing] = useState(false)
   const [hideGobby, setHideGobby] = useState(false)
+
+  // Lifted tab-specific filter state
+  const [pipelineEnabledFilter, setPipelineEnabledFilter] = useState<boolean | null>(null)
+  const [agentProviderFilter, setAgentProviderFilter] = useState<string>('all')
+  const [ruleEventFilter, setRuleEventFilter] = useState<string | null>(null)
+
+  // Dynamic options reported by tabs
+  const [agentProviders, setAgentProviders] = useState<string[]>([])
+  const [ruleEventTypes, setRuleEventTypes] = useState<string[]>([])
+
+  // Rules bulk toggle state
+  const [rulesAllEnabled, setRulesAllEnabled] = useState(false)
+
+  // Popover state
+  const [showFilterPopover, setShowFilterPopover] = useState(false)
+  const filterRef = useRef<HTMLDivElement>(null)
 
   // Fetch dev_mode from admin status
   useEffect(() => {
@@ -43,6 +67,55 @@ export function WorkflowsPage({ projectId }: { projectId?: string }) {
     setTimeout(() => setRefreshing(false), 600)
   }, [])
 
+  // Click-outside to close popover
+  useEffect(() => {
+    if (!showFilterPopover) return
+    const handleMouseDown = (e: MouseEvent) => {
+      if (filterRef.current && !filterRef.current.contains(e.target as Node)) {
+        setShowFilterPopover(false)
+      }
+    }
+    document.addEventListener('mousedown', handleMouseDown)
+    return () => document.removeEventListener('mousedown', handleMouseDown)
+  }, [showFilterPopover])
+
+  // Badge count
+  const activeFilterCount = useMemo(() => {
+    let count = 0
+    if (sourceFilter !== 'installed') count++
+    if (hideGobby) count++
+    if (activeTab === 'pipelines' && pipelineEnabledFilter !== null) count++
+    if (activeTab === 'agents' && agentProviderFilter !== 'all') count++
+    if (activeTab === 'rules' && ruleEventFilter !== null) count++
+    return count
+  }, [sourceFilter, hideGobby, activeTab, pipelineEnabledFilter, agentProviderFilter, ruleEventFilter])
+
+  // Bulk actions
+  const handleInstallAll = useCallback(async () => {
+    const typeMap: Record<ActiveTab, string> = { pipelines: 'pipeline', agents: 'agent', rules: 'rule' }
+    try {
+      const res = await fetch(`/api/workflows/install-all-templates?workflow_type=${typeMap[activeTab]}`, {
+        method: 'POST',
+      })
+      if (res.ok) setRefreshKey(k => k + 1)
+    } catch (e) {
+      console.error('Failed to install all templates:', e)
+    }
+  }, [activeTab])
+
+  const handleBulkToggleRules = useCallback(async () => {
+    try {
+      const res = await fetch('/api/rules/bulk-toggle', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ source: sourceFilter, enabled: !rulesAllEnabled }),
+      })
+      if (res.ok) setRefreshKey(k => k + 1)
+    } catch (e) {
+      console.error('Failed to bulk toggle rules:', e)
+    }
+  }, [sourceFilter, rulesAllEnabled])
+
   return (
     <main className="workflows-page">
       {/* Title row */}
@@ -51,6 +124,26 @@ export function WorkflowsPage({ projectId }: { projectId?: string }) {
           <h2 className="workflows-toolbar-title">Workflows</h2>
         </div>
         <div className="workflows-toolbar-right">
+          {/* Bulk actions */}
+          {sourceFilter === 'templates' && (
+            <button
+              type="button"
+              className="workflows-toolbar-btn"
+              onClick={handleInstallAll}
+            >
+              Install All
+            </button>
+          )}
+          {activeTab === 'rules' && (sourceFilter === 'installed' || sourceFilter === 'project') && (
+            <div className="rules-enforcement-toggle" onClick={handleBulkToggleRules}>
+              <div className={`workflows-toggle-track ${rulesAllEnabled ? 'workflows-toggle-track--on' : ''}`}>
+                <div className="workflows-toggle-knob" />
+              </div>
+              <span>Enable All</span>
+            </div>
+          )}
+
+          {/* Create buttons */}
           {activeTab === 'pipelines' && (
             <div className="workflows-new-wrapper">
               <button
@@ -107,7 +200,7 @@ export function WorkflowsPage({ projectId }: { projectId?: string }) {
         </div>
       </div>
 
-      {/* Filter bar */}
+      {/* Filter row */}
       <div className="workflows-filter-row">
         <input
           className="workflows-search"
@@ -116,22 +209,35 @@ export function WorkflowsPage({ projectId }: { projectId?: string }) {
           value={searchText}
           onChange={e => setSearchText(e.target.value)}
         />
-        <div className="rules-enforcement-toggle" onClick={() => setHideGobby(!hideGobby)}>
-          <div className={`workflows-toggle-track ${hideGobby ? 'workflows-toggle-track--on' : ''}`}>
-            <div className="workflows-toggle-knob" />
-          </div>
-          <span>Hide Built-in</span>
+        <div className="workflows-filter-wrapper" ref={filterRef}>
+          <button
+            type="button"
+            className="workflows-filter-btn"
+            onClick={() => setShowFilterPopover(v => !v)}
+          >
+            Filter
+            {activeFilterCount > 0 && (
+              <span className="workflows-filter-badge">{activeFilterCount}</span>
+            )}
+          </button>
+          {showFilterPopover && (
+            <FilterPopover
+              sourceFilter={sourceFilter}
+              onSourceFilterChange={setSourceFilter}
+              hideGobby={hideGobby}
+              onHideGobbyChange={setHideGobby}
+              activeTab={activeTab}
+              pipelineEnabledFilter={pipelineEnabledFilter}
+              onPipelineEnabledFilterChange={setPipelineEnabledFilter}
+              agentProviderFilter={agentProviderFilter}
+              onAgentProviderFilterChange={setAgentProviderFilter}
+              agentProviders={agentProviders}
+              ruleEventFilter={ruleEventFilter}
+              onRuleEventFilterChange={setRuleEventFilter}
+              ruleEventTypes={ruleEventTypes}
+            />
+          )}
         </div>
-        <select
-          className="workflows-source-select"
-          value={sourceFilter}
-          onChange={e => setSourceFilter(e.target.value as 'installed' | 'project' | 'templates' | 'deleted')}
-        >
-          <option value="installed">Installed</option>
-          <option value="project">Installed (Project)</option>
-          <option value="templates">Templates</option>
-          <option value="deleted">Deleted</option>
-        </select>
         <button
           type="button"
           className={`workflows-toolbar-btn ${refreshing ? 'workflows-toolbar-btn--spinning' : ''}`}
@@ -160,6 +266,7 @@ export function WorkflowsPage({ projectId }: { projectId?: string }) {
           refreshKey={refreshKey}
           projectId={projectId}
           hideGobby={hideGobby}
+          enabledFilter={pipelineEnabledFilter}
         />
       )}
 
@@ -173,6 +280,8 @@ export function WorkflowsPage({ projectId }: { projectId?: string }) {
           refreshKey={refreshKey}
           projectId={projectId}
           hideGobby={hideGobby}
+          filterProvider={agentProviderFilter}
+          onProvidersChange={setAgentProviders}
         />
       )}
 
@@ -186,9 +295,132 @@ export function WorkflowsPage({ projectId }: { projectId?: string }) {
           refreshKey={refreshKey}
           projectId={projectId}
           hideGobby={hideGobby}
+          eventFilter={ruleEventFilter}
+          onEventTypesChange={setRuleEventTypes}
+          onAllEnabledChange={setRulesAllEnabled}
         />
       )}
     </main>
+  )
+}
+
+function FilterPopover({
+  sourceFilter,
+  onSourceFilterChange,
+  hideGobby,
+  onHideGobbyChange,
+  activeTab,
+  pipelineEnabledFilter,
+  onPipelineEnabledFilterChange,
+  agentProviderFilter,
+  onAgentProviderFilterChange,
+  agentProviders,
+  ruleEventFilter,
+  onRuleEventFilterChange,
+  ruleEventTypes,
+}: {
+  sourceFilter: SourceFilter
+  onSourceFilterChange: (v: SourceFilter) => void
+  hideGobby: boolean
+  onHideGobbyChange: (v: boolean) => void
+  activeTab: ActiveTab
+  pipelineEnabledFilter: boolean | null
+  onPipelineEnabledFilterChange: (v: boolean | null) => void
+  agentProviderFilter: string
+  onAgentProviderFilterChange: (v: string) => void
+  agentProviders: string[]
+  ruleEventFilter: string | null
+  onRuleEventFilterChange: (v: string | null) => void
+  ruleEventTypes: string[]
+}) {
+  return (
+    <div className="workflows-filter-popover">
+      {/* Source section */}
+      <div className="workflows-filter-popover-section">
+        <div className="workflows-filter-popover-label">Source</div>
+        <div className="workflows-filter-popover-chips">
+          {SOURCE_OPTIONS.map(opt => (
+            <button
+              key={opt.value}
+              type="button"
+              className={`workflows-filter-chip ${sourceFilter === opt.value ? 'workflows-filter-chip--active' : ''}`}
+              onClick={() => onSourceFilterChange(opt.value)}
+            >
+              {opt.label}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* Tab-specific section */}
+      {activeTab === 'pipelines' && (
+        <div className="workflows-filter-popover-section">
+          <div className="workflows-filter-popover-label">Status</div>
+          <div className="workflows-filter-popover-chips">
+            <button
+              type="button"
+              className={`workflows-filter-chip ${pipelineEnabledFilter === true ? 'workflows-filter-chip--active' : ''}`}
+              onClick={() => onPipelineEnabledFilterChange(pipelineEnabledFilter === true ? null : true)}
+            >
+              Enabled
+            </button>
+            <button
+              type="button"
+              className={`workflows-filter-chip ${pipelineEnabledFilter === false ? 'workflows-filter-chip--active' : ''}`}
+              onClick={() => onPipelineEnabledFilterChange(pipelineEnabledFilter === false ? null : false)}
+            >
+              Disabled
+            </button>
+          </div>
+        </div>
+      )}
+
+      {activeTab === 'agents' && agentProviders.length > 0 && (
+        <div className="workflows-filter-popover-section">
+          <div className="workflows-filter-popover-label">Provider</div>
+          <div className="workflows-filter-popover-chips">
+            {agentProviders.map(p => (
+              <button
+                key={p}
+                type="button"
+                className={`workflows-filter-chip ${agentProviderFilter === p ? 'workflows-filter-chip--active' : ''}`}
+                onClick={() => onAgentProviderFilterChange(agentProviderFilter === p ? 'all' : p)}
+              >
+                {p}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {activeTab === 'rules' && ruleEventTypes.length > 0 && (
+        <div className="workflows-filter-popover-section">
+          <div className="workflows-filter-popover-label">Event</div>
+          <div className="workflows-filter-popover-chips">
+            {ruleEventTypes.map(ev => (
+              <button
+                key={ev}
+                type="button"
+                className={`workflows-filter-chip ${ruleEventFilter === ev ? 'workflows-filter-chip--active' : ''}`}
+                onClick={() => onRuleEventFilterChange(ruleEventFilter === ev ? null : ev)}
+              >
+                {ev}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Hide Built-in */}
+      <div className="workflows-filter-popover-section workflows-filter-popover-section--bottom">
+        <label className="workflows-filter-popover-checkbox" onClick={() => onHideGobbyChange(!hideGobby)}>
+          <div className={`workflows-toggle-track ${hideGobby ? 'workflows-toggle-track--on' : ''}`}>
+            <div className="workflows-toggle-knob" />
+          </div>
+          <span>Hide Built-in</span>
+        </label>
+      </div>
+    </div>
   )
 }
 

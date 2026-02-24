@@ -13,9 +13,12 @@ interface RulesTabProps {
   refreshKey?: number
   projectId?: string
   hideGobby?: boolean
+  eventFilter: string | null
+  onEventTypesChange: (types: string[]) => void
+  onAllEnabledChange: (allEnabled: boolean) => void
 }
 
-export function RulesTab({ searchText, sourceFilter, devMode, showCreateModal, onCloseCreateModal, refreshKey = 0, projectId, hideGobby }: RulesTabProps) {
+export function RulesTab({ searchText, sourceFilter, devMode, showCreateModal, onCloseCreateModal, refreshKey = 0, projectId, hideGobby, eventFilter, onEventTypesChange, onAllEnabledChange }: RulesTabProps) {
   const {
     rules,
     isLoading,
@@ -27,7 +30,6 @@ export function RulesTab({ searchText, sourceFilter, devMode, showCreateModal, o
     deleteRule,
     installFromTemplate,
     fetchRules,
-    bulkToggleRules,
   } = useRules()
 
   // Re-fetch when refreshKey changes (skip initial render)
@@ -39,8 +41,6 @@ export function RulesTab({ searchText, sourceFilter, devMode, showCreateModal, o
     }
     fetchRules()
   }, [refreshKey, fetchRules])
-
-  const [eventFilter, setEventFilter] = useState<string | null>(null)
 
   // YAML editor state
   const [yamlRule, setYamlRule] = useState<RuleSummary | null>(null)
@@ -231,72 +231,17 @@ export function RulesTab({ searchText, sourceFilter, devMode, showCreateModal, o
     }
   }, [fetchRules])
 
-  const handleInstallAll = useCallback(async () => {
-    try {
-      const response = await fetch('/api/workflows/install-all-templates?workflow_type=rule', {
-        method: 'POST',
-      })
-      if (response.ok) {
-        await fetchRules()
-      }
-    } catch (e) {
-      console.error('Failed to install all template rules:', e)
-    }
-  }, [fetchRules])
+  useEffect(() => {
+    onEventTypesChange(eventTypes)
+  }, [eventTypes, onEventTypesChange])
 
-  const clearFilters = useCallback(() => {
-    setEventFilter(null)
-  }, [])
-
-  const hasFilters = !!eventFilter
+  useEffect(() => {
+    const allEnabled = filteredRules.length > 0 && filteredRules.every(r => r.enabled)
+    onAllEnabledChange(allEnabled)
+  }, [filteredRules, onAllEnabledChange])
 
   return (
     <div className="rules-tab">
-      {/* Filter chips */}
-      <div className="workflows-filter-bar">
-        <div className="rules-filter-chips">
-          {eventTypes.map(ev => (
-            <button
-              type="button"
-              key={ev}
-              className={`workflows-filter-chip ${eventFilter === ev ? 'workflows-filter-chip--active' : ''}`}
-              onClick={() => setEventFilter(eventFilter === ev ? null : ev)}
-            >
-              {ev}
-            </button>
-          ))}
-          {hasFilters && (
-            <button
-              type="button"
-              className="workflows-filter-chip rules-filter-clear"
-              onClick={clearFilters}
-            >
-              Clear
-            </button>
-          )}
-        </div>
-        {(sourceFilter === 'installed' || sourceFilter === 'project') && filteredRules.length > 0 && (() => {
-          const allEnabled = filteredRules.every(r => r.enabled)
-          return (
-            <div className="rules-enforcement-toggle" onClick={() => bulkToggleRules(sourceFilter, !allEnabled)}>
-              <div className={`workflows-toggle-track ${allEnabled ? 'workflows-toggle-track--on' : ''}`}>
-                <div className="workflows-toggle-knob" />
-              </div>
-              <span>Enable All</span>
-            </div>
-          )
-        })()}
-        {sourceFilter === 'templates' && (
-          <button
-            type="button"
-            className="workflows-toolbar-btn"
-            onClick={handleInstallAll}
-          >
-            Install All
-          </button>
-        )}
-      </div>
-
       {/* Card grid */}
       <div className="workflows-content">
         {isLoading ? (

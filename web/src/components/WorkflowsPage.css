@@ -428,19 +428,94 @@
   border-color: #22c55e;
 }
 
-.workflows-source-select {
+/* Filter button + popover */
+.workflows-filter-wrapper {
+  position: relative;
+}
+
+.workflows-filter-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
   padding: 6px 10px;
-  font-size: calc(var(--font-size-base) * 0.75);
   border: 1px solid var(--border);
   border-radius: 6px;
   background: var(--bg-secondary);
   color: var(--text-primary);
-  outline: none;
+  font-size: calc(var(--font-size-base) * 0.75);
   cursor: pointer;
+  transition: background 0.15s;
 }
 
-.workflows-source-select:focus {
-  border-color: var(--accent);
+.workflows-filter-btn:hover {
+  background: var(--bg-tertiary);
+}
+
+.workflows-filter-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  border-radius: 9px;
+  background: var(--accent);
+  color: #fff;
+  font-size: calc(var(--font-size-base) * 0.625);
+  font-weight: 600;
+  line-height: 1;
+}
+
+.workflows-filter-popover {
+  position: absolute;
+  top: calc(100% + 4px);
+  right: 0;
+  z-index: 50;
+  min-width: 240px;
+  max-width: 320px;
+  padding: 12px;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+}
+
+.workflows-filter-popover-section {
+  margin-bottom: 12px;
+}
+
+.workflows-filter-popover-section:last-child {
+  margin-bottom: 0;
+}
+
+.workflows-filter-popover-section--bottom {
+  border-top: 1px solid var(--border);
+  padding-top: 12px;
+}
+
+.workflows-filter-popover-label {
+  font-size: calc(var(--font-size-base) * 0.625);
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-bottom: 6px;
+  font-weight: 500;
+}
+
+.workflows-filter-popover-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.workflows-filter-popover-checkbox {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+  font-size: calc(var(--font-size-base) * 0.75);
+  color: var(--text-secondary);
+  user-select: none;
 }
 
 .workflows-action-btn--danger:hover {
@@ -869,8 +944,9 @@
     width: auto;
   }
 
-  .workflows-source-select {
-    flex-shrink: 0;
+  .workflows-filter-popover {
+    min-width: 200px;
+    right: 0;
   }
 
   .workflows-grid {

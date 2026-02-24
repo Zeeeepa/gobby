@@ -149,15 +149,16 @@ interface AgentsTabProps {
   refreshKey?: number
   projectId?: string
   hideGobby?: boolean
+  filterProvider: string
+  onProvidersChange: (providers: string[]) => void
 }
 
-export function AgentsTab({ searchText, sourceFilter, devMode, showCreateForm, onToggleCreateForm, refreshKey = 0, projectId, hideGobby }: AgentsTabProps) {
+export function AgentsTab({ searchText, sourceFilter, devMode, showCreateForm, onToggleCreateForm, refreshKey = 0, projectId, hideGobby, filterProvider, onProvidersChange }: AgentsTabProps) {
   const { running, recentRuns, cancelAgent } = useAgentRuns()
   const [definitions, setDefinitions] = useState<AgentDefInfo[]>([])
   const [loading, setLoading] = useState(true)
   const [showRecentRuns, setShowRecentRuns] = useState(false)
   const [expandedName, setExpandedName] = useState<string | null>(null)
-  const [filterProvider, setFilterProvider] = useState<string>('all')
   const [editingId, setEditingId] = useState<string | null>(null)
   const [importingName, setImportingName] = useState<string | null>(null)
   const [importResult, setImportResult] = useState<{ name: string; ok: boolean } | null>(null)
@@ -272,6 +273,10 @@ export function AgentsTab({ searchText, sourceFilter, devMode, showCreateForm, o
     () => [...new Set(definitions.map(d => d.definition.provider))].sort(),
     [definitions]
   )
+
+  useEffect(() => {
+    onProvidersChange(providers)
+  }, [providers, onProvidersChange])
 
   const handleCreate = async () => {
     try {
@@ -515,24 +520,6 @@ export function AgentsTab({ searchText, sourceFilter, devMode, showCreateForm, o
     }
   }
 
-  const handleInstallAllTemplates = async () => {
-    try {
-      const res = await fetch(`${getBaseUrl()}/api/workflows/install-all-templates?workflow_type=agent`, {
-        method: 'POST',
-      })
-      if (res.ok) {
-        const data = await res.json()
-        fetchDefinitions(true)
-        showToast(`Installed ${data.count || 0} templates`, 'success')
-      } else {
-        showToast('Failed to install all templates', 'error')
-      }
-    } catch (e) {
-      console.error('Failed to install all agent templates:', e)
-      showToast('Failed to install all templates', 'error')
-    }
-  }
-
   const handleMoveToProject = useCallback(async (item: AgentDefInfo) => {
     if (!projectId || !item.db_id) return
     if (!window.confirm(`Move "${item.definition.name}" to the current project? It will no longer apply globally.`)) return
@@ -589,40 +576,6 @@ export function AgentsTab({ searchText, sourceFilter, devMode, showCreateForm, o
           {toastMessage.text}
         </div>
       )}
-
-      {/* Filter chips */}
-      <div className="workflows-filter-bar">
-        <div className="workflows-filter-chips">
-          {providers.map(p => (
-            <button
-              type="button"
-              key={p}
-              className={`workflows-filter-chip ${filterProvider === p ? 'workflows-filter-chip--active' : ''}`}
-              onClick={() => setFilterProvider(filterProvider === p ? 'all' : p)}
-            >
-              {p}
-            </button>
-          ))}
-          {filterProvider !== 'all' && (
-            <button
-              type="button"
-              className="workflows-filter-chip rules-filter-clear"
-              onClick={() => setFilterProvider('all')}
-            >
-              Clear
-            </button>
-          )}
-        </div>
-        {sourceFilter === 'templates' && (
-          <button
-            type="button"
-            className="workflows-toolbar-btn"
-            onClick={handleInstallAllTemplates}
-          >
-            Install All
-          </button>
-        )}
-      </div>
 
       {/* Create/edit form */}
       {showCreateForm && (
