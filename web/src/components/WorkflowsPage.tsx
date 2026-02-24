@@ -34,6 +34,7 @@ export function WorkflowsPage({ projectId }: { projectId?: string }) {
   const [refreshKey, setRefreshKey] = useState(0)
   const [refreshing, setRefreshing] = useState(false)
   const [hideGobby, setHideGobby] = useState(false)
+  const [hideInstalled, setHideInstalled] = useState(false)
 
   // Lifted tab-specific filter state
   const [pipelineEnabledFilter, setPipelineEnabledFilter] = useState<boolean | null>(null)
@@ -84,11 +85,12 @@ export function WorkflowsPage({ projectId }: { projectId?: string }) {
     let count = 0
     if (sourceFilter !== 'installed') count++
     if (hideGobby) count++
+    if (sourceFilter === 'templates' && hideInstalled) count++
     if (activeTab === 'pipelines' && pipelineEnabledFilter !== null) count++
     if (activeTab === 'agents' && agentProviderFilter !== 'all') count++
     if (activeTab === 'rules' && ruleEventFilter !== null) count++
     return count
-  }, [sourceFilter, hideGobby, activeTab, pipelineEnabledFilter, agentProviderFilter, ruleEventFilter])
+  }, [sourceFilter, hideGobby, hideInstalled, activeTab, pipelineEnabledFilter, agentProviderFilter, ruleEventFilter])
 
   // Bulk actions
   const handleInstallAll = useCallback(async () => {
@@ -226,6 +228,8 @@ export function WorkflowsPage({ projectId }: { projectId?: string }) {
               onSourceFilterChange={setSourceFilter}
               hideGobby={hideGobby}
               onHideGobbyChange={setHideGobby}
+              hideInstalled={hideInstalled}
+              onHideInstalledChange={setHideInstalled}
               activeTab={activeTab}
               pipelineEnabledFilter={pipelineEnabledFilter}
               onPipelineEnabledFilterChange={setPipelineEnabledFilter}
@@ -266,6 +270,7 @@ export function WorkflowsPage({ projectId }: { projectId?: string }) {
           refreshKey={refreshKey}
           projectId={projectId}
           hideGobby={hideGobby}
+          hideInstalled={hideInstalled}
           enabledFilter={pipelineEnabledFilter}
         />
       )}
@@ -280,6 +285,7 @@ export function WorkflowsPage({ projectId }: { projectId?: string }) {
           refreshKey={refreshKey}
           projectId={projectId}
           hideGobby={hideGobby}
+          hideInstalled={hideInstalled}
           filterProvider={agentProviderFilter}
           onProvidersChange={setAgentProviders}
         />
@@ -295,6 +301,7 @@ export function WorkflowsPage({ projectId }: { projectId?: string }) {
           refreshKey={refreshKey}
           projectId={projectId}
           hideGobby={hideGobby}
+          hideInstalled={hideInstalled}
           eventFilter={ruleEventFilter}
           onEventTypesChange={setRuleEventTypes}
           onAllEnabledChange={setRulesAllEnabled}
@@ -309,6 +316,8 @@ function FilterPopover({
   onSourceFilterChange,
   hideGobby,
   onHideGobbyChange,
+  hideInstalled,
+  onHideInstalledChange,
   activeTab,
   pipelineEnabledFilter,
   onPipelineEnabledFilterChange,
@@ -323,6 +332,8 @@ function FilterPopover({
   onSourceFilterChange: (v: SourceFilter) => void
   hideGobby: boolean
   onHideGobbyChange: (v: boolean) => void
+  hideInstalled: boolean
+  onHideInstalledChange: (v: boolean) => void
   activeTab: ActiveTab
   pipelineEnabledFilter: boolean | null
   onPipelineEnabledFilterChange: (v: boolean | null) => void
@@ -419,6 +430,14 @@ function FilterPopover({
           </div>
           <span>Hide Built-in</span>
         </label>
+        {sourceFilter === 'templates' && (
+          <label className="workflows-filter-popover-checkbox" onClick={() => onHideInstalledChange(!hideInstalled)}>
+            <div className={`workflows-toggle-track ${hideInstalled ? 'workflows-toggle-track--on' : ''}`}>
+              <div className="workflows-toggle-knob" />
+            </div>
+            <span>Hide Installed</span>
+          </label>
+        )}
       </div>
     </div>
   )

@@ -23,10 +23,11 @@ interface PipelinesTabProps {
   refreshKey?: number
   projectId?: string
   hideGobby?: boolean
+  hideInstalled?: boolean
   enabledFilter: boolean | null
 }
 
-export function PipelinesTab({ searchText, sourceFilter, devMode, createMode, onCreateModeHandled, refreshKey = 0, projectId, hideGobby, enabledFilter }: PipelinesTabProps) {
+export function PipelinesTab({ searchText, sourceFilter, devMode, createMode, onCreateModeHandled, refreshKey = 0, projectId, hideGobby, hideInstalled, enabledFilter }: PipelinesTabProps) {
   const {
     workflows,
     isLoading,
@@ -81,6 +82,16 @@ export function PipelinesTab({ searchText, sourceFilter, devMode, createMode, on
     }
   }, [createMode, onCreateModeHandled, createWorkflow])
 
+  const installedNames = useMemo(() => {
+    const names = new Set<string>()
+    for (const w of workflows) {
+      if (w.workflow_type === 'pipeline' && w.source === 'installed' && !w.deleted_at) {
+        names.add(w.name)
+      }
+    }
+    return names
+  }, [workflows])
+
   // Filtering logic
   const filteredWorkflows = useMemo(() => {
     let result = workflows.filter(w => w.workflow_type === 'pipeline')
@@ -98,6 +109,9 @@ export function PipelinesTab({ searchText, sourceFilter, devMode, createMode, on
     if (hideGobby) {
       result = result.filter(w => !(w.tags && w.tags.includes('gobby')))
     }
+    if (hideInstalled) {
+      result = result.filter(w => !installedNames.has(w.name))
+    }
     if (enabledFilter !== null) {
       result = result.filter(w => w.enabled === enabledFilter)
     }
@@ -112,17 +126,7 @@ export function PipelinesTab({ searchText, sourceFilter, devMode, createMode, on
     }
 
     return result
-  }, [workflows, enabledFilter, searchText, sourceFilter, hideGobby])
-
-  const installedNames = useMemo(() => {
-    const names = new Set<string>()
-    for (const w of workflows) {
-      if (w.workflow_type === 'pipeline' && w.source === 'installed' && !w.deleted_at) {
-        names.add(w.name)
-      }
-    }
-    return names
-  }, [workflows])
+  }, [workflows, installedNames, enabledFilter, searchText, sourceFilter, hideGobby, hideInstalled])
 
   const handleDelete = useCallback(async (wf: WorkflowDetail) => {
     if (!window.confirm(`Delete "${wf.name}"?`)) return

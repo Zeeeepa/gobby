@@ -13,12 +13,13 @@ interface RulesTabProps {
   refreshKey?: number
   projectId?: string
   hideGobby?: boolean
+  hideInstalled?: boolean
   eventFilter: string | null
   onEventTypesChange: (types: string[]) => void
   onAllEnabledChange: (allEnabled: boolean) => void
 }
 
-export function RulesTab({ searchText, sourceFilter, devMode, showCreateModal, onCloseCreateModal, refreshKey = 0, projectId, hideGobby, eventFilter, onEventTypesChange, onAllEnabledChange }: RulesTabProps) {
+export function RulesTab({ searchText, sourceFilter, devMode, showCreateModal, onCloseCreateModal, refreshKey = 0, projectId, hideGobby, hideInstalled, eventFilter, onEventTypesChange, onAllEnabledChange }: RulesTabProps) {
   const {
     rules,
     isLoading,
@@ -47,6 +48,16 @@ export function RulesTab({ searchText, sourceFilter, devMode, showCreateModal, o
   const [yamlContent, setYamlContent] = useState('')
   const [yamlLoading, setYamlLoading] = useState(false)
 
+  const installedNames = useMemo(() => {
+    const names = new Set<string>()
+    for (const r of rules) {
+      if (r.source === 'installed' && !(r as RuleSummary & { deleted_at?: string | null }).deleted_at) {
+        names.add(r.name)
+      }
+    }
+    return names
+  }, [rules])
+
   // Filter rules
   const filteredRules = useMemo(() => {
     let result = rules
@@ -68,6 +79,9 @@ export function RulesTab({ searchText, sourceFilter, devMode, showCreateModal, o
     if (hideGobby) {
       result = result.filter(r => !(r.tags && r.tags.includes('gobby')))
     }
+    if (hideInstalled) {
+      result = result.filter(r => !installedNames.has(r.name))
+    }
     if (searchText.trim()) {
       const q = searchText.toLowerCase()
       result = result.filter(r =>
@@ -79,17 +93,7 @@ export function RulesTab({ searchText, sourceFilter, devMode, showCreateModal, o
     }
 
     return result
-  }, [rules, eventFilter, searchText, sourceFilter, hideGobby])
-
-  const installedNames = useMemo(() => {
-    const names = new Set<string>()
-    for (const r of rules) {
-      if (r.source === 'installed' && !(r as RuleSummary & { deleted_at?: string | null }).deleted_at) {
-        names.add(r.name)
-      }
-    }
-    return names
-  }, [rules])
+  }, [rules, installedNames, eventFilter, searchText, sourceFilter, hideGobby, hideInstalled])
 
   const handleToggle = useCallback(async (rule: RuleSummary) => {
     await toggleRule(rule.name, !rule.enabled)

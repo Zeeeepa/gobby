@@ -149,11 +149,12 @@ interface AgentsTabProps {
   refreshKey?: number
   projectId?: string
   hideGobby?: boolean
+  hideInstalled?: boolean
   filterProvider: string
   onProvidersChange: (providers: string[]) => void
 }
 
-export function AgentsTab({ searchText, sourceFilter, devMode, showCreateForm, onToggleCreateForm, refreshKey = 0, projectId, hideGobby, filterProvider, onProvidersChange }: AgentsTabProps) {
+export function AgentsTab({ searchText, sourceFilter, devMode, showCreateForm, onToggleCreateForm, refreshKey = 0, projectId, hideGobby, hideInstalled, filterProvider, onProvidersChange }: AgentsTabProps) {
   const { running, recentRuns, cancelAgent } = useAgentRuns()
   const [definitions, setDefinitions] = useState<AgentDefInfo[]>([])
   const [loading, setLoading] = useState(true)
@@ -232,6 +233,16 @@ export function AgentsTab({ searchText, sourceFilter, devMode, showCreateForm, o
       .catch(e => console.error('Failed to fetch model list:', e))
   }, [])
 
+  const installedNames = useMemo(() => {
+    const names = new Set<string>()
+    for (const d of definitions) {
+      if (d.source === 'installed' && !d.deleted_at) {
+        names.add(d.definition.name)
+      }
+    }
+    return names
+  }, [definitions])
+
   const filtered = useMemo(() => definitions.filter(d => {
     // Hide gobby-tagged items
     if (hideGobby && d.tags && d.tags.includes('gobby')) return false
@@ -246,6 +257,7 @@ export function AgentsTab({ searchText, sourceFilter, devMode, showCreateForm, o
       if (!d.deleted_at) return false
     }
 
+    if (hideInstalled && installedNames.has(d.definition.name)) return false
     if (filterProvider !== 'all' && d.definition.provider !== filterProvider) return false
     if (searchText.trim()) {
       const q = searchText.toLowerCase()
@@ -257,17 +269,7 @@ export function AgentsTab({ searchText, sourceFilter, devMode, showCreateForm, o
       ) return false
     }
     return true
-  }), [definitions, sourceFilter, filterProvider, searchText, hideGobby])
-
-  const installedNames = useMemo(() => {
-    const names = new Set<string>()
-    for (const d of definitions) {
-      if (d.source === 'installed' && !d.deleted_at) {
-        names.add(d.definition.name)
-      }
-    }
-    return names
-  }, [definitions])
+  }), [definitions, installedNames, sourceFilter, filterProvider, searchText, hideGobby, hideInstalled])
 
   const providers = useMemo(
     () => [...new Set(definitions.map(d => d.definition.provider))].sort(),
