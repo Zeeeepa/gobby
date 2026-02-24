@@ -697,11 +697,30 @@ def load_config(
         ValueError: If configuration is invalid or required fields are missing
     """
     if config_store is not None:
-        # Phase 2: DB-first — Pydantic defaults fill gaps, DB overrides on top.
+        # Phase 2: bootstrap → config file → DB → Pydantic defaults.
+        # Each layer overrides the previous one.
+        from gobby.config.bootstrap import load_bootstrap
         from gobby.storage.config_store import unflatten_config
 
-        config_dict: dict[str, Any] = {}
+        # Layer 1: bootstrap values (ports, db_path, bind_host)
+        bootstrap = load_bootstrap(config_file)
+        config_dict: dict[str, Any] = bootstrap.to_config_dict()
 
+        # Layer 2: config file values (non-bootstrap settings like test_mode,
+        # memory, logging, etc.). Only read if config_file points to a full
+        # config YAML (not bootstrap.yaml itself).
+        if config_file:
+            config_path = Path(config_file)
+            if config_path.exists() and config_path.name != "bootstrap.yaml":
+                try:
+                    with open(config_path) as f:
+                        file_dict = yaml.safe_load(f)
+                    if isinstance(file_dict, dict):
+                        deep_merge(config_dict, file_dict)
+                except Exception as e:
+                    logger.warning(f"Failed to read config file {config_path}: {e}")
+
+        # Layer 3: DB values (runtime overrides via config_store)
         flat_db = config_store.get_all()
         if flat_db:
             db_dict = unflatten_config(flat_db)
@@ -710,7 +729,8 @@ def load_config(
                 isinstance(v, str) and ("$secret:" in v or "${" in v) for v in flat_db.values()
             ):
                 db_dict = _resolve_config_values(db_dict, secret_resolver)
-            config_dict = db_dict
+            # Deep merge: DB values override config file and bootstrap
+            deep_merge(config_dict, db_dict)
     else:
         # Phase 1: bootstrap.yaml for pre-DB settings (database_path, ports)
         from gobby.config.bootstrap import load_bootstrap

@@ -187,8 +187,9 @@ class GobbyRunner:
         if hasattr(self.config, "memory"):
             try:
                 # Create VectorStore (async initialize() called during startup)
+                gobby_home = Path(os.environ.get("GOBBY_HOME", str(Path.home() / ".gobby")))
                 qdrant_path = self.config.memory.qdrant_path or str(
-                    Path.home() / ".gobby" / "services" / "qdrant"
+                    gobby_home / "services" / "qdrant"
                 )
                 self.vector_store = VectorStore(
                     path=qdrant_path if not self.config.memory.qdrant_url else None,

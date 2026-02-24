@@ -346,6 +346,18 @@ conductor:
 """
 
     config_path.write_text(config_content)
+
+    # Write bootstrap.yaml so the runner picks up ports and db_path
+    # (load_config Phase 1 reads bootstrap.yaml, not config.yaml)
+    bootstrap_path = gobby_home / "bootstrap.yaml"
+    bootstrap_content = f"""
+daemon_port: {http_port}
+database_path: "{db_path}"
+bind_host: localhost
+websocket_port: {ws_port}
+"""
+    bootstrap_path.write_text(bootstrap_content)
+
     yield config_path, http_port, ws_port
 
 
