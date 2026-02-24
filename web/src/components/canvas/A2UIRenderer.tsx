@@ -14,6 +14,8 @@ import { A2UIImage } from './components/A2UIImage';
 import { A2UIIcon } from './components/A2UIIcon';
 import { A2UIBadge } from './components/A2UIBadge';
 
+const MAX_RENDER_DEPTH = 20;
+
 const COMPONENT_MAP: Record<string, React.FC<any>> = {
   Text: A2UIText,
   Button: A2UIButton,
@@ -53,7 +55,12 @@ export const RenderComponent: React.FC<{
   onAction: (action: UserAction) => void;
   updateField: (path: string, value: any) => void;
   completed: boolean;
-}> = ({ componentId, surface, dataModel, onAction, updateField, completed }) => {
+  depth?: number;
+}> = ({ componentId, surface, dataModel, onAction, updateField, completed, depth = 0 }) => {
+  if (depth > MAX_RENDER_DEPTH) {
+    return <div className="p-2 bg-destructive/10 text-destructive text-xs rounded">Max render depth exceeded</div>;
+  }
+
   const def = surface[componentId];
   if (!def) return null;
 
@@ -64,7 +71,7 @@ export const RenderComponent: React.FC<{
 
   return (
     <CanvasErrorBoundary>
-      <Component 
+      <Component
         componentId={componentId}
         def={def}
         surface={surface}
@@ -72,6 +79,7 @@ export const RenderComponent: React.FC<{
         onAction={onAction}
         updateField={updateField}
         completed={completed}
+        depth={depth}
       />
     </CanvasErrorBoundary>
   );
@@ -84,7 +92,8 @@ export const RenderChildren: React.FC<{
   onAction: (action: UserAction) => void;
   updateField?: (path: string, value: any) => void;
   completed: boolean;
-}> = ({ childrenSpec, surface, dataModel, onAction, updateField = () => {}, completed }) => {
+  depth?: number;
+}> = ({ childrenSpec, surface, dataModel, onAction, updateField = () => {}, completed, depth = 0 }) => {
   if (!childrenSpec?.explicitList) return null;
 
   return (
@@ -98,6 +107,7 @@ export const RenderChildren: React.FC<{
           onAction={onAction}
           updateField={updateField}
           completed={completed}
+          depth={depth + 1}
         />
       ))}
     </>

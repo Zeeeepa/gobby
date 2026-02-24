@@ -23,60 +23,95 @@ Use the canvas when you need to:
 
 The canvas tools are available through the `gobby-canvas` (or internal MCP) server:
 
-1. `render_surface`: Renders a declarative JSON UI. Pass the root `A2UIComponentDef` tree and an initial `data_model`.
+1. `render_surface`: Renders a declarative JSON UI. Pass a flat `components` map (keyed by component ID), a `root_id`, and an initial `data_model`.
 2. `update_surface`: Patches an existing canvas with new components or data.
 3. `wait_for_interaction`: Pauses execution until the user interacts with the canvas (e.g., clicking a submit button). Returns the action name and the updated data model.
 4. `close_canvas`: Manually closes/completes the canvas when interaction is done.
-5. `canvas_present`: Checks if a canvas is currently active for this session.
+5. `canvas_present`: Present a local HTML file in the Canvas panel sandbox (iframe).
 
 ## A2UI Component System
 
-A2UI is a declarative JSON layout system. Key components include:
-- Layouts: `A2UIColumn`, `A2UIRow`, `A2UICard`
-- Inputs: `A2UITextField`, `A2UICheckBox`
-- Displays: `A2UIText`, `A2UIBadge`, `A2UIIcon`
-- Actions: `A2UIButton`
+A2UI is a declarative JSON layout system. Components are defined in a flat surface map keyed by unique component IDs. Parent components reference children by ID via `children: { explicitList: ["child-id-1", "child-id-2"] }`.
 
-Bindings use JSON pointers (e.g., `#/user/name`).
+Key components:
+- Layouts: `Column`, `Row`, `Card`, `List`
+- Inputs: `TextField`, `CheckBox`
+- Displays: `Text`, `Badge`, `Icon`, `Image`
+- Actions: `Button`
+
+### Data Binding
+
+Text and labels use `BoundValue` objects:
+- Literal text: `{ "literalString": "Hello" }`
+- Data-bound: `{ "path": "user/name" }` (resolves from the `data_model`)
+
+### Actions
+
+Buttons define actions as: `"actions": [{ "name": "action_name", "context": { "key": { "path": "field/path" } } }]`
 
 ## Example Workflow
 
-```python
-# 1. Render a form
-result = call_tool("gobby-canvas", "render_surface", {
-    "root_component": {
-        "type": "A2UICard",
-        "label": "Configuration",
-        "children": [
-            {
-                "type": "A2UITextField",
-                "label": "Username",
-                "bind": "#/username"
-            },
-            {
-                "type": "A2UIButton",
-                "label": "Save",
-                "action": "save_config",
-                "style": "primary"
-            }
-        ]
+```json
+// 1. Define a flat component surface map
+{
+  "components": {
+    "root": {
+      "type": "Card",
+      "label": { "literalString": "Configuration" },
+      "children": { "explicitList": ["username-field", "save-btn"] }
     },
-    "data_model": {"username": "admin"}
-})
+    "username-field": {
+      "type": "TextField",
+      "label": { "literalString": "Username" },
+      "value": { "path": "username" }
+    },
+    "save-btn": {
+      "type": "Button",
+      "label": { "literalString": "Save" },
+      "actions": [{ "name": "save_config", "context": { "username": { "path": "username" } } }]
+    }
+  },
+  "root_id": "root",
+  "data_model": { "username": "admin" },
+  "blocking": true,
+  "timeout": 300
+}
+```
 
-canvas_id = result.get("canvas_id")
-
-# 2. Wait for user to click Save
-interaction = call_tool("gobby-canvas", "wait_for_interaction", {
-    "canvas_id": canvas_id,
+```python
+# 1. Render the surface
+result = call_tool("gobby-canvas", "render_surface", {
+    "components": {
+        "root": {
+            "type": "Card",
+            "label": {"literalString": "Configuration"},
+            "children": {"explicitList": ["username-field", "save-btn"]}
+        },
+        "username-field": {
+            "type": "TextField",
+            "label": {"literalString": "Username"},
+            "value": {"path": "username"}
+        },
+        "save-btn": {
+            "type": "Button",
+            "label": {"literalString": "Save"},
+            "actions": [{"name": "save_config", "context": {"username": {"path": "username"}}}]
+        }
+    },
+    "root_id": "root",
+    "data_model": {"username": "admin"},
+    "blocking": True,
     "timeout": 300
 })
 
-if interaction.get("action") == "save_config":
-    user_data = interaction.get("data")
-    username = user_data.get("username")
+# blocking=True means render_surface waits for interaction and returns the result directly
+canvas_id = result.get("canvas_id")
+action = result.get("action")
+
+if action and action.get("name") == "save_config":
+    username = action.get("context", {}).get("username")
     # Process the data...
-    
-    # 3. Close the canvas
+
+    # 2. Close the canvas
     call_tool("gobby-canvas", "close_canvas", {"canvas_id": canvas_id})
 ```

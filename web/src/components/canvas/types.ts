@@ -54,6 +54,7 @@ export interface A2UIComponentProps {
   onAction: (action: UserAction) => void;
   updateField: (path: string, value: any) => void;
   completed: boolean;
+  depth?: number;
 }
 
 // Utility functions

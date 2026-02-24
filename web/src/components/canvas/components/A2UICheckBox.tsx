@@ -1,7 +1,7 @@
 import React from 'react';
 import { A2UIComponentProps, resolveBoundValue } from '../types';
 
-export const A2UICheckBox: React.FC<A2UIComponentProps> = ({ def, dataModel, updateField, completed }) => {
+export const A2UICheckBox: React.FC<A2UIComponentProps> = ({ componentId, def, dataModel, updateField, completed }) => {
   const label = resolveBoundValue(def.label, dataModel);
   
   // Data binding
@@ -18,7 +18,7 @@ export const A2UICheckBox: React.FC<A2UIComponentProps> = ({ def, dataModel, upd
     <div className="flex items-center space-x-2">
       <input
         type="checkbox"
-        id={`checkbox-${def.id}`}
+        id={`checkbox-${componentId}`}
         checked={checked}
         onChange={handleChange}
         disabled={completed || def.disabled}
@@ -26,7 +26,7 @@ export const A2UICheckBox: React.FC<A2UIComponentProps> = ({ def, dataModel, upd
       />
       {label && (
         <label
-          htmlFor={`checkbox-${def.id}`}
+          htmlFor={`checkbox-${componentId}`}
           className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
         >
           {label}

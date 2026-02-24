@@ -16,6 +16,7 @@ from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any
 
+from gobby.cli.utils import get_gobby_home
 from gobby.mcp_proxy.tools.internal import InternalToolRegistry
 
 logger = logging.getLogger(__name__)
@@ -117,6 +118,7 @@ def sweep_expired() -> int:
     expired_ids = [cid for cid, canvas in _canvases.items() if canvas.expires_at < now]
     for cid in expired_ids:
         canvas = _canvases.pop(cid)
+        _cleanup_html_file(canvas)
         if not canvas.completed:
             canvas.completed = True
             canvas.interaction_result = {"error": "timeout"}
@@ -124,6 +126,19 @@ def sweep_expired() -> int:
                 canvas.pending_event.set()
         _canvas_locks.pop(cid, None)
     return len(expired_ids)
+
+
+def _cleanup_html_file(canvas: CanvasState) -> None:
+    """Delete the copied HTML file for an html-mode canvas."""
+    if canvas.mode != "html" or not canvas.html_url:
+        return
+    # html_url is like /__gobby__/canvas/{uuid}.html — extract the filename
+    filename = canvas.html_url.rsplit("/", 1)[-1]
+    file_path = get_gobby_home() / "canvas" / filename
+    try:
+        file_path.unlink(missing_ok=True)
+    except OSError as e:
+        logger.warning(f"Failed to clean up canvas HTML file {file_path}: {e}")
 
 
 def _check_rate_limit(conversation_id: str) -> bool:
@@ -335,6 +350,8 @@ def create_canvas_registry(
         if state.pending_event:
             state.pending_event.set()
 
+        _cleanup_html_file(state)
+
         bc = _broadcaster_ref["func"]
         if bc:
             await bc(
@@ -405,7 +422,7 @@ def create_canvas_registry(
         # usually ~/.gobby/canvas
         # but since we are copying, we'll need to know where it is or use /tmp and have HTTP mount it.
         # Let's use ~/.gobby/canvas
-        gobby_canvas_dir = Path.home() / ".gobby" / "canvas"
+        gobby_canvas_dir = get_gobby_home() / "canvas"
         gobby_canvas_dir.mkdir(parents=True, exist_ok=True)
 
         target_name = f"{uuid.uuid4().hex}.html"
