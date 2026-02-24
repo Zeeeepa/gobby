@@ -39,8 +39,8 @@ _BASH_WRITE_PATTERNS = re.compile(
     r"|sed\s+-i\b|pip\s+install\b|npm\s+install\b|yarn\s+add\b"
     r"|git\s+(?:add|commit|push|reset|clean|checkout|merge|rebase|cherry-pick)\b"
     r")"
-    r"|>\s*[^\s]"  # output redirection
-    r"|>>\s*[^\s]",  # append redirection
+    r"|(?<![0-9&])>\s*[^\s&]"  # output redirection (not 2>/dev/null, &>/dev/null)
+    r"|(?<![0-9&])>>\s*[^\s]",  # append redirection (not 2>>, &>>)
     re.MULTILINE,
 )
 
