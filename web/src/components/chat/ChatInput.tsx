@@ -168,7 +168,7 @@ export function ChatInput({
           <div className="mb-2 rounded-lg border border-border bg-muted overflow-hidden max-h-48 overflow-y-auto">
             {filteredCommands.map((cmd, i) => (
               <div
-                key={`${cmd.server}.${cmd.tool}`}
+                key={cmd.name}
                 className={cn(
                   'px-3 py-2 text-sm cursor-pointer',
                   i === selectedIndex ? 'bg-accent/20 text-foreground' : 'text-muted-foreground hover:bg-muted'

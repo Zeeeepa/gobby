@@ -24,7 +24,7 @@ export function CommandPalette({ commands, selectedIndex, onSelect }: CommandPal
     <div className="command-palette" ref={listRef}>
       {commands.map((cmd, i) => (
         <div
-          key={`${cmd.server}.${cmd.tool}-${cmd.name}`}
+          key={cmd.name}
           className={`command-item ${i === selectedIndex ? 'command-item-selected' : ''}`}
           onMouseDown={(e) => {
             e.preventDefault() // prevent textarea blur

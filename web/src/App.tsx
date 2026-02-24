@@ -14,6 +14,7 @@ import { ChatPage } from './components/chat/ChatPage'
 import { LoginPage } from './components/auth/LoginPage'
 import { ProjectSelector } from './components/ProjectSelector'
 import { QuickCaptureTask } from './components/tasks/QuickCaptureTask'
+import { SlashCommandModal } from './components/command-browser/SlashCommandModal'
 import type { GobbySession } from './hooks/useSessions'
 
 // Lazy-load non-default page components for code splitting
@@ -92,7 +93,8 @@ export default function App() {
   const { settings, updateFontSize, updateModel, updateChatMode, updateTheme, resetSettings } = useSettings()
   const { agents, refreshAgents } = useTerminal()
   const tmux = useTmuxSessions()
-  const { filteredCommands, parseCommand, filterCommands } = useSlashCommands()
+  const { filteredCommands, filterCommands } = useSlashCommands()
+  const [activeModal, setActiveModal] = useState<'skills' | 'gobby' | 'mcp' | null>(null)
   const sessionsHook = useSessions()
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [activeTab, setActiveTab] = useState<string>('chat')
@@ -274,38 +276,10 @@ export default function App() {
     // else: no sessions for this project — keep fresh UUID, user starts new chat
   }, [effectiveProjectId, sessionsHook.isLoading, webChatSessions, conversationId, switchConversation])
 
-  // Wrap sendMessage to include the selected model and handle slash commands
+  // Wrap sendMessage to include the selected model
   const handleSendMessage = useCallback((content: string, files?: QueuedFile[]) => {
-    // Check for slash command first
-    const cmd = parseCommand(content)
-    if (cmd) {
-      // Intercept local commands
-      if (cmd.server === '_local') {
-        if (cmd.tool === 'open_settings') {
-          setSettingsOpen(true)
-          return
-        } else if (cmd.tool === 'clear_history') {
-          clearHistory()
-          return
-        } else if (cmd.tool === 'compact_chat') {
-          // Send /compact as a regular message — the SDK handles it natively
-          sendMessage('/compact', settings.model, undefined, effectiveProjectId)
-          return
-        } else if (cmd.tool === 'show_plan') {
-          if (settings.chatMode !== 'plan') {
-            updateChatMode('plan')
-            sendMode('plan')
-          }
-          showPlanRef.current?.()
-          return
-        }
-        return
-      }
-      executeCommand(cmd.server, cmd.tool, cmd.args)
-      return
-    }
     sendMessage(content, settings.model, files, effectiveProjectId)
-  }, [parseCommand, executeCommand, sendMessage, clearHistory, settings.model, effectiveProjectId])
+  }, [sendMessage, settings.model, effectiveProjectId])
 
   // Chat page: only web-chat sessions are selectable
   const handleSelectConversation = useCallback((session: GobbySession) => {
@@ -392,25 +366,24 @@ export default function App() {
     filterCommands(value)
   }, [filterCommands])
 
-  const handleCommandSelect = useCallback((cmd: { server: string; tool: string; isLocal?: boolean; action?: string }) => {
-    if (cmd.server === '_local') {
-      if (cmd.action === 'open_settings' || cmd.tool === 'open_settings') {
-        setSettingsOpen(true)
-      } else if (cmd.action === 'clear_history' || cmd.tool === 'clear_history') {
-        clearHistory()
-      } else if (cmd.action === 'compact_chat' || cmd.tool === 'compact_chat') {
-        sendMessage('/compact', settings.model, undefined, effectiveProjectId)
-      } else if (cmd.action === 'show_plan' || cmd.tool === 'show_plan') {
-        if (settings.chatMode !== 'plan') {
-          updateChatMode('plan')
-          sendMode('plan')
-        }
-        showPlanRef.current?.()
-      }
+  const handleCommandSelect = useCallback((cmd: { name: string; action: string }) => {
+    if (cmd.action === 'open_skills') { setActiveModal('skills'); return }
+    if (cmd.action === 'open_gobby') { setActiveModal('gobby'); return }
+    if (cmd.action === 'open_mcp') { setActiveModal('mcp'); return }
+    if (cmd.action === 'open_settings') { setSettingsOpen(true); return }
+    if (cmd.action === 'clear_history') { clearHistory(); return }
+    if (cmd.action === 'compact_chat') {
+      sendMessage('/compact', settings.model, undefined, effectiveProjectId)
       return
     }
-    executeCommand(cmd.server, cmd.tool)
-  }, [executeCommand, clearHistory, sendMessage, settings.model, effectiveProjectId, updateChatMode, sendMode])
+    if (cmd.action === 'show_plan') {
+      if (settings.chatMode !== 'plan') {
+        updateChatMode('plan')
+        sendMode('plan')
+      }
+      showPlanRef.current?.()
+    }
+  }, [clearHistory, sendMessage, settings.model, effectiveProjectId, updateChatMode, sendMode])
 
   // Auth guard — shown after all hooks (React rules)
   if (authLoading) {
@@ -609,6 +582,21 @@ export default function App() {
       <QuickCaptureTask
         isOpen={quickCaptureOpen}
         onClose={() => setQuickCaptureOpen(false)}
+      />
+
+      <SlashCommandModal
+        modal={activeModal}
+        onClose={() => setActiveModal(null)}
+        onExecuteTool={(server, tool, args) => {
+          const strArgs: Record<string, string> = {}
+          for (const [k, v] of Object.entries(args)) {
+            if (v !== undefined && v !== null) strArgs[k] = typeof v === 'string' ? v : JSON.stringify(v)
+          }
+          executeCommand(server, tool, strArgs)
+        }}
+        onRunSkill={(skillName) => {
+          sendMessage(`/skill:${skillName}`, settings.model, undefined, effectiveProjectId)
+        }}
       />
 
       {toastMessage && (
