@@ -81,6 +81,40 @@ async def rebuild_vector_store(
         logger.error(f"VectorStore rebuild failed: {e}")
 
 
+async def cleanup_zombie_messages_loop(
+    db: Any,
+    is_shutdown_requested: Callable[[], bool],
+    interval_hours: int = 6,
+    ttl_hours: int = 48,
+) -> None:
+    """Expire undelivered messages to dead/expired sessions.
+
+    Marks undelivered inter-session messages as delivered when their target
+    session has been closed/expired for longer than ``ttl_hours``.  This
+    prevents the require-read-mail rule from blocking a session that will
+    never read its mail.
+    """
+    interval_seconds = interval_hours * 3600
+
+    while not is_shutdown_requested():
+        try:
+            await asyncio.sleep(interval_seconds)
+            expired = db.execute(
+                "UPDATE inter_session_messages SET delivered_at = datetime('now') "
+                "WHERE delivered_at IS NULL AND to_session IN ("
+                "  SELECT id FROM sessions WHERE status IN ('closed', 'expired') "
+                "  AND ended_at < datetime('now', ? || ' hours')"
+                ")",
+                (f"-{ttl_hours}",),
+            )
+            if expired.rowcount:
+                logger.info(f"Expired {expired.rowcount} zombie messages")
+        except asyncio.CancelledError:
+            break
+        except Exception as e:
+            logger.error(f"Error in zombie message cleanup loop: {e}")
+
+
 def setup_signal_handlers(shutdown_callback: Callable[[], None]) -> None:
     """Register SIGTERM/SIGINT handlers to trigger graceful shutdown."""
     loop = asyncio.get_running_loop()

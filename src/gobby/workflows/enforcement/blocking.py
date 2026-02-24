@@ -25,6 +25,24 @@ DISCOVERY_TOOLS = {
 }
 
 
+MESSAGE_DELIVERY_TOOLS = {"deliver_pending_messages"}
+
+
+def is_message_delivery_tool(tool_name: str | None) -> bool:
+    """Check if the tool is a message delivery tool.
+
+    These tools are allowed through the require-read-mail block so agents
+    can read their pending inter-session messages.
+
+    Args:
+        tool_name: The MCP tool name (from event.data.mcp_tool)
+
+    Returns:
+        True if this is a message delivery tool
+    """
+    return tool_name in MESSAGE_DELIVERY_TOOLS if tool_name else False
+
+
 def is_discovery_tool(tool_name: str | None) -> bool:
     """Check if the tool is a discovery/introspection tool.
 

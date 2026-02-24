@@ -7,6 +7,7 @@ Five effect types: block, set_variable, inject_context, mcp_call, observe.
 import json
 import logging
 import re
+from collections.abc import Callable
 from datetime import UTC, datetime
 from typing import Any
 
@@ -20,6 +21,7 @@ from gobby.storage.workflow_definitions import (
 from gobby.workflows.definitions import RuleDefinitionBody, RuleEvent
 from gobby.workflows.enforcement.blocking import (
     is_discovery_tool,
+    is_message_delivery_tool,
     is_plan_file,
     is_server_listed,
     is_tool_unlocked,
@@ -106,22 +108,19 @@ class RuleEngine:
             ctx = self._build_eval_context(event, variables, eval_context)
             effect = body.effect
 
+            # Build allowed_funcs once per iteration — shared by condition and templates
+            allowed_funcs = self._build_allowed_funcs(ctx)
+
             # Check `when` condition
             if body.when:
-                if not self._evaluate_condition(body.when, ctx, effect.type):
+                if not self._evaluate_condition(body.when, ctx, effect.type, allowed_funcs):
                     continue
 
             # Apply effect
             if effect.type == "block":
                 if self._should_block(effect, event):
                     block_reason = effect.reason or "Blocked by rule"
-                    # Render Jinja templates in reason (e.g. {{ tool_input.get('server_name') }})
-                    if block_reason and "{{" in block_reason:
-                        try:
-                            engine = TemplateEngine()
-                            block_reason = engine.render(block_reason, ctx)
-                        except Exception as e:
-                            logger.warning(f"Failed to render block reason template: {e}")
+                    block_reason = self._render_template(block_reason, ctx, allowed_funcs)
                     block_reason = f"Rule enforced by Gobby: [{_row.name}]\n{block_reason}"
                     # First block wins — stop evaluating
                     break
@@ -131,24 +130,15 @@ class RuleEngine:
 
             elif effect.type == "inject_context":
                 if effect.template:
-                    template_text = effect.template
-                    if "{{" in template_text:
-                        try:
-                            engine = TemplateEngine()
-                            template_text = engine.render(template_text, ctx)
-                        except Exception as e:
-                            logger.warning(f"Failed to render inject_context template: {e}")
+                    template_text = self._render_template(
+                        effect.template, ctx, allowed_funcs
+                    )
                     context_parts.append(template_text)
 
             elif effect.type == "observe":
                 obs_list = variables.get("_observations", [])
                 msg = effect.message or ""
-                if msg and "{{" in msg:
-                    try:
-                        engine = TemplateEngine()
-                        msg = engine.render(msg, ctx)
-                    except Exception as e:
-                        logger.warning(f"Failed to render observe message template: {e}")
+                msg = self._render_template(msg, ctx, allowed_funcs)
                 obs_list.append(
                     {
                         "category": effect.category or "general",
@@ -238,7 +228,10 @@ class RuleEngine:
             (row, body)
             for row, body in rules
             if body.agent_scope is None
-            or (agent_type is not None and agent_type in body.agent_scope)
+            or (
+                agent_type is not None
+                and ("*" in body.agent_scope or agent_type in body.agent_scope)
+            )
         ]
 
     def _filter_by_active_rules(
@@ -302,8 +295,62 @@ class RuleEngine:
 
         return ctx
 
+    def _build_allowed_funcs(self, ctx: dict[str, Any]) -> dict[str, Callable]:
+        """Build the shared helper-function dict for condition evaluation and template rendering."""
+        variables = ctx.get("variables", {})
+        funcs = build_condition_helpers(context=ctx)
+        funcs["isinstance"] = isinstance
+        funcs["is_server_listed"] = lambda ti: is_server_listed(ti, variables)
+        funcs["is_tool_unlocked"] = lambda ti: is_tool_unlocked(ti, variables)
+        funcs["is_discovery_tool"] = is_discovery_tool
+        funcs["is_plan_file"] = is_plan_file
+        funcs["is_message_delivery_tool"] = is_message_delivery_tool
+        funcs["has_pending_messages"] = self._has_pending_messages
+        funcs["pending_message_count"] = self._pending_message_count
+        return funcs
+
+    def _render_template(
+        self, template: str, ctx: dict[str, Any], allowed_funcs: dict[str, Callable]
+    ) -> str:
+        """Render a Jinja2 template string with eval context and helper functions."""
+        if "{{" not in template:
+            return template
+        try:
+            render_ctx = {**ctx, **allowed_funcs}
+            engine = TemplateEngine()
+            return engine.render(template, render_ctx)
+        except Exception as e:
+            logger.warning(f"Failed to render template: {e}")
+            return template
+
+    def _has_pending_messages(self, session_id: str) -> bool:
+        """O(1) index probe: are there any undelivered messages for this session?"""
+        if not session_id:
+            return False
+        row = self.db.fetchone(
+            "SELECT 1 FROM inter_session_messages "
+            "WHERE to_session = ? AND delivered_at IS NULL LIMIT 1",
+            (session_id,),
+        )
+        return row is not None
+
+    def _pending_message_count(self, session_id: str) -> int:
+        """O(n) count of undelivered messages — only called when a block fires."""
+        if not session_id:
+            return 0
+        row = self.db.fetchone(
+            "SELECT COUNT(*) FROM inter_session_messages "
+            "WHERE to_session = ? AND delivered_at IS NULL",
+            (session_id,),
+        )
+        return row[0] if row else 0
+
     def _evaluate_condition(
-        self, condition: str, context: dict[str, Any], effect_type: str = "block"
+        self,
+        condition: str,
+        context: dict[str, Any],
+        effect_type: str = "block",
+        allowed_funcs: dict[str, Callable] | None = None,
     ) -> bool:
         """Evaluate a `when` condition string using SafeExpressionEvaluator.
 
@@ -311,15 +358,9 @@ class RuleEngine:
         - block effects fail closed (True) — conservative, prevents action
         - other effects fail open (False) — avoids corrupting state or firing unwanted calls
         """
-        variables = context.get("variables", {})
         try:
-            allowed_funcs = build_condition_helpers(context=context)
-            # Rule-engine-specific: progressive disclosure + isinstance
-            allowed_funcs["isinstance"] = isinstance
-            allowed_funcs["is_server_listed"] = lambda ti: is_server_listed(ti, variables)
-            allowed_funcs["is_tool_unlocked"] = lambda ti: is_tool_unlocked(ti, variables)
-            allowed_funcs["is_discovery_tool"] = is_discovery_tool
-            allowed_funcs["is_plan_file"] = is_plan_file
+            if allowed_funcs is None:
+                allowed_funcs = self._build_allowed_funcs(context)
 
             evaluator = SafeExpressionEvaluator(
                 context=context,
