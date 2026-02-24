@@ -781,13 +781,13 @@ export function AgentsTab({ searchText, sourceFilter, devMode, showCreateForm, o
                             <button type="button" className="workflows-action-btn" onClick={() => handleMoveToGlobal(item)} title="Move to global scope">To Global</button>
                           )}
                           <button type="button" className="workflows-action-btn" onClick={() => handleYamlEdit(item)} title="Edit as YAML">YAML</button>
-                          {isDb && item.db_id && (
+                          {item.db_id && (
                             <button type="button" className="workflows-action-btn" onClick={() => handleEdit(item)} title="Edit agent definition">Edit</button>
                           )}
                           <button type="button" className="workflows-action-icon" onClick={() => handleDownload(d.name)} title="Download YAML" aria-label="Download agent as YAML">
                             <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M8 2v9m0 0L5 8m3 3 3-3M2.5 12.5v1a1 1 0 0 0 1 1h9a1 1 0 0 0 1-1v-1" /></svg>
                           </button>
-                          {isDb && item.db_id ? (
+                          {item.db_id ? (
                             <button type="button" className="workflows-action-icon workflows-action-icon--danger" onClick={() => handleDelete(item.db_id!)} title="Delete" aria-label="Delete agent">
                               <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M2.5 4.5h11M5.5 4.5V3a1 1 0 0 1 1-1h3a1 1 0 0 1 1 1v1.5M6.5 7v4.5M9.5 7v4.5" /><path d="M3.5 4.5 4 13a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1l.5-8.5" /></svg>
                             </button>

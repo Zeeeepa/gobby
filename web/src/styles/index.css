@@ -11548,6 +11548,11 @@ details:not([open]) > .session-metadata-toggle .session-metadata-chevron {
   margin-top: 2px;
 }
 
+/* Match pipeline/rule card footer padding (agent-def-card has no padding unlike workflows-card) */
+.agent-def-card > .workflows-card-footer {
+  padding: 10px 16px 16px;
+}
+
 .agent-def-badge {
   font-size: calc(var(--font-size-base) * 0.625);
   padding: 1px 7px;
