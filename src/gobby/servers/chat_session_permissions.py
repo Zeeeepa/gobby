@@ -99,7 +99,17 @@ class ChatSessionPermissionsMixin:
                 )
                 logger.warning("ExitPlanMode timed out for session %s", self.conversation_id)
 
-            decision = self._pending_plan_decision or "approve"
+            if self._pending_plan_decision is None:
+                logger.warning(
+                    "ExitPlanMode resolved without explicit decision for session %s — denying",
+                    self.conversation_id,
+                )
+                self._plan_feedback = (
+                    self._plan_feedback
+                    or "No approval decision received. Please review and approve the plan."
+                )
+
+            decision = self._pending_plan_decision or "request_changes"
             self._pending_plan_event = None
             self._pending_plan_decision = None
 
