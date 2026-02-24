@@ -457,7 +457,9 @@ class LocalSkillManager:
             always_apply: Whether skill should always be injected at session start
             injection_format: How to inject skill (summary, full, content)
             project_id: Project scope (None for global)
-            source: 'template' or 'installed' (default 'installed')
+            source: 'template', 'installed', or 'project' (default 'installed').
+                Auto-set to 'project' when project_id is provided and source
+                is not 'template'.
 
         Returns:
             The created Skill
@@ -465,6 +467,10 @@ class LocalSkillManager:
         Raises:
             ValueError: If a skill with the same name and source exists in scope
         """
+        # Auto-set source to 'project' for project-scoped skills
+        if project_id is not None and source not in ("template",):
+            source = "project"
+
         now = datetime.now(UTC).isoformat()
         skill_id = generate_prefixed_id("skl", f"{name}:{project_id or 'global'}:{source}")
 
@@ -591,7 +597,7 @@ class LocalSkillManager:
             # First try project-scoped skill
             row = self.db.fetchone(
                 f"SELECT * FROM skills WHERE {where} AND project_id = ?",  # nosec B608
-                tuple([*params, project_id]),
+                (*params, project_id),
             )
             # If not found and include_global, try global
             if row is None and include_global:
@@ -626,6 +632,8 @@ class LocalSkillManager:
         enabled: bool | None = None,
         always_apply: bool | None = None,
         injection_format: str | None = None,
+        source: str | None = None,
+        project_id: str | None = _UNSET,
     ) -> Skill:
         """Update an existing skill.
 
@@ -648,6 +656,8 @@ class LocalSkillManager:
             enabled: New enabled state (optional)
             always_apply: New always_apply state (optional)
             injection_format: New injection format (optional)
+            source: New source value ('template', 'installed', 'project') (optional)
+            project_id: New project_id (use _UNSET to leave unchanged, None to clear)
 
         Returns:
             The updated Skill
@@ -709,6 +719,12 @@ class LocalSkillManager:
         if injection_format is not None:
             updates.append("injection_format = ?")
             params.append(injection_format)
+        if source is not None:
+            updates.append("source = ?")
+            params.append(source)
+        if project_id is not _UNSET:
+            updates.append("project_id = ?")
+            params.append(project_id)
 
         if not updates:
             return self.get_skill(skill_id)
@@ -887,6 +903,41 @@ class LocalSkillManager:
                 logger.warning(f"Failed to install template '{template.name}': {e}")
 
         return installed_count
+
+    def move_to_project(self, skill_id: str, project_id: str) -> Skill:
+        """Move a skill to project scope.
+
+        Args:
+            skill_id: The skill ID
+            project_id: Target project ID
+
+        Returns:
+            The updated Skill
+
+        Raises:
+            ValueError: If skill not found or is a template
+        """
+        skill = self.get_skill(skill_id)
+        if skill.source == "template":
+            raise ValueError("Cannot move a template skill")
+        return self.update_skill(skill_id, source="project", project_id=project_id)
+
+    def move_to_installed(self, skill_id: str) -> Skill:
+        """Move a project-scoped skill back to installed scope.
+
+        Args:
+            skill_id: The skill ID
+
+        Returns:
+            The updated Skill
+
+        Raises:
+            ValueError: If skill not found or is a template
+        """
+        skill = self.get_skill(skill_id)
+        if skill.source == "template":
+            raise ValueError("Cannot move a template skill")
+        return self.update_skill(skill_id, source="installed", project_id=None)
 
     def list_skills(
         self,

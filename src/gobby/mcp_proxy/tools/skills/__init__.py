@@ -324,14 +324,14 @@ def create_skills_registry(
 
     @registry.tool(
         name="remove_skill",
-        description="Remove a skill by name or ID. Returns success status and removed skill name.",
+        description="Soft-delete a skill by name or ID. The skill can be restored later with restore_skill.",
     )
     async def remove_skill(
         name: str | None = None,
         skill_id: str | None = None,
     ) -> dict[str, Any]:
         """
-        Remove a skill from the database.
+        Soft-delete a skill (sets deleted_at, can be restored).
 
         Args:
             name: Skill name (used if skill_id not provided)
@@ -362,13 +362,183 @@ def create_skills_registry(
             # Store the name before deletion
             skill_name = skill.name
 
-            # Delete the skill (notifier triggers re-indexing automatically)
+            # Soft-delete the skill (notifier triggers re-indexing automatically)
             storage.delete_skill(skill.id)
 
             return {
                 "success": True,
                 "removed": True,
                 "skill_name": skill_name,
+            }
+        except Exception as e:
+            return {"success": False, "error": str(e)}
+
+    # --- install_from_template tool ---
+
+    @registry.tool(
+        name="install_from_template",
+        description="Create an installed copy from a template skill. Templates are bundled skill definitions; installing creates an active copy.",
+    )
+    async def install_from_template(
+        skill_id: str | None = None,
+        name: str | None = None,
+    ) -> dict[str, Any]:
+        """
+        Install a skill from a template.
+
+        Args:
+            skill_id: Template skill ID (takes precedence over name)
+            name: Template skill name
+
+        Returns:
+            Dict with success status and installed skill info
+        """
+        try:
+            if not skill_id and not name:
+                return {"success": False, "error": "Either name or skill_id is required"}
+
+            skill = None
+            if skill_id:
+                try:
+                    skill = storage.get_skill(skill_id, include_deleted=True)
+                except ValueError:
+                    pass
+
+            if skill is None and name:
+                skill = storage.get_by_name(
+                    name,
+                    project_id=project_id,
+                    source="template",
+                    include_deleted=True,
+                    include_templates=True,
+                )
+
+            if skill is None:
+                return {"success": False, "error": f"Template not found: {skill_id or name}"}
+
+            installed = storage.install_from_template(skill.id)
+            return {
+                "success": True,
+                "installed": True,
+                "skill_id": installed.id,
+                "skill_name": installed.name,
+                "template_id": skill.id,
+            }
+        except Exception as e:
+            return {"success": False, "error": str(e)}
+
+    # --- restore_skill tool ---
+
+    @registry.tool(
+        name="restore_skill",
+        description="Restore a soft-deleted skill.",
+    )
+    async def restore_skill(
+        skill_id: str | None = None,
+        name: str | None = None,
+    ) -> dict[str, Any]:
+        """
+        Restore a soft-deleted skill.
+
+        Args:
+            skill_id: Skill ID (takes precedence over name)
+            name: Skill name
+
+        Returns:
+            Dict with success status and restored skill info
+        """
+        try:
+            if not skill_id and not name:
+                return {"success": False, "error": "Either name or skill_id is required"}
+
+            skill = None
+            if skill_id:
+                try:
+                    skill = storage.get_skill(skill_id, include_deleted=True)
+                except ValueError:
+                    pass
+
+            if skill is None and name:
+                skill = storage.get_by_name(
+                    name,
+                    project_id=project_id,
+                    include_deleted=True,
+                    include_templates=True,
+                )
+
+            if skill is None:
+                return {"success": False, "error": f"Skill not found: {skill_id or name}"}
+
+            if skill.deleted_at is None:
+                return {"success": False, "error": f"Skill '{skill.name}' is not deleted"}
+
+            restored = storage.restore(skill.id)
+            return {
+                "success": True,
+                "restored": True,
+                "skill_id": restored.id,
+                "skill_name": restored.name,
+            }
+        except Exception as e:
+            return {"success": False, "error": str(e)}
+
+    # --- move_to_project tool ---
+
+    @registry.tool(
+        name="move_skill_to_project",
+        description="Move a skill to project scope.",
+    )
+    async def move_skill_to_project(
+        skill_id: str,
+        target_project_id: str,
+    ) -> dict[str, Any]:
+        """
+        Move a skill to project scope.
+
+        Args:
+            skill_id: Skill ID to move
+            target_project_id: Target project ID
+
+        Returns:
+            Dict with success status and moved skill info
+        """
+        try:
+            skill = storage.move_to_project(skill_id, target_project_id)
+            return {
+                "success": True,
+                "skill_id": skill.id,
+                "skill_name": skill.name,
+                "source": skill.source,
+                "project_id": skill.project_id,
+            }
+        except Exception as e:
+            return {"success": False, "error": str(e)}
+
+    # --- move_to_installed tool ---
+
+    @registry.tool(
+        name="move_skill_to_installed",
+        description="Move a project-scoped skill back to installed scope.",
+    )
+    async def move_skill_to_installed(
+        skill_id: str,
+    ) -> dict[str, Any]:
+        """
+        Move a project-scoped skill back to installed scope.
+
+        Args:
+            skill_id: Skill ID to move
+
+        Returns:
+            Dict with success status and moved skill info
+        """
+        try:
+            skill = storage.move_to_installed(skill_id)
+            return {
+                "success": True,
+                "skill_id": skill.id,
+                "skill_name": skill.name,
+                "source": skill.source,
             }
         except Exception as e:
             return {"success": False, "error": str(e)}

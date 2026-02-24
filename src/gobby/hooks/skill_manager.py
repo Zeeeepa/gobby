@@ -32,7 +32,6 @@ def _db_skill_to_parsed(skill: Any) -> ParsedSkill:
     """
     # Extract triggers from metadata
     triggers: list[str] = []
-    audience_config: dict[str, Any] | None = None
     if skill.metadata and isinstance(skill.metadata, dict):
         gobby_meta = skill.metadata.get("gobby", {})
         if isinstance(gobby_meta, dict):
@@ -41,10 +40,6 @@ def _db_skill_to_parsed(skill: Any) -> ParsedSkill:
                 triggers = [str(t) for t in raw_triggers]
             elif isinstance(raw_triggers, str):
                 triggers = [t.strip() for t in raw_triggers.split(",")]
-
-        skillport_meta = skill.metadata.get("skillport", {})
-        if isinstance(skillport_meta, dict) and "audience" in skillport_meta:
-            audience_config = skillport_meta["audience"]
 
     return ParsedSkill(
         name=skill.name,

@@ -48,15 +48,15 @@ class TestHookSkillManager:
         skill_names = [s.name for s in skills]
         assert len(skill_names) > 0  # At least some skills exist
 
-    def test_discover_core_skills_finds_sessions_skill(self) -> None:
-        """Test that discover_core_skills finds the sessions skill."""
+    def test_discover_core_skills_finds_memory_skill(self) -> None:
+        """Test that discover_core_skills finds the memory skill."""
         from gobby.hooks.skill_manager import HookSkillManager
 
         manager = HookSkillManager()
         skills = manager.discover_core_skills()
 
         skill_names = [s.name for s in skills]
-        assert "sessions" in skill_names
+        assert "memory" in skill_names
 
     def test_discovered_skills_have_name_and_content(self) -> None:
         """Test that discovered skills have name and content attributes."""

@@ -1356,6 +1356,7 @@ UPDATE workflow_definitions SET source = 'project' WHERE source = 'installed' AN
         "Add source and deleted_at columns to skills table for template pattern",
         """ALTER TABLE skills ADD COLUMN source TEXT DEFAULT 'installed';
 ALTER TABLE skills ADD COLUMN deleted_at TEXT;
+UPDATE skills SET source = 'project' WHERE project_id IS NOT NULL;
 UPDATE skills SET source = 'installed' WHERE source IS NULL;
 DROP INDEX IF EXISTS idx_skills_name_project;
 DROP INDEX IF EXISTS idx_skills_name_global;
